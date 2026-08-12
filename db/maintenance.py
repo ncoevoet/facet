@@ -12,6 +12,8 @@ import sqlite3
 from datetime import datetime
 from io import BytesIO
 
+from db.connection import apply_pragmas
+
 logger = logging.getLogger("facet.db_maintenance")
 
 _PATH_PRESENT = 'present'
@@ -65,6 +67,11 @@ def vacuum_database(db_path='photo_scores_pro.db', verbose=True):
         logger.info("  Before: %.2f MB", old_size / 1024 / 1024)
 
     conn = sqlite3.connect(db_path)
+    # busy_timeout lets VACUUM wait for a concurrent viewer reader instead of
+    # failing instantly with "database is locked"; isolation_level=None keeps
+    # VACUUM out of an implicit transaction (it cannot run inside one).
+    conn.isolation_level = None
+    apply_pragmas(conn)
     conn.execute("VACUUM")
     conn.close()
 
@@ -92,6 +99,7 @@ def analyze_database(db_path='photo_scores_pro.db', verbose=True):
         logger.info("Running ANALYZE on %s...", db_path)
 
     conn = sqlite3.connect(db_path)
+    apply_pragmas(conn)  # busy_timeout so ANALYZE waits out a concurrent reader
     conn.execute("ANALYZE")
     conn.close()
 
@@ -381,6 +389,10 @@ def cleanup_orphaned_persons(db_path='photo_scores_pro.db', verbose=True):
         logger.info("Cleaning up orphaned persons in %s...", db_path)
 
     conn = sqlite3.connect(db_path)
+    # foreign_keys=ON so deleting a person cascades to rejected_merge_suggestions
+    # (its person_a_id/person_b_id FKs are ON DELETE CASCADE); without it those
+    # dismissed-merge rows would be left orphaned. busy_timeout comes along too.
+    apply_pragmas(conn)
     cursor = conn.cursor()
 
     # Count orphaned persons before deletion
@@ -697,6 +709,46 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         if verbose:
             count = dest_conn.execute("SELECT COUNT(*) FROM main.user_preferences").fetchone()[0]
             logger.info("  Synced user preferences (%d rows)", count)
+
+    # --- Sync photos_vec (sqlite-vec KNN index; no FK/trigger, hand-synced) ---
+    # The viewer DB nulls out photos.clip_embedding, so photos_vec is the ONLY
+    # place embeddings survive on the deployment — the NumPy search fallback has
+    # no data there. An incremental export that added new photos but left the
+    # vec index untouched made those photos invisible to semantic search while
+    # the index still looked healthy. Mirror the photos delta into it: drop the
+    # deleted paths, add the new ones from src (which keeps clip_embedding).
+    from db.connection import HAS_SQLITE_VEC, load_sqlite_vec
+    if HAS_SQLITE_VEC and 'photos_vec' in dest_tables:
+        load_sqlite_vec(dest_conn)
+        try:
+            for i in range(0, len(deleted_paths), batch_size):
+                chunk = deleted_paths[i:i + batch_size]
+                placeholders = ','.join('?' * len(chunk))
+                dest_conn.execute(
+                    f"DELETE FROM main.photos_vec WHERE path IN ({placeholders})", chunk)
+            for i in range(0, len(new_paths), batch_size):
+                chunk = new_paths[i:i + batch_size]
+                placeholders = ','.join('?' * len(chunk))
+                records = dest_conn.execute(
+                    f"SELECT path, clip_embedding FROM src.photos "
+                    f"WHERE path IN ({placeholders}) AND clip_embedding IS NOT NULL",
+                    chunk,
+                ).fetchall()
+                if records:
+                    # DELETE-then-INSERT (vec0 has no OR REPLACE/IGNORE); new
+                    # paths are not yet in the index, so this is just an insert.
+                    dest_conn.execute(
+                        f"DELETE FROM main.photos_vec WHERE path IN ({placeholders})", chunk)
+                    dest_conn.executemany(
+                        "INSERT INTO main.photos_vec (path, embedding) VALUES (?, ?)",
+                        records)
+            dest_conn.commit()
+            if verbose and (new_paths or deleted_paths):
+                logger.info("  Synced photos_vec (+%d, -%d)", len(new_paths), len(deleted_paths))
+        except sqlite3.Error as ex:
+            logger.warning(
+                "Could not sync photos_vec in viewer export "
+                "(rebuild with --populate-vec): %s", ex)
 
     # --- Clear stats_cache (viewer regenerates on demand) ---
     if 'stats_cache' in dest_tables:

@@ -5,6 +5,7 @@ Single source of truth for all table and index definitions.
 """
 
 import logging
+import re
 import sqlite3
 
 from db.connection import apply_pragmas, HAS_SQLITE_VEC
@@ -570,6 +571,25 @@ USER_PREFERENCES_INDEXES = [
     ('idx_user_prefs_rating', 'user_preferences', 'user_id, star_rating'),
 ]
 
+# Authoritative registry of every CREATE INDEX group. init_database creates all
+# of these and db.info.get_schema_info counts them, so the two can never
+# disagree on how many indexes the schema declares (they did before: info
+# under-reported by the scan-runs / recommendation / album / user-preference
+# groups). INDEXES stays first so init can special-case it (the post-create
+# ANALYZE gate keys off idx_moment_confidence).
+ALL_INDEX_GROUPS = [
+    INDEXES,
+    PHOTO_TAGS_INDEXES,
+    COMPARISONS_INDEXES,
+    LEARNED_SCORES_INDEXES,
+    WEIGHT_OPTIMIZATION_RUNS_INDEXES,
+    WEIGHT_CONFIG_SNAPSHOTS_INDEXES,
+    SCAN_RUNS_INDEXES,
+    RECOMMENDATION_HISTORY_INDEXES,
+    ALBUM_INDEXES,
+    USER_PREFERENCES_INDEXES,
+]
+
 # Sticky per-photo scoring context / category override — a side table, not
 # columns on `photos`, because save_photo/save_photos_batch write photos via
 # INSERT OR REPLACE (processing/scorer.py), which would silently wipe any new
@@ -724,6 +744,94 @@ def _migrate_add_missing_columns(conn, table_name, columns):
                         logger.warning("  Could not add %s.%s: %s", table_name, col_name, e)
 
 
+# Every base (non-virtual) table and its column list. The additive-column sweep
+# in init_database walks this registry so a new column added to ANY table lands
+# on upgrade — previously only a subset of tables were swept, so a future column
+# on the others would have been created on fresh DBs but never on existing ones.
+# Virtual tables (photos_fts, photos_vec) are excluded: they are recreated, not
+# ALTERed. Order mirrors the CREATE TABLE order in init_database.
+_MIGRATED_TABLES = [
+    ('photos', PHOTOS_COLUMNS),
+    ('faces', FACES_COLUMNS),
+    ('persons', PERSONS_COLUMNS),
+    ('photo_tags', PHOTO_TAGS_COLUMNS),
+    ('comparisons', COMPARISONS_COLUMNS),
+    ('learned_scores', LEARNED_SCORES_COLUMNS),
+    ('rejected_merge_suggestions', REJECTED_MERGE_SUGGESTIONS_COLUMNS),
+    ('weight_optimization_runs', WEIGHT_OPTIMIZATION_RUNS_COLUMNS),
+    ('stats_cache', STATS_CACHE_COLUMNS),
+    ('weight_config_snapshots', WEIGHT_CONFIG_SNAPSHOTS_COLUMNS),
+    ('recommendation_history', RECOMMENDATION_HISTORY_COLUMNS),
+    ('albums', ALBUMS_COLUMNS),
+    ('album_photos', ALBUM_PHOTOS_COLUMNS),
+    ('album_client_picks', ALBUM_CLIENT_PICKS_COLUMNS),
+    ('location_names', LOCATION_NAMES_COLUMNS),
+    ('user_preferences', USER_PREFERENCES_COLUMNS),
+    ('photo_scoring_overrides', PHOTO_SCORING_OVERRIDES_COLUMNS),
+    ('photo_sequence_overrides', PHOTO_SEQUENCE_OVERRIDES_COLUMNS),
+    ('scan_runs', SCAN_RUNS_COLUMNS),
+    ('scan_failures', SCAN_FAILURES_COLUMNS),
+]
+
+
+def _comparisons_unique_has_user_id(conn):
+    """True if the comparisons UNIQUE constraint already scopes by user_id.
+
+    Reads the stored CREATE SQL rather than guessing from a version stamp, so
+    the recreate below is idempotent regardless of how a DB reached its state.
+    """
+    row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='comparisons'"
+    ).fetchone()
+    if not row or not row[0]:
+        return True  # no table yet — the fresh CREATE already uses the new shape
+    match = re.search(r'unique\s*\(([^)]*)\)', row[0], re.IGNORECASE)
+    return bool(match) and 'user_id' in match.group(1).lower()
+
+
+def _migrate_comparisons_user_id(conn):
+    """Widen comparisons UNIQUE to (photo_a_path, photo_b_path, user_id).
+
+    The original UNIQUE(photo_a_path, photo_b_path) is user-blind, so a second
+    user's INSERT OR REPLACE vote on the same pair evicted the first user's row.
+    SQLite cannot ALTER a constraint, so rebuild the table and copy every row
+    (the old 2-column unique is strictly tighter than the new 3-column one, so
+    no copied row can collide). Guarded by _comparisons_unique_has_user_id, so
+    it is a no-op once applied and safe to re-run. Must run before the
+    comparisons indexes are (re)created in init_database.
+
+    Foreign keys are disabled around the copy (the standard SQLite table-rebuild
+    recipe): the recreate only relocates rows that already existed, so it must
+    preserve them verbatim rather than newly enforcing the photos FK against a
+    row an older, FK-off write may have orphaned.
+    """
+    if _comparisons_unique_has_user_id(conn):
+        return
+    logger.info("Migrating comparisons UNIQUE constraint to include user_id...")
+    old_cols = {r[1] for r in conn.execute("PRAGMA table_info(comparisons)").fetchall()}
+    common = [name for name, _ in COMPARISONS_COLUMNS if name in old_cols]
+    col_list = ', '.join(common)
+
+    fk_on = conn.execute("PRAGMA foreign_keys").fetchone()[0]
+    if fk_on:
+        conn.commit()  # PRAGMA foreign_keys is a no-op inside a transaction
+        conn.execute("PRAGMA foreign_keys=OFF")
+    try:
+        conn.execute("DROP TABLE IF EXISTS comparisons_new")
+        conn.execute(_build_create_table_sql(
+            'comparisons_new', COMPARISONS_COLUMNS,
+            constraints=['UNIQUE(photo_a_path, photo_b_path, user_id)']))
+        conn.execute(
+            f"INSERT INTO comparisons_new ({col_list}) SELECT {col_list} FROM comparisons")
+        conn.execute("DROP TABLE comparisons")
+        conn.execute("ALTER TABLE comparisons_new RENAME TO comparisons")
+    finally:
+        if fk_on:
+            conn.commit()
+            conn.execute("PRAGMA foreign_keys=ON")
+    logger.info("comparisons table rebuilt with user-scoped UNIQUE (rows preserved)")
+
+
 # Schema version stamped into PRAGMA user_version. The additive column sweep
 # (_migrate_add_missing_columns) still bootstraps every DB to the current
 # column shape; this ladder exists ONLY for non-additive ops the sweep cannot
@@ -789,9 +897,6 @@ def init_database(db_path='photo_scores_pro.db'):
         # Create photos table
         conn.execute(_build_create_table_sql('photos', PHOTOS_COLUMNS))
 
-        # Migrate existing tables - add any missing columns
-        _migrate_add_missing_columns(conn, 'photos', PHOTOS_COLUMNS)
-
         # Create faces table with unique constraint
         conn.execute(_build_create_table_sql(
             'faces',
@@ -799,14 +904,8 @@ def init_database(db_path='photo_scores_pro.db'):
             constraints=['UNIQUE(photo_path, face_index)']
         ))
 
-        # Migrate existing faces table - add any missing columns
-        _migrate_add_missing_columns(conn, 'faces', FACES_COLUMNS)
-
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))
-
-        # Migrate existing persons table - add any missing columns (e.g. is_hidden)
-        _migrate_add_missing_columns(conn, 'persons', PERSONS_COLUMNS)
 
         # Create photo_tags lookup table for fast tag queries
         conn.execute(_build_create_table_sql(
@@ -815,11 +914,14 @@ def init_database(db_path='photo_scores_pro.db'):
             constraints=['PRIMARY KEY (photo_path, tag)']
         ))
 
-        # Create comparisons table for pairwise comparison feedback
+        # Create comparisons table for pairwise comparison feedback. The UNIQUE
+        # is user-scoped so one user's vote never clobbers another's; existing
+        # DBs on the old user-blind constraint are rebuilt by
+        # _migrate_comparisons_user_id below.
         conn.execute(_build_create_table_sql(
             'comparisons',
             COMPARISONS_COLUMNS,
-            constraints=['UNIQUE(photo_a_path, photo_b_path)']
+            constraints=['UNIQUE(photo_a_path, photo_b_path, user_id)']
         ))
 
         # Create learned_scores table for Bradley-Terry derived scores
@@ -861,21 +963,18 @@ def init_database(db_path='photo_scores_pro.db'):
 
         # Create albums and album_photos tables
         conn.execute(_build_create_table_sql('albums', ALBUMS_COLUMNS))
-        _migrate_add_missing_columns(conn, 'albums', ALBUMS_COLUMNS)
 
         conn.execute(_build_create_table_sql(
             'album_photos',
             ALBUM_PHOTOS_COLUMNS,
             constraints=['UNIQUE(album_id, photo_path)']
         ))
-        _migrate_add_missing_columns(conn, 'album_photos', ALBUM_PHOTOS_COLUMNS)
 
         conn.execute(_build_create_table_sql(
             'album_client_picks',
             ALBUM_CLIENT_PICKS_COLUMNS,
             constraints=['UNIQUE(album_id, photo_path)']
         ))
-        _migrate_add_missing_columns(conn, 'album_client_picks', ALBUM_CLIENT_PICKS_COLUMNS)
 
         # Create location_names cache table for reverse geocoding
         conn.execute(_build_create_table_sql(
@@ -896,36 +995,37 @@ def init_database(db_path='photo_scores_pro.db'):
         conn.execute(_build_create_table_sql(
             'photo_scoring_overrides', PHOTO_SCORING_OVERRIDES_COLUMNS
         ))
-        _migrate_add_missing_columns(conn, 'photo_scoring_overrides', PHOTO_SCORING_OVERRIDES_COLUMNS)
 
         # Create photo_sequence_overrides table for sticky per-set panorama
         # corrections, which must outlive the detector's clear-and-rewrite pass
         conn.execute(_build_create_table_sql(
             'photo_sequence_overrides', PHOTO_SEQUENCE_OVERRIDES_COLUMNS
         ))
-        _migrate_add_missing_columns(
-            conn, 'photo_sequence_overrides', PHOTO_SEQUENCE_OVERRIDES_COLUMNS)
-
-        # Create photos_vec virtual table for vector search (requires sqlite-vec)
-        if HAS_SQLITE_VEC:
-            _init_vec_table(conn)
 
         # Create scan bookkeeping tables
         conn.execute(_build_create_table_sql('scan_runs', SCAN_RUNS_COLUMNS))
-        _migrate_add_missing_columns(conn, 'scan_runs', SCAN_RUNS_COLUMNS)
         conn.execute(_build_create_table_sql(
             'scan_failures', SCAN_FAILURES_COLUMNS,
             constraints=['PRIMARY KEY (scan_run_id, path)']
         ))
-        for idx_name, table, column_expr in SCAN_RUNS_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
 
-        # Migrate existing tables before index creation - new indexes may
-        # target columns added here (e.g., comparisons.source)
-        _migrate_add_missing_columns(conn, 'comparisons', COMPARISONS_COLUMNS)
-        _migrate_add_missing_columns(conn, 'learned_scores', LEARNED_SCORES_COLUMNS)
+        # Non-additive rebuild before the additive sweep and index creation:
+        # widen the comparisons UNIQUE to include user_id on DBs still carrying
+        # the user-blind constraint (rows preserved, no-op once applied).
+        _migrate_comparisons_user_id(conn)
+
+        # Additive column sweep across EVERY base table (registry-driven, so a
+        # future column on any table lands on upgrade). Runs before index
+        # creation because new indexes may target columns added here (e.g.
+        # comparisons.source), and before the photos_vec init below because that
+        # reads photos.clip_embedding, which the sweep backfills on old DBs.
+        for table_name, columns in _MIGRATED_TABLES:
+            _migrate_add_missing_columns(conn, table_name, columns)
+
+        # Create photos_vec virtual table for vector search (requires sqlite-vec).
+        # After the sweep so detect_embedding_dim can see clip_embedding.
+        if HAS_SQLITE_VEC:
+            _init_vec_table(conn)
 
         # Drop indexes that were superseded by a different shape, so DBs that
         # received the earlier version don't keep a now-unused index. The moment /
@@ -935,7 +1035,10 @@ def init_database(db_path='photo_scores_pro.db'):
         for stale_idx in ('idx_burst_moment', 'idx_burst_learned'):
             conn.execute(f'DROP INDEX IF EXISTS {stale_idx}')
 
-        # Create all indexes
+        # Create the photos-table indexes first so the ANALYZE gate below can
+        # observe idx_moment_confidence, then every other group. All groups come
+        # from the single ALL_INDEX_GROUPS registry that db.info also counts, so
+        # the two can never disagree.
         for idx_name, table, column_expr in INDEXES:
             conn.execute(
                 f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
@@ -955,41 +1058,16 @@ def init_database(db_path='photo_scores_pro.db'):
         if 'idx_moment_confidence' not in analyzed:
             conn.execute("ANALYZE photos")
 
-        # Create photo_tags indexes
-        for idx_name, table, column_expr in PHOTO_TAGS_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
-
-        # Create comparison-related indexes
-        for idx_name, table, column_expr in COMPARISONS_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
-        for idx_name, table, column_expr in LEARNED_SCORES_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
-        for idx_name, table, column_expr in WEIGHT_OPTIMIZATION_RUNS_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
-        for idx_name, table, column_expr in WEIGHT_CONFIG_SNAPSHOTS_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
-        for idx_name, table, column_expr in RECOMMENDATION_HISTORY_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
-        for idx_name, table, column_expr in ALBUM_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
-        for idx_name, table, column_expr in USER_PREFERENCES_INDEXES:
-            conn.execute(
-                f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
-            )
+        # Create every remaining index group (photo_tags, comparisons,
+        # learned_scores, weight-optimization, snapshots, scan_runs,
+        # recommendation_history, albums, user_preferences).
+        for group in ALL_INDEX_GROUPS:
+            if group is INDEXES:
+                continue
+            for idx_name, table, column_expr in group:
+                conn.execute(
+                    f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})'
+                )
 
         # Create FTS5 full-text search table and sync triggers. If a previous
         # narrower schema is detected (caption+tags only), drop it so the

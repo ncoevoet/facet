@@ -14,7 +14,9 @@ from 1 on every pass and would otherwise re-attach an override to an unrelated
 set.
 """
 
-from db.connection import get_connection
+import sqlite3
+
+from db.connection import DEFAULT_DB_PATH, apply_pragmas
 
 _UPSERT_SQL = """
     INSERT INTO photo_sequence_overrides
@@ -29,6 +31,19 @@ _UPSERT_SQL = """
 """
 
 
+def open_connection(db_path=DEFAULT_DB_PATH):
+    """Open a bare connection (with standard pragmas) that the caller closes.
+
+    ``db.connection.get_connection`` is a context manager and cannot be used
+    here: these helpers hand the connection back through ``_connection_for`` and
+    close it themselves in a ``finally``, so they need a real
+    ``sqlite3.Connection``, not the CM object ``get_connection(...)`` returns.
+    """
+    conn = sqlite3.connect(db_path)
+    apply_pragmas(conn)
+    return conn
+
+
 def _connection_for(db):
     """Return ``(connection, owned)`` whether ``db`` is one already or a path/None.
 
@@ -38,7 +53,7 @@ def _connection_for(db):
     """
     if hasattr(db, 'execute'):
         return db, False
-    return get_connection(db), True
+    return open_connection(db if db is not None else DEFAULT_DB_PATH), True
 
 
 def get_sequence_overrides(db, paths=None):

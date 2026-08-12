@@ -17,10 +17,20 @@ from db.schema import (
 
 def migrate_tags_to_lookup(db_path='photo_scores_pro.db', batch_size=10000):
     """
-    Populate the photo_tags lookup table from the existing tags column.
+    (Re)build the photo_tags lookup table from the current tags column.
 
     This enables fast exact-match tag queries instead of slow LIKE '%tag%' scans.
-    Creates a backup before migration and can be safely re-run (uses INSERT OR IGNORE).
+    It is a full resync: the table is cleared first and repopulated from the live
+    photos.tags values, so re-running it after tags change (rescan, XMP import,
+    re-tag) drops tags no longer present and adds new ones. Appending only, as an
+    earlier version did, left readers preferring a stale table with removed tags
+    still in it.
+
+    No DB backup is taken: photo_tags is a derived index fully reconstructible
+    from photos.tags, and this runs under the library lock (database.py holds it
+    for --migrate-tags). The previous naive ``shutil.copy2`` of the whole DB was
+    WAL-unsafe (dropped the -wal/-shm sidecars) and copied the entire multi-GB
+    file on every run with no disk check or rotation.
 
     Args:
         db_path: Path to the SQLite database file
@@ -29,14 +39,6 @@ def migrate_tags_to_lookup(db_path='photo_scores_pro.db', batch_size=10000):
     Returns:
         Tuple of (total_tags_inserted, total_photos_processed)
     """
-    import shutil
-    from datetime import datetime
-
-    # Create backup first
-    backup_path = f"{db_path}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    shutil.copy2(db_path, backup_path)
-    logger.info("Created backup: %s", backup_path)
-
     with get_connection(db_path, row_factory=False) as conn:
         # Ensure table exists
         conn.execute(_build_create_table_sql(
@@ -48,6 +50,10 @@ def migrate_tags_to_lookup(db_path='photo_scores_pro.db', batch_size=10000):
         # Create indexes
         for idx_name, table, column_expr in PHOTO_TAGS_INDEXES:
             conn.execute(f'CREATE INDEX IF NOT EXISTS {idx_name} ON {table}({column_expr})')
+
+        # Full resync: clear the derived table so removed tags don't linger.
+        conn.execute("DELETE FROM photo_tags")
+        conn.commit()
 
         # Get total count
         total = conn.execute(

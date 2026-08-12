@@ -103,15 +103,25 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
             pass
 
         # 5. Person counts (for face recognition dropdown)
+        # Mirror the live /api/filter_options/persons query exactly: exclude
+        # hidden persons and apply the same min_photos / max_persons bounds.
+        # Without this the cached list resurrects hidden persons in the filter
+        # for the cache TTL after --refresh-stats.
         try:
-            persons = conn.execute("""
+            from api.config import VIEWER_CONFIG
+            from db.schema import person_not_hidden_clause
+            min_photos = VIEWER_CONFIG['dropdowns'].get('min_photos_for_person', 1)
+            max_persons = VIEWER_CONFIG['dropdowns']['max_persons']
+            persons = conn.execute(f"""
                 SELECT p.id, p.name, COUNT(DISTINCT f.photo_path) as photo_count
                 FROM persons p
                 JOIN faces f ON f.person_id = p.id
+                WHERE {person_not_hidden_clause('p')}
                 GROUP BY p.id
-                HAVING photo_count > 0
+                HAVING photo_count >= ?
                 ORDER BY photo_count DESC
-            """).fetchall()
+                LIMIT ?
+            """, (min_photos, max_persons)).fetchall()
             person_data = [(r[0], r[1], r[2]) for r in persons]
             stats['persons'] = person_data
             _cache_stat(conn, 'persons', json.dumps(person_data), now)
@@ -298,7 +308,7 @@ def get_cached_stat(db_path='photo_scores_pro.db', key=None, max_age_seconds=300
                 return result
 
         except sqlite3.OperationalError:
-            return None, False if key else {}
+            return (None, False) if key else {}
 
 
 def get_stats_cache_info(db_path='photo_scores_pro.db'):
