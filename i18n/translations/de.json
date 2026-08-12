@@ -38,10 +38,6 @@
       "back": "Zurück",
       "cancel": "Abbrechen",
       "download": "Herunterladen",
-      "edit_location": "Standort bearbeiten",
-      "add_location": "Standort hinzufügen",
-      "gps_click_to_place": "Klicken Sie auf die Karte, um eine Markierung zu setzen",
-      "gps_clear": "Standort entfernen",
       "save": "Speichern",
       "saving": "Wird gespeichert…",
       "load_more": "Mehr laden"
@@ -1419,9 +1415,7 @@
       "clipping_multiplier_hint": "Multipliziert die Überbelichtungsstrafe. 100% = Standard, 150% = strenger, 0% = deaktiviert.",
       "skip_clipping_penalty_hint": "Deaktiviert die Überbelichtungsstrafe. Standard: aktiv für Silhouette.",
       "skip_oversaturation_penalty_hint": "Deaktiviert die Übersättigungsstrafe. Standard: aktiv für Nacht, Astro, Konzert.",
-      "apply_blink_penalty_hint": "Wendet einen Wertungsmultiplikator bei Blinzelerkennung an. Standard: aktiv für Porträtkategorien.",
-      "noise_tolerance_range": "0% = keine Strafe, 100% = volle Strafe (Standard), 200% = doppelte Strafe",
-      "clipping_multiplier_range": "0% = deaktiviert, 100% = Standard, 500% = sehr streng"
+      "apply_blink_penalty_hint": "Wendet einen Wertungsmultiplikator bei Blinzelerkennung an. Standard: aktiv für Porträtkategorien."
     },
     "filters": "Filter",
     "filters_description": "Bedingungen für die Kategoriezuordnung",

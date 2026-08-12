@@ -1415,9 +1415,7 @@
       "clipping_multiplier_hint": "Multiplica la penalización por recorte. 100% = estándar, 150% = más estricto, 0% = desactivado.",
       "skip_clipping_penalty_hint": "Desactiva la penalización de recorte de altas luces. Por defecto: activado para silueta.",
       "skip_oversaturation_penalty_hint": "Desactiva la penalización de sobresaturación. Por defecto: activado para nocturna, astro, concierto.",
-      "apply_blink_penalty_hint": "Aplica un multiplicador de puntuación al detectar parpadeo. Por defecto: activado para categorías de retrato.",
-      "noise_tolerance_range": "0% = sin penalización, 100% = penalización completa (estándar), 200% = doble penalización",
-      "clipping_multiplier_range": "0% = desactivado, 100% = estándar, 500% = muy estricto"
+      "apply_blink_penalty_hint": "Aplica un multiplicador de puntuación al detectar parpadeo. Por defecto: activado para categorías de retrato."
     },
     "filters": "Filtros",
     "filters_description": "Condiciones de asignación de categoría",

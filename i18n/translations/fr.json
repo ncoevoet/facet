@@ -235,8 +235,8 @@
     "ready_to_merge": "Prêt à fusionner",
     "source_label": "Source (sera supprimée)",
     "target_label": "Cible (sera conservée)",
-    "confirm_merge": "Fusionner \"{source}\" dans \"{target}\" ?\n\nCela déplacera tous les visages de \"{source}\" vers \"{target}\" et supprimera \"{source}\".",
-    "confirm_delete": "Supprimer \"{name}\" ?\n\nCela supprimera la personne et désassociera les {count} photos de cette personne. Les visages resteront dans la base de données mais devront être reclusters.",
+    "confirm_merge": "Fusionner \"{source}\" dans \"{target}\" ?\n\nCela déplacera tous les visages de \"{source}\" vers \"{target}\" et supprimera \"{source}\".",
+    "confirm_delete": "Supprimer \"{name}\" ?\n\nCela supprimera la personne et désassociera les {count} photos de cette personne. Les visages resteront dans la base de données mais devront être reclusters.",
     "select_target": "Fusionner les personnes",
     "merge_explanation": "Sélectionnez la personne qui sera la principale.",
     "sort": {
@@ -430,7 +430,7 @@
     "notify": {
       "data_reset": "Les données de comparaison ont été réinitialisées.",
       "recalculate_complete": "Recalcul terminé ! Les catégories et scores ont été mis à jour.",
-      "weights_saved": "Poids sauvegardés pour \"{category}\" ! Cliquez sur \"Recalculer\" pour les appliquer à toutes les photos.",
+      "weights_saved": "Poids sauvegardés pour \"{category}\" ! Cliquez sur \"Recalculer\" pour les appliquer à toutes les photos.",
       "category_changed": "Catégorie changée en {category}"
     },
     "error": {
@@ -1415,9 +1415,7 @@
       "clipping_multiplier_hint": "Multiplie la pénalité d'écrêtage des hautes lumières. 100% = standard, 150% = plus strict, 0% = désactivé.",
       "skip_clipping_penalty_hint": "Désactive la pénalité d'écrêtage des hautes lumières. Par défaut : activé pour silhouette.",
       "skip_oversaturation_penalty_hint": "Désactive la pénalité de sursaturation. Par défaut : activé pour nuit, astro, concert.",
-      "apply_blink_penalty_hint": "Applique un multiplicateur de score en cas de clignement. Par défaut : activé pour les catégories portrait.",
-      "noise_tolerance_range": "0% = pas de pénalité, 100% = pénalité complète (défaut), 200% = double pénalité",
-      "clipping_multiplier_range": "0% = désactivé, 100% = standard (défaut), 500% = très strict"
+      "apply_blink_penalty_hint": "Applique un multiplicateur de score en cas de clignement. Par défaut : activé pour les catégories portrait."
     },
     "filters": "Filtres",
     "filters_description": "Conditions d'affectation à une catégorie",
@@ -1574,14 +1572,14 @@
     "renamed": "Personne renommée",
     "rename_error": "Échec du renommage",
     "confirm_delete_title": "Supprimer la personne",
-    "confirm_delete_message": "Supprimer \"{name}\" ? Toutes les associations de visages seront supprimées.",
+    "confirm_delete_message": "Supprimer \"{name}\" ? Toutes les associations de visages seront supprimées.",
     "deleted": "Personne supprimée",
     "delete_error": "Échec de la suppression",
     "confirm_batch_delete_title": "Supprimer les personnes",
     "confirm_batch_delete_message": "Supprimer {count} personnes sélectionnées ? Toutes les associations de visages seront supprimées.",
     "batch_deleted": "{count} personnes supprimées",
     "confirm_merge_title": "Fusionner les personnes",
-    "confirm_merge_message": "Fusionner \"{source}\" dans \"{target}\" ? Tous les visages seront déplacés vers \"{target}\".",
+    "confirm_merge_message": "Fusionner \"{source}\" dans \"{target}\" ? Tous les visages seront déplacés vers \"{target}\".",
     "merged": "Personnes fusionnées",
     "merge_error": "Échec de la fusion",
     "accept_all": "Tout accepter ({count})",
@@ -1656,7 +1654,7 @@
     "smart_album": "Album intelligent",
     "smart_tooltip": "Album intelligent — rassemble automatiquement les photos correspondant à un filtre enregistré",
     "confirm_delete_title": "Supprimer l'album",
-    "confirm_delete_message": "Supprimer l'album \"{name}\" ? Les photos ne seront pas supprimées.",
+    "confirm_delete_message": "Supprimer l'album \"{name}\" ? Les photos ne seront pas supprimées.",
     "share": "Partager",
     "share_description": "Toute personne disposant de ce lien peut voir l'album.",
     "share_link": "Lien de partage",

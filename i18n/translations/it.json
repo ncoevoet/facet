@@ -1415,9 +1415,7 @@
       "clipping_multiplier_hint": "Moltiplica la penalità di ritaglio. 100% = standard, 150% = più severo, 0% = disattivato.",
       "skip_clipping_penalty_hint": "Disattiva la penalità di ritaglio delle alte luci. Predefinito: attivo per silhouette.",
       "skip_oversaturation_penalty_hint": "Disattiva la penalità di sovrasaturazione. Predefinito: attivo per notturna, astro, concerto.",
-      "apply_blink_penalty_hint": "Applica un moltiplicatore di punteggio al rilevamento di ammiccamento. Predefinito: attivo per le categorie ritratto.",
-      "noise_tolerance_range": "0% = nessuna penalità, 100% = penalità completa (predefinito), 200% = doppia penalità",
-      "clipping_multiplier_range": "0% = disattivato, 100% = standard, 500% = molto severo"
+      "apply_blink_penalty_hint": "Applica un moltiplicatore di punteggio al rilevamento di ammiccamento. Predefinito: attivo per le categorie ritratto."
     },
     "filters": "Filtri",
     "filters_description": "Condizioni di assegnazione alla categoria",
