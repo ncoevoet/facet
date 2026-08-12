@@ -490,19 +490,29 @@ const PEAKING_COLOR = [255, 32, 32] as const;
 const PEAKING_HISTOGRAM_BINS = 256;
 
 /**
- * Paint the in-focus edges of an RGBA frame red and everything else clear.
+ * The gradient field of one frame: the per-pixel magnitudes a threshold is
+ * applied to, and the distribution a threshold is chosen from.
  *
- * A 3x3 Sobel over luma, thresholded at the absolute ``PEAKING_MIN_EDGE``
- * gradient, raised only when the paint would cover more than
- * ``PEAKING_MAX_COVERAGE`` of the frame. Pure over pixel data — the canvas work
- * lives in ``computePeakingOverlay`` — so the decision this makes is testable
- * without a rendering surface.
+ * Separated from the painting so a compare pair can pool its distributions
+ * before either frame is painted — the two frames of a burst must be judged
+ * against one ruler, not each against its own.
  */
-export function peakingEdgeOverlay(
+export interface PeakingField {
+  magnitude: Float32Array;
+  histogram: Uint32Array;
+  /** Pixels the 3x3 window actually visits: what coverage is measured over. */
+  area: number;
+}
+
+/** A 3x3 Sobel over luma. Pure over pixel data — the canvas work lives in
+ *  ``computePeakingOverlay`` — so the decisions built on it are testable
+ *  without a rendering surface. */
+export function peakingGradientField(
   pixels: Uint8ClampedArray, width: number, height: number,
-): Uint8ClampedArray {
-  const out = new Uint8ClampedArray(width * height * 4);
-  if (width < 3 || height < 3) return out;
+): PeakingField {
+  const magnitude = new Float32Array(width * height);
+  const histogram = new Uint32Array(PEAKING_HISTOGRAM_BINS);
+  if (width < 3 || height < 3) return { magnitude, histogram, area: 0 };
 
   const luma = new Float32Array(width * height);
   for (let i = 0; i < luma.length; i++) {
@@ -510,8 +520,6 @@ export function peakingEdgeOverlay(
     luma[i] = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
   }
 
-  const magnitude = new Float32Array(width * height);
-  const histogram = new Uint32Array(PEAKING_HISTOGRAM_BINS);
   for (let y = 1; y < height - 1; y++) {
     for (let x = 1; x < width - 1; x++) {
       const i = y * width + x;
@@ -525,24 +533,45 @@ export function peakingEdgeOverlay(
       histogram[Math.round(mag)] += 1;
     }
   }
+  return { magnitude, histogram, area: (width - 2) * (height - 2) };
+}
 
-  // Walk the strongest gradients down towards the floor and stop one bin above
-  // the one that would outgrow the cap, so coverage stays under it. The clamp
-  // matters for a saturated frame (a document, a graphic): every gradient sits in
-  // the top bin there, and without it the sharpest frame there is would go blank.
-  const maxLit = (width - 2) * (height - 2) * PEAKING_MAX_COVERAGE;
-  let threshold = PEAKING_MIN_EDGE;
+/**
+ * The one gradient threshold the given frames are painted at.
+ *
+ * The floor is absolute, so how much red a frame carries stays a reading of its
+ * own in-focus detail. Above it, the cap is the relief valve for frames that are
+ * edge everywhere — and it is applied to the frames *pooled*: capping each frame
+ * on its own hands every one of them the same share of red by construction,
+ * which is exactly the comparison a compare grid exists to make. Pooled, the cap
+ * bounds the pair's total and lets the sharper frame take the larger part of it.
+ *
+ * Walks the strongest gradients down towards the floor and stops one bin above
+ * the one that would outgrow the cap. The clamp matters for a saturated frame (a
+ * document, a graphic): every gradient sits in the top bin there, and without it
+ * the sharpest frame there is would go blank.
+ */
+export function peakingThreshold(fields: readonly PeakingField[]): number {
+  const pooled = new Uint32Array(PEAKING_HISTOGRAM_BINS);
+  let area = 0;
+  for (const field of fields) {
+    area += field.area;
+    for (let bin = 0; bin < PEAKING_HISTOGRAM_BINS; bin++) pooled[bin] += field.histogram[bin];
+  }
+  const maxLit = area * PEAKING_MAX_COVERAGE;
   let lit = 0;
   for (let bin = PEAKING_HISTOGRAM_BINS - 1; bin > PEAKING_MIN_EDGE; bin--) {
-    lit += histogram[bin];
-    if (lit > maxLit) {
-      threshold = Math.min(PEAKING_HISTOGRAM_BINS - 1, bin + 1);
-      break;
-    }
+    lit += pooled[bin];
+    if (lit > maxLit) return Math.min(PEAKING_HISTOGRAM_BINS - 1, bin + 1);
   }
+  return PEAKING_MIN_EDGE;
+}
 
-  for (let i = 0; i < magnitude.length; i++) {
-    if (magnitude[i] < threshold) continue;
+/** Paint every gradient at or above `threshold` red, and everything else clear. */
+export function paintPeakingField(field: PeakingField, threshold: number): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(field.magnitude.length * 4);
+  for (let i = 0; i < field.magnitude.length; i++) {
+    if (field.magnitude[i] < threshold) continue;
     const p = i * 4;
     out[p] = PEAKING_COLOR[0];
     out[p + 1] = PEAKING_COLOR[1];
@@ -550,6 +579,14 @@ export function peakingEdgeOverlay(
     out[p + 3] = 255;
   }
   return out;
+}
+
+/** Paint the in-focus edges of a single RGBA frame, judged on its own. */
+export function peakingEdgeOverlay(
+  pixels: Uint8ClampedArray, width: number, height: number,
+): Uint8ClampedArray {
+  const field = peakingGradientField(pixels, width, height);
+  return paintPeakingField(field, peakingThreshold([field]));
 }
 
 /** Load an image for off-screen raster work; rejects when the source fails. */
@@ -562,15 +599,23 @@ export function loadFrameImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
+/** A frame rasterised for peaking: its gradient field, and the very canvas it
+ *  was measured on, reused to paint the answer back. */
+interface PeakingFrame {
+  field: PeakingField;
+  canvas: HTMLCanvasElement;
+  ctx: CanvasRenderingContext2D;
+}
+
 /**
- * Build the focus-peaking overlay for one frame as a PNG data URL.
+ * Draw a frame onto a working canvas and measure its gradients.
  *
- * Rendered into an image rather than a live canvas so the overlay inherits the
- * frame's own ``object-contain`` letterboxing: the working canvas keeps the
- * source aspect ratio, so the two land on exactly the same pixels under the
- * same transform, with no per-pane measurement.
+ * The canvas keeps the source aspect ratio, so the overlay painted back onto it
+ * inherits the frame's own ``object-contain`` letterboxing: the two land on
+ * exactly the same pixels under the same transform, with no per-pane
+ * measurement.
  */
-export async function computePeakingOverlay(src: string): Promise<string | null> {
+async function rasterPeakingFrame(src: string): Promise<PeakingFrame | null> {
   const img = await loadFrameImage(src);
   const naturalW = img.naturalWidth || img.width;
   const naturalH = img.naturalHeight || img.height;
@@ -584,11 +629,49 @@ export async function computePeakingOverlay(src: string): Promise<string | null>
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   ctx.drawImage(img, 0, 0, width, height);
-  const frame = ctx.getImageData(0, 0, width, height);
-  const overlay = ctx.createImageData(width, height);
-  overlay.data.set(peakingEdgeOverlay(frame.data, width, height));
+  const pixels = ctx.getImageData(0, 0, width, height);
+  return { field: peakingGradientField(pixels.data, width, height), canvas, ctx };
+}
+
+/** Paint a measured frame at `threshold` and hand it back as a PNG data URL. */
+function peakingDataUrl(frame: PeakingFrame, threshold: number): string {
+  const { canvas, ctx } = frame;
+  const overlay = ctx.createImageData(canvas.width, canvas.height);
+  overlay.data.set(paintPeakingField(frame.field, threshold));
   ctx.putImageData(overlay, 0, 0);
   return canvas.toDataURL('image/png');
+}
+
+/** Build the focus-peaking overlay for one frame as a PNG data URL. */
+export async function computePeakingOverlay(src: string): Promise<string | null> {
+  const frame = await rasterPeakingFrame(src);
+  return frame ? peakingDataUrl(frame, peakingThreshold([frame.field])) : null;
+}
+
+/**
+ * Build the overlays for a set of frames shown side by side, at one threshold
+ * pooled over all of them, keyed by source.
+ *
+ * This is the whole point of peaking in a compare grid: two frames of the same
+ * subject are told apart by how much red each carries, which only means
+ * anything when both were painted by the same rule. A frame that fails to load
+ * is left out rather than failing the set.
+ */
+export async function computePooledPeakingOverlays(
+  srcs: readonly string[],
+): Promise<Map<string, string>> {
+  const frames = await Promise.all(
+    srcs.map(src => rasterPeakingFrame(src).catch(() => null)),
+  );
+  const threshold = peakingThreshold(
+    frames.filter((frame): frame is PeakingFrame => frame !== null).map(frame => frame.field),
+  );
+  const overlays = new Map<string, string>();
+  srcs.forEach((src, i) => {
+    const frame = frames[i];
+    if (frame) overlays.set(src, peakingDataUrl(frame, threshold));
+  });
+  return overlays;
 }
 
 /** The generated peaking overlay for a frame, or null while none exists. */

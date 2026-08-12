@@ -21,6 +21,8 @@ import { FilterDisplayPipe } from '../../shared/pipes/filter-display.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
+import { useCoarsePointerSignal } from '../../shared/utils/media-query';
+import { MOBILE_MIN_CARD_WIDTH_PX } from './gallery-rows.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -611,7 +613,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
           @if (sliderConfig(); as sc) {
             <div class="flex items-center gap-2 mt-2">
               <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
-              <mat-slider [min]="sc.min_px" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
+              <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
                 <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
               </mat-slider>
               <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
@@ -827,7 +829,24 @@ export class GalleryFilterSidebarComponent {
   private albumService = inject(AlbumService);
   readonly albums = signal<Album[]>([]);
   readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
+  private readonly coarsePointer = useCoarsePointerSignal();
   readonly sliderConfig = computed(() => this.store.config()?.display?.thumbnail_slider ?? null);
+
+  /**
+   * Lowest card width the thumbnail slider offers.
+   *
+   * On a touch device the server minimum is below the mobile column floor for
+   * the whole of the slider's travel, so every stop renders the same 3 columns
+   * and the control is inert; MOBILE_MIN_CARD_WIDTH_PX is the first width that
+   * clears the floor on a 390px screen. A mouse-driven window keeps the server's
+   * minimum: there the floor never applies and the existing travel already works.
+   */
+  readonly thumbnailSliderMin = computed(() => {
+    const configured = this.sliderConfig()?.min_px ?? MOBILE_MIN_CARD_WIDTH_PX;
+    return this.coarsePointer.isCoarsePointer()
+      ? Math.min(configured, MOBILE_MIN_CARD_WIDTH_PX)
+      : configured;
+  });
 
   // Person autocomplete (multi-select with search)
   readonly sidebarPersonQuery = signal('');
@@ -1003,6 +1022,7 @@ export class GalleryFilterSidebarComponent {
   private albumsLoaded = false;
 
   constructor() {
+    this.coarsePointer.setup();
     effect(() => {
       if (this.store.config()?.features?.show_albums && !this.albumsLoaded) {
         this.albumsLoaded = true;
@@ -1011,6 +1031,7 @@ export class GalleryFilterSidebarComponent {
     });
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
+      this.coarsePointer.cleanup();
     });
   }
 

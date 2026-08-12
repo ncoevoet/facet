@@ -42,7 +42,7 @@ import {
   SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
   GroupOverridePendingPipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
   KeySubjectForPathPipe, IsKeyFacePipe,
-  cullPreviewUrl, computePeakingOverlay, loadFrameImage, GRID_MODES,
+  cullPreviewUrl, computePeakingOverlay, computePooledPeakingOverlays, loadFrameImage, GRID_MODES,
   KEY_SUBJECT_COORDINATE_SPACE,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
   FrameSize, GridMode, KeySubject,
@@ -233,9 +233,15 @@ interface ShortcutRow {
                     max-lg:shadow-lg safe-area-pb">
           <!-- Secondary controls scroll; the actions after this row stay pinned, so no
                viewport can push the primary action out of reach or paint it over the
-               shell controls the toolbar is projected next to. -->
+               shell controls the toolbar is projected next to.
+               The fade is unconditional: this row overflows at desktop widths too
+               (a 1366px window clipped the last control with only a hairline native
+               scrollbar to say so), and whether it overflows right now is not
+               something CSS can ask -- the toolbar renders twice (inline and
+               projected into the shell header), so no single element measurement
+               would answer for both. -->
           <div class="flex flex-nowrap items-center gap-3 md:gap-4 min-w-0 flex-1 overflow-x-auto
-                      max-lg:[mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)]">
+                      [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)]">
             @if (scoped()) {
               <button mat-icon-button (click)="exitScope()"
                       [matTooltip]="I18N.culling.exit_scene | translate"
@@ -243,8 +249,8 @@ interface ShortcutRow {
                 <mat-icon>arrow_back</mat-icon>
               </button>
             }
-            <!-- Controls ordered by impact: scope → granularity → sort → category →
-                 thresholds → exclude → status/loupe/help. -->
+            <!-- Filters ordered by impact: scope → granularity → sort → category →
+                 thresholds. The actions live in the pinned cluster below. -->
             @if (albums().length > 0) {
               <button mat-icon-button [matMenuTriggerFor]="scopeMenu"
                       [class.!text-[var(--mat-sys-primary)]]="scoped()"
@@ -407,27 +413,30 @@ interface ShortcutRow {
                 <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
               </div>
             </mat-menu>
-            <button mat-icon-button (click)="onExcludeRejectedChange(!excludeRejected())"
-                    [class.!text-[var(--mat-sys-primary)]]="excludeRejected()"
-                    [attr.aria-pressed]="excludeRejected()"
-                    [matTooltip]="I18N.culling.exclude_rejected | translate"
-                    [attr.aria-label]="I18N.culling.exclude_rejected | translate">
-              <mat-icon>{{ excludeRejected() ? 'visibility_off' : 'visibility' }}</mat-icon>
-            </button>
-            <button mat-icon-button (click)="loupeActive.set(!loupeActive())"
-                    [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
-                    [attr.aria-pressed]="loupeActive()"
-                    [matTooltip]="I18N.culling.loupe_hint | translate"
-                    [attr.aria-label]="I18N.culling.loupe | translate">
-              <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
-            </button>
-            @if (loupeActive()) {
-              <mat-slider class="!w-28 !min-w-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
-                <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
-                       [attr.aria-label]="I18N.culling.loupe | translate" />
-              </mat-slider>
-            }
           </div>
+          <!-- Exclude-rejected and the loupe act on the photos rather than
+               selecting which ones the feed serves, so they are pinned with the
+               other actions instead of scrolling away with the filters. -->
+          <button mat-icon-button class="shrink-0" (click)="onExcludeRejectedChange(!excludeRejected())"
+                  [class.!text-[var(--mat-sys-primary)]]="excludeRejected()"
+                  [attr.aria-pressed]="excludeRejected()"
+                  [matTooltip]="I18N.culling.exclude_rejected | translate"
+                  [attr.aria-label]="I18N.culling.exclude_rejected | translate">
+            <mat-icon>{{ excludeRejected() ? 'visibility_off' : 'visibility' }}</mat-icon>
+          </button>
+          <button mat-icon-button class="shrink-0" (click)="loupeActive.set(!loupeActive())"
+                  [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
+                  [attr.aria-pressed]="loupeActive()"
+                  [matTooltip]="I18N.culling.loupe_hint | translate"
+                  [attr.aria-label]="I18N.culling.loupe | translate">
+            <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
+          </button>
+          @if (loupeActive()) {
+            <mat-slider class="!w-28 !min-w-0 shrink-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
+              <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
+                     [attr.aria-label]="I18N.culling.loupe | translate" />
+            </mat-slider>
+          }
           @if (auth.isEdition() && !keepWholeGranularity()) {
             <button mat-icon-button class="shrink-0" (click)="openAutoCull()" [disabled]="autoCullLoading()"
                     [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
@@ -762,8 +771,9 @@ interface ShortcutRow {
            cdkTrapFocus
            (click)="closeLightbox()"
            (keydown.escape)="closeLightbox()">
-        <!-- Header -->
-        <div class="flex items-center justify-between gap-4 px-4 py-2.5 text-white text-sm bg-black/70">
+        <!-- Header. Opaque, not a tint: at bg-black/70 the gallery toolbar behind
+             it stayed legible through the darkroom's own controls. -->
+        <div class="flex items-center justify-between gap-4 px-4 py-2.5 text-white text-sm bg-neutral-950">
           <div class="opacity-70 shrink-0">
             {{ lightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
           </div>
@@ -870,6 +880,22 @@ interface ShortcutRow {
             }
           }
         </ng-template>
+        <!-- Kept / rejected, in the tile grid's own idiom: a solid circle with a
+             white glyph, which survives any frame under it. The bare tinted icon
+             this replaced was unreadable over a busy photo. -->
+        <ng-template #frameState let-kept="kept" let-decided="decided">
+          @if (kept) {
+            <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow"
+                 [attr.aria-label]="I18N.culling.lightbox.kept | translate">
+              <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
+            </div>
+          } @else if (decided) {
+            <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center shadow"
+                 [attr.aria-label]="I18N.culling.lightbox.rejected | translate">
+              <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
+            </div>
+          }
+        </ng-template>
         <!-- Image -->
         @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
           @if (compareMode() === 'single') {
@@ -883,7 +909,7 @@ interface ShortcutRow {
                  (swipeReject)="onSwipeDecision(lbGroup, false)"
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()">
-              <app-synced-zoom class="w-full h-full"
+              <app-synced-zoom #singlePane class="w-full h-full"
                                [src]="(activeStyle() && !previewLoading()) ? (lbPhoto.path | cullPreviewUrl:activeStyle()) : (lbPhoto.path | thumbnailUrl:darkroomThumbSize)"
                                [fullResSrc]="activeStyle() ? null : (lbPhoto.path | imageUrl:true)"
                                [zoom]="zoom()"
@@ -892,6 +918,16 @@ interface ShortcutRow {
                                [alt]="lbPhoto.filename" />
               <ng-container [ngTemplateOutlet]="frameOverlays"
                             [ngTemplateOutletContext]="{ path: lbPhoto.path }" />
+              <!-- Inset to the rendered photo, not to the pane: object-contain
+                   letterboxes, so the pane's corner can be far off the image. -->
+              <div class="absolute pointer-events-none"
+                   [style.top.px]="singlePane.fitInsetY()" [style.bottom.px]="singlePane.fitInsetY()"
+                   [style.left.px]="singlePane.fitInsetX()" [style.right.px]="singlePane.fitInsetX()">
+                <ng-container [ngTemplateOutlet]="frameState"
+                              [ngTemplateOutletContext]="{
+                                kept: (lbPhoto.path | isKept:selectionsMap():lbGroup.group_id),
+                                decided: (lbPhoto.path | isDecided:selectionsMap():lbGroup.group_id) }" />
+              </div>
               @if (previewLoading()) {
                 <div class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none"
                      [attr.aria-label]="I18N.culling.cull_style.loading | translate">
@@ -930,11 +966,8 @@ interface ShortcutRow {
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()">
               @for (photo of compareFrames(); track photo.path) {
-                <div class="relative w-full h-full min-h-0 rounded overflow-hidden"
-                     [class.ring-2]="photo.path === lbPhoto.path"
-                     [class.ring-inset]="photo.path === lbPhoto.path"
-                     [class.ring-amber-400]="photo.path === lbPhoto.path">
-                  <app-synced-zoom class="w-full h-full min-h-0"
+                <div class="relative w-full h-full min-h-0 rounded overflow-hidden">
+                  <app-synced-zoom #pane class="w-full h-full min-h-0"
                                    [src]="photo.path | thumbnailUrl:darkroomThumbSize"
                                    [fullResSrc]="photo.path | imageUrl:true"
                                    [zoom]="zoom()"
@@ -943,11 +976,44 @@ interface ShortcutRow {
                                    [alt]="photo.filename" />
                   <ng-container [ngTemplateOutlet]="frameOverlays"
                                 [ngTemplateOutletContext]="{ path: photo.path }" />
-                  @if (photo.path | isKept:selectionsMap():lbGroup.group_id) {
-                    <mat-icon class="absolute top-1 left-1 !text-base !w-5 !h-5 !leading-5 rounded-full bg-black/60 text-green-400">check</mat-icon>
-                  } @else if (photo.path | isDecided:selectionsMap():lbGroup.group_id) {
-                    <mat-icon class="absolute top-1 left-1 !text-base !w-5 !h-5 !leading-5 rounded-full bg-black/60 text-red-400">close</mat-icon>
-                  }
+                  <!-- Every per-frame mark traces the rendered photo, not the
+                       cell: a letterboxed pane put them up to 90px off the image,
+                       where they read as chrome about the pair rather than about
+                       this frame. The focus ring follows for the same reason. -->
+                  <div class="absolute pointer-events-none"
+                       [style.top.px]="pane.fitInsetY()" [style.bottom.px]="pane.fitInsetY()"
+                       [style.left.px]="pane.fitInsetX()" [style.right.px]="pane.fitInsetX()"
+                       [class.ring-2]="photo.path === lbPhoto.path"
+                       [class.ring-inset]="photo.path === lbPhoto.path"
+                       [class.ring-amber-400]="photo.path === lbPhoto.path">
+                    <ng-container [ngTemplateOutlet]="frameState"
+                                  [ngTemplateOutletContext]="{
+                                    kept: (photo.path | isKept:selectionsMap():lbGroup.group_id),
+                                    decided: (photo.path | isDecided:selectionsMap():lbGroup.group_id) }" />
+                    <!-- The ↑ / ↓ keys only ever reach the focused frame, so a
+                         compare grid needs a way to decide the pane the user is
+                         actually looking at. Same write as those keys. -->
+                    <div class="absolute bottom-2 right-2 flex items-center gap-2 pointer-events-auto">
+                      <button type="button"
+                              class="w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100"
+                              [class.opacity-70]="!(photo.path | isKept:selectionsMap():lbGroup.group_id)"
+                              [attr.aria-pressed]="photo.path | isKept:selectionsMap():lbGroup.group_id"
+                              [matTooltip]="I18N.culling.lightbox.keep | translate"
+                              [attr.aria-label]="photo.filename + ', ' + (I18N.culling.lightbox.keep | translate)"
+                              (click)="setPhotoKept(lbGroup, photo.path, true)">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
+                      </button>
+                      <button type="button"
+                              class="w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100"
+                              [class.opacity-70]="!(photo.path | isDecided:selectionsMap():lbGroup.group_id)"
+                              [attr.aria-pressed]="photo.path | isDecided:selectionsMap():lbGroup.group_id"
+                              [matTooltip]="I18N.culling.lightbox.reject | translate"
+                              [attr.aria-label]="photo.filename + ', ' + (I18N.culling.lightbox.reject | translate)"
+                              (click)="setPhotoKept(lbGroup, photo.path, false)">
+                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               }
             </div>
@@ -957,6 +1023,12 @@ interface ShortcutRow {
                role="presentation"
                (click)="$event.stopPropagation()"
                (keydown)="$event.stopPropagation()">
+            @if (compareMode() !== 'single') {
+              <!-- The status that follows is the focused frame's alone. Spanning
+                   the whole width under a grid of panes, unnamed, it read as a
+                   verdict on all of them. -->
+              <span class="text-white/60 text-sm mr-2">{{ lbPhoto.filename }}</span>
+            }
             @if (lbPhoto.path | isKept:selectionsMap():lbGroup.group_id) {
               <span class="inline-flex items-center gap-1 text-green-400 text-sm">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
@@ -1499,9 +1571,14 @@ export class BurstCullingComponent implements OnDestroy {
    * lands so a 4-up compare shows the first pane's edges without waiting on the
    * other three. A frame already convolved from the same source is reused, and a
    * newer pass invalidates this one rather than racing it.
+   *
+   * Panes shown together go through the pooled pass instead: side by side, the
+   * question is which frame carries more red, and that only means something when
+   * one threshold painted them both.
    */
   private async refreshPeaking(paths: string[], hiRes: boolean): Promise<void> {
     const run = ++this.peakingRun;
+    if (paths.length > 1) return this.refreshPooledPeaking(paths, hiRes, run);
     const overlays = new Map<string, string>();
     for (const path of paths) {
       const src = this.frameSource(path, hiRes);
@@ -1521,6 +1598,34 @@ export class BurstCullingComponent implements OnDestroy {
     }
   }
 
+  /**
+   * One pooled pass over every visible pane, published together.
+   *
+   * Cached under the whole set's sources rather than each frame's own, because a
+   * pooled overlay is only valid for the set it was pooled over: the same frame
+   * paired with a different one is a different answer.
+   */
+  private async refreshPooledPeaking(paths: string[], hiRes: boolean, run: number): Promise<void> {
+    const srcs = paths.map(path => this.frameSource(path, hiRes));
+    const poolKey = srcs.join('|');
+    const cached = paths.map(path => this.peakingCache.get(path));
+    if (cached.every(entry => entry?.src === poolKey)) {
+      this.peakingOverlays.set(new Map(paths.map((path, i) => [path, cached[i]!.url])));
+      return;
+    }
+    const urls = await this.renderPooledPeaking(srcs);
+    if (run !== this.peakingRun) return;
+    const overlays = new Map<string, string>();
+    paths.forEach((path, i) => {
+      const url = urls.get(srcs[i]);
+      if (!url) return;
+      this.peakingCache.set(path, { src: poolKey, url });
+      overlays.set(path, url);
+    });
+    this.trimPeakingCache();
+    this.peakingOverlays.set(overlays);
+  }
+
   /** Drop the oldest edge maps once the cache is over its bound (insertion
    *  order, which for a walk through a group is also least-recently-shown). */
   private trimPeakingCache(): void {
@@ -1534,6 +1639,11 @@ export class BurstCullingComponent implements OnDestroy {
   /** Seam over the raster pipeline, so it can be stubbed where no canvas exists. */
   private renderPeaking(src: string): Promise<string | null> {
     return computePeakingOverlay(src).catch(() => null);
+  }
+
+  /** The same seam for the pooled pass. */
+  private renderPooledPeaking(srcs: string[]): Promise<Map<string, string>> {
+    return computePooledPeakingOverlays(srcs).catch(() => new Map<string, string>());
   }
 
   /** Measure a frame once, for the composition grid's viewBox. */
@@ -2531,14 +2641,21 @@ export class BurstCullingComponent implements OnDestroy {
     this.isFullscreen.set(!!document.fullscreenElement);
   }
 
+  /** The one write behind every darkroom decision: the ↑ / ↓ keys, a swipe, and
+   *  the per-pane buttons a compare grid needs (where "the current photo" is not
+   *  a question the keyboard can answer for the pane the user is looking at). */
+  protected setPhotoKept(group: CullingGroup, path: string, keep: boolean): void {
+    const map = new Map(this.selectionsMap());
+    const kept = new Set(map.get(group.group_id) ?? []);
+    if (keep) kept.add(path); else kept.delete(path);
+    map.set(group.group_id, kept);
+    this.selectionsMap.set(map);
+  }
+
   private setCurrentLightboxPhotoKept(group: CullingGroup, keep: boolean): void {
     const photo = group.photos[this.lightboxIndex()];
     if (!photo) return;
-    const map = new Map(this.selectionsMap());
-    const kept = new Set(map.get(group.group_id) ?? []);
-    if (keep) kept.add(photo.path); else kept.delete(photo.path);
-    map.set(group.group_id, kept);
-    this.selectionsMap.set(map);
+    this.setPhotoKept(group, photo.path, keep);
   }
 
   /**

@@ -226,6 +226,47 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  // The one write behind the arrow keys, a swipe and the compare panes' own
+  // buttons. It takes a path because "the current photo" is a question only the
+  // keyboard can answer, and a compare grid has four of them on screen.
+  describe('setPhotoKept (the shared darkroom decision)', () => {
+    beforeEach(async () => {
+      await (component as any).loadGroups();
+    });
+
+    it('keeps and rejects the path it is given, whatever frame is focused', () => {
+      const group = component['groups']()[0];
+      component['lightboxIndex'].set(0);
+
+      component['setPhotoKept'](group, '/photo3.jpg', true);
+      expect([...component['selectionsMap']().get(1)!]).toContain('/photo3.jpg');
+
+      component['setPhotoKept'](group, '/photo3.jpg', false);
+      expect([...component['selectionsMap']().get(1)!]).not.toContain('/photo3.jpg');
+      expect(component['lightboxIndex']()).toBe(0);
+    });
+
+    it('is what the arrow keys write through', () => {
+      const group = component['groups']()[0];
+      component['lightboxGroupId'].set(component['groupKey'](group));
+      component['lightboxIndex'].set(1);
+      const event = { preventDefault: vi.fn(), target: document.body } as unknown as Event;
+
+      component['onArrowUp'](event);
+
+      expect([...component['selectionsMap']().get(1)!]).toContain('/photo2.jpg');
+    });
+
+    it('never mutates the map in place', () => {
+      const group = component['groups']()[0];
+      const before = component['selectionsMap']();
+
+      component['setPhotoKept'](group, '/photo2.jpg', true);
+
+      expect(component['selectionsMap']()).not.toBe(before);
+    });
+  });
+
   describe('confirmGroup (cooldown then commit + hide)', () => {
     beforeEach(async () => {
       vi.useFakeTimers();
@@ -1470,6 +1511,7 @@ describe('BurstCullingComponent', () => {
       ],
     };
     let renderPeaking: Mock;
+    let renderPooledPeaking: Mock;
     const flush = () => new Promise(resolve => setTimeout(resolve, 0));
 
     const openDarkroom = (index = 0) => {
@@ -1486,7 +1528,10 @@ describe('BurstCullingComponent', () => {
     beforeEach(() => {
       // jsdom has no 2D canvas, so the raster pipeline is replaced at its seam.
       renderPeaking = vi.fn((src: string) => Promise.resolve(`overlay:${src}`));
+      renderPooledPeaking = vi.fn((srcs: string[]) =>
+        Promise.resolve(new Map(srcs.map(src => [src, `pooled:${src}`]))));
       vi.spyOn(component as any, 'renderPeaking').mockImplementation(renderPeaking as never);
+      vi.spyOn(component as any, 'renderPooledPeaking').mockImplementation(renderPooledPeaking as never);
       vi.spyOn(component as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
     });
 
@@ -1540,6 +1585,57 @@ describe('BurstCullingComponent', () => {
       await settle();
 
       expect([...component['peakingOverlays']().keys()]).toEqual(['/f1.jpg', '/f2.jpg']);
+    });
+
+    // Side by side, the frames are read against each other, so one threshold has
+    // to have painted them both -- which per-frame passes cannot do.
+    it('paints the panes of a compare grid in one pooled pass', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+      component['setCompareMode']('2up');
+
+      await settle();
+
+      expect(renderPeaking).not.toHaveBeenCalled();
+      expect(renderPooledPeaking).toHaveBeenCalledTimes(1);
+      expect(renderPooledPeaking.mock.calls[0][0]).toHaveLength(2);
+      expect(component['peakingOverlays']().get('/f1.jpg')).toContain('pooled:');
+    });
+
+    // Stepping the focus inside a pair shows the very same two frames, so the
+    // pooled pass must be reused rather than re-convolved on every arrow key.
+    it('reuses a pooled pass while the same frames stay on screen', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+      component['setCompareMode']('2up');
+      await settle();
+
+      component['lightboxIndex'].set(1);
+      await settle();
+
+      expect(renderPooledPeaking).toHaveBeenCalledTimes(1);
+      expect(component['peakingOverlays']().size).toBe(2);
+    });
+
+    // A pooled overlay is only the answer for the set it was pooled over: the
+    // same frame paired with a different one is a different threshold.
+    it('does not hand a pooled overlay back for a different pairing', async () => {
+      const trio = {
+        ...grp,
+        photos: [...grp.photos, { ...grp.photos[0], path: '/f3.jpg', filename: 'f3.jpg' }],
+      };
+      component['groups'].set([trio]);
+      component['lightboxGroupId'].set(component['groupKey'](trio));
+      component['peakingActive'].set(true);
+      component['setCompareMode']('2up');
+      await settle();
+
+      component['lightboxIndex'].set(1);
+      await settle();
+      component['lightboxIndex'].set(0);
+      await settle();
+
+      expect(renderPooledPeaking).toHaveBeenCalledTimes(3);
     });
 
     it('drops the overlays when the darkroom closes', async () => {
@@ -2018,5 +2114,148 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
 
     expect(dismissButton()).toBeUndefined();
     expect(localStorage.getItem('facet_culling_swipe_hint')).toBe('true');
+  });
+});
+
+/**
+ * The compare grid's per-frame chrome.
+ *
+ * Everything here is about one pane's own photo: a decision taken on it must not
+ * land on whichever frame the keyboard happens to be focused on, and the marks
+ * that say what was decided must sit on the photo rather than on the cell that
+ * letterboxes it.
+ */
+describe('BurstCullingComponent compare panes (rendered)', () => {
+  let fixture: ComponentFixture<BurstCullingComponent>;
+  let component: any;
+
+  const photo = (path: string) => ({
+    path, filename: path.slice(1), aggregate: 8, aesthetic: 7, tech_sharpness: 6,
+    is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8,
+  });
+  const group = {
+    group_id: 1, type: 'burst', reason: '', best_path: '/c1.jpg', count: 2,
+    photos: [photo('/c1.jpg'), photo('/c2.jpg')],
+  };
+  const emptyFeed = { groups: [], total_groups: 0, page: 1, per_page: 20, total_pages: 1 };
+
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: {
+          get: vi.fn(() => of(emptyFeed)),
+          post: vi.fn(() => of({})),
+          thumbnailUrl: vi.fn(() => '/thumb'),
+          imageUrl: vi.fn(() => '/image'),
+        } },
+        { provide: MatSnackBar, useValue: { open: vi.fn(() => ({
+          onAction: () => new Subject<void>(), afterDismissed: () => new Subject<void>(),
+        })) } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+        { provide: GalleryStore, useValue: { config: () => null } },
+        { provide: AuthService, useValue: { isEdition: () => true } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+      ],
+    });
+    fixture = TestBed.createComponent(BurstCullingComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    vi.restoreAllMocks();
+  });
+
+  const openCompare = () => {
+    component['groups'].set([group]);
+    component['lightboxGroupId'].set(component['groupKey'](group));
+    component['lightboxIndex'].set(0);
+    component['setCompareMode']('2up');
+    fixture.detectChanges();
+  };
+
+  const buttonFor = (label: string): HTMLButtonElement | undefined =>
+    [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]
+      .find(b => b.getAttribute('aria-label') === label);
+  const keptPaths = () => [...(component['selectionsMap']().get(1) ?? [])];
+
+  it('offers a keep and a reject button naming the frame of each pane', () => {
+    openCompare();
+
+    expect(buttonFor('c1.jpg, culling.lightbox.keep')).toBeTruthy();
+    expect(buttonFor('c1.jpg, culling.lightbox.reject')).toBeTruthy();
+    expect(buttonFor('c2.jpg, culling.lightbox.keep')).toBeTruthy();
+    expect(buttonFor('c2.jpg, culling.lightbox.reject')).toBeTruthy();
+  });
+
+  // The ↑ / ↓ keys can only ever reach the focused frame, which is what left the
+  // other panes undecidable without stepping onto them first.
+  it('decides the frame of the pane clicked, not the focused one', () => {
+    openCompare();
+
+    buttonFor('c2.jpg, culling.lightbox.keep')!.click();
+    fixture.detectChanges();
+
+    expect(keptPaths()).toEqual(['/c2.jpg']);
+    expect(component['lightboxIndex']()).toBe(0);
+  });
+
+  it('writes the same state the arrow keys do, so rejecting drops the frame', () => {
+    openCompare();
+    component['selectionsMap'].set(new Map([[1, new Set(['/c1.jpg', '/c2.jpg'])]]));
+    fixture.detectChanges();
+
+    buttonFor('c2.jpg, culling.lightbox.reject')!.click();
+    fixture.detectChanges();
+
+    expect(keptPaths()).toEqual(['/c1.jpg']);
+  });
+
+  it('marks the decided pane with the solid badge the tiles use', () => {
+    openCompare();
+    component['selectionsMap'].set(new Map([[1, new Set(['/c1.jpg'])]]));
+    fixture.detectChanges();
+
+    const host: HTMLElement = fixture.nativeElement;
+    expect(host.querySelectorAll('[aria-label="culling.lightbox.kept"].bg-green-600')).toHaveLength(1);
+    expect(host.querySelectorAll('[aria-label="culling.lightbox.rejected"].bg-red-600')).toHaveLength(1);
+  });
+
+  // The chrome traces the rendered photo, so it must be inset by whatever the
+  // pane letterboxed away -- not pinned to the cell corner.
+  it('insets the per-frame chrome by the letterbox of its pane', () => {
+    openCompare();
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const pane = panes[0].componentInstance as SyncedZoomComponent;
+    const host: HTMLElement = panes[0].nativeElement;
+    host.getBoundingClientRect = () => ({
+      width: 800, height: 600, x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 600,
+      toJSON: () => ({}),
+    }) as DOMRect;
+    const img = host.querySelector('img')!;
+    Object.defineProperty(img, 'naturalWidth', { value: 4000, configurable: true });
+    Object.defineProperty(img, 'naturalHeight', { value: 1000, configurable: true });
+    img.dispatchEvent(new Event('load'));
+    fixture.detectChanges();
+
+    expect(pane.fitInsetY()).toBe(200);
+    const chrome = buttonFor('c1.jpg, culling.lightbox.keep')!.closest('div[style]') as HTMLElement;
+    expect(chrome.style.top).toBe('200px');
+    expect(chrome.style.left).toBe('0px');
+  });
+
+  it('names the frame the footer status is about while a grid is shown', () => {
+    openCompare();
+    const footer: HTMLElement = fixture.nativeElement;
+    expect(footer.textContent).toContain('c1.jpg');
+
+    component['setCompareMode']('single');
+    fixture.detectChanges();
+
+    expect(footer.querySelectorAll('app-synced-zoom')).toHaveLength(1);
+    expect(footer.textContent).not.toContain('c1.jpg');
   });
 });

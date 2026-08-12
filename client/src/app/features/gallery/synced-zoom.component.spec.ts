@@ -195,4 +195,65 @@ describe('SyncedZoomComponent', () => {
       expect(emitted(f, () => a.onDoubleClick())).toEqual({ scale: 2, tx: -400, ty: 300 });
     });
   });
+
+  // What the darkroom's per-frame chrome hangs off: where the photo actually is
+  // inside a pane that letterboxes it.
+  describe('letterbox insets', () => {
+    /** Load the frame the way the browser does, after stubbing the two sizes. */
+    function loaded(
+      zoom: ZoomState = FIT_ZOOM,
+      natural: { width: number; height: number } = NATURAL,
+    ): ComponentFixture<SyncedZoomComponent> {
+      const fixture = make(zoom);
+      measure(fixture, natural);
+      fixture.nativeElement.querySelector('img')!.dispatchEvent(new Event('load'));
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    it('reports no inset until the pane and the frame have both been measured', () => {
+      const f = make();
+      expect(f.componentInstance.fitInsetX()).toBe(0);
+      expect(f.componentInstance.fitInsetY()).toBe(0);
+    });
+
+    // 800x600 pane, 4000x3000 frame: the contain fit is 0.2 and the image fills
+    // the pane exactly, so there is no letterbox to inset by.
+    it('reports no inset when the frame fills the pane', () => {
+      const f = loaded();
+      expect(f.componentInstance.fitInsetX()).toBe(0);
+      expect(f.componentInstance.fitInsetY()).toBe(0);
+    });
+
+    // 800x600 pane, 4000x1000 frame: fit 0.2, so the image renders 800x200 and
+    // the bars above and below are (600 - 200) / 2 each.
+    it('halves the leftover height for a frame wider than its pane', () => {
+      const f = loaded(FIT_ZOOM, { width: 4000, height: 1000 });
+      expect(f.componentInstance.fitInsetX()).toBe(0);
+      expect(f.componentInstance.fitInsetY()).toBe(200);
+    });
+
+    // 800x600 pane, 1000x4000 frame: fit 0.15, image 150x600, bars of 325 aside.
+    it('halves the leftover width for a frame taller than its pane', () => {
+      const f = loaded(FIT_ZOOM, { width: 1000, height: 4000 });
+      expect(f.componentInstance.fitInsetX()).toBe(325);
+      expect(f.componentInstance.fitInsetY()).toBe(0);
+    });
+
+    // Past fit the image outgrows its box, so chrome traced to it belongs at the
+    // pane's own corner -- which is where a zero inset puts it.
+    it('shrinks the inset as the shared zoom grows, and never past zero', () => {
+      const f = loaded({ scale: 2, tx: 0, ty: 0 }, { width: 4000, height: 1000 });
+      expect(f.componentInstance.fitInsetY()).toBe(100);
+
+      apply(f, { scale: 8, tx: 0, ty: 0 });
+      expect(f.componentInstance.fitInsetY()).toBe(0);
+    });
+
+    it('publishes the insets as custom properties on the pane', () => {
+      const host: HTMLElement = loaded(FIT_ZOOM, { width: 4000, height: 1000 }).nativeElement;
+      expect(host.style.getPropertyValue('--fit-inset-y')).toBe('200px');
+      expect(host.style.getPropertyValue('--fit-inset-x')).toBe('0px');
+    });
+  });
 });

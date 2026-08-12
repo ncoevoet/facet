@@ -1,6 +1,7 @@
 import {
   DETAILS_ESTIMATE_PX,
   GalleryRow,
+  MOBILE_MIN_CARD_WIDTH_PX,
   MOBILE_MIN_COLUMNS,
   buildGridRows,
   buildMosaicRows,
@@ -45,6 +46,32 @@ describe('gridColumnCount', () => {
 
   it('floors zero-width viewports off desktop too', () => {
     expect(gridColumnCount(0, 168, 8, false)).toBe(MOBILE_MIN_COLUMNS);
+  });
+
+  // The density slider is only a control if some width it offers changes the
+  // answer. On a 390px phone the shipped 120px minimum does not: the floor eats
+  // the whole travel.
+  describe('mobile card-width floor', () => {
+    const PHONE_WIDTH = 374;
+    const GAP = 8;
+
+    it('collapses every stop of the shipped slider onto the column floor', () => {
+      for (const cardWidth of [120, 168, 300, 400]) {
+        expect(gridColumnCount(PHONE_WIDTH, cardWidth, GAP, false)).toBe(MOBILE_MIN_COLUMNS);
+      }
+    });
+
+    it('clears the floor at MOBILE_MIN_CARD_WIDTH_PX, so the slider adds a column', () => {
+      expect(gridColumnCount(PHONE_WIDTH, MOBILE_MIN_CARD_WIDTH_PX, GAP, false))
+        .toBeGreaterThan(MOBILE_MIN_COLUMNS);
+      // floor((374 + 8) / (72 + 8)) = 4
+      expect(gridColumnCount(PHONE_WIDTH, MOBILE_MIN_CARD_WIDTH_PX, GAP, false)).toBe(4);
+    });
+
+    it('rows the phone grid four across at that width', () => {
+      const rows = buildGridRows(photos(9), PHONE_WIDTH, MOBILE_MIN_CARD_WIDTH_PX, GAP, true, false);
+      expect(rows.map(r => r.photos.length)).toEqual([4, 4, 1]);
+    });
   });
 });
 

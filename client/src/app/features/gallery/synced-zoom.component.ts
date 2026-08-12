@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, ElementRef, computed, inject, input, output, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
 
 export interface ZoomState {
   scale: number;
@@ -24,6 +24,12 @@ export const MAX_COMPARE_PANES = 4;
  * its geometric centre, so a 1:1 peek starts on the face or subject that
  * matters. The pane owns that math because `ZoomState.tx/ty` are pixels and
  * only the pane knows its own rect and its image's natural size.
+ *
+ * The same two measurements answer a second question the parent cannot: where
+ * the photo actually is inside the pane. `object-contain` letterboxes it, so a
+ * badge pinned to the pane's corner can land far off the image — published here
+ * as `fitInsetX` / `fitInsetY` and as the `--fit-inset-x` / `--fit-inset-y`
+ * custom properties, so chrome can trace the rendered image instead.
  */
 @Component({
   selector: 'app-synced-zoom',
@@ -36,11 +42,13 @@ export const MAX_COMPARE_PANES = 4;
     '(pointerup)': 'onPointerUp()',
     '(pointercancel)': 'onPointerUp()',
     '(dblclick)': 'onDoubleClick()',
+    '[style.--fit-inset-x.px]': 'fitInsetX()',
+    '[style.--fit-inset-y.px]': 'fitInsetY()',
   },
   template: `
     <img #frame [src]="effectiveSrc()" [alt]="alt()"
          class="absolute inset-0 w-full h-full object-contain origin-center will-change-transform select-none"
-         [style.transform]="transform()" draggable="false" />
+         [style.transform]="transform()" draggable="false" (load)="onFrameLoad()" />
   `,
 })
 export class SyncedZoomComponent {
@@ -60,10 +68,65 @@ export class SyncedZoomComponent {
 
   private readonly host = inject(ElementRef<HTMLElement>);
   private readonly frame = viewChild<ElementRef<HTMLImageElement>>('frame');
+  private readonly destroyRef = inject(DestroyRef);
 
   private dragging = false;
   private lastX = 0;
   private lastY = 0;
+
+  /** The pane's own box and the frame's natural size — the two halves of the
+   *  letterbox math, as signals because the insets below are read on every
+   *  change detection by whatever chrome traces the image. */
+  private readonly paneSize = signal<{ w: number; h: number }>({ w: 0, h: 0 });
+  private readonly naturalSize = signal<{ w: number; h: number }>({ w: 0, h: 0 });
+
+  constructor() {
+    // No ResizeObserver in a browser-less test env; the zero fallback below is
+    // what a pane that has never been measured reports anyway.
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => this.measurePane());
+    observer.observe(this.host.nativeElement);
+    this.destroyRef.onDestroy(() => observer.disconnect());
+  }
+
+  /** Re-read the pane's rendered box. Driven by the ResizeObserver above, and
+   *  public so a test can measure a pane the observer never fires for. */
+  measurePane(): void {
+    const { width, height } = this.host.nativeElement.getBoundingClientRect();
+    this.paneSize.set({ w: width, h: height });
+  }
+
+  protected onFrameLoad(): void {
+    const img = this.frame()?.nativeElement;
+    if (!img) return;
+    this.naturalSize.set({ w: img.naturalWidth, h: img.naturalHeight });
+    this.measurePane();
+  }
+
+  /**
+   * Half the letterbox bar on each axis, in CSS pixels: where the rendered
+   * photo starts inside the pane.
+   *
+   * `object-contain` centres the frame, so the leftover space is split evenly.
+   * The shared zoom scale is folded in and the result floored at 0, so a pane
+   * whose image has grown past its own box reports no inset and chrome anchored
+   * to it sits at the pane corner — which is where the image edge then is.
+   * Panning is deliberately ignored: at fit there is none, and past fit the
+   * inset is already 0.
+   */
+  private readonly fitInset = computed(() => {
+    const { w: paneW, h: paneH } = this.paneSize();
+    const { w: naturalW, h: naturalH } = this.naturalSize();
+    if (!paneW || !paneH || !naturalW || !naturalH) return { x: 0, y: 0 };
+    const rendered = Math.min(paneW / naturalW, paneH / naturalH) * this.zoom().scale;
+    return {
+      x: Math.max(0, (paneW - naturalW * rendered) / 2),
+      y: Math.max(0, (paneH - naturalH * rendered) / 2),
+    };
+  });
+
+  readonly fitInsetX = computed(() => this.fitInset().x);
+  readonly fitInsetY = computed(() => this.fitInset().y);
 
   /** The source the user has already framed by hand. While it matches the
    *  current frame the focus point stands down: a suggested centre must never

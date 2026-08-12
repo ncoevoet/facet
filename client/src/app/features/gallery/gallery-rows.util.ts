@@ -31,6 +31,18 @@ function aspectOf(photo: Photo): number {
  * degrades to one photo per screen (comparable gallery apps default to 3-4). */
 export const MOBILE_MIN_COLUMNS = 3;
 
+/**
+ * Smallest card the thumbnail slider may ask for on a touch device.
+ *
+ * The floor above is also a ceiling: on a 390px phone every card width the
+ * shipped slider offers (120px and up) yields fewer columns than
+ * MOBILE_MIN_COLUMNS, so the whole slider travel collapses onto 3 and the
+ * control does nothing. 72px is the first width that clears the floor there —
+ * floor((374 + 8) / (72 + 8)) = 4 — which is what gives the slider something to
+ * change. Desktop keeps the server's own minimum.
+ */
+export const MOBILE_MIN_CARD_WIDTH_PX = 72;
+
 /** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces,
  * floored to MOBILE_MIN_COLUMNS when isDesktop is false. */
 export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true): number {

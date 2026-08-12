@@ -5,6 +5,7 @@ import {
   CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
   GroupOverridePipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
   KeySubjectForPathPipe, IsKeyFacePipe, peakingEdgeOverlay,
+  peakingGradientField, peakingThreshold, paintPeakingField,
   KEY_SUBJECT_COORDINATE_SPACE,
   CullingGroup, CullingFace, CullingSubject, FaceThresholds, FrameSize, KeySubject,
 } from './burst-culling.pipes';
@@ -553,6 +554,77 @@ describe('peakingEdgeOverlay', () => {
   it('returns a clear overlay for a frame too small to convolve', () => {
     const out = peakingEdgeOverlay(new Uint8ClampedArray(2 * 2 * 4).fill(255), 2, 2);
     expect(out.every(v => v === 0)).toBe(true);
+  });
+
+  /**
+   * Two frames of one subject, side by side, are read by how much red each
+   * carries -- which only says anything when one rule painted them both.
+   *
+   * The content below is the case that broke it: both frames are edge
+   * everywhere, so each on its own hits the coverage cap and is handed the same
+   * 15% share, and the pair reads as two identical fields of red however
+   * different their detail actually is.
+   */
+  describe('pooled thresholding (compare mode)', () => {
+    /** The same noise field at two contrasts: two frames of one subject, one
+     *  carrying more detail, both edge everywhere so the cap -- not the floor --
+     *  decides how much of each is painted. */
+    const detailAt = (w: number, h: number, contrast: number): Uint8ClampedArray => {
+      const data = new Uint8ClampedArray(w * h * 4);
+      let seed = 42;
+      for (let i = 0; i < w * h; i++) {
+        seed = (seed * 1103515245 + 12345) % 2147483648;
+        const p = i * 4;
+        data[p] = data[p + 1] = data[p + 2] = 128 + ((seed % 256) - 128) * contrast;
+        data[p + 3] = 255;
+      }
+      return data;
+    };
+
+    const W = 64, H = 64;
+    const sharp = detailAt(W, H, 1);
+    const soft = detailAt(W, H, 0.5);
+
+    it('gives both frames the same paint when each is thresholded on its own', () => {
+      const ratio = litCount(peakingEdgeOverlay(sharp, W, H))
+        / litCount(peakingEdgeOverlay(soft, W, H));
+      expect(ratio).toBeGreaterThan(0.9);
+      expect(ratio).toBeLessThan(1.1);
+    });
+
+    it('lets the sharper frame carry visibly more red under one pooled threshold', () => {
+      const fields = [sharp, soft].map(f => peakingGradientField(f, W, H));
+      const threshold = peakingThreshold(fields);
+
+      const painted = fields.map(field => litCount(paintPeakingField(field, threshold)));
+
+      expect(painted[0] / painted[1]).toBeGreaterThan(1.5);
+    });
+
+    it('caps the pair, not each frame, so the pooled paint stays bounded', () => {
+      const fields = [sharp, soft].map(f => peakingGradientField(f, W, H));
+      const threshold = peakingThreshold(fields);
+
+      const painted = fields.reduce(
+        (sum, field) => sum + litCount(paintPeakingField(field, threshold)), 0);
+
+      expect(painted / (fields[0].area + fields[1].area)).toBeLessThanOrEqual(0.15);
+    });
+
+    it('keeps the absolute floor, so a pair of soft frames stays dark', () => {
+      const flat = new Uint8ClampedArray(W * H * 4).fill(128);
+      const fields = [flat, flat].map(f => peakingGradientField(f, W, H));
+
+      const threshold = peakingThreshold(fields);
+      expect(threshold).toBe(24);
+      expect(litCount(paintPeakingField(fields[0], threshold))).toBe(0);
+    });
+
+    it('is the same answer as the single-frame path when there is one frame', () => {
+      const field = peakingGradientField(sharp, W, H);
+      expect(litCount(paintPeakingField(field, peakingThreshold([field]))))
+        .toBe(litCount(peakingEdgeOverlay(sharp, W, H)));
+    });
   });
 });
 
