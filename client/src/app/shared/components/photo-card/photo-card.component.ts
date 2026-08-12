@@ -166,6 +166,7 @@ interface AppConfig {
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
                 [matMenuTriggerFor]="similarMenu"
                 [matTooltip]="'similar.find_similar' | translate"
+                [attr.aria-label]="'similar.find_similar' | translate"
                 (click)="$event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">image_search</mat-icon>
               </button>
@@ -188,6 +189,7 @@ interface AppConfig {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
                 [matTooltip]="'critique.title' | translate"
+                [attr.aria-label]="'critique.title' | translate"
                 (click)="openCritiqueClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">analytics</mat-icon>
               </button>
@@ -205,6 +207,7 @@ interface AppConfig {
               <button
                 class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
                 [matTooltip]="'manage_persons.assign_face' | translate"
+                [attr.aria-label]="'manage_persons.assign_face' | translate"
                 (click)="openAddPersonClicked.emit(photo()); $event.stopPropagation()">
                 <mat-icon class="!text-base !w-4 !h-4 !leading-4">person_add</mat-icon>
               </button>
@@ -219,6 +222,7 @@ interface AppConfig {
                 <button
                   class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400"
                   [matTooltip]="'rating.set_rating' | translate"
+                  [attr.aria-label]="'rating.set_rating' | translate"
                   (click)="cycleStarRating(); $event.stopPropagation()"
                   (dblclick)="$event.stopPropagation()">
                   <mat-icon class="!text-lg !w-[18px] !h-[18px] !leading-[18px]">{{ photo().star_rating ? 'star' : 'star_border' }}</mat-icon>
@@ -316,6 +320,7 @@ interface AppConfig {
                   <button
                     class="w-8 h-8 rounded-full bg-red-900/60 inline-flex items-center justify-center hover:bg-red-800 transition-colors"
                     [matTooltip]="('ui.buttons.remove' | translate) + ': ' + person.name"
+                    [attr.aria-label]="('ui.buttons.remove' | translate) + ': ' + person.name"
                     (click)="personRemoveClicked.emit({photo: photo(), personId: person.id}); $event.stopPropagation()">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-red-300">close</mat-icon>
                   </button>

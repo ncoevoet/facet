@@ -12,7 +12,9 @@ import sqlite3
 from contextlib import contextmanager
 from unittest import mock
 
-from api.routers.burst_culling import _score_shoot_types
+from api.routers.burst_culling import (
+    _query_shoot_type_evidence, _score_shoot_types, _shoot_type_evidence,
+)
 
 _SCHEMA = """
     CREATE TABLE photos (
@@ -29,6 +31,9 @@ _SCHEMA = """
         id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT,
         position INTEGER, added_at TEXT,
         UNIQUE(album_id, photo_path)
+    );
+    CREATE TABLE stats_cache (
+        key TEXT PRIMARY KEY, value TEXT, updated_at REAL
     );
 """
 
@@ -240,3 +245,87 @@ class TestNoAnswer:
         assert body['profile'] is None
         assert body['confidence'] == 1.0
         assert body['evidence']['wedding'] == 20
+
+
+# ---------------------------------------------------------------------------
+# Evidence cache (stats_cache) — SEV3 perf fix: _shoot_type_evidence's GROUP BY
+# walked the whole photos table (22.9s cold on 126k photos); a second call for
+# the same scope must be answered from stats_cache, not by re-running it.
+# ---------------------------------------------------------------------------
+
+class TestEvidenceCache:
+    def test_a_second_call_is_served_from_cache_without_rerunning_the_aggregate(self):
+        conn = _db(_wedding_photos(20))
+        with mock.patch(
+            "api.routers.burst_culling._query_shoot_type_evidence",
+            wraps=_query_shoot_type_evidence,
+        ) as spy:
+            first = _shoot_type_evidence(conn, None, None, None, None)
+            second = _shoot_type_evidence(conn, None, None, None, None)
+        assert spy.call_count == 1
+        assert first == second
+
+    def test_a_cache_hit_still_answers_the_endpoint_correctly(self, edition_client):
+        conn = _db(_wedding_photos(20))
+        first = _get(edition_client, conn).json()
+        second = _get(edition_client, conn).json()
+        assert first == second
+        assert second['profile'] == 'wedding'
+
+    def test_an_expired_cache_entry_is_recomputed(self):
+        conn = _db(_wedding_photos(20))
+        _shoot_type_evidence(conn, None, None, None, None)
+        conn.execute("UPDATE stats_cache SET updated_at = 0 WHERE key LIKE 'shoot_type_evidence_%'")
+        conn.commit()
+        with mock.patch(
+            "api.routers.burst_culling._query_shoot_type_evidence",
+            wraps=_query_shoot_type_evidence,
+        ) as spy:
+            _shoot_type_evidence(conn, None, None, None, None)
+        assert spy.call_count == 1
+
+    def test_cache_key_varies_by_album_scope(self):
+        conn = _db(_wedding_photos(10, prefix="/album/w") + _wildlife_photos(30))
+        conn.execute("INSERT INTO albums (id, user_id, name) VALUES (1, 'test', 'Shoot')")
+        for i in range(10):
+            conn.execute(
+                "INSERT INTO album_photos (album_id, photo_path, position) VALUES (1, ?, ?)",
+                (f"/album/w{i}.jpg", i),
+            )
+        conn.commit()
+        whole_library = _shoot_type_evidence(conn, None, None, None, None)
+        album_scoped = _shoot_type_evidence(conn, None, 1, None, None)
+        assert whole_library != album_scoped
+        keys = {r['key'] for r in conn.execute("SELECT key FROM stats_cache").fetchall()}
+        assert len(keys) == 2
+
+    def test_cache_key_varies_by_date_window(self):
+        conn = _db(_wedding_photos(20))
+        _shoot_type_evidence(conn, None, None, None, None)
+        _shoot_type_evidence(conn, None, None, '2024:06:01 00:00:00', '2024:06:30 23:59:59')
+        keys = {r['key'] for r in conn.execute("SELECT key FROM stats_cache").fetchall()}
+        assert len(keys) == 2
+
+    def test_cache_key_varies_by_user_id(self):
+        conn = _db(_wedding_photos(5))
+        _shoot_type_evidence(conn, 'user-a', None, None, None)
+        _shoot_type_evidence(conn, 'user-b', None, None, None)
+        keys = {r['key'] for r in conn.execute("SELECT key FROM stats_cache").fetchall()}
+        assert len(keys) == 2
+
+
+class TestShootTypeEvidenceIndex:
+    def test_the_covering_index_exists_after_init_database(self, tmp_path):
+        from db.schema import init_database
+        db_path = str(tmp_path / "shoot_type_idx.db")
+        init_database(db_path)
+        with sqlite3.connect(db_path) as conn:
+            row = conn.execute(
+                "SELECT sql FROM sqlite_master "
+                "WHERE type='index' AND name='idx_shoot_type_evidence'"
+            ).fetchone()
+        assert row is not None
+        assert row[0] == (
+            "CREATE INDEX idx_shoot_type_evidence ON photos"
+            "(category, narrative_moment, face_count, date_taken)"
+        )

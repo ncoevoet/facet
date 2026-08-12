@@ -7,6 +7,7 @@ Groups marked as burst_reviewed=1 are skipped so confirmed decisions persist.
 """
 
 import asyncio
+import json
 import logging
 import random
 import sqlite3
@@ -2037,6 +2038,11 @@ _SUGGEST_NIGHT_TO_HOUR = 6
 # worse than the default the user already has.
 _SUGGEST_MIN_SHARE = 0.25
 
+# Cache-only, like compute_scenes: the aggregate walks every visible photo, so
+# on a large library it is worth sparing repeat calls for the same scope. A
+# suggestion does not need to track a scan to the second, hence the 1h TTL.
+_SHOOT_TYPE_EVIDENCE_CACHE_TTL = 3600
+
 
 def _wedding_moment_labels():
     """Moment labels that stand for a wedding.
@@ -2060,20 +2066,22 @@ def _suggest_moment_labels():
     }
 
 
-def _shoot_type_evidence(conn, user_id, album_id, date_from, date_to):
-    """One aggregate of a scope's stored content labels.
+def _query_shoot_type_evidence(conn, user_id, album_id, date_from, date_to):
+    """Run the scope's grouped content-label aggregate, uncached.
 
     Grouped by ``(category, narrative_moment)`` rather than summed per genre in
     SQL: both are constant within a group, which keeps the weighting below
     readable and the genre map in one place, at one table scan. The EXIF capture
     hour is read off ``date_taken`` positionally — both the raw EXIF
-    (``YYYY:MM:DD HH:MM:SS``) and ISO spellings put it at offset 12.
+    (``YYYY:MM:DD HH:MM:SS``) and ISO spellings put it at offset 12. Split out
+    from ``_shoot_type_evidence`` so its cache wrapper has one single, named
+    call to skip on a cache hit.
     """
     vis_sql, vis_params = get_visibility_clause(user_id)
     album_sql, album_params = album_filter_clause(album_id)
     window_clauses, window_params = time_window_clauses(date_from, date_to)
     where_sql = f"{vis_sql} AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
-    return conn.execute(
+    rows = conn.execute(
         f"""SELECT category, narrative_moment, COUNT(*) AS n,
                    SUM(CASE WHEN face_count >= ? THEN 1 ELSE 0 END) AS crowd_faces,
                    SUM(CASE WHEN face_count > 0
@@ -2086,6 +2094,37 @@ def _shoot_type_evidence(conn, user_id, album_id, date_from, date_to):
         [_SUGGEST_CROWD_FACES, _SUGGEST_NIGHT_FROM_HOUR, _SUGGEST_NIGHT_TO_HOUR]
         + vis_params + album_params + window_params,
     ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def _shoot_type_evidence(conn, user_id, album_id, date_from, date_to):
+    """A scope's grouped content-label aggregate, cached in ``stats_cache``.
+
+    Mirrors ``compute_scenes``: the aggregate walks every visible photo, so on
+    a large library it is worth sparing repeat calls for the same scope.
+    Keyed on every filter that changes the result set — album, date window,
+    and the visibility-affecting ``user_id`` — so two scopes never collide and
+    a scope a user cannot see never leaks into one they can. The 1h TTL is
+    generous: a shoot-type suggestion does not need to track a scan to the
+    second.
+    """
+    cache_key = f"shoot_type_evidence_{album_id}_{date_from}_{date_to}_{user_id}"
+    cached = conn.execute(
+        "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)
+    ).fetchone()
+    if cached and (time.time() - cached['updated_at']) < _SHOOT_TYPE_EVIDENCE_CACHE_TTL:
+        try:
+            return json.loads(cached['value'])
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    evidence = _query_shoot_type_evidence(conn, user_id, album_id, date_from, date_to)
+    conn.execute(
+        "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+        (cache_key, json.dumps(evidence), time.time()),
+    )
+    conn.commit()
+    return evidence
 
 
 def _score_shoot_types(rows):
@@ -2124,12 +2163,14 @@ def suggest_cull_profile(
 ):
     """Infer the dominant shoot type of a scope and name the preset that fits it.
 
-    Read-only and model-free: the answer is one grouped scan of the content
-    labels the scan already stored (``category``, ``narrative_moment``, face
-    counts, capture hour) for the same album / date window the darkroom is
-    scoped to. ``confidence`` is the winning genre's weighted share of the
-    scope, so it orders scopes the way a photographer would — a whole wedding
-    outranks a wedding inside a year of holidays.
+    Model-free and never writes photo data: the answer is one grouped scan of
+    the content labels the scan already stored (``category``,
+    ``narrative_moment``, face counts, capture hour) for the same album / date
+    window the darkroom is scoped to, cached per scope in ``stats_cache`` (see
+    ``_shoot_type_evidence``) since that scan touches every visible photo.
+    ``confidence`` is the winning genre's weighted share of the scope, so it
+    orders scopes the way a photographer would — a whole wedding outranks a
+    wedding inside a year of holidays.
 
     ``profile`` is null when the scope is empty, when no genre reaches
     ``_SUGGEST_MIN_SHARE``, or when the matching preset is not configured (a

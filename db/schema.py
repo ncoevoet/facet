@@ -354,6 +354,13 @@ INDEXES = [
     # correlated subquery into learned_scores (~0.5s/page). Standalone (X DESC,
     # path) for the same MULTI-INDEX-OR reason as idx_moment_confidence above.
     ('idx_learned_score', 'photos', 'learned_score DESC, path'),
+    # Covering index for _shoot_type_evidence's GROUP BY (category,
+    # narrative_moment): leading columns match the GROUP BY exactly, with
+    # face_count and date_taken (read by the conditional SUMs) appended so the
+    # whole aggregate is answered from the index alone — no table page, and no
+    # inline thumbnail BLOB, is ever read. Without it the query walked the full
+    # photos B-tree (22.9s cold on a 126k-photo library).
+    ('idx_shoot_type_evidence', 'photos', 'category, narrative_moment, face_count, date_taken'),
 ]
 
 # Photo tags lookup table for fast exact-match queries (replaces LIKE '%tag%')
