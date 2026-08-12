@@ -241,69 +241,18 @@ def load_image_from_path(photo_path, use_thumbnail=False):
 
 def load_image_for_face_crop(photo_path):
     """
-    Load image for face cropping, handling RAW files with bbox coordinate scaling.
+    Load an image in the pixel space that stored face bboxes are expressed in.
 
-    For RAW files, extracts embedded thumbnail dimensions (which face bboxes were
-    calculated on), then loads the full demosaiced image for higher quality cropping.
-    Returns the scale factors needed to map bbox coordinates from thumbnail to
-    processed image dimensions.
+    Face detection always runs on the array load_image_from_path() returns — the
+    full demosaic for RAW, EXIF-transposed for everything else — so a bbox read
+    back from the database indexes that array. Cropping therefore decodes through
+    the same function: a second, separately parameterised decode is free to
+    differ in size, and every stored bbox would then address a different region.
 
     Args:
         photo_path: Path to image file (str or Path)
 
     Returns:
-        tuple: (img_cv, scale_x, scale_y) where img_cv is OpenCV BGR array,
-               and scale factors map thumbnail-space bboxes to img_cv space.
-               Returns (None, 1.0, 1.0) on error.
+        OpenCV BGR array in detection space, or None on error.
     """
-    cv2 = _ensure_cv2()
-    Image, ImageOps = _ensure_pil()
-
-    try:
-        photo = Path(photo_path)
-        img_cv = None
-        scale_x, scale_y = 1.0, 1.0
-
-        if photo.suffix.lower() in RAW_EXTENSIONS:
-            import rawpy
-            try:
-                with rawpy.imread(str(photo)) as raw:
-                    # Get embedded thumb dimensions (bboxes were calculated on this)
-                    original_width = None
-                    original_height = None
-                    try:
-                        thumb = raw.extract_thumb()
-                        if thumb.format == rawpy.ThumbFormat.JPEG:
-                            thumb_img = Image.open(BytesIO(thumb.data))
-                            thumb_img = ImageOps.exif_transpose(thumb_img)
-                            original_width = thumb_img.width
-                            original_height = thumb_img.height
-                    except Exception:
-                        pass
-
-                    # Use full RAW processing for higher quality
-                    rgb = raw.postprocess(use_camera_wb=True)
-                    img_cv = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-
-                    # Compute scale factors from thumb to processed dimensions
-                    if original_width and img_cv.shape[1] != original_width:
-                        scale_x = img_cv.shape[1] / original_width
-                        scale_y = img_cv.shape[0] / original_height
-            except Exception:
-                return None, 1.0, 1.0
-        else:
-            # Always use PIL to properly handle EXIF rotation
-            # cv2.imread() ignores EXIF orientation tags
-            pil_img = Image.open(photo)
-            pil_img = ImageOps.exif_transpose(pil_img)
-            if pil_img.mode != 'RGB':
-                pil_img = pil_img.convert('RGB')
-            img_cv = cv2.cvtColor(np.array(pil_img), cv2.COLOR_RGB2BGR)
-
-        if img_cv is None:
-            return None, 1.0, 1.0
-
-        return img_cv, scale_x, scale_y
-
-    except Exception:
-        return None, 1.0, 1.0
+    return load_image_from_path(photo_path)[1]

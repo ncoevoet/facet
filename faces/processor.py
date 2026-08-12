@@ -156,16 +156,12 @@ class FaceProcessor:
 
             face_id, photo_path, x1, y1, x2, y2 = item
             try:
-                img_cv, scale_x, scale_y = load_image_for_face_crop(photo_path)
+                img_cv = load_image_for_face_crop(photo_path)
                 if img_cv is None:
                     with self.metrics_lock:
                         self.metrics['skipped'] += 1
                     self.result_queue.put(None)
                     continue
-
-                # Scale bbox coordinates if needed (RAW files)
-                x1, y1 = x1 * scale_x, y1 * scale_y
-                x2, y2 = x2 * scale_x, y2 * scale_y
 
                 # Use shared crop_face_with_padding from image_utils (same as FaceAnalyzer)
                 thumbnail_bytes = crop_face_with_padding(
