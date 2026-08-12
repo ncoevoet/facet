@@ -4,7 +4,6 @@ match in ``map_disk_path`` (A5#2) and the share-secret bootstrap in
 """
 
 import json
-import os
 from unittest import mock
 
 import pytest
@@ -16,8 +15,13 @@ _MOD = "api.config"
 
 
 def _norm(path):
-    """Compare paths independent of the platform separator map_disk_path applies."""
-    return path.replace(os.sep, "/")
+    """Compare paths independent of the platform separator map_disk_path applies.
+
+    map_disk_path rewrites separators to os.sep, so its output is backslashes on
+    Windows and forward slashes on Linux; canonicalise both to '/' so the
+    expected literals (written with backslashes) match on either platform.
+    """
+    return path.replace("\\", "/")
 
 
 class TestMapDiskPathPrefixBoundary:
