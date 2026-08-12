@@ -792,6 +792,14 @@ Quando una raffica coincide esattamente con un bracketing, il suo `is_burst_lead
 quello scatto di base, così la galleria mostra la foto correttamente esposta invece di quella
 che ha ottenuto il punteggio migliore.
 
+Lo scatto di base è il piolo centrale della scala. Con un numero pari di scatti ce ne sono
+due a uguale distanza dal centro: è di base quello che ha bruciato meno estremi del proprio
+istogramma (`shadow_clipped` / `highlight_clipped`), perché lo scatto misurato tiene la scena
+mentre i pioli ai suoi lati sono spinti abbastanza da tagliare. Se nessuno dei due è stato
+misurato, o se tagliano altrettanti estremi, vince il più vecchio. Una scala dispari si
+centra sempre sullo scatto mediano a prescindere dal taglio, quindi una serie simmetrica
+`(-2, 0, +2)` resta invariata.
+
 Si avvia con `--detect-sequences`; viene eseguito anche al termine di ogni scansione, dopo il
 raggruppamento delle raffiche.
 
@@ -814,10 +822,27 @@ raggruppamento delle raffiche.
 | `enabled` | `true` | Disattiva completamente il rilevamento del bracketing |
 | `max_gap_seconds` | `3.0` | Intervallo massimo tra due scatti consecutivi di una serie |
 | `max_hamming` | `10` | Distanza pHash ammessa tra gli scatti (stessa inquadratura) |
-| `min_frames` | `3` | Serie più breve considerata un bracketing |
+| `min_frames` | `3` | Serie più breve considerata un bracketing. `2` è opzionale — vedi l'avvertenza sotto |
 | `min_step_stops` | `0.5` | Minimo scarto di EV che conta come variazione voluta |
 | `min_span_stops` | `1.0` | Escursione minima tra lo scatto più scuro e il più chiaro |
 | `step_tolerance_stops` | `0.34` | Irregolarità ammessa tra i passi (un terzo di stop) |
+
+**Perché `min_frames` vale `3` per impostazione predefinita.** Su una coppia due dei quattro
+test della scala si svuotano di senso: un solo passo è banalmente unidirezionale e banalmente
+regolare. Resta soltanto «due scatti a pochi istanti l'uno dall'altro, stessa inquadratura,
+distanti almeno uno stop» — che descrive un fotografo che corregge l'esposizione e riscatta
+esattamente quanto un vero bracketing a due scatti. Misurato su una libreria di 124.886 foto,
+`2` aggiunge 381 serie alle 226 trovate per impostazione predefinita, e gli indizi dicono che
+la maggior parte non lo è: il 56 % copre meno di due stop, mentre il 99,6 % delle serie
+confermate ne copre due o più, e il loro profilo di taglio più frequente è «entrambi gli
+scatti scuri» invece della morsa ombre/alte luci delle serie confermate.
+
+Peggio ancora, una coppia che è *davvero* ciò che resta di una serie da tre scatti è fatta di
+due pioli laterali adiacenti, e nulla di memorizzato dice da che parte mancasse il terzo: il
+`sequence_ev_offset` `0` finisce così su uno scatto che la fotocamera non ha mai misurato, e
+`hide_brackets` (attivo per impostazione predefinita) nasconde l'altro. Imposta `2` solo se
+scatti in bracketing a due fotogrammi e preferisci accettare quei falsi positivi piuttosto
+che perdere quelle serie.
 
 ---
 

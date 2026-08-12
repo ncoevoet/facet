@@ -6,6 +6,7 @@ distinction that matters: an even, one-directional EV ladder is a bracket, and
 the drifting exposures of an ordinary hand-held run are not.
 """
 
+import json
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -24,13 +25,16 @@ from utils.sequence import (
 BASE_TIME = datetime(2025, 4, 15, 19, 59, 5)
 
 
-def _frame(index, ev, gap_seconds=1.0, phash='ff00ff00ff00ff00', camera='Canon EOS R6'):
+def _frame(index, ev, gap_seconds=1.0, phash='ff00ff00ff00ff00', camera='Canon EOS R6',
+           shadow_clipped=None, highlight_clipped=None):
     return {
         'path': f'/photo-{index}.jpg',
         'camera_model': camera,
         'phash': phash,
         'captured_at': BASE_TIME + timedelta(seconds=index * gap_seconds),
         'ev': ev,
+        'shadow_clipped': shadow_clipped,
+        'highlight_clipped': highlight_clipped,
     }
 
 
@@ -156,20 +160,98 @@ class TestBaseFrame:
     def test_order_of_capture_does_not_matter(self):
         assert _base_frame(_ladder([12.0, 10.0, 8.0]))['ev'] == 10.0
 
+    def test_clipping_never_moves_an_odd_ladder_off_its_middle_rung(self):
+        """The even-ladder tie-break must be a strict generalisation.
+
+        A high-contrast scene is exactly why a bracket gets shot, so the metered
+        frame routinely blows an end of the histogram while a flanking rung does
+        not. Ranking on clipping first would hand the base to that flanking rung
+        and silently re-centre every symmetric set in the library.
+        """
+        run = [
+            _frame(0, 12.0, shadow_clipped=0, highlight_clipped=0),
+            _frame(1, 10.0, shadow_clipped=0, highlight_clipped=1),
+            _frame(2, 8.0, shadow_clipped=0, highlight_clipped=1),
+        ]
+        assert _base_frame(run)['ev'] == 10.0
+
+    def test_a_pair_centres_on_the_frame_that_held_the_scene(self):
+        """(-3, 0) with the dark frame fired first, as a camera orders an AEB set.
+
+        Position alone chose the higher photometric EV, which is the darker
+        frame, so this set came out with offset zero on the -3 rung. Capture
+        order would repeat that mistake here, so the clipping evidence has to
+        outrank it.
+        """
+        run = [
+            _frame(0, 15.64, shadow_clipped=1, highlight_clipped=0),
+            _frame(1, 12.64, shadow_clipped=0, highlight_clipped=0),
+        ]
+        assert _base_frame(run)['ev'] == 12.64
+
+    def test_a_pair_shot_the_bright_way_centres_on_the_same_frame(self):
+        """(0, +3): the blown rung is the bright one, and the base is still the clean one."""
+        run = [
+            _frame(0, 9.64, shadow_clipped=0, highlight_clipped=1),
+            _frame(1, 12.64, shadow_clipped=0, highlight_clipped=0),
+        ]
+        assert _base_frame(run)['ev'] == 12.64
+
+    def test_an_even_ladder_breaks_its_centre_tie_on_clipping_too(self):
+        """Four rungs, so the tie is between the two middle ones -- not the pair case."""
+        run = [
+            _frame(0, 9.64, shadow_clipped=0, highlight_clipped=1),
+            _frame(1, 10.64, shadow_clipped=0, highlight_clipped=1),
+            _frame(2, 11.64, shadow_clipped=0, highlight_clipped=0),
+            _frame(3, 12.64, shadow_clipped=1, highlight_clipped=0),
+        ]
+        assert _base_frame(run)['ev'] == 11.64
+
+    def test_an_unmeasured_pair_falls_back_to_capture_order(self):
+        # NULL in both columns means the technical pass never saw the frame, not
+        # that its histogram is clean, so it must not win the tie on that.
+        assert _base_frame(_ladder([15.64, 12.64]))['ev'] == 15.64
+
+    def test_a_pair_that_blew_as_many_ends_falls_back_to_capture_order(self):
+        run = [
+            _frame(0, 15.64, shadow_clipped=1, highlight_clipped=0),
+            _frame(1, 12.64, shadow_clipped=0, highlight_clipped=1),
+        ]
+        assert _base_frame(run)['ev'] == 15.64
+
 
 # ---------------------------------------------------------------------------
 # End-to-end over a real SQLite database
 # ---------------------------------------------------------------------------
 
-def _seed(db_path, rows):
+_SEED_COLUMNS = ('path', 'filename', 'date_taken', 'camera_model', 'f_stop', 'shutter_speed',
+                 'iso', 'phash', 'aggregate', 'burst_group_id', 'is_burst_lead')
+_CLIPPED_COLUMNS = _SEED_COLUMNS + ('shadow_clipped', 'highlight_clipped')
+
+
+def _seed(db_path, rows, columns=_SEED_COLUMNS):
     from db.schema import init_database
     init_database(str(db_path))
     with sqlite3.connect(db_path) as conn:
         conn.executemany(
-            "INSERT INTO photos (path, filename, date_taken, camera_model, f_stop, "
-            "shutter_speed, iso, phash, aggregate, burst_group_id, is_burst_lead) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?)", rows)
+            f"INSERT INTO photos ({', '.join(columns)}) "
+            f"VALUES ({', '.join('?' * len(columns))})", rows)
         conn.commit()
+
+
+def _labels(db_path):
+    """Every column this pass writes, for the whole library, in a stable order."""
+    with sqlite3.connect(db_path) as conn:
+        conn.row_factory = sqlite3.Row
+        return [dict(r) for r in conn.execute(
+            "SELECT path, sequence_group_id, sequence_kind, sequence_ev_offset, is_burst_lead "
+            "FROM photos ORDER BY path")]
+
+
+def _config(tmp_path, **sequence_detection):
+    cfg = tmp_path / 'cfg.json'
+    cfg.write_text(json.dumps({'categories': [], 'sequence_detection': sequence_detection}))
+    return str(cfg)
 
 
 def _bracket_rows(burst_group_id=1):
@@ -217,8 +299,13 @@ class TestDetectSequencesEndToEnd:
         db = tmp_path / 'seq.db'
         _seed(db, _bracket_rows())
         first = detect_sequences(str(db))
+        first_labels = _labels(db)
         second = detect_sequences(str(db))
         assert first == second
+        # The summary alone cannot see a renumbering: the pass clears and
+        # rewrites every label each run, so the sets have to come back with the
+        # same ids, the same offsets and the same lead, not merely the same count.
+        assert _labels(db) == first_labels
 
     def test_relabelling_clears_frames_that_no_longer_qualify(self, tmp_path):
         db = tmp_path / 'seq.db'
@@ -332,6 +419,172 @@ class TestDetectSequencesEndToEnd:
              'ff00ff00ff00ff00', 5.0, None, 0),
         ])
         assert detect_sequences(str(db)) is None
+
+
+class TestTwoFrameBrackets:
+    """`min_frames = 2`, the opt-in setting, and why it is not the default.
+
+    Every exposure below is f/8 at ISO 100: 1/800s is three stops under the
+    1/100s metered frame, 1/12.5s three over, 1/400s two under.
+    """
+
+    def _aeb_pair_dark_first(self):
+        """(-3, 0). Sorted by path the dark frame comes first, so capture order
+        would re-make the very mistake position-based selection made."""
+        return [
+            ('/b1_dark.jpg', 'b1_dark.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 8.0,
+             '0.00125', 100, 'ff00ff00ff00ff00', 7.0, 1, 1, 1, 0),
+            ('/b2_base.jpg', 'b2_base.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 8.0,
+             '0.01', 100, 'ff00ff00ff00ff00', 5.0, 1, 0, 0, 0),
+        ]
+
+    def _aeb_pair_bright_first(self):
+        """(0, +3) with the blown rung fired first, a full minute after the other pair."""
+        return [
+            ('/c1_bright.jpg', 'c1_bright.jpg', '2025:04:15 20:00:05', 'Canon EOS R6', 8.0,
+             '0.08', 100, 'ff00ff00ff00ff00', 7.0, 2, 1, 0, 1),
+            ('/c2_base.jpg', 'c2_base.jpg', '2025:04:15 20:00:05', 'Canon EOS R6', 8.0,
+             '0.01', 100, 'ff00ff00ff00ff00', 5.0, 2, 0, 0, 0),
+        ]
+
+    def _truncated_aeb_pair(self):
+        """Two adjacent *flanking* rungs of a 3-shot set whose metered frame is gone.
+
+        1/400s and 1/200s: one stop apart, both under-exposed, so this is what is
+        left of a (-2, -1, 0) set after the keeper was moved or deleted. Nothing
+        stored says which side the missing rung was on.
+        """
+        return [
+            ('/d1_minus2.jpg', 'd1_minus2.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 8.0,
+             '0.0025', 100, 'ff00ff00ff00ff00', 4.0, 4, 1, 1, 0),
+            ('/d2_minus1.jpg', 'd2_minus1.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 8.0,
+             '0.005', 100, 'ff00ff00ff00ff00', 5.0, 4, 0, 1, 0),
+        ]
+
+    def _corrected_pair(self):
+        """Not a bracket: one under-exposed frame, then the same shot dialled two
+        stops brighter. Same body, same framing, seconds apart -- every signal the
+        stored EXIF carries reads identically to a two-frame AEB set."""
+        return [
+            ('/x1_wrong.jpg', 'x1_wrong.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 8.0,
+             '0.0025', 100, 'ff00ff00ff00ff00', 4.0, 3, 1, 1, 0),
+            ('/x2_right.jpg', 'x2_right.jpg', '2025:04:15 19:59:07', 'Canon EOS R6', 8.0,
+             '0.01', 100, 'ff00ff00ff00ff00', 8.0, 3, 0, 0, 0),
+        ]
+
+    def test_a_dark_first_pair_centres_on_the_metered_frame(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._aeb_pair_dark_first(), _CLIPPED_COLUMNS)
+
+        result = detect_sequences(str(db), config_path=_config(tmp_path, min_frames=2))
+        assert result == {'sets': 1, 'frames': 2, 'promoted': 1, 'demoted': 0}
+
+        rows = {r['path']: r for r in _labels(db)}
+        assert rows['/b2_base.jpg']['sequence_ev_offset'] == pytest.approx(0.0)
+        assert rows['/b1_dark.jpg']['sequence_ev_offset'] == pytest.approx(-3.0)
+        # `hide_brackets` keys on `sequence_ev_offset = 0`, so putting the zero on
+        # the dark rung would have shown the -3 frame and hidden the metered one.
+        assert rows['/b2_base.jpg']['is_burst_lead'] == 1
+        assert rows['/b1_dark.jpg']['is_burst_lead'] == 0
+
+    def test_a_bright_first_pair_centres_on_the_metered_frame(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._aeb_pair_bright_first(), _CLIPPED_COLUMNS)
+
+        assert detect_sequences(str(db), config_path=_config(tmp_path, min_frames=2))['sets'] == 1
+
+        rows = {r['path']: r for r in _labels(db)}
+        assert rows['/c2_base.jpg']['sequence_ev_offset'] == pytest.approx(0.0)
+        assert rows['/c1_bright.jpg']['sequence_ev_offset'] == pytest.approx(3.0)
+        assert rows['/c2_base.jpg']['is_burst_lead'] == 1
+
+    def test_the_shipped_default_leaves_a_two_frame_run_alone(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._corrected_pair(), _CLIPPED_COLUMNS)
+
+        assert detect_sequences(str(db))['sets'] == 0
+        assert {r['sequence_kind'] for r in _labels(db)} == {None}
+
+    def test_opting_in_cannot_tell_a_correction_from_a_bracket(self, tmp_path):
+        """The first measured reason `min_frames` ships at 3.
+
+        On a pair the monotonic-steps and even-steps tests are both vacuous --
+        one step is trivially both -- so all that is left is "two frames, moments
+        apart, framed alike, a stop or more apart", which describes a correction
+        exactly as well as an AEB set. Nothing else in `photos` separates them:
+        the clipping pattern here, one blown frame and one clean, is the same
+        pattern a genuine (-3, 0) set leaves.
+        """
+        db = tmp_path / 'seq.db'
+        _seed(db, self._corrected_pair(), _CLIPPED_COLUMNS)
+
+        assert detect_sequences(str(db), config_path=_config(tmp_path, min_frames=2))['sets'] == 1
+
+        rows = {r['path']: r for r in _labels(db)}
+        # The clipping tie-break does land the zero on the keeper, so the lead is
+        # right by luck. The cost is the label: the rejected frame is now a
+        # bracket rung at -2 EV, which `hide_brackets` -- on by default -- hides
+        # behind a set the photographer never shot.
+        assert rows['/x2_right.jpg']['sequence_ev_offset'] == pytest.approx(0.0)
+        assert rows['/x1_wrong.jpg']['sequence_ev_offset'] == pytest.approx(-2.0)
+
+    def test_opting_in_puts_the_zero_on_a_frame_that_was_never_the_base(self, tmp_path):
+        """The second, and the one no code can fix.
+
+        Both rungs of a truncated set are flanking frames, so they clip the same
+        end and the tie falls to capture order -- stamping offset zero on a frame
+        two stops under the exposure the camera actually metered, and reporting
+        the other as "+1" when it was "-1". The evidence for the missing rung is
+        not in the database, so no rule recovers it; only requiring a third frame
+        keeps the set out of the labelled population at all.
+        """
+        db = tmp_path / 'seq.db'
+        _seed(db, self._truncated_aeb_pair(), _CLIPPED_COLUMNS)
+
+        assert detect_sequences(str(db), config_path=_config(tmp_path, min_frames=2))['sets'] == 1
+
+        rows = {r['path']: r for r in _labels(db)}
+        assert rows['/d1_minus2.jpg']['sequence_ev_offset'] == pytest.approx(0.0)
+        assert rows['/d2_minus1.jpg']['sequence_ev_offset'] == pytest.approx(1.0)
+
+    def test_a_symmetric_triple_is_unchanged_by_the_pair_rule(self, tmp_path):
+        """Regression fixture: clipping decides an even ladder's tie and nothing else.
+
+        The metered frame blows its highlights here and the dark rung does not,
+        so a rule that ranked on clipping before position would re-centre this
+        set onto the -3 rung.
+        """
+        db = tmp_path / 'seq.db'
+        _seed(db, [
+            ('/t0.jpg', 't0.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 8.0, '0.00125', 100,
+             'ff00ff00ff00ff00', 5.0, 1, 0, 0, 0),
+            ('/t1.jpg', 't1.jpg', '2025:04:15 19:59:06', 'Canon EOS R6', 8.0, '0.01', 100,
+             'ff00ff00ff00ff00', 6.0, 1, 0, 0, 1),
+            ('/t2.jpg', 't2.jpg', '2025:04:15 19:59:07', 'Canon EOS R6', 8.0, '0.08', 100,
+             'ff00ff00ff00ff00', 9.0, 1, 1, 0, 1),
+        ], _CLIPPED_COLUMNS)
+
+        assert detect_sequences(str(db), config_path=_config(tmp_path, min_frames=2))['sets'] == 1
+
+        rows = {r['path']: r for r in _labels(db)}
+        assert rows['/t0.jpg']['sequence_ev_offset'] == pytest.approx(-3.0)
+        assert rows['/t1.jpg']['sequence_ev_offset'] == pytest.approx(0.0)
+        assert rows['/t2.jpg']['sequence_ev_offset'] == pytest.approx(3.0)
+        assert rows['/t1.jpg']['is_burst_lead'] == 1
+
+    def test_two_frame_sets_are_renumbered_identically_on_a_re_run(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._aeb_pair_dark_first() + self._aeb_pair_bright_first(), _CLIPPED_COLUMNS)
+        cfg = _config(tmp_path, min_frames=2)
+
+        first = detect_sequences(str(db), config_path=cfg)
+        first_labels = _labels(db)
+        second = detect_sequences(str(db), config_path=cfg)
+
+        assert first == second == {'sets': 2, 'frames': 4, 'promoted': 2, 'demoted': 0}
+        # Both sets are numbered from 1 within the bracket kind on every run, so
+        # the ids have to land on the same members again.
+        assert _labels(db) == first_labels
 
 
 class TestPromoteBracketLeads:

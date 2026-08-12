@@ -792,6 +792,14 @@ sinal que a câmara usa: `-2` é a escura e `+2` a clara. Quando uma rajada corr
 exatamente a um bracketing, o seu `is_burst_lead` passa para essa foto base, para que a
 galeria mostre a foto corretamente exposta em vez da que obteve a melhor pontuação.
 
+A foto base é o degrau central da escada. Com um número par de fotos há duas à mesma
+distância do centro: nesse caso a base é aquela que queimou menos extremos do seu histograma
+(`shadow_clipped` / `highlight_clipped`), porque a foto medida segura a cena enquanto os
+degraus ao seu lado estão empurrados o suficiente para cortar. Se nenhuma das duas foi
+medida, ou se ambas cortam outros tantos extremos, ganha a mais antiga. Uma escada ímpar
+centra-se sempre na foto do meio, com corte ou sem ele, pelo que uma série simétrica
+`(-2, 0, +2)` não muda.
+
 Executa-se com `--detect-sequences`; corre também no fim de cada análise, depois do
 agrupamento das rajadas.
 
@@ -814,10 +822,26 @@ agrupamento das rajadas.
 | `enabled` | `true` | Desativa por completo a deteção de bracketing |
 | `max_gap_seconds` | `3.0` | Intervalo máximo entre duas fotos consecutivas de uma série |
 | `max_hamming` | `10` | Distância pHash admitida entre as fotos (mesmo enquadramento) |
-| `min_frames` | `3` | Série mais curta considerada um bracketing |
+| `min_frames` | `3` | Série mais curta considerada um bracketing. `2` é opcional — ver a advertência abaixo |
 | `min_step_stops` | `0.5` | Menor passo de EV que conta como alteração deliberada |
 | `min_span_stops` | `1.0` | Amplitude mínima entre a foto mais escura e a mais clara |
 | `step_tolerance_stops` | `0.34` | Irregularidade admitida entre os passos (um terço de passo) |
+
+**Porque `min_frames` está a `3` por omissão.** Num par, dois dos quatro testes da escada
+ficam vazios: um único passo é trivialmente unidirecional e trivialmente regular. Resta
+apenas «duas fotos separadas por instantes, mesmo enquadramento, a um passo ou mais» — o que
+descreve tão bem um fotógrafo que corrige a exposição e volta a disparar como um verdadeiro
+bracketing de duas fotos. Medido numa biblioteca de 124 886 fotos, `2` acrescenta 381 séries
+às 226 encontradas por omissão, e os indícios dizem que a maioria não o é: 56 % abrangem
+menos de dois passos, ao passo que 99,6 % das séries confirmadas abrangem dois ou mais, e o
+seu padrão de corte mais frequente é «ambas as fotos escuras» em vez do enquadramento
+sombras/altas luzes das séries confirmadas.
+
+Pior ainda, um par que *é* de facto o que resta de uma série de três fotos é feito de dois
+degraus laterais contíguos, e nada do que está guardado diz de que lado faltava o terceiro: o
+`sequence_ev_offset` `0` acaba assim numa foto que a câmara nunca mediu, e `hide_brackets`
+(ativo por omissão) esconde a outra. Defina `2` apenas se fotografar com bracketing de duas
+fotos e preferir assumir esses falsos positivos a perder essas séries.
 
 ---
 

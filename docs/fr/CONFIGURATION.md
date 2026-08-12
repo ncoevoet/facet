@@ -793,6 +793,14 @@ une rafale correspond exactement à un bracketing, son `is_burst_lead` est dépl
 de référence, afin que la galerie affiche la photo correctement exposée plutôt que celle qui
 obtient le meilleur score.
 
+La vue de référence est le barreau central de l'échelle. Un nombre pair de vues en compte
+deux à égale distance du centre : la référence est alors celle qui a brûlé le moins
+d'extrémités de son histogramme (`shadow_clipped` / `highlight_clipped`), car la vue mesurée
+tient la scène tandis que les barreaux qui l'encadrent sont poussés assez loin pour écrêter.
+Si aucune des deux n'a été mesurée, ou si elles écrêtent autant l'une que l'autre, la plus
+ancienne l'emporte. Une échelle impaire se centre toujours sur sa vue médiane, quel que soit
+l'écrêtage : une série symétrique `(-2, 0, +2)` n'est donc pas affectée.
+
 Lancé par `--detect-sequences` ; s'exécute aussi à la fin de chaque scan, après le
 regroupement des rafales.
 
@@ -815,10 +823,28 @@ regroupement des rafales.
 | `enabled` | `true` | Désactive entièrement la détection de bracketing |
 | `max_gap_seconds` | `3.0` | Écart maximal entre deux vues consécutives d'une série |
 | `max_hamming` | `10` | Distance pHash tolérée entre les vues (même cadrage) |
-| `min_frames` | `3` | Nombre minimal de vues pour parler de bracketing |
+| `min_frames` | `3` | Nombre minimal de vues pour parler de bracketing. `2` est optionnel — voir la mise en garde ci-dessous |
 | `min_step_stops` | `0.5` | Plus petit écart d'IL considéré comme volontaire |
 | `min_span_stops` | `1.0` | Amplitude minimale entre la vue la plus sombre et la plus claire |
 | `step_tolerance_stops` | `0.34` | Irrégularité tolérée entre les pas (un tiers d'IL) |
+
+**Pourquoi `min_frames` vaut `3` par défaut.** Sur une paire, deux des quatre tests de
+l'échelle ne veulent plus rien dire : un pas unique est trivialement unidirectionnel et
+trivialement régulier. Il ne reste que « deux vues prises à quelques instants d'intervalle,
+au même cadrage, séparées d'au moins un IL » — ce qui décrit tout aussi bien un photographe
+qui corrige son exposition et redéclenche qu'un vrai bracketing à deux vues. Mesuré sur une
+bibliothèque de 124 886 photos, `2` ajoute 381 séries aux 226 trouvées par défaut, et les
+indices disent que la plupart n'en sont pas : 56 % couvrent moins de deux IL là où 99,6 % des
+séries confirmées en couvrent deux ou plus, et leur profil d'écrêtage le plus fréquent est
+« les deux vues sombres » plutôt que l'encadrement ombres/hautes lumières des séries
+confirmées.
+
+Pire, une paire qui est *réellement* ce qui reste d'une série de trois vues se compose de
+deux barreaux voisins qui encadrent la référence, et rien de stocké ne dit de quel côté
+manquait le troisième : le `sequence_ev_offset` `0` se pose alors sur une vue que le boîtier
+n'a jamais mesurée, et `hide_brackets` (actif par défaut) masque l'autre. Ne passez à `2` que
+si vous pratiquez le bracketing à deux vues et préférez assumer ces faux positifs plutôt que
+de manquer ces séries.
 
 ---
 

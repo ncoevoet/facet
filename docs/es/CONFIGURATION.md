@@ -791,6 +791,14 @@ con el signo que usa la cámara: `-2` es la oscura y `+2` la clara. Cuando una r
 ser exactamente un horquillado, su `is_burst_lead` pasa a esa foto base, para que la galería
 muestre la foto bien expuesta y no la que obtuvo la mejor puntuación.
 
+La foto base es el peldaño central de la escalera. Con un número par de tomas hay dos a la
+misma distancia del centro: entonces la base es la que quemó menos extremos de su histograma
+(`shadow_clipped` / `highlight_clipped`), porque la toma medida sostiene la escena mientras
+que los peldaños de al lado están empujados lo suficiente como para recortar. Si ninguna de
+las dos se midió, o si ambas recortan otros tantos extremos, gana la más antigua. Una
+escalera impar se centra siempre en su toma media, con recorte o sin él, así que una serie
+simétrica `(-2, 0, +2)` no cambia.
+
 Se ejecuta con `--detect-sequences`; también corre al final de cada escaneo, después de
 agrupar las ráfagas.
 
@@ -813,10 +821,26 @@ agrupar las ráfagas.
 | `enabled` | `true` | Desactiva por completo la detección de horquillado |
 | `max_gap_seconds` | `3.0` | Intervalo máximo entre dos tomas consecutivas de una serie |
 | `max_hamming` | `10` | Distancia pHash admitida entre tomas (mismo encuadre) |
-| `min_frames` | `3` | Serie más corta que se considera un horquillado |
+| `min_frames` | `3` | Serie más corta que se considera un horquillado. `2` es opcional — véase la advertencia siguiente |
 | `min_step_stops` | `0.5` | Menor paso de EV que cuenta como cambio deliberado |
 | `min_span_stops` | `1.0` | Amplitud mínima entre la toma más oscura y la más clara |
 | `step_tolerance_stops` | `0.34` | Irregularidad admitida entre pasos (un tercio de paso) |
+
+**Por qué `min_frames` vale `3` por defecto.** En una pareja dos de las cuatro pruebas de la
+escalera se quedan vacías: un solo paso es trivialmente unidireccional y trivialmente
+regular. Solo queda «dos tomas separadas por instantes, mismo encuadre, a un paso o más» —
+que describe igual de bien a un fotógrafo que corrige la exposición y vuelve a disparar que a
+un horquillado real de dos tomas. Medido sobre una biblioteca de 124 886 fotos, `2` añade 381
+series a las 226 que encuentra el valor por defecto, y los indicios dicen que la mayoría no
+lo son: el 56 % abarca menos de dos pasos, mientras que el 99,6 % de las series confirmadas
+abarca dos o más, y su patrón de recorte más frecuente es «ambas tomas oscuras» en lugar de
+la horquilla sombras/altas luces de las series confirmadas.
+
+Peor aún, una pareja que *sí* es lo que queda de una serie de tres tomas está formada por dos
+peldaños laterales contiguos, y nada de lo almacenado dice de qué lado faltaba el tercero: el
+`sequence_ev_offset` `0` acaba así en una toma que la cámara nunca midió, y `hide_brackets`
+(activo por defecto) oculta la otra. Ponga `2` solo si dispara horquillado de dos tomas y
+prefiere asumir esos falsos positivos antes que perder esas series.
 
 ---
 

@@ -806,6 +806,13 @@ set's base frame — signed the way a camera labels an AEB set, so `-2` is the d
 `is_burst_lead` moves onto that base frame, so the default gallery shows the correctly
 exposed photo instead of whichever exposure happened to score highest.
 
+The base is the middle rung of the ladder. An even number of frames has two rungs equally
+far from the middle, and there the base is the one that blew fewer ends of its histogram
+(`shadow_clipped` / `highlight_clipped`) — the metered frame holds the scene, the rungs
+either side of it are pushed far enough to clip. Where neither frame was measured, or both
+clipped as many ends, the earlier frame wins. An odd ladder always centres on its middle
+frame regardless of clipping, so a symmetric `(-2, 0, +2)` set is unaffected.
+
 Run via `--detect-sequences`; it also runs at the end of every scan, after burst grouping.
 
 ```json
@@ -827,10 +834,25 @@ Run via `--detect-sequences`; it also runs at the end of every scan, after burst
 | `enabled` | `true` | Turn bracket detection off entirely |
 | `max_gap_seconds` | `3.0` | Longest gap between consecutive frames of one set |
 | `max_hamming` | `10` | pHash distance allowed between frames (same framing) |
-| `min_frames` | `3` | Shortest run treated as a bracket |
+| `min_frames` | `3` | Shortest run treated as a bracket. `2` is opt-in — see the caveat below |
 | `min_step_stops` | `0.5` | Smallest EV step that counts as a deliberate change |
 | `min_span_stops` | `1.0` | Smallest total spread from darkest to brightest frame |
 | `step_tolerance_stops` | `0.34` | How uneven the steps may be (a third of a stop) |
+
+**Why `min_frames` ships at `3`.** Two of the four ladder tests are vacuous on a pair: one
+step is trivially one-directional and trivially even, leaving only "two frames, moments
+apart, framed alike, a stop or more apart" — which describes a photographer dialling in a
+correction and shooting again exactly as well as it describes a two-frame AEB set. Measured
+on a 124,886-photo library, `2` admits 381 further sets against the 226 the default finds,
+and their evidence says most are not brackets: 56% span under two stops where 99.6% of the
+confirmed sets span two or more, and their commonest clipping pattern is both frames dark
+rather than the confirmed sets' dark-end/bright-end straddle.
+
+Worse, a pair that genuinely *is* what remains of a 3-shot set is two adjacent flanking
+rungs, and nothing stored says which side the missing rung was on — so `sequence_ev_offset`
+`0` lands on a frame the camera never metered, and `hide_brackets` (on by default) hides the
+other. Set `2` only if you shoot two-frame AEB and would rather carry those false positives
+than miss the sets.
 
 ---
 

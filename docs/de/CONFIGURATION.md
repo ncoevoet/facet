@@ -793,6 +793,14 @@ Aufnahme. Entspricht eine Serie genau einer Belichtungsreihe, wandert ihr `is_bu
 die Basisaufnahme, sodass die Galerie das korrekt belichtete Bild zeigt statt desjenigen mit
 der höchsten Bewertung.
 
+Die Basisaufnahme ist die mittlere Sprosse der Leiter. Bei einer geraden Anzahl Aufnahmen
+liegen zwei gleich weit von der Mitte entfernt; dann gilt jene als Basis, die weniger Enden
+ihres Histogramms ausgefressen hat (`shadow_clipped` / `highlight_clipped`) — die gemessene
+Aufnahme hält die Szene, die Sprossen daneben sind weit genug verschoben, um zu clippen.
+Wurde keine der beiden gemessen oder clippen beide gleich viele Enden, gewinnt die frühere.
+Eine ungerade Leiter zentriert sich unabhängig vom Clipping stets auf ihre mittlere Aufnahme,
+eine symmetrische `(-2, 0, +2)`-Reihe bleibt also unverändert.
+
 Aufruf über `--detect-sequences`; läuft außerdem am Ende jedes Scans, nach der
 Serienbildung.
 
@@ -815,10 +823,28 @@ Serienbildung.
 | `enabled` | `true` | Belichtungsreihen-Erkennung vollständig abschalten |
 | `max_gap_seconds` | `3.0` | Größter Abstand zwischen zwei aufeinanderfolgenden Aufnahmen |
 | `max_hamming` | `10` | Erlaubter pHash-Abstand zwischen den Aufnahmen (gleicher Bildausschnitt) |
-| `min_frames` | `3` | Kürzeste Folge, die als Belichtungsreihe gilt |
+| `min_frames` | `3` | Kürzeste Folge, die als Belichtungsreihe gilt. `2` ist opt-in — siehe Hinweis unten |
 | `min_step_stops` | `0.5` | Kleinste LW-Stufe, die als bewusste Änderung zählt |
 | `min_span_stops` | `1.0` | Kleinster Gesamtabstand zwischen dunkelster und hellster Aufnahme |
 | `step_tolerance_stops` | `0.34` | Zulässige Ungleichmäßigkeit der Stufen (eine Drittelstufe) |
+
+**Warum `min_frames` standardmäßig `3` ist.** Bei einem Paar laufen zwei der vier
+Leitertests ins Leere: eine einzelne Stufe ist trivialerweise gerichtet und trivialerweise
+gleichmäßig. Übrig bleibt nur „zwei Aufnahmen, Augenblicke auseinander, gleicher
+Bildausschnitt, mindestens eine Blende Unterschied" — und das beschreibt eine nachkorrigierte
+Wiederholungsaufnahme genauso gut wie eine echte Zwei-Bild-Belichtungsreihe. Gemessen an
+einer Bibliothek mit 124.886 Fotos nimmt `2` weitere 381 Serien zu den 226 des Standards
+hinzu, und deren Indizien sprechen mehrheitlich dagegen: 56 % spannen weniger als zwei
+Blenden, während 99,6 % der bestätigten Serien zwei oder mehr spannen, und ihr häufigstes
+Clipping-Muster ist „beide Aufnahmen dunkel" statt der Tiefen/Lichter-Klammer der bestätigten
+Serien.
+
+Schlimmer noch: ein Paar, das *tatsächlich* der Rest einer Dreier-Reihe ist, besteht aus zwei
+benachbarten Randsprossen, und nichts Gespeichertes sagt, auf welcher Seite die fehlende
+Sprosse lag — `sequence_ev_offset` `0` landet dann auf einer Aufnahme, die die Kamera nie
+gemessen hat, und `hide_brackets` (standardmäßig aktiv) blendet die andere aus. Setzen Sie
+`2` nur, wenn Sie mit Zwei-Bild-AEB fotografieren und diese Fehltreffer lieber in Kauf nehmen
+als die Serien zu verpassen.
 
 ---
 
