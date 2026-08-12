@@ -1048,17 +1048,24 @@ def get_album_suggested_context(
 @router.post("/api/albums/{album_id}/share")
 def share_album(
     album_id: int,
+    rotate: bool = Query(False),
     user: CurrentUser = Depends(require_edition),
 ):
-    """Generate a share token for public album access."""
+    """Generate a share token for public album access.
+
+    Reuses the album's existing token so repeated calls return a stable link.
+    Pass ``?rotate=true`` to mint a fresh token, invalidating any link handed
+    out earlier — the operation users expect when revoking a leaked link.
+    """
     with get_db() as conn:
         user_id = _get_user_id(user)
         album = _check_album_access(conn, album_id, user_id)
-        # Reuse existing token if already shared, otherwise generate a new random one
-        try:
-            existing_token = album['share_token']
-        except (IndexError, KeyError):
-            existing_token = None
+        existing_token = None
+        if not rotate:
+            try:
+                existing_token = album['share_token']
+            except (IndexError, KeyError):
+                existing_token = None
         token = existing_token or secrets.token_urlsafe(32)
         conn.execute("UPDATE albums SET share_token = ? WHERE id = ?", (token, album_id))
         conn.commit()

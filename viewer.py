@@ -61,6 +61,10 @@ def main():
 
     import uvicorn
 
+    # Disable uvicorn's access log: its default format records the full request
+    # line including the query string, which would leak share/frame/scan tokens
+    # (passed as query params) into plaintext logs. The app's own
+    # RequestLoggingMiddleware logs the path only.
     if args.production:
         uvicorn.run(
             "api:create_app",
@@ -68,6 +72,7 @@ def main():
             host=args.host,
             port=args.port,
             workers=args.workers,
+            access_log=False,
         )
     else:
         uvicorn.run(
@@ -77,6 +82,7 @@ def main():
             port=args.port,
             reload=True,
             reload_dirs=[_script_dir],
+            access_log=False,
         )
 
 

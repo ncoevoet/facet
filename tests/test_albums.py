@@ -203,6 +203,31 @@ class TestSharing:
         assert len(body["share_token"]) > 0
         mock_conn.commit.assert_called_once()
 
+    def test_share_album_reuses_existing_token(self, client):
+        """Without rotate, a re-share returns the album's existing token."""
+        album_row = _make_album_row(id=1, share_token="existing-tok")
+        mock_conn = mock.MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = album_row
+
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)):
+            resp = client.post("/api/albums/1/share")
+
+        assert resp.status_code == 200
+        assert resp.json()["share_token"] == "existing-tok"
+
+    def test_share_album_rotate_mints_new_token(self, client):
+        """rotate=true invalidates the old link by minting a fresh token."""
+        album_row = _make_album_row(id=1, share_token="old-tok")
+        mock_conn = mock.MagicMock()
+        mock_conn.execute.return_value.fetchone.return_value = album_row
+
+        with mock.patch(f"{_ALBUMS_MODULE}.get_db", return_value=nullcontext(mock_conn)):
+            resp = client.post("/api/albums/1/share", params={"rotate": "true"})
+
+        assert resp.status_code == 200
+        assert resp.json()["share_token"] != "old-tok"
+        assert len(resp.json()["share_token"]) > 0
+
 
     def test_shared_album_invalid_token(self, client):
         """GET /api/shared/album/1 with wrong token returns 403."""
