@@ -202,10 +202,15 @@ Contrôlé par `viewer.features.show_my_taste` (par défaut : `true`). L'état d
 - **Comparer** — Ouvrir 2 à 4 photos sélectionnées côte à côte, panoramique et zoom synchronisés (molette pour zoomer, glisser pour déplacer, double-clic pour réinitialiser ; tous les volets bougent ensemble et passent en pleine résolution au-delà de l'échelle d'ajustement). La même vue que celle du tri, atteignable pour n'importe quel ensemble choisi à la main et non plus seulement pour des vues voisines d'une rafale.
 - **Copier les noms de fichiers** — Copier les noms de fichiers sélectionnés dans le presse-papiers
 - **Exporter** — Écrire des sidecars XMP (note/favori/rejet) à côté des fichiers sélectionnés (voir [Export vers éditeur](#export-vers-éditeur))
+- **Trier vers un dossier** — Copier les gardés, ou déplacer/mettre à la corbeille les rejetés, vers un dossier cible (voir [Trier vers un dossier](#trier-vers-un-dossier))
 - **Télécharger** — Télécharger les photos sélectionnées
 - Effacez la sélection avec Échap ou le bouton Effacer
 
 Les actions groupées nécessitent le mode édition. Double-cliquez sur n'importe quelle photo pour la télécharger directement.
+
+### Trier vers un dossier
+
+La boîte de dialogue **Trier vers un dossier…** de la barre d'actions groupées (mode édition) copie les gardés, ou déplace/met à la corbeille les rejetés, vers un dossier cible en une étape (la corbeille du système est conditionnée par `viewer.cull.allow_trash`, jamais une suppression définitive). L'application est sûre par construction : `POST /api/cull/apply` ne fait jamais confiance à la liste de suppression fournie par le client — il redérive côté serveur l'ensemble réellement ciblé par l'action à partir de l'état `is_rejected` propre à chaque photo (la copie n'agit que sur les gardés, le déplacement/la corbeille que sur les rejetés) et signale tout ce qui sort de ce périmètre comme `excluded_by_state` plutôt que d'agir dessus. Chaque appel est par défaut un essai à blanc (dry run) — un aperçu s'exécute toujours avant toute écriture — et le déplacement/la corbeille exigent un `dry_run=false` explicite pour s'exécuter ; inclure le RAW ou le sidecar non touché d'une photo rejetée est optionnel (`include_companions`), afin que rejeter un JPEG dérivé n'entraîne jamais silencieusement son RAW avec lui. Plusieurs outils photo du commerce ont connu des bugs de suppression de la mauvaise sélection ; le point d'entrée d'application de Facet est conçu pour que le client ne puisse jamais spécifier directement un ensemble à supprimer.
 
 ### Options d'affichage
 
@@ -1163,6 +1168,7 @@ Le point d'accès `/api/download/options` détecte automatiquement les fichiers 
 | `POST /api/export/sidecars` | `[Edition]` Écrire des sidecars pour des chemins explicites ou un ensemble de filtres |
 | `POST /api/photo/embed_metadata` | `[Edition]` Intégrer les métadonnées dans le fichier d'origine (JPEG/HEIC/TIFF/PNG/DNG ; RAW jamais modifié) et écrire le sidecar |
 | `POST /api/albums/{id}/export` | `[Edition]` Export d'album sous forme de sidecars, copie ou lien symbolique |
+| `POST /api/cull/apply` | `[Edition]` Copier les gardés ou déplacer/mettre à la corbeille les rejetés vers un dossier (voir [Trier vers un dossier](#trier-vers-un-dossier)) |
 
 ### Plugins
 

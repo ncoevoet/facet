@@ -205,6 +205,7 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - **Compare** — Open 2–4 selected photos side by side with synced pan and zoom (scroll to zoom, drag to pan, double-click to reset; every pane moves together and swaps to full resolution past the fit scale). The same view the culling darkroom uses, reachable for any hand-picked set rather than only for frames adjacent in a burst.
 - **Copy filenames** — Copy selected filenames to clipboard
 - **Export** — Write XMP sidecars (rating/favorite/reject) next to the selected files (see [Editor Export](#editor-export))
+- **Cull to folder** — Copy keeps, or move/trash rejects, to a target folder (see [Cull to folder](#cull-to-folder))
 - **Download** — Download selected photos
 - Clear selection with Escape or the Clear button
 
@@ -213,6 +214,10 @@ Bulk actions require edition mode. Double-click any photo to download it directl
 ### Keep Top N%
 
 A **Keep top %** control in the gallery toolbar (edition mode) turns the whole filtered view into a one-step cull. Set a percentage; the server ranks the current view by the **current sort** (aggregate, My Taste, Top Picks, sharpness, …), keeps that top share, and **selects the rest** — the lowest-ranked photos — so you can reject them from the selection action bar (or deselect any you want to spare first). Nothing is moved or deleted: it only populates the selection (and every reject still trains "My Taste"). The selection is capped at 5000 photos; on a very large view the control says so — narrow the filter (album, date, person…) to act on the remainder.
+
+### Cull to folder
+
+The bulk-action bar's **Cull to folder…** dialog (edition mode) copies keeps, or moves/trashes rejects, to a target folder in one step (OS-trash is gated behind `viewer.cull.allow_trash`, never a permanent delete). Applying is safe by construction: `POST /api/cull/apply` never trusts a client-supplied deletion list at face value — it re-derives the action's actual target set server-side from each photo's own `is_rejected` state (copy acts only on keeps, move/trash only on rejects) and reports anything outside that scope as `excluded_by_state` instead of acting on it. Every call defaults to a dry run, so a preview always runs before anything is written, and move/trash need an explicit `dry_run=false` to proceed; pulling in a rejected photo's untouched RAW or sidecar is opt-in (`include_companions`), so rejecting a derived JPEG never silently takes its RAW down with it. Several commercial photo tools have shipped delete-selection bugs that acted on the wrong photos; Facet's apply endpoint is designed so the client cannot specify a deletion set directly.
 
 ### Display Options
 
@@ -1317,6 +1322,7 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 | `POST /api/export/sidecars` | `[Edition]` Write sidecars for explicit paths or a filter set |
 | `POST /api/photo/embed_metadata` | `[Edition]` Embed metadata into the original file (JPEG/HEIC/TIFF/PNG/DNG; RAW never modified) and write the sidecar |
 | `POST /api/albums/{id}/export` | `[Edition]` Album export as sidecars, copy, or symlink |
+| `POST /api/cull/apply` | `[Edition]` Copy keeps or move/trash rejects to a folder (see [Cull to folder](#cull-to-folder)) |
 
 ### Plugins
 

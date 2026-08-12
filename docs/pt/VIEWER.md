@@ -202,10 +202,15 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 - **Comparar** — Abre 2 a 4 fotos selecionadas lado a lado com deslocamento e zoom sincronizados (roda para ampliar, arrastar para deslocar, duplo clique para repor; todos os painéis se movem juntos e passam a resolução total para lá da escala de ajuste). A mesma vista da câmara escura de triagem, agora alcançável para qualquer conjunto escolhido à mão e não apenas para fotos vizinhas de uma sequência.
 - **Copiar nomes de arquivo** — Copia os nomes de arquivo selecionados para a área de transferência
 - **Exportar** — Grava sidecars XMP (avaliação/favorito/rejeição) ao lado dos arquivos selecionados (veja [Exportação para Editor](#exportação-para-editor))
+- **Selecionar para pasta** — Copia as mantidas, ou move/descarta para a lixeira as rejeitadas, para uma pasta de destino (veja [Selecionar para pasta](#selecionar-para-pasta))
 - **Baixar** — Baixa as fotos selecionadas
 - Limpe a seleção com Escape ou o botão Limpar
 
 As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer foto para baixá-la diretamente.
+
+### Selecionar para pasta
+
+O diálogo **Selecionar para pasta…** da barra de ações em lote (modo de edição) copia as mantidas, ou move/descarta para a lixeira as rejeitadas, para uma pasta de destino em uma única etapa (a lixeira do sistema é controlada por `viewer.cull.allow_trash`, nunca uma exclusão permanente). Aplicar é seguro por construção: `POST /api/cull/apply` nunca confia cegamente em uma lista de exclusão fornecida pelo cliente — ele rederiva no servidor o conjunto real da ação a partir do estado `is_rejected` de cada foto (copiar age apenas sobre as mantidas, mover/lixeira apenas sobre as rejeitadas) e reporta tudo fora desse escopo como `excluded_by_state`, em vez de agir sobre isso. Cada chamada tem `dry_run` habilitado por padrão — uma pré-visualização sempre roda antes de qualquer gravação — e mover/lixeira exigem um `dry_run=false` explícito para prosseguir; incluir o RAW ou sidecar intocado de uma foto rejeitada é opcional (`include_companions`), de forma que rejeitar um JPEG derivado nunca arrasta silenciosamente seu RAW junto. Várias ferramentas fotográficas comerciais já tiveram bugs de seleção de exclusão que afetaram as fotos erradas; o endpoint de aplicação do Facet foi projetado para que o cliente nunca possa especificar diretamente um conjunto a excluir.
 
 ### Opções de Exibição
 
@@ -1162,6 +1167,7 @@ O endpoint `/api/download/options` detecta automaticamente arquivos RAW companhe
 | `POST /api/export/sidecars` | `[Edition]` Grava sidecars para caminhos explícitos ou um conjunto de filtros |
 | `POST /api/photo/embed_metadata` | `[Edition]` Incorpora metadados no arquivo original (JPEG/HEIC/TIFF/PNG/DNG; RAW nunca modificado) e grava o sidecar |
 | `POST /api/albums/{id}/export` | `[Edition]` Exportação de álbum como sidecars, cópia ou link simbólico |
+| `POST /api/cull/apply` | `[Edition]` Copia as mantidas ou move/descarta para a lixeira as rejeitadas para uma pasta (veja [Selecionar para pasta](#selecionar-para-pasta)) |
 
 ### Plugins
 

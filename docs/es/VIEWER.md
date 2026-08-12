@@ -202,10 +202,15 @@ Controlada por `viewer.features.show_my_taste` (predeterminado: `true`). El esta
 - **Comparar** — Abre de 2 a 4 fotos seleccionadas una al lado de otra con desplazamiento y zoom sincronizados (rueda para ampliar, arrastrar para desplazar, doble clic para reiniciar; todos los paneles se mueven juntos y pasan a resolución completa más allá de la escala de ajuste). La misma vista que usa el cuarto oscuro de descarte, ahora alcanzable para cualquier conjunto elegido a mano y no solo para tomas contiguas de una ráfaga.
 - **Copiar nombres de archivo** — Copia los nombres de archivo seleccionados al portapapeles
 - **Exportar** — Escribe sidecars XMP (valoración/favorito/descartado) junto a los archivos seleccionados (consulta [Exportación al editor](#exportación-al-editor))
+- **Descartar a carpeta** — Copia los conservados, o mueve/envía a la papelera los descartados, a una carpeta de destino (consulta [Descartar a carpeta](#descartar-a-carpeta))
 - **Descargar** — Descarga las fotos seleccionadas
 - Borra la selección con Escape o el botón Borrar
 
 Las acciones masivas requieren el modo de edición. Haz doble clic en cualquier foto para descargarla directamente.
+
+### Descartar a carpeta
+
+El diálogo **Descartar a carpeta…** de la barra de acciones masivas (modo edición) copia los conservados, o mueve/envía a la papelera los descartados, a una carpeta de destino en un solo paso (la papelera del sistema está condicionada por `viewer.cull.allow_trash`, nunca un borrado permanente). Aplicar es seguro por construcción: `POST /api/cull/apply` nunca confía a ciegas en una lista de eliminación proporcionada por el cliente — vuelve a derivar en el servidor el conjunto real de la acción a partir del estado `is_rejected` propio de cada foto (copiar actúa solo sobre los conservados, mover/papelera solo sobre los descartados) y reporta todo lo que quede fuera de ese alcance como `excluded_by_state` en lugar de actuar sobre ello. Cada llamada usa por defecto una simulación (dry run) — siempre se ejecuta una vista previa antes de escribir nada — y mover/papelera requieren un `dry_run=false` explícito para proceder; incluir el RAW o el sidecar intacto de una foto descartada es opcional (`include_companions`), de modo que descartar un JPEG derivado nunca arrastra silenciosamente su RAW. Varias herramientas fotográficas comerciales han tenido errores de selección de eliminación que afectaron a las fotos equivocadas; el endpoint de aplicación de Facet está diseñado para que el cliente nunca pueda especificar directamente un conjunto a eliminar.
 
 ### Opciones de visualización
 
@@ -1160,6 +1165,7 @@ El endpoint `/api/download/options` detecta automáticamente los archivos RAW co
 | `POST /api/export/sidecars` | `[Edition]` Escribir sidecars para rutas explícitas o un conjunto de filtros |
 | `POST /api/photo/embed_metadata` | `[Edition]` Incrustar los metadatos en el archivo original (JPEG/HEIC/TIFF/PNG/DNG; los RAW nunca se modifican) y escribir el sidecar |
 | `POST /api/albums/{id}/export` | `[Edition]` Exportación de álbum como sidecars, copia o enlace simbólico |
+| `POST /api/cull/apply` | `[Edition]` Copia los conservados o mueve/envía a la papelera los descartados a una carpeta (consulta [Descartar a carpeta](#descartar-a-carpeta)) |
 
 ### Plugins
 

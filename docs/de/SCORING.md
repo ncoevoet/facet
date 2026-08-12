@@ -409,6 +409,8 @@ python facet.py --recompute-average      # anwenden + Perzentil-Snapshot persist
 3. Klicken Sie auf „Gewichte vorschlagen" für optimierte Werte
 4. Aktualisieren Sie die Konfiguration manuell
 
+**Gewichte vorschlagen** beantwortet auch eine engere Frage als das CV-Gate oben: Wie gut stimmen die *aktuell live* verwendeten Gewichte dieser Kategorie bereits mit Ihren eigenen Vergleichen überein? Ein Klick liefert `accuracy_before` — den Prozentsatz der gelabelten Paare dieser Kategorie (A/B-Stimmen, Aussortieren und aus Bewertungen abgeleitete Paare), deren Gewinner die live verwendeten Gewichte korrekt vorhersagen — neben `accuracy_after`, derselben Kennzahl für die vorgeschlagenen Gewichte. Beide werden bei jedem Ausführen nebeneinander im Tab „Gewichtsvorschläge" und in der Seitenleiste des Tabs „A/B-Vergleich" angezeigt (`GET /api/comparison/learned_weights`, `optimization/weight_optimizer.py:optimize_weights_direct`). Wie das CLI-Gate benötigt dies `min_comparisons_for_optimization` (Standard 30) gelabelte Paare für diese Kategorie — darunter meldet die Schaltfläche das Defizit statt einer Zahl.
+
 ## Eigene Kategorien hinzufügen
 
 ```json

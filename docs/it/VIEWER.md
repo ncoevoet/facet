@@ -202,10 +202,15 @@ Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato d
 - **Confronta** — Apre da 2 a 4 foto selezionate affiancate con panoramica e zoom sincronizzati (rotella per ingrandire, trascinamento per spostare, doppio clic per azzerare; tutti i riquadri si muovono insieme e passano a piena risoluzione oltre la scala di adattamento). La stessa vista della camera oscura di selezione, ora raggiungibile per qualsiasi insieme scelto a mano e non più solo per scatti contigui di una raffica.
 - **Copia nomi file** — Copia i nomi dei file selezionati negli appunti
 - **Esporta** — Scrivi i sidecar XMP (valutazione/preferito/scarto) accanto ai file selezionati (vedi [Esportazione per editor](#esportazione-per-editor))
+- **Scarta in cartella** — Copia i mantenuti, o sposta/cestina gli scartati, in una cartella di destinazione (vedi [Scarta in cartella](#scarta-in-cartella))
 - **Scarica** — Scarica le foto selezionate
 - Annulla la selezione con Esc o con il pulsante Cancella
 
 Le azioni di gruppo richiedono la modalità di modifica. Fai doppio clic su una foto qualsiasi per scaricarla direttamente.
+
+### Scarta in cartella
+
+La finestra di dialogo **Scarta in cartella…** nella barra delle azioni di gruppo (modalità di modifica) copia i mantenuti, o sposta/cestina gli scartati, in una cartella di destinazione in un solo passaggio (il cestino di sistema è vincolato a `viewer.cull.allow_trash`, mai un'eliminazione permanente). L'applicazione è sicura per costruzione: `POST /api/cull/apply` non si fida mai ciecamente di un elenco di eliminazione fornito dal client — rideriva lato server l'insieme effettivo dell'azione a partire dallo stato `is_rejected` proprio di ogni foto (la copia agisce solo sui mantenuti, lo spostamento/cestino solo sugli scartati) e segnala tutto ciò che è fuori da questo ambito come `excluded_by_state` invece di agirvi sopra. Ogni chiamata ha come predefinito una simulazione (dry run): un'anteprima viene sempre eseguita prima di qualsiasi scrittura, e spostamento/cestino richiedono un `dry_run=false` esplicito per procedere; includere il RAW o il sidecar non toccato di una foto scartata è opzionale (`include_companions`), così scartare un JPEG derivato non trascina mai silenziosamente il suo RAW. Diversi strumenti fotografici commerciali hanno avuto bug di selezione dell'eliminazione che hanno colpito le foto sbagliate; l'endpoint di applicazione di Facet è progettato in modo che il client non possa mai specificare direttamente un insieme da eliminare.
 
 ### Opzioni di visualizzazione
 
@@ -1161,6 +1166,7 @@ L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e
 | `POST /api/export/sidecars` | `[Edition]` Scrivi i sidecar per percorsi espliciti o per un insieme di filtri |
 | `POST /api/photo/embed_metadata` | `[Edition]` Incorpora i metadati nel file originale (JPEG/HEIC/TIFF/PNG/DNG; RAW mai modificato) e scrivi il sidecar |
 | `POST /api/albums/{id}/export` | `[Edition]` Esportazione album come sidecar, copia o collegamento simbolico |
+| `POST /api/cull/apply` | `[Edition]` Copia i mantenuti o sposta/cestina gli scartati in una cartella (vedi [Scarta in cartella](#scarta-in-cartella)) |
 
 ### Plugin
 

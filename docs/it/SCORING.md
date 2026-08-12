@@ -409,6 +409,8 @@ python facet.py --recompute-average      # applica + persiste lo snapshot dei pe
 3. Clicca "Suggerisci pesi" per i valori ottimizzati
 4. Aggiorna manualmente la configurazione
 
+**Suggerisci pesi** risponde anche a una domanda più mirata rispetto al gate di validazione incrociata sopra: quanto bene i pesi *attualmente in uso* di questa categoria concordano già con i tuoi confronti? Cliccandolo restituisce `accuracy_before` — la percentuale delle coppie etichettate di questa categoria (voti A/B, scarto e coppie derivate dalle valutazioni) il cui vincitore i pesi in uso predicono correttamente — accanto ad `accuracy_after`, lo stesso valore per i pesi suggeriti. Entrambi vengono mostrati affiancati nella scheda Suggerimenti pesi e nella barra laterale della scheda Confronto A/B ogni volta che lo esegui (`GET /api/comparison/learned_weights`, `optimization/weight_optimizer.py:optimize_weights_direct`). Come il gate della CLI, questo richiede `min_comparisons_for_optimization` (predefinito 30) coppie etichettate per quella categoria — sotto questa soglia il pulsante segnala la carenza invece di un numero.
+
 ## Aggiunta di categorie personalizzate
 
 ```json

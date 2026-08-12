@@ -202,10 +202,15 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 - **Vergleichen** — 2 bis 4 ausgewählte Fotos nebeneinander öffnen, mit synchronisiertem Schwenken und Zoomen (Scrollen zum Zoomen, Ziehen zum Schwenken, Doppelklick zum Zurücksetzen; alle Fensterteile bewegen sich gemeinsam und wechseln jenseits der Einpassungsskala auf volle Auflösung). Dieselbe Ansicht wie in der Auswahl-Dunkelkammer, nun für jeden von Hand zusammengestellten Satz erreichbar statt nur für Aufnahmen, die in einer Serie nebeneinanderliegen.
 - **Dateinamen kopieren** — Ausgewählte Dateinamen in die Zwischenablage kopieren
 - **Exportieren** — XMP-Sidecars (Bewertung/Favorit/Ablehnung) neben den ausgewählten Dateien schreiben (siehe [Editor-Export](#editor-export))
+- **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Zielordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))
 - **Herunterladen** — Ausgewählte Fotos herunterladen
 - Auswahl mit Escape oder der Schaltfläche „Löschen" aufheben
 
 Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges Foto, um es direkt herunterzuladen.
+
+### In Ordner aussortieren
+
+Der Dialog **In Ordner aussortieren…** in der Sammelaktionsleiste (Bearbeitungsmodus) kopiert Behaltene oder verschiebt/entsorgt Abgelehnte in einem Schritt in einen Zielordner (der Systempapierkorb ist über `viewer.cull.allow_trash` gesperrt, niemals ein endgültiges Löschen). Das Anwenden ist von Grund auf sicher: `POST /api/cull/apply` vertraut niemals blind einer vom Client übermittelten Löschliste — er leitet die tatsächliche Zielmenge der Aktion serverseitig aus dem eigenen `is_rejected`-Status jedes Fotos ab (Kopieren wirkt nur auf Behaltene, Verschieben/Papierkorb nur auf Abgelehnte) und meldet alles außerhalb dieses Bereichs als `excluded_by_state`, statt darauf zu wirken. Jeder Aufruf ist standardmäßig ein Trockenlauf (dry run) — eine Vorschau läuft immer vor jedem Schreibvorgang — und Verschieben/Papierkorb benötigen ein explizites `dry_run=false`, um auszuführen; das Einbeziehen des unberührten RAW oder Sidecars eines abgelehnten Fotos ist optional (`include_companions`), damit das Ablehnen eines abgeleiteten JPEGs niemals stillschweigend sein RAW mitreißt. Mehrere kommerzielle Fototools hatten Fehler bei der Löschauswahl, die die falschen Fotos betrafen; der Anwenden-Endpunkt von Facet ist so gestaltet, dass der Client niemals direkt eine Löschmenge angeben kann.
 
 ### Anzeigeoptionen
 
@@ -1162,6 +1167,7 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 | `POST /api/export/sidecars` | `[Edition]` Sidecars für explizite Pfade oder eine Filtermenge schreiben |
 | `POST /api/photo/embed_metadata` | `[Edition]` Metadaten in die Originaldatei einbetten (JPEG/HEIC/TIFF/PNG/DNG; RAW wird nie verändert) und das Sidecar schreiben |
 | `POST /api/albums/{id}/export` | `[Edition]` Album-Export als Sidecars, Kopie oder Symlink |
+| `POST /api/cull/apply` | `[Edition]` Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/entsorgen (siehe [In Ordner aussortieren](#in-ordner-aussortieren)) |
 
 ### Plugins
 
