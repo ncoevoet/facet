@@ -4,10 +4,11 @@ Facet photo paths are mapped to Immich ``originalPath`` values through the
 configured ``immich.path_map`` prefix pairs, resolved to asset ids with
 ``POST /api/search/metadata``, and updated with batched ``PUT /api/assets``
 calls grouped by identical payload. A never-rated, never-favorited photo never
-pushes ``rating: 0`` (that would be noise on the vast majority of the library);
-but a photo that WAS pushed as rated/favorite and is later reset to 0/false
-must still reach Immich as an explicit clear, or the stale value is stuck
-there forever. ``stats_cache`` (a generic key/value side table, keyed per
+pushes a clear (that would be noise on the vast majority of the library);
+but a photo that WAS pushed as rated/favorite and is later reset in Facet
+must still reach Immich as an explicit clear — ``rating: null`` / ``isFavorite:
+false``, never ``rating: 0``, which Immich v3 rejects — or the stale value is
+stuck there forever. ``stats_cache`` (a generic key/value side table, keyed per
 sync scope) remembers which paths were last pushed active so that transition
 is detected — see ``_fetch_rating_rows`` and ``_load_synced_state``. An
 optional single top-picks album is filled from a minimum-rating threshold.
@@ -266,9 +267,12 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
 
     # First pass (no network): compute each row's push payload and target path.
     # A row previously pushed active (tracked in synced_state) that has since
-    # gone inactive still gets an explicit clear — 0 / false — even though a
-    # never-touched row never pushes a bare 0/false. That is the ONLY reason a
-    # 0 rating or false favorite is ever added to fields below.
+    # gone inactive still gets an explicit clear — null / false — even though a
+    # never-touched row never pushes a bare clear. That is the ONLY reason a
+    # null rating or false favorite is ever added to fields below. The clear
+    # value must be null, never 0: Immich v3 rejects rating 0 outright
+    # ("null (unrated); 0 is not valid"), and one rejected batch aborts the
+    # whole sync before synced_state advances, wedging every later run.
     resolvable: list[tuple] = []
     for row in rows:
         facet_path = row["path"]
@@ -277,7 +281,7 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
         favorite = bool(row["is_favorite"])
         fields: dict = {}
         if push_ratings and (rating is not None or prev.get("rating")):
-            fields["rating"] = rating if rating is not None else 0
+            fields["rating"] = rating
         if push_favorites and (favorite or fields or prev.get("favorite")):
             fields["isFavorite"] = favorite
         if not fields:

@@ -344,9 +344,11 @@ class TestClearingPreviouslySyncedState:
 
         summary2 = sync_to_immich(db_path, make_config())
         updates2 = transport.asset_updates()
-        # The clear must actually reach Immich, not be silently dropped.
+        # The clear must actually reach Immich, not be silently dropped — and
+        # as null, not 0, which Immich v3 rejects (aborting the whole sync).
         assert summary2["matched"] == 1
-        assert updates2[-1]["rating"] == 0
+        assert "rating" in updates2[-1]
+        assert updates2[-1]["rating"] is None
         assert updates2[-1]["isFavorite"] is False
 
         # Once the clear is confirmed pushed, the row drops out of tracking
