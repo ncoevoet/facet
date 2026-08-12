@@ -10,7 +10,7 @@ Aplicación de página única (SPA) basada en FastAPI + Angular para explorar, f
 - [Gestión de personas](#gestión-de-personas) · [Activador de escaneo (superadmin)](#activador-de-escaneo-superadmin) · [Búsqueda semántica](#búsqueda-semántica) · [Álbumes](#álbumes)
 - [Crítica con IA](#crítica-con-ia) · [Subtitulado con IA](#subtitulado-con-ia-gpu-16gb24gb-edition) · [Recuerdos ("En este día")](#recuerdos-en-este-día) · [Vista de línea de tiempo](#vista-de-línea-de-tiempo) · [Vista de mapa](#vista-de-mapa) · [Cápsulas](#cápsulas)
 - [Vista de carpetas](#vista-de-carpetas) · [Diálogo de filtro GPS](#diálogo-de-filtro-gps) · [Sugerencias de fusión](#sugerencias-de-fusión) · [Exportación al editor](#exportación-al-editor) · [Descarte](#descarte) · [Limpieza de basura](#limpieza-de-basura) · [Modo de comparación por pares](#modo-de-comparación-por-pares)
-- [Estadísticas EXIF](#estadísticas-exif) · [Atajos de teclado](#atajos-de-teclado-galería) · [Deshacer](#deshacer) · [Aplicación web progresiva](#aplicación-web-progresiva) · [Móvil](#móvil)
+- [Estadísticas EXIF](#estadísticas-exif) · [Atajos de teclado](#atajos-de-teclado-galería) · [Deshacer](#deshacer) · [Aplicación web progresiva](#aplicación-web-progresiva) · [Móvil](#móvil) · [Marco de fotos / Quiosco](#marco-de-fotos--quiosco) · [Subida automática desde el teléfono](#subida-automática-desde-el-teléfono)
 - [Configuración](#configuración) · [Rendimiento](#rendimiento) · [Endpoints de la API](#endpoints-de-la-api) · [Solución de problemas](#solución-de-problemas)
 
 > **Los requisitos de cada función** se indican en línea: `[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` (contraseña de edición) · `[Superadmin]`. Consulta la [matriz de funciones](../README.md#feature-availability--requirements).
@@ -311,13 +311,17 @@ Crea álbumes y añade fotos desde la galería usando la selección múltiple. L
 
 Guarda una combinación de filtros (cámara, etiqueta, persona, rango de fechas, umbrales de puntuación, etc.) como un álbum inteligente. Los álbumes inteligentes se actualizan dinámicamente a medida que nuevas fotos coinciden con los criterios de filtro guardados. La combinación de filtros se almacena como JSON en `smart_filter_json`.
 
-API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
-
-Controlado por `viewer.features.show_albums` (predeterminado: `true`).
-
 ### Contexto de puntuación
 
 Cada álbum puede llevar un contexto de puntuación que decide qué categoría gana para sus fotos miembro, independientemente del orden de prioridad global — consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación). `PUT /api/albums/{id}/scoring_context` (requiere edición) lo establece y materializa el mismo contexto en cada foto que es miembro **ahora mismo**; `conflicts` en la respuesta cuenta los miembros no manuales que ya llevaban un contexto distinto, `manual_skipped` cuenta los miembros cuya propia anulación manual se dejó intacta (una asignación de álbum nunca convierte silenciosamente la anulación manual de una foto en una procedente del álbum), y `updated` cuenta cuántas se escribieron realmente. Un álbum manual resuelve su pertenencia a partir de sus filas de `album_photos`; un álbum inteligente no tiene ninguna, así que su pertenencia se resuelve en su lugar evaluando su `smart_filter_json` guardado contra la base de datos en vivo. Esa es la **definición de filtro** del álbum, no «lo que la galería estuviera mostrando en ese momento»: ignora deliberadamente las preferencias de visualización de la galería que ocultan parpadeos, ráfagas, duplicadas y rechazadas (globales, conmutables en tiempo de ejecución, y que no forman parte de `smart_filter_json`), así que `updated` puede legítimamente superar el número de fotos que la propia vista de galería del álbum muestra con esos interruptores activados — y devuelve `updated: 0` con un `warning` cuando el filtro no coincide actualmente con nada. En cualquier caso, la marca es una instantánea puntual, no una suscripción en vivo: una foto añadida *después* a un álbum manual sí hereda el contexto automáticamente, pero una foto que coincide *más tarde* con el filtro de un álbum inteligente **no** hereda el contexto retroactivamente — el contexto debe volver a establecerse (`PUT`) para capturar las nuevas coincidencias. `DELETE /api/albums/{id}/scoring_context` (que aparece en el diálogo como una acción «Borrar contexto» distinta de seleccionar el contexto `default`, que marca `default` en lugar de borrar) deshace la marca exactamente en los miembros que este álbum había marcado, sin tocar la anulación manual propia de una foto — y cuando una foto cuya marca se deshace *sigue* siendo miembro de otro álbum que declara su propio contexto, se vuelve a marcar con el contexto de ese otro álbum en lugar de quedar sin puntuar (esta nueva derivación se limita a las fotos concretas que se retiran de un álbum; eliminar o borrar un álbum completo no lo intenta). `GET /api/albums/{id}/suggested_context` propone uno a partir del `narrative_moment` dominante detectado en el álbum (mediante la lista `suggest_from_moments` de cada contexto) con una confianza `share` — no escribe nada; la asignación anterior aún debe confirmarse explícitamente. Se requiere un recálculo (`POST /api/scan/recompute`) para que el nuevo contexto cambie realmente la categoría almacenada de alguna foto.
+
+### Exportación de portafolio
+
+Cuando `viewer.features.show_portfolio_export` es `true` (predeterminado) y la edición está desbloqueada, cada tarjeta de álbum manual obtiene una acción **Exportar portafolio**. Abre un pequeño diálogo (título de la galería, carpeta de destino, interruptor de inclusión de subtítulos) y renderiza el álbum como una galería HTML estática autónoma — el caso de uso de thumbsup/sigal, pero nativo, sin dependencia de herramientas externas. El directorio de salida contiene `index.html` (una cuadrícula de miniaturas responsiva solo con CSS con una lightbox vanilla-JS integrada — **cero** referencias externas/CDN, por lo que funciona completamente sin conexión), una carpeta `assets/` con JPEG nombrados secuencialmente (no se filtra ninguna ruta de la biblioteca) y un `manifest.json` que registra los recuentos y las fuentes por foto. Cada foto prefiere el **original** en disco (reducido a `portfolio.max_edge`, con la orientación EXIF aplicada) y recurre a la miniatura de 640 px almacenada cuando el original es inaccesible (recursos de red sin conexión). El endpoint es `POST /api/albums/{album_id}/export-portfolio` (solo edición); el `target_dir` se valida contra la misma lista de permitidos (`viewer.export.allowed_target_dirs` más los directorios de escaneo) que los endpoints de exportación copiar/mover, y los álbumes que superan `portfolio.max_photos` (predeterminado 500) se rechazan. Reexportar el mismo álbum es idempotente — solo se reescriben los propios archivos de la exportación. Consulta [Configuración de la exportación de portafolio](CONFIGURATION.md#exportación-de-portafolio).
+
+API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
+
+Controlado por `viewer.features.show_albums` (predeterminado: `true`).
 
 ### Compartir fotos
 
@@ -751,6 +755,101 @@ En pantallas pequeñas, la barra de selección masiva se reduce al recuento de l
 los botones de borrar, seleccionar todo y un único botón **Acciones** que abre una hoja inferior
 apta para el tacto con todas las operaciones masivas (favorito, descartar, valorar, álbumes, copiar,
 descargar).
+
+## Marco de fotos / Quiosco
+
+Los dispositivos de tipo quiosco sin inicio de sesión — marcos de fotos inteligentes, paneles de Home Assistant, pantallas al estilo ImmichFrame / Immich-Kiosk — pueden obtener las mejores tomas de Facet sin una sesión de usuario. No hay **ninguna interfaz de cliente**: los quioscos consumen los endpoints directamente, autenticados mediante un **token de marco** opaco y de larga duración configurado en el bloque de configuración `frame` (`frame.tokens`; una lista vacía deshabilita toda la función y cada endpoint devuelve 404). Los tokens se comparan en tiempo constante como bytes UTF-8, por lo que un token ausente da 401 y un token incorrecto o no ASCII da 403 — nunca 500.
+
+La curación se nutre de toda la biblioteca: las fotos rechazadas, basura y con parpadeo se excluyen, `frame.min_aggregate` (predeterminado `7.0`) fija el umbral mínimo de puntuación, y las opciones opcionales `frame.favorites_only` / `frame.categories` la restringen aún más. Las fotos se devuelven mediante una **muestra aleatoria ponderada por puntuación** (una mezcla del conjunto de candidatas mejor puntuadas), de modo que un marco muestre variedad entre tus mejores tomas en lugar del mismo puñado cada vez. Las respuestas **nunca contienen rutas del sistema de archivos** — cada foto se direcciona mediante un id firmado opaco (el `rowid` de la fila firmado con el secreto del servidor), de modo que quien posea un token no puede enumerar filas arbitrarias ni averiguar dónde están tus archivos.
+
+| Endpoint | Devuelve | Caché |
+|----------|---------|-------|
+| `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` limitado a `frame.max_count` (predeterminado 100), por defecto `frame.count` (20) | — |
+| `GET /api/frame/image/{id}?token=&max_edge=` | el JPEG de la foto — original en disco reducido a `max_edge` (limitado por `frame.max_edge`, predeterminado 1920), recurriendo a la miniatura almacenada cuando el original es inaccesible | larga duración, inmutable |
+| `GET /api/frame/next?token=` | un JPEG curado aleatorio, distinto en cada llamada — el caso del marco "tonto" / la cámara genérica de Home Assistant | `no-store` |
+
+### Generar un token
+
+Los tokens son cadenas opacas que tú inventas — usa uno largo y aleatorio, y trátalo como una contraseña:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Añade el resultado a `frame.tokens` en `scoring_config.json` (puedes listar varios — uno por dispositivo — y revocar uno eliminándolo):
+
+```json
+"frame": {
+  "tokens": ["Xu8w…your-random-token…"],
+  "count": 20,
+  "min_aggregate": 7.0,
+  "max_edge": 1920,
+  "favorites_only": false,
+  "categories": []
+}
+```
+
+### Receta de Home Assistant
+
+La URL única `/api/frame/next` se corresponde directamente con la [cámara genérica](https://www.home-assistant.io/integrations/generic/) de Home Assistant — cada actualización obtiene una toma curada nueva.
+
+```yaml
+camera:
+  - platform: generic
+    name: Facet Frame
+    still_image_url: "http://facet.local:5000/api/frame/next?token=Xu8w…your-random-token…"
+    verify_ssl: false
+    framerate: 0.05  # se actualiza cada ~20s
+```
+
+Añade la cámara a una tarjeta Picture Glance / Picture Entity (o a un panel de tableta de pared) y se convierte en un marco de fotos que se actualiza solo.
+
+Para un cliente al estilo **ImmichFrame** que gestiona su propio pase de diapositivas, sondea `GET /api/frame/photos?token=…&count=30` para obtener la lista de ids, y luego solicita cada `GET /api/frame/image/{id}?token=…&max_edge=1920` — los ids son estables y las respuestas de imagen llevan una caché larga e inmutable, de modo que un cliente obtiene cada foto una sola vez y puede hacer él mismo las transiciones entre ellas.
+
+## Subida automática desde el teléfono
+
+Un endpoint **WebDAV** mínimo bajo `/dav` permite que las apps de subida automática desde el teléfono (PhotoSync y cualquier cliente que hable WebDAV) envíen fotos directamente a un **directorio de entrada** de Facet. Apunta el directorio de entrada a uno de tus directorios escaneados (o a un subdirectorio de uno de ellos) y ejecuta `facet.py --watch` sobre él: cada foto subida se puntúa automáticamente en cuanto llega — el patrón de sincronización móvil de PhotoPrism.
+
+Esto es **fontanería de subida únicamente** — nunca toca las sesiones de usuario ni los JWT. El acceso es HTTP Basic con **credenciales de dispositivo compartido** configuradas en el bloque `upload` (`upload.username` / `upload.password`), **no** una cuenta de usuario. Todo el árbol `/dav` devuelve **404 mientras está desactivado**: la función solo se activa cuando `upload.username`, `upload.password` y `upload.inbox_dir` están todos definidos. Cada operación se confina a `upload.inbox_dir` — se rechazan la travesía, las rutas absolutas y los escapes por enlace simbólico — y las subidas se transmiten a disco de forma atómica, con un límite de `upload.max_file_mb` (predeterminado 500).
+
+Métodos implementados: `OPTIONS`, `PROPFIND` (profundidad 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD`. `LOCK`/`UNLOCK` no están implementados (los clientes de subida tratan su ausencia como un recurso compartido sin bloqueo).
+
+### Configuración
+
+```json
+"upload": {
+  "username": "phone",
+  "password": "…a-long-random-shared-secret…",
+  "inbox_dir": "/photos/inbox",
+  "max_file_mb": 500
+}
+```
+
+`inbox_dir` debe estar dentro de un directorio escaneado para que `--watch` detecte las subidas:
+
+```bash
+python facet.py /photos --watch
+```
+
+### Receta de PhotoSync
+
+1. En PhotoSync, añade una configuración **WebDAV** (Configurar → Añadir configuración → WebDAV).
+2. **URL / Servidor**: `http://<host>:5000/dav/` (usa tu host de Facet; `https://` si lo expones detrás de un proxy inverso).
+3. **Usuario / Contraseña**: el `upload.username` / `upload.password` que definiste arriba.
+4. **Carpeta de destino**: déjalo en la raíz (`/`) para depositar en el directorio de entrada, o una subcarpeta que PhotoSync cree mediante `MKCOL`.
+5. En el host de Facet, escanea el directorio de entrada en modo de vigilancia para que las subidas se puntúen al llegar:
+
+   ```bash
+   python facet.py /photos --watch
+   ```
+
+### Prueba rápida con curl
+
+```bash
+curl -T photo.jpg -u phone:'…a-long-random-shared-secret…' http://<host>:5000/dav/photo.jpg
+```
+
+Un `201 Created` (o `204 No Content` al sobrescribir) confirma que la subida llegó al directorio de entrada; `--watch` la puntúa en el siguiente debounce.
 
 ## Configuración
 
