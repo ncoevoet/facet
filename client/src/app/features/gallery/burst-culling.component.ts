@@ -39,9 +39,11 @@ import {
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
   SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
   GroupOverridePendingPipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
+  KeySubjectForPathPipe, IsKeyFacePipe,
   cullPreviewUrl, computePeakingOverlay, loadFrameImage, GRID_MODES,
+  KEY_SUBJECT_COORDINATE_SPACE,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
-  FrameSize, GridMode,
+  FrameSize, GridMode, KeySubject,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -202,6 +204,8 @@ interface ShortcutRow {
     PeakingOverlayPipe,
     FrameViewBoxPipe,
     GridLinesPipe,
+    KeySubjectForPathPipe,
+    IsKeyFacePipe,
     SequenceKindLabelPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
@@ -866,6 +870,7 @@ interface ShortcutRow {
                                [src]="(activeStyle() && !previewLoading()) ? (lbPhoto.path | cullPreviewUrl:activeStyle()) : (lbPhoto.path | thumbnailUrl:darkroomThumbSize)"
                                [fullResSrc]="activeStyle() ? null : (lbPhoto.path | imageUrl:true)"
                                [zoom]="zoom()"
+                               [focusPoint]="(lbPhoto.path | keySubjectForPath:keySubjectMap())?.center ?? null"
                                (zoomChange)="zoom.set($event)"
                                [alt]="lbPhoto.filename" />
               <ng-container [ngTemplateOutlet]="frameOverlays"
@@ -892,6 +897,7 @@ interface ShortcutRow {
                                    [src]="photo.path | thumbnailUrl:darkroomThumbSize"
                                    [fullResSrc]="photo.path | imageUrl:true"
                                    [zoom]="zoom()"
+                                   [focusPoint]="(photo.path | keySubjectForPath:keySubjectMap())?.center ?? null"
                                    (zoomChange)="zoom.set($event)"
                                    [alt]="photo.filename" />
                   <ng-container [ngTemplateOutlet]="frameOverlays"
@@ -969,6 +975,17 @@ interface ShortcutRow {
                             <div class="absolute top-0 right-0 bg-black/60 text-white/80 text-[9px] leading-none px-1 py-0.5 rounded-bl">
                               {{ face.confidence | number:'1.0-2' }}
                             </div>
+                          }
+                          <!-- Key person: top-left, because the bottom edge carries the
+                               blink / expression bar and the frame number. Shown only
+                               when the winning face has a name to put on it. -->
+                          @if (photo.path | keySubjectForPath:keySubjectMap(); as keySubject) {
+                            @if ((face | isKeyFace:keySubject) && keySubject.person_name; as keyPersonName) {
+                              <div class="absolute top-0 left-0 max-w-full truncate rounded-br bg-amber-500/90 px-1 py-0.5 text-[9px] leading-none font-bold text-black"
+                                   [matTooltip]="I18N.culling.key_person_tooltip | translate">
+                                <span class="sr-only">{{ I18N.culling.key_person | translate }}</span>&ngsp;{{ keyPersonName }}
+                              </div>
+                            }
                           }
                           @if (face.is_blink) {
                             <div class="absolute bottom-0 inset-x-0 bg-yellow-600/90 text-white text-[10px] leading-tight text-center font-bold py-0.5">
@@ -1461,6 +1478,10 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly autoCullDialog = viewChild<ElementRef<HTMLElement>>('autoCullDialog');
   private readonly cullToolbar = viewChild<TemplateRef<unknown>>('cullToolbar');
 
+  /** The single-view zoom pane, so the Z key runs the pane's own focus-aware
+   *  zoom math (which needs the pane rect) rather than a second copy of it. */
+  private readonly zoomPane = viewChild(SyncedZoomComponent);
+
   /** photo path -> detected faces, loaded lazily when a lightbox group opens. */
   protected readonly faceMap = signal<Map<string, CullingFace[]>>(new Map());
 
@@ -1469,6 +1490,10 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** photo path -> subject close-up crop, loaded lazily for non-face groups. */
   protected readonly subjectMap = signal<Map<string, CullingSubject>>(new Map());
+
+  /** photo path -> who/what the frame is about, loaded for every focused group.
+   *  Drives the darkroom's zoom target and the key-person badge. */
+  protected readonly keySubjectMap = signal<Map<string, KeySubject>>(new Map());
 
   /** Face-panel live-highlight sliders (0 = off): faces below the chosen
    *  eyes-open / smile value stay bright while the rest dim. Persisted. */
@@ -2236,11 +2261,62 @@ export class BurstCullingComponent implements OnDestroy {
    * group has no faces — the subject close-ups, so a wildlife/macro/product
    * burst gets a subject strip while portrait groups keep the face strip and
    * face-heavy groups never pay for subject crops.
+   *
+   * The key subjects are fetched for every group, face or not: unlike the
+   * crops they are not a strip but the zoom target, and a wildlife burst wants
+   * one as much as a portrait does.
    */
   private async loadCloseupsForGroup(group: CullingGroup): Promise<void> {
     await this.loadFacesForGroup(group);
+    await this.loadKeySubjectsForGroup(group);
     const hasFaces = group.photos.some(p => (this.faceMap().get(p.path)?.length ?? 0) > 0);
     if (!hasFaces) await this.loadSubjectsForGroup(group);
+  }
+
+  /**
+   * Resolve who / what each frame of the focused group is about, in one batch
+   * call rather than a per-photo fan-out. The answer gives the darkroom its
+   * zoom target (the pane centres on `center` past the fit scale) and tells the
+   * face strip which crop to badge. Cached in keySubjectMap; already-resolved
+   * paths are skipped, and a failure records unresolved entries so a broken
+   * call is not retried on every open.
+   */
+  private async loadKeySubjectsForGroup(group: CullingGroup): Promise<void> {
+    const missing = group.photos.filter(p => !this.keySubjectMap().has(p.path));
+    if (missing.length === 0) return;
+    try {
+      const data = await firstValueFrom(
+        this.api.post<{ key_subjects_by_path: Record<string, KeySubject> }>(
+          '/photos/key_subjects', { paths: missing.map(p => p.path) },
+        ),
+      );
+      this.applyKeySubjects(missing, data.key_subjects_by_path ?? {});
+    } catch {
+      this.applyKeySubjects(missing);
+    }
+  }
+
+  /** An unresolved key subject: nothing to zoom at, nothing to badge. */
+  private emptyKeySubject(path: string): KeySubject {
+    return {
+      path, kind: 'none', coordinate_space: KEY_SUBJECT_COORDINATE_SPACE,
+      image_width: null, image_height: null, bbox: null, center: null,
+      area_ratio: null, centrality: null, score: null,
+      face_id: null, face_index: null, person_id: null, person_name: null,
+      subject_sharpness: null, subject_prominence: null,
+      subject_placement: null, bg_separation: null,
+    };
+  }
+
+  /** Merge resolved key subjects, filling unreturned paths with an empty entry. */
+  private applyKeySubjects(missing: CullingPhoto[], byPath: Record<string, KeySubject> = {}): void {
+    this.keySubjectMap.update(m => {
+      const next = new Map(m);
+      for (const photo of missing) {
+        next.set(photo.path, byPath[photo.path] ?? this.emptyKeySubject(photo.path));
+      }
+      return next;
+    });
   }
 
   /**
@@ -2306,7 +2382,9 @@ export class BurstCullingComponent implements OnDestroy {
     this.zoom.set(FIT_ZOOM);
   }
 
-  /** Z toggles the darkroom zoom (fit ↔ 2×) when open, else the grid hover loupe. */
+  /** Z toggles the darkroom zoom (fit ↔ 2×) when open, else the grid hover loupe.
+   *  In single view the pane does it, so the key subject is what lands under the
+   *  loupe; the compare grid has no single frame to aim at and stays centred. */
   @HostListener('document:keydown.z', ['$event'])
   protected onZoomToggle(event: Event): void {
     if (isTypingContext(event)) return;
@@ -2315,7 +2393,14 @@ export class BurstCullingComponent implements OnDestroy {
       return;
     }
     event.preventDefault();
-    this.zoom.set(this.zoom().scale > 1 ? FIT_ZOOM : { scale: 2, tx: 0, ty: 0 });
+    const pane = this.compareMode() === 'single' ? this.zoomPane() : undefined;
+    if (pane) {
+      pane.toggleZoom();
+      return;
+    }
+    this.zoom.set(this.zoom().scale > SyncedZoomComponent.MIN_SCALE
+      ? FIT_ZOOM
+      : { scale: SyncedZoomComponent.TOGGLE_SCALE, tx: 0, ty: 0 });
   }
 
   /** P toggles focus peaking over the open darkroom's frames. */

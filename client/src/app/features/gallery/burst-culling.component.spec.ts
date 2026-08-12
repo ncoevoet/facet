@@ -10,6 +10,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from './gallery.store';
 import { BurstCullingComponent } from './burst-culling.component';
+import { SyncedZoomComponent } from './synced-zoom.component';
 
 describe('BurstCullingComponent', () => {
   let component: BurstCullingComponent;
@@ -1008,6 +1009,177 @@ describe('BurstCullingComponent', () => {
       component['focusPhotoInLightbox'](1);
 
       expect(component['lightboxIndex']()).toBe(1);
+    });
+  });
+
+  describe('key subject (darkroom zoom target + key-person badge)', () => {
+    const grp = {
+      group_id: 9, type: 'burst' as const, reason: '', best_path: '/k1.jpg', count: 2,
+      photos: [
+        { path: '/k1.jpg', filename: 'k1.jpg', aggregate: 8, aesthetic: 7, tech_sharpness: 6, is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8 },
+        { path: '/k2.jpg', filename: 'k2.jpg', aggregate: 7, aesthetic: 6, tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2024-01-01', burst_score: 7 },
+      ],
+    };
+    // The frame is 4000x3000 and the key face sits at three-quarters across,
+    // one quarter down — deliberately off-centre, so a centred zoom cannot pass.
+    const keyPerson = (overrides: Record<string, unknown> = {}) => ({
+      path: '/k1.jpg', kind: 'person', coordinate_space: 'normalized_frame_xyxy',
+      image_width: 4000, image_height: 3000, bbox: [0.7, 0.2, 0.8, 0.3], center: [0.75, 0.25],
+      area_ratio: 0.01, centrality: 0.5, score: 0.9,
+      face_id: 11, face_index: 0, person_id: 3, person_name: 'Alice',
+      subject_sharpness: null, subject_prominence: null,
+      subject_placement: null, bg_separation: null, ...overrides,
+    });
+    const unresolved = (path: string) => keyPerson({
+      path, kind: 'none', bbox: null, center: null, face_id: null,
+      person_id: null, person_name: null, score: null,
+    });
+    const facesByPath = {
+      '/k1.jpg': [{ id: 11, face_index: 0, confidence: 0.9 }, { id: 12, face_index: 1, confidence: 0.8 }],
+    };
+    const PANE = { width: 800, height: 600 };
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    const routePost = (keySubjects: Record<string, unknown>) => {
+      mockApi.post.mockImplementation((url: string) => {
+        if (url === '/culling-group/faces') return of({ faces_by_path: facesByPath });
+        if (url === '/photos/key_subjects') return of({ key_subjects_by_path: keySubjects });
+        return of({});
+      });
+    };
+
+    /** Open the darkroom in a real view — the bindings under test are template ones. */
+    const renderDarkroom = async (keySubjects: Record<string, unknown>) => {
+      // jsdom ships no scrollIntoView, which the rendered group list calls.
+      const scrollIntoView = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = vi.fn();
+      routePost(keySubjects);
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      const rendered = fixture.componentInstance as any;
+      // Let this instance's own initial load land before seeding the darkroom,
+      // or it would replace the seeded group and close it again.
+      await flush();
+      rendered['groups'].set([grp]);
+      rendered['openLightbox'](grp, 0);
+      await flush();
+      fixture.detectChanges();
+      const teardown = () => {
+        fixture.destroy();
+        Element.prototype.scrollIntoView = scrollIntoView;
+      };
+      return { fixture, rendered, teardown };
+    };
+
+    /** The browser-less env reports a zero-size pane and an unloaded image. */
+    const measurePane = (fixture: ComponentFixture<BurstCullingComponent>) => {
+      const el: HTMLElement = fixture.debugElement.query(By.directive(SyncedZoomComponent)).nativeElement;
+      el.getBoundingClientRect = () => ({ ...PANE, x: 0, y: 0, top: 0, left: 0,
+        right: PANE.width, bottom: PANE.height, toJSON: () => ({}) }) as DOMRect;
+      const img = el.querySelector('img')!;
+      Object.defineProperty(img, 'naturalWidth', { value: 4000, configurable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 3000, configurable: true });
+    };
+
+    const keyPills = (fixture: ComponentFixture<BurstCullingComponent>) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('div')]
+        .filter(el => el.className.includes('bg-amber-500/90'));
+
+    const zKey = () => ({ preventDefault: vi.fn(), target: document.body }) as unknown as Event;
+
+    it('resolves one key subject per frame in a single batch call', async () => {
+      routePost({ '/k1.jpg': keyPerson(), '/k2.jpg': unresolved('/k2.jpg') });
+
+      await (component as any).loadCloseupsForGroup(grp);
+
+      expect(mockApi.post).toHaveBeenCalledWith('/photos/key_subjects', { paths: ['/k1.jpg', '/k2.jpg'] });
+      expect(mockApi.post.mock.calls.filter(c => c[0] === '/photos/key_subjects')).toHaveLength(1);
+      expect(component['keySubjectMap']().size).toBe(2);
+      expect(component['keySubjectMap']().get('/k1.jpg')?.face_id).toBe(11);
+    });
+
+    // Unlike the subject crops, which are a strip only non-face groups get, the
+    // key subject is the zoom target and a face group wants it just as much.
+    it('resolves them for a face group, which never loads subject crops', async () => {
+      routePost({ '/k1.jpg': keyPerson(), '/k2.jpg': unresolved('/k2.jpg') });
+
+      await (component as any).loadCloseupsForGroup(grp);
+
+      expect(mockApi.post).not.toHaveBeenCalledWith('/culling-group/subjects', expect.anything());
+      expect(component['keySubjectMap']().get('/k1.jpg')?.kind).toBe('person');
+    });
+
+    it('records an unresolved entry on failure, so a broken call is not retried', async () => {
+      mockApi.post.mockImplementation((url: string) =>
+        url === '/photos/key_subjects' ? throwError(() => new Error('boom')) : of({ faces_by_path: {} }));
+
+      await (component as any).loadKeySubjectsForGroup(grp);
+      expect(component['keySubjectMap']().get('/k1.jpg')?.kind).toBe('none');
+
+      mockApi.post.mockClear();
+      await (component as any).loadKeySubjectsForGroup(grp);
+
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
+    // The whole point of the feature: Z lands the loupe on the key face, not on
+    // the middle of the frame. Delegating to the pane is what makes that work —
+    // the pixel math needs the pane rect, which only the pane has.
+    it('Z centres the single-view frame on its key subject', async () => {
+      const { fixture, rendered, teardown } = await renderDarkroom({ '/k1.jpg': keyPerson() });
+      measurePane(fixture);
+
+      rendered['onZoomToggle'](zKey());
+
+      expect(rendered['zoom']()).toEqual({ scale: 2, tx: -400, ty: 300 });
+      // The pane reads the shared zoom as an input, so the toggle only sees the
+      // new scale once change detection has pushed it back down.
+      fixture.detectChanges();
+      rendered['onZoomToggle'](zKey());
+      expect(rendered['zoom']()).toEqual({ scale: 1, tx: 0, ty: 0 });
+      teardown();
+    });
+
+    it('Z stays centred for an unresolved frame', async () => {
+      const { fixture, rendered, teardown } = await renderDarkroom({ '/k1.jpg': unresolved('/k1.jpg') });
+      measurePane(fixture);
+
+      rendered['onZoomToggle'](zKey());
+
+      expect(rendered['zoom']()).toEqual({ scale: 2, tx: 0, ty: 0 });
+      teardown();
+    });
+
+    it('Z keeps the compare grid centred, having no single frame to aim at', async () => {
+      const { fixture, rendered, teardown } = await renderDarkroom({ '/k1.jpg': keyPerson() });
+      rendered['setCompareMode']('2up');
+      fixture.detectChanges();
+      measurePane(fixture);
+
+      rendered['onZoomToggle'](zKey());
+
+      expect(rendered['zoom']()).toEqual({ scale: 2, tx: 0, ty: 0 });
+      teardown();
+    });
+
+    it('badges the key face with its person name, and only that face', async () => {
+      const { fixture, teardown } = await renderDarkroom({ '/k1.jpg': keyPerson() });
+
+      const pills = keyPills(fixture);
+
+      expect(pills).toHaveLength(1);
+      // The screen-reader label and the name must not run together (&ngsp;).
+      expect(pills[0].textContent?.trim()).toBe('culling.key_person Alice');
+      teardown();
+    });
+
+    it('badges nothing for an unresolved frame or a nameless cluster', async () => {
+      const nameless = await renderDarkroom({ '/k1.jpg': keyPerson({ person_id: 4, person_name: null }) });
+      expect(keyPills(nameless.fixture)).toHaveLength(0);
+      nameless.teardown();
+
+      const none = await renderDarkroom({ '/k1.jpg': unresolved('/k1.jpg') });
+      expect(keyPills(none.fixture)).toHaveLength(0);
+      none.teardown();
     });
   });
 

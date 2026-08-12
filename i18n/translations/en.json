@@ -1958,6 +1958,8 @@
     "face_smile_min_tooltip": "Highlight faces with a smile score below this value",
     "subject_grid_title": "Subjects in this group",
     "subject_sharpness": "Subject sharpness (10 = sharpest in group)",
+    "key_person": "Key person",
+    "key_person_tooltip": "Facet's pick for who this photo is about — zooming targets this face",
     "reason": {
       "best": "Best of group",
       "eyes_closed": "Eyes closed",

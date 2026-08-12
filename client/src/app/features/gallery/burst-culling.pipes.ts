@@ -161,6 +161,62 @@ export class SubjectForPathPipe implements PipeTransform {
   }
 }
 
+/** The only coordinate space the key-subject endpoints answer in: every box is
+ *  [x0, y0, x1, y1] in fractions of the FULL frame, origin top-left — never of
+ *  the thumbnail on screen, and never pixels. Multiply by the rendered size. */
+export const KEY_SUBJECT_COORDINATE_SPACE = 'normalized_frame_xyxy';
+
+/** Who / what a photo is about, resolved server-side from its faces and its
+ *  persisted saliency box (GET /api/photo/key_subject,
+ *  POST /api/photos/key_subjects). Every requested path comes back, an
+ *  unknown or invisible one as `kind: 'none'`. */
+export interface KeySubject {
+  path: string;
+  /** 'person' = a detected face won; 'subject' = the BiRefNet saliency box;
+   *  'none' = neither, so there is nothing to zoom at or badge. */
+  kind: 'person' | 'subject' | 'none';
+  /** Always KEY_SUBJECT_COORDINATE_SPACE. */
+  coordinate_space: string;
+  /** The frame the fractions were measured against — NOT the size on screen. */
+  image_width: number | null;
+  image_height: number | null;
+  bbox: [number, number, number, number] | null;
+  /** [cx, cy] centre of bbox, same space: the zoom target. Null for 'none'. */
+  center: [number, number] | null;
+  area_ratio: number | null;
+  centrality: number | null;
+  /** Face ranking score, 0..1. Null for kind 'subject'. */
+  score: number | null;
+  /** Matches CullingFace.id — how the key-person badge finds its face. */
+  face_id: number | null;
+  face_index: number | null;
+  /** Null for an unassigned OR hidden cluster; a null person_name also means
+   *  "do not badge", since there is no name to show. */
+  person_id: number | null;
+  person_name: string | null;
+  /** Only filled for kind 'subject' — they grade the saliency box, not a face. */
+  subject_sharpness: number | null;
+  subject_prominence: number | null;
+  subject_placement: number | null;
+  bg_separation: number | null;
+}
+
+/** Look up the resolved key subject for a photo path from the key-subject map. */
+@Pipe({ name: 'keySubjectForPath' })
+export class KeySubjectForPathPipe implements PipeTransform {
+  transform(path: string, keySubjectMap: Map<string, KeySubject>): KeySubject | null {
+    return keySubjectMap.get(path) ?? null;
+  }
+}
+
+/** True when this face crop is the one the photo's key subject resolved to. */
+@Pipe({ name: 'isKeyFace' })
+export class IsKeyFacePipe implements PipeTransform {
+  transform(face: CullingFace, key: KeySubject | null): boolean {
+    return !!key && key.kind === 'person' && key.face_id === face.id;
+  }
+}
+
 /** Tailwind ring color for a subject crop, ranking by the group-normalized
  *  sharpness score: green = sharpest tier, amber = mid, red = softest. */
 @Pipe({ name: 'subjectRingClass' })

@@ -1962,6 +1962,8 @@ export const I18N = {
     face_smile_min_tooltip: "culling.face_smile_min_tooltip",
     subject_grid_title: "culling.subject_grid_title",
     subject_sharpness: "culling.subject_sharpness",
+    key_person: "culling.key_person",
+    key_person_tooltip: "culling.key_person_tooltip",
     reason: {
       best: "culling.reason.best",
       eyes_closed: "culling.reason.eyes_closed",

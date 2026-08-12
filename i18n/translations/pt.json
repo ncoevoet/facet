@@ -1958,6 +1958,8 @@
     "face_smile_min_tooltip": "Destaca os rostos com uma pontuação de sorriso abaixo deste valor",
     "subject_grid_title": "Sujeitos deste grupo",
     "subject_sharpness": "Nitidez do sujeito (10 = o mais nítido do grupo)",
+    "key_person": "Pessoa principal",
+    "key_person_tooltip": "A escolha do Facet sobre quem é o sujeito desta foto — o zoom aponta para este rosto",
     "reason": {
       "best": "Melhor do grupo",
       "eyes_closed": "Olhos fechados",

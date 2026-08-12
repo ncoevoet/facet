@@ -4,14 +4,24 @@ import {
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
   CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
   GroupOverridePipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
-  peakingEdgeOverlay,
-  CullingGroup, CullingFace, CullingSubject, FaceThresholds, FrameSize,
+  KeySubjectForPathPipe, IsKeyFacePipe, peakingEdgeOverlay,
+  KEY_SUBJECT_COORDINATE_SPACE,
+  CullingGroup, CullingFace, CullingSubject, FaceThresholds, FrameSize, KeySubject,
 } from './burst-culling.pipes';
 
 const subject = (overrides: Partial<CullingSubject> = {}): CullingSubject => ({
   path: '/p.jpg', has_subject: true, crop: 'data:image/jpeg;base64,x',
   subject_sharpness: null, subject_prominence: null,
   crop_sharpness: 100, crop_sharpness_score: 10, ...overrides,
+});
+
+const keySubject = (overrides: Partial<KeySubject> = {}): KeySubject => ({
+  path: '/p.jpg', kind: 'person', coordinate_space: KEY_SUBJECT_COORDINATE_SPACE,
+  image_width: 4000, image_height: 3000, bbox: [0.5, 0.1, 0.7, 0.3], center: [0.6, 0.2],
+  area_ratio: 0.04, centrality: 0.5, score: 0.8,
+  face_id: 7, face_index: 0, person_id: 3, person_name: 'Alice',
+  subject_sharpness: null, subject_prominence: null,
+  subject_placement: null, bg_separation: null, ...overrides,
 });
 
 const group = (overrides: Partial<CullingGroup> = {}): CullingGroup => ({
@@ -126,6 +136,40 @@ describe('SubjectForPathPipe', () => {
 
   it('returns null for an unknown path', () => {
     expect(pipe.transform('/missing.jpg', new Map())).toBeNull();
+  });
+});
+
+describe('KeySubjectForPathPipe', () => {
+  const pipe = new KeySubjectForPathPipe();
+
+  it('returns the key subject for a known path', () => {
+    const k = keySubject();
+    const map = new Map<string, KeySubject>([['/p.jpg', k]]);
+    expect(pipe.transform('/p.jpg', map)).toBe(k);
+  });
+
+  it('returns null for an unknown path', () => {
+    expect(pipe.transform('/missing.jpg', new Map())).toBeNull();
+  });
+});
+
+describe('IsKeyFacePipe', () => {
+  const pipe = new IsKeyFacePipe();
+  const face = (id: number): CullingFace => ({ id, face_index: 0 });
+
+  it('matches the face the key subject resolved to', () => {
+    expect(pipe.transform(face(7), keySubject({ face_id: 7 }))).toBe(true);
+  });
+
+  it('does not match any other face of the same photo', () => {
+    expect(pipe.transform(face(8), keySubject({ face_id: 7 }))).toBe(false);
+  });
+
+  // A saliency box has no face to badge, and neither does an unresolved photo.
+  it('matches nothing for a subject or an unresolved photo', () => {
+    expect(pipe.transform(face(7), keySubject({ kind: 'subject', face_id: null }))).toBe(false);
+    expect(pipe.transform(face(7), keySubject({ kind: 'none', face_id: null }))).toBe(false);
+    expect(pipe.transform(face(7), null)).toBe(false);
   });
 });
 
