@@ -41,6 +41,7 @@ python viewer.py
 | [Reconnaissance faciale](FACE_RECOGNITION.md) | Workflow des visages, regroupement, gestion des personnes |
 | [Galerie web](VIEWER.md) | Fonctionnalités et utilisation de la galerie web |
 | [Interopérabilité](INTEROP.md) | Faire circuler notes/tags avec Lightroom, Capture One, digiKam, darktable |
+| [Immich](IMMICH.md) | Synchroniser notes et favoris avec Immich, plus le webhook entrant |
 
 ## Profils VRAM
 

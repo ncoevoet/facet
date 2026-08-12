@@ -2246,8 +2246,14 @@ One-way sync of Facet star ratings and favorites to an [Immich](https://immich.a
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2261,8 +2267,12 @@ One-way sync of Facet star ratings and favorites to an [Immich](https://immich.a
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Prefix rewrites from Facet paths to Immich `originalPath` values; the first matching `facet_prefix` is swapped for its `immich_prefix` when resolving an asset |
 | `push.ratings` | `true` | Push star ratings. Immich's version-safe policy is honored — only 1–5 is written, never 0/−1 |
 | `push.favorites` | `true` | Push the favorite flag |
+| `push.rejected` | `false` | Push `rating: -1` for photos rejected in Facet's culling darkroom. Requires `push.ratings` |
 | `push.top_picks_album` | `""` | Optional Immich album name that collects pushed photos above the rating threshold. Empty = no album |
 | `push.top_picks_min_rating` | `4` | Minimum star rating for a photo to be added to `top_picks_album` |
+| `webhook.token_env` | `""` | Name of the environment variable holding the inbound webhook's shared secret. Empty (or unset/empty variable) disables the endpoint — it 404s |
+| `webhook.header` | `"x-facet-token"` | Header Immich's workflow sends the token in |
+| `webhook.max_pending` | `500` | Cap on the remembered-but-unscored path list reported by the next sync |
 | `timeout_seconds` | `30` | Per-request REST timeout |
 
 `--immich-sync` honors `--dry-run` (resolves every asset but writes nothing) and `--user` (pushes that user's `user_preferences` ratings in multi-user mode). REST-only — Facet never touches the Immich database.

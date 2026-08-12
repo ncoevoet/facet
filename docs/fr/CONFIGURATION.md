@@ -2218,8 +2218,14 @@ Synchronisation à sens unique des notes en étoiles et favoris Facet vers un se
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2233,8 +2239,12 @@ Synchronisation à sens unique des notes en étoiles et favoris Facet vers un se
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Réécritures de préfixe des chemins Facet vers les valeurs `originalPath` d'Immich ; le premier `facet_prefix` correspondant est remplacé par son `immich_prefix` lors de la résolution d'une ressource |
 | `push.ratings` | `true` | Pousse les notes en étoiles. La politique de compatibilité de version d'Immich est respectée — seul 1–5 est écrit, jamais 0/−1 |
 | `push.favorites` | `true` | Pousse l'indicateur de favori |
+| `push.rejected` | `false` | Pousse `rating: -1` pour les photos rejetées dans Facet. Nécessite `push.ratings` |
 | `push.top_picks_album` | `""` | Nom d'album Immich facultatif qui rassemble les photos poussées au-dessus du seuil de note. Vide = aucun album |
 | `push.top_picks_min_rating` | `4` | Note en étoiles minimale pour qu'une photo soit ajoutée à `top_picks_album` |
+| `webhook.token_env` | `""` | Nom de la variable d'environnement contenant le secret du webhook entrant. Vide (ou variable non définie/vide) désactive le point d'accès — il renvoie 404 |
+| `webhook.header` | `"x-facet-token"` | En-tête dans lequel le workflow Immich envoie le jeton |
+| `webhook.max_pending` | `500` | Plafond de la liste des chemins mémorisés mais non notés, rapportée par la prochaine synchronisation |
 | `timeout_seconds` | `30` | Délai d'expiration REST par requête |
 
 `--immich-sync` honore `--dry-run` (résout chaque ressource mais n'écrit rien) et `--user` (pousse les notes `user_preferences` de cet utilisateur en mode multi-utilisateurs). REST uniquement — Facet ne touche jamais la base de données Immich.

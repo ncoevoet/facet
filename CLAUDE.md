@@ -48,6 +48,7 @@ Facet is a multi-dimensional photo analysis engine that examines every facet of 
 - [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) - Face workflow and clustering
 - [docs/VIEWER.md](docs/VIEWER.md) - Web gallery features
 - [docs/INTEROP.md](docs/INTEROP.md) - Round-tripping ratings/tags with Lightroom, Capture One, digiKam, darktable
+- [docs/IMMICH.md](docs/IMMICH.md) - Syncing ratings/favorites with an Immich server, plus the inbound webhook
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment (Synology NAS, Linux, Docker)
 
 ## Commands
@@ -81,7 +82,7 @@ use `${PIPESTATUS[0]}` or redirect to a file before calling a suite green.
 
 ## Dependencies
 
-Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `pillow-heif`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=4.57.0`, `accelerate>=0.25.0`, `reverse_geocoder`
+Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `pillow-heif`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=5.3.0,<5.16`, `accelerate>=0.25.0`, `reverse_geocoder`
 
 For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 

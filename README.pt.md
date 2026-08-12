@@ -253,6 +253,7 @@ Execute `python facet.py --doctor` para diagnosticar problemas de GPU. Veja [Ins
 | [Reconhecimento Facial](docs/FACE_RECOGNITION.md) | Fluxo de trabalho de rostos, agrupamento, gerenciamento de pessoas |
 | [Visualizador](docs/VIEWER.md) | Recursos e uso da galeria web |
 | [Interoperabilidade](docs/pt/INTEROP.md) | Trocar classificações/tags com Lightroom, Capture One, digiKam, darktable |
+| [Immich](docs/pt/IMMICH.md) | Sincronizar avaliações e favoritos com o Immich, além do webhook de entrada |
 | [Implantação](docs/DEPLOYMENT.md) | Implantação em produção (Synology NAS, Linux, Docker) |
 | [Contribuindo](CONTRIBUTING.md) | Configuração de desenvolvimento, arquitetura, estilo de código |
 

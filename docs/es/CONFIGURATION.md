@@ -2216,8 +2216,14 @@ Sincronización unidireccional de las valoraciones por estrellas y los favoritos
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2231,8 +2237,12 @@ Sincronización unidireccional de las valoraciones por estrellas y los favoritos
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Reescrituras de prefijo de las rutas de Facet a los valores `originalPath` de Immich; el primer `facet_prefix` coincidente se sustituye por su `immich_prefix` al resolver un recurso |
 | `push.ratings` | `true` | Enviar las valoraciones por estrellas. Se respeta la política segura por versión de Immich — solo se escribe 1–5, nunca 0/−1 |
 | `push.favorites` | `true` | Enviar la marca de favorito |
+| `push.rejected` | `false` | Envía `rating: -1` para las fotos rechazadas en Facet. Requiere `push.ratings` |
 | `push.top_picks_album` | `""` | Nombre opcional de un álbum de Immich que recopila las fotos enviadas por encima del umbral de valoración. Vacío = sin álbum |
 | `push.top_picks_min_rating` | `4` | Valoración por estrellas mínima para que una foto se añada a `top_picks_album` |
+| `webhook.token_env` | `""` | Nombre de la variable de entorno que contiene el secreto del webhook entrante. Vacío (o variable sin definir/vacía) desactiva el endpoint — devuelve 404 |
+| `webhook.header` | `"x-facet-token"` | Cabecera en la que el flujo de trabajo de Immich envía el token |
+| `webhook.max_pending` | `500` | Límite de la lista de rutas recordadas pero sin puntuar, notificada por la siguiente sincronización |
 | `timeout_seconds` | `30` | Tiempo de espera REST por solicitud |
 
 `--immich-sync` respeta `--dry-run` (resuelve cada recurso pero no escribe nada) y `--user` (envía las valoraciones de `user_preferences` de ese usuario en modo multiusuario). Solo REST — Facet nunca toca la base de datos de Immich.

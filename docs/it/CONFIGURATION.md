@@ -2217,8 +2217,14 @@ Sincronizzazione unidirezionale delle valutazioni a stelle e dei preferiti di Fa
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2232,8 +2238,12 @@ Sincronizzazione unidirezionale delle valutazioni a stelle e dei preferiti di Fa
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Riscritture di prefisso dai percorsi di Facet ai valori `originalPath` di Immich; il primo `facet_prefix` corrispondente viene sostituito con il suo `immich_prefix` quando si risolve un asset |
 | `push.ratings` | `true` | Invia le valutazioni a stelle. La politica di Immich sicura per le versioni viene rispettata — viene scritto solo 1–5, mai 0/−1 |
 | `push.favorites` | `true` | Invia il contrassegno di preferito |
+| `push.rejected` | `false` | Invia `rating: -1` per le foto rifiutate in Facet. Richiede `push.ratings` |
 | `push.top_picks_album` | `""` | Nome facoltativo di un album Immich che raccoglie le foto inviate sopra la soglia di valutazione. Vuoto = nessun album |
 | `push.top_picks_min_rating` | `4` | Valutazione a stelle minima perché una foto venga aggiunta a `top_picks_album` |
+| `webhook.token_env` | `""` | Nome della variabile d'ambiente che contiene il segreto del webhook in entrata. Vuoto (o variabile non impostata/vuota) disabilita l'endpoint — restituisce 404 |
+| `webhook.header` | `"x-facet-token"` | Intestazione in cui il workflow di Immich invia il token |
+| `webhook.max_pending` | `500` | Limite massimo dell'elenco dei percorsi memorizzati ma non ancora valutati, segnalato dalla sincronizzazione successiva |
 | `timeout_seconds` | `30` | Timeout REST per richiesta |
 
 `--immich-sync` rispetta `--dry-run` (risolve ogni asset ma non scrive nulla) e `--user` (invia le valutazioni di `user_preferences` di quell'utente in modalità multiutente). Solo REST — Facet non tocca mai il database di Immich.

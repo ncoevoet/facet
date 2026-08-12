@@ -253,6 +253,7 @@ Führen Sie `python facet.py --doctor` aus, um GPU-Probleme zu diagnostizieren. 
 | [Gesichtserkennung](docs/de/FACE_RECOGNITION.md) | Gesichts-Workflow, Clustering, Personenverwaltung |
 | [Viewer](docs/de/VIEWER.md) | Funktionen und Nutzung der Web-Galerie |
 | [Interop](docs/de/INTEROP.md) | Bewertungen/Tags mit Lightroom, Capture One, digiKam, darktable austauschen |
+| [Immich](docs/de/IMMICH.md) | Bewertungen und Favoriten mit Immich synchronisieren, plus der eingehende Webhook |
 | [Bereitstellung](docs/de/DEPLOYMENT.md) | Produktivbereitstellung (Synology NAS, Linux, Docker) |
 | [Mitwirken](CONTRIBUTING.md) | Entwicklungseinrichtung, Architektur, Code-Stil |
 

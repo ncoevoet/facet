@@ -41,6 +41,7 @@ python viewer.py
 | [Face Recognition](FACE_RECOGNITION.md) | Face workflow, clustering, person management |
 | [Viewer](VIEWER.md) | Web gallery features and usage |
 | [Interop](INTEROP.md) | Round-tripping ratings/tags with Lightroom, Capture One, digiKam, darktable |
+| [Immich](IMMICH.md) | Syncing ratings and favorites with Immich, plus the inbound webhook |
 | [Deployment](DEPLOYMENT.md) | Production deployment (Synology NAS, Linux, Docker) |
 
 ## VRAM Profiles

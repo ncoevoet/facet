@@ -2218,8 +2218,14 @@ Einweg-Synchronisierung von Facet-Sternebewertungen und -Favoriten zu einem [Imm
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2233,8 +2239,12 @@ Einweg-Synchronisierung von Facet-Sternebewertungen und -Favoriten zu einem [Imm
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Präfix-Umschreibungen von Facet-Pfaden zu Immich-`originalPath`-Werten; das erste passende `facet_prefix` wird beim Auflösen eines Assets durch sein `immich_prefix` ersetzt |
 | `push.ratings` | `true` | Sternebewertungen übertragen. Immichs versionssichere Richtlinie wird berücksichtigt — nur 1–5 wird geschrieben, nie 0/−1 |
 | `push.favorites` | `true` | Das Favoriten-Flag übertragen |
+| `push.rejected` | `false` | `rating: -1` für in Facet abgelehnte Fotos übertragen. Erfordert `push.ratings` |
 | `push.top_picks_album` | `""` | Optionaler Immich-Albumname, der übertragene Fotos oberhalb des Bewertungsschwellenwerts sammelt. Leer = kein Album |
 | `push.top_picks_min_rating` | `4` | Minimale Sternebewertung, damit ein Foto zu `top_picks_album` hinzugefügt wird |
+| `webhook.token_env` | `""` | Name der Umgebungsvariable, die das Geheimnis des eingehenden Webhooks hält. Leer (oder nicht gesetzte/leere Variable) deaktiviert den Endpunkt — er liefert 404 |
+| `webhook.header` | `"x-facet-token"` | Header, in dem der Immich-Workflow das Token sendet |
+| `webhook.max_pending` | `500` | Obergrenze für die vermerkte, aber unbewertete Pfadliste, die der nächste Sync meldet |
 | `timeout_seconds` | `30` | REST-Timeout pro Anfrage |
 
 `--immich-sync` berücksichtigt `--dry-run` (löst jedes Asset auf, schreibt aber nichts) und `--user` (überträgt die `user_preferences`-Bewertungen dieses Benutzers im Mehrbenutzermodus). Nur REST — Facet berührt nie die Immich-Datenbank.

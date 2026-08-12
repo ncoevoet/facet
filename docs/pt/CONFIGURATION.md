@@ -2217,8 +2217,14 @@ Sincronização unidirecional das avaliações por estrelas e favoritos do Facet
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2232,8 +2238,12 @@ Sincronização unidirecional das avaliações por estrelas e favoritos do Facet
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Reescritas de prefixo dos caminhos do Facet para os valores de `originalPath` do Immich; o primeiro `facet_prefix` correspondente é trocado pelo seu `immich_prefix` ao resolver um ativo |
 | `push.ratings` | `true` | Envia as avaliações por estrelas. A política segura de versão do Immich é respeitada — apenas 1–5 é gravado, nunca 0/−1 |
 | `push.favorites` | `true` | Envia a marcação de favorito |
+| `push.rejected` | `false` | Envia `rating: -1` para fotos rejeitadas no Facet. Requer `push.ratings` |
 | `push.top_picks_album` | `""` | Nome opcional de álbum no Immich que reúne as fotos enviadas acima do limiar de avaliação. Vazio = sem álbum |
 | `push.top_picks_min_rating` | `4` | Avaliação por estrelas mínima para que uma foto seja adicionada a `top_picks_album` |
+| `webhook.token_env` | `""` | Nome da variável de ambiente que guarda o segredo do webhook de entrada. Vazio (ou variável não definida/vazia) desativa o endpoint — ele retorna 404 |
+| `webhook.header` | `"x-facet-token"` | Cabeçalho em que o workflow do Immich envia o token |
+| `webhook.max_pending` | `500` | Teto para a lista de caminhos lembrados mas ainda não pontuados, relatada pela próxima sincronização |
 | `timeout_seconds` | `30` | Timeout REST por requisição |
 
 `--immich-sync` respeita `--dry-run` (resolve cada ativo mas não grava nada) e `--user` (envia as avaliações de `user_preferences` daquele usuário no modo multiusuário). Somente REST — o Facet nunca toca no banco de dados do Immich.
