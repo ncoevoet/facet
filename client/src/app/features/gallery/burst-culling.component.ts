@@ -754,7 +754,7 @@ interface ShortcutRow {
            (click)="closeLightbox()"
            (keydown.escape)="closeLightbox()">
         <!-- Header -->
-        <div class="flex items-center justify-between gap-4 px-4 py-2.5 text-white text-sm">
+        <div class="flex items-center justify-between gap-4 px-4 py-2.5 text-white text-sm bg-black/70">
           <div class="opacity-70 shrink-0">
             {{ lightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
           </div>

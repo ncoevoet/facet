@@ -1,6 +1,7 @@
 import {
   DETAILS_ESTIMATE_PX,
   GalleryRow,
+  MOBILE_MIN_COLUMNS,
   buildGridRows,
   buildMosaicRows,
   gridColumnCount,
@@ -23,9 +24,27 @@ describe('gridColumnCount', () => {
     expect(gridColumnCount(1000, 168, 8)).toBe(5);
   });
 
-  it('never returns less than one column', () => {
+  it('never returns less than one column on desktop', () => {
     expect(gridColumnCount(100, 400, 8)).toBe(1);
     expect(gridColumnCount(0, 168, 8)).toBe(1);
+  });
+
+  it('floors to MOBILE_MIN_COLUMNS off desktop, even when the natural count is lower', () => {
+    // width 374 (390px viewport minus gallery padding), card 168, gap 8 -> natural floor(382/176)=2, floored to 3
+    expect(gridColumnCount(374, 168, 8, false)).toBe(MOBILE_MIN_COLUMNS);
+  });
+
+  it('does not floor on desktop for the same inputs', () => {
+    expect(gridColumnCount(374, 168, 8, true)).toBe(2);
+  });
+
+  it('lets a smaller card width exceed the mobile floor', () => {
+    // width 374, card 80, gap 8 -> floor(382/88)=4, already above the floor
+    expect(gridColumnCount(374, 80, 8, false)).toBe(4);
+  });
+
+  it('floors zero-width viewports off desktop too', () => {
+    expect(gridColumnCount(0, 168, 8, false)).toBe(MOBILE_MIN_COLUMNS);
   });
 });
 
@@ -51,9 +70,16 @@ describe('buildGridRows', () => {
     expect(rows[0].height).toBe(Math.round(cellW / 0.5) + DETAILS_ESTIMATE_PX);
   });
 
-  it('single column uses natural aspect heights', () => {
-    const rows = buildGridRows([photo(0, 1000, 500)], 390, 168, 8, true, true);
-    expect(rows[0].height).toBe(195);
+  it('a single natural column uses aspect-ratio height', () => {
+    // width 150 < cardMinW 168 -> naturally floors to 1 column, full-width cell
+    const rows = buildGridRows([photo(0, 1000, 500)], 150, 168, 8, true);
+    expect(rows[0].height).toBe(Math.round(150 / 2));
+  });
+
+  it('floors to MOBILE_MIN_COLUMNS off desktop instead of collapsing to one column', () => {
+    const rows = buildGridRows([photo(0, 1000, 500)], 390, 168, 8, true, false);
+    expect(rows[0].widths).toEqual([124]);
+    expect(rows[0].height).toBe(125);
   });
 
   it('offsets are strictly increasing', () => {

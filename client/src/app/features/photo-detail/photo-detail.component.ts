@@ -144,7 +144,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
 
         @if (socialExportEnabled()) {
-          <button mat-button [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
+          <button mat-button class="!h-auto !min-h-9" [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
             [matTooltip]="(socialCropTooltipKey() | translate)">
             <mat-icon>crop</mat-icon>
             {{ I18N.photo_detail.social_crop | translate }}

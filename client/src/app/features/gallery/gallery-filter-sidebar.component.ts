@@ -162,7 +162,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
 <div data-scroll class="flex-1 min-h-0 overflow-y-auto px-2 pb-4">
 
       <div class="sticky top-0 z-20 -mx-2 px-2 pt-3 pb-2 bg-[var(--mat-sys-surface)] flex items-center gap-2">
-        <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
+        <span class="text-sm font-medium opacity-80 flex-1">{{ I18N.gallery.filters | translate }}</span>
         @if (store.activeFilterCount()) {
           <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ store.activeFilterCount() }}</span>
           <button mat-button class="!ml-auto !min-w-0 !px-2 !text-xs" (click)="store.resetFilters()">
@@ -170,6 +170,12 @@ function saveSectionStates(states: Record<string, boolean>): void {
             {{ I18N.gallery.reset_filters | translate }}
           </button>
         }
+        <button mat-icon-button class="md:hidden !w-8 !h-8 !p-0 !min-w-0 shrink-0"
+          [matTooltip]="I18N.dialog.close | translate"
+          [attr.aria-label]="I18N.dialog.close | translate"
+          (click)="store.setFilterDrawerOpen(false)">
+          <mat-icon class="!text-lg !w-5 !h-5 !leading-5">close</mat-icon>
+        </button>
       </div>
 
       <!-- Find a filter -->
@@ -603,7 +609,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
             </div>
           </div>
           @if (sliderConfig(); as sc) {
-            <div class="hidden md:flex items-center gap-2 mt-2">
+            <div class="flex items-center gap-2 mt-2">
               <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
               <mat-slider [min]="sc.min_px" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
                 <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />

@@ -288,8 +288,8 @@ type HiddenFilterFlags = Pick<GalleryFilters,
               role="grid"
               tabindex="0"
               [attr.aria-label]="I18N.gallery.photo_grid | translate"
-              class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid outline-none"
-              [style.--gallery-cols]="'repeat(auto-fill, minmax(' + cardWidth() + 'px, 1fr))'"
+              class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
+              [style.grid-template-columns]="galleryColsStyle()"
               (keydown)="onGridKeydown($event)"
             >
               @for (photo of store.photos(); track photo.path; let i = $index) {
@@ -377,8 +377,8 @@ type HiddenFilterFlags = Pick<GalleryFilters,
           <div role="status" [attr.aria-label]="I18N.gallery.loading_photos | translate" aria-busy="true">
             @if (!store.photos().length) {
               <div
-                class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid"
-                [style.--gallery-cols]="'repeat(auto-fill, minmax(' + cardWidth() + 'px, 1fr))'"
+                class="grid grid-cols-1 gap-2 p-2 md:p-4"
+                [style.grid-template-columns]="galleryColsStyle()"
               >
                 @for (i of skeletonItems(); track i) {
                   <app-photo-skeleton [height]="cardWidth()" />
@@ -625,6 +625,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Card min-width from store for the responsive grid */
   readonly cardWidth = computed(() => this.store.cardWidth() || 168);
 
+  /** Inline `grid-template-columns` for the plain (non-virtualized) CSS grid:
+   * auto-fill by the density slider on desktop, an explicit column count on
+   * mobile so a narrow viewport never floors below MOBILE_MIN_COLUMNS (keeps
+   * this grid in sync with the virtualized row model and keyboard navigation). */
+  readonly galleryColsStyle = computed(() =>
+    this.isDesktop()
+      ? `repeat(auto-fill, minmax(${this.cardWidth()}px, 1fr))`
+      : `repeat(${this.gridColumns()}, 1fr)`,
+  );
+
   /** Skeleton placeholders for the initial load (matches a typical first page). */
   protected readonly skeletonItems = computed(() => Array.from({ length: 24 }, (_, i) => i));
   /** Skeleton placeholders for an appended page (single row). */
@@ -776,7 +786,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
     return buildGridRows(
       photos, width, this.cardWidth(), GalleryComponent.ROW_GAP,
-      this.effectiveHideDetails(), !this.isDesktop(),
+      this.effectiveHideDetails(), this.isDesktop(),
     );
   });
 
@@ -1376,9 +1386,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */
   private gridColumns(): number {
-    if (!this.isDesktop()) return 1;
-    const width = this.containerWidth() - 32;
-    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP);
+    const width = this.containerWidth() - (this.isDesktop() ? 32 : 16);
+    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP, this.isDesktop());
   }
 
   /** Vertical step for the active index: grid = ±columns, mosaic = same offset in adjacent row. */

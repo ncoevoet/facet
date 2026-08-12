@@ -27,10 +27,16 @@ function aspectOf(photo: Photo): number {
     : 4 / 3;
 }
 
-/** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces. */
-export function gridColumnCount(width: number, cardMinW: number, gap: number): number {
-  if (width <= 0) return 1;
-  return Math.max(1, Math.floor((width + gap) / (cardMinW + gap)));
+/** Minimum grid columns enforced off desktop so a narrow viewport never
+ * degrades to one photo per screen (comparable gallery apps default to 3-4). */
+export const MOBILE_MIN_COLUMNS = 3;
+
+/** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces,
+ * floored to MOBILE_MIN_COLUMNS when isDesktop is false. */
+export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true): number {
+  if (width <= 0) return isDesktop ? 1 : MOBILE_MIN_COLUMNS;
+  const cols = Math.max(1, Math.floor((width + gap) / (cardMinW + gap)));
+  return isDesktop ? cols : Math.max(MOBILE_MIN_COLUMNS, cols);
 }
 
 /**
@@ -46,10 +52,10 @@ export function buildGridRows(
   cardMinW: number,
   gap: number,
   hideDetails: boolean,
-  singleColumn = false,
+  isDesktop = true,
 ): GalleryRow[] {
   if (!photos.length || width <= 0) return [];
-  const cols = singleColumn ? 1 : gridColumnCount(width, cardMinW, gap);
+  const cols = gridColumnCount(width, cardMinW, gap, isDesktop);
   const cellW = (width - (cols - 1) * gap) / cols;
 
   const rows: GalleryRow[] = [];
