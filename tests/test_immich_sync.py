@@ -5,7 +5,10 @@ import sqlite3
 import pytest
 
 from db.schema import init_database
-from sync.immich import ImmichClient, _effective_rating, map_facet_path, sync_to_immich
+from sync.immich import (
+    ImmichClient, _effective_rating, load_pending_paths, map_facet_path,
+    map_immich_path, record_pending_path, sync_to_immich,
+)
 
 
 class FakeTransport:
@@ -122,7 +125,8 @@ class TestPathMapping:
         db_path = make_db(tmp_path, [('/photos/gone.jpg', 5, 0, 0)])
         summary = sync_to_immich(db_path, make_config())
         assert summary == {"matched": 0, "unmatched": 1, "updated": 0,
-                           "skipped_unrated": 0, "albums_created": 0}
+                           "skipped_unrated": 0, "albums_created": 0,
+                           "webhook_pending": 0}
 
 
 class TestPayloadGrouping:
@@ -404,3 +408,148 @@ class TestPartialProgress:
             sync_to_immich(db_path, make_config())
         assert excinfo.value.partial_summary["matched"] == 2
         assert excinfo.value.partial_summary["updated"] == 0
+
+
+def _set_rejected(db_path, path, rejected=1):
+    conn = sqlite3.connect(db_path)
+    conn.execute("UPDATE photos SET is_rejected = ? WHERE path = ?", (rejected, path))
+    conn.commit()
+    conn.close()
+
+
+def _rejecting_config(**overrides):
+    push = {"ratings": True, "favorites": True, "rejected": True, "top_picks_album": ""}
+    push.update(overrides)
+    return make_config(push=push)
+
+
+class TestPushRejected:
+    """``immich.push.rejected`` — Immich v3's rating -1 means "rejected"."""
+
+    def test_off_by_default_a_rejected_photo_pushes_its_stars(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/rej.jpg', 5, 0, 1)])
+        transport.assets_by_path = {'/p/rej.jpg': 'id-rej'}
+        sync_to_immich(db_path, make_config())
+        assert transport.asset_updates()[0]["rating"] == 5
+
+    def test_rejected_photo_with_no_stars_pushes_minus_one(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/rej.jpg', 0, 0, 1)])
+        transport.assets_by_path = {'/p/rej.jpg': 'id-rej'}
+        summary = sync_to_immich(db_path, _rejecting_config())
+        updates = transport.asset_updates()
+        assert len(updates) == 1
+        assert updates[0] == {"ids": ['id-rej'], "rating": -1, "isFavorite": False}
+        assert summary["matched"] == 1
+
+    def test_rejection_outranks_stars(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/rej.jpg', 5, 0, 1)])
+        transport.assets_by_path = {'/p/rej.jpg': 'id-rej'}
+        sync_to_immich(db_path, _rejecting_config())
+        assert transport.asset_updates()[0]["rating"] == -1
+
+    def test_unrejecting_clears_a_previously_pushed_minus_one(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/rej.jpg', 0, 0, 1)])
+        transport.assets_by_path = {'/p/rej.jpg': 'id-rej'}
+        sync_to_immich(db_path, _rejecting_config())
+        assert transport.asset_updates()[-1]["rating"] == -1
+
+        _set_rejected(db_path, '/p/rej.jpg', 0)
+        summary = sync_to_immich(db_path, _rejecting_config())
+        # The clear must reach Immich as null — 0 is rejected by Immich v3.
+        assert summary["matched"] == 1
+        assert transport.asset_updates()[-1]["rating"] is None
+
+        # Once cleared, the row drops out of tracking and costs nothing more.
+        before = len(transport.requests)
+        sync_to_immich(db_path, _rejecting_config())
+        assert len(transport.requests) == before
+
+    def test_unrejecting_a_starred_photo_restores_its_stars(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/rej.jpg', 4, 0, 1)])
+        transport.assets_by_path = {'/p/rej.jpg': 'id-rej'}
+        sync_to_immich(db_path, _rejecting_config())
+        assert transport.asset_updates()[-1]["rating"] == -1
+
+        _set_rejected(db_path, '/p/rej.jpg', 0)
+        sync_to_immich(db_path, _rejecting_config())
+        assert transport.asset_updates()[-1]["rating"] == 4
+
+    def test_ratings_disabled_suppresses_the_minus_one(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/rej.jpg', 0, 0, 1)])
+        transport.assets_by_path = {'/p/rej.jpg': 'id-rej'}
+        # -1 IS a rating write: push.ratings=false must not smuggle one back in.
+        sync_to_immich(db_path, _rejecting_config(ratings=False))
+        assert transport.requests == []
+
+    def test_rejected_photo_never_joins_the_top_picks_album(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/rej.jpg', 5, 0, 1), ('/p/keep.jpg', 5, 0, 0)])
+        transport.assets_by_path = {'/p/rej.jpg': 'id-rej', '/p/keep.jpg': 'id-keep'}
+        config = _rejecting_config(top_picks_album="Facet Top Picks", top_picks_min_rating=4)
+        sync_to_immich(db_path, config)
+        creates = [p for m, path, p in transport.requests
+                   if m == "POST" and path == "/api/albums"]
+        assert creates == [{"albumName": "Facet Top Picks", "assetIds": ['id-keep']}]
+
+    def test_user_overlay_rejection_drives_the_minus_one(self, tmp_path, transport):
+        db_path = make_db(
+            tmp_path,
+            [('/p/a.jpg', 5, 0, 0)],
+            user_rows=[('alice', '/p/a.jpg', 0, 0, 1)],
+        )
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        config = _rejecting_config()
+        config["users"] = {"alice": {"role": "regular"}}
+        sync_to_immich(db_path, config, user_id="alice")
+        assert transport.asset_updates()[0]["rating"] == -1
+
+
+class TestWebhookPendingReporting:
+    """The sync reports (and prunes) what the inbound webhook queued."""
+
+    def test_pending_paths_are_reported_and_scored_ones_pruned(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [('/p/a.jpg', 5, 0, 0)])
+        transport.assets_by_path = {'/p/a.jpg': 'id-a'}
+        record_pending_path(db_path, '/p/a.jpg')
+        record_pending_path(db_path, '/p/gone.jpg')
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE photos SET aggregate = 8.0 WHERE path = '/p/a.jpg'")
+        conn.commit()
+        conn.close()
+
+        summary = sync_to_immich(db_path, make_config())
+        assert summary["webhook_pending"] == 1
+        assert load_pending_paths(db_path) == ['/p/gone.jpg']
+
+    def test_dedup_and_bound(self, tmp_path):
+        db_path = make_db(tmp_path, [])
+        for path in ('/p/1.jpg', '/p/1.jpg', '/p/2.jpg', '/p/3.jpg'):
+            record_pending_path(db_path, path, max_pending=2)
+        assert load_pending_paths(db_path) == ['/p/2.jpg', '/p/3.jpg']
+
+    def test_dry_run_does_not_prune(self, tmp_path, transport):
+        db_path = make_db(tmp_path, [])
+        record_pending_path(db_path, '/p/a.jpg')
+        conn = sqlite3.connect(db_path)
+        conn.execute("INSERT INTO photos (path, filename, aggregate) VALUES ('/p/a.jpg', 'a.jpg', 8.0)")
+        conn.commit()
+        conn.close()
+        summary = sync_to_immich(db_path, make_config(), dry_run=True)
+        assert summary["webhook_pending"] == 0
+        assert load_pending_paths(db_path) == ['/p/a.jpg']
+
+
+class TestReversePathMapping:
+    def test_round_trips_through_the_configured_pairs(self):
+        pairs = [{"facet_prefix": "/photos/", "immich_prefix": "/usr/src/app/upload/"},
+                 {"facet_prefix": "/mnt/other/", "immich_prefix": "/data/"}]
+        assert map_immich_path('/usr/src/app/upload/a.jpg', pairs) == '/photos/a.jpg'
+        assert map_immich_path('/data/b.jpg', pairs) == '/mnt/other/b.jpg'
+        assert map_facet_path(map_immich_path('/data/b.jpg', pairs), pairs) == '/data/b.jpg'
+
+    def test_empty_or_placeholder_map_is_identity(self):
+        assert map_immich_path('/x/y.jpg', []) == '/x/y.jpg'
+        assert map_immich_path('/x/y.jpg', [{"facet_prefix": "", "immich_prefix": ""}]) == '/x/y.jpg'
+
+    def test_unmapped_prefix_returns_none(self):
+        pairs = [{"facet_prefix": "/photos/", "immich_prefix": "/usr/src/app/upload/"}]
+        assert map_immich_path('/somewhere/else.jpg', pairs) is None

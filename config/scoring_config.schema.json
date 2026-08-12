@@ -55,7 +55,42 @@
     "auto_cull": { "type": "object" },
     "distortion_attributes": { "type": "object" },
     "skin_tone": { "type": "object" },
-    "immich": { "type": "object" },
+    "immich": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string" },
+        "api_key": { "type": "string" },
+        "timeout_seconds": { "type": "number" },
+        "path_map": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "facet_prefix": { "type": "string" },
+              "immich_prefix": { "type": "string" }
+            }
+          }
+        },
+        "push": {
+          "type": "object",
+          "properties": {
+            "ratings": { "type": "boolean" },
+            "favorites": { "type": "boolean" },
+            "rejected": { "type": "boolean" },
+            "top_picks_album": { "type": "string" },
+            "top_picks_min_rating": { "type": "number" }
+          }
+        },
+        "webhook": {
+          "type": "object",
+          "properties": {
+            "token_env": { "type": "string" },
+            "header": { "type": "string" },
+            "max_pending": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
     "vlm_backend": {
       "type": "object",
       "properties": {
