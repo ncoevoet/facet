@@ -740,51 +740,75 @@ export class GalleryStore {
     }
   }
 
+  /**
+   * Paths with an in-flight toggleFavorite/toggleRejected call. Shared between
+   * both methods (not just per-method) because they mutate overlapping fields
+   * (rejecting clears favorite and vice versa): a reject fired while a favorite
+   * call for the same photo is still pending is just as much a race as a second
+   * favorite click. A second call for a path already in flight is dropped
+   * rather than queued -- the in-flight call's own response reconciliation
+   * already brings local state to server truth, so queuing would only replay
+   * a now-stale intent.
+   */
+  private readonly toggleInFlight = new Set<string>();
+
   /** Toggle favorite flag for a photo. Optimistic, reconciled with server truth. */
   async toggleFavorite(photoPath: string): Promise<void> {
-    const snap = this.snapshotFlags([photoPath]);
-    const prev = snap.get(photoPath);
-    if (!prev) return;
-    const next = !prev.is_favorite;
-    this.patchPhoto(photoPath, {
-      is_favorite: next,
-      is_rejected: next ? false : prev.is_rejected,
-    });
+    if (this.toggleInFlight.has(photoPath)) return;
+    this.toggleInFlight.add(photoPath);
     try {
-      const res = await firstValueFrom(
-        this.api.post<{ is_favorite: boolean }>('/photo/toggle_favorite', { photo_path: photoPath }),
-      );
+      const snap = this.snapshotFlags([photoPath]);
+      const prev = snap.get(photoPath);
+      if (!prev) return;
+      const next = !prev.is_favorite;
       this.patchPhoto(photoPath, {
-        is_favorite: res.is_favorite,
-        is_rejected: res.is_favorite ? false : prev.is_rejected,
+        is_favorite: next,
+        is_rejected: next ? false : prev.is_rejected,
       });
-    } catch {
-      this.revertSnapshot(snap);
-      this.notifyActionFailed();
+      try {
+        const res = await firstValueFrom(
+          this.api.post<{ is_favorite: boolean }>('/photo/toggle_favorite', { photo_path: photoPath }),
+        );
+        this.patchPhoto(photoPath, {
+          is_favorite: res.is_favorite,
+          is_rejected: res.is_favorite ? false : prev.is_rejected,
+        });
+      } catch {
+        this.revertSnapshot(snap);
+        this.notifyActionFailed();
+      }
+    } finally {
+      this.toggleInFlight.delete(photoPath);
     }
   }
 
   /** Toggle rejected flag for a photo. Optimistic, reconciled with server truth. */
   async toggleRejected(photoPath: string): Promise<void> {
-    const snap = this.snapshotFlags([photoPath]);
-    const prev = snap.get(photoPath);
-    if (!prev) return;
-    const next = !prev.is_rejected;
-    this.patchPhoto(photoPath, {
-      is_rejected: next,
-      is_favorite: next ? false : prev.is_favorite,
-    });
+    if (this.toggleInFlight.has(photoPath)) return;
+    this.toggleInFlight.add(photoPath);
     try {
-      const res = await firstValueFrom(
-        this.api.post<{ is_rejected: boolean }>('/photo/toggle_rejected', { photo_path: photoPath }),
-      );
+      const snap = this.snapshotFlags([photoPath]);
+      const prev = snap.get(photoPath);
+      if (!prev) return;
+      const next = !prev.is_rejected;
       this.patchPhoto(photoPath, {
-        is_rejected: res.is_rejected,
-        is_favorite: res.is_rejected ? false : prev.is_favorite,
+        is_rejected: next,
+        is_favorite: next ? false : prev.is_favorite,
       });
-    } catch {
-      this.revertSnapshot(snap);
-      this.notifyActionFailed();
+      try {
+        const res = await firstValueFrom(
+          this.api.post<{ is_rejected: boolean }>('/photo/toggle_rejected', { photo_path: photoPath }),
+        );
+        this.patchPhoto(photoPath, {
+          is_rejected: res.is_rejected,
+          is_favorite: res.is_rejected ? false : prev.is_favorite,
+        });
+      } catch {
+        this.revertSnapshot(snap);
+        this.notifyActionFailed();
+      }
+    } finally {
+      this.toggleInFlight.delete(photoPath);
     }
   }
 
@@ -869,16 +893,27 @@ export class GalleryStore {
     }
   }
 
-  /** Run up to `limit` async tasks concurrently. */
-  private async runChunked(tasks: (() => Promise<unknown>)[], limit = 10): Promise<void> {
+  /** Run up to `limit` path-keyed async tasks concurrently. Returns the paths whose task rejected. */
+  private async runChunked(tasks: { path: string; run: () => Promise<unknown> }[], limit = 10): Promise<Set<string>> {
+    const failed = new Set<string>();
     for (let i = 0; i < tasks.length; i += limit) {
-      await Promise.allSettled(tasks.slice(i, i + limit).map(t => t()));
+      const batch = tasks.slice(i, i + limit);
+      const results = await Promise.allSettled(batch.map(t => t.run()));
+      results.forEach((r, idx) => { if (r.status === 'rejected') failed.add(batch[idx].path); });
     }
+    return failed;
   }
 
   /**
    * Restore photos to a previously captured flag snapshot via inverse API
    * calls, then patch local state. Powers undo of batch operations.
+   *
+   * Each API call's outcome is tracked per photo path: only paths whose calls
+   * all succeeded are reverted locally to the snapshot's target state. A path
+   * with any failed call keeps its current (unreverted) local state, since we
+   * cannot know how much of its restore actually landed server-side, and the
+   * user is notified rather than left with a UI that silently disagrees with
+   * the server.
    */
   async restoreSnapshot(snap: Map<string, PhotoFlagSnapshot>): Promise<void> {
     const current = new Map(this.photos().map(p => [p.path, p]));
@@ -906,23 +941,35 @@ export class GalleryStore {
       }
     }
 
+    const failed = new Set<string>();
+    const runBatch = async (paths: string[], post: () => Promise<unknown>): Promise<void> => {
+      if (!paths.length) return;
+      try {
+        await post();
+      } catch {
+        paths.forEach(p => failed.add(p));
+      }
+    };
+
     // Order matters: clear rejected first (rejecting wipes rating+favorite
     // server-side), then re-apply rejected/favorite/rating states
-    await this.runChunked(toUnreject.map(path => () =>
-      firstValueFrom(this.api.post('/photo/toggle_rejected', { photo_path: path }))));
-    if (toReject.length) {
-      await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: toReject }));
-    }
-    if (toFavorite.length) {
-      await firstValueFrom(this.api.post('/photos/batch_favorite', { photo_paths: toFavorite }));
-    }
-    await this.runChunked(toUnfavorite.map(path => () =>
-      firstValueFrom(this.api.post('/photo/toggle_favorite', { photo_path: path }))));
+    (await this.runChunked(toUnreject.map(path => ({
+      path,
+      run: () => firstValueFrom(this.api.post('/photo/toggle_rejected', { photo_path: path })),
+    })))).forEach(p => failed.add(p));
+    await runBatch(toReject, () => firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: toReject })));
+    await runBatch(toFavorite, () => firstValueFrom(this.api.post('/photos/batch_favorite', { photo_paths: toFavorite })));
+    (await this.runChunked(toUnfavorite.map(path => ({
+      path,
+      run: () => firstValueFrom(this.api.post('/photo/toggle_favorite', { photo_path: path })),
+    })))).forEach(p => failed.add(p));
     for (const [rating, paths] of ratingGroups) {
-      await firstValueFrom(this.api.post('/photos/batch_rating', { photo_paths: paths, rating }));
+      await runBatch(paths, () => firstValueFrom(this.api.post('/photos/batch_rating', { photo_paths: paths, rating })));
     }
 
-    this.revertSnapshot(snap);
+    const succeeded = new Map([...snap].filter(([path]) => !failed.has(path)));
+    if (succeeded.size > 0) this.revertSnapshot(succeeded);
+    if (failed.size > 0) this.notifyActionFailed();
   }
 
   /** Unassign a person from a photo */
@@ -971,8 +1018,8 @@ export class GalleryStore {
     }
   }
 
-  /** Assign a single face to a person */
-  async assignFace(faceId: number, personId: number, photoPath: string, personName: string): Promise<void> {
+  /** Assign a single face to a person. Returns true on success, false on failure. */
+  async assignFace(faceId: number, personId: number, photoPath: string, personName: string): Promise<boolean> {
     try {
       await firstValueFrom(this.api.post(`/face/${faceId}/assign`, { person_id: personId }));
       this.photos.update(photos =>
@@ -986,7 +1033,10 @@ export class GalleryStore {
           };
         }),
       );
-    } catch { /* ignore */ }
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Sync current filters to URL query params */

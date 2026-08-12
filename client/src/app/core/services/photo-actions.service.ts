@@ -60,9 +60,13 @@ export class PhotoActionsService {
                 this.snackBar.open(this.i18n.t(I18N.persons.create_error), '', { duration: 3000 });
               }
             } else if (result.kind === 'select') {
-              await this.store.assignFace(face.id, result.person.id, photo.path, result.person.name);
-              this.snackBar.open(this.i18n.t(I18N.notifications.faces_assigned), '', { duration: 2000 });
-              onAssigned?.();
+              const assigned = await this.store.assignFace(face.id, result.person.id, photo.path, result.person.name);
+              if (assigned) {
+                this.snackBar.open(this.i18n.t(I18N.notifications.faces_assigned), '', { duration: 2000 });
+                onAssigned?.();
+              } else {
+                this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+              }
             }
           });
         });

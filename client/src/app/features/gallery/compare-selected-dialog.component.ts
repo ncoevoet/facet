@@ -7,7 +7,6 @@ import { Photo } from '../../shared/models/photo.model';
 import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SyncedZoomComponent, ZoomState, FIT_ZOOM, MAX_COMPARE_PANES } from './synced-zoom.component';
-import { I18N } from '../../core/i18n/keys';
 
 export interface CompareSelectedData {
   photos: Photo[];
@@ -34,18 +33,18 @@ export interface CompareSelectedData {
     <div class="flex flex-col h-full bg-black">
       <div class="flex items-center gap-2 px-3 py-2 text-white/90 text-sm shrink-0">
         <mat-icon class="!text-base !w-5 !h-5 !leading-5">compare</mat-icon>
-        <span class="flex-1 truncate">{{ I18N.gallery.compare.title | translate:{ count: panes().length } }}</span>
+        <span class="flex-1 truncate">{{ 'gallery.compare.title' | translate:{ count: panes().length } }}</span>
         @if (zoomed()) {
           <button mat-icon-button class="!text-white"
-                  [matTooltip]="I18N.gallery.compare.reset_zoom | translate"
-                  [attr.aria-label]="I18N.gallery.compare.reset_zoom | translate"
+                  [matTooltip]="'gallery.compare.reset_zoom' | translate"
+                  [attr.aria-label]="'gallery.compare.reset_zoom' | translate"
                   (click)="resetZoom()">
             <mat-icon>zoom_out_map</mat-icon>
           </button>
         }
         <button mat-icon-button class="!text-white"
-                [matTooltip]="I18N.dialog.close | translate"
-                [attr.aria-label]="I18N.dialog.close | translate"
+                [matTooltip]="'dialog.close' | translate"
+                [attr.aria-label]="'dialog.close' | translate"
                 (click)="close()">
           <mat-icon>close</mat-icon>
         </button>
@@ -70,14 +69,13 @@ export interface CompareSelectedData {
       </div>
 
       <div class="px-3 py-2 text-center text-white/60 text-xs shrink-0">
-        {{ I18N.gallery.compare.hint | translate }}
+        {{ 'gallery.compare.hint' | translate }}
       </div>
     </div>
   `,
   host: { class: 'block h-full' },
 })
 export class CompareSelectedDialogComponent {
-  protected readonly I18N = I18N;
   private readonly dialogRef = inject(MatDialogRef<CompareSelectedDialogComponent>);
   private readonly data = inject<CompareSelectedData>(MAT_DIALOG_DATA);
 

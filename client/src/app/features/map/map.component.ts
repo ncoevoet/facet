@@ -97,11 +97,21 @@ export class MapComponent implements OnInit, OnDestroy {
     });
   }
 
-  /** Escape HTML special characters to prevent XSS in Leaflet popups. */
+  /**
+   * Escape HTML special characters to prevent XSS in Leaflet popups.
+   *
+   * The textContent -> innerHTML round trip escapes `&`, `<` and `>`, but
+   * quotes are syntactically inert inside a text node so the browser leaves
+   * them alone. Every caller here interpolates the result into a
+   * double-quoted HTML attribute (src="...", alt="...", data-photo-path="..."),
+   * so an unescaped `"` in a filename/caption/tag would close the attribute
+   * early and let the rest of the string inject a new one (e.g. an
+   * onload handler). Encode both quote characters explicitly to close that gap.
+   */
   private escapeHtml(text: string): string {
     const div = document.createElement('div');
     div.textContent = text;
-    return div.innerHTML;
+    return div.innerHTML.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
   /** Translate a category key via i18n, falling back to title-cased name. */

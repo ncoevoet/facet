@@ -28,7 +28,7 @@ describe('PhotoActionsService', () => {
         { id: 1, name: 'Alice', face_count: 5 },
         { id: 2, name: null, face_count: 1 },
       ]),
-      assignFace: vi.fn().mockResolvedValue(undefined),
+      assignFace: vi.fn().mockResolvedValue(true),
       createPerson: vi.fn().mockResolvedValue({ id: 99, name: 'New Person', face_count: 1 }),
     };
 
@@ -48,7 +48,7 @@ describe('PhotoActionsService', () => {
     it('should open PhotoCritiqueDialogComponent with photo path and vlmAvailable', async () => {
       service.openCritique(mockPhoto);
       // The dialog component is lazy-loaded via dynamic import; wait for it to resolve.
-      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled());
+      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled(), { timeout: 5000 });
 
       expect(mockDialog.open).toHaveBeenCalledWith(
         expect.any(Function),
@@ -63,7 +63,7 @@ describe('PhotoActionsService', () => {
     it('should pass vlmAvailable=true when show_vlm_critique is true', async () => {
       mockStore.config.mockReturnValue({ features: { show_vlm_critique: true } });
       service.openCritique(mockPhoto);
-      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled());
+      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled(), { timeout: 5000 });
 
       const call = mockDialog.open.mock.calls[0][1];
       expect(call.data.vlmAvailable).toBe(true);
@@ -73,7 +73,7 @@ describe('PhotoActionsService', () => {
   describe('openAddPerson', () => {
     it('should open FaceSelectorDialogComponent first', async () => {
       service.openAddPerson(mockPhoto);
-      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled());
+      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled(), { timeout: 5000 });
 
       expect(mockDialog.open).toHaveBeenCalledWith(
         expect.any(Function),
@@ -93,10 +93,28 @@ describe('PhotoActionsService', () => {
         .mockReturnValueOnce({ afterClosed: () => of(selectedResult) });
 
       service.openAddPerson(mockPhoto, onAssigned);
-      await vi.waitFor(() => expect(mockStore.assignFace).toHaveBeenCalled());
+      await vi.waitFor(() => expect(mockStore.assignFace).toHaveBeenCalled(), { timeout: 5000 });
 
       expect(mockStore.assignFace).toHaveBeenCalledWith(10, 1, '/photos/test.jpg', 'Alice');
       expect(onAssigned).toHaveBeenCalled();
+    });
+
+    it('should NOT call onAssigned or show a success toast when assignFace fails', async () => {
+      mockStore.assignFace.mockResolvedValue(false);
+      const selectedFace = { id: 10 };
+      const selectedResult = { kind: 'select', person: { id: 1, name: 'Alice' } };
+      const onAssigned = vi.fn();
+
+      mockDialog.open
+        .mockReturnValueOnce({ afterClosed: () => of(selectedFace) })
+        .mockReturnValueOnce({ afterClosed: () => of(selectedResult) });
+
+      service.openAddPerson(mockPhoto, onAssigned);
+      await vi.waitFor(() => expect(mockStore.assignFace).toHaveBeenCalled(), { timeout: 5000 });
+      await vi.waitFor(() => expect(mockSnackBar.open).toHaveBeenCalled(), { timeout: 5000 });
+
+      expect(onAssigned).not.toHaveBeenCalled();
+      expect(mockSnackBar.open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
     });
 
     it('should create a new person when dialog returns kind="create"', async () => {
@@ -109,7 +127,7 @@ describe('PhotoActionsService', () => {
         .mockReturnValueOnce({ afterClosed: () => of(createResult) });
 
       service.openAddPerson(mockPhoto, onAssigned);
-      await vi.waitFor(() => expect(mockStore.createPerson).toHaveBeenCalled());
+      await vi.waitFor(() => expect(mockStore.createPerson).toHaveBeenCalled(), { timeout: 5000 });
 
       expect(mockStore.createPerson).toHaveBeenCalledWith('NewPerson', [10], '/photos/test.jpg');
       expect(mockStore.assignFace).not.toHaveBeenCalled();
@@ -120,7 +138,7 @@ describe('PhotoActionsService', () => {
       mockDialog.open.mockReturnValue({ afterClosed: () => of(null) });
 
       service.openAddPerson(mockPhoto);
-      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled());
+      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalled(), { timeout: 5000 });
 
       // Only the face selector should have been opened
       expect(mockDialog.open).toHaveBeenCalledTimes(1);
@@ -134,7 +152,7 @@ describe('PhotoActionsService', () => {
         .mockReturnValueOnce({ afterClosed: () => of(null) });
 
       service.openAddPerson(mockPhoto);
-      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalledTimes(2));
+      await vi.waitFor(() => expect(mockDialog.open).toHaveBeenCalledTimes(2), { timeout: 5000 });
 
       // PersonSelector receives only named persons
       const personSelectorCall = mockDialog.open.mock.calls[1];

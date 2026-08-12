@@ -75,9 +75,13 @@ describe('PhotoDetailComponent', () => {
     component = TestBed.inject(PhotoDetailComponent);
   }
 
+  // Explicit hook timeout above the default 10s: under full-suite load, many
+  // workers resolving dynamic import() chunks concurrently can contend for
+  // longer than that, and this hook flaking looks like a broken suite rather
+  // than the load-dependent timing issue it actually is.
   beforeAll(async () => {
     ({ PhotoDetailComponent } = await import('./photo-detail.component'));
-  });
+  }, 20000);
 
   beforeEach(() => {
     mockApi = {

@@ -13,7 +13,6 @@ import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService, AlbumScoringContextResult, AlbumSuggestedContext } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ScoringContextLabelPipe, resolveScoringContextLabel } from '../../shared/pipes/scoring-context-label.pipe';
-import { I18N } from '../../core/i18n/keys';
 
 export interface AlbumScoringContextDialogData {
   albumId: number;
@@ -58,17 +57,17 @@ const DEFAULT_CONTEXT = 'default';
     MatProgressSpinnerModule, MatProgressBarModule, TranslatePipe, ScoringContextLabelPipe,
   ],
   template: `
-    <h2 mat-dialog-title class="truncate">{{ I18N.albums.scoring_context.dialog_title | translate:{ name: data.albumName } }}</h2>
+    <h2 mat-dialog-title class="truncate">{{ 'albums.scoring_context.dialog_title' | translate:{ name: data.albumName } }}</h2>
     <mat-dialog-content class="!pt-2 min-w-[20rem] max-w-[28rem]">
       @if (loading()) {
         <div class="flex justify-center py-6">
           <mat-spinner diameter="28" />
         </div>
       } @else {
-        <p class="text-sm opacity-70 mb-3">{{ I18N.albums.scoring_context.description | translate }}</p>
+        <p class="text-sm opacity-70 mb-3">{{ 'albums.scoring_context.description' | translate }}</p>
 
         <mat-form-field class="w-full">
-          <mat-label>{{ I18N.albums.scoring_context.label | translate }}</mat-label>
+          <mat-label>{{ 'albums.scoring_context.label' | translate }}</mat-label>
           <mat-select [value]="selectedContext()" [disabled]="phase() !== 'select'"
                       (selectionChange)="selectedContext.set($event.value)">
             @for (context of contexts(); track context.name) {
@@ -81,10 +80,10 @@ const DEFAULT_CONTEXT = 'default';
           @if (s.suggested && s.moment && s.suggested !== selectedContext()) {
             <div class="flex items-center gap-2 text-xs opacity-70 -mt-2 mb-3">
               <span>
-                {{ I18N.albums.scoring_context.suggested_hint | translate:{ context: suggestedLabel(), percent: '' + suggestedPercent(), moment: s.moment } }}
+                {{ 'albums.scoring_context.suggested_hint' | translate:{ context: suggestedLabel(), percent: '' + suggestedPercent(), moment: s.moment } }}
               </span>
               <button mat-button class="!min-w-0 !px-2" (click)="selectedContext.set(s.suggested!)">
-                {{ I18N.albums.scoring_context.apply_suggestion | translate }}
+                {{ 'albums.scoring_context.apply_suggestion' | translate }}
               </button>
             </div>
           }
@@ -97,44 +96,44 @@ const DEFAULT_CONTEXT = 'default';
             }
             @if (conflicts() > 0) {
               <p class="text-amber-400 mb-2">
-                {{ I18N.albums.scoring_context.conflict_warning | translate:{ count: '' + conflicts() } }}
+                {{ 'albums.scoring_context.conflict_warning' | translate:{ count: '' + conflicts() } }}
               </p>
             }
             @if (manualSkipped() > 0) {
               <p class="text-amber-400 mb-2">
-                {{ I18N.albums.scoring_context.manual_skipped_note | translate:{ count: '' + manualSkipped() } }}
+                {{ 'albums.scoring_context.manual_skipped_note' | translate:{ count: '' + manualSkipped() } }}
               </p>
             }
             <p class="opacity-70 mb-2">
-              {{ (cleared() ? I18N.albums.scoring_context.cleared_success : I18N.albums.scoring_context.saved_success) | translate:{ count: '' + updatedCount() } }}
+              {{ (cleared() ? 'albums.scoring_context.cleared_success' : 'albums.scoring_context.saved_success') | translate:{ count: '' + updatedCount() } }}
             </p>
-            <p class="opacity-60 text-xs mb-2">{{ I18N.albums.scoring_context.membership_note | translate }}</p>
+            <p class="opacity-60 text-xs mb-2">{{ 'albums.scoring_context.membership_note' | translate }}</p>
 
             @if (phase() === 'saved') {
-              <p class="mb-2">{{ I18N.albums.scoring_context.recompute_prompt | translate }}</p>
+              <p class="mb-2">{{ 'albums.scoring_context.recompute_prompt' | translate }}</p>
               @if (recomputeError(); as e) {
                 <p class="text-red-400 text-xs mb-2">
-                  {{ (e === 'busy' ? I18N.albums.scoring_context.recompute_busy : I18N.albums.scoring_context.recompute_failed) | translate }}
+                  {{ (e === 'busy' ? 'albums.scoring_context.recompute_busy' : 'albums.scoring_context.recompute_failed') | translate }}
                 </p>
               }
               <div class="flex gap-2 justify-end">
-                <button mat-button (click)="close()">{{ I18N.albums.scoring_context.recompute_skip | translate }}</button>
-                <button mat-flat-button (click)="recompute()">{{ I18N.albums.scoring_context.recompute_button | translate }}</button>
+                <button mat-button (click)="close()">{{ 'albums.scoring_context.recompute_skip' | translate }}</button>
+                <button mat-flat-button (click)="recompute()">{{ 'albums.scoring_context.recompute_button' | translate }}</button>
               </div>
             }
 
             @if (phase() === 'recomputing') {
-              <p class="mb-2">{{ I18N.albums.scoring_context.recomputing | translate }}</p>
+              <p class="mb-2">{{ 'albums.scoring_context.recomputing' | translate }}</p>
               <mat-progress-bar [mode]="progressValue() === null ? 'indeterminate' : 'determinate'"
                                 [value]="progressValue() ?? 0" />
             }
 
             @if (phase() === 'recompute_done') {
-              <p class="text-green-400">{{ I18N.albums.scoring_context.recompute_done | translate }}</p>
+              <p class="text-green-400">{{ 'albums.scoring_context.recompute_done' | translate }}</p>
             }
 
             @if (phase() === 'recompute_error') {
-              <p class="text-red-400">{{ I18N.albums.scoring_context.recompute_failed | translate }}</p>
+              <p class="text-red-400">{{ 'albums.scoring_context.recompute_failed' | translate }}</p>
             }
           </div>
         }
@@ -142,23 +141,22 @@ const DEFAULT_CONTEXT = 'default';
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       @if (phase() === 'select' || phase() === 'saving') {
-        <button mat-button (click)="cancel()">{{ I18N.ui.buttons.cancel | translate }}</button>
+        <button mat-button (click)="cancel()">{{ 'ui.buttons.cancel' | translate }}</button>
         @if (data.currentContext) {
           <button mat-button [disabled]="loading() || phase() === 'saving'" (click)="clear()">
-            {{ I18N.albums.scoring_context.clear_button | translate }}
+            {{ 'albums.scoring_context.clear_button' | translate }}
           </button>
         }
         <button mat-flat-button [disabled]="loading() || phase() === 'saving'" (click)="save()">
-          {{ phase() === 'saving' ? (I18N.ui.buttons.saving | translate) : (I18N.ui.buttons.save | translate) }}
+          {{ phase() === 'saving' ? ('ui.buttons.saving' | translate) : ('ui.buttons.save' | translate) }}
         </button>
       } @else {
-        <button mat-button (click)="close()">{{ I18N.albums.scoring_context.close | translate }}</button>
+        <button mat-button (click)="close()">{{ 'albums.scoring_context.close' | translate }}</button>
       }
     </mat-dialog-actions>
   `,
 })
 export class AlbumScoringContextDialogComponent implements OnInit {
-  protected readonly I18N = I18N;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly albumService = inject(AlbumService);
@@ -212,8 +210,8 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     try {
       this.contexts.set((await contextsPromise).contexts);
     } catch {
-      this.contexts.set([{ name: DEFAULT_CONTEXT, label_key: I18N.albums.scoring_context.label }]);
-      this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
+      this.contexts.set([{ name: DEFAULT_CONTEXT, label_key: 'albums.scoring_context.label' }]);
+      this.snackBar.open(this.i18n.t('notifications.connection_error'), '', { duration: 3000 });
     }
 
     this.suggestion.set(await suggestionPromise);
@@ -225,7 +223,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     this.updatedCount.set(res.updated);
     this.conflicts.set(res.conflicts);
     this.manualSkipped.set(res.manual_skipped);
-    this.warning.set(res.warning ? I18N.albums.scoring_context.empty_warning : null);
+    this.warning.set(res.warning ? 'albums.scoring_context.empty_warning' : null);
     this.cleared.set(cleared);
     this.persistedContext = context;
     this.persisted = true;
@@ -242,7 +240,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     } catch {
       this.phase.set('select');
       if (!this.closeRequested) {
-        this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+        this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
       }
     }
     if (this.closeRequested) this.close();
@@ -257,7 +255,7 @@ export class AlbumScoringContextDialogComponent implements OnInit {
     } catch {
       this.phase.set('select');
       if (!this.closeRequested) {
-        this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+        this.snackBar.open(this.i18n.t('errors.action_failed'), '', { duration: 3000 });
       }
     }
     if (this.closeRequested) this.close();

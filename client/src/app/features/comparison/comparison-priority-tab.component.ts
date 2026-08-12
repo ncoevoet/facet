@@ -17,7 +17,6 @@ import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ScoringContextLabelPipe } from '../../shared/pipes/scoring-context-label.pipe';
 import { EtaDurationPipe, FilterValueFormatPipe } from './comparison.pipes';
-import { I18N } from '../../core/i18n/keys';
 
 const DEFAULT_CATEGORY_NAME = 'default';
 const JOB_KIND_RECOMPUTE = 'recompute';
@@ -145,12 +144,12 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
       <!-- Context picker -->
       <mat-card>
         <mat-card-header>
-          <mat-card-title>{{ I18N.comparison.context.tab_label | translate }}</mat-card-title>
-          <mat-card-subtitle>{{ I18N.comparison.context.picker_description | translate }}</mat-card-subtitle>
+          <mat-card-title>{{ 'comparison.context.tab_label' | translate }}</mat-card-title>
+          <mat-card-subtitle>{{ 'comparison.context.picker_description' | translate }}</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content class="!pt-4">
           <mat-form-field class="w-full max-w-sm">
-            <mat-label>{{ I18N.comparison.context.context_picker | translate }}</mat-label>
+            <mat-label>{{ 'comparison.context.context_picker' | translate }}</mat-label>
             <mat-select [value]="selectedContext()" [disabled]="savingContext()"
                         (selectionChange)="selectContext($event.value)">
               @for (ctx of contexts(); track ctx.name) {
@@ -166,22 +165,22 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
         <mat-card>
           <mat-card-header class="!flex !items-start">
             <div class="flex-1">
-              <mat-card-title>{{ I18N.comparison.context.global_order_title | translate }}</mat-card-title>
-              <mat-card-subtitle>{{ I18N.comparison.context.global_order_description | translate }}</mat-card-subtitle>
+              <mat-card-title>{{ 'comparison.context.global_order_title' | translate }}</mat-card-title>
+              <mat-card-subtitle>{{ 'comparison.context.global_order_description' | translate }}</mat-card-subtitle>
             </div>
             <div class="flex gap-1 shrink-0">
               <button mat-icon-button
                 [disabled]="!hasOrderChanges() || saving()"
                 (click)="resetOrder()"
-                [matTooltip]="I18N.comparison.reset | translate"
-                [attr.aria-label]="I18N.comparison.reset | translate">
+                [matTooltip]="'comparison.reset' | translate"
+                [attr.aria-label]="'comparison.reset' | translate">
                 <mat-icon>refresh</mat-icon>
               </button>
               <button mat-icon-button
                 [disabled]="saveDisabled()"
                 (click)="saveOrder()"
-                [matTooltip]="I18N.comparison.save | translate"
-                [attr.aria-label]="I18N.comparison.save | translate">
+                [matTooltip]="'comparison.save' | translate"
+                [attr.aria-label]="'comparison.save' | translate">
                 @if (saving()) {
                   <mat-spinner diameter="20" />
                 } @else {
@@ -213,7 +212,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                     <mat-icon class="text-gray-400 shrink-0">lock</mat-icon>
                     <span class="w-8 shrink-0 text-xs font-mono text-gray-400">{{ orderedCategories().length + 1 }}</span>
                     <span class="w-40 shrink-0 text-sm font-medium">{{ ('category_names.' + def.name) | translate }}</span>
-                    <span class="text-xs text-gray-500">{{ I18N.comparison.context.pinned_default_note | translate }}</span>
+                    <span class="text-xs text-gray-500">{{ 'comparison.context.pinned_default_note' | translate }}</span>
                   </div>
                 }
               </div>
@@ -226,21 +225,21 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
           <mat-card-header class="!flex !items-start">
             <div class="flex-1">
               <mat-card-title>{{ ctx | scoringContextLabel }}</mat-card-title>
-              <mat-card-subtitle>{{ I18N.comparison.context.delta_description | translate }}</mat-card-subtitle>
+              <mat-card-subtitle>{{ 'comparison.context.delta_description' | translate }}</mat-card-subtitle>
             </div>
             <div class="flex gap-1 shrink-0">
               <button mat-icon-button
                 [disabled]="!hasContextChanges() || savingContext()"
                 (click)="resetContextDraft()"
-                [matTooltip]="I18N.comparison.reset | translate"
-                [attr.aria-label]="I18N.comparison.reset | translate">
+                [matTooltip]="'comparison.reset' | translate"
+                [attr.aria-label]="'comparison.reset' | translate">
                 <mat-icon>refresh</mat-icon>
               </button>
               <button mat-icon-button
                 [disabled]="contextSaveDisabled()"
                 (click)="saveContext()"
-                [matTooltip]="I18N.comparison.save | translate"
-                [attr.aria-label]="I18N.comparison.save | translate">
+                [matTooltip]="'comparison.save' | translate"
+                [attr.aria-label]="'comparison.save' | translate">
                 @if (savingContext()) {
                   <mat-spinner diameter="20" />
                 } @else {
@@ -254,8 +253,8 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <mat-card>
             <mat-card-header>
-              <mat-card-title>{{ I18N.comparison.context.promote_title | translate }}</mat-card-title>
-              <mat-card-subtitle>{{ I18N.comparison.context.promote_description | translate }}</mat-card-subtitle>
+              <mat-card-title>{{ 'comparison.context.promote_title' | translate }}</mat-card-title>
+              <mat-card-subtitle>{{ 'comparison.context.promote_description' | translate }}</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content class="!pt-4">
               @if (draftPromote().length > 0) {
@@ -268,32 +267,32 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                       <button mat-icon-button class="shrink-0"
                         [disabled]="i === 0"
                         (click)="movePromotedUp(i)"
-                        [matTooltip]="I18N.comparison.context.move_up | translate"
-                        [attr.aria-label]="I18N.comparison.context.move_up | translate">
+                        [matTooltip]="'comparison.context.move_up' | translate"
+                        [attr.aria-label]="'comparison.context.move_up' | translate">
                         <mat-icon>arrow_upward</mat-icon>
                       </button>
                       <button mat-icon-button class="shrink-0"
                         [disabled]="i === draftPromote().length - 1"
                         (click)="movePromotedDown(i)"
-                        [matTooltip]="I18N.comparison.context.move_down | translate"
-                        [attr.aria-label]="I18N.comparison.context.move_down | translate">
+                        [matTooltip]="'comparison.context.move_down' | translate"
+                        [attr.aria-label]="'comparison.context.move_down' | translate">
                         <mat-icon>arrow_downward</mat-icon>
                       </button>
                       <button mat-icon-button class="shrink-0"
                         (click)="unpromoteCategory(name)"
-                        [matTooltip]="I18N.comparison.context.remove_promotion | translate"
-                        [attr.aria-label]="I18N.comparison.context.remove_promotion | translate">
+                        [matTooltip]="'comparison.context.remove_promotion' | translate"
+                        [attr.aria-label]="'comparison.context.remove_promotion' | translate">
                         <mat-icon>close</mat-icon>
                       </button>
                     </div>
                   }
                 </div>
               } @else {
-                <p class="text-sm text-gray-500">{{ I18N.comparison.context.no_promotions | translate }}</p>
+                <p class="text-sm text-gray-500">{{ 'comparison.context.no_promotions' | translate }}</p>
               }
               @if (promotableCategories().length > 0) {
                 <div class="mt-4 pt-3 border-t border-[var(--mat-sys-outline-variant)]">
-                  <h4 class="text-xs uppercase tracking-wide text-gray-500 mb-2">{{ I18N.comparison.context.add_promotion | translate }}</h4>
+                  <h4 class="text-xs uppercase tracking-wide text-gray-500 mb-2">{{ 'comparison.context.add_promotion' | translate }}</h4>
                   <div class="flex flex-wrap gap-2">
                     @for (name of promotableCategories(); track name) {
                       <button type="button"
@@ -310,8 +309,8 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
 
           <mat-card>
             <mat-card-header>
-              <mat-card-title>{{ I18N.comparison.context.excluded_title | translate }}</mat-card-title>
-              <mat-card-subtitle>{{ I18N.comparison.context.excluded_description | translate }}</mat-card-subtitle>
+              <mat-card-title>{{ 'comparison.context.excluded_title' | translate }}</mat-card-title>
+              <mat-card-subtitle>{{ 'comparison.context.excluded_description' | translate }}</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content class="!pt-4">
               <div class="flex flex-wrap gap-2">
@@ -327,7 +326,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                 }
               </div>
               @if (draftExcluded().length === 0) {
-                <p class="mt-3 text-sm text-gray-500">{{ I18N.comparison.context.no_exclusions | translate }}</p>
+                <p class="mt-3 text-sm text-gray-500">{{ 'comparison.context.no_exclusions' | translate }}</p>
               }
             </mat-card-content>
           </mat-card>
@@ -335,7 +334,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
 
         <mat-card>
           <mat-card-header>
-            <mat-card-title>{{ I18N.comparison.context.effective_order_title | translate }}</mat-card-title>
+            <mat-card-title>{{ 'comparison.context.effective_order_title' | translate }}</mat-card-title>
           </mat-card-header>
           <mat-card-content class="!pt-4">
             <div class="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-gray-400">
@@ -354,7 +353,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
           <mat-card-content class="!py-4 flex flex-col gap-3">
             <div class="flex items-center gap-2 text-sm text-amber-400">
               <mat-icon class="!text-base !w-4 !h-4">warning</mat-icon>
-              {{ I18N.comparison.context.stale_notice | translate }}
+              {{ 'comparison.context.stale_notice' | translate }}
             </div>
             @if (recomputeMessageKey(); as messageKey) {
               <div class="text-sm text-red-400">{{ messageKey | translate }}</div>
@@ -365,9 +364,9 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                   [value]="recomputeProgressPercent() ?? 0" />
                 @if (recomputeStatus()?.progress; as p) {
                   <span class="text-xs text-gray-500">
-                    {{ I18N.comparison.context.recompute_progress | translate:{ current: p.current ?? 0, total: p.total ?? 0 } }}
+                    {{ 'comparison.context.recompute_progress' | translate:{ current: p.current ?? 0, total: p.total ?? 0 } }}
                     @if (p.eta_seconds !== null && p.eta_seconds !== undefined) {
-                      &middot; {{ I18N.comparison.context.recompute_eta | translate:{ time: (p.eta_seconds | etaDuration) } }}
+                      &middot; {{ 'comparison.context.recompute_eta' | translate:{ time: (p.eta_seconds | etaDuration) } }}
                     }
                   </span>
                 }
@@ -378,7 +377,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                 (click)="startRecompute()">
                 <span class="inline-flex items-center gap-1.5">
                   <mat-icon class="!m-0">calculate</mat-icon>
-                  {{ I18N.comparison.context.recompute_now | translate }}
+                  {{ 'comparison.context.recompute_now' | translate }}
                 </span>
               </button>
             }
@@ -390,14 +389,14 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
       <mat-card>
         <mat-card-header class="!flex !items-start">
           <div class="flex-1">
-            <mat-card-title>{{ I18N.comparison.context.overlap_title | translate }}</mat-card-title>
-            <mat-card-subtitle>{{ I18N.comparison.context.overlap_description | translate }}</mat-card-subtitle>
+            <mat-card-title>{{ 'comparison.context.overlap_title' | translate }}</mat-card-title>
+            <mat-card-subtitle>{{ 'comparison.context.overlap_description' | translate }}</mat-card-subtitle>
           </div>
           <button mat-icon-button class="shrink-0"
             [disabled]="overlapLoading()"
             (click)="refreshOverlap()"
-            [matTooltip]="I18N.comparison.context.refresh_overlap | translate"
-            [attr.aria-label]="I18N.comparison.context.refresh_overlap | translate">
+            [matTooltip]="'comparison.context.refresh_overlap' | translate"
+            [attr.aria-label]="'comparison.context.refresh_overlap' | translate">
             <mat-icon>refresh</mat-icon>
           </button>
         </mat-card-header>
@@ -408,10 +407,10 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
             <table class="w-full text-sm">
               <thead>
                 <tr class="text-gray-400 text-left border-b border-[var(--mat-sys-outline-variant)]">
-                  <th class="pb-2 pr-4">{{ I18N.comparison.context.overlap_column_category | translate }}</th>
-                  <th class="pb-2 pr-4">{{ I18N.comparison.context.overlap_column_assigned | translate }}</th>
-                  <th class="pb-2 pr-4">{{ I18N.comparison.context.overlap_column_matched | translate }}</th>
-                  <th class="pb-2">{{ I18N.comparison.context.overlap_column_captured | translate }}</th>
+                  <th class="pb-2 pr-4">{{ 'comparison.context.overlap_column_category' | translate }}</th>
+                  <th class="pb-2 pr-4">{{ 'comparison.context.overlap_column_assigned' | translate }}</th>
+                  <th class="pb-2 pr-4">{{ 'comparison.context.overlap_column_matched' | translate }}</th>
+                  <th class="pb-2">{{ 'comparison.context.overlap_column_captured' | translate }}</th>
                 </tr>
               </thead>
               <tbody>
@@ -428,11 +427,11 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
               </tbody>
             </table>
           } @else if (overlapLoaded()) {
-            <p class="text-sm text-gray-500">{{ I18N.comparison.context.overlap_empty | translate }}</p>
+            <p class="text-sm text-gray-500">{{ 'comparison.context.overlap_empty' | translate }}</p>
           }
           @if (topOverlapPairs().length > 0) {
             <div class="mt-4 pt-3 border-t border-[var(--mat-sys-outline-variant)]">
-              <h4 class="text-xs uppercase tracking-wide text-gray-500 mb-2">{{ I18N.comparison.context.overlap_pairs_title | translate }}</h4>
+              <h4 class="text-xs uppercase tracking-wide text-gray-500 mb-2">{{ 'comparison.context.overlap_pairs_title' | translate }}</h4>
               <ul class="flex flex-col gap-1 text-sm">
                 @for (pair of topOverlapPairs(); track pair.pair[0] + pair.pair[1]) {
                   <li class="flex items-center justify-between gap-2">
@@ -451,7 +450,6 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
   `,
 })
 export class ComparisonPriorityTabComponent {
-  protected readonly I18N = I18N;
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
@@ -634,7 +632,7 @@ export class ComparisonPriorityTabComponent {
         this.resetContextDraft();
       }
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.context.error_loading_contexts), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t('comparison.context.error_loading_contexts'), '', { duration: 4000 });
     }
   }
 
@@ -651,10 +649,10 @@ export class ComparisonPriorityTabComponent {
       );
       this.stale.set(true);
       this.recomputeMessageKey.set(null);
-      this.snackBar.open(this.i18n.t(I18N.comparison.context.context_saved), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t('comparison.context.context_saved'), '', { duration: 3000 });
       await this.loadContexts(ctx.name);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.context.error_saving_context), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t('comparison.context.error_saving_context'), '', { duration: 4000 });
     } finally {
       this.savingContext.set(false);
     }
@@ -672,7 +670,7 @@ export class ComparisonPriorityTabComponent {
       this.orderedCategories.set(nonDefault);
       this.savedOrder.set(nonDefault.map(c => c.name));
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.context.error_loading_categories), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t('comparison.context.error_loading_categories'), '', { duration: 4000 });
     } finally {
       this.categoriesLoading.set(false);
     }
@@ -688,11 +686,11 @@ export class ComparisonPriorityTabComponent {
       this.savedOrder.set(this.orderedCategories().map(c => c.name));
       this.stale.set(true);
       this.recomputeMessageKey.set(null);
-      this.snackBar.open(this.i18n.t(I18N.comparison.context.priorities_saved), '', { duration: 3000 });
+      this.snackBar.open(this.i18n.t('comparison.context.priorities_saved'), '', { duration: 3000 });
       void this.loadCategories();
       this.overlapLoaded.set(false);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.context.error_saving_priorities), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t('comparison.context.error_saving_priorities'), '', { duration: 4000 });
     } finally {
       this.saving.set(false);
     }
@@ -706,7 +704,7 @@ export class ComparisonPriorityTabComponent {
       this.overlap.set(data);
       this.overlapLoaded.set(true);
     } catch {
-      this.snackBar.open(this.i18n.t(I18N.comparison.context.error_loading_overlap), '', { duration: 4000 });
+      this.snackBar.open(this.i18n.t('comparison.context.error_loading_overlap'), '', { duration: 4000 });
     } finally {
       this.overlapLoading.set(false);
     }
@@ -729,9 +727,9 @@ export class ComparisonPriorityTabComponent {
     } catch (err) {
       this.recomputing.set(false);
       if (err instanceof HttpErrorResponse && err.status === 409) {
-        this.recomputeMessageKey.set(I18N.comparison.context.recompute_conflict);
+        this.recomputeMessageKey.set('comparison.context.recompute_conflict');
       } else {
-        this.recomputeMessageKey.set(I18N.comparison.context.error_recompute);
+        this.recomputeMessageKey.set('comparison.context.error_recompute');
       }
     }
   }
@@ -749,18 +747,18 @@ export class ComparisonPriorityTabComponent {
         // cannot be trusted as either success or failure -- report it as
         // indeterminate rather than guessing.
         if (status.kind !== JOB_KIND_RECOMPUTE || status.exit_code === null) {
-          this.recomputeMessageKey.set(I18N.comparison.context.recompute_unknown);
+          this.recomputeMessageKey.set('comparison.context.recompute_unknown');
         } else if (status.exit_code === 0) {
           this.stale.set(false);
-          this.snackBar.open(this.i18n.t(I18N.comparison.context.recompute_done), '', { duration: 4000 });
+          this.snackBar.open(this.i18n.t('comparison.context.recompute_done'), '', { duration: 4000 });
         } else {
-          this.recomputeMessageKey.set(I18N.comparison.context.recompute_failed);
+          this.recomputeMessageKey.set('comparison.context.recompute_failed');
         }
       }
     } catch {
       this.stopRecomputePolling();
       this.recomputing.set(false);
-      this.recomputeMessageKey.set(I18N.comparison.context.recompute_unknown);
+      this.recomputeMessageKey.set('comparison.context.recompute_unknown');
     }
   }
 

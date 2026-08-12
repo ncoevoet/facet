@@ -108,3 +108,39 @@ export class ModifierValueFormatPipe implements PipeTransform {
     return '';
   }
 }
+
+/**
+ * Pure numeric lookup out of a modifiers/filters record snapshot, for use
+ * directly in template bindings instead of a component getter method
+ * (CLAUDE.md: no method calls in templates -- a pure pipe only re-evaluates
+ * when its record/key inputs change identity, unlike a method invoked on
+ * every change-detection pass).
+ */
+@Pipe({ name: 'recordValue', standalone: true, pure: true })
+export class RecordValuePipe implements PipeTransform {
+  transform(record: Record<string, unknown> | null | undefined, key: string): number | null {
+    if (!record) return null;
+    const v = record[key];
+    return v !== undefined && v !== null ? (v as number) : null;
+  }
+}
+
+/** Pure lookup of a filters record's tag-array field as a comma-joined string. */
+@Pipe({ name: 'filterTags', standalone: true, pure: true })
+export class FilterTagsPipe implements PipeTransform {
+  transform(filters: Record<string, unknown> | null | undefined, key: string): string {
+    const v = filters?.[key];
+    return Array.isArray(v) ? v.join(', ') : '';
+  }
+}
+
+/** Pure lookup of a filters record's tri-state boolean as a mat-select value (''|'true'|'false'). */
+@Pipe({ name: 'filterBoolValue', standalone: true, pure: true })
+export class FilterBoolValuePipe implements PipeTransform {
+  transform(filters: Record<string, unknown> | null | undefined, key: string): string {
+    const v = filters?.[key];
+    if (v === true) return 'true';
+    if (v === false) return 'false';
+    return '';
+  }
+}

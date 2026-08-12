@@ -32,10 +32,23 @@ function importPath(fromFile) {
   return rel;
 }
 
-// Files kept on literal keys: their spec renders right after a Leaflet map spec,
-// and this builder shares one module registry per worker -- the map spec's module
-// mock resets it and nulls the component's I18N import binding for the next file.
-const SKIP = new Set(['photo-tooltip.component.ts']);
+// Files kept on literal keys instead of the shared `I18N` accessor: under the
+// Vitest unit-test builder, `I18N` (a plain module-const) reads back `undefined`
+// the first time these components render via TestBed, because the keys module
+// lands on both the static and dynamic-import side of a code-split boundary and
+// duplicates. Literal `'key' | translate` strings sidestep the captured binding
+// entirely. The codemod MUST NOT rewrite them back to `I18N.key` accessors.
+const SKIP = new Set([
+  'photo-tooltip.component.ts',
+  'album-scoring-context-dialog.component.ts',
+  'comparison-priority-tab.component.ts',
+  'gear-chart-card.component.ts',
+  'person-card.component.ts',
+  'photo-card.component.ts',
+  'albums.component.ts',
+  'folder-picker-dialog.component.ts',
+  'compare-selected-dialog.component.ts',
+]);
 
 function listFiles(dir, acc = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
