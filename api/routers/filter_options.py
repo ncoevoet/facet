@@ -22,10 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 def _vis_where(user: Optional[CurrentUser]):
-    """Return (where_fragment, params) for visibility filtering."""
-    if not user or not user.user_id:
-        return '', []
-    vis_sql, vis_params = get_visibility_clause(user.user_id)
+    """Return (where_fragment, params) for visibility filtering.
+
+    Returns ('', []) on a fully open install. On an access-controlled deployment
+    (multi-user, or a single-user viewer password) an unauthenticated request
+    resolves to (' AND 0=1', []) so it sees nothing; ``get_visibility_clause``
+    owns that carve-out, so this must never short-circuit before calling it.
+    """
+    user_id = user.user_id if user else None
+    vis_sql, vis_params = get_visibility_clause(user_id)
     if vis_sql == '1=1':
         return '', []
     return f' AND {vis_sql}', vis_params

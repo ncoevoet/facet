@@ -5,7 +5,6 @@ Exposes loaded plugins, webhook configuration, and a test-webhook helper.
 """
 
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -46,7 +45,7 @@ class TestWebhookRequest(BaseModel):
 
 @router.get("/api/plugins")
 def list_plugins(
-    user: Optional[CurrentUser] = Depends(require_edition),
+    user: CurrentUser = Depends(require_edition),
 ):
     """List loaded plugins, webhooks, and configured actions."""
     mgr = _get_manager()
@@ -61,7 +60,7 @@ def list_plugins(
 @router.post("/api/plugins/test-webhook")
 def test_webhook(
     body: TestWebhookRequest,
-    user: Optional[CurrentUser] = Depends(require_edition),
+    user: CurrentUser = Depends(require_edition),
 ):
     """Send a test payload to *url* and report whether it succeeded."""
     mgr = _get_manager()

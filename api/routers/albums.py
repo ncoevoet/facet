@@ -84,7 +84,7 @@ def _check_album_access(conn, album_id, user_id):
     album = conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,)).fetchone()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
-    if is_access_controlled_install() and album['user_id'] and album['user_id'] != user_id:
+    if is_access_controlled_install() and album['user_id'] != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     return album
 
@@ -96,7 +96,7 @@ async def _check_album_access_async(conn, album_id, user_id):
     await cur.close()
     if not album:
         raise HTTPException(status_code=404, detail="Album not found")
-    if is_access_controlled_install() and album['user_id'] and album['user_id'] != user_id:
+    if is_access_controlled_install() and album['user_id'] != user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     return album
 
@@ -408,6 +408,10 @@ def list_albums(
         if user_id:
             where_clauses.append("(user_id = ? OR user_id IS NULL)")
             params.append(user_id)
+        elif is_access_controlled_install():
+            # Anonymous on a locked/multi-user install must not enumerate every
+            # album's names, paths and smart-filter JSON — fail closed.
+            where_clauses.append("1=0")
         if search.strip():
             where_clauses.append("(name LIKE ? OR description LIKE ?)")
             params.extend([f"%{search.strip()}%", f"%{search.strip()}%"])

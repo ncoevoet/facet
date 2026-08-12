@@ -25,8 +25,9 @@ async def api_ranker_status(
 ):
     """Training status for the personal ranker ("My Taste").
 
-    Defaults to the global pooled scope; pass ``?user=<id>`` to read a user's
-    per-user snapshot instead. ``coverage`` is the share of embedded photos that
+    The global pooled scope is deliberately open to any caller; only an explicit
+    ``?user=<id>`` scope is gated (403 unless it is the caller's own id or a
+    superadmin). Pass ``?user=<id>`` to read a user's per-user snapshot instead. ``coverage`` is the share of embedded photos that
     carry a ``learned_score`` in the requested scope (the sort the gallery
     exposes). The accuracy fields come from the last train's ``stats_cache``
     snapshot and are ``null`` until the ranker has trained at least once.

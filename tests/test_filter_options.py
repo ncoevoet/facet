@@ -43,6 +43,13 @@ def _build_app_with(db_path: str, viewer_cfg: dict):
         mock.patch("api.routers.filter_options.VIEWER_CONFIG", viewer_cfg),
         mock.patch("api.routers.filter_options.is_multi_user_enabled", return_value=True),
         mock.patch("api.db_helpers.is_multi_user_enabled", return_value=True),
+        # These tests exercise the persons/colors dropdown LOGIC (min_photos,
+        # ids force-include, colour buckets), not visibility gating — which is
+        # covered by test_filter_options_visibility.py. Open the visibility
+        # clause so an unauthenticated TestClient reaches the rows under test;
+        # otherwise get_visibility_clause(None) fails closed to 0=1 under the
+        # multi-user patch above.
+        mock.patch("api.routers.filter_options.get_visibility_clause", return_value=("1=1", [])),
     ]
     for p in patches:
         p.start()

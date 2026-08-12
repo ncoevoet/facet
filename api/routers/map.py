@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_async_db, get_db
-from api.db_helpers import get_existing_columns, get_visibility_clause
+from api.db_helpers import get_existing_columns, get_visibility_clause, to_exif_date
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
@@ -42,10 +42,10 @@ async def _get_clustered_photos(conn, zoom, date_from, date_to, user_id,
     p2_params = list(p2_vis_params)
     if date_from:
         p2_where += " AND p2.date_taken >= ?"
-        p2_params.append(date_from)
+        p2_params.append(to_exif_date(date_from))
     if date_to:
         p2_where += " AND p2.date_taken <= ?"
-        p2_params.append(date_to + " 23:59:59")
+        p2_params.append(to_exif_date(date_to) + " 23:59:59")
 
     cur = await conn.execute(
         f"SELECT "
@@ -157,12 +157,12 @@ async def api_photos_map(
             if not _DATE_RE.match(date_from):
                 raise HTTPException(status_code=400, detail='Invalid date_from format. Expected: YYYY-MM-DD')
             base_where += " AND date_taken >= ?"
-            base_params.append(date_from)
+            base_params.append(to_exif_date(date_from))
         if date_to:
             if not _DATE_RE.match(date_to):
                 raise HTTPException(status_code=400, detail='Invalid date_to format. Expected: YYYY-MM-DD')
             base_where += " AND date_taken <= ?"
-            base_params.append(date_to + " 23:59:59")
+            base_params.append(to_exif_date(date_to) + " 23:59:59")
 
         if zoom < _get_cluster_zoom_threshold():
             return await _get_clustered_photos(

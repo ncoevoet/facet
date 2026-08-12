@@ -203,6 +203,31 @@ class TestCullApply:
             resp = client.post("/api/cull/apply", json={"action": "copy_keeps"})
         assert resp.status_code == 400
 
+    def test_not_visible_paths_are_counted_separately_from_excluded_by_state(self, client, tmp_path):
+        """A5#4: a path that isn't in the DB at all (or isn't visible to this
+        user) used to vanish from every count -- neither acted on nor
+        reported, so matching + excluded_by_state never reconciled with
+        len(paths). It must show up as not_visible instead."""
+        keep = _make_file(tmp_path, "keep.jpg")
+        reject = _make_file(tmp_path, "reject.jpg")
+        missing = str(tmp_path / "never_scanned.jpg")  # not in the DB at all
+        db = _db(tmp_path, [(keep, 0), (reject, 1)])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [keep, reject, missing], "action": "copy_keeps",
+                "target_dir": str(tmp_path / "k"), "dry_run": True,
+                "include_companions": False,
+            })
+        body = resp.json()
+        assert body["would_copy"] == [keep]
+        assert body["excluded_by_state"] == 1  # reject
+        assert body["not_visible"] == 1  # missing
+        # The three counts now reconcile with the request's own path count.
+        assert len(body["would_copy"]) + body["excluded_by_state"] + body["not_visible"] == 3
+
 
 class TestCullAuth:
     def test_regular_user_forbidden(self, regular_client, tmp_path):

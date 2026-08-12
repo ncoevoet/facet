@@ -529,6 +529,10 @@ def api_cull_apply(
         state = _reject_state_map(conn, paths, user_id)
     matching = [p for p in paths if state.get(p) == want_rejected]
     excluded_by_state = sum(1 for p in paths if p in state and state[p] != want_rejected)
+    # Not in state at all: invisible to this user, or not in the DB. Not acted
+    # on either way, but distinct from excluded_by_state — surface it so the
+    # totals (matching + excluded_by_state + not_visible) reconcile with len(paths).
+    not_visible = sum(1 for p in paths if p not in state)
 
     items, skipped = _resolve_cull_files(matching, body.include_companions)
     files = [f for _, fs in items for f in fs]
@@ -537,7 +541,8 @@ def api_cull_apply(
         safe_target = _validate_target_dir_required(body.target_dir)
         if body.dry_run:
             return {"action": body.action, "dry_run": True, "would_copy": files,
-                    "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": []}
+                    "skipped": skipped, "excluded_by_state": excluded_by_state,
+                    "not_visible": not_visible, "errors": []}
         copied = errors = 0
         os.makedirs(safe_target, exist_ok=True)
         for src in files:
@@ -548,16 +553,19 @@ def api_cull_apply(
                 logger.exception("Failed to copy %s into %s", src, safe_target)
                 errors += 1
         return {"action": body.action, "dry_run": False, "copied": copied,
-                "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": errors}
+                "skipped": skipped, "excluded_by_state": excluded_by_state,
+                "not_visible": not_visible, "errors": errors}
 
     if body.action == "move_rejects":
         safe_target = _validate_target_dir_required(body.target_dir)
         if body.dry_run:
             return {"action": body.action, "dry_run": True, "would_move": files,
-                    "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": []}
+                    "skipped": skipped, "excluded_by_state": excluded_by_state,
+                    "not_visible": not_visible, "errors": []}
         moved, errors = _move_into(files, safe_target)
         return {"action": body.action, "dry_run": False, "moved": moved,
-                "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": errors}
+                "skipped": skipped, "excluded_by_state": excluded_by_state,
+                "not_visible": not_visible, "errors": errors}
 
     # trash_rejects
     if not (VIEWER_CONFIG.get("cull", {}) or {}).get("allow_trash", False):
@@ -569,7 +577,8 @@ def api_cull_apply(
         raise HTTPException(status_code=400, detail="send2trash is not installed")
     if body.dry_run:
         return {"action": body.action, "dry_run": True, "would_trash": files,
-                "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": []}
+                "skipped": skipped, "excluded_by_state": excluded_by_state,
+                "not_visible": not_visible, "errors": []}
     trashed = errors = 0
     for src in files:
         try:
@@ -579,7 +588,8 @@ def api_cull_apply(
             logger.exception("Failed to trash %s", src)
             errors += 1
     return {"action": body.action, "dry_run": False, "trashed": trashed,
-            "skipped": skipped, "excluded_by_state": excluded_by_state, "errors": errors}
+            "skipped": skipped, "excluded_by_state": excluded_by_state,
+            "not_visible": not_visible, "errors": errors}
 
 
 def _validate_target_dir_required(target_dir):

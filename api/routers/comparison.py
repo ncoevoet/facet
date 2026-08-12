@@ -490,7 +490,7 @@ async def api_update_weights(
 
 @router.get("/api/config/category_priorities")
 def api_get_category_priorities(
-    user: Optional[CurrentUser] = Depends(require_edition),
+    user: CurrentUser = Depends(require_edition),
 ):
     """List categories in current evaluation (priority) order."""
     from config import ScoringConfig
@@ -671,9 +671,14 @@ def api_comparison_photo_metrics(
 @router.get("/api/comparison/category_weights")
 def api_comparison_category_weights(
     category: Optional[str] = Query(None),
-    user: Optional[CurrentUser] = Depends(get_optional_user),
+    user: CurrentUser = Depends(require_edition),
 ):
-    """Get weights for a category (or all categories)."""
+    """Get weights for a category (or all categories).
+
+    Edition-gated like the rest of the ``/api/comparison/*`` tuning surface and
+    its write counterpart (``POST /api/config/update_weights``); the public
+    stats page reads weights through ``/api/stats/categories/weights`` instead.
+    """
     from config import ScoringConfig
 
     config = ScoringConfig(validate=False)
@@ -1451,9 +1456,13 @@ def api_weight_snapshots(
     category: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    user: Optional[CurrentUser] = Depends(get_optional_user),
+    user: CurrentUser = Depends(require_edition),
 ):
-    """List weight configuration snapshots (paginated for infinite scroll)."""
+    """List weight configuration snapshots (paginated for infinite scroll).
+
+    Edition-gated to match its write counterparts (save/restore/delete snapshot),
+    so the tuning history is not disclosed to anonymous callers.
+    """
     try:
         with get_db() as conn:
             where = "WHERE category = ?" if category else ""

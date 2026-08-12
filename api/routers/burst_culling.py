@@ -103,12 +103,12 @@ class CullingConfirmBody(BaseModel):
 
 
 class CullingFacesBody(BaseModel):
-    paths: list[str]
+    paths: list[str] = Field(max_length=1000)
     profile: Optional[str] = None
 
 
 class CullingSubjectsBody(BaseModel):
-    paths: list[str]
+    paths: list[str] = Field(max_length=1000)
 
 
 class KeeperHintsBody(BaseModel):
@@ -1198,16 +1198,16 @@ async def api_culling_group_faces(
 
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
-    placeholders = ",".join("?" * len(paths))
     with get_db() as conn:
-        rows = conn.execute(
+        rows = list(select_in_chunks(
+            conn,
             f"SELECT photo_path, id, face_index, bbox_x1, bbox_y1, bbox_x2, bbox_y2, "
             f"confidence, landmark_2d_106, eyes_open_score, smile_score "
-            f"FROM faces WHERE photo_path IN ({placeholders}) "
+            f"FROM faces WHERE photo_path IN ({{placeholders}}) "
             f"AND photo_path IN (SELECT path FROM photos WHERE {vis_sql}) "
             f"ORDER BY photo_path, face_index",
-            paths + vis_params,
-        ).fetchall()
+            paths, after=vis_params,
+        ))
 
     row_data = [
         (r['photo_path'], r['id'], r['face_index'],
@@ -1325,13 +1325,13 @@ async def api_culling_group_subjects(
 
     user_id = user.user_id if user else None
     vis_sql, vis_params = get_visibility_clause(user_id)
-    placeholders = ",".join("?" * len(paths))
     with get_db() as conn:
-        rows = conn.execute(
+        rows = list(select_in_chunks(
+            conn,
             f"SELECT path, thumbnail, subject_bbox, subject_sharpness, subject_prominence "
-            f"FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
-            paths + vis_params,
-        ).fetchall()
+            f"FROM photos WHERE path IN ({{placeholders}}) AND {vis_sql}",
+            paths, after=vis_params,
+        ))
 
     row_data = [
         (row['path'], row['thumbnail'], row['subject_bbox'],

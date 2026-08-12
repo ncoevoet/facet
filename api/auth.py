@@ -20,7 +20,7 @@ from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from api.config import (
-    JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRY_HOURS,
+    JWT_ALGORITHM, JWT_EXPIRY_HOURS,
     VIEWER_CONFIG,
     config_load_failed,
     is_multi_user_enabled
@@ -54,13 +54,19 @@ def password_generation(password_key: str) -> str:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     """Create a JWT access token bound to the current password generations."""
+    # Read the secret through the module rather than the import-time bound
+    # name: reload_config() rebinds api.config.JWT_SECRET in place, and a
+    # snapshot taken at import time would keep signing with a rotated-out
+    # secret until process restart. Mirrors frame._secret().
+    from api import config
+
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + (expires_delta or timedelta(hours=JWT_EXPIRY_HOURS))
     to_encode['exp'] = expire
     to_encode['iat'] = datetime.now(timezone.utc)
     to_encode[VIEWER_GENERATION_CLAIM] = password_generation(VIEWER_PASSWORD_KEY)
     to_encode[EDITION_GENERATION_CLAIM] = password_generation(EDITION_PASSWORD_KEY)
-    return jwt.encode(to_encode, JWT_SECRET, algorithm=JWT_ALGORITHM)
+    return jwt.encode(to_encode, config.JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
 def _match_password_generations(payload: dict) -> Optional[dict]:
@@ -92,8 +98,10 @@ def decode_access_token(token: str) -> Optional[dict]:
     expiry alone cannot express "this password has since changed", and no token
     is revocable server-side otherwise.
     """
+    from api import config  # fresh read — see create_access_token
+
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, config.JWT_SECRET, algorithms=[JWT_ALGORITHM])
     except (jwt.InvalidTokenError, jwt.ExpiredSignatureError):
         return None
     return _match_password_generations(payload)

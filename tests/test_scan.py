@@ -185,6 +185,49 @@ class TestStartScan:
 
         assert resp.status_code == 400
 
+    def test_lock_is_released_when_spawn_raises_uncaught_exception(self):
+        """A5#1: an exception type the narrow ``except`` clause does not name
+        (e.g. a RuntimeError from Thread.start under resource exhaustion)
+        must still release the shared job lock -- it is the try/finally, not
+        the except clause, that has to guarantee that. Without it this wedges
+        every later /api/scan/start and /api/scan/recompute behind a
+        permanent 409 until the process restarts."""
+        from api.routers import scan as scan_router
+
+        scan_router._scan_state['running'] = False
+        viewer_cfg = _viewer_config_with_scan()
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_ROUTER_MODULE}.get_all_scan_directories", return_value=["/photos"]),
+            mock.patch.object(scan_router.subprocess, "Popen", side_effect=RuntimeError("boom")),
+        ):
+            app, client, _ = _make_superadmin_app(viewer_cfg)
+            resp = client.post("/api/scan/start", json={"directories": ["/photos"]})
+
+        assert resp.status_code == 500
+        assert not scan_router._scan_lock.locked()
+
+        # And the lock being free actually means a following start can run --
+        # not just that .locked() reports False.
+        with (
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=True),
+            mock.patch(f"{_ROUTER_MODULE}.VIEWER_CONFIG", viewer_cfg),
+            mock.patch(f"{_ROUTER_MODULE}.get_all_scan_directories", return_value=["/photos"]),
+        ):
+            scan_router._scan_state['running'] = False
+            mock_proc = mock.MagicMock()
+            mock_proc.pid = 4242
+            mock_proc.stdout = iter([])
+            mock_proc.wait.return_value = 0
+            with mock.patch.object(scan_router.subprocess, "Popen", return_value=mock_proc):
+                app, client, _ = _make_superadmin_app(viewer_cfg)
+                resp = client.post("/api/scan/start", json={"directories": ["/photos"]})
+
+        assert resp.status_code == 200
+
 
 class TestScanStatus:
     """Tests for GET /api/scan/status."""
