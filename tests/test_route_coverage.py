@@ -94,6 +94,7 @@ PARAMETERISED_ROUTES = [
     ('/api/critique', {'path': '/nonexistent.jpg'}),
     ('/api/caption', {'path': '/nonexistent.jpg'}),
     ('/api/photo/faces', {'path': '/nonexistent.jpg'}),
+    ('/api/photo/key_subject', {'path': '/nonexistent.jpg'}),
     ('/api/download/options', {'path': '/nonexistent.jpg'}),
     ('/api/similar_photos//nonexistent.jpg', {}),
     ('/api/photos/map', {'bounds': '-90,-180,90,180', 'limit': 5}),
@@ -198,6 +199,13 @@ class TestPostRoutesAcceptValidShape:
         resp = edition_client.post(
             '/api/photo/toggle_rejected',
             json={'path': '/nonexistent.jpg'},
+        )
+        assert _is_acceptable(resp.status_code)
+
+    def test_key_subjects_accepts_empty_list(self, edition_client):
+        resp = edition_client.post(
+            '/api/photos/key_subjects',
+            json={'paths': []},
         )
         assert _is_acceptable(resp.status_code)
 
