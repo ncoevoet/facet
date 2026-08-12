@@ -420,23 +420,27 @@ const GRID_LINES: Record<string, string[]> = {
 /** Working-canvas pixel budget for the edge map: a 2 MP convolution stays under
  *  a frame's worth of latency, and peaking is judged at screen resolution. */
 const PEAKING_MAX_PIXELS = 2_000_000;
-/** Share of the frame below which an edge is not drawn — only the strongest 15%
- *  of gradients read as "in focus" on a normal photograph. */
-const PEAKING_PERCENTILE = 0.85;
-/** Absolute gradient floor, on the 0-255 Sobel scale. A percentile alone would
- *  always paint 15% of the frame, so a wholly out-of-focus photo would glow as
- *  brightly as a sharp one — which is the exact judgement peaking exists to make. */
+/** Absolute gradient floor, on the 0-255 Sobel scale: what counts as "in focus"
+ *  at all. It is the primary threshold, and being absolute it is the only reason
+ *  two frames of the same subject can be compared by how much red each shows. */
 const PEAKING_MIN_EDGE = 24;
+/** Share of the frame the paint may cover before the floor is raised. A relief
+ *  valve for frames that are edge everywhere (noise, foliage, fabric), never the
+ *  driver: measured on library frames at this working size, a sharp frame paints
+ *  2-3% and its defocused copy 0.3%, so the cap does not engage and coverage is
+ *  a purely absolute -- therefore comparable -- reading of in-focus detail. */
+const PEAKING_MAX_COVERAGE = 0.15;
 const PEAKING_COLOR = [255, 32, 32] as const;
 const PEAKING_HISTOGRAM_BINS = 256;
 
 /**
- * Paint the strongest edges of an RGBA frame red and everything else clear.
+ * Paint the in-focus edges of an RGBA frame red and everything else clear.
  *
- * A 3x3 Sobel over luma, thresholded at the higher of the
- * ``PEAKING_PERCENTILE`` gradient and ``PEAKING_MIN_EDGE``. Pure over pixel
- * data — the canvas work lives in ``computePeakingOverlay`` — so the decision
- * this makes is testable without a rendering surface.
+ * A 3x3 Sobel over luma, thresholded at the absolute ``PEAKING_MIN_EDGE``
+ * gradient, raised only when the paint would cover more than
+ * ``PEAKING_MAX_COVERAGE`` of the frame. Pure over pixel data — the canvas work
+ * lives in ``computePeakingOverlay`` — so the decision this makes is testable
+ * without a rendering surface.
  */
 export function peakingEdgeOverlay(
   pixels: Uint8ClampedArray, width: number, height: number,
@@ -466,13 +470,17 @@ export function peakingEdgeOverlay(
     }
   }
 
-  const interior = (width - 2) * (height - 2);
-  let seen = 0;
+  // Walk the strongest gradients down towards the floor and stop one bin above
+  // the one that would outgrow the cap, so coverage stays under it. The clamp
+  // matters for a saturated frame (a document, a graphic): every gradient sits in
+  // the top bin there, and without it the sharpest frame there is would go blank.
+  const maxLit = (width - 2) * (height - 2) * PEAKING_MAX_COVERAGE;
   let threshold = PEAKING_MIN_EDGE;
-  for (let bin = 0; bin < PEAKING_HISTOGRAM_BINS; bin++) {
-    seen += histogram[bin];
-    if (seen >= interior * PEAKING_PERCENTILE) {
-      threshold = Math.max(PEAKING_MIN_EDGE, bin);
+  let lit = 0;
+  for (let bin = PEAKING_HISTOGRAM_BINS - 1; bin > PEAKING_MIN_EDGE; bin--) {
+    lit += histogram[bin];
+    if (lit > maxLit) {
+      threshold = Math.min(PEAKING_HISTOGRAM_BINS - 1, bin + 1);
       break;
     }
   }

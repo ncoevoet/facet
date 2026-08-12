@@ -363,7 +363,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
             @if (store.types().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full lg:!hidden">
                 <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
-                <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
+                <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
                   <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
                   @for (t of store.types(); track t.id) {
                     <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>

@@ -279,11 +279,11 @@ export class App implements OnInit {
     }
 
     // Semantic search
-    if (f.semanticQuery) chips.push({ id: 'semanticQuery', labelKey: 'gallery.search_placeholder', value: f.semanticQuery, clearKeys: ['semanticQuery'] });
+    if (f.semanticQuery) chips.push({ id: 'semanticQuery', labelKey: 'gallery.semantic_search_chip', value: f.semanticQuery, clearKeys: ['semanticQuery'] });
 
     // Simple string/select filters
     if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });
-    if (f.search) chips.push({ id: 'search', labelKey: 'gallery.search_placeholder', value: f.search, clearKeys: ['search'] });
+    if (f.search) chips.push({ id: 'search', labelKey: 'gallery.search_chip', value: f.search, clearKeys: ['search'] });
     if (f.camera) chips.push({ id: 'camera', labelKey: 'gallery.camera', value: f.camera, clearKeys: ['camera'] });
     if (f.lens) chips.push({ id: 'lens', labelKey: 'gallery.lens', value: f.lens, clearKeys: ['lens'] });
     if (f.composition_pattern) chips.push({ id: 'composition_pattern', labelKey: 'gallery.composition_pattern', value: f.composition_pattern, clearKeys: ['composition_pattern'] });

@@ -1,6 +1,7 @@
 import { Component, inject, signal, computed, effect, untracked, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { DecimalPipe, NgClass, NgTemplateOutlet } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -204,6 +205,7 @@ interface ShortcutRow {
     SequenceKindLabelPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
+    CdkTrapFocus,
   ],
   template: `
     <div class="px-2 pt-2 md:px-8 md:pt-3 mx-auto w-full lg:max-w-[96%] h-full flex flex-col">
@@ -215,218 +217,210 @@ interface ShortcutRow {
         <ng-container [ngTemplateOutlet]="cullToolbar" />
       </div>
       <ng-template #cullToolbar>
-        <div class="flex items-center gap-3 md:gap-4
+        <div class="flex items-center gap-3 md:gap-4 min-w-0
                     max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
-                    max-lg:flex-nowrap max-lg:overflow-x-auto max-lg:px-3 max-lg:py-2
+                    max-lg:px-3 max-lg:py-2
                     max-lg:bg-[var(--mat-sys-surface-container)] max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)]
                     max-lg:shadow-lg safe-area-pb">
-          @if (scoped()) {
-            <button mat-icon-button (click)="exitScope()"
-                    [matTooltip]="I18N.culling.exit_scene | translate"
-                    [attr.aria-label]="I18N.culling.exit_scene | translate">
-              <mat-icon>arrow_back</mat-icon>
-            </button>
-          }
-          <!-- Controls ordered by impact: scope → granularity → sort → category →
-               thresholds → exclude → status/loupe/help. -->
-          @if (albums().length > 0) {
-            <button mat-icon-button [matMenuTriggerFor]="scopeMenu"
-                    [class.!text-[var(--mat-sys-primary)]]="scoped()"
-                    [matTooltip]="scopeLabel() ?? (I18N.culling.scope_whole_library | translate)"
-                    [attr.aria-label]="scopeLabel() ?? (I18N.culling.scope_whole_library | translate)">
-              <mat-icon>filter_alt</mat-icon>
-            </button>
-            <mat-menu #scopeMenu="matMenu">
-              <button mat-menu-item (click)="scopeWholeLibrary()">
-                <mat-icon>photo_library</mat-icon>
-                <span>{{ I18N.culling.scope_whole_library | translate }}</span>
-              </button>
-              @for (a of albums(); track a.id) {
-                <button mat-menu-item [matMenuTriggerFor]="sceneMenu" (menuOpened)="loadAlbumScenes(a)">
-                  <mat-icon>photo_album</mat-icon>
-                  <span>{{ a.name }}</span>
-                </button>
-              }
-            </mat-menu>
-            <mat-menu #sceneMenu="matMenu">
-              <button mat-menu-item (click)="scopeAlbumWhole()">
-                <mat-icon>photo_album</mat-icon>
-                <span>{{ I18N.culling.scope_whole_album | translate }}</span>
-              </button>
-              @if (loadingScenes()) {
-                <div class="flex justify-center px-4 py-2"><mat-spinner diameter="18" /></div>
-              } @else {
-                @for (s of expandedScenes(); track s.scene_id) {
-                  <button mat-menu-item (click)="scopeAlbumScene(s)">
-                    <mat-icon>movie_filter</mat-icon>
-                    <span>{{ s.start | sceneDate }} · {{ s.count }}@if (s.moment | momentLabel; as ml) { · {{ ml }}}</span>
-                  </button>
-                }
-              }
-            </mat-menu>
-          }
-          <button mat-icon-button [matMenuTriggerFor]="cullGroupByMenu"
-                  [class.!text-[var(--mat-sys-primary)]]="groupBy() !== 'all'"
-                  [matTooltip]="I18N.culling.group_by.label | translate"
-                  [attr.aria-label]="I18N.culling.group_by.label | translate">
-            <mat-icon>{{ groupBy() | cullGroupIcon }}</mat-icon>
-          </button>
-          <mat-menu #cullGroupByMenu="matMenu">
-            <button mat-menu-item (click)="onGroupByChange('all')">
-              <mat-icon>{{ 'all' | cullGroupIcon }}</mat-icon>
-              <span [class.font-bold]="groupBy() === 'all'">{{ I18N.culling.group_by.all | translate }}</span>
-            </button>
-            <button mat-menu-item (click)="onGroupByChange('burst')">
-              <mat-icon>{{ 'burst' | cullGroupIcon }}</mat-icon>
-              <span [class.font-bold]="groupBy() === 'burst'">{{ I18N.culling.group_by.bursts | translate }}</span>
-            </button>
-            <button mat-menu-item (click)="onGroupByChange('similar')">
-              <mat-icon>{{ 'similar' | cullGroupIcon }}</mat-icon>
-              <span [class.font-bold]="groupBy() === 'similar'">{{ I18N.culling.group_by.similar | translate }}</span>
-            </button>
-            @if (store.config()?.features?.show_scenes || groupBy() === 'scene') {
-              <button mat-menu-item (click)="onGroupByChange('scene')">
-                <mat-icon>{{ 'scene' | cullGroupIcon }}</mat-icon>
-                <span [class.font-bold]="groupBy() === 'scene'">{{ I18N.culling.group_by.scenes | translate }}</span>
+          <!-- Secondary controls scroll; the actions after this row stay pinned, so no
+               viewport can push the primary action out of reach or paint it over the
+               shell controls the toolbar is projected next to. -->
+          <div class="flex flex-nowrap items-center gap-3 md:gap-4 min-w-0 flex-1 overflow-x-auto
+                      max-lg:[mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)]">
+            @if (scoped()) {
+              <button mat-icon-button (click)="exitScope()"
+                      [matTooltip]="I18N.culling.exit_scene | translate"
+                      [attr.aria-label]="I18N.culling.exit_scene | translate">
+                <mat-icon>arrow_back</mat-icon>
               </button>
             }
-            <button mat-menu-item (click)="onGroupByChange('bracket')">
-              <mat-icon>{{ 'bracket' | cullGroupIcon }}</mat-icon>
-              <span [class.font-bold]="groupBy() === 'bracket'">{{ I18N.culling.group_by.brackets | translate }}</span>
-            </button>
-            <button mat-menu-item (click)="onGroupByChange('panorama')">
-              <mat-icon>{{ 'panorama' | cullGroupIcon }}</mat-icon>
-              <span [class.font-bold]="groupBy() === 'panorama'">{{ I18N.culling.group_by.panoramas | translate }}</span>
-            </button>
-            <button mat-menu-item (click)="onGroupByChange('hdr_panorama')">
-              <mat-icon>{{ 'hdr_panorama' | cullGroupIcon }}</mat-icon>
-              <span [class.font-bold]="groupBy() === 'hdr_panorama'">{{ I18N.culling.group_by.hdr_panoramas | translate }}</span>
-            </button>
-          </mat-menu>
-          @if (groupBy() !== 'scene') {
-            <button mat-icon-button [matMenuTriggerFor]="cullSortMenu"
-                    [class.!text-[var(--mat-sys-primary)]]="sortMode() !== 'easiest'"
-                    [matTooltip]="'culling.sort.' + sortMode() | translate"
-                    [attr.aria-label]="'culling.sort.' + sortMode() | translate">
-              <mat-icon>{{ sortMode() | sortIcon }}</mat-icon>
-            </button>
-            <mat-menu #cullSortMenu="matMenu">
-              @for (m of sortModes; track m) {
-                <button mat-menu-item (click)="onSortChange(m)">
-                  <mat-icon>{{ m | sortIcon }}</mat-icon>
-                  <span [class.font-bold]="sortMode() === m">{{ 'culling.sort.' + m | translate }}</span>
-                </button>
-              }
-            </mat-menu>
-            <button mat-icon-button (click)="toggleSortDirection()"
-                    [class.!text-[var(--mat-sys-primary)]]="sortDirection() !== ''"
-                    [matTooltip]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate"
-                    [attr.aria-label]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate">
-              <mat-icon>{{ sortAscending() ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
-            </button>
-          }
-          @if (categoryOptions().length > 0) {
-            <button mat-icon-button [matMenuTriggerFor]="cullCategoryMenu"
-                    [class.!text-[var(--mat-sys-primary)]]="categoryFilter() !== ''"
-                    [matTooltip]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)"
-                    [attr.aria-label]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)">
-              <mat-icon>{{ categoryFilter() | categoryIcon }}</mat-icon>
-            </button>
-            <mat-menu #cullCategoryMenu="matMenu">
-              <button mat-menu-item (click)="onCategoryFilterChange('')">
-                <mat-icon>category</mat-icon>
-                <span [class.font-bold]="categoryFilter() === ''">{{ I18N.culling.all_categories | translate }}</span>
+            <!-- Controls ordered by impact: scope → granularity → sort → category →
+                 thresholds → exclude → status/loupe/help. -->
+            @if (albums().length > 0) {
+              <button mat-icon-button [matMenuTriggerFor]="scopeMenu"
+                      [class.!text-[var(--mat-sys-primary)]]="scoped()"
+                      [matTooltip]="scopeLabel() ?? (I18N.culling.scope_whole_library | translate)"
+                      [attr.aria-label]="scopeLabel() ?? (I18N.culling.scope_whole_library | translate)">
+                <mat-icon>filter_alt</mat-icon>
               </button>
-              @for (c of categoryOptions(); track c) {
-                <button mat-menu-item (click)="onCategoryFilterChange(c)">
-                  <mat-icon>{{ c | categoryIcon }}</mat-icon>
-                  <span [class.font-bold]="categoryFilter() === c">{{ 'category_names.' + c | translate }}</span>
+              <mat-menu #scopeMenu="matMenu">
+                <button mat-menu-item (click)="scopeWholeLibrary()">
+                  <mat-icon>photo_library</mat-icon>
+                  <span>{{ I18N.culling.scope_whole_library | translate }}</span>
+                </button>
+                @for (a of albums(); track a.id) {
+                  <button mat-menu-item [matMenuTriggerFor]="sceneMenu" (menuOpened)="loadAlbumScenes(a)">
+                    <mat-icon>photo_album</mat-icon>
+                    <span>{{ a.name }}</span>
+                  </button>
+                }
+              </mat-menu>
+              <mat-menu #sceneMenu="matMenu">
+                <button mat-menu-item (click)="scopeAlbumWhole()">
+                  <mat-icon>photo_album</mat-icon>
+                  <span>{{ I18N.culling.scope_whole_album | translate }}</span>
+                </button>
+                @if (loadingScenes()) {
+                  <div class="flex justify-center px-4 py-2"><mat-spinner diameter="18" /></div>
+                } @else {
+                  @for (s of expandedScenes(); track s.scene_id) {
+                    <button mat-menu-item (click)="scopeAlbumScene(s)">
+                      <mat-icon>movie_filter</mat-icon>
+                      <span>{{ s.start | sceneDate }} · {{ s.count }}@if (s.moment | momentLabel; as ml) { · {{ ml }}}</span>
+                    </button>
+                  }
+                }
+              </mat-menu>
+            }
+            <button mat-icon-button [matMenuTriggerFor]="cullGroupByMenu"
+                    [class.!text-[var(--mat-sys-primary)]]="groupBy() !== 'all'"
+                    [matTooltip]="I18N.culling.group_by.label | translate"
+                    [attr.aria-label]="I18N.culling.group_by.label | translate">
+              <mat-icon>{{ groupBy() | cullGroupIcon }}</mat-icon>
+            </button>
+            <mat-menu #cullGroupByMenu="matMenu">
+              <button mat-menu-item (click)="onGroupByChange('all')">
+                <mat-icon>{{ 'all' | cullGroupIcon }}</mat-icon>
+                <span [class.font-bold]="groupBy() === 'all'">{{ I18N.culling.group_by.all | translate }}</span>
+              </button>
+              <button mat-menu-item (click)="onGroupByChange('burst')">
+                <mat-icon>{{ 'burst' | cullGroupIcon }}</mat-icon>
+                <span [class.font-bold]="groupBy() === 'burst'">{{ I18N.culling.group_by.bursts | translate }}</span>
+              </button>
+              <button mat-menu-item (click)="onGroupByChange('similar')">
+                <mat-icon>{{ 'similar' | cullGroupIcon }}</mat-icon>
+                <span [class.font-bold]="groupBy() === 'similar'">{{ I18N.culling.group_by.similar | translate }}</span>
+              </button>
+              @if (store.config()?.features?.show_scenes || groupBy() === 'scene') {
+                <button mat-menu-item (click)="onGroupByChange('scene')">
+                  <mat-icon>{{ 'scene' | cullGroupIcon }}</mat-icon>
+                  <span [class.font-bold]="groupBy() === 'scene'">{{ I18N.culling.group_by.scenes | translate }}</span>
                 </button>
               }
+              <button mat-menu-item (click)="onGroupByChange('bracket')">
+                <mat-icon>{{ 'bracket' | cullGroupIcon }}</mat-icon>
+                <span [class.font-bold]="groupBy() === 'bracket'">{{ I18N.culling.group_by.brackets | translate }}</span>
+              </button>
+              <button mat-menu-item (click)="onGroupByChange('panorama')">
+                <mat-icon>{{ 'panorama' | cullGroupIcon }}</mat-icon>
+                <span [class.font-bold]="groupBy() === 'panorama'">{{ I18N.culling.group_by.panoramas | translate }}</span>
+              </button>
+              <button mat-menu-item (click)="onGroupByChange('hdr_panorama')">
+                <mat-icon>{{ 'hdr_panorama' | cullGroupIcon }}</mat-icon>
+                <span [class.font-bold]="groupBy() === 'hdr_panorama'">{{ I18N.culling.group_by.hdr_panoramas | translate }}</span>
+              </button>
             </mat-menu>
-          }
-          @if (groupBy() === 'similar' || groupBy() === 'all') {
-            <div class="hidden lg:flex items-center gap-2">
-              <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
-              <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
-                <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
-              </mat-slider>
-              <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
-            </div>
-            <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="thresholdMenu"
-                    [matTooltip]="I18N.culling.threshold | translate"
-                    [attr.aria-label]="I18N.culling.threshold | translate">
-              <mat-icon>compare</mat-icon>
+            @if (groupBy() !== 'scene') {
+              <button mat-icon-button [matMenuTriggerFor]="cullSortMenu"
+                      [class.!text-[var(--mat-sys-primary)]]="sortMode() !== 'easiest'"
+                      [matTooltip]="'culling.sort.' + sortMode() | translate"
+                      [attr.aria-label]="'culling.sort.' + sortMode() | translate">
+                <mat-icon>{{ sortMode() | sortIcon }}</mat-icon>
+              </button>
+              <mat-menu #cullSortMenu="matMenu">
+                @for (m of sortModes; track m) {
+                  <button mat-menu-item (click)="onSortChange(m)">
+                    <mat-icon>{{ m | sortIcon }}</mat-icon>
+                    <span [class.font-bold]="sortMode() === m">{{ 'culling.sort.' + m | translate }}</span>
+                  </button>
+                }
+              </mat-menu>
+              <button mat-icon-button (click)="toggleSortDirection()"
+                      [class.!text-[var(--mat-sys-primary)]]="sortDirection() !== ''"
+                      [matTooltip]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate"
+                      [attr.aria-label]="(sortAscending() ? I18N.culling.sort.ascending : I18N.culling.sort.descending) | translate">
+                <mat-icon>{{ sortAscending() ? 'arrow_upward' : 'arrow_downward' }}</mat-icon>
+              </button>
+            }
+            @if (categoryOptions().length > 0) {
+              <button mat-icon-button [matMenuTriggerFor]="cullCategoryMenu"
+                      [class.!text-[var(--mat-sys-primary)]]="categoryFilter() !== ''"
+                      [matTooltip]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)"
+                      [attr.aria-label]="categoryFilter() ? (('category_names.' + categoryFilter()) | translate) : (I18N.culling.filter_category | translate)">
+                <mat-icon>{{ categoryFilter() | categoryIcon }}</mat-icon>
+              </button>
+              <mat-menu #cullCategoryMenu="matMenu">
+                <button mat-menu-item (click)="onCategoryFilterChange('')">
+                  <mat-icon>category</mat-icon>
+                  <span [class.font-bold]="categoryFilter() === ''">{{ I18N.culling.all_categories | translate }}</span>
+                </button>
+                @for (c of categoryOptions(); track c) {
+                  <button mat-menu-item (click)="onCategoryFilterChange(c)">
+                    <mat-icon>{{ c | categoryIcon }}</mat-icon>
+                    <span [class.font-bold]="categoryFilter() === c">{{ 'category_names.' + c | translate }}</span>
+                  </button>
+                }
+              </mat-menu>
+            }
+            @if (groupBy() === 'similar' || groupBy() === 'all') {
+              <button mat-icon-button [matMenuTriggerFor]="thresholdMenu"
+                      [matTooltip]="(I18N.culling.threshold | translate) + ' · ' + similarityThreshold() + '%'"
+                      [attr.aria-label]="I18N.culling.threshold | translate">
+                <mat-icon>compare</mat-icon>
+              </button>
+              <mat-menu #thresholdMenu="matMenu">
+                <div class="flex items-center gap-2 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+                  <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
+                  <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
+                    <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
+                  </mat-slider>
+                  <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
+                </div>
+              </mat-menu>
+            }
+            @if (cullProfiles().length > 0) {
+              <button mat-icon-button [matMenuTriggerFor]="profileMenu"
+                      [class.!text-[var(--mat-sys-primary)]]="selectedProfile() !== ''"
+                      [matTooltip]="selectedProfileLabel() | translate"
+                      [attr.aria-label]="selectedProfileLabel() | translate">
+                <mat-icon>{{ selectedProfile() | cullProfileIcon }}</mat-icon>
+              </button>
+              <mat-menu #profileMenu="matMenu">
+                @for (p of cullProfiles(); track p.id) {
+                  <button mat-menu-item (click)="applyProfile(p)">
+                    <mat-icon>{{ p.id | cullProfileIcon }}</mat-icon>
+                    <span [class.font-bold]="selectedProfile() === p.id">{{ p.label_key | translate }}</span>
+                  </button>
+                }
+              </mat-menu>
+            }
+            <button mat-icon-button [matMenuTriggerFor]="strictnessMenu"
+                    [matTooltip]="(I18N.culling.strictness_tooltip | translate) + ' · ' + strictness() + '%'"
+                    [attr.aria-label]="I18N.culling.strictness | translate">
+              <mat-icon>tune</mat-icon>
             </button>
-            <mat-menu #thresholdMenu="matMenu">
+            <mat-menu #strictnessMenu="matMenu">
               <div class="flex items-center gap-2 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-                <span class="text-xs opacity-60">{{ I18N.culling.threshold | translate }}</span>
-                <mat-slider class="!w-28 !min-w-0" [min]="70" [max]="95" [step]="5" [discrete]="true">
-                  <input matSliderThumb [value]="similarityThreshold()" (valueChange)="onThresholdChange($event)" [attr.aria-label]="I18N.culling.threshold | translate" />
+                <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
+                <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="5" [discrete]="true">
+                  <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
                 </mat-slider>
-                <span class="text-xs font-medium w-8">{{ similarityThreshold() }}%</span>
+                <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
               </div>
             </mat-menu>
-          }
-          @if (cullProfiles().length > 0) {
-            <button mat-icon-button [matMenuTriggerFor]="profileMenu"
-                    [class.!text-[var(--mat-sys-primary)]]="selectedProfile() !== ''"
-                    [matTooltip]="selectedProfileLabel() | translate"
-                    [attr.aria-label]="selectedProfileLabel() | translate">
-              <mat-icon>{{ selectedProfile() | cullProfileIcon }}</mat-icon>
+            <button mat-icon-button (click)="onExcludeRejectedChange(!excludeRejected())"
+                    [class.!text-[var(--mat-sys-primary)]]="excludeRejected()"
+                    [attr.aria-pressed]="excludeRejected()"
+                    [matTooltip]="I18N.culling.exclude_rejected | translate"
+                    [attr.aria-label]="I18N.culling.exclude_rejected | translate">
+              <mat-icon>{{ excludeRejected() ? 'visibility_off' : 'visibility' }}</mat-icon>
             </button>
-            <mat-menu #profileMenu="matMenu">
-              @for (p of cullProfiles(); track p.id) {
-                <button mat-menu-item (click)="applyProfile(p)">
-                  <mat-icon>{{ p.id | cullProfileIcon }}</mat-icon>
-                  <span [class.font-bold]="selectedProfile() === p.id">{{ p.label_key | translate }}</span>
-                </button>
-              }
-            </mat-menu>
-          }
-          <div class="hidden lg:flex items-center gap-2" [matTooltip]="I18N.culling.strictness_tooltip | translate">
-            <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
-            <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="5" [discrete]="true">
-              <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
-            </mat-slider>
-            <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
-          </div>
-          <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="strictnessMenu"
-                  [matTooltip]="I18N.culling.strictness | translate"
-                  [attr.aria-label]="I18N.culling.strictness | translate">
-            <mat-icon>tune</mat-icon>
-          </button>
-          <mat-menu #strictnessMenu="matMenu">
-            <div class="flex items-center gap-2 px-4 py-3" tabindex="-1" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
-              <span class="text-xs opacity-60">{{ I18N.culling.strictness | translate }}</span>
-              <mat-slider class="!w-28 !min-w-0" [min]="0" [max]="100" [step]="5" [discrete]="true">
-                <input matSliderThumb [value]="strictness()" (valueChange)="onStrictnessChange($event)" [attr.aria-label]="I18N.culling.strictness | translate" />
+            <button mat-icon-button (click)="loupeActive.set(!loupeActive())"
+                    [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
+                    [attr.aria-pressed]="loupeActive()"
+                    [matTooltip]="I18N.culling.loupe_hint | translate"
+                    [attr.aria-label]="I18N.culling.loupe | translate">
+              <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
+            </button>
+            @if (loupeActive()) {
+              <mat-slider class="!w-28 !min-w-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
+                <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
+                       [attr.aria-label]="I18N.culling.loupe | translate" />
               </mat-slider>
-              <span class="text-xs font-medium w-8">{{ strictness() }}%</span>
-            </div>
-          </mat-menu>
-          <button mat-icon-button (click)="onExcludeRejectedChange(!excludeRejected())"
-                  [class.!text-[var(--mat-sys-primary)]]="excludeRejected()"
-                  [attr.aria-pressed]="excludeRejected()"
-                  [matTooltip]="I18N.culling.exclude_rejected | translate"
-                  [attr.aria-label]="I18N.culling.exclude_rejected | translate">
-            <mat-icon>{{ excludeRejected() ? 'visibility_off' : 'visibility' }}</mat-icon>
-          </button>
-          <button mat-icon-button (click)="loupeActive.set(!loupeActive())"
-                  [class.!text-[var(--mat-sys-primary)]]="loupeActive()"
-                  [attr.aria-pressed]="loupeActive()"
-                  [matTooltip]="I18N.culling.loupe_hint | translate"
-                  [attr.aria-label]="I18N.culling.loupe | translate">
-            <mat-icon>{{ loupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
-          </button>
-          @if (loupeActive()) {
-            <mat-slider class="!w-28 !min-w-0" [min]="2" [max]="8" [step]="1" [discrete]="true">
-              <input matSliderThumb [value]="loupeZoom()" (valueChange)="loupeZoom.set($event)"
-                     [attr.aria-label]="I18N.culling.loupe | translate" />
-            </mat-slider>
-          }
+            }
+          </div>
           @if (auth.isEdition() && !keepWholeGranularity()) {
-            <button mat-icon-button (click)="openAutoCull()" [disabled]="autoCullLoading()"
+            <button mat-icon-button class="shrink-0" (click)="openAutoCull()" [disabled]="autoCullLoading()"
                     [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
                     [attr.aria-label]="I18N.culling.auto_cull.button | translate">
               <mat-icon>auto_fix_high</mat-icon>
@@ -749,10 +743,14 @@ interface ShortcutRow {
 
     <!-- Lightbox overlay -->
     @if (lightboxGroup(); as lbGroup) {
+      <!-- cdkTrapFocus without auto-capture: the effect below focuses the container
+           itself, so Space/arrows reach the darkroom shortcuts instead of whichever
+           toolbar button auto-capture would have landed on. -->
       <div #lightboxDialog class="fixed inset-0 z-[100] bg-black/95 flex flex-col"
            role="dialog"
            aria-modal="true"
            tabindex="-1"
+           cdkTrapFocus
            (click)="closeLightbox()"
            (keydown.escape)="closeLightbox()">
         <!-- Header -->
@@ -858,7 +856,9 @@ interface ShortcutRow {
         <!-- Image -->
         @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
           @if (compareMode() === 'single') {
-            <div class="relative flex-1 min-h-0"
+            <!-- overflow-hidden: the peaking overlay rides the zoom transform as a
+                 sibling of the zoom pane, so only this box keeps it off the chrome. -->
+            <div class="relative flex-1 min-h-0 overflow-hidden"
                  role="presentation"
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()">
@@ -1044,12 +1044,18 @@ interface ShortcutRow {
            role="presentation"
            (click)="cancelAutoCull()"
            (keydown.escape)="cancelAutoCull()">
+        <!-- Escape is handled here, not only on the backdrop: the blanket keydown
+             shield below (which keeps the page's cull shortcuts from firing behind
+             the modal) stops the event before any ancestor or document handler. -->
         <div #autoCullDialog class="rounded-xl bg-[var(--mat-sys-surface-container-high)] p-6 w-full max-w-md space-y-4"
              role="dialog"
              aria-modal="true"
              aria-labelledby="autoCullTitle"
              tabindex="-1"
+             cdkTrapFocus
+             [cdkTrapFocusAutoCapture]="true"
              (click)="$event.stopPropagation()"
+             (keydown.escape)="cancelAutoCull()"
              (keydown)="$event.stopPropagation()">
           <h2 id="autoCullTitle" class="text-lg font-semibold">{{ I18N.culling.auto_cull.title | translate }}</h2>
           @if (selectedProfile(); as profile) {
@@ -1071,6 +1077,22 @@ interface ShortcutRow {
                    (change)="onTrimBracketsChange(!trimBrackets())" />
             {{ I18N.culling.auto_cull.trim_brackets | translate }}
           </label>
+          <!-- A cold suggest+preview takes seconds, during which the counts below are
+               last run's. Say so rather than let them read as this run's answer. -->
+          @if (autoCullLoading()) {
+            <p class="flex items-center gap-2 text-sm opacity-80" role="status">
+              <mat-spinner diameter="16" />
+              {{ I18N.culling.auto_cull.updating | translate }}
+            </p>
+          }
+          @if (autoCullSuggestionNotice(); as suggested) {
+            <p class="text-xs text-[var(--mat-sys-primary)]" role="status">
+              {{ I18N.culling.auto_cull.preview_updated | translate:{ profile: suggested } }}
+            </p>
+          }
+          @if (trimBracketsUnchanged()) {
+            <p class="text-xs opacity-70" role="status">{{ I18N.culling.auto_cull.trim_brackets_none | translate }}</p>
+          }
           @if (ac.groups_processed === 0) {
             <p class="text-sm opacity-80">{{ I18N.culling.auto_cull.empty | translate }}</p>
           } @else {
@@ -1547,6 +1569,12 @@ export class BurstCullingComponent implements OnDestroy {
    *  exposures (dialog checkbox); toggling re-runs the dry run since it
    *  changes the preview's group/keep/reject counts. */
   protected readonly trimBrackets = signal(false);
+  /** Translated preset name whose suggestion re-ran an already-open dialog's
+   *  preview — the counts changed under the user, so the dialog says why. */
+  protected readonly autoCullSuggestionNotice = signal<string | null>(null);
+  /** True when trimming brackets returned the very same counts: without this the
+   *  toggle looks broken, since a re-run that changes nothing is silent. */
+  protected readonly trimBracketsUnchanged = signal(false);
 
   protected readonly darkroomShortcuts: ShortcutRow[] = [
     { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
@@ -2000,7 +2028,10 @@ export class BurstCullingComponent implements OnDestroy {
     if (!profile || profile.id === this.selectedProfile()) return;
     this.suggestionApplied = true;
     this.applyProfile(profile, false);
-    if (this.autoCullPreview()) await this.openAutoCull();
+    if (this.autoCullPreview()) {
+      this.autoCullSuggestionNotice.set(this.i18n.t(profile.label_key));
+      await this.openAutoCull();
+    }
   }
 
   /** Ask the backend which preset this scope's stored content looks like. */
@@ -2452,6 +2483,9 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Dry-run the auto-cull for the current scope and open the confirm dialog. */
   protected async openAutoCull(): Promise<void> {
+    // Only a fresh open clears the notices: the re-runs that raise them come back
+    // through here, and clearing unconditionally would erase them on the way in.
+    if (!this.autoCullPreview()) this.clearAutoCullNotices();
     void this.applySuggestedProfile();
     this.autoCullLoading.set(true);
     try {
@@ -2468,13 +2502,33 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected cancelAutoCull(): void {
     this.autoCullPreview.set(null);
+    this.clearAutoCullNotices();
+  }
+
+  private clearAutoCullNotices(): void {
+    this.autoCullSuggestionNotice.set(null);
+    this.trimBracketsUnchanged.set(false);
   }
 
   /** Trim-brackets changes the group set the dry run splits, so the preview
-   *  counts must be re-fetched through the same path openAutoCull() uses. */
+   *  counts must be re-fetched through the same path openAutoCull() uses.
+   *
+   *  A scope with no redundant exposures answers with the very same counts, which
+   *  is indistinguishable from a dead toggle — so that case is stated. The
+   *  identity check on the preview object keeps a failed re-run (which leaves the
+   *  old preview in place) from being read as "nothing to trim". */
   protected async onTrimBracketsChange(value: boolean): Promise<void> {
+    const before = this.autoCullPreview();
     this.trimBrackets.set(value);
+    this.trimBracketsUnchanged.set(false);
     await this.openAutoCull();
+    const after = this.autoCullPreview();
+    this.trimBracketsUnchanged.set(
+      value && !!before && !!after && after !== before
+      && after.groups_processed === before.groups_processed
+      && after.kept === before.kept
+      && after.rejected === before.rejected,
+    );
   }
 
   /** Apply the previewed auto-cull (dry_run=false), then refresh the feed. */
@@ -2486,6 +2540,7 @@ export class BurstCullingComponent implements OnDestroy {
         '/culling/auto', this.autoCullBody(false, album),
       ));
       this.autoCullPreview.set(null);
+      this.clearAutoCullNotices();
       this.snackBar.open(
         this.i18n.t(I18N.culling.auto_cull.applied, { kept: result.kept, rejected: result.rejected }),
         '', { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' },

@@ -1,8 +1,10 @@
 import type { Mock } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Subject, of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, provideRouter } from '@angular/router';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -523,6 +525,48 @@ describe('BurstCullingComponent', () => {
       expect(component['trimBrackets']()).toBe(true);
       expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({ trim_brackets: true, dry_run: true }));
       expect(component['autoCullPreview']()).toEqual(preview);
+    });
+
+    // A re-run that answers with the same counts is indistinguishable from a
+    // toggle that does nothing, which is exactly how the checkbox read.
+    it('says so when trimming brackets changes none of the counts', async () => {
+      component['autoCullPreview'].set({ ...preview });
+      mockApi.post = vi.fn(() => of({ ...preview }));
+
+      await component['onTrimBracketsChange'](true);
+
+      expect(component['trimBracketsUnchanged']()).toBe(true);
+    });
+
+    it('stays quiet when trimming brackets does change the counts', async () => {
+      component['autoCullPreview'].set({ ...preview });
+      mockApi.post = vi.fn(() => of({ ...preview, rejected: preview.rejected + 3 }));
+
+      await component['onTrimBracketsChange'](true);
+
+      expect(component['trimBracketsUnchanged']()).toBe(false);
+    });
+
+    // A failed re-run leaves the previous preview in place, which must not be
+    // read as "the trimmed run returned the same answer".
+    it('stays quiet when the re-run fails', async () => {
+      component['autoCullPreview'].set({ ...preview });
+      mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
+
+      await component['onTrimBracketsChange'](true);
+
+      expect(component['trimBracketsUnchanged']()).toBe(false);
+    });
+
+    it('clears the dialog notices on cancel', () => {
+      component['autoCullPreview'].set(preview);
+      component['trimBracketsUnchanged'].set(true);
+      component['autoCullSuggestionNotice'].set('culling.profiles.wedding');
+
+      component['cancelAutoCull']();
+
+      expect(component['trimBracketsUnchanged']()).toBe(false);
+      expect(component['autoCullSuggestionNotice']()).toBeNull();
     });
   });
 
@@ -1179,6 +1223,34 @@ describe('BurstCullingComponent', () => {
         dry_run: true, profile: 'wedding', strictness: 35,
       }));
     });
+
+    // Renumbering "Reject N photos" under an open dialog without saying why is a
+    // silent change to a destructive confirmation.
+    it('names the preset when a landing suggestion renumbers an open dialog', async () => {
+      routeGet(suggestion('wedding'));
+      component['autoCullPreview'].set(preview);
+
+      await (component as any).applySuggestedProfile();
+
+      expect(component['autoCullSuggestionNotice']()).toBe('culling.profiles.wedding');
+    });
+
+    it('raises no notice when the dialog was not open', async () => {
+      routeGet(suggestion('wedding'));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(component['autoCullSuggestionNotice']()).toBeNull();
+    });
+
+    it('clears a stale notice when the dialog is opened again', async () => {
+      routeGet(suggestion(null));
+      component['autoCullSuggestionNotice'].set('culling.profiles.wildlife');
+
+      await component['openAutoCull']();
+
+      expect(component['autoCullSuggestionNotice']()).toBeNull();
+    });
   });
 
   describe('darkroom overlays (focus peaking + composition grid)', () => {
@@ -1391,3 +1463,104 @@ describe('BurstCullingComponent', () => {
 
 // The IsKept/IsDecided/IsConfirmed/IsPassing/PassCountdown pipe tests moved to
 // burst-culling.pipes.spec.ts alongside their extracted source.
+
+// Rendered, unlike the suites above: both behaviours here are properties of the
+// template (an Escape binding that has to survive the dialog's own keydown
+// shield, and a CDK focus trap), so only the real DOM can show them.
+describe('BurstCullingComponent modals (rendered)', () => {
+  let fixture: ComponentFixture<BurstCullingComponent>;
+  let component: any;
+
+  const emptyFeed = {
+    groups: [], total_groups: 0, page: 1, per_page: 20, total_pages: 1,
+  };
+  const preview = {
+    groups_processed: 3, kept: 4, rejected: 5, highlights_added: 0,
+    dry_run: true, preview: [], preview_truncated: false,
+  };
+
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: {
+          get: vi.fn(() => of(emptyFeed)),
+          post: vi.fn(() => of(preview)),
+          thumbnailUrl: vi.fn(() => '/thumb'),
+          imageUrl: vi.fn(() => '/image'),
+        } },
+        { provide: MatSnackBar, useValue: { open: vi.fn(() => ({
+          onAction: () => new Subject<void>(), afterDismissed: () => new Subject<void>(),
+        })) } },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+        { provide: GalleryStore, useValue: { config: () => null } },
+        { provide: AuthService, useValue: { isEdition: () => true } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+      ],
+    });
+    fixture = TestBed.createComponent(BurstCullingComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  afterEach(() => fixture.destroy());
+
+  const autoCullDialog = () =>
+    fixture.debugElement.query(By.css('[aria-labelledby="autoCullTitle"]'));
+
+  const openAutoCullDialog = () => {
+    component['autoCullPreview'].set(preview);
+    fixture.detectChanges();
+  };
+
+  it('closes the auto-cull dialog on Escape despite its keydown shield', () => {
+    openAutoCullDialog();
+    expect(autoCullDialog()).toBeTruthy();
+
+    autoCullDialog().nativeElement.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    fixture.detectChanges();
+
+    expect(component['autoCullPreview']()).toBeNull();
+  });
+
+  // The shield is load-bearing: the page's cull shortcuts must not fire while a
+  // modal is up, so Escape had to be handled on the dialog rather than above it.
+  it('keeps shielding the page from keys pressed inside the dialog', () => {
+    openAutoCullDialog();
+    const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+    const seenAtDocument = vi.fn();
+    document.addEventListener('keydown', seenAtDocument);
+
+    autoCullDialog().nativeElement.dispatchEvent(event);
+    document.removeEventListener('keydown', seenAtDocument);
+
+    expect(seenAtDocument).not.toHaveBeenCalled();
+  });
+
+  it('traps focus inside the auto-cull dialog', () => {
+    openAutoCullDialog();
+
+    expect(fixture.debugElement.queryAll(By.directive(CdkTrapFocus))
+      .some(el => el.nativeElement === autoCullDialog().nativeElement)).toBe(true);
+  });
+
+  it('traps focus inside the darkroom', () => {
+    component['groups'].set([{
+      group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 1,
+      photos: [{
+        path: '/p1.jpg', filename: 'p1.jpg', aggregate: 8, aesthetic: 7,
+        tech_sharpness: 6, is_blink: 0, is_burst_lead: 1,
+        date_taken: '2024-01-01', burst_score: 8,
+      }],
+    }]);
+    component['lightboxGroupId'].set(component['groupKey'](component['groups']()[0]));
+    fixture.detectChanges();
+
+    const darkroom = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]'));
+    expect(fixture.debugElement.queryAll(By.directive(CdkTrapFocus))
+      .some(el => el.nativeElement === darkroom.nativeElement)).toBe(true);
+  });
+});

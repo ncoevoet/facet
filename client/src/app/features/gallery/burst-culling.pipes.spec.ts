@@ -398,6 +398,51 @@ describe('peakingEdgeOverlay', () => {
     return data;
   };
 
+  /** Defocus stand-in: a horizontal box blur, which spreads a step into a ramp
+   *  whose gradient is the step divided by the window -- exactly how a defocused
+   *  edge loses gradient. */
+  const boxBlurX = (
+    data: Uint8ClampedArray, w: number, h: number, radius: number,
+  ): Uint8ClampedArray => {
+    const out = new Uint8ClampedArray(data.length);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        let sum = 0;
+        for (let k = -radius; k <= radius; k++) {
+          const sx = Math.min(w - 1, Math.max(0, x + k));
+          sum += data[(y * w + sx) * 4];
+        }
+        const v = sum / (2 * radius + 1);
+        const p = (y * w + x) * 4;
+        out[p] = out[p + 1] = out[p + 2] = v;
+        out[p + 3] = 255;
+      }
+    }
+    return out;
+  };
+
+  /** A deterministic noise field: every pixel is a strong edge, so the coverage
+   *  cap -- and only the cap -- decides how much gets painted. */
+  const noiseFrame = (w: number, h: number): Uint8ClampedArray => {
+    const data = new Uint8ClampedArray(w * h * 4);
+    let seed = 42;
+    for (let i = 0; i < w * h; i++) {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      const p = i * 4;
+      data[p] = data[p + 1] = data[p + 2] = seed % 256;
+      data[p + 3] = 255;
+    }
+    return data;
+  };
+
+  const litCount = (out: Uint8ClampedArray): number => {
+    let count = 0;
+    for (let p = 3; p < out.length; p += 4) {
+      if (out[p] > 0) count += 1;
+    }
+    return count;
+  };
+
   const litColumns = (out: Uint8ClampedArray, w: number, h: number): Set<number> => {
     const columns = new Set<number>();
     for (let y = 0; y < h; y++) {
@@ -423,13 +468,42 @@ describe('peakingEdgeOverlay', () => {
     expect([out[p], out[p + 1], out[p + 2], out[p + 3]]).toEqual([255, 32, 32, 255]);
   });
 
-  // The percentile alone would always paint a fixed share of the frame, which
-  // would make a wholly out-of-focus photo glow exactly like a sharp one.
+  // The threshold is absolute: a frame whose gradients never reach the floor is
+  // out of focus and reads as out of focus, instead of being handed the same
+  // share of red a sharp frame gets by construction.
   it('paints nothing on a frame with no edges at all', () => {
     const w = 16, h = 16;
     const flat = new Uint8ClampedArray(w * h * 4).fill(128);
     const out = peakingEdgeOverlay(flat, w, h);
     expect(litColumns(out, w, h).size).toBe(0);
+  });
+
+  // The point of an absolute floor: coverage ranks the two frames the way a
+  // culler would. A relative threshold inverted this -- the blurred copy, judged
+  // against its own weaker gradients, glowed more than the frame it came from.
+  it('paints at least as much of a sharp frame as of a blurred copy of it', () => {
+    const w = 64, h = 64;
+    const sharp = frameWithEdge(w, h, 32);
+    const blurred = boxBlurX(sharp, w, h, 12);
+    expect(litCount(peakingEdgeOverlay(sharp, w, h)))
+      .toBeGreaterThanOrEqual(litCount(peakingEdgeOverlay(blurred, w, h)));
+  });
+
+  it('leaves a defocused frame unpainted while its sharp original lights up', () => {
+    const w = 64, h = 64;
+    const sharp = frameWithEdge(w, h, 32);
+    expect(litCount(peakingEdgeOverlay(sharp, w, h))).toBeGreaterThan(0);
+    expect(litCount(peakingEdgeOverlay(boxBlurX(sharp, w, h, 12), w, h))).toBe(0);
+  });
+
+  // The cap is the relief valve, not the driver: a frame that is edge everywhere
+  // (foliage, fabric, noise) must not end up entirely red.
+  it('caps how much of an edge-everywhere frame is painted', () => {
+    const w = 64, h = 64;
+    const out = peakingEdgeOverlay(noiseFrame(w, h), w, h);
+    const coverage = litCount(out) / ((w - 2) * (h - 2));
+    expect(coverage).toBeGreaterThan(0);
+    expect(coverage).toBeLessThanOrEqual(0.15);
   });
 
   it('returns a clear overlay for a frame too small to convolve', () => {
