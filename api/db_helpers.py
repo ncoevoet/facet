@@ -10,7 +10,6 @@ import math
 import os
 import random
 import sqlite3
-import struct
 import time
 
 from fastapi import HTTPException
@@ -26,6 +25,7 @@ from api.config import (
 )
 from api.database import get_db_connection
 from db import DEFAULT_DB_PATH
+from utils.detection import DEFAULT_PHOTO_THUMBNAIL_SIZE
 from utils.panorama import KINDS as PANORAMA_KINDS
 from utils.sequence import BRACKET as BRACKET_KIND
 
@@ -1081,64 +1081,71 @@ def set_photos_rejected(conn, paths, user_id):
     return len(visible)
 
 
-def _jpeg_dimensions(blob):
-    """Extract width/height from a JPEG blob by parsing SOF markers."""
-    data = bytes(blob)
-    i = 0
-    if data[0:2] != b'\xff\xd8':
-        return None, None
-    i = 2
-    while i < len(data) - 1:
-        if data[i] != 0xFF:
-            break
-        marker = data[i + 1]
-        if marker == 0xD9:  # EOI
-            break
-        if marker in (0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0x01):
-            i += 2
-            continue
-        if i + 3 >= len(data):
-            break
-        length = struct.unpack('>H', data[i + 2:i + 4])[0]
-        # SOF markers: C0-C3, C5-C7, C9-CB, CD-CF
-        if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7,
-                      0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
-            if i + 9 <= len(data):
-                height = struct.unpack('>H', data[i + 5:i + 7])[0]
-                width = struct.unpack('>H', data[i + 7:i + 9])[0]
-                return width, height
-        i += 2 + length
-    return None, None
+# How far outside the frame a face box may legitimately reach. InsightFace does
+# not clip its boxes, so a face at the edge overhangs a little; a box beyond this
+# is not an overhang but a coordinate-space mismatch — the stored dimensions are
+# not the frame the detector saw. Shared by the repair below (which reads it as
+# proof) and by the face consumers in api/routers/saliency.py (which read it as
+# grounds to distrust a box), so the two can never drift apart.
+FACE_FRAME_TOLERANCE = 1.25
+
+# Clearing two integers still rewrites the whole photo record, thumbnail BLOB
+# and embeddings included, so the repair commits in batches. A library where
+# tens of thousands of rows were backfilled would otherwise hold gigabytes of
+# rewritten rows in one transaction, and the WAL cannot be checkpointed until it
+# commits.
+REPAIR_BATCH_SIZE = 500
 
 
-def backfill_image_dimensions():
-    """Backfill image_width/image_height from thumbnail BLOBs for NULL rows."""
+def repair_thumbnail_dimensions():
+    """Clear ``image_width``/``image_height`` values fabricated from a thumbnail.
+
+    Those two columns record the pixel space of the array the scan handed to the
+    face detector, which is what makes ``faces.bbox_*`` meaningful: one pass
+    reads ``img_cv.shape`` into them and hands the same array to
+    ``analyze_faces()``. An earlier startup hook filled NULL dimensions from the
+    stored 640px thumbnail instead, silently redefining that space — every
+    consumer that normalises a face box by the recorded dimensions then produced
+    coordinates several times outside the frame.
+
+    The original size is not recoverable from a thumbnail, so the fabricated
+    values are removed rather than corrected: NULL means "not recorded", which
+    every consumer already handles, while a thumbnail-sized number is a lie that
+    reads as ground truth. A row qualifies only on proof — its dimensions are
+    within thumbnail range *and* one of its own face boxes cannot fit inside
+    them. A genuinely small image fails the second test (its boxes fit), and a
+    row carrying full-size dimensions fails the first, so a mismatch with some
+    other cause never costs it real data.
+
+    Idempotent: a repaired row holds NULL and no longer matches.
+    """
+    max_thumbnail_edge = (_FULL_CONFIG.get('processing', {}).get('thumbnails', {})
+                          .get('photo_size', DEFAULT_PHOTO_THUMBNAIL_SIZE))
     conn = get_db_connection()
     try:
-        row = conn.execute(
-            "SELECT COUNT(*) FROM photos WHERE image_width IS NULL OR image_height IS NULL"
-        ).fetchone()
-        null_count = row[0] if row else 0
-        if null_count == 0:
-            return
-
-        cursor = conn.execute(
-            "SELECT path, thumbnail FROM photos "
-            "WHERE (image_width IS NULL OR image_height IS NULL) AND thumbnail IS NOT NULL"
-        )
-
-        updated = 0
-        for row in cursor:
-            w, h = _jpeg_dimensions(row['thumbnail'])
-            if w and h:
-                conn.execute(
-                    "UPDATE photos SET image_width = ?, image_height = ? WHERE path = ?",
-                    (w, h, row['path'])
-                )
-                updated += 1
-
-        if updated:
+        fabricated = [row[0] for row in conn.execute(
+            "SELECT path FROM photos "
+            "WHERE image_width IS NOT NULL AND image_height IS NOT NULL "
+            "AND MAX(image_width, image_height) <= ? "
+            "AND EXISTS (SELECT 1 FROM faces f WHERE f.photo_path = photos.path "
+            "AND (f.bbox_x2 > photos.image_width * ? "
+            "OR f.bbox_y2 > photos.image_height * ?))",
+            (max_thumbnail_edge, FACE_FRAME_TOLERANCE, FACE_FRAME_TOLERANCE),
+        ).fetchall()]
+        for start in range(0, len(fabricated), REPAIR_BATCH_SIZE):
+            batch = fabricated[start:start + REPAIR_BATCH_SIZE]
+            placeholders = ','.join('?' * len(batch))
+            conn.execute(
+                "UPDATE photos SET image_width = NULL, image_height = NULL "
+                f"WHERE path IN ({placeholders})", batch
+            )
             conn.commit()
-            logger.info("Backfilled image dimensions for %d/%d photos from thumbnails", updated, null_count)
+        if fabricated:
+            logger.info(
+                "Cleared thumbnail-sized dimensions on %d photos: their own face "
+                "boxes prove the recorded size was not the detection frame",
+                len(fabricated)
+            )
+        return len(fabricated)
     finally:
         conn.close()

@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG
 from api.database import get_db
-from api.db_helpers import get_visibility_clause, select_in_chunks
+from api.db_helpers import FACE_FRAME_TOLERANCE, get_visibility_clause, select_in_chunks
 from api.subject_bbox import parse_subject_bbox
 from db.schema import person_not_hidden_clause
 
@@ -103,8 +103,13 @@ def api_face_markers(
 ):
     """Per-face boxes + eye centres (normalised 0..1) and eyes-open score.
 
-    Coordinates are normalised by the original image size so the client can
-    scale them to whatever resolution it displays.
+    Coordinates are normalised by the stored frame (see
+    ``KEY_SUBJECT_COORDINATE_SPACE``) so the client can scale them to whatever
+    resolution it displays, and are dropped — ``bbox: null`` with no eye points —
+    for a photo with no recorded dimensions or a face box that cannot belong to
+    that frame. Drawing those would scatter markers across the image, or off it.
+    ``eyes_open_score`` is a landmark ratio rather than a position, so it stays
+    valid either way and is always reported.
     """
     _require_overlay_enabled()
     vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
@@ -120,12 +125,14 @@ def api_face_markers(
             "FROM faces WHERE photo_path = ? ORDER BY face_index", (path,)
         ).fetchall()
 
-    width = prow["image_width"] or 1
-    height = prow["image_height"] or 1
+    width = prow["image_width"]
+    height = prow["image_height"]
     from analyzers.face import FaceAnalyzer
 
     faces = []
     for r in rows:
+        bbox = _normalized_face_box(r["bbox_x1"], r["bbox_y1"], r["bbox_x2"],
+                                    r["bbox_y2"], width, height)
         eyes_score = None
         eye_points = []
         blob = r["landmark_2d_106"]
@@ -133,18 +140,15 @@ def api_face_markers(
             try:
                 lm = np.frombuffer(blob, dtype=np.float32).reshape(106, 2)
                 eyes_score = FaceAnalyzer.compute_eyes_open_score(lm)
-                left = lm[FaceAnalyzer.LEFT_EYE_INDICES].mean(axis=0)
-                right = lm[FaceAnalyzer.RIGHT_EYE_INDICES].mean(axis=0)
-                eye_points = [
-                    [float(left[0] / width), float(left[1] / height)],
-                    [float(right[0] / width), float(right[1] / height)],
-                ]
+                if bbox is not None:
+                    left = lm[FaceAnalyzer.LEFT_EYE_INDICES].mean(axis=0)
+                    right = lm[FaceAnalyzer.RIGHT_EYE_INDICES].mean(axis=0)
+                    eye_points = [
+                        [float(left[0] / width), float(left[1] / height)],
+                        [float(right[0] / width), float(right[1] / height)],
+                    ]
             except (ValueError, TypeError):
                 pass
-        bbox = None
-        if None not in (r["bbox_x1"], r["bbox_y1"], r["bbox_x2"], r["bbox_y2"]):
-            bbox = [r["bbox_x1"] / width, r["bbox_y1"] / height,
-                    r["bbox_x2"] / width, r["bbox_y2"] / height]
         faces.append({
             "bbox": bbox,
             "eyes": eye_points,
@@ -191,15 +195,6 @@ FACE_SIZE_WEIGHT = 0.5
 FACE_CENTRALITY_WEIGHT = 0.2
 NAMED_PERSON_WEIGHT = 0.3
 
-# How far outside the frame a face box may legitimately reach. InsightFace does
-# not clip its boxes, so a face at the edge overhangs a little; a box beyond
-# this is not an overhang but a coordinate-space mismatch — the giveaway that
-# `backfill_image_dimensions()` filled the row's dimensions from its 640px
-# thumbnail while the boxes are in original-image pixels. Such faces are
-# dropped rather than clamped: clamping would pin the "key subject" to a frame
-# edge and point the zoom at nothing.
-FACE_FRAME_TOLERANCE = 1.25
-
 _KEY_SUBJECT_PHOTO_COLS = (
     "path, image_width, image_height, subject_bbox, subject_sharpness, "
     "subject_prominence, subject_placement, bg_separation"
@@ -225,8 +220,14 @@ def _normalized_face_box(x1, y1, x2, y2, width, height):
 
     Returns None for a missing/degenerate box, for a photo with no stored
     dimensions, and for a box that overshoots the frame past
-    ``FACE_FRAME_TOLERANCE`` (see the constant: that means the stored dimensions
-    are not the detection frame). A legitimate overhang is clamped to the frame.
+    ``FACE_FRAME_TOLERANCE``. InsightFace does not clip its boxes, so a face at
+    the edge overhangs a little and a legitimate overhang is clamped to the
+    frame; past that bound it is not an overhang but a coordinate-space mismatch
+    — the stored dimensions are not the frame the detector saw (see
+    ``repair_thumbnail_dimensions`` in api.db_helpers, which clears the ones a
+    former startup hook filled from the 640px thumbnail). Such a face is dropped
+    rather than clamped: clamping would pin the "key subject" to a frame edge
+    and point the zoom at nothing.
     """
     if None in (x1, y1, x2, y2) or not width or not height:
         return None
