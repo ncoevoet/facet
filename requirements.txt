@@ -36,7 +36,7 @@ insightface>=0.7.0
 # Quality Assessment (PyIQA models: TOPIQ, HyperIQA, DBCNN, MUSIQ).
 # >=0.1.11 also exposes Q-Align (qalign / qalign_8bit / qalign_4bit) — see
 # models/pyiqa_scorer.py PYIQA_MODELS for the registered variants.
-pyiqa>=0.1.11
+pyiqa>=0.1.16
 # pyiqa's liqe/clipiqa archs depend on PyPI openai-clip, which still imports
 # pkg_resources at runtime (LIQE/CLIPIQA); setuptools 81 removed pkg_resources.
 setuptools<81
