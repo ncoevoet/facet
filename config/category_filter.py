@@ -45,8 +45,16 @@ VALID_TAG_FILTERS = [
 ]
 
 # All valid weight column names (without _percent suffix)
+#
+# processing.scorer.SCORING_METRIC_KEYS is the canonical list of metrics the
+# aggregate scorer actually weights (plus 'quality', 'symmetry', 'balance',
+# 'edge_entropy', 'fractal', 'color_harmony', which are valid config weights
+# outside that optimizer feature set) — keep this list in sync with it by
+# hand. It cannot be imported here: processing.scorer imports `config` at
+# module scope, so `config` importing `processing.scorer` would be circular.
 VALID_WEIGHT_COLUMNS = [
     "aesthetic", "face_quality", "eye_sharpness", "tech_sharpness",
+    "face_sharpness", "power_point", "saturation", "noise",
     "exposure", "composition", "color", "quality", "contrast",
     "dynamic_range", "isolation", "leading_lines",
     # Supplementary PyIQA metrics
