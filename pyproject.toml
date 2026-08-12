@@ -150,6 +150,13 @@ exclude = ["venv*", "client*", "docs*", "photos_all*", "pretrained_models*"]
 # Pre-built Angular client included in package
 "api" = ["../client/dist/client/browser/**/*"]
 
+[tool.ruff.lint]
+# Pin the rule set explicitly: ruff 0.16 widened its default selection, which
+# would turn the documented bare `ruff check .` gate red on unchanged code.
+# E,F,W --ignore E501 matches the CI lint step, applied repo-wide.
+select = ["E", "F", "W"]
+ignore = ["E501"]
+
 [tool.ruff.lint.per-file-ignores]
 # These modules intentionally run setup code before their imports — sys.path
 # bootstrapping (so a script works when run from any directory) and
