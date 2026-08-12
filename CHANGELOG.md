@@ -4,6 +4,24 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.11.1] "Asterism" — 2026-08-12
+
+A full-project review sweep — parallel review agents across every domain, each finding independently re-verified by an adversarial agent before it was fixed and gate-checked. 79 issues found and confirmed, zero false positives, no new features: correctness, security, and data-integrity only.
+
+### Security
+- **Anonymous callers no longer read library metadata on an access-controlled install.** `/api/filter_options/*` returned an empty visibility filter instead of failing closed, so every person name, camera, lens, tag and category was served library-wide to an unauthenticated request when a viewer password or multi-user mode was set; the album list leaked album titles, paths and smart-filter JSON the same way. Both now go through the visibility clause like every other endpoint.
+- **A corrupt config fails closed.** An unparseable `scoring_config.json` left `is_access_controlled_install()` reporting an open install, making `/api/photos`, `/image` and the rest world-readable on a password-protected deployment. It now treats a load failure as access-controlled, matching the auth path.
+- **Directory scoping escapes LIKE wildcards.** A multi-user directory containing `_` or `%` matched sibling directories belonging to other users; the clause now escapes them. Album share tokens can be rotated (`?rotate=true`) to invalidate a leaked link, and tokens passed as query parameters no longer land in uvicorn's access log.
+
+### Fixed
+- **Re-clustering no longer deletes the people you named — the second half of the 1.11.0 fix.** A person created or renamed through the viewer was stored with no centroid, and every non-`--force` clustering pass loaded existing persons *with a centroid only*, so a named person was dropped from the preservation set, had all their faces orphaned, and was then removed as an empty cluster. Centroids are now computed whenever faces are attached, and a merge validates its target exists before moving faces onto it (there is no foreign key to catch a stale id).
+- **Single-pass scoring reached only 9 of 34 categories.** The single-pass metric dict omitted `tags`, `is_monochrome`, `mean_luminance` and six others, so every tag- and mono-based category was unreachable and their penalties silently zero; `processing.mode="single-pass"` in the config handed the batch path a scorer with no models and errored on every image. All three scoring paths now build their metrics through one shared builder.
+- **Same-year date filters returned nothing.** The stats page (seven endpoints) and the map compared ISO `YYYY-MM-DD` input directly against `date_taken` stored as EXIF `YYYY:MM:DD`; because `:` sorts after `-`, any range inside a single year excluded every photo in it.
+- **Config validation stopped deleting documented weight metrics.** `face_sharpness`, `power_point`, `saturation` and `noise` were missing from the valid-columns list, so a validated load stripped them from `scoring_config.json` and wrote the loss back to disk.
+- **Data integrity:** cross-user comparison votes no longer overwrite each other (user-scoped uniqueness, migrated in place); an un-favorite is no longer reverted by the next XMP sidecar import; the tag lookup table resyncs when tags change; the vector index rebuilds on an embedding-dimension change instead of silently freezing; and a colliding `street`/`urban` tag key was deduped.
+- **Capsules:** the date-dimension grouped query raised `no such column: date_taken` and was silently swallowed, so several capsule types produced nothing.
+- **Viewer:** gallery undo, favorite and face-assign no longer report success after a silent failure; photo-detail zoom works when a photo is opened by direct link; and 62 broken unit specs (a test-builder module-duplication issue, not a runtime bug) were restored.
+
 ## [1.11.0] "Labradorescence" — 2026-08-12
 
 ### Added
