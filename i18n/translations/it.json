@@ -2014,6 +2014,10 @@
       "label": "Focus peaking",
       "tooltip": "Evidenzia i bordi più nitidi dell'immagine visualizzata"
     },
+    "legend": {
+      "label": "Scorciatoie da tastiera",
+      "tooltip": "Mostra o nascondi la legenda delle scorciatoie da tastiera"
+    },
     "grid": {
       "label": "Griglia di composizione",
       "tooltip": "Scorre la griglia di composizione: disattivata, regola dei terzi, sezione aurea",

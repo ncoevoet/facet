@@ -387,6 +387,41 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('darkroom keyboard-shortcut legend toggle', () => {
+    it('defaults to hidden', () => {
+      expect(component['legendVisible']()).toBe(false);
+    });
+
+    it('toggleLegend() flips visibility and persists the choice', () => {
+      component['toggleLegend']();
+      expect(component['legendVisible']()).toBe(true);
+      expect(localStorage.getItem('facet_culling_legend')).toBe('true');
+
+      component['toggleLegend']();
+      expect(component['legendVisible']()).toBe(false);
+      expect(localStorage.getItem('facet_culling_legend')).toBe('false');
+    });
+
+    it('restores a persisted visible legend from localStorage on a fresh construction', () => {
+      localStorage.setItem('facet_culling_legend', 'true');
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          BurstCullingComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: GalleryStore, useValue: { config: () => null } },
+          { provide: AuthService, useValue: { isEdition: () => true } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new BurstCullingComponent());
+
+      expect(component['legendVisible']()).toBe(true);
+    });
+  });
+
   describe('category filter', () => {
     beforeEach(async () => {
       mockApi.get.mockReturnValue(of({
@@ -1734,5 +1769,29 @@ describe('BurstCullingComponent modals (rendered)', () => {
     const darkroom = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]'));
     expect(fixture.debugElement.queryAll(By.directive(CdkTrapFocus))
       .some(el => el.nativeElement === darkroom.nativeElement)).toBe(true);
+  });
+
+  it('legend toggle starts hidden, shows the legend on click and flips aria-pressed', () => {
+    component['groups'].set([{
+      group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 1,
+      photos: [{
+        path: '/p1.jpg', filename: 'p1.jpg', aggregate: 8, aesthetic: 7,
+        tech_sharpness: 6, is_blink: 0, is_burst_lead: 1,
+        date_taken: '2024-01-01', burst_score: 8,
+      }],
+    }]);
+    component['lightboxGroupId'].set(component['groupKey'](component['groups']()[0]));
+    fixture.detectChanges();
+
+    const darkroom = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]'));
+    const legendButton = darkroom.query(By.css('[aria-label="culling.legend.label"]'));
+    expect(darkroom.query(By.css('kbd'))).toBeNull();
+    expect(legendButton.nativeElement.getAttribute('aria-pressed')).toBe('false');
+
+    legendButton.nativeElement.click();
+    fixture.detectChanges();
+
+    expect(darkroom.query(By.css('kbd'))).toBeTruthy();
+    expect(legendButton.nativeElement.getAttribute('aria-pressed')).toBe('true');
   });
 });

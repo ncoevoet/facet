@@ -2014,6 +2014,10 @@
       "label": "Realce de enfoque",
       "tooltip": "Resalta los bordes más nítidos de la imagen mostrada"
     },
+    "legend": {
+      "label": "Atajos de teclado",
+      "tooltip": "Mostrar u ocultar la leyenda de atajos de teclado"
+    },
     "grid": {
       "label": "Cuadrícula de composición",
       "tooltip": "Alterna la cuadrícula de composición: desactivada, regla de los tercios, proporción áurea",

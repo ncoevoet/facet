@@ -2018,6 +2018,10 @@ export const I18N = {
       label: "culling.peaking.label",
       tooltip: "culling.peaking.tooltip",
     },
+    legend: {
+      label: "culling.legend.label",
+      tooltip: "culling.legend.tooltip",
+    },
     grid: {
       label: "culling.grid.label",
       tooltip: "culling.grid.tooltip",

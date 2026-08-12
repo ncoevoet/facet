@@ -2014,6 +2014,10 @@
       "label": "Realce de foco",
       "tooltip": "Destaca as arestas mais nítidas da imagem apresentada"
     },
+    "legend": {
+      "label": "Atalhos de teclado",
+      "tooltip": "Mostrar ou ocultar a legenda dos atalhos de teclado"
+    },
     "grid": {
       "label": "Grelha de composição",
       "tooltip": "Alterna a grelha de composição: desativada, regra dos terços, proporção áurea",

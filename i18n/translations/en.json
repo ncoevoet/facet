@@ -2014,6 +2014,10 @@
       "label": "Focus peaking",
       "tooltip": "Highlight the sharpest edges of the displayed frame"
     },
+    "legend": {
+      "label": "Keyboard shortcuts",
+      "tooltip": "Show or hide the keyboard shortcut legend"
+    },
     "grid": {
       "label": "Composition grid",
       "tooltip": "Cycle the composition grid: off, rule of thirds, golden ratio",

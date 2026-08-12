@@ -2014,6 +2014,10 @@
       "label": "Intensification de la netteté",
       "tooltip": "Met en évidence les contours les plus nets de l'image affichée"
     },
+    "legend": {
+      "label": "Raccourcis clavier",
+      "tooltip": "Afficher ou masquer la légende des raccourcis clavier"
+    },
     "grid": {
       "label": "Grille de composition",
       "tooltip": "Faire défiler la grille de composition : désactivée, règle des tiers, nombre d'or",

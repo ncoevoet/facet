@@ -95,6 +95,7 @@ const CULL_CATEGORY_KEY = 'facet_culling_category';
 const CULL_FACE_EYES_KEY = 'facet_culling_face_eyes_min';
 const CULL_FACE_SMILE_KEY = 'facet_culling_face_smile_min';
 const CULL_PROFILE_KEY = 'facet_culling_profile';
+const CULL_LEGEND_KEY = 'facet_culling_legend';
 
 /** Stored face-panel slider value (0-10); 0 = highlight filter off. */
 function readStoredFaceMin(key: string): number {
@@ -762,20 +763,28 @@ interface ShortcutRow {
           <div class="opacity-70 shrink-0">
             {{ lightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
           </div>
-          <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm">
-            @for (row of darkroomShortcuts; track row.labelKey) {
-              <span class="inline-flex items-center gap-1.5">
-                <span class="flex gap-1">
-                  @for (k of row.keys; track k) {
-                    <kbd class="px-1.5 py-0.5 rounded border border-white/30 bg-white/10 text-xs font-mono leading-none">{{ k }}</kbd>
-                  }
+          @if (legendVisible()) {
+            <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm">
+              @for (row of darkroomShortcuts; track row.labelKey) {
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="flex gap-1">
+                    @for (k of row.keys; track k) {
+                      <kbd class="px-1.5 py-0.5 rounded border border-white/30 bg-white/10 text-xs font-mono leading-none">{{ k }}</kbd>
+                    }
+                  </span>
+                  <span class="opacity-80">{{ row.labelKey | translate }}</span>
                 </span>
-                <span class="opacity-80">{{ row.labelKey | translate }}</span>
-              </span>
-            }
-          </div>
+              }
+            </div>
+          }
           <div class="flex items-center gap-1 shrink-0" role="presentation"
                (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+            <button mat-icon-button [class.!text-white]="!legendVisible()"
+                    [class.!text-[var(--mat-sys-primary)]]="legendVisible()"
+                    [attr.aria-pressed]="legendVisible()"
+                    [matTooltip]="I18N.culling.legend.tooltip | translate"
+                    [attr.aria-label]="I18N.culling.legend.label | translate"
+                    (click)="toggleLegend()"><mat-icon>keyboard</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== 'single'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
                     [matTooltip]="I18N.culling.compare.single | translate"
@@ -1317,6 +1326,11 @@ export class BurstCullingComponent implements OnDestroy {
   /** In-flight developed-preview image, so its handlers can be detached when a newer frame supersedes it. */
   private previewImg: HTMLImageElement | null = null;
 
+  /** Keyboard-shortcut legend in the darkroom header. Hidden by default (it was
+   *  permanent chrome noise, and the French labels reflowed to two rows at
+   *  1280-1440px); persisted like the rest of the toolbar prefs above. */
+  protected readonly legendVisible = signal(localStorage.getItem(CULL_LEGEND_KEY) === 'true');
+
   /** Focus peaking over the darkroom frames (P). Session-only, like the compare
    *  mode and the style preview — none of the darkroom's view toggles persist. */
   protected readonly peakingActive = signal(false);
@@ -1385,6 +1399,12 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected togglePeaking(): void {
     this.peakingActive.set(!this.peakingActive());
+  }
+
+  protected toggleLegend(): void {
+    const next = !this.legendVisible();
+    this.legendVisible.set(next);
+    localStorage.setItem(CULL_LEGEND_KEY, String(next));
   }
 
   /** Cycle the composition grid: off → rule of thirds → golden ratio. */

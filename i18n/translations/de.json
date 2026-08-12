@@ -2014,6 +2014,10 @@
       "label": "Fokus-Peaking",
       "tooltip": "Die schärfsten Kanten des angezeigten Bildes hervorheben"
     },
+    "legend": {
+      "label": "Tastenkürzel",
+      "tooltip": "Legende der Tastenkürzel ein- oder ausblenden"
+    },
     "grid": {
       "label": "Kompositionsraster",
       "tooltip": "Kompositionsraster durchschalten: aus, Drittelregel, Goldener Schnitt",
