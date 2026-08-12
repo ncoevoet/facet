@@ -24,7 +24,46 @@ Quindi, per un flusso Lightroom o Capture One: usa `--embed-originals` per tutto
 
 Il marcatore di rifiuto di Facet (`xmp:Rating = -1`) viene riletto come il flag Rifiuta di Lightroom. Un preferito di Facet scrive `xmp:Label = Yellow`, che Lightroom mostra come **etichetta colore Gialla** — non come flag Seleziona (Pick). Se il tuo flusso Lightroom si basa sui flag Pick anziché sulle etichette colore, aggiungi un passaggio di conversione etichetta-colore → pick, oppure filtra invece sull'etichetta Gialla.
 
-Un feed `python facet.py --export-manifest` (percorso, categoria, tutti i punteggi, tag e le stesse colonne di valutazione di `--export-sidecars`) esiste ora per gli strumenti che vogliono i dati di Facet senza analizzare l'XMP — vedi [Comandi — Anteprima ed esportazione](COMMANDS.md#anteprima-ed-esportazione). È la base per un futuro plugin di Lightroom Classic in grado di scrivere un preferito/rifiuto di Facet direttamente nel flag nativo Pick/Reject di LR, cosa che l'XMP da solo non può fare; per ora nessun plugin del genere è disponibile.
+Un feed `python facet.py --export-manifest` (percorso, categoria, tutti i punteggi, tag e le stesse colonne di valutazione di `--export-sidecars`) esiste ora per gli strumenti che vogliono i dati di Facet senza analizzare l'XMP — vedi [Comandi — Anteprima ed esportazione](COMMANDS.md#anteprima-ed-esportazione). È proprio questo feed che il plug-in Facet descritto qui sotto consuma.
+
+### Il plug-in Facet (valutazioni a stelle e flag Pick)
+
+`facet.lrplugin/`, nel repository di Facet, è un plug-in per Lightroom Classic che scrive la valutazione a stelle e lo stato preferito/rifiutato di Facet **direttamente nel catalogo**. Esiste perché due delle cose descritte sopra non sono risolvibili dal lato XMP: Lightroom non trova mai un sidecar di Facet per un file RAW proprietario, e l'XMP non ha alcun canale per il flag Seleziona (Pick) di Lightroom. Il plug-in legge un file manifest: non parla mai con il server di Facet, non richiede password e funziona anche a Facet spento — e poiché abbina le foto per percorso anziché per sidecar, **una libreria interamente RAW funziona esattamente come una libreria JPEG**.
+
+**Installazione** (una sola volta):
+
+1. Copia la cartella `facet.lrplugin` sulla macchina che esegue Lightroom. Su macOS comprimila prima in zip — il Finder tratta una cartella `.lrplugin` come un bundle.
+2. In Lightroom Classic: **File → Gestione plug-in → Aggiungi**, seleziona la cartella `facet.lrplugin`, poi **Fine**.
+
+**Uso** (ogni volta che vuoi il verdetto di Facet nel catalogo):
+
+1. `python facet.py --export-manifest /foto/matrimonio-2026` (il percorso limita l'ambito; il file viene sempre scritto come `facet_manifest.json` nella directory corrente). Copialo sulla macchina con Lightroom se Facet gira altrove.
+2. Nel modulo Libreria seleziona le foto, poi **Libreria → Extra plug-in → Facet: Apply ratings and flags...** (l'interfaccia del plug-in è in inglese).
+3. Indica il file `facet_manifest.json`. Il percorso viene ricordato per la volta successiva.
+4. **Se Facet ha analizzato le foto da un'altra macchina, compila i due prefissi di percorso.** Il manifest contiene i percorsi della macchina che ha fatto la scansione (`/volume1/photos/...` su un NAS), mentre Lightroom conosce quelli della postazione (`Z:\photos\...`). Inserisci il prefisso Lightroom e il prefisso Facet che indicano la stessa cartella; lasciali entrambi vuoti quando coincidono. È l'unico errore al primo avvio che conta davvero — semplicemente non abbina nulla.
+5. Scegli l'ambito: le foto selezionate (predefinito) oppure tutte le foto della cartella corrente.
+6. Premi **Preview...** (Anteprima). **Non viene ancora scritto nulla.** Il plug-in indica quante foto ha trovato nel manifest, quante no, e quante valutazioni e flag imposterebbe. Se il numero di corrispondenze è 0, mostra un percorso di esempio di Lightroom accanto a uno del manifest, così vedi come devono essere i prefissi.
+7. Premi **Apply** (Applica). L'avanzamento è visibile e annullabile; una finestra di riepilogo riporta ciò che è stato impostato, saltato e non trovato.
+
+**Cosa scrive** — nient'altro, e mai nei tuoi file immagine:
+
+| Stato Facet | Campo Lightroom |
+|---|---|
+| `star_rating` 1-5 | valutazione a stelle |
+| preferito | flag Seleziona (Pick) |
+| rifiutato | flag Rifiuta (Reject) |
+
+Una valutazione Facet pari a 0 significa «nessun parere» (vedi `xmp_export.score_to_rating`) e non viene mai scritta.
+
+**Semantica di sovrascrittura** — per impostazione predefinita il plug-in non ti contraddice mai: imposta una valutazione solo se la foto è *non valutata* in Lightroom, e un flag solo se la foto è *senza flag*. Tutto ciò che hai valutato o contrassegnato a mano resta intatto e viene contato come «kept as they are» (lasciate come sono) nell'anteprima. Spunta **Overwrite ratings and flags that are already set in Lightroom** per sostituirle comunque. Questo rispecchia `only_when_unrated` in `xmp_export.score_to_rating`, così il plug-in e il percorso sidecar trattano allo stesso modo le tue modifiche manuali.
+
+**Limiti**, in tutta onestà:
+
+- **I flag Pick esistono solo nel catalogo.** È una scelta di Lightroom, non del plug-in: Lightroom non scrive mai il flag Pick nell'XMP, quindi non raggiunge nessun'altra applicazione e va perso se ricostruisci il catalogo dai file. Le valutazioni a stelle invece sopravvivono, tramite **Metadati → Salva metadati nel file**.
+- **I punteggi di Facet non vengono aggiunti come campi di metadati di Lightroom**, quindi non esiste una raccolta dinamica «aggregate > 8». L'SDK di Adobe ammette i campi propri di un plug-in nel vocabolario di ricerca solo come testo o enumerazione (`sdktext:`); gli operatori numerici (`>`, `<`, «è compreso tra») restano riservati ai criteri integrati di Lightroom. Far passare il punteggio dalla **valutazione a stelle** è deliberato: è l'unico canale che Lightroom stesso filtra e ordina numericamente.
+- **Senso unico.** Le valutazioni che modifichi poi in Lightroom tornano a Facet tramite il giro XMP descritto sopra, non tramite il plug-in.
+- **L'annullamento** funziona un lotto alla volta: il plug-in scrive a blocchi di 200 foto, quindi Ctrl/Cmd+Z annulla 200 foto per volta.
+- Spunta **Write facet-apply.log next to the manifest** prima di un'esecuzione se ti serve vedere, riga per riga, quali percorsi hanno trovato corrispondenza e cosa è stato scritto.
 
 ### Lightroom → Facet
 

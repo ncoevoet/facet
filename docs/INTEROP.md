@@ -24,7 +24,46 @@ So for a Lightroom or Capture One workflow: use `--embed-originals` for anything
 
 Facet's reject marker (`xmp:Rating = -1`) reads back as Lightroom's Reject flag. A Facet favorite writes `xmp:Label = Yellow`, which Lightroom shows as the **Yellow color label** — not the Pick flag. If your Lightroom workflow keys off Picks rather than color labels, add a color-label-to-pick step, or filter by the Yellow label instead.
 
-A `python facet.py --export-manifest` feed (path, category, every score, tags, and the same rating columns as `--export-sidecars`) now exists for tools that want Facet's data without parsing XMP — see [Commands — Preview & Export](COMMANDS.md#preview--export). That is the groundwork for a future Lightroom Classic plugin able to write a Facet favorite/reject straight to LR's native Pick/Reject flag, which XMP alone cannot do; no such plugin ships yet.
+A `python facet.py --export-manifest` feed (path, category, every score, tags, and the same rating columns as `--export-sidecars`) now exists for tools that want Facet's data without parsing XMP — see [Commands — Preview & Export](COMMANDS.md#preview--export). The Facet plug-in below consumes it.
+
+### The Facet plug-in (star ratings and pick flags)
+
+`facet.lrplugin/` in the Facet repository is a Lightroom Classic plug-in that writes Facet's star rating and favorite/reject state **straight into the catalog**. It exists because two things above cannot be fixed from the XMP side: Lightroom never finds a Facet sidecar for a proprietary RAW file, and XMP has no channel at all for Lightroom's Pick flag. The plug-in reads a manifest file, so it never talks to the Facet server, needs no password, and works while Facet is not running — and because it matches photos by path rather than by sidecar, **a RAW-only library works exactly like a JPEG one**.
+
+**Install** (once):
+
+1. Copy the `facet.lrplugin` folder to the machine running Lightroom. On macOS, zip it first — Finder treats a `.lrplugin` folder as a bundle.
+2. In Lightroom Classic: **File → Plug-in Manager → Add**, select the `facet.lrplugin` folder, then **Done**.
+
+**Use** (each time you want Facet's verdict in the catalog):
+
+1. `python facet.py --export-manifest /photos/2026-wedding` (the path scopes the export; the file always lands as `facet_manifest.json` in the current directory). Copy it to the Lightroom machine if Facet runs elsewhere.
+2. In the Library module, select the photos, then **Library → Plug-in Extras → Facet: Apply ratings and flags...**
+3. Point the dialog at `facet_manifest.json`. The path is remembered for next time.
+4. **If Facet scanned the photos from another machine, fill in the two path prefixes.** The manifest stores the paths of the machine that did the scanning (`/volume1/photos/...` on a NAS), and Lightroom holds the desktop's (`Z:\photos\...`). Enter the Lightroom prefix and the Facet prefix that mean the same folder; leave both empty when the two agree. Getting this wrong is the one first-run failure that matters — it simply matches nothing.
+5. Choose the scope: the selected photos (default), or every photo of the current folder.
+6. Press **Preview...**. **Nothing is written yet.** The plug-in reports how many photos it matched in the manifest, how many it did not, and how many ratings and flags it would set. If the matched count is 0, it shows a sample Lightroom path next to a sample manifest path so you can see what the prefixes must be.
+7. Press **Apply**. Progress is shown and can be cancelled; a summary dialog reports what was set, skipped, and not found.
+
+**What it writes** — nothing else, and never to your image files:
+
+| Facet state | Lightroom field |
+|---|---|
+| `star_rating` 1-5 | star rating |
+| favorite | Pick flag |
+| rejected | Reject flag |
+
+A Facet star rating of 0 means "no opinion" (see `xmp_export.score_to_rating`) and is never written.
+
+**Overwrite semantics** — by default the plug-in never argues with you: it sets a star rating only when the photo is *unrated* in Lightroom, and a pick/reject flag only when the photo is *unflagged*. Anything you rated or flagged by hand is left alone and counted as "kept as they are" in the preview. Tick **Overwrite ratings and flags that are already set in Lightroom** to replace them instead. This mirrors `only_when_unrated` in `xmp_export.score_to_rating`, so the plug-in and the sidecar path treat your manual edits the same way.
+
+**Limitations**, honestly:
+
+- **Pick flags are catalog-only.** That is Lightroom's design, not the plug-in's: Lightroom never writes the pick flag to XMP, so it reaches no other application and is lost if you rebuild the catalog from the files. Star ratings do survive, via **Metadata → Save Metadata to File(s)**.
+- **Facet's scores are not added as Lightroom metadata fields**, so there is no "aggregate > 8" smart collection. Adobe's SDK admits a plug-in's own fields into the search vocabulary only as text or enum (`sdktext:`); the numeric operators (`>`, `<`, `in range`) belong to Lightroom's built-in criteria alone. Routing the score through the **star rating** is deliberate: stars are the only channel that Lightroom itself filters and sorts numerically.
+- **One-way.** Ratings you change in Lightroom afterwards return to Facet through the XMP round trip above, not through the plug-in.
+- **Undo** works one batch at a time: the plug-in writes in chunks of 200 photos, so Ctrl/Cmd+Z reverts 200 photos per press.
+- Tick **Write facet-apply.log next to the manifest** before a run if you need to see, line by line, which paths matched and what was written.
 
 ### Lightroom → Facet
 
