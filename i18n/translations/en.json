@@ -1931,7 +1931,9 @@
       "apply": "Reject {rejected} photos",
       "applied": "Auto-cull applied: kept {kept}, rejected {rejected}",
       "error": "Auto-cull failed",
-      "empty": "Nothing to auto-cull in this scope"
+      "empty": "Nothing to auto-cull in this scope",
+      "suggested": "Suggested",
+      "suggested_tooltip": "Preset inferred from the dominant content of this scope"
     },
     "exit_scene": "Exit scene",
     "scene_complete": "Scene culled — nothing left to review",
@@ -1979,6 +1981,8 @@
       "reject": "Reject photo",
       "confirm_next": "Confirm & next group",
       "zoom": "Zoom / loupe",
+      "peaking": "Focus peaking",
+      "grid": "Composition grid",
       "close": "Close"
     },
     "group_by": {
@@ -1998,6 +2002,17 @@
       "original": "Original",
       "loading": "Rendering preview",
       "error": "Could not render the edited preview"
+    },
+    "peaking": {
+      "label": "Focus peaking",
+      "tooltip": "Highlight the sharpest edges of the displayed frame"
+    },
+    "grid": {
+      "label": "Composition grid",
+      "tooltip": "Cycle the composition grid: off, rule of thirds, golden ratio",
+      "off": "Grid off",
+      "thirds": "Rule of thirds",
+      "golden": "Golden ratio"
     },
     "bracket": {
       "label": "Exposure bracket",

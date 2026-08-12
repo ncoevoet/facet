@@ -1931,7 +1931,9 @@
       "apply": "Rechazar {rejected} fotos",
       "applied": "Selección automática aplicada: {kept} conservadas, {rejected} rechazadas",
       "error": "La selección automática ha fallado",
-      "empty": "Nada que seleccionar automáticamente en este alcance"
+      "empty": "Nada que seleccionar automáticamente en este alcance",
+      "suggested": "Sugerido",
+      "suggested_tooltip": "Preajuste deducido del contenido dominante de este ámbito"
     },
     "exit_scene": "Salir de la escena",
     "scene_complete": "Escena depurada: nada más que revisar",
@@ -1979,6 +1981,8 @@
       "reject": "Rechazar foto",
       "confirm_next": "Confirmar y siguiente grupo",
       "zoom": "Zoom / lupa",
+      "peaking": "Realce de enfoque",
+      "grid": "Cuadrícula de composición",
       "close": "Cerrar"
     },
     "group_by": {
@@ -1998,6 +2002,17 @@
       "original": "Original",
       "loading": "Generando la vista previa",
       "error": "No se pudo generar la vista previa revelada"
+    },
+    "peaking": {
+      "label": "Realce de enfoque",
+      "tooltip": "Resalta los bordes más nítidos de la imagen mostrada"
+    },
+    "grid": {
+      "label": "Cuadrícula de composición",
+      "tooltip": "Alterna la cuadrícula de composición: desactivada, regla de los tercios, proporción áurea",
+      "off": "Cuadrícula desactivada",
+      "thirds": "Regla de los tercios",
+      "golden": "Proporción áurea"
     },
     "bracket": {
       "label": "Horquillado de exposición",

@@ -1931,7 +1931,9 @@
       "apply": "{rejected} Fotos ablehnen",
       "applied": "Auto-Aussortierung angewendet: {kept} behalten, {rejected} abgelehnt",
       "error": "Auto-Aussortierung fehlgeschlagen",
-      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren"
+      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren",
+      "suggested": "Vorgeschlagen",
+      "suggested_tooltip": "Voreinstellung aus dem vorherrschenden Inhalt dieses Bereichs abgeleitet"
     },
     "exit_scene": "Szene verlassen",
     "scene_complete": "Szene gesichtet – nichts mehr zu prüfen",
@@ -1979,6 +1981,8 @@
       "reject": "Foto ablehnen",
       "confirm_next": "Bestätigen & nächste Gruppe",
       "zoom": "Zoom / Lupe",
+      "peaking": "Fokus-Peaking",
+      "grid": "Kompositionsraster",
       "close": "Schließen"
     },
     "group_by": {
@@ -1998,6 +2002,17 @@
       "original": "Original",
       "loading": "Vorschau wird erstellt",
       "error": "Bearbeitete Vorschau konnte nicht erstellt werden"
+    },
+    "peaking": {
+      "label": "Fokus-Peaking",
+      "tooltip": "Die schärfsten Kanten des angezeigten Bildes hervorheben"
+    },
+    "grid": {
+      "label": "Kompositionsraster",
+      "tooltip": "Kompositionsraster durchschalten: aus, Drittelregel, Goldener Schnitt",
+      "off": "Raster aus",
+      "thirds": "Drittelregel",
+      "golden": "Goldener Schnitt"
     },
     "bracket": {
       "label": "Belichtungsreihe",

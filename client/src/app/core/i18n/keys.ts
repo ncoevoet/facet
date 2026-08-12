@@ -1936,6 +1936,8 @@ export const I18N = {
       applied: "culling.auto_cull.applied",
       error: "culling.auto_cull.error",
       empty: "culling.auto_cull.empty",
+      suggested: "culling.auto_cull.suggested",
+      suggested_tooltip: "culling.auto_cull.suggested_tooltip",
     },
     exit_scene: "culling.exit_scene",
     scene_complete: "culling.scene_complete",
@@ -1983,6 +1985,8 @@ export const I18N = {
       reject: "culling.shortcuts.reject",
       confirm_next: "culling.shortcuts.confirm_next",
       zoom: "culling.shortcuts.zoom",
+      peaking: "culling.shortcuts.peaking",
+      grid: "culling.shortcuts.grid",
       close: "culling.shortcuts.close",
     },
     group_by: {
@@ -2002,6 +2006,17 @@ export const I18N = {
       original: "culling.cull_style.original",
       loading: "culling.cull_style.loading",
       error: "culling.cull_style.error",
+    },
+    peaking: {
+      label: "culling.peaking.label",
+      tooltip: "culling.peaking.tooltip",
+    },
+    grid: {
+      label: "culling.grid.label",
+      tooltip: "culling.grid.tooltip",
+      off: "culling.grid.off",
+      thirds: "culling.grid.thirds",
+      golden: "culling.grid.golden",
     },
     bracket: {
       label: "culling.bracket.label",

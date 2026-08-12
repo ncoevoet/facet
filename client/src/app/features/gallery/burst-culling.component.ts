@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, effect, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener, TemplateRef } from '@angular/core';
+import { Component, inject, signal, computed, effect, untracked, viewChild, ElementRef, OnDestroy, WritableSignal, HostListener, TemplateRef } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { DecimalPipe, NgClass, NgTemplateOutlet } from '@angular/common';
@@ -37,9 +37,10 @@ import {
   FaceDimmedPipe, WeightRemainingPipe, CullGroupIconPipe, CullGroupLabelPipe,
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
   SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
-  GroupOverridePendingPipe,
-  cullPreviewUrl,
+  GroupOverridePendingPipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
+  cullPreviewUrl, computePeakingOverlay, loadFrameImage, GRID_MODES,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
+  FrameSize, GridMode,
 } from './burst-culling.pipes';
 
 interface CullingGroupsResponse {
@@ -73,6 +74,14 @@ interface CullProfile {
 }
 interface CullProfilesResponse { profiles: CullProfile[]; default: string; }
 
+/** Response of GET /api/culling/suggest_profile: the preset the scope's own
+ *  content argues for, with the counts it was inferred from. */
+interface ProfileSuggestion {
+  profile: string | null;
+  confidence: number;
+  evidence: Record<string, number>;
+}
+
 // Per-user culling toolbar preferences, persisted so the page reopens the way
 // the user left it. The URL query param (deep links / "Cull this scene") still
 // overrides the stored granularity.
@@ -96,6 +105,19 @@ type GroupBy = typeof GROUP_BY_VALUES[number];
 // never a source of comparison pairs.
 const KEEP_WHOLE_KINDS: readonly string[] = ['bracket', 'panorama', 'hdr_panorama'];
 const SORT_VALUES = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological'];
+
+/** Thumbnail width the darkroom displays. Shared with the peaking pipeline so
+ *  the edge map is computed from the very pixels on screen. */
+const DARKROOM_THUMB_SIZE = 1920;
+
+/** Stable empty overlay map, so clearing an already-empty one is a no-op
+ *  instead of a change-detection round for every darkroom navigation. */
+const NO_PEAKING_OVERLAYS = new Map<string, string>();
+
+/** How many edge maps stay cached beyond the frames on screen. Stepping back
+ *  through a group is then instant, while a long culling session cannot pile up
+ *  a data URL per frame it ever showed. */
+const PEAKING_CACHE_MAX = 8;
 
 function readStoredGroupBy(): GroupBy {
   const v = localStorage.getItem(CULL_GROUP_BY_KEY);
@@ -176,6 +198,9 @@ interface ShortcutRow {
     EvOffsetPipe,
     GroupOverridePipe,
     GroupOverridePendingPipe,
+    PeakingOverlayPipe,
+    FrameViewBoxPipe,
+    GridLinesPipe,
     SequenceKindLabelPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
@@ -761,6 +786,18 @@ interface ShortcutRow {
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '4up'"
                     [matTooltip]="I18N.culling.compare['4up'] | translate"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
+            <button mat-icon-button [class.!text-white]="!peakingActive()"
+                    [class.!text-[var(--mat-sys-primary)]]="peakingActive()"
+                    [attr.aria-pressed]="peakingActive()"
+                    [matTooltip]="I18N.culling.peaking.tooltip | translate"
+                    [attr.aria-label]="I18N.culling.peaking.label | translate"
+                    (click)="togglePeaking()"><mat-icon>filter_center_focus</mat-icon></button>
+            <button mat-icon-button [class.!text-white]="gridMode() === ''"
+                    [class.!text-[var(--mat-sys-primary)]]="gridMode() !== ''"
+                    [attr.aria-pressed]="gridMode() !== ''"
+                    [matTooltip]="I18N.culling.grid.tooltip | translate"
+                    [attr.aria-label]="gridModeLabel() | translate"
+                    (click)="cycleGrid()"><mat-icon>grid_3x3</mat-icon></button>
             @if (cullStyleCapable() && compareMode() === 'single') {
               <button mat-icon-button [matMenuTriggerFor]="cullStyleMenu"
                       [class.!text-white]="activeStyle() === ''"
@@ -793,6 +830,31 @@ interface ShortcutRow {
             <mat-icon>close</mat-icon>
           </button>
         </div>
+        <!-- Per-pane overlays: the peaking edge map rides the image's own
+             transform, the composition grid stays fixed to the frame box. -->
+        <ng-template #frameOverlays let-path="path">
+          @if (path | peakingOverlay:peakingOverlays(); as overlay) {
+            <img [src]="overlay" alt="" aria-hidden="true"
+                 class="absolute inset-0 w-full h-full object-contain origin-center
+                        pointer-events-none opacity-60 will-change-transform"
+                 [style.transform]="frameTransform()" />
+          }
+          @if (gridMode(); as grid) {
+            @if (path | frameViewBox:frameSizes(); as viewBox) {
+              <svg class="absolute inset-0 w-full h-full pointer-events-none"
+                   [attr.viewBox]="viewBox" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+                @for (line of grid | gridLines; track line) {
+                  <line [attr.x1]="line" y1="0%" [attr.x2]="line" y2="100%"
+                        stroke="white" stroke-opacity="0.45" stroke-width="1"
+                        vector-effect="non-scaling-stroke" />
+                  <line x1="0%" [attr.y1]="line" x2="100%" [attr.y2]="line"
+                        stroke="white" stroke-opacity="0.45" stroke-width="1"
+                        vector-effect="non-scaling-stroke" />
+                }
+              </svg>
+            }
+          }
+        </ng-template>
         <!-- Image -->
         @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
           @if (compareMode() === 'single') {
@@ -801,11 +863,13 @@ interface ShortcutRow {
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()">
               <app-synced-zoom class="w-full h-full"
-                               [src]="(activeStyle() && !previewLoading()) ? (lbPhoto.path | cullPreviewUrl:activeStyle()) : (lbPhoto.path | thumbnailUrl:1920)"
+                               [src]="(activeStyle() && !previewLoading()) ? (lbPhoto.path | cullPreviewUrl:activeStyle()) : (lbPhoto.path | thumbnailUrl:darkroomThumbSize)"
                                [fullResSrc]="activeStyle() ? null : (lbPhoto.path | imageUrl:true)"
                                [zoom]="zoom()"
                                (zoomChange)="zoom.set($event)"
                                [alt]="lbPhoto.filename" />
+              <ng-container [ngTemplateOutlet]="frameOverlays"
+                            [ngTemplateOutletContext]="{ path: lbPhoto.path }" />
               @if (previewLoading()) {
                 <div class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none"
                      [attr.aria-label]="I18N.culling.cull_style.loading | translate">
@@ -825,11 +889,13 @@ interface ShortcutRow {
                      [class.ring-inset]="photo.path === lbPhoto.path"
                      [class.ring-amber-400]="photo.path === lbPhoto.path">
                   <app-synced-zoom class="w-full h-full min-h-0"
-                                   [src]="photo.path | thumbnailUrl:1920"
+                                   [src]="photo.path | thumbnailUrl:darkroomThumbSize"
                                    [fullResSrc]="photo.path | imageUrl:true"
                                    [zoom]="zoom()"
                                    (zoomChange)="zoom.set($event)"
                                    [alt]="photo.filename" />
+                  <ng-container [ngTemplateOutlet]="frameOverlays"
+                                [ngTemplateOutletContext]="{ path: photo.path }" />
                   @if (photo.path | isKept:selectionsMap():lbGroup.group_id) {
                     <mat-icon class="absolute top-1 left-1 !text-base !w-5 !h-5 !leading-5 rounded-full bg-black/60 text-green-400">check</mat-icon>
                   } @else if (photo.path | isDecided:selectionsMap():lbGroup.group_id) {
@@ -986,6 +1052,18 @@ interface ShortcutRow {
              (click)="$event.stopPropagation()"
              (keydown)="$event.stopPropagation()">
           <h2 id="autoCullTitle" class="text-lg font-semibold">{{ I18N.culling.auto_cull.title | translate }}</h2>
+          @if (selectedProfile(); as profile) {
+            <p class="flex items-center gap-1.5 text-sm opacity-80">
+              <mat-icon class="!text-base !w-4 !h-4 !leading-4">{{ profile | cullProfileIcon }}</mat-icon>
+              {{ selectedProfileLabel() | translate }}
+              @if (suggestedProfileActive()) {
+                <span class="px-2 py-0.5 rounded-full text-xs bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
+                      [matTooltip]="I18N.culling.auto_cull.suggested_tooltip | translate">
+                  {{ I18N.culling.auto_cull.suggested | translate }}
+                </span>
+              }
+            </p>
+          }
           <label class="flex items-center gap-2 text-sm cursor-pointer"
                  [matTooltip]="I18N.culling.auto_cull.trim_brackets_hint | translate">
             <input type="checkbox" class="accent-[var(--mat-sys-primary)]"
@@ -1094,6 +1172,24 @@ export class BurstCullingComponent implements OnDestroy {
     const p = this.cullProfiles().find(x => x.id === this.selectedProfile());
     return p ? p.label_key : I18N.culling.profiles.custom;
   });
+
+  /** The preset the current scope's own content argues for
+   *  (GET /culling/suggest_profile), or null while none was inferred. */
+  protected readonly profileSuggestion = signal<ProfileSuggestion | null>(null);
+  /** Set the moment the user picks a preset or moves a knob — including a
+   *  choice restored from a previous session. A manual choice is never
+   *  overwritten by a suggestion for the rest of the session. */
+  private readonly profileChosen = signal(false);
+  /** The scope the cached suggestion answers for; a scope change refetches. */
+  private suggestionScopeKey: string | null = null;
+  private suggestionApplied = false;
+
+  /** True when the active preset is the suggested one and the user never chose
+   *  it — the only case where the dialog claims a suggestion. */
+  protected readonly suggestedProfileActive = computed(() => {
+    const suggested = this.profileSuggestion()?.profile;
+    return !!suggested && !this.profileChosen() && this.selectedProfile() === suggested;
+  });
   protected readonly excludeRejected = signal(true);
   protected readonly groups = signal<CullingGroup[]>([]);
   protected readonly totalGroups = signal(0);
@@ -1182,6 +1278,51 @@ export class BurstCullingComponent implements OnDestroy {
   /** In-flight developed-preview image, so its handlers can be detached when a newer frame supersedes it. */
   private previewImg: HTMLImageElement | null = null;
 
+  /** Focus peaking over the darkroom frames (P). Session-only, like the compare
+   *  mode and the style preview — none of the darkroom's view toggles persist. */
+  protected readonly peakingActive = signal(false);
+  /** Composition grid: off → rule of thirds → golden ratio (G). Session-only. */
+  protected readonly gridMode = signal<GridMode>('');
+  /** Frame path → generated edge-map PNG, for the frames currently on screen. */
+  protected readonly peakingOverlays = signal<Map<string, string>>(NO_PEAKING_OVERLAYS);
+  /** Frame path → natural pixel size, so the grid lands on the letterboxed
+   *  image box rather than on the pane's own (usually wider) rectangle. */
+  protected readonly frameSizes = signal<Map<string, FrameSize>>(new Map());
+  /** Frame path → the source its overlay was computed from, so a frame is only
+   *  re-convolved when the photo changes or the pane swaps to full resolution. */
+  private readonly peakingSources = new Map<string, string>();
+  /** Guards against a superseded pass publishing over a newer one. */
+  private peakingRun = 0;
+
+  protected readonly darkroomThumbSize = DARKROOM_THUMB_SIZE;
+
+  /** The image transform of every pane, shared with the peaking overlay so the
+   *  edge map pans and zooms with the frame instead of being recomputed. */
+  protected readonly frameTransform = computed(() => {
+    const z = this.zoom();
+    return `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
+  });
+
+  /** Whether the panes have swapped to their full-resolution source. A computed
+   *  boolean, so panning at a fixed scale never re-triggers the peaking pass. */
+  private readonly darkroomHiRes = computed(() => this.zoom().scale > SyncedZoomComponent.MIN_SCALE);
+
+  protected readonly gridModeLabel = computed(() => {
+    const mode = this.gridMode();
+    if (mode === 'thirds') return I18N.culling.grid.thirds;
+    return mode === 'golden' ? I18N.culling.grid.golden : I18N.culling.grid.off;
+  });
+
+  /** The frames the darkroom is showing right now: the focused one in single
+   *  view, the whole tiled set in compare mode (where peaking earns its keep). */
+  protected readonly darkroomFramePaths = computed<string[]>(() => {
+    const group = this.lightboxGroup();
+    if (!group) return [];
+    if (this.compareMode() !== 'single') return this.compareFrames().map(p => p.path);
+    const photo = group.photos[this.lightboxIndex()];
+    return photo ? [photo.path] : [];
+  });
+
   /** The frames shown in compare mode: N photos from the current index, clamped. */
   protected readonly compareFrames = computed(() => {
     const group = this.lightboxGroup();
@@ -1194,6 +1335,91 @@ export class BurstCullingComponent implements OnDestroy {
   protected setCompareMode(mode: 'single' | '2up' | '4up'): void {
     this.compareMode.set(mode);
     this.zoom.set(FIT_ZOOM);
+  }
+
+  // --- Darkroom overlays (focus peaking + composition grid) ---
+
+  /** Frame path → the edge map already built for it and the source it came from. */
+  private readonly peakingCache = new Map<string, { src: string; url: string }>();
+  private readonly thumbnailUrl = new ThumbnailUrlPipe();
+  private readonly fullResUrl = new ImageUrlPipe();
+
+  protected togglePeaking(): void {
+    this.peakingActive.set(!this.peakingActive());
+  }
+
+  /** Cycle the composition grid: off → rule of thirds → golden ratio. */
+  protected cycleGrid(): void {
+    this.gridMode.set(GRID_MODES[(GRID_MODES.indexOf(this.gridMode()) + 1) % GRID_MODES.length]);
+  }
+
+  /** The source a pane is actually displaying: the darkroom thumbnail until it
+   *  swaps to full resolution past the fit scale (SyncedZoomComponent's rule). */
+  private frameSource(path: string, hiRes: boolean): string {
+    return hiRes
+      ? this.fullResUrl.transform(path, true)
+      : this.thumbnailUrl.transform(path, DARKROOM_THUMB_SIZE);
+  }
+
+  private clearPeaking(): void {
+    this.peakingCache.clear();
+    if (this.peakingOverlays().size > 0) this.peakingOverlays.set(NO_PEAKING_OVERLAYS);
+  }
+
+  /**
+   * Rebuild the peaking overlays for the displayed frames, publishing each as it
+   * lands so a 4-up compare shows the first pane's edges without waiting on the
+   * other three. A frame already convolved from the same source is reused, and a
+   * newer pass invalidates this one rather than racing it.
+   */
+  private async refreshPeaking(paths: string[], hiRes: boolean): Promise<void> {
+    const run = ++this.peakingRun;
+    const overlays = new Map<string, string>();
+    for (const path of paths) {
+      const src = this.frameSource(path, hiRes);
+      const cached = this.peakingCache.get(path);
+      let url = cached?.src === src ? cached.url : null;
+      if (!url) {
+        url = await this.renderPeaking(src);
+        if (run !== this.peakingRun) return;
+        if (url) {
+          this.peakingCache.set(path, { src, url });
+          this.trimPeakingCache();
+        }
+      }
+      if (!url) continue;
+      overlays.set(path, url);
+      this.peakingOverlays.set(new Map(overlays));
+    }
+  }
+
+  /** Drop the oldest edge maps once the cache is over its bound (insertion
+   *  order, which for a walk through a group is also least-recently-shown). */
+  private trimPeakingCache(): void {
+    while (this.peakingCache.size > PEAKING_CACHE_MAX) {
+      const oldest = this.peakingCache.keys().next().value;
+      if (oldest === undefined) return;
+      this.peakingCache.delete(oldest);
+    }
+  }
+
+  /** Seam over the raster pipeline, so it can be stubbed where no canvas exists. */
+  private renderPeaking(src: string): Promise<string | null> {
+    return computePeakingOverlay(src).catch(() => null);
+  }
+
+  /** Measure a frame once, for the composition grid's viewBox. */
+  private async ensureFrameSize(path: string): Promise<void> {
+    if (this.frameSizes().has(path)) return;
+    const size = await this.measureFrame(this.frameSource(path, false));
+    if (size) this.updateMapSignal(this.frameSizes, path, size);
+  }
+
+  /** Seam over the image load, for the same reason as renderPeaking. */
+  private measureFrame(src: string): Promise<FrameSize | null> {
+    return loadFrameImage(src)
+      .then(img => ({ w: img.naturalWidth || img.width, h: img.naturalHeight || img.height }))
+      .catch(() => null);
   }
 
   /** True Fullscreen API on the darkroom overlay (mirrors the slideshow pattern). */
@@ -1327,6 +1553,8 @@ export class BurstCullingComponent implements OnDestroy {
     { keys: ['↑'], labelKey: 'culling.shortcuts.keep' },
     { keys: ['↓'], labelKey: 'culling.shortcuts.reject' },
     { keys: ['Z'], labelKey: 'culling.shortcuts.zoom' },
+    { keys: ['P'], labelKey: 'culling.shortcuts.peaking' },
+    { keys: ['G'], labelKey: 'culling.shortcuts.grid' },
     { keys: ['F'], labelKey: 'slideshow.fullscreen' },
     { keys: ['Space'], labelKey: 'culling.shortcuts.confirm_next' },
     { keys: ['Esc'], labelKey: 'culling.shortcuts.close' },
@@ -1421,6 +1649,31 @@ export class BurstCullingComponent implements OnDestroy {
         return;
       }
       this.preloadDevelopedPreview(photo.path, style);
+    });
+    // Rebuild the peaking edge map when the toggle, the displayed frames or the
+    // pane's source resolution change. Panning never lands here: the transform
+    // moves the existing overlay, and the hi-res flag is a computed boolean, so
+    // a pan at a fixed scale notifies nothing.
+    effect(() => {
+      const active = this.peakingActive();
+      const paths = this.darkroomFramePaths();
+      const hiRes = this.darkroomHiRes();
+      untracked(() => {
+        if (!active || paths.length === 0) {
+          this.clearPeaking();
+          return;
+        }
+        void this.refreshPeaking(paths, hiRes);
+      });
+    });
+    // Measure the frames the composition grid is about to cover, so its viewBox
+    // letterboxes onto the image exactly like the pane's object-contain does.
+    effect(() => {
+      if (!this.gridMode()) return;
+      const paths = this.darkroomFramePaths();
+      untracked(() => {
+        for (const path of paths) void this.ensureFrameSize(path);
+      });
     });
   }
 
@@ -1542,6 +1795,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private applyScope(album: string | null, from: string | null, to: string | null, scene: string | null): void {
+    this.resetProfileSuggestion();
     this.scopeAlbum.set(album);
     this.scopeFrom.set(from);
     this.scopeTo.set(to);
@@ -1632,6 +1886,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected onThresholdChange(value: number): void {
     this.similarityThreshold.set(value);
+    this.profileChosen.set(true);
     this.clearProfileSelection();
     this.resetForReload();
   }
@@ -1646,6 +1901,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected onStrictnessChange(value: number): void {
     this.strictness.set(value);
+    this.profileChosen.set(true);
     this.clearProfileSelection();
     this.reselectFromStrictness();
   }
@@ -1678,8 +1934,14 @@ export class BurstCullingComponent implements OnDestroy {
       const data = await firstValueFrom(this.api.get<CullProfilesResponse>('/culling/profiles'));
       this.cullProfiles.set(data.profiles ?? []);
       const stored = this.cullProfiles().find(p => p.id === this.selectedProfile());
-      if (stored) this.applyProfile(stored, false);
-      else this.clearProfileSelection();
+      if (stored) {
+        // A restored preset is a choice the user made, just in an earlier
+        // session; a suggestion must not silently replace it.
+        this.profileChosen.set(true);
+        this.applyProfile(stored, false);
+      } else {
+        this.clearProfileSelection();
+      }
     } catch {
       // Preset selector stays hidden when the list can't load.
     }
@@ -1692,13 +1954,74 @@ export class BurstCullingComponent implements OnDestroy {
    */
   protected applyProfile(p: CullProfile, persist = true): void {
     this.selectedProfile.set(p.id);
-    if (persist) localStorage.setItem(CULL_PROFILE_KEY, p.id);
+    if (persist) {
+      localStorage.setItem(CULL_PROFILE_KEY, p.id);
+      this.profileChosen.set(true);
+    }
     if (p.strictness != null) this.strictness.set(p.strictness);
     if (p.similarity_threshold != null && p.similarity_threshold !== this.similarityThreshold()) {
       this.similarityThreshold.set(p.similarity_threshold);
       this.resetForReload();
     } else if (p.strictness != null) {
       this.reselectFromStrictness();
+    }
+  }
+
+  /** Identity of the current scope, so a scope change refetches its suggestion. */
+  private scopeKey(): string {
+    return [this.scopeAlbum() ?? '', this.scopeFrom() ?? '', this.scopeTo() ?? ''].join('|');
+  }
+
+  /** Drop a suggestion that answered for another scope. */
+  private resetProfileSuggestion(): void {
+    this.suggestionScopeKey = null;
+    this.suggestionApplied = false;
+    this.profileSuggestion.set(null);
+  }
+
+  /**
+   * Preselect the preset the scope's content argues for, at most once per scope.
+   *
+   * Fetched alongside the dry run rather than before it, so the dialog opens at
+   * the same speed whether or not a suggestion arrives; one that lands while the
+   * dialog is open re-runs the preview under the suggested knobs rather than
+   * leaving stale counts on screen. An explicit choice — a preset click, a knob
+   * move, or one restored from a previous session — is never overwritten.
+   */
+  private async applySuggestedProfile(): Promise<void> {
+    if (this.profileChosen() || this.suggestionApplied) return;
+    const key = this.scopeKey();
+    const suggestion = this.suggestionScopeKey === key
+      ? this.profileSuggestion()
+      : await this.fetchProfileSuggestion(key);
+    const suggested = suggestion?.profile;
+    if (!suggested || this.profileChosen()) return;
+    const profile = this.cullProfiles().find(p => p.id === suggested);
+    if (!profile || profile.id === this.selectedProfile()) return;
+    this.suggestionApplied = true;
+    this.applyProfile(profile, false);
+    if (this.autoCullPreview()) await this.openAutoCull();
+  }
+
+  /** Ask the backend which preset this scope's stored content looks like. */
+  private async fetchProfileSuggestion(key: string): Promise<ProfileSuggestion | null> {
+    const params: Record<string, string | number> = {};
+    const album = this.scopeAlbum();
+    if (album) params['album_id'] = Number(album);
+    const from = this.scopeFrom();
+    if (from) params['date_from'] = from;
+    const to = this.scopeTo();
+    if (to) params['date_to'] = to;
+    try {
+      const data = await firstValueFrom(
+        this.api.get<ProfileSuggestion>('/culling/suggest_profile', params),
+      );
+      this.suggestionScopeKey = key;
+      this.profileSuggestion.set(data);
+      return data;
+    } catch {
+      // No suggestion: the dialog keeps whatever preset is already active.
+      return null;
     }
   }
 
@@ -1964,6 +2287,24 @@ export class BurstCullingComponent implements OnDestroy {
     this.zoom.set(this.zoom().scale > 1 ? FIT_ZOOM : { scale: 2, tx: 0, ty: 0 });
   }
 
+  /** P toggles focus peaking over the open darkroom's frames. */
+  @HostListener('document:keydown.p', ['$event'])
+  protected onPeakingKey(event: Event): void {
+    if (!this.lightboxGroup()) return;
+    if (isTypingContext(event)) return;
+    event.preventDefault();
+    this.togglePeaking();
+  }
+
+  /** G cycles the open darkroom's composition grid. */
+  @HostListener('document:keydown.g', ['$event'])
+  protected onGridKey(event: Event): void {
+    if (!this.lightboxGroup()) return;
+    if (isTypingContext(event)) return;
+    event.preventDefault();
+    this.cycleGrid();
+  }
+
   /** F toggles true fullscreen on the open darkroom (mirrors the slideshow's F key). */
   @HostListener('document:keydown.f', ['$event'])
   protected onFullscreenToggle(event: Event): void {
@@ -2111,6 +2452,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Dry-run the auto-cull for the current scope and open the confirm dialog. */
   protected async openAutoCull(): Promise<void> {
+    void this.applySuggestedProfile();
     this.autoCullLoading.set(true);
     try {
       const preview = await firstValueFrom(this.api.post<AutoCullResponse>(

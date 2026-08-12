@@ -3,8 +3,9 @@ import {
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
   CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
-  GroupOverridePipe,
-  CullingGroup, CullingFace, CullingSubject, FaceThresholds,
+  GroupOverridePipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
+  peakingEdgeOverlay,
+  CullingGroup, CullingFace, CullingSubject, FaceThresholds, FrameSize,
 } from './burst-culling.pipes';
 
 const subject = (overrides: Partial<CullingSubject> = {}): CullingSubject => ({
@@ -379,5 +380,102 @@ describe('GroupOverridePipe', () => {
   // the user has said something about this set, and the chip must show it.
   it('reports a correction carried by only some frames', () => {
     expect(pipe.transform(group([null, 'hdr_panorama', null]))).toBe('hdr_panorama');
+  });
+});
+
+describe('peakingEdgeOverlay', () => {
+  /** A grey frame with a hard vertical edge at `edgeX` (left dark, right bright). */
+  const frameWithEdge = (w: number, h: number, edgeX: number): Uint8ClampedArray => {
+    const data = new Uint8ClampedArray(w * h * 4);
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const p = (y * w + x) * 4;
+        const v = x < edgeX ? 0 : 255;
+        data[p] = data[p + 1] = data[p + 2] = v;
+        data[p + 3] = 255;
+      }
+    }
+    return data;
+  };
+
+  const litColumns = (out: Uint8ClampedArray, w: number, h: number): Set<number> => {
+    const columns = new Set<number>();
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (out[(y * w + x) * 4 + 3] > 0) columns.add(x);
+      }
+    }
+    return columns;
+  };
+
+  it('paints the edge and nothing else', () => {
+    const w = 16, h = 16;
+    const out = peakingEdgeOverlay(frameWithEdge(w, h, 8), w, h);
+    // The Sobel window straddles the transition, so the two columns either side
+    // of it light up -- and only those.
+    expect(litColumns(out, w, h)).toEqual(new Set([7, 8]));
+  });
+
+  it('paints the edge opaque red so it reads over any frame', () => {
+    const w = 16, h = 16;
+    const out = peakingEdgeOverlay(frameWithEdge(w, h, 8), w, h);
+    const p = (2 * w + 8) * 4;
+    expect([out[p], out[p + 1], out[p + 2], out[p + 3]]).toEqual([255, 32, 32, 255]);
+  });
+
+  // The percentile alone would always paint a fixed share of the frame, which
+  // would make a wholly out-of-focus photo glow exactly like a sharp one.
+  it('paints nothing on a frame with no edges at all', () => {
+    const w = 16, h = 16;
+    const flat = new Uint8ClampedArray(w * h * 4).fill(128);
+    const out = peakingEdgeOverlay(flat, w, h);
+    expect(litColumns(out, w, h).size).toBe(0);
+  });
+
+  it('returns a clear overlay for a frame too small to convolve', () => {
+    const out = peakingEdgeOverlay(new Uint8ClampedArray(2 * 2 * 4).fill(255), 2, 2);
+    expect(out.every(v => v === 0)).toBe(true);
+  });
+});
+
+describe('PeakingOverlayPipe', () => {
+  const pipe = new PeakingOverlayPipe();
+
+  it('returns the overlay generated for the frame', () => {
+    expect(pipe.transform('/p.jpg', new Map([['/p.jpg', 'data:image/png;base64,x']])))
+      .toBe('data:image/png;base64,x');
+  });
+
+  it('returns null while the frame has no overlay', () => {
+    expect(pipe.transform('/p.jpg', new Map())).toBeNull();
+  });
+});
+
+describe('FrameViewBoxPipe', () => {
+  const pipe = new FrameViewBoxPipe();
+
+  it('builds the viewBox from the frame size', () => {
+    const sizes = new Map<string, FrameSize>([['/p.jpg', { w: 6000, h: 4000 }]]);
+    expect(pipe.transform('/p.jpg', sizes)).toBe('0 0 6000 4000');
+  });
+
+  it('returns null until the frame has been measured', () => {
+    expect(pipe.transform('/p.jpg', new Map())).toBeNull();
+  });
+});
+
+describe('GridLinesPipe', () => {
+  const pipe = new GridLinesPipe();
+
+  it('draws nothing when the grid is off', () => {
+    expect(pipe.transform('')).toEqual([]);
+  });
+
+  it('draws the rule of thirds', () => {
+    expect(pipe.transform('thirds')).toEqual(['33.333%', '66.667%']);
+  });
+
+  it('draws the golden ratio', () => {
+    expect(pipe.transform('golden')).toEqual(['38.197%', '61.803%']);
   });
 });

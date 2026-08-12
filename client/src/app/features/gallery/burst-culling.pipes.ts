@@ -397,3 +397,158 @@ export class CullPreviewUrlPipe implements PipeTransform {
     return cullPreviewUrl(path, style);
   }
 }
+
+// --- Darkroom overlays: focus peaking + composition grid ---
+
+/** Natural pixel size of a displayed frame. */
+export interface FrameSize {
+  w: number;
+  h: number;
+}
+
+/** Composition grid states, in the order the toggle cycles them. */
+export type GridMode = '' | 'thirds' | 'golden';
+export const GRID_MODES: readonly GridMode[] = ['', 'thirds', 'golden'];
+
+/** Where each grid draws its lines, as SVG percentage lengths so the same list
+ *  serves both axes whatever viewBox the frame ends up with. */
+const GRID_LINES: Record<string, string[]> = {
+  thirds: ['33.333%', '66.667%'],
+  golden: ['38.197%', '61.803%'],
+};
+
+/** Working-canvas pixel budget for the edge map: a 2 MP convolution stays under
+ *  a frame's worth of latency, and peaking is judged at screen resolution. */
+const PEAKING_MAX_PIXELS = 2_000_000;
+/** Share of the frame below which an edge is not drawn — only the strongest 15%
+ *  of gradients read as "in focus" on a normal photograph. */
+const PEAKING_PERCENTILE = 0.85;
+/** Absolute gradient floor, on the 0-255 Sobel scale. A percentile alone would
+ *  always paint 15% of the frame, so a wholly out-of-focus photo would glow as
+ *  brightly as a sharp one — which is the exact judgement peaking exists to make. */
+const PEAKING_MIN_EDGE = 24;
+const PEAKING_COLOR = [255, 32, 32] as const;
+const PEAKING_HISTOGRAM_BINS = 256;
+
+/**
+ * Paint the strongest edges of an RGBA frame red and everything else clear.
+ *
+ * A 3x3 Sobel over luma, thresholded at the higher of the
+ * ``PEAKING_PERCENTILE`` gradient and ``PEAKING_MIN_EDGE``. Pure over pixel
+ * data — the canvas work lives in ``computePeakingOverlay`` — so the decision
+ * this makes is testable without a rendering surface.
+ */
+export function peakingEdgeOverlay(
+  pixels: Uint8ClampedArray, width: number, height: number,
+): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(width * height * 4);
+  if (width < 3 || height < 3) return out;
+
+  const luma = new Float32Array(width * height);
+  for (let i = 0; i < luma.length; i++) {
+    const p = i * 4;
+    luma[i] = 0.299 * pixels[p] + 0.587 * pixels[p + 1] + 0.114 * pixels[p + 2];
+  }
+
+  const magnitude = new Float32Array(width * height);
+  const histogram = new Uint32Array(PEAKING_HISTOGRAM_BINS);
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const i = y * width + x;
+      const tl = luma[i - width - 1], t = luma[i - width], tr = luma[i - width + 1];
+      const l = luma[i - 1], r = luma[i + 1];
+      const bl = luma[i + width - 1], b = luma[i + width], br = luma[i + width + 1];
+      const gx = (tr + 2 * r + br) - (tl + 2 * l + bl);
+      const gy = (bl + 2 * b + br) - (tl + 2 * t + tr);
+      const mag = Math.min(255, Math.hypot(gx, gy) / 4);
+      magnitude[i] = mag;
+      histogram[Math.round(mag)] += 1;
+    }
+  }
+
+  const interior = (width - 2) * (height - 2);
+  let seen = 0;
+  let threshold = PEAKING_MIN_EDGE;
+  for (let bin = 0; bin < PEAKING_HISTOGRAM_BINS; bin++) {
+    seen += histogram[bin];
+    if (seen >= interior * PEAKING_PERCENTILE) {
+      threshold = Math.max(PEAKING_MIN_EDGE, bin);
+      break;
+    }
+  }
+
+  for (let i = 0; i < magnitude.length; i++) {
+    if (magnitude[i] < threshold) continue;
+    const p = i * 4;
+    out[p] = PEAKING_COLOR[0];
+    out[p + 1] = PEAKING_COLOR[1];
+    out[p + 2] = PEAKING_COLOR[2];
+    out[p + 3] = 255;
+  }
+  return out;
+}
+
+/** Load an image for off-screen raster work; rejects when the source fails. */
+export function loadFrameImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error(`cannot load ${src}`));
+    img.src = src;
+  });
+}
+
+/**
+ * Build the focus-peaking overlay for one frame as a PNG data URL.
+ *
+ * Rendered into an image rather than a live canvas so the overlay inherits the
+ * frame's own ``object-contain`` letterboxing: the working canvas keeps the
+ * source aspect ratio, so the two land on exactly the same pixels under the
+ * same transform, with no per-pane measurement.
+ */
+export async function computePeakingOverlay(src: string): Promise<string | null> {
+  const img = await loadFrameImage(src);
+  const naturalW = img.naturalWidth || img.width;
+  const naturalH = img.naturalHeight || img.height;
+  if (!naturalW || !naturalH) return null;
+  const scale = Math.min(1, Math.sqrt(PEAKING_MAX_PIXELS / (naturalW * naturalH)));
+  const width = Math.max(1, Math.round(naturalW * scale));
+  const height = Math.max(1, Math.round(naturalH * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  ctx.drawImage(img, 0, 0, width, height);
+  const frame = ctx.getImageData(0, 0, width, height);
+  const overlay = ctx.createImageData(width, height);
+  overlay.data.set(peakingEdgeOverlay(frame.data, width, height));
+  ctx.putImageData(overlay, 0, 0);
+  return canvas.toDataURL('image/png');
+}
+
+/** The generated peaking overlay for a frame, or null while none exists. */
+@Pipe({ name: 'peakingOverlay' })
+export class PeakingOverlayPipe implements PipeTransform {
+  transform(path: string, overlays: Map<string, string>): string | null {
+    return overlays.get(path) ?? null;
+  }
+}
+
+/** A frame's SVG viewBox, so a grid drawn in it letterboxes exactly like the
+ *  `object-contain` image it sits on. Null until the size is known. */
+@Pipe({ name: 'frameViewBox' })
+export class FrameViewBoxPipe implements PipeTransform {
+  transform(path: string, sizes: Map<string, FrameSize>): string | null {
+    const size = sizes.get(path);
+    return size ? `0 0 ${size.w} ${size.h}` : null;
+  }
+}
+
+/** The line positions of a composition grid; empty when the grid is off. */
+@Pipe({ name: 'gridLines' })
+export class GridLinesPipe implements PipeTransform {
+  transform(mode: GridMode): string[] {
+    return GRID_LINES[mode] ?? [];
+  }
+}

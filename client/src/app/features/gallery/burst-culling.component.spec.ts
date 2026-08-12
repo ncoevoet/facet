@@ -13,7 +13,7 @@ describe('BurstCullingComponent', () => {
   let component: BurstCullingComponent;
   let mockApi: { get: Mock; post: Mock };
   let mockSnackBar: { open: Mock };
-  let mockI18n: { t: Mock };
+  let mockI18n: { t: Mock; translations: Mock };
 
   const mockCullingGroupsResponse = {
     groups: [
@@ -61,7 +61,9 @@ describe('BurstCullingComponent', () => {
         afterDismissed: () => new Subject<void>(),
       })),
     };
-    mockI18n = { t: vi.fn((key: string) => key) };
+    // `translations` is the bundle signal the (impure) translate pipe reads when
+    // a test actually renders the template.
+    mockI18n = { t: vi.fn((key: string) => key), translations: vi.fn(() => ({})) };
 
     TestBed.configureTestingModule({
       providers: [
@@ -1058,6 +1060,331 @@ describe('BurstCullingComponent', () => {
       seed();
 
       expect(component['pendingCorrections']()).toBe(0);
+    });
+  });
+
+  describe('shoot-type suggestion (auto-cull preset preselect)', () => {
+    const profiles = [
+      { id: 'balanced', label_key: 'culling.profiles.balanced', strictness: 50, eyes_closed_max: 4, poor_expression_min: 4, keep_min_per_group: 1, similarity_threshold: 85 },
+      { id: 'wedding', label_key: 'culling.profiles.wedding', strictness: 35, eyes_closed_max: 5, poor_expression_min: 5, keep_min_per_group: 2, similarity_threshold: 90 },
+      { id: 'wildlife', label_key: 'culling.profiles.wildlife', strictness: 70, eyes_closed_max: 0, poor_expression_min: 0, keep_min_per_group: 1, similarity_threshold: 82 },
+    ];
+    const preview = {
+      groups_processed: 2, kept: 3, rejected: 4, highlights_added: 0,
+      dry_run: true, preview: [], preview_truncated: false,
+    };
+    const suggestion = (profile: string | null) =>
+      ({ profile, confidence: 0.8, evidence: { photos: 40, wedding: 32 } });
+
+    /** Answer the suggestion endpoint, leaving every other GET on the feed. */
+    const routeGet = (answer: unknown) => {
+      mockApi.get = vi.fn((url: string) =>
+        url === '/culling/suggest_profile' ? of(answer) : of(mockCullingGroupsResponse));
+    };
+    const suggestCalls = () =>
+      mockApi.get.mock.calls.filter(call => call[0] === '/culling/suggest_profile');
+
+    beforeEach(() => {
+      component['cullProfiles'].set(profiles);
+      mockApi.post = vi.fn(() => of(preview));
+    });
+
+    it('preselects the suggested preset when the user has chosen none', async () => {
+      routeGet(suggestion('wedding'));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(mockApi.get).toHaveBeenCalledWith('/culling/suggest_profile', {});
+      expect(component['selectedProfile']()).toBe('wedding');
+      expect(component['strictness']()).toBe(35);
+      expect(component['suggestedProfileActive']()).toBe(true);
+    });
+
+    // A suggestion is not a decision: it must not become the preset the next
+    // session restores, which only an explicit click may do.
+    it('does not persist the preset it suggested', async () => {
+      routeGet(suggestion('wedding'));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(localStorage.getItem('facet_culling_profile')).toBeNull();
+    });
+
+    it('never overrides a preset the user picked, and does not even ask', async () => {
+      component['applyProfile'](profiles[1]);
+      routeGet(suggestion('wildlife'));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(suggestCalls()).toHaveLength(0);
+      expect(component['selectedProfile']()).toBe('wedding');
+      expect(component['suggestedProfileActive']()).toBe(false);
+    });
+
+    it('a hand-moved knob also settles the preset for the session', async () => {
+      component['onStrictnessChange'](80);
+      routeGet(suggestion('wedding'));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(suggestCalls()).toHaveLength(0);
+      expect(component['strictness']()).toBe(80);
+    });
+
+    it('applies nothing when the scope argues for no preset', async () => {
+      routeGet(suggestion(null));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(component['selectedProfile']()).toBe('');
+      expect(component['suggestedProfileActive']()).toBe(false);
+    });
+
+    it('applies nothing when the suggested preset is not configured', async () => {
+      routeGet(suggestion('sports'));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(component['selectedProfile']()).toBe('');
+    });
+
+    it('asks once per scope and reuses the answer', async () => {
+      routeGet(suggestion('wedding'));
+
+      await (component as any).applySuggestedProfile();
+      await (component as any).applySuggestedProfile();
+
+      expect(suggestCalls()).toHaveLength(1);
+    });
+
+    it('opens the dialog without waiting for the suggestion', async () => {
+      // The suggestion never answers; the preview must land regardless.
+      mockApi.get = vi.fn((url: string) =>
+        url === '/culling/suggest_profile' ? new Subject() : of(mockCullingGroupsResponse));
+
+      await component['openAutoCull']();
+
+      expect(suggestCalls()).toHaveLength(1);
+      expect(component['autoCullPreview']()).toEqual(preview);
+      expect(component['selectedProfile']()).toBe('');
+    });
+
+    it('a suggestion landing on the open dialog re-runs the preview under its knobs', async () => {
+      routeGet(suggestion('wedding'));
+      component['autoCullPreview'].set(preview);
+
+      await (component as any).applySuggestedProfile();
+
+      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({
+        dry_run: true, profile: 'wedding', strictness: 35,
+      }));
+    });
+  });
+
+  describe('darkroom overlays (focus peaking + composition grid)', () => {
+    const grp = {
+      group_id: 5, type: 'burst' as const, reason: '', best_path: '/f1.jpg', count: 2,
+      photos: [
+        { path: '/f1.jpg', filename: 'f1.jpg', aggregate: 8, aesthetic: 7, tech_sharpness: 6, is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8 },
+        { path: '/f2.jpg', filename: 'f2.jpg', aggregate: 7, aesthetic: 6, tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2024-01-01', burst_score: 7 },
+      ],
+    };
+    let renderPeaking: Mock;
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+    const openDarkroom = (index = 0) => {
+      component['groups'].set([grp]);
+      component['lightboxGroupId'].set(component['groupKey'](grp));
+      component['lightboxIndex'].set(index);
+    };
+    /** Run the overlay effects and let their async raster work settle. */
+    const settle = async () => {
+      TestBed.tick();
+      await flush();
+    };
+
+    beforeEach(() => {
+      // jsdom has no 2D canvas, so the raster pipeline is replaced at its seam.
+      renderPeaking = vi.fn((src: string) => Promise.resolve(`overlay:${src}`));
+      vi.spyOn(component as any, 'renderPeaking').mockImplementation(renderPeaking as never);
+      vi.spyOn(component as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
+    });
+
+    it('builds an overlay for the displayed frame once peaking is on', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+
+      await settle();
+
+      expect(component['peakingOverlays']().get('/f1.jpg')).toContain('size=1920');
+      expect(component['peakingOverlays']().size).toBe(1);
+    });
+
+    it('builds nothing while peaking is off', async () => {
+      openDarkroom();
+
+      await settle();
+
+      expect(renderPeaking).not.toHaveBeenCalled();
+      expect(component['peakingOverlays']().size).toBe(0);
+    });
+
+    it('drops the overlays when peaking is switched back off', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+      await settle();
+
+      component['peakingActive'].set(false);
+      await settle();
+
+      expect(component['peakingOverlays']().size).toBe(0);
+    });
+
+    it('rebuilds for the new frame when the photo changes', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+      await settle();
+
+      component['lightboxIndex'].set(1);
+      await settle();
+
+      expect(component['peakingOverlays']().has('/f2.jpg')).toBe(true);
+      expect(component['peakingOverlays']().has('/f1.jpg')).toBe(false);
+    });
+
+    it('covers every pane in compare mode', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+      component['setCompareMode']('2up');
+
+      await settle();
+
+      expect([...component['peakingOverlays']().keys()]).toEqual(['/f1.jpg', '/f2.jpg']);
+    });
+
+    it('drops the overlays when the darkroom closes', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+      await settle();
+
+      component['closeLightbox']();
+      await settle();
+
+      expect(component['peakingOverlays']().size).toBe(0);
+    });
+
+    // The overlay rides the image's transform, so a pan must cost nothing; only
+    // the swap to the full-resolution source is worth re-convolving.
+    it('rebuilds on the full-resolution swap but not while panning', async () => {
+      openDarkroom();
+      component['peakingActive'].set(true);
+      await settle();
+      const afterFit = renderPeaking.mock.calls.length;
+
+      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      await settle();
+      const afterZoom = renderPeaking.mock.calls.length;
+
+      component['zoom'].set({ scale: 2, tx: 60, ty: 20 });
+      await settle();
+
+      expect(afterZoom).toBe(afterFit + 1);
+      expect(renderPeaking.mock.calls.length).toBe(afterZoom);
+      expect(renderPeaking.mock.calls.at(-1)?.[0]).toContain('/image?');
+    });
+
+    // A data URL per frame ever shown would grow with the session, and a cull
+    // session walks thousands of frames.
+    it('bounds how many edge maps it keeps while walking a long group', async () => {
+      const long = {
+        ...grp,
+        photos: Array.from({ length: 12 }, (_, i) => ({ ...grp.photos[0], path: `/long${i}.jpg` })),
+      };
+      component['groups'].set([long]);
+      component['lightboxGroupId'].set(component['groupKey'](long));
+      component['peakingActive'].set(true);
+      for (let i = 0; i < long.photos.length; i++) {
+        component['lightboxIndex'].set(i);
+        await settle();
+      }
+
+      expect(renderPeaking).toHaveBeenCalledTimes(12);
+      expect(component['peakingCache'].size).toBe(8);
+    });
+
+    it('cycles the grid off → thirds → golden → off', () => {
+      expect(component['gridMode']()).toBe('');
+      component['cycleGrid']();
+      expect(component['gridMode']()).toBe('thirds');
+      component['cycleGrid']();
+      expect(component['gridMode']()).toBe('golden');
+      component['cycleGrid']();
+      expect(component['gridMode']()).toBe('');
+    });
+
+    it('measures the frame the grid will cover, so it lands on the image box', async () => {
+      openDarkroom();
+      component['cycleGrid']();
+
+      await settle();
+
+      expect(component['frameSizes']().get('/f1.jpg')).toEqual({ w: 6000, h: 4000 });
+    });
+
+    // The signal-level tests above cannot see whether the overlays are actually
+    // attached to each pane, which is the whole feature; this one renders them.
+    it('renders both overlays over the frame and removes them when toggled off', async () => {
+      // jsdom ships no scrollIntoView, which the rendered group list calls.
+      const scrollIntoView = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = vi.fn();
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      const rendered = fixture.componentInstance;
+      // Let this instance's own initial load land before seeding the darkroom,
+      // or it would replace the seeded group and close it again.
+      await flush();
+      vi.spyOn(rendered as any, 'renderPeaking').mockResolvedValue('data:image/png;base64,x');
+      vi.spyOn(rendered as any, 'measureFrame').mockResolvedValue({ w: 6000, h: 4000 });
+      rendered['groups'].set([grp]);
+      rendered['lightboxGroupId'].set(rendered['groupKey'](grp));
+      rendered['lightboxIndex'].set(0);
+      rendered['peakingActive'].set(true);
+      rendered['gridMode'].set('thirds');
+
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      const host: HTMLElement = fixture.nativeElement;
+      expect(host.querySelector('img[src^="data:image/png"]')).toBeTruthy();
+      // Two positions, each drawn on both axes.
+      expect(host.querySelectorAll('svg line')).toHaveLength(4);
+
+      rendered['peakingActive'].set(false);
+      rendered['gridMode'].set('');
+      fixture.detectChanges();
+      await flush();
+      fixture.detectChanges();
+
+      expect(host.querySelector('img[src^="data:image/png"]')).toBeNull();
+      expect(host.querySelectorAll('svg line')).toHaveLength(0);
+      fixture.destroy();
+      Element.prototype.scrollIntoView = scrollIntoView;
+    });
+
+    it('P and G toggle the overlays only while the darkroom is open', () => {
+      const event = { preventDefault: vi.fn(), target: document.body } as unknown as Event;
+
+      component['onPeakingKey'](event);
+      component['onGridKey'](event);
+      expect(component['peakingActive']()).toBe(false);
+      expect(component['gridMode']()).toBe('');
+
+      openDarkroom();
+      component['onPeakingKey'](event);
+      component['onGridKey'](event);
+
+      expect(component['peakingActive']()).toBe(true);
+      expect(component['gridMode']()).toBe('thirds');
     });
   });
 });

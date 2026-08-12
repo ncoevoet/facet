@@ -1931,7 +1931,9 @@
       "apply": "Rejeitar {rejected} fotos",
       "applied": "Seleção automática aplicada: {kept} mantidas, {rejected} rejeitadas",
       "error": "Falha na seleção automática",
-      "empty": "Nada para selecionar automaticamente neste escopo"
+      "empty": "Nada para selecionar automaticamente neste escopo",
+      "suggested": "Sugerido",
+      "suggested_tooltip": "Predefinição deduzida do conteúdo dominante deste âmbito"
     },
     "exit_scene": "Sair da cena",
     "scene_complete": "Cena selecionada — nada mais para revisar",
@@ -1979,6 +1981,8 @@
       "reject": "Rejeitar foto",
       "confirm_next": "Confirmar e próximo grupo",
       "zoom": "Zoom / lupa",
+      "peaking": "Realce de foco",
+      "grid": "Grelha de composição",
       "close": "Fechar"
     },
     "group_by": {
@@ -1998,6 +2002,17 @@
       "original": "Original",
       "loading": "A gerar a pré-visualização",
       "error": "Não foi possível gerar a pré-visualização editada"
+    },
+    "peaking": {
+      "label": "Realce de foco",
+      "tooltip": "Destaca as arestas mais nítidas da imagem apresentada"
+    },
+    "grid": {
+      "label": "Grelha de composição",
+      "tooltip": "Alterna a grelha de composição: desativada, regra dos terços, proporção áurea",
+      "off": "Grelha desativada",
+      "thirds": "Regra dos terços",
+      "golden": "Proporção áurea"
     },
     "bracket": {
       "label": "Bracketing de exposição",

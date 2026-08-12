@@ -1931,7 +1931,9 @@
       "apply": "Rejeter {rejected} photos",
       "applied": "Sélection automatique appliquée : {kept} gardées, {rejected} rejetées",
       "error": "Échec de la sélection automatique",
-      "empty": "Rien à sélectionner automatiquement dans cette portée"
+      "empty": "Rien à sélectionner automatiquement dans cette portée",
+      "suggested": "Suggéré",
+      "suggested_tooltip": "Préréglage déduit du contenu dominant de cette sélection"
     },
     "exit_scene": "Quitter la scène",
     "scene_complete": "Scène triée — plus rien à examiner",
@@ -1979,6 +1981,8 @@
       "reject": "Rejeter la photo",
       "confirm_next": "Confirmer et groupe suivant",
       "zoom": "Zoom / loupe",
+      "peaking": "Intensification de la netteté",
+      "grid": "Grille de composition",
       "close": "Fermer"
     },
     "group_by": {
@@ -1998,6 +2002,17 @@
       "original": "Original",
       "loading": "Génération de l'aperçu",
       "error": "Impossible de générer l'aperçu retouché"
+    },
+    "peaking": {
+      "label": "Intensification de la netteté",
+      "tooltip": "Met en évidence les contours les plus nets de l'image affichée"
+    },
+    "grid": {
+      "label": "Grille de composition",
+      "tooltip": "Faire défiler la grille de composition : désactivée, règle des tiers, nombre d'or",
+      "off": "Grille désactivée",
+      "thirds": "Règle des tiers",
+      "golden": "Nombre d'or"
     },
     "bracket": {
       "label": "Bracketing d'exposition",

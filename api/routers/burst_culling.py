@@ -2002,6 +2002,164 @@ def list_cull_profiles(user: Optional[CurrentUser] = Depends(get_optional_user))
     return {'profiles': items, 'default': default}
 
 
+# --- Shoot-type suggestion (dominant genre of a scope -> cull profile) ---
+
+# What a stored content label says about the shoot. Both maps are keyed by
+# profile id, so the suggestion can only ever name a preset the config actually
+# defines: a renamed or custom profile set yields no suggestion rather than a
+# wrong one. Nothing here is inferred at request time — every column read was
+# written by the scan.
+_SUGGEST_CATEGORIES = {
+    'wedding': ('portrait', 'portrait_bw', 'group_portrait'),
+    'sports': ('sports',),
+    'concert': ('concert',),
+    'wildlife': ('wildlife',),
+}
+
+_SUGGEST_MOMENTS = {
+    'wedding': ('ceremony',),
+    'sports': ('sports',),
+    'concert': ('concert', 'nightlife'),
+    'wildlife': ('nature_wildlife', 'pets'),
+}
+
+# Second-tier signals: true of the genre but also of other things, so they count
+# for half a photo. A wedding is the shoot that fills frames with groups of
+# people; a concert is the one shot after dark with performers in frame.
+_SUGGEST_SUPPORT_COLUMN = {'wedding': 'crowd_faces', 'concert': 'night_faces'}
+_SUGGEST_SUPPORT_WEIGHT = 0.5
+_SUGGEST_CROWD_FACES = 3
+_SUGGEST_NIGHT_FROM_HOUR = 20
+_SUGGEST_NIGHT_TO_HOUR = 6
+# Below this share of the scope no genre is dominant enough to name. A mixed
+# library must return nothing rather than the least-wrong preset: the client
+# preselects whatever comes back, and a preset applied on weak evidence is
+# worse than the default the user already has.
+_SUGGEST_MIN_SHARE = 0.25
+
+
+def _wedding_moment_labels():
+    """Moment labels that stand for a wedding.
+
+    The wedding event type's own vocabulary is read from ``narrative_moments``
+    rather than copied here, so a library that extends or renames it keeps
+    working; the general-vocabulary ``ceremony`` is added because a wedding shot
+    under the general vocabulary lands there instead.
+    """
+    from api.config import _FULL_CONFIG
+    nm = _FULL_CONFIG.get('narrative_moments', {}) or {}
+    wedding = (nm.get('event_types', {}) or {}).get('wedding', {}) or {}
+    return frozenset(wedding) | frozenset(_SUGGEST_MOMENTS['wedding'])
+
+
+def _suggest_moment_labels():
+    """Per-genre moment label sets, wedding's read from config."""
+    return {
+        genre: (_wedding_moment_labels() if genre == 'wedding' else frozenset(labels))
+        for genre, labels in _SUGGEST_MOMENTS.items()
+    }
+
+
+def _shoot_type_evidence(conn, user_id, album_id, date_from, date_to):
+    """One aggregate of a scope's stored content labels.
+
+    Grouped by ``(category, narrative_moment)`` rather than summed per genre in
+    SQL: both are constant within a group, which keeps the weighting below
+    readable and the genre map in one place, at one table scan. The EXIF capture
+    hour is read off ``date_taken`` positionally — both the raw EXIF
+    (``YYYY:MM:DD HH:MM:SS``) and ISO spellings put it at offset 12.
+    """
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    album_sql, album_params = album_filter_clause(album_id)
+    window_clauses, window_params = time_window_clauses(date_from, date_to)
+    where_sql = f"{vis_sql} AND {album_sql}" + "".join(f" AND {c}" for c in window_clauses)
+    return conn.execute(
+        f"""SELECT category, narrative_moment, COUNT(*) AS n,
+                   SUM(CASE WHEN face_count >= ? THEN 1 ELSE 0 END) AS crowd_faces,
+                   SUM(CASE WHEN face_count > 0
+                             AND (CAST(substr(date_taken, 12, 2) AS INTEGER) >= ?
+                                  OR CAST(substr(date_taken, 12, 2) AS INTEGER) < ?)
+                            THEN 1 ELSE 0 END) AS night_faces
+            FROM photos
+            WHERE {where_sql}
+            GROUP BY category, narrative_moment""",
+        [_SUGGEST_CROWD_FACES, _SUGGEST_NIGHT_FROM_HOUR, _SUGGEST_NIGHT_TO_HOUR]
+        + vis_params + album_params + window_params,
+    ).fetchall()
+
+
+def _score_shoot_types(rows):
+    """Return ``(scores, evidence, photos)`` for a scope's grouped label counts.
+
+    A photo contributes at most one point to a genre: a first-tier label (its
+    category or its moment) counts whole, and only a photo without one can still
+    contribute a support signal, at half weight. Without that cap a concert
+    frame shot at night would count twice and outscore a scope twice its size.
+    """
+    moments = _suggest_moment_labels()
+    photos = 0
+    scores = {genre: 0.0 for genre in _SUGGEST_CATEGORIES}
+    evidence = {genre: 0 for genre in _SUGGEST_CATEGORIES}
+    for row in rows:
+        count = row['n'] or 0
+        photos += count
+        for genre, categories in _SUGGEST_CATEGORIES.items():
+            if row['category'] in categories or row['narrative_moment'] in moments[genre]:
+                scores[genre] += count
+                evidence[genre] += count
+                continue
+            column = _SUGGEST_SUPPORT_COLUMN.get(genre)
+            support = (row[column] or 0) if column else 0
+            scores[genre] += _SUGGEST_SUPPORT_WEIGHT * support
+            evidence[genre] += support
+    return scores, evidence, photos
+
+
+@router.get("/api/culling/suggest_profile")
+def suggest_cull_profile(
+    album_id: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Infer the dominant shoot type of a scope and name the preset that fits it.
+
+    Read-only and model-free: the answer is one grouped scan of the content
+    labels the scan already stored (``category``, ``narrative_moment``, face
+    counts, capture hour) for the same album / date window the darkroom is
+    scoped to. ``confidence`` is the winning genre's weighted share of the
+    scope, so it orders scopes the way a photographer would — a whole wedding
+    outranks a wedding inside a year of holidays.
+
+    ``profile`` is null when the scope is empty, when no genre reaches
+    ``_SUGGEST_MIN_SHARE``, or when the matching preset is not configured (a
+    custom ``cull_profiles`` set); ``evidence`` is returned either way so the
+    client can explain what the answer was based on.
+    """
+    user_id = user.user_id if user else None
+    with get_db() as conn:
+        if album_id is not None:
+            from api.routers.albums import _check_album_access
+            _check_album_access(conn, album_id, user_id)
+        rows = _shoot_type_evidence(conn, user_id, album_id, date_from, date_to)
+
+    scores, evidence, photos = _score_shoot_types(rows)
+    profiles, _ = _get_cull_profiles()
+    profile = None
+    confidence = 0.0
+    if photos:
+        # Ties break on the name so a scope always answers the same thing.
+        genre = max(scores, key=lambda g: (scores[g], g))
+        confidence = round(min(1.0, scores[genre] / photos), 3)
+        if confidence >= _SUGGEST_MIN_SHARE and genre in profiles:
+            profile = genre
+    return {
+        'profile': profile,
+        'confidence': confidence,
+        'evidence': {'photos': photos, **evidence},
+    }
+
+
 @router.post("/api/culling/auto")
 def auto_cull(
     body: AutoCullBody,

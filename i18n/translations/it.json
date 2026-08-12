@@ -1931,7 +1931,9 @@
       "apply": "Rifiuta {rejected} foto",
       "applied": "Selezione automatica applicata: {kept} conservate, {rejected} rifiutate",
       "error": "Selezione automatica non riuscita",
-      "empty": "Niente da selezionare automaticamente in questo ambito"
+      "empty": "Niente da selezionare automaticamente in questo ambito",
+      "suggested": "Suggerito",
+      "suggested_tooltip": "Preset dedotto dal contenuto dominante di questo ambito"
     },
     "exit_scene": "Esci dalla scena",
     "scene_complete": "Scena selezionata — niente altro da rivedere",
@@ -1979,6 +1981,8 @@
       "reject": "Scarta foto",
       "confirm_next": "Conferma e gruppo successivo",
       "zoom": "Zoom / lente",
+      "peaking": "Focus peaking",
+      "grid": "Griglia di composizione",
       "close": "Chiudi"
     },
     "group_by": {
@@ -1998,6 +2002,17 @@
       "original": "Originale",
       "loading": "Generazione anteprima",
       "error": "Impossibile generare l'anteprima elaborata"
+    },
+    "peaking": {
+      "label": "Focus peaking",
+      "tooltip": "Evidenzia i bordi più nitidi dell'immagine visualizzata"
+    },
+    "grid": {
+      "label": "Griglia di composizione",
+      "tooltip": "Scorre la griglia di composizione: disattivata, regola dei terzi, sezione aurea",
+      "off": "Griglia disattivata",
+      "thirds": "Regola dei terzi",
+      "golden": "Sezione aurea"
     },
     "bracket": {
       "label": "Bracketing di esposizione",
