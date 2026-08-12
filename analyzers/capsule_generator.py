@@ -1699,11 +1699,11 @@ def _generate_score_per_dim(conn, capsules, capsule_config, min_aggregate,
     try:
         group_rows = conn.execute(  # lgtm[py/sql-injection]
             f"""SELECT dim_val, dim_label, cnt, paths FROM (
-                SELECT {expr} AS dim_val, {label_expr} AS dim_label,
+                SELECT dim_val, dim_label,
                        COUNT(*) AS cnt,
                        GROUP_CONCAT(path, '||') AS paths
                 FROM (
-                    SELECT path, {expr}, {label_expr}
+                    SELECT path, {expr} AS dim_val, {label_expr} AS dim_label
                     FROM photos {join}
                     WHERE aggregate >= ? {extra_filter} AND {vis_sql}
                     ORDER BY {sort}
@@ -2154,11 +2154,11 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
         try:
             group_rows = conn.execute(  # lgtm[py/sql-injection]
                 f"""SELECT dim_val, dim_label, cnt, paths FROM (
-                    SELECT {sql_expr} AS dim_val, {label_expr} AS dim_label,
+                    SELECT dim_val, dim_label,
                            COUNT(*) AS cnt,
                            GROUP_CONCAT(path, '||') AS paths
                     FROM (
-                        SELECT path, {sql_expr}, {label_expr}
+                        SELECT path, {sql_expr} AS dim_val, {label_expr} AS dim_label
                         FROM photos {join}
                         WHERE aggregate >= ? {extra_filter} AND {vis_sql}
                         ORDER BY aggregate DESC

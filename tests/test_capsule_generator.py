@@ -171,14 +171,9 @@ class TestGroupedCapsuleTitleTemplate:
         # so short-circuit it. This dimension is unrelated to day_of_week.
         monkeypatch.setattr("api.db_helpers.is_photo_tags_available", lambda *a, **k: False)
 
-        # day_of_week's real sql_expr is a strftime()/CAST() expression; SQLite
-        # exposes an unaliased complex expression under its own literal text as
-        # the implicit column name, not under any column it references, so the
-        # grouped subquery's outer SELECT can never resolve it back — a
-        # separate, pre-existing bug unrelated to this fix. Swap in a bare
-        # column for the query to structurally succeed, keeping day_of_week's
-        # real title_tpl/value_map so this exercises exactly the templating
-        # logic this fix touches.
+        # Swap in a bare column so this test isolates the templating logic from
+        # the date expression. The grouped subquery's date-expression resolution
+        # is covered separately by test_real_date_expr_groups_without_error.
         patched_dim = dict(cg._DIMENSIONS["day_of_week"])
         patched_dim["sql_expr"] = "star_rating"
         patched_dim["value_map"] = {5: "Monday"}
@@ -204,3 +199,37 @@ class TestGroupedCapsuleTitleTemplate:
         monday_capsules = [c for c in capsules if c["type"] == "day_of_week"]
         assert monday_capsules, "expected a day_of_week capsule for the 3 five-star photos"
         assert monday_capsules[0]["title"] == "Best of Mondays"
+
+    def test_real_date_expr_groups_without_error(self, tmp_path, monkeypatch):
+        """The real strftime(date_taken) grouped query must resolve, not be
+        swallowed by ``except Exception``. Regression for the grouped subquery
+        re-evaluating a date expression against a scope where date_taken is
+        gone ("no such column: date_taken")."""
+        import sqlite3
+
+        import analyzers.capsule_generator as cg
+        from db.schema import init_database
+
+        monkeypatch.setattr("api.db_helpers.is_photo_tags_available", lambda *a, **k: False)
+
+        db_path = str(tmp_path / "cap.db")
+        init_database(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        # 20 photos all on 2024-03-11 (a Monday) — uses the real, unpatched
+        # day_of_week sql_expr CAST(strftime('%w', ...) AS INTEGER).
+        conn.executemany(
+            "INSERT INTO photos (path, filename, aggregate, date_taken) VALUES (?, ?, ?, ?)",
+            [(f"/p/{i}.jpg", f"{i}.jpg", 8.0, "2024:03:11 10:00:00") for i in range(20)],
+        )
+        conn.commit()
+
+        capsule_config = {"day_of_week": {"min_photos": 3}}
+        capsules = cg._generate_dimension_capsules(
+            conn, capsule_config, min_aggregate=6.0, vis=("1=1", []), user_id=None,
+        )
+        conn.close()
+
+        dow = [c for c in capsules if c["type"] == "day_of_week"]
+        assert dow, "real strftime date expr must produce a day_of_week capsule"
+        assert dow[0]["title"] == "Best of Mondays"
