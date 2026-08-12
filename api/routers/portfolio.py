@@ -67,6 +67,17 @@ def _album_photo_rows(conn, album_id, user_id):
     ).fetchall()
 
 
+def _album_photo_count(conn, album_id, user_id):
+    """Count the album's visible photos without touching thumbnail BLOBs."""
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    return conn.execute(
+        "SELECT COUNT(*) FROM album_photos ap "
+        "JOIN photos ON photos.path = ap.photo_path "
+        f"WHERE ap.album_id = ? AND {vis_sql}",
+        [album_id] + vis_params,
+    ).fetchone()[0]
+
+
 def _resolve_generator_row(row):
     """Build a generator row: resolved disk path (or None) + caption/date/thumbnail."""
     try:
@@ -100,12 +111,13 @@ def api_export_portfolio(
     user_id = user.user_id
     with get_db() as conn:
         album = _check_album_access(conn, album_id, user_id)
-        rows = _album_photo_rows(conn, album_id, user_id)
-        if len(rows) > max_photos:
+        photo_count = _album_photo_count(conn, album_id, user_id)
+        if photo_count > max_photos:
             raise HTTPException(
                 status_code=400,
-                detail=f"Album has {len(rows)} photos, over the {max_photos} portfolio limit",
+                detail=f"Album has {photo_count} photos, over the {max_photos} portfolio limit",
             )
+        rows = _album_photo_rows(conn, album_id, user_id)
         generator_rows = [_resolve_generator_row(row) for row in rows]
 
     options = PortfolioOptions(
