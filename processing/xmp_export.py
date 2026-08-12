@@ -448,13 +448,13 @@ def _exiftool_tag_args(rating: XmpRating, existing_flat: list[str],
     target's existing keywords and Facet's own — foreign keywords authored by
     Lightroom / darktable / etc. are preserved, never wiped, and re-running never
     accumulates duplicates. Face regions stay clear-then-replace (Facet owns face
-    detection). Scalars (label, caption) are set only when present, so an external
-    value is not wiped when Facet has none.
+    detection). ``xmp:Label`` is fully Facet-owned (favourite/reject only), so it is
+    always emitted like ``xmp:Rating`` -- an empty value clears the exiftool tag,
+    which is what un-favouriting must do. Caption is set only when present, so an
+    external value is not wiped when Facet has none.
     """
     xmp_rating, label = rating.xmp_values()
-    args = [f"-XMP:Rating={xmp_rating}"]
-    if label:
-        args.append(f"-XMP:Label={label}")
+    args = [f"-XMP:Rating={xmp_rating}", f"-XMP:Label={label}"]
     if rating.caption:
         args.append(f"-XMP-dc:Description={rating.caption}")
         args.append(f"-IPTC:Caption-Abstract={rating.caption}")

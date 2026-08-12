@@ -271,7 +271,7 @@ class DatabaseValidator:
         self._print_result(result4)
 
     def _check_data_type_corruption(self, conn: sqlite3.Connection):
-        """Check for BLOB data accidentally stored in numeric columns."""
+        """Check for BLOB or TEXT data accidentally stored in numeric columns."""
         result = ValidationResult(
             "blob_in_numeric_columns",
             "BLOB data stored in numeric columns (requires rescan)"
@@ -297,6 +297,33 @@ class DatabaseValidator:
 
         self.results.append(result)
         self._print_result(result)
+
+        # TEXT corruption (an empty string, an error message, ...) is just as
+        # invisible to every other check here as BLOB is: they all gate on
+        # TYPEOF IN ('real', 'integer') before touching the value, so a
+        # TEXT-typed score/raw-metric column sails through every range and
+        # consistency check as if it were NULL.
+        result2 = ValidationResult(
+            "text_in_numeric_columns",
+            "TEXT data stored in numeric columns (requires rescan)"
+        )
+
+        for col in SCORE_COLUMNS + RAW_METRIC_COLUMNS:
+            cursor.execute(f"""
+                SELECT path, filename, {col}
+                FROM photos
+                WHERE TYPEOF({col}) = 'text' AND {col} IS NOT NULL
+                LIMIT 20
+            """)
+
+            for row in cursor.fetchall():
+                result2.add_issue(
+                    {'path': row[0], 'filename': row[1], 'column': col, 'value': row[2]},
+                    f"{col} is TEXT ({row[2]!r})"
+                )
+
+        self.results.append(result2)
+        self._print_result(result2)
 
     def _check_histogram_integrity(self, conn: sqlite3.Connection):
         """Check histogram data integrity."""

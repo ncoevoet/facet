@@ -308,6 +308,13 @@ class TestExiftoolArgs:
         assert f"-XMP:Rating={RATING_REJECTED}" in args
         assert "-XMP:Label=Red" in args
 
+    def test_no_favorite_no_reject_clears_label(self):
+        # A photo with neither favorite nor reject set (e.g. just un-favorited)
+        # must still emit -XMP:Label= so exiftool CLEARS a stale label on the
+        # target instead of leaving a previous Yellow/Red label in place.
+        args = xe._exiftool_tag_args(XmpRating(star_rating=3), [], [])
+        assert "-XMP:Label=" in args
+
     def test_keywords_clear_before_replace_no_append(self):
         args = xe._exiftool_tag_args(XmpRating(tags=["beach"], person_names=["Alice"]), [], [])
         # The clear must precede the values (idempotent replace, not append).

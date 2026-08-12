@@ -166,11 +166,18 @@ def test_worker_failure_releases_lock(db_path):
 
     with mock.patch("optimization.personal_ranker.train_ranker", side_effect=boom):
         assert ar.maybe_retrain(db_path, user_id=None, added=30, threshold=25) is True
+        # Joining inside the patch: the worker resolves train_ranker when it
+        # runs, so a join outside races the patch teardown and can exercise the
+        # real trainer instead.
+        for t in list(ar._active_threads):
+            t.join(timeout=5)
 
-    for t in list(ar._active_threads):
-        t.join(timeout=5)
     # A failing worker must still release the lock so future retrains can run.
     assert ar._retrain_running is False
+    # Regression: an exception inside the worker (as opposed to a deferral)
+    # must also hand the consumed counter back, or the whole batch of pending
+    # comparisons is silently discarded by one flaky training run.
+    assert _counter(db_path, None) == 30
 
 
 def test_commit_failure_after_claim_releases_slot(db_path, monkeypatch):

@@ -149,3 +149,58 @@ class TestIsJunkLens:
     @pytest.mark.parametrize("lens", ["EF 50mm f/1.8", "XF 23mm", "Sony FE 24-70"])
     def test_real(self, lens):
         assert _is_junk_lens(lens) is False
+
+
+class TestGroupedCapsuleTitleTemplate:
+    """Regression: a grouped capsule's title must go through its title_tpl.
+
+    day_of_week's title_tpl is "Best of {value}s" — the grouped-dimension
+    builder in ``_generate_dimension_capsules`` used to set ``title`` to the
+    bare display value directly, skipping the template entirely, so the
+    generated title/alt-text read "Monday" instead of "Best of Mondays".
+    """
+
+    def test_title_wraps_value_in_its_template(self, tmp_path, monkeypatch):
+        import sqlite3
+
+        import analyzers.capsule_generator as cg
+        from db.schema import init_database
+
+        # The photo_tags probe opens its own connection to the DEFAULT
+        # (production) DB when none is supplied — tests must never touch that,
+        # so short-circuit it. This dimension is unrelated to day_of_week.
+        monkeypatch.setattr("api.db_helpers.is_photo_tags_available", lambda *a, **k: False)
+
+        # day_of_week's real sql_expr is a strftime()/CAST() expression; SQLite
+        # exposes an unaliased complex expression under its own literal text as
+        # the implicit column name, not under any column it references, so the
+        # grouped subquery's outer SELECT can never resolve it back — a
+        # separate, pre-existing bug unrelated to this fix. Swap in a bare
+        # column for the query to structurally succeed, keeping day_of_week's
+        # real title_tpl/value_map so this exercises exactly the templating
+        # logic this fix touches.
+        patched_dim = dict(cg._DIMENSIONS["day_of_week"])
+        patched_dim["sql_expr"] = "star_rating"
+        patched_dim["value_map"] = {5: "Monday"}
+        monkeypatch.setitem(cg._DIMENSIONS, "day_of_week", patched_dim)
+
+        db_path = str(tmp_path / "cap.db")
+        init_database(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        # 3 five-star photos stand in for "3 photos taken on a Monday".
+        conn.executemany(
+            "INSERT INTO photos (path, filename, aggregate, star_rating) VALUES (?, ?, ?, ?)",
+            [(f"/p/{i}.jpg", f"{i}.jpg", 8.0, 5) for i in range(3)],
+        )
+        conn.commit()
+
+        capsule_config = {"day_of_week": {"min_photos": 3}}
+        capsules = cg._generate_dimension_capsules(
+            conn, capsule_config, min_aggregate=6.0, vis=("1=1", []), user_id=None,
+        )
+        conn.close()
+
+        monday_capsules = [c for c in capsules if c["type"] == "day_of_week"]
+        assert monday_capsules, "expected a day_of_week capsule for the 3 five-star photos"
+        assert monday_capsules[0]["title"] == "Best of Mondays"

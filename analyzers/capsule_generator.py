@@ -2198,7 +2198,7 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
                 "type": dim_name, "id": full_id,
                 "title_key": dim["title_key"],
                 "title_params": {dim["param_name"]: display},
-                "title": display,
+                "title": dim["title_tpl"].format(value=display),
                 "subtitle": f"{len(paths)} photos",
                 "cover_photo_path": _pick_cover_photo(paths, full_id, capsule_config=capsule_config),
                 "photo_count": len(paths), "icon": dim["icon"],
