@@ -183,7 +183,7 @@ ok "Dependencies installed"
 
 # --- Step 8: Install transformers + accelerate (needed for 8gb+ profiles) ---
 info "Installing transformers + accelerate..."
-$INSTALLER install "transformers>=4.57.0" "accelerate>=0.25.0"
+$INSTALLER install "transformers>=5.3.0,<5.16" "accelerate>=0.25.0"
 ok "Transformers installed"
 
 # --- Step 9: Check exiftool ---

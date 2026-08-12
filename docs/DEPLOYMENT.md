@@ -345,8 +345,9 @@ First run downloads the profile's models into the named volumes; reset them with
 - **Sticky versions.** The image builds from `requirements.lock.txt` — a full
   `pip freeze` of a validated container with `torch`/`torchvision` + `nvidia-*`
   stripped (the CUDA base image provides those). This prevents silent drift to
-  untested releases. (Example this guards against: transformers 5.3+ changed
-  Qwen3.5 vision batching and broke the VLM tagger; `kornia`, required by
+  untested releases. (Example this guards against: transformers 5.3 changed
+  Qwen3.5 vision batching and broke the VLM tagger until the padding fix
+  landed; `kornia`, required by
   BiRefNet, is not pulled in by transformers and must be pinned.) Regenerate after
   an intentional upgrade: `docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
 - **GPU face clustering baked in.** RAPIDS cuML (`cuml-cu12`) ships in the image,
