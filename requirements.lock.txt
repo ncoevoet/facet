@@ -1,6 +1,10 @@
 # Sticky, tested-working dependency lock for the Docker image.
 # Generated from a validated 16gb-profile container (transformers 5.2.0 + kornia 0.8.3),
 # which scanned 49 photos with 0 errors (tags + aesthetic + saliency all populated).
+# transformers was since bumped 5.2.0 -> 5.15.0 to pick up the GHSA-29pf-2h5f-8g72 fix;
+# that bump was validated on CPU only (full backend suite, plus batched == single-image
+# tags for Qwen3.5-2B and Qwen3-VL-2B on real photos). A GPU container scan has not been
+# re-run at 5.15.0 — do that before treating this lock as container-validated again.
 # torch/torchvision + nvidia-*/triton are intentionally omitted — the CUDA base image
 # (pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime) already provides them.
 # Regenerate: docker compose ... exec facet pip freeze --all | (filter base-image pkgs)
@@ -121,7 +125,7 @@ threadpoolctl==3.6.0
 tifffile==2026.3.3
 timm==1.0.28
 tokenizers==0.22.2
-transformers==5.2.0
+transformers==5.15.0
 typer-slim==0.24.0
 typer==0.27.1
 types-dataclasses==0.6.6

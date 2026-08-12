@@ -506,39 +506,39 @@ Tags:"""
             inputs.pop("token_type_ids", None)
             all_inputs.append(inputs)
 
-        # Pad to same length
+        # Pad to same length. Per-token keys — (1, seq_len) tensors whose length dim
+        # matches input_ids (input_ids, attention_mask, and mm_token_type_ids, which
+        # transformers >= 5.3 adds for Qwen3.5) — must be left-padded to max_len; a raw
+        # torch.cat(dim=0) on differing-length mm_token_type_ids otherwise fails with
+        # "sizes must match". Vision keys (pixel_values, image_grid_thw) concat on dim 0.
         max_len = max(inp['input_ids'].shape[1] for inp in all_inputs)
         pad_token_id = self.processor.tokenizer.pad_token_id or 0
+        ref_len = all_inputs[0]['input_ids'].shape[1]
+        token_keys = [k for k, v in all_inputs[0].items()
+                      if hasattr(v, 'shape') and v.dim() == 2
+                      and v.shape[0] == 1 and v.shape[1] == ref_len]
+        pad_values = {'input_ids': pad_token_id, 'attention_mask': 0}
 
-        padded_input_ids = []
-        padded_attention = []
-        # Collect other tensors that might vary
-        other_keys = [k for k in all_inputs[0].keys()
-                      if k not in ('input_ids', 'attention_mask')]
+        batched = {}
+        for key in token_keys:
+            pad_val = pad_values.get(key, 0)
+            rows = []
+            for inp in all_inputs:
+                tensor = inp[key]
+                pad_len = max_len - tensor.shape[1]
+                if pad_len > 0:
+                    rows.append(torch.cat([
+                        torch.full((1, pad_len), pad_val, dtype=tensor.dtype),
+                        tensor,
+                    ], dim=1))
+                else:
+                    rows.append(tensor)
+            batched[key] = torch.cat(rows, dim=0).to(self.model.device)
 
-        for inp in all_inputs:
-            seq_len = inp['input_ids'].shape[1]
-            pad_len = max_len - seq_len
-            if pad_len > 0:
-                padded_input_ids.append(torch.cat([
-                    torch.full((1, pad_len), pad_token_id, dtype=inp['input_ids'].dtype),
-                    inp['input_ids'],
-                ], dim=1))
-                padded_attention.append(torch.cat([
-                    torch.zeros((1, pad_len), dtype=inp['attention_mask'].dtype),
-                    inp['attention_mask'],
-                ], dim=1))
-            else:
-                padded_input_ids.append(inp['input_ids'])
-                padded_attention.append(inp['attention_mask'])
-
-        batched = {
-            'input_ids': torch.cat(padded_input_ids, dim=0).to(self.model.device),
-            'attention_mask': torch.cat(padded_attention, dim=0).to(self.model.device),
-        }
-        # Pass through additional keys from the first input (e.g. pixel_values)
-        # These are shared for Qwen3 vision inputs — concatenate along batch dim
-        for key in other_keys:
+        # Remaining keys are vision inputs (e.g. pixel_values) — concatenate on dim 0
+        for key in all_inputs[0]:
+            if key in token_keys:
+                continue
             tensors = [inp[key] for inp in all_inputs if key in inp]
             if tensors and hasattr(tensors[0], 'to'):
                 batched[key] = torch.cat(tensors, dim=0).to(self.model.device)

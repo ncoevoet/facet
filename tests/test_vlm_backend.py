@@ -305,3 +305,100 @@ class TestBatchQwen25Padding:
         assert captured_padding_sides == ["left"]
         assert tagger.processor.tokenizer.padding_side == "right"
         assert results == [["cat", "dog"], ["cat", "dog"]]
+
+
+# --- Qwen3/Qwen3.5 batching must left-pad every per-token key ---------------
+#
+# transformers >= 5.3 adds mm_token_type_ids (a per-token tensor) to the Qwen3.5
+# processor output. Concatenating it raw on dim 0 across differing sequence
+# lengths raises "Sizes of tensors must match except in dimension 0".
+
+class _FakeQwen3Processor:
+    """Emits per-image inputs with differing sequence lengths and patch counts."""
+
+    def __init__(self, seq_lens, patch_counts, extra_token_keys=()):
+        self.tokenizer = _FakeTokenizer()
+        self._seq_lens = list(seq_lens)
+        self._patch_counts = list(patch_counts)
+        self._extra_token_keys = tuple(extra_token_keys)
+        self._call = 0
+
+    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=True,
+                            return_dict=True, return_tensors="pt"):
+        import torch
+
+        idx = self._call
+        self._call += 1
+        seq_len = self._seq_lens[idx]
+        patches = self._patch_counts[idx]
+        inputs = {
+            "input_ids": torch.full((1, seq_len), idx + 1, dtype=torch.long),
+            "attention_mask": torch.ones((1, seq_len), dtype=torch.long),
+        }
+        for key in self._extra_token_keys:
+            inputs[key] = torch.full((1, seq_len), idx + 1, dtype=torch.long)
+        inputs["pixel_values"] = torch.full((patches, 8), float(idx + 1))
+        inputs["image_grid_thw"] = torch.tensor([[1, 2, patches]], dtype=torch.long)
+        return inputs
+
+    def decode(self, ids, skip_special_tokens=True):
+        return "cat, dog"
+
+
+class _FakeQwen3Model:
+    device = "cpu"
+
+    def __init__(self, new_tokens):
+        self._new_tokens = new_tokens
+        self.captured = None
+
+    def generate(self, **kwargs):
+        import torch
+
+        self.captured = kwargs
+        batch, seq_len = kwargs["input_ids"].shape
+        return torch.zeros((batch, seq_len + self._new_tokens), dtype=torch.long)
+
+
+class TestBatchQwen3Padding:
+    def _run(self, extra_token_keys):
+        pytest.importorskip("torch")
+        from models.vlm_tagger import VLMTagger, _ensure_imports
+
+        _ensure_imports()
+        tagger = VLMTagger({"family": "qwen3_5"}, None)
+        tagger.processor = _FakeQwen3Processor(
+            seq_lens=(5, 8), patch_counts=(4, 6), extra_token_keys=extra_token_keys)
+        tagger.model = _FakeQwen3Model(new_tokens=3)
+        results = tagger._batch_qwen3(
+            [_image(), _image()], prompt="Tags:", max_new_tokens=3, max_tags=5)
+        return tagger, results
+
+    def test_pads_mm_token_type_ids_added_by_transformers_5_3(self):
+        tagger, results = self._run(("mm_token_type_ids",))
+        captured = tagger.model.captured
+
+        assert results == [["cat", "dog"], ["cat", "dog"]]
+        for key in ("input_ids", "attention_mask", "mm_token_type_ids"):
+            assert tuple(captured[key].shape) == (2, 8), key
+        assert captured["input_ids"][0].tolist() == [0, 0, 0] + [1] * 5
+        assert captured["attention_mask"][0].tolist() == [0, 0, 0] + [1] * 5
+        assert captured["mm_token_type_ids"][0].tolist() == [0, 0, 0] + [1] * 5
+        assert captured["input_ids"][1].tolist() == [2] * 8
+
+    def test_vision_keys_concatenate_on_batch_dim(self):
+        tagger, _ = self._run(("mm_token_type_ids",))
+        captured = tagger.model.captured
+
+        assert tuple(captured["pixel_values"].shape) == (10, 8)
+        assert tuple(captured["image_grid_thw"].shape) == (2, 3)
+
+    def test_pre_5_3_processor_output_still_batches(self):
+        tagger, results = self._run(())
+        captured = tagger.model.captured
+
+        assert results == [["cat", "dog"], ["cat", "dog"]]
+        assert "mm_token_type_ids" not in captured
+        assert tuple(captured["input_ids"].shape) == (2, 8)
+        assert tuple(captured["attention_mask"].shape) == (2, 8)
+        assert tuple(captured["pixel_values"].shape) == (10, 8)

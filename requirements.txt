@@ -10,9 +10,13 @@ open-clip-torch>=2.20.0
 
 # HuggingFace Transformers - required for BiRefNet saliency, SigLIP 2 NaFlex embeddings,
 # and VLM taggers (Qwen3.5 / Qwen3-VL / Qwen2.5-VL on 16gb/24gb profiles).
-# Upper-bounded: transformers 5.3+ changed Qwen3.5 vision-token handling and breaks the
-# batched VLM tagger (torch.cat "sizes must match" during tagging); 5.2.x is validated.
-transformers>=4.57.0,<5.3
+# Floor is 5.3.0: it patches GHSA-29pf-2h5f-8g72 / CVE-2026-4372 (RCE via a malicious
+# config.json _attn_implementation_internal). 5.3 also added the per-token
+# mm_token_type_ids key to the Qwen3.5 processor, which models/vlm_tagger.py
+# _batch_qwen3 now left-pads like input_ids instead of raw-concatenating.
+# Upper-bounded at the newest validated release rather than left open, so a future
+# processor-output change cannot break batched tagging silently.
+transformers>=5.3.0,<5.16
 # accelerate is required for VLM taggers (device_map="auto") and SigLIP 2.
 # install.sh installs it unconditionally — keep it here for direct pip users too.
 accelerate>=0.25.0
