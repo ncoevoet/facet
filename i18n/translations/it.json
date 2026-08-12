@@ -1041,7 +1041,7 @@
     "sort_composition": "Composizione",
     "sort_face_quality": "Qualita volto",
     "sort_my_taste": "I miei gusti",
-    "my_taste_badge_tooltip": "Addestrato su {comparisons} confronti · {accuracy}% di accuratezza",
+    "my_taste_badge_tooltip": "Addestrato su {comparisons} confronti · {accuracy}% di accuratezza contro {baseline}% del punteggio attuale",
     "sort_desc": "Decrescente",
     "sort_asc": "Crescente",
     "filters": "Filtri",

@@ -198,7 +198,7 @@
         <!-- "My Taste" confidence indicator — held-out accuracy of the personal ranker -->
         @if (myTasteBadge(); as taste) {
           <mat-icon class="!hidden lg:!inline-flex items-center !text-amber-400"
-                [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—' }">auto_awesome</mat-icon>
+                [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">auto_awesome</mat-icon>
         }
 
         <!-- Tooltip-mode menu — first item in the gallery icon cluster -->

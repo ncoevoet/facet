@@ -167,6 +167,7 @@ export class App implements OnInit {
   // shown when sorting by learned_score. null until fetched / when unavailable.
   protected readonly rankerStatus = signal<{
     trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null;
+    baseline_accuracy: number | null;
   } | null>(null);
   // Badge view-model: only when the "My Taste" sort is active and the ranker has
   // trained (else null -> no badge).
@@ -175,6 +176,7 @@ export class App implements OnInit {
     if (this.store.filters().sort !== 'learned_score' || !s?.trained) return null;
     return {
       accuracy: s.cv_accuracy != null ? Math.round(s.cv_accuracy) : null,
+      baseline: s.baseline_accuracy != null ? Math.round(s.baseline_accuracy) : null,
       comparisons: s.comparison_count ?? 0,
     };
   });
@@ -486,7 +488,7 @@ export class App implements OnInit {
       // for everyone (the global pooled ranker is a shared sort, not edition-only).
       promises.push(
         firstValueFrom(
-          this.api.get<{ trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null }>('/ranker/status'),
+          this.api.get<{ trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null; baseline_accuracy: number | null }>('/ranker/status'),
         ).then(data => {
           this.rankerStatus.set(data);
         }).catch(() => { /* Non-critical */ }),
