@@ -1926,6 +1926,8 @@
       "summary": "{groups} gruppi: conserva {kept} foto, rifiuta {rejected}",
       "highlights_label": "Aggiungi le {count} migliori foto a un album Highlights",
       "highlights_name": "Highlights",
+      "trim_brackets": "Riduci anche le esposizioni bracketing ridondanti",
+      "trim_brackets_hint": "Propone anche di scartare le esposizioni bracketing ridondanti il cui fotogramma base non presenta tagli nelle alte luci",
       "apply": "Rifiuta {rejected} foto",
       "applied": "Selezione automatica applicata: {kept} conservate, {rejected} rifiutate",
       "error": "Selezione automatica non riuscita",

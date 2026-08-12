@@ -508,6 +508,20 @@ describe('BurstCullingComponent', () => {
       expect(component['autoCullPreview']()).toBeNull();
       expect(mockSnackBar.open).toHaveBeenCalled();
     });
+
+    it('autoCullBody sends trim_brackets false by default', async () => {
+      mockApi.post = vi.fn(() => of(preview));
+      await component['openAutoCull']();
+      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({ trim_brackets: false }));
+    });
+
+    it('onTrimBracketsChange sets the signal and re-runs the dry run with trim_brackets true', async () => {
+      mockApi.post = vi.fn(() => of(preview));
+      await component['onTrimBracketsChange'](true);
+      expect(component['trimBrackets']()).toBe(true);
+      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({ trim_brackets: true, dry_run: true }));
+      expect(component['autoCullPreview']()).toEqual(preview);
+    });
   });
 
   describe('cull profiles (genre presets)', () => {

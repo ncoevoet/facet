@@ -1926,6 +1926,8 @@
       "summary": "{groups} Gruppen: {kept} Fotos behalten, {rejected} ablehnen",
       "highlights_label": "Die {count} allerbesten Fotos einem Highlights-Album hinzufügen",
       "highlights_name": "Highlights",
+      "trim_brackets": "Auch redundante Belichtungsreihen-Aufnahmen aussortieren",
+      "trim_brackets_hint": "Schlägt zusätzlich vor, redundante Belichtungsreihen-Aufnahmen zu verwerfen, deren Basisbelichtung keine Lichter abschneidet",
       "apply": "{rejected} Fotos ablehnen",
       "applied": "Auto-Aussortierung angewendet: {kept} behalten, {rejected} abgelehnt",
       "error": "Auto-Aussortierung fehlgeschlagen",

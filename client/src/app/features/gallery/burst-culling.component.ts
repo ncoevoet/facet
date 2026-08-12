@@ -986,6 +986,13 @@ interface ShortcutRow {
              (click)="$event.stopPropagation()"
              (keydown)="$event.stopPropagation()">
           <h2 id="autoCullTitle" class="text-lg font-semibold">{{ I18N.culling.auto_cull.title | translate }}</h2>
+          <label class="flex items-center gap-2 text-sm cursor-pointer"
+                 [matTooltip]="I18N.culling.auto_cull.trim_brackets_hint | translate">
+            <input type="checkbox" class="accent-[var(--mat-sys-primary)]"
+                   [checked]="trimBrackets()" [disabled]="autoCullLoading()"
+                   (change)="onTrimBracketsChange(!trimBrackets())" />
+            {{ I18N.culling.auto_cull.trim_brackets | translate }}
+          </label>
           @if (ac.groups_processed === 0) {
             <p class="text-sm opacity-80">{{ I18N.culling.auto_cull.empty | translate }}</p>
           } @else {
@@ -1310,6 +1317,10 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly autoCullLoading = signal(false);
   /** Whether the apply also fills the Highlights album (dialog checkbox, opt-in). */
   protected readonly autoCullHighlights = signal(false);
+  /** Whether auto-cull also proposes trimming redundant, non-clipping bracket
+   *  exposures (dialog checkbox); toggling re-runs the dry run since it
+   *  changes the preview's group/keep/reject counts. */
+  protected readonly trimBrackets = signal(false);
 
   protected readonly darkroomShortcuts: ShortcutRow[] = [
     { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
@@ -2078,6 +2089,7 @@ export class BurstCullingComponent implements OnDestroy {
       strictness: this.strictness(),
       dry_run: dryRun,
       highlights_album: highlightsAlbum,
+      trim_brackets: this.trimBrackets(),
     };
     const profile = this.selectedProfile();
     if (profile) body['profile'] = profile;
@@ -2114,6 +2126,13 @@ export class BurstCullingComponent implements OnDestroy {
 
   protected cancelAutoCull(): void {
     this.autoCullPreview.set(null);
+  }
+
+  /** Trim-brackets changes the group set the dry run splits, so the preview
+   *  counts must be re-fetched through the same path openAutoCull() uses. */
+  protected async onTrimBracketsChange(value: boolean): Promise<void> {
+    this.trimBrackets.set(value);
+    await this.openAutoCull();
   }
 
   /** Apply the previewed auto-cull (dry_run=false), then refresh the feed. */

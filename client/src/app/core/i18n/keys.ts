@@ -1930,6 +1930,8 @@ export const I18N = {
       summary: "culling.auto_cull.summary",
       highlights_label: "culling.auto_cull.highlights_label",
       highlights_name: "culling.auto_cull.highlights_name",
+      trim_brackets: "culling.auto_cull.trim_brackets",
+      trim_brackets_hint: "culling.auto_cull.trim_brackets_hint",
       apply: "culling.auto_cull.apply",
       applied: "culling.auto_cull.applied",
       error: "culling.auto_cull.error",

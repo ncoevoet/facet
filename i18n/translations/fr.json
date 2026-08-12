@@ -1926,6 +1926,8 @@
       "summary": "{groups} groupes : garder {kept} photos, rejeter {rejected}",
       "highlights_label": "Ajouter les {count} toutes meilleures photos à un album Coups de cœur",
       "highlights_name": "Coups de cœur",
+      "trim_brackets": "Réduire aussi les expositions de bracketing redondantes",
+      "trim_brackets_hint": "Propose aussi d'écarter les expositions de bracketing redondantes dont l'image de base n'a pas d'écrêtage des hautes lumières",
       "apply": "Rejeter {rejected} photos",
       "applied": "Sélection automatique appliquée : {kept} gardées, {rejected} rejetées",
       "error": "Échec de la sélection automatique",

@@ -1926,6 +1926,8 @@
       "summary": "{groups} grupos: conservar {kept} fotos, rechazar {rejected}",
       "highlights_label": "Añadir las {count} mejores fotos a un álbum de Destacadas",
       "highlights_name": "Destacadas",
+      "trim_brackets": "Recortar también las exposiciones de bracketing redundantes",
+      "trim_brackets_hint": "Propone también descartar las exposiciones de bracketing redundantes cuyo fotograma base no tiene recorte de altas luces",
       "apply": "Rechazar {rejected} fotos",
       "applied": "Selección automática aplicada: {kept} conservadas, {rejected} rechazadas",
       "error": "La selección automática ha fallado",
