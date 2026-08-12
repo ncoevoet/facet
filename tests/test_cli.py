@@ -348,6 +348,80 @@ class TestExportCli:
         assert {row['path'] for row in data['photos']} == {'/a.jpg', '/b.jpg'}
 
 
+class TestExportManifestCli:
+    """``--export-manifest`` — the Lightroom-plugin feed.
+
+    Unlike ``--export-csv``/``--export-json``, the optional argument scopes
+    the export to a path subtree rather than naming the output file: the
+    manifest always lands at ``facet_manifest.json`` in the working directory,
+    since it is meant to be re-generated in place for a tool that re-reads a
+    fixed path.
+    """
+
+    def _seed_manifest_db(self, tmp_path):
+        db_path = tmp_path / 'manifest.db'
+        result = _run(DATABASE, '--db', str(db_path))
+        assert result.returncode == 0, result.stderr
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO photos(path, filename, aggregate, category, star_rating, "
+            "is_favorite, is_rejected, is_burst_lead) VALUES "
+            "('/library/a/keep.jpg', 'keep.jpg', 8.5, 'portrait', 4, 1, 0, 0)"
+        )
+        conn.execute(
+            "INSERT INTO photos(path, filename, aggregate, category, star_rating, "
+            "is_favorite, is_rejected, is_burst_lead) VALUES "
+            "('/library/a/reject.jpg', 'reject.jpg', 3.0, 'default', 0, 0, 1, 1)"
+        )
+        conn.execute(
+            "INSERT INTO photos(path, filename, aggregate, category, star_rating, "
+            "is_favorite, is_rejected, is_burst_lead) VALUES "
+            "('/library/b/other.jpg', 'other.jpg', 7.0, 'landscape', 3, 0, 0, 0)"
+        )
+        conn.commit()
+        conn.close()
+        return str(db_path)
+
+    def test_scoped_export_is_compact_with_rating_columns_and_version(self, tmp_path):
+        db = self._seed_manifest_db(tmp_path)
+        result = _run(FACET, '--db', db, '--export-manifest', '/library/a', cwd=str(tmp_path))
+        assert result.returncode == 0, result.stderr
+
+        out_path = tmp_path / 'facet_manifest.json'
+        assert out_path.exists()
+        raw = out_path.read_bytes()
+        assert b'\n' not in raw  # compact: no pretty-printed indentation
+
+        data = json.loads(raw)
+        assert data['version'] == 1
+        assert data['generated_at']
+        photos = {p['path']: p for p in data['photos']}
+        # /library/b/other.jpg is out of the /library/a scope.
+        assert set(photos) == {'/library/a/keep.jpg', '/library/a/reject.jpg'}
+
+        keep = photos['/library/a/keep.jpg']
+        assert keep['star_rating'] == 4
+        assert keep['is_favorite'] is True
+        assert keep['is_rejected'] is False
+        assert keep['is_burst_lead'] is False
+        assert keep['scores']['aggregate'] == 8.5
+
+        rejected = photos['/library/a/reject.jpg']
+        assert rejected['star_rating'] == 0
+        assert rejected['is_favorite'] is False
+        assert rejected['is_rejected'] is True
+        assert rejected['is_burst_lead'] is True
+
+    def test_bare_flag_exports_whole_library(self, tmp_path):
+        db = self._seed_manifest_db(tmp_path)
+        result = _run(FACET, '--db', db, '--export-manifest', cwd=str(tmp_path))
+        assert result.returncode == 0, result.stderr
+        data = json.loads((tmp_path / 'facet_manifest.json').read_text())
+        assert {p['path'] for p in data['photos']} == {
+            '/library/a/keep.jpg', '/library/a/reject.jpg', '/library/b/other.jpg',
+        }
+
+
 # ---------------------------------------------------------------------------
 # validate_db.py
 # ---------------------------------------------------------------------------

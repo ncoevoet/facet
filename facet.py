@@ -75,7 +75,7 @@ if _script_dir not in sys.path:
 
 import json
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 from db import DEFAULT_DB_PATH, init_database, get_connection, check_disk_space
 
 try:
@@ -1922,6 +1922,11 @@ Configuration:
                         help='Export database to CSV file (optional: specify filename)')
     export_group.add_argument('--export-json', type=str, nargs='?', const='auto',
                         help='Export database to JSON file (optional: specify filename)')
+    export_group.add_argument('--export-manifest', type=str, nargs='?', const='all', metavar='PATH',
+                        help='Export a compact JSON manifest (path, category, scores, tags, ratings) '
+                             'for external tools such as a Lightroom Classic plugin feed (optional: '
+                             'limit to a path subtree; default: all photos). Writes facet_manifest.json '
+                             'in the current directory, overwriting any previous manifest there')
     export_group.add_argument('--import-sidecars', type=str, nargs='?', const='all', metavar='PATH',
                         help='Import ratings/labels/tags from <image>.xmp sidecars back into the DB '
                              '(optional: limit to a path subtree; default: all photos)')
@@ -3517,6 +3522,67 @@ Configuration:
             json.dump({'photos': photos, 'count': len(photos)}, f, indent=2)
 
         logger.info("Exported %d photos to %s", len(photos), output_file)
+        exit()
+
+    # Export manifest mode (lightweight - no GPU needed): a compact JSON feed
+    # for external tools (e.g. a Lightroom Classic plugin) keyed by absolute
+    # path. Unlike --export-json/--export-csv, the optional argument scopes
+    # the export to a path subtree (reusing the sidecar exporter's own root
+    # filter) rather than naming the output file — the manifest is meant to be
+    # re-generated in place, so it always writes facet_manifest.json in the
+    # working directory.
+    if args.export_manifest:
+        from processing.xmp_export import build_root_filter
+
+        root = None if args.export_manifest == 'all' else args.export_manifest
+        where, params = build_root_filter(root) if root else ("", [])
+        output_file = "facet_manifest.json"
+
+        with get_connection(args.db) as conn:
+            cursor = conn.execute(f"""
+                SELECT path, filename, date_taken, category, aggregate, aesthetic,
+                       comp_score, face_quality, tech_sharpness, exposure_score,
+                       color_score, tags, camera_model, lens_model,
+                       star_rating, is_favorite, is_rejected, is_burst_lead
+                FROM photos
+                {where}
+                ORDER BY aggregate DESC
+            """, params)
+
+            photos = []
+            for row in cursor:
+                photos.append({
+                    'path': row['path'],
+                    'filename': row['filename'],
+                    'date_taken': row['date_taken'],
+                    'category': row['category'],
+                    'scores': {
+                        'aggregate': row['aggregate'],
+                        'aesthetic': row['aesthetic'],
+                        'comp_score': row['comp_score'],
+                        'face_quality': row['face_quality'],
+                        'tech_sharpness': row['tech_sharpness'],
+                        'exposure_score': row['exposure_score'],
+                        'color_score': row['color_score'],
+                    },
+                    'tags': row['tags'],
+                    'camera_model': row['camera_model'],
+                    'lens_model': row['lens_model'],
+                    'star_rating': int(row['star_rating'] or 0),
+                    'is_favorite': bool(row['is_favorite']),
+                    'is_rejected': bool(row['is_rejected']),
+                    'is_burst_lead': bool(row['is_burst_lead']),
+                })
+
+        manifest = {
+            'version': 1,
+            'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'photos': photos,
+        }
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(manifest, f, separators=(',', ':'))
+
+        logger.info("Exported %d photos to manifest %s", len(photos), output_file)
         exit()
 
     # --resume reuses the directories recorded by the last interrupted run;

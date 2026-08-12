@@ -24,6 +24,8 @@ Quindi, per un flusso Lightroom o Capture One: usa `--embed-originals` per tutto
 
 Il marcatore di rifiuto di Facet (`xmp:Rating = -1`) viene riletto come il flag Rifiuta di Lightroom. Un preferito di Facet scrive `xmp:Label = Yellow`, che Lightroom mostra come **etichetta colore Gialla** — non come flag Seleziona (Pick). Se il tuo flusso Lightroom si basa sui flag Pick anziché sulle etichette colore, aggiungi un passaggio di conversione etichetta-colore → pick, oppure filtra invece sull'etichetta Gialla.
 
+Un feed `python facet.py --export-manifest` (percorso, categoria, tutti i punteggi, tag e le stesse colonne di valutazione di `--export-sidecars`) esiste ora per gli strumenti che vogliono i dati di Facet senza analizzare l'XMP — vedi [Comandi — Anteprima ed esportazione](COMMANDS.md#anteprima-ed-esportazione). È la base per un futuro plugin di Lightroom Classic in grado di scrivere un preferito/rifiuto di Facet direttamente nel flag nativo Pick/Reject di LR, cosa che l'XMP da solo non può fare; per ora nessun plugin del genere è disponibile.
+
 ### Lightroom → Facet
 
 1. In Lightroom, seleziona le foto e scegli **Metadati → Salva metadati nel file** (Ctrl/Cmd+S). Questo riversa la valutazione, l'etichetta e le parole chiave del catalogo nel sidecar XMP (RAW) oppure le incorpora direttamente nel file (DNG/JPEG/PSD/TIFF).
@@ -48,7 +50,7 @@ Considera Facet come la fonte di verità a monte per le valutazioni e i tag deri
 
 ## digiKam
 
-digiKam legge nativamente i sidecar XMP — nessun bisogno di exiftool lato digiKam — e cerca entrambe le convenzioni di nome (prima `<immagine><ext>.xmp`, poi come ripiego `<immagine>.xmp`), quindi trova i sidecar di Facet per i file RAW senza l'insidia descritta sopra. Dopo `python facet.py --export-sidecars`, apri (o aggiorna) la cartella in digiKam: recupera automaticamente valutazione, etichetta colore, parole chiave e zone volto nominate, purché **Settings → Configure digiKam → Metadata → Read from sidecar files** sia attivo (il predefinito).
+A partire da digiKam 9.1.0 (rilasciata il 2026-06-07), digiKam legge nativamente i sidecar XMP — nessun bisogno di exiftool lato digiKam — e cerca entrambe le convenzioni di nome (prima `<immagine><ext>.xmp`, poi come ripiego `<immagine>.xmp`), quindi trova i sidecar di Facet per i file RAW senza l'insidia descritta sopra. Dopo `python facet.py --export-sidecars`, apri (o aggiorna) la cartella in digiKam: recupera automaticamente valutazione, etichetta colore, parole chiave e zone volto nominate, purché **Settings → Configure digiKam → Metadata → Read from sidecar files** sia attivo (il predefinito).
 
 ### Hook del Batch Queue Manager
 
@@ -64,7 +66,9 @@ cp "$INPUT" "$OUTPUT"
 
 ## darktable
 
-darktable riceve già un trattamento di prim'ordine in [Configurazione — Viewer](CONFIGURATION.md#viewer) (profili/stili di esportazione `viewer.raw_processor.darktable`) e [Viewer — Download](VIEWER.md#endpoint-api) (conversioni `type=darktable`). Sul fronte XMP: darktable scrive il proprio `<immagine>.xmp` per memorizzare la sua cronologia di modifiche, e lo scrittore di sidecar di Facet, basato su exiftool, si fonde in quello stesso file sul posto — i nodi `darktable:history`/maschere vengono preservati, mai sovrascritti. Non serve una ricetta separata qui: il comportamento bidirezionale del sidecar descritto sopra per Lightroom (esportazione/importazione, vince il più recente, unione dei tag) si applica allo stesso modo, senza l'insidia del nome RAW poiché darktable e Facet concordano su `<immagine><ext>.xmp`.
+darktable riceve già un trattamento di prim'ordine in [Configurazione — Viewer](CONFIGURATION.md#viewer) (profili/stili di esportazione `viewer.raw_processor.darktable`) e [Viewer — Download](VIEWER.md#endpoint-api) (conversioni `type=darktable`). Sul fronte XMP: darktable scrive il proprio `<immagine><ext>.xmp` per memorizzare la sua cronologia di modifiche, e lo scrittore di sidecar di Facet, basato su exiftool, si fonde in quello stesso file sul posto — i nodi `darktable:history`/maschere vengono preservati, mai sovrascritti. Non serve una ricetta separata qui: il comportamento bidirezionale del sidecar descritto sopra per Lightroom (esportazione/importazione, vince il più recente, unione dei tag) si applica allo stesso modo, senza l'insidia del nome RAW poiché darktable e Facet concordano su `<immagine><ext>.xmp`.
+
+**Attenzione: il ricaricamento dell'XMP da parte di darktable non è affidabile.** Indipendentemente dal percorso di scrittura di Facet, reimportare un'immagine che darktable ha già modificato può far sì che darktable sovrascriva la cronologia di modifiche del sidecar con una vuota invece di ricaricarla — un bug upstream aperto ([darktable#20537](https://github.com/darktable-org/darktable/issues/20537), segnalato il 2026-03-15) da cui la preferenza "check for new/updated xmp files on start" non protegge. Facet non ne è la causa (la fusione tramite exiftool sopra preserva già `darktable:history`), ma il rischio sta proprio nel passaggio di rilettura da cui dipende il roundtrip di questa pagina. Soluzione pratica, seguendo la stessa disciplina "una tantum" della ricetta Capture One sopra: dopo `--export-sidecars`, non reimportare in blocco una cartella già modificata — ricarica i sidecar solo per le immagini che Facet ha appena toccato, e verifica che la cronologia di modifiche sia ancora presente prima di fidarti del resto del lotto.
 
 ## Come fonde Facet
 

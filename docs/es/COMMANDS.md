@@ -70,6 +70,8 @@ visor expone en el campo `progress` de `/api/scan/status` y del flujo SSE.
 | `python facet.py --export-csv output.csv` | Exporta a un archivo CSV específico |
 | `python facet.py --export-json` | Exporta todas las puntuaciones a un JSON con marca de tiempo |
 | `python facet.py --export-json output.json` | Exporta a un archivo JSON específico |
+| `python facet.py --export-manifest` | Exporta un manifiesto JSON compacto (ruta, categoría, puntuaciones, etiquetas, valoración en estrellas, favorito/rechazado, cabeza de ráfaga) a `facet_manifest.json`, para herramientas externas como un plugin de Lightroom Classic |
+| `python facet.py --export-manifest /path` | Limita el manifiesto a las fotos bajo un subárbol de ruta |
 | `python facet.py --import-sidecars` | Importa valoraciones/etiquetas de color/etiquetas desde los sidecars `<image>.xmp` de vuelta a la BD (todas las fotos) |
 | `python facet.py --import-sidecars /path` | Importa los sidecars solo para las fotos bajo un subárbol de ruta |
 | `python facet.py --import-sidecars --user alice` | Modo multiusuario: importa las valoraciones a la tabla `user_preferences` de Alice en lugar de a las columnas globales (las palabras clave siguen siendo globales) |
@@ -82,6 +84,8 @@ visor expone en el campo `progress` de `/api/scan/status` y del flujo SSE.
 > **Sincronización bidireccional de metadatos.** Facet escribe valoraciones, etiquetas de color, palabras clave, leyendas y regiones de rostros con nombre en un sidecar `<image>.xmp` estándar que el ecosistema lee (Lightroom, darktable, digiKam, immich, …); la imagen original nunca se modifica a menos que lo actives explícitamente con `--export-sidecars --embed-originals` (solo JPEG/HEIC/TIFF/PNG/DNG — los RAW nunca se tocan). La incrustación y la fusión segura por unión de palabras clave requieren **exiftool**; sin él, Facet recurre a un sidecar XML puro sin dependencias.
 >
 > **Advertencia.** `--import-sidecars` resuelve las valoraciones/etiquetas con el criterio *gana el más reciente* frente al `scanned_at` de la foto (último escaneo), no a una hora de edición por valoración: un sidecar más reciente que el último escaneo puede sobrescribir una valoración que cambiaste en Facet después de él. Ejecuta `--import-sidecars` antes de volver a valorar si el editor externo es la fuente de verdad, y `python database.py --migrate-tags` tras importar si usas la tabla de búsqueda `photo_tags`.
+>
+> **`--export-manifest` frente a `--export-csv`/`--export-json`.** El argumento opcional del manifiesto acota *qué fotos* se exportan (como `--export-sidecars`), no el nombre del archivo de salida — siempre (re)escribe `facet_manifest.json` en el directorio de trabajo, ya que está pensado para regenerarse en el mismo sitio para una herramienta que vuelve a leer una ruta fija. Lleva los mismos valores globales (de un solo usuario) `star_rating`/`is_favorite`/`is_rejected` que `--export-sidecars`, más `is_burst_lead`, y se escribe en JSON compacto (sin formato) — con ~100.000 fotos, la salida `indent=2` de `--export-json` llegaría a decenas de megabytes sin ningún beneficio para un lector automatizado.
 
 ### Sincronización con Immich
 

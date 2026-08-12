@@ -24,6 +24,8 @@ So for a Lightroom or Capture One workflow: use `--embed-originals` for anything
 
 Facet's reject marker (`xmp:Rating = -1`) reads back as Lightroom's Reject flag. A Facet favorite writes `xmp:Label = Yellow`, which Lightroom shows as the **Yellow color label** — not the Pick flag. If your Lightroom workflow keys off Picks rather than color labels, add a color-label-to-pick step, or filter by the Yellow label instead.
 
+A `python facet.py --export-manifest` feed (path, category, every score, tags, and the same rating columns as `--export-sidecars`) now exists for tools that want Facet's data without parsing XMP — see [Commands — Preview & Export](COMMANDS.md#preview--export). That is the groundwork for a future Lightroom Classic plugin able to write a Facet favorite/reject straight to LR's native Pick/Reject flag, which XMP alone cannot do; no such plugin ships yet.
+
 ### Lightroom → Facet
 
 1. In Lightroom, select the photos and choose **Metadata → Save Metadata to File(s)** (Ctrl/Cmd+S). This flushes the catalog's rating/label/keywords into the XMP sidecar (RAW) or embeds them in the file itself (DNG/JPEG/PSD/TIFF).
@@ -48,7 +50,7 @@ Treat Facet as the upstream source of truth for AI-derived ratings and tags for 
 
 ## digiKam
 
-digiKam reads XMP sidecars natively — no exiftool needed on digiKam's side — and it looks for both naming conventions (`<image><ext>.xmp` first, falling back to `<image>.xmp`), so it finds Facet's sidecars for RAW files without the gotcha above. After `python facet.py --export-sidecars`, open (or refresh) the folder in digiKam and it picks up the rating, color label, keywords, and named face regions automatically, as long as **Settings → Configure digiKam → Metadata → Read from sidecar files** is enabled (the default).
+As of digiKam 9.1.0 (released 2026-06-07), digiKam reads XMP sidecars natively — no exiftool needed on digiKam's side — and it looks for both naming conventions (`<image><ext>.xmp` first, falling back to `<image>.xmp`), so it finds Facet's sidecars for RAW files without the gotcha above. After `python facet.py --export-sidecars`, open (or refresh) the folder in digiKam and it picks up the rating, color label, keywords, and named face regions automatically, as long as **Settings → Configure digiKam → Metadata → Read from sidecar files** is enabled (the default).
 
 ### Batch Queue Manager hook
 
@@ -64,7 +66,9 @@ cp "$INPUT" "$OUTPUT"
 
 ## darktable
 
-darktable already has first-class treatment in [Configuration — Viewer](CONFIGURATION.md#viewer) (`viewer.raw_processor.darktable` export profiles/styles) and [Viewer — Download](VIEWER.md#api-endpoints) (`type=darktable` conversions). On the XMP side: darktable authors its own `<image>.xmp` to store its edit history, and Facet's exiftool-backed sidecar writer merges into that same file in place — the `darktable:history`/mask nodes are preserved, never overwritten. No separate recipe is needed here; the two-way sidecar behavior described above for Lightroom (export/import, newest-wins, tag union) applies the same way, without the RAW naming mismatch since darktable and Facet agree on `<image><ext>.xmp`.
+darktable already has first-class treatment in [Configuration — Viewer](CONFIGURATION.md#viewer) (`viewer.raw_processor.darktable` export profiles/styles) and [Viewer — Download](VIEWER.md#api-endpoints) (`type=darktable` conversions). On the XMP side: darktable authors its own `<image><ext>.xmp` to store its edit history, and Facet's exiftool-backed sidecar writer merges into that same file in place — the `darktable:history`/mask nodes are preserved, never overwritten. No separate recipe is needed here; the two-way sidecar behavior described above for Lightroom (export/import, newest-wins, tag union) applies the same way, without the RAW naming mismatch since darktable and Facet agree on `<image><ext>.xmp`.
+
+**Caveat: darktable's own XMP reload is unreliable.** Independent of Facet's write path, re-importing an image that darktable has already edited can make darktable overwrite the sidecar's edit history with a blank one instead of loading it back — an open upstream bug ([darktable#20537](https://github.com/darktable-org/darktable/issues/20537), reported 2026-03-15) that the "check for new/updated xmp files on start" preference does not protect against. Facet is not the cause (the exiftool merge above already preserves `darktable:history`), but the risk sits in the read-back step this page's round trip depends on. Practical workaround, following the same one-shot discipline as the Capture One recipe above: after `--export-sidecars`, don't bulk re-import an already-edited folder — reload sidecars for just the images Facet touched and confirm the edit history is still there before trusting the rest of the batch.
 
 ## How Facet merges
 
