@@ -18,7 +18,7 @@ class _FakeMemory:
 
 def _make_monitor():
     processor = SimpleNamespace(batch_size=16, get_metrics=lambda: {})
-    return ResourceMonitor(processor, config={}, multi_pass_processor=None)
+    return ResourceMonitor(processor, config={})
 
 
 def test_graceful_reduction_returns_promptly_on_stop():

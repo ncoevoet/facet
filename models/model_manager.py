@@ -319,8 +319,12 @@ class ModelManager:
             self._move_to_cpu(model, model_name)
             self._cpu_cache[model_name] = model
         else:
-            # Full unload
-            if hasattr(model, 'cpu'):
+            # Full unload — mirror unload_all(): let a wrapper release its own
+            # resources (PyIQAScorer/SAMPNetScorer/RAMTagger .unload()) before the
+            # reference is dropped, instead of only nudging tensors to CPU.
+            if hasattr(model, 'unload'):
+                model.unload()
+            elif hasattr(model, 'cpu'):
                 model.cpu()
             elif isinstance(model, dict):
                 for v in model.values():
@@ -328,6 +332,8 @@ class ModelManager:
                         v.cpu()
             del model
 
+        # The model is already popped from self.models above, so the reference is
+        # gone before we clear the device cache and the freed VRAM is reclaimed.
         from utils.device import clear_device_cache
         clear_device_cache(self.device)
 

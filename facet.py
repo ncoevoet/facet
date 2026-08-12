@@ -155,7 +155,7 @@ def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
     scored = blinks = bursts_non_lead = duplicates_non_lead = 0
     CHUNK = 500
     try:
-        with sqlite3.connect(db_path) as conn:
+        with get_connection(db_path, row_factory=False) as conn:
             for i in range(0, len(paths), CHUNK):
                 chunk = paths[i:i + CHUNK]
                 placeholders = ",".join("?" * len(chunk))
@@ -195,7 +195,7 @@ def _get_photo_column_count(db_path: str) -> int:
     """Return the number of columns currently on the photos table (0 if absent)."""
     import sqlite3
     try:
-        with sqlite3.connect(db_path) as conn:
+        with get_connection(db_path, row_factory=False) as conn:
             return len(list(conn.execute("PRAGMA table_info(photos)")))
     except sqlite3.Error:
         return 0
@@ -1171,11 +1171,24 @@ def _run_scan(args, resumed_run):
     ``_scan_writes_to_library``).
     """
     from processing.scorer import Facet, process_bursts, process_single_photo
+    from config import ScoringConfig
+
+    # Resolve the EFFECTIVE processing mode from config before building Facet.
+    # `processing.mode: "single-pass"` in the JSON (with no --single-pass CLI flag)
+    # drives the BatchProcessor path below, which needs the eager CLIP/tagger
+    # models — so the scorer must NOT be built multi_pass=True (which leaves
+    # model/preprocess None and TypeErrors per image). A specific --pass run
+    # (single_pass_name) still uses the per-pass multi-pass loader.
+    config_mode = (
+        ScoringConfig(args.config, validate=False)
+        .get_processing_settings().get('mode', 'auto')
+    )
+    config_single_pass = config_mode == 'single-pass' and not args.single_pass_name
 
     # Full mode - initialize with GPU models for photo processing
     # Multi-pass mode skips eager loading of heavy GPU models (CLIP, SAMP-Net)
     # since multi-pass loads its own models per pass via ModelManager
-    use_multi_pass = not (args.dry_run or args.single_pass)
+    use_multi_pass = not (args.dry_run or args.single_pass or config_single_pass)
     scorer = Facet(db_path=args.db, config_path=args.config, multi_pass=use_multi_pass)
     _log_scan_db_destination(scorer.db_path)
 
@@ -1251,9 +1264,19 @@ def _run_scan(args, resumed_run):
         missing = len(failed) - len(all_files)
         logger.info("Retrying %d failed files (%d no longer on disk)", len(all_files), missing)
 
-    # Identify JPEGs to avoid double-processing if RAW+JPEG pairs exist
+    # Identify JPEGs to avoid double-processing if RAW+JPEG pairs exist. Pairing
+    # is keyed on (resolved parent dir, stem) so a JPEG only suppresses a RAW that
+    # sits beside it: an unrelated same-stem JPEG in another folder no longer hides
+    # the RAW library-wide.
     jpeg_like = {'.jpg', '.jpeg'} | HEIF_EXTENSIONS
-    jpegs_stems = {f.stem.lower() for f in all_files if f.suffix.lower() in jpeg_like}
+    jpeg_dir_stems = {
+        (os.path.dirname(_resolved(f)), f.stem.lower())
+        for f in all_files if f.suffix.lower() in jpeg_like
+    }
+
+    def _raw_paired_with_jpeg(f):
+        return (f.suffix.lower() in RAW_EXTENSIONS
+                and (os.path.dirname(_resolved(f)), f.stem.lower()) in jpeg_dir_stems)
     if args.retry_failed:
         unscanned = {_resolved(f) for f in all_files}
     elif args.force_since:
@@ -1274,11 +1297,8 @@ def _run_scan(args, resumed_run):
 
     # Filter the list to only include new or un-scanned files
     todo_list = [f for f in all_files if _resolved(f) in unscanned
-                 and not (f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems)]
-    raw_paired_skipped = sum(
-        1 for f in all_files
-        if f.suffix.lower() in RAW_EXTENSIONS and f.stem.lower() in jpegs_stems
-    )
+                 and not _raw_paired_with_jpeg(f)]
+    raw_paired_skipped = sum(1 for f in all_files if _raw_paired_with_jpeg(f))
 
     logger.info("Found %d total, processing %d new files.", len(all_files), len(todo_list))
 
@@ -1409,6 +1429,7 @@ def _run_scan(args, resumed_run):
                 scorer,
                 batch_size=current_settings['batch_size'],
                 num_workers=current_settings['num_workers'],
+                config=scorer.config.config,
                 on_error=scan_run.record_failure,
                 on_progress=_on_scan_progress,
             )
@@ -1447,6 +1468,7 @@ def _run_scan(args, resumed_run):
                     batch_size=current_settings['batch_size'],
                     num_workers=current_settings['num_workers'],
                     prefetch_multiplier=current_settings.get('prefetch_queue_multiplier', 2),
+                    config=scorer.config.config,
                     on_error=scan_run.record_failure,
                     on_progress=_on_scan_progress,
                 )
@@ -1484,6 +1506,7 @@ def _run_scan(args, resumed_run):
                     scorer,
                     batch_size=proc_settings.get('gpu_batch_size', 16),
                     num_workers=proc_settings.get('num_workers', 4),
+                    config=scorer.config.config,
                     on_error=scan_run.record_failure,
                     on_progress=_on_scan_progress,
                 )
@@ -1822,7 +1845,9 @@ Configuration:
     face_group.add_argument('--recompute-eyes-expression', action='store_true',
                         help='Recompute eyes-open and expression scores from stored landmarks (CPU only, fast)')
     face_group.add_argument('--recompute-face-signals', action='store_true',
-                        help='Backfill per-face eyes-open and smile scores from stored landmarks (CPU only, fast)')
+                        help='Backfill per-face eyes-open and smile scores from stored landmarks for '
+                             'faces still missing them (CPU only, fast); add --force to rewrite every '
+                             'face from geometry, overwriting stored MediaPipe blendshape values')
     face_group.add_argument('--recompute-burst', action='store_true',
                         help='Recompute burst detection groups')
     face_group.add_argument('--suggest-person-merges', action='store_true',
@@ -2318,7 +2343,9 @@ Configuration:
     if args.recompute_face_signals:
         init_database(args.db)  # Ensure the per-face signal columns exist
         scorer = Facet(db_path=args.db, config_path=args.config, lightweight=True)
-        scorer.recompute_face_signals()
+        # Default is a backfill of faces missing a signal; --force rewrites all
+        # of them from geometry (clobbering any stored MediaPipe blendshapes).
+        scorer.recompute_face_signals(force=args.force)
         exit()
 
     # --upgrade-db: run the full backfill chain in dependency order by
