@@ -1978,6 +1978,14 @@
       "rejected": "Rejected",
       "undecided": "Undecided"
     },
+    "swipe": {
+      "keep": "Keep",
+      "reject": "Reject",
+      "hint": "Swipe right to keep, left to reject",
+      "hint_dismiss": "Got it",
+      "kept": "Kept {filename}",
+      "rejected": "Rejected {filename}"
+    },
     "shortcuts": {
       "page_title": "Gallery",
       "darkroom_title": "Darkroom",

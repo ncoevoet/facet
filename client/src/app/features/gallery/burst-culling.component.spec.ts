@@ -11,6 +11,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { GalleryStore } from './gallery.store';
 import { BurstCullingComponent } from './burst-culling.component';
 import { SyncedZoomComponent } from './synced-zoom.component';
+import { SwipeDecisionDirective, SWIPE_SETTLE_MS } from '../../shared/directives/swipe-decision.directive';
 
 describe('BurstCullingComponent', () => {
   let component: BurstCullingComponent;
@@ -1793,5 +1794,229 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
     expect(darkroom.query(By.css('kbd'))).toBeTruthy();
     expect(legendButton.nativeElement.getAttribute('aria-pressed')).toBe('true');
+  });
+});
+
+// Rendered, and with real pointer events: the gesture is a property of the
+// element the directive sits on, and the three gates that decide whether it is
+// live at all (coarse pointer, single view, fit scale) are template conditions.
+// Nothing below is evidence about a real finger — see the note in VIEWER.md.
+describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
+  let fixture: ComponentFixture<BurstCullingComponent>;
+  let component: any;
+  let undoAction: Subject<void>;
+  let mockSnackBar: { open: Mock };
+
+  const photo = (path: string) => ({
+    path, filename: path.slice(1), aggregate: 8, aesthetic: 7, tech_sharpness: 6,
+    is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8,
+  });
+  const group = {
+    group_id: 1, type: 'burst', reason: '', best_path: '/s1.jpg', count: 3,
+    photos: [photo('/s1.jpg'), photo('/s2.jpg'), photo('/s3.jpg')],
+  };
+  const emptyFeed = { groups: [], total_groups: 0, page: 1, per_page: 20, total_pages: 1 };
+
+  /** jsdom lays nothing out, so the gesture is given a width to measure against. */
+  const PANE_WIDTH = 400;
+  /** Past 35% of PANE_WIDTH (140px) — commits. */
+  const OVER = 200;
+  /** Short of it, but well past the 10px axis slop — springs back. */
+  const UNDER = 60;
+
+  beforeEach(() => {
+    localStorage.clear();
+    // The shared test setup answers every media query with `matches: false`,
+    // which would leave the swipe disabled in every test here.
+    vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+      matches: query === '(pointer: coarse)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(), removeListener: vi.fn(),
+      addEventListener: vi.fn(), removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    }) as unknown as MediaQueryList);
+    undoAction = new Subject<void>();
+    mockSnackBar = {
+      open: vi.fn(() => ({
+        onAction: () => undoAction,
+        afterDismissed: () => new Subject<void>(),
+      })),
+    };
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([]),
+        { provide: ApiService, useValue: {
+          get: vi.fn(() => of(emptyFeed)),
+          post: vi.fn(() => of({})),
+          thumbnailUrl: vi.fn(() => '/thumb'),
+          imageUrl: vi.fn(() => '/image'),
+        } },
+        { provide: MatSnackBar, useValue: mockSnackBar },
+        { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
+        { provide: GalleryStore, useValue: { config: () => null } },
+        { provide: AuthService, useValue: { isEdition: () => true } },
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+      ],
+    });
+    fixture = TestBed.createComponent(BurstCullingComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  afterEach(() => {
+    fixture.destroy();
+    vi.restoreAllMocks();
+  });
+
+  const openDarkroom = () => {
+    component['groups'].set([group]);
+    component['lightboxGroupId'].set(component['groupKey'](group));
+    component['lightboxIndex'].set(0);
+    fixture.detectChanges();
+  };
+
+  const surface = () => fixture.debugElement.query(By.directive(SwipeDecisionDirective));
+
+  /**
+   * Drag by (dx, dy) in three steps and lift the finger.
+   *
+   * Dispatched on the image itself, which is what a finger actually lands on,
+   * so the events reach the directive the only way they ever do in a browser:
+   * by bubbling up through `app-synced-zoom` — which gets its own look at every
+   * one of them first.
+   */
+  const drag = (dx: number, dy = 0) => {
+    const el: HTMLElement = surface().nativeElement;
+    el.getBoundingClientRect = () => ({
+      width: PANE_WIDTH, height: 600, x: 0, y: 0, top: 0, left: 0,
+      right: PANE_WIDTH, bottom: 600, toJSON: () => ({}),
+    }) as DOMRect;
+    const target = el.querySelector('img') ?? el;
+    const send = (type: string, x: number, y: number) => target.dispatchEvent(
+      new PointerEvent(type, { pointerId: 1, isPrimary: true, clientX: x, clientY: y, bubbles: true }),
+    );
+    send('pointerdown', 0, 0);
+    send('pointermove', dx / 2, dy / 2);
+    send('pointermove', dx, dy);
+    send('pointerup', dx, dy);
+  };
+
+  /** The decision lands when the card has flown out, not when the finger lifts. */
+  const settle = () => new Promise(resolve => setTimeout(resolve, SWIPE_SETTLE_MS + 20));
+  const keptPaths = () => [...(component['selectionsMap']().get(1) ?? [])];
+
+  it('keeps the frame on a right swipe past the threshold, then steps to the next', async () => {
+    openDarkroom();
+
+    drag(OVER);
+    await settle();
+
+    expect(keptPaths()).toEqual(['/s1.jpg']);
+    expect(component['lightboxIndex']()).toBe(1);
+  });
+
+  // The same state ArrowDown writes: rejecting is dropping the frame out of the
+  // group's kept set, not adding it to a second one.
+  it('rejects the frame on a left swipe past the threshold, then steps to the next', async () => {
+    openDarkroom();
+    component['selectionsMap'].set(new Map([[1, new Set(['/s1.jpg', '/s2.jpg', '/s3.jpg'])]]));
+
+    drag(-OVER);
+    await settle();
+
+    expect(keptPaths()).toEqual(['/s2.jpg', '/s3.jpg']);
+    expect(component['lightboxIndex']()).toBe(1);
+  });
+
+  it('springs back under the threshold, deciding nothing and staying on the frame', async () => {
+    openDarkroom();
+
+    drag(UNDER);
+    await settle();
+
+    expect(component['selectionsMap']().get(1)).toBeUndefined();
+    expect(component['lightboxIndex']()).toBe(0);
+  });
+
+  // The axis lock, not the distance, is what makes this pass: dx alone would be
+  // well past the commit threshold.
+  it('lets a dominantly vertical drag through untouched', async () => {
+    openDarkroom();
+
+    drag(OVER, 400);
+    await settle();
+
+    expect(component['selectionsMap']().get(1)).toBeUndefined();
+    expect(component['lightboxIndex']()).toBe(0);
+  });
+
+  // The gesture never calls preventDefault; this declaration is the whole of its
+  // deal with the browser — horizontal is ours, vertical stays the page's.
+  it('declares the axis contract with touch-action, and drops it when it stands down', () => {
+    openDarkroom();
+    expect((surface().nativeElement as HTMLElement).style.touchAction).toBe('pan-y');
+
+    component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+    fixture.detectChanges();
+
+    expect((surface().nativeElement as HTMLElement).style.touchAction).toBe('');
+  });
+
+  it('is not mounted at all in the compare grid, which has no single frame to decide', () => {
+    openDarkroom();
+    expect(surface()).toBeTruthy();
+
+    component['setCompareMode']('2up');
+    fixture.detectChanges();
+
+    expect(surface()).toBeNull();
+  });
+
+  // The non-interference guarantee, and the reason it is a gate rather than a
+  // priority: past the fit scale the very same drag is the pane's pan, so the
+  // one drag below has to move the crop and decide nothing.
+  it('stands down while the frame is zoomed, leaving the drag to the pane pan', async () => {
+    openDarkroom();
+    component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+    fixture.detectChanges();
+    expect(component['swipeEnabled']()).toBe(false);
+
+    drag(OVER);
+    await settle();
+
+    // How far it panned depends on when change detection pushes the shared zoom
+    // back down into the pane; that it panned at all is the point.
+    expect(component['zoom']().tx).toBeGreaterThan(0);
+    expect(component['selectionsMap']().get(1)).toBeUndefined();
+    expect(component['lightboxIndex']()).toBe(0);
+  });
+
+  it('offers an Undo that restores both the decision and the frame it was made on', async () => {
+    openDarkroom();
+
+    drag(OVER);
+    await settle();
+    expect(mockSnackBar.open).toHaveBeenCalledWith(
+      'culling.swipe.kept', 'undo.action', expect.anything());
+
+    undoAction.next();
+    await settle();
+
+    expect(keptPaths()).toEqual([]);
+    expect(component['lightboxIndex']()).toBe(0);
+  });
+
+  it('shows the swipe hint until it is dismissed, and remembers that', () => {
+    openDarkroom();
+    const dismissButton = () => [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]
+      .find(b => b.textContent?.includes('culling.swipe.hint_dismiss'));
+    expect(dismissButton()).toBeTruthy();
+
+    dismissButton()!.click();
+    fixture.detectChanges();
+
+    expect(dismissButton()).toBeUndefined();
+    expect(localStorage.getItem('facet_culling_swipe_hint')).toBe('true');
   });
 });

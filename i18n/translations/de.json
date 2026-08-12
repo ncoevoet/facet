@@ -1978,6 +1978,14 @@
       "rejected": "Verworfen",
       "undecided": "Unentschieden"
     },
+    "swipe": {
+      "keep": "Behalten",
+      "reject": "Verwerfen",
+      "hint": "Nach rechts wischen zum Behalten, nach links zum Verwerfen",
+      "hint_dismiss": "Verstanden",
+      "kept": "{filename} behalten",
+      "rejected": "{filename} verworfen"
+    },
     "shortcuts": {
       "page_title": "Galerie",
       "darkroom_title": "Dunkelkammer",

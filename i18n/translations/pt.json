@@ -1978,6 +1978,14 @@
       "rejected": "Rejeitada",
       "undecided": "Indecisa"
     },
+    "swipe": {
+      "keep": "Manter",
+      "reject": "Rejeitar",
+      "hint": "Deslize para a direita para manter, para a esquerda para rejeitar",
+      "hint_dismiss": "Entendido",
+      "kept": "{filename} mantida",
+      "rejected": "{filename} rejeitada"
+    },
     "shortcuts": {
       "page_title": "Galeria",
       "darkroom_title": "Câmara Escura",

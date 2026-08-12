@@ -1978,6 +1978,14 @@
       "rejected": "Rechazada",
       "undecided": "Sin decidir"
     },
+    "swipe": {
+      "keep": "Mantener",
+      "reject": "Rechazar",
+      "hint": "Desliza a la derecha para mantener, a la izquierda para rechazar",
+      "hint_dismiss": "Entendido",
+      "kept": "{filename} mantenida",
+      "rejected": "{filename} rechazada"
+    },
     "shortcuts": {
       "page_title": "Galería",
       "darkroom_title": "Cuarto oscuro",

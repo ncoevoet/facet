@@ -1982,6 +1982,14 @@ export const I18N = {
       rejected: "culling.lightbox.rejected",
       undecided: "culling.lightbox.undecided",
     },
+    swipe: {
+      keep: "culling.swipe.keep",
+      reject: "culling.swipe.reject",
+      hint: "culling.swipe.hint",
+      hint_dismiss: "culling.swipe.hint_dismiss",
+      kept: "culling.swipe.kept",
+      rejected: "culling.swipe.rejected",
+    },
     shortcuts: {
       page_title: "culling.shortcuts.page_title",
       darkroom_title: "culling.shortcuts.darkroom_title",

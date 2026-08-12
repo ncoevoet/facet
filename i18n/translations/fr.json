@@ -1978,6 +1978,14 @@
       "rejected": "Rejetée",
       "undecided": "Indécise"
     },
+    "swipe": {
+      "keep": "Garder",
+      "reject": "Rejeter",
+      "hint": "Balayez vers la droite pour garder, vers la gauche pour rejeter",
+      "hint_dismiss": "Compris",
+      "kept": "{filename} gardée",
+      "rejected": "{filename} rejetée"
+    },
     "shortcuts": {
       "page_title": "Galerie",
       "darkroom_title": "Chambre noire",

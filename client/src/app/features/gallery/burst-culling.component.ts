@@ -18,12 +18,14 @@ import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from '../scenes/s
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, FaceThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
+import { SwipeDecisionDirective } from '../../shared/directives/swipe-decision.directive';
 import { I18nService } from '../../core/services/i18n.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { createLoupeState } from '../../shared/utils/loupe-state';
+import { useCoarsePointerSignal } from '../../shared/utils/media-query';
 import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
 import { CompareFiltersService } from '../comparison/compare-filters.service';
 import { PanoramaSettingsService } from '../comparison/panorama-settings.service';
@@ -96,6 +98,7 @@ const CULL_FACE_EYES_KEY = 'facet_culling_face_eyes_min';
 const CULL_FACE_SMILE_KEY = 'facet_culling_face_smile_min';
 const CULL_PROFILE_KEY = 'facet_culling_profile';
 const CULL_LEGEND_KEY = 'facet_culling_legend';
+const CULL_SWIPE_HINT_KEY = 'facet_culling_swipe_hint';
 
 /** Stored face-panel slider value (0-10); 0 = highlight filter off. */
 function readStoredFaceMin(key: string): number {
@@ -176,6 +179,7 @@ interface ShortcutRow {
     MomentLabelPipe,
     MomentUncertainPipe,
     LoupeDirective,
+    SwipeDecisionDirective,
     ThumbnailUrlPipe,
     FaceThumbnailUrlPipe,
     ImageUrlPipe,
@@ -873,6 +877,10 @@ interface ShortcutRow {
                  sibling of the zoom pane, so only this box keeps it off the chrome. -->
             <div class="relative flex-1 min-h-0 overflow-hidden"
                  role="presentation"
+                 #swipe="appSwipeDecision"
+                 [appSwipeDecision]="swipeEnabled()"
+                 (swipeKeep)="onSwipeDecision(lbGroup, true)"
+                 (swipeReject)="onSwipeDecision(lbGroup, false)"
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()">
               <app-synced-zoom class="w-full h-full"
@@ -888,6 +896,30 @@ interface ShortcutRow {
                 <div class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none"
                      [attr.aria-label]="I18N.culling.cull_style.loading | translate">
                   <mat-spinner diameter="40" />
+                </div>
+              }
+              <!-- Swipe feedback. Rendered inside the element the gesture moves,
+                   so the tint and the verdict travel with the frame; aria-hidden
+                   because the footer status below already says what was decided. -->
+              @if (swipeEnabled()) {
+                <div class="absolute inset-0 pointer-events-none bg-green-500/30"
+                     aria-hidden="true" [style.opacity]="swipe.keepProgress()"></div>
+                <div class="absolute inset-0 pointer-events-none bg-red-600/30"
+                     aria-hidden="true" [style.opacity]="swipe.rejectProgress()"></div>
+                <div class="absolute inset-0 flex items-center justify-between px-6 pointer-events-none"
+                     aria-hidden="true">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-red-600 px-4 py-2
+                               text-white text-sm font-bold uppercase tracking-wide"
+                        [style.opacity]="swipe.rejectProgress()">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
+                    {{ I18N.culling.swipe.reject | translate }}
+                  </span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-green-600 px-4 py-2
+                               text-white text-sm font-bold uppercase tracking-wide"
+                        [style.opacity]="swipe.keepProgress()">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
+                    {{ I18N.culling.swipe.keep | translate }}
+                  </span>
                 </div>
               }
             </div>
@@ -937,6 +969,16 @@ interface ShortcutRow {
               </span>
             } @else {
               <span class="text-white/40 text-sm">{{ I18N.culling.lightbox.undecided | translate }}</span>
+            }
+            @if (swipeEnabled() && !swipeHintDismissed()) {
+              <div class="flex items-center justify-center gap-2 pt-2 text-white/60 text-xs">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">swipe</mat-icon>
+                <span>{{ I18N.culling.swipe.hint | translate }}</span>
+                <button mat-button class="!min-w-0 !px-2 !text-xs !text-white/80"
+                        (click)="dismissSwipeHint()">
+                  {{ I18N.culling.swipe.hint_dismiss | translate }}
+                </button>
+              </div>
             }
           </div>
         }
@@ -1308,6 +1350,33 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly compareMode = signal<'single' | '2up' | '4up'>('single');
   /** Pan/zoom transform shared by every compare pane (synced peek). */
   protected readonly zoom = signal<ZoomState>(FIT_ZOOM);
+
+  private readonly coarsePointer = useCoarsePointerSignal();
+
+  /**
+   * Whether swipe-to-decide is live on the open frame.
+   *
+   * Three gates, each closing a way the gesture would fight another one:
+   * a coarse pointer, because a mouse has the ↑ / ↓ keys and cannot swipe;
+   * single view, because a compare grid has no one frame a swipe would be
+   * about; and the fit scale, because past it the very same drag is the pane's
+   * pan — `SyncedZoomComponent` ignores pointerdown at fit and captures the
+   * pointer above it, so this flag is what keeps exactly one handler reading
+   * any given drag.
+   */
+  protected readonly swipeEnabled = computed(
+    () => this.coarsePointer.isCoarsePointer()
+      && this.compareMode() === 'single'
+      && this.zoom().scale <= SyncedZoomComponent.MIN_SCALE,
+  );
+
+  /** One-line swipe hint, shown until the user says they have read it. */
+  protected readonly swipeHintDismissed = signal(localStorage.getItem(CULL_SWIPE_HINT_KEY) === 'true');
+
+  protected dismissSwipeHint(): void {
+    localStorage.setItem(CULL_SWIPE_HINT_KEY, 'true');
+    this.swipeHintDismissed.set(true);
+  }
   /** True while the darkroom dialog is the document's fullscreen element. */
   protected readonly isFullscreen = signal(false);
 
@@ -1647,6 +1716,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   constructor() {
     this.pageHelp.setDescription(null);
+    this.coarsePointer.setup();
     const qp = this.route.snapshot.queryParamMap;
     this.scopeAlbum.set(qp.get('album'));
     this.scopeFrom.set(qp.get('from'));
@@ -1797,6 +1867,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.pageHelp.setDescription(null);
+    this.coarsePointer.cleanup();
     this.clearAllPassTimers();
     this.stopDetectionPolling();
     if (document.fullscreenElement) {
@@ -2384,13 +2455,19 @@ export class BurstCullingComponent implements OnDestroy {
     return Math.max(0, Math.min(max - 1, value));
   }
 
+  /** Step the darkroom one frame and drop back to fit. The single advance the
+   *  arrow keys and a committed swipe both go through, so they cannot drift. */
+  private stepLightbox(group: CullingGroup, delta: number): void {
+    this.lightboxIndex.update(i => this.clampIndex(i + delta, group.photos.length));
+    this.zoom.set(FIT_ZOOM);
+  }
+
   @HostListener('document:keydown.arrowleft', ['$event'])
   protected onArrowLeft(event: Event): void {
     const group = this.lightboxGroup();
     if (!group) return;
     event.preventDefault();
-    this.lightboxIndex.update(i => this.clampIndex(i - 1, group.photos.length));
-    this.zoom.set(FIT_ZOOM);
+    this.stepLightbox(group, -1);
   }
 
   @HostListener('document:keydown.arrowright', ['$event'])
@@ -2398,8 +2475,7 @@ export class BurstCullingComponent implements OnDestroy {
     const group = this.lightboxGroup();
     if (!group) return;
     event.preventDefault();
-    this.lightboxIndex.update(i => this.clampIndex(i + 1, group.photos.length));
-    this.zoom.set(FIT_ZOOM);
+    this.stepLightbox(group, 1);
   }
 
   /** Z toggles the darkroom zoom (fit ↔ 2×) when open, else the grid hover loupe.
@@ -2463,6 +2539,34 @@ export class BurstCullingComponent implements OnDestroy {
     if (keep) kept.add(photo.path); else kept.delete(photo.path);
     map.set(group.group_id, kept);
     this.selectionsMap.set(map);
+  }
+
+  /**
+   * Commit a swipe on the focused frame: exactly the state ↑ / ↓ write, then
+   * exactly the step → takes.
+   *
+   * The Undo is the part the keyboard does not need. A mis-keyed ↑ is undone by
+   * pressing ↓, but a mis-flicked thumb has already moved on to the next frame
+   * and has no opposite gesture to reach for, so the decision *and* the frame it
+   * was made on are both restored from the snackbar.
+   */
+  protected onSwipeDecision(group: CullingGroup, keep: boolean): void {
+    const photo = group.photos[this.lightboxIndex()];
+    if (!photo) return;
+    const previousKept = new Set(this.selectionsMap().get(group.group_id) ?? []);
+    const previousIndex = this.lightboxIndex();
+    this.setCurrentLightboxPhotoKept(group, keep);
+    this.stepLightbox(group, 1);
+    this.undoService.register({
+      labelKey: keep ? I18N.culling.swipe.kept : I18N.culling.swipe.rejected,
+      labelParams: { filename: photo.filename },
+      undo: () => {
+        this.updateMapSignal(this.selectionsMap, group.group_id, previousKept);
+        this.lightboxIndex.set(previousIndex);
+        this.zoom.set(FIT_ZOOM);
+        return Promise.resolve();
+      },
+    });
   }
 
   /** True when the event originates from a text/slider control we must not hijack. */
