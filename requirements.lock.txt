@@ -3,7 +3,7 @@
 # container built from this exact lock scanned 63 photos with 0 errors, and
 # build-tools/verify_scan_db.py passed (embeddings, VLM tags, aesthetic,
 # saliency, faces, moments all populated and in range).
-# Pin discipline learned the hard way: torch 2.6.0 pins sympy==1.13.1 exactly;
+# Pin discipline learned the hard way: torch 2.6.0 pins sympy==1.14.0 exactly;
 # any drift here makes pip swap the base image's torch/CUDA stack (a stray
 # sympy==1.14.0 pulled in torch 2.13 + CUDA 13 before it was caught).
 # The cuML layer installed AFTER this lock intentionally downgrades
@@ -52,7 +52,7 @@ hdbscan==0.8.44
 hf-xet==1.6.0
 httpcore==1.0.9
 httpx==0.28.1
-huggingface_hub==1.26.0
+huggingface_hub==1.27.0
 hypothesis==6.165.2
 identify==2.6.19
 ImageHash==4.3.2
@@ -110,7 +110,7 @@ rawpy==0.27.0
 regex==2026.7.19
 reverse_geocoder==1.5.1
 rich==15.0.0
-ruff==0.16.1
+ruff==0.16.2
 safetensors==0.8.0
 scikit-image==0.26.0
 scikit-learn==1.9.0
@@ -121,10 +121,10 @@ shellingham==1.5.4
 six==1.17.0
 sortedcontainers==2.4.0
 sqlite-vec==0.1.9
-starlette==1.4.1
-# torch 2.6.0 pins sympy==1.13.1 exactly; 1.14.0 forces pip to swap the base
+starlette==1.6.0
+# torch 2.6.0 pins sympy==1.14.0 exactly; 1.14.0 forces pip to swap the base
 # image's torch/CUDA stack for torch 2.13 + CUDA 13 to satisfy the resolver.
-sympy==1.13.1
+sympy==1.14.0
 tensorboard-data-server==0.7.2
 tensorboard==2.21.0
 threadpoolctl==3.6.0
@@ -135,10 +135,10 @@ transformers==5.15.0
 typer-slim==0.24.0
 typer==0.27.1
 types-dataclasses==0.6.6
-typing-inspection==0.4.2
+typing-inspection==0.4.3
 typing_extensions==4.16.0
 uvicorn==0.52.1
-virtualenv==21.7.1
+virtualenv==21.7.3
 Werkzeug==3.1.8
 xxhash==3.8.1
 yapf==0.43.0
