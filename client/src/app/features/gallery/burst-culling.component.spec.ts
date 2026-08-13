@@ -558,30 +558,49 @@ describe('BurstCullingComponent', () => {
       expect(component['autoCullPreview']()).toEqual(preview);
     });
 
+    /** The apply body, which only exists once a preview has been agreed to. */
+    const appliedBody = () => mockApi.post.mock.calls.at(-1)?.[1] as Record<string, unknown>;
+
     it('confirmAutoCull applies with dry_run false, closes the dialog and reloads', async () => {
-      component['autoCullPreview'].set(preview);
-      mockApi.post = vi.fn(() => of({ ...preview, dry_run: false }));
+      mockApi.post = vi.fn(() => of(preview));
+      await component['openAutoCull']();
       const reload = vi.spyOn(component as any, 'loadGroups');
+
       await component['confirmAutoCull']();
-      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({ dry_run: false }));
+
+      expect(appliedBody()).toMatchObject({ dry_run: false });
       expect(component['autoCullPreview']()).toBeNull();
       expect(reload).toHaveBeenCalled();
       expect(mockSnackBar.open).toHaveBeenCalled();
     });
 
-    it('sends an empty highlights_album on apply when the checkbox is off', async () => {
-      component['autoCullHighlights'].set(false);
+    // Apply is reachable from the dialog alone, and the dialog is the preview.
+    it('applies nothing when no preview was agreed to', async () => {
       mockApi.post = vi.fn(() => of(preview));
+
       await component['confirmAutoCull']();
-      expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({ highlights_album: '' }));
+
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
+    it('sends an empty highlights_album on apply when the checkbox is off', async () => {
+      mockApi.post = vi.fn(() => of(preview));
+      await component['openAutoCull']();
+      component['autoCullHighlights'].set(false);
+
+      await component['confirmAutoCull']();
+
+      expect(appliedBody()).toMatchObject({ highlights_album: '' });
     });
 
     it('sends the generated highlights album name on apply when the checkbox is on', async () => {
-      component['autoCullHighlights'].set(true);
       mockApi.post = vi.fn(() => of(preview));
+      await component['openAutoCull']();
+      component['autoCullHighlights'].set(true);
+
       await component['confirmAutoCull']();
-      const body = mockApi.post.mock.calls[0][1] as Record<string, unknown>;
-      expect(String(body['highlights_album'])).not.toBe('');
+
+      expect(String(appliedBody()['highlights_album'])).not.toBe('');
     });
 
     it('openAutoCull surfaces an error snackbar on failure', async () => {
@@ -1500,6 +1519,116 @@ describe('BurstCullingComponent', () => {
 
       expect(component['autoCullSuggestionNotice']()).toBeNull();
     });
+
+    /**
+     * The race the confirm dialog cannot afford to lose.
+     *
+     * The suggestion is fetched alongside the dry run, so it can apply a preset —
+     * moving strictness and the profile — at any point between the dry run's
+     * request and its answer. Whatever the ordering, the parameters Apply sends
+     * must be the ones the counts on screen were computed from; the dialog is a
+     * confirmation, and confirming counts under other knobs is not one.
+     */
+    describe('a suggestion racing the dry run it was fetched with', () => {
+      let suggestReply: Subject<unknown>;
+      let posts: Subject<unknown>[];
+      let bodies: Record<string, unknown>[];
+      const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+
+      beforeEach(() => {
+        suggestReply = new Subject<unknown>();
+        posts = [];
+        bodies = [];
+        mockApi.get = vi.fn((url: string) =>
+          url === '/culling/suggest_profile' ? suggestReply : of(mockCullingGroupsResponse));
+        mockApi.post = vi.fn((_url: string, body: Record<string, unknown>) => {
+          bodies.push(body);
+          const answer = new Subject<unknown>();
+          posts.push(answer);
+          return answer;
+        });
+      });
+
+      /** The dry run behind the counts on screen, as the dialog displays them. */
+      const displayedBody = () => bodies[bodies.length - 2];
+
+      // Ordering one: the suggestion lands while the dry run is still in flight.
+      // The dialog is not open yet, so the old re-run condition never fired and
+      // the preview opened on pre-suggestion counts under post-suggestion knobs.
+      it('opens on the suggested knobs when the suggestion lands before the preview', async () => {
+        void component['openAutoCull']();
+        await flush();
+        expect(bodies).toHaveLength(1);
+        expect(bodies[0]).toMatchObject({ strictness: 100 });
+
+        suggestReply.next(suggestion('wedding'));
+        await flush();
+        // The superseded run answers late and must not become the preview.
+        posts[0].next({ ...preview, kept: 99, rejected: 99 });
+        posts[1].next(preview);
+        await flush();
+
+        expect(bodies).toHaveLength(2);
+        expect(bodies[1]).toMatchObject({ strictness: 35, profile: 'wedding' });
+        expect(component['autoCullPreview']()).toEqual(preview);
+        expect(component['autoCullSuggestionNotice']()).toBe('culling.profiles.wedding');
+      });
+
+      it('applies exactly the body the displayed counts came from, after the re-run', async () => {
+        void component['openAutoCull']();
+        await flush();
+        suggestReply.next(suggestion('wedding'));
+        await flush();
+        posts[0].next({ ...preview, kept: 99, rejected: 99 });
+        posts[1].next(preview);
+        await flush();
+
+        void component['confirmAutoCull']();
+        posts[2].next({ ...preview, dry_run: false });
+        await flush();
+
+        expect(bodies[2]).toEqual({ ...displayedBody(), dry_run: false, highlights_album: '' });
+        expect(bodies[2]).toMatchObject({ strictness: 35, profile: 'wedding' });
+      });
+
+      // Ordering two: Apply is clicked while the suggestion's re-run is still in
+      // flight, so the counts on screen are still the first run's. Those are the
+      // ones the user agreed to, so those are the knobs that run.
+      it('applies the displayed run when Apply is clicked before the re-run lands', async () => {
+        void component['openAutoCull']();
+        await flush();
+        posts[0].next(preview);
+        await flush();
+        expect(component['autoCullPreview']()).toEqual(preview);
+
+        suggestReply.next(suggestion('wedding'));
+        await flush();
+        expect(bodies).toHaveLength(2);
+
+        void component['confirmAutoCull']();
+        posts[2].next({ ...preview, dry_run: false });
+        await flush();
+
+        expect(bodies[2]).toEqual({ ...bodies[0], dry_run: false, highlights_album: '' });
+        expect(bodies[2]).toMatchObject({ strictness: 100 });
+        expect(bodies[2]['profile']).toBeUndefined();
+      });
+
+      it('keeps the Highlights checkbox the dialog\'s own decision', async () => {
+        void component['openAutoCull']();
+        await flush();
+        posts[0].next(preview);
+        await flush();
+        component['autoCullHighlights'].set(true);
+
+        void component['confirmAutoCull']();
+        posts[1].next({ ...preview, dry_run: false });
+        await flush();
+
+        expect(bodies[1]['highlights_album']).toBe(bodies[0]['highlights_album']);
+        expect(String(bodies[1]['highlights_album'])).not.toBe('');
+      });
+    });
   });
 
   describe('darkroom overlays (focus peaking + composition grid)', () => {
@@ -1688,6 +1817,41 @@ describe('BurstCullingComponent', () => {
       expect(component['peakingCache'].size).toBe(8);
     });
 
+    // A pass is one await away from publishing; the toggle that switched peaking
+    // off has to invalidate it, or the overlays come back on their own.
+    it('publishes nothing from a pass still running when peaking is switched off', async () => {
+      let land!: (url: string) => void;
+      renderPeaking.mockImplementation(() => new Promise<string>(resolve => { land = resolve; }));
+      openDarkroom();
+      component['peakingActive'].set(true);
+      await settle();
+      expect(renderPeaking).toHaveBeenCalledTimes(1);
+      expect(component['peakingOverlays']().size).toBe(0);
+
+      component['peakingActive'].set(false);
+      await settle();
+      land('data:image/png;base64,late');
+      await settle();
+
+      expect(component['peakingOverlays']().size).toBe(0);
+    });
+
+    // Same guard, the other way the frames leave the screen.
+    it('publishes nothing from a pass still running when the darkroom closes', async () => {
+      let land!: (url: string) => void;
+      renderPeaking.mockImplementation(() => new Promise<string>(resolve => { land = resolve; }));
+      openDarkroom();
+      component['peakingActive'].set(true);
+      await settle();
+
+      component['closeLightbox']();
+      await settle();
+      land('data:image/png;base64,late');
+      await settle();
+
+      expect(component['peakingOverlays']().size).toBe(0);
+    });
+
     it('cycles the grid off → thirds → golden → off', () => {
       expect(component['gridMode']()).toBe('');
       component['cycleGrid']();
@@ -1774,6 +1938,9 @@ describe('BurstCullingComponent', () => {
 describe('BurstCullingComponent modals (rendered)', () => {
   let fixture: ComponentFixture<BurstCullingComponent>;
   let component: any;
+  // jsdom ships no scrollIntoView, which the group list calls whenever the
+  // selection lands back on a tile — as it does when the darkroom closes.
+  const scrollIntoView = Element.prototype.scrollIntoView;
 
   const emptyFeed = {
     groups: [], total_groups: 0, page: 1, per_page: 20, total_pages: 1,
@@ -1785,6 +1952,7 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
   beforeEach(() => {
     localStorage.clear();
+    Element.prototype.scrollIntoView = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -1808,7 +1976,10 @@ describe('BurstCullingComponent modals (rendered)', () => {
     fixture.detectChanges();
   });
 
-  afterEach(() => fixture.destroy());
+  afterEach(() => {
+    fixture.destroy();
+    Element.prototype.scrollIntoView = scrollIntoView;
+  });
 
   const autoCullDialog = () =>
     fixture.debugElement.query(By.css('[aria-labelledby="autoCullTitle"]'));
@@ -1817,6 +1988,24 @@ describe('BurstCullingComponent modals (rendered)', () => {
     component['autoCullPreview'].set(preview);
     fixture.detectChanges();
   };
+
+  const photo = (path: string) => ({
+    path, filename: path.slice(1), aggregate: 8, aesthetic: 7, tech_sharpness: 6,
+    is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8,
+  });
+
+  const openDarkroom = () => {
+    component['groups'].set([{
+      group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 2,
+      photos: [photo('/p1.jpg'), photo('/p2.jpg')],
+    }]);
+    component['lightboxGroupId'].set(component['groupKey'](component['groups']()[0]));
+    fixture.detectChanges();
+  };
+
+  /** A per-pane keep button: a real control, deep inside a keydown shield. */
+  const paneKeepButton = (): HTMLElement => fixture.debugElement
+    .query(By.css('button[aria-label$="culling.lightbox.keep"]')).nativeElement;
 
   it('closes the auto-cull dialog on Escape despite its keydown shield', () => {
     openAutoCullDialog();
@@ -1852,20 +2041,57 @@ describe('BurstCullingComponent modals (rendered)', () => {
   });
 
   it('traps focus inside the darkroom', () => {
-    component['groups'].set([{
-      group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 1,
-      photos: [{
-        path: '/p1.jpg', filename: 'p1.jpg', aggregate: 8, aesthetic: 7,
-        tech_sharpness: 6, is_blink: 0, is_burst_lead: 1,
-        date_taken: '2024-01-01', burst_score: 8,
-      }],
-    }]);
-    component['lightboxGroupId'].set(component['groupKey'](component['groups']()[0]));
-    fixture.detectChanges();
+    openDarkroom();
 
     const darkroom = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]'));
     expect(fixture.debugElement.queryAll(By.directive(CdkTrapFocus))
       .some(el => el.nativeElement === darkroom.nativeElement)).toBe(true);
+  });
+
+  // The darkroom's shields are the auto-cull dialog's problem one layer down:
+  // every inner region stops keys from reaching the page, so from any control
+  // the user is actually focused on, Escape never reached the container binding
+  // and the darkroom could not be closed with the keyboard at all.
+  it('closes the darkroom on Escape from a control inside it', () => {
+    openDarkroom();
+    component['setCompareMode']('2up');
+    fixture.detectChanges();
+    const keepButton = paneKeepButton();
+    keepButton.focus();
+
+    keepButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(component['lightboxGroup']()).toBeNull();
+  });
+
+  it('closes the darkroom on Escape from the header controls', () => {
+    openDarkroom();
+    const legendButton: HTMLElement = fixture.debugElement
+      .query(By.css('[aria-label="culling.legend.label"]')).nativeElement;
+    legendButton.focus();
+
+    legendButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+
+    expect(component['lightboxGroup']()).toBeNull();
+  });
+
+  // Escape is acted on at the shield rather than let through it: the page's cull
+  // shortcuts must still not see a single key pressed inside the darkroom.
+  it('keeps shielding the page from keys pressed inside the darkroom', () => {
+    openDarkroom();
+    component['setCompareMode']('2up');
+    fixture.detectChanges();
+    const keepButton = paneKeepButton();
+    const seenAtDocument = vi.fn();
+    document.addEventListener('keydown', seenAtDocument);
+
+    keepButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+    keepButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    document.removeEventListener('keydown', seenAtDocument);
+
+    expect(seenAtDocument).not.toHaveBeenCalled();
   });
 
   it('legend toggle starts hidden, shows the legend on click and flips aria-pressed', () => {

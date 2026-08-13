@@ -69,6 +69,13 @@ export class SwipeDecisionDirective implements OnDestroy {
   private horizontal = false;
   private frameHandle = 0;
   private settleTimer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * The decision a released gesture already committed to, held only for as long
+   * as the card takes to leave. It is flushed, never dropped: the settle window
+   * gates the animation, so a second swipe starting inside it used to clear the
+   * timeout and with it the first swipe's keep/reject.
+   */
+  private pendingCommit: boolean | null = null;
 
   private readonly onPointerDown = (e: PointerEvent): void => this.begin(e);
   private readonly onPointerMove = (e: PointerEvent): void => this.track(e);
@@ -105,7 +112,9 @@ export class SwipeDecisionDirective implements OnDestroy {
 
   private begin(e: PointerEvent): void {
     if (!this.enabled() || this.pointerId !== null || !e.isPrimary) return;
-    this.clearSettle();
+    // Whatever the settle window still owes lands here, in order, before this
+    // gesture takes the card over.
+    this.settleNow();
     this.pointerId = e.pointerId;
     this.startX = e.clientX;
     this.startY = e.clientY;
@@ -170,16 +179,35 @@ export class SwipeDecisionDirective implements OnDestroy {
     el.style.transition = `transform ${SWIPE_SETTLE_MS}ms ease-out, opacity ${SWIPE_SETTLE_MS}ms ease-out`;
     el.style.transform = `translateX(${sign * (width + MIN_COMMIT_PX)}px) rotate(${sign * MAX_TILT_DEG}deg)`;
     el.style.opacity = '0';
-    // The decision fires when the card is gone, not when the finger lifts: the
-    // frame under it swaps to the next photo, and doing that mid-flight would
-    // fling the *new* photo off screen.
+    // The decision is taken here, at release, and only *reported* once the card
+    // is gone: the frame under it swaps to the next photo, and doing that
+    // mid-flight would fling the *new* photo off screen.
+    this.pendingCommit = keep;
     this.settleTimer = setTimeout(() => {
       this.settleTimer = null;
       this.resetStyles();
       this.progress.set(0);
-      if (keep) this.swipeKeep.emit();
-      else this.swipeReject.emit();
+      this.flushCommit();
     }, SWIPE_SETTLE_MS);
+  }
+
+  /** Report the decision the last release committed to, at most once. */
+  private flushCommit(): void {
+    const keep = this.pendingCommit;
+    if (keep === null) return;
+    this.pendingCommit = null;
+    if (keep) this.swipeKeep.emit();
+    else this.swipeReject.emit();
+  }
+
+  /** End the settle window early: the card back where a gesture starts from, and
+   *  the decision it still owed. */
+  private settleNow(): void {
+    if (this.settleTimer === null) return;
+    this.clearSettle();
+    this.resetStyles();
+    this.progress.set(0);
+    this.flushCommit();
   }
 
   private springBack(): void {
@@ -194,10 +222,14 @@ export class SwipeDecisionDirective implements OnDestroy {
     }, SWIPE_SETTLE_MS);
   }
 
+  /** Stand down completely. The pending commit is dropped rather than flushed:
+   *  this runs when the mode is switched off or the host goes away, where the
+   *  frame the decision was about is no longer the one on screen. */
   private cancelGesture(): void {
     this.pointerId = null;
     this.horizontal = false;
     this.dx = 0;
+    this.pendingCommit = null;
     this.cancelFrame();
     this.clearSettle();
     this.resetStyles();

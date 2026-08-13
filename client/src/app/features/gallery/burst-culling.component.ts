@@ -79,6 +79,20 @@ interface CullProfile {
 }
 interface CullProfilesResponse { profiles: CullProfile[]; default: string; }
 
+/** Request body of POST /culling/auto. The dry run's body is kept verbatim so
+ *  the apply re-sends the very parameters the displayed counts came from. */
+interface AutoCullRequest {
+  group_by: GroupBy;
+  strictness: number;
+  dry_run: boolean;
+  highlights_album: string;
+  trim_brackets: boolean;
+  profile?: string;
+  album_id?: number;
+  date_from?: string;
+  date_to?: string;
+}
+
 /** Response of GET /api/culling/suggest_profile: the preset the scope's own
  *  content argues for, with the counts it was inferred from. */
 interface ProfileSuggestion {
@@ -771,6 +785,9 @@ interface ShortcutRow {
            cdkTrapFocus
            (click)="closeLightbox()"
            (keydown.escape)="closeLightbox()">
+        <!-- Escape reaches this binding only from the container itself: every
+             inner region shields the page from the darkroom's keys, so each one
+             acts on Escape through onDarkroomKeydown() instead. -->
         <!-- Header. Opaque, not a tint: at bg-black/70 the gallery toolbar behind
              it stayed legible through the darkroom's own controls. -->
         <div class="flex items-center justify-between gap-4 px-4 py-2.5 text-white text-sm bg-neutral-950">
@@ -792,7 +809,7 @@ interface ShortcutRow {
             </div>
           }
           <div class="flex items-center gap-1 shrink-0" role="presentation"
-               (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+               (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
             <button mat-icon-button [class.!text-white]="!legendVisible()"
                     [class.!text-[var(--mat-sys-primary)]]="legendVisible()"
                     [attr.aria-pressed]="legendVisible()"
@@ -908,7 +925,7 @@ interface ShortcutRow {
                  (swipeKeep)="onSwipeDecision(lbGroup, true)"
                  (swipeReject)="onSwipeDecision(lbGroup, false)"
                  (click)="$event.stopPropagation()"
-                 (keydown)="$event.stopPropagation()">
+                 (keydown)="onDarkroomKeydown($event)">
               <app-synced-zoom #singlePane class="w-full h-full"
                                [src]="(activeStyle() && !previewLoading()) ? (lbPhoto.path | cullPreviewUrl:activeStyle()) : (lbPhoto.path | thumbnailUrl:darkroomThumbSize)"
                                [fullResSrc]="activeStyle() ? null : (lbPhoto.path | imageUrl:true)"
@@ -964,7 +981,7 @@ interface ShortcutRow {
                  [class.grid-rows-2]="compareMode() === '4up'"
                  role="presentation"
                  (click)="$event.stopPropagation()"
-                 (keydown)="$event.stopPropagation()">
+                 (keydown)="onDarkroomKeydown($event)">
               @for (photo of compareFrames(); track photo.path) {
                 <div class="relative w-full h-full min-h-0 rounded overflow-hidden">
                   <app-synced-zoom #pane class="w-full h-full min-h-0"
@@ -1022,7 +1039,7 @@ interface ShortcutRow {
           <div class="px-4 py-3 text-center"
                role="presentation"
                (click)="$event.stopPropagation()"
-               (keydown)="$event.stopPropagation()">
+               (keydown)="onDarkroomKeydown($event)">
             @if (compareMode() !== 'single') {
               <!-- The status that follows is the focused frame's alone. Spanning
                    the whole width under a grid of panes, unnamed, it read as a
@@ -1060,7 +1077,7 @@ interface ShortcutRow {
           <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
                role="presentation"
                (click)="$event.stopPropagation()"
-               (keydown)="$event.stopPropagation()">
+               (keydown)="onDarkroomKeydown($event)">
             <div class="flex flex-wrap items-center gap-x-4 gap-y-1 mb-2">
               <div class="text-white/50 text-xs">{{ I18N.culling.face_grid_title | translate }}</div>
               <div class="flex items-center gap-2"
@@ -1140,7 +1157,7 @@ interface ShortcutRow {
           <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
                role="presentation"
                (click)="$event.stopPropagation()"
-               (keydown)="$event.stopPropagation()">
+               (keydown)="onDarkroomKeydown($event)">
             <div class="text-white/50 text-xs mb-2">{{ I18N.culling.subject_grid_title | translate }}</div>
             <div class="flex gap-3 items-start">
               @for (photo of lbGroup.photos; track photo.path; let pIdx = $index) {
@@ -1482,9 +1499,6 @@ export class BurstCullingComponent implements OnDestroy {
   /** Frame path → natural pixel size, so the grid lands on the letterboxed
    *  image box rather than on the pane's own (usually wider) rectangle. */
   protected readonly frameSizes = signal<Map<string, FrameSize>>(new Map());
-  /** Frame path → the source its overlay was computed from, so a frame is only
-   *  re-convolved when the photo changes or the pane swaps to full resolution. */
-  private readonly peakingSources = new Map<string, string>();
   /** Guards against a superseded pass publishing over a newer one. */
   private peakingRun = 0;
 
@@ -1561,7 +1575,11 @@ export class BurstCullingComponent implements OnDestroy {
       : this.thumbnailUrl.transform(path, DARKROOM_THUMB_SIZE);
   }
 
+  /** Drop the overlays and everything that could still republish them: a pass
+   *  awaiting its raster work would otherwise land after the toggle went off and
+   *  paint the frames again. */
   private clearPeaking(): void {
+    this.peakingRun++;
     this.peakingCache.clear();
     if (this.peakingOverlays().size > 0) this.peakingOverlays.set(NO_PEAKING_OVERLAYS);
   }
@@ -1786,6 +1804,21 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Dry-run result of POST /culling/auto shown in the confirm dialog (null = closed). */
   protected readonly autoCullPreview = signal<AutoCullResponse | null>(null);
+  /** The dry-run body the preview on screen was computed from, set with it and
+   *  never re-derived: Apply re-sends this verbatim (dry_run flipped) so the
+   *  counts the user agreed to and the knobs that run cannot diverge. A
+   *  suggestion applying a preset mid-flight used to move strictness and the
+   *  profile between the request and its answer, and the apply then read the
+   *  moved signals. */
+  private readonly autoCullRequest = signal<AutoCullRequest | null>(null);
+  /** Bumped per dry run, so a superseded one can never publish over a newer
+   *  preview — the pair above must always describe the same run. */
+  private autoCullRun = 0;
+  /** True between a dry run's request and its answer. A suggestion landing in
+   *  that window has to re-run too: the dialog is not open yet, so waiting on
+   *  `autoCullPreview` would have opened it on counts from the knobs the
+   *  suggestion just replaced. */
+  private dryRunInFlight = false;
   protected readonly autoCullLoading = signal(false);
   /** Whether the apply also fills the Highlights album (dialog checkbox, opt-in). */
   protected readonly autoCullHighlights = signal(false);
@@ -2238,9 +2271,10 @@ export class BurstCullingComponent implements OnDestroy {
    *
    * Fetched alongside the dry run rather than before it, so the dialog opens at
    * the same speed whether or not a suggestion arrives; one that lands while the
-   * dialog is open re-runs the preview under the suggested knobs rather than
-   * leaving stale counts on screen. An explicit choice — a preset click, a knob
-   * move, or one restored from a previous session — is never overwritten.
+   * dialog is open — or while its dry run is still in flight — re-runs the
+   * preview under the suggested knobs rather than leaving stale counts on
+   * screen. An explicit choice — a preset click, a knob move, or one restored
+   * from a previous session — is never overwritten.
    */
   private async applySuggestedProfile(): Promise<void> {
     if (this.profileChosen() || this.suggestionApplied) return;
@@ -2254,7 +2288,7 @@ export class BurstCullingComponent implements OnDestroy {
     if (!profile || profile.id === this.selectedProfile()) return;
     this.suggestionApplied = true;
     this.applyProfile(profile, false);
-    if (this.autoCullPreview()) {
+    if (this.autoCullPreview() || this.dryRunInFlight) {
       this.autoCullSuggestionNotice.set(this.i18n.t(profile.label_key));
       await this.openAutoCull();
     }
@@ -2408,6 +2442,20 @@ export class BurstCullingComponent implements OnDestroy {
     if (!group) return;
     this.lightboxIndex.set(this.clampIndex(index, group.photos.length));
     this.zoom.set(FIT_ZOOM);
+  }
+
+  /**
+   * Keydown shield for everything inside the darkroom.
+   *
+   * The page's own cull shortcuts must not fire behind the open darkroom, so
+   * every inner region stops keys from reaching the document — which also
+   * stopped the Escape that closes it, from any control the user was focused
+   * on. Escape is therefore acted on here, on the shield itself, exactly the way
+   * the auto-cull dialog handles its own.
+   */
+  protected onDarkroomKeydown(event: KeyboardEvent): void {
+    event.stopPropagation();
+    if (event.key === 'Escape') this.closeLightbox();
   }
 
   protected closeLightbox(): void {
@@ -2781,8 +2829,8 @@ export class BurstCullingComponent implements OnDestroy {
   // --- Auto-cull (one-button cull under a keeper budget) ---
 
   /** Request body for POST /culling/auto, reusing the page's scope + strictness. */
-  private autoCullBody(dryRun: boolean, highlightsAlbum: string): Record<string, unknown> {
-    const body: Record<string, unknown> = {
+  private autoCullBody(dryRun: boolean, highlightsAlbum: string): AutoCullRequest {
+    const body: AutoCullRequest = {
       group_by: this.groupBy(),
       strictness: this.strictness(),
       dry_run: dryRun,
@@ -2790,13 +2838,13 @@ export class BurstCullingComponent implements OnDestroy {
       trim_brackets: this.trimBrackets(),
     };
     const profile = this.selectedProfile();
-    if (profile) body['profile'] = profile;
+    if (profile) body.profile = profile;
     const album = this.scopeAlbum();
-    if (album) body['album_id'] = Number(album);
+    if (album) body.album_id = Number(album);
     const from = this.scopeFrom();
-    if (from) body['date_from'] = from;
+    if (from) body.date_from = from;
     const to = this.scopeTo();
-    if (to) body['date_to'] = to;
+    if (to) body.date_to = to;
     return body;
   }
 
@@ -2810,25 +2858,43 @@ export class BurstCullingComponent implements OnDestroy {
   /** Dry-run the auto-cull for the current scope and open the confirm dialog. */
   protected async openAutoCull(): Promise<void> {
     // Only a fresh open clears the notices: the re-runs that raise them come back
-    // through here, and clearing unconditionally would erase them on the way in.
-    if (!this.autoCullPreview()) this.clearAutoCullNotices();
+    // through here, and clearing unconditionally would erase them on the way in —
+    // including the re-run of a dry run whose preview has not landed yet.
+    if (!this.autoCullPreview() && !this.dryRunInFlight) this.clearAutoCullNotices();
+    const run = ++this.autoCullRun;
+    this.dryRunInFlight = true;
     void this.applySuggestedProfile();
+    const body = this.autoCullBody(true, this.highlightsAlbumName());
     this.autoCullLoading.set(true);
     try {
-      const preview = await firstValueFrom(this.api.post<AutoCullResponse>(
-        '/culling/auto', this.autoCullBody(true, this.highlightsAlbumName()),
-      ));
+      const preview = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
+      if (run !== this.autoCullRun) return;
       this.autoCullPreview.set(preview);
+      this.autoCullRequest.set(body);
     } catch {
+      if (run !== this.autoCullRun) return;
       this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
-      this.autoCullLoading.set(false);
+      if (run === this.autoCullRun) {
+        this.dryRunInFlight = false;
+        this.autoCullLoading.set(false);
+      }
     }
   }
 
   protected cancelAutoCull(): void {
-    this.autoCullPreview.set(null);
+    this.closeAutoCull();
     this.clearAutoCullNotices();
+  }
+
+  /** Drop the dialog and the run behind it, so a dry run still in flight cannot
+   *  reopen it with counts nobody asked for. */
+  private closeAutoCull(): void {
+    this.autoCullRun++;
+    this.dryRunInFlight = false;
+    this.autoCullPreview.set(null);
+    this.autoCullRequest.set(null);
+    this.autoCullLoading.set(false);
   }
 
   private clearAutoCullNotices(): void {
@@ -2857,15 +2923,27 @@ export class BurstCullingComponent implements OnDestroy {
     );
   }
 
-  /** Apply the previewed auto-cull (dry_run=false), then refresh the feed. */
+  /**
+   * Apply the previewed auto-cull (dry_run=false), then refresh the feed.
+   *
+   * The body is the dry run's own, not one rebuilt from the live signals: a
+   * profile suggestion can land between the preview request and its answer, and
+   * rebuilding here would then apply knobs the counts on screen never described.
+   * Only the Highlights album is the dialog's to decide, being a checkbox the
+   * user ticks after the preview.
+   */
   protected async confirmAutoCull(): Promise<void> {
+    const previewed = this.autoCullRequest();
+    if (!previewed) return;
     this.autoCullLoading.set(true);
     try {
-      const album = this.autoCullHighlights() ? this.highlightsAlbumName() : '';
-      const result = await firstValueFrom(this.api.post<AutoCullResponse>(
-        '/culling/auto', this.autoCullBody(false, album),
-      ));
-      this.autoCullPreview.set(null);
+      const body: AutoCullRequest = {
+        ...previewed,
+        dry_run: false,
+        highlights_album: this.autoCullHighlights() ? previewed.highlights_album : '',
+      };
+      const result = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
+      this.closeAutoCull();
       this.clearAutoCullNotices();
       this.snackBar.open(
         this.i18n.t(I18N.culling.auto_cull.applied, { kept: result.kept, rejected: result.rejected }),
