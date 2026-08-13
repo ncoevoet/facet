@@ -285,13 +285,9 @@ class FaceClusterer:
             return None
 
         try:
-            img_cv, scale_x, scale_y = load_image_for_face_crop(photo_path)
+            img_cv = load_image_for_face_crop(photo_path)
             if img_cv is None:
                 return None
-
-            # Scale bbox coordinates if needed (RAW files)
-            bbox_x1, bbox_y1 = bbox_x1 * scale_x, bbox_y1 * scale_y
-            bbox_x2, bbox_y2 = bbox_x2 * scale_x, bbox_y2 * scale_y
 
             # Use shared crop_face_with_padding (same as FaceAnalyzer)
             return crop_face_with_padding(

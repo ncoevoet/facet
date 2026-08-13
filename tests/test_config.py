@@ -836,6 +836,56 @@ class TestValidWeightColumnsCoversDocumentedMetrics:
             assert weights[key] == 25, f"{key} was renormalized: {weights[key]}"
 
 
+class TestValidWeightColumnsCoversExtendedIQA:
+    """qrealign/aesthetic_v25/deqa are documented weight keys (docs/CONFIGURATION.md
+    "Extended IQA tier"), are emitted by processing.scorer.build_metric_vector and
+    are explicitly preserved by the weight optimizer -- but were missing from
+    VALID_WEIGHT_COLUMNS, so validate_weights() deleted their *_percent keys and
+    persisted the deletion to disk on the next load."""
+
+    @pytest.mark.parametrize("metric", ["qrealign", "aesthetic_v25", "deqa"])
+    def test_metric_is_a_valid_weight_column(self, metric):
+        assert metric in VALID_WEIGHT_COLUMNS
+
+    def test_percent_keys_survive_validate_round_trip(self, tmp_path):
+        """A category weighting the extended tier must come out of
+        ScoringConfig(path, validate=True) intact -- in memory AND on disk,
+        since validate_weights() re-saves the config it corrected."""
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({
+            "categories": [{
+                "name": "test_cat",
+                "priority": 1,
+                "filters": {},
+                "weights": {
+                    "aesthetic_percent": 25,
+                    "qrealign_percent": 25,
+                    "aesthetic_v25_percent": 25,
+                    "deqa_percent": 25,
+                },
+            }],
+        }))
+
+        cfg = ScoringConfig(config_path=str(config_path), validate=True)
+
+        expected = {
+            "aesthetic_percent", "qrealign_percent",
+            "aesthetic_v25_percent", "deqa_percent",
+        }
+        weights = cfg.config["categories"][0]["weights"]
+        on_disk = json.loads(config_path.read_text())["categories"][0]["weights"]
+        for key in expected:
+            assert key in weights, f"{key} was stripped by validate_weights()"
+            assert weights[key] == 25, f"{key} was renormalized: {weights[key]}"
+            assert key in on_disk, f"{key} deletion was persisted to disk"
+            assert on_disk[key] == 25
+
+        # get_weights must expose them to the aggregate as real (decimal) weights.
+        resolved = cfg.get_weights("test_cat")
+        for base in ("qrealign", "aesthetic_v25", "deqa"):
+            assert resolved.get(base) == pytest.approx(0.25)
+
+
 # ---------------------------------------------------------------------------
 # validate_weights decimal heuristic (A3#2: the 0b zero-padding step ran
 # before the decimal-vs-percent heuristic, so its len(...) > 1 guard was

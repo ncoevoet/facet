@@ -48,6 +48,7 @@ Facet is a multi-dimensional photo analysis engine that examines every facet of 
 - [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md) - Face workflow and clustering
 - [docs/VIEWER.md](docs/VIEWER.md) - Web gallery features
 - [docs/INTEROP.md](docs/INTEROP.md) - Round-tripping ratings/tags with Lightroom, Capture One, digiKam, darktable
+- [docs/IMMICH.md](docs/IMMICH.md) - Syncing ratings/favorites with an Immich server, plus the inbound webhook
 - [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) - Production deployment (Synology NAS, Linux, Docker)
 
 ## Commands
@@ -81,13 +82,13 @@ use `${PIPESTATUS[0]}` or redirect to a file before calling a suite green.
 
 ## Dependencies
 
-Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `pillow-heif`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=4.57.0`, `accelerate>=0.25.0`, `reverse_geocoder`
+Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `pillow-heif`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=5.3.0,<5.16`, `accelerate>=0.25.0`, `reverse_geocoder`
 
 For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 
 For vector search (optional): `sqlite-vec>=0.1.6` (enables KNN search in SQLite, replaces in-memory NumPy cache)
 
-For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`, OFF by default): `aesthetic-predictor-v2-5` (for `aesthetic_v25`) and `bitsandbytes>=0.43.0` (for `qalign` 4-/8-bit). Install via `pip install -e .[iqa-extended]`. Q-Align ships with `pyiqa`; DeQA-Score loads via `transformers`.
+For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`): `qrealign` ships with the base `pyiqa` dependency and defaults to `"auto"` (on for the `8gb`/`16gb`/`24gb` profiles, off for `legacy`/CPU — the first extended-tier scorer usable from the 8gb profile up). `aesthetic-predictor-v2-5` (for `aesthetic_v25`, **deprecated**: AGPL-3.0-licensed, unmaintained upstream since 2024-12-18, prefer `qrealign`) is the tier's only remaining optional package, installed via `pip install -e .[iqa-extended]`. DeQA-Score loads via `transformers`.
 
 For appearance-based per-face eyes/smile (optional, `scoring_config.json` `face_detection.blendshapes`, ON when installed): `mediapipe==0.10.35`. MUST be installed as `pip install mediapipe==0.10.35 --no-deps` then `pip install absl-py flatbuffers` — NEVER a plain `pip install mediapipe`, whose bundled `opencv-contrib-python` would double-install the `cv2` namespace against Facet's `opencv-python`. Degrades silently to the landmark-geometry scores when absent. Model bundle `face_landmarker.task` (~3.6 MiB) auto-downloads to `pretrained_models/`. See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md).
 
@@ -301,7 +302,7 @@ only what reading those two will NOT tell you.
   ordering — so a category added later cannot go missing from six separate lists. `PUT` requires
   both `promote` and `excluded`; a partial body 422s rather than silently clearing one.
 - **Every writer of `scoring_config.json` shares `api.config.CONFIG_WRITE_LOCK`** — priorities,
-  weights, contexts, panorama thresholds, the share-secret bootstrap and the plaintext-password
+  weights, contexts, panorama thresholds, the share-secret eviction and the plaintext-password
   upgrade. They rewrite different parts of one file, and two locks lost whole updates.
 - **`facet.LibraryLock` is per host.** `flock` is host-local on SMB/CIFS, so two machines sharing
   an SMB-mounted DB directory would each believe they hold it (the acquire warns once on such a

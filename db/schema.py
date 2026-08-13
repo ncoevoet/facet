@@ -29,6 +29,15 @@ PHOTOS_COLUMNS = [
     ('focal_length_35mm', 'REAL'),
     ('image_width', 'INTEGER'),
     ('image_height', 'INTEGER'),
+    # Display aspect (width / height) for a row whose recorded pixel dimensions
+    # had to be cleared. `repair_thumbnail_dimensions` NULLs dimensions that were
+    # fabricated from the 640px thumbnail, because every face/crop consumer reads
+    # them as the detector's pixel space and a thumbnail-sized number there is a
+    # lie that reads as ground truth. The *ratio* those values carried was never
+    # wrong (a thumbnail preserves aspect), so it is kept here instead — in a
+    # column no consumer can mistake for a resolution. NULL for every row whose
+    # dimensions are real: read it only as a fallback, never in preference.
+    ('image_aspect', 'REAL'),
 
     # Score columns
     ('aesthetic', 'REAL'),
@@ -111,8 +120,8 @@ PHOTOS_COLUMNS = [
     ('face_quality_iqa', 'REAL'),    # TOPIQ NR-Face (dedicated face quality)
     ('liqe_score', 'REAL'),          # LIQE quality score
     ('aesthetic_clip', 'REAL'),      # CLIP/SigLIP text-projection aesthetic (supplementary, free from cached embedding)
-    # Extended IQA tier (optional, config-gated OFF by default; never replaces TOPIQ)
-    ('qalign_score', 'REAL'),        # Q-Align LLM-based IQA (AVA MOS scale)
+    # Extended IQA tier (optional, config-gated; never replaces TOPIQ)
+    ('qrealign_score', 'REAL'),      # Q-ReAlign-Mini LLM-based IQA (normalized 0-10)
     ('aesthetic_v25', 'REAL'),       # Aesthetic Predictor V2.5 (SigLIP head)
     ('deqa_score', 'REAL'),          # DeQA-Score VLM IQA
 
@@ -136,7 +145,10 @@ PHOTOS_COLUMNS = [
     ('vlm_critique', 'TEXT'),
     ('vlm_critique_translated', 'TEXT'),
 
-    # OCR text-in-image (opt-in --recompute-ocr; NULL until that pass runs)
+    # OCR text-in-image (opt-in --detect-text; NULL = not evaluated, '' = evaluated
+    # and no text found, else the detected text). The '' sentinel is what lets
+    # --detect-text scope to genuinely unevaluated rows instead of re-OCRing every
+    # textless photo on each run; FTS5 indexes it as zero tokens so it never matches.
     ('ocr_text', 'TEXT'),
 
     # Color facet (opt-in --recompute-colors; NULL until that pass runs)
@@ -313,7 +325,7 @@ INDEXES = [
     ('idx_aesthetic_iaa', 'photos', 'aesthetic_iaa'),
     ('idx_face_quality_iqa', 'photos', 'face_quality_iqa'),
     ('idx_liqe_score', 'photos', 'liqe_score'),
-    ('idx_qalign_score', 'photos', 'qalign_score'),
+    ('idx_qrealign_score', 'photos', 'qrealign_score'),
     ('idx_aesthetic_v25', 'photos', 'aesthetic_v25'),
     ('idx_deqa_score', 'photos', 'deqa_score'),
     ('idx_eye_sharpness', 'photos', 'eye_sharpness'),
@@ -354,6 +366,13 @@ INDEXES = [
     # correlated subquery into learned_scores (~0.5s/page). Standalone (X DESC,
     # path) for the same MULTI-INDEX-OR reason as idx_moment_confidence above.
     ('idx_learned_score', 'photos', 'learned_score DESC, path'),
+    # Covering index for _shoot_type_evidence's GROUP BY (category,
+    # narrative_moment): leading columns match the GROUP BY exactly, with
+    # face_count and date_taken (read by the conditional SUMs) appended so the
+    # whole aggregate is answered from the index alone — no table page, and no
+    # inline thumbnail BLOB, is ever read. Without it the query walked the full
+    # photos B-tree (22.9s cold on a 126k-photo library).
+    ('idx_shoot_type_evidence', 'photos', 'category, narrative_moment, face_count, date_taken'),
 ]
 
 # Photo tags lookup table for fast exact-match queries (replaces LIKE '%tag%')
@@ -1032,7 +1051,11 @@ def init_database(db_path='photo_scores_pro.db'):
         # learned_score sorts were first shipped as (is_burst_lead, X) composites,
         # but the hide-bursts "OR IS NULL" filter defeats that shape (MULTI-INDEX
         # OR), so they are now standalone (X DESC, path) — see INDEXES above.
-        for stale_idx in ('idx_burst_moment', 'idx_burst_learned'):
+        # idx_qalign_score is here for the other reason: Q-Align was replaced by
+        # Q-ReAlign, and the migration is additive-only, so the qalign_score
+        # column itself survives on upgraded DBs (its data is still readable).
+        # Dropping only its index stops a retired column from taxing every write.
+        for stale_idx in ('idx_burst_moment', 'idx_burst_learned', 'idx_qalign_score'):
             conn.execute(f'DROP INDEX IF EXISTS {stale_idx}')
 
         # Create the photos-table indexes first so the ANALYZE gate below can

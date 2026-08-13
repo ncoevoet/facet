@@ -40,7 +40,7 @@ import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbna
 import { SlideshowComponent } from './features/gallery/slideshow.component';
 import { Photo } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
-import { I18N } from './core/i18n/keys';
+import { I18N, I18N_KEYS } from './core/i18n/keys';
 import { folderDisplayName } from './features/folders/folders.util';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from './shared/utils/media-query';
 
@@ -83,7 +83,7 @@ interface ReleaseCheck {
   `,
 })
 export class EditionDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private dialogRef = inject(MatDialogRef<EditionDialogComponent>);
   private auth = inject(AuthService);
   protected password = '';
@@ -135,7 +135,7 @@ export class EditionDialogComponent {
   },
 })
 export class App implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly api = inject(ApiService);
@@ -167,6 +167,7 @@ export class App implements OnInit {
   // shown when sorting by learned_score. null until fetched / when unavailable.
   protected readonly rankerStatus = signal<{
     trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null;
+    baseline_accuracy: number | null;
   } | null>(null);
   // Badge view-model: only when the "My Taste" sort is active and the ranker has
   // trained (else null -> no badge).
@@ -175,6 +176,7 @@ export class App implements OnInit {
     if (this.store.filters().sort !== 'learned_score' || !s?.trained) return null;
     return {
       accuracy: s.cv_accuracy != null ? Math.round(s.cv_accuracy) : null,
+      baseline: s.baseline_accuracy != null ? Math.round(s.baseline_accuracy) : null,
       comparisons: s.comparison_count ?? 0,
     };
   });
@@ -248,7 +250,7 @@ export class App implements OnInit {
     { minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', labelKey: 'gallery.aesthetic_iaa_range' },
     { minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', labelKey: 'gallery.face_quality_iqa_range' },
     { minKey: 'min_liqe', maxKey: 'max_liqe', labelKey: 'gallery.liqe_range' },
-    { minKey: 'min_qalign', maxKey: 'max_qalign', labelKey: 'gallery.qalign_range' },
+    { minKey: 'min_qrealign', maxKey: 'max_qrealign', labelKey: 'gallery.qrealign_range' },
     { minKey: 'min_aesthetic_v25', maxKey: 'max_aesthetic_v25', labelKey: 'gallery.aesthetic_v25_range' },
     { minKey: 'min_deqa', maxKey: 'max_deqa', labelKey: 'gallery.deqa_range' },
     { minKey: 'min_subject_sharpness', maxKey: 'max_subject_sharpness', labelKey: 'gallery.subject_sharpness_range' },
@@ -277,11 +279,11 @@ export class App implements OnInit {
     }
 
     // Semantic search
-    if (f.semanticQuery) chips.push({ id: 'semanticQuery', labelKey: 'gallery.search_placeholder', value: f.semanticQuery, clearKeys: ['semanticQuery'] });
+    if (f.semanticQuery) chips.push({ id: 'semanticQuery', labelKey: 'gallery.semantic_search_chip', value: f.semanticQuery, clearKeys: ['semanticQuery'] });
 
     // Simple string/select filters
     if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });
-    if (f.search) chips.push({ id: 'search', labelKey: 'gallery.search_placeholder', value: f.search, clearKeys: ['search'] });
+    if (f.search) chips.push({ id: 'search', labelKey: 'gallery.search_chip', value: f.search, clearKeys: ['search'] });
     if (f.camera) chips.push({ id: 'camera', labelKey: 'gallery.camera', value: f.camera, clearKeys: ['camera'] });
     if (f.lens) chips.push({ id: 'lens', labelKey: 'gallery.lens', value: f.lens, clearKeys: ['lens'] });
     if (f.composition_pattern) chips.push({ id: 'composition_pattern', labelKey: 'gallery.composition_pattern', value: f.composition_pattern, clearKeys: ['composition_pattern'] });
@@ -486,7 +488,7 @@ export class App implements OnInit {
       // for everyone (the global pooled ranker is a shared sort, not edition-only).
       promises.push(
         firstValueFrom(
-          this.api.get<{ trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null }>('/ranker/status'),
+          this.api.get<{ trained: boolean; comparison_count: number; coverage: number; cv_accuracy: number | null; baseline_accuracy: number | null }>('/ranker/status'),
         ).then(data => {
           this.rankerStatus.set(data);
         }).catch(() => { /* Non-critical */ }),

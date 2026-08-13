@@ -499,10 +499,9 @@ class ModelManager:
             'deqa': self._load_deqa,
         }
 
-        # PyIQA models (qalign variants are pyiqa-backed too; gated OFF by config)
+        # PyIQA models (qrealign is pyiqa-backed too; gated by config)
         pyiqa_models = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
-                        'topiq_iaa', 'topiq_nr_face', 'liqe',
-                        'qalign', 'qalign_8bit', 'qalign_4bit']
+                        'topiq_iaa', 'topiq_nr_face', 'liqe', 'qrealign']
 
         if model_name in loaders:
             return loaders[model_name]()
@@ -849,9 +848,7 @@ class ModelManager:
         'topiq_iaa': 2,       # Shares backbone with TOPIQ
         'topiq_nr_face': 2,   # Shares backbone with TOPIQ
         'liqe': 2,            # CLIP-based quality assessment
-        'qalign': 14,         # Q-Align full precision (mPLUG-Owl2 base), 16GB+ GPU
-        'qalign_8bit': 8,     # Q-Align 8-bit
-        'qalign_4bit': 5,     # Q-Align 4-bit
+        'qrealign': 3,        # Q-ReAlign-Mini 0.8B (no quantisation needed)
         'aesthetic_v25': 2,   # Aesthetic Predictor V2.5 (SigLIP head)
         'deqa': 16,           # DeQA-Score VLM (very heavy)
         'saliency': 2,        # BiRefNet saliency detection
@@ -872,6 +869,7 @@ class ModelManager:
         'topiq_iaa': 2.0,
         'topiq_nr_face': 2.0,
         'liqe': 2.0,
+        'qrealign': 5.0,       # 0.8B params at FP32 (~3.2GB) + activations
         'saliency': 2.0,
         'qwen3_vl_tagger': 5.0,
         'qwen3_5_tagger': 5.0,

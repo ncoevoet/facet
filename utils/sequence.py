@@ -21,6 +21,21 @@ long enough, its EV steps all point the same way, they span a real difference,
 and they are evenly sized: a hand-held sequence through changing light drifts,
 it does not step by a clean 1 or 2 stops each time.
 
+`min_frames` defaults to 3 because two of those four tests are vacuous on a
+pair: one step is trivially monotonic and trivially even, leaving only "two
+frames, moments apart, framed alike, a stop or more apart" -- which is equally
+the description of a photographer dialling in a correction and shooting again.
+Measured on a 124,886-photo library, dropping it to 2 admits 381 further sets
+against 226 existing ones, and their evidence says most are not brackets: 56%
+span under two stops where 99.6% of the confirmed sets span two or more, and
+the commonest clipping pattern is both frames dark rather than the confirmed
+sets' dark-end/bright-end straddle. On the one body contributing 156 of them
+the pair spans reproduce that body's own *step* sizes, so each is either
+exposure drift or two adjacent rungs of a 3-shot set whose third frame is
+missing -- and a pair of adjacent rungs cannot say which side the missing rung
+was on, so its base is undeterminable from anything stored. The setting is left
+configurable for libraries shot on 2-frame AEB; see docs/CONFIGURATION.md.
+
 Panoramas are detected separately, in `utils.panorama`, on geometric evidence
 rather than on exposure. Both passes share the `sequence_*` columns but own
 disjoint sets of rows, each clearing and rewriting only its own
@@ -140,20 +155,68 @@ def _find_bracket_runs(photos, settings):
     return runs
 
 
-def _base_frame(run):
-    """The frame a bracket is centred on: the middle rung of its EV ladder.
+def _clipped_ends(photo):
+    """How many of the two histogram ends a frame has blown, or None if unmeasured.
 
-    Chosen by position rather than by score. The base is a property of how the
-    set was shot, not of how the frames came out -- picking the best-scoring one
-    would reintroduce exactly the arbitrariness this pass exists to remove.
+    A frame the technical pass never saw carries NULL in both columns, which is
+    not the same as a clean histogram: counting that as zero would let an
+    unanalysed frame out-rank a measured one on evidence it does not have.
     """
-    return sorted(run, key=lambda p: p['ev'])[len(run) // 2]
+    shadow, highlight = photo['shadow_clipped'], photo['highlight_clipped']
+    if shadow is None and highlight is None:
+        return None
+    return (shadow or 0) + (highlight or 0)
+
+
+def _metered_frame(brighter, darker):
+    """Which of two equally central rungs the set was metered on.
+
+    An even ladder has no middle rung, so position cannot answer this and the
+    frames themselves have to. The base exposure is the one that holds the
+    scene; the rungs either side of it are the ones pushed far enough to blow an
+    end of the histogram. Where either frame was never measured, or both blew as
+    many ends as the other, capture order decides -- a camera fires the metered
+    frame first.
+
+    Only ever a heuristic: which rung of a two-frame set the camera metered is
+    not recorded anywhere in the stored EXIF, so this reads the outcome rather
+    than the intent. See `min_frames` in docs/CONFIGURATION.md.
+    """
+    bright_clipping = _clipped_ends(brighter)
+    dark_clipping = _clipped_ends(darker)
+    if None not in (bright_clipping, dark_clipping) and bright_clipping != dark_clipping:
+        return brighter if bright_clipping < dark_clipping else darker
+    return min((brighter, darker), key=lambda p: (p['captured_at'], p['path']))
+
+
+def _base_frame(run):
+    """The frame a bracket is centred on: the rung its EV offsets are measured from.
+
+    Chosen by where a frame sits on the ladder rather than by how it scored. The
+    base is a property of how the set was shot, not of how the frames came out
+    -- picking the best-scoring one would reintroduce exactly the arbitrariness
+    this pass exists to remove.
+
+    An odd ladder has one middle rung and that is the base, unconditionally: a
+    symmetric (-2, 0, +2) set still centres on its middle frame. An even ladder
+    has two rungs equally far from centre, and taking the higher photometric EV
+    of them -- which is the *darker* frame -- put offset zero on the wrong one.
+    A pair shot as (-3, 0) came out labelled base at -3 and "+3" on the metered
+    frame, while the same pair shot as (0, +3) came out right, so the rule was
+    correct in one direction and inverted in the other.
+    """
+    ladder = sorted(run, key=lambda p: p['ev'])
+    middle = len(ladder) // 2
+    if len(ladder) % 2:
+        return ladder[middle]
+    return _metered_frame(ladder[middle - 1], ladder[middle])
 
 
 def _load_photos(conn):
     """Every photo that can carry an EV, in capture order."""
     rows = conn.execute(
-        "SELECT path, date_taken, camera_model, f_stop, shutter_speed, iso, phash "
+        "SELECT path, date_taken, camera_model, f_stop, shutter_speed, iso, phash, "
+        "shadow_clipped, highlight_clipped "
         "FROM photos WHERE date_taken IS NOT NULL ORDER BY date_taken, path"
     ).fetchall()
     photos = []
@@ -170,6 +233,8 @@ def _load_photos(conn):
             'phash': row['phash'],
             'captured_at': captured_at,
             'ev': ev,
+            'shadow_clipped': row['shadow_clipped'],
+            'highlight_clipped': row['highlight_clipped'],
         })
     return photos
 

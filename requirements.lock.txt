@@ -1,6 +1,14 @@
 # Sticky, tested-working dependency lock for the Docker image.
-# Generated from a validated 16gb-profile container (transformers 5.2.0 + kornia 0.8.3),
-# which scanned 49 photos with 0 errors (tags + aesthetic + saliency all populated).
+# Container-validated at transformers 5.15.0 on 2026-08-13: a 16gb-profile GPU
+# container built from this exact lock scanned 63 photos with 0 errors, and
+# build-tools/verify_scan_db.py passed (embeddings, VLM tags, aesthetic,
+# saliency, faces, moments all populated and in range).
+# Pin discipline learned the hard way: torch 2.6.0 pins sympy==1.13.1 exactly;
+# any drift here makes pip swap the base image's torch/CUDA stack (a stray
+# sympy==1.14.0 pulled in torch 2.13 + CUDA 13 before it was caught).
+# The cuML layer installed AFTER this lock intentionally downgrades
+# numba/llvmlite/pandas/pyarrow — the container's final versions for those four
+# differ from these pins by design; do not "fix" them from a container freeze.
 # torch/torchvision + nvidia-*/triton are intentionally omitted — the CUDA base image
 # (pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime) already provides them.
 # Regenerate: docker compose ... exec facet pip freeze --all | (filter base-image pkgs)
@@ -114,14 +122,16 @@ six==1.17.0
 sortedcontainers==2.4.0
 sqlite-vec==0.1.9
 starlette==1.4.1
-sympy==1.14.0
+# torch 2.6.0 pins sympy==1.13.1 exactly; 1.14.0 forces pip to swap the base
+# image's torch/CUDA stack for torch 2.13 + CUDA 13 to satisfy the resolver.
+sympy==1.13.1
 tensorboard-data-server==0.7.2
 tensorboard==2.21.0
 threadpoolctl==3.6.0
 tifffile==2026.3.3
 timm==1.0.28
 tokenizers==0.22.2
-transformers==5.2.0
+transformers==5.15.0
 typer-slim==0.24.0
 typer==0.27.1
 types-dataclasses==0.6.6

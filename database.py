@@ -14,6 +14,7 @@ Usage:
     python database.py --optimize
     python database.py --backup      # Timestamped WAL-safe DB snapshot
     python database.py --add-user USERNAME --role ROLE [--display-name NAME]
+    python database.py --rotate-secret   # New session/frame signing secret
     python database.py --migrate-user-preferences --user USERNAME
     python database.py --migrate-storage-fs   # Migrate BLOBs to filesystem
     python database.py --migrate-storage-db   # Migrate filesystem back to DB
@@ -22,7 +23,7 @@ Usage:
 import json
 import logging
 import os
-import shutil
+import sys
 from datetime import datetime
 
 logger = logging.getLogger("facet.database")
@@ -51,16 +52,73 @@ from db import (
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
 
 
+def _drop_legacy_secret(config):
+    """Strip the pre-``.facet_secret`` server secret from a config dict.
+
+    The key's NAME comes from ``api.config`` rather than being spelled again
+    here: that module owns the migration end to end — it evicts the key,
+    persists the value to ``.facet_secret`` and checks it against the
+    published-secret list — and a second copy of the string in this file is one
+    rename away from a CLI that quietly writes the secret back into a
+    git-tracked config.
+
+    The import is function-local on purpose. Importing ``api.config`` RESOLVES
+    the server secret as a side effect of the import itself (minting
+    ``.facet_secret``, evicting a legacy ``share_secret`` from
+    scoring_config.json, refusing to start on a store it cannot read), and it
+    pulls in FastAPI through ``api/__init__.py``. At module level that would
+    attach all of it to every ``python database.py`` invocation, including
+    ``--info`` and the schema init that never touch the config. Deferred, it
+    costs only the commands whose subject IS this key — and on those it runs
+    BEFORE the config is read, so the dict this returns comes from the
+    post-eviction file rather than needing the key removed from it.
+    """
+    from api.config import _LEGACY_SECRET_KEY
+    config.pop(_LEGACY_SECRET_KEY, None)
+    return config
+
+
 def _load_config():
-    """Load scoring_config.json."""
+    """Load scoring_config.json, minus the legacy server secret.
+
+    The key is dropped on the way in as well as on the way out
+    (:func:`_save_config`) so that no code path in between can carry it: this
+    module's config round-trip is read-whole / write-whole, and a single caller
+    that forwarded the dict it was handed would republish the secret into a
+    git-tracked file.
+    """
     with open(CONFIG_PATH) as f:
-        return json.load(f)
+        config = json.load(f)
+    return _drop_legacy_secret(config)
 
 
 def _save_config(config):
-    """Write scoring_config.json (creates timestamped backup first)."""
+    """Write scoring_config.json (creates a 0600 timestamped backup first).
+
+    Importing ``api.config_writes`` pulls in ``api.config``, whose import
+    resolves the server secret — which for a not-yet-booted install means
+    migrating ``share_secret`` out of scoring_config.json into
+    ``.facet_secret`` and rewriting the file WITHOUT it. Everything after that
+    import therefore works against a config the key has already left, which is
+    why the import comes first: the backup below copies the post-eviction file
+    rather than a copy of the secret.
+
+    ``config`` is stripped of the key regardless of where it came from: a dict
+    built by hand, or read from anywhere but :func:`_load_config`, may predate
+    that eviction, and ``json.dump`` would write the stale copy — secret
+    included — straight back into the tracked file, undoing the migration that
+    had just happened one line above. The value is not lost: the same import is
+    what persisted it to ``.facet_secret``.
+
+    The backup goes through the shared owner-only primitive rather than
+    ``shutil.copy2``, which copies the config's own mode (0664 under a default
+    umask) onto a file holding every ``users.*.password_hash`` this command
+    just wrote.
+    """
+    from api.config_writes import write_owner_only_backup
+    _drop_legacy_secret(config)
     backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    shutil.copy2(CONFIG_PATH, backup_path)
+    write_owner_only_backup(CONFIG_PATH, backup_path)
     logger.info("Backup saved to %s", backup_path)
     with open(CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=2)
@@ -105,6 +163,32 @@ def add_user(username, role, display_name=None):
     _save_config(config)
     logger.info("User '%s' added with role '%s'.", username, role)
     logger.info("Edit %s to set their directories.", CONFIG_PATH)
+
+
+def rotate_server_secret():
+    """Replace the secret that signs session JWTs and frame links.
+
+    Deliberate rotation, for an install whose secret may have been exposed —
+    a config that was once committed, a backup that leaked, a departing admin.
+    Every logged-in session and every signed frame URL stops working the moment
+    the server picks the new secret up, so it is announced rather than silent.
+
+    Returns True when the rotation happened. A refusal returns False and the
+    caller exits non-zero: this is a security operation run from deploy
+    scripts and runbooks, where a zero exit is read as "the key is now
+    rotated" and the next step proceeds on a secret that never changed.
+    """
+    from api.config import rotate_secret
+
+    try:
+        path = rotate_secret()
+    except RuntimeError as ex:
+        logger.error("%s", ex)
+        return False
+    logger.info("Server secret rotated: %s", path)
+    logger.info("All existing sessions and signed frame links are now invalid.")
+    logger.info("Restart the viewer for running workers to pick up the new secret.")
+    return True
 
 
 def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
@@ -168,7 +252,7 @@ _NON_INIT_ARGS = (
     'stats_info', 'refresh_stats', 'info', 'migrate_tags', 'rebuild_fts',
     'populate_vec', 'optimize', 'vacuum', 'analyze', 'backup',
     'cleanup_orphaned_persons', 'cleanup_missing_photos', 'export_viewer_db',
-    'add_user', 'migrate_user_preferences', 'migrate_storage_fs',
+    'add_user', 'rotate_secret', 'migrate_user_preferences', 'migrate_storage_fs',
     'migrate_storage_db',
 )
 
@@ -295,6 +379,11 @@ def main():
         help='Display name for --add-user'
     )
     parser.add_argument(
+        '--rotate-secret',
+        action='store_true',
+        help='Generate a new session/frame signing secret (logs everyone out)'
+    )
+    parser.add_argument(
         '--migrate-user-preferences',
         action='store_true',
         help='Copy ratings from photos table to user_preferences for a user'
@@ -417,6 +506,9 @@ def main():
         export_viewer_db(args.db, output_path=args.export_viewer_db, verbose=True, force=args.force_export)
     elif args.add_user:
         add_user(args.add_user, args.role, args.display_name)
+    elif args.rotate_secret:
+        if not rotate_server_secret():
+            sys.exit(1)
     elif args.migrate_user_preferences:
         if not args.user:
             logger.error("--user USERNAME is required with --migrate-user-preferences")

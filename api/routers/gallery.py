@@ -397,7 +397,7 @@ SCORE_RANGE_COLUMNS = [
     ("aesthetic_iaa", "min_aesthetic_iaa", "max_aesthetic_iaa", True),
     ("face_quality_iqa", "min_face_quality_iqa", "max_face_quality_iqa", True),
     ("liqe_score", "min_liqe", "max_liqe", True),
-    ("qalign_score", "min_qalign", "max_qalign", True),
+    ("qrealign_score", "min_qrealign", "max_qrealign", True),
     ("aesthetic_v25", "min_aesthetic_v25", "max_aesthetic_v25", True),
     ("deqa_score", "min_deqa", "max_deqa", True),
     ("subject_sharpness", "min_subject_sharpness", "max_subject_sharpness", True),

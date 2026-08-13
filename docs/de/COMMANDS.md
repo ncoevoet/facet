@@ -70,6 +70,9 @@ Viewers im `progress`-Feld von `/api/scan/status` und im SSE-Stream bereitstellt
 | `python facet.py --export-csv output.csv` | In eine bestimmte CSV-Datei exportieren |
 | `python facet.py --export-json` | Alle Scores in eine JSON mit Zeitstempel exportieren |
 | `python facet.py --export-json output.json` | In eine bestimmte JSON-Datei exportieren |
+| `python facet.py --export-manifest` | Ein kompaktes JSON-Manifest (Pfad, Kategorie, Scores, Tags, Sternebewertung, Favorit/Abgelehnt, Serien-Leitbild) nach `facet_manifest.json` exportieren — für externe Werkzeuge wie ein Lightroom-Classic-Plugin |
+| `python facet.py --export-manifest /path` | Manifest auf Fotos unterhalb eines Pfad-Teilbaums beschränken |
+| `python facet.py --export-manifest --user alice` | Mehrbenutzermodus: exportiert Alices `user_preferences`-Bewertungen in das Manifest statt der globalen Spalten (Tags und Scores bleiben global) |
 | `python facet.py --import-sidecars` | Bewertungen/Labels/Tags aus `<image>.xmp`-Sidecars zurück in die DB importieren (alle Fotos) |
 | `python facet.py --import-sidecars /path` | Sidecars nur für Fotos unterhalb eines Pfad-Teilbaums importieren |
 | `python facet.py --import-sidecars --user alice` | Mehrbenutzermodus: Bewertungen in Alices `user_preferences` importieren statt in die globalen Spalten (Schlüsselwörter bleiben global) |
@@ -82,6 +85,8 @@ Viewers im `progress`-Feld von `/api/scan/status` und im SSE-Stream bereitstellt
 > **Zwei-Wege-Metadatensynchronisierung.** Facet schreibt Bewertungen, Farblabels, Schlüsselwörter, Bildunterschriften und benannte Gesichtsregionen in eine standardmäßige `<image>.xmp`-Sidecar, die das Ökosystem liest (Lightroom, darktable, digiKam, immich, …); das Originalbild wird nie verändert, es sei denn, Sie entscheiden sich dafür mit `--export-sidecars --embed-originals` (nur JPEG/HEIC/TIFF/PNG/DNG — RAW wird nie angetastet). Das Einbetten und die sichere Schlüsselwort-Vereinigungszusammenführung erfordern **exiftool**; ohne es greift Facet auf eine abhängigkeitsfreie reine XML-Sidecar zurück.
 >
 > **Vorbehalt.** `--import-sidecars` löst Bewertungen/Labels *„neueste gewinnt"* gegen das `scanned_at` des Fotos (letzter Scan) auf, nicht gegen eine pro-Bewertung-Bearbeitungszeit — eine Sidecar, die neuer als der letzte Scan ist, kann also eine Bewertung überschreiben, die Sie in Facet danach geändert haben. Führen Sie `--import-sidecars` vor dem Neubewerten aus, wenn der externe Editor die Quelle der Wahrheit ist, und `python database.py --migrate-tags` nach dem Import, wenn Sie die `photo_tags`-Lookup-Tabelle verwenden.
+>
+> **`--export-manifest` vs. `--export-csv`/`--export-json`.** Das optionale Argument des Manifests grenzt ein, *welche Fotos* exportiert werden (wie bei `--export-sidecars`), nicht den Namen der Ausgabedatei — es (über)schreibt immer `facet_manifest.json` im Arbeitsverzeichnis, da es dazu gedacht ist, an Ort und Stelle für ein Werkzeug neu erzeugt zu werden, das einen festen Pfad wieder einliest. Es enthält dieselben Werte `star_rating`/`is_favorite`/`is_rejected` wie `--export-sidecars` — standardmäßig die globalen Spalten, oder bei Angabe von `--user` die `user_preferences`-Zeile des benannten Benutzers, sodass eine Mehrbenutzer-Installation kein Manifest voller Nullen mehr exportiert — zusätzlich `is_burst_lead` (immer global), und wird als kompaktes (nicht formatiertes) JSON geschrieben — bei ~100.000 Fotos würde die `indent=2`-Ausgabe von `--export-json` auf mehrere zehn Megabyte anwachsen, ohne dass ein maschineller Leser davon profitiert.
 
 ### Immich-Synchronisierung
 
@@ -115,7 +120,8 @@ Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunt
 | `python facet.py --recompute-composition-cpu` | Komposition neu berechnen, regelbasiert (CPU, beliebiges Profil) |
 | `python facet.py --recompute-composition-gpu` | `[GPU]` Komposition mit SAMP-Net neu berechnen |
 | `python facet.py --recompute-iqa` | `[GPU]` `[8gb/16gb/24gb]` Ergänzende IQA-Metriken (TOPIQ IAA, NR-Face, LIQE) aus gespeicherten Thumbnails neu berechnen |
-| `python facet.py --recompute-ocr` | In-Bild-Text in `ocr_text` aus Thumbnails extrahieren (opt-in; ohne OCR-Engine wirkungslos; danach `--rebuild-fts` ausführen, um zu indizieren) |
+| `python facet.py --detect-text` | Extrahiert Text im Bild (Schilder, Poster, Dokumente) über OCR aus gespeicherten Thumbnails in `ocr_text` und macht ihn über die Suchleiste der Galerie durchsuchbar. Überspringt bereits ausgewertete Fotos, sodass erneute Läufe nur neue lesen. Optional: benötigt `ocr.enabled` in `scoring_config.json` plus `pip install easyocr` — siehe [Konfiguration — OCR](CONFIGURATION.md#ocr) |
+| `python facet.py --recompute-text` | OCR für die gesamte Bibliothek erneut ausführen, wobei bereits von `--detect-text` ausgewertete Fotos neu gelesen werden |
 | `python facet.py --recompute-colors` | Dominanten Farbton + warme/kalte Farbtemperatur aus Thumbnails extrahieren (CPU, schnell) in `dominant_hue` / `color_temp` |
 | `python facet.py --recompute-form` | Die fünf erklärbaren Form-/Farbmetriken neu berechnen — Links-rechts-Symmetrie, visuelle Balance, Kantenorientierungs-Entropie, Box-Counting-Fraktalkomplexität und Matsuda-Farbtonvorlagen-Farbharmonie — aus gespeicherten Thumbnails (CPU, kein Modell). Sie erscheinen in der Kritik-Aufschlüsselung, den Vorschlägen und dem Foto-Tooltip und sind als Kategoriegewichte verfügbar (mit 0 ausgeliefert) |
 | `python facet.py --recompute-skin-tone` | Natürlichkeit des Porträt-Hauttons aus gespeicherten Gesichts-Thumbnails + Landmarken neu berechnen (Wangen-CIELAB-Chroma gegen einen CCT-Hautlocus, CIEDE2000; CPU, kein Modell). Nur beratend — erscheint als Kritik-Hinweis, keine Aggregat-Kopplung |

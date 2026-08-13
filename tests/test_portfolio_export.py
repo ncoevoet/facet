@@ -307,6 +307,22 @@ class TestExportPortfolioEndpoint:
             resp = client.post("/api/albums/1/export-portfolio", json={"target_dir": target})
         assert resp.status_code == 400
 
+    def test_over_max_photos_skips_blob_fetch(self, client, tmp_path):
+        p1 = _make_jpeg(tmp_path / "a.jpg")
+        p2 = _make_jpeg(tmp_path / "b.jpg")
+        db = _seed_db(tmp_path, [(p1, ""), (p2, "")])
+        with (
+            mock.patch(f"{_PORTFOLIO_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+            mock.patch(f"{_PORTFOLIO_MODULE}._portfolio_config", return_value={"max_photos": 1}),
+            mock.patch(f"{_PORTFOLIO_MODULE}._album_photo_rows") as rows_mock,
+        ):
+            resp = client.post(
+                "/api/albums/1/export-portfolio", json={"target_dir": str(tmp_path / "site")}
+            )
+        assert resp.status_code == 400
+        rows_mock.assert_not_called()
+
     def test_missing_album_not_found(self, client, tmp_path):
         db = _seed_db(tmp_path, [], album_id=99)
         target = str(tmp_path / "site")

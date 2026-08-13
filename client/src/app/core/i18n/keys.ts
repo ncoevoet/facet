@@ -1,6 +1,18 @@
 // AUTO-GENERATED from i18n/translations/en.json by scripts/gen-i18n-keys.mjs.
 // Do not edit by hand -- run `node scripts/gen-i18n-keys.mjs` to regenerate.
 // Leaf values are the dot-path translation keys used by the `translate` pipe and I18nService.t().
+//
+// I18N_KEYS re-exports the same table under a second name, for class-field initializers
+// only: `protected readonly I18N = I18N;` looks harmless, but Vitest's unit-test builder
+// runs specs through Vite's SSR transform, which rewrites references to imported bindings
+// into namespace-property accesses. That transform's scope walker registers a class field's
+// own *name* as a local binding, so in `protected readonly I18N = I18N` the initializer's
+// right-hand `I18N` looks locally shadowed and the rewrite is skipped -- it then resolves to
+// whatever raw `I18N` is in scope, which under an unlucky chunk layout is a *different* chunk's
+// own uninitialised copy of this module (`undefined`), not the real table. Every template
+// binding then dereferences `undefined` on first change detection. Initializing the field from
+// `I18N_KEYS` instead uses a name the field does not shadow, so the rewrite fires correctly.
+// Always initialize the `I18N` field from `I18N_KEYS`, never from `I18N` itself.
 
 export const I18N = {
   ui: {
@@ -191,7 +203,7 @@ export const I18N = {
     aesthetic_iaa: "tooltip.aesthetic_iaa",
     face_quality_iqa: "tooltip.face_quality_iqa",
     liqe_score: "tooltip.liqe_score",
-    qalign_score: "tooltip.qalign_score",
+    qrealign_score: "tooltip.qrealign_score",
     aesthetic_v25: "tooltip.aesthetic_v25",
     deqa_score: "tooltip.deqa_score",
     saliency_section: "tooltip.saliency_section",
@@ -1050,6 +1062,8 @@ export const I18N = {
     sort_asc: "gallery.sort_asc",
     filters: "gallery.filters",
     search_placeholder: "gallery.search_placeholder",
+    search_chip: "gallery.search_chip",
+    semantic_search_chip: "gallery.semantic_search_chip",
     semantic_search: "gallery.semantic_search",
     semantic_search_placeholder: "gallery.semantic_search_placeholder",
     photo_count: "gallery.photo_count",
@@ -1198,7 +1212,7 @@ export const I18N = {
     aesthetic_iaa_range: "gallery.aesthetic_iaa_range",
     face_quality_iqa_range: "gallery.face_quality_iqa_range",
     liqe_range: "gallery.liqe_range",
-    qalign_range: "gallery.qalign_range",
+    qrealign_range: "gallery.qrealign_range",
     aesthetic_v25_range: "gallery.aesthetic_v25_range",
     deqa_range: "gallery.deqa_range",
     subject_sharpness_range: "gallery.subject_sharpness_range",
@@ -1927,13 +1941,20 @@ export const I18N = {
       button: "culling.auto_cull.button",
       tooltip: "culling.auto_cull.tooltip",
       title: "culling.auto_cull.title",
+      updating: "culling.auto_cull.updating",
       summary: "culling.auto_cull.summary",
       highlights_label: "culling.auto_cull.highlights_label",
       highlights_name: "culling.auto_cull.highlights_name",
+      trim_brackets: "culling.auto_cull.trim_brackets",
+      trim_brackets_hint: "culling.auto_cull.trim_brackets_hint",
+      trim_brackets_none: "culling.auto_cull.trim_brackets_none",
       apply: "culling.auto_cull.apply",
       applied: "culling.auto_cull.applied",
       error: "culling.auto_cull.error",
       empty: "culling.auto_cull.empty",
+      suggested: "culling.auto_cull.suggested",
+      suggested_tooltip: "culling.auto_cull.suggested_tooltip",
+      preview_updated: "culling.auto_cull.preview_updated",
     },
     exit_scene: "culling.exit_scene",
     scene_complete: "culling.scene_complete",
@@ -1953,6 +1974,8 @@ export const I18N = {
     face_smile_min_tooltip: "culling.face_smile_min_tooltip",
     subject_grid_title: "culling.subject_grid_title",
     subject_sharpness: "culling.subject_sharpness",
+    key_person: "culling.key_person",
+    key_person_tooltip: "culling.key_person_tooltip",
     reason: {
       best: "culling.reason.best",
       eyes_closed: "culling.reason.eyes_closed",
@@ -1971,6 +1994,14 @@ export const I18N = {
       rejected: "culling.lightbox.rejected",
       undecided: "culling.lightbox.undecided",
     },
+    swipe: {
+      keep: "culling.swipe.keep",
+      reject: "culling.swipe.reject",
+      hint: "culling.swipe.hint",
+      hint_dismiss: "culling.swipe.hint_dismiss",
+      kept: "culling.swipe.kept",
+      rejected: "culling.swipe.rejected",
+    },
     shortcuts: {
       page_title: "culling.shortcuts.page_title",
       darkroom_title: "culling.shortcuts.darkroom_title",
@@ -1981,6 +2012,8 @@ export const I18N = {
       reject: "culling.shortcuts.reject",
       confirm_next: "culling.shortcuts.confirm_next",
       zoom: "culling.shortcuts.zoom",
+      peaking: "culling.shortcuts.peaking",
+      grid: "culling.shortcuts.grid",
       close: "culling.shortcuts.close",
     },
     group_by: {
@@ -2000,6 +2033,21 @@ export const I18N = {
       original: "culling.cull_style.original",
       loading: "culling.cull_style.loading",
       error: "culling.cull_style.error",
+    },
+    peaking: {
+      label: "culling.peaking.label",
+      tooltip: "culling.peaking.tooltip",
+    },
+    legend: {
+      label: "culling.legend.label",
+      tooltip: "culling.legend.tooltip",
+    },
+    grid: {
+      label: "culling.grid.label",
+      tooltip: "culling.grid.tooltip",
+      off: "culling.grid.off",
+      thirds: "culling.grid.thirds",
+      golden: "culling.grid.golden",
     },
     bracket: {
       label: "culling.bracket.label",
@@ -2229,6 +2277,7 @@ export const I18N = {
     help: "map.help",
     title: "map.title",
     no_gps: "map.no_gps",
+    tiles_unavailable: "map.tiles_unavailable",
     photos_count: "map.photos_count",
     cluster_photos: "map.cluster_photos",
     score: "map.score",
@@ -2436,3 +2485,6 @@ export const I18N = {
     },
   },
 } as const;
+
+/** Same table as {@link I18N}, exported under a distinct name for class-field initializers -- see header comment above. */
+export const I18N_KEYS = I18N;

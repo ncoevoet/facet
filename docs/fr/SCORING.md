@@ -409,6 +409,8 @@ python facet.py --recompute-average      # appliquer + persister l'instantané d
 3. Cliquez sur « Suggérer les poids » pour les valeurs optimisées
 4. Mettez à jour la config manuellement
 
+**Suggérer les poids** répond aussi à une question plus précise que la porte de validation croisée ci-dessus : dans quelle mesure les poids *actuellement en vigueur* de cette catégorie sont-ils déjà d'accord avec vos propres comparaisons ? Cliquer dessus renvoie `accuracy_before` — le pourcentage des paires étiquetées de cette catégorie (votes A/B, tri et paires dérivées des notes) dont les poids en vigueur prédisent correctement le gagnant — à côté d'`accuracy_after`, le même chiffre pour les poids suggérés. Les deux sont affichés côte à côte dans l'onglet Suggestions de poids et dans le panneau latéral de l'onglet Comparaison A/B à chaque exécution (`GET /api/comparison/learned_weights`, `optimization/weight_optimizer.py:optimize_weights_direct`). Comme la porte de la CLI, cela nécessite `min_comparisons_for_optimization` (30 par défaut) paires étiquetées pour cette catégorie — en dessous, le bouton signale le manque plutôt qu'un chiffre.
+
 ## Ajouter des catégories personnalisées
 
 ```json

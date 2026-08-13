@@ -37,6 +37,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Capsules](#capsules)
 - [Similarity Groups](#similarity-groups)
 - [Scenes](#scenes)
+- [OCR](#ocr)
 - [Timeline](#timeline)
 - [Map](#map)
 - [Translation](#translation)
@@ -806,6 +807,13 @@ set's base frame — signed the way a camera labels an AEB set, so `-2` is the d
 `is_burst_lead` moves onto that base frame, so the default gallery shows the correctly
 exposed photo instead of whichever exposure happened to score highest.
 
+The base is the middle rung of the ladder. An even number of frames has two rungs equally
+far from the middle, and there the base is the one that blew fewer ends of its histogram
+(`shadow_clipped` / `highlight_clipped`) — the metered frame holds the scene, the rungs
+either side of it are pushed far enough to clip. Where neither frame was measured, or both
+clipped as many ends, the earlier frame wins. An odd ladder always centres on its middle
+frame regardless of clipping, so a symmetric `(-2, 0, +2)` set is unaffected.
+
 Run via `--detect-sequences`; it also runs at the end of every scan, after burst grouping.
 
 ```json
@@ -827,10 +835,25 @@ Run via `--detect-sequences`; it also runs at the end of every scan, after burst
 | `enabled` | `true` | Turn bracket detection off entirely |
 | `max_gap_seconds` | `3.0` | Longest gap between consecutive frames of one set |
 | `max_hamming` | `10` | pHash distance allowed between frames (same framing) |
-| `min_frames` | `3` | Shortest run treated as a bracket |
+| `min_frames` | `3` | Shortest run treated as a bracket. `2` is opt-in — see the caveat below |
 | `min_step_stops` | `0.5` | Smallest EV step that counts as a deliberate change |
 | `min_span_stops` | `1.0` | Smallest total spread from darkest to brightest frame |
 | `step_tolerance_stops` | `0.34` | How uneven the steps may be (a third of a stop) |
+
+**Why `min_frames` ships at `3`.** Two of the four ladder tests are vacuous on a pair: one
+step is trivially one-directional and trivially even, leaving only "two frames, moments
+apart, framed alike, a stop or more apart" — which describes a photographer dialling in a
+correction and shooting again exactly as well as it describes a two-frame AEB set. Measured
+on a 124,886-photo library, `2` admits 381 further sets against the 226 the default finds,
+and their evidence says most are not brackets: 56% span under two stops where 99.6% of the
+confirmed sets span two or more, and their commonest clipping pattern is both frames dark
+rather than the confirmed sets' dark-end/bright-end straddle.
+
+Worse, a pair that genuinely *is* what remains of a 3-shot set is two adjacent flanking
+rungs, and nothing stored says which side the missing rung was on — so `sequence_ev_offset`
+`0` lands on a frame the camera never metered, and `hide_brackets` (on by default) hides the
+other. Set `2` only if you shoot two-frame AEB and would rather carry those false positives
+than miss the sets.
 
 ---
 
@@ -933,12 +956,12 @@ Run `python facet.py --detect-duplicates` to detect and group duplicates. Run `p
 
 ## Extended IQA tier (optional)
 
-Heavy/experimental quality scorers, **OFF by default** and **never a replacement for TOPIQ** — they add supplementary columns only when explicitly enabled. When enabled, the extended scorers run **during a normal scan** and write their own columns; a load/VRAM failure is logged and the column is left `NULL` (the scan never aborts).
+Heavy/experimental quality scorers that add supplementary columns; **never a replacement for TOPIQ**. `qrealign` defaults to `"auto"` — **on** for the `8gb`/`16gb`/`24gb` profiles, **off** for `legacy`/CPU — the first extended-tier scorer usable from the `8gb` profile up (Q-Align, which it replaces, never fit under 16GB). `aesthetic_v25` and `deqa` stay **OFF by default**. When enabled, the extended scorers run **during a normal scan** and write their own columns; a load/VRAM failure is logged and the column is left `NULL` (the scan never aborts).
 
 ```json
 {
   "iqa_extended": {
-    "qalign": "4bit",
+    "qrealign": "auto",
     "aesthetic_v25": true,
     "deqa": false
   }
@@ -947,15 +970,15 @@ Heavy/experimental quality scorers, **OFF by default** and **never a replacement
 
 | Setting | Default | Accepted values | Column | Description |
 |---------|---------|-----------------|--------|-------------|
-| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | Q-Align LLM-based IQA (pyiqa-backed). `"4bit"` (~6-8GB VRAM) is the practical choice on a 16GB card; `"8bit"` ~12-14GB; full precision (`true`) wants 16GB+. 4-/8-bit need `bitsandbytes`. |
-| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (SigLIP head, ~2GB). Requires the `aesthetic-predictor-v2-5` package. |
+| `qrealign` | `"auto"` | `"auto"` · `true` · `false` | `qrealign_score` | Q-ReAlign-Mini 0.8B LLM-based IQA (pyiqa-backed, Apache-2.0 weights, ~2-3GB VRAM/RAM). `"auto"` turns it on for the `8gb`/`16gb`/`24gb` profiles and off for `legacy`/CPU; `true`/`false` override the profile default explicitly. |
+| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (SigLIP head, ~2GB). Requires the `aesthetic-predictor-v2-5` package. **Deprecated:** AGPL-3.0-licensed and unmaintained upstream since 2024-12-18 — prefer `qrealign`. |
 | `deqa` | `false` | `true` / `false` | `deqa_score` | DeQA-Score VLM IQA (16GB+ GPU; skipped & left NULL otherwise). |
 
-**Install the optional dependencies** for whatever you enable: `pip install -e .[iqa-extended]` (adds `aesthetic-predictor-v2-5` + `bitsandbytes`), or uncomment the matching lines in `requirements.txt`. Q-Align itself ships with `pyiqa`; DeQA-Score downloads via `transformers`.
+**Install the optional dependencies** for whatever you enable: `pip install -e .[iqa-extended]` (adds `aesthetic-predictor-v2-5`), or uncomment the matching line in `requirements.txt`. Q-ReAlign ships with `pyiqa`; DeQA-Score downloads via `transformers`.
 
 When enabled, each metric is exposed to the weighted aggregate but defaults to weight 0, so `--recompute-average` is byte-identical until you give it a weight. Run `python facet.py --eval-iqa-srcc` to measure how well each metric ranks your library against your own star ratings.
 
-**Viewer surfacing.** When any of these columns is populated, the viewer shows the value in the photo-detail **Quality** panel (`Q-Align`, `Aesthetic V2.5`, `DeQA`) and exposes a matching range slider in the gallery filter sidebar under **Extended Quality** (`min_qalign`/`max_qalign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Photos scanned before the tier was enabled simply have `NULL` in these columns and are unaffected by the filters.
+**Viewer surfacing.** When any of these columns is populated, the viewer shows the value in the photo-detail **Quality** panel (`Q-ReAlign`, `Aesthetic V2.5`, `DeQA`) and exposes a matching range slider in the gallery filter sidebar under **Extended Quality** (`min_qrealign`/`max_qrealign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Photos scanned before the tier was enabled have `NULL` in these columns, and setting a min or max on one of these sliders **excludes** them — a `NULL` never satisfies a `>=`/`<=` comparison. Rescan before filtering on a newly enabled metric, or those photos will silently drop out of the gallery.
 
 **Robustness.** DeQA-Score loads remote `trust_remote_code` code whose forward signature varies across checkpoint revisions; its scorer is defensive — any prediction failure (wrong signature, unexpected output shape, OOM) is caught and the image's `deqa_score` is left `NULL` rather than crashing the scan.
 
@@ -1994,6 +2017,49 @@ The signal is **caption-semantic**: each photo's AI caption is encoded once with
 
 **Discovering a library-specific vocabulary.** The `general` set is a sensible default, but you can propose a vocabulary fitted to *your* library with `python facet.py --discover-moments`: it clusters the stored `caption_embedding` vectors (HDBSCAN), names each cluster from its captions (a keyword plus the captions nearest the centroid as ready-made prompts), and writes the result as an `event_types.discovered` block to `scoring_config.discovered.json`. Review it, copy `discovered` into `event_types` above, set `default_event_type` to `discovered`, and run `--recompute-moments` to adopt — discovery proposes, it never rewrites the active config. `--discover-min-cluster-size N` controls granularity (smaller = more, finer moments).
 
+## OCR
+
+In-photo text search: reads the words *inside* your photos — street signs, shop fronts, race bibs, book spines, slides, whiteboards, scanned documents — into `photos.ocr_text`, which is a covering column of the `photos_fts` full-text index. Once populated, that text is searchable from the gallery search box like any caption or tag, and `GET /api/search?scope=text` restricts a query to text-bearing columns only.
+
+**Off by default**, and it needs an engine installed:
+
+```bash
+pip install easyocr           # or: pip install -e .[ocr]
+```
+
+Then enable it and run the pass:
+
+```json
+{
+  "ocr": {
+    "enabled": false,
+    "languages": ["en", "fr"],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  }
+}
+```
+
+```bash
+python facet.py --detect-text      # only photos never evaluated
+python facet.py --recompute-text   # re-read the whole library
+```
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `enabled` | `false` | Master switch. `--detect-text` refuses to run while this is `false`, so the pass is never triggered by accident |
+| `languages` | `["en", "fr"]` | Language codes passed to the engine. Latin-script languages combine freely; mixing scripts (e.g. `en` + `ja`) is rejected by easyocr, so use one script family per run |
+| `min_confidence` | `0.4` | Drop detections the engine scores below this (0–1). Raise it if OCR noise pollutes search results, lower it to catch faint or distant text |
+| `full_resolution` | `false` | OCR the original file instead of the stored 640px thumbnail. Far slower and only worth it for small or distant text — 640px already resolves signs, posters and document headings. Falls back to the thumbnail when the original is offline |
+
+**Sentinel semantics.** `ocr_text` is `NULL` while a photo has never been evaluated and `''` once it has been read and found to contain no text. That distinction is what lets `--detect-text` scope to genuinely new photos instead of re-reading every textless frame on each run; `--recompute-text` ignores it and re-reads everything. FTS5 indexes `''` as zero tokens, so a textless photo can never match a query.
+
+**No `--rebuild-fts` needed.** `ocr_text` is in the FTS sync triggers' `UPDATE OF` list, so the pass's own writes re-index each row as it goes. `python database.py --rebuild-fts` is only required for a database created before `ocr_text` joined the covering index — `init_database` detects that older index and recreates it for you.
+
+**Engines.** `easyocr` (Apache-2.0, PyTorch) is the default and reuses the stack Facet already installs — it adds no second OpenCV and pins no numpy/torch version. Its weights (~113MB) download from the project's own GitHub releases on first run. The `tesseract` binary plus `pytesseract` works as an alternative optional external tool (like `exiftool`) and is used when easyocr is absent, but it is tuned for scanned pages and reads scene text markedly less well. With neither installed the pass exits with an error rather than silently writing nothing.
+
+**Cost.** A 640px thumbnail takes roughly 0.4s on CPU, so a 50k-photo library is an overnight CPU job — it is a one-time backfill, and later scans only ever add new photos. A GPU is used automatically when torch reports one.
+
 ## Social Export
 
 Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_crop`, edition-gated). Each preset crops the full-resolution original to a target aspect and frames it on the detected subject — the largest rectangle of that aspect fitting inside the image, centered on the subject and clamped at the edges. The subject box follows a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`) → the union of detected face boxes → a plain center crop. See [Web Viewer — Download](VIEWER.md#download).
@@ -2246,8 +2312,14 @@ One-way sync of Facet star ratings and favorites to an [Immich](https://immich.a
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2261,8 +2333,12 @@ One-way sync of Facet star ratings and favorites to an [Immich](https://immich.a
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Prefix rewrites from Facet paths to Immich `originalPath` values; the first matching `facet_prefix` is swapped for its `immich_prefix` when resolving an asset |
 | `push.ratings` | `true` | Push star ratings. Immich's version-safe policy is honored — only 1–5 is written, never 0/−1 |
 | `push.favorites` | `true` | Push the favorite flag |
+| `push.rejected` | `false` | Push `rating: -1` for photos rejected in Facet's culling darkroom. Requires `push.ratings` |
 | `push.top_picks_album` | `""` | Optional Immich album name that collects pushed photos above the rating threshold. Empty = no album |
 | `push.top_picks_min_rating` | `4` | Minimum star rating for a photo to be added to `top_picks_album` |
+| `webhook.token_env` | `""` | Name of the environment variable holding the inbound webhook's shared secret. Empty (or unset/empty variable) disables the endpoint — it 404s |
+| `webhook.header` | `"x-facet-token"` | Header Immich's workflow sends the token in |
+| `webhook.max_pending` | `500` | Cap on the remembered-but-unscored path list reported by the next sync |
 | `timeout_seconds` | `30` | Per-request REST timeout |
 
 `--immich-sync` honors `--dry-run` (resolves every asset but writes nothing) and `--user` (pushes that user's `user_preferences` ratings in multi-user mode). REST-only — Facet never touches the Immich database.
@@ -2365,14 +2441,11 @@ Each VRAM profile's `tagging_model` key (e.g. `qwen3.5-2b`) maps to a model entr
 
 No code changes needed. Validate quality via a side-by-side spot check on ~30 photos before promoting to default.
 
-## Share Secret
+## Server Secret
 
-Auto-generated 64-character hex string for session/sharing tokens:
+The secret that signs session tokens and photo-frame links is **not** a key in this file. It lives in `.facet_secret` beside `scoring_config.json` (mode `0600`, gitignored) and is generated on first run.
 
-```json
-{
-  "share_secret": "31a1c944ea5c82b871e61e50e5920daa2d1940b126c395f519088506595fd925"
-}
-```
+- Override: the `FACET_JWT_SECRET` environment variable.
+- Rotate: `python database.py --rotate-secret`.
 
-Generated automatically on first run if not present.
+A `share_secret` left over from an older install is moved into that file on the next start and removed from `scoring_config.json`. See [Secret storage and rotation](DEPLOYMENT.md#secret-storage-and-rotation).

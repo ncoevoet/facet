@@ -37,6 +37,7 @@ Todos los ajustes están en `scoring_config.json`. Tras modificarlos, ejecuta `p
 - [Cápsulas](#cápsulas)
 - [Grupos de similitud](#grupos-de-similitud)
 - [Escenas](#escenas)
+- [OCR](#ocr)
 - [Línea de tiempo](#línea-de-tiempo)
 - [Mapa](#mapa)
 - [Traducción](#traducción)
@@ -791,6 +792,14 @@ con el signo que usa la cámara: `-2` es la oscura y `+2` la clara. Cuando una r
 ser exactamente un horquillado, su `is_burst_lead` pasa a esa foto base, para que la galería
 muestre la foto bien expuesta y no la que obtuvo la mejor puntuación.
 
+La foto base es el peldaño central de la escalera. Con un número par de tomas hay dos a la
+misma distancia del centro: entonces la base es la que quemó menos extremos de su histograma
+(`shadow_clipped` / `highlight_clipped`), porque la toma medida sostiene la escena mientras
+que los peldaños de al lado están empujados lo suficiente como para recortar. Si ninguna de
+las dos se midió, o si ambas recortan otros tantos extremos, gana la más antigua. Una
+escalera impar se centra siempre en su toma media, con recorte o sin él, así que una serie
+simétrica `(-2, 0, +2)` no cambia.
+
 Se ejecuta con `--detect-sequences`; también corre al final de cada escaneo, después de
 agrupar las ráfagas.
 
@@ -813,10 +822,26 @@ agrupar las ráfagas.
 | `enabled` | `true` | Desactiva por completo la detección de horquillado |
 | `max_gap_seconds` | `3.0` | Intervalo máximo entre dos tomas consecutivas de una serie |
 | `max_hamming` | `10` | Distancia pHash admitida entre tomas (mismo encuadre) |
-| `min_frames` | `3` | Serie más corta que se considera un horquillado |
+| `min_frames` | `3` | Serie más corta que se considera un horquillado. `2` es opcional — véase la advertencia siguiente |
 | `min_step_stops` | `0.5` | Menor paso de EV que cuenta como cambio deliberado |
 | `min_span_stops` | `1.0` | Amplitud mínima entre la toma más oscura y la más clara |
 | `step_tolerance_stops` | `0.34` | Irregularidad admitida entre pasos (un tercio de paso) |
+
+**Por qué `min_frames` vale `3` por defecto.** En una pareja dos de las cuatro pruebas de la
+escalera se quedan vacías: un solo paso es trivialmente unidireccional y trivialmente
+regular. Solo queda «dos tomas separadas por instantes, mismo encuadre, a un paso o más» —
+que describe igual de bien a un fotógrafo que corrige la exposición y vuelve a disparar que a
+un horquillado real de dos tomas. Medido sobre una biblioteca de 124 886 fotos, `2` añade 381
+series a las 226 que encuentra el valor por defecto, y los indicios dicen que la mayoría no
+lo son: el 56 % abarca menos de dos pasos, mientras que el 99,6 % de las series confirmadas
+abarca dos o más, y su patrón de recorte más frecuente es «ambas tomas oscuras» en lugar de
+la horquilla sombras/altas luces de las series confirmadas.
+
+Peor aún, una pareja que *sí* es lo que queda de una serie de tres tomas está formada por dos
+peldaños laterales contiguos, y nada de lo almacenado dice de qué lado faltaba el tercero: el
+`sequence_ev_offset` `0` acaba así en una toma que la cámara nunca midió, y `hide_brackets`
+(activo por defecto) oculta la otra. Ponga `2` solo si dispara horquillado de dos tomas y
+prefiere asumir esos falsos positivos antes que perder esas series.
 
 ---
 
@@ -918,12 +943,12 @@ Ejecuta `python facet.py --detect-duplicates` para detectar y agrupar duplicados
 
 ## Nivel IQA extendido (opcional)
 
-Puntuadores de calidad pesados/experimentales, **DESACTIVADOS por defecto** y **nunca un sustituto de TOPIQ**: solo añaden columnas suplementarias cuando se activan explícitamente. Cuando están activados, los puntuadores extendidos se ejecutan **durante un escaneo normal** y escriben sus propias columnas; un fallo de carga/VRAM se registra y la columna se deja como `NULL` (el escaneo nunca se aborta).
+Puntuadores de calidad pesados/experimentales que añaden columnas suplementarias; **nunca un sustituto de TOPIQ**. `qrealign` tiene como valor por defecto `"auto"` — **activado** para los perfiles `8gb`/`16gb`/`24gb`, **desactivado** para `legacy`/CPU — el primer puntuador de nivel extendido utilizable desde el perfil `8gb` en adelante (Q-Align, al que sustituye, nunca cupo por debajo de 16GB). `aesthetic_v25` y `deqa` siguen **DESACTIVADOS por defecto**. Cuando están activados, los puntuadores extendidos se ejecutan **durante un escaneo normal** y escriben sus propias columnas; un fallo de carga/VRAM se registra y la columna se deja como `NULL` (el escaneo nunca se aborta).
 
 ```json
 {
   "iqa_extended": {
-    "qalign": "4bit",
+    "qrealign": "auto",
     "aesthetic_v25": true,
     "deqa": false
   }
@@ -932,15 +957,15 @@ Puntuadores de calidad pesados/experimentales, **DESACTIVADOS por defecto** y **
 
 | Ajuste | Por defecto | Valores aceptados | Columna | Descripción |
 |---------|---------|-----------------|--------|-------------|
-| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | IQA basado en LLM Q-Align (respaldado por pyiqa). `"4bit"` (~6-8GB VRAM) es la opción práctica en una tarjeta de 16GB; `"8bit"` ~12-14GB; precisión completa (`true`) requiere 16GB+. 4-/8-bit necesitan `bitsandbytes`. |
-| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (cabeza SigLIP, ~2GB). Requiere el paquete `aesthetic-predictor-v2-5`. |
+| `qrealign` | `"auto"` | `"auto"` · `true` · `false` | `qrealign_score` | IQA basado en LLM Q-ReAlign-Mini 0.8B (respaldado por pyiqa, pesos Apache-2.0, ~2-3GB VRAM/RAM). `"auto"` lo activa para los perfiles `8gb`/`16gb`/`24gb` y lo desactiva para `legacy`/CPU; `true`/`false` anulan explícitamente el valor por defecto del perfil. |
+| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (cabeza SigLIP, ~2GB). Requiere el paquete `aesthetic-predictor-v2-5`. **Obsoleto:** licencia AGPL-3.0 y sin mantenimiento desde el 2024-12-18 — prefiere `qrealign`. |
 | `deqa` | `false` | `true` / `false` | `deqa_score` | IQA VLM DeQA-Score (GPU de 16GB+; de lo contrario se omite y se deja NULL). |
 
-**Instala las dependencias opcionales** de lo que actives: `pip install -e .[iqa-extended]` (añade `aesthetic-predictor-v2-5` + `bitsandbytes`), o descomenta las líneas correspondientes en `requirements.txt`. Q-Align se distribuye con `pyiqa`; DeQA-Score se descarga a través de `transformers`.
+**Instala las dependencias opcionales** de lo que actives: `pip install -e .[iqa-extended]` (añade `aesthetic-predictor-v2-5`), o descomenta la línea correspondiente en `requirements.txt`. Q-ReAlign se distribuye con `pyiqa`; DeQA-Score se descarga a través de `transformers`.
 
 Cuando están activadas, cada métrica se expone al agregado ponderado pero su peso por defecto es 0, por lo que `--recompute-average` es idéntico bit a bit hasta que le des un peso. Ejecuta `python facet.py --eval-iqa-srcc` para medir lo bien que cada métrica clasifica tu biblioteca frente a tus propias valoraciones por estrellas.
 
-**Visualización en el visor.** Cuando alguna de estas columnas está poblada, el visor muestra el valor en el panel de **Calidad** del detalle de la foto (`Q-Align`, `Aesthetic V2.5`, `DeQA`) y expone un control deslizante de rango correspondiente en la barra lateral de filtros de la galería, bajo **Calidad extendida** (`min_qalign`/`max_qalign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Las fotos escaneadas antes de activar el nivel simplemente tienen `NULL` en estas columnas y no se ven afectadas por los filtros.
+**Visualización en el visor.** Cuando alguna de estas columnas está poblada, el visor muestra el valor en el panel de **Calidad** del detalle de la foto (`Q-ReAlign`, `Aesthetic V2.5`, `DeQA`) y expone un control deslizante de rango correspondiente en la barra lateral de filtros de la galería, bajo **Calidad extendida** (`min_qrealign`/`max_qrealign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Las fotos escaneadas antes de activar el nivel tienen `NULL` en estas columnas, y fijar un mínimo o un máximo en uno de estos deslizadores **las excluye**: un `NULL` nunca satisface una comparación `>=`/`<=`. Vuelve a escanear antes de filtrar por una métrica recién activada, o esas fotos desaparecerán silenciosamente de la galería.
 
 **Robustez.** DeQA-Score carga código remoto con `trust_remote_code` cuya firma de forward varía entre revisiones de checkpoint; su puntuador es defensivo: cualquier fallo de predicción (firma incorrecta, forma de salida inesperada, OOM) se captura y el `deqa_score` de la imagen se deja como `NULL` en vez de bloquear el escaneo.
 
@@ -1964,6 +1989,49 @@ La señal es **semántica de leyenda**: la leyenda de IA de cada foto se codific
 
 **Descubrir un vocabulario específico de la biblioteca.** El conjunto `general` es un valor por defecto razonable, pero puedes proponer un vocabulario adaptado a *tu* biblioteca con `python facet.py --discover-moments`: agrupa los vectores `caption_embedding` almacenados (HDBSCAN), nombra cada grupo a partir de sus leyendas (una palabra clave más las leyendas más cercanas al centroide como prompts listos para usar) y escribe el resultado como un bloque `event_types.discovered` en `scoring_config.discovered.json`. Revísalo, copia `discovered` en `event_types` de arriba, establece `default_event_type` en `discovered` y ejecuta `--recompute-moments` para adoptarlo — el descubrimiento propone, nunca reescribe la configuración activa. `--discover-min-cluster-size N` controla la granularidad (más pequeño = más momentos, más finos).
 
+## OCR
+
+Búsqueda de texto en la foto: lee las palabras *dentro* de tus fotos — carteles de calle, fachadas de tiendas, dorsales de carrera, lomos de libros, diapositivas, pizarras, documentos escaneados — en `photos.ocr_text`, una columna de cobertura del índice de texto completo `photos_fts`. Una vez poblado, ese texto es buscable desde la barra de búsqueda de la galería como cualquier leyenda o etiqueta, y `GET /api/search?scope=text` restringe una consulta solo a las columnas que contienen texto.
+
+**Desactivado por defecto**, y necesita un motor instalado:
+
+```bash
+pip install easyocr           # o: pip install -e .[ocr]
+```
+
+Luego actívalo y ejecuta el paso:
+
+```json
+{
+  "ocr": {
+    "enabled": false,
+    "languages": ["en", "fr"],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  }
+}
+```
+
+```bash
+python facet.py --detect-text      # solo fotos nunca evaluadas
+python facet.py --recompute-text   # vuelve a leer toda la biblioteca
+```
+
+| Clave | Por defecto | Descripción |
+|-----|---------|-------------|
+| `enabled` | `false` | Interruptor maestro. `--detect-text` se niega a ejecutarse mientras esto sea `false`, de modo que el paso nunca se dispara por accidente |
+| `languages` | `["en", "fr"]` | Códigos de idioma pasados al motor. Los idiomas de escritura latina se combinan libremente; mezclar escrituras (por ejemplo, `en` + `ja`) es rechazado por easyocr, así que usa una sola familia de escritura por ejecución |
+| `min_confidence` | `0.4` | Descarta las detecciones que el motor puntúa por debajo de este valor (0–1). Súbelo si el ruido del OCR contamina los resultados de búsqueda, bájalo para captar texto tenue o distante |
+| `full_resolution` | `false` | Aplica OCR al archivo original en lugar de a la miniatura de 640px almacenada. Mucho más lento y solo vale la pena para texto pequeño o distante — 640px ya resuelve carteles, pósteres y encabezados de documentos. Recurre a la miniatura cuando el original está fuera de línea |
+
+**Semántica del centinela.** `ocr_text` es `NULL` mientras una foto nunca ha sido evaluada y `''` una vez que se ha leído y se ha comprobado que no contiene texto. Esa distinción es lo que permite que `--detect-text` se limite a fotos genuinamente nuevas en lugar de releer cada fotograma sin texto en cada ejecución; `--recompute-text` la ignora y relee todo. FTS5 indexa `''` como cero tokens, así que una foto sin texto nunca puede coincidir con una consulta.
+
+**No hace falta `--rebuild-fts`.** `ocr_text` está en la lista `UPDATE OF` de los triggers de sincronización de FTS, así que las propias escrituras del paso reindexan cada fila sobre la marcha. `python database.py --rebuild-fts` solo es necesario para una base de datos creada antes de que `ocr_text` se uniera al índice de cobertura — `init_database` detecta ese índice más antiguo y lo recrea por ti.
+
+**Motores.** `easyocr` (Apache-2.0, PyTorch) es el motor por defecto y reutiliza la pila que Facet ya instala — no añade un segundo OpenCV ni fija ninguna versión de numpy/torch. Sus pesos (~113MB) se descargan desde las propias releases de GitHub del proyecto en la primera ejecución. El binario `tesseract` más `pytesseract` funciona como herramienta externa opcional alternativa (como `exiftool`) y se usa cuando easyocr está ausente, pero está afinado para páginas escaneadas y lee el texto de escena notablemente peor. Sin ninguno de los dos instalado, el paso termina con un error en lugar de escribir silenciosamente nada.
+
+**Coste.** Una miniatura de 640px tarda aproximadamente 0,4s en CPU, así que una biblioteca de 50.000 fotos es un trabajo de CPU de toda una noche — es un relleno retroactivo puntual, y los escaneos posteriores solo añaden fotos nuevas. Se usa una GPU automáticamente cuando torch informa de una.
+
 ## Exportación social
 
 Recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales (`GET /api/photo/social_crop`, restringido a edición). Cada preajuste recorta el original a resolución completa a una relación de aspecto objetivo y lo encuadra en el sujeto detectado — el mayor rectángulo de esa relación de aspecto que cabe dentro de la imagen, centrado en el sujeto y ajustado a los bordes. La caja del sujeto sigue una cadena de reserva: la caja de sujeto BiRefNet persistida (`photos.subject_bbox`) → la unión de las cajas de caras detectadas → un recorte centrado simple. Consulta [Visor web — Descarga](VIEWER.md#download).
@@ -2216,8 +2284,14 @@ Sincronización unidireccional de las valoraciones por estrellas y los favoritos
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2231,8 +2305,12 @@ Sincronización unidireccional de las valoraciones por estrellas y los favoritos
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Reescrituras de prefijo de las rutas de Facet a los valores `originalPath` de Immich; el primer `facet_prefix` coincidente se sustituye por su `immich_prefix` al resolver un recurso |
 | `push.ratings` | `true` | Enviar las valoraciones por estrellas. Se respeta la política segura por versión de Immich — solo se escribe 1–5, nunca 0/−1 |
 | `push.favorites` | `true` | Enviar la marca de favorito |
+| `push.rejected` | `false` | Envía `rating: -1` para las fotos rechazadas en Facet. Requiere `push.ratings` |
 | `push.top_picks_album` | `""` | Nombre opcional de un álbum de Immich que recopila las fotos enviadas por encima del umbral de valoración. Vacío = sin álbum |
 | `push.top_picks_min_rating` | `4` | Valoración por estrellas mínima para que una foto se añada a `top_picks_album` |
+| `webhook.token_env` | `""` | Nombre de la variable de entorno que contiene el secreto del webhook entrante. Vacío (o variable sin definir/vacía) desactiva el endpoint — devuelve 404 |
+| `webhook.header` | `"x-facet-token"` | Cabecera en la que el flujo de trabajo de Immich envía el token |
+| `webhook.max_pending` | `500` | Límite de la lista de rutas recordadas pero sin puntuar, notificada por la siguiente sincronización |
 | `timeout_seconds` | `30` | Tiempo de espera REST por solicitud |
 
 `--immich-sync` respeta `--dry-run` (resuelve cada recurso pero no escribe nada) y `--user` (envía las valoraciones de `user_preferences` de ese usuario en modo multiusuario). Solo REST — Facet nunca toca la base de datos de Immich.
@@ -2335,14 +2413,11 @@ La clave `tagging_model` de cada perfil de VRAM (p. ej. `qwen3.5-2b`) se asigna 
 
 No se necesitan cambios de código. Valida la calidad mediante una comprobación puntual en paralelo sobre ~30 fotos antes de promoverlo a valor por defecto.
 
-## Share Secret
+## Secreto del servidor
 
-Cadena hexadecimal de 64 caracteres autogenerada para los tokens de sesión/compartición:
+El secreto que firma los tokens de sesión y los enlaces del marco de fotos **no** es una clave de este archivo. Reside en `.facet_secret`, junto a `scoring_config.json` (modo `0600`, ignorado por git), y se genera en el primer arranque.
 
-```json
-{
-  "share_secret": "31a1c944ea5c82b871e61e50e5920daa2d1940b126c395f519088506595fd925"
-}
-```
+- Anulación: la variable de entorno `FACET_JWT_SECRET`.
+- Rotación: `python database.py --rotate-secret`.
 
-Se genera automáticamente en el primer arranque si no está presente.
+Un `share_secret` heredado de una instalación anterior se traslada a ese archivo en el siguiente arranque y se elimina de `scoring_config.json`. Consulta [Almacenamiento y rotación del secreto](DEPLOYMENT.md#almacenamiento-y-rotación-del-secreto).

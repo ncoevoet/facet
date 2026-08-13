@@ -14,7 +14,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CompareFiltersService } from './compare-filters.service';
 import { CategoryRecomputeService } from './category-recompute.service';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface Snapshot {
   id: number;
@@ -106,7 +106,7 @@ interface Snapshot {
   `,
 })
 export class ComparisonSnapshotsTabComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private snackBar = inject(MatSnackBar);

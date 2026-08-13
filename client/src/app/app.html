@@ -140,7 +140,10 @@
 <!-- Header-slot projection: a feature page (culling, merge suggestions…) renders its
            toolbar in the global header on lg+; on small screens the page renders it itself. -->
       @if (auth.isAuthenticated() && headerSlot.template(); as tpl) {
-        <div class="!hidden lg:!flex items-center gap-1 ml-2 min-w-0">
+        <!-- overflow-x-clip (not hidden/auto) so a wide page toolbar can never paint
+             over the shell controls to its right, while a slider's value bubble can
+             still overflow vertically. The projected toolbar owns its own scrolling. -->
+        <div class="!hidden lg:!flex items-center gap-1 ml-2 min-w-0 overflow-x-clip">
           <ng-container [ngTemplateOutlet]="tpl" />
         </div>
       }
@@ -195,10 +198,16 @@
           </mat-select>
         </mat-form-field>
 
-        <!-- "My Taste" confidence indicator — held-out accuracy of the personal ranker -->
+        <!-- "My Taste" confidence indicator — held-out accuracy of the personal ranker.
+             A button, not a bare icon: the accuracy lives only in the tooltip, which a
+             keyboard or screen-reader user can only reach through a focusable host. -->
         @if (myTasteBadge(); as taste) {
-          <mat-icon class="!hidden lg:!inline-flex items-center !text-amber-400"
-                [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—' }">auto_awesome</mat-icon>
+          <button type="button"
+                  class="inline-flex items-center shrink-0 p-1 rounded-full text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                  [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
+                  [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">auto_awesome</mat-icon>
+          </button>
         }
 
         <!-- Tooltip-mode menu — first item in the gallery icon cluster -->

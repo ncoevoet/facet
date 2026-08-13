@@ -8,7 +8,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PanoramaSettingsService, PanoramaSettings } from './panorama-settings.service';
 
@@ -93,7 +93,7 @@ import { PanoramaSettingsService, PanoramaSettings } from './panorama-settings.s
   `,
 })
 export class PanoramaSettingsTabComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly service = inject(PanoramaSettingsService);
 
   protected readonly settings = signal<PanoramaSettings | null>(null);

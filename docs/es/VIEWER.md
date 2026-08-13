@@ -10,7 +10,7 @@ Aplicación de página única (SPA) basada en FastAPI + Angular para explorar, f
 - [Gestión de personas](#gestión-de-personas) · [Activador de escaneo (superadmin)](#activador-de-escaneo-superadmin) · [Búsqueda semántica](#búsqueda-semántica) · [Álbumes](#álbumes)
 - [Crítica con IA](#crítica-con-ia) · [Subtitulado con IA](#subtitulado-con-ia-gpu-16gb24gb-edition) · [Recuerdos ("En este día")](#recuerdos-en-este-día) · [Vista de línea de tiempo](#vista-de-línea-de-tiempo) · [Vista de mapa](#vista-de-mapa) · [Cápsulas](#cápsulas)
 - [Vista de carpetas](#vista-de-carpetas) · [Diálogo de filtro GPS](#diálogo-de-filtro-gps) · [Sugerencias de fusión](#sugerencias-de-fusión) · [Exportación al editor](#exportación-al-editor) · [Descarte](#descarte) · [Limpieza de basura](#limpieza-de-basura) · [Modo de comparación por pares](#modo-de-comparación-por-pares)
-- [Estadísticas EXIF](#estadísticas-exif) · [Atajos de teclado](#atajos-de-teclado-galería) · [Deshacer](#deshacer) · [Aplicación web progresiva](#aplicación-web-progresiva) · [Móvil](#móvil)
+- [Estadísticas EXIF](#estadísticas-exif) · [Atajos de teclado](#atajos-de-teclado-galería) · [Deshacer](#deshacer) · [Aplicación web progresiva](#aplicación-web-progresiva) · [Móvil](#móvil) · [Marco de fotos / Quiosco](#marco-de-fotos--quiosco) · [Subida automática desde el teléfono](#subida-automática-desde-el-teléfono)
 - [Configuración](#configuración) · [Rendimiento](#rendimiento) · [Endpoints de la API](#endpoints-de-la-api) · [Solución de problemas](#solución-de-problemas)
 
 > **Los requisitos de cada función** se indican en línea: `[GPU]` · `[16gb/24gb]` (perfil de VRAM) · `[Edition]` (contraseña de edición) · `[Superadmin]`. Consulta la [matriz de funciones](../README.md#feature-availability--requirements).
@@ -202,10 +202,19 @@ Controlada por `viewer.features.show_my_taste` (predeterminado: `true`). El esta
 - **Comparar** — Abre de 2 a 4 fotos seleccionadas una al lado de otra con desplazamiento y zoom sincronizados (rueda para ampliar, arrastrar para desplazar, doble clic para reiniciar; todos los paneles se mueven juntos y pasan a resolución completa más allá de la escala de ajuste). La misma vista que usa el cuarto oscuro de descarte, ahora alcanzable para cualquier conjunto elegido a mano y no solo para tomas contiguas de una ráfaga.
 - **Copiar nombres de archivo** — Copia los nombres de archivo seleccionados al portapapeles
 - **Exportar** — Escribe sidecars XMP (valoración/favorito/descartado) junto a los archivos seleccionados (consulta [Exportación al editor](#exportación-al-editor))
+- **Descartar a carpeta** — Copia los conservados, o mueve/envía a la papelera los descartados, a una carpeta de destino (consulta [Descartar a carpeta](#descartar-a-carpeta))
 - **Descargar** — Descarga las fotos seleccionadas
 - Borra la selección con Escape o el botón Borrar
 
 Las acciones masivas requieren el modo de edición. Haz doble clic en cualquier foto para descargarla directamente.
+
+### Conservar el N% superior
+
+Un control **Conservar % superior** en la barra de herramientas de la galería (modo de edición) convierte toda la vista filtrada en un descarte en un solo paso. Define un porcentaje: el servidor clasifica la vista actual según el **orden actual** (agregada, My Taste, Mejores selecciones, nitidez, …), conserva esa parte superior y **selecciona el resto** — las fotos peor clasificadas — para que puedas descartarlas desde la barra de acciones (o deseleccionar antes las que quieras conservar). No se mueve ni se elimina nada: solo rellena la selección (y cada descarte sigue entrenando "My Taste"). La selección está limitada a 5000 fotos; en una vista muy grande el control te lo indica — acota el filtro (álbum, fecha, persona…) para actuar sobre el resto.
+
+### Descartar a carpeta
+
+El diálogo **Descartar a carpeta…** de la barra de acciones masivas (modo edición) copia los conservados, o mueve/envía a la papelera los descartados, a una carpeta de destino en un solo paso (la papelera del sistema está condicionada por `viewer.cull.allow_trash`, nunca un borrado permanente). Aplicar es seguro por construcción: `POST /api/cull/apply` nunca confía a ciegas en una lista de eliminación proporcionada por el cliente — vuelve a derivar en el servidor el conjunto real de la acción a partir del estado `is_rejected` propio de cada foto (copiar actúa solo sobre los conservados, mover/papelera solo sobre los descartados) y reporta todo lo que quede fuera de ese alcance como `excluded_by_state` en lugar de actuar sobre ello. Cada llamada usa por defecto una simulación (dry run) — siempre se ejecuta una vista previa antes de escribir nada — y mover/papelera requieren un `dry_run=false` explícito para proceder; incluir el RAW o el sidecar intacto de una foto descartada es opcional (`include_companions`), de modo que descartar un JPEG derivado nunca arrastra silenciosamente su RAW. Varias herramientas fotográficas comerciales han tenido errores de selección de eliminación que afectaron a las fotos equivocadas; el endpoint de aplicación de Facet está diseñado para que el cliente nunca pueda especificar directamente un conjunto a eliminar.
 
 ### Opciones de visualización
 
@@ -302,13 +311,17 @@ Crea álbumes y añade fotos desde la galería usando la selección múltiple. L
 
 Guarda una combinación de filtros (cámara, etiqueta, persona, rango de fechas, umbrales de puntuación, etc.) como un álbum inteligente. Los álbumes inteligentes se actualizan dinámicamente a medida que nuevas fotos coinciden con los criterios de filtro guardados. La combinación de filtros se almacena como JSON en `smart_filter_json`.
 
-API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
-
-Controlado por `viewer.features.show_albums` (predeterminado: `true`).
-
 ### Contexto de puntuación
 
 Cada álbum puede llevar un contexto de puntuación que decide qué categoría gana para sus fotos miembro, independientemente del orden de prioridad global — consulta [Contextos de puntuación](CONFIGURATION.md#contextos-de-puntuación). `PUT /api/albums/{id}/scoring_context` (requiere edición) lo establece y materializa el mismo contexto en cada foto que es miembro **ahora mismo**; `conflicts` en la respuesta cuenta los miembros no manuales que ya llevaban un contexto distinto, `manual_skipped` cuenta los miembros cuya propia anulación manual se dejó intacta (una asignación de álbum nunca convierte silenciosamente la anulación manual de una foto en una procedente del álbum), y `updated` cuenta cuántas se escribieron realmente. Un álbum manual resuelve su pertenencia a partir de sus filas de `album_photos`; un álbum inteligente no tiene ninguna, así que su pertenencia se resuelve en su lugar evaluando su `smart_filter_json` guardado contra la base de datos en vivo. Esa es la **definición de filtro** del álbum, no «lo que la galería estuviera mostrando en ese momento»: ignora deliberadamente las preferencias de visualización de la galería que ocultan parpadeos, ráfagas, duplicadas y rechazadas (globales, conmutables en tiempo de ejecución, y que no forman parte de `smart_filter_json`), así que `updated` puede legítimamente superar el número de fotos que la propia vista de galería del álbum muestra con esos interruptores activados — y devuelve `updated: 0` con un `warning` cuando el filtro no coincide actualmente con nada. En cualquier caso, la marca es una instantánea puntual, no una suscripción en vivo: una foto añadida *después* a un álbum manual sí hereda el contexto automáticamente, pero una foto que coincide *más tarde* con el filtro de un álbum inteligente **no** hereda el contexto retroactivamente — el contexto debe volver a establecerse (`PUT`) para capturar las nuevas coincidencias. `DELETE /api/albums/{id}/scoring_context` (que aparece en el diálogo como una acción «Borrar contexto» distinta de seleccionar el contexto `default`, que marca `default` en lugar de borrar) deshace la marca exactamente en los miembros que este álbum había marcado, sin tocar la anulación manual propia de una foto — y cuando una foto cuya marca se deshace *sigue* siendo miembro de otro álbum que declara su propio contexto, se vuelve a marcar con el contexto de ese otro álbum en lugar de quedar sin puntuar (esta nueva derivación se limita a las fotos concretas que se retiran de un álbum; eliminar o borrar un álbum completo no lo intenta). `GET /api/albums/{id}/suggested_context` propone uno a partir del `narrative_moment` dominante detectado en el álbum (mediante la lista `suggest_from_moments` de cada contexto) con una confianza `share` — no escribe nada; la asignación anterior aún debe confirmarse explícitamente. Se requiere un recálculo (`POST /api/scan/recompute`) para que el nuevo contexto cambie realmente la categoría almacenada de alguna foto.
+
+### Exportación de portafolio
+
+Cuando `viewer.features.show_portfolio_export` es `true` (predeterminado) y la edición está desbloqueada, cada tarjeta de álbum manual obtiene una acción **Exportar portafolio**. Abre un pequeño diálogo (título de la galería, carpeta de destino, interruptor de inclusión de subtítulos) y renderiza el álbum como una galería HTML estática autónoma — el caso de uso de thumbsup/sigal, pero nativo, sin dependencia de herramientas externas. El directorio de salida contiene `index.html` (una cuadrícula de miniaturas responsiva solo con CSS con una lightbox vanilla-JS integrada — **cero** referencias externas/CDN, por lo que funciona completamente sin conexión), una carpeta `assets/` con JPEG nombrados secuencialmente (no se filtra ninguna ruta de la biblioteca) y un `manifest.json` que registra los recuentos y las fuentes por foto. Cada foto prefiere el **original** en disco (reducido a `portfolio.max_edge`, con la orientación EXIF aplicada) y recurre a la miniatura de 640 px almacenada cuando el original es inaccesible (recursos de red sin conexión). El endpoint es `POST /api/albums/{album_id}/export-portfolio` (solo edición); el `target_dir` se valida contra la misma lista de permitidos (`viewer.export.allowed_target_dirs` más los directorios de escaneo) que los endpoints de exportación copiar/mover, y los álbumes que superan `portfolio.max_photos` (predeterminado 500) se rechazan. Reexportar el mismo álbum es idempotente — solo se reescriben los propios archivos de la exportación. Consulta [Configuración de la exportación de portafolio](CONFIGURATION.md#exportación-de-portafolio).
+
+API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
+
+Controlado por `viewer.features.show_albums` (predeterminado: `true`).
 
 ### Compartir fotos
 
@@ -563,7 +576,11 @@ El **panel de caras** del laboratorio codifica por color cada recorte de cara en
 
 **Tira de primer plano del sujeto (grupos sin caras).** Para ráfagas / grupos similares cuyas fotos no tienen caras relevantes — fauna, macro, productos, aves — el laboratorio muestra en su lugar una tira de **sujeto**: el sujeto clave de cada fotograma, recortado de la caja de sujeto BiRefNet persistida y alineado lado a lado para comparar el sujeto real en primer plano (la idea «AI Close-Up» de Zoner, de forma nativa). Cada recorte lleva una insignia de nitidez normalizada al grupo (10 = el sujeto más nítido del grupo) y un anillo de color (verde / ámbar / rojo) para que resalte el fotograma perfectamente nítido; al hacer clic en un recorte, la vista principal salta a esa foto. Los recortes se cortan de la miniatura almacenada sin ejecutar ningún modelo (`POST /api/culling-group/subjects`) y solo aparecen cuando un grupo tiene sujetos pero no caras. Esto solo se activa una vez que las fotos llevan una caja de sujeto: ejecuta `python facet.py --recompute-saliency` (GPU) para rellenarla en una biblioteca existente — hasta entonces, la tira simplemente no aparece.
 
+**Sujeto clave (objetivo del zoom + persona principal).** El laboratorio determina de qué —o de quién— trata cada fotograma del grupo abierto: la mejor de sus caras detectadas, o la caja de sujeto BiRefNet persistida cuando no hay ninguna, para todo el grupo en una sola llamada (`POST /api/photos/key_subjects`), y luego hace zoom *sobre* él: **`Z`**, un doble clic o el primer paso de rueda más allá de la escala de ajuste llevan la vista 1:1 a ese punto en lugar de al centro del fotograma, para que la inspección de píxeles empiece en la cara que importa. En cuanto has desplazado o ampliado un fotograma tú mismo, la sugerencia se retira para ese fotograma — nunca reencuadra un recorte que elegiste. Cuando el ganador es una persona con nombre, esa cara lleva una píldora ámbar con su nombre en la tira de caras. Las caras ganan a la saliencia, y entre las caras se impone la mejor mezcla de tamaño relativo, centralidad y condición de persona nombrada: un sujeto nombrado a media distancia gana a un desconocido más grande, pero una mota nombrada al fondo no. No se almacena nada, así que la respuesta siempre refleja las asignaciones actuales de caras y personas; las cajas son fracciones del fotograma completo (`normalized_frame_xyxy`), nunca de la miniatura mostrada. `GET /api/photo/key_subject` ofrece la misma respuesta para una sola foto.
+
 **Comparación sincronizada (2-up / 4-up).** La cabecera de la caja de luz tiene botones Única / Comparar 2 / Comparar 4. En modo de comparación, los paneles comparten una única transformación de panorámica/zoom, de modo que el zoom con la rueda del ratón o el arrastre de panorámica en cualquier panel los mueve todos al recorte idéntico: la forma de elegir el fotograma más nítido de una ráfaga inspeccionando realmente los píxeles. Al hacer doble clic se alterna ajustar ↔ zoom; más allá de la escala de ajuste, cada panel cambia de forma diferida su miniatura de 1920px por la fuente `/image` a resolución completa para que la inspección sea nítida. Sin cambios en el backend: ambas rutas de imagen ya existen. (El pellizco táctil aún no está implementado; usa la rueda en escritorio.)
+
+**Desliza para mantener o rechazar (táctil).** En un dispositivo táctil, la vista única del cuarto oscuro se convierte en una baraja deslizable: arrastra el fotograma a la derecha para mantenerlo, a la izquierda para rechazarlo; mientras se mueve se inclina y se tiñe, de verde con una insignia MANTENER y de rojo con una RECHAZAR. Más allá del 35% del ancho del fotograma (nunca menos de 48px), al soltar sale despedido por ese lado, se escribe exactamente la decisión que escriben las teclas `↑` / `↓` y se avanza al siguiente fotograma igual que con `→`; por debajo de ese umbral el fotograma vuelve a su sitio y no se decide nada. Un arrastre cuyo eje resulta vertical se libera intacto en cuanto se sabe, así que sigue siendo de quien era. Cada confirmación muestra un aviso con **Deshacer** que restaura tanto la decisión *como* el fotograma en el que se tomó: una `↑` errónea se deshace pulsando `↓`, pero un pulgar errante ya está en el siguiente fotograma y no tiene gesto contrario al que recurrir. El gesto solo se ofrece donde no puede competir con otro: un puntero grueso (dedo o lápiz, nunca un ratón), la vista única (una cuadrícula de comparación no tiene un único fotograma sobre el que decidir) y la escala de ajuste, más allá de la cual ese mismo arrastre *es* la panorámica del panel, que ya ha capturado el puntero. Una pista de una línea permanece bajo el primer fotograma hasta que se descarta (recordado en `localStorage`).
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
@@ -742,6 +759,101 @@ En pantallas pequeñas, la barra de selección masiva se reduce al recuento de l
 los botones de borrar, seleccionar todo y un único botón **Acciones** que abre una hoja inferior
 apta para el tacto con todas las operaciones masivas (favorito, descartar, valorar, álbumes, copiar,
 descargar).
+
+## Marco de fotos / Quiosco
+
+Los dispositivos de tipo quiosco sin inicio de sesión — marcos de fotos inteligentes, paneles de Home Assistant, pantallas al estilo ImmichFrame / Immich-Kiosk — pueden obtener las mejores tomas de Facet sin una sesión de usuario. No hay **ninguna interfaz de cliente**: los quioscos consumen los endpoints directamente, autenticados mediante un **token de marco** opaco y de larga duración configurado en el bloque de configuración `frame` (`frame.tokens`; una lista vacía deshabilita toda la función y cada endpoint devuelve 404). Los tokens se comparan en tiempo constante como bytes UTF-8, por lo que un token ausente da 401 y un token incorrecto o no ASCII da 403 — nunca 500.
+
+La curación se nutre de toda la biblioteca: las fotos rechazadas, basura y con parpadeo se excluyen, `frame.min_aggregate` (predeterminado `7.0`) fija el umbral mínimo de puntuación, y las opciones opcionales `frame.favorites_only` / `frame.categories` la restringen aún más. Las fotos se devuelven mediante una **muestra aleatoria ponderada por puntuación** (una mezcla del conjunto de candidatas mejor puntuadas), de modo que un marco muestre variedad entre tus mejores tomas en lugar del mismo puñado cada vez. Las respuestas **nunca contienen rutas del sistema de archivos** — cada foto se direcciona mediante un id firmado opaco (el `rowid` de la fila firmado con el secreto del servidor), de modo que quien posea un token no puede enumerar filas arbitrarias ni averiguar dónde están tus archivos.
+
+| Endpoint | Devuelve | Caché |
+|----------|---------|-------|
+| `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` limitado a `frame.max_count` (predeterminado 100), por defecto `frame.count` (20) | — |
+| `GET /api/frame/image/{id}?token=&max_edge=` | el JPEG de la foto — original en disco reducido a `max_edge` (limitado por `frame.max_edge`, predeterminado 1920), recurriendo a la miniatura almacenada cuando el original es inaccesible | larga duración, inmutable |
+| `GET /api/frame/next?token=` | un JPEG curado aleatorio, distinto en cada llamada — el caso del marco "tonto" / la cámara genérica de Home Assistant | `no-store` |
+
+### Generar un token
+
+Los tokens son cadenas opacas que tú inventas — usa uno largo y aleatorio, y trátalo como una contraseña:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Añade el resultado a `frame.tokens` en `scoring_config.json` (puedes listar varios — uno por dispositivo — y revocar uno eliminándolo):
+
+```json
+"frame": {
+  "tokens": ["Xu8w…your-random-token…"],
+  "count": 20,
+  "min_aggregate": 7.0,
+  "max_edge": 1920,
+  "favorites_only": false,
+  "categories": []
+}
+```
+
+### Receta de Home Assistant
+
+La URL única `/api/frame/next` se corresponde directamente con la [cámara genérica](https://www.home-assistant.io/integrations/generic/) de Home Assistant — cada actualización obtiene una toma curada nueva.
+
+```yaml
+camera:
+  - platform: generic
+    name: Facet Frame
+    still_image_url: "http://facet.local:5000/api/frame/next?token=Xu8w…your-random-token…"
+    verify_ssl: false
+    framerate: 0.05  # se actualiza cada ~20s
+```
+
+Añade la cámara a una tarjeta Picture Glance / Picture Entity (o a un panel de tableta de pared) y se convierte en un marco de fotos que se actualiza solo.
+
+Para un cliente al estilo **ImmichFrame** que gestiona su propio pase de diapositivas, sondea `GET /api/frame/photos?token=…&count=30` para obtener la lista de ids, y luego solicita cada `GET /api/frame/image/{id}?token=…&max_edge=1920` — los ids son estables y las respuestas de imagen llevan una caché larga e inmutable, de modo que un cliente obtiene cada foto una sola vez y puede hacer él mismo las transiciones entre ellas.
+
+## Subida automática desde el teléfono
+
+Un endpoint **WebDAV** mínimo bajo `/dav` permite que las apps de subida automática desde el teléfono (PhotoSync y cualquier cliente que hable WebDAV) envíen fotos directamente a un **directorio de entrada** de Facet. Apunta el directorio de entrada a uno de tus directorios escaneados (o a un subdirectorio de uno de ellos) y ejecuta `facet.py --watch` sobre él: cada foto subida se puntúa automáticamente en cuanto llega — el patrón de sincronización móvil de PhotoPrism.
+
+Esto es **fontanería de subida únicamente** — nunca toca las sesiones de usuario ni los JWT. El acceso es HTTP Basic con **credenciales de dispositivo compartido** configuradas en el bloque `upload` (`upload.username` / `upload.password`), **no** una cuenta de usuario. Todo el árbol `/dav` devuelve **404 mientras está desactivado**: la función solo se activa cuando `upload.username`, `upload.password` y `upload.inbox_dir` están todos definidos. Cada operación se confina a `upload.inbox_dir` — se rechazan la travesía, las rutas absolutas y los escapes por enlace simbólico — y las subidas se transmiten a disco de forma atómica, con un límite de `upload.max_file_mb` (predeterminado 500).
+
+Métodos implementados: `OPTIONS`, `PROPFIND` (profundidad 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD`. `LOCK`/`UNLOCK` no están implementados (los clientes de subida tratan su ausencia como un recurso compartido sin bloqueo).
+
+### Configuración
+
+```json
+"upload": {
+  "username": "phone",
+  "password": "…a-long-random-shared-secret…",
+  "inbox_dir": "/photos/inbox",
+  "max_file_mb": 500
+}
+```
+
+`inbox_dir` debe estar dentro de un directorio escaneado para que `--watch` detecte las subidas:
+
+```bash
+python facet.py /photos --watch
+```
+
+### Receta de PhotoSync
+
+1. En PhotoSync, añade una configuración **WebDAV** (Configurar → Añadir configuración → WebDAV).
+2. **URL / Servidor**: `http://<host>:5000/dav/` (usa tu host de Facet; `https://` si lo expones detrás de un proxy inverso).
+3. **Usuario / Contraseña**: el `upload.username` / `upload.password` que definiste arriba.
+4. **Carpeta de destino**: déjalo en la raíz (`/`) para depositar en el directorio de entrada, o una subcarpeta que PhotoSync cree mediante `MKCOL`.
+5. En el host de Facet, escanea el directorio de entrada en modo de vigilancia para que las subidas se puntúen al llegar:
+
+   ```bash
+   python facet.py /photos --watch
+   ```
+
+### Prueba rápida con curl
+
+```bash
+curl -T photo.jpg -u phone:'…a-long-random-shared-secret…' http://<host>:5000/dav/photo.jpg
+```
+
+Un `201 Created` (o `204 No Content` al sobrescribir) confirma que la subida llegó al directorio de entrada; `--watch` la puntúa en el siguiente debounce.
 
 ## Configuración
 
@@ -1076,7 +1188,10 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos de ráfaga/similares/escena para descarte. `group_by` (predeterminado `all`) selecciona los grupos combinados de ráfaga+similares, solo de ráfaga, solo de similares o de escena cronológicos (los grupos de escena añaden `type`/`start`/`end`/`moment`/`moment_confidence`; el parámetro `sort` se ignora en el modo escena). `exclude_rejected` (predeterminado `true`) oculta las fotos con `is_rejected=1`; los grupos con menos de 2 fotos restantes se descartan. Cuando hay una cabeza de clasificación de conservación entrenada, cada foto también lleva `keeper_prob` y cada grupo lleva `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Confirmar las selecciones de descarte (ráfaga, similares o escena). Cuerpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra las filas de comparación del descarte de escena |
 | `POST /api/culling/auto` | `[Edition]` Descarte automático de un botón para todo un ámbito. Cuerpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (predeterminado `true`) devuelve la vista previa de conservar/descartar por grupo, una aplicación descarta el resto y registra pares de descarte |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Deduce el tipo de sesión dominante del ámbito a partir de sus categorías, momentos narrativos, recuentos de caras y horas de captura almacenados, y nombra el ajuste preestablecido `cull_profiles` que mejor encaja, con una confianza y los recuentos de evidencia en los que se basa; almacenado en caché por ámbito. `profile` es `null` por debajo del umbral de dominancia o cuando no hay un ajuste preestablecido configurado que coincida |
 | `POST /api/culling-group/faces` | Insignias por cara (ojos abiertos/cerrados, expresión, confianza) de un grupo, en un solo lote |
+| `GET /api/photo/key_subject?path=` | De qué / de quién trata una foto: su cara mejor clasificada o, si no, su caja de saliencia persistida, como caja + centro `normalized_frame_xyxy`. Se resuelve en cada petición a partir de columnas almacenadas (sin ejecutar ningún modelo ni cachear nada); `kind:"none"` cuando no existe ninguna de las dos |
+| `POST /api/photos/key_subjects` | La misma respuesta para hasta 1000 rutas en una sola llamada (`key_subjects_by_path`) — el objetivo del zoom del laboratorio y la insignia de persona principal. Toda ruta solicitada está presente; las desconocidas o invisibles vuelven como `kind:"none"` en lugar de faltar |
 | `POST /api/photos/keeper_hints` | Sugerencias por foto de "existe una foto mejor en este grupo" para la insignia de la galería/visor, agrupadas por `burst_group_id`. Cuerpo `{paths}`; devuelve `{path: {has_better, best_path, keeper_prob}}`. Depende del modelo — devuelve `{}` si no hay ninguna cabeza de clasificación de conservación entrenada |
 | `GET /api/scenes` | Escenas cronológicas de fotos líderes de ráfaga (exploración de solo lectura) |
 | `GET /api/filter_options/junk_kinds` | Tipos de basura detectados con su recuento (excluye el centinela `not_junk`) para los chips de Limpieza de basura |
@@ -1160,6 +1275,7 @@ El endpoint `/api/download/options` detecta automáticamente los archivos RAW co
 | `POST /api/export/sidecars` | `[Edition]` Escribir sidecars para rutas explícitas o un conjunto de filtros |
 | `POST /api/photo/embed_metadata` | `[Edition]` Incrustar los metadatos en el archivo original (JPEG/HEIC/TIFF/PNG/DNG; los RAW nunca se modifican) y escribir el sidecar |
 | `POST /api/albums/{id}/export` | `[Edition]` Exportación de álbum como sidecars, copia o enlace simbólico |
+| `POST /api/cull/apply` | `[Edition]` Copia los conservados o mueve/envía a la papelera los descartados a una carpeta (consulta [Descartar a carpeta](#descartar-a-carpeta)) |
 
 ### Plugins
 
@@ -1167,6 +1283,12 @@ El endpoint `/api/download/options` detecta automáticamente los archivos RAW co
 |----------|-------------|
 | `GET /api/plugins` | Listar los plugins configurados |
 | `POST /api/plugins/test-webhook` | Probar un plugin de webhook |
+
+### Immich
+
+| Endpoint | Descripción |
+|----------|-------------|
+| `POST /api/immich/webhook` | Recibe un webhook de flujo de trabajo de Immich y refleja de inmediato la valoración enviada; un elemento que Facet aún no ha puntuado se pone en cola para el próximo `--immich-sync`. Autenticación por token estático (`immich.webhook.token_env`; sin definir ⇒ 404); nunca activa un escaneo. Consulta [docs/IMMICH.md](IMMICH.md) |
 
 ### Salud
 

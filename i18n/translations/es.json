@@ -184,7 +184,7 @@
     "aesthetic_iaa": "Estética IAA",
     "face_quality_iqa": "Calidad facial IQA",
     "liqe_score": "LIQE",
-    "qalign_score": "Q-Align",
+    "qrealign_score": "Q-ReAlign",
     "aesthetic_v25": "Estética V2.5",
     "deqa_score": "DeQA",
     "saliency_section": "Saliencia del sujeto",
@@ -1041,11 +1041,13 @@
     "sort_composition": "Composición",
     "sort_face_quality": "Calidad facial",
     "sort_my_taste": "Mis gustos",
-    "my_taste_badge_tooltip": "Entrenado con {comparisons} comparaciones · {accuracy}% de precisión",
+    "my_taste_badge_tooltip": "Entrenado con {comparisons} comparaciones · {accuracy}% de precisión frente al {baseline}% de la puntuación actual",
     "sort_desc": "Descendente",
     "sort_asc": "Ascendente",
     "filters": "Filtros",
     "search_placeholder": "Buscar nombre, leyenda...",
+    "search_chip": "Búsqueda",
+    "semantic_search_chip": "Búsqueda semántica",
     "semantic_search": "Busqueda semantica",
     "semantic_search_placeholder": "atardecer en la playa...",
     "photo_count": "{count} fotos",
@@ -1183,7 +1185,7 @@
     "aesthetic_iaa_range": "Estética IAA",
     "face_quality_iqa_range": "Calidad facial IQA",
     "liqe_range": "Puntuación LIQE",
-    "qalign_range": "Puntuación Q-Align",
+    "qrealign_range": "Puntuación Q-ReAlign",
     "aesthetic_v25_range": "Estética V2.5",
     "deqa_range": "Puntuación DeQA",
     "subject_sharpness_range": "Nitidez del sujeto",
@@ -1415,9 +1417,7 @@
       "clipping_multiplier_hint": "Multiplica la penalización por recorte. 100% = estándar, 150% = más estricto, 0% = desactivado.",
       "skip_clipping_penalty_hint": "Desactiva la penalización de recorte de altas luces. Por defecto: activado para silueta.",
       "skip_oversaturation_penalty_hint": "Desactiva la penalización de sobresaturación. Por defecto: activado para nocturna, astro, concierto.",
-      "apply_blink_penalty_hint": "Aplica un multiplicador de puntuación al detectar parpadeo. Por defecto: activado para categorías de retrato.",
-      "noise_tolerance_range": "0% = sin penalización, 100% = penalización completa (estándar), 200% = doble penalización",
-      "clipping_multiplier_range": "0% = desactivado, 100% = estándar, 500% = muy estricto"
+      "apply_blink_penalty_hint": "Aplica un multiplicador de puntuación al detectar parpadeo. Por defecto: activado para categorías de retrato."
     },
     "filters": "Filtros",
     "filters_description": "Condiciones de asignación de categoría",
@@ -1925,13 +1925,20 @@
       "button": "Selección automática",
       "tooltip": "Conserva automáticamente la mejor foto de cada grupo y rechaza el resto",
       "title": "Vista previa de la selección automática",
+      "updating": "Actualizando la vista previa…",
       "summary": "{groups} grupos: conservar {kept} fotos, rechazar {rejected}",
       "highlights_label": "Añadir las {count} mejores fotos a un álbum de Destacadas",
       "highlights_name": "Destacadas",
+      "trim_brackets": "Recortar también las exposiciones de bracketing redundantes",
+      "trim_brackets_hint": "Propone también descartar las exposiciones de bracketing redundantes cuyo fotograma base no tiene recorte de altas luces",
+      "trim_brackets_none": "No hay exposiciones de bracketing redundantes en este ámbito",
       "apply": "Rechazar {rejected} fotos",
       "applied": "Selección automática aplicada: {kept} conservadas, {rejected} rechazadas",
       "error": "La selección automática ha fallado",
-      "empty": "Nada que seleccionar automáticamente en este alcance"
+      "empty": "Nada que seleccionar automáticamente en este alcance",
+      "suggested": "Sugerido",
+      "suggested_tooltip": "Preajuste deducido del contenido dominante de este ámbito",
+      "preview_updated": "Vista previa actualizada para el preajuste sugerido {profile}"
     },
     "exit_scene": "Salir de la escena",
     "scene_complete": "Escena depurada: nada más que revisar",
@@ -1951,6 +1958,8 @@
     "face_smile_min_tooltip": "Resalta los rostros con una puntuación de sonrisa inferior a este valor",
     "subject_grid_title": "Sujetos de este grupo",
     "subject_sharpness": "Nitidez del sujeto (10 = el más nítido del grupo)",
+    "key_person": "Persona principal",
+    "key_person_tooltip": "La elección de Facet sobre quién es el sujeto de esta foto — el zoom apunta a este rostro",
     "reason": {
       "best": "La mejor del grupo",
       "eyes_closed": "Ojos cerrados",
@@ -1969,6 +1978,14 @@
       "rejected": "Rechazada",
       "undecided": "Sin decidir"
     },
+    "swipe": {
+      "keep": "Mantener",
+      "reject": "Rechazar",
+      "hint": "Desliza a la derecha para mantener, a la izquierda para rechazar",
+      "hint_dismiss": "Entendido",
+      "kept": "{filename} mantenida",
+      "rejected": "{filename} rechazada"
+    },
     "shortcuts": {
       "page_title": "Galería",
       "darkroom_title": "Cuarto oscuro",
@@ -1979,6 +1996,8 @@
       "reject": "Rechazar foto",
       "confirm_next": "Confirmar y siguiente grupo",
       "zoom": "Zoom / lupa",
+      "peaking": "Realce de enfoque",
+      "grid": "Cuadrícula de composición",
       "close": "Cerrar"
     },
     "group_by": {
@@ -1998,6 +2017,21 @@
       "original": "Original",
       "loading": "Generando la vista previa",
       "error": "No se pudo generar la vista previa revelada"
+    },
+    "peaking": {
+      "label": "Realce de enfoque",
+      "tooltip": "Resalta los bordes más nítidos de la imagen mostrada"
+    },
+    "legend": {
+      "label": "Atajos de teclado",
+      "tooltip": "Mostrar u ocultar la leyenda de atajos de teclado"
+    },
+    "grid": {
+      "label": "Cuadrícula de composición",
+      "tooltip": "Alterna la cuadrícula de composición: desactivada, regla de los tercios, proporción áurea",
+      "off": "Cuadrícula desactivada",
+      "thirds": "Regla de los tercios",
+      "golden": "Proporción áurea"
     },
     "bracket": {
       "label": "Horquillado de exposición",
@@ -2227,6 +2261,7 @@
     "help": "Fotos geolocalizadas en un mapa. Desplázate y haz zoom para explorar dónde se tomaron tus fotos; el filtro de rango de fechas limita lo que se muestra.",
     "title": "Mapa",
     "no_gps": "No se encontraron fotos con datos GPS",
+    "tiles_unavailable": "Mosaicos del mapa no disponibles — comprueba tu conexión",
     "photos_count": "{count} fotos con ubicación",
     "cluster_photos": "{count} fotos",
     "score": "Puntuación: {score}",

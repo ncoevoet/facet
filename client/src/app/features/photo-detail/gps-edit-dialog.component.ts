@@ -11,7 +11,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 export interface GpsEditDialogData {
   path: string;
@@ -53,7 +53,7 @@ export interface GpsEditDialogData {
   `,
 })
 export class GpsEditDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly dialogRef = inject(MatDialogRef<GpsEditDialogComponent>);
   private readonly destroyRef = inject(DestroyRef);

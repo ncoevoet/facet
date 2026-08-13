@@ -201,12 +201,29 @@ async def lifespan(app: FastAPI):
     # set until the next API restart.
     from api.db_helpers import (
         get_existing_columns, is_photo_tags_available,
-        backfill_image_dimensions, invalidate_existing_columns_cache,
+        repair_thumbnail_dimensions, invalidate_existing_columns_cache,
     )
     invalidate_existing_columns_cache()
     get_existing_columns()
     is_photo_tags_available()
-    backfill_image_dimensions()
+
+    # The dimension repair walks the photos table with a correlated EXISTS into
+    # faces — a minute of I/O on a large library — so it runs off the serving
+    # path in a daemon thread, exactly like the capsule precompute below. It
+    # applies once per library (a marker row in stats_cache), so this is a
+    # first-boot cost rather than a per-boot one, and its errors are logged
+    # rather than raised: a DB locked by a running scan must delay the API, not
+    # abort its startup.
+    import threading
+
+    def _repair_dimensions():
+        try:
+            repair_thumbnail_dimensions()
+        except Exception:
+            logger.warning("Thumbnail-dimension repair failed", exc_info=True)
+
+    threading.Thread(target=_repair_dimensions, daemon=True,
+                     name="thumbnail-dims-repair").start()
 
     # Pre-compute capsules in a background thread so first visitor gets instant results
     from api.config import _FULL_CONFIG
@@ -382,6 +399,7 @@ def create_app() -> FastAPI:
     from api.routers.cull_preview import router as cull_preview_router
     from api.routers.frame import router as frame_router
     from api.routers.webdav import router as webdav_router
+    from api.routers.immich import router as immich_router
     from api.routers.updates import router as updates_router
 
     app.include_router(health_router)
@@ -418,6 +436,7 @@ def create_app() -> FastAPI:
     app.include_router(cull_preview_router)
     app.include_router(frame_router)
     app.include_router(webdav_router)
+    app.include_router(immich_router)
 
     # Check for plaintext passwords at startup
     from api.auth import check_legacy_password_warnings

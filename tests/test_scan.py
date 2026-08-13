@@ -1631,9 +1631,9 @@ _JOB_MODIFIERS = frozenset({
 
 _READ_ONLY_LIBRARY_COMMANDS = frozenset({
     "auto_tune_categories", "comparison_stats", "doctor", "eval_iqa_srcc", "export_csv",
-    "export_json", "immich_sync", "immich_test", "list_models", "mine_insights",
-    "report_unreviewed_bursts", "suggest_person_merges", "sweep_dedup_thresholds",
-    "validate_categories",
+    "export_json", "export_manifest", "immich_sync", "immich_test", "list_models",
+    "mine_insights", "report_unreviewed_bursts", "suggest_person_merges",
+    "sweep_dedup_thresholds", "validate_categories",
 })
 
 _NON_LIBRARY_WRITERS = frozenset({

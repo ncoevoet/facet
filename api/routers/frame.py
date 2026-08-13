@@ -7,7 +7,7 @@ frame token configured in ``scoring_config.json`` (``frame.tokens``); an empty
 token list disables the whole feature (404).
 
 Responses never leak filesystem paths: photos are addressed by an opaque signed
-identifier (the row's ``rowid`` signed with the server share secret), so a token
+identifier (the row's ``rowid`` signed with the server secret), so a token
 holder cannot enumerate arbitrary rows and no library path is ever serialised.
 """
 
@@ -21,11 +21,14 @@ from fastapi import APIRouter, Header, HTTPException, Query, Response
 
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
+from api.token_auth import require_static_token
 from api.types import JUNK_NOT_JUNK
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["frame"])
+
+_FEATURE = "Frame feature"
 
 _DEFAULT_COUNT = 20
 _DEFAULT_MAX_COUNT = 100
@@ -55,24 +58,7 @@ def _frame_config() -> dict:
 def _secret() -> str:
     from api import config
 
-    return config._share_secret
-
-
-def _require_token(token: str, cfg: dict) -> None:
-    """Validate the frame token, mirroring the share-token hardening.
-
-    Empty configured list ⇒ 404 (feature disabled), missing token ⇒ 401,
-    wrong or non-ASCII token ⇒ 403. Tokens are compared constant-time as
-    UTF-8 bytes so a unicode token yields a clean rejection instead of a 500.
-    """
-    tokens = [t for t in (cfg.get("tokens") or []) if isinstance(t, str) and t]
-    if not tokens:
-        raise HTTPException(status_code=404, detail="Frame feature is disabled")
-    if not token:
-        raise HTTPException(status_code=401, detail="Token required")
-    provided = token.encode("utf-8")
-    if not any(hmac.compare_digest(t.encode("utf-8"), provided) for t in tokens):
-        raise HTTPException(status_code=403, detail="Invalid token")
+    return config._server_secret
 
 
 def _resolve_token(query_token: str, header_token: Optional[str],
@@ -215,7 +201,8 @@ def frame_photos(
 ):
     """Return a curated batch of photos as opaque ids + display metadata."""
     cfg = _frame_config()
-    _require_token(_resolve_token(token, x_frame_token, authorization), cfg)
+    require_static_token(cfg.get("tokens"),
+                         _resolve_token(token, x_frame_token, authorization), _FEATURE)
     rows = _sample(cfg, _clamp_count(count, cfg), _META_COLS)
     photos = []
     for row in rows:
@@ -242,7 +229,8 @@ def frame_image(
 ):
     """Serve a single curated photo JPEG addressed by its opaque signed id."""
     cfg = _frame_config()
-    _require_token(_resolve_token(token, x_frame_token, authorization), cfg)
+    require_static_token(cfg.get("tokens"),
+                         _resolve_token(token, x_frame_token, authorization), _FEATURE)
     rowid = _resolve_id(photo_id)
     if rowid is None:
         raise HTTPException(status_code=404, detail="Unknown photo")
@@ -269,7 +257,8 @@ def frame_next(
 ):
     """Serve one random curated photo JPEG (dumb-frame / HA generic-camera case)."""
     cfg = _frame_config()
-    _require_token(_resolve_token(token, x_frame_token, authorization), cfg)
+    require_static_token(cfg.get("tokens"),
+                         _resolve_token(token, x_frame_token, authorization), _FEATURE)
     rows = _sample(cfg, 1, _RENDER_COLS)
     if not rows:
         raise HTTPException(status_code=404, detail="No photos available")

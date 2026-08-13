@@ -24,6 +24,47 @@ Für einen Lightroom- oder Capture-One-Workflow gilt also: Verwenden Sie `--embe
 
 Facets Ablehnungsmarker (`xmp:Rating = -1`) wird beim Zurücklesen als Lightrooms Ablehnen-Flag interpretiert. Ein Facet-Favorit schreibt `xmp:Label = Yellow`, was Lightroom als **gelbes Farblabel** anzeigt — nicht als Pick-Flag. Wenn Ihr Lightroom-Workflow auf Pick-Flags statt auf Farblabels basiert, fügen Sie einen Umwandlungsschritt Farblabel → Pick hinzu, oder filtern Sie stattdessen nach dem gelben Label.
 
+Ein `python facet.py --export-manifest`-Feed (Pfad, Kategorie, alle Scores, Tags und dieselben Bewertungsspalten wie `--export-sidecars` — einschließlich benutzerbezogener Bewertungen über `--export-manifest --user alice` auf einer Mehrbenutzer-Installation) existiert jetzt für Werkzeuge, die Facets Daten ohne XMP-Parsing wollen — siehe [Befehle — Vorschau & Export](COMMANDS.md#preview--export). Genau diesen Feed liest das unten beschriebene Facet-Zusatzmodul.
+
+### Das Facet-Zusatzmodul (Sternebewertungen und Pick-Flags)
+
+`facet.lrplugin/` im Facet-Repository ist ein Lightroom-Classic-Zusatzmodul (Plug-in), das Facets Sternebewertung und den Favorit-/Ablehnungs-Status **direkt in den Katalog** schreibt. Es existiert, weil zwei der oben genannten Punkte von der XMP-Seite aus nicht zu lösen sind: Lightroom findet für eine proprietäre RAW-Datei nie ein Facet-Sidecar, und XMP hat überhaupt keinen Kanal für Lightrooms Pick-Flag. Das Zusatzmodul liest eine Manifestdatei, spricht also nie mit dem Facet-Server, braucht kein Passwort und funktioniert auch, wenn Facet nicht läuft — und weil es Fotos über den Pfad statt über Sidecars zuordnet, **verhält sich eine reine RAW-Bibliothek genau wie eine JPEG-Bibliothek**.
+
+**Installation** (einmalig):
+
+1. Kopieren Sie den Ordner `facet.lrplugin` auf den Rechner, auf dem Lightroom läuft. Unter macOS vorher zippen — der Finder behandelt einen `.lrplugin`-Ordner als Paket.
+2. In Lightroom Classic: **Datei → Zusatzmodul-Manager → Hinzufügen**, den Ordner `facet.lrplugin` auswählen, dann **Fertig**.
+
+**Verwendung** (jedes Mal, wenn Facets Urteil in den Katalog soll):
+
+1. `python facet.py --export-manifest /fotos/hochzeit-2026` (der Pfad grenzt den Export ein; die Datei landet immer als `facet_manifest.json` im aktuellen Verzeichnis). Kopieren Sie sie auf den Lightroom-Rechner, falls Facet anderswo läuft.
+2. Wählen Sie im Bibliotheksmodul die Fotos aus und dann **Bibliothek → Zusatzmoduloptionen → Facet: Apply ratings and flags...** (die Oberfläche des Zusatzmoduls ist englisch).
+3. Verweisen Sie im Dialog auf `facet_manifest.json`. Der Pfad wird für das nächste Mal gemerkt.
+4. **Wenn Facet die Fotos von einem anderen Rechner aus gescannt hat, tragen Sie die beiden Pfad-Präfixe ein.** Das Manifest enthält die Pfade des scannenden Rechners (`/volume1/photos/...` auf einem NAS), Lightroom dagegen die des Arbeitsplatzes (`Z:\photos\...`). Geben Sie das Lightroom-Präfix und das Facet-Präfix an, die denselben Ordner bezeichnen; lassen Sie beide leer, wenn sie übereinstimmen. Das ist der einzige Fehler beim ersten Lauf, der wirklich zählt — er führt schlicht dazu, dass nichts zugeordnet wird.
+5. Wählen Sie den Umfang: die ausgewählten Fotos (Standard) oder alle Fotos des aktuellen Ordners.
+6. Klicken Sie auf **Preview...** (Vorschau). **Es wird noch nichts geschrieben.** Das Zusatzmodul meldet, wie viele Fotos es im Manifest gefunden hat, wie viele nicht, und wie viele Bewertungen und Flags es setzen würde. Steht die Trefferzahl auf 0, zeigt es einen Beispielpfad aus Lightroom neben einem Beispielpfad aus dem Manifest, damit Sie sehen, wie die Präfixe lauten müssen.
+7. Klicken Sie auf **Apply** (Anwenden). Der Fortschritt wird angezeigt und lässt sich abbrechen; ein Abschlussdialog meldet, was gesetzt, übersprungen und nicht gefunden wurde.
+
+**Was es schreibt** — und sonst nichts, und nie in Ihre Bilddateien:
+
+| Facet-Status | Lightroom-Feld |
+|---|---|
+| `star_rating` 1-5 | Sternebewertung |
+| Favorit | Pick-Flag |
+| abgelehnt | Ablehnen-Flag |
+
+Eine Facet-Bewertung von 0 bedeutet „keine Meinung" (siehe `xmp_export.score_to_rating`) und wird nie geschrieben.
+
+**Überschreib-Semantik** — standardmäßig widerspricht das Zusatzmodul Ihnen nie: Es setzt eine Sternebewertung nur, wenn das Foto in Lightroom *unbewertet* ist, und ein Flag nur, wenn das Foto *ungeflaggt* ist. Alles, was Sie von Hand bewertet oder geflaggt haben, bleibt unangetastet und wird in der Vorschau als „kept as they are" (unverändert belassen) gezählt. Setzen Sie das Häkchen bei **Overwrite ratings and flags that are already set in Lightroom**, um sie doch zu ersetzen. Das entspricht `only_when_unrated` in `xmp_export.score_to_rating`, sodass Zusatzmodul und Sidecar-Weg Ihre manuellen Änderungen gleich behandeln.
+
+**Grenzen**, ehrlich benannt:
+
+- **Pick-Flags existieren nur im Katalog.** Das ist Lightrooms Entwurf, nicht der des Zusatzmoduls: Lightroom schreibt das Pick-Flag nie ins XMP, es erreicht also keine andere Anwendung und geht verloren, wenn Sie den Katalog aus den Dateien neu aufbauen. Sternebewertungen überleben dagegen über **Metadaten → Metadaten in Datei speichern**.
+- **Facets Scores werden nicht als Lightroom-Metadatenfelder angelegt**, es gibt also keine intelligente Sammlung „aggregate > 8". Adobes SDK lässt die eigenen Felder eines Zusatzmoduls nur als Text oder Enum (`sdktext:`) in das Suchvokabular; die numerischen Operatoren (`>`, `<`, „liegt im Bereich") bleiben Lightrooms eingebauten Kriterien vorbehalten. Den Score über die **Sternebewertung** zu führen ist Absicht: Das ist der einzige Kanal, den Lightroom selbst numerisch filtert und sortiert.
+- **Einbahnstraße.** Bewertungen, die Sie danach in Lightroom ändern, gelangen über den oben beschriebenen XMP-Rundlauf zurück zu Facet, nicht über das Zusatzmodul.
+- **Rückgängig** funktioniert stapelweise: Das Zusatzmodul schreibt in Blöcken von 200 Fotos, Strg/Cmd+Z nimmt also 200 Fotos auf einmal zurück.
+- Setzen Sie vor einem Lauf das Häkchen bei **Write facet-apply.log next to the manifest**, wenn Sie Zeile für Zeile sehen müssen, welche Pfade zugeordnet wurden und was geschrieben wurde.
+
 ### Lightroom → Facet
 
 1. Wählen Sie in Lightroom die Fotos aus und wählen Sie **Metadaten → Metadaten in Datei speichern** (Strg/Cmd+S). Dadurch werden Bewertung, Label und Stichwörter des Katalogs in das XMP-Sidecar (RAW) geschrieben oder direkt in die Datei eingebettet (DNG/JPEG/PSD/TIFF).
@@ -48,7 +89,7 @@ Betrachten Sie Facet als vorgelagerte Quelle der Wahrheit für KI-abgeleitete Be
 
 ## digiKam
 
-digiKam liest XMP-Sidecars nativ — auf digiKam-Seite ist kein exiftool nötig — und es sucht nach beiden Namenskonventionen (zuerst `<bild><ext>.xmp`, dann als Fallback `<bild>.xmp`), sodass es Facets Sidecars für RAW-Dateien ohne die obige Falle findet. Öffnen (oder aktualisieren) Sie nach `python facet.py --export-sidecars` den Ordner in digiKam: Es übernimmt automatisch Bewertung, Farblabel, Stichwörter und benannte Gesichtsbereiche, solange **Settings → Configure digiKam → Metadata → Read from sidecar files** aktiviert ist (der Standard).
+Seit digiKam 9.1.0 (veröffentlicht am 2026-06-07) liest digiKam XMP-Sidecars nativ — auf digiKam-Seite ist kein exiftool nötig — und es sucht nach beiden Namenskonventionen (zuerst `<bild><ext>.xmp`, dann als Fallback `<bild>.xmp`), sodass es Facets Sidecars für RAW-Dateien ohne die obige Falle findet. Öffnen (oder aktualisieren) Sie nach `python facet.py --export-sidecars` den Ordner in digiKam: Es übernimmt automatisch Bewertung, Farblabel, Stichwörter und benannte Gesichtsbereiche, solange **Settings → Configure digiKam → Metadata → Read from sidecar files** aktiviert ist (der Standard).
 
 ### Batch-Queue-Manager-Hook
 
@@ -64,7 +105,9 @@ cp "$INPUT" "$OUTPUT"
 
 ## darktable
 
-darktable wird bereits erstklassig behandelt in [Konfiguration — Viewer](CONFIGURATION.md#viewer) (Export-Profile/-Stile `viewer.raw_processor.darktable`) und [Viewer — Download](VIEWER.md#api-endpunkte) (Konvertierungen `type=darktable`). Auf der XMP-Seite: darktable schreibt sein eigenes `<bild>.xmp`, um seinen Bearbeitungsverlauf zu speichern, und Facets exiftool-gestützter Sidecar-Writer führt an derselben Datei eine In-Place-Zusammenführung durch — die Knoten `darktable:history`/Masken bleiben erhalten und werden nie überschrieben. Ein separates Rezept ist hier nicht nötig: Das oben für Lightroom beschriebene bidirektionale Sidecar-Verhalten (Export/Import, neueste gewinnt, Tag-Vereinigung) gilt hier genauso, ohne die RAW-Namensfalle, da sich darktable und Facet auf `<bild><ext>.xmp` einigen.
+darktable wird bereits erstklassig behandelt in [Konfiguration — Viewer](CONFIGURATION.md#viewer) (Export-Profile/-Stile `viewer.raw_processor.darktable`) und [Viewer — Download](VIEWER.md#api-endpunkte) (Konvertierungen `type=darktable`). Auf der XMP-Seite: darktable schreibt sein eigenes `<bild><ext>.xmp`, um seinen Bearbeitungsverlauf zu speichern, und Facets exiftool-gestützter Sidecar-Writer führt an derselben Datei eine In-Place-Zusammenführung durch — die Knoten `darktable:history`/Masken bleiben erhalten und werden nie überschrieben. Ein separates Rezept ist hier nicht nötig: Das oben für Lightroom beschriebene bidirektionale Sidecar-Verhalten (Export/Import, neueste gewinnt, Tag-Vereinigung) gilt hier genauso, ohne die RAW-Namensfalle, da sich darktable und Facet auf `<bild><ext>.xmp` einigen.
+
+**Vorbehalt: darktables eigenes XMP-Neuladen ist unzuverlässig.** Unabhängig von Facets Schreibpfad kann ein erneuter Import eines von darktable bereits bearbeiteten Bildes dazu führen, dass darktable den Bearbeitungsverlauf des Sidecars mit einem leeren überschreibt, statt ihn zu laden — ein offener Upstream-Bug ([darktable#20537](https://github.com/darktable-org/darktable/issues/20537), gemeldet am 2026-03-15), vor dem die Einstellung „check for new/updated xmp files on start" nicht schützt. Facet ist nicht die Ursache (die exiftool-Zusammenführung oben erhält `darktable:history` bereits), aber das Risiko liegt genau in dem Rücklese-Schritt, auf den der Roundtrip dieser Seite angewiesen ist. Praktischer Workaround, nach demselben Einmal-Prinzip wie im Capture-One-Rezept oben: Importieren Sie nach `--export-sidecars` keinen bereits bearbeiteten Ordner pauschal neu — laden Sie Sidecars nur für die Bilder neu, die Facet gerade angefasst hat, und prüfen Sie, dass der Bearbeitungsverlauf noch vorhanden ist, bevor Sie dem Rest der Charge vertrauen.
 
 ## Wie Facet zusammenführt
 

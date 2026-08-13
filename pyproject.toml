@@ -44,7 +44,7 @@ dependencies = [
     "imagehash>=4.3.0",
     "rawpy>=0.18.0",
     "insightface>=0.7.0",
-    "pyiqa>=0.1.10",
+    "pyiqa>=0.1.16",
     "numpy>=1.24.0",
     "scipy>=1.10.0",
     "hdbscan>=0.8.40",
@@ -60,9 +60,9 @@ dependencies = [
 
 [project.optional-dependencies]
 vlm = [
-    # Upper-bounded to match requirements.txt: transformers 5.3+ breaks the batched
-    # VLM tagger (Qwen3.5 vision-token handling); 5.2.x is the validated ceiling.
-    "transformers>=5.0.0,<5.3",
+    # Bounded to match requirements.txt: floor 5.3.0 patches GHSA-29pf-2h5f-8g72;
+    # 5.15.x is the newest validated ceiling for the batched Qwen3.5 tagger.
+    "transformers>=5.3.0,<5.16",
     "accelerate>=0.25.0",
 ]
 saliency = [
@@ -78,11 +78,18 @@ cull = [
     "send2trash>=1.8.0",
 ]
 iqa-extended = [
-    # Optional extended-IQA tier (scoring_config.json "iqa_extended", OFF by default).
-    # aesthetic_v25 needs the predictor package; qalign 4-/8-bit quantisation needs
-    # bitsandbytes. Q-Align itself ships with pyiqa; DeQA-Score loads via transformers.
+    # Optional extended-IQA tier (scoring_config.json "iqa_extended"). Only
+    # aesthetic_v25 needs a package of its own; Q-ReAlign ships with pyiqa and
+    # runs unquantised (~3GB), and DeQA-Score loads via transformers.
     "aesthetic-predictor-v2-5",
-    "bitsandbytes>=0.43.0",
+]
+ocr = [
+    # In-photo text search (scoring_config.json "ocr", OFF by default).
+    # easyocr is Apache-2.0 and torch-based, so it reuses the stack Facet already
+    # ships — it pulls no second cv2 (opencv-python-headless only) and pins no
+    # numpy/torch version. Weights (~113MB) download from the project's own
+    # GitHub releases on first run. See docs/CONFIGURATION.md "OCR".
+    "easyocr>=1.7.2",
 ]
 watch = [
     "watchdog>=4.0",
@@ -149,6 +156,13 @@ exclude = ["venv*", "client*", "docs*", "photos_all*", "pretrained_models*"]
 "i18n" = ["*.json"]
 # Pre-built Angular client included in package
 "api" = ["../client/dist/client/browser/**/*"]
+
+[tool.ruff.lint]
+# Pin the rule set explicitly: ruff 0.16 widened its default selection, which
+# would turn the documented bare `ruff check .` gate red on unchanged code.
+# E,F,W --ignore E501 matches the CI lint step, applied repo-wide.
+select = ["E", "F", "W"]
+ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
 # These modules intentionally run setup code before their imports — sys.path

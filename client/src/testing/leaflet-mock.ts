@@ -35,6 +35,13 @@ export const leafletMockCircle = {
   setRadius: vi.fn(),
 };
 
+// Singleton like the others: `createLeafletMap` subscribes to `tileerror` on it,
+// so a spec needs the very same object to drive a tile outage.
+export const leafletMockTileLayer = {
+  addTo: vi.fn().mockReturnThis(),
+  on: vi.fn().mockReturnThis(),
+};
+
 export const leafletMockMap = {
   setView: vi.fn().mockReturnThis(),
   getBounds: vi.fn(() => ({
@@ -51,7 +58,7 @@ export const leafletMockMap = {
 export const leafletMock = {
   Icon: { Default: { mergeOptions: vi.fn() } },
   map: vi.fn(() => leafletMockMap),
-  tileLayer: vi.fn(() => ({ addTo: vi.fn() })),
+  tileLayer: vi.fn(() => leafletMockTileLayer),
   layerGroup: vi.fn(() => leafletMockLayerGroup),
   circleMarker: vi.fn(() => leafletMockCircleMarker),
   marker: vi.fn(() => leafletMockMarker),
@@ -62,6 +69,7 @@ export function resetLeafletMock(): void {
   for (const obj of [
     leafletMock,
     leafletMockMap,
+    leafletMockTileLayer,
     leafletMockMarker,
     leafletMockCircleMarker,
     leafletMockCircle,

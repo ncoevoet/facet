@@ -4,11 +4,11 @@ Configuration loading for the FastAPI API server.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import json
 import math
-import shutil
 import stat
 import tempfile
 import threading
@@ -17,14 +17,77 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
-# --- CONFIG & SHARE SECRET (single parse of scoring_config.json) ---
+# --- CONFIG & SERVER SECRET (single parse of scoring_config.json) ---
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring_config.json')
 CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
 _TEMP_CONFIG_SUFFIX = '.json'
+
+# Scratch name every config replacement stages under. Dotted and gitignored
+# for the same reason :data:`_OWNER_ONLY_TMP_PREFIX` is: mkstemp's default
+# `tmpXXXXXXXX` matched no ignore rule, and this staging copy is a COMPLETE
+# scoring_config.json — every ``users.*.password_hash``, ``viewer.password``
+# and, on a not-yet-migrated install, ``share_secret``. A SIGKILL between the
+# write and the rename left all of it in the repository root under a stageable
+# name.
+_TEMP_CONFIG_PREFIX = '.scoring_config.tmp'
 _WORLD_READ_WRITE_MODE = 0o666
 _config_load_failed = False
+
+# The server secret signs every login JWT (api/auth.py) and every opaque frame
+# photo id (api/routers/frame.py). It lives in its OWN file, never in
+# scoring_config.json, because that file is git-tracked in this project and in
+# every fork of it: a secret written back into it by the first-boot bootstrap
+# gets committed by the next `git add`, which is exactly how the published
+# values below escaped.
+_SECRET_FILENAME = '.facet_secret'
+_SECRET_ENV_VAR = 'FACET_JWT_SECRET'
+_SECRET_FILE_MODE = 0o600
+_SECRET_BYTES = 32
+_LEGACY_SECRET_KEY = 'share_secret'
+_GROUP_OTHER_MODE = 0o077
+_CONFIG_BACKUP_SUFFIX = '.backup'
+
+# Whether this platform actually ENFORCES the permission bits the checks below
+# read. Windows does not: NTFS has no group/other bits, ``os.chmod`` there can
+# only toggle the read-only attribute, and a file this module creates 0600
+# still stats as 0666. The mode checks were therefore unfalsifiable on win32 —
+# each boot "tightened" the store, found it exactly as loose on the next one,
+# and told the operator their signing key had been exposed and should be
+# rotated, forever, with no rotation able to make the check pass. Advice that
+# can never be satisfied trains operators to ignore the log, so the detection,
+# the tightening and the warning are all gated on this flag: where it is False,
+# access is governed by the NTFS ACLs the file inherits from its directory, and
+# this module makes no claim about them. The ``os.chmod`` calls in the write
+# primitives are left in place (harmless no-ops there) — what must not happen
+# is WARNING about a mode this platform never sets.
+_POSIX_FILE_MODES = os.name == 'posix'
+
+# Flags for the first-boot claim on the secret store: create it or fail, never
+# truncate. ``O_EXCL`` is the entire mechanism — see :func:`_claim_secret_file`.
+# ``O_BINARY`` exists only on Windows and keeps the CRT from rewriting the
+# trailing newline, matching what ``tempfile.mkstemp`` already does for the
+# atomic-replace path.
+_SECRET_CLAIM_FLAGS = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, 'O_BINARY', 0)
+
+# Scratch name for every owner-only write. It is a dotfile carrying the secret
+# store's own prefix so `.gitignore` covers it: mkstemp's default `tmpXXXXXXXX`
+# matched no ignore rule, so a SIGKILL landing between the write and the rename
+# left the RAW SECRET in the repository root under a stageable name.
+_OWNER_ONLY_TMP_PREFIX = _SECRET_FILENAME + '.tmp'
+
+# SHA-256 of every server secret this project has ever published in a tracked
+# file (two live values in scoring_config.json, one documentation example that
+# installers copy-pasted). A migration that carried one of these forward would
+# preserve a key anyone can read out of the public git history, so these are
+# replaced rather than kept. Digests, not the values: re-committing the
+# plaintext is the very bug this module now prevents.
+_BURNED_SECRET_DIGESTS = frozenset({
+    'f1db218571f5b33617c7563743c30009947eb80e12c9ff456bd1f9ee55cf4888',
+    '78adcb9c3bd32b4cfb61828bf272ce355a531673ab0646ad02fcb1ae96d0cab9',
+    '8a549d288ad8b4e4e0dd4ff038fa480ff5d3aa7ceeab73198792e9f95f7ae51b',
+})
 
 
 def _umask_default_mode():
@@ -87,12 +150,21 @@ def atomic_write_json(path, data):
     :data:`CONFIG_WRITE_LOCK` across the whole sequence, or one caller's update
     is lost wholesale under another's. That lock is the only one taken while a
     config write is in flight; ``reload_config`` may acquire it (through
-    :func:`_load_and_ensure_share_secret`) while holding ``_config_lock``, so no
+    :func:`_load_and_ensure_secret`) while holding ``_config_lock``, so no
     writer may call ``reload_config`` without first releasing it.
+
+    Note the mode preservation makes this the WRONG primitive for a secret —
+    see :func:`_atomic_write_owner_only`, which forces 0600 instead.
+
+    The scratch file is named after :data:`_TEMP_CONFIG_PREFIX` rather than
+    left to mkstemp's default, so a crash before the rename leaves an IGNORED
+    name behind: the staging copy is the whole config, password hashes
+    included.
     """
     directory = os.path.dirname(path) or '.'
     mode = _replacement_mode(path)
-    fd, tmp_path = tempfile.mkstemp(dir=directory, suffix=_TEMP_CONFIG_SUFFIX)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=_TEMP_CONFIG_PREFIX,
+                                    suffix=_TEMP_CONFIG_SUFFIX)
     try:
         with os.fdopen(fd, 'w') as f:
             json.dump(data, f, indent=2)
@@ -143,49 +215,550 @@ def _read_config():
     return config, True
 
 
-def _load_and_ensure_share_secret():
-    """Load scoring_config.json once, ensure share_secret exists. Returns (config_dict, secret).
+def secret_path():
+    """Where the server secret is stored — alongside scoring_config.json.
 
-    Holds :data:`CONFIG_WRITE_LOCK` — the one lock every writer of this file
-    takes — across its read-modify-write, so a concurrent weights, priority,
-    context or password-upgrade write can neither lose this secret nor be lost
-    under it. Writes atomically via temp file + rename to avoid partial writes.
-
-    The secret is always persisted, never kept in memory only: with
-    ``--workers>1`` each process runs this independently, and an in-memory-only
-    secret would mint a different key per worker, so a JWT signed by one is
-    rejected by the others at random. A genuinely absent config is a fresh,
-    never-configured install — it still needs a secret to boot, so one is
-    generated and written to a minimal new file. A config that EXISTS but does
-    not parse is different: minting a secret there would silently paper over a
-    broken file with the very same per-worker divergence, so that case fails
-    loudly instead of starting up half-working.
+    Derived at call time rather than bound at import so that relocating
+    ``_CONFIG_PATH`` moves the secret with it: the two files are one install
+    unit, and a test that points at a temp config must not write into the real
+    repository. The name is dotted and gitignored so `git add -A` cannot
+    resurrect the mistake this store exists to fix.
     """
-    config, parsed_ok = _read_config()
-    if 'share_secret' not in config or not config['share_secret']:
-        with CONFIG_WRITE_LOCK:
-            config, parsed_ok = _read_config()
-            if 'share_secret' not in config or not config['share_secret']:
-                config_exists = os.path.exists(_CONFIG_PATH)
-                if config_exists and not parsed_ok:
-                    raise RuntimeError(
-                        f"{_CONFIG_PATH} exists but could not be parsed. Refusing to "
-                        "mint an in-memory-only share secret in that state: with "
-                        "--workers>1 each worker would mint its own, and JWTs signed "
-                        "by one would be rejected by the others. Fix or remove the "
-                        "file, then restart."
-                    )
-                config['share_secret'] = secrets.token_hex(32)
-                if config_exists:
-                    shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
-                atomic_write_json(_CONFIG_PATH, config)
-    return config, config['share_secret']
+    return os.path.join(os.path.dirname(_CONFIG_PATH) or '.', _SECRET_FILENAME)
 
 
-_FULL_CONFIG, _share_secret = _load_and_ensure_share_secret()
+def _tighten_if_group_or_other_readable(path):
+    """Re-mode ``path`` to 0600 if anyone but its owner can read it.
 
-# JWT secret — derived from share_secret for consistency
-JWT_SECRET = _share_secret
+    Returns the mode it HAD while it was loose — a non-zero int the callers
+    report — or 0 when there is nothing to say: an already-owner-only file, a
+    path that is not there, one that is not a regular file, a mode that could
+    not be changed, and every platform where the bits are not enforced
+    (:data:`_POSIX_FILE_MODES`, which is why this is the ONE place that gate
+    has to live).
+
+    ``lstat`` decides whether to touch the path at all, because ``os.chmod``
+    follows symlinks while this runs over names anyone with write access to the
+    install directory can plant: a link wearing a ``scoring_config.json.backup``
+    name must not get the boot path to re-mode whatever it points at.
+
+    Both callers do the same detection and the same fix and differ only in how
+    they report it — per call for the secret store, batched for the backup
+    sweep — so that reporting stays at the call sites and only the mechanism is
+    shared. A chmod that FAILS is warned about here instead of at either call
+    site: in both cases the file is known loose and stayed loose, and neither
+    caller may treat that as fatal (this runs on the boot path).
+    """
+    if not _POSIX_FILE_MODES:
+        return 0
+    try:
+        if not stat.S_ISREG(os.lstat(path).st_mode):
+            return 0
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+    except OSError:
+        return 0
+    if not mode & _GROUP_OTHER_MODE:
+        return 0
+    try:
+        os.chmod(path, _SECRET_FILE_MODE)
+    except OSError:
+        logger.warning("Could not tighten permissions on %s", path, exc_info=True)
+        return 0
+    return mode
+
+
+def _warn_if_readable_by_others(path):
+    """Tighten a secret file that is group- or world-readable, and say so.
+
+    The bootstrap creates it 0600, so loose bits mean it was copied by a
+    deploy script, restored from a backup, or unpacked from an archive — all
+    cases where the operator should know the key was briefly exposed.
+
+    A path that is not there is a no-op: :func:`_load_and_ensure_secret` calls
+    this under the environment override without knowing whether a store exists
+    at all. So is a platform that does not enforce the bits — rotation advice
+    no boot could ever satisfy is worse than silence, see
+    :data:`_POSIX_FILE_MODES`.
+    """
+    mode = _tighten_if_group_or_other_readable(path)
+    if not mode:
+        return
+    logger.warning(
+        "%s was readable beyond its owner (mode %o) — tightened it to 0600. "
+        "Anyone who read it while it was exposed can forge sessions; rotate "
+        "with `python database.py --rotate-secret` if that is a possibility.",
+        path, mode,
+    )
+
+
+def _is_burned(secret):
+    """True when ``secret`` is one this project published in a tracked file.
+
+    The value is STRIPPED before hashing, because stripping is how it is
+    consumed: the store appends a trailing newline and every reader strips it
+    again. Hashing the raw input instead let a burned value carrying a stray
+    newline sail past this gate, get persisted, and then collapse to exactly
+    the published key on the next read — manufacturing the very secret the
+    digest list exists to refuse.
+    """
+    digest = hashlib.sha256(secret.strip().encode('utf-8')).hexdigest()
+    return digest in _BURNED_SECRET_DIGESTS
+
+
+def _read_secret_file():
+    """Return the stored secret, or '' when the file does not exist.
+
+    An existing-but-unreadable file raises. Treating it as absent would be
+    catastrophic rather than merely inconvenient: the caller would mint a
+    fresh secret and :func:`_write_secret_file` would ``os.replace`` the
+    original away — which needs only the *directory's* write bit, not the
+    file's — destroying the only copy of the key that signs every live session
+    and every kiosk frame link.
+    """
+    path = secret_path()
+    try:
+        with open(path) as f:
+            secret = f.read().strip()
+    except FileNotFoundError:
+        return ''
+    except OSError as ex:
+        raise RuntimeError(
+            f"{path} exists but could not be read ({ex.strerror}). Refusing to "
+            "continue: minting a fresh secret here would overwrite the stored "
+            "one — every logged-in session and every signed frame link would "
+            "die, permanently and unrecoverably. Give the account running the "
+            "server read access to it (it should be mode 0600, owned by that "
+            f"account), or set ${_SECRET_ENV_VAR} instead, then restart."
+        ) from ex
+    if secret:
+        _warn_if_readable_by_others(path)
+    return secret
+
+
+def _atomic_write_owner_only(path, text):
+    """Replace ``path`` with ``text`` atomically, durably, and at mode 0600.
+
+    ``tempfile.mkstemp`` already creates the file 0600 and the mode is
+    reasserted before the rename, so — unlike :func:`atomic_write_json`, which
+    deliberately preserves the destination's own (often world-readable) mode —
+    the payload can never inherit looser permissions from a file it replaces.
+    That makes this the primitive for anything the owner alone should read.
+
+    The scratch file is named after :data:`_OWNER_ONLY_TMP_PREFIX` rather than
+    left to mkstemp's default: the staging copy holds the same bytes as the
+    destination — for the secret store, the raw key — and lands in the
+    repository root, where the default ``tmpXXXXXXXX`` matched no ignore rule.
+    A crash between the write and the rename therefore left a stageable,
+    unignored copy of the secret behind. Everything this primitive writes is
+    owner-only material, so it all stages under the secret store's ignored
+    prefix.
+    """
+    directory = os.path.dirname(path) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=_OWNER_ONLY_TMP_PREFIX)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp_path, _SECRET_FILE_MODE)
+        os.replace(tmp_path, path)
+    except Exception:
+        _unlink_quietly(tmp_path)
+        raise
+    _fsync_directory(directory)
+
+
+def _write_secret_file(secret):
+    """Persist ``secret`` at 0600, atomically and durably.
+
+    This is the REPLACEMENT shape of the write — it overwrites whatever is
+    there, which is what a deliberate :func:`rotate_secret` means. A first boot
+    must not use it: see :func:`_claim_secret_file`.
+    """
+    _atomic_write_owner_only(secret_path(), secret + '\n')
+
+
+def _claim_secret_file(secret):
+    """Create the store EXCLUSIVELY and write ``secret`` into it.
+
+    Raises :class:`FileExistsError` when the file is already there, and that is
+    the mechanism rather than a failure. Under ``--workers>1`` on a first boot
+    every worker resolves the secret independently and they all arrive here
+    within milliseconds of each other; an ``os.replace`` lets each overwrite
+    the last and never re-reads, so N-1 workers go on signing with a value that
+    is no longer on disk. Nothing detects that at runtime — a JWT minted by one
+    worker is simply rejected by whichever other worker answers the next
+    request, so users are logged out at random. ``O_CREAT|O_EXCL`` makes
+    exactly one of them the writer; the losers adopt what the winner wrote, see
+    :func:`_claim_or_adopt_secret`.
+
+    A partial write is unlinked rather than left behind: a truncated store is
+    worse than none at all, because the next boot READS it and signs every
+    session with the fragment.
+    """
+    path = secret_path()
+    fd = os.open(path, _SECRET_CLAIM_FLAGS, _SECRET_FILE_MODE)
+    try:
+        try:
+            os.write(fd, (secret + '\n').encode('utf-8'))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except Exception:
+        _unlink_quietly(path)
+        raise
+    _fsync_directory(os.path.dirname(path) or '.')
+
+
+def _warn_in_memory_secret():
+    """Report a store that could not be written. Call from inside an except."""
+    logger.error(
+        "Could not write %s — the install directory is not writable by this "
+        "account. Continuing on an IN-MEMORY secret: the server works, but "
+        "every session and signed frame link dies on the next restart, and "
+        "under --workers>1 each worker signs with a different key, so logins "
+        "fail at random. Make that directory writable, or set $%s to a value "
+        "you keep, then restart.",
+        secret_path(), _SECRET_ENV_VAR, exc_info=True,
+    )
+
+
+def _persist_secret_or_warn(secret):
+    """Store ``secret``, or keep it in memory and spell out what that costs.
+
+    Mirrors the grace :func:`_read_config_evicting_legacy_secret` already
+    extends to a config it cannot rewrite, and for the same reason: this runs
+    at import of ``api.config``, the install directory is not always writable
+    where it runs (a read-only image layer, a root-owned checkout started as a
+    service user), and the shipped unit files restart on failure — so raising
+    here turns a permissions annoyance into a crash-loop nobody can log in to
+    fix. Booting on an ephemeral secret keeps the UI reachable; the log says
+    plainly what is lost.
+    """
+    try:
+        _write_secret_file(secret)
+    except OSError:
+        _warn_in_memory_secret()
+
+
+def _claim_or_adopt_secret(secret):
+    """Persist ``secret`` — or adopt the one another process persisted first.
+
+    Returns the value this process must actually sign with, which is not always
+    the one it was handed. On a first boot every ``--workers>1`` worker mints
+    its own; only the one that wins :func:`_claim_secret_file` keeps it, and
+    the rest re-READ the store and take what is on disk, so all of them
+    converge on the single value that survived. The old path replaced
+    unconditionally and never re-read, which is precisely how N-1 workers ended
+    up signing with a key the store no longer held.
+
+    A store that exists but holds nothing usable is the one case that still
+    replaces: a burned value must not be adopted (it is published, so adopting
+    it is indistinguishable from keeping it), and neither must an empty file —
+    a crashed write or a stray ``touch`` is not a secret. Both fall through to
+    the atomic-replace path, which is also what a deliberate rotation uses.
+    """
+    try:
+        _claim_secret_file(secret)
+        return secret
+    except FileExistsError:
+        pass
+    except OSError:
+        _warn_in_memory_secret()
+        return secret
+    adopted = _read_secret_file()
+    if adopted and not _is_burned(adopted):
+        logger.info(
+            "%s appeared while this process was starting — adopting the stored "
+            "secret so every worker signs with the same key.", secret_path(),
+        )
+        return adopted
+    _persist_secret_or_warn(secret)
+    return secret
+
+
+def _read_config_evicting_legacy_secret():
+    """Parse the config and delete ``share_secret`` from it. One read, not two.
+
+    Returns ``(config, parsed_ok, legacy)`` where ``config`` never carries the
+    legacy key, so the caller gets the post-migration config without parsing
+    the file a second time — this runs on every boot AND on every
+    ``reload_config``.
+
+    Eviction happens on every boot until the key is gone, and even when the
+    secret is already sourced from the environment or the secret file —
+    leaving the key behind in a tracked file is the vulnerability, so its
+    removal is not conditional on needing its value.
+
+    The read-modify-write is held under :data:`CONFIG_WRITE_LOCK`, mirroring
+    ``api.auth.upgrade_legacy_password``: a concurrent weights, priority,
+    context or password write must not land inside this one's window. An
+    unparseable config is left strictly alone — rewriting it would destroy the
+    only copy of whatever the operator was mid-edit on.
+
+    A rewrite that FAILS is reported and swallowed rather than raised. This
+    runs at import of ``api.config``, and the config is not always writable
+    where the server runs: Docker bind-mounts scoring_config.json as a single
+    file, which ``os.replace`` cannot substitute, and read-only config mounts
+    exist. A server that crash-loops on boot is strictly worse than one that
+    starts with a stale key still in the file and tells the operator to delete
+    it — from a crash-loop nobody can even reach the UI to fix it.
+    """
+    with CONFIG_WRITE_LOCK:
+        config, parsed_ok = _read_config()
+        if not parsed_ok or _LEGACY_SECRET_KEY not in config:
+            return config, parsed_ok, ''
+        legacy = config.pop(_LEGACY_SECRET_KEY)
+        try:
+            _write_config_backup(config)
+            atomic_write_json(_CONFIG_PATH, config)
+        except OSError:
+            logger.error(
+                "Could not remove `%s` from %s — the file is not writable here "
+                "(a single-file Docker bind mount or a read-only config mount "
+                "cannot be replaced). DELETE THE KEY BY HAND: while it is there, "
+                "anyone who can read the file can forge any session.",
+                _LEGACY_SECRET_KEY, _CONFIG_PATH, exc_info=True,
+            )
+    if not isinstance(legacy, str) or not legacy.strip():
+        return config, parsed_ok, ''
+    logger.warning(
+        "Removed `%s` from %s. That file is git-tracked, so the value was one "
+        "`git add` away from being published — and in some installs already was. "
+        "The secret now lives in %s (0600). Rotate it with "
+        "`python database.py --rotate-secret` if the config was ever committed, "
+        "pushed, or shared.",
+        _LEGACY_SECRET_KEY, _CONFIG_PATH, secret_path(),
+    )
+    return config, parsed_ok, legacy.strip()
+
+
+def _write_config_backup(config):
+    """Snapshot the pre-migration config next to itself, WITHOUT the secret.
+
+    A plain copy of the file would put a second, longer-lived copy of the key
+    on disk at whatever mode the config happens to carry (0664 on a default
+    umask) under a name a stray ``git add -A`` would have staged — the exact
+    shape of the leak this whole module exists to close. The snapshot is
+    therefore rebuilt from the already-evicted dict, and forced to 0600
+    because scoring_config.json legitimately holds ``viewer.password`` and
+    ``users.*.password_hash`` too.
+
+    Kept rather than dropped because later config writes (weights, priorities,
+    passwords) rewrite scoring_config.json in place, so without it the
+    pre-migration state would be gone. It is NOT a permanent point-in-time
+    snapshot: ``api.auth.upgrade_legacy_password`` backs the config up to this
+    very path too, so whichever runs last is what the file holds. Both writers
+    land at 0600 — this one through :func:`_atomic_write_owner_only`, that one
+    through ``api.config_writes.write_owner_only_backup`` — because the config
+    legitimately holds ``viewer.password`` and ``users.*.password_hash``. They
+    cannot share one primitive: this one must write the EVICTED dict rather
+    than copy the file, or the backup would keep the secret it exists to
+    remove.
+    """
+    _atomic_write_owner_only(f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}", json.dumps(config, indent=2))
+
+
+def _config_backup_paths():
+    """Every accumulated backup of scoring_config.json, whatever wrote it.
+
+    One prefix match covers both shapes: the bare ``.backup`` the secret
+    migration and the password upgrade write, and the timestamped
+    ``.backup.<stamp>`` files ``api.config_writes`` drops before each weights,
+    priority, scoring-context or panorama write. They hold the same secrets, so
+    nothing here may treat one shape as safer than the other.
+    """
+    directory = os.path.dirname(_CONFIG_PATH) or '.'
+    prefix = os.path.basename(_CONFIG_PATH) + _CONFIG_BACKUP_SUFFIX
+    try:
+        names = os.listdir(directory)
+    except OSError:
+        logger.debug("Could not list %s for config backups", directory, exc_info=True)
+        return []
+    return [os.path.join(directory, name) for name in sorted(names) if name.startswith(prefix)]
+
+
+def _tighten_existing_config_backups():
+    """Re-mode every config backup an older Facet left readable beyond its owner.
+
+    Until the writers were fixed, both backup paths were plain ``copy2`` of the
+    config, and ``copy2`` copies the mode: on a default umask every backup
+    landed 0664 carrying ``share_secret``, ``viewer.password`` in plaintext and
+    every ``users.*.password_hash``. Fixing the writers only protects backups
+    written from now on — the ones already on disk keep the old mode forever,
+    which is exactly the window an attacker uses.
+
+    Contents are never read, edited or deleted: these are the operator's
+    backups and the whole point of a backup is that nothing else rewrites it.
+    Only the permission bits change, and only in the tightening direction. A
+    file that cannot be re-moded is skipped rather than fatal — this runs on
+    the boot path, where a crash is worse than a warning. Detection, symlink
+    refusal, the chmod and the platform gate are all
+    :func:`_tighten_if_group_or_other_readable`'s; the only thing this adds is
+    reporting the sweep as ONE line rather than one per file.
+    """
+    tightened = [
+        os.path.basename(path)
+        for path in _config_backup_paths()
+        if _tighten_if_group_or_other_readable(path)
+    ]
+    if tightened:
+        logger.warning(
+            "Tightened %d config backup(s) to 0600 (%s) — they were readable "
+            "beyond their owner while holding the secrets scoring_config.json "
+            "carries. Their contents are untouched; rotate with `python "
+            "database.py --rotate-secret` and change any password that was in "
+            "them if that exposure matters.",
+            len(tightened), ', '.join(tightened),
+        )
+
+
+def _adopt_legacy_secret(legacy):
+    """Decide what a migrating install keeps: the old value, or a fresh one.
+
+    Preserving it is right for a private install — nobody has seen the value
+    and every logged-in session survives the upgrade. It is wrong when the
+    value is one of the handful this project published in its own public
+    history, which every clone and fork inherited verbatim: there, preserving
+    it would migrate a key an attacker can simply read. Those are replaced,
+    and the resulting forced re-login is the cheaper half of the trade.
+    """
+    if _is_burned(legacy):
+        logger.warning(
+            "The `%s` just removed from %s is one this project PUBLISHED in its "
+            "public git history — anyone holding a clone can forge any session, "
+            "including a superadmin one. It has NOT been carried over: a fresh "
+            "secret was generated, so every existing login session and signed "
+            "frame link is now invalid. Re-login is the correct cost here.",
+            _LEGACY_SECRET_KEY, _CONFIG_PATH,
+        )
+        return secrets.token_hex(_SECRET_BYTES)
+    return legacy
+
+
+def _load_and_ensure_secret():
+    """Load scoring_config.json once and resolve the server secret.
+
+    Returns ``(config_dict, secret)``. Resolution order:
+
+    1. ``FACET_JWT_SECRET`` — for containers and orchestrators that inject
+       secrets as environment, mirroring the ``api_key_env`` idiom. It is an
+       override, never a setter: it is not written to disk, so unsetting it
+       falls back to whatever the file holds.
+    2. The secret file next to scoring_config.json.
+    3. A ``share_secret`` migrated out of the config (see
+       :func:`_adopt_legacy_secret`).
+    4. A freshly generated secret.
+
+    EVERY one of those sources is checked against
+    :data:`_BURNED_SECRET_DIGESTS`, not just the migrated one: a burned value
+    reaches the file store and the environment as easily as the config — it is
+    published, so anyone can paste it anywhere. The environment refuses loudly
+    (only a human sets that variable, so silently ignoring their input would
+    be worse than stopping), while a burned FILE is regenerated exactly like a
+    burned config key, because there the operator inherited the value rather
+    than chose it.
+
+    The file store is not READ once the environment supplied a usable secret.
+    Reading it can raise — an existing-but-unreadable file must never be
+    replaced (:func:`_read_secret_file`) — and that refusal advises setting
+    exactly this variable, so an operator who followed the advice still could
+    not boot, and ``database.py --rotate-secret`` died at import of this module
+    before it could even report the same thing. Under the override the stored
+    value is unused, so the read is skipped rather than made non-fatal: with no
+    override, an unreadable file still refuses, unchanged.
+
+    Its PERMISSIONS are still checked, though, because the override is a
+    runtime fact and the file is a durable one: the moment the variable is
+    unset — a shell without it, a unit file edited, a container run plainly —
+    that same file becomes the live signing key. A loose mode on it is
+    therefore reported and tightened whether or not this particular boot reads
+    it; skipping the check under the override would have let a world-readable
+    key sit silently until the day it started signing sessions.
+
+    The secret is persisted rather than kept in memory: with ``--workers>1``
+    each process runs this independently, and an in-memory-only secret would
+    mint a different key per worker, so a JWT signed by one is rejected by the
+    others at random. Persisting it is not enough on its own, though — on a
+    FIRST boot every worker reaches this point with a freshly minted value of
+    its own, so the write claims the store rather than replacing it and the
+    losers adopt the winner's value (:func:`_claim_or_adopt_secret`). When the
+    directory cannot be written that divergence is accepted, loudly, over a
+    crash-loop — see :func:`_persist_secret_or_warn`.
+    An existing-but-unparseable config with no secret anywhere still fails
+    loudly rather than booting: it is the one state where the operator has
+    clearly lost something, and a silent fresh secret would log every user out
+    while hiding the broken file. Once a secret file exists, a config that
+    fails to parse no longer blocks startup — ``config_load_failed`` locks the
+    auth surface down and the sessions stay valid for the repair.
+    """
+    env_secret = os.environ.get(_SECRET_ENV_VAR, '').strip()
+    if env_secret and _is_burned(env_secret):
+        raise RuntimeError(
+            f"${_SECRET_ENV_VAR} is set to a secret this project PUBLISHED in its "
+            "public git history — anyone holding a clone of Facet can forge any "
+            "session with it, including a superadmin one. Refusing to start. "
+            "Generate a replacement (`python -c \"import secrets; "
+            "print(secrets.token_hex(32))\"`) and set that instead."
+        )
+    stored = ''
+    if env_secret:
+        _warn_if_readable_by_others(secret_path())
+    else:
+        stored = _read_secret_file()
+    if stored and _is_burned(stored):
+        logger.warning(
+            "%s holds a secret this project PUBLISHED in its public git history — "
+            "it was inherited from an older install, not chosen. Replacing it with "
+            "a fresh one: every existing login session and signed frame link is now "
+            "invalid, which is the correct cost.",
+            secret_path(),
+        )
+        stored = ''
+    config, parsed_ok, legacy = _read_config_evicting_legacy_secret()
+    _tighten_existing_config_backups()
+
+    secret = env_secret or stored
+    if not secret and legacy:
+        secret = _adopt_legacy_secret(legacy)
+    if not secret:
+        if os.path.exists(_CONFIG_PATH) and not parsed_ok:
+            raise RuntimeError(
+                f"{_CONFIG_PATH} exists but could not be parsed, and there is no "
+                f"secret in {secret_path()} or ${_SECRET_ENV_VAR} to fall back on. "
+                "Refusing to mint an in-memory-only secret in that state: with "
+                "--workers>1 each worker would mint its own, and JWTs signed by "
+                "one would be rejected by the others. Fix or remove the file, "
+                "then restart."
+            )
+        secret = secrets.token_hex(_SECRET_BYTES)
+    if not env_secret and secret != stored:
+        secret = _claim_or_adopt_secret(secret)
+    return config, secret
+
+
+def rotate_secret():
+    """Generate a new server secret, invalidating every session and frame link.
+
+    Returns the path it was written to. Refuses while ``FACET_JWT_SECRET`` is
+    set, because that variable wins on every read: writing the file would
+    rotate nothing while reporting success.
+    """
+    if os.environ.get(_SECRET_ENV_VAR, '').strip():
+        raise RuntimeError(
+            f"${_SECRET_ENV_VAR} is set and overrides the stored secret. Rotate "
+            "it where it is defined instead — rewriting the file would change "
+            "nothing."
+        )
+    _read_config_evicting_legacy_secret()
+    _write_secret_file(secrets.token_hex(_SECRET_BYTES))
+    reload_config()
+    return secret_path()
+
+
+_FULL_CONFIG, _server_secret = _load_and_ensure_secret()
+
+JWT_SECRET = _server_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 48  # 2 days
 
@@ -339,12 +912,12 @@ def reload_config():
     from it, which makes a stale copy a security question and not just a
     freshness one.
     """
-    global _FULL_CONFIG, _share_secret, JWT_SECRET
+    global _FULL_CONFIG, _server_secret, JWT_SECRET
     with _config_lock:
-        _FULL_CONFIG, _share_secret = _load_and_ensure_share_secret()
+        _FULL_CONFIG, _server_secret = _load_and_ensure_secret()
         VIEWER_CONFIG.clear()
         VIEWER_CONFIG.update(load_viewer_config(_FULL_CONFIG))
-        JWT_SECRET = _share_secret
+        JWT_SECRET = _server_secret
 
 
 def _prefix_boundary_match(path, prefix):

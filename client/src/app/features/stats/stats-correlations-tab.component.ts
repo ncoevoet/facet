@@ -15,7 +15,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
 import { CorrelationApiResponse, buildCorrelationCsvRecords } from './stats-correlations-csv';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#84cc16'];
 
@@ -109,7 +109,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   `,
 })
 export class StatsCorrelationsTabComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private api = inject(ApiService);
   private destroyRef = inject(DestroyRef);
   private statsFilters = inject(StatsFiltersService);

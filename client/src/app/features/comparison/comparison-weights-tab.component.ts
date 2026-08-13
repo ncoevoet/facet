@@ -29,7 +29,7 @@ import {
   WeightIconPipe, WeightLabelKeyPipe, FilterValueFormatPipe, ModifierValueFormatPipe,
   RecordValuePipe, FilterTagsPipe, FilterBoolValuePipe,
 } from './comparison.pipes';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface CategoryWeights {
   weights: Record<string, number>;
@@ -377,7 +377,7 @@ class SignalErrorMatcher {
   `,
 })
 export class ComparisonWeightsTabComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly auth = inject(AuthService);
   private api = inject(ApiService);
   private i18n = inject(I18nService);

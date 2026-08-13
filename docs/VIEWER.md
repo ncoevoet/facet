@@ -205,6 +205,7 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - **Compare** — Open 2–4 selected photos side by side with synced pan and zoom (scroll to zoom, drag to pan, double-click to reset; every pane moves together and swaps to full resolution past the fit scale). The same view the culling darkroom uses, reachable for any hand-picked set rather than only for frames adjacent in a burst.
 - **Copy filenames** — Copy selected filenames to clipboard
 - **Export** — Write XMP sidecars (rating/favorite/reject) next to the selected files (see [Editor Export](#editor-export))
+- **Cull to folder** — Copy keeps, or move/trash rejects, to a target folder (see [Cull to folder](#cull-to-folder))
 - **Download** — Download selected photos
 - Clear selection with Escape or the Clear button
 
@@ -213,6 +214,10 @@ Bulk actions require edition mode. Double-click any photo to download it directl
 ### Keep Top N%
 
 A **Keep top %** control in the gallery toolbar (edition mode) turns the whole filtered view into a one-step cull. Set a percentage; the server ranks the current view by the **current sort** (aggregate, My Taste, Top Picks, sharpness, …), keeps that top share, and **selects the rest** — the lowest-ranked photos — so you can reject them from the selection action bar (or deselect any you want to spare first). Nothing is moved or deleted: it only populates the selection (and every reject still trains "My Taste"). The selection is capped at 5000 photos; on a very large view the control says so — narrow the filter (album, date, person…) to act on the remainder.
+
+### Cull to folder
+
+The bulk-action bar's **Cull to folder…** dialog (edition mode) copies keeps, or moves/trashes rejects, to a target folder in one step (OS-trash is gated behind `viewer.cull.allow_trash`, never a permanent delete). Applying is safe by construction: `POST /api/cull/apply` never trusts a client-supplied deletion list at face value — it re-derives the action's actual target set server-side from each photo's own `is_rejected` state (copy acts only on keeps, move/trash only on rejects) and reports anything outside that scope as `excluded_by_state` instead of acting on it. Every call defaults to a dry run, so a preview always runs before anything is written, and move/trash need an explicit `dry_run=false` to proceed; pulling in a rejected photo's untouched RAW or sidecar is opt-in (`include_companions`), so rejecting a derived JPEG never silently takes its RAW down with it. Several commercial photo tools have shipped delete-selection bugs that acted on the wrong photos; Facet's apply endpoint is designed so the client cannot specify a deletion set directly.
 
 ### Display Options
 
@@ -616,7 +621,11 @@ The darkroom's **face panel** colour-codes each face crop green / orange / red f
 
 **Subject close-up strip (non-face groups).** For bursts / similar groups whose photos have no significant faces — wildlife, macro, products, birds — the darkroom shows a **subject** strip instead: the key subject of every frame, cropped from the persisted BiRefNet subject box and lined up side by side so you can compare the actual subject at close-up (the Zoner "AI Close-Up" idea, native). Each crop carries a group-normalized sharpness badge (10 = the sharpest subject in the group) and a coloured ring (green / amber / red) so the tack-sharp frame stands out; clicking a crop jumps the main view to that photo. The crops are cut from the stored thumbnail with no model run (`POST /api/culling-group/subjects`) and appear only when a group has subjects but no faces. This lights up only once photos carry a subject box: run `python facet.py --recompute-saliency` (GPU) to backfill an existing library — until then the strip simply doesn't appear.
 
+**Key subject (zoom target + key person).** The darkroom resolves who or what each frame of the open group is about — the best of its detected faces, or the persisted BiRefNet subject box when it has none — for the whole group in one call (`POST /api/photos/key_subjects`), and then zooms *at* it: **`Z`**, a double-click, or the first wheel step off the fit scale land the 1:1 view on that point instead of on the middle of the frame, so a pixel peek starts on the face that matters. Once you have panned or wheeled a frame yourself the suggestion stands down for that frame — it never re-frames a crop you chose. When the winner is a named person, that face carries an amber name pill in the face strip. Faces beat saliency, and among faces the best mix of relative size, centrality and named-person status wins, so a named subject in the middle distance beats a bigger stranger while a named speck in the background does not. Nothing is stored, so the answer always reflects the current face and person assignments; boxes are fractions of the full frame (`normalized_frame_xyxy`), never of the thumbnail on screen. `GET /api/photo/key_subject` serves the same answer for a single photo.
+
 **Synced compare (2-up / 4-up).** The lightbox header has Single / Compare 2 / Compare 4 buttons. In compare mode the panes share one pan/zoom transform, so scroll-wheel zoom or drag-pan on any pane moves them all to the identical crop — the way to pick the sharpest frame of a burst by actually peeping pixels. Double-click toggles fit ↔ zoom; past the fit scale each pane lazily swaps its 1920px thumbnail for the full-resolution `/image` source so the peek is crisp. No backend change — both image routes already exist. (Touch-pinch is not yet wired; use the wheel on desktop.)
+
+**Swipe to keep or reject (touch).** On a touch device the darkroom's single view doubles as a swipe deck: drag the frame right to keep it, left to reject it, and it tilts and tints as it goes — green with a KEEP badge, red with a REJECT one. Past 35% of the frame's width (never less than 48px) the release flings it off that side, writes the very decision the `↑` / `↓` keys write, and steps to the next frame exactly as `→` does; short of that the frame springs back and nothing is decided. A drag whose axis turns out to be vertical is released untouched the moment that is known, so it stays whoever's it was. Each commit raises a snackbar with **Undo** that restores both the decision *and* the frame it was made on — a mis-keyed `↑` is undone by pressing `↓`, but a mis-flicked thumb is already on the next frame with no opposite gesture to reach for. The gesture is offered only where it cannot fight another one: a coarse pointer (finger or stylus, never a mouse), single view (a compare grid has no one frame a swipe would be about), and the fit scale — past it the identical drag *is* the pane's pan, which the pane has already captured the pointer for. A one-line hint sits under the first frame until dismissed (remembered in `localStorage`).
 
 **Edited-look preview.** In single view the darkroom header gains a **palette** menu listing "Original" plus each configured darktable style, so you can cull on the *developed* look instead of the flat RAW preview — the way to judge a shot the way it will actually be delivered. Picking a style renders the original through darktable-cli (`--style`, bounded to `preview_max_edge`) and swaps it into the main image, with a spinner while it renders and a snackbar + revert to Original on failure. The chosen style persists across the frames of the current group and resets when you reopen the darkroom (per-session, never saved). The control only appears when at least one style is configured **and** darktable-cli resolves; the styles must already exist in the darktable configuration of the user running the viewer. Rendered previews are cached on disk (keyed by source mtime, style and max edge), so re-viewing a frame is instant. Endpoint: `GET /api/photo/cull_preview?path=&style=` (edition-gated); configure via [`raw_processor.darktable.cull_styles`](CONFIGURATION.md#raw_processor).
 
@@ -1227,8 +1236,11 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Burst/similar/scene groups for culling. `group_by` (default `all`) selects merged burst+similar, burst-only, similar-only, or chronological scene groups (scene groups add `type`/`start`/`end`/`moment`/`moment_confidence`; the `sort` param is ignored in scene mode). `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped. When a keeper-ranking head is trained, each photo also carries `keeper_prob` and each group carries `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Confirm culling selections (burst, similar, or scene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` records the scene-cull comparison rows |
 | `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a whole scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (default `true`) returns the per-group keep/reject preview, an apply rejects the rest and records culling pairs |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Infer the scope's dominant shoot type from its stored categories, narrative moments, face counts and capture hours, and name the `cull_profiles` preset that fits it, with a confidence and the evidence counts it was based on; cached per scope. `profile` is `null` below the dominance floor or when the matching preset isn't configured |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
 | `POST /api/culling-group/subjects` | Subject close-up crops (from the persisted BiRefNet subject box) + group-normalized sharpness for a non-face group, in one batch. `has_subject:false` when a photo has no box / a near-full-frame box (no model runs) |
+| `GET /api/photo/key_subject?path=` | Who / what a photo is about: its best-ranked face, else its persisted saliency box, as a `normalized_frame_xyxy` box + centre. Resolved per request from stored columns (no model run, nothing cached); `kind:"none"` when neither exists |
+| `POST /api/photos/key_subjects` | The same answer for up to 1000 paths in one call (`key_subjects_by_path`) — the darkroom's zoom target and key-person badge. Every requested path is present; unknown or invisible ones come back as `kind:"none"` rather than missing |
 | `POST /api/photos/keeper_hints` | Per-photo "a better shot exists in this group" hints for the gallery/lightbox badge, grouped by `burst_group_id`. Body `{paths}`; returns `{path: {has_better, best_path, keeper_prob}}`. Head-gated — returns `{}` when no keeper-ranking head is trained |
 | `GET /api/photo/cull_preview?path=&style=` | `[Edition]` Render a photo's original through a configured darktable style (`--style`, bounded to `preview_max_edge`) for the darkroom's edited-look preview. Disk-cached; 400 on unknown style, 503 when darktable-cli is unavailable, 502 on render failure/timeout |
 | `GET /api/scenes` | Chronological scenes of burst-lead photos (read-only browse) |
@@ -1317,6 +1329,7 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 | `POST /api/export/sidecars` | `[Edition]` Write sidecars for explicit paths or a filter set |
 | `POST /api/photo/embed_metadata` | `[Edition]` Embed metadata into the original file (JPEG/HEIC/TIFF/PNG/DNG; RAW never modified) and write the sidecar |
 | `POST /api/albums/{id}/export` | `[Edition]` Album export as sidecars, copy, or symlink |
+| `POST /api/cull/apply` | `[Edition]` Copy keeps or move/trash rejects to a folder (see [Cull to folder](#cull-to-folder)) |
 
 ### Plugins
 
@@ -1324,6 +1337,12 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 |----------|-------------|
 | `GET /api/plugins` | List configured plugins |
 | `POST /api/plugins/test-webhook` | Test a webhook plugin |
+
+### Immich
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/immich/webhook` | Receive an Immich workflow webhook and mirror the pushed rating back immediately; an asset Facet hasn't scored yet is queued for the next `--immich-sync`. Static-token auth (`immich.webhook.token_env`; unset ⇒ 404); never triggers a scan. See [docs/IMMICH.md](IMMICH.md) |
 
 ### Health
 

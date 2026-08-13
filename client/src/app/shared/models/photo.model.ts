@@ -25,7 +25,7 @@ export interface Photo {
   face_quality_iqa: number | null;
   liqe_score: number | null;
   // Extended IQA tier (config-gated; optional — absent/null unless iqa_extended is enabled)
-  qalign_score?: number | null;
+  qrealign_score?: number | null;
   aesthetic_v25?: number | null;
   deqa_score?: number | null;
   // Subject saliency
@@ -74,8 +74,16 @@ export interface Photo {
   is_silhouette: boolean | null;
   // Metadata
   date_taken: string | null;
-  image_width: number;
-  image_height: number;
+  /** Pixel dimensions of the frame the scan analysed. Null when the recorded
+   *  pair was proven to have been fabricated from the thumbnail and cleared —
+   *  see `image_aspect`, and `repair_thumbnail_dimensions` server-side. */
+  image_width: number | null;
+  image_height: number | null;
+  /** Display aspect (width / height) kept when the dimensions above were
+   *  cleared: a thumbnail is scaled, not cropped, so the ratio survived even
+   *  though the resolution did not. Null whenever the dimensions are real —
+   *  it is a fallback, never a preference. */
+  image_aspect?: number | null;
   // Burst/Duplicate
   is_best_of_burst: boolean | null;
   burst_group_id: string | null;

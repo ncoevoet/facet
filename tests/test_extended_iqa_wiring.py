@@ -1,7 +1,7 @@
 """No-GPU wiring tests for the optional extended-IQA scan-time writers
 (processing/multi_pass).
 
-The real qalign / aesthetic_v25 / deqa scorers need a GPU, so these tests only
+The real qrealign / aesthetic_v25 / deqa scorers need a GPU, so these tests only
 verify the routing the scan depends on: config gating in _select_models, the
 model->column map, and that _pass_pyiqa writes a stub scorer's score to the
 dedicated column (never clobbering the primary 'aesthetic').
@@ -49,49 +49,69 @@ def _proc(ext):
 
 def test_column_map_routes_extended_to_dedicated_columns():
     cm = ChunkedMultiPassProcessor.PYIQA_COLUMN_MAP
-    assert cm["qalign"] == "qalign_score"
+    assert cm["qrealign"] == "qrealign_score"
     assert cm["aesthetic_v25"] == "aesthetic_v25"
     assert cm["deqa"] == "deqa_score"
-    assert {"qalign", "aesthetic_v25", "deqa"} <= set(ChunkedMultiPassProcessor.PYIQA_MODELS)
+    assert {"qrealign", "aesthetic_v25", "deqa"} <= set(ChunkedMultiPassProcessor.PYIQA_MODELS)
 
 
 def test_select_models_gates_extended_on_config():
-    off = _proc({"qalign": False, "aesthetic_v25": False, "deqa": False})._select_models()
-    assert not ({"qalign", "aesthetic_v25", "deqa"} & set(off))
+    off = _proc({"qrealign": False, "aesthetic_v25": False, "deqa": False})._select_models()
+    assert not ({"qrealign", "aesthetic_v25", "deqa"} & set(off))
 
-    on = _proc({"qalign": True, "aesthetic_v25": True, "deqa": False})._select_models()
-    assert "qalign" in on
+    on = _proc({"qrealign": True, "aesthetic_v25": True, "deqa": False})._select_models()
+    assert "qrealign" in on
     assert "aesthetic_v25" in on
     assert "deqa" not in on   # disabled flag stays out
 
 
-def test_select_models_picks_qalign_variant():
-    p4 = _proc({"qalign": "4bit", "aesthetic_v25": False, "deqa": False})._select_models()
-    assert "qalign_4bit" in p4 and "qalign" not in p4 and "qalign_8bit" not in p4
-    p8 = _proc({"qalign": "8bit", "aesthetic_v25": False, "deqa": False})._select_models()
-    assert "qalign_8bit" in p8 and "qalign_4bit" not in p8
-    pf = _proc({"qalign": "full", "aesthetic_v25": False, "deqa": False})._select_models()
-    assert "qalign" in pf and "qalign_4bit" not in pf
-
-
-def test_get_extended_iqa_settings_normalizes_qalign(tmp_path):
+def _settings(tmp_path, ext, profile=None):
+    """get_extended_iqa_settings() for a minimal config with this iqa_extended."""
     import json
     from config import ScoringConfig
 
     cfg = tmp_path / "c.json"
+    doc = {"categories": [{"name": "default", "weights": {}}], "iqa_extended": ext}
+    if profile is not None:
+        doc["models"] = {"vram_profile": profile}
+    cfg.write_text(json.dumps(doc))
+    return ScoringConfig(str(cfg), validate=False).get_extended_iqa_settings()
 
-    def variant(v):
-        cfg.write_text(json.dumps({
-            "categories": [{"name": "default", "weights": {}}],
-            "iqa_extended": {"qalign": v},
-        }))
-        return ScoringConfig(str(cfg), validate=False).get_extended_iqa_settings()["qalign"]
 
-    assert variant(True) == "full"
-    assert variant("4bit") == "4bit"
-    assert variant("8bit") == "8bit"
-    assert variant("bogus") == "full"   # truthy unknown -> full precision
-    assert variant(False) is False
+def test_qrealign_auto_follows_the_resolved_vram_profile(tmp_path):
+    """'auto' (the default) is off only on legacy — a ~3GB scorer fits from 8gb up."""
+    # Explicit "auto" and an absent key must behave identically.
+    assert _settings(tmp_path, {"qrealign": "auto"}, profile="legacy")["qrealign"] is False
+    assert _settings(tmp_path, {}, profile="legacy")["qrealign"] is False
+
+    for profile in ("8gb", "16gb", "24gb"):
+        assert _settings(tmp_path, {"qrealign": "auto"}, profile=profile)["qrealign"] is True
+        assert _settings(tmp_path, {}, profile=profile)["qrealign"] is True
+
+
+def test_qrealign_explicit_bool_overrides_the_profile(tmp_path):
+    # ON where 'auto' would say off...
+    assert _settings(tmp_path, {"qrealign": True}, profile="legacy")["qrealign"] is True
+    # ...and OFF where 'auto' would say on.
+    assert _settings(tmp_path, {"qrealign": False}, profile="16gb")["qrealign"] is False
+
+
+def test_extended_iqa_settings_are_plain_bools(tmp_path):
+    """Downstream gating is `if ext.get(k)` — never a variant string to re-parse."""
+    s = _settings(tmp_path, {"qrealign": "auto", "aesthetic_v25": True}, profile="16gb")
+    assert set(s) == {"qrealign", "aesthetic_v25", "deqa"}
+    for key, value in s.items():
+        assert isinstance(value, bool), f"{key} is {type(value).__name__}, not bool"
+    assert s["aesthetic_v25"] is True
+    assert s["deqa"] is False   # absent -> off (plain bool, no tri-state)
+
+
+def test_qrealign_auto_honors_the_env_profile_override(tmp_path, monkeypatch):
+    """FACET_VRAM_PROFILE is folded in by _load_config, so 'auto' sees it too."""
+    monkeypatch.setenv("FACET_VRAM_PROFILE", "legacy")
+    assert _settings(tmp_path, {"qrealign": "auto"}, profile="16gb")["qrealign"] is False
+    monkeypatch.setenv("FACET_VRAM_PROFILE", "16gb")
+    assert _settings(tmp_path, {"qrealign": "auto"}, profile="legacy")["qrealign"] is True
 
 
 def test_pass_pyiqa_writes_dedicated_extended_column():
@@ -159,6 +179,63 @@ def test_recompute_iqa_labels_a_metal_run_and_keeps_one_model_per_pass(
     assert executed == [[model] for model, _ in facet._IQA_MODELS]
 
 
+def test_qrealign_spec_pins_the_validated_aesthetic_head():
+    """The A/B that chose Q-ReAlign scored task_='aesthetic'; pyiqa's default is
+    'quality'. The spec must pin the validated head or the shipped column is a
+    different (ceiling-compressed) distribution than the one that was measured."""
+    import pytest
+
+    pytest.importorskip("torch", reason="models.pyiqa_scorer imports torch")
+    from models.pyiqa_scorer import PYIQA_MODELS
+
+    assert PYIQA_MODELS['qrealign']['task'] == 'aesthetic'
+    # scripts/qrealign_ab.py is the record of what was validated.
+    import re
+    from pathlib import Path
+    ab = Path(__file__).resolve().parent.parent / "scripts" / "qrealign_ab.py"
+    m = re.search(r'^SCORE_TASK\s*=\s*"([^"]+)"', ab.read_text(encoding="utf-8"), re.M)
+    assert m and m.group(1) == PYIQA_MODELS['qrealign']['task']
+
+
+def test_spec_task_is_forwarded_as_a_per_call_kwarg():
+    """CONTRACT: pyiqa's InferenceModel.forward passes **kwargs to the net, so
+    the task head is only selectable per call — setting it on .net does nothing.
+    Every inference entry point (score_image AND score_batch) must forward it."""
+    import pytest
+
+    pytest.importorskip("torch", reason="models.pyiqa_scorer imports torch")
+    from PIL import Image
+    from models.pyiqa_scorer import PyIQAScorer
+
+    class _KwargCapturingModel:
+        def __init__(self):
+            self.kwargs = []
+
+        def __call__(self, batch, **kwargs):
+            self.kwargs.append(kwargs)
+            return batch.mean(dim=[1, 2, 3], keepdim=False).unsqueeze(1)
+
+    def _scorer(name):
+        s = PyIQAScorer(name, device='cpu')
+        s.model = _KwargCapturingModel()
+        s._loaded = True
+        return s
+
+    img = Image.new("RGB", (32, 32), (128, 128, 128))
+
+    qr = _scorer('qrealign')
+    qr.score_image(img)
+    qr.score_batch([img, img])
+    assert qr.model.kwargs == [{'task_': 'aesthetic'}] * 3
+
+    # A spec without a 'task' must keep calling the model with no extra kwargs
+    # (batchable models go through the stacked-tensor path too).
+    topiq = _scorer('topiq')
+    topiq.score_image(img)
+    topiq.score_batch([img, img])
+    assert topiq.model.kwargs == [{}, {}]        # 1 serial + 1 stacked forward
+
+
 def test_photos_schema_has_extended_iqa_columns(tmp_path):
     """The persistence path writes these columns, so the schema must define them
     (guards against the save INSERT and the column being out of sync)."""
@@ -170,4 +247,6 @@ def test_photos_schema_has_extended_iqa_columns(tmp_path):
     conn = sqlite3.connect(db)
     cols = {r[1] for r in conn.execute("PRAGMA table_info(photos)")}
     conn.close()
-    assert {"aesthetic_v25", "qalign_score", "deqa_score"} <= cols
+    assert {"aesthetic_v25", "qrealign_score", "deqa_score"} <= cols
+    # Q-Align was replaced by Q-ReAlign: a fresh DB must not carry its column.
+    assert "qalign_score" not in cols

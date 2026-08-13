@@ -10,9 +10,13 @@ open-clip-torch>=2.20.0
 
 # HuggingFace Transformers - required for BiRefNet saliency, SigLIP 2 NaFlex embeddings,
 # and VLM taggers (Qwen3.5 / Qwen3-VL / Qwen2.5-VL on 16gb/24gb profiles).
-# Upper-bounded: transformers 5.3+ changed Qwen3.5 vision-token handling and breaks the
-# batched VLM tagger (torch.cat "sizes must match" during tagging); 5.2.x is validated.
-transformers>=4.57.0,<5.3
+# Floor is 5.3.0: it patches GHSA-29pf-2h5f-8g72 / CVE-2026-4372 (RCE via a malicious
+# config.json _attn_implementation_internal). 5.3 also added the per-token
+# mm_token_type_ids key to the Qwen3.5 processor, which models/vlm_tagger.py
+# _batch_qwen3 now left-pads like input_ids instead of raw-concatenating.
+# Upper-bounded at the newest validated release rather than left open, so a future
+# processor-output change cannot break batched tagging silently.
+transformers>=5.3.0,<5.16
 # accelerate is required for VLM taggers (device_map="auto") and SigLIP 2.
 # install.sh installs it unconditionally — keep it here for direct pip users too.
 accelerate>=0.25.0
@@ -34,20 +38,21 @@ insightface>=0.7.0
 #   onnxruntime-gpu>=1.15.0,<1.18 # GPU acceleration for CUDA 11.8
 
 # Quality Assessment (PyIQA models: TOPIQ, HyperIQA, DBCNN, MUSIQ).
-# >=0.1.11 also exposes Q-Align (qalign / qalign_8bit / qalign_4bit) — see
-# models/pyiqa_scorer.py PYIQA_MODELS for the registered variants.
-pyiqa>=0.1.11
+# >=0.1.16 also exposes Q-ReAlign (qrealign) — see models/pyiqa_scorer.py
+# PYIQA_MODELS for the registered models and their score ranges.
+pyiqa>=0.1.16
 # pyiqa's liqe/clipiqa archs depend on PyPI openai-clip, which still imports
 # pkg_resources at runtime (LIQE/CLIPIQA); setuptools 81 removed pkg_resources.
 setuptools<81
 
-# Extended IQA tier (OPTIONAL, OFF by default — see docs/CONFIGURATION.md
-# "Extended IQA tier"). Enabled per-metric via scoring_config.json "iqa_extended".
-# Heavy + GPU-bound, so left commented to keep the default install / Docker image
-# lean. Uncomment (or `pip install .[iqa-extended]`) for the metrics you enable:
+# Extended IQA tier (OPTIONAL — see docs/CONFIGURATION.md "Extended IQA tier").
+# Enabled per-metric via scoring_config.json "iqa_extended". Only aesthetic_v25
+# needs a package of its own, and it is heavy + GPU-bound, so it is left
+# commented to keep the default install / Docker image lean. Uncomment (or
+# `pip install .[iqa-extended]`) if you enable it:
 #   aesthetic-predictor-v2-5   # iqa_extended.aesthetic_v25 (SigLIP aesthetic head, ~2GB)
-#   bitsandbytes>=0.43.0       # iqa_extended.qalign "4bit"/"8bit" quantisation
-# (Q-Align itself comes from pyiqa above; DeQA-Score downloads via transformers.)
+# (Q-ReAlign comes from pyiqa above and needs no quantisation backend;
+# DeQA-Score downloads via transformers.)
 
 # Scientific Computing
 numpy>=1.24.0
@@ -75,6 +80,15 @@ jsonschema>=4.18.0
 # Cull-to-folder "trash rejects" action (optional; viewer.cull.allow_trash).
 # Recoverable OS-trash, never a permanent delete. Install via .[cull].
 # send2trash>=1.8.0
+
+# In-photo OCR text search (OPTIONAL, OFF by default — scoring_config.json "ocr").
+# Powers `--detect-text`, which fills photos.ocr_text and is indexed by photos_fts.
+# Apache-2.0 and torch-based, so it reuses the stack already installed above: it
+# adds only easyocr + ninja + pyclipper + python-bidi and pins no numpy/torch/cv2
+# version. Weights (~113MB) download on first run. Install via .[ocr]:
+#   easyocr>=1.7.2
+# The tesseract binary + pytesseract works as an alternative engine (like
+# exiftool, an optional external tool), but reads scene text markedly less well.
 
 # Vector search (sqlite-vec for CLIP/SigLIP embedding KNN queries)
 sqlite-vec>=0.1.6

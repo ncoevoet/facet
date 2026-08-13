@@ -26,7 +26,7 @@ import { ChartHeightPipe } from './chart-height.pipe';
 import { StatsTimelineTabComponent } from './stats-timeline-tab.component';
 import { StatsCorrelationsTabComponent } from './stats-correlations-tab.component';
 import { downloadCsv } from '../../shared/utils/csv';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 Chart.register(...registerables);
 Chart.defaults.color = '#a3a3a3';
@@ -276,7 +276,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
   `,
 })
 export class StatsComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);

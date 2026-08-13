@@ -12,9 +12,22 @@ left for an integration test pass once the split decision is final.
 
 from __future__ import annotations
 
+import json
+import os
 import sqlite3
+import stat
+import sys
+from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+
+_GROUP_READABLE_MODE = 0o664
+_OWNER_ONLY_MODE = 0o600
+
+
+def _mode_of(path):
+    return stat.S_IMODE(os.stat(path).st_mode)
 
 
 @pytest.fixture()
@@ -356,3 +369,70 @@ class TestPercentilePersistence:
         )
         assert PercentileNormalizer.load_persisted(conn) is None
         conn.close()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits do not apply on Windows")
+class TestApplyRecommendationsBackup:
+    """F5: ``--apply-recommendations`` was the fourth config-backup writer.
+
+    ``shutil.copy2`` copies the MODE along with the bytes, so this one landed
+    at the config's own permissions — 0664 under a default umask — on a file
+    holding every ``users.*.password_hash``, ``viewer.password`` in plaintext
+    and, on a not-yet-migrated install, ``share_secret``. The other three
+    writers were fixed to go through the shared owner-only primitive; this one
+    kept the hole open from a CLI flag.
+    """
+
+    _CONFIG = {
+        "categories": [
+            {"name": "landscape",
+             "weights": {"aesthetic_percent": 30, "composition_percent": 70}},
+        ],
+    }
+    _RECOMMENDATIONS = [{
+        "issue_type": "underutilized_signal",
+        "description": "aesthetic contributes little",
+        "proposals": [{
+            "location": "landscape -> weights.landscape.aesthetic_percent",
+            "change": "30 -> 25",
+        }],
+    }]
+
+    def _config_file(self, tmp_path):
+        path = tmp_path / "scoring_config.json"
+        path.write_text(json.dumps(self._CONFIG))
+        os.chmod(path, _GROUP_READABLE_MODE)
+        return path
+
+    def _apply(self, normalizer, config_path):
+        return normalizer.apply_recommendations(
+            self._RECOMMENDATIONS,
+            SimpleNamespace(config_path=str(config_path), version_hash="deadbeef"),
+        )
+
+    def test_the_backup_is_owner_only(self, normalizer, tmp_path):
+        config_path = self._config_file(tmp_path)
+        original = config_path.read_text()
+
+        backup_path = self._apply(normalizer, config_path)
+
+        assert backup_path is not None, "an applied change must leave a recovery point"
+        assert _mode_of(backup_path) == _OWNER_ONLY_MODE
+        assert Path(backup_path).read_text() == original, "it must still be a real backup"
+
+    def test_the_config_keeps_its_own_mode(self, normalizer, tmp_path):
+        """Only the copy is restricted: a co-deployed CLI still reads the config."""
+        config_path = self._config_file(tmp_path)
+
+        self._apply(normalizer, config_path)
+
+        assert _mode_of(config_path) == _GROUP_READABLE_MODE
+
+    def test_the_recommendation_is_still_applied(self, normalizer, tmp_path):
+        """The backup swap must not change what the command is for."""
+        config_path = self._config_file(tmp_path)
+
+        self._apply(normalizer, config_path)
+
+        saved = json.loads(config_path.read_text())
+        assert saved["categories"][0]["weights"]["aesthetic_percent"] == 25

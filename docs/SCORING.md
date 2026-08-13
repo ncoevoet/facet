@@ -410,6 +410,19 @@ This is the same in-viewer slider workflow described in
 [Option A: Via Viewer](#option-a-via-viewer-recommended) above — see there
 for the full save/recompute flow.
 
+**Suggest Weights** also answers a narrower question than the CV gate above:
+how well do this category's *current, live* weights already agree with your
+own comparisons? Clicking it returns `accuracy_before` — the percentage of
+that category's labelled pairs (A/B votes, culling, and rating-derived
+pairs) whose winner the live weights predict correctly — next to
+`accuracy_after`, the same figure for the suggested weights. Both are shown
+side by side in the Weight Suggestions tab and in the A/B Compare tab's
+sidebar every time you run it (`GET /api/comparison/learned_weights`,
+`optimization/weight_optimizer.py:optimize_weights_direct`). Like the CLI
+gate, this needs `min_comparisons_for_optimization` (default 30) labelled
+pairs for that category — the button reports the shortfall instead of a
+number below that.
+
 ## Adding Custom Categories
 
 ```json

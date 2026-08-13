@@ -187,7 +187,7 @@
     "aesthetic_iaa": "Estético IAA",
     "face_quality_iqa": "Rosto IQA",
     "liqe_score": "LIQE",
-    "qalign_score": "Q-Align",
+    "qrealign_score": "Q-ReAlign",
     "aesthetic_v25": "Estético V2.5",
     "deqa_score": "DeQA",
     "saliency_section": "Saliência do sujeito",
@@ -1041,11 +1041,13 @@
     "sort_composition": "Composição",
     "sort_face_quality": "Qualidade do rosto",
     "sort_my_taste": "Meu gosto",
-    "my_taste_badge_tooltip": "Treinado com {comparisons} comparações · {accuracy}% de precisão em dados de validação",
+    "my_taste_badge_tooltip": "Treinado com {comparisons} comparações · {accuracy}% de precisão em dados de validação contra {baseline}% da pontuação atual",
     "sort_desc": "Decrescente",
     "sort_asc": "Crescente",
     "filters": "Filtros",
     "search_placeholder": "Buscar nome do arquivo, legenda...",
+    "search_chip": "Pesquisa",
+    "semantic_search_chip": "Pesquisa semântica",
     "semantic_search": "Busca semântica",
     "semantic_search_placeholder": "pôr do sol na praia...",
     "photo_count": "{count} fotos",
@@ -1194,7 +1196,7 @@
     "aesthetic_iaa_range": "Estética IAA",
     "face_quality_iqa_range": "Qualidade do rosto IQA",
     "liqe_range": "Pontuação LIQE",
-    "qalign_range": "Pontuação Q-Align",
+    "qrealign_range": "Pontuação Q-ReAlign",
     "aesthetic_v25_range": "Estética V2.5",
     "deqa_range": "Pontuação DeQA",
     "subject_sharpness_range": "Nitidez do sujeito",
@@ -1923,13 +1925,20 @@
       "button": "Seleção automática",
       "tooltip": "Mantém automaticamente a melhor foto de cada grupo e rejeita o resto",
       "title": "Pré-visualização da seleção automática",
+      "updating": "A atualizar a pré-visualização…",
       "summary": "{groups} grupos: manter {kept} fotos, rejeitar {rejected}",
       "highlights_label": "Adicionar as {count} melhores fotos a um álbum de Destaques",
       "highlights_name": "Destaques",
+      "trim_brackets": "Também reduzir exposições de bracketing redundantes",
+      "trim_brackets_hint": "Também propõe descartar exposições de bracketing redundantes cujo fotograma base não tem estouro de altas-luzes",
+      "trim_brackets_none": "Nenhuma exposição de bracketing redundante neste âmbito",
       "apply": "Rejeitar {rejected} fotos",
       "applied": "Seleção automática aplicada: {kept} mantidas, {rejected} rejeitadas",
       "error": "Falha na seleção automática",
-      "empty": "Nada para selecionar automaticamente neste escopo"
+      "empty": "Nada para selecionar automaticamente neste escopo",
+      "suggested": "Sugerido",
+      "suggested_tooltip": "Predefinição deduzida do conteúdo dominante deste âmbito",
+      "preview_updated": "Pré-visualização atualizada para a predefinição sugerida {profile}"
     },
     "exit_scene": "Sair da cena",
     "scene_complete": "Cena selecionada — nada mais para revisar",
@@ -1949,6 +1958,8 @@
     "face_smile_min_tooltip": "Destaca os rostos com uma pontuação de sorriso abaixo deste valor",
     "subject_grid_title": "Sujeitos deste grupo",
     "subject_sharpness": "Nitidez do sujeito (10 = o mais nítido do grupo)",
+    "key_person": "Pessoa principal",
+    "key_person_tooltip": "A escolha do Facet sobre quem é o sujeito desta foto — o zoom aponta para este rosto",
     "reason": {
       "best": "Melhor do grupo",
       "eyes_closed": "Olhos fechados",
@@ -1967,6 +1978,14 @@
       "rejected": "Rejeitada",
       "undecided": "Indecisa"
     },
+    "swipe": {
+      "keep": "Manter",
+      "reject": "Rejeitar",
+      "hint": "Deslize para a direita para manter, para a esquerda para rejeitar",
+      "hint_dismiss": "Entendido",
+      "kept": "{filename} mantida",
+      "rejected": "{filename} rejeitada"
+    },
     "shortcuts": {
       "page_title": "Galeria",
       "darkroom_title": "Câmara Escura",
@@ -1977,6 +1996,8 @@
       "reject": "Rejeitar foto",
       "confirm_next": "Confirmar e próximo grupo",
       "zoom": "Zoom / lupa",
+      "peaking": "Realce de foco",
+      "grid": "Grelha de composição",
       "close": "Fechar"
     },
     "group_by": {
@@ -1996,6 +2017,21 @@
       "original": "Original",
       "loading": "A gerar a pré-visualização",
       "error": "Não foi possível gerar a pré-visualização editada"
+    },
+    "peaking": {
+      "label": "Realce de foco",
+      "tooltip": "Destaca as arestas mais nítidas da imagem apresentada"
+    },
+    "legend": {
+      "label": "Atalhos de teclado",
+      "tooltip": "Mostrar ou ocultar a legenda dos atalhos de teclado"
+    },
+    "grid": {
+      "label": "Grelha de composição",
+      "tooltip": "Alterna a grelha de composição: desativada, regra dos terços, proporção áurea",
+      "off": "Grelha desativada",
+      "thirds": "Regra dos terços",
+      "golden": "Proporção áurea"
     },
     "bracket": {
       "label": "Bracketing de exposição",
@@ -2225,6 +2261,7 @@
     "help": "Fotos geolocalizadas em um mapa. Arraste e dê zoom para explorar onde as suas fotos foram tiradas; o filtro de intervalo de datas limita o que é exibido.",
     "title": "Mapa",
     "no_gps": "Nenhuma foto com dados de GPS encontrada",
+    "tiles_unavailable": "Mosaicos do mapa indisponíveis — verifique a sua ligação",
     "photos_count": "{count} fotos com localização",
     "cluster_photos": "{count} fotos",
     "score": "Pontuação: {score}",

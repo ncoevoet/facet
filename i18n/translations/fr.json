@@ -187,7 +187,7 @@
     "aesthetic_iaa": "Esthétique IAA",
     "face_quality_iqa": "Qualité visage IQA",
     "liqe_score": "LIQE",
-    "qalign_score": "Q-Align",
+    "qrealign_score": "Q-ReAlign",
     "aesthetic_v25": "Esthétique V2.5",
     "deqa_score": "DeQA",
     "saliency_section": "Saillance du sujet",
@@ -235,8 +235,8 @@
     "ready_to_merge": "Prêt à fusionner",
     "source_label": "Source (sera supprimée)",
     "target_label": "Cible (sera conservée)",
-    "confirm_merge": "Fusionner \"{source}\" dans \"{target}\" ?\n\nCela déplacera tous les visages de \"{source}\" vers \"{target}\" et supprimera \"{source}\".",
-    "confirm_delete": "Supprimer \"{name}\" ?\n\nCela supprimera la personne et désassociera les {count} photos de cette personne. Les visages resteront dans la base de données mais devront être reclusters.",
+    "confirm_merge": "Fusionner \"{source}\" dans \"{target}\" ?\n\nCela déplacera tous les visages de \"{source}\" vers \"{target}\" et supprimera \"{source}\".",
+    "confirm_delete": "Supprimer \"{name}\" ?\n\nCela supprimera la personne et désassociera les {count} photos de cette personne. Les visages resteront dans la base de données mais devront être reclusters.",
     "select_target": "Fusionner les personnes",
     "merge_explanation": "Sélectionnez la personne qui sera la principale.",
     "sort": {
@@ -430,7 +430,7 @@
     "notify": {
       "data_reset": "Les données de comparaison ont été réinitialisées.",
       "recalculate_complete": "Recalcul terminé ! Les catégories et scores ont été mis à jour.",
-      "weights_saved": "Poids sauvegardés pour \"{category}\" ! Cliquez sur \"Recalculer\" pour les appliquer à toutes les photos.",
+      "weights_saved": "Poids sauvegardés pour \"{category}\" ! Cliquez sur \"Recalculer\" pour les appliquer à toutes les photos.",
       "category_changed": "Catégorie changée en {category}"
     },
     "error": {
@@ -1041,11 +1041,13 @@
     "sort_composition": "Composition",
     "sort_face_quality": "Qualité visage",
     "sort_my_taste": "Mes goûts",
-    "my_taste_badge_tooltip": "Entraîné sur {comparisons} comparaisons · précision {accuracy} %",
+    "my_taste_badge_tooltip": "Entraîné sur {comparisons} comparaisons · précision {accuracy} % contre {baseline} % pour le score actuel",
     "sort_desc": "Décroissant",
     "sort_asc": "Croissant",
     "filters": "Filtres",
     "search_placeholder": "Chercher nom, légende...",
+    "search_chip": "Recherche",
+    "semantic_search_chip": "Recherche sémantique",
     "semantic_search": "Recherche sémantique",
     "semantic_search_placeholder": "coucher de soleil à la plage...",
     "photo_count": "{count} photos",
@@ -1194,7 +1196,7 @@
     "aesthetic_iaa_range": "Esthétique IAA",
     "face_quality_iqa_range": "Qualité visage IQA",
     "liqe_range": "Score LIQE",
-    "qalign_range": "Score Q-Align",
+    "qrealign_range": "Score Q-ReAlign",
     "aesthetic_v25_range": "Esthétique V2.5",
     "deqa_range": "Score DeQA",
     "subject_sharpness_range": "Netteté du sujet",
@@ -1415,9 +1417,7 @@
       "clipping_multiplier_hint": "Multiplie la pénalité d'écrêtage des hautes lumières. 100% = standard, 150% = plus strict, 0% = désactivé.",
       "skip_clipping_penalty_hint": "Désactive la pénalité d'écrêtage des hautes lumières. Par défaut : activé pour silhouette.",
       "skip_oversaturation_penalty_hint": "Désactive la pénalité de sursaturation. Par défaut : activé pour nuit, astro, concert.",
-      "apply_blink_penalty_hint": "Applique un multiplicateur de score en cas de clignement. Par défaut : activé pour les catégories portrait.",
-      "noise_tolerance_range": "0% = pas de pénalité, 100% = pénalité complète (défaut), 200% = double pénalité",
-      "clipping_multiplier_range": "0% = désactivé, 100% = standard (défaut), 500% = très strict"
+      "apply_blink_penalty_hint": "Applique un multiplicateur de score en cas de clignement. Par défaut : activé pour les catégories portrait."
     },
     "filters": "Filtres",
     "filters_description": "Conditions d'affectation à une catégorie",
@@ -1574,14 +1574,14 @@
     "renamed": "Personne renommée",
     "rename_error": "Échec du renommage",
     "confirm_delete_title": "Supprimer la personne",
-    "confirm_delete_message": "Supprimer \"{name}\" ? Toutes les associations de visages seront supprimées.",
+    "confirm_delete_message": "Supprimer \"{name}\" ? Toutes les associations de visages seront supprimées.",
     "deleted": "Personne supprimée",
     "delete_error": "Échec de la suppression",
     "confirm_batch_delete_title": "Supprimer les personnes",
     "confirm_batch_delete_message": "Supprimer {count} personnes sélectionnées ? Toutes les associations de visages seront supprimées.",
     "batch_deleted": "{count} personnes supprimées",
     "confirm_merge_title": "Fusionner les personnes",
-    "confirm_merge_message": "Fusionner \"{source}\" dans \"{target}\" ? Tous les visages seront déplacés vers \"{target}\".",
+    "confirm_merge_message": "Fusionner \"{source}\" dans \"{target}\" ? Tous les visages seront déplacés vers \"{target}\".",
     "merged": "Personnes fusionnées",
     "merge_error": "Échec de la fusion",
     "accept_all": "Tout accepter ({count})",
@@ -1656,7 +1656,7 @@
     "smart_album": "Album intelligent",
     "smart_tooltip": "Album intelligent — rassemble automatiquement les photos correspondant à un filtre enregistré",
     "confirm_delete_title": "Supprimer l'album",
-    "confirm_delete_message": "Supprimer l'album \"{name}\" ? Les photos ne seront pas supprimées.",
+    "confirm_delete_message": "Supprimer l'album \"{name}\" ? Les photos ne seront pas supprimées.",
     "share": "Partager",
     "share_description": "Toute personne disposant de ce lien peut voir l'album.",
     "share_link": "Lien de partage",
@@ -1925,13 +1925,20 @@
       "button": "Sélection automatique",
       "tooltip": "Garde automatiquement la meilleure photo de chaque groupe et rejette le reste",
       "title": "Aperçu de la sélection automatique",
+      "updating": "Mise à jour de l'aperçu…",
       "summary": "{groups} groupes : garder {kept} photos, rejeter {rejected}",
       "highlights_label": "Ajouter les {count} toutes meilleures photos à un album Coups de cœur",
       "highlights_name": "Coups de cœur",
+      "trim_brackets": "Réduire aussi les expositions de bracketing redondantes",
+      "trim_brackets_hint": "Propose aussi d'écarter les expositions de bracketing redondantes dont l'image de base n'a pas d'écrêtage des hautes lumières",
+      "trim_brackets_none": "Aucune exposition de bracketing redondante dans cette portée",
       "apply": "Rejeter {rejected} photos",
       "applied": "Sélection automatique appliquée : {kept} gardées, {rejected} rejetées",
       "error": "Échec de la sélection automatique",
-      "empty": "Rien à sélectionner automatiquement dans cette portée"
+      "empty": "Rien à sélectionner automatiquement dans cette portée",
+      "suggested": "Suggéré",
+      "suggested_tooltip": "Préréglage déduit du contenu dominant de cette sélection",
+      "preview_updated": "Aperçu mis à jour pour le préréglage suggéré {profile}"
     },
     "exit_scene": "Quitter la scène",
     "scene_complete": "Scène triée — plus rien à examiner",
@@ -1951,6 +1958,8 @@
     "face_smile_min_tooltip": "Met en évidence les visages dont le score de sourire est inférieur à cette valeur",
     "subject_grid_title": "Sujets de ce groupe",
     "subject_sharpness": "Netteté du sujet (10 = le plus net du groupe)",
+    "key_person": "Personne principale",
+    "key_person_tooltip": "Le choix de Facet quant au sujet de cette photo — le zoom vise ce visage",
     "reason": {
       "best": "Meilleure du groupe",
       "eyes_closed": "Yeux fermés",
@@ -1969,6 +1978,14 @@
       "rejected": "Rejetée",
       "undecided": "Indécise"
     },
+    "swipe": {
+      "keep": "Garder",
+      "reject": "Rejeter",
+      "hint": "Balayez vers la droite pour garder, vers la gauche pour rejeter",
+      "hint_dismiss": "Compris",
+      "kept": "{filename} gardée",
+      "rejected": "{filename} rejetée"
+    },
     "shortcuts": {
       "page_title": "Galerie",
       "darkroom_title": "Chambre noire",
@@ -1979,6 +1996,8 @@
       "reject": "Rejeter la photo",
       "confirm_next": "Confirmer et groupe suivant",
       "zoom": "Zoom / loupe",
+      "peaking": "Intensification de la netteté",
+      "grid": "Grille de composition",
       "close": "Fermer"
     },
     "group_by": {
@@ -1998,6 +2017,21 @@
       "original": "Original",
       "loading": "Génération de l'aperçu",
       "error": "Impossible de générer l'aperçu retouché"
+    },
+    "peaking": {
+      "label": "Intensification de la netteté",
+      "tooltip": "Met en évidence les contours les plus nets de l'image affichée"
+    },
+    "legend": {
+      "label": "Raccourcis clavier",
+      "tooltip": "Afficher ou masquer la légende des raccourcis clavier"
+    },
+    "grid": {
+      "label": "Grille de composition",
+      "tooltip": "Faire défiler la grille de composition : désactivée, règle des tiers, nombre d'or",
+      "off": "Grille désactivée",
+      "thirds": "Règle des tiers",
+      "golden": "Nombre d'or"
     },
     "bracket": {
       "label": "Bracketing d'exposition",
@@ -2227,6 +2261,7 @@
     "help": "Photos géolocalisées sur une carte. Déplacez-vous et zoomez pour explorer où vos photos ont été prises ; le filtre de plage de dates limite ce qui est affiché.",
     "title": "Carte",
     "no_gps": "Aucune photo avec données GPS trouvée",
+    "tiles_unavailable": "Tuiles de carte indisponibles — vérifiez votre connexion",
     "photos_count": "{count} photos avec localisation",
     "cluster_photos": "{count} photos",
     "score": "Score : {score}",

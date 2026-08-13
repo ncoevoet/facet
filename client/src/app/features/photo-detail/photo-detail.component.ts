@@ -30,7 +30,7 @@ import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import type { CategoryOverrideResult } from './category-override-dialog.component';
 
@@ -144,7 +144,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
 
         @if (socialExportEnabled()) {
-          <button mat-button [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
+          <button mat-button class="!h-auto !min-h-9" [matMenuTriggerFor]="socialMenu" [disabled]="downloading()"
             [matTooltip]="(socialCropTooltipKey() | translate)">
             <mat-icon>crop</mat-icon>
             {{ I18N.photo_detail.social_crop | translate }}
@@ -325,8 +325,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (p.liqe_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.liqe_score | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.liqe_score | fixed:1 }}</span></div>
               }
-              @if (p.qalign_score !== undefined && p.qalign_score !== null) {
-                <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.qalign_score | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.qalign_score | fixed:1 }}</span></div>
+              @if (p.qrealign_score !== undefined && p.qrealign_score !== null) {
+                <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.qrealign_score | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.qrealign_score | fixed:1 }}</span></div>
               }
               @if (p.aesthetic_v25 !== undefined && p.aesthetic_v25 !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.aesthetic_v25 | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.aesthetic_v25 | fixed:1 }}</span></div>
@@ -516,7 +516,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
 })
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);

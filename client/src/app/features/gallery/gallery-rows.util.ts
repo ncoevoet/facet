@@ -21,16 +21,53 @@ export interface GalleryRow {
 /** Estimated height of the details block under a card (filename/EXIF/tags). */
 export const DETAILS_ESTIMATE_PX = 96;
 
-function aspectOf(photo: Photo): number {
-  return photo.image_width && photo.image_height
-    ? photo.image_width / photo.image_height
-    : 4 / 3;
+/** Aspect used when a photo carries neither dimensions nor a recorded aspect. */
+export const FALLBACK_ASPECT = 4 / 3;
+
+/**
+ * A photo's display aspect (width / height).
+ *
+ * Dimensions first, then `image_aspect`, which is what a row keeps when its
+ * dimensions were cleared as fabricated (they were thumbnail-sized, so the
+ * resolution was a lie — but the ratio was not). Without that second source a
+ * cleared row fell through to the landscape default and the tile it sized was
+ * landscape too: with `object-cover` on the card, a portrait frame in a 4:3 box
+ * loses its top and bottom rather than merely sitting in the wrong shape.
+ *
+ * Exported so the orientation tests elsewhere (tooltip placement, hover
+ * preview) read the same three sources in the same order.
+ */
+export function aspectOf(photo: Photo): number {
+  if (photo.image_width && photo.image_height) {
+    return photo.image_width / photo.image_height;
+  }
+  return photo.image_aspect && photo.image_aspect > 0
+    ? photo.image_aspect
+    : FALLBACK_ASPECT;
 }
 
-/** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces. */
-export function gridColumnCount(width: number, cardMinW: number, gap: number): number {
-  if (width <= 0) return 1;
-  return Math.max(1, Math.floor((width + gap) / (cardMinW + gap)));
+/** Minimum grid columns enforced off desktop so a narrow viewport never
+ * degrades to one photo per screen (comparable gallery apps default to 3-4). */
+export const MOBILE_MIN_COLUMNS = 3;
+
+/**
+ * Smallest card the thumbnail slider may ask for on a touch device.
+ *
+ * The floor above is also a ceiling: on a 390px phone every card width the
+ * shipped slider offers (120px and up) yields fewer columns than
+ * MOBILE_MIN_COLUMNS, so the whole slider travel collapses onto 3 and the
+ * control does nothing. 72px is the first width that clears the floor there —
+ * floor((374 + 8) / (72 + 8)) = 4 — which is what gives the slider something to
+ * change. Desktop keeps the server's own minimum.
+ */
+export const MOBILE_MIN_CARD_WIDTH_PX = 72;
+
+/** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces,
+ * floored to MOBILE_MIN_COLUMNS when isDesktop is false. */
+export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true): number {
+  if (width <= 0) return isDesktop ? 1 : MOBILE_MIN_COLUMNS;
+  const cols = Math.max(1, Math.floor((width + gap) / (cardMinW + gap)));
+  return isDesktop ? cols : Math.max(MOBILE_MIN_COLUMNS, cols);
 }
 
 /**
@@ -46,10 +83,10 @@ export function buildGridRows(
   cardMinW: number,
   gap: number,
   hideDetails: boolean,
-  singleColumn = false,
+  isDesktop = true,
 ): GalleryRow[] {
   if (!photos.length || width <= 0) return [];
-  const cols = singleColumn ? 1 : gridColumnCount(width, cardMinW, gap);
+  const cols = gridColumnCount(width, cardMinW, gap, isDesktop);
   const cellW = (width - (cols - 1) * gap) / cols;
 
   const rows: GalleryRow[] = [];

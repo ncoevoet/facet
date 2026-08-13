@@ -4,7 +4,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SequenceKindIconPipe } from '../../shared/pipes/sequence-kind.pipe';
 import { Album } from '../../core/services/album.service';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 export type SheetAction =
   | { kind: 'favorite' }
@@ -130,7 +130,7 @@ export interface GalleryActionsSheetData {
   host: { class: 'block' },
 })
 export class GalleryActionsSheetComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly data = inject<GalleryActionsSheetData>(MAT_BOTTOM_SHEET_DATA);
   private readonly sheetRef = inject(MatBottomSheetRef<GalleryActionsSheetComponent>);
 

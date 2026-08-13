@@ -334,3 +334,48 @@ def test_legacy_scene_confirm_route_removed(client):
     # the path for GET only, so a POST is rejected as 404/405 either way).
     resp = client.post("/api/scenes/confirm", json={"paths": [], "keep_paths": []})
     assert resp.status_code in (404, 405)
+
+
+# --- Cache key shape -------------------------------------------------------
+#
+# The scope half of the scenes cache key (album, date window, user) arrives from
+# the query string, so it is hashed to a fixed width. The `scenes_` prefix must
+# survive that: both cull paths invalidate with
+# `DELETE FROM stats_cache WHERE key LIKE 'scenes_%'`.
+
+def _scenes_cache_keys(conn):
+    return [r["key"] for r in conn.execute("SELECT key FROM stats_cache").fetchall()]
+
+
+def test_the_scenes_cache_key_stays_matchable_by_the_invalidation_pattern():
+    conn = _db()
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        compute_scenes(conn, user_id=None)
+    keys = _scenes_cache_keys(conn)
+    assert len(keys) == 1
+    assert keys[0].startswith("scenes_")
+    matched = conn.execute(
+        "SELECT COUNT(*) FROM stats_cache WHERE key LIKE 'scenes_%'"
+    ).fetchone()[0]
+    assert matched == 1
+
+
+def test_the_scenes_cache_key_is_a_fixed_width_digest():
+    conn = _db()
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        compute_scenes(conn, user_id=None)
+        compute_scenes(conn, user_id=None,
+                       date_from="2024:06:15 00:00:00", date_to="2024:06:15 23:59:59")
+    keys = _scenes_cache_keys(conn)
+    assert len(keys) == 2
+    assert {len(k) for k in keys} == {len("scenes_") + 64}
+
+
+def test_scenes_scopes_still_get_their_own_cache_rows():
+    conn = _db()
+    with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
+        whole = compute_scenes(conn, user_id=None)
+        windowed = compute_scenes(conn, user_id=None, date_to="2024:06:15 23:59:59")
+    assert len(whole) == 2
+    assert len(windowed) == 1
+    assert len(set(_scenes_cache_keys(conn))) == 2

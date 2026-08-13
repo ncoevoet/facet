@@ -44,7 +44,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -120,7 +123,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.5,
@@ -189,7 +195,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.1,
@@ -251,7 +260,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -324,7 +336,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -368,7 +383,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -414,7 +432,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.419,
@@ -462,7 +483,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.901,
@@ -506,7 +530,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -557,7 +584,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.171,
@@ -657,7 +687,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -711,7 +744,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.328,
@@ -844,7 +880,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.417,
@@ -902,7 +941,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.93,
@@ -1017,7 +1059,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -1073,7 +1118,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -1127,7 +1175,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.512,
@@ -1188,7 +1239,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "tags": {
         "architecture": [
@@ -1286,7 +1340,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.922,
@@ -1336,7 +1393,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1378,7 +1438,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1432,7 +1495,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.3,
@@ -1490,7 +1556,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.72,
@@ -1548,7 +1617,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 1.5,
@@ -1622,7 +1694,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1673,7 +1748,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1724,7 +1802,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.216,
@@ -1780,7 +1861,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -1867,7 +1951,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.463,
@@ -1984,7 +2071,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -2028,7 +2118,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -2073,7 +2166,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -2118,7 +2214,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {}
     },
@@ -2161,7 +2260,10 @@
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
-        "noise_percent": 0
+        "noise_percent": 0,
+        "qrealign_percent": 0,
+        "aesthetic_v25_percent": 0,
+        "deqa_percent": 0
       },
       "modifiers": {}
     }
@@ -2978,6 +3080,15 @@
       }
     }
   },
+  "ocr": {
+    "enabled": false,
+    "languages": [
+      "en",
+      "fr"
+    ],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  },
   "junk_sweep": {
     "enabled": true,
     "prompt_template": "{desc}",
@@ -3582,7 +3693,7 @@
     }
   },
   "iqa_extended": {
-    "qalign": false,
+    "qrealign": "auto",
     "aesthetic_v25": false,
     "deqa": false
   },
@@ -3604,12 +3715,17 @@
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
     },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
+    },
     "timeout_seconds": 30
   },
-  "share_secret": "784d380eaec27650058f23c585d8f982ef1edab50c21a9bbc5df68a635647726",
   "storage": {
     "mode": "database",
     "filesystem_path": "./storage"

@@ -305,3 +305,171 @@ class TestBatchQwen25Padding:
         assert captured_padding_sides == ["left"]
         assert tagger.processor.tokenizer.padding_side == "right"
         assert results == [["cat", "dog"], ["cat", "dog"]]
+
+
+# --- Qwen3/Qwen3.5 batching must left-pad every per-token key ---------------
+#
+# transformers >= 5.3 adds mm_token_type_ids (a per-token tensor) to the Qwen3.5
+# processor output. Concatenating it raw on dim 0 across differing sequence
+# lengths raises "Sizes of tensors must match except in dimension 0".
+
+class _FakeQwen3Processor:
+    """Emits per-image inputs with differing sequence lengths and patch counts."""
+
+    def __init__(self, seq_lens, patch_counts, extra_token_keys=()):
+        self.tokenizer = _FakeTokenizer()
+        self._seq_lens = list(seq_lens)
+        self._patch_counts = list(patch_counts)
+        self._extra_token_keys = tuple(extra_token_keys)
+        self._call = 0
+        self.template_kwargs = []
+
+    def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=True,
+                            return_dict=True, return_tensors="pt", **kwargs):
+        import torch
+
+        self.template_kwargs.append(kwargs)
+        idx = self._call
+        self._call += 1
+        seq_len = self._seq_lens[idx]
+        patches = self._patch_counts[idx]
+        inputs = {
+            "input_ids": torch.full((1, seq_len), idx + 1, dtype=torch.long),
+            "attention_mask": torch.ones((1, seq_len), dtype=torch.long),
+        }
+        for key in self._extra_token_keys:
+            inputs[key] = torch.full((1, seq_len), idx + 1, dtype=torch.long)
+        inputs["pixel_values"] = torch.full((patches, 8), float(idx + 1))
+        inputs["image_grid_thw"] = torch.tensor([[1, 2, patches]], dtype=torch.long)
+        return inputs
+
+    def decode(self, ids, skip_special_tokens=True):
+        return "cat, dog"
+
+
+class _FakeQwen3Model:
+    device = "cpu"
+
+    def __init__(self, new_tokens):
+        self._new_tokens = new_tokens
+        self.captured = None
+
+    def generate(self, **kwargs):
+        import torch
+
+        self.captured = kwargs
+        batch, seq_len = kwargs["input_ids"].shape
+        return torch.zeros((batch, seq_len + self._new_tokens), dtype=torch.long)
+
+
+def _run_batch_qwen3(extra_token_keys, family="qwen3_5"):
+    pytest.importorskip("torch")
+    from models.vlm_tagger import VLMTagger, _ensure_imports
+
+    _ensure_imports()
+    tagger = VLMTagger({"family": family}, None)
+    tagger.processor = _FakeQwen3Processor(
+        seq_lens=(5, 8), patch_counts=(4, 6), extra_token_keys=extra_token_keys)
+    tagger.model = _FakeQwen3Model(new_tokens=3)
+    results = tagger._batch_qwen3(
+        [_image(), _image()], prompt="Tags:", max_new_tokens=3, max_tags=5)
+    return tagger, results
+
+
+class TestBatchQwen3Padding:
+    def _run(self, extra_token_keys):
+        return _run_batch_qwen3(extra_token_keys)
+
+    def test_pads_mm_token_type_ids_added_by_transformers_5_3(self):
+        tagger, results = self._run(("mm_token_type_ids",))
+        captured = tagger.model.captured
+
+        assert results == [["cat", "dog"], ["cat", "dog"]]
+        for key in ("input_ids", "attention_mask", "mm_token_type_ids"):
+            assert tuple(captured[key].shape) == (2, 8), key
+        assert captured["input_ids"][0].tolist() == [0, 0, 0] + [1] * 5
+        assert captured["attention_mask"][0].tolist() == [0, 0, 0] + [1] * 5
+        assert captured["mm_token_type_ids"][0].tolist() == [0, 0, 0] + [1] * 5
+        assert captured["input_ids"][1].tolist() == [2] * 8
+
+    def test_vision_keys_concatenate_on_batch_dim(self):
+        tagger, _ = self._run(("mm_token_type_ids",))
+        captured = tagger.model.captured
+
+        assert tuple(captured["pixel_values"].shape) == (10, 8)
+        assert tuple(captured["image_grid_thw"].shape) == (2, 3)
+
+    def test_pre_5_3_processor_output_still_batches(self):
+        tagger, results = self._run(())
+        captured = tagger.model.captured
+
+        assert results == [["cat", "dog"], ["cat", "dog"]]
+        assert "mm_token_type_ids" not in captured
+        assert tuple(captured["input_ids"].shape) == (2, 8)
+        assert tuple(captured["attention_mask"].shape) == (2, 8)
+        assert tuple(captured["pixel_values"].shape) == (10, 8)
+
+
+# --- Qwen3.5 must render its chat template with thinking disabled -----------
+#
+# The only line that differs between Qwen3.5-2B's and Qwen3.5-4B's
+# chat_template.jinja is the generation-prompt branch: the 2B defaults thinking
+# off ("enable_thinking is true" opt-in), the 4B defaults it on
+# ("enable_thinking is false" opt-out). Left on, the 4B's prompt ends inside an
+# open <think> block and it burns the whole max_new_tokens budget on reasoning
+# prose instead of emitting tags. Passing the flag renders the 2B prompt
+# byte-identically, so this cannot regress the validated 2B output.
+
+class TestThinkingDisabled:
+    def test_qwen3_5_disables_thinking(self):
+        tagger, _ = _run_batch_qwen3((), family="qwen3_5")
+        assert tagger.processor.template_kwargs == [{"enable_thinking": False}] * 2
+
+    def test_qwen3_leaves_template_defaults_alone(self):
+        tagger, _ = _run_batch_qwen3((), family="qwen3")
+        assert tagger.processor.template_kwargs == [{}] * 2
+
+    def test_qwen2_5_gets_no_template_kwargs(self):
+        from models.vlm_tagger import VLMTagger
+
+        assert VLMTagger({"family": "qwen2_5"}, None)._template_kwargs == {}
+
+
+# --- Tag parsing must reject prose rather than snake-case it ----------------
+
+
+class TestParseTagsRejectsProse:
+    def _parse(self, text, max_tags=5):
+        from models.vlm_tagger import VLMTagger
+
+        return VLMTagger({}, None)._parse_tags(text, max_tags)
+
+    def test_clean_comma_list_is_unchanged(self):
+        # The validated Qwen3.5-2B output shape must survive the hardening.
+        assert self._parse("night,city lights,bridge,architecture,urban") == [
+            "night", "city_lights", "bridge", "architecture", "urban"]
+
+    def test_markdown_prose_yields_no_tags(self):
+        # The exact Qwen3.5-4B failure: a bulleted description previously became
+        # tags like "-_the_image_shows_a_tall".
+        text = ("**\n- The image shows a tall, illuminated structure at night. "
+                "It looks like a ride or a tower.")
+        assert self._parse(text) == []
+
+    def test_reasoning_preamble_is_dropped(self):
+        # <think>/</think> are ordinary tokens in the Qwen3.5 vocabulary, so they
+        # survive skip_special_tokens=True decoding.
+        text = ("Okay, the user wants tags. I can see a bridge lit up at night.\n"
+                "</think>\n\nnight, bridge, urban")
+        assert self._parse(text) == ["night", "bridge", "urban"]
+
+    def test_long_candidates_dropped_short_ones_kept(self):
+        assert self._parse("night, a wide sweeping view of the valley, bridge") == [
+            "night", "bridge"]
+
+    def test_trailing_sentence_punctuation_stripped(self):
+        assert self._parse("night, urban.") == ["night", "urban"]
+
+    def test_existing_prefix_and_bullet_cleanups_still_apply(self):
+        assert self._parse("Tags: 1. sunset, 2. beach") == ["sunset", "beach"]
+        assert self._parse("Art: painting, Mood: moody") == ["painting", "moody"]

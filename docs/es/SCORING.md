@@ -409,6 +409,8 @@ python facet.py --recompute-average      # aplicar + persistir la instantánea d
 3. Haz clic en "Sugerir pesos" para obtener valores optimizados
 4. Actualiza manualmente la configuración
 
+**Sugerir pesos** también responde a una pregunta más precisa que la puerta de validación cruzada anterior: ¿en qué medida los pesos *actualmente en uso* de esta categoría ya coinciden con tus propias comparaciones? Al hacer clic se obtiene `accuracy_before` — el porcentaje de los pares etiquetados de esa categoría (votos A/B, descarte y pares derivados de las valoraciones) cuyo ganador predicen correctamente los pesos en uso — junto a `accuracy_after`, la misma cifra para los pesos sugeridos. Ambos se muestran uno junto al otro en la pestaña Sugerencias de pesos y en el panel lateral de la pestaña Comparación A/B cada vez que lo ejecutas (`GET /api/comparison/learned_weights`, `optimization/weight_optimizer.py:optimize_weights_direct`). Como la puerta de la CLI, esto requiere `min_comparisons_for_optimization` (30 por defecto) pares etiquetados para esa categoría — por debajo de eso, el botón informa de la carencia en lugar de una cifra.
+
 ## Añadir categorías personalizadas
 
 ```json

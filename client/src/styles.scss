@@ -241,12 +241,6 @@ html.light-mode ::-webkit-scrollbar-thumb {
   }
 }
 
-@media (min-width: 768px) {
-  .gallery-grid {
-    grid-template-columns: var(--gallery-cols);
-  }
-}
-
 *:focus-visible {
   outline: 2px solid var(--mat-sys-primary);
   outline-offset: 2px;

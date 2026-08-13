@@ -82,7 +82,7 @@ def test_builder_key_set_matches_the_multipass_feature_space():
         'is_silhouette', 'histogram_spread', 'histogram_bimodality', 'mean_luminance',
         'is_monochrome', 'mean_saturation', 'contrast_score', 'noise_sigma',
         'leading_lines_score', 'power_point_score', 'topiq_score', 'aesthetic_iaa',
-        'face_quality_iqa', 'liqe_score', 'qalign_score', 'aesthetic_v25', 'deqa_score',
+        'face_quality_iqa', 'liqe_score', 'qrealign_score', 'aesthetic_v25', 'deqa_score',
         'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
         'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal',
         'color_harmony', 'iso', 'f_stop', 'shutter_speed',

@@ -1,16 +1,28 @@
 """
 OCR text-in-image extraction for Facet (opt-in, lazy).
 
-Used only by the ``--recompute-ocr`` pass — never by the default scan pipeline.
-The OCR engine is imported lazily and the module degrades to a graceful no-op
-when no engine (or its native binary/model) is installed: every extraction call
-returns ``None`` and a single warning is logged so the recompute pass can run
-to completion without writing anything.
+Used only by the ``--detect-text`` / ``--recompute-text`` passes — never by the
+default scan pipeline. The OCR engine is imported lazily and the module
+degrades to a graceful no-op when no engine (or its native binary/model) is
+installed, so a pass can run to completion without writing anything.
+
+Return contract — it mirrors the ``photos.ocr_text`` NULL / ``''`` sentinel so
+the caller can store the value verbatim:
+
+  ``None``  OCR could not run (no engine, missing image, engine raised). The
+            caller must leave ``ocr_text`` NULL, keeping the row "never
+            evaluated" so a later run retries it.
+  ``''``    OCR ran and found no text above ``min_confidence``. Stored as the
+            empty-string sentinel — the analogue of junk's ``not_junk`` — so
+            ``--detect-text`` never re-reads the row. FTS5 indexes it as zero
+            tokens, so a blank row can never match a query.
 
 Engine preference order:
-  1. ``pytesseract`` (only if the ``tesseract`` binary is on PATH)
-  2. ``easyocr``
-  3. ``paddleocr``
+  1. ``easyocr`` — torch-based, so it rides the stack Facet already ships. Its
+     CRAFT detector is markedly better than tesseract on *scene* text (signs,
+     storefronts, posters), which is what an in-photo search is actually for.
+  2. ``pytesseract`` — only when the ``tesseract`` binary is on PATH. The
+     optional-external-tool fallback, in the same spirit as ``exiftool``.
 """
 
 import logging
@@ -18,17 +30,84 @@ import threading
 
 logger = logging.getLogger("facet.ocr")
 
+DEFAULT_LANGUAGES = ('en', 'fr')
+DEFAULT_MIN_CONFIDENCE = 0.4
+
 # Resolved engine cache. ``_ENGINE`` is one of:
 #   None      — not yet probed
 #   False     — probed, nothing usable (no-op mode)
-#   callable  — a function (pil_image) -> str that runs OCR
+#   callable  — a function (pil_image) -> list[(text, confidence)]
 _ENGINE = None
-_ENGINE_LOCK = threading.Lock()
+_ENGINE_LOCK = threading.RLock()
 _NO_ENGINE_WARNED = False
+
+_LANGUAGES = list(DEFAULT_LANGUAGES)
+_MIN_CONFIDENCE = DEFAULT_MIN_CONFIDENCE
+
+
+def configure(ocr_config=None):
+    """Apply the ``ocr`` block of scoring_config.json.
+
+    Resolving an engine bakes the language list into the loaded model, so any
+    call here drops the cached engine rather than letting a stale reader keep
+    answering with the previous languages.
+    """
+    global _LANGUAGES, _MIN_CONFIDENCE
+    cfg = ocr_config if isinstance(ocr_config, dict) else {}
+
+    languages = cfg.get('languages')
+    if not isinstance(languages, (list, tuple)) or not languages:
+        languages = DEFAULT_LANGUAGES
+
+    try:
+        min_confidence = float(cfg.get('min_confidence', DEFAULT_MIN_CONFIDENCE))
+    except (TypeError, ValueError):
+        min_confidence = DEFAULT_MIN_CONFIDENCE
+
+    with _ENGINE_LOCK:
+        _LANGUAGES = [str(lang) for lang in languages]
+        _MIN_CONFIDENCE = min_confidence
+        reset_engine_cache()
+
+
+def get_settings():
+    """Return the active ``(languages, min_confidence)`` (test/diagnostic helper)."""
+    with _ENGINE_LOCK:
+        return list(_LANGUAGES), _MIN_CONFIDENCE
+
+
+def _build_easyocr_engine():
+    """Return an easyocr callable, or None if unusable.
+
+    Runs on GPU when torch reports one, matching every other model pass; on CPU
+    the CRAFT+CRNN pair still handles a 640px thumbnail in well under a second.
+    """
+    try:
+        import easyocr
+        import numpy as np
+    except ImportError:
+        return None
+    try:
+        import torch
+        use_gpu = torch.cuda.is_available()
+    except Exception:
+        use_gpu = False
+    try:
+        reader = easyocr.Reader(list(_LANGUAGES), gpu=use_gpu, verbose=False)
+    except Exception:
+        logger.warning("easyocr present but failed to initialise", exc_info=True)
+        return None
+
+    def _run(pil_image):
+        results = reader.readtext(np.asarray(pil_image.convert("RGB")))
+        return [(text, float(confidence)) for _box, text, confidence in results]
+
+    logger.info("OCR engine: easyocr (languages=%s, gpu=%s)", ",".join(_LANGUAGES), use_gpu)
+    return _run
 
 
 def _build_pytesseract_engine():
-    """Return a pytesseract OCR callable, or None if unusable.
+    """Return a pytesseract callable, or None if unusable.
 
     Requires both the ``pytesseract`` package AND the ``tesseract`` binary on
     PATH (pytesseract is a thin wrapper that shells out to it).
@@ -44,59 +123,21 @@ def _build_pytesseract_engine():
         return None
 
     def _run(pil_image):
-        return pytesseract.image_to_string(pil_image)
+        data = pytesseract.image_to_data(
+            pil_image, output_type=pytesseract.Output.DICT)
+        words = []
+        for text, raw_conf in zip(data.get("text", []), data.get("conf", [])):
+            try:
+                confidence = float(raw_conf)
+            except (TypeError, ValueError):
+                continue
+            # tesseract reports -1 on layout blocks that carry no word.
+            if confidence < 0:
+                continue
+            words.append((text, confidence / 100.0))
+        return words
 
     logger.info("OCR engine: pytesseract (tesseract binary found)")
-    return _run
-
-
-def _build_easyocr_engine():
-    """Return an easyocr OCR callable, or None if unusable."""
-    try:
-        import numpy as np
-        import easyocr
-    except ImportError:
-        return None
-    try:
-        reader = easyocr.Reader(["en"], gpu=False)
-    except Exception:
-        logger.warning("easyocr present but failed to initialise", exc_info=True)
-        return None
-
-    def _run(pil_image):
-        results = reader.readtext(np.asarray(pil_image.convert("RGB")), detail=0)
-        return " ".join(results)
-
-    logger.info("OCR engine: easyocr")
-    return _run
-
-
-def _build_paddleocr_engine():
-    """Return a paddleocr OCR callable, or None if unusable."""
-    try:
-        import numpy as np
-        from paddleocr import PaddleOCR
-    except ImportError:
-        return None
-    try:
-        ocr = PaddleOCR(use_angle_cls=True, lang="en", show_log=False)
-    except Exception:
-        logger.warning("paddleocr present but failed to initialise", exc_info=True)
-        return None
-
-    def _run(pil_image):
-        result = ocr.ocr(np.asarray(pil_image.convert("RGB")), cls=True)
-        lines = []
-        for page in result or []:
-            for entry in page or []:
-                # entry = [box, (text, confidence)]
-                try:
-                    lines.append(entry[1][0])
-                except (IndexError, TypeError):
-                    continue
-        return " ".join(lines)
-
-    logger.info("OCR engine: paddleocr")
     return _run
 
 
@@ -106,19 +147,15 @@ def _resolve_engine():
     with _ENGINE_LOCK:
         if _ENGINE is not None:
             return _ENGINE
-        for builder in (
-            _build_pytesseract_engine,
-            _build_easyocr_engine,
-            _build_paddleocr_engine,
-        ):
+        for builder in (_build_easyocr_engine, _build_pytesseract_engine):
             engine = builder()
             if engine is not None:
                 _ENGINE = engine
                 return _ENGINE
         if not _NO_ENGINE_WARNED:
             logger.warning(
-                "No OCR engine available (install pytesseract+tesseract, "
-                "easyocr, or paddleocr). --recompute-ocr will be a no-op."
+                "No OCR engine available — install easyocr (pip install easyocr), "
+                "or the tesseract binary plus pytesseract. --detect-text is a no-op."
             )
             _NO_ENGINE_WARNED = True
         _ENGINE = False
@@ -131,16 +168,10 @@ def is_ocr_available():
 
 
 def extract_text(pil_image):
-    """Run OCR on a PIL image, returning normalized text or None.
+    """Run OCR on a PIL image, returning normalized text, ``''``, or None.
 
-    Returns ``None`` (never raises) when:
-      - no OCR engine is installed/usable,
-      - the image is missing,
-      - the engine raises, or
-      - no text was detected.
-
-    The returned string is whitespace-collapsed; empty results map to None so
-    callers can store NULL and FTS does not index blank rows.
+    Never raises. See the module docstring for the None / ``''`` contract: None
+    means "could not evaluate", ``''`` means "evaluated, no text found".
     """
     if pil_image is None:
         return None
@@ -148,14 +179,17 @@ def extract_text(pil_image):
     if not engine:
         return None
     try:
-        raw = engine(pil_image)
+        detections = engine(pil_image)
     except Exception:
         logger.warning("OCR extraction failed", exc_info=True)
         return None
-    if not raw:
-        return None
-    text = " ".join(str(raw).split())
-    return text or None
+
+    with _ENGINE_LOCK:
+        min_confidence = _MIN_CONFIDENCE
+
+    kept = [str(text) for text, confidence in detections
+            if confidence >= min_confidence and str(text).strip()]
+    return " ".join(" ".join(kept).split())
 
 
 def reset_engine_cache():

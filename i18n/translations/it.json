@@ -184,7 +184,7 @@
     "aesthetic_iaa": "Estetica IAA",
     "face_quality_iqa": "Qualità volto IQA",
     "liqe_score": "LIQE",
-    "qalign_score": "Q-Align",
+    "qrealign_score": "Q-ReAlign",
     "aesthetic_v25": "Estetica V2.5",
     "deqa_score": "DeQA",
     "saliency_section": "Salienza del soggetto",
@@ -1041,11 +1041,13 @@
     "sort_composition": "Composizione",
     "sort_face_quality": "Qualita volto",
     "sort_my_taste": "I miei gusti",
-    "my_taste_badge_tooltip": "Addestrato su {comparisons} confronti · {accuracy}% di accuratezza",
+    "my_taste_badge_tooltip": "Addestrato su {comparisons} confronti · {accuracy}% di accuratezza contro {baseline}% del punteggio attuale",
     "sort_desc": "Decrescente",
     "sort_asc": "Crescente",
     "filters": "Filtri",
     "search_placeholder": "Cerca nome, didascalia...",
+    "search_chip": "Ricerca",
+    "semantic_search_chip": "Ricerca semantica",
     "semantic_search": "Ricerca semantica",
     "semantic_search_placeholder": "tramonto in spiaggia...",
     "photo_count": "{count} foto",
@@ -1183,7 +1185,7 @@
     "aesthetic_iaa_range": "Estetica IAA",
     "face_quality_iqa_range": "Qualità volto IQA",
     "liqe_range": "Punteggio LIQE",
-    "qalign_range": "Punteggio Q-Align",
+    "qrealign_range": "Punteggio Q-ReAlign",
     "aesthetic_v25_range": "Estetica V2.5",
     "deqa_range": "Punteggio DeQA",
     "subject_sharpness_range": "Nitidezza soggetto",
@@ -1415,9 +1417,7 @@
       "clipping_multiplier_hint": "Moltiplica la penalità di ritaglio. 100% = standard, 150% = più severo, 0% = disattivato.",
       "skip_clipping_penalty_hint": "Disattiva la penalità di ritaglio delle alte luci. Predefinito: attivo per silhouette.",
       "skip_oversaturation_penalty_hint": "Disattiva la penalità di sovrasaturazione. Predefinito: attivo per notturna, astro, concerto.",
-      "apply_blink_penalty_hint": "Applica un moltiplicatore di punteggio al rilevamento di ammiccamento. Predefinito: attivo per le categorie ritratto.",
-      "noise_tolerance_range": "0% = nessuna penalità, 100% = penalità completa (predefinito), 200% = doppia penalità",
-      "clipping_multiplier_range": "0% = disattivato, 100% = standard, 500% = molto severo"
+      "apply_blink_penalty_hint": "Applica un moltiplicatore di punteggio al rilevamento di ammiccamento. Predefinito: attivo per le categorie ritratto."
     },
     "filters": "Filtri",
     "filters_description": "Condizioni di assegnazione alla categoria",
@@ -1925,13 +1925,20 @@
       "button": "Selezione automatica",
       "tooltip": "Conserva automaticamente la foto migliore di ogni gruppo e rifiuta il resto",
       "title": "Anteprima della selezione automatica",
+      "updating": "Aggiornamento dell'anteprima…",
       "summary": "{groups} gruppi: conserva {kept} foto, rifiuta {rejected}",
       "highlights_label": "Aggiungi le {count} migliori foto a un album Highlights",
       "highlights_name": "Highlights",
+      "trim_brackets": "Riduci anche le esposizioni bracketing ridondanti",
+      "trim_brackets_hint": "Propone anche di scartare le esposizioni bracketing ridondanti il cui fotogramma base non presenta tagli nelle alte luci",
+      "trim_brackets_none": "Nessuna esposizione bracketing ridondante in questo ambito",
       "apply": "Rifiuta {rejected} foto",
       "applied": "Selezione automatica applicata: {kept} conservate, {rejected} rifiutate",
       "error": "Selezione automatica non riuscita",
-      "empty": "Niente da selezionare automaticamente in questo ambito"
+      "empty": "Niente da selezionare automaticamente in questo ambito",
+      "suggested": "Suggerito",
+      "suggested_tooltip": "Preset dedotto dal contenuto dominante di questo ambito",
+      "preview_updated": "Anteprima aggiornata per il preset suggerito {profile}"
     },
     "exit_scene": "Esci dalla scena",
     "scene_complete": "Scena selezionata — niente altro da rivedere",
@@ -1951,6 +1958,8 @@
     "face_smile_min_tooltip": "Evidenzia i volti con un punteggio sorriso inferiore a questo valore",
     "subject_grid_title": "Soggetti di questo gruppo",
     "subject_sharpness": "Nitidezza del soggetto (10 = il più nitido del gruppo)",
+    "key_person": "Persona principale",
+    "key_person_tooltip": "La scelta di Facet su chi è il soggetto di questa foto — lo zoom punta su questo volto",
     "reason": {
       "best": "La migliore del gruppo",
       "eyes_closed": "Occhi chiusi",
@@ -1969,6 +1978,14 @@
       "rejected": "Rifiutata",
       "undecided": "Indecisa"
     },
+    "swipe": {
+      "keep": "Mantieni",
+      "reject": "Rifiuta",
+      "hint": "Scorri a destra per mantenere, a sinistra per rifiutare",
+      "hint_dismiss": "Ho capito",
+      "kept": "{filename} mantenuta",
+      "rejected": "{filename} rifiutata"
+    },
     "shortcuts": {
       "page_title": "Galleria",
       "darkroom_title": "Camera oscura",
@@ -1979,6 +1996,8 @@
       "reject": "Scarta foto",
       "confirm_next": "Conferma e gruppo successivo",
       "zoom": "Zoom / lente",
+      "peaking": "Focus peaking",
+      "grid": "Griglia di composizione",
       "close": "Chiudi"
     },
     "group_by": {
@@ -1998,6 +2017,21 @@
       "original": "Originale",
       "loading": "Generazione anteprima",
       "error": "Impossibile generare l'anteprima elaborata"
+    },
+    "peaking": {
+      "label": "Focus peaking",
+      "tooltip": "Evidenzia i bordi più nitidi dell'immagine visualizzata"
+    },
+    "legend": {
+      "label": "Scorciatoie da tastiera",
+      "tooltip": "Mostra o nascondi la legenda delle scorciatoie da tastiera"
+    },
+    "grid": {
+      "label": "Griglia di composizione",
+      "tooltip": "Scorre la griglia di composizione: disattivata, regola dei terzi, sezione aurea",
+      "off": "Griglia disattivata",
+      "thirds": "Regola dei terzi",
+      "golden": "Sezione aurea"
     },
     "bracket": {
       "label": "Bracketing di esposizione",
@@ -2227,6 +2261,7 @@
     "help": "Foto geolocalizzate su una mappa. Sposta e ingrandisci per esplorare dove sono state scattate le tue foto; il filtro intervallo date limita ciò che viene mostrato.",
     "title": "Mappa",
     "no_gps": "Nessuna foto con dati GPS trovata",
+    "tiles_unavailable": "Riquadri della mappa non disponibili — controlla la connessione",
     "photos_count": "{count} foto con posizione",
     "cluster_photos": "{count} foto",
     "score": "Punteggio: {score}",

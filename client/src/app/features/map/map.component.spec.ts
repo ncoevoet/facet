@@ -15,6 +15,7 @@ import {
   leafletMockLayerGroup as mockMarkersLayer,
   leafletMockCircleMarker as mockCircleMarker,
   leafletMockMarker as mockMarker,
+  leafletMockTileLayer as mockTileLayer,
   resetLeafletMock,
 } from '../../../testing/leaflet-mock';
 
@@ -96,6 +97,36 @@ describe('MapComponent', () => {
       const spy = vi.spyOn(component, 'loadMarkers');
       component.initMap();
       expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  describe('tile outage', () => {
+    /** Fire the handler `createLeafletMap` registered on the tile layer. */
+    const failTiles = () => {
+      const [event, handler] = mockTileLayer.on.mock.calls[0] as [string, () => void];
+      expect(event).toBe('tileerror');
+      handler();
+    };
+
+    it('raises the banner when the tile server fails', () => {
+      component.initMap();
+      expect(component.tileError()).toBe(false);
+
+      failTiles();
+
+      expect(component.tileError()).toBe(true);
+    });
+
+    // Every pan refetches tiles, so an outage fires this over and over: without
+    // a sticky dismissal the banner the user closed would come straight back.
+    it('keeps the banner down once dismissed', () => {
+      component.initMap();
+      failTiles();
+
+      component.dismissTileError();
+      failTiles();
+
+      expect(component.tileError()).toBe(false);
     });
   });
 

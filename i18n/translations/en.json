@@ -187,7 +187,7 @@
     "aesthetic_iaa": "Aesthetic IAA",
     "face_quality_iqa": "Face IQA",
     "liqe_score": "LIQE",
-    "qalign_score": "Q-Align",
+    "qrealign_score": "Q-ReAlign",
     "aesthetic_v25": "Aesthetic V2.5",
     "deqa_score": "DeQA",
     "saliency_section": "Subject Saliency",
@@ -1041,11 +1041,13 @@
     "sort_composition": "Composition",
     "sort_face_quality": "Face Quality",
     "sort_my_taste": "My Taste",
-    "my_taste_badge_tooltip": "Trained on {comparisons} comparisons · {accuracy}% held-out accuracy",
+    "my_taste_badge_tooltip": "Trained on {comparisons} comparisons · {accuracy}% held-out accuracy vs {baseline}% by the current scoring",
     "sort_desc": "Descending",
     "sort_asc": "Ascending",
     "filters": "Filters",
     "search_placeholder": "Search filename, caption...",
+    "search_chip": "Search",
+    "semantic_search_chip": "Semantic search",
     "semantic_search": "Semantic Search",
     "semantic_search_placeholder": "sunset at the beach...",
     "photo_count": "{count} photos",
@@ -1194,7 +1196,7 @@
     "aesthetic_iaa_range": "Aesthetic IAA",
     "face_quality_iqa_range": "Face Quality IQA",
     "liqe_range": "LIQE Score",
-    "qalign_range": "Q-Align Score",
+    "qrealign_range": "Q-ReAlign Score",
     "aesthetic_v25_range": "Aesthetic V2.5",
     "deqa_range": "DeQA Score",
     "subject_sharpness_range": "Subject Sharpness",
@@ -1923,13 +1925,20 @@
       "button": "Auto-cull",
       "tooltip": "Automatically keep the best of every group and reject the rest",
       "title": "Auto-cull preview",
+      "updating": "Updating preview…",
       "summary": "{groups} groups: keep {kept} photos, reject {rejected}",
       "highlights_label": "Add the {count} very best keeps to a Highlights album",
       "highlights_name": "Highlights",
+      "trim_brackets": "Also trim redundant bracket exposures",
+      "trim_brackets_hint": "Also propose dropping redundant bracket exposures whose base frame has no highlight clipping",
+      "trim_brackets_none": "No redundant bracket exposures in this scope",
       "apply": "Reject {rejected} photos",
       "applied": "Auto-cull applied: kept {kept}, rejected {rejected}",
       "error": "Auto-cull failed",
-      "empty": "Nothing to auto-cull in this scope"
+      "empty": "Nothing to auto-cull in this scope",
+      "suggested": "Suggested",
+      "suggested_tooltip": "Preset inferred from the dominant content of this scope",
+      "preview_updated": "Preview updated for the suggested {profile} preset"
     },
     "exit_scene": "Exit scene",
     "scene_complete": "Scene culled — nothing left to review",
@@ -1949,6 +1958,8 @@
     "face_smile_min_tooltip": "Highlight faces with a smile score below this value",
     "subject_grid_title": "Subjects in this group",
     "subject_sharpness": "Subject sharpness (10 = sharpest in group)",
+    "key_person": "Key person",
+    "key_person_tooltip": "Facet's pick for who this photo is about — zooming targets this face",
     "reason": {
       "best": "Best of group",
       "eyes_closed": "Eyes closed",
@@ -1967,6 +1978,14 @@
       "rejected": "Rejected",
       "undecided": "Undecided"
     },
+    "swipe": {
+      "keep": "Keep",
+      "reject": "Reject",
+      "hint": "Swipe right to keep, left to reject",
+      "hint_dismiss": "Got it",
+      "kept": "Kept {filename}",
+      "rejected": "Rejected {filename}"
+    },
     "shortcuts": {
       "page_title": "Gallery",
       "darkroom_title": "Darkroom",
@@ -1977,6 +1996,8 @@
       "reject": "Reject photo",
       "confirm_next": "Confirm & next group",
       "zoom": "Zoom / loupe",
+      "peaking": "Focus peaking",
+      "grid": "Composition grid",
       "close": "Close"
     },
     "group_by": {
@@ -1996,6 +2017,21 @@
       "original": "Original",
       "loading": "Rendering preview",
       "error": "Could not render the edited preview"
+    },
+    "peaking": {
+      "label": "Focus peaking",
+      "tooltip": "Highlight the sharpest edges of the displayed frame"
+    },
+    "legend": {
+      "label": "Keyboard shortcuts",
+      "tooltip": "Show or hide the keyboard shortcut legend"
+    },
+    "grid": {
+      "label": "Composition grid",
+      "tooltip": "Cycle the composition grid: off, rule of thirds, golden ratio",
+      "off": "Grid off",
+      "thirds": "Rule of thirds",
+      "golden": "Golden ratio"
     },
     "bracket": {
       "label": "Exposure bracket",
@@ -2225,6 +2261,7 @@
     "help": "Geotagged photos on a map. Pan and zoom to explore where your photos were taken; the date range filter scopes what is shown.",
     "title": "Map",
     "no_gps": "No photos with GPS data found",
+    "tiles_unavailable": "Map tiles unavailable — check your connection",
     "photos_count": "{count} photos with location",
     "cluster_photos": "{count} photos",
     "score": "Score: {score}",

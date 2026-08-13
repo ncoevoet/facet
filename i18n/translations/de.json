@@ -38,10 +38,6 @@
       "back": "Zurück",
       "cancel": "Abbrechen",
       "download": "Herunterladen",
-      "edit_location": "Standort bearbeiten",
-      "add_location": "Standort hinzufügen",
-      "gps_click_to_place": "Klicken Sie auf die Karte, um eine Markierung zu setzen",
-      "gps_clear": "Standort entfernen",
       "save": "Speichern",
       "saving": "Wird gespeichert…",
       "load_more": "Mehr laden"
@@ -188,7 +184,7 @@
     "aesthetic_iaa": "Ästhetik IAA",
     "face_quality_iqa": "Gesichts-IQA",
     "liqe_score": "LIQE",
-    "qalign_score": "Q-Align",
+    "qrealign_score": "Q-ReAlign",
     "aesthetic_v25": "Ästhetik V2.5",
     "deqa_score": "DeQA",
     "saliency_section": "Motiverkennung",
@@ -1045,11 +1041,13 @@
     "sort_composition": "Komposition",
     "sort_face_quality": "Gesichtsqualität",
     "sort_my_taste": "Mein Geschmack",
-    "my_taste_badge_tooltip": "Trainiert mit {comparisons} Vergleichen · {accuracy}% Genauigkeit",
+    "my_taste_badge_tooltip": "Trainiert mit {comparisons} Vergleichen · {accuracy}% Genauigkeit gegenüber {baseline}% der aktuellen Bewertung",
     "sort_desc": "Absteigend",
     "sort_asc": "Aufsteigend",
     "filters": "Filter",
     "search_placeholder": "Dateiname, Beschreibung suchen...",
+    "search_chip": "Suche",
+    "semantic_search_chip": "Semantische Suche",
     "semantic_search": "Semantische Suche",
     "semantic_search_placeholder": "Sonnenuntergang am Strand...",
     "photo_count": "{count} Fotos",
@@ -1187,7 +1185,7 @@
     "aesthetic_iaa_range": "Ästhetik IAA",
     "face_quality_iqa_range": "Gesichts-IQA",
     "liqe_range": "LIQE-Wert",
-    "qalign_range": "Q-Align-Wert",
+    "qrealign_range": "Q-ReAlign-Wert",
     "aesthetic_v25_range": "Ästhetik V2.5",
     "deqa_range": "DeQA-Wert",
     "subject_sharpness_range": "Motivschärfe",
@@ -1419,9 +1417,7 @@
       "clipping_multiplier_hint": "Multipliziert die Überbelichtungsstrafe. 100% = Standard, 150% = strenger, 0% = deaktiviert.",
       "skip_clipping_penalty_hint": "Deaktiviert die Überbelichtungsstrafe. Standard: aktiv für Silhouette.",
       "skip_oversaturation_penalty_hint": "Deaktiviert die Übersättigungsstrafe. Standard: aktiv für Nacht, Astro, Konzert.",
-      "apply_blink_penalty_hint": "Wendet einen Wertungsmultiplikator bei Blinzelerkennung an. Standard: aktiv für Porträtkategorien.",
-      "noise_tolerance_range": "0% = keine Strafe, 100% = volle Strafe (Standard), 200% = doppelte Strafe",
-      "clipping_multiplier_range": "0% = deaktiviert, 100% = Standard, 500% = sehr streng"
+      "apply_blink_penalty_hint": "Wendet einen Wertungsmultiplikator bei Blinzelerkennung an. Standard: aktiv für Porträtkategorien."
     },
     "filters": "Filter",
     "filters_description": "Bedingungen für die Kategoriezuordnung",
@@ -1929,13 +1925,20 @@
       "button": "Auto-Aussortierung",
       "tooltip": "Behält automatisch das beste Foto jeder Gruppe und lehnt den Rest ab",
       "title": "Vorschau der Auto-Aussortierung",
+      "updating": "Vorschau wird aktualisiert…",
       "summary": "{groups} Gruppen: {kept} Fotos behalten, {rejected} ablehnen",
       "highlights_label": "Die {count} allerbesten Fotos einem Highlights-Album hinzufügen",
       "highlights_name": "Highlights",
+      "trim_brackets": "Auch redundante Belichtungsreihen-Aufnahmen aussortieren",
+      "trim_brackets_hint": "Schlägt zusätzlich vor, redundante Belichtungsreihen-Aufnahmen zu verwerfen, deren Basisbelichtung keine Lichter abschneidet",
+      "trim_brackets_none": "Keine redundanten Belichtungsreihen-Aufnahmen in diesem Bereich",
       "apply": "{rejected} Fotos ablehnen",
       "applied": "Auto-Aussortierung angewendet: {kept} behalten, {rejected} abgelehnt",
       "error": "Auto-Aussortierung fehlgeschlagen",
-      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren"
+      "empty": "In diesem Bereich gibt es nichts automatisch auszusortieren",
+      "suggested": "Vorgeschlagen",
+      "suggested_tooltip": "Voreinstellung aus dem vorherrschenden Inhalt dieses Bereichs abgeleitet",
+      "preview_updated": "Vorschau für die vorgeschlagene Voreinstellung {profile} aktualisiert"
     },
     "exit_scene": "Szene verlassen",
     "scene_complete": "Szene gesichtet – nichts mehr zu prüfen",
@@ -1955,6 +1958,8 @@
     "face_smile_min_tooltip": "Hebt Gesichter hervor, deren Lächeln-Wert unter diesem Wert liegt",
     "subject_grid_title": "Motive in dieser Gruppe",
     "subject_sharpness": "Motivschärfe (10 = schärfstes der Gruppe)",
+    "key_person": "Hauptperson",
+    "key_person_tooltip": "Facets Einschätzung, worum es in diesem Foto geht — der Zoom zielt auf dieses Gesicht",
     "reason": {
       "best": "Beste der Gruppe",
       "eyes_closed": "Augen geschlossen",
@@ -1973,6 +1978,14 @@
       "rejected": "Verworfen",
       "undecided": "Unentschieden"
     },
+    "swipe": {
+      "keep": "Behalten",
+      "reject": "Verwerfen",
+      "hint": "Nach rechts wischen zum Behalten, nach links zum Verwerfen",
+      "hint_dismiss": "Verstanden",
+      "kept": "{filename} behalten",
+      "rejected": "{filename} verworfen"
+    },
     "shortcuts": {
       "page_title": "Galerie",
       "darkroom_title": "Dunkelkammer",
@@ -1983,6 +1996,8 @@
       "reject": "Foto ablehnen",
       "confirm_next": "Bestätigen & nächste Gruppe",
       "zoom": "Zoom / Lupe",
+      "peaking": "Fokus-Peaking",
+      "grid": "Kompositionsraster",
       "close": "Schließen"
     },
     "group_by": {
@@ -2002,6 +2017,21 @@
       "original": "Original",
       "loading": "Vorschau wird erstellt",
       "error": "Bearbeitete Vorschau konnte nicht erstellt werden"
+    },
+    "peaking": {
+      "label": "Fokus-Peaking",
+      "tooltip": "Die schärfsten Kanten des angezeigten Bildes hervorheben"
+    },
+    "legend": {
+      "label": "Tastenkürzel",
+      "tooltip": "Legende der Tastenkürzel ein- oder ausblenden"
+    },
+    "grid": {
+      "label": "Kompositionsraster",
+      "tooltip": "Kompositionsraster durchschalten: aus, Drittelregel, Goldener Schnitt",
+      "off": "Raster aus",
+      "thirds": "Drittelregel",
+      "golden": "Goldener Schnitt"
     },
     "bracket": {
       "label": "Belichtungsreihe",
@@ -2231,6 +2261,7 @@
     "help": "Geotaggte Fotos auf einer Karte. Verschieben und zoomen Sie, um zu erkunden, wo Ihre Fotos aufgenommen wurden; der Zeitraum-Filter schränkt die Anzeige ein.",
     "title": "Karte",
     "no_gps": "Keine Fotos mit GPS-Daten gefunden",
+    "tiles_unavailable": "Kartenkacheln nicht verfügbar — Verbindung prüfen",
     "photos_count": "{count} Fotos mit Standort",
     "cluster_photos": "{count} Fotos",
     "score": "Bewertung: {score}",

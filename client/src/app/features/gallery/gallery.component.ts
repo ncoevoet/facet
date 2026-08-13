@@ -50,14 +50,15 @@ import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.componen
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
 import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import {
-  GalleryRow, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight, windowRange,
+  GalleryRow, aspectOf, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight,
+  windowRange,
 } from './gallery-rows.util';
 import { GalleryFilters, applyQueryParams } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
 import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
@@ -98,7 +99,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
     <ng-template #galleryToolbar>
       <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
         <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
-        <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
+        <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
           <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
           @for (t of store.types(); track t.id) {
             <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
@@ -288,8 +289,8 @@ type HiddenFilterFlags = Pick<GalleryFilters,
               role="grid"
               tabindex="0"
               [attr.aria-label]="I18N.gallery.photo_grid | translate"
-              class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid outline-none"
-              [style.--gallery-cols]="'repeat(auto-fill, minmax(' + cardWidth() + 'px, 1fr))'"
+              class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
+              [style.grid-template-columns]="galleryColsStyle()"
               (keydown)="onGridKeydown($event)"
             >
               @for (photo of store.photos(); track photo.path; let i = $index) {
@@ -377,8 +378,8 @@ type HiddenFilterFlags = Pick<GalleryFilters,
           <div role="status" [attr.aria-label]="I18N.gallery.loading_photos | translate" aria-busy="true">
             @if (!store.photos().length) {
               <div
-                class="grid grid-cols-1 gap-2 p-2 md:p-4 gallery-grid"
-                [style.--gallery-cols]="'repeat(auto-fill, minmax(' + cardWidth() + 'px, 1fr))'"
+                class="grid grid-cols-1 gap-2 p-2 md:p-4"
+                [style.grid-template-columns]="galleryColsStyle()"
               >
                 @for (i of skeletonItems(); track i) {
                   <app-photo-skeleton [height]="cardWidth()" />
@@ -554,7 +555,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
   },
 })
 export class GalleryComponent implements OnInit, OnDestroy {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly store = inject(GalleryStore);
   protected readonly auth = inject(AuthService);
   protected readonly canShowScanButton = computed(
@@ -624,6 +625,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Card min-width from store for the responsive grid */
   readonly cardWidth = computed(() => this.store.cardWidth() || 168);
+
+  /** Inline `grid-template-columns` for the plain (non-virtualized) CSS grid:
+   * auto-fill by the density slider on desktop, an explicit column count on
+   * mobile so a narrow viewport never floors below MOBILE_MIN_COLUMNS (keeps
+   * this grid in sync with the virtualized row model and keyboard navigation). */
+  readonly galleryColsStyle = computed(() =>
+    this.isDesktop()
+      ? `repeat(auto-fill, minmax(${this.cardWidth()}px, 1fr))`
+      : `repeat(${this.gridColumns()}, 1fr)`,
+  );
 
   /** Skeleton placeholders for the initial load (matches a typical first page). */
   protected readonly skeletonItems = computed(() => Array.from({ length: 24 }, (_, i) => i));
@@ -776,7 +787,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
     return buildGridRows(
       photos, width, this.cardWidth(), GalleryComponent.ROW_GAP,
-      this.effectiveHideDetails(), !this.isDesktop(),
+      this.effectiveHideDetails(), this.isDesktop(),
     );
   });
 
@@ -1240,14 +1251,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const card = (event.currentTarget as HTMLElement)?.closest('.relative.rounded-lg') as HTMLElement ?? event.currentTarget as HTMLElement;
     const rect = card.getBoundingClientRect();
     const padding = 16;
-    const isLandscape = photo.image_width > photo.image_height;
+    const isLandscape = aspectOf(photo) > 1;
     const vh = window.innerHeight;
     const vw = window.innerWidth;
 
     const thumbImg = (card.querySelector('img') as HTMLImageElement | null);
-    const tnw = thumbImg?.naturalWidth || photo.image_width || 4;
-    const tnh = thumbImg?.naturalHeight || photo.image_height || 3;
-    const thumbAspect = tnw / tnh;
+    const thumbAspect = (thumbImg?.naturalWidth && thumbImg.naturalHeight)
+      ? thumbImg.naturalWidth / thumbImg.naturalHeight
+      : aspectOf(photo);
     const tooltipNatH = thumbAspect > 1 ? 640 / thumbAspect : 640;
 
     let tooltipWidth: number;
@@ -1376,9 +1387,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */
   private gridColumns(): number {
-    if (!this.isDesktop()) return 1;
-    const width = this.containerWidth() - 32;
-    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP);
+    const width = this.containerWidth() - (this.isDesktop() ? 32 : 16);
+    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP, this.isDesktop());
   }
 
   /** Vertical step for the active index: grid = ±columns, mosaic = same offset in adjacent row. */

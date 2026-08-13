@@ -1,0 +1,84 @@
+{
+  "stored_metric_columns": [
+    "topiq_score",
+    "liqe_score",
+    "aesthetic"
+  ],
+  "task": "aesthetic",
+  "per_model": {
+    "qalign": {
+      "n_scored": 1999,
+      "n_skipped": 1,
+      "mean_latency_s": 1.020890482591292,
+      "vs_stored": {
+        "topiq_score": {
+          "srcc": 0.34929360013561217,
+          "plcc": 0.42643907936953024,
+          "n": 1999
+        },
+        "liqe_score": {
+          "srcc": 0.35344880104159104,
+          "plcc": 0.42483225297493427,
+          "n": 1999
+        },
+        "aesthetic": {
+          "srcc": 0.9037869043269119,
+          "plcc": 0.8999512884351377,
+          "n": 1999
+        }
+      },
+      "mean_srcc_vs_stored": 0.5355097685013717,
+      "peak_vram_gb": 15.398265838623047
+    },
+    "qrealign": {
+      "n_scored": 1999,
+      "n_skipped": 1,
+      "mean_latency_s": 0.2820566487243322,
+      "vs_stored": {
+        "topiq_score": {
+          "srcc": 0.417659122054336,
+          "plcc": 0.4618962116399836,
+          "n": 1999
+        },
+        "liqe_score": {
+          "srcc": 0.4062479011556673,
+          "plcc": 0.4573224613592502,
+          "n": 1999
+        },
+        "aesthetic": {
+          "srcc": 0.7519339707113424,
+          "plcc": 0.7544861899679192,
+          "n": 1999
+        }
+      },
+      "mean_srcc_vs_stored": 0.5252803313071152,
+      "peak_vram_gb": 2.024643898010254
+    }
+  },
+  "inter_model_srcc": {
+    "qalign_vs_qrealign": {
+      "srcc": 0.7994436170828554,
+      "n": 1999
+    }
+  },
+  "verdict": {
+    "qalign": "qalign",
+    "qrealign": "qrealign",
+    "ship": false,
+    "srcc_ok": false,
+    "latency_ok": true,
+    "qalign_srcc": 0.5355097685013717,
+    "qrealign_srcc": 0.5252803313071152,
+    "qalign_latency_s": 1.020890482591292,
+    "qrealign_latency_s": 0.2820566487243322
+  },
+  "db": "D:\\photo-llm\\photo_scores_pro.db",
+  "sample_size": 2000,
+  "seed": 42,
+  "device": "cuda",
+  "models": [
+    "qalign",
+    "qrealign"
+  ],
+  "use_thumbnails": false
+}

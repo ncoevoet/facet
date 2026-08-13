@@ -12,7 +12,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { StatsFiltersService } from './stats-filters.service';
 import { downloadCsv } from '../../shared/utils/csv';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 /** Pipe to compute heatmap circle color from count:max. */
 @Pipe({ name: 'heatmapColor', standalone: true })
@@ -157,7 +157,7 @@ interface TimelineEntry {
   `,
 })
 export class StatsTimelineTabComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private api = inject(ApiService);
   private i18n = inject(I18nService);
   private destroyRef = inject(DestroyRef);

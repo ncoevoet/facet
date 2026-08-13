@@ -21,12 +21,14 @@ import { FilterDisplayPipe } from '../../shared/pipes/filter-display.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
+import { useCoarsePointerSignal } from '../../shared/utils/media-query';
+import { MOBILE_MIN_CARD_WIDTH_PX } from './gallery-rows.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
 import { folderDisplayName } from '../folders/folders.util';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   // Quality
@@ -37,7 +39,7 @@ export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   { id: 'aesthetic_iaa_range', labelKey: 'gallery.aesthetic_iaa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'face_quality_iqa_range', labelKey: 'gallery.face_quality_iqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'liqe_range', labelKey: 'gallery.liqe_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_liqe', maxKey: 'max_liqe', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'qalign_range', labelKey: 'gallery.qalign_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_qalign', maxKey: 'max_qalign', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'qrealign_range', labelKey: 'gallery.qrealign_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_qrealign', maxKey: 'max_qrealign', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'aesthetic_v25_range', labelKey: 'gallery.aesthetic_v25_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_v25', maxKey: 'max_aesthetic_v25', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'deqa_range', labelKey: 'gallery.deqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_deqa', maxKey: 'max_deqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   // Face Metrics
@@ -162,7 +164,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
 <div data-scroll class="flex-1 min-h-0 overflow-y-auto px-2 pb-4">
 
       <div class="sticky top-0 z-20 -mx-2 px-2 pt-3 pb-2 bg-[var(--mat-sys-surface)] flex items-center gap-2">
-        <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
+        <span class="text-sm font-medium opacity-80 flex-1">{{ I18N.gallery.filters | translate }}</span>
         @if (store.activeFilterCount()) {
           <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ store.activeFilterCount() }}</span>
           <button mat-button class="!ml-auto !min-w-0 !px-2 !text-xs" (click)="store.resetFilters()">
@@ -170,6 +172,12 @@ function saveSectionStates(states: Record<string, boolean>): void {
             {{ I18N.gallery.reset_filters | translate }}
           </button>
         }
+        <button mat-icon-button class="md:hidden !w-8 !h-8 !p-0 !min-w-0 shrink-0"
+          [matTooltip]="I18N.dialog.close | translate"
+          [attr.aria-label]="I18N.dialog.close | translate"
+          (click)="store.setFilterDrawerOpen(false)">
+          <mat-icon class="!text-lg !w-5 !h-5 !leading-5">close</mat-icon>
+        </button>
       </div>
 
       <!-- Find a filter -->
@@ -363,7 +371,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
             @if (store.types().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full lg:!hidden">
                 <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
-                <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
+                <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="store.updateFilter('type', $event.value)">
                   <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
                   @for (t of store.types(); track t.id) {
                     <mat-option [value]="t.id">{{ (t.id === 'top_picks' ? 'photo_types.top_picks' : 'category_names.' + t.id) | translate }} ({{ t.count }})</mat-option>
@@ -603,9 +611,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
             </div>
           </div>
           @if (sliderConfig(); as sc) {
-            <div class="hidden md:flex items-center gap-2 mt-2">
+            <div class="flex items-center gap-2 mt-2">
               <span class="text-sm opacity-70 shrink-0">{{ I18N.gallery.thumbnail_size | translate }}</span>
-              <mat-slider [min]="sc.min_px" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
+              <mat-slider [min]="thumbnailSliderMin()" [max]="sc.max_px" [step]="sc.step_px" class="flex-1">
                 <input matSliderThumb [value]="store.cardWidth()" (valueChange)="store.setCardWidth($event)" [attr.aria-label]="I18N.gallery.thumbnail_size | translate" />
               </mat-slider>
               <span class="text-xs opacity-60 w-10 text-right">{{ store.cardWidth() }}px</span>
@@ -814,14 +822,31 @@ function saveSectionStates(states: Record<string, boolean>): void {
   `,
 })
 export class GalleryFilterSidebarComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   readonly store = inject(GalleryStore);
   readonly auth = inject(AuthService);
   private dialog = inject(MatDialog);
   private albumService = inject(AlbumService);
   readonly albums = signal<Album[]>([]);
   readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
+  private readonly coarsePointer = useCoarsePointerSignal();
   readonly sliderConfig = computed(() => this.store.config()?.display?.thumbnail_slider ?? null);
+
+  /**
+   * Lowest card width the thumbnail slider offers.
+   *
+   * On a touch device the server minimum is below the mobile column floor for
+   * the whole of the slider's travel, so every stop renders the same 3 columns
+   * and the control is inert; MOBILE_MIN_CARD_WIDTH_PX is the first width that
+   * clears the floor on a 390px screen. A mouse-driven window keeps the server's
+   * minimum: there the floor never applies and the existing travel already works.
+   */
+  readonly thumbnailSliderMin = computed(() => {
+    const configured = this.sliderConfig()?.min_px ?? MOBILE_MIN_CARD_WIDTH_PX;
+    return this.coarsePointer.isCoarsePointer()
+      ? Math.min(configured, MOBILE_MIN_CARD_WIDTH_PX)
+      : configured;
+  });
 
   // Person autocomplete (multi-select with search)
   readonly sidebarPersonQuery = signal('');
@@ -997,6 +1022,7 @@ export class GalleryFilterSidebarComponent {
   private albumsLoaded = false;
 
   constructor() {
+    this.coarsePointer.setup();
     effect(() => {
       if (this.store.config()?.features?.show_albums && !this.albumsLoaded) {
         this.albumsLoaded = true;
@@ -1005,6 +1031,7 @@ export class GalleryFilterSidebarComponent {
     });
     inject(DestroyRef).onDestroy(() => {
       if (this.searchTimeout) clearTimeout(this.searchTimeout);
+      this.coarsePointer.cleanup();
     });
   }
 

@@ -1,7 +1,10 @@
 """Tests for authentication: JWT tokens, password hashing, rate limiting, and login endpoints."""
 
 import json
+import os
 import shutil
+import stat
+import sys
 from datetime import timedelta
 from pathlib import Path
 from unittest import mock
@@ -19,6 +22,7 @@ from api.auth import (
     decode_access_token,
     hash_password,
     password_generation,
+    upgrade_legacy_password,
     verify_password,
     verify_legacy_password,
     _is_hashed,
@@ -772,3 +776,80 @@ class TestMultiUserMode:
         )
         assert resp.status_code == 200
         assert resp.json()["authenticated"] is False
+
+
+_PLAINTEXT_PASSWORD = "legacy-plaintext-pw"
+_CONFIG_GROUP_MODE = 0o664
+_BACKUP_OWNER_ONLY_MODE = 0o600
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits do not apply on Windows")
+class TestPasswordUpgradeBackupIsOwnerOnly:
+    """The pre-upgrade backup is the single most sensitive file this project writes.
+
+    It is taken while the config still holds the PLAINTEXT password, seconds
+    after a successful login, and it survives as long as the operator keeps it.
+    ``shutil.copy2`` put those bytes on disk at the config's own mode first —
+    0664 under a default umask — and only tightened them with a following
+    ``chmod``, so every local account had a window to read the password. The
+    upgrade now goes through the shared owner-only backup primitive, which
+    creates the destination at 0600 and re-modes a reused name while it is
+    still empty.
+    """
+
+    def _plaintext_install(self, tmp_path):
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps({"viewer": {"password": _PLAINTEXT_PASSWORD}}))
+        os.chmod(config_path, _CONFIG_GROUP_MODE)
+        return config_path
+
+    def _upgrade(self, config_path):
+        import api.config as api_config
+
+        with (
+            mock.patch.object(api_config, "_CONFIG_PATH", str(config_path)),
+            mock.patch.object(api_config, "reload_config", lambda: None),
+        ):
+            upgrade_legacy_password("password", _PLAINTEXT_PASSWORD)
+
+    def test_the_backup_holding_the_plaintext_is_owner_only(self, tmp_path):
+        config_path = self._plaintext_install(tmp_path)
+
+        self._upgrade(config_path)
+
+        backup = Path(f"{config_path}.backup")
+        assert _PLAINTEXT_PASSWORD in backup.read_text(), "this IS the sensitive copy"
+        assert _is_hashed(json.loads(config_path.read_text())["viewer"]["password"])
+        assert stat.S_IMODE(os.stat(backup).st_mode) == _BACKUP_OWNER_ONLY_MODE
+
+    def test_the_config_keeps_its_own_mode(self, tmp_path):
+        """Only the backup is restricted: a co-deployed CLI still reads the config."""
+        config_path = self._plaintext_install(tmp_path)
+
+        self._upgrade(config_path)
+
+        assert stat.S_IMODE(os.stat(config_path).st_mode) == _CONFIG_GROUP_MODE
+
+    def test_the_plaintext_never_lands_at_a_looser_mode_first(self, tmp_path):
+        """The window ``copy2`` + ``chmod`` left, pinned at the moment of the copy.
+
+        The backup name already exists at 0664 here — every install upgraded
+        from an older Facet has exactly that — so the creation mode alone would
+        not help: the mode is asserted as the first byte is written.
+        """
+        config_path = self._plaintext_install(tmp_path)
+        backup_path = Path(f"{config_path}.backup")
+        backup_path.write_text("stale")
+        os.chmod(backup_path, _CONFIG_GROUP_MODE)
+        modes_while_writing = []
+        real_copyfileobj = shutil.copyfileobj
+
+        def _recording_copyfileobj(source_file, destination_file, *args, **kwargs):
+            modes_while_writing.append(stat.S_IMODE(os.stat(backup_path).st_mode))
+            return real_copyfileobj(source_file, destination_file, *args, **kwargs)
+
+        with mock.patch("api.config_writes.shutil.copyfileobj", _recording_copyfileobj):
+            self._upgrade(config_path)
+
+        assert modes_while_writing == [_BACKUP_OWNER_ONLY_MODE]
+        assert _PLAINTEXT_PASSWORD in backup_path.read_text()

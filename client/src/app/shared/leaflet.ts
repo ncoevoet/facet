@@ -9,15 +9,25 @@ L.Icon.Default.mergeOptions({
   shadowUrl: '/leaflet-images/marker-shadow.png',
 });
 
-/** Create a Leaflet map with the standard OSM tile layer. */
+/**
+ * Create a Leaflet map with the standard OSM tile layer.
+ *
+ * `onTileError` is wired here because `tileerror` fires on the tile layer, which
+ * the caller never sees, and Leaflet does not forward it to the map. Without it a
+ * tile outage is indistinguishable from an empty part of the world: the map just
+ * renders a grey plane.
+ */
 export function createLeafletMap(
   container: HTMLElement,
   options?: L.MapOptions,
+  onTileError?: () => void,
 ): L.Map {
   const map = L.map(container, options);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  const tiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
     maxZoom: 19,
-  }).addTo(map);
+  });
+  if (onTileError) tiles.on('tileerror', onTileError);
+  tiles.addTo(map);
   return map;
 }

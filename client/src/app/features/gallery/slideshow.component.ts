@@ -21,7 +21,7 @@ import { GalleryStore } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { ImageUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 interface Slide {
   photos: Photo[];
@@ -199,7 +199,7 @@ interface Slide {
   `,
 })
 export class SlideshowComponent implements OnDestroy {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private store = inject(GalleryStore);
 
   readonly photos = input<Photo[]>([]);

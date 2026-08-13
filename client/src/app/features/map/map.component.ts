@@ -12,9 +12,10 @@ import { PageHelpService } from '../../core/services/page-help.service';
 import { MapFiltersService } from './map-filters.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface MapCluster {
   lat: number;
@@ -42,7 +43,7 @@ interface MapResponse {
 @Component({
   selector: 'app-map',
   standalone: true,
-  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent],
+  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, DateRangeFilterComponent, TranslatePipe],
   template: `
     <ng-template #mapToolbar>
       <app-date-range-filter
@@ -55,6 +56,22 @@ interface MapResponse {
       @if (loading()) {
         <div class="absolute inset-0 flex items-center justify-center z-[1000] bg-black/20">
           <mat-spinner diameter="40" />
+        </div>
+      }
+      <!-- Without this, an unreachable tile server is silent: the markers still
+           draw, so the blank grey plane behind them reads as a bug in the map. -->
+      @if (tileError()) {
+        <div class="absolute top-2 left-1/2 -translate-x-1/2 z-[1001] flex items-center gap-2
+                    max-w-[90%] px-3 py-2 rounded-lg shadow-lg text-sm
+                    bg-[var(--mat-sys-error-container)] text-[var(--mat-sys-on-error-container)]"
+             role="status">
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">cloud_off</mat-icon>
+          <span>{{ I18N.map.tiles_unavailable | translate }}</span>
+          <button type="button" class="inline-flex items-center justify-center shrink-0 rounded-full p-0.5 hover:bg-black/20 transition-colors"
+                  (click)="dismissTileError()"
+                  [attr.aria-label]="I18N.ui.buttons.dismiss | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
+          </button>
         </div>
       }
       <div #mapContainer class="h-full w-full"></div>
@@ -81,6 +98,7 @@ interface MapResponse {
   host: { class: 'block h-full' },
 })
 export class MapComponent implements OnInit, OnDestroy {
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
@@ -122,6 +140,15 @@ export class MapComponent implements OnInit, OnDestroy {
   }
 
   protected readonly loading = signal(false);
+  /** Whether the tile server failed and the banner is showing. Dismissal sticks
+   *  for the life of the view: every later pan would otherwise raise it again. */
+  protected readonly tileError = signal(false);
+  private tileErrorDismissed = false;
+
+  protected dismissTileError(): void {
+    this.tileErrorDismissed = true;
+    this.tileError.set(false);
+  }
 
   private map: L.Map | null = null;
   private markersLayer = L.layerGroup();
@@ -170,7 +197,9 @@ export class MapComponent implements OnInit, OnDestroy {
 
   private initMap(): void {
     const container = this.mapContainer().nativeElement;
-    this.map = createLeafletMap(container).setView([48.8566, 2.3522], 5);
+    this.map = createLeafletMap(container, undefined, () => {
+      if (!this.tileErrorDismissed) this.tileError.set(true);
+    }).setView([48.8566, 2.3522], 5);
 
     this.markersLayer.addTo(this.map);
 

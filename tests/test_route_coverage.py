@@ -94,6 +94,7 @@ PARAMETERISED_ROUTES = [
     ('/api/critique', {'path': '/nonexistent.jpg'}),
     ('/api/caption', {'path': '/nonexistent.jpg'}),
     ('/api/photo/faces', {'path': '/nonexistent.jpg'}),
+    ('/api/photo/key_subject', {'path': '/nonexistent.jpg'}),
     ('/api/download/options', {'path': '/nonexistent.jpg'}),
     ('/api/similar_photos//nonexistent.jpg', {}),
     ('/api/photos/map', {'bounds': '-90,-180,90,180', 'limit': 5}),
@@ -107,6 +108,9 @@ PARAMETERISED_ROUTES = [
     ('/api/frame/next', {'token': 'x'}),
     ('/api/frame/image/1.deadbeef', {'token': 'x'}),
     ('/dav/nonexistent.jpg', {}),
+    # Date-scoped, NOT album-scoped: the fixture DB seeds no album, so an
+    # album_id here 404s in the access check and the handler never runs.
+    ('/api/culling/suggest_profile', {'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
 ]
 
 # Routes that require superadmin (scan).
@@ -201,12 +205,29 @@ class TestPostRoutesAcceptValidShape:
         )
         assert _is_acceptable(resp.status_code)
 
+    def test_key_subjects_accepts_empty_list(self, edition_client):
+        resp = edition_client.post(
+            '/api/photos/key_subjects',
+            json={'paths': []},
+        )
+        assert _is_acceptable(resp.status_code)
+
     def test_batch_favorite_accepts_empty_list(self, edition_client):
         resp = edition_client.post(
             '/api/photos/batch_favorite',
             json={'paths': [], 'is_favorite': True},
         )
         assert _is_acceptable(resp.status_code)
+
+    def test_immich_webhook_disabled_returns_404(self, client):
+        # immich.webhook.token_env is unset in the test config, so the
+        # endpoint must 404 rather than 401/403/5xx — the same "empty means
+        # the whole feature is disabled" idiom as frame.tokens/upload.username.
+        resp = client.post(
+            '/api/immich/webhook',
+            json={'asset': {'originalPath': '/nonexistent.jpg'}},
+        )
+        assert resp.status_code == 404, f"-> {resp.status_code}"
 
 
 class TestAngularSpaShell:

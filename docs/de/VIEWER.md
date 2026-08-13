@@ -10,7 +10,7 @@ FastAPI + Angular Single-Page-Application zum Durchsuchen, Filtern und Verwalten
 - [Personenverwaltung](#personenverwaltung) · [Scan auslösen (Superadmin)](#scan-auslösen-superadmin) · [Semantische Suche](#semantische-suche) · [Alben](#alben)
 - [KI-Kritik](#ki-kritik) · [KI-Bildbeschreibung](#ki-bildbeschreibung-gpu-16gb24gb-edition) · [Erinnerungen ("Heute vor Jahren")](#erinnerungen-heute-vor-jahren) · [Zeitleisten-Ansicht](#zeitleisten-ansicht) · [Kartenansicht](#kartenansicht) · [Kapseln](#kapseln)
 - [Ordner-Ansicht](#ordner-ansicht) · [GPS-Filterdialog](#gps-filterdialog) · [Zusammenführungsvorschläge](#zusammenführungsvorschläge) · [Editor-Export](#editor-export) · [Auswahl](#auswahl) · [Müll aufräumen](#müll-aufräumen) · [Paarweiser Vergleichsmodus](#paarweiser-vergleichsmodus)
-- [EXIF-Statistiken](#exif-statistiken) · [Tastenkürzel](#tastenkürzel-galerie) · [Rückgängig](#rückgängig) · [Progressive Web App](#progressive-web-app) · [Mobil](#mobil)
+- [EXIF-Statistiken](#exif-statistiken) · [Tastenkürzel](#tastenkürzel-galerie) · [Rückgängig](#rückgängig) · [Progressive Web App](#progressive-web-app) · [Mobil](#mobil) · [Bilderrahmen / Kiosk](#bilderrahmen--kiosk) · [Automatischer Upload vom Telefon](#automatischer-upload-vom-telefon)
 - [Konfiguration](#konfiguration) · [Performance](#performance) · [API-Endpunkte](#api-endpunkte) · [Fehlerbehebung](#fehlerbehebung)
 
 > **Funktionsanforderungen** sind inline gekennzeichnet: `[GPU]` · `[16gb/24gb]` (VRAM-Profil) · `[Edition]` (Bearbeitungspasswort) · `[Superadmin]`. Siehe die [Funktionsmatrix](../README.md#feature-availability--requirements).
@@ -202,10 +202,19 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 - **Vergleichen** — 2 bis 4 ausgewählte Fotos nebeneinander öffnen, mit synchronisiertem Schwenken und Zoomen (Scrollen zum Zoomen, Ziehen zum Schwenken, Doppelklick zum Zurücksetzen; alle Fensterteile bewegen sich gemeinsam und wechseln jenseits der Einpassungsskala auf volle Auflösung). Dieselbe Ansicht wie in der Auswahl-Dunkelkammer, nun für jeden von Hand zusammengestellten Satz erreichbar statt nur für Aufnahmen, die in einer Serie nebeneinanderliegen.
 - **Dateinamen kopieren** — Ausgewählte Dateinamen in die Zwischenablage kopieren
 - **Exportieren** — XMP-Sidecars (Bewertung/Favorit/Ablehnung) neben den ausgewählten Dateien schreiben (siehe [Editor-Export](#editor-export))
+- **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Zielordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))
 - **Herunterladen** — Ausgewählte Fotos herunterladen
 - Auswahl mit Escape oder der Schaltfläche „Löschen" aufheben
 
 Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges Foto, um es direkt herunterzuladen.
+
+### Top N% behalten
+
+Ein **Top % behalten**-Steuerelement in der Symbolleiste der Galerie (Bearbeitungsmodus) macht aus der gesamten gefilterten Ansicht ein Aussortieren in einem Schritt. Legen Sie einen Prozentsatz fest: Der Server ordnet die aktuelle Ansicht nach der **aktuellen Sortierung** (Gesamtwertung, Mein Geschmack, Beste Auswahl, Schärfe, …), behält diesen oberen Anteil und **wählt den Rest aus** — die am schlechtesten bewerteten Fotos —, sodass Sie sie über die Aktionsleiste ablehnen können (oder zuvor einzelne abwählen, die Sie verschonen möchten). Es wird nichts verschoben oder gelöscht: Es befüllt nur die Auswahl (und jede Ablehnung trainiert weiterhin „Mein Geschmack"). Die Auswahl ist auf 5000 Fotos begrenzt; bei einer sehr großen Ansicht weist das Steuerelement darauf hin — grenzen Sie den Filter ein (Album, Datum, Person…), um den Rest zu bearbeiten.
+
+### In Ordner aussortieren
+
+Der Dialog **In Ordner aussortieren…** in der Sammelaktionsleiste (Bearbeitungsmodus) kopiert Behaltene oder verschiebt/entsorgt Abgelehnte in einem Schritt in einen Zielordner (der Systempapierkorb ist über `viewer.cull.allow_trash` gesperrt, niemals ein endgültiges Löschen). Das Anwenden ist von Grund auf sicher: `POST /api/cull/apply` vertraut niemals blind einer vom Client übermittelten Löschliste — er leitet die tatsächliche Zielmenge der Aktion serverseitig aus dem eigenen `is_rejected`-Status jedes Fotos ab (Kopieren wirkt nur auf Behaltene, Verschieben/Papierkorb nur auf Abgelehnte) und meldet alles außerhalb dieses Bereichs als `excluded_by_state`, statt darauf zu wirken. Jeder Aufruf ist standardmäßig ein Trockenlauf (dry run) — eine Vorschau läuft immer vor jedem Schreibvorgang — und Verschieben/Papierkorb benötigen ein explizites `dry_run=false`, um auszuführen; das Einbeziehen des unberührten RAW oder Sidecars eines abgelehnten Fotos ist optional (`include_companions`), damit das Ablehnen eines abgeleiteten JPEGs niemals stillschweigend sein RAW mitreißt. Mehrere kommerzielle Fototools hatten Fehler bei der Löschauswahl, die die falschen Fotos betrafen; der Anwenden-Endpunkt von Facet ist so gestaltet, dass der Client niemals direkt eine Löschmenge angeben kann.
 
 ### Anzeigeoptionen
 
@@ -303,13 +312,17 @@ Erstellen Sie Alben und fügen Sie Fotos aus der Galerie per Mehrfachauswahl hin
 
 Speichern Sie eine Kombination von Filtern (Kamera, Tag, Person, Zeitraum, Wertungsschwellen usw.) als intelligentes Album. Intelligente Alben aktualisieren sich dynamisch, sobald neue Fotos den gespeicherten Filterkriterien entsprechen. Die Filterkombination wird als JSON in `smart_filter_json` gespeichert.
 
-API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
-
-Gesteuert über `viewer.features.show_albums` (Standard: `true`).
-
 ### Bewertungskontext
 
 Jedes Album kann einen Bewertungskontext tragen, der bestimmt, welche Kategorie für seine Mitgliedsfotos gewinnt, unabhängig von der globalen Prioritätsreihenfolge – siehe [Bewertungskontexte](CONFIGURATION.md#bewertungskontexte). `PUT /api/albums/{id}/scoring_context` (Edition-geschützt) setzt ihn und überträgt denselben Kontext auf jedes Foto, das **gerade jetzt** Mitglied ist; `conflicts` in der Antwort zählt nicht-manuelle Mitglieder, die bereits einen abweichenden Kontext trugen, `manual_skipped` zählt Mitglieder, deren eigene manuelle Überschreibung unangetastet blieb (eine Albumzuweisung wandelt die manuelle Überschreibung eines Fotos niemals stillschweigend in eine album-basierte um), und `updated` gibt an, wie viele tatsächlich geschrieben wurden. Ein manuelles Album löst die Mitgliedschaft aus seinen `album_photos`-Zeilen auf; ein intelligentes Album hat keine solchen Zeilen, daher wird die Mitgliedschaft stattdessen durch Auswertung seines gespeicherten `smart_filter_json` gegen die Live-Datenbank aufgelöst. Das ist die **Filterdefinition** des Albums, nicht „was die Galerie zufällig gerade anzeigte“: Es ignoriert bewusst die Ansichtseinstellungen der Galerie zum Ausblenden von Blinzlern, Serienbild-Verlierern, Duplikaten und abgelehnten Fotos (global, zur Laufzeit umschaltbar und nicht Teil von `smart_filter_json`), sodass `updated` die Fotoanzahl, die die eigene Galerieansicht des Albums bei aktivierten Umschaltern zeigt, rechtmäßig übersteigen kann – und liefert `updated: 0` mit einer `warning` zurück, wenn der Filter derzeit nichts trifft. So oder so ist die Übertragung eine Momentaufnahme, kein laufendes Abonnement: Bei einem manuellen Album übernimmt ein *später* hinzugefügtes Foto den Kontext automatisch, aber ein Foto, das *später* dem Filter eines intelligenten Albums entspricht, übernimmt den Kontext **nicht** rückwirkend – der Kontext muss erneut gesetzt werden (`PUT`), um neue Treffer zu erfassen. `DELETE /api/albums/{id}/scoring_context` (im Dialog als Aktion „Kontext löschen“ dargestellt, die sich von der Auswahl des Kontexts `default` unterscheidet, der `default` zuweist statt zu löschen) macht die Übertragung auf genau den Mitgliedern rückgängig, die dieses Album markiert hat, ohne die eigene manuelle Überschreibung eines Fotos zu berühren – und wenn ein so zurückgesetztes Foto *weiterhin* Mitglied eines anderen Albums ist, das selbst einen Kontext deklariert, wird es stattdessen mit dem Kontext dieses anderen Albums neu markiert, statt unbewertet zu bleiben (diese Neuableitung ist auf die konkret aus einem Album entfernten Fotos begrenzt; das Löschen oder Leeren eines ganzen Albums versucht dies nicht). `GET /api/albums/{id}/suggested_context` schlägt einen Kontext anhand des dominanten erkannten `narrative_moment` des Albums vor (über die `suggest_from_moments`-Liste jedes Kontexts) mit einer `share`-Konfidenz – dabei wird nichts geschrieben; die obige Zuweisung muss weiterhin explizit bestätigt werden. Eine Neuberechnung (`POST /api/scan/recompute`) ist erforderlich, damit der neue Kontext tatsächlich die gespeicherte Kategorie eines Fotos ändert.
+
+### Portfolio-Export
+
+Wenn `viewer.features.show_portfolio_export` auf `true` steht (Standard) und der Bearbeitungsmodus freigeschaltet ist, erhält jede manuelle Albumkarte eine Aktion **Portfolio exportieren**. Sie öffnet einen kleinen Dialog (Galerietitel, Zielordner, Schalter zum Einschließen von Bildunterschriften) und rendert das Album als eigenständige statische HTML-Galerie — der thumbsup/sigal-Anwendungsfall, aber nativ, ohne Abhängigkeit von einem externen Werkzeug. Das Ausgabeverzeichnis enthält `index.html` (ein responsives, rein per CSS umgesetztes Miniaturraster mit eingebauter Vanilla-JS-Lightbox — **null** externe/CDN-Verweise, sodass es vollständig offline funktioniert), einen Ordner `assets/` mit fortlaufend benannten JPEGs (kein Bibliothekspfad wird preisgegeben) und eine `manifest.json`, die Anzahlen und Quellen pro Foto festhält. Jedes Foto bevorzugt das **Original** auf der Festplatte (auf `portfolio.max_edge` verkleinert, EXIF-Ausrichtung angewendet) und greift auf das gespeicherte 640-px-Thumbnail zurück, wenn das Original nicht erreichbar ist (offline Netzlaufwerke). Der Endpunkt ist `POST /api/albums/{album_id}/export-portfolio` (editionsbeschränkt); das `target_dir` wird gegen dieselbe Allowlist geprüft (`viewer.export.allowed_target_dirs` plus die Scan-Verzeichnisse) wie die Kopier-/Verschiebe-Export-Endpunkte, und Alben über `portfolio.max_photos` (Standard 500) werden abgelehnt. Ein erneuter Export desselben Albums ist idempotent — nur die eigenen Dateien des Exports werden neu geschrieben. Siehe [Portfolio-Export-Konfiguration](CONFIGURATION.md#portfolio-export).
+
+API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
+
+Gesteuert über `viewer.features.show_albums` (Standard: `true`).
 
 ### Fotofreigabe
 
@@ -564,7 +577,11 @@ Das **Gesichts-Panel** der Dunkelkammer färbt jeden Gesichtsausschnitt anhand s
 
 **Motiv-Nahaufnahme-Leiste (Gruppen ohne Gesicht).** Für Serien / ähnliche Gruppen, deren Fotos kein markantes Gesicht haben — Tierwelt, Makro, Produkte, Vögel — zeigt die Dunkelkammer stattdessen eine **Motiv**-Leiste: das Hauptmotiv jedes Bildes, aus der persistierten BiRefNet-Motivbox zugeschnitten und nebeneinander ausgerichtet, um das eigentliche Motiv in Nahaufnahme zu vergleichen (die „AI Close-Up"-Idee von Zoner, nativ). Jeder Ausschnitt trägt ein gruppennormiertes Schärfe-Abzeichen (10 = das schärfste Motiv der Gruppe) und einen farbigen Ring (grün / bernstein / rot), damit das gestochen scharfe Bild heraussticht; ein Klick auf einen Ausschnitt bringt die Hauptansicht auf dieses Foto. Die Ausschnitte werden ohne Modelllauf aus der gespeicherten Miniatur geschnitten (`POST /api/culling-group/subjects`) und erscheinen nur, wenn eine Gruppe Motive, aber keine Gesichter hat. Das wird erst aktiv, sobald Fotos eine Motivbox tragen: Führen Sie `python facet.py --recompute-saliency` (GPU) aus, um eine bestehende Bibliothek nachzufüllen — bis dahin erscheint die Leiste einfach nicht.
 
+**Hauptmotiv (Zoomziel + Hauptperson).** Die Dunkelkammer ermittelt für jedes Bild der geöffneten Gruppe, worum oder um wen es geht — das beste ihrer erkannten Gesichter, sonst die persistierte BiRefNet-Motivbox — für die ganze Gruppe in einem einzigen Aufruf (`POST /api/photos/key_subjects`), und zoomt dann *darauf*: **`Z`**, ein Doppelklick oder der erste Mausradschritt jenseits der Einpassung bringen die 1:1-Ansicht auf diesen Punkt statt in die Bildmitte, damit die Pixelprüfung auf dem Gesicht beginnt, auf das es ankommt. Sobald Sie ein Bild selbst verschoben oder gezoomt haben, tritt der Vorschlag für dieses Bild zurück — er verändert nie einen Ausschnitt, den Sie gewählt haben. Ist der Gewinner eine benannte Person, trägt dieses Gesicht in der Gesichtsleiste eine bernsteinfarbene Namensplakette. Gesichter schlagen die Salienz, und unter den Gesichtern gewinnt die beste Mischung aus relativer Größe, Zentralität und benannter Person: Ein benanntes Motiv im Mittelgrund schlägt einen größeren Fremden, ein benannter Punkt im Hintergrund nicht. Nichts wird gespeichert, die Antwort spiegelt also stets die aktuellen Gesichts- und Personenzuordnungen wider; Boxen sind Bruchteile des vollen Bildes (`normalized_frame_xyxy`), nie der angezeigten Miniatur. `GET /api/photo/key_subject` liefert dieselbe Antwort für ein einzelnes Foto.
+
 **Synchronisierter Vergleich (2-fach / 4-fach).** Der Lightbox-Header hat die Schaltflächen Einzeln / Vergleich 2 / Vergleich 4. Im Vergleichsmodus teilen sich die Bereiche eine gemeinsame Schwenk-/Zoom-Transformation, sodass Mausrad-Zoom oder Ziehen-Schwenken in einem beliebigen Bereich alle auf denselben Bildausschnitt bewegt — die Art, das schärfste Bild einer Serie zu wählen, indem man tatsächlich die Pixel begutachtet. Doppelklick schaltet zwischen Einpassen ↔ Zoom um; jenseits der Einpassen-Skalierung tauscht jeder Bereich faul sein 1920px-Vorschaubild gegen die vollauflösende `/image`-Quelle, damit der Blick gestochen scharf ist. Keine Backend-Änderung — beide Bildrouten existieren bereits. (Touch-Pinch ist noch nicht verdrahtet; verwenden Sie am Desktop das Mausrad.)
+
+**Wischen zum Behalten oder Verwerfen (Touch).** Auf einem Touch-Gerät wird die Einzelansicht der Dunkelkammer zum Wischstapel: Ziehen Sie das Bild nach rechts, um es zu behalten, nach links, um es zu verwerfen — dabei neigt es sich und färbt sich ein, grün mit einem BEHALTEN-Abzeichen, rot mit einem VERWERFEN-Abzeichen. Jenseits von 35 % der Bildbreite (nie weniger als 48px) schleudert das Loslassen es zu dieser Seite hinaus, schreibt genau die Entscheidung, die die Tasten `↑` / `↓` schreiben, und geht genau wie `→` zum nächsten Bild weiter; darunter federt das Bild zurück und nichts wird entschieden. Ein Ziehen, dessen Achse sich als vertikal erweist, wird unberührt freigegeben, sobald das feststeht, und bleibt damit bei dem, dem es gehörte. Jede Festlegung zeigt eine Snackbar mit **Rückgängig**, die sowohl die Entscheidung *als auch* das Bild wiederherstellt, an dem sie getroffen wurde — ein verrutschtes `↑` macht man mit `↓` rückgängig, ein verrutschter Daumen ist aber schon beim nächsten Bild und hat keine Gegengeste zur Hand. Die Geste wird nur dort angeboten, wo sie mit keiner anderen kollidieren kann: ein grober Zeiger (Finger oder Stift, nie eine Maus), die Einzelansicht (ein Vergleichsraster hat kein einzelnes Bild, über das eine Wischgeste entscheiden würde) und die Einpassen-Skalierung — jenseits davon *ist* dasselbe Ziehen das Schwenken des Bereichs, für das dieser den Zeiger bereits erfasst hat. Ein einzeiliger Hinweis steht unter dem ersten Bild, bis er weggeklickt wird (im `localStorage` gemerkt).
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
@@ -744,6 +761,101 @@ Auf kleinen Bildschirmen klappt die Sammelauswahl-Leiste zur Auswahlanzahl, Lös
 Alle auswählen und einer einzigen **Aktionen**-Schaltfläche zusammen, die ein
 berührungsfreundliches Bottom-Sheet mit allen Sammeloperationen öffnet (favorisieren,
 ablehnen, bewerten, Alben, kopieren, herunterladen).
+
+## Bilderrahmen / Kiosk
+
+Anmeldungsfreie Kiosk-Geräte — smarte Bilderrahmen, Home-Assistant-Dashboards, Anzeigen im Stil von ImmichFrame / Immich-Kiosk — können Facets beste Aufnahmen ohne Benutzersitzung abrufen. Es gibt **keine Client-Oberfläche**: Kiosks nutzen die Endpunkte direkt, authentifiziert durch ein langlebiges, undurchsichtiges **Rahmen-Token**, das im Konfigurationsblock `frame` festgelegt wird (`frame.tokens`; eine leere Liste deaktiviert die gesamte Funktion, und jeder Endpunkt liefert 404). Tokens werden konstantzeitlich als UTF-8-Bytes verglichen, sodass ein fehlendes Token 401 und ein falsches oder Nicht-ASCII-Token 403 ergibt — nie 500.
+
+Die Kuratierung schöpft aus der gesamten Bibliothek: abgelehnte, Junk- und Blinzel-Fotos werden ausgeschlossen, `frame.min_aggregate` (Standard `7.0`) legt die Score-Untergrenze fest, und die optionalen `frame.favorites_only` / `frame.categories` grenzen weiter ein. Fotos werden über eine **score-gewichtete Zufallsstichprobe** zurückgegeben (ein Mischen des nach Score besten Kandidatenpools), sodass ein Rahmen Abwechslung unter Ihren besten Aufnahmen zeigt statt immer derselben Handvoll. Antworten **enthalten niemals Dateipfade** — jedes Foto wird über eine undurchsichtige signierte ID adressiert (die `rowid` der Zeile, signiert mit dem Server-Geheimnis), sodass ein Token-Inhaber weder beliebige Zeilen aufzählen noch erfahren kann, wo Ihre Dateien liegen.
+
+| Endpunkt | Rückgabe | Cache |
+|----------|---------|-------|
+| `GET /api/frame/photos?token=&count=` | `{photos: [{id, caption?, date_taken?, width, height}]}` — `count` begrenzt auf `frame.max_count` (Standard 100), Standardwert `frame.count` (20) | — |
+| `GET /api/frame/image/{id}?token=&max_edge=` | das Foto-JPEG — Original auf der Festplatte, verkleinert auf `max_edge` (begrenzt durch `frame.max_edge`, Standard 1920), mit Rückgriff auf das gespeicherte Thumbnail, wenn das Original nicht erreichbar ist | lange, unveränderlich |
+| `GET /api/frame/next?token=` | ein zufälliges kuratiertes JPEG, bei jedem Aufruf anders — der Fall für den „dummen" Rahmen / die generische Home-Assistant-Kamera | `no-store` |
+
+### Token generieren
+
+Tokens sind undurchsichtige Zeichenketten, die Sie selbst erfinden — verwenden Sie ein langes, zufälliges und behandeln Sie es wie ein Passwort:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+Fügen Sie das Ergebnis zu `frame.tokens` in `scoring_config.json` hinzu (Sie können mehrere auflisten — eines pro Gerät — und eines widerrufen, indem Sie es entfernen):
+
+```json
+"frame": {
+  "tokens": ["Xu8w…your-random-token…"],
+  "count": 20,
+  "min_aggregate": 7.0,
+  "max_edge": 1920,
+  "favorites_only": false,
+  "categories": []
+}
+```
+
+### Home-Assistant-Rezept
+
+Die Einzel-URL `/api/frame/next` bildet sich direkt auf Home Assistants [generische Kamera](https://www.home-assistant.io/integrations/generic/) ab — jede Aktualisierung holt eine frisch kuratierte Aufnahme.
+
+```yaml
+camera:
+  - platform: generic
+    name: Facet Frame
+    still_image_url: "http://facet.local:5000/api/frame/next?token=Xu8w…your-random-token…"
+    verify_ssl: false
+    framerate: 0.05  # alle ~20s aktualisieren
+```
+
+Fügen Sie die Kamera zu einer Picture-Glance- / Picture-Entity-Karte (oder einem Wandtablet-Dashboard) hinzu, und sie wird zu einem sich selbst aktualisierenden Bilderrahmen.
+
+Für einen Client im **ImmichFrame-Stil**, der seine eigene Diashow verwaltet, pollen Sie `GET /api/frame/photos?token=…&count=30` für die ID-Liste und fordern dann jedes `GET /api/frame/image/{id}?token=…&max_edge=1920` an — die IDs sind stabil, und die Bildantworten tragen einen langen, unveränderlichen Cache, sodass ein Client jedes Foto nur einmal abruft und selbst zwischen ihnen überblenden kann.
+
+## Automatischer Upload vom Telefon
+
+Ein minimaler **WebDAV**-Endpunkt unter `/dav` lässt Foto-Auto-Upload-Apps (PhotoSync und jeden Client, der WebDAV spricht) Fotos direkt in ein Facet-**Eingangsverzeichnis** hochladen. Richten Sie den Eingang auf eines Ihrer gescannten Verzeichnisse (oder ein Unterverzeichnis davon) und führen Sie `facet.py --watch` darauf aus: Jedes hochgeladene Foto wird automatisch bewertet, sobald es eintrifft — das Mobil-Sync-Muster von PhotoPrism.
+
+Dies ist **reine Upload-Infrastruktur** — sie berührt niemals Benutzersitzungen oder JWTs. Der Zugriff erfolgt per HTTP Basic mit **Zugangsdaten für gemeinsam genutzte Geräte**, die im Block `upload` konfiguriert werden (`upload.username` / `upload.password`), **nicht** ein Benutzerkonto. Der gesamte `/dav`-Baum liefert **404, solange die Funktion deaktiviert ist**: Sie wird nur aktiviert, wenn `upload.username`, `upload.password` und `upload.inbox_dir` alle gesetzt sind. Jede Operation ist auf `upload.inbox_dir` beschränkt — Traversal, absolute Pfade und Symlink-Ausbrüche werden abgewiesen — und Uploads werden atomar auf die Festplatte gestreamt, begrenzt durch `upload.max_file_mb` (Standard 500).
+
+Implementierte Methoden: `OPTIONS`, `PROPFIND` (Tiefe 0/1), `MKCOL`, `PUT`, `MOVE`, `DELETE`, `GET`, `HEAD`. `LOCK`/`UNLOCK` sind nicht implementiert (Upload-Clients behandeln deren Fehlen als nicht sperrende Freigabe).
+
+### Konfiguration
+
+```json
+"upload": {
+  "username": "phone",
+  "password": "…a-long-random-shared-secret…",
+  "inbox_dir": "/photos/inbox",
+  "max_file_mb": 500
+}
+```
+
+`inbox_dir` sollte unter einem gescannten Verzeichnis liegen, damit `--watch` Uploads erfasst:
+
+```bash
+python facet.py /photos --watch
+```
+
+### PhotoSync-Rezept
+
+1. Fügen Sie in PhotoSync eine **WebDAV**-Konfiguration hinzu (Konfigurieren → Konfiguration hinzufügen → WebDAV).
+2. **URL / Server**: `http://<host>:5000/dav/` (verwenden Sie Ihren Facet-Host; `https://`, wenn Sie ihn über einen Reverse-Proxy führen).
+3. **Benutzername / Passwort**: das oben festgelegte `upload.username` / `upload.password`.
+4. **Zielordner**: bei der Wurzel (`/`) belassen, um in den Eingang abzulegen, oder ein Unterordner, den PhotoSync über `MKCOL` erstellt.
+5. Scannen Sie auf dem Facet-Host den Eingang im Watch-Modus, damit Uploads bei ihrer Ankunft bewertet werden:
+
+   ```bash
+   python facet.py /photos --watch
+   ```
+
+### Curl-Schnelltest
+
+```bash
+curl -T photo.jpg -u phone:'…a-long-random-shared-secret…' http://<host>:5000/dav/photo.jpg
+```
+
+Ein `201 Created` (oder `204 No Content` beim Überschreiben) bestätigt, dass der Upload im Eingang gelandet ist; `--watch` bewertet ihn beim nächsten Debounce.
 
 ## Konfiguration
 
@@ -1078,7 +1190,10 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Serienbild-/Ähnlichkeits-/Szenengruppen für die Auswahl. `group_by` (Standard `all`) wählt kombinierte Serienbild+Ähnlichkeit, nur Serienbild, nur Ähnlichkeit oder chronologische Szenengruppen (Szenengruppen ergänzen `type`/`start`/`end`/`moment`/`moment_confidence`; der `sort`-Parameter wird im Szenenmodus ignoriert). `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen. Wenn ein Keeper-Ranking-Head trainiert ist, trägt jedes Foto zusätzlich `keeper_prob` und jede Gruppe `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen (Serienbild, Ähnlichkeit oder Szene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` erfasst die Szenen-Auswahl-Vergleichszeilen |
 | `POST /api/culling/auto` | `[Edition]` Ein-Knopf-Auto-Cull für einen ganzen Geltungsbereich. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (Standard `true`) liefert die Behalte-/Ablehnen-Vorschau pro Gruppe, ein Anwenden lehnt den Rest ab und erfasst Culling-Paare |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Leitet den dominanten Aufnahmetyp des Geltungsbereichs aus dessen gespeicherten Kategorien, Erzählmomenten, Gesichtszahlen und Aufnahmestunden ab und benennt das passende `cull_profiles`-Preset, mit einer Konfidenz und den zugrunde liegenden Belegzahlen; pro Geltungsbereich zwischengespeichert. `profile` ist `null` unterhalb der Dominanzschwelle oder wenn kein passendes Preset konfiguriert ist |
 | `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
+| `GET /api/photo/key_subject?path=` | Worum / um wen es in einem Foto geht: sein bestplatziertes Gesicht, sonst seine persistierte Salienzbox, als `normalized_frame_xyxy`-Box + Zentrum. Pro Anfrage aus gespeicherten Spalten berechnet (kein Modelllauf, nichts zwischengespeichert); `kind:"none"`, wenn keines von beidem existiert |
+| `POST /api/photos/key_subjects` | Dieselbe Antwort für bis zu 1000 Pfade in einem Aufruf (`key_subjects_by_path`) — das Zoomziel der Dunkelkammer und das Hauptpersonen-Abzeichen. Jeder angefragte Pfad ist enthalten; unbekannte oder unsichtbare kommen als `kind:"none"` zurück statt zu fehlen |
 | `POST /api/photos/keeper_hints` | Pro-Foto-Hinweise „besseres Foto in dieser Gruppe existiert" für das Galerie-/Lightbox-Badge, gruppiert nach `burst_group_id`. Body `{paths}`; liefert `{path: {has_better, best_path, keeper_prob}}`. Modellabhängig — liefert `{}`, wenn kein Keeper-Ranking-Head trainiert ist |
 | `GET /api/scenes` | Chronologische Szenen von Serienbild-Leitfotos (schreibgeschütztes Durchsuchen) |
 | `GET /api/filter_options/junk_kinds` | Erkannte Müll-Arten mit Anzahl (ohne die Sentinel `not_junk`) für die Junk-Sweep-Chips |
@@ -1162,6 +1277,7 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 | `POST /api/export/sidecars` | `[Edition]` Sidecars für explizite Pfade oder eine Filtermenge schreiben |
 | `POST /api/photo/embed_metadata` | `[Edition]` Metadaten in die Originaldatei einbetten (JPEG/HEIC/TIFF/PNG/DNG; RAW wird nie verändert) und das Sidecar schreiben |
 | `POST /api/albums/{id}/export` | `[Edition]` Album-Export als Sidecars, Kopie oder Symlink |
+| `POST /api/cull/apply` | `[Edition]` Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/entsorgen (siehe [In Ordner aussortieren](#in-ordner-aussortieren)) |
 
 ### Plugins
 
@@ -1169,6 +1285,12 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 |----------|-------------|
 | `GET /api/plugins` | Konfigurierte Plugins auflisten |
 | `POST /api/plugins/test-webhook` | Ein Webhook-Plugin testen |
+
+### Immich
+
+| Endpunkt | Beschreibung |
+|----------|-------------|
+| `POST /api/immich/webhook` | Empfängt einen Immich-Workflow-Webhook und spiegelt die gepushte Bewertung sofort zurück; ein von Facet noch nicht bewertetes Asset wird für den nächsten `--immich-sync` vorgemerkt. Statische Token-Authentifizierung (`immich.webhook.token_env`; nicht gesetzt ⇒ 404); löst nie einen Scan aus. Siehe [docs/IMMICH.md](IMMICH.md) |
 
 ### Health
 

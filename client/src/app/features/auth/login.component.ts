@@ -9,7 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-login',
@@ -56,7 +56,7 @@ import { I18N } from '../../core/i18n/keys';
   `,
 })
 export class LoginComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private router = inject(Router);
   auth = inject(AuthService);
   private i18n = inject(I18nService);

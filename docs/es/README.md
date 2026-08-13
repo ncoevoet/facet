@@ -41,6 +41,7 @@ python viewer.py
 | [Reconocimiento facial](FACE_RECOGNITION.md) | Flujo de trabajo facial, agrupación, gestión de personas |
 | [Visor](VIEWER.md) | Funcionalidades y uso de la galería web |
 | [Interoperabilidad](INTEROP.md) | Intercambiar valoraciones/tags con Lightroom, Capture One, digiKam, darktable |
+| [Immich](IMMICH.md) | Sincronizar valoraciones y favoritos con Immich, más el webhook entrante |
 
 ## Perfiles de VRAM
 

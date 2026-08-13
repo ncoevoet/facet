@@ -2656,6 +2656,15 @@
       }
     }
   },
+  "ocr": {
+    "enabled": false,
+    "languages": [
+      "en",
+      "fr"
+    ],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  },
   "junk_sweep": {
     "enabled": true,
     "prompt_template": "{desc}",
@@ -3232,7 +3241,7 @@
     }
   },
   "iqa_extended": {
-    "qalign": false,
+    "qrealign": "auto",
     "aesthetic_v25": false,
     "deqa": false
   },
@@ -3242,7 +3251,6 @@
     "webhooks": [],
     "actions": {}
   },
-  "share_secret": "",
   "storage": {
     "mode": "database",
     "filesystem_path": "./storage"

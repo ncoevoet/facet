@@ -30,6 +30,18 @@ def parse_aspect(aspect: str) -> Tuple[float, float]:
     return w, h
 
 
+def _encloses_area(subject_norm: Sequence[float]) -> bool:
+    """True when a normalized box still encloses something.
+
+    A caller that clamps a box to 0..1 collapses one whose coordinates fell
+    outside the frame into a zero-area point on an edge — the shape a face box
+    takes when it is divided by dimensions from a different pixel space. Framing
+    on that point would pin the crop to a corner with the subject nowhere in it,
+    so an empty box means "no subject" rather than "a subject at the corner".
+    """
+    return subject_norm[0] != subject_norm[2] and subject_norm[1] != subject_norm[3]
+
+
 def compute_crop_rect(
     img_w: int,
     img_h: int,
@@ -43,7 +55,8 @@ def compute_crop_rect(
         img_w, img_h: Original image dimensions in pixels (must be positive).
         aspect_w, aspect_h: Target aspect ratio components (width:height).
         subject_norm: Optional ``[x0, y0, x1, y1]`` subject box normalized 0..1.
-            None centers the crop on the image (center-crop fallback).
+            None centers the crop on the image (center-crop fallback), as does a
+            box with no area (see ``_encloses_area``).
 
     Returns:
         Integer ``(x0, y0, x1, y1)`` with ``0 <= x0 < x1 <= img_w`` and
@@ -65,7 +78,7 @@ def compute_crop_rect(
         crop_w = float(img_w)
         crop_h = crop_w / target_ar
 
-    if subject_norm is not None:
+    if subject_norm is not None and _encloses_area(subject_norm):
         sx0 = min(subject_norm[0], subject_norm[2]) * img_w
         sy0 = min(subject_norm[1], subject_norm[3]) * img_h
         sx1 = max(subject_norm[0], subject_norm[2]) * img_w

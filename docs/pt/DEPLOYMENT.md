@@ -326,7 +326,7 @@ A primeira execução baixa os modelos do perfil para os volumes nomeados; redef
 
 ### Imagem reproduzível e autônoma
 
-- **Versões fixadas.** A imagem é compilada a partir de `requirements.lock.txt` — um `pip freeze` completo de um container validado, com `torch`/`torchvision` e `nvidia-*` removidos (a imagem base CUDA já os fornece). Isso evita deriva silenciosa para versões não testadas. (Exemplo do que isso evita: o transformers 5.3+ mudou o processamento em lote de visão do Qwen3.5 e quebrou o marcador VLM; o `kornia`, exigido pelo BiRefNet, não é trazido pelo transformers e precisa ser fixado.) Regenere após uma atualização intencional: `docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
+- **Versões fixadas.** A imagem é compilada a partir de `requirements.lock.txt` — um `pip freeze` completo de um container validado, com `torch`/`torchvision` e `nvidia-*` removidos (a imagem base CUDA já os fornece). Isso evita deriva silenciosa para versões não testadas. (Exemplo do que isso evita: o transformers 5.3 mudou o processamento em lote de visão do Qwen3.5 e quebrou o marcador VLM até a correção de padding chegar; o `kornia`, exigido pelo BiRefNet, não é trazido pelo transformers e precisa ser fixado.) Regenere após uma atualização intencional: `docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
 - **Agrupamento de rostos em GPU embutido.** O RAPIDS cuML (`cuml-cu12`) vem embutido na imagem, então os perfis de GPU (8gb/16gb/24gb) agrupam rostos na GPU (HDBSCAN via `face_clustering.use_gpu="auto"`); o perfil legacy — e qualquer host sem dispositivo CUDA — sempre agrupa na CPU. O cuML é, de longe, a maior dependência (~5,75 GB; veja o detalhamento de tamanhos abaixo).
 - **Nenhum acoplamento com o host.** Os caches de modelos são volumes nomeados, não montagens do host; o container roda sem privilégios (o entrypoint padrão passa para o usuário `facet`).
 - **Contexto de compilação enxuto.** O `.dockerignore` exclui volumosos apenas locais (`conda/`, conjuntos de dados de exemplo, `*.db`, caches, artefatos de desenvolvimento) — mantenha novos diretórios locais grandes fora do contexto adicionando-os ali.
@@ -465,6 +465,28 @@ Reexecute a exportação e o `rsync` após cada sessão de pontuação para atua
 Um escaneamento, `--recompute-average`, `--upgrade-db` e um treinamento do ranqueador pessoal reescrevem cada um o banco de dados inteiro, então o Facet permite apenas um por vez: cada um toma um arquivo de bloqueio em `<db_dir>/.facet_cache/library.lock`, e um segundo trabalho se recusa a iniciar, nomeando o que já está em execução.
 
 Esse bloqueio é um bloqueio de arquivo do kernel, portanto exclui trabalhos **apenas em uma máquina**. Quando o banco de dados é acessado por SMB/CIFS — por exemplo, uma estação de trabalho Windows pontuando fotos em um compartilhamento de NAS —, cada máquina toma sua própria cópia do bloqueio e nenhuma enxerga a outra. O Facet detecta a montagem e registra um aviso ao tomar o bloqueio, mas não pode impor nada entre máquinas: execute os trabalhos de biblioteca a partir de uma única máquina por vez. NFS entre clientes Linux não é afetado — lá o `flock` vira um bloqueio de registro POSIX arbitrado pelo servidor.
+
+## Armazenamento e rotação do segredo
+
+Um único segredo assina cada sessão de login (JWT) e cada link do porta-retratos digital. **Não** é uma chave de `scoring_config.json`: ele fica em `.facet_secret`, ao lado da configuração, criado com modo `0600` na primeira execução e ignorado pelo git.
+
+Antes era a chave `share_secret` dentro de `scoring_config.json`. Esse arquivo é rastreado pelo git, então o valor gerado na primeira execução foi commitado e publicado — o segredo distribuído por este projeto é público e deve ser considerado comprometido. Na inicialização seguinte, o Facet move qualquer `share_secret` remanescente para o arquivo do segredo, remove a chave da configuração e registra um aviso. Um valor que o próprio Facet publicou é substituído em vez de mantido, o que desconecta todo mundo de propósito.
+
+| Onde | Como |
+|------|------|
+| Padrão | `.facet_secret` ao lado de `scoring_config.json`, modo `0600` |
+| Contêiner / orquestrador | Variável de ambiente `FACET_JWT_SECRET` — lida primeiro, nunca gravada em disco |
+| Rotação | `python database.py --rotate-secret` e depois reinicie o viewer |
+
+No Docker, `/app` é a camada gravável do contêiner: um segredo criado ali se perde quando o contêiner é recriado — a cada atualização de imagem todo mundo é desconectado. Defina `FACET_JWT_SECRET` no `docker-compose.yml`, ou monte o arquivo com `- ./.facet_secret:/app/.facet_secret`.
+
+Faça a rotação sempre que o segredo puder ter sido lido por outra pessoa: uma configuração que já foi commitada, um backup vazado, um administrador que sai. A rotação invalida cada sessão e cada URL assinada do porta-retratos: os usuários entram de novo e os dispositivos de quiosque buscam novos links.
+
+Com `--workers > 1` todos os workers leem o mesmo arquivo, então um JWT assinado por um vale em todos — **assim que esse arquivo existir**. Uma primeira inicialização com `--workers > 1` e ainda sem `.facet_secret` é a exceção: cada worker gera o próprio segredo e apenas um vence a escrita, de modo que uma sessão aberta em um worker é rejeitada pelos outros até o servidor ser reiniciado. Crie o segredo antes da primeira inicialização multi-worker — execute uma vez `python database.py --rotate-secret`, inicie uma vez com `--workers 1`, ou defina `FACET_JWT_SECRET`.
+
+Essa mesma divergência se torna permanente quando o diretório de instalação não é gravável: o servidor registra um erro e funciona com um segredo em memória, então cada sessão morre a cada reinicialização e cada worker assina com uma chave diferente. Defina ali `FACET_JWT_SECRET`.
+
+Inclua o arquivo no backup do banco de dados — restaurar um banco sem ele desconecta todo mundo.
 
 ## Configuração multiusuário
 

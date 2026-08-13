@@ -9,7 +9,7 @@ import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 type CullAction = 'copy_keeps' | 'trash_rejects' | 'move_rejects';
 
@@ -97,7 +97,7 @@ interface CullResponse {
   `,
 })
 export class CullDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);

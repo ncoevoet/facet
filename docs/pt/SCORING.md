@@ -410,6 +410,8 @@ Este é o mesmo fluxo de controles deslizantes no visualizador descrito em
 [Opção A: Pelo Visualizador](#opção-a-pelo-visualizador-recomendado) acima — consulte lá
 para o fluxo completo de salvar/recalcular.
 
+**Suggest Weights** também responde a uma pergunta mais restrita que o portão de validação cruzada acima: o quanto os pesos *atualmente em uso* desta categoria já concordam com suas próprias comparações? Ao clicar, retorna `accuracy_before` — a porcentagem dos pares rotulados dessa categoria (votos A/B, seleção e pares derivados de avaliações) cujo vencedor os pesos em uso preveem corretamente — ao lado de `accuracy_after`, o mesmo número para os pesos sugeridos. Ambos são exibidos lado a lado na aba Sugestões de Pesos e na barra lateral da aba Comparar A/B toda vez que você o executa (`GET /api/comparison/learned_weights`, `optimization/weight_optimizer.py:optimize_weights_direct`). Assim como o portão da CLI, isso exige `min_comparisons_for_optimization` (padrão 30) pares rotulados para essa categoria — abaixo disso, o botão informa a insuficiência em vez de um número.
+
 ## Adicionando Categorias Personalizadas
 
 ```json

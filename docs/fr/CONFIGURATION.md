@@ -37,6 +37,7 @@ Tous les réglages se trouvent dans `scoring_config.json`. Après modification, 
 - [Capsules](#capsules)
 - [Groupes de similarité](#similarity-groups)
 - [Scènes](#scenes)
+- [OCR](#ocr)
 - [Frise chronologique](#timeline)
 - [Carte](#map)
 - [Traduction](#translation)
@@ -793,6 +794,14 @@ une rafale correspond exactement à un bracketing, son `is_burst_lead` est dépl
 de référence, afin que la galerie affiche la photo correctement exposée plutôt que celle qui
 obtient le meilleur score.
 
+La vue de référence est le barreau central de l'échelle. Un nombre pair de vues en compte
+deux à égale distance du centre : la référence est alors celle qui a brûlé le moins
+d'extrémités de son histogramme (`shadow_clipped` / `highlight_clipped`), car la vue mesurée
+tient la scène tandis que les barreaux qui l'encadrent sont poussés assez loin pour écrêter.
+Si aucune des deux n'a été mesurée, ou si elles écrêtent autant l'une que l'autre, la plus
+ancienne l'emporte. Une échelle impaire se centre toujours sur sa vue médiane, quel que soit
+l'écrêtage : une série symétrique `(-2, 0, +2)` n'est donc pas affectée.
+
 Lancé par `--detect-sequences` ; s'exécute aussi à la fin de chaque scan, après le
 regroupement des rafales.
 
@@ -815,10 +824,28 @@ regroupement des rafales.
 | `enabled` | `true` | Désactive entièrement la détection de bracketing |
 | `max_gap_seconds` | `3.0` | Écart maximal entre deux vues consécutives d'une série |
 | `max_hamming` | `10` | Distance pHash tolérée entre les vues (même cadrage) |
-| `min_frames` | `3` | Nombre minimal de vues pour parler de bracketing |
+| `min_frames` | `3` | Nombre minimal de vues pour parler de bracketing. `2` est optionnel — voir la mise en garde ci-dessous |
 | `min_step_stops` | `0.5` | Plus petit écart d'IL considéré comme volontaire |
 | `min_span_stops` | `1.0` | Amplitude minimale entre la vue la plus sombre et la plus claire |
 | `step_tolerance_stops` | `0.34` | Irrégularité tolérée entre les pas (un tiers d'IL) |
+
+**Pourquoi `min_frames` vaut `3` par défaut.** Sur une paire, deux des quatre tests de
+l'échelle ne veulent plus rien dire : un pas unique est trivialement unidirectionnel et
+trivialement régulier. Il ne reste que « deux vues prises à quelques instants d'intervalle,
+au même cadrage, séparées d'au moins un IL » — ce qui décrit tout aussi bien un photographe
+qui corrige son exposition et redéclenche qu'un vrai bracketing à deux vues. Mesuré sur une
+bibliothèque de 124 886 photos, `2` ajoute 381 séries aux 226 trouvées par défaut, et les
+indices disent que la plupart n'en sont pas : 56 % couvrent moins de deux IL là où 99,6 % des
+séries confirmées en couvrent deux ou plus, et leur profil d'écrêtage le plus fréquent est
+« les deux vues sombres » plutôt que l'encadrement ombres/hautes lumières des séries
+confirmées.
+
+Pire, une paire qui est *réellement* ce qui reste d'une série de trois vues se compose de
+deux barreaux voisins qui encadrent la référence, et rien de stocké ne dit de quel côté
+manquait le troisième : le `sequence_ev_offset` `0` se pose alors sur une vue que le boîtier
+n'a jamais mesurée, et `hide_brackets` (actif par défaut) masque l'autre. Ne passez à `2` que
+si vous pratiquez le bracketing à deux vues et préférez assumer ces faux positifs plutôt que
+de manquer ces séries.
 
 ---
 
@@ -920,12 +947,12 @@ Exécutez `python facet.py --detect-duplicates` pour détecter et regrouper les 
 
 ## Niveau IQA étendu (optionnel)
 
-Évaluateurs de qualité lourds/expérimentaux, **désactivés par défaut** et **jamais un remplacement de TOPIQ** — ils n'ajoutent des colonnes supplémentaires que lorsqu'ils sont explicitement activés. Lorsqu'ils sont activés, les évaluateurs étendus s'exécutent **pendant une analyse normale** et écrivent leurs propres colonnes ; une erreur de chargement/VRAM est journalisée et la colonne reste à `NULL` (l'analyse ne s'interrompt jamais).
+Évaluateurs de qualité lourds/expérimentaux qui ajoutent des colonnes supplémentaires ; **jamais un remplacement de TOPIQ**. `qrealign` vaut par défaut `"auto"` — **activé** pour les profils `8gb`/`16gb`/`24gb`, **désactivé** pour `legacy`/CPU — le premier évaluateur du niveau étendu utilisable dès le profil `8gb` (Q-Align, qu'il remplace, n'a jamais tenu sous 16 Go). `aesthetic_v25` et `deqa` restent **désactivés par défaut**. Lorsqu'ils sont activés, les évaluateurs étendus s'exécutent **pendant une analyse normale** et écrivent leurs propres colonnes ; une erreur de chargement/VRAM est journalisée et la colonne reste à `NULL` (l'analyse ne s'interrompt jamais).
 
 ```json
 {
   "iqa_extended": {
-    "qalign": "4bit",
+    "qrealign": "auto",
     "aesthetic_v25": true,
     "deqa": false
   }
@@ -934,15 +961,15 @@ Exécutez `python facet.py --detect-duplicates` pour détecter et regrouper les 
 
 | Réglage | Défaut | Valeurs acceptées | Colonne | Description |
 |---------|--------|-------------------|---------|-------------|
-| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | IQA fondé sur un LLM Q-Align (basé sur pyiqa). `"4bit"` (~6-8 Go VRAM) est le choix pratique sur une carte 16 Go ; `"8bit"` ~12-14 Go ; pleine précision (`true`) requiert 16 Go+. Les modes 4/8 bits nécessitent `bitsandbytes`. |
-| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (tête SigLIP, ~2 Go). Nécessite le paquet `aesthetic-predictor-v2-5`. |
-| `deqa` | `false` | `true` / `false` | `deqa_score` | IQA VLM DeQA-Score (GPU 16 Go+ ; ignoré et laissé à NULL sinon). |
+| `qrealign` | `"auto"` | `"auto"` · `true` · `false` | `qrealign_score` | IQA fondé sur un LLM Q-ReAlign-Mini 0.8B (basé sur pyiqa, poids Apache-2.0, ~2-3 Go VRAM/RAM). `"auto"` l'active pour les profils `8gb`/`16gb`/`24gb` et la désactive pour `legacy`/CPU ; `true`/`false` outrepassent explicitement le défaut du profil. |
+| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (tête SigLIP, ~2 Go). Nécessite le paquet `aesthetic-predictor-v2-5`. **Déprécié :** sous licence AGPL-3.0 et sans maintenance depuis le 2024-12-18 — préférez `qrealign`. |
+| `deqa` | `false` | `true` / `false` | `deqa_score` | IQA VLM DeQA-Score (GPU 16 Go+ ; ignoré et laissé à NULL sinon). |
 
-**Installez les dépendances optionnelles** correspondant à ce que vous activez : `pip install -e .[iqa-extended]` (ajoute `aesthetic-predictor-v2-5` + `bitsandbytes`), ou décommentez les lignes correspondantes dans `requirements.txt`. Q-Align lui-même est livré avec `pyiqa` ; DeQA-Score se télécharge via `transformers`.
+**Installez les dépendances optionnelles** correspondant à ce que vous activez : `pip install -e .[iqa-extended]` (ajoute `aesthetic-predictor-v2-5`), ou décommentez la ligne correspondante dans `requirements.txt`. Q-ReAlign est livré avec `pyiqa` ; DeQA-Score se télécharge via `transformers`.
 
 Lorsqu'elle est activée, chaque métrique est exposée à l'agrégat pondéré mais avec une pondération par défaut de 0, de sorte que `--recompute-average` reste identique au bit près jusqu'à ce que vous lui attribuiez une pondération. Exécutez `python facet.py --eval-iqa-srcc` pour mesurer la qualité du classement de votre photothèque par chaque métrique au regard de vos propres notes en étoiles.
 
-**Affichage dans la visionneuse.** Lorsqu'une de ces colonnes est renseignée, la visionneuse affiche la valeur dans le panneau **Quality** du détail de la photo (`Q-Align`, `Aesthetic V2.5`, `DeQA`) et expose un curseur de plage correspondant dans la barre latérale de filtres de la galerie, sous **Extended Quality** (`min_qalign`/`max_qalign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Les photos analysées avant l'activation du niveau ont simplement `NULL` dans ces colonnes et ne sont pas affectées par les filtres.
+**Affichage dans la visionneuse.** Lorsqu'une de ces colonnes est renseignée, la visionneuse affiche la valeur dans le panneau **Quality** du détail de la photo (`Q-ReAlign`, `Aesthetic V2.5`, `DeQA`) et expose un curseur de plage correspondant dans la barre latérale de filtres de la galerie, sous **Extended Quality** (`min_qrealign`/`max_qrealign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Les photos analysées avant l'activation du niveau ont `NULL` dans ces colonnes, et définir un minimum ou un maximum sur l'un de ces curseurs **les exclut** : un `NULL` ne satisfait jamais une comparaison `>=`/`<=`. Relancez une analyse avant de filtrer sur une métrique fraîchement activée, sinon ces photos disparaîtront silencieusement de la galerie.
 
 **Robustesse.** DeQA-Score charge du code `trust_remote_code` distant dont la signature de forward varie selon les révisions de checkpoint ; son évaluateur est défensif — toute défaillance de prédiction (mauvaise signature, forme de sortie inattendue, OOM) est interceptée et le `deqa_score` de l'image reste à `NULL` au lieu de faire planter l'analyse.
 
@@ -1966,6 +1993,49 @@ Le signal repose sur la **sémantique de la légende** : la légende IA de chaq
 
 **Découvrir un vocabulaire propre à la bibliothèque.** L'ensemble `general` est une valeur par défaut raisonnable, mais vous pouvez proposer un vocabulaire adapté à *votre* bibliothèque avec `python facet.py --discover-moments` : il regroupe les vecteurs `caption_embedding` stockés (HDBSCAN), nomme chaque grappe à partir de ses légendes (un mot-clé plus les légendes les plus proches du centroïde comme prompts prêts à l'emploi), et écrit le résultat sous forme d'un bloc `event_types.discovered` dans `scoring_config.discovered.json`. Examinez-le, copiez `discovered` dans `event_types` ci-dessus, réglez `default_event_type` sur `discovered`, et exécutez `--recompute-moments` pour l'adopter — la découverte propose, elle ne réécrit jamais la configuration active. `--discover-min-cluster-size N` contrôle la granularité (plus petit = plus de moments, plus fins).
 
+## OCR
+
+Recherche de texte dans les photos : lit les mots *à l'intérieur* de vos photos — panneaux de rue, façades de magasins, dossards de course, tranches de livres, diapositives, tableaux blancs, documents scannés — vers `photos.ocr_text`, une colonne de couverture de l'index plein texte `photos_fts`. Une fois renseigné, ce texte est cherchable depuis la barre de recherche de la galerie comme n'importe quelle légende ou étiquette, et `GET /api/search?scope=text` restreint une requête aux seules colonnes porteuses de texte.
+
+**Désactivé par défaut**, et nécessite l'installation d'un moteur :
+
+```bash
+pip install easyocr           # ou : pip install -e .[ocr]
+```
+
+Puis activez-le et lancez la passe :
+
+```json
+{
+  "ocr": {
+    "enabled": false,
+    "languages": ["en", "fr"],
+    "min_confidence": 0.4,
+    "full_resolution": false
+  }
+}
+```
+
+```bash
+python facet.py --detect-text      # uniquement les photos jamais évaluées
+python facet.py --recompute-text   # relit toute la bibliothèque
+```
+
+| Clé | Défaut | Description |
+|-----|--------|-------------|
+| `enabled` | `false` | Interrupteur principal. `--detect-text` refuse de s'exécuter tant que ceci est à `false`, afin que la passe ne soit jamais déclenchée par accident |
+| `languages` | `["en", "fr"]` | Codes de langue transmis au moteur. Les langues à écriture latine se combinent librement ; mélanger les écritures (par ex. `en` + `ja`) est rejeté par easyocr, donc utilisez une seule famille d'écriture par exécution |
+| `min_confidence` | `0.4` | Écarte les détections que le moteur note en dessous de cette valeur (0–1). Augmentez-la si le bruit OCR pollue les résultats de recherche, diminuez-la pour capter un texte faible ou éloigné |
+| `full_resolution` | `false` | Applique l'OCR au fichier original au lieu de la miniature stockée en 640px. Bien plus lent et n'en vaut la peine que pour du texte petit ou éloigné — le 640px résout déjà panneaux, affiches et titres de document. Se rabat sur la miniature lorsque l'original est hors ligne |
+
+**Sémantique des sentinelles.** `ocr_text` vaut `NULL` tant qu'une photo n'a jamais été évaluée, et `''` une fois qu'elle a été lue et jugée sans texte. C'est cette distinction qui permet à `--detect-text` de se limiter aux photos réellement nouvelles au lieu de relire chaque image sans texte à chaque exécution ; `--recompute-text` l'ignore et relit tout. FTS5 indexe `''` comme zéro token, si bien qu'une photo sans texte ne peut jamais correspondre à une requête.
+
+**Pas besoin de `--rebuild-fts`.** `ocr_text` figure dans la liste `UPDATE OF` des déclencheurs de synchronisation FTS, si bien que les écritures de la passe elle-même réindexent chaque ligne au fur et à mesure. `python database.py --rebuild-fts` n'est requis que pour une base créée avant que `ocr_text` ne rejoigne l'index de couverture — `init_database` détecte cet index plus ancien et le recrée pour vous.
+
+**Moteurs.** `easyocr` (Apache-2.0, PyTorch) est le moteur par défaut et réutilise la pile que Facet installe déjà — il n'ajoute pas de second OpenCV et ne fige aucune version de numpy/torch. Ses poids (~113 Mo) se téléchargent depuis les releases GitHub propres au projet au premier lancement. Le binaire `tesseract` plus `pytesseract` fonctionne comme outil externe optionnel alternatif (comme `exiftool`) et est utilisé lorsque easyocr est absent, mais il est réglé pour les pages scannées et lit nettement moins bien le texte de scène. Sans aucun des deux installés, la passe se termine en erreur au lieu d'écrire silencieusement du vide.
+
+**Coût.** Une miniature 640px prend environ 0,4 s sur CPU, si bien qu'une bibliothèque de 50 000 photos représente une nuit de travail CPU — c'est un remplissage rétroactif ponctuel, et les analyses suivantes n'ajoutent que de nouvelles photos. Un GPU est utilisé automatiquement lorsque torch en signale un.
+
 ## Export social
 
 Recadrages sensibles au sujet pour les formats des réseaux sociaux (`GET /api/photo/social_crop`, réservé à l'édition). Chaque préréglage recadre l'original en pleine résolution vers un format cible et le cadre sur le sujet détecté — le plus grand rectangle de ce format tenant dans l'image, centré sur le sujet et borné aux bords. La boîte du sujet suit une chaîne de repli : la boîte de sujet BiRefNet persistée (`photos.subject_bbox`) → l'union des boîtes de visages détectés → un recadrage centré simple. Voir [Visionneuse web — Téléchargement](VIEWER.md#download).
@@ -2218,8 +2288,14 @@ Synchronisation à sens unique des notes en étoiles et favoris Facet vers un se
     "push": {
       "ratings": true,
       "favorites": true,
+      "rejected": false,
       "top_picks_album": "",
       "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
     },
     "timeout_seconds": 30
   }
@@ -2233,8 +2309,12 @@ Synchronisation à sens unique des notes en étoiles et favoris Facet vers un se
 | `path_map` | `[{facet_prefix, immich_prefix}]` | Réécritures de préfixe des chemins Facet vers les valeurs `originalPath` d'Immich ; le premier `facet_prefix` correspondant est remplacé par son `immich_prefix` lors de la résolution d'une ressource |
 | `push.ratings` | `true` | Pousse les notes en étoiles. La politique de compatibilité de version d'Immich est respectée — seul 1–5 est écrit, jamais 0/−1 |
 | `push.favorites` | `true` | Pousse l'indicateur de favori |
+| `push.rejected` | `false` | Pousse `rating: -1` pour les photos rejetées dans Facet. Nécessite `push.ratings` |
 | `push.top_picks_album` | `""` | Nom d'album Immich facultatif qui rassemble les photos poussées au-dessus du seuil de note. Vide = aucun album |
 | `push.top_picks_min_rating` | `4` | Note en étoiles minimale pour qu'une photo soit ajoutée à `top_picks_album` |
+| `webhook.token_env` | `""` | Nom de la variable d'environnement contenant le secret du webhook entrant. Vide (ou variable non définie/vide) désactive le point d'accès — il renvoie 404 |
+| `webhook.header` | `"x-facet-token"` | En-tête dans lequel le workflow Immich envoie le jeton |
+| `webhook.max_pending` | `500` | Plafond de la liste des chemins mémorisés mais non notés, rapportée par la prochaine synchronisation |
 | `timeout_seconds` | `30` | Délai d'expiration REST par requête |
 
 `--immich-sync` honore `--dry-run` (résout chaque ressource mais n'écrit rien) et `--user` (pousse les notes `user_preferences` de cet utilisateur en mode multi-utilisateurs). REST uniquement — Facet ne touche jamais la base de données Immich.
@@ -2337,14 +2417,11 @@ La clé `tagging_model` de chaque profil VRAM (par ex. `qwen3.5-2b`) correspond 
 
 Aucun changement de code nécessaire. Validez la qualité par un contrôle ponctuel côte à côte sur ~30 photos avant de promouvoir en valeur par défaut.
 
-## Secret de partage
+## Secret du serveur
 
-Chaîne hexadécimale de 64 caractères auto-générée pour les jetons de session/partage :
+Le secret qui signe les jetons de session et les liens de cadre photo n'est **pas** une clé de ce fichier. Il réside dans `.facet_secret`, à côté de `scoring_config.json` (mode `0600`, ignoré par git), et est généré au premier lancement.
 
-```json
-{
-  "share_secret": "31a1c944ea5c82b871e61e50e5920daa2d1940b126c395f519088506595fd925"
-}
-```
+- Surcharge : la variable d'environnement `FACET_JWT_SECRET`.
+- Rotation : `python database.py --rotate-secret`.
 
-Générée automatiquement au premier lancement si absente.
+Un `share_secret` hérité d'une ancienne installation est déplacé dans ce fichier au démarrage suivant, puis supprimé de `scoring_config.json`. Voir [Stockage et rotation du secret](DEPLOYMENT.md#stockage-et-rotation-du-secret).

@@ -307,21 +307,16 @@ class ChunkedMultiPassProcessor:
             if supp_model not in models:
                 models.append(supp_model)
 
-        # Optional extended-IQA tier (config-gated OFF by default). Each scorer
-        # writes its own dedicated column (see PYIQA_COLUMN_MAP); they are in the
-        # supplementary set so a load/VRAM failure skips the pass instead of
-        # aborting the scan.
+        # Extended-IQA tier (config-gated: qrealign defaults to "auto" -> on for
+        # every profile but legacy; aesthetic_v25/deqa are OFF by default). Each
+        # scorer writes its own dedicated column (see PYIQA_COLUMN_MAP); they are
+        # in the supplementary set so a load/VRAM failure skips the pass instead
+        # of aborting the scan.
         try:
             ext = self.scorer.config.get_extended_iqa_settings()
         except Exception:
             ext = {}
-        # qalign is normalized to False | 'full' | '8bit' | '4bit' -> model name.
-        qalign_variant = ext.get('qalign')
-        if qalign_variant:
-            qalign_model = {'4bit': 'qalign_4bit', '8bit': 'qalign_8bit'}.get(qalign_variant, 'qalign')
-            if qalign_model not in models:
-                models.append(qalign_model)
-        for ext_model in ('aesthetic_v25', 'deqa'):
+        for ext_model in ('qrealign', 'aesthetic_v25', 'deqa'):
             if ext.get(ext_model) and ext_model not in models:
                 models.append(ext_model)
 
@@ -440,7 +435,7 @@ class ChunkedMultiPassProcessor:
         supplementary.add('saliency')  # BiRefNet is optional (may require HF auth)
         supplementary.add('samp_net')  # SAMP-Net is optional (weights may be unavailable — composition is skipped)
         # Extended-IQA scorers are heavy/experimental — load/VRAM failure skips the pass.
-        supplementary.update(('qalign', 'qalign_8bit', 'qalign_4bit', 'aesthetic_v25', 'deqa'))
+        supplementary.update(('qrealign', 'aesthetic_v25', 'deqa'))
 
         # Run each pass group
         for group_idx, model_group in enumerate(self.pass_groups):
@@ -667,7 +662,7 @@ class ChunkedMultiPassProcessor:
     # PyIQA models list
     PYIQA_MODELS = ['topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
                     'topiq_iaa', 'topiq_nr_face', 'liqe',
-                    'qalign', 'qalign_8bit', 'qalign_4bit', 'aesthetic_v25', 'deqa']
+                    'qrealign', 'aesthetic_v25', 'deqa']
 
     def _run_model_pass(self, model_name: str, model: Any,
                         images: Dict[str, Dict], results: Dict[str, Dict]):
@@ -832,10 +827,8 @@ class ChunkedMultiPassProcessor:
         'topiq_iaa': 'aesthetic_iaa',
         'topiq_nr_face': 'face_quality_iqa',
         'liqe': 'liqe_score',
-        # Optional extended-IQA tier (config-gated OFF by default) -> dedicated columns.
-        'qalign': 'qalign_score',
-        'qalign_8bit': 'qalign_score',
-        'qalign_4bit': 'qalign_score',
+        # Optional extended-IQA tier (config-gated) -> dedicated columns.
+        'qrealign': 'qrealign_score',
         'aesthetic_v25': 'aesthetic_v25',
         'deqa': 'deqa_score',
     }
@@ -975,7 +968,7 @@ class ChunkedMultiPassProcessor:
                 aesthetic_iaa=data.get('aesthetic_iaa'),
                 face_quality_iqa=data.get('face_quality_iqa'),
                 liqe_score=data.get('liqe_score'),
-                qalign_score=data.get('qalign_score'),
+                qrealign_score=data.get('qrealign_score'),
                 aesthetic_v25=data.get('aesthetic_v25'),
                 deqa_score=data.get('deqa_score'),
                 subject_sharpness=data.get('subject_sharpness'),
@@ -1101,7 +1094,7 @@ class ChunkedMultiPassProcessor:
                 'liqe_score': data.get('liqe_score'),
 
                 # Extended IQA tier (config-gated; None unless enabled)
-                'qalign_score': data.get('qalign_score'),
+                'qrealign_score': data.get('qrealign_score'),
                 'aesthetic_v25': data.get('aesthetic_v25'),
                 'deqa_score': data.get('deqa_score'),
 

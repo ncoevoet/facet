@@ -5,7 +5,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ScanService, ScanDirectory } from '../../core/services/scan.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 /**
  * Superadmin-only dialog to pick a configured directory and launch + watch a
@@ -71,7 +71,7 @@ import { I18N } from '../../core/i18n/keys';
   `,
 })
 export class ScanLauncherComponent implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly scan = inject(ScanService);
   private readonly dialogRef = inject(MatDialogRef<ScanLauncherComponent>);
 

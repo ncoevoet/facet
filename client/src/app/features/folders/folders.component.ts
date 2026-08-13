@@ -11,7 +11,7 @@ import { ApiService } from '../../core/services/api.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { buildFolderBreadcrumbs, type FolderItem, type FoldersResponse } from './folders.util';
 
 @Component({
@@ -103,7 +103,7 @@ import { buildFolderBreadcrumbs, type FolderItem, type FoldersResponse } from '.
   `,
 })
 export class FoldersComponent implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);

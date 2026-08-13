@@ -578,8 +578,8 @@ def build_metric_vector(m, cfg, category, weights=None, penalties=None):
             ext = cfg.get_extended_iqa_settings()
         except Exception:
             ext = {}
-        if ext.get('qalign'):
-            result['qalign'] = safe_float(m.get('qalign_score'), 5.0)
+        if ext.get('qrealign'):
+            result['qrealign'] = safe_float(m.get('qrealign_score'), 5.0)
         if ext.get('aesthetic_v25'):
             result['aesthetic_v25'] = safe_float(m.get('aesthetic_v25'), 5.0)
         if ext.get('deqa'):
@@ -599,7 +599,7 @@ def build_scoring_metrics(
     iso, f_stop, shutter_speed=None,
     quality_score=None, scoring_model='clip-mlp',
     topiq_score=None, aesthetic_iaa=None, face_quality_iqa=None, liqe_score=None,
-    qalign_score=None, aesthetic_v25=None, deqa_score=None,
+    qrealign_score=None, aesthetic_v25=None, deqa_score=None,
     subject_sharpness=None, subject_prominence=None,
     subject_placement=None, bg_separation=None,
     form_data=None,
@@ -651,7 +651,7 @@ def build_scoring_metrics(
         'aesthetic_iaa': aesthetic_iaa,
         'face_quality_iqa': face_quality_iqa,
         'liqe_score': liqe_score,
-        'qalign_score': qalign_score,
+        'qrealign_score': qrealign_score,
         'aesthetic_v25': aesthetic_v25,
         'deqa_score': deqa_score,
         'subject_sharpness': subject_sharpness,
@@ -1509,7 +1509,7 @@ class Facet:
                 'noise_sigma', 'mean_saturation', 'power_point_score', 'dynamic_range_stops',
                 'histogram_data', 'topiq_score',
                 'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
-                'qalign_score', 'aesthetic_v25', 'deqa_score',
+                'qrealign_score', 'aesthetic_v25', 'deqa_score',
                 'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
                 'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal', 'color_harmony',
             ]
@@ -2041,16 +2041,17 @@ class Facet:
     def _IQA_MODELS(self):
         """Base IQA models plus any config-enabled extended pyiqa models.
 
-        Q-Align is pyiqa-backed, so when ``iqa_extended.qalign`` is enabled it
-        slots into the same VRAM-aware multi-pass scoring as the base models
-        (writing the qalign_score column). It is OFF by default — full Q-Align
-        wants 16GB+ VRAM. Non-pyiqa extended scorers (Aesthetic V2.5, DeQA) have
-        their own loaders and are not part of this list.
+        Q-ReAlign is pyiqa-backed, so when ``iqa_extended.qrealign`` resolves to
+        enabled it slots into the same VRAM-aware multi-pass scoring as the base
+        models (writing the qrealign_score column). Its default is ``"auto"``,
+        which is on for every profile but legacy — at ~3GB it fits from the 8gb
+        profile up. Non-pyiqa extended scorers (Aesthetic V2.5, DeQA) have their
+        own loaders and are not part of this list.
         """
         models = list(self._BASE_IQA_MODELS)
         try:
-            if self.config.get_extended_iqa_settings().get('qalign'):
-                models.append(('qalign', 'qalign_score'))
+            if self.config.get_extended_iqa_settings().get('qrealign'):
+                models.append(('qrealign', 'qrealign_score'))
         except Exception:
             pass
         return models
@@ -2358,7 +2359,7 @@ class Facet:
             for res, _ in results_with_images:
                 # Optional extended-IQA columns default to NULL for callers/passes
                 # that did not compute them (named-param INSERT needs every key).
-                res.setdefault('qalign_score', None)
+                res.setdefault('qrealign_score', None)
                 res.setdefault('aesthetic_v25', None)
                 res.setdefault('deqa_score', None)
                 res.setdefault('subject_bbox', None)
@@ -2379,7 +2380,7 @@ class Facet:
                         dynamic_range_stops, noise_sigma, contrast_score, tags,
                         quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
                         aesthetic_iaa, face_quality_iqa, liqe_score,
-                        qalign_score, aesthetic_v25, deqa_score,
+                        qrealign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation, subject_bbox,
                         form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
                         gps_latitude, gps_longitude, scanned_at
@@ -2398,7 +2399,7 @@ class Facet:
                         :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
                         :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
                         :aesthetic_iaa, :face_quality_iqa, :liqe_score,
-                        :qalign_score, :aesthetic_v25, :deqa_score,
+                        :qrealign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation, :subject_bbox,
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
                         :gps_latitude, :gps_longitude, datetime('now')

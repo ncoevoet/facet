@@ -47,6 +47,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from typing import NamedTuple
 from xml.etree import ElementTree as ET
 
 
@@ -580,6 +581,50 @@ def build_root_filter(root: str) -> tuple[str, list]:
     return "WHERE path = ? OR path LIKE ? ESCAPE '\\'", [abs_root, like_prefix + "%"]
 
 
+class RatingColumns(NamedTuple):
+    """SQL fragments that select one photo's ratings for an export query.
+
+    ``columns`` is spliced into the SELECT list, ``join`` right after
+    ``FROM photos``, and ``params`` bind the join — so they come BEFORE
+    :func:`build_root_filter`'s own params in the argument list.
+    """
+
+    columns: str
+    join: str
+    params: list
+
+
+def rating_columns(user_id: str | None) -> RatingColumns:
+    """Rating-column SQL for an export, per-user when the install is multi-user.
+
+    In multi-user mode the viewer writes ratings to ``user_preferences`` and
+    leaves ``photos.star_rating`` / ``is_favorite`` / ``is_rejected`` at 0, so an
+    exporter that reads the ``photos`` columns for a named user exports nothing
+    but zeros (CLAUDE.md: ``user_preferences`` holds the per-user ratings, the
+    ``photos`` columns are the single-user/global fallback). Shared by
+    :func:`export_sidecars` and ``facet.py --export-manifest`` so the two
+    exporters cannot drift apart.
+
+    Both branches emit the SAME column ALIASES, so every caller reads
+    ``row["star_rating"]`` / ``["is_favorite"]`` / ``["is_rejected"]`` without
+    knowing which source it got. Without ``user_id`` nothing is imported from
+    ``api.config`` at all, keeping a global export free of the viewer's config
+    (and secret) bootstrap.
+    """
+    if user_id:
+        from api.config import is_multi_user_enabled
+        if is_multi_user_enabled():
+            return RatingColumns(
+                "COALESCE(up.star_rating, 0) AS star_rating, "
+                "COALESCE(up.is_favorite, 0) AS is_favorite, "
+                "COALESCE(up.is_rejected, 0) AS is_rejected",
+                "LEFT JOIN user_preferences up "
+                "ON up.photo_path = photos.path AND up.user_id = ?",
+                [user_id],
+            )
+    return RatingColumns("star_rating, is_favorite, is_rejected", "", [])
+
+
 def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
     """Named face regions for one photo (CLI export; single-user, no visibility)."""
     if not width or not height or int(width) <= 0 or int(height) <= 0:
@@ -610,24 +655,12 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
     RAW is never modified). Returns counts: ``written`` / ``embedded`` /
     ``missing`` (file gone from disk) / ``errors``.
     """
-    from api.config import is_multi_user_enabled
-    if user_id and is_multi_user_enabled():
-        join = "LEFT JOIN user_preferences up ON up.photo_path = photos.path AND up.user_id = ?"
-        star, fav, rej = (
-            "COALESCE(up.star_rating, 0) AS star_rating",
-            "COALESCE(up.is_favorite, 0) AS is_favorite",
-            "COALESCE(up.is_rejected, 0) AS is_rejected",
-        )
-        user_params = [user_id]
-    else:
-        join = ""
-        star, fav, rej = "star_rating", "is_favorite", "is_rejected"
-        user_params = []
+    ratings = rating_columns(user_id)
     where, params = build_root_filter(root) if root else ("", [])
     rows = conn.execute(
-        f"SELECT photos.path AS path, tags, caption, category, {star}, {fav}, {rej}, "
-        f"aggregate, image_width, image_height FROM photos {join} {where}",
-        user_params + params,
+        f"SELECT photos.path AS path, tags, caption, category, {ratings.columns}, "
+        f"aggregate, image_width, image_height FROM photos {ratings.join} {where}",
+        ratings.params + params,
     ).fetchall()
     cfg = dict(xmp_export_cfg or {})
     if derive_stars:

@@ -330,7 +330,7 @@ Der erste Start lädt die Modelle des Profils in die benannten Volumes; setzen S
 
 ### Reproduzierbares, autarkes Image
 
-- **Fixierte Versionen.** Das Image wird aus `requirements.lock.txt` gebaut — einem vollständigen `pip freeze` eines validierten Containers, aus dem `torch`/`torchvision` und `nvidia-*` entfernt wurden (das CUDA-Basis-Image liefert diese bereits). Das verhindert stille Drift zu ungetesteten Releases. (Beispiel, wovor dies schützt: transformers 5.3+ hat das Vision-Batching von Qwen3.5 geändert und den VLM-Tagger kaputtgemacht; `kornia`, von BiRefNet benötigt, wird nicht von transformers mitgezogen und muss fixiert werden.) Nach einem bewussten Upgrade neu erzeugen: `docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
+- **Fixierte Versionen.** Das Image wird aus `requirements.lock.txt` gebaut — einem vollständigen `pip freeze` eines validierten Containers, aus dem `torch`/`torchvision` und `nvidia-*` entfernt wurden (das CUDA-Basis-Image liefert diese bereits). Das verhindert stille Drift zu ungetesteten Releases. (Beispiel, wovor dies schützt: transformers 5.3 hat das Vision-Batching von Qwen3.5 geändert und den VLM-Tagger kaputtgemacht, bis der Padding-Fix landete; `kornia`, von BiRefNet benötigt, wird nicht von transformers mitgezogen und muss fixiert werden.) Nach einem bewussten Upgrade neu erzeugen: `docker compose ... exec facet pip freeze --all | grep -ivE '^(pip|wheel|torch|torchvision|nvidia-|triton)' > requirements.lock.txt`.
 - **GPU-Gesichts-Clusterbildung eingebaut.** RAPIDS cuML (`cuml-cu12`) ist im Image enthalten, sodass die GPU-Profile (8gb/16gb/24gb) Gesichter auf der GPU clustern (HDBSCAN über `face_clustering.use_gpu="auto"`); das legacy-Profil — und jeder Host ohne CUDA-Gerät — clustert immer auf der CPU. cuML ist die mit Abstand größte Abhängigkeit (~5,75 GB; siehe die Größenaufschlüsselung unten).
 - **Keine Host-Kopplung.** Modell-Caches sind benannte Volumes, keine Host-Bind-Mounts; der Container läuft ohne erhöhte Rechte (der Standard-Entrypoint wechselt zum Benutzer `facet`).
 - **Schlanker Build-Kontext.** `.dockerignore` schließt lokalen Bulk-Inhalt aus (`conda/`, Beispieldatensätze, `*.db`, Caches, Entwicklungs-Artefakte) — halten Sie neue große lokale Verzeichnisse aus dem Kontext heraus, indem Sie sie dort ergänzen.
@@ -469,6 +469,28 @@ Führen Sie nach jeder Bewertungssitzung den Export und `rsync` erneut aus, um d
 Ein Scan, `--recompute-average`, `--upgrade-db` und ein Training des persönlichen Rankers schreiben jeweils die gesamte Datenbank neu, daher lässt Facet nur einen davon gleichzeitig zu: Jeder nimmt eine Sperrdatei unter `<db_dir>/.facet_cache/library.lock`, und ein zweiter Auftrag verweigert den Start und nennt den bereits laufenden.
 
 Diese Sperre ist eine Kernel-Dateisperre und schließt Aufträge daher **nur auf einer Maschine** aus. Wenn die Datenbank über SMB/CIFS erreicht wird — etwa eine Windows-Workstation, die Fotos auf einer NAS-Freigabe bewertet —, nimmt jede Maschine ihre eigene Kopie der Sperre und keine sieht die andere. Facet erkennt die Einhängung und protokolliert beim Nehmen der Sperre eine Warnung, kann aber maschinenübergreifend nichts erzwingen: Führen Sie Bibliotheksaufträge immer nur von einer Maschine aus. NFS zwischen Linux-Clients ist nicht betroffen — dort wird `flock` zu einer POSIX-Datensatzsperre, die der Server arbitriert.
+
+## Speicherung und Rotation des Secrets
+
+Ein einziges Secret signiert jede Anmeldesitzung (JWT) und jeden Fotorahmen-Link. Es ist **kein** Schlüssel in `scoring_config.json`: Es liegt in `.facet_secret` neben der Konfiguration, wird beim ersten Start mit Modus `0600` angelegt und von git ignoriert.
+
+Früher war es der Schlüssel `share_secret` in `scoring_config.json`. Diese Datei wird von git verfolgt, sodass der beim ersten Start erzeugte Wert commitet und veröffentlicht wurde — das von diesem Projekt ausgelieferte Secret ist öffentlich und muss als kompromittiert gelten. Beim nächsten Start verschiebt Facet ein übriggebliebenes `share_secret` in die Secret-Datei, entfernt den Schlüssel aus der Konfiguration und protokolliert eine Warnung. Ein Wert, den Facet selbst veröffentlicht hat, wird ersetzt statt übernommen — das meldet absichtlich alle ab.
+
+| Ort | Vorgehen |
+|-----|----------|
+| Standard | `.facet_secret` neben `scoring_config.json`, Modus `0600` |
+| Container / Orchestrator | Umgebungsvariable `FACET_JWT_SECRET` — wird zuerst gelesen, nie auf die Platte geschrieben |
+| Rotation | `python database.py --rotate-secret`, danach den Viewer neu starten |
+
+Unter Docker ist `/app` die beschreibbare Schicht des Containers: Ein dort erzeugtes Secret geht beim Neuerstellen des Containers verloren — bei jedem Image-Update werden alle abgemeldet. Setzen Sie `FACET_JWT_SECRET` in `docker-compose.yml` oder binden Sie die Datei mit `- ./.facet_secret:/app/.facet_secret` ein.
+
+Rotieren Sie, sobald das Secret von jemand anderem gelesen worden sein könnte: eine einmal commitete Konfiguration, ein geleaktes Backup, ein ausscheidender Administrator. Die Rotation entwertet jede Sitzung und jede signierte Rahmen-URL: Benutzer melden sich neu an, Kiosk-Geräte holen sich neue Links.
+
+Mit `--workers > 1` lesen alle Worker dieselbe Datei, sodass ein von einem signiertes JWT in allen gültig ist — **sobald diese Datei existiert**. Ein erster Start mit `--workers > 1` und noch ohne `.facet_secret` ist die Ausnahme: Jeder Worker erzeugt sein eigenes Secret und nur einer gewinnt den Schreibvorgang, sodass eine an einem Worker geöffnete Sitzung von den anderen abgelehnt wird, bis der Server neu gestartet wird. Legen Sie das Secret vor dem ersten Multi-Worker-Start an — führen Sie einmal `python database.py --rotate-secret` aus, starten Sie einmal mit `--workers 1`, oder setzen Sie `FACET_JWT_SECRET`.
+
+Dieselbe Divergenz wird dauerhaft, wenn das Installationsverzeichnis nicht beschreibbar ist: Der Server protokolliert einen Fehler und läuft mit einem Secret im Arbeitsspeicher, sodass jede Sitzung bei jedem Neustart verfällt und jeder Worker mit einem anderen Schlüssel signiert. Setzen Sie dort `FACET_JWT_SECRET`.
+
+Sichern Sie die Datei zusammen mit der Datenbank — eine ohne sie wiederhergestellte Datenbank meldet alle ab.
 
 ## Mehrbenutzer-Einrichtung
 

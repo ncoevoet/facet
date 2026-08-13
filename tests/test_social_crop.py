@@ -95,6 +95,17 @@ class TestComputeCropRect:
         assert rect[3] - rect[1] == 1000
         assert rect[0] < 500  # pulled left of the plain center crop
 
+    @pytest.mark.parametrize("empty", [[1, 1, 1, 1], [0, 0, 0, 0], [0.3, 0.5, 0.3, 0.9]])
+    def test_subject_box_with_no_area_falls_back_to_center(self, empty):
+        """A box clamped from outside the frame collapses to a point on an edge.
+
+        That is what a face box normalised by dimensions from another pixel
+        space becomes; framing on it would pin the crop to a corner with the
+        subject nowhere in it, so it means "no subject" instead.
+        """
+        assert compute_crop_rect(2000, 1000, 1, 1, empty) == compute_crop_rect(
+            2000, 1000, 1, 1, None)
+
     def test_rejects_bad_dimensions(self):
         with pytest.raises(ValueError):
             compute_crop_rect(0, 100, 1, 1)
@@ -167,6 +178,19 @@ def _write_jpeg(tmp_path, name, size=(200, 100)):
     return str(p)
 
 
+def _write_gradient_jpeg(tmp_path, name, size=(200, 100)):
+    """A horizontal gradient, unlike ``_write_jpeg``'s flat black frame -- two
+    different crop offsets of the same source produce different pixel content,
+    so a test can tell a center crop from a corner-pinned one instead of only
+    checking the output's size.
+    """
+    w, h = size
+    gradient = np.tile(np.linspace(0, 255, w, dtype=np.uint8), (h, 1))
+    p = tmp_path / name
+    Image.fromarray(np.stack([gradient] * 3, axis=-1)).save(str(p), "JPEG", quality=100)
+    return str(p)
+
+
 class TestPreview:
     def test_saliency_source(self, edition_client, tmp_path):
         db = _seed(tmp_path, path="/a.jpg", subject_bbox=json.dumps([0.4, 0.3, 0.6, 0.7]))
@@ -197,6 +221,32 @@ class TestPreview:
                                       params={"path": "/a.jpg", "preset": "story_9x16"})
         assert resp.status_code == 200
         assert resp.json()["source"] == "center"
+
+    def test_face_boxes_from_another_frame_fall_back_to_center(self, edition_client, tmp_path):
+        """Thumbnail-sized dimensions with face boxes in original-image pixels.
+
+        Every corner of the face union normalises past 1 and clamps onto the
+        bottom-right corner, which is not a subject. The crop centers instead of
+        framing an empty corner.
+        """
+        db = _seed(tmp_path, path="/a.jpg", subject_bbox=None, width=640, height=427,
+                   faces=[(1200, 900, 1600, 1300)])
+        with mock.patch(f"{_MODULE}.get_db", _db_cm(db)):
+            resp = edition_client.get("/api/photo/social_crop/preview",
+                                      params={"path": "/a.jpg", "preset": "square"})
+        assert resp.status_code == 200
+        rect = resp.json()["rect"]
+        assert rect["x0"] == pytest.approx(1 - rect["x1"], abs=0.002)
+        assert (rect["y0"], rect["y1"]) == (0.0, 1.0)
+
+    def test_missing_dimensions_are_refused(self, edition_client, tmp_path):
+        """A repaired row carries no frame, so the preview declines to guess one."""
+        db = _seed(tmp_path, path="/a.jpg", width=None, height=None,
+                   faces=[(1200, 900, 1600, 1300)])
+        with mock.patch(f"{_MODULE}.get_db", _db_cm(db)):
+            resp = edition_client.get("/api/photo/social_crop/preview",
+                                      params={"path": "/a.jpg", "preset": "square"})
+        assert resp.status_code == 422
 
     def test_bad_preset(self, edition_client, tmp_path):
         db = _seed(tmp_path, path="/a.jpg")
@@ -252,6 +302,35 @@ class TestDownload:
                                       params={"path": disk, "preset": "square"})
         assert resp.status_code == 200
         assert Image.open(io.BytesIO(resp.content)).size == (100, 100)
+
+    def test_face_boxes_from_another_frame_crop_like_no_subject(self, edition_client, tmp_path):
+        """An untrustworthy face box must fall back to the exact same center
+        crop as a photo with no subject at all -- not merely land on a
+        100x100 image, which a corner-pinned crop (the bug this guards
+        against) would produce too.
+        """
+        disk = _write_gradient_jpeg(tmp_path, "g.jpg", size=(200, 100))
+
+        center_dir = tmp_path / "center"
+        center_dir.mkdir()
+        center_db = _seed(center_dir, path=disk, subject_bbox=None, faces=None)
+        with mock.patch(f"{_MODULE}.get_db", _db_cm(center_db)):
+            center_resp = edition_client.get("/api/photo/social_crop",
+                                             params={"path": disk, "preset": "square"})
+        assert center_resp.status_code == 200
+
+        other_frame_dir = tmp_path / "other_frame"
+        other_frame_dir.mkdir()
+        db = _seed(other_frame_dir, path=disk, subject_bbox=None,
+                   width=640, height=427, faces=[(1200, 900, 1600, 1300)])
+        with mock.patch(f"{_MODULE}.get_db", _db_cm(db)):
+            resp = edition_client.get("/api/photo/social_crop",
+                                      params={"path": disk, "preset": "square"})
+        assert resp.status_code == 200
+
+        out = np.array(Image.open(io.BytesIO(resp.content)))
+        expected = np.array(Image.open(io.BytesIO(center_resp.content)))
+        assert np.array_equal(out, expected)
 
     def test_bad_preset_400(self, edition_client, tmp_path):
         disk = _write_jpeg(tmp_path, "d.jpg")

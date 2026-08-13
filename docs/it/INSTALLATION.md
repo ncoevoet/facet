@@ -196,7 +196,7 @@ Ognuno abilita una funzionalità; senza di esso la funzionalità viene saltata o
 | `rawpy` | Decodifica RAW (CR2/CR3/NEF/ARW/…) | I file RAW vengono saltati (già in `requirements.txt` di base) |
 | `cuml`, `cupy` | Clustering dei volti accelerato da GPU (conda + CUDA) | Il clustering viene eseguito su CPU tramite `hdbscan` (predefinito) |
 | `onnxruntime-gpu` | Rilevamento dei volti accelerato da GPU | CPU `onnxruntime` (più lento) |
-| `aesthetic-predictor-v2-5`, `bitsandbytes` | Tier IQA esteso (`pip install -e .[iqa-extended]`; `iqa_extended` in `scoring_config.json`, disattivato per impostazione predefinita) | Metriche IQA estese non disponibili |
+| `aesthetic-predictor-v2-5` | Tier IQA esteso — scorer `aesthetic_v25` (`pip install -e .[iqa-extended]`; `iqa_extended.aesthetic_v25` in `scoring_config.json`, disattivato per impostazione predefinita). **Deprecato** — AGPL-3.0, non mantenuto dal 2024-12-18; preferisci `qrealign`, che non richiede alcun pacchetto aggiuntivo (incluso nella dipendenza di base `pyiqa`) | `aesthetic_v25` non disponibile |
 | `darktable-cli` (sistema) | Esportazione RAW/profili darktable dal viewer | Viene offerto solo il download originale/incorporato |
 | `exiftool` (sistema) | Migliore estrazione EXIF/GPS | Ricorre a `exifread`, poi a PIL |
 

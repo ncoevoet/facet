@@ -10,7 +10,7 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 export interface CategoryOverrideDialogData {
   path: string;
@@ -62,7 +62,7 @@ interface CategoryOption {
   `,
 })
 export class CategoryOverrideDialogComponent implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
