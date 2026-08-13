@@ -1,10 +1,14 @@
 # Sticky, tested-working dependency lock for the Docker image.
-# Generated from a validated 16gb-profile container (transformers 5.2.0 + kornia 0.8.3),
-# which scanned 49 photos with 0 errors (tags + aesthetic + saliency all populated).
-# transformers was since bumped 5.2.0 -> 5.15.0 to pick up the GHSA-29pf-2h5f-8g72 fix;
-# that bump was validated on CPU only (full backend suite, plus batched == single-image
-# tags for Qwen3.5-2B and Qwen3-VL-2B on real photos). A GPU container scan has not been
-# re-run at 5.15.0 — do that before treating this lock as container-validated again.
+# Container-validated at transformers 5.15.0 on 2026-08-13: a 16gb-profile GPU
+# container built from this exact lock scanned 63 photos with 0 errors, and
+# build-tools/verify_scan_db.py passed (embeddings, VLM tags, aesthetic,
+# saliency, faces, moments all populated and in range).
+# Pin discipline learned the hard way: torch 2.6.0 pins sympy==1.13.1 exactly;
+# any drift here makes pip swap the base image's torch/CUDA stack (a stray
+# sympy==1.14.0 pulled in torch 2.13 + CUDA 13 before it was caught).
+# The cuML layer installed AFTER this lock intentionally downgrades
+# numba/llvmlite/pandas/pyarrow — the container's final versions for those four
+# differ from these pins by design; do not "fix" them from a container freeze.
 # torch/torchvision + nvidia-*/triton are intentionally omitted — the CUDA base image
 # (pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime) already provides them.
 # Regenerate: docker compose ... exec facet pip freeze --all | (filter base-image pkgs)
