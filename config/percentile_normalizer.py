@@ -2058,7 +2058,6 @@ class PercentileNormalizer:
         Returns:
             Path to backup file if created, None otherwise
         """
-        import shutil
         from datetime import datetime
 
         if not recommendations:
@@ -2080,10 +2079,20 @@ class PercentileNormalizer:
 
         config_path = config.config_path
 
-        # Create backup
+        # Create backup. shutil.copy2 -- what this used to call -- copies the
+        # MODE too, so every backup landed at the config's own 0664 holding
+        # every users.*.password_hash and, before the migration, share_secret.
+        # The shared primitive is imported here rather than at module scope
+        # because it reaches into api/, whose api.config import resolves the
+        # server secret: at module scope that boot-time side effect would fire
+        # for every `import config`. Importing it BEFORE the copy also means
+        # the eviction that import performs has already left the config, so the
+        # backup below cannot capture a share_secret the file no longer has.
+        from api.config_writes import write_owner_only_backup
+
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_path = f"{config_path}.backup.{timestamp}"
-        shutil.copy2(config_path, backup_path)
+        write_owner_only_backup(config_path, backup_path)
         logger.info("  Backup created: %s", backup_path)
 
         # Load current config

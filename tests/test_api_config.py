@@ -182,14 +182,33 @@ def _isolated_install(tmp_path):
     return install
 
 
-def _run_in_install(install, *args, env_extra=None):
-    """Run ``database.py`` inside an isolated install, with a clean environment."""
+def _install_env(env_extra=None):
+    """A child environment that cannot inherit this shell's secret or path."""
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     env.pop(api_config._SECRET_ENV_VAR, None)
     env.update(env_extra or {})
+    return env
+
+
+def _run_in_install(install, *args, env_extra=None):
+    """Run ``database.py`` inside an isolated install, with a clean environment."""
     return subprocess.run(
         [sys.executable, _ENTRY_POINT, *args],
-        cwd=install, env=env, capture_output=True, text=True,
+        cwd=install, env=_install_env(env_extra), capture_output=True, text=True,
+    )
+
+
+def _run_code_in_install(install, code):
+    """Run ``code`` with the isolated install as ``sys.path[0]``.
+
+    ``-c`` rather than an argv flag for the one command that cannot be driven
+    from argv: ``--add-user`` prompts through ``getpass``, which reads the
+    controlling terminal when there is one — so a plain subprocess would block
+    on the developer's own tty instead of on the pipe.
+    """
+    return subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=install, env=_install_env(), capture_output=True, text=True,
     )
 
 
@@ -744,6 +763,38 @@ class TestSecretEnvOverride:
         assert secret == "env-provided-secret"
         assert _LEGACY_KEY not in isolated_config.read_text()
 
+    def test_a_loose_store_is_still_reported_under_the_override(self, isolated_config,
+                                                                monkeypatch, caplog):
+        """The override is a runtime fact; the file it shadows is a durable one.
+
+        Skipping the READ under ``$FACET_JWT_SECRET`` also skipped the
+        permission check, so a world-readable key sat unreported until the day
+        the variable was not set — a shell without it, an edited unit file, a
+        container run plainly — and it started signing every session again.
+        """
+        api_config._load_and_ensure_secret()
+        os.chmod(api_config.secret_path(), 0o644)
+        monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
+
+        with caplog.at_level("WARNING"):
+            _, secret = api_config._load_and_ensure_secret()
+
+        assert secret == "env-provided-secret"
+        assert _mode_of(api_config.secret_path()) == 0o600
+        assert "readable beyond its owner" in caplog.text
+
+    def test_a_loose_store_is_reported_without_the_override_too(self, isolated_config, caplog):
+        """The other branch: the boot that DOES read the file still warns."""
+        api_config._load_and_ensure_secret()
+        os.chmod(api_config.secret_path(), 0o644)
+
+        with caplog.at_level("WARNING"):
+            _, secret = api_config._load_and_ensure_secret()
+
+        assert secret == Path(api_config.secret_path()).read_text().strip()
+        assert _mode_of(api_config.secret_path()) == 0o600
+        assert "readable beyond its owner" in caplog.text
+
 
 class TestSecretRotation:
     """``python database.py --rotate-secret`` for a deliberate rotation."""
@@ -846,6 +897,25 @@ class TestSecretSignsTokens:
         assert _secret() == Path(api_config.secret_path()).read_text().strip()
 
 
+def _recorded_mkstemp_names(monkeypatch):
+    """Collect the basenames ``api.config`` stages through during a test.
+
+    Both atomic writers name their scratch file themselves precisely so it is
+    covered by .gitignore; capturing the real name keeps those assertions from
+    drifting away from what the primitives actually create.
+    """
+    created = []
+    real_mkstemp = api_config.tempfile.mkstemp
+
+    def _recording_mkstemp(**kwargs):
+        fd, path = real_mkstemp(**kwargs)
+        created.append(os.path.basename(path))
+        return fd, path
+
+    monkeypatch.setattr(api_config.tempfile, "mkstemp", _recording_mkstemp)
+    return created
+
+
 def _tracked_content(revision, name):
     """Content of ``name`` as git holds it at ``revision``, or None if untracked."""
     result = subprocess.run(
@@ -898,19 +968,117 @@ class TestNoSecretInTrackedFiles:
         the repository root. The name is captured from a real write rather than
         hard-coded, so it cannot drift from what the primitive actually creates.
         """
-        created = []
-        real_mkstemp = api_config.tempfile.mkstemp
+        created = _recorded_mkstemp_names(monkeypatch)
 
-        def _recording_mkstemp(**kwargs):
-            fd, path = real_mkstemp(**kwargs)
-            created.append(os.path.basename(path))
-            return fd, path
-
-        monkeypatch.setattr(api_config.tempfile, "mkstemp", _recording_mkstemp)
         api_config._atomic_write_owner_only(str(tmp_path / "target"), "payload")
 
         assert len(created) == 1
         assert _is_gitignored(created[0]), f"{created[0]} is not gitignored"
+
+    def test_the_scratch_file_of_a_config_write_is_gitignored(self, tmp_path, monkeypatch):
+        """F4: the same hole in the OTHER atomic writer.
+
+        ``atomic_write_json`` stages a COMPLETE scoring_config.json — every
+        ``users.*.password_hash``, ``viewer.password`` and, on a not-yet-migrated
+        install, ``share_secret`` — and every weights, priority, scoring-context
+        and panorama write goes through it. Under mkstemp's default
+        ``tmpXXXXXXXX.json`` a SIGKILL before the rename stranded all of that in
+        the repository root under a name ``git add -A`` would have staged.
+        """
+        created = _recorded_mkstemp_names(monkeypatch)
+
+        api_config.atomic_write_json(str(tmp_path / "scoring_config.json"),
+                                     {"users": {"alice": {"password_hash": "x"}}})
+
+        assert len(created) == 1
+        assert _is_gitignored(created[0]), f"{created[0]} is not gitignored"
+
+
+_ADD_USER_SCRIPT = (
+    "from unittest import mock\n"
+    "import database\n"
+    "with mock.patch('getpass.getpass', return_value='pw'):\n"
+    "    database.add_user('alice', 'admin')\n"
+)
+
+
+class TestAddUserDoesNotResurrectTheSecret:
+    """F1 (round 4): ``database.py --add-user`` re-published the evicted key.
+
+    The command reads scoring_config.json RAW — on an install that has never
+    booted the viewer, that dict still carries ``share_secret`` — and only
+    then does ``_save_config`` import ``api.config_writes``, whose
+    ``api.config`` import is what evicts the key and rewrites the file without
+    it. The write that followed dumped the STALE dict, secret included,
+    straight back into the tracked file: the migration ran and was undone by
+    its own caller one line later, leaving the key exactly where the next
+    ``git add`` would publish it.
+
+    Driven in a subprocess because the eviction happens at IMPORT of
+    api.config, against a path derived from that module's own ``__file__``:
+    in-process it would rewrite this developer's checkout instead.
+    """
+
+    def _install_with_legacy_secret(self, tmp_path):
+        """An install in the exact state F1 needs: key in the config, no store.
+
+        The isolation probe boots ``api.config`` itself, which mints a store of
+        its own — and a store that already exists WINS over the config key, so
+        leaving it there would quietly test a different (already-migrated)
+        install than the one the finding is about.
+        """
+        install = _isolated_install(tmp_path)
+        _assert_isolated(install)
+        (install / api_config._SECRET_FILENAME).unlink(missing_ok=True)
+        _write_config(install / "scoring_config.json", {_LEGACY_KEY: "a" * 64})
+        return install
+
+    def test_the_added_user_lands_and_the_secret_does_not(self, tmp_path):
+        install = self._install_with_legacy_secret(tmp_path)
+        untouched = _repo_secret_snapshot()
+
+        result = _run_code_in_install(install, _ADD_USER_SCRIPT)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        config_text = (install / "scoring_config.json").read_text()
+        saved = json.loads(config_text)
+        assert saved["users"]["alice"]["role"] == "admin"
+        assert saved["users"]["alice"]["password_hash"]
+        assert _LEGACY_KEY not in saved
+        assert "a" * 64 not in config_text
+        assert _repo_secret_snapshot() == untouched, "the child escaped its install"
+
+    def test_the_evicted_secret_is_moved_rather_than_destroyed(self, tmp_path):
+        """Dropping the key must not lose it.
+
+        The same import that removes it from the config is what persists it to
+        the 0600 store, so a private install keeps every logged-in session
+        across this command.
+        """
+        install = self._install_with_legacy_secret(tmp_path)
+
+        result = _run_code_in_install(install, _ADD_USER_SCRIPT)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        store = install / api_config._SECRET_FILENAME
+        assert store.read_text().strip() == "a" * 64
+        assert _mode_of(store) == 0o600
+
+    def test_no_backup_it_leaves_behind_carries_the_secret(self, tmp_path):
+        """Both backups this command produces — the migration's bare
+        ``.backup`` and ``_save_config``'s timestamped one — are written after
+        the eviction, so neither becomes the leak's second home, and both are
+        owner-only because they hold the password hash just created."""
+        install = self._install_with_legacy_secret(tmp_path)
+
+        result = _run_code_in_install(install, _ADD_USER_SCRIPT)
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        backups = sorted(install.glob("scoring_config.json.backup*"))
+        assert backups, "the command must leave a recovery point"
+        for backup in backups:
+            assert "a" * 64 not in backup.read_text(), f"{backup.name} carries the secret"
+            assert _mode_of(backup) == 0o600
 
 
 class TestExistingConfigBackupsAreTightened:

@@ -23,6 +23,15 @@ CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
 _TEMP_CONFIG_SUFFIX = '.json'
+
+# Scratch name every config replacement stages under. Dotted and gitignored
+# for the same reason :data:`_OWNER_ONLY_TMP_PREFIX` is: mkstemp's default
+# `tmpXXXXXXXX` matched no ignore rule, and this staging copy is a COMPLETE
+# scoring_config.json — every ``users.*.password_hash``, ``viewer.password``
+# and, on a not-yet-migrated install, ``share_secret``. A SIGKILL between the
+# write and the rename left all of it in the repository root under a stageable
+# name.
+_TEMP_CONFIG_PREFIX = '.scoring_config.tmp'
 _WORLD_READ_WRITE_MODE = 0o666
 _config_load_failed = False
 
@@ -124,10 +133,16 @@ def atomic_write_json(path, data):
 
     Note the mode preservation makes this the WRONG primitive for a secret —
     see :func:`_atomic_write_owner_only`, which forces 0600 instead.
+
+    The scratch file is named after :data:`_TEMP_CONFIG_PREFIX` rather than
+    left to mkstemp's default, so a crash before the rename leaves an IGNORED
+    name behind: the staging copy is the whole config, password hashes
+    included.
     """
     directory = os.path.dirname(path) or '.'
     mode = _replacement_mode(path)
-    fd, tmp_path = tempfile.mkstemp(dir=directory, suffix=_TEMP_CONFIG_SUFFIX)
+    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=_TEMP_CONFIG_PREFIX,
+                                    suffix=_TEMP_CONFIG_SUFFIX)
     try:
         with os.fdopen(fd, 'w') as f:
             json.dump(data, f, indent=2)
@@ -196,6 +211,10 @@ def _warn_if_readable_by_others(path):
     The bootstrap creates it 0600, so loose bits mean it was copied by a
     deploy script, restored from a backup, or unpacked from an archive — all
     cases where the operator should know the key was briefly exposed.
+
+    A path that is not there is a no-op: :func:`_load_and_ensure_secret` calls
+    this under the environment override without knowing whether a store exists
+    at all.
     """
     try:
         mode = stat.S_IMODE(os.stat(path).st_mode)
@@ -509,14 +528,22 @@ def _load_and_ensure_secret():
     burned config key, because there the operator inherited the value rather
     than chose it.
 
-    The file store is not touched AT ALL once the environment supplied a
-    usable secret. Reading it can raise — an existing-but-unreadable file must
-    never be replaced (:func:`_read_secret_file`) — and that refusal advises
-    setting exactly this variable, so an operator who followed the advice
-    still could not boot, and ``database.py --rotate-secret`` died at import of
-    this module before it could even report the same thing. Under the override
-    the stored value is unused, so the read is skipped rather than made
-    non-fatal: with no override, an unreadable file still refuses, unchanged.
+    The file store is not READ once the environment supplied a usable secret.
+    Reading it can raise — an existing-but-unreadable file must never be
+    replaced (:func:`_read_secret_file`) — and that refusal advises setting
+    exactly this variable, so an operator who followed the advice still could
+    not boot, and ``database.py --rotate-secret`` died at import of this module
+    before it could even report the same thing. Under the override the stored
+    value is unused, so the read is skipped rather than made non-fatal: with no
+    override, an unreadable file still refuses, unchanged.
+
+    Its PERMISSIONS are still checked, though, because the override is a
+    runtime fact and the file is a durable one: the moment the variable is
+    unset — a shell without it, a unit file edited, a container run plainly —
+    that same file becomes the live signing key. A loose mode on it is
+    therefore reported and tightened whether or not this particular boot reads
+    it; skipping the check under the override would have let a world-readable
+    key sit silently until the day it started signing sessions.
 
     The secret is persisted rather than kept in memory: with ``--workers>1``
     each process runs this independently, and an in-memory-only secret would
@@ -539,7 +566,11 @@ def _load_and_ensure_secret():
             "Generate a replacement (`python -c \"import secrets; "
             "print(secrets.token_hex(32))\"`) and set that instead."
         )
-    stored = '' if env_secret else _read_secret_file()
+    stored = ''
+    if env_secret:
+        _warn_if_readable_by_others(secret_path())
+    else:
+        stored = _read_secret_file()
     if stored and _is_burned(stored):
         logger.warning(
             "%s holds a secret this project PUBLISHED in its public git history — "

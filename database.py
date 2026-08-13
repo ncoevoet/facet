@@ -51,16 +51,52 @@ from db import (
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
 
+# The server secret this CLI must never carry back into the tracked config.
+# ``api.config`` evicts it into ``.facet_secret`` on the first import of that
+# module, which here happens INSIDE :func:`_save_config` — so a dict read
+# before that import still holds the key even though the file no longer does.
+_LEGACY_SECRET_KEY = 'share_secret'
+
 
 def _load_config():
-    """Load scoring_config.json."""
+    """Load scoring_config.json, minus the legacy server secret.
+
+    The key is dropped on the way in as well as on the way out
+    (:func:`_save_config`) so that no code path in between can carry it: this
+    module's config round-trip is read-whole / write-whole, and a single caller
+    that forwarded the dict it was handed would republish the secret into a
+    git-tracked file.
+    """
     with open(CONFIG_PATH) as f:
-        return json.load(f)
+        config = json.load(f)
+    config.pop(_LEGACY_SECRET_KEY, None)
+    return config
 
 
 def _save_config(config):
-    """Write scoring_config.json (creates a 0600 timestamped backup first)."""
+    """Write scoring_config.json (creates a 0600 timestamped backup first).
+
+    Importing ``api.config_writes`` pulls in ``api.config``, whose import
+    resolves the server secret — which for a not-yet-booted install means
+    migrating ``share_secret`` out of scoring_config.json into
+    ``.facet_secret`` and rewriting the file WITHOUT it. Everything after that
+    import therefore works against a config the key has already left, which is
+    why the import comes first: the backup below copies the post-eviction file
+    rather than a copy of the secret.
+
+    ``config`` is stripped of the key regardless, because it was read before
+    that eviction ran and ``json.dump`` would otherwise write the stale dict —
+    secret included — straight back into the tracked file, undoing the
+    migration that had just happened one line above. The value is not lost:
+    the same import is what persisted it to ``.facet_secret``.
+
+    The backup goes through the shared owner-only primitive rather than
+    ``shutil.copy2``, which copies the config's own mode (0664 under a default
+    umask) onto a file holding every ``users.*.password_hash`` this command
+    just wrote.
+    """
     from api.config_writes import write_owner_only_backup
+    config.pop(_LEGACY_SECRET_KEY, None)
     backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     write_owner_only_backup(CONFIG_PATH, backup_path)
     logger.info("Backup saved to %s", backup_path)

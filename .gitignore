@@ -45,6 +45,11 @@ scoring_config.json.backup.*
 # behind, and under mkstemp's default name it was stageable.
 .facet_secret*
 
+# Scratch file every scoring_config.json replacement stages through. It is a
+# COMPLETE copy of the config — password hashes included — so a crash between
+# the write and the rename must not leave a stageable name behind.
+.scoring_config.tmp*
+
 # Claude Code
 .claude/todos.md
 .claude/snapshot*.txt

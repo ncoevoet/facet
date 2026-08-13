@@ -17,10 +17,12 @@ from fastapi import HTTPException
 from api.auth import _is_hashed, upgrade_legacy_password
 from api.config import CONFIG_WRITE_LOCK, atomic_write_json
 from api.config_writes import (
+    BACKUP_FILE_MODE,
     MAX_CONFIG_BACKUPS,
     update_category_priorities,
     update_category_weights,
     update_scoring_context,
+    write_owner_only_backup,
 )
 from config.scoring_config import ScoringConfig
 
@@ -38,6 +40,104 @@ def config_copy(tmp_path):
 def _non_default_names(config_path):
     cfg = ScoringConfig(str(config_path), validate=False)
     return [c["name"] for c in cfg.get_categories() if c["name"] != "default"]
+
+
+def _mode_of(path):
+    return stat.S_IMODE(os.stat(path).st_mode)
+
+
+_GROUP_WRITABLE_MODE = 0o664
+_SENSITIVE_CONFIG = '{"viewer": {"password": "plaintext-pw"}, "share_secret": "aaaa"}'
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX permission bits do not apply on Windows")
+class TestOwnerOnlyBackupPrimitive:
+    """H2/H3: a config backup carries every secret scoring_config.json does.
+
+    ``shutil.copy2`` — what every backup writer here and in ``api.auth`` used
+    to call — copies the MODE along with the bytes, so each one landed at the
+    config's own 0664 holding ``share_secret``, ``users.*.password_hash`` and,
+    for the password upgrade, the plaintext password just typed. Unlike the
+    config itself, whose group read bit a co-deployed CLI needs, a backup has
+    no reader but its owner.
+    """
+
+    def _sensitive_source(self, tmp_path):
+        source = tmp_path / "scoring_config.json"
+        source.write_text(_SENSITIVE_CONFIG)
+        os.chmod(source, _GROUP_WRITABLE_MODE)
+        return source
+
+    def test_the_backup_is_owner_only_whatever_the_source_mode(self, tmp_path):
+        source = self._sensitive_source(tmp_path)
+
+        backup = write_owner_only_backup(source, tmp_path / "scoring_config.json.backup")
+
+        assert _mode_of(backup) == BACKUP_FILE_MODE
+        assert Path(backup).read_text() == _SENSITIVE_CONFIG
+
+    def test_the_source_mode_is_left_alone(self, tmp_path):
+        """Only the copy is restricted: the config keeps whatever it had."""
+        source = self._sensitive_source(tmp_path)
+
+        write_owner_only_backup(source, tmp_path / "scoring_config.json.backup")
+
+        assert _mode_of(source) == _GROUP_WRITABLE_MODE
+
+    def test_the_destination_is_created_owner_only(self, tmp_path):
+        """Created at 0600, not created-then-chmodded: an ``os.open`` mode
+        argument leaves no window, a following ``chmod`` does."""
+        source = self._sensitive_source(tmp_path)
+        backup_path = tmp_path / "scoring_config.json.backup"
+        creations = []
+        real_open = os.open
+
+        def _recording_open(path, flags, mode=0o777, **kwargs):
+            if str(path) == str(backup_path):
+                creations.append(mode)
+            return real_open(path, flags, mode, **kwargs)
+
+        with mock.patch("api.config_writes.os.open", _recording_open):
+            write_owner_only_backup(source, backup_path)
+
+        assert creations == [BACKUP_FILE_MODE]
+
+    def test_a_reused_backup_name_is_tightened_before_it_holds_anything(self, tmp_path):
+        """The creation mode does nothing when the name already exists.
+
+        Every install that ran an older Facet has exactly that: a
+        ``scoring_config.json.backup`` sitting at 0664. The bytes must not land
+        in it at that mode and be tightened afterwards, so the mode is asserted
+        at the moment the first byte is written — the window a plain ``chmod``
+        after the copy leaves open.
+        """
+        source = self._sensitive_source(tmp_path)
+        backup_path = tmp_path / "scoring_config.json.backup"
+        backup_path.write_text("stale")
+        os.chmod(backup_path, _GROUP_WRITABLE_MODE)
+        modes_while_writing = []
+        real_copyfileobj = shutil.copyfileobj
+
+        def _recording_copyfileobj(source_file, destination_file, *args, **kwargs):
+            modes_while_writing.append(_mode_of(backup_path))
+            return real_copyfileobj(source_file, destination_file, *args, **kwargs)
+
+        with mock.patch("api.config_writes.shutil.copyfileobj", _recording_copyfileobj):
+            write_owner_only_backup(source, backup_path)
+
+        assert modes_while_writing == [BACKUP_FILE_MODE]
+        assert _mode_of(backup_path) == BACKUP_FILE_MODE
+        assert backup_path.read_text() == _SENSITIVE_CONFIG
+
+    def test_timestamped_backups_of_a_real_write_are_owner_only(self, config_copy):
+        """The end-to-end shape: this checkout accumulated nine 0664 backups
+        holding a 64-character ``share_secret`` this way."""
+        os.chmod(config_copy, _GROUP_WRITABLE_MODE)
+
+        backup_path = update_scoring_context(config_copy, "action_stage", ["wildlife"], [])
+
+        assert _mode_of(backup_path) == BACKUP_FILE_MODE
+        assert _mode_of(config_copy) == _GROUP_WRITABLE_MODE
 
 
 class TestUpdateCategoryPriorities:

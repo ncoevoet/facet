@@ -22,6 +22,7 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -329,6 +330,109 @@ class TestDatabaseCli:
         args = argparse.Namespace(rotate_secret=True, dry_run=False)
         assert not database_module._is_default_init(args)
         assert database_module._hold_library_lock(args) is None
+
+
+# ---------------------------------------------------------------------------
+# database.py — the scoring_config.json round-trip behind --add-user
+# ---------------------------------------------------------------------------
+
+_LEGACY_SECRET_KEY = 'share_secret'
+_A_SECRET = 'a' * 64
+_GROUP_READABLE_MODE = 0o664
+_OWNER_ONLY_MODE = 0o600
+
+
+def _mode_of(path):
+    return stat.S_IMODE(os.stat(path).st_mode)
+
+
+@pytest.fixture()
+def temp_config(tmp_path, monkeypatch):
+    """Point database.py's config round-trip at a throwaway file.
+
+    In-process rather than through a subprocess so the round-trip itself is
+    under test: ``--add-user`` against this checkout would rewrite the
+    developer's own scoring_config.json, and the end-to-end shape (where the
+    ``api.config`` import evicts the key from the very file being written)
+    is covered against an isolated install in
+    tests/test_api_config.py::TestAddUserDoesNotResurrectTheSecret.
+    """
+    import database as database_module
+
+    config_path = tmp_path / 'scoring_config.json'
+    config_path.write_text(json.dumps({
+        _LEGACY_SECRET_KEY: _A_SECRET,
+        'users': {'shared_directories': []},
+    }))
+    os.chmod(config_path, _GROUP_READABLE_MODE)
+    monkeypatch.setattr(database_module, 'CONFIG_PATH', str(config_path))
+    return config_path
+
+
+class TestConfigRoundTrip:
+    """F1: the CLI's read-whole / write-whole config round-trip must not carry
+    the server secret back into the git-tracked config.
+
+    ``_save_config`` imports ``api.config_writes``, and that import resolves
+    the server secret — migrating ``share_secret`` out of scoring_config.json
+    and rewriting the file without it. The dict being saved was read BEFORE
+    that happened, so writing it verbatim put the key straight back, undoing
+    the migration one line after it ran and re-publishing the secret into a
+    tracked file. The key is dropped on both sides of the round-trip so no
+    caller in between can reintroduce it.
+    """
+
+    def test_load_drops_the_legacy_server_secret(self, temp_config):
+        import database as database_module
+
+        assert _LEGACY_SECRET_KEY in json.loads(temp_config.read_text())
+
+        config = database_module._load_config()
+
+        assert _LEGACY_SECRET_KEY not in config
+
+    def test_save_never_writes_the_legacy_server_secret_back(self, temp_config):
+        """The half a caller could otherwise reintroduce: a dict read from
+        somewhere else, or built by hand, still must not republish the key."""
+        import database as database_module
+
+        database_module._save_config({
+            _LEGACY_SECRET_KEY: _A_SECRET,
+            'users': {'shared_directories': []},
+        })
+
+        assert _LEGACY_SECRET_KEY not in json.loads(temp_config.read_text())
+        assert _A_SECRET not in temp_config.read_text()
+
+    def test_add_user_writes_the_user_and_no_secret(self, temp_config):
+        from unittest import mock
+
+        import database as database_module
+
+        with mock.patch('getpass.getpass', return_value='pw'):
+            database_module.add_user('alice', 'admin', display_name='Alice')
+
+        saved = json.loads(temp_config.read_text())
+        assert saved['users']['alice']['role'] == 'admin'
+        assert saved['users']['alice']['password_hash']
+        assert _LEGACY_SECRET_KEY not in saved
+        assert _A_SECRET not in temp_config.read_text()
+
+    def test_save_backs_the_config_up_owner_only(self, temp_config):
+        """The backup holds every ``users.*.password_hash`` just written.
+
+        ``shutil.copy2`` copies the MODE along with the bytes, so a backup of
+        a 0664 config landed 0664 — readable by every local account. The
+        shared owner-only primitive is what makes this 0600.
+        """
+        import database as database_module
+
+        database_module._save_config({'users': {'shared_directories': []}})
+
+        backups = sorted(temp_config.parent.glob('scoring_config.json.backup.*'))
+        assert len(backups) == 1
+        assert _mode_of(backups[0]) == _OWNER_ONLY_MODE
+        assert _mode_of(temp_config) == _GROUP_READABLE_MODE, "the config's own mode is not the backup's"
 
 
 # ---------------------------------------------------------------------------
