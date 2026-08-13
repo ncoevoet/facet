@@ -341,6 +341,11 @@ _A_SECRET = 'a' * 64
 _GROUP_READABLE_MODE = 0o664
 _OWNER_ONLY_MODE = 0o600
 
+# os.chmod on Windows can only toggle the read-only attribute -- any mode
+# with a write bit set (0o600, 0o664, ...) collapses to 0o666 on NTFS, so
+# assertions comparing st_mode to a specific POSIX mode cannot pass there.
+_WIN32_PERMS_REASON = "POSIX permission semantics"
+
 
 def _mode_of(path):
     return stat.S_IMODE(os.stat(path).st_mode)
@@ -418,6 +423,7 @@ class TestConfigRoundTrip:
         assert _LEGACY_SECRET_KEY not in saved
         assert _A_SECRET not in temp_config.read_text()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_save_backs_the_config_up_owner_only(self, temp_config):
         """The backup holds every ``users.*.password_hash`` just written.
 
@@ -505,25 +511,47 @@ class TestExportManifestCli:
     fixed path.
     """
 
+    @staticmethod
+    def _manifest_paths(tmp_path):
+        """The three seeded photo paths, built from ``tmp_path`` rather than
+        hardcoded POSIX literals like ``/library/a/keep.jpg``.
+
+        ``--export-manifest``'s root scoping goes through
+        ``build_root_filter``, which normalises the scope argument with
+        ``os.path.abspath`` (separators, and a drive-letter rewrite on
+        Windows). A literal ``/library/a`` collides with that rewrite: on
+        Windows it becomes ``D:\\library\\a`` while the seeded rows keep the
+        literal forward-slash string, so the prefix match misses everything.
+        Real absolute paths under ``tmp_path`` are already in the form
+        ``os.path.abspath`` normalises to, on every platform -- the same fix
+        applied to the map_disk_path boundary tests in 8c8815b.
+        """
+        return (
+            str(tmp_path / 'library' / 'a' / 'keep.jpg'),
+            str(tmp_path / 'library' / 'a' / 'reject.jpg'),
+            str(tmp_path / 'library' / 'b' / 'other.jpg'),
+        )
+
     def _seed_manifest_db(self, tmp_path):
         db_path = tmp_path / 'manifest.db'
         result = _run(DATABASE, '--db', str(db_path))
         assert result.returncode == 0, result.stderr
+        keep, reject, other = self._manifest_paths(tmp_path)
         conn = sqlite3.connect(db_path)
         conn.execute(
             "INSERT INTO photos(path, filename, aggregate, category, star_rating, "
             "is_favorite, is_rejected, is_burst_lead) VALUES "
-            "('/library/a/keep.jpg', 'keep.jpg', 8.5, 'portrait', 4, 1, 0, 0)"
+            "(?, 'keep.jpg', 8.5, 'portrait', 4, 1, 0, 0)", (keep,)
         )
         conn.execute(
             "INSERT INTO photos(path, filename, aggregate, category, star_rating, "
             "is_favorite, is_rejected, is_burst_lead) VALUES "
-            "('/library/a/reject.jpg', 'reject.jpg', 3.0, 'default', 0, 0, 1, 1)"
+            "(?, 'reject.jpg', 3.0, 'default', 0, 0, 1, 1)", (reject,)
         )
         conn.execute(
             "INSERT INTO photos(path, filename, aggregate, category, star_rating, "
             "is_favorite, is_rejected, is_burst_lead) VALUES "
-            "('/library/b/other.jpg', 'other.jpg', 7.0, 'landscape', 3, 0, 0, 0)"
+            "(?, 'other.jpg', 7.0, 'landscape', 3, 0, 0, 0)", (other,)
         )
         conn.commit()
         conn.close()
@@ -531,7 +559,9 @@ class TestExportManifestCli:
 
     def test_scoped_export_is_compact_with_rating_columns_and_version(self, tmp_path):
         db = self._seed_manifest_db(tmp_path)
-        result = _run(FACET, '--db', db, '--export-manifest', '/library/a', cwd=str(tmp_path))
+        keep, reject, other = self._manifest_paths(tmp_path)
+        scope = str(tmp_path / 'library' / 'a')
+        result = _run(FACET, '--db', db, '--export-manifest', scope, cwd=str(tmp_path))
         assert result.returncode == 0, result.stderr
 
         out_path = tmp_path / 'facet_manifest.json'
@@ -543,17 +573,17 @@ class TestExportManifestCli:
         assert data['version'] == 1
         assert data['generated_at']
         photos = {p['path']: p for p in data['photos']}
-        # /library/b/other.jpg is out of the /library/a scope.
-        assert set(photos) == {'/library/a/keep.jpg', '/library/a/reject.jpg'}
+        # other.jpg (library/b) is out of the library/a scope.
+        assert set(photos) == {keep, reject}
 
-        keep = photos['/library/a/keep.jpg']
-        assert keep['star_rating'] == 4
-        assert keep['is_favorite'] is True
-        assert keep['is_rejected'] is False
-        assert keep['is_burst_lead'] is False
-        assert keep['scores']['aggregate'] == 8.5
+        keep_photo = photos[keep]
+        assert keep_photo['star_rating'] == 4
+        assert keep_photo['is_favorite'] is True
+        assert keep_photo['is_rejected'] is False
+        assert keep_photo['is_burst_lead'] is False
+        assert keep_photo['scores']['aggregate'] == 8.5
 
-        rejected = photos['/library/a/reject.jpg']
+        rejected = photos[reject]
         assert rejected['star_rating'] == 0
         assert rejected['is_favorite'] is False
         assert rejected['is_rejected'] is True
@@ -561,12 +591,11 @@ class TestExportManifestCli:
 
     def test_bare_flag_exports_whole_library(self, tmp_path):
         db = self._seed_manifest_db(tmp_path)
+        keep, reject, other = self._manifest_paths(tmp_path)
         result = _run(FACET, '--db', db, '--export-manifest', cwd=str(tmp_path))
         assert result.returncode == 0, result.stderr
         data = json.loads((tmp_path / 'facet_manifest.json').read_text())
-        assert {p['path'] for p in data['photos']} == {
-            '/library/a/keep.jpg', '/library/a/reject.jpg', '/library/b/other.jpg',
-        }
+        assert {p['path'] for p in data['photos']} == {keep, reject, other}
 
 
 # ---------------------------------------------------------------------------
