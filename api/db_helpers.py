@@ -319,6 +319,10 @@ PHOTO_OPTIONAL_COLS = [
     'narrative_moment', 'narrative_moment_confidence',
     'junk_kind',
     'sequence_group_id', 'sequence_kind', 'sequence_ev_offset',
+    # Fallback shape for a row whose fabricated pixel dimensions were cleared;
+    # NULL whenever image_width/image_height are real. Optional so a library
+    # that has not run the migration yet still serves the gallery.
+    'image_aspect',
 ]
 
 # A photo's manual sequence correction, flattened to one value: 'suppressed'
@@ -925,8 +929,37 @@ def is_access_controlled_install():
             or bool(VIEWER_CONFIG.get('password', '')))
 
 
+# The visibility fragment that matches nothing. Named so a caller can test for
+# it instead of repeating the literal, and so the two places that produce it
+# (an unidentified caller on an access-controlled install; a user scoped to no
+# directory) can never drift apart from the places that check for it.
+NO_VISIBILITY_SQL = '0=1'
+
+
+def scope_cache_key(prefix, *parts):
+    """Fixed-width ``stats_cache`` key for a request scope.
+
+    The scoped aggregates cache per (album, date window, user); folding those
+    values into the key verbatim let an anonymous caller on a large-enough
+    install write an unbounded number of unbounded-length rows, one per URL it
+    invented. Hashing bounds both: any scope becomes ``prefix_<64 hex>``.
+
+    ``prefix`` stays in the clear because the invalidation paths delete by it
+    (``DELETE FROM stats_cache WHERE key LIKE 'scenes_%'``). Parts are joined on
+    the unit separator, which cannot occur in an album id, an EXIF timestamp or
+    a user id, and ``None`` is encoded distinctly from ``''`` so an absent bound
+    and an empty one never collide.
+    """
+    raw = '\x1f'.join('\x00' if part is None else str(part) for part in parts)
+    return f"{prefix}_{hashlib.sha256(raw.encode('utf-8')).hexdigest()}"
+
+
 def get_visibility_clause(user_id, table_alias='photos'):
     """Returns (sql_fragment, params) for photo visibility in multi-user mode.
+
+    Returns ``NO_VISIBILITY_SQL`` when the caller may see nothing at all, which
+    a caller can compare against to skip work it would otherwise do for an empty
+    result set — see ``_shoot_type_evidence``.
 
     Args:
         user_id: The current user ID (or None).
@@ -937,7 +970,7 @@ def get_visibility_clause(user_id, table_alias='photos'):
         # single-user viewer password — an unauthenticated request must see
         # nothing; only a fully open single-user install is world-readable.
         if is_access_controlled_install():
-            return '0=1', []
+            return NO_VISIBILITY_SQL, []
         return '1=1', []
 
     if not is_multi_user_enabled():
@@ -945,7 +978,7 @@ def get_visibility_clause(user_id, table_alias='photos'):
 
     all_dirs = get_user_directories(user_id)
     if not all_dirs:
-        return '0=1', []
+        return NO_VISIBILITY_SQL, []
 
     conditions = []
     params = []
@@ -1096,6 +1129,16 @@ FACE_FRAME_TOLERANCE = 1.25
 # commits.
 REPAIR_BATCH_SIZE = 500
 
+# One-shot marker: the repair is a correction of a past backfill, not a
+# recurring maintenance job, so it belongs to the library rather than to the
+# process. Without it the scan below ran on every boot and never got cheaper —
+# roughly 50k rows of a 127k library still match the thumbnail-range prefilter
+# after the repair (a genuinely small photo keeps its real dimensions), so the
+# correlated EXISTS re-ran against `faces` for each of them, 115s cold / 9s warm,
+# for a zero-row result. `stats_cache` is the library's own scratch space and is
+# created by `init_database` before this ever runs.
+THUMBNAIL_DIMS_REPAIRED_KEY = 'thumbnail_dims_repaired'
+
 
 def repair_thumbnail_dimensions():
     """Clear ``image_width``/``image_height`` values fabricated from a thumbnail.
@@ -1117,12 +1160,34 @@ def repair_thumbnail_dimensions():
     row carrying full-size dimensions fails the first, so a mismatch with some
     other cause never costs it real data.
 
-    Idempotent: a repaired row holds NULL and no longer matches.
+    What the fabricated pair *did* carry correctly is the frame's shape: a
+    thumbnail is scaled, not cropped, so 640x427 is the wrong size but the right
+    3:2. That ratio is moved to ``image_aspect`` in the same statement, because
+    the gallery lays a tile out from it and an unknown aspect there is not a
+    skipped overlay but a portrait photo cropped into a landscape box. It lands
+    in its own column rather than back in the dimensions so that the readers
+    which treat a positive width as a pixel count — the MWG face regions written
+    into sidecars on disk, the social-crop rectangle — keep seeing NULL and keep
+    skipping.
+
+    Runs once per library: a marker row in ``stats_cache`` records that the
+    correction has been applied, and a later call returns 0 without scanning.
+    Idempotent either way — a repaired row holds NULL and no longer matches.
     """
     max_thumbnail_edge = (_FULL_CONFIG.get('processing', {}).get('thumbnails', {})
                           .get('photo_size', DEFAULT_PHOTO_THUMBNAIL_SIZE))
     conn = get_db_connection()
     try:
+        already_done = conn.execute(
+            "SELECT 1 FROM stats_cache WHERE key = ?", (THUMBNAIL_DIMS_REPAIRED_KEY,),
+        ).fetchone()
+        if already_done:
+            logger.debug("Thumbnail-dimension repair already applied to this library")
+            return 0
+
+        # Only `path` is selected: `photos` carries the thumbnail, embedding and
+        # histogram BLOBs inline, and a bulk scan that names them would drag the
+        # whole library through memory.
         fabricated = [row[0] for row in conn.execute(
             "SELECT path FROM photos "
             "WHERE image_width IS NOT NULL AND image_height IS NOT NULL "
@@ -1135,15 +1200,26 @@ def repair_thumbnail_dimensions():
         for start in range(0, len(fabricated), REPAIR_BATCH_SIZE):
             batch = fabricated[start:start + REPAIR_BATCH_SIZE]
             placeholders = ','.join('?' * len(batch))
+            # One statement, so the ratio is computed from the pre-update row:
+            # SQLite evaluates every SET expression against the original values.
             conn.execute(
-                "UPDATE photos SET image_width = NULL, image_height = NULL "
+                "UPDATE photos SET "
+                "image_aspect = CASE WHEN image_height > 0 "
+                "THEN ROUND(CAST(image_width AS REAL) / image_height, 6) END, "
+                "image_width = NULL, image_height = NULL "
                 f"WHERE path IN ({placeholders})", batch
             )
             conn.commit()
+        conn.execute(
+            "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+            (THUMBNAIL_DIMS_REPAIRED_KEY, str(len(fabricated)), time.time()),
+        )
+        conn.commit()
         if fabricated:
             logger.info(
-                "Cleared thumbnail-sized dimensions on %d photos: their own face "
-                "boxes prove the recorded size was not the detection frame",
+                "Cleared thumbnail-sized dimensions on %d photos (aspect kept in "
+                "image_aspect): their own face boxes prove the recorded size was "
+                "not the detection frame",
                 len(fabricated)
             )
         return len(fabricated)

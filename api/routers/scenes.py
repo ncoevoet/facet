@@ -20,7 +20,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, trigger_auto_retrain, set_photos_rejected,
-    album_filter_clause, time_window_clauses, HIDE_BURSTS_SQL,
+    album_filter_clause, time_window_clauses, scope_cache_key, HIDE_BURSTS_SQL,
 )
 from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
@@ -186,10 +186,16 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
     window_clauses, window_params = time_window_clauses(date_from, date_to)
 
     has_moment = _photos_has_moment(conn)
-    cache_key = (
-        f"scenes_{cfg['gap_minutes']}_{cfg['min_size']}_{cfg['max_scene_size']}"
-        f"_{cfg['max_photos']}_{cfg['adaptive']}_{cfg['adaptive_k']}_{cfg['split_on_moment_change']}"
-        f"_{cfg['moment_split_min_run']}_{album_id}_{date_from}_{date_to}_{user_id}"
+    # Every input that changes the answer, hashed to a fixed width: the scope
+    # half arrives from the query string, so folding it in verbatim let a caller
+    # choose both the length and the number of rows written here. The ``scenes``
+    # prefix survives in the clear because the cull paths invalidate with
+    # ``DELETE FROM stats_cache WHERE key LIKE 'scenes_%'``.
+    cache_key = scope_cache_key(
+        'scenes',
+        cfg['gap_minutes'], cfg['min_size'], cfg['max_scene_size'], cfg['max_photos'],
+        cfg['adaptive'], cfg['adaptive_k'], cfg['split_on_moment_change'],
+        cfg['moment_split_min_run'], album_id, date_from, date_to, user_id,
     )
     cached = conn.execute(
         "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)

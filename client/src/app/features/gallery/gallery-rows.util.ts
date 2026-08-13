@@ -21,10 +21,29 @@ export interface GalleryRow {
 /** Estimated height of the details block under a card (filename/EXIF/tags). */
 export const DETAILS_ESTIMATE_PX = 96;
 
-function aspectOf(photo: Photo): number {
-  return photo.image_width && photo.image_height
-    ? photo.image_width / photo.image_height
-    : 4 / 3;
+/** Aspect used when a photo carries neither dimensions nor a recorded aspect. */
+export const FALLBACK_ASPECT = 4 / 3;
+
+/**
+ * A photo's display aspect (width / height).
+ *
+ * Dimensions first, then `image_aspect`, which is what a row keeps when its
+ * dimensions were cleared as fabricated (they were thumbnail-sized, so the
+ * resolution was a lie — but the ratio was not). Without that second source a
+ * cleared row fell through to the landscape default and the tile it sized was
+ * landscape too: with `object-cover` on the card, a portrait frame in a 4:3 box
+ * loses its top and bottom rather than merely sitting in the wrong shape.
+ *
+ * Exported so the orientation tests elsewhere (tooltip placement, hover
+ * preview) read the same three sources in the same order.
+ */
+export function aspectOf(photo: Photo): number {
+  if (photo.image_width && photo.image_height) {
+    return photo.image_width / photo.image_height;
+  }
+  return photo.image_aspect && photo.image_aspect > 0
+    ? photo.image_aspect
+    : FALLBACK_ASPECT;
 }
 
 /** Minimum grid columns enforced off desktop so a narrow viewport never

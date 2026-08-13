@@ -29,6 +29,15 @@ PHOTOS_COLUMNS = [
     ('focal_length_35mm', 'REAL'),
     ('image_width', 'INTEGER'),
     ('image_height', 'INTEGER'),
+    # Display aspect (width / height) for a row whose recorded pixel dimensions
+    # had to be cleared. `repair_thumbnail_dimensions` NULLs dimensions that were
+    # fabricated from the 640px thumbnail, because every face/crop consumer reads
+    # them as the detector's pixel space and a thumbnail-sized number there is a
+    # lie that reads as ground truth. The *ratio* those values carried was never
+    # wrong (a thumbnail preserves aspect), so it is kept here instead — in a
+    # column no consumer can mistake for a resolution. NULL for every row whose
+    # dimensions are real: read it only as a fallback, never in preference.
+    ('image_aspect', 'REAL'),
 
     # Score columns
     ('aesthetic', 'REAL'),

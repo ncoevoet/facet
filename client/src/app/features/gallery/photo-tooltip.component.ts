@@ -7,6 +7,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 import { MomentLabelPipe } from '../scenes/scenes.pipes';
+import { aspectOf } from './gallery-rows.util';
 import { HistogramComponent } from '../../shared/components/histogram/histogram.component';
 
 // Intentionally keeps literal i18n keys instead of the shared I18N constants: this
@@ -328,10 +329,13 @@ export class PhotoTooltipComponent {
    */
   readonly docked = input(false);
 
-  /** Whether the photo is landscape orientation (wider than tall). */
+  /** Whether the photo is landscape orientation (wider than tall).
+   *
+   *  Reads `aspectOf`, not the raw dimensions: those are null for a row whose
+   *  fabricated size was cleared, and the aspect it kept still answers this. */
   readonly isLandscape = computed(() => {
     const p = this.photo();
-    return p ? p.image_width > p.image_height : false;
+    return p ? aspectOf(p) > 1 : false;
   });
 
   /** Whether any EXIF field is present. */

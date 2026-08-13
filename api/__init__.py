@@ -206,7 +206,24 @@ async def lifespan(app: FastAPI):
     invalidate_existing_columns_cache()
     get_existing_columns()
     is_photo_tags_available()
-    repair_thumbnail_dimensions()
+
+    # The dimension repair walks the photos table with a correlated EXISTS into
+    # faces — a minute of I/O on a large library — so it runs off the serving
+    # path in a daemon thread, exactly like the capsule precompute below. It
+    # applies once per library (a marker row in stats_cache), so this is a
+    # first-boot cost rather than a per-boot one, and its errors are logged
+    # rather than raised: a DB locked by a running scan must delay the API, not
+    # abort its startup.
+    import threading
+
+    def _repair_dimensions():
+        try:
+            repair_thumbnail_dimensions()
+        except Exception:
+            logger.warning("Thumbnail-dimension repair failed", exc_info=True)
+
+    threading.Thread(target=_repair_dimensions, daemon=True,
+                     name="thumbnail-dims-repair").start()
 
     # Pre-compute capsules in a background thread so first visitor gets instant results
     from api.config import _FULL_CONFIG

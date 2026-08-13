@@ -25,7 +25,8 @@ from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
     trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
-    select_in_chunks, SEQUENCE_OVERRIDE_SELECT, SEQUENCE_OVERRIDE_PENDING_SELECT,
+    select_in_chunks, scope_cache_key, NO_VISIBILITY_SQL,
+    SEQUENCE_OVERRIDE_SELECT, SEQUENCE_OVERRIDE_PENDING_SELECT,
 )
 from api.similarity_groups import compute_similarity_groups
 from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
@@ -2038,6 +2039,14 @@ _SUGGEST_NIGHT_TO_HOUR = 6
 # worse than the default the user already has.
 _SUGGEST_MIN_SHARE = 0.25
 
+# The capture-time window the darkroom scopes to is a pair of raw EXIF
+# timestamps: the scenes feed hands the client ``photos.date_taken`` verbatim
+# (``YYYY:MM:DD HH:MM:SS``, the only shape a scan writes) and the culling page
+# passes it straight back as ``from``/``to``. Pinning that shape is what keeps
+# the cached scope a bounded set of windows the library could actually contain,
+# rather than whatever string a caller cares to invent; a mismatch is a 422.
+_EXIF_TIMESTAMP_PATTERN = r"^\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}$"
+
 # Cache-only, like compute_scenes: the aggregate walks every visible photo, so
 # on a large library it is worth sparing repeat calls for the same scope. A
 # suggestion does not need to track a scan to the second, hence the 1h TTL.
@@ -2104,11 +2113,22 @@ def _shoot_type_evidence(conn, user_id, album_id, date_from, date_to):
     a large library it is worth sparing repeat calls for the same scope.
     Keyed on every filter that changes the result set — album, date window,
     and the visibility-affecting ``user_id`` — so two scopes never collide and
-    a scope a user cannot see never leaks into one they can. The 1h TTL is
-    generous: a shoot-type suggestion does not need to track a scan to the
-    second.
+    a scope a user cannot see never leaks into one they can. The key is hashed
+    to a fixed width (``scope_cache_key``) because the scope arrives from the
+    query string. The 1h TTL is generous: a shoot-type suggestion does not need
+    to track a scan to the second.
+
+    A caller who can see nothing gets the empty answer without a cache row: the
+    aggregate is empty for *every* scope they could name, so caching it stores
+    nothing but the scope string itself — which is precisely what an anonymous
+    caller on a locked install must not be able to write at will.
     """
-    cache_key = f"shoot_type_evidence_{album_id}_{date_from}_{date_to}_{user_id}"
+    vis_sql, _ = get_visibility_clause(user_id)
+    if vis_sql == NO_VISIBILITY_SQL:
+        return []
+
+    cache_key = scope_cache_key(
+        'shoot_type_evidence', album_id, date_from, date_to, user_id)
     cached = conn.execute(
         "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)
     ).fetchone()
@@ -2157,8 +2177,8 @@ def _score_shoot_types(rows):
 @router.get("/api/culling/suggest_profile")
 def suggest_cull_profile(
     album_id: Optional[int] = Query(None),
-    date_from: Optional[str] = Query(None),
-    date_to: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None, pattern=_EXIF_TIMESTAMP_PATTERN),
+    date_to: Optional[str] = Query(None, pattern=_EXIF_TIMESTAMP_PATTERN),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Infer the dominant shoot type of a scope and name the preset that fits it.
@@ -2172,10 +2192,17 @@ def suggest_cull_profile(
     orders scopes the way a photographer would — a whole wedding outranks a
     wedding inside a year of holidays.
 
+    ``date_from``/``date_to`` must be raw EXIF timestamps
+    (``YYYY:MM:DD HH:MM:SS``) — the shape the scenes feed emits and the only one
+    that sorts against ``date_taken``; anything else is a 422 rather than a
+    silently empty window that would still be cached.
+
     ``profile`` is null when the scope is empty, when no genre reaches
     ``_SUGGEST_MIN_SHARE``, or when the matching preset is not configured (a
-    custom ``cull_profiles`` set); ``evidence`` is returned either way so the
-    client can explain what the answer was based on.
+    custom ``cull_profiles`` set). ``confidence`` and ``evidence`` are
+    returned either way — ``confidence`` is what the Suggested badge's
+    tooltip shows, ``evidence`` the per-genre counts behind it, for a caller
+    that wants to explain the answer rather than just consume ``profile``.
     """
     user_id = user.user_id if user else None
     with get_db() as conn:

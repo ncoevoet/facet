@@ -1,8 +1,10 @@
 import {
   DETAILS_ESTIMATE_PX,
+  FALLBACK_ASPECT,
   GalleryRow,
   MOBILE_MIN_CARD_WIDTH_PX,
   MOBILE_MIN_COLUMNS,
+  aspectOf,
   buildGridRows,
   buildMosaicRows,
   gridColumnCount,
@@ -15,9 +17,79 @@ function photo(i: number, w = 1600, h = 1200): Photo {
   return { path: `/v/p${i}.jpg`, image_width: w, image_height: h } as Photo;
 }
 
+/** A row whose fabricated dimensions were cleared: it carries only the aspect
+ *  the thumbnail-sized pair had (a thumbnail is scaled, not cropped). */
+function clearedPhoto(i: number, aspect: number | null): Photo {
+  return {
+    path: `/v/c${i}.jpg`,
+    image_width: null, image_height: null, image_aspect: aspect,
+  } as Photo;
+}
+
 function photos(n: number): Photo[] {
   return Array.from({ length: n }, (_, i) => photo(i));
 }
+
+describe('aspectOf', () => {
+  it('prefers the recorded pixel dimensions', () => {
+    expect(aspectOf(photo(0, 1600, 1200))).toBeCloseTo(4 / 3, 6);
+  });
+
+  it('falls back to the aspect a cleared row kept', () => {
+    expect(aspectOf(clearedPhoto(0, 427 / 640))).toBeCloseTo(0.667, 3);
+  });
+
+  it('never lets the kept aspect override real dimensions', () => {
+    const conflicted = { ...photo(0, 1000, 2000), image_aspect: 4 / 3 } as Photo;
+    expect(aspectOf(conflicted)).toBeCloseTo(0.5, 6);
+  });
+
+  it('uses the neutral default only when nothing is known', () => {
+    expect(aspectOf(clearedPhoto(0, null))).toBe(FALLBACK_ASPECT);
+    expect(aspectOf({ path: '/v/x.jpg' } as Photo)).toBe(FALLBACK_ASPECT);
+  });
+
+  it('ignores a non-positive aspect rather than dividing by it', () => {
+    expect(aspectOf(clearedPhoto(0, 0))).toBe(FALLBACK_ASPECT);
+    expect(aspectOf(clearedPhoto(1, -1))).toBe(FALLBACK_ASPECT);
+  });
+});
+
+// The regression this guards: 42,676 rows had their fabricated dimensions
+// cleared, 8,965 of them portrait. With only the landscape default left, every
+// one of those got a 4:3 tile — and the card image is `object-cover`, so the
+// frame was cropped top and bottom, not merely boxed oddly.
+describe('a cleared row keeps its orientation', () => {
+  it('sizes a portrait mosaic tile taller than it is wide', () => {
+    const rows = buildMosaicRows([clearedPhoto(0, 427 / 640)], 1200, 200, 8);
+    expect(rows[0].height).toBe(200);
+    expect(rows[0].widths[0]).toBeLessThan(rows[0].height);
+  });
+
+  it('sizes a landscape mosaic tile wider than it is tall', () => {
+    const rows = buildMosaicRows([clearedPhoto(0, 640 / 427)], 1200, 200, 8);
+    expect(rows[0].widths[0]).toBeGreaterThan(rows[0].height);
+  });
+
+  it('packs a portrait row with more tiles than a landscape one', () => {
+    const portrait = buildMosaicRows(
+      Array.from({ length: 12 }, (_, i) => clearedPhoto(i, 2 / 3)), 1200, 200, 8);
+    const landscape = buildMosaicRows(
+      Array.from({ length: 12 }, (_, i) => clearedPhoto(i, 3 / 2)), 1200, 200, 8);
+    expect(portrait[0].photos.length).toBeGreaterThan(landscape[0].photos.length);
+  });
+
+  it('gives a single-column grid cell a portrait height', () => {
+    const rows = buildGridRows([clearedPhoto(0, 2 / 3)], 150, 168, 8, true);
+    expect(rows[0].height).toBe(Math.round(150 / (2 / 3)));
+    expect(rows[0].height).toBeGreaterThan(150);
+  });
+
+  it('still falls back to landscape when no aspect was kept either', () => {
+    const rows = buildMosaicRows([clearedPhoto(0, null)], 1200, 200, 8);
+    expect(rows[0].widths[0]).toBe(Math.floor(FALLBACK_ASPECT * 200));
+  });
+});
 
 describe('gridColumnCount', () => {
   it('matches CSS auto-fill column math', () => {

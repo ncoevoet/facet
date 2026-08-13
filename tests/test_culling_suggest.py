@@ -12,9 +12,15 @@ import sqlite3
 from contextlib import contextmanager
 from unittest import mock
 
+import pytest
+
+import api.db_helpers as db_helpers
+from api.db_helpers import scope_cache_key
 from api.routers.burst_culling import (
     _query_shoot_type_evidence, _score_shoot_types, _shoot_type_evidence,
 )
+
+_EVIDENCE_PREFIX = "shoot_type_evidence_"
 
 _SCHEMA = """
     CREATE TABLE photos (
@@ -312,6 +318,111 @@ class TestEvidenceCache:
         _shoot_type_evidence(conn, 'user-b', None, None, None)
         keys = {r['key'] for r in conn.execute("SELECT key FROM stats_cache").fetchall()}
         assert len(keys) == 2
+
+
+class TestDateWindowValidation:
+    """The window is a pair of raw EXIF timestamps, the only shape a scan writes
+    and the shape the scenes feed hands back. Anything else was accepted, matched
+    nothing, and was still cached under its own key — so the key set an anonymous
+    caller could write was whatever they cared to type."""
+
+    def test_the_shape_the_scenes_feed_sends_is_accepted(self, edition_client):
+        conn = _db(_wedding_photos(10))
+        response = _get(edition_client, conn, {
+            'date_from': '2024:06:01 00:00:00', 'date_to': '2024:06:30 23:59:59',
+        })
+        assert response.status_code == 200
+
+    @pytest.mark.parametrize("value", [
+        "2024-06-01",                 # ISO date: the gallery's filter shape, not this one
+        "2024-06-01T00:00:00",        # ISO timestamp
+        "2024:06:01",                 # EXIF date without the time half
+        "2024:06:01 00:00:00 ",       # trailing space
+        "junk",
+        "' OR 1=1 --",
+        "x" * 4096,                   # the unbounded key this endpoint used to store
+    ])
+    def test_any_other_shape_is_rejected(self, edition_client, value):
+        conn = _db(_wedding_photos(10))
+        assert _get(edition_client, conn, {'date_from': value}).status_code == 422
+        assert _get(edition_client, conn, {'date_to': value}).status_code == 422
+
+    def test_a_rejected_window_writes_no_cache_row(self, edition_client):
+        conn = _db(_wedding_photos(10))
+        _get(edition_client, conn, {'date_from': 'x' * 4096})
+        assert conn.execute("SELECT COUNT(*) FROM stats_cache").fetchone()[0] == 0
+
+    def test_an_absent_window_is_still_allowed(self, edition_client):
+        conn = _db(_wedding_photos(10))
+        assert _get(edition_client, conn).status_code == 200
+
+
+class TestScopeCacheKeyShape:
+    """The scope reaches the cache key from the query string, so the key must be
+    fixed-width whatever arrives — and keep its prefix, which is how the cull
+    paths invalidate."""
+
+    def test_the_key_is_a_prefix_and_a_sha256_digest(self):
+        key = scope_cache_key('shoot_type_evidence', None, None, None, None)
+        assert key.startswith(_EVIDENCE_PREFIX)
+        digest = key[len(_EVIDENCE_PREFIX):]
+        assert len(digest) == 64
+        assert set(digest) <= set("0123456789abcdef")
+
+    def test_key_length_does_not_follow_the_input_length(self):
+        short = scope_cache_key('scenes', 1, 'a', 'b', 'c')
+        long = scope_cache_key('scenes', 1, 'a' * 10_000, 'b' * 10_000, 'c')
+        assert len(short) == len(long)
+
+    def test_distinct_scopes_do_not_collide(self):
+        keys = {
+            scope_cache_key('scenes', 1, None, None, None),
+            scope_cache_key('scenes', 2, None, None, None),
+            scope_cache_key('scenes', None, '2024:06:01 00:00:00', None, None),
+            scope_cache_key('scenes', None, None, '2024:06:01 00:00:00', None),
+            scope_cache_key('scenes', None, None, None, 'user-a'),
+        }
+        assert len(keys) == 5
+
+    def test_an_absent_part_is_distinct_from_an_empty_one(self):
+        assert scope_cache_key('scenes', None) != scope_cache_key('scenes', '')
+
+    def test_a_shifted_boundary_does_not_collide(self):
+        """Concatenation alone would make ('ab', 'c') and ('a', 'bc') one key."""
+        assert scope_cache_key('scenes', 'ab', 'c') != scope_cache_key('scenes', 'a', 'bc')
+
+    def test_the_evidence_cache_stores_that_shape(self):
+        conn = _db(_wedding_photos(5))
+        _shoot_type_evidence(conn, None, None, '2024:06:01 00:00:00', None)
+        key = conn.execute("SELECT key FROM stats_cache").fetchone()['key']
+        assert key.startswith(_EVIDENCE_PREFIX)
+        assert len(key) == len(_EVIDENCE_PREFIX) + 64
+
+
+class TestInvisibleScopesAreNotCached:
+    """A caller who can see nothing gets the same empty answer for every scope
+    they could name, so a cache row for one stores nothing but the scope string
+    — which is exactly the write an anonymous caller on a locked install must
+    not be able to make at will."""
+
+    def test_no_cache_row_is_written_for_a_caller_who_sees_nothing(self):
+        conn = _db(_wedding_photos(5))
+        with mock.patch.dict(db_helpers.VIEWER_CONFIG, {'password': 'secret'}):
+            assert _shoot_type_evidence(conn, None, None, None, None) == []
+        assert conn.execute("SELECT COUNT(*) FROM stats_cache").fetchone()[0] == 0
+
+    def test_distinct_invisible_scopes_still_write_nothing(self):
+        conn = _db(_wedding_photos(5))
+        with mock.patch.dict(db_helpers.VIEWER_CONFIG, {'password': 'secret'}):
+            for day in range(1, 20):
+                _shoot_type_evidence(
+                    conn, None, None, f"2024:06:{day:02d} 00:00:00", None)
+        assert conn.execute("SELECT COUNT(*) FROM stats_cache").fetchone()[0] == 0
+
+    def test_a_visible_caller_still_gets_a_cache_row(self):
+        conn = _db(_wedding_photos(5))
+        assert _shoot_type_evidence(conn, None, None, None, None)
+        assert conn.execute("SELECT COUNT(*) FROM stats_cache").fetchone()[0] == 1
 
 
 class TestShootTypeEvidenceIndex:

@@ -50,7 +50,8 @@ import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.componen
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
 import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import {
-  GalleryRow, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight, windowRange,
+  GalleryRow, aspectOf, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight,
+  windowRange,
 } from './gallery-rows.util';
 import { GalleryFilters, applyQueryParams } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
@@ -1250,14 +1251,14 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const card = (event.currentTarget as HTMLElement)?.closest('.relative.rounded-lg') as HTMLElement ?? event.currentTarget as HTMLElement;
     const rect = card.getBoundingClientRect();
     const padding = 16;
-    const isLandscape = photo.image_width > photo.image_height;
+    const isLandscape = aspectOf(photo) > 1;
     const vh = window.innerHeight;
     const vw = window.innerWidth;
 
     const thumbImg = (card.querySelector('img') as HTMLImageElement | null);
-    const tnw = thumbImg?.naturalWidth || photo.image_width || 4;
-    const tnh = thumbImg?.naturalHeight || photo.image_height || 3;
-    const thumbAspect = tnw / tnh;
+    const thumbAspect = (thumbImg?.naturalWidth && thumbImg.naturalHeight)
+      ? thumbImg.naturalWidth / thumbImg.naturalHeight
+      : aspectOf(photo);
     const tooltipNatH = thumbAspect > 1 ? 640 / thumbAspect : 640;
 
     let tooltipWidth: number;
