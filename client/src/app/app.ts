@@ -40,7 +40,7 @@ import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbna
 import { SlideshowComponent } from './features/gallery/slideshow.component';
 import { Photo } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
-import { I18N } from './core/i18n/keys';
+import { I18N, I18N_KEYS } from './core/i18n/keys';
 import { folderDisplayName } from './features/folders/folders.util';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from './shared/utils/media-query';
 
@@ -83,7 +83,7 @@ interface ReleaseCheck {
   `,
 })
 export class EditionDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private dialogRef = inject(MatDialogRef<EditionDialogComponent>);
   private auth = inject(AuthService);
   protected password = '';
@@ -135,7 +135,7 @@ export class EditionDialogComponent {
   },
 })
 export class App implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly router = inject(Router);
   private readonly dialog = inject(MatDialog);
   private readonly api = inject(ApiService);

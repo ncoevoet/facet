@@ -18,7 +18,7 @@ import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface SuggestionPerson {
   id: number;
@@ -188,7 +188,7 @@ interface MergeSuggestionsResponse {
   `,
 })
 export class MergeSuggestionsComponent implements OnInit, OnDestroy {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private dialog = inject(MatDialog);

@@ -3,7 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-import { I18N } from '../../../core/i18n/keys';
+import { I18N_KEYS } from '../../../core/i18n/keys';
 
 @Component({
   selector: 'app-confirm-dialog',
@@ -25,7 +25,7 @@ import { I18N } from '../../../core/i18n/keys';
   `,
 })
 export class ConfirmDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   data: { title: string; message: string; cancelLabel?: string; confirmLabel?: string } =
     inject(MAT_DIALOG_DATA);
   dialogRef = inject(MatDialogRef<ConfirmDialogComponent>);

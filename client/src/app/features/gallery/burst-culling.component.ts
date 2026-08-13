@@ -33,7 +33,7 @@ import { SequenceOverrideService, SequenceKind } from '../../core/services/seque
 import { UndoService } from '../../core/services/undo.service';
 import { SequenceKindLabelPipe, SUPPRESSED_OVERRIDE } from '../../shared/pipes/sequence-kind.pipe';
 import { firstValueFrom } from 'rxjs';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS as I18N_KEYS_TABLE } from '../../core/i18n/keys';
 import {
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   CullReasonPipe, FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe,
@@ -49,18 +49,21 @@ import {
 } from './burst-culling.pipes';
 
 /**
- * Local alias of the key table, read by the `I18N` field below.
+ * Local re-materialization of `I18N_KEYS` (see the header comment in keys.ts for the general
+ * self-shadow rewrite bug that name exists to dodge), read by the `I18N` field below.
  *
- * The unit-test builder hands each spec's esbuild chunk to Vite's SSR transform,
- * which rewrites every reference to an imported binding into a namespace access.
- * Its scope walker registers a class field's *key* as a binding, so in
- * `protected readonly I18N = I18N` the initializer looks locally bound and is
- * left alone -- it then resolves to the chunk's own uninitialised copy of the
- * keys module and the field captures `undefined`, which every template binding
- * dereferences on the first change detection. Initialising the field from a name
- * the field does not shadow keeps the rewrite intact.
+ * That general fix is not sufficient for this file specifically: verified empirically across
+ * two consecutive full suite runs, a class field here initialized directly from the imported
+ * `I18N_KEYS` binding -- despite it being a distinctly-named, correctly-rewritten reference --
+ * still captures `undefined` under this file's esbuild chunk layout, apparently because this
+ * component is large enough to land in its own chunk, and a *class-field-initializer* read of
+ * an imported binding in that chunk resolves before the real keys module has finished
+ * initializing there. A plain module-top-level `const`, evaluated as ordinary sequential module
+ * code (which the ES module spec guarantees runs only after this file's imports have settled)
+ * rather than as a class field, sidesteps that hazard entirely. Keep this local step; do not
+ * collapse it back to `protected readonly I18N = I18N_KEYS_TABLE;`.
  */
-const I18N_KEYS = I18N;
+const I18N_KEYS = I18N_KEYS_TABLE;
 
 interface CullingGroupsResponse {
   groups: CullingGroup[];

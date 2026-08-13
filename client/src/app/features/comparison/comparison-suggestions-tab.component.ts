@@ -15,7 +15,7 @@ import { CompareFiltersService } from './compare-filters.service';
 import { CategoryRecomputeService } from './category-recompute.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { WeightLabelKeyPipe } from './comparison.pipes';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface LearnedWeightsResponse {
   available: boolean;
@@ -141,7 +141,7 @@ interface TopPhoto {
   `,
 })
 export class ComparisonSuggestionsTabComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);

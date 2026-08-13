@@ -8,7 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 export interface EditAlbumDialogData {
   album: Album;
@@ -40,7 +40,7 @@ export interface EditAlbumDialogData {
   `,
 })
 export class EditAlbumDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly albumService = inject(AlbumService);
   private readonly dialogRef = inject(MatDialogRef<EditAlbumDialogComponent>);
   private readonly data = inject<EditAlbumDialogData>(MAT_DIALOG_DATA);

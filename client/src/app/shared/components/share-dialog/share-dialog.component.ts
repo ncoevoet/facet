@@ -8,7 +8,7 @@ import { firstValueFrom } from 'rxjs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { ApiService } from '../../../core/services/api.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-import { I18N } from '../../../core/i18n/keys';
+import { I18N_KEYS } from '../../../core/i18n/keys';
 
 export interface ShareDialogData {
   entityType: 'album' | 'person';
@@ -78,7 +78,7 @@ export interface ShareDialogData {
   `,
 })
 export class ShareDialogComponent implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly dialogRef = inject(MatDialogRef<ShareDialogComponent>);
   protected data = inject<ShareDialogData>(MAT_DIALOG_DATA);

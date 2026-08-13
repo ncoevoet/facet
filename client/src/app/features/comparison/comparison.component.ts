@@ -21,7 +21,7 @@ import { ComparisonAbTabComponent } from './comparison-ab-tab.component';
 import { ComparisonSuggestionsTabComponent } from './comparison-suggestions-tab.component';
 import { ComparisonPriorityTabComponent } from './comparison-priority-tab.component';
 import { PanoramaSettingsTabComponent } from './panorama-settings-tab.component';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 Chart.register(...registerables);
 
@@ -183,7 +183,7 @@ Chart.register(...registerables);
   `,
 })
 export class ComparisonComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);

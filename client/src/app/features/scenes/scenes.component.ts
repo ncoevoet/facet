@@ -19,7 +19,7 @@ import { ThumbnailUrlPipe, ImageUrlPipe } from '../../shared/pipes/thumbnail-url
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from './scenes.pipes';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface ScenePhoto {
   path: string;
@@ -151,7 +151,7 @@ interface ScenesResponse {
   `,
 })
 export class ScenesComponent implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly snack = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);

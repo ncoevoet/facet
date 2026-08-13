@@ -9,7 +9,7 @@ import { PersonOption } from './gallery.store';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 @Component({
   selector: 'app-person-selector-dialog',
@@ -87,7 +87,7 @@ import { I18N } from '../../core/i18n/keys';
   `,
 })
 export class PersonSelectorDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   readonly data: PersonOption[] = inject(MAT_DIALOG_DATA);
   readonly dialogRef = inject(MatDialogRef<PersonSelectorDialogComponent>);
 

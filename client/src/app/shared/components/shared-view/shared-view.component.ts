@@ -38,7 +38,7 @@ import { PhotoCardComponent } from '../photo-card/photo-card.component';
 import { SlideshowComponent } from '../../../features/gallery/slideshow.component';
 import { InfiniteScrollDirective } from '../../directives/infinite-scroll.directive';
 import { PluralKeyPipe } from '../../pipes/plural-key.pipe';
-import { I18N } from '../../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../../core/i18n/keys';
 
 interface SortOption {
   column: string;
@@ -538,7 +538,7 @@ interface SharedFilters {
   `,
 })
 export class SharedViewComponent implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);

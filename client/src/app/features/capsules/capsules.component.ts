@@ -17,7 +17,7 @@ import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { Photo } from '../../shared/models/photo.model';
 import { SlideshowComponent } from '../gallery/slideshow.component';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface Capsule {
   type: string;
@@ -175,7 +175,7 @@ interface CapsulesResponse {
   `,
 })
 export class CapsulesComponent implements OnDestroy {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   protected readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);

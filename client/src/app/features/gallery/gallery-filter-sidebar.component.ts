@@ -28,7 +28,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { SaveSmartAlbumDialogComponent } from '../albums/save-smart-album-dialog.component';
 import { folderDisplayName } from '../folders/folders.util';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   // Quality
@@ -822,7 +822,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
   `,
 })
 export class GalleryFilterSidebarComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   readonly store = inject(GalleryStore);
   readonly auth = inject(AuthService);
   private dialog = inject(MatDialog);

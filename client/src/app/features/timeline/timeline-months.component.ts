@@ -8,7 +8,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
-import { I18N } from '../../core/i18n/keys';
+import { I18N_KEYS } from '../../core/i18n/keys';
 
 interface MonthSummary {
   month: string;
@@ -65,7 +65,7 @@ interface MonthSummary {
   `,
 })
 export class TimelineMonthsComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
 

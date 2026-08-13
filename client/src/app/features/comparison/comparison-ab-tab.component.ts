@@ -17,7 +17,7 @@ import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CompareFiltersService } from './compare-filters.service';
 import { WeightLabelKeyPipe } from './comparison.pipes';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface PairResponse {
   a?: string;
@@ -266,7 +266,7 @@ interface LearnedWeightsResponse {
   `,
 })
 export class ComparisonAbTabComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);

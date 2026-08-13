@@ -2,7 +2,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
 import { MatDialogModule } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-import { I18N } from '../../../core/i18n/keys';
+import { I18N_KEYS } from '../../../core/i18n/keys';
 
 interface ShortcutRow {
   keys: string[];
@@ -48,7 +48,7 @@ interface ShortcutSection {
   `,
 })
 export class ShortcutsDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly sections: ShortcutSection[] = [
     {
       titleKey: 'shortcuts.section_gallery',

@@ -15,7 +15,7 @@ import { DateRangeFilterComponent } from '../../shared/components/date-range-fil
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface MapCluster {
   lat: number;
@@ -98,7 +98,7 @@ interface MapResponse {
   host: { class: 'block h-full' },
 })
 export class MapComponent implements OnInit, OnDestroy {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);

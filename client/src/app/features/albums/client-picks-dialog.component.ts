@@ -11,7 +11,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { PluralKeyPipe } from '../../shared/pipes/plural-key.pipe';
 import { SceneDatePipe } from '../scenes/scenes.pipes';
 import { basename, copyLines } from '../../shared/utils/clipboard';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 export interface ClientPicksDialogData {
   albumId: number;
@@ -84,7 +84,7 @@ interface ClientPicksResponse {
   `,
 })
 export class ClientPicksDialogComponent implements OnInit {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly data = inject<ClientPicksDialogData>(MAT_DIALOG_DATA);
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);

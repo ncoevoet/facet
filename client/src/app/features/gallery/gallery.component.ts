@@ -57,7 +57,7 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
 import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
@@ -554,7 +554,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
   },
 })
 export class GalleryComponent implements OnInit, OnDestroy {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly store = inject(GalleryStore);
   protected readonly auth = inject(AuthService);
   protected readonly canShowScanButton = computed(

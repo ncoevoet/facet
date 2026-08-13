@@ -13,7 +13,7 @@ import { firstValueFrom } from 'rxjs';
 import { AlbumExportMode, ExportService } from '../../core/services/export.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { I18N } from '../../core/i18n/keys';
+import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 export interface ExportEditorDialogData {
   /** Explicit selected photo paths (gallery selection). */
@@ -63,7 +63,7 @@ export interface ExportEditorDialogData {
   `,
 })
 export class ExportEditorDialogComponent {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   protected readonly data = inject<ExportEditorDialogData>(MAT_DIALOG_DATA);
   private readonly exportService = inject(ExportService);
   private readonly dialogRef = inject(MatDialogRef<ExportEditorDialogComponent>);
