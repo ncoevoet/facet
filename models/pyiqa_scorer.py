@@ -41,7 +41,8 @@ def _ensure_pyiqa():
     return pyiqa
 
 
-# Model info: name, pyiqa_id, vram_gb, lower_is_better, score_range
+# Model info: name, pyiqa_id, vram_gb, lower_is_better, score_range, and the
+# optional 'task' (forwarded per call as task_= for multi-head metrics).
 PYIQA_MODELS = {
     'topiq': {
         'pyiqa_id': 'topiq_nr',
@@ -118,11 +119,23 @@ PYIQA_MODELS = {
     # clamp every real score (all < 1) to exactly 1 and emit a constant 0.0
     # column — silently, and with every unit test still green. Verify against
     # pyiqa's own registry before touching this tuple.
+    #
+    # TRAP 2: pyiqa's QReAlign arch defaults to task='quality', but the A/B that
+    # chose Q-ReAlign scored with task_='aesthetic' (scripts/qrealign_ab.py
+    # SCORE_TASK) — that IAA head is the validated signal the qrealign_score
+    # column is documented and weighted against. The quality head is
+    # ceiling-compressed by comparison (raw ~0.48-0.99 vs ~0.12-0.75), so
+    # shipping it would silently serve a different distribution than the one the
+    # swap was decided on. CONTRACT: 'task' is forwarded as a **per-call**
+    # ``task_=`` kwarg — pyiqa's InferenceModel.forward passes **kwargs straight
+    # through to the net (pyiqa/models/inference_model.py), which is the only
+    # supported override; setting it as an attribute on ``.net`` does nothing.
     'qrealign': {
         'pyiqa_id': 'qrealign',
         'vram_gb': 3,
         'lower_better': False,
         'score_range': (0, 1),
+        'task': 'aesthetic',
         'description': 'Q-ReAlign-Mini 0.8B — LLM-based IQA (~3GB VRAM, Apache-2.0)',
     },
 }
@@ -152,6 +165,11 @@ class PyIQAScorer:
 
         self.model_name = model_name
         self.model_info = PYIQA_MODELS[model_name]
+        # Per-call forward kwargs. A spec that pins a 'task' (Q-ReAlign's
+        # 'aesthetic' head) must pass it on EVERY inference call — see the
+        # CONTRACT note on the qrealign spec above.
+        task = self.model_info.get('task')
+        self._forward_kwargs = {'task_': task} if task else {}
         if device is None:
             from utils.device import get_device
             device = get_device()
@@ -281,7 +299,7 @@ class PyIQAScorer:
         img_tensor = self._preprocess_image(image)
 
         with torch.no_grad():
-            raw_score = self.model(img_tensor)
+            raw_score = self.model(img_tensor, **self._forward_kwargs)
 
         # Extract scalar from tensor - handle various return types
         if isinstance(raw_score, torch.Tensor):
@@ -369,7 +387,10 @@ class PyIQAScorer:
         for _shape, idxs in groups.items():
             try:
                 with torch.no_grad():
-                    out = self.model(torch.cat([tensors[i] for i in idxs], dim=0))
+                    out = self.model(
+                        torch.cat([tensors[i] for i in idxs], dim=0),
+                        **self._forward_kwargs,
+                    )
                 raws = self._extract_batch_raw(out, len(idxs))
                 for k, i in enumerate(idxs):
                     scores[i] = self._finalize_raw(raws[k])

@@ -48,10 +48,11 @@ VALID_TAG_FILTERS = [
 #
 # processing.scorer.SCORING_METRIC_KEYS is the canonical list of metrics the
 # aggregate scorer actually weights (plus 'quality', 'symmetry', 'balance',
-# 'edge_entropy', 'fractal', 'color_harmony', which are valid config weights
-# outside that optimizer feature set) — keep this list in sync with it by
-# hand. It cannot be imported here: processing.scorer imports `config` at
-# module scope, so `config` importing `processing.scorer` would be circular.
+# 'edge_entropy', 'fractal', 'color_harmony' and the extended-IQA keys, which
+# are valid config weights outside that optimizer feature set) — keep this list
+# in sync with it by hand. It cannot be imported here: processing.scorer imports
+# `config` at module scope, so `config` importing `processing.scorer` would be
+# circular.
 VALID_WEIGHT_COLUMNS = [
     "aesthetic", "face_quality", "eye_sharpness", "tech_sharpness",
     "face_sharpness", "power_point", "saturation", "noise",
@@ -59,6 +60,13 @@ VALID_WEIGHT_COLUMNS = [
     "dynamic_range", "isolation", "leading_lines",
     # Supplementary PyIQA metrics
     "aesthetic_iaa", "face_quality_iqa", "liqe",
+    # Extended IQA tier — build_metric_vector exposes these to the aggregate
+    # only when their iqa_extended flag is on, but they must stay valid weight
+    # columns unconditionally: validate_weights deletes any unknown '*_percent'
+    # key and persists the deletion, so a user's weight would vanish on the next
+    # load (and the weight optimizer's preservation branch would have nothing
+    # left to preserve).
+    "qrealign", "aesthetic_v25", "deqa",
     # Subject saliency metrics (BiRefNet)
     "subject_sharpness", "subject_prominence", "subject_placement", "bg_separation",
     # Form facet + Matsuda color harmony (CPU explainability pack)

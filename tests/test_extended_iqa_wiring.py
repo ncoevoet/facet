@@ -179,6 +179,63 @@ def test_recompute_iqa_labels_a_metal_run_and_keeps_one_model_per_pass(
     assert executed == [[model] for model, _ in facet._IQA_MODELS]
 
 
+def test_qrealign_spec_pins_the_validated_aesthetic_head():
+    """The A/B that chose Q-ReAlign scored task_='aesthetic'; pyiqa's default is
+    'quality'. The spec must pin the validated head or the shipped column is a
+    different (ceiling-compressed) distribution than the one that was measured."""
+    import pytest
+
+    pytest.importorskip("torch", reason="models.pyiqa_scorer imports torch")
+    from models.pyiqa_scorer import PYIQA_MODELS
+
+    assert PYIQA_MODELS['qrealign']['task'] == 'aesthetic'
+    # scripts/qrealign_ab.py is the record of what was validated.
+    import re
+    from pathlib import Path
+    ab = Path(__file__).resolve().parent.parent / "scripts" / "qrealign_ab.py"
+    m = re.search(r'^SCORE_TASK\s*=\s*"([^"]+)"', ab.read_text(encoding="utf-8"), re.M)
+    assert m and m.group(1) == PYIQA_MODELS['qrealign']['task']
+
+
+def test_spec_task_is_forwarded_as_a_per_call_kwarg():
+    """CONTRACT: pyiqa's InferenceModel.forward passes **kwargs to the net, so
+    the task head is only selectable per call — setting it on .net does nothing.
+    Every inference entry point (score_image AND score_batch) must forward it."""
+    import pytest
+
+    pytest.importorskip("torch", reason="models.pyiqa_scorer imports torch")
+    from PIL import Image
+    from models.pyiqa_scorer import PyIQAScorer
+
+    class _KwargCapturingModel:
+        def __init__(self):
+            self.kwargs = []
+
+        def __call__(self, batch, **kwargs):
+            self.kwargs.append(kwargs)
+            return batch.mean(dim=[1, 2, 3], keepdim=False).unsqueeze(1)
+
+    def _scorer(name):
+        s = PyIQAScorer(name, device='cpu')
+        s.model = _KwargCapturingModel()
+        s._loaded = True
+        return s
+
+    img = Image.new("RGB", (32, 32), (128, 128, 128))
+
+    qr = _scorer('qrealign')
+    qr.score_image(img)
+    qr.score_batch([img, img])
+    assert qr.model.kwargs == [{'task_': 'aesthetic'}] * 3
+
+    # A spec without a 'task' must keep calling the model with no extra kwargs
+    # (batchable models go through the stacked-tensor path too).
+    topiq = _scorer('topiq')
+    topiq.score_image(img)
+    topiq.score_batch([img, img])
+    assert topiq.model.kwargs == [{}, {}]        # 1 serial + 1 stacked forward
+
+
 def test_photos_schema_has_extended_iqa_columns(tmp_path):
     """The persistence path writes these columns, so the schema must define them
     (guards against the save INSERT and the column being out of sync)."""
