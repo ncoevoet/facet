@@ -16,6 +16,18 @@ describe('PhotoActionsService', () => {
   let mockI18n: { t: Mock };
   let mockStore: { config: Mock; persons: Mock; assignFace: Mock; createPerson: Mock };
 
+  // Every entry point here reaches its dialog through a dynamic `import()`, so the
+  // first test to touch one pays for loading that lazy chunk inside its own
+  // `waitFor` budget -- which is what makes these time out when the worker is busy.
+  // Resolving them once up front leaves each test waiting only on its own promise.
+  beforeAll(async () => {
+    await Promise.all([
+      import('../../features/gallery/photo-critique-dialog.component'),
+      import('../../features/gallery/face-selector-dialog.component'),
+      import('../../features/gallery/person-selector-dialog.component'),
+    ]);
+  });
+
   beforeEach(() => {
     mockDialog = {
       open: vi.fn(() => ({ afterClosed: () => of(null) })),

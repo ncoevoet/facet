@@ -48,6 +48,20 @@ import {
   FrameSize, GridMode, KeySubject,
 } from './burst-culling.pipes';
 
+/**
+ * Local alias of the key table, read by the `I18N` field below.
+ *
+ * The unit-test builder hands each spec's esbuild chunk to Vite's SSR transform,
+ * which rewrites every reference to an imported binding into a namespace access.
+ * Its scope walker registers a class field's *key* as a binding, so in
+ * `protected readonly I18N = I18N` the initializer looks locally bound and is
+ * left alone -- it then resolves to the chunk's own uninitialised copy of the
+ * keys module and the field captures `undefined`, which every template binding
+ * dereferences on the first change detection. Initialising the field from a name
+ * the field does not shadow keeps the rewrite intact.
+ */
+const I18N_KEYS = I18N;
+
 interface CullingGroupsResponse {
   groups: CullingGroup[];
   total_groups: number;
@@ -1308,7 +1322,7 @@ class RunGeneration {
   host: { class: 'block h-full' },
 })
 export class BurstCullingComponent implements OnDestroy {
-  protected readonly I18N = I18N;
+  protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
