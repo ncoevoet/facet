@@ -51,11 +51,31 @@ from db import (
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
 
-# The server secret this CLI must never carry back into the tracked config.
-# ``api.config`` evicts it into ``.facet_secret`` on the first import of that
-# module, which here happens INSIDE :func:`_save_config` — so a dict read
-# before that import still holds the key even though the file no longer does.
-_LEGACY_SECRET_KEY = 'share_secret'
+
+def _drop_legacy_secret(config):
+    """Strip the pre-``.facet_secret`` server secret from a config dict.
+
+    The key's NAME comes from ``api.config`` rather than being spelled again
+    here: that module owns the migration end to end — it evicts the key,
+    persists the value to ``.facet_secret`` and checks it against the
+    published-secret list — and a second copy of the string in this file is one
+    rename away from a CLI that quietly writes the secret back into a
+    git-tracked config.
+
+    The import is function-local on purpose. Importing ``api.config`` RESOLVES
+    the server secret as a side effect of the import itself (minting
+    ``.facet_secret``, evicting a legacy ``share_secret`` from
+    scoring_config.json, refusing to start on a store it cannot read), and it
+    pulls in FastAPI through ``api/__init__.py``. At module level that would
+    attach all of it to every ``python database.py`` invocation, including
+    ``--info`` and the schema init that never touch the config. Deferred, it
+    costs only the commands whose subject IS this key — and on those it runs
+    BEFORE the config is read, so the dict this returns comes from the
+    post-eviction file rather than needing the key removed from it.
+    """
+    from api.config import _LEGACY_SECRET_KEY
+    config.pop(_LEGACY_SECRET_KEY, None)
+    return config
 
 
 def _load_config():
@@ -69,8 +89,7 @@ def _load_config():
     """
     with open(CONFIG_PATH) as f:
         config = json.load(f)
-    config.pop(_LEGACY_SECRET_KEY, None)
-    return config
+    return _drop_legacy_secret(config)
 
 
 def _save_config(config):
@@ -84,11 +103,12 @@ def _save_config(config):
     why the import comes first: the backup below copies the post-eviction file
     rather than a copy of the secret.
 
-    ``config`` is stripped of the key regardless, because it was read before
-    that eviction ran and ``json.dump`` would otherwise write the stale dict —
-    secret included — straight back into the tracked file, undoing the
-    migration that had just happened one line above. The value is not lost:
-    the same import is what persisted it to ``.facet_secret``.
+    ``config`` is stripped of the key regardless of where it came from: a dict
+    built by hand, or read from anywhere but :func:`_load_config`, may predate
+    that eviction, and ``json.dump`` would write the stale copy — secret
+    included — straight back into the tracked file, undoing the migration that
+    had just happened one line above. The value is not lost: the same import is
+    what persisted it to ``.facet_secret``.
 
     The backup goes through the shared owner-only primitive rather than
     ``shutil.copy2``, which copies the config's own mode (0664 under a default
@@ -96,7 +116,7 @@ def _save_config(config):
     just wrote.
     """
     from api.config_writes import write_owner_only_backup
-    config.pop(_LEGACY_SECRET_KEY, None)
+    _drop_legacy_secret(config)
     backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     write_owner_only_backup(CONFIG_PATH, backup_path)
     logger.info("Backup saved to %s", backup_path)

@@ -326,6 +326,211 @@ class TestServerSecretBootstrap:
         assert isolated_config.read_text() == "{not valid json"
 
 
+class TestFirstBootSecretClaim:
+    """A6#9, round 2: on a FIRST boot the workers RACED to mint the store.
+
+    The divergence the store was meant to end came back at ``t=0``. With no
+    ``.facet_secret`` yet, every ``--workers>1`` process reads it as absent,
+    mints its own ``secrets.token_hex`` and ``os.replace``s the file — last
+    writer wins, and the other N-1 never re-read, so they sign every JWT and
+    every frame link with a value that is not on disk. Nothing surfaces it: a
+    token minted by one worker is simply rejected by whichever other worker
+    answers the next request, and the user is logged out at random. The store
+    is now CLAIMED with ``O_CREAT|O_EXCL`` and the losers adopt the winner's
+    value.
+    """
+
+    def test_claiming_an_existing_store_refuses_rather_than_clobbering(self, isolated_config):
+        """The primitive itself: exclusive creation, never a replacement."""
+        Path(api_config.secret_path()).write_text("a" * 64 + "\n")
+
+        with pytest.raises(FileExistsError):
+            api_config._claim_secret_file("b" * 64)
+
+        assert Path(api_config.secret_path()).read_text().strip() == "a" * 64
+
+    def test_a_secret_that_lands_between_the_read_and_the_claim_is_adopted(self,
+                                                                           isolated_config):
+        """The race itself, simulated at the only moment it can happen.
+
+        The store is absent when this boot reads it and present when it writes,
+        so the rival value has to appear in between — which is exactly what the
+        wrapper does before delegating to the real (now failing) claim.
+        """
+        rival = "r" * 64
+        real_claim = api_config._claim_secret_file
+
+        def _lose_the_race(secret):
+            Path(api_config.secret_path()).write_text(rival + "\n")
+            return real_claim(secret)
+
+        with mock.patch(f"{_MOD}._claim_secret_file", _lose_the_race):
+            _, secret = api_config._load_and_ensure_secret()
+
+        assert secret == rival, "this worker signs with a key that is not on disk"
+        assert Path(api_config.secret_path()).read_text().strip() == rival
+
+    def test_the_winner_keeps_its_own_value(self, isolated_config):
+        """The other side of the race: an uncontended claim is not re-read."""
+        _, secret = api_config._load_and_ensure_secret()
+        assert Path(api_config.secret_path()).read_text().strip() == secret
+
+    def test_sequential_boots_converge_on_the_stored_value(self, isolated_config):
+        _, first = api_config._load_and_ensure_secret()
+        _, second = api_config._load_and_ensure_secret()
+
+        assert first == second == Path(api_config.secret_path()).read_text().strip()
+
+    def test_an_empty_store_is_replaced_rather_than_adopted(self, isolated_config):
+        """A zero-byte file — a crashed write, a stray ``touch`` — is not a secret.
+
+        It reaches the claim (the file exists, so O_EXCL fails) but must not be
+        adopted, or the install would boot signing with the empty string.
+        """
+        Path(api_config.secret_path()).write_text("")
+
+        _, secret = api_config._load_and_ensure_secret()
+
+        assert len(secret) == api_config._SECRET_BYTES * 2
+        assert Path(api_config.secret_path()).read_text().strip() == secret
+
+    def test_a_burned_store_is_replaced_rather_than_adopted(self, isolated_config,
+                                                            burned_digest):
+        """Adoption must not become a way back in for a published key.
+
+        The burned value is what is on disk when the claim fails, so an adopt
+        that trusted the file blindly would hand back exactly the secret the
+        gate had just refused.
+        """
+        Path(api_config.secret_path()).write_text(burned_digest + "\n")
+
+        _, secret = api_config._load_and_ensure_secret()
+
+        assert secret != burned_digest
+        assert Path(api_config.secret_path()).read_text().strip() == secret
+
+    def test_a_claim_that_cannot_be_written_boots_in_memory(self, isolated_config, caplog):
+        """The unwritable-install grace has to cover the claim too.
+
+        Portable form of ``test_boot_continues_on_an_ephemeral_secret``, which
+        expresses "unwritable" as a 0o500 directory and so cannot run where
+        NTFS ignores the mode.
+        """
+        with mock.patch(f"{_MOD}._claim_secret_file",
+                        side_effect=PermissionError(13, "read-only")):
+            with caplog.at_level("ERROR"):
+                _, secret = api_config._load_and_ensure_secret()
+
+        assert len(secret) == api_config._SECRET_BYTES * 2
+        assert not Path(api_config.secret_path()).exists()
+        assert "IN-MEMORY" in caplog.text
+
+    def test_the_env_override_never_touches_the_store(self, isolated_config, monkeypatch):
+        """The override is read-only about the file, claim path included."""
+        monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
+
+        with mock.patch(f"{_MOD}._claim_secret_file") as claim:
+            _, secret = api_config._load_and_ensure_secret()
+
+        assert secret == "env-provided-secret"
+        assert not claim.called
+        assert not Path(api_config.secret_path()).exists()
+
+    def test_a_rotation_still_replaces_the_store(self, isolated_config, preserved_globals):
+        """Claim-or-adopt is the FIRST-boot shape; a rotation must still clobber."""
+        _write_config(isolated_config)
+        _, before = api_config._load_and_ensure_secret()
+
+        api_config.rotate_secret()
+
+        after = Path(api_config.secret_path()).read_text().strip()
+        assert after != before
+        assert len(after) == api_config._SECRET_BYTES * 2
+
+
+class TestPermissionChecksAreGatedOnPosix:
+    """The mode checks must not fire where the platform cannot satisfy them.
+
+    ``os.chmod`` on Windows only toggles the read-only attribute: it CANNOT
+    clear the group/other bits, and NTFS does not use them, so a store this
+    module creates 0600 still stats as 0666. The check therefore found it
+    loose, "tightened" it, found it exactly as loose on the next boot, and told
+    the operator their signing key had been exposed and to rotate it — on every
+    boot and every ``reload_config``, forever, with no rotation able to make it
+    stop. Two costs, both real: advice that can never be satisfied trains
+    operators to ignore the log, and the owner-only promise was silently false
+    there anyway (NTFS ACLs govern, inherited from the directory).
+    """
+
+    def _loose_file(self, path):
+        """A file group/other-readable on either platform.
+
+        On POSIX the chmod does it; on Windows a plain write already lands
+        0o666 and the chmod is the no-op this whole class is about.
+        """
+        path.write_text('{"share_secret": "aaaa"}')
+        os.chmod(path, 0o664)
+        assert _mode_of(path) & 0o077, "the fixture must produce a loose file"
+        return path
+
+    def test_the_store_check_is_skipped_where_the_bits_are_not_enforced(
+            self, isolated_config, monkeypatch, caplog):
+        """Portable form: the gate off, on a file that IS readable by others."""
+        store = self._loose_file(Path(api_config.secret_path()))
+        monkeypatch.setattr(api_config, "_POSIX_FILE_MODES", False)
+
+        with mock.patch("os.chmod") as chmod:
+            with caplog.at_level("WARNING"):
+                api_config._warn_if_readable_by_others(str(store))
+
+        assert not chmod.called, "a chmod that cannot clear those bits is not a fix"
+        assert "readable beyond its owner" not in caplog.text
+
+    def test_the_backup_sweep_is_gated_the_same_way(self, isolated_config, monkeypatch,
+                                                    caplog):
+        """Both callers share one helper, so both inherit the one gate."""
+        backup = self._loose_file(Path(f"{isolated_config}.backup.20260101_000000"))
+        monkeypatch.setattr(api_config, "_POSIX_FILE_MODES", False)
+
+        with mock.patch("os.chmod") as chmod:
+            with caplog.at_level("WARNING"):
+                api_config._tighten_existing_config_backups()
+
+        assert not chmod.called
+        assert "config backup" not in caplog.text
+        assert backup.read_text() == '{"share_secret": "aaaa"}'
+
+    @pytest.mark.skipif(sys.platform != "win32",
+                        reason="the never-converging warning is a win32 behaviour")
+    def test_a_windows_boot_stays_quiet_about_permissions(self, isolated_config, caplog):
+        """The finding as the operator meets it: two boots, no rotation advice.
+
+        Nothing here patches the gate — on win32 the shipped code must reach
+        this outcome by itself. The SECOND boot is the one that mattered: the
+        first "tightened" both files, and the second found them exactly as
+        loose, which is why the warning never converged.
+        """
+        self._loose_file(Path(f"{isolated_config}.backup"))
+
+        with caplog.at_level("WARNING"):
+            api_config._load_and_ensure_secret()
+            api_config._load_and_ensure_secret()
+
+        assert "readable beyond its owner" not in caplog.text
+        assert "config backup" not in caplog.text
+
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
+    def test_posix_still_reports_and_tightens(self, isolated_config, caplog):
+        """The gate must not turn the check off where it does work."""
+        store = self._loose_file(Path(api_config.secret_path()))
+
+        with caplog.at_level("WARNING"):
+            api_config._warn_if_readable_by_others(str(store))
+
+        assert "readable beyond its owner" in caplog.text
+        assert _mode_of(store) == 0o600
+
+
 class TestUnreadableSecretFile:
     """An existing secret that cannot be READ must never be replaced.
 

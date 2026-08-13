@@ -49,6 +49,28 @@ _LEGACY_SECRET_KEY = 'share_secret'
 _GROUP_OTHER_MODE = 0o077
 _CONFIG_BACKUP_SUFFIX = '.backup'
 
+# Whether this platform actually ENFORCES the permission bits the checks below
+# read. Windows does not: NTFS has no group/other bits, ``os.chmod`` there can
+# only toggle the read-only attribute, and a file this module creates 0600
+# still stats as 0666. The mode checks were therefore unfalsifiable on win32 —
+# each boot "tightened" the store, found it exactly as loose on the next one,
+# and told the operator their signing key had been exposed and should be
+# rotated, forever, with no rotation able to make the check pass. Advice that
+# can never be satisfied trains operators to ignore the log, so the detection,
+# the tightening and the warning are all gated on this flag: where it is False,
+# access is governed by the NTFS ACLs the file inherits from its directory, and
+# this module makes no claim about them. The ``os.chmod`` calls in the write
+# primitives are left in place (harmless no-ops there) — what must not happen
+# is WARNING about a mode this platform never sets.
+_POSIX_FILE_MODES = os.name == 'posix'
+
+# Flags for the first-boot claim on the secret store: create it or fail, never
+# truncate. ``O_EXCL`` is the entire mechanism — see :func:`_claim_secret_file`.
+# ``O_BINARY`` exists only on Windows and keeps the CRT from rewriting the
+# trailing newline, matching what ``tempfile.mkstemp`` already does for the
+# atomic-replace path.
+_SECRET_CLAIM_FLAGS = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, 'O_BINARY', 0)
+
 # Scratch name for every owner-only write. It is a dotfile carrying the secret
 # store's own prefix so `.gitignore` covers it: mkstemp's default `tmpXXXXXXXX`
 # matched no ignore rule, so a SIGKILL landing between the write and the rename
@@ -205,6 +227,46 @@ def secret_path():
     return os.path.join(os.path.dirname(_CONFIG_PATH) or '.', _SECRET_FILENAME)
 
 
+def _tighten_if_group_or_other_readable(path):
+    """Re-mode ``path`` to 0600 if anyone but its owner can read it.
+
+    Returns the mode it HAD while it was loose — a non-zero int the callers
+    report — or 0 when there is nothing to say: an already-owner-only file, a
+    path that is not there, one that is not a regular file, a mode that could
+    not be changed, and every platform where the bits are not enforced
+    (:data:`_POSIX_FILE_MODES`, which is why this is the ONE place that gate
+    has to live).
+
+    ``lstat`` decides whether to touch the path at all, because ``os.chmod``
+    follows symlinks while this runs over names anyone with write access to the
+    install directory can plant: a link wearing a ``scoring_config.json.backup``
+    name must not get the boot path to re-mode whatever it points at.
+
+    Both callers do the same detection and the same fix and differ only in how
+    they report it — per call for the secret store, batched for the backup
+    sweep — so that reporting stays at the call sites and only the mechanism is
+    shared. A chmod that FAILS is warned about here instead of at either call
+    site: in both cases the file is known loose and stayed loose, and neither
+    caller may treat that as fatal (this runs on the boot path).
+    """
+    if not _POSIX_FILE_MODES:
+        return 0
+    try:
+        if not stat.S_ISREG(os.lstat(path).st_mode):
+            return 0
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+    except OSError:
+        return 0
+    if not mode & _GROUP_OTHER_MODE:
+        return 0
+    try:
+        os.chmod(path, _SECRET_FILE_MODE)
+    except OSError:
+        logger.warning("Could not tighten permissions on %s", path, exc_info=True)
+        return 0
+    return mode
+
+
 def _warn_if_readable_by_others(path):
     """Tighten a secret file that is group- or world-readable, and say so.
 
@@ -214,24 +276,19 @@ def _warn_if_readable_by_others(path):
 
     A path that is not there is a no-op: :func:`_load_and_ensure_secret` calls
     this under the environment override without knowing whether a store exists
-    at all.
+    at all. So is a platform that does not enforce the bits — rotation advice
+    no boot could ever satisfy is worse than silence, see
+    :data:`_POSIX_FILE_MODES`.
     """
-    try:
-        mode = stat.S_IMODE(os.stat(path).st_mode)
-    except OSError:
-        return
-    if not mode & _GROUP_OTHER_MODE:
+    mode = _tighten_if_group_or_other_readable(path)
+    if not mode:
         return
     logger.warning(
-        "%s is readable beyond its owner (mode %o) — tightening it to 0600. "
+        "%s was readable beyond its owner (mode %o) — tightened it to 0600. "
         "Anyone who read it while it was exposed can forge sessions; rotate "
         "with `python database.py --rotate-secret` if that is a possibility.",
         path, mode,
     )
-    try:
-        os.chmod(path, _SECRET_FILE_MODE)
-    except OSError:
-        logger.warning("Could not tighten permissions on %s", path, exc_info=True)
 
 
 def _is_burned(secret):
@@ -312,8 +369,58 @@ def _atomic_write_owner_only(path, text):
 
 
 def _write_secret_file(secret):
-    """Persist ``secret`` at 0600, atomically and durably."""
+    """Persist ``secret`` at 0600, atomically and durably.
+
+    This is the REPLACEMENT shape of the write — it overwrites whatever is
+    there, which is what a deliberate :func:`rotate_secret` means. A first boot
+    must not use it: see :func:`_claim_secret_file`.
+    """
     _atomic_write_owner_only(secret_path(), secret + '\n')
+
+
+def _claim_secret_file(secret):
+    """Create the store EXCLUSIVELY and write ``secret`` into it.
+
+    Raises :class:`FileExistsError` when the file is already there, and that is
+    the mechanism rather than a failure. Under ``--workers>1`` on a first boot
+    every worker resolves the secret independently and they all arrive here
+    within milliseconds of each other; an ``os.replace`` lets each overwrite
+    the last and never re-reads, so N-1 workers go on signing with a value that
+    is no longer on disk. Nothing detects that at runtime — a JWT minted by one
+    worker is simply rejected by whichever other worker answers the next
+    request, so users are logged out at random. ``O_CREAT|O_EXCL`` makes
+    exactly one of them the writer; the losers adopt what the winner wrote, see
+    :func:`_claim_or_adopt_secret`.
+
+    A partial write is unlinked rather than left behind: a truncated store is
+    worse than none at all, because the next boot READS it and signs every
+    session with the fragment.
+    """
+    path = secret_path()
+    fd = os.open(path, _SECRET_CLAIM_FLAGS, _SECRET_FILE_MODE)
+    try:
+        try:
+            os.write(fd, (secret + '\n').encode('utf-8'))
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except Exception:
+        _unlink_quietly(path)
+        raise
+    _fsync_directory(os.path.dirname(path) or '.')
+
+
+def _warn_in_memory_secret():
+    """Report a store that could not be written. Call from inside an except."""
+    logger.error(
+        "Could not write %s — the install directory is not writable by this "
+        "account. Continuing on an IN-MEMORY secret: the server works, but "
+        "every session and signed frame link dies on the next restart, and "
+        "under --workers>1 each worker signs with a different key, so logins "
+        "fail at random. Make that directory writable, or set $%s to a value "
+        "you keep, then restart.",
+        secret_path(), _SECRET_ENV_VAR, exc_info=True,
+    )
 
 
 def _persist_secret_or_warn(secret):
@@ -331,15 +438,43 @@ def _persist_secret_or_warn(secret):
     try:
         _write_secret_file(secret)
     except OSError:
-        logger.error(
-            "Could not write %s — the install directory is not writable by this "
-            "account. Continuing on an IN-MEMORY secret: the server works, but "
-            "every session and signed frame link dies on the next restart, and "
-            "under --workers>1 each worker signs with a different key, so logins "
-            "fail at random. Make that directory writable, or set $%s to a value "
-            "you keep, then restart.",
-            secret_path(), _SECRET_ENV_VAR, exc_info=True,
+        _warn_in_memory_secret()
+
+
+def _claim_or_adopt_secret(secret):
+    """Persist ``secret`` — or adopt the one another process persisted first.
+
+    Returns the value this process must actually sign with, which is not always
+    the one it was handed. On a first boot every ``--workers>1`` worker mints
+    its own; only the one that wins :func:`_claim_secret_file` keeps it, and
+    the rest re-READ the store and take what is on disk, so all of them
+    converge on the single value that survived. The old path replaced
+    unconditionally and never re-read, which is precisely how N-1 workers ended
+    up signing with a key the store no longer held.
+
+    A store that exists but holds nothing usable is the one case that still
+    replaces: a burned value must not be adopted (it is published, so adopting
+    it is indistinguishable from keeping it), and neither must an empty file —
+    a crashed write or a stray ``touch`` is not a secret. Both fall through to
+    the atomic-replace path, which is also what a deliberate rotation uses.
+    """
+    try:
+        _claim_secret_file(secret)
+        return secret
+    except FileExistsError:
+        pass
+    except OSError:
+        _warn_in_memory_secret()
+        return secret
+    adopted = _read_secret_file()
+    if adopted and not _is_burned(adopted):
+        logger.info(
+            "%s appeared while this process was starting — adopting the stored "
+            "secret so every worker signs with the same key.", secret_path(),
         )
+        return adopted
+    _persist_secret_or_warn(secret)
+    return secret
 
 
 def _read_config_evicting_legacy_secret():
@@ -457,20 +592,16 @@ def _tighten_existing_config_backups():
     backups and the whole point of a backup is that nothing else rewrites it.
     Only the permission bits change, and only in the tightening direction. A
     file that cannot be re-moded is skipped rather than fatal — this runs on
-    the boot path, where a crash is worse than a warning.
+    the boot path, where a crash is worse than a warning. Detection, symlink
+    refusal, the chmod and the platform gate are all
+    :func:`_tighten_if_group_or_other_readable`'s; the only thing this adds is
+    reporting the sweep as ONE line rather than one per file.
     """
-    tightened = []
-    for path in _config_backup_paths():
-        try:
-            if not stat.S_ISREG(os.lstat(path).st_mode):
-                continue
-            if not stat.S_IMODE(os.stat(path).st_mode) & _GROUP_OTHER_MODE:
-                continue
-            os.chmod(path, _SECRET_FILE_MODE)
-        except OSError:
-            logger.debug("Could not tighten permissions on %s", path, exc_info=True)
-            continue
-        tightened.append(os.path.basename(path))
+    tightened = [
+        os.path.basename(path)
+        for path in _config_backup_paths()
+        if _tighten_if_group_or_other_readable(path)
+    ]
     if tightened:
         logger.warning(
             "Tightened %d config backup(s) to 0600 (%s) — they were readable "
@@ -548,8 +679,12 @@ def _load_and_ensure_secret():
     The secret is persisted rather than kept in memory: with ``--workers>1``
     each process runs this independently, and an in-memory-only secret would
     mint a different key per worker, so a JWT signed by one is rejected by the
-    others at random. When the directory cannot be written that divergence is
-    accepted, loudly, over a crash-loop — see :func:`_persist_secret_or_warn`.
+    others at random. Persisting it is not enough on its own, though — on a
+    FIRST boot every worker reaches this point with a freshly minted value of
+    its own, so the write claims the store rather than replacing it and the
+    losers adopt the winner's value (:func:`_claim_or_adopt_secret`). When the
+    directory cannot be written that divergence is accepted, loudly, over a
+    crash-loop — see :func:`_persist_secret_or_warn`.
     An existing-but-unparseable config with no secret anywhere still fails
     loudly rather than booting: it is the one state where the operator has
     clearly lost something, and a silent fresh secret would log every user out
@@ -598,7 +733,7 @@ def _load_and_ensure_secret():
             )
         secret = secrets.token_hex(_SECRET_BYTES)
     if not env_secret and secret != stored:
-        _persist_secret_or_warn(secret)
+        secret = _claim_or_adopt_secret(secret)
     return config, secret
 
 
