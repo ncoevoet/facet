@@ -3251,7 +3251,6 @@
     "webhooks": [],
     "actions": {}
   },
-  "share_secret": "",
   "storage": {
     "mode": "database",
     "filesystem_path": "./storage"

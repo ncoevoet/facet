@@ -2413,14 +2413,11 @@ La clave `tagging_model` de cada perfil de VRAM (p. ej. `qwen3.5-2b`) se asigna 
 
 No se necesitan cambios de código. Valida la calidad mediante una comprobación puntual en paralelo sobre ~30 fotos antes de promoverlo a valor por defecto.
 
-## Share Secret
+## Secreto del servidor
 
-Cadena hexadecimal de 64 caracteres autogenerada para los tokens de sesión/compartición:
+El secreto que firma los tokens de sesión y los enlaces del marco de fotos **no** es una clave de este archivo. Reside en `.facet_secret`, junto a `scoring_config.json` (modo `0600`, ignorado por git), y se genera en el primer arranque.
 
-```json
-{
-  "share_secret": "31a1c944ea5c82b871e61e50e5920daa2d1940b126c395f519088506595fd925"
-}
-```
+- Anulación: la variable de entorno `FACET_JWT_SECRET`.
+- Rotación: `python database.py --rotate-secret`.
 
-Se genera automáticamente en el primer arranque si no está presente.
+Un `share_secret` heredado de una instalación anterior se traslada a ese archivo en el siguiente arranque y se elimina de `scoring_config.json`. Consulta [Almacenamiento y rotación del secreto](DEPLOYMENT.md#almacenamiento-y-rotación-del-secreto).

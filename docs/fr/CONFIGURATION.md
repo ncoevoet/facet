@@ -2417,14 +2417,11 @@ La clé `tagging_model` de chaque profil VRAM (par ex. `qwen3.5-2b`) correspond 
 
 Aucun changement de code nécessaire. Validez la qualité par un contrôle ponctuel côte à côte sur ~30 photos avant de promouvoir en valeur par défaut.
 
-## Secret de partage
+## Secret du serveur
 
-Chaîne hexadécimale de 64 caractères auto-générée pour les jetons de session/partage :
+Le secret qui signe les jetons de session et les liens de cadre photo n'est **pas** une clé de ce fichier. Il réside dans `.facet_secret`, à côté de `scoring_config.json` (mode `0600`, ignoré par git), et est généré au premier lancement.
 
-```json
-{
-  "share_secret": "31a1c944ea5c82b871e61e50e5920daa2d1940b126c395f519088506595fd925"
-}
-```
+- Surcharge : la variable d'environnement `FACET_JWT_SECRET`.
+- Rotation : `python database.py --rotate-secret`.
 
-Générée automatiquement au premier lancement si absente.
+Un `share_secret` hérité d'une ancienne installation est déplacé dans ce fichier au démarrage suivant, puis supprimé de `scoring_config.json`. Voir [Stockage et rotation du secret](DEPLOYMENT.md#stockage-et-rotation-du-secret).

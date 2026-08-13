@@ -7,7 +7,7 @@ frame token configured in ``scoring_config.json`` (``frame.tokens``); an empty
 token list disables the whole feature (404).
 
 Responses never leak filesystem paths: photos are addressed by an opaque signed
-identifier (the row's ``rowid`` signed with the server share secret), so a token
+identifier (the row's ``rowid`` signed with the server secret), so a token
 holder cannot enumerate arbitrary rows and no library path is ever serialised.
 """
 
@@ -55,7 +55,7 @@ def _frame_config() -> dict:
 def _secret() -> str:
     from api import config
 
-    return config._share_secret
+    return config._server_secret
 
 
 def _require_token(token: str, cfg: dict) -> None:

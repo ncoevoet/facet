@@ -2417,14 +2417,11 @@ Der `tagging_model`-Schlüssel jedes VRAM-Profils (z. B. `qwen3.5-2b`) verweist 
 
 Keine Codeänderungen erforderlich. Validieren Sie die Qualität über eine Seite-an-Seite-Stichprobe an ~30 Fotos, bevor Sie es zum Standard machen.
 
-## Share Secret
+## Server-Secret
 
-Automatisch generierter 64-stelliger Hex-String für Session-/Sharing-Tokens:
+Das Secret, das Session-Tokens und Fotorahmen-Links signiert, ist **kein** Schlüssel in dieser Datei. Es liegt in `.facet_secret` neben `scoring_config.json` (Modus `0600`, von git ignoriert) und wird beim ersten Start erzeugt.
 
-```json
-{
-  "share_secret": "31a1c944ea5c82b871e61e50e5920daa2d1940b126c395f519088506595fd925"
-}
-```
+- Überschreiben: die Umgebungsvariable `FACET_JWT_SECRET`.
+- Rotation: `python database.py --rotate-secret`.
 
-Wird beim ersten Start automatisch generiert, falls nicht vorhanden.
+Ein aus einer älteren Installation übriggebliebenes `share_secret` wird beim nächsten Start in diese Datei verschoben und aus `scoring_config.json` entfernt. Siehe [Speicherung und Rotation des Secrets](DEPLOYMENT.md#speicherung-und-rotation-des-secrets).

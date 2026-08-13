@@ -35,6 +35,10 @@ photos/
 # Config backups
 scoring_config.json.backup.*
 
+# Server secret — signs every session JWT and frame link. Never tracked: it
+# used to live in scoring_config.json and got committed from there.
+.facet_secret
+
 # Claude Code
 .claude/todos.md
 .claude/snapshot*.txt

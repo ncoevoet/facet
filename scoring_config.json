@@ -3624,7 +3624,6 @@
     },
     "timeout_seconds": 30
   },
-  "share_secret": "784d380eaec27650058f23c585d8f982ef1edab50c21a9bbc5df68a635647726",
   "storage": {
     "mode": "database",
     "filesystem_path": "./storage"

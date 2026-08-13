@@ -470,6 +470,24 @@ Una scansione, `--recompute-average`, `--upgrade-db` e un addestramento del rank
 
 Questo lock è un lock di file del kernel, quindi esclude i lavori **su una sola macchina**. Quando il database è raggiunto via SMB/CIFS — per esempio una workstation Windows che assegna punteggi a foto su una condivisione NAS —, ogni macchina prende la propria copia del lock e nessuna vede l'altra. Facet rileva il mount e registra un avviso quando prende il lock, ma non può imporre nulla tra macchine: esegui i lavori sulla libreria da una sola macchina alla volta. NFS tra client Linux non è interessato: lì `flock` diventa un lock di record POSIX arbitrato dal server.
 
+## Archiviazione e rotazione del secret
+
+Un unico secret firma ogni sessione di login (JWT) e ogni link della cornice digitale. **Non** è una chiave di `scoring_config.json`: risiede in `.facet_secret` accanto alla configurazione, creato con modo `0600` al primo avvio e ignorato da git.
+
+In passato era la chiave `share_secret` in `scoring_config.json`. Quel file è tracciato da git, quindi il valore generato al primo avvio è stato committato e pubblicato — il secret distribuito da questo progetto è pubblico e va considerato compromesso. Al riavvio successivo Facet sposta ogni `share_secret` residuo nel file del secret, elimina la chiave dalla configurazione e registra un avviso. Un valore che Facet stesso ha pubblicato viene sostituito anziché conservato, disconnettendo tutti di proposito.
+
+| Dove | Come |
+|------|------|
+| Predefinito | `.facet_secret` accanto a `scoring_config.json`, modo `0600` |
+| Container / orchestratore | Variabile d'ambiente `FACET_JWT_SECRET` — letta per prima, mai scritta su disco |
+| Rotazione | `python database.py --rotate-secret`, poi riavvia il viewer |
+
+Su Docker `/app` è il layer scrivibile del container: un secret creato lì viene perso quando il container viene ricreato — a ogni aggiornamento dell'immagine tutti vengono disconnessi. Imposta `FACET_JWT_SECRET` in `docker-compose.yml`, oppure monta il file con `- ./.facet_secret:/app/.facet_secret`.
+
+Ruota ogni volta che il secret potrebbe essere stato letto da altri: una configurazione committata in passato, un backup trapelato, un amministratore che lascia il progetto. La rotazione invalida ogni sessione e ogni URL firmato della cornice: gli utenti rifanno il login e i dispositivi kiosk recuperano nuovi link.
+
+Con `--workers > 1` tutti i worker leggono lo stesso file, quindi un JWT firmato da uno è valido per tutti. Includi il file nei backup del database — ripristinare un database senza di esso disconnette tutti.
+
 ## Configurazione multi-utente
 
 Per dare a ogni utente un insieme privato di directory di foto, aggiungi una sezione `users` a `scoring_config.json`. Vedi [Configurazione](CONFIGURATION.md#users) per il riferimento completo.

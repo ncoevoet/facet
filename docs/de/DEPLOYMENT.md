@@ -470,6 +470,24 @@ Ein Scan, `--recompute-average`, `--upgrade-db` und ein Training des persönlich
 
 Diese Sperre ist eine Kernel-Dateisperre und schließt Aufträge daher **nur auf einer Maschine** aus. Wenn die Datenbank über SMB/CIFS erreicht wird — etwa eine Windows-Workstation, die Fotos auf einer NAS-Freigabe bewertet —, nimmt jede Maschine ihre eigene Kopie der Sperre und keine sieht die andere. Facet erkennt die Einhängung und protokolliert beim Nehmen der Sperre eine Warnung, kann aber maschinenübergreifend nichts erzwingen: Führen Sie Bibliotheksaufträge immer nur von einer Maschine aus. NFS zwischen Linux-Clients ist nicht betroffen — dort wird `flock` zu einer POSIX-Datensatzsperre, die der Server arbitriert.
 
+## Speicherung und Rotation des Secrets
+
+Ein einziges Secret signiert jede Anmeldesitzung (JWT) und jeden Fotorahmen-Link. Es ist **kein** Schlüssel in `scoring_config.json`: Es liegt in `.facet_secret` neben der Konfiguration, wird beim ersten Start mit Modus `0600` angelegt und von git ignoriert.
+
+Früher war es der Schlüssel `share_secret` in `scoring_config.json`. Diese Datei wird von git verfolgt, sodass der beim ersten Start erzeugte Wert commitet und veröffentlicht wurde — das von diesem Projekt ausgelieferte Secret ist öffentlich und muss als kompromittiert gelten. Beim nächsten Start verschiebt Facet ein übriggebliebenes `share_secret` in die Secret-Datei, entfernt den Schlüssel aus der Konfiguration und protokolliert eine Warnung. Ein Wert, den Facet selbst veröffentlicht hat, wird ersetzt statt übernommen — das meldet absichtlich alle ab.
+
+| Ort | Vorgehen |
+|-----|----------|
+| Standard | `.facet_secret` neben `scoring_config.json`, Modus `0600` |
+| Container / Orchestrator | Umgebungsvariable `FACET_JWT_SECRET` — wird zuerst gelesen, nie auf die Platte geschrieben |
+| Rotation | `python database.py --rotate-secret`, danach den Viewer neu starten |
+
+Unter Docker ist `/app` die beschreibbare Schicht des Containers: Ein dort erzeugtes Secret geht beim Neuerstellen des Containers verloren — bei jedem Image-Update werden alle abgemeldet. Setzen Sie `FACET_JWT_SECRET` in `docker-compose.yml` oder binden Sie die Datei mit `- ./.facet_secret:/app/.facet_secret` ein.
+
+Rotieren Sie, sobald das Secret von jemand anderem gelesen worden sein könnte: eine einmal commitete Konfiguration, ein geleaktes Backup, ein ausscheidender Administrator. Die Rotation entwertet jede Sitzung und jede signierte Rahmen-URL: Benutzer melden sich neu an, Kiosk-Geräte holen sich neue Links.
+
+Mit `--workers > 1` lesen alle Worker dieselbe Datei, sodass ein von einem signiertes JWT in allen gültig ist. Sichern Sie die Datei zusammen mit der Datenbank — eine ohne sie wiederhergestellte Datenbank meldet alle ab.
+
 ## Mehrbenutzer-Einrichtung
 
 Um jedem Benutzer einen privaten Satz von Fotoverzeichnissen zu geben, fügen Sie einen Abschnitt `users` zu `scoring_config.json` hinzu. Siehe [Konfiguration](CONFIGURATION.md#users) für die vollständige Referenz.

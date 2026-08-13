@@ -4,6 +4,7 @@ Configuration loading for the FastAPI API server.
 """
 
 import asyncio
+import hashlib
 import logging
 import os
 import json
@@ -17,7 +18,7 @@ import secrets
 
 logger = logging.getLogger(__name__)
 
-# --- CONFIG & SHARE SECRET (single parse of scoring_config.json) ---
+# --- CONFIG & SERVER SECRET (single parse of scoring_config.json) ---
 _CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring_config.json')
 CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
@@ -25,6 +26,31 @@ FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.p
 _TEMP_CONFIG_SUFFIX = '.json'
 _WORLD_READ_WRITE_MODE = 0o666
 _config_load_failed = False
+
+# The server secret signs every login JWT (api/auth.py) and every opaque frame
+# photo id (api/routers/frame.py). It lives in its OWN file, never in
+# scoring_config.json, because that file is git-tracked in this project and in
+# every fork of it: a secret written back into it by the first-boot bootstrap
+# gets committed by the next `git add`, which is exactly how the published
+# values below escaped.
+_SECRET_FILENAME = '.facet_secret'
+_SECRET_ENV_VAR = 'FACET_JWT_SECRET'
+_SECRET_FILE_MODE = 0o600
+_SECRET_BYTES = 32
+_LEGACY_SECRET_KEY = 'share_secret'
+_GROUP_OTHER_MODE = 0o077
+
+# SHA-256 of every server secret this project has ever published in a tracked
+# file (two live values in scoring_config.json, one documentation example that
+# installers copy-pasted). A migration that carried one of these forward would
+# preserve a key anyone can read out of the public git history, so these are
+# replaced rather than kept. Digests, not the values: re-committing the
+# plaintext is the very bug this module now prevents.
+_BURNED_SECRET_DIGESTS = frozenset({
+    'f1db218571f5b33617c7563743c30009947eb80e12c9ff456bd1f9ee55cf4888',
+    '78adcb9c3bd32b4cfb61828bf272ce355a531673ab0646ad02fcb1ae96d0cab9',
+    '8a549d288ad8b4e4e0dd4ff038fa480ff5d3aa7ceeab73198792e9f95f7ae51b',
+})
 
 
 def _umask_default_mode():
@@ -87,8 +113,11 @@ def atomic_write_json(path, data):
     :data:`CONFIG_WRITE_LOCK` across the whole sequence, or one caller's update
     is lost wholesale under another's. That lock is the only one taken while a
     config write is in flight; ``reload_config`` may acquire it (through
-    :func:`_load_and_ensure_share_secret`) while holding ``_config_lock``, so no
+    :func:`_load_and_ensure_secret`) while holding ``_config_lock``, so no
     writer may call ``reload_config`` without first releasing it.
+
+    Note the mode preservation makes this the WRONG primitive for a secret —
+    see :func:`_write_secret_file`, which forces 0600 instead.
     """
     directory = os.path.dirname(path) or '.'
     mode = _replacement_mode(path)
@@ -143,49 +172,228 @@ def _read_config():
     return config, True
 
 
-def _load_and_ensure_share_secret():
-    """Load scoring_config.json once, ensure share_secret exists. Returns (config_dict, secret).
+def secret_path():
+    """Where the server secret is stored — alongside scoring_config.json.
 
-    Holds :data:`CONFIG_WRITE_LOCK` — the one lock every writer of this file
-    takes — across its read-modify-write, so a concurrent weights, priority,
-    context or password-upgrade write can neither lose this secret nor be lost
-    under it. Writes atomically via temp file + rename to avoid partial writes.
+    Derived at call time rather than bound at import so that relocating
+    ``_CONFIG_PATH`` moves the secret with it: the two files are one install
+    unit, and a test that points at a temp config must not write into the real
+    repository. The name is dotted and gitignored so `git add -A` cannot
+    resurrect the mistake this store exists to fix.
+    """
+    return os.path.join(os.path.dirname(_CONFIG_PATH) or '.', _SECRET_FILENAME)
+
+
+def _warn_if_readable_by_others(path):
+    """Tighten a secret file that is group- or world-readable, and say so.
+
+    The bootstrap creates it 0600, so loose bits mean it was copied by a
+    deploy script, restored from a backup, or unpacked from an archive — all
+    cases where the operator should know the key was briefly exposed.
+    """
+    try:
+        mode = stat.S_IMODE(os.stat(path).st_mode)
+    except OSError:
+        return
+    if not mode & _GROUP_OTHER_MODE:
+        return
+    logger.warning(
+        "%s is readable beyond its owner (mode %o) — tightening it to 0600. "
+        "Anyone who read it while it was exposed can forge sessions; rotate "
+        "with `python database.py --rotate-secret` if that is a possibility.",
+        path, mode,
+    )
+    try:
+        os.chmod(path, _SECRET_FILE_MODE)
+    except OSError:
+        logger.warning("Could not tighten permissions on %s", path, exc_info=True)
+
+
+def _read_secret_file():
+    """Return the stored secret, or '' when there is none to read."""
+    path = secret_path()
+    try:
+        with open(path) as f:
+            secret = f.read().strip()
+    except FileNotFoundError:
+        return ''
+    except OSError:
+        logger.warning("Could not read %s — treating it as absent", path, exc_info=True)
+        return ''
+    if secret:
+        _warn_if_readable_by_others(path)
+    return secret
+
+
+def _write_secret_file(secret):
+    """Persist ``secret`` at 0600, atomically and durably.
+
+    ``tempfile.mkstemp`` already creates the file 0600 and the mode is
+    reasserted before the rename, so — unlike :func:`atomic_write_json`, which
+    deliberately preserves the destination's own (often world-readable) mode —
+    the secret can never inherit looser permissions from a file it replaces.
+    """
+    path = secret_path()
+    directory = os.path.dirname(path) or '.'
+    fd, tmp_path = tempfile.mkstemp(dir=directory)
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write(secret + '\n')
+            f.flush()
+            os.fsync(f.fileno())
+        os.chmod(tmp_path, _SECRET_FILE_MODE)
+        os.replace(tmp_path, path)
+    except Exception:
+        _unlink_quietly(tmp_path)
+        raise
+    _fsync_directory(directory)
+
+
+def _evict_legacy_secret():
+    """Delete ``share_secret`` from scoring_config.json. Returns the removed value.
+
+    Runs on every boot until the key is gone, and runs even when the secret is
+    already sourced from the environment or the secret file — leaving the key
+    behind in a tracked file is the vulnerability, so its removal is not
+    conditional on needing its value.
+
+    The read-modify-write is held under :data:`CONFIG_WRITE_LOCK`, mirroring
+    ``api.auth.upgrade_legacy_password``: a concurrent weights, priority,
+    context or password write must not land inside this one's window. An
+    unparseable config is left strictly alone — rewriting it would destroy the
+    only copy of whatever the operator was mid-edit on.
+
+    A rewrite that FAILS is reported and swallowed rather than raised. This
+    runs at import of ``api.config``, and the config is not always writable
+    where the server runs: Docker bind-mounts scoring_config.json as a single
+    file, which ``os.replace`` cannot substitute, and read-only config mounts
+    exist. A server that crash-loops on boot is strictly worse than one that
+    starts with a stale key still in the file and tells the operator to delete
+    it — from a crash-loop nobody can even reach the UI to fix it.
+    """
+    with CONFIG_WRITE_LOCK:
+        config, parsed_ok = _read_config()
+        if not parsed_ok or _LEGACY_SECRET_KEY not in config:
+            return ''
+        legacy = config.pop(_LEGACY_SECRET_KEY)
+        try:
+            shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
+            atomic_write_json(_CONFIG_PATH, config)
+        except OSError:
+            logger.error(
+                "Could not remove `%s` from %s — the file is not writable here "
+                "(a single-file Docker bind mount or a read-only config mount "
+                "cannot be replaced). DELETE THE KEY BY HAND: while it is there, "
+                "anyone who can read the file can forge any session.",
+                _LEGACY_SECRET_KEY, _CONFIG_PATH, exc_info=True,
+            )
+    if not isinstance(legacy, str) or not legacy:
+        return ''
+    logger.warning(
+        "Removed `%s` from %s. That file is git-tracked, so the value was one "
+        "`git add` away from being published — and in some installs already was. "
+        "The secret now lives in %s (0600). Rotate it with "
+        "`python database.py --rotate-secret` if the config was ever committed, "
+        "pushed, or shared.",
+        _LEGACY_SECRET_KEY, _CONFIG_PATH, secret_path(),
+    )
+    return legacy
+
+
+def _adopt_legacy_secret(legacy):
+    """Decide what a migrating install keeps: the old value, or a fresh one.
+
+    Preserving it is right for a private install — nobody has seen the value
+    and every logged-in session survives the upgrade. It is wrong when the
+    value is one of the handful this project published in its own public
+    history, which every clone and fork inherited verbatim: there, preserving
+    it would migrate a key an attacker can simply read. Those are replaced,
+    and the resulting forced re-login is the cheaper half of the trade.
+    """
+    if hashlib.sha256(legacy.encode('utf-8')).hexdigest() in _BURNED_SECRET_DIGESTS:
+        logger.warning(
+            "The `%s` just removed from %s is one this project PUBLISHED in its "
+            "public git history — anyone holding a clone can forge any session, "
+            "including a superadmin one. It has NOT been carried over: a fresh "
+            "secret was generated, so every existing login session and signed "
+            "frame link is now invalid. Re-login is the correct cost here.",
+            _LEGACY_SECRET_KEY, _CONFIG_PATH,
+        )
+        return secrets.token_hex(_SECRET_BYTES)
+    return legacy
+
+
+def _load_and_ensure_secret():
+    """Load scoring_config.json once and resolve the server secret.
+
+    Returns ``(config_dict, secret)``. Resolution order:
+
+    1. ``FACET_JWT_SECRET`` — for containers and orchestrators that inject
+       secrets as environment, mirroring the ``api_key_env`` idiom. It is an
+       override, never a setter: it is not written to disk, so unsetting it
+       falls back to whatever the file holds.
+    2. The secret file next to scoring_config.json.
+    3. A ``share_secret`` migrated out of the config (see
+       :func:`_adopt_legacy_secret`).
+    4. A freshly generated secret.
 
     The secret is always persisted, never kept in memory only: with
-    ``--workers>1`` each process runs this independently, and an in-memory-only
-    secret would mint a different key per worker, so a JWT signed by one is
-    rejected by the others at random. A genuinely absent config is a fresh,
-    never-configured install — it still needs a secret to boot, so one is
-    generated and written to a minimal new file. A config that EXISTS but does
-    not parse is different: minting a secret there would silently paper over a
-    broken file with the very same per-worker divergence, so that case fails
-    loudly instead of starting up half-working.
+    ``--workers>1`` each process runs this independently, and an
+    in-memory-only secret would mint a different key per worker, so a JWT
+    signed by one is rejected by the others at random. That is also why an
+    existing-but-unparseable config with no secret anywhere fails loudly
+    rather than booting: it is the one state where the operator has clearly
+    lost something, and a silent fresh secret would log every user out while
+    hiding the broken file. Once a secret file exists, a config that fails to
+    parse no longer blocks startup — ``config_load_failed`` locks the auth
+    surface down and the sessions stay valid for the repair.
     """
+    env_secret = os.environ.get(_SECRET_ENV_VAR, '').strip()
+    stored = _read_secret_file()
+    legacy = _evict_legacy_secret()
     config, parsed_ok = _read_config()
-    if 'share_secret' not in config or not config['share_secret']:
-        with CONFIG_WRITE_LOCK:
-            config, parsed_ok = _read_config()
-            if 'share_secret' not in config or not config['share_secret']:
-                config_exists = os.path.exists(_CONFIG_PATH)
-                if config_exists and not parsed_ok:
-                    raise RuntimeError(
-                        f"{_CONFIG_PATH} exists but could not be parsed. Refusing to "
-                        "mint an in-memory-only share secret in that state: with "
-                        "--workers>1 each worker would mint its own, and JWTs signed "
-                        "by one would be rejected by the others. Fix or remove the "
-                        "file, then restart."
-                    )
-                config['share_secret'] = secrets.token_hex(32)
-                if config_exists:
-                    shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
-                atomic_write_json(_CONFIG_PATH, config)
-    return config, config['share_secret']
+
+    secret = env_secret or stored
+    if not secret and legacy:
+        secret = _adopt_legacy_secret(legacy)
+    if not secret:
+        if os.path.exists(_CONFIG_PATH) and not parsed_ok:
+            raise RuntimeError(
+                f"{_CONFIG_PATH} exists but could not be parsed, and there is no "
+                f"secret in {secret_path()} or ${_SECRET_ENV_VAR} to fall back on. "
+                "Refusing to mint an in-memory-only secret in that state: with "
+                "--workers>1 each worker would mint its own, and JWTs signed by "
+                "one would be rejected by the others. Fix or remove the file, "
+                "then restart."
+            )
+        secret = secrets.token_hex(_SECRET_BYTES)
+    if not env_secret and secret != stored:
+        _write_secret_file(secret)
+    return config, secret
 
 
-_FULL_CONFIG, _share_secret = _load_and_ensure_share_secret()
+def rotate_secret():
+    """Generate a new server secret, invalidating every session and frame link.
 
-# JWT secret — derived from share_secret for consistency
-JWT_SECRET = _share_secret
+    Returns the path it was written to. Refuses while ``FACET_JWT_SECRET`` is
+    set, because that variable wins on every read: writing the file would
+    rotate nothing while reporting success.
+    """
+    if os.environ.get(_SECRET_ENV_VAR, '').strip():
+        raise RuntimeError(
+            f"${_SECRET_ENV_VAR} is set and overrides the stored secret. Rotate "
+            "it where it is defined instead — rewriting the file would change "
+            "nothing."
+        )
+    _evict_legacy_secret()
+    _write_secret_file(secrets.token_hex(_SECRET_BYTES))
+    reload_config()
+    return secret_path()
+
+
+_FULL_CONFIG, _server_secret = _load_and_ensure_secret()
+
+JWT_SECRET = _server_secret
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = 48  # 2 days
 
@@ -339,12 +547,12 @@ def reload_config():
     from it, which makes a stale copy a security question and not just a
     freshness one.
     """
-    global _FULL_CONFIG, _share_secret, JWT_SECRET
+    global _FULL_CONFIG, _server_secret, JWT_SECRET
     with _config_lock:
-        _FULL_CONFIG, _share_secret = _load_and_ensure_share_secret()
+        _FULL_CONFIG, _server_secret = _load_and_ensure_secret()
         VIEWER_CONFIG.clear()
         VIEWER_CONFIG.update(load_viewer_config(_FULL_CONFIG))
-        JWT_SECRET = _share_secret
+        JWT_SECRET = _server_secret
 
 
 def _prefix_boundary_match(path, prefix):

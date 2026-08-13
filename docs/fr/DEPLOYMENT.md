@@ -468,6 +468,24 @@ Un scan, `--recompute-average`, `--upgrade-db` et un entraînement du classeur p
 
 Ce verrou est un verrou de fichier du noyau : il n'exclut donc les travaux que **sur une seule machine**. Lorsque la base de données est accédée via SMB/CIFS — un poste Windows qui score des photos sur un partage NAS, par exemple —, chaque machine prend sa propre copie du verrou et aucune ne voit l'autre. Facet détecte le montage et journalise un avertissement au moment de prendre le verrou, mais il ne peut rien imposer entre machines : lancez les travaux de bibliothèque depuis une seule machine à la fois. NFS entre clients Linux n'est pas concerné — `flock` y devient un verrou d'enregistrement POSIX arbitré par le serveur.
 
+## Stockage et rotation du secret
+
+Un seul secret signe chaque session de connexion (JWT) et chaque lien de cadre photo. Ce n'est **pas** une clé de `scoring_config.json` : il réside dans `.facet_secret`, à côté de la configuration, créé en mode `0600` au premier lancement et ignoré par git.
+
+C'était auparavant la clé `share_secret` de `scoring_config.json`. Ce fichier est suivi par git : la valeur générée au premier démarrage a donc été commitée et publiée — le secret livré par ce projet est public et doit être considéré comme compromis. Au démarrage suivant, Facet déplace tout `share_secret` résiduel dans le fichier de secret, supprime la clé de la configuration et journalise un avertissement. Une valeur que Facet a lui-même publiée est remplacée au lieu d'être reprise, ce qui déconnecte tout le monde délibérément.
+
+| Emplacement | Méthode |
+|-------------|---------|
+| Par défaut | `.facet_secret` à côté de `scoring_config.json`, mode `0600` |
+| Conteneur / orchestrateur | Variable d'environnement `FACET_JWT_SECRET` — lue en premier, jamais écrite sur disque |
+| Rotation | `python database.py --rotate-secret`, puis redémarrer le viewer |
+
+Sous Docker, `/app` est la couche inscriptible du conteneur : un secret créé là est perdu à la recréation du conteneur — tout le monde est déconnecté à chaque mise à jour de l'image. Définissez `FACET_JWT_SECRET` dans `docker-compose.yml`, ou montez le fichier avec `- ./.facet_secret:/app/.facet_secret`.
+
+Effectuez une rotation dès que le secret a pu être lu par un tiers : une configuration commitée un jour, une sauvegarde divulguée, le départ d'un administrateur. La rotation invalide chaque session et chaque URL de cadre signée : les utilisateurs se reconnectent et les appareils kiosque récupèrent de nouveaux liens.
+
+Avec `--workers > 1`, tous les workers lisent le même fichier : un JWT signé par l'un est validé par tous. Sauvegardez ce fichier avec la base de données — restaurer une base sans lui déconnecte tout le monde.
+
 ## Configuration multi-utilisateur
 
 Pour attribuer à chaque utilisateur un ensemble privé de répertoires de photos, ajoutez une section `users` à `scoring_config.json`. Voir [Configuration](CONFIGURATION.md#users) pour la référence complète.

@@ -500,6 +500,24 @@ A scan, `--recompute-average`, `--upgrade-db` and a ranker training run each rew
 
 That lock is a kernel file lock, so it excludes jobs **on one machine only**. When the database is reached over SMB/CIFS — a Windows workstation scoring photos on a NAS share, for example — each machine takes its own copy of the lock and neither sees the other. Facet detects the mount and logs a warning when it takes the lock, but it cannot enforce anything across hosts: run library jobs from one machine at a time. NFS between Linux clients is not affected — there `flock` becomes a POSIX record lock that the server arbitrates.
 
+## Secret Storage and Rotation
+
+One secret signs every login session (JWT) and every photo-frame link. It is **not** a `scoring_config.json` key: it lives in `.facet_secret` next to the config, created mode `0600` on first run and gitignored.
+
+It used to be the `share_secret` key inside `scoring_config.json`. That file is git-tracked, so the value generated on first boot was committed and published — the secret this project shipped is public and must be treated as burned. On the next start Facet moves any leftover `share_secret` into the secret file, deletes the key from the config and logs a warning. A value Facet itself published is replaced rather than carried over, which logs everyone out on purpose.
+
+| Where | How |
+|-------|-----|
+| Default | `.facet_secret` beside `scoring_config.json`, mode `0600` |
+| Container / orchestrator | `FACET_JWT_SECRET` environment variable — read first, never written to disk |
+| Rotation | `python database.py --rotate-secret`, then restart the viewer |
+
+In Docker, `/app` is the container's writable layer, so a secret created there is lost when the container is recreated — everyone is logged out on every image update. Set `FACET_JWT_SECRET` in `docker-compose.yml`, or bind-mount the file with `- ./.facet_secret:/app/.facet_secret`.
+
+Rotate whenever the secret may have been read by someone else: a config that was once committed, a leaked backup, a departing administrator. Rotation invalidates every session and every signed frame URL, so users log in again and kiosk devices re-fetch their links.
+
+With `--workers > 1` every worker reads the same file, so a JWT signed by one verifies in all of them. Back the file up alongside the database — restoring a database without it logs everyone out.
+
 ## Multi-User Setup
 
 To give each user a private set of photo directories, add a `users` section to `scoring_config.json`. See [Configuration](CONFIGURATION.md#users) for the full reference.

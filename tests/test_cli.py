@@ -114,7 +114,7 @@ class TestHelpSmoke:
             '--info', '--migrate-tags', '--refresh-stats', '--stats-info',
             '--vacuum', '--analyze', '--optimize',
             '--cleanup-orphaned-persons', '--export-viewer-db',
-            '--add-user', '--migrate-user-preferences',
+            '--add-user', '--migrate-user-preferences', '--rotate-secret',
             '--rebuild-fts', '--populate-vec',
             '--migrate-storage-fs', '--migrate-storage-db',
         ):
@@ -286,6 +286,44 @@ class TestDatabaseCli:
         result = _run(DATABASE, '--db', seeded_db, '--dry-run')
         assert result.returncode != 0
         assert 'can only be used with --cleanup-missing-photos' in (result.stdout + result.stderr)
+
+    def test_rotate_secret_refuses_under_the_env_override(self, seeded_db):
+        """Wiring check for --rotate-secret that cannot touch the real secret.
+
+        ``FACET_JWT_SECRET`` wins on every read, so rewriting the file would
+        rotate nothing. The refusal proves argparse reaches
+        ``api.config.rotate_secret`` while leaving this checkout's own
+        ``.facet_secret`` (and therefore the developer's session) alone; the
+        rotation itself is covered in-process, against a temp path, by
+        tests/test_api_config.py::TestSecretRotation.
+        """
+        secret_file = REPO_ROOT / '.facet_secret'
+        before = secret_file.read_bytes() if secret_file.exists() else None
+
+        result = _run(DATABASE, '--db', seeded_db, '--rotate-secret',
+                      env_extra={'FACET_JWT_SECRET': 'injected-by-the-orchestrator'})
+
+        assert result.returncode == 0
+        assert 'FACET_JWT_SECRET' in (result.stdout + result.stderr)
+        after = secret_file.read_bytes() if secret_file.exists() else None
+        assert after == before, "a refused rotation must not touch the stored secret"
+
+    def test_rotate_secret_is_not_classified_as_a_library_write(self):
+        """It touches no database row, so it must not take the library mutex.
+
+        A missing ``_NON_INIT_ARGS`` entry would make ``_is_default_init``
+        true, falling the command through to the init/upgrade branch that
+        holds the library lock and runs schema DDL.
+        """
+        import argparse
+
+        import database as database_module
+
+        assert 'rotate_secret' in database_module._NON_INIT_ARGS
+        assert 'rotate_secret' not in database_module.LIBRARY_REWRITING_ARGS
+        args = argparse.Namespace(rotate_secret=True, dry_run=False)
+        assert not database_module._is_default_init(args)
+        assert database_module._hold_library_lock(args) is None
 
 
 # ---------------------------------------------------------------------------

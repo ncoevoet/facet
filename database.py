@@ -14,6 +14,7 @@ Usage:
     python database.py --optimize
     python database.py --backup      # Timestamped WAL-safe DB snapshot
     python database.py --add-user USERNAME --role ROLE [--display-name NAME]
+    python database.py --rotate-secret   # New session/frame signing secret
     python database.py --migrate-user-preferences --user USERNAME
     python database.py --migrate-storage-fs   # Migrate BLOBs to filesystem
     python database.py --migrate-storage-db   # Migrate filesystem back to DB
@@ -107,6 +108,26 @@ def add_user(username, role, display_name=None):
     logger.info("Edit %s to set their directories.", CONFIG_PATH)
 
 
+def rotate_server_secret():
+    """Replace the secret that signs session JWTs and frame links.
+
+    Deliberate rotation, for an install whose secret may have been exposed —
+    a config that was once committed, a backup that leaked, a departing admin.
+    Every logged-in session and every signed frame URL stops working the moment
+    the server picks the new secret up, so it is announced rather than silent.
+    """
+    from api.config import rotate_secret
+
+    try:
+        path = rotate_secret()
+    except RuntimeError as ex:
+        logger.error("%s", ex)
+        return
+    logger.info("Server secret rotated: %s", path)
+    logger.info("All existing sessions and signed frame links are now invalid.")
+    logger.info("Restart the viewer for running workers to pick up the new secret.")
+
+
 def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
     """Copy non-zero ratings from photos table to user_preferences for a user."""
     import sqlite3
@@ -168,7 +189,7 @@ _NON_INIT_ARGS = (
     'stats_info', 'refresh_stats', 'info', 'migrate_tags', 'rebuild_fts',
     'populate_vec', 'optimize', 'vacuum', 'analyze', 'backup',
     'cleanup_orphaned_persons', 'cleanup_missing_photos', 'export_viewer_db',
-    'add_user', 'migrate_user_preferences', 'migrate_storage_fs',
+    'add_user', 'rotate_secret', 'migrate_user_preferences', 'migrate_storage_fs',
     'migrate_storage_db',
 )
 
@@ -295,6 +316,11 @@ def main():
         help='Display name for --add-user'
     )
     parser.add_argument(
+        '--rotate-secret',
+        action='store_true',
+        help='Generate a new session/frame signing secret (logs everyone out)'
+    )
+    parser.add_argument(
         '--migrate-user-preferences',
         action='store_true',
         help='Copy ratings from photos table to user_preferences for a user'
@@ -417,6 +443,8 @@ def main():
         export_viewer_db(args.db, output_path=args.export_viewer_db, verbose=True, force=args.force_export)
     elif args.add_user:
         add_user(args.add_user, args.role, args.display_name)
+    elif args.rotate_secret:
+        rotate_server_secret()
     elif args.migrate_user_preferences:
         if not args.user:
             logger.error("--user USERNAME is required with --migrate-user-preferences")

@@ -466,6 +466,24 @@ Um escaneamento, `--recompute-average`, `--upgrade-db` e um treinamento do ranqu
 
 Esse bloqueio é um bloqueio de arquivo do kernel, portanto exclui trabalhos **apenas em uma máquina**. Quando o banco de dados é acessado por SMB/CIFS — por exemplo, uma estação de trabalho Windows pontuando fotos em um compartilhamento de NAS —, cada máquina toma sua própria cópia do bloqueio e nenhuma enxerga a outra. O Facet detecta a montagem e registra um aviso ao tomar o bloqueio, mas não pode impor nada entre máquinas: execute os trabalhos de biblioteca a partir de uma única máquina por vez. NFS entre clientes Linux não é afetado — lá o `flock` vira um bloqueio de registro POSIX arbitrado pelo servidor.
 
+## Armazenamento e rotação do segredo
+
+Um único segredo assina cada sessão de login (JWT) e cada link do porta-retratos digital. **Não** é uma chave de `scoring_config.json`: ele fica em `.facet_secret`, ao lado da configuração, criado com modo `0600` na primeira execução e ignorado pelo git.
+
+Antes era a chave `share_secret` dentro de `scoring_config.json`. Esse arquivo é rastreado pelo git, então o valor gerado na primeira execução foi commitado e publicado — o segredo distribuído por este projeto é público e deve ser considerado comprometido. Na inicialização seguinte, o Facet move qualquer `share_secret` remanescente para o arquivo do segredo, remove a chave da configuração e registra um aviso. Um valor que o próprio Facet publicou é substituído em vez de mantido, o que desconecta todo mundo de propósito.
+
+| Onde | Como |
+|------|------|
+| Padrão | `.facet_secret` ao lado de `scoring_config.json`, modo `0600` |
+| Contêiner / orquestrador | Variável de ambiente `FACET_JWT_SECRET` — lida primeiro, nunca gravada em disco |
+| Rotação | `python database.py --rotate-secret` e depois reinicie o viewer |
+
+No Docker, `/app` é a camada gravável do contêiner: um segredo criado ali se perde quando o contêiner é recriado — a cada atualização de imagem todo mundo é desconectado. Defina `FACET_JWT_SECRET` no `docker-compose.yml`, ou monte o arquivo com `- ./.facet_secret:/app/.facet_secret`.
+
+Faça a rotação sempre que o segredo puder ter sido lido por outra pessoa: uma configuração que já foi commitada, um backup vazado, um administrador que sai. A rotação invalida cada sessão e cada URL assinada do porta-retratos: os usuários entram de novo e os dispositivos de quiosque buscam novos links.
+
+Com `--workers > 1` todos os workers leem o mesmo arquivo, então um JWT assinado por um vale em todos. Inclua o arquivo no backup do banco de dados — restaurar um banco sem ele desconecta todo mundo.
+
 ## Configuração multiusuário
 
 Para dar a cada usuário um conjunto privado de diretórios de fotos, adicione uma seção `users` ao `scoring_config.json`. Consulte [Configuração](CONFIGURATION.md#users) para a referência completa.
