@@ -89,18 +89,27 @@ export class SyncedZoomComponent {
     this.destroyRef.onDestroy(() => observer.disconnect());
   }
 
-  /** Re-read the pane's rendered box. Driven by the ResizeObserver above, and
-   *  public so a test can measure a pane the observer never fires for. */
+  /** Re-read both halves of the letterbox geometry: the pane's rendered box
+   *  and the frame's natural size. Driven by the ResizeObserver above and the
+   *  frame's own `load` event below, and public so a caller that needs a
+   *  guaranteed-fresh reading — a zoom handler mid-gesture, or a test the
+   *  observer never fires for — can trigger it directly. */
   measurePane(): void {
     const { width, height } = this.host.nativeElement.getBoundingClientRect();
     this.paneSize.set({ w: width, h: height });
+    const img = this.frame()?.nativeElement;
+    if (img) this.naturalSize.set({ w: img.naturalWidth, h: img.naturalHeight });
   }
 
   protected onFrameLoad(): void {
-    const img = this.frame()?.nativeElement;
-    if (!img) return;
-    this.naturalSize.set({ w: img.naturalWidth, h: img.naturalHeight });
     this.measurePane();
+  }
+
+  /** The `object-contain` fit scale: how much `content` (natural image size)
+   *  is shrunk to fit inside `box` (the rendered pane), the single ratio both
+   *  the letterbox inset math and the focus-point translate build on. */
+  private containFitScale(boxW: number, boxH: number, contentW: number, contentH: number): number {
+    return Math.min(boxW / contentW, boxH / contentH);
   }
 
   /**
@@ -118,7 +127,7 @@ export class SyncedZoomComponent {
     const { w: paneW, h: paneH } = this.paneSize();
     const { w: naturalW, h: naturalH } = this.naturalSize();
     if (!paneW || !paneH || !naturalW || !naturalH) return { x: 0, y: 0 };
-    const rendered = Math.min(paneW / naturalW, paneH / naturalH) * this.zoom().scale;
+    const rendered = this.containFitScale(paneW, paneH, naturalW, naturalH) * this.zoom().scale;
     return {
       x: Math.max(0, (paneW - naturalW * rendered) / 2),
       y: Math.max(0, (paneH - naturalH * rendered) / 2),
@@ -168,17 +177,20 @@ export class SyncedZoomComponent {
    * whenever the answer cannot be trusted: no focus point, a frame the user has
    * already framed by hand, an image that has not loaded (`naturalWidth === 0`,
    * which is also every frame in a browser-less test), or a pane with no size.
-   * Measured here, inside the handler, rather than in an effect: the pane swaps
-   * to its full-resolution source the moment the zoom lands.
+   * Calls measurePane() for a guaranteed-fresh reading of the same
+   * paneSize()/naturalSize() signals fitInset() uses, rather than duplicating
+   * its own DOM query: the pane swaps to its full-resolution source the
+   * moment the zoom lands, so a box cached from an earlier resize or load
+   * would misplace the very frame that's about to render.
    */
   private translateForFocus(scale: number): { tx: number; ty: number } {
     const focus = this.focusPoint();
-    const img = this.frame()?.nativeElement;
-    if (!focus || !img || this.manuallyFramedSrc === this.src()) return { tx: 0, ty: 0 };
-    const { naturalWidth, naturalHeight } = img;
-    const { width, height } = this.host.nativeElement.getBoundingClientRect();
+    if (!focus || this.manuallyFramedSrc === this.src()) return { tx: 0, ty: 0 };
+    this.measurePane();
+    const { w: naturalWidth, h: naturalHeight } = this.naturalSize();
+    const { w: width, h: height } = this.paneSize();
     if (!naturalWidth || !naturalHeight || !width || !height) return { tx: 0, ty: 0 };
-    const fit = Math.min(width / naturalWidth, height / naturalHeight);
+    const fit = this.containFitScale(width, height, naturalWidth, naturalHeight);
     return {
       tx: -scale * (focus[0] - 0.5) * naturalWidth * fit,
       ty: -scale * (focus[1] - 0.5) * naturalHeight * fit,

@@ -165,6 +165,57 @@ def test_filter_todo_resume_shrinks_as_partial_file_grows(tmp_path):
     assert resumed == [p for p, _ in sample][3:]
 
 
+# --- partial-sidecar freshness (stale-record contamination fix) ---
+
+def test_ensure_fresh_partial_file_truncates_when_not_resuming(tmp_path):
+    """A non-resume run must start from a clean sidecar — otherwise leftover
+    rows from a prior run (possibly a different --db/--sample/--seed) sit
+    alongside the new run's rows once score_model starts appending again."""
+    partial_file = str(tmp_path / "out.json.partial.jsonl")
+    qab.append_partial(partial_file, {"model": "qalign", "path": "/a.jpg", "score": 1.0})
+    qab.append_partial(partial_file, {"model": "qrealign", "path": "/a.jpg", "score": 0.5})
+
+    qab.ensure_fresh_partial_file(partial_file, resume=False)
+
+    assert qab.load_partial_records(partial_file) == []
+
+
+def test_ensure_fresh_partial_file_noop_when_file_absent(tmp_path):
+    partial_file = str(tmp_path / "does_not_exist.partial.jsonl")
+    qab.ensure_fresh_partial_file(partial_file, resume=False)  # must not raise
+    assert qab.load_partial_records(partial_file) == []
+
+
+def test_ensure_fresh_partial_file_prevents_skip_count_doubling_across_reruns(tmp_path):
+    """Regression for the reported symptom: rerunning without --resume after
+    a crash used to double skip counts because the old sidecar rows survived
+    alongside the rerun's rows."""
+    partial_file = str(tmp_path / "out.json.partial.jsonl")
+    skip_record = {"model": "qalign", "path": "/a.jpg", "score": None, "skipped": True}
+
+    qab.append_partial(partial_file, skip_record)  # first (interrupted) non-resume run
+
+    qab.ensure_fresh_partial_file(partial_file, resume=False)  # second non-resume run starts
+    qab.append_partial(partial_file, skip_record)
+
+    assert len(qab.load_partial_records(partial_file)) == 1
+
+
+def test_resume_still_skips_done_pairs_after_ensure_fresh_partial_file(tmp_path):
+    """Resume semantics must be exactly preserved: calling
+    ensure_fresh_partial_file with resume=True must not touch the sidecar,
+    so filter_todo still skips already-recorded pairs."""
+    partial_file = str(tmp_path / "out.json.partial.jsonl")
+    sample = [("/a.jpg", 1.0), ("/b.jpg", 2.0), ("/c.jpg", 3.0)]
+    qab.append_partial(partial_file, {"model": "qalign", "path": "/a.jpg", "score": 1.0})
+
+    qab.ensure_fresh_partial_file(partial_file, resume=True)
+
+    done = qab.done_keys(qab.load_partial_records(partial_file))
+    todo = qab.filter_todo(sample, "qalign", done)
+    assert todo == ["/b.jpg", "/c.jpg"]
+
+
 # --- production input bound ---
 
 def test_bounded_size_shrinks_only_the_long_edge_overage():
@@ -318,3 +369,55 @@ def test_compute_verdict_inconclusive_on_missing_srcc():
     verdict = qab.compute_verdict(per_model, ["qalign", "qrealign"])
     assert verdict["ship"] is None
     assert "SRCC" in verdict["reason"]
+
+
+# --- analyze() sample-membership filtering (stale-record contamination fix) ---
+
+def test_analyze_ignores_out_of_sample_record(tmp_path):
+    """A partial-file record for a path outside the current sample — e.g. a
+    stale sidecar row left by a run against a different --db/--sample/--seed
+    that --resume kept around — must not contaminate n_scored or
+    mean_latency_s (half of the ship gate)."""
+    db_path = str(tmp_path / "sample.db")
+    init_database(db_path)
+    conn = sqlite3.connect(db_path)
+
+    sample = [("/lib/a.jpg", 5.0), ("/lib/b.jpg", 6.0)]
+    partial_file = str(tmp_path / "out.json.partial.jsonl")
+    qab.append_partial(partial_file, {"model": "qalign", "path": "/lib/a.jpg", "score": 1.0, "latency_s": 1.0})
+    qab.append_partial(partial_file, {"model": "qalign", "path": "/lib/b.jpg", "score": 2.0, "latency_s": 3.0})
+    # Stale row from a prior run's sample — "/lib/stale.jpg" is not in `sample`.
+    qab.append_partial(
+        partial_file,
+        {"model": "qalign", "path": "/lib/stale.jpg", "score": 9.0, "latency_s": 100.0},
+    )
+
+    report = qab.analyze(conn, sample, ["qalign"], partial_file, {})
+    conn.close()
+
+    stats = report["per_model"]["qalign"]
+    assert stats["n_scored"] == 2
+    assert stats["mean_latency_s"] == pytest.approx(2.0)  # (1.0 + 3.0) / 2, not skewed by 100.0
+
+
+def test_analyze_ignores_out_of_sample_skip_record(tmp_path):
+    """Same guard for skip records: an out-of-sample skip must not inflate
+    n_skipped."""
+    db_path = str(tmp_path / "sample.db")
+    init_database(db_path)
+    conn = sqlite3.connect(db_path)
+
+    sample = [("/lib/a.jpg", 5.0)]
+    partial_file = str(tmp_path / "out.json.partial.jsonl")
+    qab.append_partial(partial_file, {"model": "qalign", "path": "/lib/a.jpg", "score": 1.0, "latency_s": 1.0})
+    qab.append_partial(
+        partial_file,
+        {"model": "qalign", "path": "/lib/stale.jpg", "score": None, "skipped": True},
+    )
+
+    report = qab.analyze(conn, sample, ["qalign"], partial_file, {})
+    conn.close()
+
+    stats = report["per_model"]["qalign"]
+    assert stats["n_scored"] == 1
+    assert stats["n_skipped"] == 0

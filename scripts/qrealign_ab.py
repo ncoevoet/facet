@@ -137,6 +137,23 @@ def partial_path(out_path):
     return f"{out_path}.partial.jsonl"
 
 
+def ensure_fresh_partial_file(partial_file, resume):
+    """Remove a stale ``.partial.jsonl`` sidecar unless ``--resume`` was passed.
+
+    Without ``--resume``, ``score_model`` treats every sample photo as "to
+    do" (its ``done`` set is empty) and appends a fresh record for each one
+    regardless of what is already on disk. Leftover rows from a prior run —
+    possibly against a different ``--db``/``--sample``/``--seed`` that
+    happened to share ``--out`` — would then sit alongside the new run's
+    rows: ``analyze()`` folds both in (inflating ``n_scored`` and skewing
+    ``mean_latency_s``) and repeated non-resume reruns double-count skips.
+    Called once, before the model loop, so a non-resume run always starts
+    from an empty sidecar. Resuming leaves the file untouched.
+    """
+    if not resume and os.path.exists(partial_file):
+        os.remove(partial_file)
+
+
 def load_partial_records(partial_file):
     """Parse the partial JSONL sidecar into a list of dicts, skipping bad lines."""
     records = []
@@ -432,11 +449,17 @@ def score_model(model_id, sample, conn, partial_file, device, use_thumbnails, re
 
 def analyze(conn, sample, models, partial_file, peak_vram):
     records = load_partial_records(partial_file)
+    sample_paths = {path for path, _agg in sample}
     by_model = {m: {} for m in models}
     skipped_counts = {m: 0 for m in models}
     for rec in records:
         m = rec.get("model")
         if m not in by_model:
+            continue
+        # Guards against stale rows left in the sidecar by a prior run with
+        # a different --db/--sample/--seed (--resume keeps the file, and
+        # analyze() has no other way to know which rows still apply).
+        if rec.get("path") not in sample_paths:
             continue
         if rec.get("skipped"):
             skipped_counts[m] += 1
@@ -546,6 +569,7 @@ def run(args):
                     "files — smoke-test fidelity only, never use for the real A/B run")
 
     partial_file = partial_path(args.out)
+    ensure_fresh_partial_file(partial_file, args.resume)
     peak_vram = {}
     for model_id in models:
         peak_vram[model_id] = score_model(

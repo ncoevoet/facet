@@ -597,6 +597,81 @@ class TestExportManifestCli:
         data = json.loads((tmp_path / 'facet_manifest.json').read_text())
         assert {p['path'] for p in data['photos']} == {keep, reject, other}
 
+    # --- multi-user mode -------------------------------------------------
+    #
+    # In multi-user mode the viewer writes ratings to `user_preferences` and
+    # leaves the `photos` rating columns at 0, so a manifest built from the
+    # `photos` columns exports all-zero ratings and the Lightroom plug-in
+    # reports "Already up to date" for every photo. `--user` must reach the
+    # manifest exactly as it reaches `--export-sidecars`.
+
+    def _seed_alice(self, db, path):
+        """Give `alice` ratings that differ from the photos row on all three
+        columns, so a manifest built from the wrong source cannot pass."""
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "INSERT INTO user_preferences(user_id, photo_path, star_rating, "
+            "is_favorite, is_rejected) VALUES ('alice', ?, 5, 0, 1)", (path,)
+        )
+        conn.commit()
+        conn.close()
+
+    def _export_multi_user(self, tmp_path, db, *extra):
+        """Run `--export-manifest` with multi-user mode forced on.
+
+        `is_multi_user_enabled()` reads the checkout's own scoring_config.json
+        at import of `api.config` and has no env override, so a subprocess CLI
+        test cannot make the install multi-user without editing the developer's
+        config. Patching the module attribute before facet.py runs is the
+        subprocess twin of the monkeypatch in tests/test_xmp_user_ratings.py,
+        and works for the same reason: processing/xmp_export.py imports the
+        function inside the call, so it resolves the patched attribute.
+        """
+        driver = (
+            "import runpy, sys; import api.config; "
+            "api.config.is_multi_user_enabled = lambda: True; "
+            "sys.argv = sys.argv[1:]; "
+            "runpy.run_path(sys.argv[0], run_name='__main__')"
+        )
+        return _run('-c', driver, FACET, '--db', db, '--export-manifest', *extra,
+                    cwd=str(tmp_path), env_extra={'PYTHONPATH': str(REPO_ROOT)})
+
+    def test_multi_user_export_carries_the_users_own_ratings(self, tmp_path):
+        db = self._seed_manifest_db(tmp_path)
+        keep, _reject, other = self._manifest_paths(tmp_path)
+        self._seed_alice(db, keep)
+
+        result = self._export_multi_user(tmp_path, db, '--user', 'alice')
+        assert result.returncode == 0, result.stderr
+
+        photos = {p['path']: p
+                  for p in json.loads((tmp_path / 'facet_manifest.json').read_bytes())['photos']}
+        # alice's row wins over the photos row's (4, favorite, not rejected) …
+        assert photos[keep]['star_rating'] == 5
+        assert photos[keep]['is_favorite'] is False
+        assert photos[keep]['is_rejected'] is True
+        # … and a photo she never rated COALESCEs to unrated rather than
+        # dropping out of the manifest or leaking the global 3 stars.
+        assert photos[other]['star_rating'] == 0
+        assert photos[other]['is_favorite'] is False
+        assert photos[other]['is_rejected'] is False
+
+    def test_multi_user_export_without_user_keeps_the_global_columns(self, tmp_path):
+        db = self._seed_manifest_db(tmp_path)
+        keep, _reject, other = self._manifest_paths(tmp_path)
+        self._seed_alice(db, keep)
+
+        result = self._export_multi_user(tmp_path, db)  # no --user
+        assert result.returncode == 0, result.stderr
+
+        photos = {p['path']: p
+                  for p in json.loads((tmp_path / 'facet_manifest.json').read_bytes())['photos']}
+        # Types and values are the single-user contract the Lua plug-in reads.
+        assert photos[keep]['star_rating'] == 4
+        assert photos[keep]['is_favorite'] is True
+        assert photos[keep]['is_rejected'] is False
+        assert photos[other]['star_rating'] == 3
+
 
 # ---------------------------------------------------------------------------
 # validate_db.py

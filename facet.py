@@ -2665,8 +2665,11 @@ Configuration:
         init_database(args.db)  # Ensure ocr_text column exists
         ocr_config = ScoringConfig(args.config).get_ocr_config()
         if not ocr_config.get('enabled', False):
-            logger.error("ocr is disabled in scoring_config.json; nothing to do.")
-            exit(0)
+            logger.error(
+                "OCR is disabled in scoring_config.json — set ocr.enabled to true, "
+                "then install easyocr (pip install easyocr) or the tesseract binary plus pytesseract."
+            )
+            exit(1)
         configure_ocr(ocr_config)
         if not is_ocr_available():
             logger.error(
@@ -3570,22 +3573,30 @@ Configuration:
     # re-generated in place, so it always writes facet_manifest.json in the
     # working directory.
     if args.export_manifest:
-        from processing.xmp_export import build_root_filter
+        from processing.xmp_export import build_root_filter, rating_columns
 
         root = None if args.export_manifest == 'all' else args.export_manifest
+        # Ratings come from the same helper --export-sidecars uses, so --user
+        # reaches the manifest too: on a multi-user install the viewer's ratings
+        # live in user_preferences and the photos columns stay 0, which would
+        # otherwise export an all-zero manifest and make the Lightroom plugin
+        # report "Already up to date". No --user (or a single-user install)
+        # keeps the global photos columns, unchanged for the plugin contract.
+        ratings = rating_columns(args.user)
         where, params = build_root_filter(root) if root else ("", [])
         output_file = "facet_manifest.json"
 
         with get_connection(args.db) as conn:
             cursor = conn.execute(f"""
-                SELECT path, filename, date_taken, category, aggregate, aesthetic,
-                       comp_score, face_quality, tech_sharpness, exposure_score,
-                       color_score, tags, camera_model, lens_model,
-                       star_rating, is_favorite, is_rejected, is_burst_lead
+                SELECT photos.path AS path, filename, date_taken, category,
+                       aggregate, aesthetic, comp_score, face_quality,
+                       tech_sharpness, exposure_score, color_score, tags,
+                       camera_model, lens_model, {ratings.columns}, is_burst_lead
                 FROM photos
+                {ratings.join}
                 {where}
                 ORDER BY aggregate DESC
-            """, params)
+            """, ratings.params + params)
 
             photos = []
             for row in cursor:
