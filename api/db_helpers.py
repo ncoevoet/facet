@@ -309,7 +309,7 @@ PHOTO_OPTIONAL_COLS = [
     'dynamic_range_stops', 'noise_sigma', 'contrast_score', 'tags',
     'composition_pattern', 'quality_score', 'topiq_score',
     'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
-    'qalign_score', 'aesthetic_v25', 'deqa_score',
+    'qrealign_score', 'aesthetic_v25', 'deqa_score',
     'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
     'star_rating', 'is_favorite', 'is_rejected',
     'duplicate_group_id', 'is_duplicate_lead',

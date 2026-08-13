@@ -88,7 +88,7 @@ For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 
 For vector search (optional): `sqlite-vec>=0.1.6` (enables KNN search in SQLite, replaces in-memory NumPy cache)
 
-For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`, OFF by default): `aesthetic-predictor-v2-5` (for `aesthetic_v25`) and `bitsandbytes>=0.43.0` (for `qalign` 4-/8-bit). Install via `pip install -e .[iqa-extended]`. Q-Align ships with `pyiqa`; DeQA-Score loads via `transformers`.
+For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`): `qrealign` ships with the base `pyiqa` dependency and defaults to `"auto"` (on for the `8gb`/`16gb`/`24gb` profiles, off for `legacy`/CPU — the first extended-tier scorer usable from the 8gb profile up). `aesthetic-predictor-v2-5` (for `aesthetic_v25`, **deprecated**: AGPL-3.0-licensed, unmaintained upstream since 2024-12-18, prefer `qrealign`) is the tier's only remaining optional package, installed via `pip install -e .[iqa-extended]`. DeQA-Score loads via `transformers`.
 
 For appearance-based per-face eyes/smile (optional, `scoring_config.json` `face_detection.blendshapes`, ON when installed): `mediapipe==0.10.35`. MUST be installed as `pip install mediapipe==0.10.35 --no-deps` then `pip install absl-py flatbuffers` — NEVER a plain `pip install mediapipe`, whose bundled `opencv-contrib-python` would double-install the `cv2` namespace against Facet's `opencv-python`. Degrades silently to the landmark-geometry scores when absent. Model bundle `face_landmarker.task` (~3.6 MiB) auto-downloads to `pretrained_models/`. See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md).
 

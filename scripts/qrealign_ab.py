@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 """Q-ReAlign vs Q-Align A/B evaluation (roadmap 2026-08, Q-ReAlign ship gate).
 
+HISTORICAL: this is the evidence harness for the shipped swap — Q-ReAlign
+replaced Q-Align in the extended IQA tier, so the Q-Align side of this A/B no
+longer exists anywhere else in the tree. Kept, with its tests, as the record of
+how that call was measured; it is not part of any runtime path.
+
 Candidate: pyiqa's ``qrealign`` (Q-ReAlign-Mini 0.8B, Apache-2.0) as a
 replacement for ``qalign`` (Q-Align / q-future/one-align, S-Lab
 non-commercial) in the extended IQA tier (``scoring_config.json``

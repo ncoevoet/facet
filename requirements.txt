@@ -38,20 +38,21 @@ insightface>=0.7.0
 #   onnxruntime-gpu>=1.15.0,<1.18 # GPU acceleration for CUDA 11.8
 
 # Quality Assessment (PyIQA models: TOPIQ, HyperIQA, DBCNN, MUSIQ).
-# >=0.1.11 also exposes Q-Align (qalign / qalign_8bit / qalign_4bit) — see
-# models/pyiqa_scorer.py PYIQA_MODELS for the registered variants.
+# >=0.1.16 also exposes Q-ReAlign (qrealign) — see models/pyiqa_scorer.py
+# PYIQA_MODELS for the registered models and their score ranges.
 pyiqa>=0.1.16
 # pyiqa's liqe/clipiqa archs depend on PyPI openai-clip, which still imports
 # pkg_resources at runtime (LIQE/CLIPIQA); setuptools 81 removed pkg_resources.
 setuptools<81
 
-# Extended IQA tier (OPTIONAL, OFF by default — see docs/CONFIGURATION.md
-# "Extended IQA tier"). Enabled per-metric via scoring_config.json "iqa_extended".
-# Heavy + GPU-bound, so left commented to keep the default install / Docker image
-# lean. Uncomment (or `pip install .[iqa-extended]`) for the metrics you enable:
+# Extended IQA tier (OPTIONAL — see docs/CONFIGURATION.md "Extended IQA tier").
+# Enabled per-metric via scoring_config.json "iqa_extended". Only aesthetic_v25
+# needs a package of its own, and it is heavy + GPU-bound, so it is left
+# commented to keep the default install / Docker image lean. Uncomment (or
+# `pip install .[iqa-extended]`) if you enable it:
 #   aesthetic-predictor-v2-5   # iqa_extended.aesthetic_v25 (SigLIP aesthetic head, ~2GB)
-#   bitsandbytes>=0.43.0       # iqa_extended.qalign "4bit"/"8bit" quantisation
-# (Q-Align itself comes from pyiqa above; DeQA-Score downloads via transformers.)
+# (Q-ReAlign comes from pyiqa above and needs no quantisation backend;
+# DeQA-Score downloads via transformers.)
 
 # Scientific Computing
 numpy>=1.24.0

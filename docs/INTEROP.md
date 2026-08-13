@@ -24,7 +24,7 @@ So for a Lightroom or Capture One workflow: use `--embed-originals` for anything
 
 Facet's reject marker (`xmp:Rating = -1`) reads back as Lightroom's Reject flag. A Facet favorite writes `xmp:Label = Yellow`, which Lightroom shows as the **Yellow color label** — not the Pick flag. If your Lightroom workflow keys off Picks rather than color labels, add a color-label-to-pick step, or filter by the Yellow label instead.
 
-A `python facet.py --export-manifest` feed (path, category, every score, tags, and the same rating columns as `--export-sidecars`) now exists for tools that want Facet's data without parsing XMP — see [Commands — Preview & Export](COMMANDS.md#preview--export). The Facet plug-in below consumes it.
+A `python facet.py --export-manifest` feed (path, category, every score, tags, and the same rating columns as `--export-sidecars` — including per-user ratings via `--export-manifest --user alice` on a multi-user install) now exists for tools that want Facet's data without parsing XMP — see [Commands — Preview & Export](COMMANDS.md#preview--export). The Facet plug-in below consumes it.
 
 ### The Facet plug-in (star ratings and pick flags)
 

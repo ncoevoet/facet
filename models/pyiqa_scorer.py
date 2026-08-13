@@ -107,30 +107,23 @@ PYIQA_MODELS = {
         'description': 'LIQE - Quality score + distortion type diagnosis',
         'has_distortion': True,
     },
-    # Q-Align (LLM-based IQA, q-future/one-align — mPLUG-Owl2 base).
-    # Three variants by quantisation; the 4-bit fits an 8GB card, the 8-bit
-    # fits 12-14GB, full precision wants 16GB+. The score is on the AVA MOS
-    # scale (1-5 typically), so it benchmarks naturally against AVA.txt.
-    'qalign': {
-        'pyiqa_id': 'qalign',
-        'vram_gb': 14,
+    # Q-ReAlign (LLM-based IQA, Q-ReAlign-Mini 0.8B, Apache-2.0). One variant:
+    # at ~3GB it needs no quantisation, so it is the first extended-IQA scorer
+    # that fits from the 8gb profile up (it replaced Q-Align, whose smallest
+    # 4-bit variant already wanted bitsandbytes and ~5GB).
+    #
+    # TRAP: pyiqa registers qrealign on a **(0, 1)** score range, NOT the (1, 5)
+    # AVA MOS range Q-Align used. _normalize_score clamps the raw value into
+    # score_range before scaling to 0-10, so carrying the old (1, 5) over would
+    # clamp every real score (all < 1) to exactly 1 and emit a constant 0.0
+    # column — silently, and with every unit test still green. Verify against
+    # pyiqa's own registry before touching this tuple.
+    'qrealign': {
+        'pyiqa_id': 'qrealign',
+        'vram_gb': 3,
         'lower_better': False,
-        'score_range': (1, 5),
-        'description': 'Q-Align — full precision (16GB+ VRAM, ~13.6GB weights)',
-    },
-    'qalign_8bit': {
-        'pyiqa_id': 'qalign_8bit',
-        'vram_gb': 8,
-        'lower_better': False,
-        'score_range': (1, 5),
-        'description': 'Q-Align — 8-bit quantised (~12-14GB VRAM, ~7GB weights)',
-    },
-    'qalign_4bit': {
-        'pyiqa_id': 'qalign_4bit',
-        'vram_gb': 5,
-        'lower_better': False,
-        'score_range': (1, 5),
-        'description': 'Q-Align — 4-bit quantised (~6-8GB VRAM, ~4GB weights)',
+        'score_range': (0, 1),
+        'description': 'Q-ReAlign-Mini 0.8B — LLM-based IQA (~3GB VRAM, Apache-2.0)',
     },
 }
 
@@ -138,8 +131,8 @@ PYIQA_MODELS = {
 # Models whose forward pass is per-sample independent in eval mode and accept a
 # stacked same-size batch tensor, so real batching gives results bit-identical to
 # per-image scoring. Resolution-sensitive multi-scale models (musiq*), the
-# variable-output LIQE, and the VLM Q-Align variants stay serial (forced
-# fixed-size batching would shift their scores).
+# variable-output LIQE, and the VLM Q-ReAlign stay serial (forced fixed-size
+# batching would shift their scores).
 _BATCHABLE_MODELS = {'topiq', 'hyperiqa', 'dbcnn', 'topiq_iaa', 'topiq_nr_face', 'clipiqa+'}
 
 

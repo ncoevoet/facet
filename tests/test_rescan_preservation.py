@@ -48,7 +48,7 @@ def _base_result(path, aggregate):
         'contrast_score': 5.0, 'tags': '["landscape"]', 'quality_score': 5.0,
         'topiq_score': 5.0, 'composition_explanation': '', 'scoring_model': 'test',
         'composition_pattern': 'center', 'aesthetic_iaa': 5.0, 'face_quality_iqa': None,
-        'liqe_score': 5.0, 'qalign_score': None, 'aesthetic_v25': None, 'deqa_score': None,
+        'liqe_score': 5.0, 'qrealign_score': None, 'aesthetic_v25': None, 'deqa_score': None,
         'subject_sharpness': None, 'subject_prominence': None, 'subject_placement': None,
         'bg_separation': None, 'gps_latitude': None, 'gps_longitude': None,
         'face_details': [],

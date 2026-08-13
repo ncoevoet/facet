@@ -3591,7 +3591,7 @@
     }
   },
   "iqa_extended": {
-    "qalign": false,
+    "qrealign": "auto",
     "aesthetic_v25": false,
     "deqa": false
   },

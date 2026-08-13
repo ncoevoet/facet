@@ -1,7 +1,6 @@
 """Apply a trained AestheticMLP to every photo with a stored embedding.
 
-Mirrors scripts/score_qalign_ava.py: writes into a DB column (default
-``aesthetic_clip_mlp``), idempotent on re-run.
+Writes into a DB column (default ``aesthetic_clip_mlp``), idempotent on re-run.
 
 Usage::
 

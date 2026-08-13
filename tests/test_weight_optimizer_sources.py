@@ -221,10 +221,10 @@ class TestApplyWritesConfigKeys:
         # genuinely-unknown key is still removed.
         cfg = tmp_path / "cfg.json"
         cfg.write_text(json.dumps({
-            "iqa_extended": {"qalign": True},
+            "iqa_extended": {"qrealign": True},
             "categories": [{"name": "portrait", "weights": {
                 "aesthetic_percent": 50,
-                "qalign_percent": 10,        # enabled extended metric -> keep
+                "qrealign_percent": 10,      # enabled extended metric -> keep
                 "bogus_metric_percent": 5,   # unknown -> strip
             }}],
         }))
@@ -233,21 +233,26 @@ class TestApplyWritesConfigKeys:
             {"aesthetic": 0.6, "face_quality": 0.4}, category="portrait", backup=False
         )
         weights = json.loads(cfg.read_text())["categories"][0]["weights"]
-        assert weights["qalign_percent"] == 10        # preserved (tier enabled)
+        assert weights["qrealign_percent"] == 10      # preserved (tier enabled)
         assert "bogus_metric_percent" not in weights   # stripped (unknown)
         assert weights["aesthetic_percent"] == 60.0
 
     def test_apply_strips_extended_iqa_weight_when_disabled(self, tmp_path):
-        # With the tier OFF (default), an extended *_percent key is just cruft.
+        # With the metric turned OFF, its *_percent key is just cruft. Explicit
+        # false rather than the default, because qrealign's default is "auto"
+        # and would follow whatever profile the box resolves to.
         cfg = tmp_path / "cfg.json"
-        cfg.write_text(json.dumps({"categories": [{"name": "portrait", "weights": {
-            "aesthetic_percent": 90,
-            "qalign_percent": 10,   # tier disabled -> strip
-        }}]}))
+        cfg.write_text(json.dumps({
+            "iqa_extended": {"qrealign": False},
+            "categories": [{"name": "portrait", "weights": {
+                "aesthetic_percent": 90,
+                "qrealign_percent": 10,   # metric disabled -> strip
+            }}],
+        }))
         opt = WeightOptimizer("unused.db", str(cfg))
         opt.apply_optimized_weights({"aesthetic": 1.0}, category="portrait", backup=False)
         weights = json.loads(cfg.read_text())["categories"][0]["weights"]
-        assert "qalign_percent" not in weights
+        assert "qrealign_percent" not in weights
 
 
 class TestCVFoldsMatchDeployedObjective:

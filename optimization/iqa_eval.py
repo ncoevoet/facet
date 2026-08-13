@@ -24,7 +24,7 @@ logger = logging.getLogger("facet.iqa_eval")
 # Stored metric columns worth correlating against the ground-truth label.
 DEFAULT_METRICS = [
     'aesthetic', 'topiq_score', 'aesthetic_iaa', 'face_quality_iqa', 'liqe_score',
-    'aesthetic_clip', 'qalign_score', 'aesthetic_v25', 'deqa_score', 'aggregate',
+    'aesthetic_clip', 'qrealign_score', 'aesthetic_v25', 'deqa_score', 'aggregate',
 ]
 
 

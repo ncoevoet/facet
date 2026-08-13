@@ -196,7 +196,7 @@ Cada um desbloqueia um recurso; sem ele, o recurso é pulado ou um fallback é u
 | `rawpy` | Decodificação RAW (CR2/CR3/NEF/ARW/…) | Arquivos RAW pulados (já está no `requirements.txt` base) |
 | `cuml`, `cupy` | Agrupamento de faces acelerado por GPU (conda + CUDA) | O agrupamento roda em CPU via `hdbscan` (padrão) |
 | `onnxruntime-gpu` | Detecção de faces acelerada por GPU | `onnxruntime` em CPU (mais lento) |
-| `aesthetic-predictor-v2-5`, `bitsandbytes` | Camada de IQA estendida (`pip install -e .[iqa-extended]`; `iqa_extended` em `scoring_config.json`, desativada por padrão) | Métricas de IQA estendida indisponíveis |
+| `aesthetic-predictor-v2-5` | Camada de IQA estendida — pontuador `aesthetic_v25` (`pip install -e .[iqa-extended]`; `iqa_extended.aesthetic_v25` em `scoring_config.json`, desativada por padrão). **Descontinuado** — AGPL-3.0, sem manutenção desde 2024-12-18; prefira `qrealign`, que não precisa de nenhum pacote extra (vem com a dependência base `pyiqa`) | `aesthetic_v25` indisponível |
 | `darktable-cli` (sistema) | Exportação de perfil RAW/darktable a partir do visualizador | Apenas download original/embutido oferecido |
 | `exiftool` (sistema) | Melhor extração de EXIF/GPS | Recorre ao `exifread`, depois ao PIL |
 

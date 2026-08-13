@@ -72,6 +72,7 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 | `python facet.py --export-json output.json` | Export to specific JSON file |
 | `python facet.py --export-manifest` | Export a compact JSON manifest (path, category, scores, tags, star rating, favorite/reject, burst-lead) to `facet_manifest.json` for external tools such as a Lightroom Classic plugin |
 | `python facet.py --export-manifest /path` | Limit the manifest to photos under a path subtree |
+| `python facet.py --export-manifest --user alice` | Multi-user mode: export Alice's `user_preferences` ratings into the manifest instead of the global columns (tags and scores stay global) |
 | `python facet.py --import-sidecars` | Import ratings/labels/tags from `<image>.xmp` sidecars back into the DB (all photos) |
 | `python facet.py --import-sidecars /path` | Import sidecars only for photos under a path subtree |
 | `python facet.py --import-sidecars --user alice` | Multi-user mode: import ratings into Alice's `user_preferences` instead of the global columns (keywords stay global) |
@@ -85,7 +86,7 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 >
 > **Caveat.** `--import-sidecars` resolves ratings/labels *newest-wins* against the photo's `scanned_at` (last scan), not a per-rating edit time — so a sidecar newer than the last scan can override a rating you changed in Facet after it. Run `--import-sidecars` before re-rating if the external editor is the source of truth, and `python database.py --migrate-tags` after importing if you use the `photo_tags` lookup table.
 >
-> **`--export-manifest` vs. `--export-csv`/`--export-json`.** The manifest's optional argument scopes *which photos* are exported (like `--export-sidecars`), not the output filename — it always (re)writes `facet_manifest.json` in the working directory, since it is meant to be regenerated in place for a tool that re-reads a fixed path. It carries the same global (single-user) `star_rating`/`is_favorite`/`is_rejected` values as `--export-sidecars`, plus `is_burst_lead`, and is written with compact (non-pretty-printed) JSON — at ~100k photos, `--export-json`'s `indent=2` output would run to tens of megabytes for no benefit to a machine reader.
+> **`--export-manifest` vs. `--export-csv`/`--export-json`.** The manifest's optional argument scopes *which photos* are exported (like `--export-sidecars`), not the output filename — it always (re)writes `facet_manifest.json` in the working directory, since it is meant to be regenerated in place for a tool that re-reads a fixed path. It carries the same `star_rating`/`is_favorite`/`is_rejected` values as `--export-sidecars` — the global columns by default, or the named user's `user_preferences` row when `--user` is given, so a multi-user install no longer exports an all-zero manifest — plus `is_burst_lead` (always global), and is written with compact (non-pretty-printed) JSON — at ~100k photos, `--export-json`'s `indent=2` output would run to tens of megabytes for no benefit to a machine reader.
 
 ### Immich Sync
 

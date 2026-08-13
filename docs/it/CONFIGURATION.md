@@ -945,12 +945,12 @@ Esegui `python facet.py --detect-duplicates` per rilevare e raggruppare i duplic
 
 ## Extended IQA tier (optional)
 
-Scorer di qualità pesanti/sperimentali, **disattivati per impostazione predefinita** e **mai sostitutivi di TOPIQ** — aggiungono colonne supplementari solo quando esplicitamente abilitati. Quando abilitati, gli scorer estesi vengono eseguiti **durante una normale scansione** e scrivono le proprie colonne; un errore di caricamento/VRAM viene registrato e la colonna è lasciata a `NULL` (la scansione non si interrompe mai).
+Scorer di qualità pesanti/sperimentali che aggiungono colonne supplementari; **mai sostitutivi di TOPIQ**. `qrealign` ha come predefinito `"auto"` — **attivo** per i profili `8gb`/`16gb`/`24gb`, **disattivo** per `legacy`/CPU — il primo scorer del livello esteso utilizzabile a partire dal profilo `8gb` (Q-Align, che sostituisce, non è mai stato adatto sotto i 16GB). `aesthetic_v25` e `deqa` restano **disattivati per impostazione predefinita**. Quando abilitati, gli scorer estesi vengono eseguiti **durante una normale scansione** e scrivono le proprie colonne; un errore di caricamento/VRAM viene registrato e la colonna è lasciata a `NULL` (la scansione non si interrompe mai).
 
 ```json
 {
   "iqa_extended": {
-    "qalign": "4bit",
+    "qrealign": "auto",
     "aesthetic_v25": true,
     "deqa": false
   }
@@ -959,15 +959,15 @@ Scorer di qualità pesanti/sperimentali, **disattivati per impostazione predefin
 
 | Impostazione | Predefinito | Valori accettati | Colonna | Descrizione |
 |---------|---------|-----------------|--------|-------------|
-| `qalign` | `false` | `false` · `"4bit"` · `"8bit"` · `true`/`"full"` | `qalign_score` | IQA basata su LLM Q-Align (supportata da pyiqa). `"4bit"` (~6-8GB VRAM) è la scelta pratica su una scheda da 16GB; `"8bit"` ~12-14GB; la precisione piena (`true`) richiede 16GB+. 4-/8-bit necessitano di `bitsandbytes`. |
-| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (testa SigLIP, ~2GB). Richiede il pacchetto `aesthetic-predictor-v2-5`. |
+| `qrealign` | `"auto"` | `"auto"` · `true` · `false` | `qrealign_score` | IQA basata su LLM Q-ReAlign-Mini 0.8B (supportata da pyiqa, pesi Apache-2.0, ~2-3GB VRAM/RAM). `"auto"` la attiva per i profili `8gb`/`16gb`/`24gb` e la disattiva per `legacy`/CPU; `true`/`false` sovrascrivono esplicitamente il predefinito del profilo. |
+| `aesthetic_v25` | `false` | `true` / `false` | `aesthetic_v25` | Aesthetic Predictor V2.5 (testa SigLIP, ~2GB). Richiede il pacchetto `aesthetic-predictor-v2-5`. **Deprecato:** licenza AGPL-3.0 e non mantenuto dal 2024-12-18 — preferisci `qrealign`. |
 | `deqa` | `false` | `true` / `false` | `deqa_score` | IQA VLM DeQA-Score (GPU 16GB+; altrimenti saltata e lasciata a NULL). |
 
-**Installa le dipendenze facoltative** per ciò che abiliti: `pip install -e .[iqa-extended]` (aggiunge `aesthetic-predictor-v2-5` + `bitsandbytes`), oppure decommenta le righe corrispondenti in `requirements.txt`. Q-Align è incluso in `pyiqa`; DeQA-Score viene scaricato tramite `transformers`.
+**Installa le dipendenze facoltative** per ciò che abiliti: `pip install -e .[iqa-extended]` (aggiunge `aesthetic-predictor-v2-5`), oppure decommenta la riga corrispondente in `requirements.txt`. Q-ReAlign è incluso in `pyiqa`; DeQA-Score viene scaricato tramite `transformers`.
 
 Quando è abilitata, ogni metrica è esposta all'aggregato pesato ma per impostazione predefinita ha peso 0, quindi `--recompute-average` è identico byte per byte finché non le assegni un peso. Esegui `python facet.py --eval-iqa-srcc` per misurare quanto bene ciascuna metrica classifica la tua libreria rispetto alle tue valutazioni a stelle.
 
-**Esposizione nel viewer.** Quando una di queste colonne è popolata, il viewer mostra il valore nel pannello **Quality** dei dettagli della foto (`Q-Align`, `Aesthetic V2.5`, `DeQA`) ed espone uno slider di intervallo corrispondente nella barra laterale dei filtri della galleria sotto **Extended Quality** (`min_qalign`/`max_qalign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Le foto scansionate prima dell'abilitazione del tier hanno semplicemente `NULL` in queste colonne e non sono influenzate dai filtri.
+**Esposizione nel viewer.** Quando una di queste colonne è popolata, il viewer mostra il valore nel pannello **Quality** dei dettagli della foto (`Q-ReAlign`, `Aesthetic V2.5`, `DeQA`) ed espone uno slider di intervallo corrispondente nella barra laterale dei filtri della galleria sotto **Extended Quality** (`min_qrealign`/`max_qrealign`, `min_aesthetic_v25`/`max_aesthetic_v25`, `min_deqa`/`max_deqa`). Le foto scansionate prima dell'abilitazione del tier hanno semplicemente `NULL` in queste colonne e non sono influenzate dai filtri.
 
 **Robustezza.** DeQA-Score carica codice remoto `trust_remote_code` la cui firma di forward varia tra le revisioni del checkpoint; il suo scorer è difensivo — qualsiasi errore di predizione (firma errata, forma di output inattesa, OOM) viene catturato e il `deqa_score` dell'immagine è lasciato a `NULL` invece di far fallire la scansione.
 

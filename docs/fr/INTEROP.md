@@ -24,7 +24,7 @@ Donc, pour un flux Lightroom ou Capture One : utilisez `--embed-originals` pour
 
 Le marqueur de rejet de Facet (`xmp:Rating = -1`) est relu comme le drapeau Rejeter de Lightroom. Un favori Facet écrit `xmp:Label = Yellow`, que Lightroom affiche comme le **libellé de couleur Jaune** — pas le drapeau Sélectionner (Pick). Si votre flux Lightroom se base sur les drapeaux Pick plutôt que sur les libellés de couleur, ajoutez une étape de conversion libellé-couleur → pick, ou filtrez plutôt sur le libellé Jaune.
 
-Un flux `python facet.py --export-manifest` (chemin, catégorie, tous les scores, tags, et les mêmes colonnes de note que `--export-sidecars`) existe désormais pour les outils qui veulent les données de Facet sans analyser le XMP — voir [Commandes — Aperçu et export](COMMANDS.md#preview--export). C'est ce flux que consomme le module externe Facet décrit ci-dessous.
+Un flux `python facet.py --export-manifest` (chemin, catégorie, tous les scores, tags, et les mêmes colonnes de note que `--export-sidecars` — y compris les notes par utilisateur via `--export-manifest --user alice` sur une installation multi-utilisateurs) existe désormais pour les outils qui veulent les données de Facet sans analyser le XMP — voir [Commandes — Aperçu et export](COMMANDS.md#preview--export). C'est ce flux que consomme le module externe Facet décrit ci-dessous.
 
 ### Le module externe Facet (notes et drapeaux Pick)
 

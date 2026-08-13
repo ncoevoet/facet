@@ -325,8 +325,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (p.liqe_score !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.liqe_score | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.liqe_score | fixed:1 }}</span></div>
               }
-              @if (p.qalign_score !== undefined && p.qalign_score !== null) {
-                <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.qalign_score | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.qalign_score | fixed:1 }}</span></div>
+              @if (p.qrealign_score !== undefined && p.qrealign_score !== null) {
+                <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.qrealign_score | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.qrealign_score | fixed:1 }}</span></div>
               }
               @if (p.aesthetic_v25 !== undefined && p.aesthetic_v25 !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.aesthetic_v25 | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.aesthetic_v25 | fixed:1 }}</span></div>

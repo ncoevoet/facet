@@ -24,7 +24,7 @@ Portanto, para um fluxo com Lightroom ou Capture One: use `--embed-originals` pa
 
 O marcador de rejeição do Facet (`xmp:Rating = -1`) é relido como o sinalizador de Rejeição do Lightroom. Um favorito do Facet grava `xmp:Label = Yellow`, que o Lightroom exibe como o **rótulo de cor Amarelo** — não como o sinalizador de Seleção (Pick). Se o seu fluxo no Lightroom depende dos sinalizadores Pick em vez dos rótulos de cor, adicione uma etapa de conversão rótulo-de-cor → pick, ou filtre pelo rótulo Amarelo.
 
-Um feed `python facet.py --export-manifest` (caminho, categoria, todas as pontuações, tags e as mesmas colunas de classificação do `--export-sidecars`) agora existe para ferramentas que querem os dados do Facet sem analisar o XMP — veja [Comandos — Preview & Export](COMMANDS.md#preview--export). É justamente esse feed que o plug-in do Facet descrito abaixo consome.
+Um feed `python facet.py --export-manifest` (caminho, categoria, todas as pontuações, tags e as mesmas colunas de classificação do `--export-sidecars` — incluindo avaliações por usuário via `--export-manifest --user alice` em uma instalação multiusuário) agora existe para ferramentas que querem os dados do Facet sem analisar o XMP — veja [Comandos — Preview & Export](COMMANDS.md#preview--export). É justamente esse feed que o plug-in do Facet descrito abaixo consome.
 
 ### O plug-in do Facet (classificações por estrelas e sinalizadores Pick)
 

@@ -39,7 +39,7 @@ export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   { id: 'aesthetic_iaa_range', labelKey: 'gallery.aesthetic_iaa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'face_quality_iqa_range', labelKey: 'gallery.face_quality_iqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'liqe_range', labelKey: 'gallery.liqe_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_liqe', maxKey: 'max_liqe', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'qalign_range', labelKey: 'gallery.qalign_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_qalign', maxKey: 'max_qalign', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'qrealign_range', labelKey: 'gallery.qrealign_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_qrealign', maxKey: 'max_qrealign', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'aesthetic_v25_range', labelKey: 'gallery.aesthetic_v25_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_v25', maxKey: 'max_aesthetic_v25', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   { id: 'deqa_range', labelKey: 'gallery.deqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_deqa', maxKey: 'max_deqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   // Face Metrics

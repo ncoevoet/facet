@@ -1,4 +1,4 @@
-"""Part A: the extended-IQA columns (qalign_score, aesthetic_v25, deqa_score)
+"""Part A: the extended-IQA columns (qrealign_score, aesthetic_v25, deqa_score)
 are returned by the gallery endpoint and usable as range filters.
 
 Mirrors tests/test_learned_sort.py's harness: a tmp DB, the real gallery
@@ -21,7 +21,7 @@ from api.routers.gallery import SCORE_RANGE_COLUMNS
 from db.schema import init_database
 
 
-EXTENDED_IQA_COLUMNS = ("qalign_score", "aesthetic_v25", "deqa_score")
+EXTENDED_IQA_COLUMNS = ("qrealign_score", "aesthetic_v25", "deqa_score")
 
 
 def _async_conn_factory(db_path):
@@ -75,7 +75,7 @@ def test_extended_iqa_columns_registered_as_range_filters():
         assert col in range_cols, f"{col} not registered in SCORE_RANGE_COLUMNS"
     # And each exposes the expected min_/max_ filter keys.
     by_col = {c[0]: c for c in SCORE_RANGE_COLUMNS}
-    assert by_col["qalign_score"][1:3] == ("min_qalign", "max_qalign")
+    assert by_col["qrealign_score"][1:3] == ("min_qrealign", "max_qrealign")
     assert by_col["aesthetic_v25"][1:3] == ("min_aesthetic_v25", "max_aesthetic_v25")
     assert by_col["deqa_score"][1:3] == ("min_deqa", "max_deqa")
 
@@ -95,7 +95,7 @@ def gallery_db(tmp_path):
     ]
     for path, fn, q, av, dq in rows:
         conn.execute(
-            "INSERT INTO photos (path, filename, aggregate, qalign_score, aesthetic_v25, deqa_score) "
+            "INSERT INTO photos (path, filename, aggregate, qrealign_score, aesthetic_v25, deqa_score) "
             "VALUES (?, ?, 5.0, ?, ?, ?)",
             (path, fn, q, av, dq),
         )
@@ -120,14 +120,14 @@ def _run(db_path, cols, query):
 
 def test_extended_iqa_columns_returned_in_gallery(gallery_db):
     db_path, cols = gallery_db
-    resp = _run(db_path, cols, "/api/photos?sort=qalign_score&sort_direction=DESC")
+    resp = _run(db_path, cols, "/api/photos?sort=qrealign_score&sort_direction=DESC")
     assert resp.status_code == 200
     photos = {p["path"]: p for p in resp.json()["photos"]}
     assert set(photos) == {"/g/a.jpg", "/g/b.jpg", "/g/c.jpg"}
     a = photos["/g/a.jpg"]
     for col in EXTENDED_IQA_COLUMNS:
         assert col in a, f"{col} not returned by the gallery endpoint"
-    assert a["qalign_score"] == 9.0
+    assert a["qrealign_score"] == 9.0
     assert a["aesthetic_v25"] == 9.0
     assert a["deqa_score"] == 9.0
 
@@ -135,7 +135,7 @@ def test_extended_iqa_columns_returned_in_gallery(gallery_db):
 @pytest.mark.parametrize(
     "min_key,expected",
     [
-        ("min_qalign", {"/g/a.jpg", "/g/b.jpg"}),
+        ("min_qrealign", {"/g/a.jpg", "/g/b.jpg"}),
         ("min_aesthetic_v25", {"/g/a.jpg", "/g/b.jpg"}),
         ("min_deqa", {"/g/a.jpg", "/g/b.jpg"}),
     ],

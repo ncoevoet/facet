@@ -1930,7 +1930,8 @@ Configuration:
                         help='Export a compact JSON manifest (path, category, scores, tags, ratings) '
                              'for external tools such as a Lightroom Classic plugin feed (optional: '
                              'limit to a path subtree; default: all photos). Writes facet_manifest.json '
-                             'in the current directory, overwriting any previous manifest there')
+                             'in the current directory, overwriting any previous manifest there. Defaults '
+                             'to the global rating columns; pass --user for per-user ratings in multi-user mode')
     export_group.add_argument('--import-sidecars', type=str, nargs='?', const='all', metavar='PATH',
                         help='Import ratings/labels/tags from <image>.xmp sidecars back into the DB '
                              '(optional: limit to a path subtree; default: all photos)')
@@ -1945,7 +1946,8 @@ Configuration:
                         help='With --export-sidecars: derive xmp:Rating from the aggregate score for '
                              'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
-                        help='With --import-sidecars/--export-sidecars/--immich-sync in multi-user mode: '
+                        help='With --import-sidecars/--export-sidecars/--export-manifest/--immich-sync in '
+                             'multi-user mode: '
                              "read/write that user's ratings (user_preferences) instead of the global columns. "
                              'With --train-ranker: scope the personal ranker to that user (own + legacy '
                              'comparisons -> per-user learned_scores)')

@@ -50,24 +50,24 @@ def test_evaluate_iqa_srcc_over_db(tmp_path):
 
 def _photo_row():
     return {
-        'aesthetic': 6.0, 'qalign_score': 8.0, 'aesthetic_v25': 7.0, 'deqa_score': 9.0,
+        'aesthetic': 6.0, 'qrealign_score': 8.0, 'aesthetic_v25': 7.0, 'deqa_score': 9.0,
     }
 
 
 def test_extended_metrics_absent_when_disabled():
     cfg = ScoringConfig(validate=False)
-    cfg.config['iqa_extended'] = {'qalign': False, 'aesthetic_v25': False, 'deqa': False}
+    cfg.config['iqa_extended'] = {'qrealign': False, 'aesthetic_v25': False, 'deqa': False}
     vec = build_metric_vector(_photo_row(), cfg, 'default', weights=cfg.get_weights('default'))
-    assert 'qalign' not in vec
+    assert 'qrealign' not in vec
     assert 'aesthetic_v25' not in vec
     assert 'deqa' not in vec
 
 
 def test_extended_metrics_present_when_enabled():
     cfg = ScoringConfig(validate=False)
-    cfg.config['iqa_extended'] = {'qalign': True, 'aesthetic_v25': True, 'deqa': True}
+    cfg.config['iqa_extended'] = {'qrealign': True, 'aesthetic_v25': True, 'deqa': True}
     vec = build_metric_vector(_photo_row(), cfg, 'default', weights=cfg.get_weights('default'))
-    assert vec['qalign'] == pytest.approx(8.0)
+    assert vec['qrealign'] == pytest.approx(8.0)
     assert vec['aesthetic_v25'] == pytest.approx(7.0)
     assert vec['deqa'] == pytest.approx(9.0)
 
@@ -77,8 +77,17 @@ def test_iqa_models_property_gated(tmp_path):
     db = str(tmp_path / "f.db")
     init_database(db)
     f = Facet(db_path=db, lightweight=True)
-    base = [m for m, _ in f._IQA_MODELS]
-    assert 'qalign' not in base                 # OFF by default
-    f.config.config['iqa_extended'] = {'qalign': True}
-    enabled = dict(f._IQA_MODELS)
-    assert enabled.get('qalign') == 'qalign_score'   # appears when enabled
+
+    f.config.config['iqa_extended'] = {'qrealign': False}
+    assert 'qrealign' not in [m for m, _ in f._IQA_MODELS]      # explicitly off
+
+    f.config.config['iqa_extended'] = {'qrealign': True}
+    assert dict(f._IQA_MODELS).get('qrealign') == 'qrealign_score'   # explicitly on
+
+    # Tri-state default: 'auto' follows the resolved profile, so a legacy box
+    # keeps the base three and every larger profile picks up Q-ReAlign.
+    f.config.config['iqa_extended'] = {'qrealign': 'auto'}
+    f.config.config['models'] = {'vram_profile': 'legacy'}
+    assert 'qrealign' not in [m for m, _ in f._IQA_MODELS]
+    f.config.config['models'] = {'vram_profile': '8gb'}
+    assert dict(f._IQA_MODELS).get('qrealign') == 'qrealign_score'

@@ -595,26 +595,36 @@ class ScoringConfig:
         })
 
     def get_extended_iqa_settings(self):
-        """Get the optional extended-IQA tier flags (all OFF by default).
+        """Get the optional extended-IQA tier flags, as plain bools.
 
         These gate the heavy/experimental scorers that are NEVER a replacement
-        for TOPIQ — they add supplementary columns only when explicitly enabled:
-        - qalign: Q-Align LLM-based IQA (pyiqa-backed). Accepts a bool (True =
-          full precision, 16GB+) or a quantisation variant string: '4bit'
-          (~6-8GB, the practical choice for a 16GB card), '8bit' (~12-14GB),
-          or 'full'. Returned normalised to False | 'full' | '8bit' | '4bit'.
-        - aesthetic_v25: Aesthetic Predictor V2.5 (light SigLIP head, ~2GB)
-        - deqa: DeQA-Score VLM (very heavy; 16GB+ GPU to validate)
+        for TOPIQ — they add supplementary columns only:
+        - qrealign: Q-ReAlign-Mini 0.8B LLM-based IQA (pyiqa-backed). **
+          Tri-state**: ``true`` | ``false`` | ``"auto"`` (the default). ``"auto"``
+          resolves to enabled on every resolved VRAM profile except ``legacy``:
+          at ~3GB it is the first extended-IQA scorer that fits from the 8gb
+          profile up, so it does not need the opt-in the heavier scorers do.
+          An explicit ``true``/``false`` always wins over the profile.
+        - aesthetic_v25: Aesthetic Predictor V2.5 (light SigLIP head, ~2GB).
+          Plain bool, OFF by default.
+        - deqa: DeQA-Score VLM (very heavy; 16GB+ GPU to validate). Plain bool,
+          OFF by default.
+
+        Returns:
+            dict of {'qrealign': bool, 'aesthetic_v25': bool, 'deqa': bool} —
+            every value is a resolved bool, so callers never re-interpret
+            'auto'.
         """
         section = self.config.get('iqa_extended', {})
-        qalign_raw = section.get('qalign', False)
-        if isinstance(qalign_raw, str):
-            variant = qalign_raw.strip().lower()
-            qalign = variant if variant in ('full', '8bit', '4bit') else ('full' if variant else False)
+        qrealign_raw = section.get('qrealign', 'auto')
+        if isinstance(qrealign_raw, str) and qrealign_raw.strip().lower() == 'auto':
+            # 'legacy' is the no-GPU / <6GB profile — a 3GB scorer does not
+            # belong there, but every other profile has room for it.
+            qrealign = self._resolved_vram_profile() != 'legacy'
         else:
-            qalign = 'full' if qalign_raw else False
+            qrealign = bool(qrealign_raw)
         return {
-            'qalign': qalign,
+            'qrealign': qrealign,
             'aesthetic_v25': bool(section.get('aesthetic_v25', False)),
             'deqa': bool(section.get('deqa', False)),
         }
@@ -727,6 +737,22 @@ class ScoringConfig:
                         'curved', 'radial', 'vanishing_point', 'pattern', 'fill_frame']
         })
 
+    def _resolved_vram_profile(self) -> str:
+        """The active VRAM profile name, with 'auto' resolved to the detected one.
+
+        Single place that turns the configured profile into a concrete one, so
+        every profile-conditional feature agrees on the answer. The
+        FACET_VRAM_PROFILE env override is already folded into
+        models.vram_profile by _load_config, so it is honored here too.
+        """
+        profile_name = self.get_model_config().get('vram_profile', 'legacy')
+        if profile_name == 'auto':
+            # Resolve 'auto' to the detected profile (in-memory, once) so the
+            # lookup never falls through to the legacy profile.
+            self.check_vram_profile_compatibility(verbose=False)
+            profile_name = self.get_model_config().get('vram_profile', 'legacy')
+        return profile_name
+
     def get_model_for_task(self, task: str) -> str:
         """Get the model name configured for a specific task (aesthetic, composition, tagging).
 
@@ -737,12 +763,7 @@ class ScoringConfig:
             Model name string (e.g., 'topiq', 'samp-net', 'rule-based')
         """
         models_config = self.get_model_config()
-        profile_name = models_config.get('vram_profile', 'legacy')
-        if profile_name == 'auto':
-            # Resolve 'auto' to the detected profile (in-memory, once) so the
-            # task lookup never falls through to the legacy profile.
-            self.check_vram_profile_compatibility(verbose=False)
-            profile_name = self.get_model_config().get('vram_profile', 'legacy')
+        profile_name = self._resolved_vram_profile()
         profiles = models_config.get('profiles', {})
         profile = profiles.get(profile_name, profiles.get('legacy', {}))
 

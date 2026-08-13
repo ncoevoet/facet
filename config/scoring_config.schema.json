@@ -55,6 +55,14 @@
     "auto_cull": { "type": "object" },
     "distortion_attributes": { "type": "object" },
     "skin_tone": { "type": "object" },
+    "iqa_extended": {
+      "type": "object",
+      "properties": {
+        "qrealign": { "enum": [true, false, "auto"] },
+        "aesthetic_v25": { "type": "boolean" },
+        "deqa": { "type": "boolean" }
+      }
+    },
     "ocr": {
       "type": "object",
       "properties": {

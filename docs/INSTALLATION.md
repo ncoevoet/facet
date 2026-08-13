@@ -213,7 +213,7 @@ Each unlocks a feature; without it the feature is skipped or a fallback is used.
 | `rawpy` | RAW decode (CR2/CR3/NEF/ARW/…) | RAW files skipped (already in base `requirements.txt`) |
 | `cuml`, `cupy` | GPU-accelerated face clustering (conda + CUDA) | Clustering runs on CPU via `hdbscan` (default) |
 | `onnxruntime-gpu` | GPU-accelerated face detection | CPU `onnxruntime` (slower) |
-| `aesthetic-predictor-v2-5`, `bitsandbytes` | Extended IQA tier (`pip install -e .[iqa-extended]`; `iqa_extended` in `scoring_config.json`, off by default) | Extended IQA metrics unavailable |
+| `aesthetic-predictor-v2-5` | Extended IQA tier — `aesthetic_v25` scorer (`pip install -e .[iqa-extended]`; `iqa_extended.aesthetic_v25` in `scoring_config.json`, off by default). **Deprecated** — AGPL-3.0, unmaintained upstream since 2024-12-18; prefer `qrealign`, which needs no extra package (ships with the base `pyiqa` dependency) | `aesthetic_v25` unavailable |
 | `darktable-cli` (system) | RAW/darktable profile export from the viewer | Only original/embedded download offered |
 | `exiftool` (system) | Best EXIF/GPS extraction | Falls back to `exifread`, then PIL |
 

@@ -61,7 +61,7 @@ def _scored_result(path):
         'contrast_score': 5.0, 'tags': '["portrait"]', 'quality_score': 8.0,
         'topiq_score': 8.2, 'composition_explanation': 'centered', 'scoring_model': 'topiq',
         'composition_pattern': 'rule_of_thirds', 'aesthetic_iaa': 6.0, 'face_quality_iqa': 7.0,
-        'liqe_score': 3.7, 'qalign_score': None, 'aesthetic_v25': None, 'deqa_score': None,
+        'liqe_score': 3.7, 'qrealign_score': None, 'aesthetic_v25': None, 'deqa_score': None,
         'subject_sharpness': None, 'subject_prominence': None, 'subject_placement': None,
         'bg_separation': None, 'gps_latitude': None, 'gps_longitude': None,
         'face_details': [dict(_FACE)],
