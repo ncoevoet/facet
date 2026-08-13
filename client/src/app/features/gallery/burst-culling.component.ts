@@ -176,6 +176,26 @@ interface ShortcutRow {
   labelKey: string;
 }
 
+/** Monotonic guard for the two passes here that can be superseded while they
+ *  await — darkroom focus peaking and the auto-cull dry run. A pass takes a
+ *  ticket with `next()` and drops its result unless `isCurrent(ticket)` still
+ *  holds; `cancel()` invalidates whatever is in flight without starting one. */
+class RunGeneration {
+  private value = 0;
+
+  next(): number {
+    return ++this.value;
+  }
+
+  isCurrent(run: number): boolean {
+    return run === this.value;
+  }
+
+  cancel(): void {
+    this.value++;
+  }
+}
+
 @Component({
   selector: 'app-burst-culling',
   imports: [
@@ -452,7 +472,7 @@ interface ShortcutRow {
             </mat-slider>
           }
           @if (auth.isEdition() && !keepWholeGranularity()) {
-            <button mat-icon-button class="shrink-0" (click)="openAutoCull()" [disabled]="autoCullLoading()"
+            <button mat-icon-button class="shrink-0" (click)="openAutoCull()" [disabled]="autoCullBusy()"
                     [matTooltip]="I18N.culling.auto_cull.tooltip | translate"
                     [attr.aria-label]="I18N.culling.auto_cull.button | translate">
               <mat-icon>auto_fix_high</mat-icon>
@@ -1230,13 +1250,13 @@ interface ShortcutRow {
           <label class="flex items-center gap-2 text-sm cursor-pointer"
                  [matTooltip]="I18N.culling.auto_cull.trim_brackets_hint | translate">
             <input type="checkbox" class="accent-[var(--mat-sys-primary)]"
-                   [checked]="trimBrackets()" [disabled]="autoCullLoading()"
+                   [checked]="trimBrackets()" [disabled]="autoCullBusy()"
                    (change)="onTrimBracketsChange(!trimBrackets())" />
             {{ I18N.culling.auto_cull.trim_brackets | translate }}
           </label>
           <!-- A cold suggest+preview takes seconds, during which the counts below are
                last run's. Say so rather than let them read as this run's answer. -->
-          @if (autoCullLoading()) {
+          @if (autoCullBusy()) {
             <p class="flex items-center gap-2 text-sm opacity-80" role="status">
               <mat-spinner diameter="16" />
               {{ I18N.culling.auto_cull.updating | translate }}
@@ -1267,9 +1287,9 @@ interface ShortcutRow {
             }
           }
           <div class="flex justify-end gap-2">
-            <button mat-stroked-button (click)="cancelAutoCull()">{{ I18N.dialog.cancel | translate }}</button>
+            <button mat-stroked-button (click)="cancelAutoCull()" [disabled]="autoCullApplying()">{{ I18N.dialog.cancel | translate }}</button>
             @if (ac.groups_processed > 0) {
-              <button mat-flat-button (click)="confirmAutoCull()" [disabled]="autoCullLoading()">
+              <button mat-flat-button (click)="confirmAutoCull()" [disabled]="autoCullBusy()">
                 {{ I18N.culling.auto_cull.apply | translate:{ rejected: ac.rejected } }}
               </button>
             }
@@ -1500,7 +1520,7 @@ export class BurstCullingComponent implements OnDestroy {
    *  image box rather than on the pane's own (usually wider) rectangle. */
   protected readonly frameSizes = signal<Map<string, FrameSize>>(new Map());
   /** Guards against a superseded pass publishing over a newer one. */
-  private peakingRun = 0;
+  private readonly peakingRun = new RunGeneration();
 
   protected readonly darkroomThumbSize = DARKROOM_THUMB_SIZE;
 
@@ -1579,7 +1599,7 @@ export class BurstCullingComponent implements OnDestroy {
    *  awaiting its raster work would otherwise land after the toggle went off and
    *  paint the frames again. */
   private clearPeaking(): void {
-    this.peakingRun++;
+    this.peakingRun.cancel();
     this.peakingCache.clear();
     if (this.peakingOverlays().size > 0) this.peakingOverlays.set(NO_PEAKING_OVERLAYS);
   }
@@ -1595,7 +1615,7 @@ export class BurstCullingComponent implements OnDestroy {
    * one threshold painted them both.
    */
   private async refreshPeaking(paths: string[], hiRes: boolean): Promise<void> {
-    const run = ++this.peakingRun;
+    const run = this.peakingRun.next();
     if (paths.length > 1) return this.refreshPooledPeaking(paths, hiRes, run);
     const overlays = new Map<string, string>();
     for (const path of paths) {
@@ -1604,7 +1624,7 @@ export class BurstCullingComponent implements OnDestroy {
       let url = cached?.src === src ? cached.url : null;
       if (!url) {
         url = await this.renderPeaking(src);
-        if (run !== this.peakingRun) return;
+        if (!this.peakingRun.isCurrent(run)) return;
         if (url) {
           this.peakingCache.set(path, { src, url });
           this.trimPeakingCache();
@@ -1632,7 +1652,7 @@ export class BurstCullingComponent implements OnDestroy {
       return;
     }
     const urls = await this.renderPooledPeaking(srcs);
-    if (run !== this.peakingRun) return;
+    if (!this.peakingRun.isCurrent(run)) return;
     const overlays = new Map<string, string>();
     paths.forEach((path, i) => {
       const url = urls.get(srcs[i]);
@@ -1813,13 +1833,27 @@ export class BurstCullingComponent implements OnDestroy {
   private readonly autoCullRequest = signal<AutoCullRequest | null>(null);
   /** Bumped per dry run, so a superseded one can never publish over a newer
    *  preview — the pair above must always describe the same run. */
-  private autoCullRun = 0;
+  private readonly autoCullRun = new RunGeneration();
   /** True between a dry run's request and its answer. A suggestion landing in
    *  that window has to re-run too: the dialog is not open yet, so waiting on
    *  `autoCullPreview` would have opened it on counts from the knobs the
    *  suggestion just replaced. */
   private dryRunInFlight = false;
+  /** True while any auto-cull request is in flight (dry run or apply): it drives
+   *  the dialog's spinner and disables the knobs that would re-run it. */
   protected readonly autoCullLoading = signal(false);
+  /** True while the *destructive* apply is in flight — the one request that
+   *  cannot be abandoned. Every dismissal path (Cancel, backdrop, Escape) is
+   *  ignored for its duration and Apply refuses to fire twice, because
+   *  dismissing mid-flight re-armed Apply over a snapshot already being applied,
+   *  and the apply's own close then bumped the dry-run generation over the run
+   *  the reopened dialog was waiting on. */
+  protected readonly autoCullApplying = signal(false);
+  /** What the dialog actually renders busy. Not `autoCullLoading` alone: a dry
+   *  run that a profile suggestion started behind the apply clears that flag
+   *  when it lands, which would drop the spinner and re-arm the knobs while the
+   *  destructive request is still open. */
+  protected readonly autoCullBusy = computed(() => this.autoCullLoading() || this.autoCullApplying());
   /** Whether the apply also fills the Highlights album (dialog checkbox, opt-in). */
   protected readonly autoCullHighlights = signal(false);
   /** Whether auto-cull also proposes trimming redundant, non-clipping bracket
@@ -2861,36 +2895,44 @@ export class BurstCullingComponent implements OnDestroy {
     // through here, and clearing unconditionally would erase them on the way in —
     // including the re-run of a dry run whose preview has not landed yet.
     if (!this.autoCullPreview() && !this.dryRunInFlight) this.clearAutoCullNotices();
-    const run = ++this.autoCullRun;
+    const run = this.autoCullRun.next();
     this.dryRunInFlight = true;
     void this.applySuggestedProfile();
     const body = this.autoCullBody(true, this.highlightsAlbumName());
     this.autoCullLoading.set(true);
     try {
       const preview = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
-      if (run !== this.autoCullRun) return;
+      if (!this.autoCullRun.isCurrent(run)) return;
       this.autoCullPreview.set(preview);
       this.autoCullRequest.set(body);
     } catch {
-      if (run !== this.autoCullRun) return;
+      if (!this.autoCullRun.isCurrent(run)) return;
       this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
-      if (run === this.autoCullRun) {
+      if (this.autoCullRun.isCurrent(run)) {
         this.dryRunInFlight = false;
         this.autoCullLoading.set(false);
       }
     }
   }
 
+  /** Every dismissal lands here — the Cancel button, the backdrop and Escape.
+   *  It is a no-op while the apply is in flight: the destructive request cannot
+   *  be called off, so the dialog stays up with its spinner rather than pretend
+   *  it was. */
   protected cancelAutoCull(): void {
+    if (this.autoCullApplying()) return;
     this.closeAutoCull();
     this.clearAutoCullNotices();
   }
 
   /** Drop the dialog and the run behind it, so a dry run still in flight cannot
-   *  reopen it with counts nobody asked for. */
+   *  reopen it with counts nobody asked for. Safe from the apply's own success
+   *  path for the same reason the guard above exists: no dismissal can have
+   *  reopened the dialog mid-apply, so the bump can only cancel a dry run whose
+   *  preview this apply just made obsolete. */
   private closeAutoCull(): void {
-    this.autoCullRun++;
+    this.autoCullRun.cancel();
     this.dryRunInFlight = false;
     this.autoCullPreview.set(null);
     this.autoCullRequest.set(null);
@@ -2908,12 +2950,22 @@ export class BurstCullingComponent implements OnDestroy {
    *  A scope with no redundant exposures answers with the very same counts, which
    *  is indistinguishable from a dead toggle — so that case is stated. The
    *  identity check on the preview object keeps a failed re-run (which leaves the
-   *  old preview in place) from being read as "nothing to trim". */
+   *  old preview in place) from being read as "nothing to trim".
+   *
+   *  A re-run that never landed also never moved the snapshot, so the checkbox is
+   *  put back to what that snapshot carries — Apply sends the snapshot verbatim,
+   *  and a box ticked over a body with `trim_brackets: false` claims a trim the
+   *  apply would not perform. The error snackbar the failed run raised is what
+   *  says why it reverted. */
   protected async onTrimBracketsChange(value: boolean): Promise<void> {
     const before = this.autoCullPreview();
     this.trimBrackets.set(value);
     this.trimBracketsUnchanged.set(false);
     await this.openAutoCull();
+    const applied = this.autoCullRequest();
+    if (applied && applied.trim_brackets !== this.trimBrackets()) {
+      this.trimBrackets.set(applied.trim_brackets);
+    }
     const after = this.autoCullPreview();
     this.trimBracketsUnchanged.set(
       value && !!before && !!after && after !== before
@@ -2931,10 +2983,16 @@ export class BurstCullingComponent implements OnDestroy {
    * rebuilding here would then apply knobs the counts on screen never described.
    * Only the Highlights album is the dialog's to decide, being a checkbox the
    * user ticks after the preview.
+   *
+   * The `autoCullApplying` gate makes the click idempotent: a second one over
+   * the same snapshot is refused rather than sent, since the two applies would
+   * reject different sets — the first has already moved the state the second
+   * would be computed from.
    */
   protected async confirmAutoCull(): Promise<void> {
     const previewed = this.autoCullRequest();
-    if (!previewed) return;
+    if (!previewed || this.autoCullApplying()) return;
+    this.autoCullApplying.set(true);
     this.autoCullLoading.set(true);
     try {
       const body: AutoCullRequest = {
@@ -2956,6 +3014,7 @@ export class BurstCullingComponent implements OnDestroy {
     } catch {
       this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
     } finally {
+      this.autoCullApplying.set(false);
       this.autoCullLoading.set(false);
     }
   }

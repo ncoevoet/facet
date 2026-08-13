@@ -665,6 +665,111 @@ describe('BurstCullingComponent', () => {
       expect(component['trimBracketsUnchanged']()).toBe(false);
       expect(component['autoCullSuggestionNotice']()).toBeNull();
     });
+
+    // The checkbox is a mirror of the snapshot Apply sends, not of the click: a
+    // re-run that failed left the snapshot on trim_brackets:false while the box
+    // stayed ticked, promising a trim the apply would never perform.
+    it('reverts the trim-brackets checkbox when the re-run fails', async () => {
+      mockApi.post = vi.fn(() => of(preview));
+      await component['openAutoCull']();
+      mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
+      mockSnackBar.open.mockClear();
+
+      await component['onTrimBracketsChange'](true);
+
+      expect(component['trimBrackets']()).toBe(false);
+      expect(component['autoCullRequest']()).toMatchObject({ trim_brackets: false });
+      expect(mockSnackBar.open).toHaveBeenCalled();
+    });
+
+    it('keeps the trim-brackets checkbox ticked when the re-run lands', async () => {
+      mockApi.post = vi.fn(() => of(preview));
+      await component['openAutoCull']();
+
+      await component['onTrimBracketsChange'](true);
+
+      expect(component['trimBrackets']()).toBe(true);
+      expect(component['autoCullRequest']()).toMatchObject({ trim_brackets: true });
+    });
+
+    describe('the destructive apply is uninterruptible', () => {
+      /** Opens the dialog on a landed dry run, then leaves an apply in flight. */
+      const applyInFlight = async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        const response = new Subject<typeof preview>();
+        mockApi.post = vi.fn(() => response);
+        return { response, applied: component['confirmAutoCull']() };
+      };
+
+      const settle = async (response: Subject<typeof preview>, applied: Promise<void>) => {
+        response.next({ ...preview, dry_run: false });
+        response.complete();
+        await applied;
+      };
+
+      // Dismissing mid-flight closed the dialog, which re-armed Apply over a
+      // snapshot already being applied and left the apply's own close to bump
+      // the dry-run generation over whatever the reopened dialog was awaiting.
+      it('ignores cancel and Escape while the apply is in flight', async () => {
+        const { response, applied } = await applyInFlight();
+
+        component['cancelAutoCull']();
+        component['onEscape'](new KeyboardEvent('keydown', { key: 'Escape' }));
+
+        expect(component['autoCullPreview']()).toEqual(preview);
+        expect(component['autoCullRequest']()).not.toBeNull();
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+
+        await settle(response, applied);
+
+        expect(component['autoCullPreview']()).toBeNull();
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+      });
+
+      it('sends one apply per snapshot however often Apply is clicked', async () => {
+        const { response, applied } = await applyInFlight();
+
+        const second = component['confirmAutoCull']();
+
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+
+        await settle(response, applied);
+        await second;
+
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+      });
+
+      it('re-arms the dialog after a failed apply', async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
+
+        await component['confirmAutoCull']();
+
+        expect(component['autoCullPreview']()).toEqual(preview);
+        expect(mockSnackBar.open).toHaveBeenCalled();
+
+        mockApi.post = vi.fn(() => of({ ...preview, dry_run: false }));
+        await component['confirmAutoCull']();
+
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+        expect(component['autoCullPreview']()).toBeNull();
+      });
+
+      // The close behind a completed apply bumps the dry-run generation, so the
+      // next dialog must still be able to open.
+      it('dry-runs again after a completed apply', async () => {
+        const { response, applied } = await applyInFlight();
+        await settle(response, applied);
+
+        mockApi.post = vi.fn(() => of({ ...preview, rejected: 9 }));
+        await component['openAutoCull']();
+
+        expect(component['autoCullPreview']()).toMatchObject({ rejected: 9 });
+        expect(component['autoCullLoading']()).toBe(false);
+      });
+    });
   });
 
   describe('cull profiles (genre presets)', () => {
@@ -1989,6 +2094,12 @@ describe('BurstCullingComponent modals (rendered)', () => {
     fixture.detectChanges();
   };
 
+  /** A dialog footer button, found by the key its label renders as. */
+  const dialogButton = (labelKey: string): HTMLButtonElement => fixture.debugElement
+    .queryAll(By.css('[aria-labelledby="autoCullTitle"] button'))
+    .map(el => el.nativeElement as HTMLButtonElement)
+    .find(el => el.textContent?.includes(labelKey))!;
+
   const photo = (path: string) => ({
     path, filename: path.slice(1), aggregate: 8, aesthetic: 7, tech_sharpness: 6,
     is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8,
@@ -2017,6 +2128,37 @@ describe('BurstCullingComponent modals (rendered)', () => {
     fixture.detectChanges();
 
     expect(component['autoCullPreview']()).toBeNull();
+  });
+
+  // Rendered rather than called: the backdrop click and the Escape binding are
+  // the template's, and both used to tear the dialog down over a destructive
+  // apply that was still in flight — re-arming Apply for a second one.
+  it('survives Escape and a backdrop click while the apply is in flight', async () => {
+    const api = TestBed.inject(ApiService) as unknown as { post: Mock };
+    await component['openAutoCull']();
+    fixture.detectChanges();
+    const response = new Subject<typeof preview>();
+    api.post = vi.fn(() => response);
+    const applied = component['confirmAutoCull']();
+    fixture.detectChanges();
+
+    const backdrop = autoCullDialog().nativeElement.parentElement as HTMLElement;
+    autoCullDialog().nativeElement.dispatchEvent(
+      new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }),
+    );
+    backdrop.click();
+    fixture.detectChanges();
+
+    expect(autoCullDialog()).toBeTruthy();
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(dialogButton('dialog.cancel').disabled).toBe(true);
+
+    response.next({ ...preview, dry_run: false });
+    response.complete();
+    await applied;
+    fixture.detectChanges();
+
+    expect(autoCullDialog()).toBeFalsy();
   });
 
   // The shield is load-bearing: the page's cull shortcuts must not fire while a
