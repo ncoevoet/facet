@@ -118,7 +118,9 @@ six==1.17.0
 sortedcontainers==2.4.0
 sqlite-vec==0.1.9
 starlette==1.4.1
-sympy==1.14.0
+# torch 2.6.0 pins sympy==1.13.1 exactly; 1.14.0 forces pip to swap the base
+# image's torch/CUDA stack for torch 2.13 + CUDA 13 to satisfy the resolver.
+sympy==1.13.1
 tensorboard-data-server==0.7.2
 tensorboard==2.21.0
 threadpoolctl==3.6.0
