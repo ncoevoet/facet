@@ -675,7 +675,6 @@ describe('the focus-peaking raster pipeline', () => {
     vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
       function (this: HTMLCanvasElement, kind: string) {
         if (kind !== '2d') return null;
-        const { width, height } = this;
         return {
           drawImage: vi.fn(),
           getImageData: (_x: number, _y: number, w: number, h: number) =>
