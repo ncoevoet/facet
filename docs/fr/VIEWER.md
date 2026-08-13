@@ -1191,6 +1191,7 @@ La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI)
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Groupes de rafale/similaires/scène pour le tri. `group_by` (par défaut `all`) sélectionne les groupes combinés rafale+similaires, rafale uniquement, similaires uniquement, ou scènes chronologiques (les groupes de scène ajoutent `type`/`start`/`end`/`moment`/`moment_confidence` ; le paramètre `sort` est ignoré en mode scène). `exclude_rejected` (par défaut `true`) masque les photos avec `is_rejected=1` ; les groupes ayant moins de 2 photos restantes sont supprimés. Lorsqu'une tête de classement des photos à conserver est entraînée, chaque photo porte aussi `keeper_prob` et chaque groupe porte `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Confirmer les sélections de tri (rafale, similaires ou scène). Corps `{group_id, type, paths, keep_paths}` ; `type:'scene'` enregistre les lignes de comparaison de tri de scène |
 | `POST /api/culling/auto` | `[Edition]` Tri automatique en un bouton pour toute une portée. Corps `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}` ; `dry_run` (par défaut `true`) renvoie l'aperçu conservation/rejet par groupe, une application rejette le reste et enregistre les paires de tri |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Déduit le type de prise de vue dominant de la portée à partir de ses catégories, moments narratifs, nombres de visages et heures de capture stockés, et nomme le préréglage `cull_profiles` qui lui correspond, avec un niveau de confiance et les décomptes de preuves sur lesquels il se base ; mis en cache par portée. `profile` vaut `null` sous le seuil de dominance ou quand le préréglage correspondant n'est pas configuré |
 | `POST /api/culling-group/faces` | Badges par visage (yeux ouverts/fermés, expression, confiance) pour un groupe, en un seul lot |
 | `GET /api/photo/key_subject?path=` | De quoi (ou de qui) parle une photo : son visage le mieux classé, sinon sa boîte de saillance persistée, sous forme de boîte + centre `normalized_frame_xyxy`. Résolu à chaque requête depuis les colonnes stockées (aucun modèle, aucun cache) ; `kind:"none"` quand ni l'un ni l'autre n'existe |
 | `POST /api/photos/key_subjects` | La même réponse pour jusqu'à 1000 chemins en un seul appel (`key_subjects_by_path`) — la cible du zoom de la chambre noire et le badge de personne principale. Chaque chemin demandé est présent ; ceux qui sont inconnus ou invisibles reviennent en `kind:"none"` plutôt qu'absents |
@@ -1285,6 +1286,12 @@ Le point d'accès `/api/download/options` détecte automatiquement les fichiers 
 |----------|-------------|
 | `GET /api/plugins` | Lister les plugins configurés |
 | `POST /api/plugins/test-webhook` | Tester un plugin de webhook |
+
+### Immich
+
+| Point d'accès | Description |
+|----------|-------------|
+| `POST /api/immich/webhook` | Reçoit un webhook de workflow Immich et répercute immédiatement la note poussée ; un asset que Facet n'a pas encore noté est mis en file pour le prochain `--immich-sync`. Authentification par jeton statique (`immich.webhook.token_env` ; non défini ⇒ 404) ; ne déclenche jamais de scan. Voir [docs/IMMICH.md](IMMICH.md) |
 
 ### Santé
 

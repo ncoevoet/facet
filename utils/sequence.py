@@ -174,9 +174,9 @@ def _metered_frame(brighter, darker):
     An even ladder has no middle rung, so position cannot answer this and the
     frames themselves have to. The base exposure is the one that holds the
     scene; the rungs either side of it are the ones pushed far enough to blow an
-    end of the histogram. Where neither frame was measured, or both blew as many
-    ends as the other, capture order decides -- a camera fires the metered frame
-    first.
+    end of the histogram. Where either frame was never measured, or both blew as
+    many ends as the other, capture order decides -- a camera fires the metered
+    frame first.
 
     Only ever a heuristic: which rung of a two-frame set the camera metered is
     not recorded anywhere in the stored EXIF, so this reads the outcome rather

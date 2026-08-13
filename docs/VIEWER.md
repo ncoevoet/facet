@@ -1236,6 +1236,7 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Burst/similar/scene groups for culling. `group_by` (default `all`) selects merged burst+similar, burst-only, similar-only, or chronological scene groups (scene groups add `type`/`start`/`end`/`moment`/`moment_confidence`; the `sort` param is ignored in scene mode). `exclude_rejected` (default `true`) hides photos with `is_rejected=1`; groups with fewer than 2 remaining photos are dropped. When a keeper-ranking head is trained, each photo also carries `keeper_prob` and each group carries `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Confirm culling selections (burst, similar, or scene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` records the scene-cull comparison rows |
 | `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a whole scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (default `true`) returns the per-group keep/reject preview, an apply rejects the rest and records culling pairs |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Infer the scope's dominant shoot type from its stored categories, narrative moments, face counts and capture hours, and name the `cull_profiles` preset that fits it, with a confidence and the evidence counts it was based on; cached per scope. `profile` is `null` below the dominance floor or when the matching preset isn't configured |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
 | `POST /api/culling-group/subjects` | Subject close-up crops (from the persisted BiRefNet subject box) + group-normalized sharpness for a non-face group, in one batch. `has_subject:false` when a photo has no box / a near-full-frame box (no model runs) |
 | `GET /api/photo/key_subject?path=` | Who / what a photo is about: its best-ranked face, else its persisted saliency box, as a `normalized_frame_xyxy` box + centre. Resolved per request from stored columns (no model run, nothing cached); `kind:"none"` when neither exists |
@@ -1336,6 +1337,12 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 |----------|-------------|
 | `GET /api/plugins` | List configured plugins |
 | `POST /api/plugins/test-webhook` | Test a webhook plugin |
+
+### Immich
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /api/immich/webhook` | Receive an Immich workflow webhook and mirror the pushed rating back immediately; an asset Facet hasn't scored yet is queued for the next `--immich-sync`. Static-token auth (`immich.webhook.token_env`; unset ⇒ 404); never triggers a scan. See [docs/IMMICH.md](IMMICH.md) |
 
 ### Health
 

@@ -1189,6 +1189,7 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Grupos de sequência/semelhantes/cena para triagem. `group_by` (padrão `all`) seleciona grupos combinados de sequência+semelhantes, apenas de sequência, apenas semelhantes, ou grupos de cenas cronológicas (grupos de cena adicionam `type`/`start`/`end`/`moment`/`moment_confidence`; o parâmetro `sort` é ignorado no modo de cena). `exclude_rejected` (padrão `true`) oculta fotos com `is_rejected=1`; grupos com menos de 2 fotos restantes são descartados. Quando uma cabeça de ranqueamento de retenção está treinada, cada foto também carrega `keeper_prob` e cada grupo carrega `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Confirma as seleções de triagem (sequência, semelhantes ou cena). Corpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra as linhas de comparação de triagem de cena |
 | `POST /api/culling/auto` | `[Edition]` Triagem automática de um botão só para um escopo inteiro. Corpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (padrão `true`) retorna a prévia de manter/rejeitar por grupo, uma aplicação rejeita o resto e registra pares de triagem |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Deduz o tipo de sessão dominante do escopo a partir de suas categorias, momentos narrativos, contagens de rostos e horários de captura armazenados, e nomeia a predefinição `cull_profiles` que mais se encaixa, com uma confiança e as contagens de evidência em que se baseia; armazenado em cache por escopo. `profile` é `null` abaixo do limiar de dominância ou quando não há uma predefinição correspondente configurada |
 | `POST /api/culling-group/faces` | Selos por rosto (olhos abertos/fechados, expressão, confiança) para um grupo, em um único lote |
 | `POST /api/culling-group/subjects` | Recortes de close-up do assunto (da caixa de assunto BiRefNet persistida) + nitidez normalizada no grupo para um grupo sem rostos, em um único lote. `has_subject:false` quando a foto não tem caixa / tem uma caixa quase de quadro inteiro (nenhum modelo é executado) |
 | `GET /api/photo/key_subject?path=` | Do que / de quem trata uma foto: seu rosto mais bem classificado, senão sua caixa de saliência persistida, como caixa + centro `normalized_frame_xyxy`. Resolvido a cada requisição a partir de colunas armazenadas (nenhum modelo, nada em cache); `kind:"none"` quando nenhum dos dois existe |
@@ -1284,6 +1285,12 @@ O endpoint `/api/download/options` detecta automaticamente arquivos RAW companhe
 |----------|-------------|
 | `GET /api/plugins` | Lista os plugins configurados |
 | `POST /api/plugins/test-webhook` | Testa um plugin de webhook |
+
+### Immich
+
+| Endpoint | Descrição |
+|----------|-------------|
+| `POST /api/immich/webhook` | Recebe um webhook de fluxo de trabalho do Immich e reflete imediatamente a avaliação enviada; um item que o Facet ainda não pontuou entra na fila para o próximo `--immich-sync`. Autenticação por token estático (`immich.webhook.token_env`; não definido ⇒ 404); nunca aciona uma varredura. Veja [docs/IMMICH.md](IMMICH.md) |
 
 ### Saúde
 

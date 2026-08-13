@@ -4,6 +4,30 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Security
+
+- **The JWT signing secret moved out of `scoring_config.json`** into an untracked
+  `.facet_secret` file (0600; `FACET_JWT_SECRET` env override for containers). The
+  values previously committed to this public repository are burned: on upgrade the
+  boot migration evicts any secret still inside the config and regenerates the
+  published ones automatically, invalidating existing sessions. Rotate deliberately
+  any time with `python database.py --rotate-secret`.
+
+### Added
+- **`--detect-text` / `--recompute-text` make in-photo text search real**, wired end to end to a verified EasyOCR 1.7.2 engine (CLI pass, FTS sync via triggers, `GET /api/search?scope=text`). The OCR surface — `analyzers/ocr.py`, the `ocr_text` column, FTS wiring, a recompute flag — was already ~70% built and permanently inert because no engine had ever been verified.
+- **`--export-manifest [DIR]` emits a stable `facet_manifest.json`** for external integrations: scores, category, tags, and the user's own rating/favorite/rejected/burst-lead columns, scope-only and compact, at a fixed well-known path a plugin can always find.
+- **A Lightroom plugin (`facet.lrplugin`) applies that manifest directly** — pick flags (`is_rejected` → reject, `is_favorite` → pick) and star ratings from `facet_manifest.json`, with a dry-run preview, a path-prefix mapping for server-local manifests, and chunked cancellable writes.
+- **Each photo's key subject is resolved from stored faces and saliency** (`GET /api/photo/key_subject` and a batch twin), ranking faces by relative size, centrality and whether they're named; the darkroom's zoom and 1:1 toggle now centre on it instead of the frame centre.
+- **Touch culling gained swipe-to-decide**: a swipe past a 35%-width threshold commits keep/reject through the same path as the arrow keys, with progressive tint and badges, active only on coarse pointers so it never contends with pinch-zoom.
+
+### Fixed
+- **A letterboxed darkroom frame's keep/reject mark no longer floats into the black margin.** It was anchored to the grid cell instead of the rendered image box; it is now a solid per-pane badge, plus new per-pane keep/reject buttons, on the image itself.
+- **A pushed rating clear now sends `null`, not `0`.** Immich v3 rejects `0` as an invalid rating, so un-rating a previously synced photo permanently wedged every later sync against an upgraded server.
+- **The startup dimension backfill no longer poisons rows it can't verify.** It filled NULL image dimensions from the 640px thumbnail while the same rows' face boxes stayed in original-image pixels, silently corrupting face markers and social crops on 42,676 of 126,661 photos on the reference library. Dimensions are now NULLed only where two independent proofs agree, and a repaired row regains real dimensions on its next rescan instead of having a wrong one minted.
+
+### Changed
+- **`--recompute-ocr` is now `--detect-text` / `--recompute-text`**, matching the junk-sweep naming idiom now that OCR runs on a verified engine instead of being a permanent no-op. `transformers` is pinned `>=5.3,<5.16` (validated through 5.15.0, which also carries the CVE-2026-4372 fix) after a padding fix for the Qwen3.5 processor's new per-token output key, and `pyiqa` floors at `>=0.1.16` to match the lockfile — both dependency floors move together, reinstall to pick up either.
+
 ## [1.11.1] "Asterism" — 2026-08-12
 
 A full-project review sweep — parallel review agents across every domain, each finding independently re-verified by an adversarial agent before it was fixed and gate-checked. 79 issues found and confirmed, zero false positives, no new features: correctness, security, and data-integrity only.

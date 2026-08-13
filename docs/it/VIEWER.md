@@ -1189,6 +1189,7 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Gruppi di raffiche/foto simili/scene per la selezione. `group_by` (predefinito `all`) seleziona i gruppi combinati di raffiche+foto simili, solo raffiche, solo foto simili oppure gruppi di scene cronologiche (i gruppi di scene aggiungono `type`/`start`/`end`/`moment`/`moment_confidence`; il parametro `sort` viene ignorato in modalità scena). `exclude_rejected` (predefinito `true`) nasconde le foto con `is_rejected=1`; i gruppi con meno di 2 foto rimanenti vengono scartati. Quando è addestrato un keeper-ranking head, ogni foto porta anche `keeper_prob` e ogni gruppo porta `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Conferma le selezioni (raffica, foto simili o scena). Corpo `{group_id, type, paths, keep_paths}`; `type:'scene'` registra le righe di confronto della selezione delle scene |
 | `POST /api/culling/auto` | `[Edition]` Selezione automatica con un solo pulsante per un intero ambito. Corpo `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (predefinito `true`) restituisce l'anteprima di conservazione/scarto per gruppo, l'applicazione scarta il resto e registra le coppie di selezione |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Deduce il tipo di scatto dominante dell'ambito dalle categorie, momenti narrativi, conteggi di volti e ore di scatto memorizzati, e indica il preset `cull_profiles` più adatto, con un livello di confidenza e i conteggi di evidenza su cui si basa; memorizzato in cache per ambito. `profile` è `null` sotto la soglia di dominanza o quando non è configurato un preset corrispondente |
 | `POST /api/culling-group/faces` | Badge per volto (occhi aperti/chiusi, espressione, confidenza) per un gruppo, in un'unica chiamata batch |
 | `GET /api/photo/key_subject?path=` | Di cosa / di chi parla una foto: il suo volto meglio classificato, altrimenti la sua box di salienza persistita, come box + centro `normalized_frame_xyxy`. Risolto a ogni richiesta dalle colonne memorizzate (nessun modello, nessuna cache); `kind:"none"` quando non esiste né l'uno né l'altra |
 | `POST /api/photos/key_subjects` | La stessa risposta per un massimo di 1000 percorsi in un'unica chiamata (`key_subjects_by_path`) — il bersaglio dello zoom della camera oscura e il badge della persona principale. Ogni percorso richiesto è presente; quelli sconosciuti o invisibili tornano come `kind:"none"` anziché mancare |
@@ -1283,6 +1284,12 @@ L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e
 |----------|-------------|
 | `GET /api/plugins` | Elenca i plugin configurati |
 | `POST /api/plugins/test-webhook` | Testa un plugin webhook |
+
+### Immich
+
+| Endpoint | Descrizione |
+|----------|-------------|
+| `POST /api/immich/webhook` | Riceve un webhook di workflow Immich e rispecchia immediatamente la valutazione inviata; un asset che Facet non ha ancora valutato viene messo in coda per il prossimo `--immich-sync`. Autenticazione a token statico (`immich.webhook.token_env`; non impostato ⇒ 404); non avvia mai una scansione. Vedi [docs/IMMICH.md](IMMICH.md) |
 
 ### Stato di salute
 

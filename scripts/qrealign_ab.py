@@ -318,17 +318,10 @@ def _load_pil_image(path, use_thumbnails, conn):
 
 
 def _ensure_pyiqa():
-    """Lazy pyiqa import with the numpy 2.x sctypes shim (mirrors models/pyiqa_scorer.py)."""
-    import numpy as np
-    if not hasattr(np, "sctypes"):
-        np.sctypes = {
-            "float": [np.float16, np.float32, np.float64],
-            "int": [np.int8, np.int16, np.int32, np.int64],
-            "uint": [np.uint8, np.uint16, np.uint32, np.uint64],
-            "complex": [np.complex64, np.complex128],
-            "others": [bool, object, bytes, str, np.void],
-        }
-    import pyiqa
+    """Lazy pyiqa import, sharing models/pyiqa_scorer's numpy 2.x sctypes shim."""
+    from models.pyiqa_scorer import _ensure_pyiqa as _ensure_shared
+    _ensure_shared()
+    from models.pyiqa_scorer import pyiqa
     return pyiqa
 
 

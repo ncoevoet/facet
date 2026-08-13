@@ -108,6 +108,7 @@ PARAMETERISED_ROUTES = [
     ('/api/frame/next', {'token': 'x'}),
     ('/api/frame/image/1.deadbeef', {'token': 'x'}),
     ('/dav/nonexistent.jpg', {}),
+    ('/api/culling/suggest_profile', {'album_id': 1, 'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
 ]
 
 # Routes that require superadmin (scan).
@@ -215,6 +216,16 @@ class TestPostRoutesAcceptValidShape:
             json={'paths': [], 'is_favorite': True},
         )
         assert _is_acceptable(resp.status_code)
+
+    def test_immich_webhook_disabled_returns_404(self, client):
+        # immich.webhook.token_env is unset in the test config, so the
+        # endpoint must 404 rather than 401/403/5xx — the same "empty means
+        # the whole feature is disabled" idiom as frame.tokens/upload.username.
+        resp = client.post(
+            '/api/immich/webhook',
+            json={'asset': {'originalPath': '/nonexistent.jpg'}},
+        )
+        assert resp.status_code == 404, f"-> {resp.status_code}"
 
 
 class TestAngularSpaShell:

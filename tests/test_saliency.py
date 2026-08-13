@@ -126,10 +126,18 @@ class TestFaceMarkers:
         assert resp.status_code == 404
 
     def test_edge_face_overhanging_the_frame_is_clamped(self, http, tmp_path):
-        db = _seed(tmp_path, faces=[{"bbox": [-10, -20, 60, 120], "lm": None}])
+        """A box within FACE_FRAME_TOLERANCE is kept, both overhanging edges
+        pinned to the frame -- the low end (x1/y1 negative) and the high end
+        (x2/y2 past width/height) alike.
+        """
+        db = _seed(tmp_path, faces=[{"bbox": [-10, -20, 110, 220], "lm": None}])
         with mock.patch(f"{_MODULE}.get_db", _db_cm(db)):
             resp = http.get("/api/photo/face_markers", params={"path": "/a.jpg"})
-        assert resp.json()["faces"][0]["bbox"] == [0.0, 0.0, 0.6, 0.6]
+        faces = resp.json()["faces"]
+        assert faces[0]["bbox"] == [0.0, 0.0, 1.0, 1.0]
+        # A kept box is always a fraction of the frame -- a missing ceiling
+        # clamp would leak x2/y2 > 1.0 here (110/100 = 1.1, 220/200 = 1.1).
+        assert _max_coordinate(faces) <= 1.0
 
     def test_box_from_a_different_frame_is_dropped(self, http, tmp_path):
         """Dimensions from the 640px thumbnail, boxes in original-image pixels.
@@ -147,7 +155,6 @@ class TestFaceMarkers:
         assert face["bbox"] is None
         assert face["eyes"] == []
         assert face["eyes_open_score"] is not None
-        assert _max_coordinate(resp.json()["faces"]) <= 1.25
 
     def test_photo_without_dimensions_drops_geometry(self, http, tmp_path):
         lm = (np.ones((106, 2), dtype=np.float32) * 10.0).tobytes()

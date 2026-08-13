@@ -302,7 +302,7 @@ only what reading those two will NOT tell you.
   ordering — so a category added later cannot go missing from six separate lists. `PUT` requires
   both `promote` and `excluded`; a partial body 422s rather than silently clearing one.
 - **Every writer of `scoring_config.json` shares `api.config.CONFIG_WRITE_LOCK`** — priorities,
-  weights, contexts, panorama thresholds, the share-secret bootstrap and the plaintext-password
+  weights, contexts, panorama thresholds, the share-secret eviction and the plaintext-password
   upgrade. They rewrite different parts of one file, and two locks lost whole updates.
 - **`facet.LibraryLock` is per host.** `flock` is host-local on SMB/CIFS, so two machines sharing
   an SMB-mounted DB directory would each believe they hold it (the acquire warns once on such a

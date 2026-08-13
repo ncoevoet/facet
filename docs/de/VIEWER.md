@@ -1190,6 +1190,7 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 | `GET /api/culling-groups?group_by=all\|burst\|similar\|scene&exclude_rejected=true&similarity_threshold=&page=&per_page=` | Serienbild-/Ähnlichkeits-/Szenengruppen für die Auswahl. `group_by` (Standard `all`) wählt kombinierte Serienbild+Ähnlichkeit, nur Serienbild, nur Ähnlichkeit oder chronologische Szenengruppen (Szenengruppen ergänzen `type`/`start`/`end`/`moment`/`moment_confidence`; der `sort`-Parameter wird im Szenenmodus ignoriert). `exclude_rejected` (Standard `true`) blendet Fotos mit `is_rejected=1` aus; Gruppen mit weniger als 2 verbleibenden Fotos werden verworfen. Wenn ein Keeper-Ranking-Head trainiert ist, trägt jedes Foto zusätzlich `keeper_prob` und jede Gruppe `keeper_best_path` |
 | `POST /api/culling-groups/confirm` | Auswahlentscheidungen bestätigen (Serienbild, Ähnlichkeit oder Szene). Body `{group_id, type, paths, keep_paths}`; `type:'scene'` erfasst die Szenen-Auswahl-Vergleichszeilen |
 | `POST /api/culling/auto` | `[Edition]` Ein-Knopf-Auto-Cull für einen ganzen Geltungsbereich. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run}`; `dry_run` (Standard `true`) liefert die Behalte-/Ablehnen-Vorschau pro Gruppe, ein Anwenden lehnt den Rest ab und erfasst Culling-Paare |
+| `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Leitet den dominanten Aufnahmetyp des Geltungsbereichs aus dessen gespeicherten Kategorien, Erzählmomenten, Gesichtszahlen und Aufnahmestunden ab und benennt das passende `cull_profiles`-Preset, mit einer Konfidenz und den zugrunde liegenden Belegzahlen; pro Geltungsbereich zwischengespeichert. `profile` ist `null` unterhalb der Dominanzschwelle oder wenn kein passendes Preset konfiguriert ist |
 | `POST /api/culling-group/faces` | Abzeichen pro Gesicht (Augen offen/geschlossen, Ausdruck, Konfidenz) für eine Gruppe, in einem Batch |
 | `GET /api/photo/key_subject?path=` | Worum / um wen es in einem Foto geht: sein bestplatziertes Gesicht, sonst seine persistierte Salienzbox, als `normalized_frame_xyxy`-Box + Zentrum. Pro Anfrage aus gespeicherten Spalten berechnet (kein Modelllauf, nichts zwischengespeichert); `kind:"none"`, wenn keines von beidem existiert |
 | `POST /api/photos/key_subjects` | Dieselbe Antwort für bis zu 1000 Pfade in einem Aufruf (`key_subjects_by_path`) — das Zoomziel der Dunkelkammer und das Hauptpersonen-Abzeichen. Jeder angefragte Pfad ist enthalten; unbekannte oder unsichtbare kommen als `kind:"none"` zurück statt zu fehlen |
@@ -1284,6 +1285,12 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 |----------|-------------|
 | `GET /api/plugins` | Konfigurierte Plugins auflisten |
 | `POST /api/plugins/test-webhook` | Ein Webhook-Plugin testen |
+
+### Immich
+
+| Endpunkt | Beschreibung |
+|----------|-------------|
+| `POST /api/immich/webhook` | Empfängt einen Immich-Workflow-Webhook und spiegelt die gepushte Bewertung sofort zurück; ein von Facet noch nicht bewertetes Asset wird für den nächsten `--immich-sync` vorgemerkt. Statische Token-Authentifizierung (`immich.webhook.token_env`; nicht gesetzt ⇒ 404); löst nie einen Scan aus. Siehe [docs/IMMICH.md](IMMICH.md) |
 
 ### Health
 

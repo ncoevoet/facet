@@ -53,29 +53,37 @@ def _portfolio_config() -> dict:
     return _FULL_CONFIG.get("portfolio", {}) or {}
 
 
+def _album_photo_scope(album_id, user_id):
+    """The FROM/WHERE fragment and params shared by the count and the row fetch.
+
+    Kept in one place so the count an album is checked against and the rows
+    actually exported can never diverge on which photos are in scope.
+    """
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    return (
+        "FROM album_photos ap "
+        "JOIN photos ON photos.path = ap.photo_path "
+        f"WHERE ap.album_id = ? AND {vis_sql}",
+        [album_id] + vis_params,
+    )
+
+
 def _album_photo_rows(conn, album_id, user_id):
     """Fetch ordered album rows carrying the fields the generator needs."""
-    vis_sql, vis_params = get_visibility_clause(user_id)
+    scope_sql, params = _album_photo_scope(album_id, user_id)
     return conn.execute(
         "SELECT photos.path AS path, photos.caption AS caption, "
         "photos.date_taken AS date_taken, photos.thumbnail AS thumbnail "
-        "FROM album_photos ap "
-        "JOIN photos ON photos.path = ap.photo_path "
-        f"WHERE ap.album_id = ? AND {vis_sql} "
+        f"{scope_sql} "
         "ORDER BY ap.position ASC",
-        [album_id] + vis_params,
+        params,
     ).fetchall()
 
 
 def _album_photo_count(conn, album_id, user_id):
     """Count the album's visible photos without touching thumbnail BLOBs."""
-    vis_sql, vis_params = get_visibility_clause(user_id)
-    return conn.execute(
-        "SELECT COUNT(*) FROM album_photos ap "
-        "JOIN photos ON photos.path = ap.photo_path "
-        f"WHERE ap.album_id = ? AND {vis_sql}",
-        [album_id] + vis_params,
-    ).fetchone()[0]
+    scope_sql, params = _album_photo_scope(album_id, user_id)
+    return conn.execute(f"SELECT COUNT(*) {scope_sql}", params).fetchone()[0]
 
 
 def _resolve_generator_row(row):
