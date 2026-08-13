@@ -93,6 +93,13 @@ interface AutoCullRequest {
   date_to?: string;
 }
 
+/** How an auto-cull dry run ended, for the callers that reconcile their own
+ *  state against the snapshot it publishes. `superseded` covers both a newer
+ *  run and the destructive apply owning the dialog: in neither case is the
+ *  outcome this caller's to act on, and reading it as its own failure reverts
+ *  UI state to a snapshot that is no longer the one on screen. */
+type AutoCullRunOutcome = 'landed' | 'superseded' | 'failed';
+
 /** Response of GET /api/culling/suggest_profile: the preset the scope's own
  *  content argues for, with the counts it was inferred from. */
 interface ProfileSuggestion {
@@ -2323,8 +2330,12 @@ export class BurstCullingComponent implements OnDestroy {
     this.suggestionApplied = true;
     this.applyProfile(profile, false);
     if (this.autoCullPreview() || this.dryRunInFlight) {
-      this.autoCullSuggestionNotice.set(this.i18n.t(profile.label_key));
-      await this.openAutoCull();
+      // Named only once the re-run published: a refused one (the apply owns the
+      // dialog) leaves the counts exactly as they were, and the notice claims
+      // they were recomputed under the preset it names.
+      if (await this.openAutoCull() === 'landed') {
+        this.autoCullSuggestionNotice.set(this.i18n.t(profile.label_key));
+      }
     }
   }
 
@@ -2889,8 +2900,27 @@ export class BurstCullingComponent implements OnDestroy {
     return `${this.i18n.t(I18N.culling.auto_cull.highlights_name)} — ${scope} ${day}`;
   }
 
-  /** Dry-run the auto-cull for the current scope and open the confirm dialog. */
-  protected async openAutoCull(): Promise<void> {
+  /** True while this dry run is still the one the dialog answers to: no newer
+   *  run took over, and the destructive apply does not own the snapshot. */
+  private ownsAutoCullDialog(run: number): boolean {
+    return this.autoCullRun.isCurrent(run) && !this.autoCullApplying();
+  }
+
+  /**
+   * Dry-run the auto-cull for the current scope and open the confirm dialog.
+   *
+   * Refused outright while the apply is in flight, and its answer dropped if an
+   * apply started under it: the apply sends the snapshot below verbatim, so a dry
+   * run repainting it mid-flight would leave the dialog describing a request the
+   * user never agreed to. The suggestion's re-run is fire-and-forget, so it can
+   * arrive at any point — including over the destructive request.
+   *
+   * The outcome is for the callers that mirror the snapshot in their own state:
+   * a bail-out is not this caller's run failing, and reconciling on it reverts to
+   * a snapshot the newer run is about to replace.
+   */
+  protected async openAutoCull(): Promise<AutoCullRunOutcome> {
+    if (this.autoCullApplying()) return 'superseded';
     // Only a fresh open clears the notices: the re-runs that raise them come back
     // through here, and clearing unconditionally would erase them on the way in —
     // including the re-run of a dry run whose preview has not landed yet.
@@ -2902,12 +2932,14 @@ export class BurstCullingComponent implements OnDestroy {
     this.autoCullLoading.set(true);
     try {
       const preview = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
-      if (!this.autoCullRun.isCurrent(run)) return;
+      if (!this.ownsAutoCullDialog(run)) return 'superseded';
       this.autoCullPreview.set(preview);
       this.autoCullRequest.set(body);
+      return 'landed';
     } catch {
-      if (!this.autoCullRun.isCurrent(run)) return;
+      if (!this.ownsAutoCullDialog(run)) return 'superseded';
       this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+      return 'failed';
     } finally {
       if (this.autoCullRun.isCurrent(run)) {
         this.dryRunInFlight = false;
@@ -2952,19 +2984,29 @@ export class BurstCullingComponent implements OnDestroy {
    *  identity check on the preview object keeps a failed re-run (which leaves the
    *  old preview in place) from being read as "nothing to trim".
    *
-   *  A re-run that never landed also never moved the snapshot, so the checkbox is
-   *  put back to what that snapshot carries — Apply sends the snapshot verbatim,
-   *  and a box ticked over a body with `trim_brackets: false` claims a trim the
-   *  apply would not perform. The error snackbar the failed run raised is what
-   *  says why it reverted. */
+   *  A re-run that failed never moved the snapshot, so the checkbox is put back to
+   *  what that snapshot carries — Apply sends the snapshot verbatim, and a box
+   *  ticked over a body with `trim_brackets: false` claims a trim the apply would
+   *  not perform. The error snackbar the failed run raised is what says why it
+   *  reverted.
+   *
+   *  Only this call's own failure reverts it. A superseded re-run reads exactly
+   *  the same from here, but the snapshot it would be reconciled against is the
+   *  stale one the newer run has not replaced yet — so the box was reverted to a
+   *  value that run was about to contradict. That run owns the dialog; it also
+   *  built its body from this checkbox, so leaving it alone is what keeps the two
+   *  agreeing. */
   protected async onTrimBracketsChange(value: boolean): Promise<void> {
+    if (this.autoCullApplying()) return;
     const before = this.autoCullPreview();
     this.trimBrackets.set(value);
     this.trimBracketsUnchanged.set(false);
-    await this.openAutoCull();
-    const applied = this.autoCullRequest();
-    if (applied && applied.trim_brackets !== this.trimBrackets()) {
-      this.trimBrackets.set(applied.trim_brackets);
+    const outcome = await this.openAutoCull();
+    if (outcome === 'superseded') return;
+    if (outcome === 'failed') {
+      const applied = this.autoCullRequest();
+      if (applied) this.trimBrackets.set(applied.trim_brackets);
+      return;
     }
     const after = this.autoCullPreview();
     this.trimBracketsUnchanged.set(

@@ -561,6 +561,13 @@ describe('BurstCullingComponent', () => {
     /** The apply body, which only exists once a preview has been agreed to. */
     const appliedBody = () => mockApi.post.mock.calls.at(-1)?.[1] as Record<string, unknown>;
 
+    /** Answer a deferred apply, and wait for the handler behind it to finish. */
+    const settleApply = async (response: Subject<typeof preview>, applied: Promise<void>) => {
+      response.next({ ...preview, dry_run: false });
+      response.complete();
+      await applied;
+    };
+
     it('confirmAutoCull applies with dry_run false, closes the dialog and reloads', async () => {
       mockApi.post = vi.fn(() => of(preview));
       await component['openAutoCull']();
@@ -702,12 +709,6 @@ describe('BurstCullingComponent', () => {
         return { response, applied: component['confirmAutoCull']() };
       };
 
-      const settle = async (response: Subject<typeof preview>, applied: Promise<void>) => {
-        response.next({ ...preview, dry_run: false });
-        response.complete();
-        await applied;
-      };
-
       // Dismissing mid-flight closed the dialog, which re-armed Apply over a
       // snapshot already being applied and left the apply's own close to bump
       // the dry-run generation over whatever the reopened dialog was awaiting.
@@ -721,7 +722,7 @@ describe('BurstCullingComponent', () => {
         expect(component['autoCullRequest']()).not.toBeNull();
         expect(mockApi.post).toHaveBeenCalledTimes(1);
 
-        await settle(response, applied);
+        await settleApply(response, applied);
 
         expect(component['autoCullPreview']()).toBeNull();
         expect(mockApi.post).toHaveBeenCalledTimes(1);
@@ -734,7 +735,7 @@ describe('BurstCullingComponent', () => {
 
         expect(mockApi.post).toHaveBeenCalledTimes(1);
 
-        await settle(response, applied);
+        await settleApply(response, applied);
         await second;
 
         expect(mockApi.post).toHaveBeenCalledTimes(1);
@@ -761,13 +762,202 @@ describe('BurstCullingComponent', () => {
       // next dialog must still be able to open.
       it('dry-runs again after a completed apply', async () => {
         const { response, applied } = await applyInFlight();
-        await settle(response, applied);
+        await settleApply(response, applied);
 
         mockApi.post = vi.fn(() => of({ ...preview, rejected: 9 }));
         await component['openAutoCull']();
 
         expect(component['autoCullPreview']()).toMatchObject({ rejected: 9 });
         expect(component['autoCullLoading']()).toBe(false);
+      });
+    });
+
+    /**
+     * Apply sends the snapshot verbatim, so nothing may repaint it while that
+     * request is open — the dialog would then describe a run the destructive one
+     * was never computed from.
+     *
+     * The profile suggestion's re-run is the writer that reaches it: it is
+     * fire-and-forget, started behind every dry run, and lands whenever the
+     * backend answers — including in the middle of the apply, where it used to
+     * fire a dry run straight through and publish over the snapshot.
+     */
+    describe('no dry run may move the snapshot under the apply', () => {
+      const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+      const profiles = [
+        { id: 'wedding', label_key: 'culling.profiles.wedding', strictness: 35, eyes_closed_max: 5, poor_expression_min: 5, keep_min_per_group: 2, similarity_threshold: 90 },
+      ];
+
+      it('refuses to dry-run at all while the apply is in flight', async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        const snapshot = component['autoCullRequest']();
+        const response = new Subject<typeof preview>();
+        mockApi.post = vi.fn(() => response);
+        const applied = component['confirmAutoCull']();
+
+        // Left unawaited on purpose: a call that fires is a call that hangs on
+        // the apply's own answer, and the count below is the finding either way.
+        const outcome = component['openAutoCull']();
+
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+        expect(component['autoCullRequest']()).toBe(snapshot);
+
+        await settleApply(response, applied);
+
+        expect(await outcome).toBe('superseded');
+      });
+
+      /** The reproduction, through the writer that actually reaches it. */
+      it('drops the suggestion re-run that lands mid-apply', async () => {
+        component['cullProfiles'].set(profiles);
+        const suggestReply = new Subject<unknown>();
+        mockApi.get = vi.fn((url: string) =>
+          url === '/culling/suggest_profile' ? suggestReply : of(mockCullingGroupsResponse));
+        const bodies: Record<string, unknown>[] = [];
+        const posts: Subject<unknown>[] = [];
+        mockApi.post = vi.fn((_url: string, body: Record<string, unknown>) => {
+          bodies.push(body);
+          const answer = new Subject<unknown>();
+          posts.push(answer);
+          return answer;
+        });
+
+        void component['openAutoCull']();
+        await flush();
+        posts[0].next(preview);
+        await flush();
+        const snapshot = component['autoCullRequest']();
+
+        void component['confirmAutoCull']();
+        await flush();
+        suggestReply.next({ profile: 'wedding', confidence: 0.8, evidence: {} });
+        await flush();
+
+        expect(bodies.filter(body => body['dry_run'] === true)).toHaveLength(1);
+        expect(component['autoCullRequest']()).toBe(snapshot);
+        expect(component['autoCullPreview']()).toEqual(preview);
+        // The notice would have claimed counts the refused re-run never computed.
+        expect(component['autoCullSuggestionNotice']()).toBeNull();
+
+        posts[1].next({ ...preview, dry_run: false });
+        await flush();
+      });
+
+      // The same writer, one beat earlier: its dry run was already in flight when
+      // Apply was hit, so refusing at the door cannot catch it.
+      it('drops the answer of a dry run that was already in flight when Apply was hit', async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        const snapshot = component['autoCullRequest']();
+        const late = new Subject<typeof preview>();
+        mockApi.post = vi.fn(() => late);
+        void component['openAutoCull']();
+        await flush();
+        const response = new Subject<typeof preview>();
+        mockApi.post = vi.fn(() => response);
+        const applied = component['confirmAutoCull']();
+
+        late.next({ ...preview, rejected: 99 });
+        await flush();
+
+        expect(component['autoCullPreview']()).toEqual(preview);
+        expect(component['autoCullRequest']()).toBe(snapshot);
+
+        await settleApply(response, applied);
+
+        expect(component['autoCullPreview']()).toBeNull();
+      });
+
+      // Nothing else may edit the state the snapshot is mirrored in either.
+      it('refuses the trim-brackets toggle while the apply is in flight', async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        const response = new Subject<typeof preview>();
+        mockApi.post = vi.fn(() => response);
+        const applied = component['confirmAutoCull']();
+
+        const toggling = component['onTrimBracketsChange'](true);
+
+        expect(component['trimBrackets']()).toBe(false);
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+
+        await settleApply(response, applied);
+        await toggling;
+
+        expect(component['trimBrackets']()).toBe(false);
+      });
+    });
+
+    /**
+     * The invariant the trim-brackets checkbox exists under: whenever the dialog
+     * is at rest — Apply armed, Cancel armed — the box says exactly what the
+     * snapshot Apply sends carries. The box is a promise about a destructive
+     * request, so a ticked box over a `trim_brackets: false` body is a false one.
+     *
+     * Asserted across the three ways the toggle's own re-run can end, since two
+     * of them used to be indistinguishable from inside the toggle.
+     */
+    describe('the trim-brackets checkbox never contradicts the snapshot', () => {
+      const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+      /** Armed, and what the two sides say — one assertion, one legible diff. */
+      const armedState = () => ({
+        armed: !component['autoCullBusy'](),
+        box: component['trimBrackets'](),
+        snapshotTrim: component['autoCullRequest']()?.trim_brackets,
+      });
+
+      it('holds when the toggle\'s own re-run lands', async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+
+        await component['onTrimBracketsChange'](true);
+
+        expect(armedState()).toEqual({ armed: true, box: true, snapshotTrim: true });
+      });
+
+      it('holds when the toggle\'s own re-run fails', async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
+
+        await component['onTrimBracketsChange'](true);
+
+        expect(armedState()).toEqual({ armed: true, box: false, snapshotTrim: false });
+      });
+
+      // The reproduction. A superseded re-run reads from inside the toggle
+      // exactly like its own failure, so the box was reconciled against the stale
+      // snapshot the newer run had not replaced yet — and that run then published
+      // `trim_brackets: true` under a box the toggle had just unticked.
+      it('holds when a newer run supersedes the toggle\'s own', async () => {
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        const bodies: Record<string, unknown>[] = [];
+        const posts: Subject<typeof preview>[] = [];
+        mockApi.post = vi.fn((_url: string, body: Record<string, unknown>) => {
+          bodies.push(body);
+          const answer = new Subject<typeof preview>();
+          posts.push(answer);
+          return answer;
+        });
+
+        const toggling = component['onTrimBracketsChange'](true);
+        await flush();
+        void component['openAutoCull']();
+        await flush();
+        posts[0].next(preview);
+        await toggling;
+
+        // The dialog belongs to the newer run: nothing is confirmable until it
+        // answers, which is what makes leaving the box to it safe.
+        expect(component['autoCullBusy']()).toBe(true);
+
+        posts[1].next({ ...preview, kept: 9 });
+        await flush();
+
+        expect(bodies[1]).toMatchObject({ trim_brackets: true });
+        expect(armedState()).toEqual({ armed: true, box: true, snapshotTrim: true });
       });
     });
   });
@@ -2100,6 +2290,14 @@ describe('BurstCullingComponent modals (rendered)', () => {
     .map(el => el.nativeElement as HTMLButtonElement)
     .find(el => el.textContent?.includes(labelKey))!;
 
+  /** The dialog's only knob before a preview offers highlights: trim brackets. */
+  const trimBracketsBox = (): HTMLInputElement => fixture.debugElement
+    .query(By.css('[aria-labelledby="autoCullTitle"] input[type="checkbox"]')).nativeElement;
+
+  /** The toolbar control that opens the dialog, disabled from the same signal. */
+  const openAutoCullButton = (): HTMLButtonElement => fixture.debugElement
+    .query(By.css('button[aria-label="culling.auto_cull.button"]')).nativeElement;
+
   const photo = (path: string) => ({
     path, filename: path.slice(1), aggregate: 8, aesthetic: 7, tech_sharpness: 6,
     is_blink: 0, is_burst_lead: 1, date_taken: '2024-01-01', burst_score: 8,
@@ -2159,6 +2357,57 @@ describe('BurstCullingComponent modals (rendered)', () => {
     fixture.detectChanges();
 
     expect(autoCullDialog()).toBeFalsy();
+  });
+
+  /**
+   * Every control the dialog disables reads `autoCullBusy`, never
+   * `autoCullLoading` alone. A dry run started before the apply — the profile
+   * suggestion's is fire-and-forget, so it can be — clears the loading flag when
+   * it answers, and each control driven by that flag re-armed itself over a
+   * destructive request that was still open: the knobs invited a re-run of the
+   * body being applied, and Apply invited a second apply.
+   *
+   * Rendered rather than read off the signals: the bindings are the whole of the
+   * fix, and every behavioural test stayed green with them reverted.
+   */
+  it('keeps every dialog control disabled while an apply outlives the dry run behind it', async () => {
+    const api = TestBed.inject(ApiService) as unknown as { post: Mock };
+    const flush = () => new Promise(resolve => setTimeout(resolve, 0));
+    await component['openAutoCull']();
+    fixture.detectChanges();
+    expect(trimBracketsBox().disabled).toBe(false);
+    expect(dialogButton('culling.auto_cull.apply').disabled).toBe(false);
+
+    const dryRun = new Subject<typeof preview>();
+    api.post = vi.fn(() => dryRun);
+    void component['openAutoCull']();
+    await flush();
+    const response = new Subject<typeof preview>();
+    api.post = vi.fn(() => response);
+    const applied = component['confirmAutoCull']();
+    dryRun.next({ ...preview, rejected: 99 });
+    dryRun.complete();
+    await flush();
+    fixture.detectChanges();
+
+    // The window the two signals disagree in: the dry run behind the apply has
+    // cleared `loading`, and the apply is still open.
+    expect(component['autoCullLoading']()).toBe(false);
+    expect(component['autoCullApplying']()).toBe(true);
+    expect(trimBracketsBox().disabled).toBe(true);
+    expect(dialogButton('culling.auto_cull.apply').disabled).toBe(true);
+    expect(dialogButton('dialog.cancel').disabled).toBe(true);
+    expect(openAutoCullButton().disabled).toBe(true);
+    expect(fixture.debugElement
+      .query(By.css('[aria-labelledby="autoCullTitle"] mat-spinner'))).toBeTruthy();
+
+    response.next({ ...preview, dry_run: false });
+    response.complete();
+    await applied;
+    fixture.detectChanges();
+
+    expect(autoCullDialog()).toBeFalsy();
+    expect(openAutoCullButton().disabled).toBe(false);
   });
 
   // The shield is load-bearing: the page's cull shortcuts must not fire while a
