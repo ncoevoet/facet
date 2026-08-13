@@ -39,8 +39,11 @@ scoring_config.json.backup
 scoring_config.json.backup.*
 
 # Server secret — signs every session JWT and frame link. Never tracked: it
-# used to live in scoring_config.json and got committed from there.
-.facet_secret
+# used to live in scoring_config.json and got committed from there. The glob
+# also covers the `.facet_secret.tmp*` scratch file every owner-only write
+# stages through: a crash between the write and the rename leaves that copy
+# behind, and under mkstemp's default name it was stageable.
+.facet_secret*
 
 # Claude Code
 .claude/todos.md

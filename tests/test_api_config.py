@@ -6,8 +6,10 @@ match in ``map_disk_path`` (A5#2) and the server-secret store in
 import hashlib
 import json
 import os
+import shutil
 import stat
 import subprocess
+import sys
 from pathlib import Path
 from unittest import mock
 
@@ -18,6 +20,28 @@ from api.config import map_disk_path
 
 _MOD = "api.config"
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_GIT_CHECK_IGNORE_ERROR = 128
+
+
+def _is_gitignored(name):
+    """True when `git check-ignore` says ``name`` is ignored by this checkout.
+
+    ``git check-ignore`` exits 0 for ignored, 1 for not ignored and 128 for a
+    genuine failure (no repository, a broken index, git absent). Folding 128
+    into "not ignored" turns a broken environment into a confident claim about
+    .gitignore, so it raises instead — the one outcome a caller must never
+    silently interpret.
+    """
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", name],
+        cwd=_REPO_ROOT, capture_output=True, text=True,
+    )
+    if result.returncode >= _GIT_CHECK_IGNORE_ERROR:
+        raise RuntimeError(
+            f"git check-ignore failed for {name} (exit {result.returncode}): "
+            f"{result.stderr.strip()}"
+        )
+    return result.returncode == 0
 
 
 def _norm(path):
@@ -128,6 +152,76 @@ def _mode_of(path):
     return stat.S_IMODE(os.stat(path).st_mode)
 
 
+_ENTRY_POINT = "database.py"
+_LINKED_EXCLUSIONS = {".git", "scoring_config.json", api_config._SECRET_FILENAME, _ENTRY_POINT}
+
+
+def _isolated_install(tmp_path):
+    """Build a directory a child process cannot tell from the repository.
+
+    The secret is resolved at IMPORT of ``api.config``, from a path derived
+    from that module's own ``__file__`` — so the boot behaviour a CLI actually
+    gets can only be observed in a subprocess, and a subprocess pointed at this
+    checkout would rotate the developer's live ``.facet_secret``. Every
+    top-level entry is symlinked, so the code under test is the working tree's
+    own bytes, while ``scoring_config.json``, the secret and any backup are the
+    child's own files.
+
+    ``database.py`` is COPIED, not linked: CPython resolves a symlinked script
+    before computing ``sys.path[0]``, so a linked entry point silently imports
+    the REAL ``api`` package — the isolation looks right and is not there.
+    """
+    install = tmp_path / "install"
+    install.mkdir()
+    for entry in os.listdir(_REPO_ROOT):
+        if entry in _LINKED_EXCLUSIONS or entry.startswith("scoring_config.json.backup"):
+            continue
+        os.symlink(_REPO_ROOT / entry, install / entry)
+    shutil.copy2(_REPO_ROOT / _ENTRY_POINT, install / _ENTRY_POINT)
+    _write_config(install / "scoring_config.json")
+    return install
+
+
+def _run_in_install(install, *args, env_extra=None):
+    """Run ``database.py`` inside an isolated install, with a clean environment."""
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    env.pop(api_config._SECRET_ENV_VAR, None)
+    env.update(env_extra or {})
+    return subprocess.run(
+        [sys.executable, _ENTRY_POINT, *args],
+        cwd=install, env=env, capture_output=True, text=True,
+    )
+
+
+def _repo_secret_snapshot():
+    """Bytes of THIS checkout's secret store, or None when it has none.
+
+    The after-the-fact half of the isolation guard: a subprocess test that
+    escaped its temp install would rotate the developer's live secret and log
+    them out of their own viewer. Snapshotted rather than asserted absent,
+    because a working checkout normally has one.
+    """
+    store = _REPO_ROOT / api_config._SECRET_FILENAME
+    return store.read_bytes() if store.exists() else None
+
+
+def _assert_isolated(install):
+    """Refuse to run a destructive child until the child proves it is isolated.
+
+    Checked BEFORE the rotation, not after: a child that resolved the real
+    repository would already have replaced the developer's secret by the time
+    an after-the-fact assertion could notice.
+    """
+    probe = subprocess.run(
+        [sys.executable, "-c", "import api.config as c; print(c._CONFIG_PATH)"],
+        cwd=install, capture_output=True, text=True,
+        env={k: v for k, v in os.environ.items() if k != "PYTHONPATH"},
+    )
+    assert probe.returncode == 0, probe.stderr
+    resolved = Path(probe.stdout.strip())
+    assert resolved == install / "scoring_config.json", f"child resolved {resolved}"
+
+
 class TestServerSecretBootstrap:
     """F1 + A6#9: the secret must live outside the git-tracked config, and must
     not differ per ``--workers>1`` process.
@@ -231,6 +325,72 @@ class TestUnreadableSecretFile:
 
         os.chmod(api_config.secret_path(), 0o600)
         assert Path(api_config.secret_path()).read_text().strip() == stored
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    def test_the_env_override_boots_past_a_file_it_cannot_read(self, isolated_config,
+                                                               monkeypatch):
+        """H1: the refusal above advised ``$FACET_JWT_SECRET`` and then ignored it.
+
+        The store was read before the environment was consulted, so the one
+        remedy the error message names could not be applied: an operator who
+        exported the variable still could not boot, and every CLI that imports
+        this module died the same way at import.
+        """
+        _, stored = api_config._load_and_ensure_secret()
+        os.chmod(api_config.secret_path(), 0o000)
+        monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
+        try:
+            _, secret = api_config._load_and_ensure_secret()
+        finally:
+            os.chmod(api_config.secret_path(), 0o600)
+
+        assert secret == "env-provided-secret"
+        assert Path(api_config.secret_path()).read_text().strip() == stored
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    def test_without_the_override_an_unreadable_file_still_refuses(self, isolated_config,
+                                                                   monkeypatch):
+        """The other half of H1: skipping the read is scoped to the override.
+
+        A blank variable is not an override (it falls through to the file), so
+        it must not buy the boot past a file the account cannot read — that
+        would be the G1 catastrophe, a fresh secret replacing a stored one.
+        """
+        _, stored = api_config._load_and_ensure_secret()
+        os.chmod(api_config.secret_path(), 0o000)
+        monkeypatch.setenv(api_config._SECRET_ENV_VAR, "   ")
+        try:
+            with pytest.raises(RuntimeError, match="could not be read"):
+                api_config._load_and_ensure_secret()
+        finally:
+            os.chmod(api_config.secret_path(), 0o600)
+
+        assert Path(api_config.secret_path()).read_text().strip() == stored
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    def test_the_rotate_cli_reaches_its_own_refusal_under_the_override(self, tmp_path):
+        """``database.py --rotate-secret`` died at IMPORT of api.config.
+
+        It refuses under ``$FACET_JWT_SECRET`` by design — the variable wins on
+        every read, so rewriting the file would rotate nothing — but before H1
+        it never got as far as saying so: importing api.config raised on the
+        unreadable store first, in the exact state (env set, file unreadable)
+        its own error message tells the operator to create. The refusal
+        semantics are unchanged; only its reachability is.
+        """
+        install = _isolated_install(tmp_path)
+        _assert_isolated(install)
+        secret_file = install / api_config._SECRET_FILENAME
+        secret_file.write_text("a" * 64 + "\n")
+        os.chmod(secret_file, 0o000)
+
+        result = _run_in_install(install, "--rotate-secret",
+                                 env_extra={api_config._SECRET_ENV_VAR: "injected"})
+        output = result.stdout + result.stderr
+
+        assert result.returncode != 0, "a refused rotation must not report success"
+        assert api_config._SECRET_ENV_VAR in output
+        assert "could not be read" not in output, "died on the store instead of refusing"
 
     @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
     def test_reload_config_refuses_on_the_same_state(self, isolated_config, preserved_globals):
@@ -340,11 +500,7 @@ class TestLegacySecretMigration:
         no suffix -- so the file the migration (and api.auth's password
         upgrade) writes was stageable.
         """
-        result = subprocess.run(
-            ["git", "check-ignore", "-q", name],
-            cwd=_REPO_ROOT, capture_output=True,
-        )
-        assert result.returncode == 0, f"{name} is not gitignored"
+        assert _is_gitignored(name), f"{name} is not gitignored"
 
     def test_published_secret_is_replaced_not_preserved(self, isolated_config, burned_digest):
         """The whole point of F1: a burned value must not survive the migration."""
@@ -513,13 +669,38 @@ class TestBurnedSecretGate:
         assert secret.strip() != burned_digest
         assert len(secret) == api_config._SECRET_BYTES * 2
 
+    def test_the_file_store_hands_the_gate_a_stripped_value(self, isolated_config,
+                                                            burned_digest):
+        """Layer 1 of the normalisation, for the file source.
+
+        The gate is defended twice — every source strips what it reads, and
+        :func:`_is_burned` strips again — which is why no end-to-end test can
+        fail when only ONE layer is removed. Each layer therefore gets its own
+        test: this one fails if the store stops stripping, and
+        ``test_whitespace_does_not_smuggle_a_burned_value_past`` fails if the
+        gate stops stripping.
+        """
+        Path(api_config.secret_path()).write_text(f"  {burned_digest}\n")
+        assert api_config._read_secret_file() == burned_digest
+
+    def test_the_eviction_hands_the_gate_a_stripped_value(self, isolated_config,
+                                                          burned_digest):
+        """Layer 1 again, for the config source it was actually exploited through."""
+        _write_config(isolated_config, {_LEGACY_KEY: f"  {burned_digest}\n"})
+
+        _, _, legacy = api_config._read_config_evicting_legacy_secret()
+
+        assert legacy == burned_digest
+
     def test_a_burned_value_never_survives_to_the_second_boot(self, isolated_config,
                                                               burned_digest):
-        """The whole G5 exploit in one run.
+        """The whole G5 exploit in one run — composition, not a single gate.
 
         Un-stripped hashing let `burned + "\\n"` pass the migration gate, the
         store wrote it back, and the next boot's strip turned it into exactly
-        the published key -- manufacturing the secret the gate refuses.
+        the published key -- manufacturing the secret the gate refuses. It
+        stays green while EITHER normalisation layer holds, so it pins the
+        outcome and the two tests above pin the layers.
         """
         _write_config(isolated_config, {_LEGACY_KEY: burned_digest + "\n"})
 
@@ -601,6 +782,32 @@ class TestSecretRotation:
 
         assert Path(api_config.secret_path()).read_text() == stored
 
+    def test_the_cli_reports_a_completed_rotation_with_a_zero_exit(self, tmp_path):
+        """The exit code is the contract on the SUCCESS path too.
+
+        The refusal's non-zero exit was pinned (tests/test_cli.py) while the
+        success path was not, so a rotation that stopped exiting 0 — an
+        exception mapped to a non-zero exit, a stray ``sys.exit`` — would have
+        looked exactly like the refusal to every runbook and deploy script
+        that gates on it. Runs against an isolated install, so it rotates a
+        throwaway secret rather than this checkout's own.
+        """
+        install = _isolated_install(tmp_path)
+        _assert_isolated(install)
+        secret_file = install / api_config._SECRET_FILENAME
+        secret_file.write_text("a" * 64 + "\n")
+        os.chmod(secret_file, 0o600)
+        untouched = _repo_secret_snapshot()
+
+        result = _run_in_install(install, "--rotate-secret")
+
+        assert result.returncode == 0, result.stdout + result.stderr
+        rotated = secret_file.read_text().strip()
+        assert rotated != "a" * 64
+        assert len(rotated) == api_config._SECRET_BYTES * 2
+        assert _mode_of(secret_file) == 0o600
+        assert _repo_secret_snapshot() == untouched, "the rotation escaped its install"
+
 
 class TestSecretSignsTokens:
     """The store has exactly two consumers: session JWTs and frame link HMACs."""
@@ -672,6 +879,134 @@ class TestNoSecretInTrackedFiles:
         assert _LEGACY_KEY not in json.loads(content)
 
     def test_secret_file_is_gitignored(self):
-        """Without this line the store is one `git add -A` from being published."""
-        ignored = (_REPO_ROOT / ".gitignore").read_text().splitlines()
-        assert api_config._SECRET_FILENAME in [line.strip() for line in ignored]
+        """Without this rule the store is one `git add -A` from being published.
+
+        Asserted through ``git check-ignore`` rather than by looking for a
+        literal line: the rule is a glob, and what matters is that the name is
+        ignored, not how .gitignore spells it.
+        """
+        assert _is_gitignored(api_config._SECRET_FILENAME)
+
+    def test_the_scratch_file_of_an_owner_only_write_is_gitignored(self, tmp_path,
+                                                                    monkeypatch):
+        """H4: the staging copy holds the same bytes as the destination.
+
+        ``_atomic_write_owner_only`` writes the raw secret to a scratch file in
+        the install directory and renames it into place; under mkstemp's default
+        ``tmpXXXXXXXX`` that name matched no ignore rule, so a SIGKILL between
+        the write and the rename left an unignored, stageable copy of the key in
+        the repository root. The name is captured from a real write rather than
+        hard-coded, so it cannot drift from what the primitive actually creates.
+        """
+        created = []
+        real_mkstemp = api_config.tempfile.mkstemp
+
+        def _recording_mkstemp(**kwargs):
+            fd, path = real_mkstemp(**kwargs)
+            created.append(os.path.basename(path))
+            return fd, path
+
+        monkeypatch.setattr(api_config.tempfile, "mkstemp", _recording_mkstemp)
+        api_config._atomic_write_owner_only(str(tmp_path / "target"), "payload")
+
+        assert len(created) == 1
+        assert _is_gitignored(created[0]), f"{created[0]} is not gitignored"
+
+
+class TestExistingConfigBackupsAreTightened:
+    """H2: fixing the writers protects only the backups written from now on.
+
+    Every backup this project ever wrote went through ``shutil.copy2``, which
+    copies the MODE too: on a default umask each one landed 0664 holding
+    ``share_secret``, ``users.*.password_hash`` and — for the password
+    upgrade's backup — a plaintext password. Those files keep that mode
+    forever, which is precisely the window an attacker uses, so the boot path
+    re-modes them.
+    """
+
+    BARE = ".backup"
+    STAMPED = ".backup.20260101_000000_000000"
+    SECRETS = '{"share_secret": "aaaa", "viewer": {"password": "plaintext-pw"}}'
+
+    def _seed_backup(self, isolated_config, suffix, mode=0o664):
+        path = Path(f"{isolated_config}{suffix}")
+        path.write_text(self.SECRETS)
+        os.chmod(path, mode)
+        return path
+
+    @pytest.mark.parametrize("suffix", [BARE, STAMPED])
+    def test_a_group_readable_backup_is_tightened_on_boot(self, isolated_config, suffix):
+        backup = self._seed_backup(isolated_config, suffix)
+
+        api_config._load_and_ensure_secret()
+
+        assert _mode_of(backup) == 0o600
+
+    def test_the_contents_are_never_touched(self, isolated_config):
+        """They are the operator's backups: only the permission bits change."""
+        backup = self._seed_backup(isolated_config, self.STAMPED)
+
+        api_config._load_and_ensure_secret()
+
+        assert backup.read_text() == self.SECRETS
+
+    def test_it_says_so_once_and_then_stays_quiet(self, isolated_config, caplog):
+        """Idempotent: the second boot finds nothing loose, so it logs nothing."""
+        self._seed_backup(isolated_config, self.STAMPED)
+
+        with caplog.at_level("WARNING"):
+            api_config._load_and_ensure_secret()
+        first = caplog.text
+        caplog.clear()
+        with caplog.at_level("WARNING"):
+            api_config._load_and_ensure_secret()
+
+        assert "0600" in first
+        assert "config backup" in first
+        assert "config backup" not in caplog.text
+
+    def test_an_already_owner_only_backup_is_left_alone(self, isolated_config):
+        backup = self._seed_backup(isolated_config, self.STAMPED, mode=0o600)
+
+        api_config._load_and_ensure_secret()
+
+        assert _mode_of(backup) == 0o600
+        assert backup.read_text() == self.SECRETS
+
+    def test_a_symlink_wearing_a_backup_name_is_not_followed(self, isolated_config, tmp_path):
+        """chmod follows symlinks; this sweep must not.
+
+        The install directory is not always the operator's alone, and a link
+        planted under a backup name would otherwise have this boot-path code
+        re-mode whatever it points at.
+        """
+        outside = tmp_path / "elsewhere.json"
+        outside.write_text(self.SECRETS)
+        os.chmod(outside, 0o664)
+        os.symlink(outside, Path(f"{isolated_config}{self.STAMPED}"))
+
+        api_config._load_and_ensure_secret()
+
+        assert _mode_of(outside) == 0o664
+
+    def test_an_unmodifiable_backup_does_not_break_the_boot(self, isolated_config):
+        """This runs at import: one un-chmod-able file must not crash-loop the server.
+
+        A backup can be owned by another account — restored from an archive,
+        copied in by a deploy running as root — and ``EPERM`` on it says
+        nothing about the install as a whole.
+        """
+        backup = self._seed_backup(isolated_config, self.STAMPED)
+        real_chmod = os.chmod
+
+        def _refuse_that_one(path, mode, *args, **kwargs):
+            if str(path) == str(backup):
+                raise PermissionError(1, "not the owner")
+            return real_chmod(path, mode, *args, **kwargs)
+
+        with mock.patch("os.chmod", _refuse_that_one):
+            _, secret = api_config._load_and_ensure_secret()
+
+        assert len(secret) == api_config._SECRET_BYTES * 2
+        assert _mode_of(api_config.secret_path()) == 0o600
+        assert _mode_of(backup) == 0o664

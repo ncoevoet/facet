@@ -30,6 +30,36 @@ logger = logging.getLogger(__name__)
 
 MAX_CONFIG_BACKUPS = 20
 BACKUP_TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S_%f'
+BACKUP_FILE_MODE = 0o600
+_BACKUP_OPEN_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+
+
+def write_owner_only_backup(source_path, backup_path):
+    """Copy ``source_path``'s CONTENT to ``backup_path`` at 0600, and return it.
+
+    The one backup writer for every copy-shaped caller: this module before a
+    weights, priority, scoring-context or panorama write, and
+    ``api.auth.upgrade_legacy_password`` before it rewrites a password.
+
+    ``shutil.copy2`` — what both used to call — also copies the *mode*, so
+    every backup inherited whatever scoring_config.json carried: 0664 under a
+    default umask, holding ``share_secret``, ``users.*.password_hash`` and, in
+    the password upgrade's case, the plaintext password that was just typed.
+    ``chmod`` afterwards does not fix that: the bytes are on disk at the loose
+    mode first, and any local account only has to read them inside that window.
+
+    So the destination is opened with an explicit 0600 creation mode and
+    re-moded while it is still EMPTY — a backup name that already existed at a
+    looser mode is tightened before it holds anything — and only then does the
+    content go in. There is no instant at which this file both exists with
+    content and is readable beyond its owner.
+    """
+    with open(source_path, 'rb') as source:
+        fd = os.open(backup_path, _BACKUP_OPEN_FLAGS, BACKUP_FILE_MODE)
+        with os.fdopen(fd, 'wb') as destination:
+            os.chmod(backup_path, BACKUP_FILE_MODE)
+            shutil.copyfileobj(source, destination)
+    return backup_path
 
 
 def record_category_snapshot(category, weights, created_by, get_db):
@@ -65,9 +95,13 @@ def _backup_config(config_path, *, prune=True):
     The stamp carries microseconds: at second granularity two saves inside the
     same second collapsed into one file, so the ``backup`` path handed back to
     the caller no longer held the state it was promised.
+
+    The copy goes through :func:`write_owner_only_backup` rather than
+    ``shutil.copy2``: these files carry every secret scoring_config.json does,
+    for as long as the operator keeps them.
     """
     backup_path = f"{config_path}.backup.{datetime.now().strftime(BACKUP_TIMESTAMP_FORMAT)}"
-    shutil.copy2(config_path, backup_path)
+    write_owner_only_backup(config_path, backup_path)
     if prune:
         _prune_config_backups(config_path)
     return backup_path

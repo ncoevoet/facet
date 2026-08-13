@@ -23,7 +23,6 @@ Usage:
 import json
 import logging
 import os
-import shutil
 import sys
 from datetime import datetime
 
@@ -60,9 +59,10 @@ def _load_config():
 
 
 def _save_config(config):
-    """Write scoring_config.json (creates timestamped backup first)."""
+    """Write scoring_config.json (creates a 0600 timestamped backup first)."""
+    from api.config_writes import write_owner_only_backup
     backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    shutil.copy2(CONFIG_PATH, backup_path)
+    write_owner_only_backup(CONFIG_PATH, backup_path)
     logger.info("Backup saved to %s", backup_path)
     with open(CONFIG_PATH, 'w') as f:
         json.dump(config, f, indent=2)

@@ -375,10 +375,23 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
     scoring-context write can no longer land inside this one's window and be
     overwritten (or overwrite it). The reload happens after the lock is
     released, because it re-reads the file and may take that same lock.
+
+    The pre-upgrade backup is the most sensitive copy this project writes: it
+    is the one file still holding the PLAINTEXT password, seconds after a
+    successful login. It therefore goes through the shared owner-only backup
+    primitive instead of ``shutil.copy2`` plus a ``chmod``, which put those
+    bytes on disk at the config's own (0664 under a default umask) mode first
+    and only tightened them afterwards.
     """
-    from api.config import _CONFIG_PATH, CONFIG_WRITE_LOCK, atomic_write_json, reload_config
+    from api.config import (
+        _CONFIG_BACKUP_SUFFIX,
+        _CONFIG_PATH,
+        CONFIG_WRITE_LOCK,
+        atomic_write_json,
+        reload_config,
+    )
+    from api.config_writes import write_owner_only_backup
     import json
-    import shutil
 
     hashed = hash_password(plaintext)
     upgraded = False
@@ -393,8 +406,7 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
         if viewer.get(config_key, '') and not _is_hashed(viewer[config_key]):
             viewer[config_key] = hashed
             config['viewer'] = viewer
-            shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
-            os.chmod(f"{_CONFIG_PATH}.backup", 0o600)
+            write_owner_only_backup(_CONFIG_PATH, f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}")
             try:
                 atomic_write_json(_CONFIG_PATH, config)
                 upgraded = True
