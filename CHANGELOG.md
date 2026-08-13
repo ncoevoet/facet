@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.12.0] "Alexandrite" — 2026-08-13
+
 ### Security
 
 - **The JWT signing secret moved out of `scoring_config.json`** into an untracked
