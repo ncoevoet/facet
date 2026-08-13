@@ -83,6 +83,24 @@ def _seed_photos():
     conn.close()
 
 
+def _seed_extra_scored(names):
+    """Seed extra scored rows under FACET_PREFIX; returns their Facet paths.
+
+    The ``immich_cfg`` fixture's teardown drops everything under the prefix, so
+    these need no cleanup of their own.
+    """
+    paths = [FACET_PREFIX + f"{name}.jpg" for name in names]
+    conn = sqlite3.connect(DB_PATH)
+    conn.executemany(
+        "INSERT INTO photos (path, filename, star_rating, is_favorite, is_rejected, aggregate) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [(p, p.rsplit("/", 1)[-1], 3, 0, 0, 7.5) for p in paths],
+    )
+    conn.commit()
+    conn.close()
+    return paths
+
+
 def _clear_side_state():
     conn = sqlite3.connect(DB_PATH)
     conn.execute("DELETE FROM stats_cache WHERE key LIKE 'immich_%'")
@@ -284,14 +302,34 @@ class TestPendingList:
         assert resp.json()["received"] == _MAX_ASSETS_PER_DELIVERY
 
     def test_webhook_never_spawns_a_scan(self, client, immich_cfg, transport, monkeypatch):
+        # Popen is the single choke point every subprocess helper (run, call,
+        # check_output) funnels through, so patching it catches an
+        # attribute-style call from any module — but it cannot see a
+        # ``from subprocess import run`` binding, which is why the patch alone
+        # would be a guard that can never fire. The real assertion is the
+        # second half: an unknown asset leaves the library exactly as it was,
+        # queued as inert data. A scan would have to add a photos row or a
+        # scan_runs row to be worth anything.
         import subprocess
 
         def explode(*args, **kwargs):
             raise AssertionError("the webhook must never spawn a process")
 
         monkeypatch.setattr(subprocess, "Popen", explode)
-        monkeypatch.setattr(subprocess, "run", explode)
+        conn = sqlite3.connect(DB_PATH)
+        scans_before = conn.execute("SELECT COUNT(*) FROM scan_runs").fetchone()[0]
+        conn.close()
+
         assert _post(client, _asset(MISSING)).status_code == 202
+
+        conn = sqlite3.connect(DB_PATH)
+        photo_rows = conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE path = ?", (MISSING,)).fetchone()[0]
+        scans_after = conn.execute("SELECT COUNT(*) FROM scan_runs").fetchone()[0]
+        conn.close()
+        assert photo_rows == 0
+        assert scans_after == scans_before
+        assert load_pending_paths(DB_PATH) == [MISSING]
 
 
 class TestPathMapping:
@@ -321,3 +359,116 @@ class TestPushFailures:
         assert resp.status_code == 202
         assert resp.json()["failed"] == 1
         assert transport.requests == []
+
+    def test_one_dropped_connection_does_not_abort_the_delivery(
+            self, client, immich_cfg, monkeypatch):
+        # RemoteDisconnected is an http.client.HTTPException — a class the
+        # per-asset handler used to miss entirely, so a keep-alive Immich
+        # dropping one connection 500-ed a delivery whose earlier assets had
+        # already been pushed.
+        from http.client import RemoteDisconnected
+
+        boom, = _seed_extra_scored(["boom"])
+        fake = FakeTransport()
+        fake.assets_by_path[_immich_path(boom)] = "asset-boom"
+
+        def flaky(_self, method, path, payload=None):
+            if method == "PUT" and payload.get("ids") == ["asset-boom"]:
+                raise RemoteDisconnected("Remote end closed connection")
+            return fake(method, path, payload)
+
+        monkeypatch.setattr(ImmichClient, "_request", flaky)
+        resp = _post(client, [{"originalPath": _immich_path(boom), "id": "asset-boom"},
+                              {"originalPath": _immich_path(SCORED), "id": "asset-scored"}])
+        assert resp.status_code == 202
+        assert resp.json()["failed"] == 1
+        # The asset after the failure still reached Immich.
+        assert resp.json()["pushed"] == 1
+        assert fake.asset_updates() == [
+            {"ids": ["asset-scored"], "rating": 4, "isFavorite": True}
+        ]
+
+    def test_an_unreadable_database_fails_every_asset_cleanly(
+            self, client, immich_cfg, transport, monkeypatch):
+        # sqlite3.Error was the other class the handler missed: the read phase
+        # is delivery-wide, so it must tally every asset as failed rather than
+        # escape as a 500.
+        from sync import immich as sync_immich
+
+        def unreadable(*args, **kwargs):
+            raise sqlite3.OperationalError("database is locked")
+
+        monkeypatch.setattr(sync_immich, "_fetch_scored_photos", unreadable)
+        resp = _post(client, [_asset(SCORED)["asset"], _asset(UNSCORED)["asset"]])
+        assert resp.status_code == 202
+        assert resp.json()["failed"] == 2
+        assert transport.requests == []
+
+
+class TestDeliveryBatching:
+    """One delivery costs one pass over the side-table blobs, whatever its size.
+
+    Regression: ``_process_assets`` called ``push_photo_update`` per asset, and
+    each call opened two fresh connections and round-tripped the ENTIRE
+    ``immich_synced_paths`` blob — a document that grows with the library — so
+    an N-asset delivery cost 2N connections and 2N JSON parses, plus a third
+    connection per unknown asset for the pending list.
+    """
+
+    @staticmethod
+    def _instrument(monkeypatch):
+        """Count the state round trips a delivery makes; returns the tally dict."""
+        from sync import immich as sync_immich
+
+        calls = {"connections": 0, "load_state": 0, "save_state": 0, "save_pending": 0}
+        originals = {name: getattr(sync_immich, name) for name in
+                     ("get_connection", "_load_synced_state", "_save_synced_state",
+                      "_save_pending")}
+
+        def wrap(name, key):
+            def counted(*args, **kwargs):
+                calls[key] += 1
+                return originals[name](*args, **kwargs)
+            monkeypatch.setattr(sync_immich, name, counted)
+
+        wrap("get_connection", "connections")
+        wrap("_load_synced_state", "load_state")
+        wrap("_save_synced_state", "save_state")
+        wrap("_save_pending", "save_pending")
+        return calls
+
+    @pytest.mark.parametrize("size", [1, 5])
+    def test_state_round_trips_do_not_grow_with_the_delivery(
+            self, client, immich_cfg, transport, monkeypatch, size):
+        paths = _seed_extra_scored([f"batch{i}" for i in range(size)])
+        assets = []
+        for i, path in enumerate(paths):
+            transport.assets_by_path[_immich_path(path)] = f"asset-batch{i}"
+            assets.append({"originalPath": _immich_path(path), "id": f"asset-batch{i}"})
+        calls = self._instrument(monkeypatch)
+
+        resp = _post(client, {"assets": assets})
+
+        assert resp.json()["pushed"] == size
+        # Two connections and two loads for ANY size: one read pass (rows +
+        # synced state), then one serialized transaction that re-reads the blob
+        # so a delivery landing meanwhile is merged rather than clobbered.
+        assert calls["connections"] == 2
+        assert calls["load_state"] == 2
+        assert calls["save_state"] == 1
+
+    def test_unknown_assets_share_one_pending_write(
+            self, client, immich_cfg, transport, monkeypatch):
+        unknown = [FACET_PREFIX + f"never-seen-{i}.jpg" for i in range(_MAX_PENDING)]
+        calls = self._instrument(monkeypatch)
+
+        resp = _post(client, [{"originalPath": _immich_path(p)} for p in unknown])
+
+        assert resp.json()["pending"] == len(unknown)
+        # One read pass + one pending write; nothing was pushed, so the synced
+        # state is never written at all. Asserted before the read-back below,
+        # which would itself open a (counted) connection.
+        assert calls["connections"] == 2
+        assert calls["save_pending"] == 1
+        assert calls["save_state"] == 0
+        assert load_pending_paths(DB_PATH) == unknown

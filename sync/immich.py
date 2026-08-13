@@ -15,9 +15,10 @@ optional single top-picks album is filled from a minimum-rating threshold.
 Immich's database is never touched — REST only.
 
 Two surfaces share those payload rules: :func:`sync_to_immich` (the whole
-library, driven by ``--immich-sync``) and :func:`push_photo_update` (exactly
-one asset, driven by the inbound webhook in ``api/routers/immich.py``). Both
-go through :func:`_push_fields`, so a rule fixed in one is fixed in both.
+library, driven by ``--immich-sync``) and :func:`push_photo_updates` (one
+inbound webhook delivery, driven by ``api/routers/immich.py``). Both go
+through :func:`_push_fields`, so a rule fixed in one is fixed in both, and
+both read the whole library state once per run rather than once per photo.
 
 Expected ``scoring_config.json`` section::
 
@@ -47,7 +48,11 @@ from __future__ import annotations
 
 import json
 import logging
+import sqlite3
+import threading
 import time
+from contextlib import contextmanager
+from http import client as http_client
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 from urllib.parse import urlparse
@@ -57,6 +62,10 @@ from db import get_connection
 logger = logging.getLogger(__name__)
 
 UPDATE_CHUNK = 500
+# How many paths one ``WHERE path IN (...)`` read may carry. Well under
+# SQLite's default 999-variable ceiling, so a large delivery chunks instead
+# of raising.
+PATH_QUERY_CHUNK = 500
 UNMATCHED_LOG_LIMIT = 20
 DEFAULT_MAX_PENDING = 500
 
@@ -66,6 +75,23 @@ RESULT_PUSHED = "pushed"
 RESULT_SKIPPED = "skipped"
 RESULT_UNMATCHED = "unmatched"
 RESULT_UNKNOWN = "unknown"
+RESULT_FAILED = "failed"
+
+# What one asset's push may fail with without taking the rest of the delivery
+# down with it: a bad config value (``ValueError``, including the
+# ``JSONDecodeError`` of a garbled response body), any transport failure
+# (urllib's ``URLError`` and ``TimeoutError`` are both ``OSError`` subclasses),
+# a protocol-level HTTP failure that is NOT an OSError (``BadStatusLine``,
+# ``IncompleteRead`` — and ``RemoteDisconnected``, which is both), or a DB
+# error while reading the row.
+PUSH_ERRORS = (ValueError, OSError, sqlite3.Error, http_client.HTTPException)
+
+# Serializes the read-modify-write of the ``stats_cache`` side-table blobs
+# against other threads of THIS process — concurrent webhook deliveries land
+# in the same threadpool. The CLAUDE.md caveat about ``flock`` being host-local
+# does not apply: this is an in-process mutex, and the BEGIN IMMEDIATE it is
+# paired with covers the cross-process half.
+_STATE_LOCK = threading.Lock()
 
 
 class ImmichClient:
@@ -186,15 +212,21 @@ def map_facet_path(path: str, path_map: list[dict]) -> str | None:
 def map_immich_path(original_path: str, path_map: list[dict]) -> str | None:
     """Translate an Immich ``originalPath`` back to a Facet absolute path.
 
-    Exact inverse of :func:`map_facet_path` — same pair set (those carrying a
-    ``facet_prefix``), same first-match rule — so a path that round-trips out
-    through the sync round-trips back in through the webhook.
+    The inverse of :func:`map_facet_path`, over the pairs that can actually be
+    inverted: BOTH prefixes must be set. A pair carrying a ``facet_prefix`` and
+    no ``immich_prefix`` maps outbound onto a bare relative path, and matching
+    it inbound would mean testing ``startswith("")`` — true of every path, so
+    one such pair would shadow every later pair and swallow the whole map.
+
+    Same first-match rule and same two outcomes as the outbound direction: with
+    no invertible pair at all the path passes through unchanged, and *None*
+    means invertible pairs exist but none matched.
     """
-    pairs = [p for p in path_map if p.get("facet_prefix")]
+    pairs = [p for p in path_map if p.get("facet_prefix") and p.get("immich_prefix")]
     if not pairs:
         return original_path
     for pair in pairs:
-        prefix = pair.get("immich_prefix", "")
+        prefix = pair["immich_prefix"]
         if original_path.startswith(prefix):
             return pair["facet_prefix"] + original_path[len(prefix):]
     return None
@@ -260,6 +292,34 @@ def _make_client(immich_cfg: dict) -> "ImmichClient":
                         timeout=immich_cfg.get("timeout_seconds", 30))
 
 
+@contextmanager
+def _state_write(db_path):
+    """One serialized read-modify-write of a ``stats_cache`` side-table blob.
+
+    Both trackers here (the synced-state map, the pending list) are a whole
+    JSON document under a single key, so a load-mutate-save that interleaves
+    with another one silently drops the other's entries. Two webhook
+    deliveries arriving together did exactly that.
+
+    The mutex is doubled on purpose: :data:`_STATE_LOCK` orders the threads of
+    this process (the FastAPI threadpool, where the deliveries actually race),
+    and ``BEGIN IMMEDIATE`` takes SQLite's RESERVED lock before the *read* so a
+    separate process — a ``--immich-sync`` running alongside the viewer —
+    cannot slip a write in between. Callers must do their load AND their save
+    inside the block; the commit happens on the way out.
+    """
+    with _STATE_LOCK:
+        with get_connection(db_path) as conn:
+            conn.isolation_level = None  # explicit transaction control
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                yield conn
+            except BaseException:
+                conn.rollback()
+                raise
+            conn.commit()
+
+
 def _scope_key(scope: str | None) -> str:
     """stats_cache key for the per-scope "paths last pushed active" state."""
     return f"immich_synced_paths:{scope or 'global'}"
@@ -286,12 +346,12 @@ def _load_synced_state(conn, scope: str | None) -> dict:
 
 
 def _save_synced_state(conn, scope: str | None, state: dict) -> None:
+    """Write the blob. Call inside :func:`_state_write`, which owns the commit."""
     conn.execute(
         "INSERT INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
         (_scope_key(scope), json.dumps(state), time.time()),
     )
-    conn.commit()
 
 
 def _pending_key(scope: str | None) -> str:
@@ -315,31 +375,46 @@ def _load_pending(conn, scope: str | None) -> list:
 
 
 def _save_pending(conn, scope: str | None, paths: list) -> None:
+    """Write the blob. Call inside :func:`_state_write`, which owns the commit."""
     conn.execute(
         "INSERT INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?) "
         "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
         (_pending_key(scope), json.dumps(paths), time.time()),
     )
-    conn.commit()
+
+
+def record_pending_paths(db_path, facet_paths,
+                         max_pending: int = DEFAULT_MAX_PENDING) -> int:
+    """Remember the Immich assets Facet has not scored yet; return the pending count.
+
+    One serialized read-modify-write for the whole batch: a webhook delivery
+    carrying several unknown assets costs one connection and one round trip of
+    this blob, not one per asset. Deduplicated and bounded (oldest dropped
+    first) so a chatty Immich instance can never grow this side-table row
+    without limit. Nothing is scanned here — the list exists purely so the next
+    ``--immich-sync`` can report the gap.
+    """
+    with _state_write(db_path) as conn:
+        pending = _load_pending(conn, None)
+        known = set(pending)
+        added = False
+        for facet_path in facet_paths:
+            if facet_path in known:
+                continue
+            known.add(facet_path)
+            pending.append(facet_path)
+            added = True
+        if added:
+            if max_pending > 0 and len(pending) > max_pending:
+                pending = pending[-max_pending:]
+            _save_pending(conn, None, pending)
+        return len(pending)
 
 
 def record_pending_path(db_path, facet_path: str,
                         max_pending: int = DEFAULT_MAX_PENDING) -> int:
-    """Remember an Immich asset Facet has not scored yet; return the pending count.
-
-    Deduplicated and bounded (oldest dropped first) so a chatty Immich instance
-    can never grow this side-table row without limit. Nothing is scanned here —
-    the list exists purely so the next ``--immich-sync`` can report the gap.
-    """
-    with get_connection(db_path) as conn:
-        pending = _load_pending(conn, None)
-        if facet_path in pending:
-            return len(pending)
-        pending.append(facet_path)
-        if max_pending > 0 and len(pending) > max_pending:
-            pending = pending[-max_pending:]
-        _save_pending(conn, None, pending)
-        return len(pending)
+    """One path's :func:`record_pending_paths`; returns the pending count."""
+    return record_pending_paths(db_path, [facet_path], max_pending=max_pending)
 
 
 def load_pending_paths(db_path) -> list:
@@ -355,7 +430,7 @@ def _report_pending(db_path, dry_run: bool) -> int:
     leaves the list; the rest are logged so an Immich upload that Facet never
     picked up is visible from an ordinary sync run.
     """
-    with get_connection(db_path) as conn:
+    with _state_write(db_path) as conn:
         pending = _load_pending(conn, None)
         if not pending:
             return 0
@@ -416,18 +491,24 @@ def _fetch_rating_rows(conn, user_id: str | None, extra_paths=(),
     ).fetchall()
 
 
-def _fetch_scored_photo(conn, facet_path: str):
-    """One scored photo's rating columns, or None when unknown/unscored.
+def _fetch_scored_photos(conn, facet_paths) -> dict:
+    """``{path: row}`` for the scored photos among *facet_paths* — one read.
 
-    An unscored row is deliberately indistinguishable from a missing one here:
-    the webhook has nothing meaningful to push for either, and both belong on
-    the pending list.
+    A path missing from the result is deliberately ambiguous between "never
+    scanned" and "scanned but unscored": the webhook has nothing meaningful to
+    push for either, and both belong on the pending list.
     """
-    return conn.execute(
-        "SELECT path, star_rating, is_favorite, is_rejected FROM photos "
-        "WHERE path = ? AND aggregate IS NOT NULL",
-        (facet_path,),
-    ).fetchone()
+    unique = list(dict.fromkeys(facet_paths))
+    found: dict = {}
+    for start in range(0, len(unique), PATH_QUERY_CHUNK):
+        chunk = unique[start:start + PATH_QUERY_CHUNK]
+        placeholders = ",".join("?" * len(chunk))
+        for row in conn.execute(
+            f"SELECT path, star_rating, is_favorite, is_rejected FROM photos "
+            f"WHERE path IN ({placeholders}) AND aggregate IS NOT NULL", chunk
+        ):
+            found[row["path"]] = row
+    return found
 
 
 def sync_to_immich(db_path, config: dict, user_id: str | None = None,
@@ -504,18 +585,22 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
         if not dry_run:
             # Only rows actually confirmed pushed (matched_paths) advance the
             # tracked state; an unmatched row keeps its prior entry so the next
-            # sync retries it instead of losing the clear.
-            new_state = dict(synced_state)
-            for facet_path, _, fields, _, _ in resolvable:
-                if facet_path not in matched_paths:
-                    continue
-                active = _active_state(fields)
-                if active["rating"] or active["favorite"]:
-                    new_state[facet_path] = active
-                else:
-                    new_state.pop(facet_path, None)
-            if new_state != synced_state:
-                with get_connection(db_path) as write_conn:
+            # sync retries it instead of losing the clear. Re-read inside the
+            # serialized write: the pass above is network-bound, so a webhook
+            # delivery may have advanced the blob since, and writing back the
+            # snapshot taken before it would drop that delivery's entries.
+            with _state_write(db_path) as write_conn:
+                current = _load_synced_state(write_conn, scope)
+                new_state = dict(current)
+                for facet_path, _, fields, _, _ in resolvable:
+                    if facet_path not in matched_paths:
+                        continue
+                    active = _active_state(fields)
+                    if active["rating"] or active["favorite"]:
+                        new_state[facet_path] = active
+                    else:
+                        new_state.pop(facet_path, None)
+                if new_state != current:
                     _save_synced_state(write_conn, scope, new_state)
     except (urllib_error.URLError, TimeoutError) as e:
         e.partial_summary = dict(summary)
@@ -529,48 +614,117 @@ def sync_to_immich(db_path, config: dict, user_id: str | None = None,
     return summary
 
 
+def _commit_pushed_state(db_path, pushed: dict) -> None:
+    """Fold one delivery's confirmed pushes into the synced-state blob, atomically.
+
+    Re-read inside the serialized transaction for the same reason
+    :func:`sync_to_immich` does: a concurrent CLI sync or a second webhook
+    delivery may have advanced the blob while this one was talking to Immich.
+    """
+    try:
+        with _state_write(db_path) as conn:
+            state = _load_synced_state(conn, None)
+            changed = False
+            for facet_path, active in pushed.items():
+                if active["rating"] or active["favorite"]:
+                    if state.get(facet_path) != active:
+                        state[facet_path] = active
+                        changed = True
+                elif state.pop(facet_path, None) is not None:
+                    changed = True
+            if changed:
+                _save_synced_state(conn, None, state)
+    except sqlite3.Error as e:
+        # The assets DID reach Immich; only the "was pushed active" memo
+        # failed. Losing it costs a redundant push next time, never a wrong
+        # one — not worth failing a delivery that already succeeded.
+        logger.warning("Could not record Immich synced state for %d path(s): %s",
+                       len(pushed), e, exc_info=True)
+
+
+def push_photo_updates(db_path, config: dict, entries) -> list:
+    """Push a whole webhook delivery to Immich; one ``(result, error)`` per entry.
+
+    *entries* is an iterable of ``(facet_path, asset_id_or_None)`` and the
+    return value is one pair per entry, in order: :data:`RESULT_PUSHED`,
+    :data:`RESULT_SKIPPED` (nothing to send), :data:`RESULT_UNMATCHED` (no
+    Immich asset resolvable), :data:`RESULT_UNKNOWN` (path not in the library,
+    or not scored yet), or :data:`RESULT_FAILED` carrying the exception that
+    isolated that one asset. An ``asset_id`` short-circuits path resolution —
+    a webhook payload carries it, so the common case costs one request.
+
+    This is :func:`sync_to_immich`'s own shape applied to the webhook: ONE
+    connection reads every row and the synced-state blob once, the per-asset
+    decisions run in memory, and ONE serialized transaction writes the blob
+    back after the loop. Per-asset it was two connections and two full round
+    trips of that blob — quadratic in the delivery's size, and lost updates
+    whenever two deliveries interleaved.
+
+    It never raises for the classes in :data:`PUSH_ERRORS`: a delivery that
+    already pushed three assets must not fail because the fourth's socket
+    dropped. Scope is always global — a webhook arrives with no user context,
+    so it reads the ``photos`` rating columns, never a ``user_preferences``
+    overlay.
+    """
+    entries = list(entries)
+    if not entries:
+        return []
+    immich_cfg = config.get("immich", {})
+    push_ratings, push_favorites, push_rejected = _resolve_push_flags(immich_cfg)
+    try:
+        client = _make_client(immich_cfg)
+        with get_connection(db_path) as conn:
+            rows = _fetch_scored_photos(conn, [path for path, _ in entries])
+            synced_state = _load_synced_state(conn, None)
+    except PUSH_ERRORS as e:
+        # Delivery-wide: an unconfigured api_key or an unreadable DB fails
+        # every asset identically, and each still gets its own tallied result
+        # rather than an exception escaping into the caller's response.
+        logger.warning("Immich push could not start for %d asset(s): %s",
+                       len(entries), e, exc_info=True)
+        return [(RESULT_FAILED, e)] * len(entries)
+
+    results = []
+    pushed: dict[str, dict] = {}
+    for facet_path, asset_id in entries:
+        row = rows.get(facet_path)
+        if row is None:
+            results.append((RESULT_UNKNOWN, None))
+            continue
+        fields, _, _ = _push_fields(row, synced_state.get(facet_path, {}),
+                                    push_ratings, push_favorites, push_rejected)
+        if not fields:
+            results.append((RESULT_SKIPPED, None))
+            continue
+        try:
+            resolved = asset_id
+            if not resolved:
+                immich_path = map_facet_path(facet_path, immich_cfg.get("path_map", []))
+                resolved = client.search_asset_id(immich_path) if immich_path else None
+            if not resolved:
+                results.append((RESULT_UNMATCHED, None))
+                continue
+            client.update_assets([resolved], fields)
+        except PUSH_ERRORS as e:
+            results.append((RESULT_FAILED, e))
+            continue
+        pushed[facet_path] = _active_state(fields)
+        results.append((RESULT_PUSHED, None))
+
+    if pushed:
+        _commit_pushed_state(db_path, pushed)
+    return results
+
+
 def push_photo_update(db_path, config: dict, facet_path: str,
                       asset_id: str | None = None) -> str:
     """Push exactly one Facet photo's rating/favorite to Immich, right now.
 
-    The inbound-webhook counterpart of :func:`sync_to_immich`: same payload
-    rules (via :func:`_push_fields`), same synced-state tracking, no bulk
-    listing pass. Returns one of :data:`RESULT_PUSHED`, :data:`RESULT_SKIPPED`
-    (nothing to send), :data:`RESULT_UNMATCHED` (no Immich asset resolvable)
-    or :data:`RESULT_UNKNOWN` (path not in the library, or not scored yet).
-
-    *asset_id* short-circuits path resolution when the caller already has it —
-    a webhook payload carries the id, so the common case costs one request.
-
-    Scope is always global: a webhook arrives with no user context, so it reads
-    the ``photos`` rating columns, never a ``user_preferences`` overlay.
+    A single-entry :func:`push_photo_updates` — same payload rules, same
+    synced-state tracking — that re-raises the isolated failure so a one-shot
+    caller still sees an exception rather than a status string.
     """
-    immich_cfg = config.get("immich", {})
-    push_ratings, push_favorites, push_rejected = _resolve_push_flags(immich_cfg)
-    client = _make_client(immich_cfg)
-    with get_connection(db_path) as conn:
-        row = _fetch_scored_photo(conn, facet_path)
-        synced_state = _load_synced_state(conn, None)
-    if row is None:
-        return RESULT_UNKNOWN
-    fields, _, _ = _push_fields(row, synced_state.get(facet_path, {}),
-                                push_ratings, push_favorites, push_rejected)
-    if not fields:
-        return RESULT_SKIPPED
-    if not asset_id:
-        immich_path = map_facet_path(facet_path, immich_cfg.get("path_map", []))
-        asset_id = client.search_asset_id(immich_path) if immich_path else None
-    if not asset_id:
-        return RESULT_UNMATCHED
-    client.update_assets([asset_id], fields)
-    active = _active_state(fields)
-    # Re-read under the write connection: a concurrent CLI sync may have
-    # advanced the state between the read above and this write.
-    with get_connection(db_path) as write_conn:
-        state = _load_synced_state(write_conn, None)
-        if active["rating"] or active["favorite"]:
-            state[facet_path] = active
-        else:
-            state.pop(facet_path, None)
-        _save_synced_state(write_conn, None, state)
-    return RESULT_PUSHED
+    result, error = push_photo_updates(db_path, config, [(facet_path, asset_id)])[0]
+    if error is not None:
+        raise error
+    return result
