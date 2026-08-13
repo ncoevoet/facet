@@ -2316,15 +2316,23 @@ export class BurstCullingComponent implements OnDestroy {
    * preview under the suggested knobs rather than leaving stale counts on
    * screen. An explicit choice — a preset click, a knob move, or one restored
    * from a previous session — is never overwritten.
+   *
+   * Refused outright once the destructive apply is in flight, and refused again
+   * after the fetch, since that is the whole window this can resolve in. The
+   * apply owns the knobs the same way it owns the snapshot: refusing only at the
+   * dry run's door came after applyProfile() had already moved strictness and lit
+   * the preset chip, so the user watched them jump under a request neither the
+   * counts on screen nor the apply itself were computed from. Nothing is queued
+   * for afterwards — the dialog a late suggestion would repaint is gone by then.
    */
   private async applySuggestedProfile(): Promise<void> {
-    if (this.profileChosen() || this.suggestionApplied) return;
+    if (this.profileChosen() || this.suggestionApplied || this.autoCullApplying()) return;
     const key = this.scopeKey();
     const suggestion = this.suggestionScopeKey === key
       ? this.profileSuggestion()
       : await this.fetchProfileSuggestion(key);
     const suggested = suggestion?.profile;
-    if (!suggested || this.profileChosen()) return;
+    if (!suggested || this.profileChosen() || this.autoCullApplying()) return;
     const profile = this.cullProfiles().find(p => p.id === suggested);
     if (!profile || profile.id === this.selectedProfile()) return;
     this.suggestionApplied = true;
@@ -2907,6 +2915,19 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   /**
+   * Put the trim-brackets checkbox back to what the snapshot Apply sends carries.
+   *
+   * Called from the failure of whichever run owns the dialog, because that run is
+   * the one the box has to agree with — not necessarily the one the user clicked.
+   * A failed run never moved the snapshot, so a box left on the value that run
+   * asked for promises a trim the apply would not perform.
+   */
+  private reconcileTrimBrackets(): void {
+    const applied = this.autoCullRequest();
+    if (applied) this.trimBrackets.set(applied.trim_brackets);
+  }
+
+  /**
    * Dry-run the auto-cull for the current scope and open the confirm dialog.
    *
    * Refused outright while the apply is in flight, and its answer dropped if an
@@ -2938,6 +2959,7 @@ export class BurstCullingComponent implements OnDestroy {
       return 'landed';
     } catch {
       if (!this.ownsAutoCullDialog(run)) return 'superseded';
+      this.reconcileTrimBrackets();
       this.snackBar.open(this.i18n.t(I18N.culling.auto_cull.error), '', { duration: 2000, horizontalPosition: 'right', verticalPosition: 'bottom' });
       return 'failed';
     } finally {
@@ -2984,30 +3006,20 @@ export class BurstCullingComponent implements OnDestroy {
    *  identity check on the preview object keeps a failed re-run (which leaves the
    *  old preview in place) from being read as "nothing to trim".
    *
-   *  A re-run that failed never moved the snapshot, so the checkbox is put back to
-   *  what that snapshot carries — Apply sends the snapshot verbatim, and a box
-   *  ticked over a body with `trim_brackets: false` claims a trim the apply would
-   *  not perform. The error snackbar the failed run raised is what says why it
-   *  reverted.
-   *
-   *  Only this call's own failure reverts it. A superseded re-run reads exactly
-   *  the same from here, but the snapshot it would be reconciled against is the
-   *  stale one the newer run has not replaced yet — so the box was reverted to a
-   *  value that run was about to contradict. That run owns the dialog; it also
-   *  built its body from this checkbox, so leaving it alone is what keeps the two
-   *  agreeing. */
+   *  Reverting the checkbox over a failed re-run is not this handler's to do: the
+   *  run that fails is not always the one this call started. A superseded re-run
+   *  reads from here exactly like its own failure, and the snapshot it would be
+   *  reconciled against is the stale one the newer run has not replaced yet — so
+   *  the box would be reverted to a value that run is about to contradict, and
+   *  the newer run failing in turn would leave nobody to put it back. The run
+   *  that owns the dialog reconciles the box, in openAutoCull(); this handler
+   *  only reads the outcome. */
   protected async onTrimBracketsChange(value: boolean): Promise<void> {
     if (this.autoCullApplying()) return;
     const before = this.autoCullPreview();
     this.trimBrackets.set(value);
     this.trimBracketsUnchanged.set(false);
-    const outcome = await this.openAutoCull();
-    if (outcome === 'superseded') return;
-    if (outcome === 'failed') {
-      const applied = this.autoCullRequest();
-      if (applied) this.trimBrackets.set(applied.trim_brackets);
-      return;
-    }
+    if (await this.openAutoCull() !== 'landed') return;
     const after = this.autoCullPreview();
     this.trimBracketsUnchanged.set(
       value && !!before && !!after && after !== before

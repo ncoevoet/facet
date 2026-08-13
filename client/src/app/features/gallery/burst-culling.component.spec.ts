@@ -844,6 +844,36 @@ describe('BurstCullingComponent', () => {
         await flush();
       });
 
+      // The same drop, one layer up. Refusing at the dry run's door came too
+      // late: applying the preset had already moved strictness and lit the
+      // suggested-preset chip, so the user watched the knobs jump while the
+      // destructive request was open — knobs that describe neither the counts on
+      // screen nor the request being applied.
+      it('leaves the knobs alone when the suggestion resolves mid-apply', async () => {
+        component['cullProfiles'].set(profiles);
+        const suggestReply = new Subject<unknown>();
+        mockApi.get = vi.fn((url: string) =>
+          url === '/culling/suggest_profile' ? suggestReply : of(mockCullingGroupsResponse));
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        const knobs = () => ({ strictness: component['strictness'](), profile: component['selectedProfile']() });
+        const before = knobs();
+        const response = new Subject<typeof preview>();
+        mockApi.post = vi.fn(() => response);
+        const applied = component['confirmAutoCull']();
+
+        suggestReply.next({ profile: 'wedding', confidence: 0.8, evidence: {} });
+        await flush();
+
+        expect(knobs()).toEqual(before);
+        expect(component['suggestedProfileActive']()).toBe(false);
+        expect(component['autoCullSuggestionNotice']()).toBeNull();
+        // The apply, and nothing behind it.
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+
+        await settleApply(response, applied);
+      });
+
       // The same writer, one beat earlier: its dry run was already in flight when
       // Apply was hit, so refusing at the door cannot catch it.
       it('drops the answer of a dry run that was already in flight when Apply was hit', async () => {
@@ -958,6 +988,42 @@ describe('BurstCullingComponent', () => {
 
         expect(bodies[1]).toMatchObject({ trim_brackets: true });
         expect(armedState()).toEqual({ armed: true, box: true, snapshotTrim: true });
+      });
+
+      // The same ordering, one beat further on. Leaving the box to the newer run
+      // only holds while that run publishes: the run that supersedes a toggle is
+      // the suggestion's re-run — the checkbox is disabled for its own run's
+      // duration — and it can fail in turn. A failed run never moved the
+      // snapshot, so the box was left standing on the superseding run's value
+      // over a snapshot that still carries the older one.
+      it('holds when the run that superseded the toggle\'s own fails', async () => {
+        component['cullProfiles'].set([
+          { id: 'wedding', label_key: 'culling.profiles.wedding', strictness: 35, eyes_closed_max: 5, poor_expression_min: 5, keep_min_per_group: 2, similarity_threshold: 90 },
+        ]);
+        const suggestReply = new Subject<unknown>();
+        mockApi.get = vi.fn((url: string) =>
+          url === '/culling/suggest_profile' ? suggestReply : of(mockCullingGroupsResponse));
+        mockApi.post = vi.fn(() => of(preview));
+        await component['openAutoCull']();
+        const posts: Subject<typeof preview>[] = [];
+        mockApi.post = vi.fn(() => {
+          const answer = new Subject<typeof preview>();
+          posts.push(answer);
+          return answer;
+        });
+
+        const toggling = component['onTrimBracketsChange'](true);
+        await flush();
+        // The suggestion's re-run takes the dialog over from the toggle's run...
+        suggestReply.next({ profile: 'wedding', confidence: 0.8, evidence: {} });
+        await flush();
+        posts[0].next(preview);
+        await toggling;
+        // ...and then fails, leaving the snapshot where the toggle found it.
+        posts[1].error(new Error('boom'));
+        await flush();
+
+        expect(armedState()).toEqual({ armed: true, box: false, snapshotTrim: false });
       });
     });
   });
@@ -1796,6 +1862,22 @@ describe('BurstCullingComponent', () => {
       await (component as any).applySuggestedProfile();
 
       expect(component['autoCullSuggestionNotice']()).toBe('culling.profiles.wedding');
+    });
+
+    // The third way that re-run can end. A failed one leaves the counts on
+    // screen exactly as they were, so naming the preset would claim a
+    // recomputation that never happened — the error snackbar is the only thing
+    // that has anything to say.
+    it('raises no notice when the re-run behind a landing suggestion fails', async () => {
+      routeGet(suggestion('wedding'));
+      component['autoCullPreview'].set(preview);
+      mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
+
+      await (component as any).applySuggestedProfile();
+
+      expect(component['autoCullSuggestionNotice']()).toBeNull();
+      expect(component['autoCullPreview']()).toEqual(preview);
+      expect(mockSnackBar.open).toHaveBeenCalled();
     });
 
     it('raises no notice when the dialog was not open', async () => {
