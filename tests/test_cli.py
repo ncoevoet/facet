@@ -296,6 +296,11 @@ class TestDatabaseCli:
         ``.facet_secret`` (and therefore the developer's session) alone; the
         rotation itself is covered in-process, against a temp path, by
         tests/test_api_config.py::TestSecretRotation.
+
+        The exit code is the contract, not a detail: this is a security
+        operation run from deploy scripts and runbooks, where a zero exit is
+        read as "the key is now rotated" and the next step proceeds on a
+        secret that never changed.
         """
         secret_file = REPO_ROOT / '.facet_secret'
         before = secret_file.read_bytes() if secret_file.exists() else None
@@ -303,7 +308,7 @@ class TestDatabaseCli:
         result = _run(DATABASE, '--db', seeded_db, '--rotate-secret',
                       env_extra={'FACET_JWT_SECRET': 'injected-by-the-orchestrator'})
 
-        assert result.returncode == 0
+        assert result.returncode != 0, "a refused rotation must not report success"
         assert 'FACET_JWT_SECRET' in (result.stdout + result.stderr)
         after = secret_file.read_bytes() if secret_file.exists() else None
         assert after == before, "a refused rotation must not touch the stored secret"

@@ -108,7 +108,9 @@ PARAMETERISED_ROUTES = [
     ('/api/frame/next', {'token': 'x'}),
     ('/api/frame/image/1.deadbeef', {'token': 'x'}),
     ('/dav/nonexistent.jpg', {}),
-    ('/api/culling/suggest_profile', {'album_id': 1, 'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
+    # Date-scoped, NOT album-scoped: the fixture DB seeds no album, so an
+    # album_id here 404s in the access check and the handler never runs.
+    ('/api/culling/suggest_profile', {'date_from': '2024:06:15 00:00:00', 'date_to': '2024:06:15 23:59:59'}),
 ]
 
 # Routes that require superadmin (scan).

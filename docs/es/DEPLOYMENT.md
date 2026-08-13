@@ -484,7 +484,11 @@ En Docker, `/app` es la capa escribible del contenedor: un secreto creado ahí s
 
 Rota siempre que el secreto haya podido ser leído por otra persona: una configuración que se confirmó alguna vez, una copia de seguridad filtrada, un administrador que se marcha. La rotación invalida cada sesión y cada URL firmada del marco: los usuarios vuelven a iniciar sesión y los dispositivos kiosco piden enlaces nuevos.
 
-Con `--workers > 1` todos los workers leen el mismo archivo, así que un JWT firmado por uno se valida en todos. Respalda el archivo junto con la base de datos — restaurar una base de datos sin él cierra la sesión de todos.
+Con `--workers > 1` todos los workers leen el mismo archivo, así que un JWT firmado por uno se valida en todos — **una vez que ese archivo existe**. Un primer arranque con `--workers > 1` y sin `.facet_secret` es la excepción: cada worker genera su propio secreto y solo uno gana la escritura, de modo que una sesión abierta en un worker es rechazada por los demás hasta que se reinicia el servidor. Crea el secreto antes del primer arranque multi-worker — ejecuta una vez `python database.py --rotate-secret`, arranca una vez con `--workers 1`, o define `FACET_JWT_SECRET`.
+
+Esa misma divergencia se vuelve permanente cuando el directorio de instalación no es escribible: el servidor registra un error y funciona con un secreto en memoria, así que cada sesión muere en cada reinicio y cada worker firma con una clave distinta. Define allí `FACET_JWT_SECRET`.
+
+Respalda el archivo junto con la base de datos — restaurar una base de datos sin él cierra la sesión de todos.
 
 ## Configuración multiusuario
 

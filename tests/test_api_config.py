@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import stat
+import subprocess
 from pathlib import Path
 from unittest import mock
 
@@ -202,6 +203,83 @@ class TestServerSecretBootstrap:
         assert isolated_config.read_text() == "{not valid json"
 
 
+class TestUnreadableSecretFile:
+    """An existing secret that cannot be READ must never be replaced.
+
+    Treating it as absent mints a fresh key, and the store's ``os.replace``
+    needs only the DIRECTORY's write bit -- not the file's -- so the original
+    is destroyed by a boot that had no permission to read it. Every live
+    session and every signed kiosk link dies with it, unrecoverably.
+    """
+
+    def test_a_directory_in_the_way_refuses_rather_than_overwriting(self, isolated_config):
+        """Portable stand-in for any non-ENOENT OSError (here: EISDIR)."""
+        os.mkdir(api_config.secret_path())
+
+        with pytest.raises(RuntimeError, match="could not be read"):
+            api_config._load_and_ensure_secret()
+
+        assert os.path.isdir(api_config.secret_path()), "the path was replaced anyway"
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    def test_unreadable_secret_survives_the_boot_that_could_not_read_it(self, isolated_config):
+        _, stored = api_config._load_and_ensure_secret()
+        os.chmod(api_config.secret_path(), 0o000)
+
+        with pytest.raises(RuntimeError, match="could not be read"):
+            api_config._load_and_ensure_secret()
+
+        os.chmod(api_config.secret_path(), 0o600)
+        assert Path(api_config.secret_path()).read_text().strip() == stored
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    def test_reload_config_refuses_on_the_same_state(self, isolated_config, preserved_globals):
+        """reload_config resolves the secret too, so it needs the same guard."""
+        _write_config(isolated_config)
+        api_config.reload_config()
+        stored = Path(api_config.secret_path()).read_text()
+        os.chmod(api_config.secret_path(), 0o000)
+
+        with pytest.raises(RuntimeError, match="could not be read"):
+            api_config.reload_config()
+
+        os.chmod(api_config.secret_path(), 0o600)
+        assert Path(api_config.secret_path()).read_text() == stored
+
+
+class TestUnwritableInstallDirectory:
+    """A6/G2: a store that cannot be persisted must not crash-loop the server.
+
+    This resolution runs at import of ``api.config`` and the shipped systemd
+    unit sets ``Restart=always``, so raising here loops the service forever on
+    a read-only install dir -- and nobody can reach the UI to fix it. The
+    pre-fix code booted in that state; the grace mirrors the one the config
+    eviction already extends to a file it cannot rewrite.
+    """
+
+    @pytest.mark.skipif(os.geteuid() == 0, reason="root writes through mode 500")
+    def test_boot_continues_on_an_ephemeral_secret(self, isolated_config, tmp_path, caplog):
+        _write_config(isolated_config)
+        os.chmod(tmp_path, 0o500)
+        try:
+            with caplog.at_level("ERROR"):
+                _, secret = api_config._load_and_ensure_secret()
+        finally:
+            os.chmod(tmp_path, 0o700)
+
+        assert len(secret) == api_config._SECRET_BYTES * 2
+        assert not Path(api_config.secret_path()).exists()
+        assert "IN-MEMORY" in caplog.text
+        assert "restart" in caplog.text.lower(), "the log must say what is lost"
+
+    def test_rotation_still_raises_when_it_cannot_write(self, isolated_config):
+        """The grace is boot-only: a rotation that silently did nothing is a lie."""
+        _write_config(isolated_config)
+        with mock.patch(f"{_MOD}._write_secret_file", side_effect=PermissionError(13, "ro")):
+            with pytest.raises(OSError):
+                api_config.rotate_secret()
+
+
 class TestLegacySecretMigration:
     """F1: a ``share_secret`` left in the tracked config must be evicted on boot.
 
@@ -221,30 +299,60 @@ class TestLegacySecretMigration:
         assert _LEGACY_KEY not in json.loads(isolated_config.read_text())
         assert _LEGACY_KEY not in isolated_config.read_text()
 
-    def test_migration_backs_the_config_up_before_rewriting_it(self, isolated_config):
-        _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
+    def test_migration_backs_the_config_up_without_the_secret(self, isolated_config):
+        """The snapshot must not become the leak's second home.
+
+        A plain copy of the pre-migration file carried the secret at the
+        config's own mode (0664 under a default umask) under a name a stray
+        `git add -A` would have staged -- the exact shape of the leak this
+        module exists to close.
+        """
+        payload = _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
         api_config._load_and_ensure_secret()
+
         backup = Path(f"{isolated_config}.backup")
         assert backup.exists()
-        assert json.loads(backup.read_text())[_LEGACY_KEY] == "a" * 64
+        assert json.loads(backup.read_text()) == {
+            k: v for k, v in payload.items() if k != _LEGACY_KEY
+        }
+        assert "a" * 64 not in backup.read_text()
+        assert _mode_of(backup) == 0o600
 
-    def test_published_secret_is_replaced_not_preserved(self, isolated_config, monkeypatch):
-        """The whole point of F1: a burned value must not survive the migration.
+    def test_no_file_but_the_secret_store_holds_the_value_after_migration(
+            self, isolated_config, tmp_path):
+        """Sweep the whole install directory, not just the files we know about."""
+        _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
+        api_config._load_and_ensure_secret()
 
-        The digest set is patched rather than the real published values being
-        written here -- committing one of those plaintexts into the test suite
-        would republish exactly what this change removes.
+        secret_file = Path(api_config.secret_path())
+        holders = [
+            path for path in tmp_path.rglob("*")
+            if path.is_file() and "a" * 64 in path.read_text(errors="replace")
+        ]
+        assert holders == [secret_file], f"secret leaked into {holders}"
+
+    @pytest.mark.parametrize("name", ["scoring_config.json.backup",
+                                      "scoring_config.json.backup.20260101_000000"])
+    def test_config_backup_names_are_gitignored(self, name):
+        """Both shapes: the bare name this migration writes, and timestamped ones.
+
+        `scoring_config.json.backup.*` does NOT match the bare name -- it has
+        no suffix -- so the file the migration (and api.auth's password
+        upgrade) writes was stageable.
         """
-        burned = "b" * 64
-        monkeypatch.setattr(
-            api_config, "_BURNED_SECRET_DIGESTS",
-            frozenset({hashlib.sha256(burned.encode()).hexdigest()}),
+        result = subprocess.run(
+            ["git", "check-ignore", "-q", name],
+            cwd=_REPO_ROOT, capture_output=True,
         )
-        _write_config(isolated_config, {_LEGACY_KEY: burned})
+        assert result.returncode == 0, f"{name} is not gitignored"
+
+    def test_published_secret_is_replaced_not_preserved(self, isolated_config, burned_digest):
+        """The whole point of F1: a burned value must not survive the migration."""
+        _write_config(isolated_config, {_LEGACY_KEY: burned_digest})
 
         _, secret = api_config._load_and_ensure_secret()
 
-        assert secret != burned
+        assert secret != burned_digest
         assert len(secret) == api_config._SECRET_BYTES * 2
         assert Path(api_config.secret_path()).read_text().strip() == secret
         assert _LEGACY_KEY not in isolated_config.read_text()
@@ -278,8 +386,30 @@ class TestLegacySecretMigration:
 
     def test_unparseable_config_is_left_alone(self, isolated_config):
         isolated_config.write_text("{not valid json")
-        assert api_config._evict_legacy_secret() == ""
+        _, parsed_ok, legacy = api_config._read_config_evicting_legacy_secret()
+        assert legacy == ""
+        assert not parsed_ok
         assert isolated_config.read_text() == "{not valid json"
+        assert not Path(f"{isolated_config}.backup").exists()
+
+    def test_the_config_is_parsed_once_per_load(self, isolated_config):
+        """The eviction pass and the load used to parse the same file twice.
+
+        It runs on every boot AND on every reload_config, so the duplicate was
+        paid on each one.
+        """
+        _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
+        real_read = api_config._read_config
+        calls = []
+
+        def counting_read():
+            calls.append(1)
+            return real_read()
+
+        with mock.patch(f"{_MOD}._read_config", counting_read):
+            api_config._load_and_ensure_secret()
+
+        assert len(calls) == 1
 
     def test_unwritable_config_is_reported_not_fatal(self, isolated_config, caplog):
         """A crash-loop is worse than a stale key plus a loud error.
@@ -305,6 +435,99 @@ class TestLegacySecretMigration:
         api_config._load_and_ensure_secret()
         surviving = json.loads(isolated_config.read_text())
         assert surviving == {k: v for k, v in payload.items() if k != _LEGACY_KEY}
+
+
+_BURNED = "b" * 64
+
+
+@pytest.fixture
+def burned_digest(monkeypatch):
+    """Make ``_BURNED`` a published value, through the shipped constant.
+
+    The real plaintexts stay out of this repository -- committing one would
+    republish exactly what the digest list exists to refuse -- so the gate is
+    exercised on a synthetic value injected through the same constant, hashed
+    the way the constant documents (sha256 of the UTF-8 bytes, stripped).
+    """
+    monkeypatch.setattr(
+        api_config, "_BURNED_SECRET_DIGESTS",
+        frozenset({hashlib.sha256(_BURNED.encode("utf-8")).hexdigest()}),
+    )
+    return _BURNED
+
+
+class TestBurnedSecretGate:
+    """G5: the gate must cover EVERY source and must normalise before hashing.
+
+    A published value reaches the file store and the environment as easily as
+    the config -- it is published, so anyone can paste it anywhere. And it was
+    hashed un-stripped while every reader strips, so a burned value carrying a
+    newline was adopted, persisted, and then collapsed to exactly the
+    published key on the next read.
+    """
+
+    def test_digest_membership_is_what_refuses(self, burned_digest):
+        assert api_config._is_burned(burned_digest)
+        assert not api_config._is_burned("c" * 64)
+
+    @pytest.mark.parametrize("noise", ["", "\n", "  ", "\r\n", "\t"])
+    def test_whitespace_does_not_smuggle_a_burned_value_past(self, burned_digest, noise):
+        assert api_config._is_burned(burned_digest + noise)
+
+    def test_burned_env_secret_refuses_to_start(self, isolated_config, monkeypatch,
+                                                burned_digest):
+        """Only a human sets that variable, so ignoring their input silently
+        would be worse than stopping."""
+        monkeypatch.setenv(api_config._SECRET_ENV_VAR, burned_digest)
+
+        with pytest.raises(RuntimeError, match="PUBLISHED"):
+            api_config._load_and_ensure_secret()
+
+        assert not Path(api_config.secret_path()).exists()
+
+    def test_burned_env_secret_refuses_through_whitespace(self, isolated_config,
+                                                          monkeypatch, burned_digest):
+        monkeypatch.setenv(api_config._SECRET_ENV_VAR, f"  {burned_digest}\n")
+
+        with pytest.raises(RuntimeError, match="PUBLISHED"):
+            api_config._load_and_ensure_secret()
+
+    def test_burned_secret_file_is_regenerated(self, isolated_config, burned_digest, caplog):
+        """Inherited from an older install, not chosen -- so replace, don't refuse."""
+        Path(api_config.secret_path()).write_text(burned_digest + "\n")
+
+        with caplog.at_level("WARNING"):
+            _, secret = api_config._load_and_ensure_secret()
+
+        assert secret != burned_digest
+        assert len(secret) == api_config._SECRET_BYTES * 2
+        assert Path(api_config.secret_path()).read_text().strip() == secret
+        assert "PUBLISHED" in caplog.text
+
+    def test_burned_config_key_with_trailing_newline_is_replaced(self, isolated_config,
+                                                                 burned_digest):
+        _write_config(isolated_config, {_LEGACY_KEY: burned_digest + "\n"})
+
+        _, secret = api_config._load_and_ensure_secret()
+
+        assert secret.strip() != burned_digest
+        assert len(secret) == api_config._SECRET_BYTES * 2
+
+    def test_a_burned_value_never_survives_to_the_second_boot(self, isolated_config,
+                                                              burned_digest):
+        """The whole G5 exploit in one run.
+
+        Un-stripped hashing let `burned + "\\n"` pass the migration gate, the
+        store wrote it back, and the next boot's strip turned it into exactly
+        the published key -- manufacturing the secret the gate refuses.
+        """
+        _write_config(isolated_config, {_LEGACY_KEY: burned_digest + "\n"})
+
+        api_config._load_and_ensure_secret()
+        _, second_boot = api_config._load_and_ensure_secret()
+
+        assert second_boot != burned_digest
+        assert Path(api_config.secret_path()).read_text().strip() != burned_digest
 
 
 class TestSecretEnvOverride:
@@ -416,15 +639,37 @@ class TestSecretSignsTokens:
         assert _secret() == Path(api_config.secret_path()).read_text().strip()
 
 
+def _tracked_content(revision, name):
+    """Content of ``name`` as git holds it at ``revision``, or None if untracked."""
+    result = subprocess.run(
+        ["git", "show", f"{revision}:{name}"],
+        cwd=_REPO_ROOT, capture_output=True, text=True,
+    )
+    return result.stdout if result.returncode == 0 else None
+
+
 class TestNoSecretInTrackedFiles:
     """F1 regression guard: the shipped files must carry no secret at all."""
 
+    @pytest.mark.parametrize("revision", ["HEAD", ""])
     @pytest.mark.parametrize("name", ["scoring_config.json", "scoring_config.default.json"])
-    def test_shipped_config_has_no_share_secret_key(self, name):
-        path = _REPO_ROOT / name
-        if not path.exists():
-            pytest.skip(f"{name} not present in this checkout")
-        assert _LEGACY_KEY not in json.loads(path.read_text())
+    def test_shipped_config_has_no_share_secret_key(self, name, revision):
+        """Asserts on what git HOLDS, never on the working-tree file.
+
+        Reading the working tree could not fail: importing api.config at the
+        top of this module runs the boot migration against this very
+        checkout, which evicts the key from scoring_config.json before any
+        assertion here executes. The guard self-healed the state it was meant
+        to catch, so a secret committed into the tracked content passed.
+
+        Both revisions matter: `HEAD` is what a fork clones, `""` (an empty
+        revision, i.e. `git show :name`) is the index -- a secret staged but
+        not yet committed is one `git commit` from being published.
+        """
+        content = _tracked_content(revision, name)
+        if content is None:
+            pytest.skip(f"{name} is not tracked at {revision or 'the index'}")
+        assert _LEGACY_KEY not in json.loads(content)
 
     def test_secret_file_is_gitignored(self):
         """Without this line the store is one `git add -A` from being published."""

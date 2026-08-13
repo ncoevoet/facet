@@ -486,7 +486,11 @@ Unter Docker ist `/app` die beschreibbare Schicht des Containers: Ein dort erzeu
 
 Rotieren Sie, sobald das Secret von jemand anderem gelesen worden sein könnte: eine einmal commitete Konfiguration, ein geleaktes Backup, ein ausscheidender Administrator. Die Rotation entwertet jede Sitzung und jede signierte Rahmen-URL: Benutzer melden sich neu an, Kiosk-Geräte holen sich neue Links.
 
-Mit `--workers > 1` lesen alle Worker dieselbe Datei, sodass ein von einem signiertes JWT in allen gültig ist. Sichern Sie die Datei zusammen mit der Datenbank — eine ohne sie wiederhergestellte Datenbank meldet alle ab.
+Mit `--workers > 1` lesen alle Worker dieselbe Datei, sodass ein von einem signiertes JWT in allen gültig ist — **sobald diese Datei existiert**. Ein erster Start mit `--workers > 1` und noch ohne `.facet_secret` ist die Ausnahme: Jeder Worker erzeugt sein eigenes Secret und nur einer gewinnt den Schreibvorgang, sodass eine an einem Worker geöffnete Sitzung von den anderen abgelehnt wird, bis der Server neu gestartet wird. Legen Sie das Secret vor dem ersten Multi-Worker-Start an — führen Sie einmal `python database.py --rotate-secret` aus, starten Sie einmal mit `--workers 1`, oder setzen Sie `FACET_JWT_SECRET`.
+
+Dieselbe Divergenz wird dauerhaft, wenn das Installationsverzeichnis nicht beschreibbar ist: Der Server protokolliert einen Fehler und läuft mit einem Secret im Arbeitsspeicher, sodass jede Sitzung bei jedem Neustart verfällt und jeder Worker mit einem anderen Schlüssel signiert. Setzen Sie dort `FACET_JWT_SECRET`.
+
+Sichern Sie die Datei zusammen mit der Datenbank — eine ohne sie wiederhergestellte Datenbank meldet alle ab.
 
 ## Mehrbenutzer-Einrichtung
 

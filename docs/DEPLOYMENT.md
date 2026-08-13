@@ -516,7 +516,11 @@ In Docker, `/app` is the container's writable layer, so a secret created there i
 
 Rotate whenever the secret may have been read by someone else: a config that was once committed, a leaked backup, a departing administrator. Rotation invalidates every session and every signed frame URL, so users log in again and kiosk devices re-fetch their links.
 
-With `--workers > 1` every worker reads the same file, so a JWT signed by one verifies in all of them. Back the file up alongside the database — restoring a database without it logs everyone out.
+With `--workers > 1` every worker reads the same file, so a JWT signed by one verifies in all of them — **once that file exists**. A first boot with `--workers > 1` and no `.facet_secret` yet is the exception: each worker mints its own secret and only one of them wins the write, so a session opened against one worker is rejected by the others until the server is restarted. Create the secret before the first multi-worker start — run `python database.py --rotate-secret` once, start once with `--workers 1`, or set `FACET_JWT_SECRET`.
+
+The same divergence becomes permanent when the install directory is not writable: the server logs an error and runs on an in-memory secret, so every session dies on each restart and each worker signs with a different key. Set `FACET_JWT_SECRET` there.
+
+Back the file up alongside the database — restoring a database without it logs everyone out.
 
 ## Multi-User Setup
 

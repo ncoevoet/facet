@@ -486,7 +486,11 @@ Su Docker `/app` è il layer scrivibile del container: un secret creato lì vien
 
 Ruota ogni volta che il secret potrebbe essere stato letto da altri: una configurazione committata in passato, un backup trapelato, un amministratore che lascia il progetto. La rotazione invalida ogni sessione e ogni URL firmato della cornice: gli utenti rifanno il login e i dispositivi kiosk recuperano nuovi link.
 
-Con `--workers > 1` tutti i worker leggono lo stesso file, quindi un JWT firmato da uno è valido per tutti. Includi il file nei backup del database — ripristinare un database senza di esso disconnette tutti.
+Con `--workers > 1` tutti i worker leggono lo stesso file, quindi un JWT firmato da uno è valido per tutti — **una volta che quel file esiste**. Un primo avvio con `--workers > 1` e senza `.facet_secret` è l'eccezione: ogni worker genera il proprio secret e uno solo vince la scrittura, così una sessione aperta su un worker viene rifiutata dagli altri finché il server non viene riavviato. Crea il secret prima del primo avvio multi-worker — esegui una volta `python database.py --rotate-secret`, avvia una volta con `--workers 1`, oppure imposta `FACET_JWT_SECRET`.
+
+La stessa divergenza diventa permanente quando la directory di installazione non è scrivibile: il server registra un errore e funziona con un secret in memoria, quindi ogni sessione muore a ogni riavvio e ogni worker firma con una chiave diversa. Lì imposta `FACET_JWT_SECRET`.
+
+Includi il file nei backup del database — ripristinare un database senza di esso disconnette tutti.
 
 ## Configurazione multi-utente
 

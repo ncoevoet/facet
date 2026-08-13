@@ -482,7 +482,11 @@ No Docker, `/app` é a camada gravável do contêiner: um segredo criado ali se 
 
 Faça a rotação sempre que o segredo puder ter sido lido por outra pessoa: uma configuração que já foi commitada, um backup vazado, um administrador que sai. A rotação invalida cada sessão e cada URL assinada do porta-retratos: os usuários entram de novo e os dispositivos de quiosque buscam novos links.
 
-Com `--workers > 1` todos os workers leem o mesmo arquivo, então um JWT assinado por um vale em todos. Inclua o arquivo no backup do banco de dados — restaurar um banco sem ele desconecta todo mundo.
+Com `--workers > 1` todos os workers leem o mesmo arquivo, então um JWT assinado por um vale em todos — **assim que esse arquivo existir**. Uma primeira inicialização com `--workers > 1` e ainda sem `.facet_secret` é a exceção: cada worker gera o próprio segredo e apenas um vence a escrita, de modo que uma sessão aberta em um worker é rejeitada pelos outros até o servidor ser reiniciado. Crie o segredo antes da primeira inicialização multi-worker — execute uma vez `python database.py --rotate-secret`, inicie uma vez com `--workers 1`, ou defina `FACET_JWT_SECRET`.
+
+Essa mesma divergência se torna permanente quando o diretório de instalação não é gravável: o servidor registra um erro e funciona com um segredo em memória, então cada sessão morre a cada reinicialização e cada worker assina com uma chave diferente. Defina ali `FACET_JWT_SECRET`.
+
+Inclua o arquivo no backup do banco de dados — restaurar um banco sem ele desconecta todo mundo.
 
 ## Configuração multiusuário
 

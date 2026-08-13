@@ -32,7 +32,10 @@ aesthetic_predictor_weights.pth
 photos/
 @eaDir/
 
-# Config backups
+# Config backups — both the bare name the secret migration and the password
+# upgrade write, and the timestamped ones from the config writers. The bare
+# name is NOT covered by the `.backup.*` pattern: it has no suffix.
+scoring_config.json.backup
 scoring_config.json.backup.*
 
 # Server secret — signs every session JWT and frame link. Never tracked: it

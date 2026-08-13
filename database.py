@@ -24,6 +24,7 @@ import json
 import logging
 import os
 import shutil
+import sys
 from datetime import datetime
 
 logger = logging.getLogger("facet.database")
@@ -115,6 +116,11 @@ def rotate_server_secret():
     a config that was once committed, a backup that leaked, a departing admin.
     Every logged-in session and every signed frame URL stops working the moment
     the server picks the new secret up, so it is announced rather than silent.
+
+    Returns True when the rotation happened. A refusal returns False and the
+    caller exits non-zero: this is a security operation run from deploy
+    scripts and runbooks, where a zero exit is read as "the key is now
+    rotated" and the next step proceeds on a secret that never changed.
     """
     from api.config import rotate_secret
 
@@ -122,10 +128,11 @@ def rotate_server_secret():
         path = rotate_secret()
     except RuntimeError as ex:
         logger.error("%s", ex)
-        return
+        return False
     logger.info("Server secret rotated: %s", path)
     logger.info("All existing sessions and signed frame links are now invalid.")
     logger.info("Restart the viewer for running workers to pick up the new secret.")
+    return True
 
 
 def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
@@ -444,7 +451,8 @@ def main():
     elif args.add_user:
         add_user(args.add_user, args.role, args.display_name)
     elif args.rotate_secret:
-        rotate_server_secret()
+        if not rotate_server_secret():
+            sys.exit(1)
     elif args.migrate_user_preferences:
         if not args.user:
             logger.error("--user USERNAME is required with --migrate-user-preferences")

@@ -394,6 +394,7 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
             viewer[config_key] = hashed
             config['viewer'] = viewer
             shutil.copy2(_CONFIG_PATH, f"{_CONFIG_PATH}.backup")
+            os.chmod(f"{_CONFIG_PATH}.backup", 0o600)
             try:
                 atomic_write_json(_CONFIG_PATH, config)
                 upgraded = True
