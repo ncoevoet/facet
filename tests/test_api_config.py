@@ -22,6 +22,14 @@ _MOD = "api.config"
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _GIT_CHECK_IGNORE_ERROR = 128
 
+# os.geteuid does not exist on Windows, and skipif decorators evaluate at
+# import time -- calling it unconditionally would die during collection on
+# every platform without it, not just skip a test on it.
+IS_ROOT = os.geteuid() == 0 if hasattr(os, "geteuid") else False
+
+_WIN32_PERMS_REASON = "POSIX permission semantics"
+_WIN32_SYMLINK_REASON = "requires POSIX symlink privilege not available on this host"
+
 
 def _is_gitignored(name):
     """True when `git check-ignore` says ``name`` is ignored by this checkout.
@@ -261,6 +269,7 @@ class TestServerSecretBootstrap:
         assert secret_file.read_text().strip() == secret
         assert len(secret) == api_config._SECRET_BYTES * 2
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_bootstrapped_secret_file_is_owner_only(self, isolated_config):
         api_config._load_and_ensure_secret()
         assert _mode_of(api_config.secret_path()) == 0o600
@@ -279,6 +288,7 @@ class TestServerSecretBootstrap:
         assert _LEGACY_KEY not in on_disk
         assert secret not in on_disk
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_loose_permissions_are_tightened_on_read(self, isolated_config):
         api_config._load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o644)
@@ -334,7 +344,8 @@ class TestUnreadableSecretFile:
 
         assert os.path.isdir(api_config.secret_path()), "the path was replaced anyway"
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    @pytest.mark.skipif(IS_ROOT, reason="root reads through mode 000")
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_unreadable_secret_survives_the_boot_that_could_not_read_it(self, isolated_config):
         _, stored = api_config._load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o000)
@@ -345,7 +356,7 @@ class TestUnreadableSecretFile:
         os.chmod(api_config.secret_path(), 0o600)
         assert Path(api_config.secret_path()).read_text().strip() == stored
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    @pytest.mark.skipif(IS_ROOT, reason="root reads through mode 000")
     def test_the_env_override_boots_past_a_file_it_cannot_read(self, isolated_config,
                                                                monkeypatch):
         """H1: the refusal above advised ``$FACET_JWT_SECRET`` and then ignored it.
@@ -366,7 +377,8 @@ class TestUnreadableSecretFile:
         assert secret == "env-provided-secret"
         assert Path(api_config.secret_path()).read_text().strip() == stored
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    @pytest.mark.skipif(IS_ROOT, reason="root reads through mode 000")
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_without_the_override_an_unreadable_file_still_refuses(self, isolated_config,
                                                                    monkeypatch):
         """The other half of H1: skipping the read is scoped to the override.
@@ -386,7 +398,8 @@ class TestUnreadableSecretFile:
 
         assert Path(api_config.secret_path()).read_text().strip() == stored
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    @pytest.mark.skipif(IS_ROOT, reason="root reads through mode 000")
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_SYMLINK_REASON)
     def test_the_rotate_cli_reaches_its_own_refusal_under_the_override(self, tmp_path):
         """``database.py --rotate-secret`` died at IMPORT of api.config.
 
@@ -411,7 +424,8 @@ class TestUnreadableSecretFile:
         assert api_config._SECRET_ENV_VAR in output
         assert "could not be read" not in output, "died on the store instead of refusing"
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root reads through mode 000")
+    @pytest.mark.skipif(IS_ROOT, reason="root reads through mode 000")
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_reload_config_refuses_on_the_same_state(self, isolated_config, preserved_globals):
         """reload_config resolves the secret too, so it needs the same guard."""
         _write_config(isolated_config)
@@ -436,7 +450,8 @@ class TestUnwritableInstallDirectory:
     eviction already extends to a file it cannot rewrite.
     """
 
-    @pytest.mark.skipif(os.geteuid() == 0, reason="root writes through mode 500")
+    @pytest.mark.skipif(IS_ROOT, reason="root writes through mode 500")
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_boot_continues_on_an_ephemeral_secret(self, isolated_config, tmp_path, caplog):
         _write_config(isolated_config)
         os.chmod(tmp_path, 0o500)
@@ -478,6 +493,7 @@ class TestLegacySecretMigration:
         assert _LEGACY_KEY not in json.loads(isolated_config.read_text())
         assert _LEGACY_KEY not in isolated_config.read_text()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_migration_backs_the_config_up_without_the_secret(self, isolated_config):
         """The snapshot must not become the leak's second home.
 
@@ -763,6 +779,7 @@ class TestSecretEnvOverride:
         assert secret == "env-provided-secret"
         assert _LEGACY_KEY not in isolated_config.read_text()
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_a_loose_store_is_still_reported_under_the_override(self, isolated_config,
                                                                 monkeypatch, caplog):
         """The override is a runtime fact; the file it shadows is a durable one.
@@ -783,6 +800,7 @@ class TestSecretEnvOverride:
         assert _mode_of(api_config.secret_path()) == 0o600
         assert "readable beyond its owner" in caplog.text
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_a_loose_store_is_reported_without_the_override_too(self, isolated_config, caplog):
         """The other branch: the boot that DOES read the file still warns."""
         api_config._load_and_ensure_secret()
@@ -799,6 +817,7 @@ class TestSecretEnvOverride:
 class TestSecretRotation:
     """``python database.py --rotate-secret`` for a deliberate rotation."""
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_rotation_replaces_the_stored_secret(self, isolated_config, preserved_globals):
         _write_config(isolated_config)
         _, before = api_config._load_and_ensure_secret()
@@ -833,6 +852,7 @@ class TestSecretRotation:
 
         assert Path(api_config.secret_path()).read_text() == stored
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_SYMLINK_REASON)
     def test_the_cli_reports_a_completed_rotation_with_a_zero_exit(self, tmp_path):
         """The exit code is the contract on the SUCCESS path too.
 
@@ -1002,6 +1022,7 @@ _ADD_USER_SCRIPT = (
 )
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_SYMLINK_REASON)
 class TestAddUserDoesNotResurrectTheSecret:
     """F1 (round 4): ``database.py --add-user`` re-published the evicted key.
 
@@ -1103,6 +1124,7 @@ class TestExistingConfigBackupsAreTightened:
         return path
 
     @pytest.mark.parametrize("suffix", [BARE, STAMPED])
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_a_group_readable_backup_is_tightened_on_boot(self, isolated_config, suffix):
         backup = self._seed_backup(isolated_config, suffix)
 
@@ -1118,6 +1140,7 @@ class TestExistingConfigBackupsAreTightened:
 
         assert backup.read_text() == self.SECRETS
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_it_says_so_once_and_then_stays_quiet(self, isolated_config, caplog):
         """Idempotent: the second boot finds nothing loose, so it logs nothing."""
         self._seed_backup(isolated_config, self.STAMPED)
@@ -1133,6 +1156,7 @@ class TestExistingConfigBackupsAreTightened:
         assert "config backup" in first
         assert "config backup" not in caplog.text
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_an_already_owner_only_backup_is_left_alone(self, isolated_config):
         backup = self._seed_backup(isolated_config, self.STAMPED, mode=0o600)
 
@@ -1141,6 +1165,7 @@ class TestExistingConfigBackupsAreTightened:
         assert _mode_of(backup) == 0o600
         assert backup.read_text() == self.SECRETS
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_SYMLINK_REASON)
     def test_a_symlink_wearing_a_backup_name_is_not_followed(self, isolated_config, tmp_path):
         """chmod follows symlinks; this sweep must not.
 
@@ -1157,6 +1182,7 @@ class TestExistingConfigBackupsAreTightened:
 
         assert _mode_of(outside) == 0o664
 
+    @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_an_unmodifiable_backup_does_not_break_the_boot(self, isolated_config):
         """This runs at import: one un-chmod-able file must not crash-loop the server.
 
