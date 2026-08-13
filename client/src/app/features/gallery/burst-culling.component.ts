@@ -2,7 +2,7 @@ import { Component, inject, signal, computed, effect, untracked, viewChild, Elem
 import { Router, ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse } from '@angular/common/http';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
-import { DecimalPipe, NgClass, NgTemplateOutlet } from '@angular/common';
+import { DecimalPipe, NgClass, NgTemplateOutlet, PercentPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatMenuModule } from '@angular/material/menu';
@@ -118,11 +118,13 @@ interface AutoCullRequest {
 type AutoCullRunOutcome = 'landed' | 'superseded' | 'failed';
 
 /** Response of GET /api/culling/suggest_profile: the preset the scope's own
- *  content argues for, with the counts it was inferred from. */
+ *  content argues for, and the confidence it named it with (surfaced in the
+ *  Suggested badge's tooltip). The endpoint also returns `evidence` -- the
+ *  per-genre counts `confidence` was computed from -- which nothing here
+ *  reads, so it is left off this type rather than declared and ignored. */
 interface ProfileSuggestion {
   profile: string | null;
   confidence: number;
-  evidence: Record<string, number>;
 }
 
 // Per-user culling toolbar preferences, persisted so the page reopens the way
@@ -224,6 +226,7 @@ class RunGeneration {
   selector: 'app-burst-culling',
   imports: [
     DecimalPipe,
+    PercentPipe,
     NgClass,
     MatIconModule,
     MatButtonModule,
@@ -1165,10 +1168,17 @@ class RunGeneration {
                                when the winning face has a name to put on it. -->
                           @if (photo.path | keySubjectForPath:keySubjectMap(); as keySubject) {
                             @if ((face | isKeyFace:keySubject) && keySubject.person_name; as keyPersonName) {
-                              <div class="absolute top-0 left-0 max-w-full truncate rounded-br bg-amber-500/90 px-1 py-0.5 text-[9px] leading-none font-bold text-black"
-                                   [matTooltip]="I18N.culling.key_person_tooltip | translate">
-                                <span class="sr-only">{{ I18N.culling.key_person | translate }}</span>&ngsp;{{ keyPersonName }}
-                              </div>
+                              <!-- A button, not a bare div: the explanation lives only in
+                                   matTooltip, which a keyboard or screen-reader user can only
+                                   reach through a focusable host (same pattern as the "My
+                                   Taste" badge in app.html). The sr-only span also folds that
+                                   explanation in, so it reaches assistive tech regardless of
+                                   focus/hover. -->
+                              <button type="button"
+                                      class="absolute top-0 left-0 max-w-full truncate rounded-br bg-amber-500/90 px-1 py-0.5 text-[9px] leading-none font-bold text-black"
+                                      [matTooltip]="I18N.culling.key_person_tooltip | translate">
+                                <span class="sr-only">{{ I18N.culling.key_person | translate }}: {{ I18N.culling.key_person_tooltip | translate }}</span>&ngsp;{{ keyPersonName }}
+                              </button>
                             }
                           }
                           @if (face.is_blink) {
@@ -1264,10 +1274,17 @@ class RunGeneration {
               <mat-icon class="!text-base !w-4 !h-4 !leading-4">{{ profile | cullProfileIcon }}</mat-icon>
               {{ selectedProfileLabel() | translate }}
               @if (suggestedProfileActive()) {
-                <span class="px-2 py-0.5 rounded-full text-xs bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
-                      [matTooltip]="I18N.culling.auto_cull.suggested_tooltip | translate">
+                <!-- A button, not a bare span: same reasoning as the "My Taste" badge in
+                     app.html -- the explanation lives only in matTooltip, unreachable by
+                     keyboard/AT users without a focusable host. -->
+                <button type="button"
+                        class="px-2 py-0.5 rounded-full text-xs bg-[var(--mat-sys-primary)]/20 text-[var(--mat-sys-primary)]"
+                        [matTooltip]="I18N.culling.auto_cull.suggested_tooltip | translate">
                   {{ I18N.culling.auto_cull.suggested | translate }}
-                </span>
+                  @if (profileSuggestion(); as suggestion) {
+                    <span class="sr-only">: {{ suggestion.confidence | percent }}</span>
+                  }
+                </button>
               }
             </p>
           }

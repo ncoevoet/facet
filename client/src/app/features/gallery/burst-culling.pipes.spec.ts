@@ -6,6 +6,7 @@ import {
   GroupOverridePipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
   KeySubjectForPathPipe, IsKeyFacePipe, peakingEdgeOverlay,
   peakingGradientField, peakingThreshold, paintPeakingField,
+  loadFrameImage, computePeakingOverlay, computePooledPeakingOverlays,
   KEY_SUBJECT_COORDINATE_SPACE,
   CullingGroup, CullingFace, CullingSubject, FaceThresholds, FrameSize, KeySubject,
 } from './burst-culling.pipes';
@@ -624,6 +625,132 @@ describe('peakingEdgeOverlay', () => {
       const field = peakingGradientField(sharp, W, H);
       expect(litCount(paintPeakingField(field, peakingThreshold([field]))))
         .toBe(litCount(peakingEdgeOverlay(sharp, W, H)));
+    });
+  });
+});
+
+/**
+ * The raster pipeline above `peakingEdgeOverlay` -- `loadFrameImage`,
+ * `computePeakingOverlay`, `computePooledPeakingOverlays`, and the private
+ * `rasterPeakingFrame` they share -- has no coverage anywhere: every component
+ * spec mocks these wrappers rather than exercising them. jsdom implements
+ * neither image loading nor a working 2d canvas context, so both are stubbed
+ * per test rather than globally, to keep the fakes local to what each
+ * scenario needs.
+ */
+describe('the focus-peaking raster pipeline', () => {
+  /** A loadable Image stand-in: `src` fires `onload`/`onerror` synchronously
+   *  (jsdom never fires either on its own), so no test needs to await a real
+   *  decode. `fails` picks onerror by source string, for the multi-frame
+   *  pooled case where only one of several sources should fail. */
+  function stubImage(
+    naturalWidth: number, naturalHeight: number, fails: (src: string) => boolean = () => false,
+  ): void {
+    class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      naturalWidth = naturalWidth;
+      naturalHeight = naturalHeight;
+      width = 0;
+      height = 0;
+      private _src = '';
+      set src(value: string) {
+        this._src = value;
+        if (fails(value)) this.onerror?.();
+        else this.onload?.();
+      }
+      get src(): string {
+        return this._src;
+      }
+    }
+    vi.stubGlobal('Image', FakeImage);
+  }
+
+  /** A 2d context stand-in sized off whatever the source set on the real
+   *  (jsdom-backed) canvas element, so it stays correct however
+   *  `rasterPeakingFrame` scales the frame. jsdom's own `getContext` returns
+   *  null with no `canvas` npm package installed (none is), so every
+   *  raster-path test needs this regardless of that default. */
+  function stubWorkingCanvas(dataUrl: string): void {
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockImplementation(
+      function (this: HTMLCanvasElement, kind: string) {
+        if (kind !== '2d') return null;
+        const { width, height } = this;
+        return {
+          drawImage: vi.fn(),
+          getImageData: (_x: number, _y: number, w: number, h: number) =>
+            ({ data: new Uint8ClampedArray(w * h * 4) }),
+          createImageData: (w: number, h: number) => ({ data: new Uint8ClampedArray(w * h * 4) }),
+          putImageData: vi.fn(),
+        } as unknown as CanvasRenderingContext2D;
+      } as unknown as typeof HTMLCanvasElement.prototype.getContext,
+    );
+    vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(dataUrl);
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  describe('loadFrameImage', () => {
+    it('resolves with the image once it loads', async () => {
+      stubImage(100, 80);
+      await expect(loadFrameImage('/p.jpg')).resolves.toBeInstanceOf(Image);
+    });
+
+    it('rejects naming the source once the browser fails to load it', async () => {
+      stubImage(100, 80, () => true);
+      await expect(loadFrameImage('/broken.jpg')).rejects.toThrow('cannot load /broken.jpg');
+    });
+  });
+
+  describe('computePeakingOverlay (raster -> data URL)', () => {
+    it('rasters a loaded frame into the PNG data URL its canvas produced', async () => {
+      stubImage(100, 80);
+      stubWorkingCanvas('data:image/png;base64,FAKE');
+      await expect(computePeakingOverlay('/p.jpg')).resolves.toBe('data:image/png;base64,FAKE');
+    });
+
+    it('returns null for a frame with no natural dimensions', async () => {
+      stubImage(0, 0);
+      stubWorkingCanvas('data:image/png;base64,unused');
+      await expect(computePeakingOverlay('/p.jpg')).resolves.toBeNull();
+    });
+
+    it('returns null when the canvas cannot produce a 2d context', async () => {
+      stubImage(100, 80);
+      vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(null);
+      await expect(computePeakingOverlay('/p.jpg')).resolves.toBeNull();
+    });
+
+    it('returns null when the source fails to load', async () => {
+      stubImage(100, 80, () => true);
+      stubWorkingCanvas('data:image/png;base64,unused');
+      await expect(computePeakingOverlay('/broken.jpg')).rejects.toThrow('cannot load /broken.jpg');
+    });
+  });
+
+  describe('computePooledPeakingOverlays', () => {
+    it('drops a frame that fails to load instead of failing the whole batch', async () => {
+      stubImage(100, 80, src => src.includes('broken'));
+      stubWorkingCanvas('data:image/png;base64,FAKE');
+
+      const overlays = await computePooledPeakingOverlays(['/a.jpg', '/broken.jpg', '/b.jpg']);
+
+      expect(overlays.size).toBe(2);
+      expect(overlays.get('/a.jpg')).toBe('data:image/png;base64,FAKE');
+      expect(overlays.get('/b.jpg')).toBe('data:image/png;base64,FAKE');
+      expect(overlays.has('/broken.jpg')).toBe(false);
+    });
+
+    it('returns an empty map rather than throwing when every frame fails', async () => {
+      stubImage(100, 80, () => true);
+      stubWorkingCanvas('data:image/png;base64,unused');
+
+      const overlays = await computePooledPeakingOverlays(['/a.jpg', '/b.jpg']);
+
+      expect(overlays.size).toBe(0);
     });
   });
 });

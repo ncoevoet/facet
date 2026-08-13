@@ -1538,7 +1538,7 @@ describe('BurstCullingComponent', () => {
     };
 
     const keyPills = (fixture: ComponentFixture<BurstCullingComponent>) =>
-      [...(fixture.nativeElement as HTMLElement).querySelectorAll('div')]
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]
         .filter(el => el.className.includes('bg-amber-500/90'));
 
     const zKey = () => ({ preventDefault: vi.fn(), target: document.body }) as unknown as Event;
@@ -1624,8 +1624,13 @@ describe('BurstCullingComponent', () => {
       const pills = keyPills(fixture);
 
       expect(pills).toHaveLength(1);
-      // The screen-reader label and the name must not run together (&ngsp;).
-      expect(pills[0].textContent?.trim()).toBe('culling.key_person Alice');
+      // The badge is a focusable button now (keyboard/AT users could never
+      // trigger a matTooltip on a bare div), and its sr-only text folds the
+      // tooltip's explanation in rather than leaving it reachable only on
+      // hover. The screen-reader text and the name must not run together (&ngsp;).
+      expect(pills[0].tagName).toBe('BUTTON');
+      expect(pills[0].textContent?.trim())
+        .toBe('culling.key_person: culling.key_person_tooltip Alice');
       teardown();
     });
 

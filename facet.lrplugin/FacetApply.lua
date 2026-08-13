@@ -148,14 +148,28 @@ local function readManifest(path)
     return decoded
 end
 
+-- Written into a lowercase slot the moment two distinct manifest paths fold
+-- to the same key, so findRecord can refuse the fallback instead of handing
+-- back whichever of the two records happened to be indexed last.
+local COLLISION = {}
+
 local function buildIndex(manifest)
-    local index = { exact = {}, lowercase = {}, count = 0, sample = nil }
+    local index = { exact = {}, lowercase = {}, count = 0, collisions = 0, sample = nil }
+    local firstPathForKey = {}
     for _, record in ipairs(manifest[FIELD_PHOTOS]) do
         if type(record) == 'table' then
             local path = normalizePath(record[FIELD_PATH])
             if path then
                 index.exact[path] = record
-                index.lowercase[string.lower(path)] = record
+                local key = string.lower(path)
+                local firstPath = firstPathForKey[key]
+                if not firstPath then
+                    firstPathForKey[key] = path
+                    index.lowercase[key] = record
+                elseif firstPath ~= path and index.lowercase[key] ~= COLLISION then
+                    index.lowercase[key] = COLLISION
+                    index.collisions = index.collisions + 1
+                end
                 index.count = index.count + 1
                 if not index.sample then
                     index.sample = path
@@ -186,7 +200,11 @@ local function findRecord(index, path)
     if record then
         return record
     end
-    return index.lowercase[string.lower(path)]
+    local fallback = index.lowercase[string.lower(path)]
+    if fallback == COLLISION then
+        return nil
+    end
+    return fallback
 end
 
 local function desiredRating(record)
@@ -208,6 +226,26 @@ local function desiredPickStatus(record)
         return PICK_STATUS_PICKED
     end
     return nil
+end
+
+-- Decide what one sticky field (rating or pick status) should do: the value
+-- to write (nil for "leave alone"), and whether the current and wanted
+-- values conflict under the write-once default -- never touch a value
+-- Lightroom already holds unless `overwrite` says otherwise.
+local function resolveField(current, wanted, emptyValue, overwrite)
+    if not wanted then
+        return nil, false
+    end
+    if current == emptyValue or overwrite then
+        if wanted ~= current then
+            return wanted, false
+        end
+        return nil, false
+    end
+    if current ~= wanted then
+        return nil, true
+    end
+    return nil, false
 end
 
 local function collectFolderPhotos(catalog)
@@ -308,26 +346,23 @@ local function buildPlan(catalog, photos, index, preferences, progress, logger)
                 local wantedPick = desiredPickStatus(record)
                 local entry = { photo = photo }
                 local conflicted = false
-                if wantedRating then
-                    if currentRating == 0 or preferences.overwrite then
-                        if wantedRating ~= currentRating then
-                            entry.rating = wantedRating
-                            plan.ratingWrites = plan.ratingWrites + 1
-                        end
-                    elseif currentRating ~= wantedRating then
-                        conflicted = true
-                    end
+
+                local ratingValue, ratingConflict = resolveField(
+                    currentRating, wantedRating, 0, preferences.overwrite)
+                if ratingValue then
+                    entry.rating = ratingValue
+                    plan.ratingWrites = plan.ratingWrites + 1
                 end
-                if wantedPick then
-                    if currentPick == PICK_STATUS_NONE or preferences.overwrite then
-                        if wantedPick ~= currentPick then
-                            entry.pickStatus = wantedPick
-                            plan.pickWrites = plan.pickWrites + 1
-                        end
-                    elseif currentPick ~= wantedPick then
-                        conflicted = true
-                    end
+                conflicted = conflicted or ratingConflict
+
+                local pickValue, pickConflict = resolveField(
+                    currentPick, wantedPick, PICK_STATUS_NONE, preferences.overwrite)
+                if pickValue then
+                    entry.pickStatus = pickValue
+                    plan.pickWrites = plan.pickWrites + 1
                 end
+                conflicted = conflicted or pickConflict
+
                 if conflicted then
                     plan.conflicts = plan.conflicts + 1
                 end
@@ -346,6 +381,19 @@ local function buildPlan(catalog, photos, index, preferences, progress, logger)
     return plan
 end
 
+-- Write one raw-metadata field via a guarded pcall, logging and returning
+-- whether it landed. `label` names the field in the failure log line
+-- ('rating' / 'flag'), matching the two call sites' previous wording.
+local function writeField(photo, key, value, label, path, logger)
+    local ok, message = pcall(function()
+        photo:setRawMetadata(key, value)
+    end)
+    if not ok then
+        logger.write(string.format('FAIL %s %s: %s', label, tostring(path), tostring(message)))
+    end
+    return ok
+end
+
 local function applyPlan(catalog, plan, progress, logger)
     local outcome = { ratingsSet = 0, picksSet = 0, photosTouched = 0, failed = 0, canceled = false }
     local total = plan.entryCount
@@ -361,27 +409,19 @@ local function applyPlan(catalog, plan, progress, logger)
                     local entry = plan.entries[position]
                     local touched = false
                     if entry.rating then
-                        local ok, message = pcall(function()
-                            entry.photo:setRawMetadata(METADATA_RATING, entry.rating)
-                        end)
-                        if ok then
+                        if writeField(entry.photo, METADATA_RATING, entry.rating, 'rating', entry.path, logger) then
                             outcome.ratingsSet = outcome.ratingsSet + 1
                             touched = true
                         else
                             outcome.failed = outcome.failed + 1
-                            logger.write(string.format('FAIL rating %s: %s', tostring(entry.path), tostring(message)))
                         end
                     end
                     if entry.pickStatus then
-                        local ok, message = pcall(function()
-                            entry.photo:setRawMetadata(METADATA_PICK_STATUS, entry.pickStatus)
-                        end)
-                        if ok then
+                        if writeField(entry.photo, METADATA_PICK_STATUS, entry.pickStatus, 'flag', entry.path, logger) then
                             outcome.picksSet = outcome.picksSet + 1
                             touched = true
                         else
                             outcome.failed = outcome.failed + 1
-                            logger.write(string.format('FAIL flag %s: %s', tostring(entry.path), tostring(message)))
                         end
                     end
                     if touched then
@@ -537,15 +577,20 @@ local function previewMessage(plan, manifest, index, preferences)
         '',
         string.format('MATCHED in the manifest:   %d', plan.matched),
         string.format('NOT FOUND in the manifest: %d', plan.unmatched),
-        '',
-        string.format('Star ratings to set: %d', plan.ratingWrites),
-        string.format('Pick/reject flags to set: %d', plan.pickWrites),
-        string.format('Already up to date: %d', plan.unchanged),
-        string.format('Kept as they are (already rated or flagged by hand): %d', plan.conflicts),
-        '',
-        string.format('Manifest: %d photos, exported %s',
-            index.count, tostring(manifest[FIELD_GENERATED_AT])),
     }
+    if index.collisions > 0 then
+        lines[#lines + 1] = string.format(
+            'Ambiguous by case only, matched by exact path alone: %d', index.collisions)
+    end
+    lines[#lines + 1] = ''
+    lines[#lines + 1] = string.format('Star ratings to set: %d', plan.ratingWrites)
+    lines[#lines + 1] = string.format('Pick/reject flags to set: %d', plan.pickWrites)
+    lines[#lines + 1] = string.format('Already up to date: %d', plan.unchanged)
+    lines[#lines + 1] = string.format(
+        'Kept as they are (already rated or flagged by hand): %d', plan.conflicts)
+    lines[#lines + 1] = ''
+    lines[#lines + 1] = string.format(
+        'Manifest: %d photos, exported %s', index.count, tostring(manifest[FIELD_GENERATED_AT]))
     if preferences.overwrite then
         lines[#lines + 1] = 'Overwrite is ON: existing Lightroom ratings and flags will be replaced.'
     end
@@ -652,6 +697,24 @@ local function run(context)
     logger.close()
 
     LrDialogs.message(DIALOG_TITLE .. ' - done', summaryMessage(plan, outcome))
+end
+
+-- Test seam: hands the module-private helpers to a Lua test harness running
+-- against a stubbed LR SDK (tests/test_lrplugin_apply.py). Lightroom itself
+-- never sets this global, so production loads fall straight through to the
+-- real entry point below.
+if FACET_APPLY_TEST_HOOKS then
+    FACET_APPLY_TEST_HOOKS.normalizePath = normalizePath
+    FACET_APPLY_TEST_HOOKS.buildIndex = buildIndex
+    FACET_APPLY_TEST_HOOKS.findRecord = findRecord
+    FACET_APPLY_TEST_HOOKS.resolveField = resolveField
+    FACET_APPLY_TEST_HOOKS.writeField = writeField
+    FACET_APPLY_TEST_HOOKS.buildPlan = buildPlan
+    FACET_APPLY_TEST_HOOKS.applyPlan = applyPlan
+    FACET_APPLY_TEST_HOOKS.previewMessage = previewMessage
+    FACET_APPLY_TEST_HOOKS.desiredRating = desiredRating
+    FACET_APPLY_TEST_HOOKS.desiredPickStatus = desiredPickStatus
+    return
 end
 
 LrFunctionContext.postAsyncTaskWithContext('facetApply', function(context)
