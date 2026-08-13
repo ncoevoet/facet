@@ -14,6 +14,10 @@ import PIL.Image
 
 logger = logging.getLogger("facet.vlm_tagger")
 
+# Every tag in the config vocabulary is one or two words. A candidate longer than
+# this is a sentence, not a tag, so it is dropped rather than snake-cased whole.
+MAX_TAG_WORDS = 4
+
 # Lazy imports
 torch = None
 AutoProcessor = None
@@ -56,6 +60,7 @@ class VLMTagger:
       vs Qwen2.5 uses separate apply_chat_template + processor()
     - Qwen3 needs token_type_ids removal; Qwen3.5 uses mm_token_type_ids natively
     - Qwen3/Qwen3.5 support max_pixels on the processor
+    - Qwen3.5 needs thinking mode pinned off (see _template_kwargs)
     """
 
     def __init__(self, model_config: Dict[str, Any], scoring_config=None, backend=None):
@@ -95,6 +100,17 @@ class VLMTagger:
 
         # Batch size for VLM inference
         self.batch_size = model_config.get('vlm_batch_size', 4 if self.family in ('qwen3', 'qwen3_5') else 2)
+
+        # Qwen3.5 checkpoints disagree on the thinking-mode default: the only line
+        # that differs between Qwen3.5-2B's and Qwen3.5-4B's chat_template.jinja is
+        # the generation-prompt branch, which the 2B renders as
+        # "<|im_start|>assistant\n<think>\n\n</think>\n\n" (thinking off, opt-in) and
+        # the 4B as "<|im_start|>assistant\n<think>\n" (thinking on, opt-out). Left
+        # on, the 4B's prompt ends inside an open <think> block, so it spends the
+        # whole max_new_tokens budget on reasoning prose and never emits the tag
+        # list. Pinning the flag off renders the 2B prompt byte-identically, so its
+        # validated output is unchanged.
+        self._template_kwargs = {'enable_thinking': False} if self.family == 'qwen3_5' else {}
 
         # Build valid tag set from config
         self.valid_tags = set()
@@ -269,6 +285,7 @@ Tags:"""
                 add_generation_prompt=True,
                 return_dict=True,
                 return_tensors="pt",
+                **self._template_kwargs,
             )
             inputs.pop("token_type_ids", None)
         else:
@@ -329,6 +346,7 @@ Tags:"""
                 add_generation_prompt=True,
                 return_dict=True,
                 return_tensors="pt",
+                **self._template_kwargs,
             )
             inputs.pop("token_type_ids", None)
         else:
@@ -502,6 +520,7 @@ Tags:"""
                 add_generation_prompt=True,
                 return_dict=True,
                 return_tensors="pt",
+                **self._template_kwargs,
             )
             inputs.pop("token_type_ids", None)
             all_inputs.append(inputs)
@@ -564,8 +583,17 @@ Tags:"""
 
         Uses Levenshtein distance (threshold <= 2) to match model output tags
         to the valid vocabulary, replacing the fragile substring matching.
+
+        Prose answers are rejected rather than repaired: a reasoning preamble is
+        dropped, and any candidate longer than MAX_TAG_WORDS is discarded instead
+        of being snake-cased into a sentence-shaped tag.
         """
         text = text.strip()
+
+        # Drop a reasoning preamble. <think>/</think> are ordinary tokens in the
+        # Qwen3.5 vocabulary, so they survive skip_special_tokens=True decoding.
+        if '</think>' in text:
+            text = text.rsplit('</think>', 1)[1].strip()
 
         # Remove common prefixes the model might add
         for prefix in ['Tags:', 'tags:', 'Here are the tags:', 'The tags are:']:
@@ -577,10 +605,12 @@ Tags:"""
 
         tags = []
         for tag in raw_tags:
-            # Remove numbering or bullets
-            tag = tag.lstrip('0123456789.-) ')
-            # Remove quotes
-            tag = tag.strip('"\'')
+            # Collapse newlines and runs of spaces — prose answers wrap lines
+            tag = ' '.join(tag.split())
+            # Remove markdown emphasis, then numbering or bullets
+            tag = tag.strip('*#`').lstrip('0123456789.-) ')
+            # Remove quotes and trailing sentence punctuation
+            tag = tag.strip('"\'').rstrip('.!?;')
             # Strip category prefixes the model may echo (e.g. "Art: painting")
             if ':' in tag:
                 tag = tag.split(':', 1)[1].strip()
@@ -588,6 +618,9 @@ Tags:"""
             tag = tag.replace(' ', '_')
 
             if not tag or len(tag) <= 1:
+                continue
+            # More words than any real tag has means the model answered in prose
+            if tag.count('_') + 1 > MAX_TAG_WORDS:
                 continue
 
             # Match to valid vocabulary using edit distance
@@ -651,6 +684,7 @@ Tags:"""
                 add_generation_prompt=True,
                 return_dict=True,
                 return_tensors="pt",
+                **self._template_kwargs,
             )
             inputs.pop("token_type_ids", None)
         else:

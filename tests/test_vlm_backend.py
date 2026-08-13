@@ -322,11 +322,13 @@ class _FakeQwen3Processor:
         self._patch_counts = list(patch_counts)
         self._extra_token_keys = tuple(extra_token_keys)
         self._call = 0
+        self.template_kwargs = []
 
     def apply_chat_template(self, messages, tokenize=True, add_generation_prompt=True,
-                            return_dict=True, return_tensors="pt"):
+                            return_dict=True, return_tensors="pt", **kwargs):
         import torch
 
+        self.template_kwargs.append(kwargs)
         idx = self._call
         self._call += 1
         seq_len = self._seq_lens[idx]
@@ -360,19 +362,23 @@ class _FakeQwen3Model:
         return torch.zeros((batch, seq_len + self._new_tokens), dtype=torch.long)
 
 
+def _run_batch_qwen3(extra_token_keys, family="qwen3_5"):
+    pytest.importorskip("torch")
+    from models.vlm_tagger import VLMTagger, _ensure_imports
+
+    _ensure_imports()
+    tagger = VLMTagger({"family": family}, None)
+    tagger.processor = _FakeQwen3Processor(
+        seq_lens=(5, 8), patch_counts=(4, 6), extra_token_keys=extra_token_keys)
+    tagger.model = _FakeQwen3Model(new_tokens=3)
+    results = tagger._batch_qwen3(
+        [_image(), _image()], prompt="Tags:", max_new_tokens=3, max_tags=5)
+    return tagger, results
+
+
 class TestBatchQwen3Padding:
     def _run(self, extra_token_keys):
-        pytest.importorskip("torch")
-        from models.vlm_tagger import VLMTagger, _ensure_imports
-
-        _ensure_imports()
-        tagger = VLMTagger({"family": "qwen3_5"}, None)
-        tagger.processor = _FakeQwen3Processor(
-            seq_lens=(5, 8), patch_counts=(4, 6), extra_token_keys=extra_token_keys)
-        tagger.model = _FakeQwen3Model(new_tokens=3)
-        results = tagger._batch_qwen3(
-            [_image(), _image()], prompt="Tags:", max_new_tokens=3, max_tags=5)
-        return tagger, results
+        return _run_batch_qwen3(extra_token_keys)
 
     def test_pads_mm_token_type_ids_added_by_transformers_5_3(self):
         tagger, results = self._run(("mm_token_type_ids",))
@@ -402,3 +408,68 @@ class TestBatchQwen3Padding:
         assert tuple(captured["input_ids"].shape) == (2, 8)
         assert tuple(captured["attention_mask"].shape) == (2, 8)
         assert tuple(captured["pixel_values"].shape) == (10, 8)
+
+
+# --- Qwen3.5 must render its chat template with thinking disabled -----------
+#
+# The only line that differs between Qwen3.5-2B's and Qwen3.5-4B's
+# chat_template.jinja is the generation-prompt branch: the 2B defaults thinking
+# off ("enable_thinking is true" opt-in), the 4B defaults it on
+# ("enable_thinking is false" opt-out). Left on, the 4B's prompt ends inside an
+# open <think> block and it burns the whole max_new_tokens budget on reasoning
+# prose instead of emitting tags. Passing the flag renders the 2B prompt
+# byte-identically, so this cannot regress the validated 2B output.
+
+class TestThinkingDisabled:
+    def test_qwen3_5_disables_thinking(self):
+        tagger, _ = _run_batch_qwen3((), family="qwen3_5")
+        assert tagger.processor.template_kwargs == [{"enable_thinking": False}] * 2
+
+    def test_qwen3_leaves_template_defaults_alone(self):
+        tagger, _ = _run_batch_qwen3((), family="qwen3")
+        assert tagger.processor.template_kwargs == [{}] * 2
+
+    def test_qwen2_5_gets_no_template_kwargs(self):
+        from models.vlm_tagger import VLMTagger
+
+        assert VLMTagger({"family": "qwen2_5"}, None)._template_kwargs == {}
+
+
+# --- Tag parsing must reject prose rather than snake-case it ----------------
+
+
+class TestParseTagsRejectsProse:
+    def _parse(self, text, max_tags=5):
+        from models.vlm_tagger import VLMTagger
+
+        return VLMTagger({}, None)._parse_tags(text, max_tags)
+
+    def test_clean_comma_list_is_unchanged(self):
+        # The validated Qwen3.5-2B output shape must survive the hardening.
+        assert self._parse("night,city lights,bridge,architecture,urban") == [
+            "night", "city_lights", "bridge", "architecture", "urban"]
+
+    def test_markdown_prose_yields_no_tags(self):
+        # The exact Qwen3.5-4B failure: a bulleted description previously became
+        # tags like "-_the_image_shows_a_tall".
+        text = ("**\n- The image shows a tall, illuminated structure at night. "
+                "It looks like a ride or a tower.")
+        assert self._parse(text) == []
+
+    def test_reasoning_preamble_is_dropped(self):
+        # <think>/</think> are ordinary tokens in the Qwen3.5 vocabulary, so they
+        # survive skip_special_tokens=True decoding.
+        text = ("Okay, the user wants tags. I can see a bridge lit up at night.\n"
+                "</think>\n\nnight, bridge, urban")
+        assert self._parse(text) == ["night", "bridge", "urban"]
+
+    def test_long_candidates_dropped_short_ones_kept(self):
+        assert self._parse("night, a wide sweeping view of the valley, bridge") == [
+            "night", "bridge"]
+
+    def test_trailing_sentence_punctuation_stripped(self):
+        assert self._parse("night, urban.") == ["night", "urban"]
+
+    def test_existing_prefix_and_bullet_cleanups_still_apply(self):
+        assert self._parse("Tags: 1. sunset, 2. beach") == ["sunset", "beach"]
+        assert self._parse("Art: painting, Mood: moody") == ["painting", "moody"]
