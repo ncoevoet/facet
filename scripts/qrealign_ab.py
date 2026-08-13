@@ -17,7 +17,9 @@ the gate can be re-derived by hand.
 Both models are invoked via pyiqa's standard ``create_metric`` interface with
 task ``'aesthetic'`` (matches the AVA-MOS-scale intent documented on the
 ``qalign_score`` column and the precedent in ``scripts/score_qalign_ava.py``),
-passing a PIL image directly — no custom tensor preprocessing.
+passing a PIL image bounded to PyIQAScorer's production long-edge limit
+(``_MAX_INFERENCE_SIZE``) — the same input contract every shipped pyiqa
+scorer runs under — and no other preprocessing.
 
 Read-only against the DB (opened ``mode=ro``, safe on a live library copy).
 Resumable: every scored/skipped photo is appended to a ``<out>.partial.jsonl``
@@ -302,6 +304,33 @@ def fetch_stored_metrics(conn, paths):
     return out
 
 
+def _bounded_size(w, h, max_side):
+    """Target (w, h) after the production long-edge bound; unchanged if within it."""
+    long_edge = max(w, h)
+    if long_edge <= max_side:
+        return w, h
+    scale = max_side / long_edge
+    return int(w * scale), int(h * scale)
+
+
+def _bound_to_inference_size(img):
+    """Mirror the production input contract before scoring.
+
+    PyIQAScorer bounds every image to _MAX_INFERENCE_SIZE on the long edge
+    before any pyiqa metric sees it (models/pyiqa_scorer.py). Feeding this
+    harness native-resolution originals instead measured qrealign encoding
+    24MP frames whole — 23s/img and ~13GB of activations for a 0.8B model —
+    a regime no shipped code path ever enters. Both arms get the same bound
+    so the latency half of the ship gate compares what production runs.
+    """
+    from models.pyiqa_scorer import PyIQAScorer
+    from PIL import Image
+    w, h = _bounded_size(*img.size, PyIQAScorer._MAX_INFERENCE_SIZE)
+    if (w, h) == img.size:
+        return img
+    return img.resize((w, h), Image.LANCZOS)
+
+
 def _load_pil_image(path, use_thumbnails, conn):
     if use_thumbnails:
         row = conn.execute("SELECT thumbnail FROM photos WHERE path = ?", (path,)).fetchone()
@@ -314,7 +343,9 @@ def _load_pil_image(path, use_thumbnails, conn):
         except Exception:
             return None
     pil_img, _ = load_image_from_path(path)
-    return pil_img
+    if pil_img is None:
+        return None
+    return _bound_to_inference_size(pil_img)
 
 
 def _ensure_pyiqa():
