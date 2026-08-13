@@ -43,8 +43,8 @@
     "tslib": "2.8.1"
   },
   "devDependencies": {
-    "@angular/build": "21.2.19",
-    "@angular/cli": "21.2.19",
+    "@angular/build": "21.2.20",
+    "@angular/cli": "21.2.20",
     "@angular/compiler-cli": "21.2.19",
     "@angular/platform-browser-dynamic": "21.2.19",
     "@tailwindcss/postcss": "4.3.3",
