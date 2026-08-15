@@ -4,6 +4,9 @@
 
 Run the Facet viewer on a remote server or NAS.
 
+> **New here?** This guide is for serving Facet to other machines. To get it running on
+> your own computer, start with [Installation](INSTALLATION.md).
+
 ## Overview
 
 Facet has two workloads:
@@ -194,30 +197,28 @@ Pair with a Let's Encrypt certificate from DSM > Control Panel > Security > Cert
 
 Plus-series NAS supports Docker (Container Manager).
 
-### Pulling the published image
+### Running the published image
 
-`docker-compose.yml` and `docker-compose.gpu.yml` carry an `image:` key alongside `build: .`, so `docker compose up` **pulls** a pre-built image from GHCR instead of building the ~3.3 GB CPU stack (or the ~21 GB CUDA stack) locally:
-
-```bash
-# Viewer only (CPU) — pulls ghcr.io/ncoevoet/facet:latest
-docker compose up -d
-
-# With NVIDIA GPU for scoring (requires the NVIDIA Container Toolkit) —
-# pulls ghcr.io/ncoevoet/facet:latest-cuda
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-```
-
-`docker compose build` (or `up --build`) still builds from the `Dockerfile` in this repo for local hacking — the `build:` key stays underneath `image:` for exactly that. The per-profile overlays (`docker-compose.{8gb,16gb,24gb}.yml`) also pull `:latest-cuda`, since all three are GPU profiles; `docker-compose.legacy.yml` (CPU) pulls the base `:latest`.
-
-**Two published tags, one Dockerfile.** `ghcr.io/ncoevoet/facet:latest` is a slim CPU-only build (no CUDA runtime, no RAPIDS cuML — face clustering falls back to CPU HDBSCAN). `ghcr.io/ncoevoet/facet:latest-cuda` is the full CUDA + cuML stack described throughout this doc, unchanged from a local `docker build .`. Both come from the same `Dockerfile`, parametrized by build args (`BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML`) set per variant in `.github/workflows/docker-publish.yml`. Versioned tags (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, `:1.7-cuda`, …) are published alongside `latest`/`latest-cuda` on every `vX.Y.Z` git tag.
-
-**Publishing without a release.** `.github/workflows/docker-publish.yml` also accepts a manual `workflow_dispatch` trigger from the Actions tab's *Run workflow* button, independent of the `vX.Y.Z` tag push above — it rebuilds and republishes `latest`/`latest-cuda` off whatever `master` currently is, without cutting a release. It does not mint a versioned tag: `docker/metadata-action`'s `type=semver` patterns only fire on an actual `vX.Y.Z` git tag, so a manual run only ever moves `latest`/`latest-cuda`.
+Install exactly as in [Installation › Install with Docker](INSTALLATION.md#install-with-docker):
+`docker compose up -d` for a CPU NAS, or the per-profile block if the box has an NVIDIA
+card. The `.env` knobs and the config mount are documented in
+[Installation › Docker settings you can change](INSTALLATION.md#docker-settings-you-can-change).
+What follows is only what differs on a NAS.
 
 **Both published images are `linux/amd64` (x86_64) only.** That covers x86 NAS hardware (Synology Plus/x86, UGREEN, UnifyDrive, and anything running Coolify, Portainer or plain Docker on an Intel/AMD CPU). There is no `arm64` image: cross-building a multi-gigabyte ML stack under QEMU costs hours per tag, and the CUDA variant is x86-only regardless. On an ARM NAS or a Raspberry Pi, build locally with `docker compose build` instead of pulling — `docker compose up` keeps `build: .` underneath the `image:` key for exactly this case.
 
-> **First publish only:** a new GHCR package defaults to **private**. After the first `docker-publish` workflow run, an owner must flip `ghcr.io/ncoevoet/facet` to **public** (package Settings → Change visibility) — otherwise a fresh clone's `docker compose up` fails to pull with a 401. That flip has already happened for `ghcr.io/ncoevoet/facet` — `:latest` (the slim CPU build, ~3.3 GB) and `:latest-cuda` both pull anonymously today; only those two tags exist so far, and versioned tags (`:1.7.2`, …) will appear the first time a `vX.Y.Z` tag is pushed.
+**Budget the disk.** The CPU image is ~3.3 GB and the CUDA image ~21 GB, plus the model
+weights each profile downloads at first run (~3–4 GB for `legacy`/`8gb`, ~10–11 GB for
+`16gb`, ~18 GB for `24gb` — full table in
+[Installation › Download sizes](INSTALLATION.md#download-sizes)). `docker compose down -v`
+deletes the model volumes and forces a re-download.
 
-A sanitized `scoring_config.default.json` is **baked into the image** as the active config (empty secrets, `vram_profile: auto`, all profiles at their full feature set), so it runs with zero host setup. To customize (weights, viewer password, categories), `cp scoring_config.default.json scoring_config.json`, edit it, and uncomment the config mount in `docker-compose.yml`. Note: the image bundles `exiftool` but **not** darktable, so the config's default `darktable-cli` executable is absent — the optional RAW/darktable-profile download in the viewer stays inert unless you extend the image with (or mount) a `darktable-cli` binary. Scoring, tagging, faces and everything else work regardless. Deploy knobs live in `.env` (copy `.env.example`): `FACET_VRAM_PROFILE`, `PHOTOS_DIR`, `PORT`, and `DB_PATH` (default `/app/data/photo_scores_pro.db`) — the base compose is templated with these. Model caches live in Docker-managed named volumes (`facet-hf-cache`, `facet-insightface`, `facet-pretrained`) so the image is self-contained and the models survive restarts. Select a VRAM profile without editing any config via the per-profile overrides (`docker-compose.{legacy,8gb,16gb}.yml`, which set `FACET_VRAM_PROFILE`) or the generic `docker-compose.gpu.yml`.
+**Versioned tags.** `:latest` and `:latest-cuda` move on every release; pin a version
+(`:1.7.2`, `:1.7`, `:1.7.2-cuda`, …) on a NAS you do not want changing under you. Both
+variants build from the same `Dockerfile` via the `BASE_IMAGE`, `STRIP_TORCH` and
+`INSTALL_CUML` build args, set per variant in `.github/workflows/docker-publish.yml`. That
+workflow also accepts a manual `workflow_dispatch` run, which republishes `latest` /
+`latest-cuda` off `master` without cutting a release or minting a versioned tag.
 
 For a viewer-only NAS where the image must stay small (no CUDA), build a slim image instead. Note the CI guard requires every `COPY` source to be git-tracked, so the build context must include the listed files:
 
@@ -307,38 +308,22 @@ systemctl enable --now docker
 docker run --rm --gpus all nvidia/cuda:12.6.0-base-ubuntu24.04 nvidia-smi --query-gpu=name,memory.total --format=csv
 ```
 
-### 5. Build and run Facet, one file per profile
+### 5. Run Facet
 
-The repo on the Windows drive is visible inside WSL at `/mnt/d/...`. The image is
-**self-contained**: dependencies are pinned in `requirements.lock.txt` (a tested,
-frozen version set — see "Reproducible, self-contained image" below) and all model
-caches live in Docker-managed **named volumes**, so the container never reads the
-host's native model caches or any shared local state. Models download once on
-first run into those volumes and persist.
-
-Pick the profile with a per-profile override file — no need to edit any JSON:
+The repo on the Windows drive is visible inside WSL at `/mnt/d/...`. From there, run the
+block for your card from
+[Installation › Install with Docker](INSTALLATION.md#install-with-docker):
 
 ```bash
 cd /mnt/d/photo-llm
-# legacy (CPU-only): CLIP ViT-L-14 + CLIP-MLP aesthetic + CLIP tagging
-docker compose -f docker-compose.yml -f docker-compose.legacy.yml up -d --build
-# 8gb (GPU): CLIP + TOPIQ + SAMP-Net + faces + saliency
-docker compose -f docker-compose.yml -f docker-compose.8gb.yml up -d --build
-# 16gb (GPU): SigLIP2 + TOPIQ + Qwen3.5-2B tagging + BiRefNet saliency
-docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d --build
-
+docker compose -f docker-compose.yml -f docker-compose.16gb.yml up -d   # or your card's file
 curl -s localhost:5000/health          # -> ok
 ```
 
-Each override sets `FACET_VRAM_PROFILE` (honored by `config/scoring_config.py`,
-overriding `models.vram_profile` in the config — no JSON edit) and, for the GPU
-profiles, reserves the NVIDIA GPU. GPU profiles (8gb/16gb/24gb) cluster faces on
-the GPU via the baked-in RAPIDS cuML; the legacy profile always clusters on CPU.
-The generic `docker-compose.gpu.yml` remains for a plain GPU run using the config's
-own `vram_profile` (default `auto`).
-
-First run downloads the profile's models into the named volumes; reset them with
-`docker compose down -v`.
+Add `--build` to build from the checkout instead of pulling the published image. GPU
+profiles (`8gb`/`16gb`/`24gb`) cluster faces on the GPU via the baked-in RAPIDS cuML; the
+`legacy` profile always clusters on CPU. First run downloads the profile's models into the
+named volumes; reset them with `docker compose down -v`.
 
 ### Reproducible, self-contained image
 
@@ -361,52 +346,21 @@ First run downloads the profile's models into the named volumes; reset them with
   sample datasets, `*.db`, caches, dev artifacts) — keep new large local
   directories out of the context by adding them there.
 
-### Image size & model downloads
+### Image size
 
-Two variants publish from the same `Dockerfile` — **neither contains model weights**:
+Neither published image contains model weights — those download at first run into the
+named volumes ([per-profile totals](INSTALLATION.md#download-sizes)). Budget disk for the
+image **plus** those volumes.
 
 | Image | Measured size | Base |
 |-------|------|------|
 | `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3.3 GB | `python:3.12-slim` + CPU-wheel PyTorch |
 | `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 GB | CUDA PyTorch + RAPIDS cuML |
 
-**CPU image** — the headline size for most users, dominated by the ML dependency stack rather than PyTorch itself:
-
-| Layer | Size |
-|-------|------|
-| Python ML deps (opencv, transformers, insightface, pyiqa, scipy, hdbscan, …) | ~1.9 GB |
-| PyTorch + torchvision (CPU wheels) | ~960 MB |
-| System libs (`libgl1`, `libglib2.0-0`, `exiftool`, `gosu`) | ~288 MB |
-| Base OS (`python:3.12-slim`) + app code | ~150 MB |
-
-**CUDA image** — unchanged from the single image this repo published before, still dominated by the GPU stack:
-
-| Layer | Size |
-|-------|------|
-| RAPIDS cuML (GPU face clustering) | ~5.75 GB |
-| CUDA runtime libs (`nvidia-*`) | ~3.7 GB |
-| PyTorch + Triton | ~1.9 GB |
-| Python ML deps (transformers, pyiqa, insightface, …) | ~1.9 GB |
-| Base OS + conda | ~2-3 GB |
-
-Model weights **download at first run** into the named volumes (`facet-hf-cache`,
-`facet-insightface`, `facet-pretrained`) — never into the image — so the size on
-disk depends on the active profile:
-
-| Model | Size | Profiles |
-|-------|------|----------|
-| SigLIP 2 NaFlex SO400M (embeddings) | ~4.3 GB | 16gb / 24gb |
-| Qwen3.5-2B (tagging) | ~4.2 GB | 16gb |
-| Qwen3.5-4B (tagging) | ~8 GB | 24gb |
-| Qwen2-VL-2B (composition) | ~4.2 GB | 24gb |
-| CLIP ViT-L-14 (embeddings + tagging) | ~1.6 GB | legacy / 8gb |
-| BiRefNet (saliency) | ~424 MB | all |
-| InsightFace buffalo_l (faces) | ~600 MB | all |
-| SAMP-Net (composition) | ~175 MB | all |
-
-**First-run download total per profile:** legacy / 8gb ~3-4 GB, 16gb ~10-11 GB,
-24gb ~18 GB. Budget disk for the image **plus** these volumes; `docker compose
-down -v` deletes the volumes and forces a re-download on the next start.
+The CPU image is dominated by the ML dependency stack (~1.9 GB) rather than PyTorch
+itself (~960 MB), plus system libs (~288 MB) and the base OS (~150 MB). In the CUDA image
+the GPU stack dominates: RAPIDS cuML ~5.75 GB, CUDA runtime libs ~3.7 GB, PyTorch and
+Triton ~1.9 GB, the ML deps ~1.9 GB, base OS and conda ~2-3 GB.
 
 ## Generic Linux Server
 

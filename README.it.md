@@ -181,66 +181,30 @@ Il punteggio estetico è basato su modelli ed è approssimativo; aspettati di do
 ### Docker (consigliato)
 
 ```bash
-docker compose up      # scarica ghcr.io/ncoevoet/facet:latest — nessuna build locale
-# Apri http://localhost:5000
+git clone https://github.com/ncoevoet/facet.git && cd facet
+cp .env.example .env      # apri .env e imposta PHOTOS_DIR sulla tua cartella foto
+docker compose up -d      # poi apri http://localhost:5000
 ```
 
-`docker compose up` scarica l'immagine CPU pubblicata invece di costruire lo stack in locale; `docker compose build` continua a costruire da questo repository per modifiche locali. Questo viene eseguito in modalità CPU — nessuna GPU richiesta per sfogliare e servire una libreria esistente. Monta la tua directory di foto in `docker-compose.yml`.
+Hai una scheda NVIDIA? Usa il blocco per la sua dimensione in
+[Installazione](docs/it/INSTALLATION.md#installa-con-docker) — una riga ciascuno per le
+schede da 8 GB, 16 GB e 24 GB.
 
-L'**accelerazione GPU** (opzionale) richiede una GPU NVIDIA e il [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Attivala con il file di override (scarica l'immagine `:latest-cuda`):
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
-```
-
-### Installazione manuale
+### Senza Docker (Linux, macOS)
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
-bash install.sh          # rileva automaticamente la GPU, crea il venv, installa tutto
-
-source venv/bin/activate         # macOS/Linux
-# .\venv\Scripts\Activate.ps1    # Windows PowerShell
-
-python facet.py /photos  # valuta le foto
-python viewer.py         # avvia il viewer web → http://localhost:5000
+bash install.sh                        # rileva il tuo hardware, installa tutto
+source venv/bin/activate
+python facet.py /path/to/your/photos   # valuta le foto
+python viewer.py                       # galleria → http://localhost:5000
 ```
 
 > **macOS:** AirPlay Receiver di ControlCenter occupa la porta 5000 per impostazione predefinita. Se vedi "Address already in use", esegui `python viewer.py --port 5001`.
 
-Lo script di installazione rileva automaticamente la tua versione di CUDA, installa la variante corretta di PyTorch, compila il frontend Angular e verifica tutti gli import. Opzioni: `--cpu` (forza CPU), `--cuda 12.8` (sovrascrive la versione di CUDA), `--skip-client` (salta la compilazione del frontend).
-
-<details>
-<summary>Installazione manuale passo passo</summary>
-
-```bash
-# 1. Installa exiftool (opzionale ma consigliato)
-# Ubuntu/Debian: sudo apt install libimage-exiftool-perl
-# macOS:         brew install exiftool
-
-# 2. Crea l'ambiente virtuale
-python -m venv venv && source venv/bin/activate
-
-# 3. Installa PyTorch con CUDA (scegli la tua versione su https://pytorch.org/get-started/locally)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-
-# 4. Installa le dipendenze Python (tutte insieme — vedi Risoluzione dei problemi in caso di conflitti)
-pip install -r requirements.txt
-
-# 5. Installa ONNX Runtime per il rilevamento dei volti (scegline UNO)
-pip install onnxruntime-gpu>=1.17.0   # GPU (CUDA 12.x)
-# pip install onnxruntime>=1.15.0     # ripiego su CPU
-
-# 6. Compila il frontend Angular
-cd client && npm install && npx ng build && cd ..
-
-# 7. Valuta le foto e avvia il viewer
-python facet.py /path/to/photos
-python viewer.py
-```
-</details>
-
-Esegui `python facet.py --doctor` per diagnosticare i problemi della GPU. Vedi [Installazione](docs/it/INSTALLATION.md) per i profili VRAM, i pacchetti di tagging VLM (16gb/24gb), le dipendenze opzionali e la [risoluzione dei conflitti tra dipendenze](docs/it/INSTALLATION.md#troubleshooting-dependency-conflicts).
+Guida completa: **[Installazione](docs/it/INSTALLATION.md)** — configurazione per
+hardware, download del primo avvio e [risoluzione dei conflitti di dipendenze](docs/it/INSTALLATION.md#risoluzione-dei-conflitti-di-dipendenze).
+Esegui `python facet.py --doctor` per diagnosticare i problemi della GPU.
 
 ## Documentazione
 

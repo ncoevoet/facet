@@ -149,7 +149,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 
 A maior parte do Facet roda em **qualquer máquina (CPU)** — pontuação, detecção de rostos, seleção, a galeria, busca, álbuns e exportação de metadados funcionam sem GPU. Uma **GPU** (com o perfil `16gb` ou `24gb`) libera os modelos mais robustos: pontuação estética TOPIQ, embeddings SigLIP 2, marcação por VLM, legendas e crítica por IA, e saliência do sujeito. Sem GPU local? Aponte a marcação/as legendas/a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto via `vlm_backend` no `scoring_config.json` — esses recursos passam a funcionar também nos perfis de CPU `legacy`/`8gb`. No visualizador, as ações de edição (classificações, rostos, seleção) exigem a **senha de edição**, e acionar escaneamentos exige a função **superadmin**.
 
-→ Requisitos completos por recurso (GPU, perfil de VRAM, pacotes opcionais, autenticação): **[Instalação › Requisitos de recursos](docs/INSTALLATION.md#feature-requirements)**.
+→ Requisitos completos por recurso (GPU, perfil de VRAM, pacotes opcionais, autenticação): **[Instalação › Requisitos por recurso](docs/pt/INSTALLATION.md#requisitos-por-recurso)**.
 
 ## O Facet é para você?
 
@@ -181,66 +181,31 @@ A pontuação estética é baseada em modelos e aproximada; espere ajustar os pe
 ### Docker (recomendado)
 
 ```bash
-docker compose up      # baixa ghcr.io/ncoevoet/facet:latest — sem build local
-# Open http://localhost:5000
+git clone https://github.com/ncoevoet/facet.git && cd facet
+cp .env.example .env      # abra o .env e defina PHOTOS_DIR para a pasta das suas fotos
+docker compose up -d      # depois abra http://localhost:5000
 ```
 
-`docker compose up` baixa a imagem CPU publicada em vez de construir a stack localmente; `docker compose build` continua construindo a partir deste repositório para alterações locais. Isso roda em modo CPU — nenhuma GPU é necessária para navegar e servir uma biblioteca existente. Monte o diretório de suas fotos no `docker-compose.yml`.
+Tem uma placa NVIDIA? Use o bloco do tamanho dela em
+[Instalação](docs/pt/INSTALLATION.md#instalar-com-docker) — uma linha para cada placa de
+8 GB, 16 GB e 24 GB.
 
-**Aceleração por GPU** (opcional) requer uma GPU NVIDIA e o [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Habilite-a com o arquivo de override (baixa a imagem `:latest-cuda`):
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
-```
-
-### Instalação Manual
+### Sem Docker (Linux, macOS)
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
-bash install.sh          # auto-detects GPU, creates venv, installs everything
-
-source venv/bin/activate         # macOS/Linux
-# .\venv\Scripts\Activate.ps1    # Windows PowerShell
-
-python facet.py /photos  # score photos
-python viewer.py         # start web viewer → http://localhost:5000
+bash install.sh                        # detecta seu hardware, instala tudo
+source venv/bin/activate
+python facet.py /path/to/your/photos   # pontue as fotos
+python viewer.py                       # galeria → http://localhost:5000
 ```
 
 > **macOS:** o AirPlay Receiver do ControlCenter ocupa a porta 5000 por padrão. Se você vir "Address already in use", execute `python viewer.py --port 5001`.
 
-O script de instalação detecta automaticamente sua versão do CUDA, instala a variante correta do PyTorch, compila o frontend Angular e verifica todas as importações. Opções: `--cpu` (forçar CPU), `--cuda 12.8` (substituir a versão do CUDA), `--skip-client` (pular a compilação do frontend).
-
-<details>
-<summary>Instalação manual passo a passo</summary>
-
-```bash
-# 1. Install exiftool (optional but recommended)
-# Ubuntu/Debian: sudo apt install libimage-exiftool-perl
-# macOS:         brew install exiftool
-
-# 2. Create virtual environment
-python -m venv venv && source venv/bin/activate
-
-# 3. Install PyTorch with CUDA (pick your version at https://pytorch.org/get-started/locally)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-
-# 4. Install Python dependencies (all at once — see Troubleshooting if you hit conflicts)
-pip install -r requirements.txt
-
-# 5. Install ONNX Runtime for face detection (choose ONE)
-pip install onnxruntime-gpu>=1.17.0   # GPU (CUDA 12.x)
-# pip install onnxruntime>=1.15.0     # CPU fallback
-
-# 6. Build Angular frontend
-cd client && npm install && npx ng build && cd ..
-
-# 7. Score photos and start viewer
-python facet.py /path/to/photos
-python viewer.py
-```
-</details>
-
-Execute `python facet.py --doctor` para diagnosticar problemas de GPU. Veja [Instalação](docs/INSTALLATION.md) para perfis de VRAM, pacotes de marcação por VLM (16gb/24gb), dependências opcionais e [solução de problemas de dependências](docs/INSTALLATION.md#troubleshooting-dependency-conflicts).
+Guia completo: **[Instalação](docs/pt/INSTALLATION.md)** — configuração por hardware,
+downloads da primeira execução, e
+[solução de problemas de dependências](docs/pt/INSTALLATION.md#solução-de-conflitos-de-dependência).
+Execute `python facet.py --doctor` para diagnosticar problemas de GPU.
 
 ## Documentação
 

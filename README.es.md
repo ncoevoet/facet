@@ -181,66 +181,31 @@ La puntuación estética se basa en modelos y es aproximada; cuenta con ajustar 
 ### Docker (recomendado)
 
 ```bash
-docker compose up      # descarga ghcr.io/ncoevoet/facet:latest — sin build local
-# Abre http://localhost:5000
+git clone https://github.com/ncoevoet/facet.git && cd facet
+cp .env.example .env      # abre .env y define PHOTOS_DIR con la carpeta de tus fotos
+docker compose up -d      # luego abre http://localhost:5000
 ```
 
-`docker compose up` descarga la imagen CPU publicada en lugar de construir la pila en local; `docker compose build` sigue construyendo desde este repositorio para modificaciones locales. Esto se ejecuta en modo CPU: no se necesita GPU para explorar y servir una biblioteca existente. Monta tu directorio de fotos en `docker-compose.yml`.
+¿Tienes una tarjeta NVIDIA? Usa el bloque de su tamaño en
+[Instalación](docs/es/INSTALLATION.md#instalar-con-docker) — una línea para cada tarjeta
+de 8 GB, 16 GB y 24 GB.
 
-La **aceleración por GPU** (opcional) requiere una GPU NVIDIA y el [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Actívala con el archivo de anulación (descarga la imagen `:latest-cuda`):
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
-```
-
-### Instalación manual
+### Sin Docker (Linux, macOS)
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
-bash install.sh          # detecta automáticamente la GPU, crea el venv e instala todo
-
-source venv/bin/activate         # macOS/Linux
-# .\venv\Scripts\Activate.ps1    # Windows PowerShell
-
-python facet.py /photos  # puntuar fotos
-python viewer.py         # iniciar el visor web → http://localhost:5000
+bash install.sh                        # detecta tu hardware, instala todo
+source venv/bin/activate
+python facet.py /path/to/your/photos   # puntúa fotos
+python viewer.py                       # galería → http://localhost:5000
 ```
 
 > **macOS:** el receptor de AirPlay del Centro de Control ocupa el puerto 5000 por defecto. Si ves "Address already in use", ejecuta `python viewer.py --port 5001`.
 
-El script de instalación detecta automáticamente tu versión de CUDA, instala la variante correcta de PyTorch, compila el frontend de Angular y verifica todas las importaciones. Opciones: `--cpu` (forzar CPU), `--cuda 12.8` (anular la versión de CUDA), `--skip-client` (omitir la compilación del frontend).
-
-<details>
-<summary>Instalación manual paso a paso</summary>
-
-```bash
-# 1. Instalar exiftool (opcional pero recomendado)
-# Ubuntu/Debian: sudo apt install libimage-exiftool-perl
-# macOS:         brew install exiftool
-
-# 2. Crear el entorno virtual
-python -m venv venv && source venv/bin/activate
-
-# 3. Instalar PyTorch con CUDA (elige tu versión en https://pytorch.org/get-started/locally)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-
-# 4. Instalar las dependencias de Python (todas a la vez — consulta Solución de problemas si encuentras conflictos)
-pip install -r requirements.txt
-
-# 5. Instalar ONNX Runtime para la detección facial (elige UNO)
-pip install onnxruntime-gpu>=1.17.0   # GPU (CUDA 12.x)
-# pip install onnxruntime>=1.15.0     # CPU fallback
-
-# 6. Compilar el frontend de Angular
-cd client && npm install && npx ng build && cd ..
-
-# 7. Puntuar fotos e iniciar el visor
-python facet.py /path/to/photos
-python viewer.py
-```
-</details>
-
-Ejecuta `python facet.py --doctor` para diagnosticar problemas con la GPU. Consulta [Instalación](docs/es/INSTALLATION.md) para los perfiles de VRAM, los paquetes de etiquetado VLM (16gb/24gb), las dependencias opcionales y la [resolución de conflictos de dependencias](docs/es/INSTALLATION.md#troubleshooting-dependency-conflicts).
+Guía completa: **[Instalación](docs/es/INSTALLATION.md)** — configuración por hardware,
+descargas de la primera ejecución y
+[resolución de conflictos de dependencias](docs/es/INSTALLATION.md#resolución-de-conflictos-de-dependencias).
+Ejecuta `python facet.py --doctor` para diagnosticar problemas con la GPU.
 
 ## Documentación
 

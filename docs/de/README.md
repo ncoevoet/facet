@@ -1,40 +1,15 @@
-# Facet
+# Facet-Dokumentation
 
 > 🌐 [English](../README.md) · [Français](../fr/README.md) · **Deutsch** · [Italiano](../it/README.md) · [Español](../es/README.md) · [Português](../pt/README.md)
 
-Fotoqualitätsbewertung, die Bilder mit CLIP, TOPIQ, SAMP-Net, InsightFace und OpenCV analysiert, um Fotos hinsichtlich Ästhetik, Gesichtsqualität, technischer Schärfe, Farbe, Belichtung und Komposition zu bewerten.
-
-## Funktionen
-
-- **Multi-Modell-Bewertung** – TOPIQ (0,93 SRCC) oder ästhetische Bewertung mit CLIP+MLP, mit konfigurierbaren VRAM-Profilen
-- **Semantisches Tagging** – automatisch generierte Tags mit CLIP (landscape, portrait, sunset usw.)
-- **Gesichtserkennung** – Erkennung, Qualitätsbewertung, Blinzeln-Erkennung und Personenclustering über HDBSCAN
-- **Kompositionsanalyse** – SAMP-Net (14 Muster) oder regelbasierte Bewertung
-- **Technische Analyse** – Schärfe, Farbe, Belichtung, Dynamikumfang, Rauschen, Kontrast
-- **Kategoriesystem** – mehr als 30 Inhaltskategorien mit kategoriespezifischen Bewertungsgewichten
-- **Web-Galerie** – FastAPI + Angular-SPA mit Filterung, Sortierung, Gesichtserkennung und paarweisem Vergleich
-- **Stapelverarbeitung** – kontinuierlich streamendes GPU-Batching mit automatisch abgestimmten Batchgrößen
-
-## Schnellstart
-
-```bash
-# Abhängigkeiten installieren
-python3 -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-
-# Fotos bewerten
-python facet.py /path/to/photos
-
-# Ergebnisse ansehen
-python viewer.py
-# http://localhost:5000 öffnen
-```
-
-## Dokumentation
+Facet ist eine mehrdimensionale Fotoanalyse-Engine: Sie bewertet, ordnet und sortiert
+eine lokale Fotobibliothek und stellt dann eine Galerie zum Durchstöbern bereit.
+Beginnen Sie mit [Installation](INSTALLATION.md) — sie deckt jede Einrichtung mit
+Copy-and-paste-Blöcken ab.
 
 | Dokument | Beschreibung |
 |----------|-------------|
-| [Installation](INSTALLATION.md) | Anforderungen, GPU-Einrichtung, Abhängigkeiten |
+| [Installation](INSTALLATION.md) | Einrichtung pro Hardware, mit oder ohne Docker; Abhängigkeiten |
 | [Befehle](COMMANDS.md) | Referenz aller CLI-Befehle |
 | [Konfiguration](CONFIGURATION.md) | Vollständige `scoring_config.json`-Referenz |
 | [Bewertung](SCORING.md) | Kategorien, Gewichte, Tuning-Anleitung |
@@ -42,29 +17,20 @@ python viewer.py
 | [Viewer](VIEWER.md) | Funktionen und Nutzung der Web-Galerie |
 | [Interop](INTEROP.md) | Bewertungen/Tags mit Lightroom, Capture One, digiKam, darktable austauschen |
 | [Immich](IMMICH.md) | Bewertungen und Favoriten mit Immich synchronisieren, plus der eingehende Webhook |
-
-## VRAM-Profile
-
-| Profil | GPU-VRAM | Modelle | Am besten für |
-|---------|----------|--------|----------|
-| `legacy` | Keine GPU | CLIP+MLP + SAMP-Net + CLIP-Tagging (CPU) | Keine GPU, 8 GB+ RAM |
-| `8gb` | 6–14 GB | CLIP+MLP + SAMP-Net + CLIP-Tagging | Mittelklasse-GPUs |
-| `16gb` | 16 GB+ | TOPIQ + SAMP-Net + Qwen3.5-2B | Beste ästhetische Genauigkeit |
-| `24gb` | 24 GB+ | TOPIQ + Qwen2-VL + Qwen3.5-4B | Beste Genauigkeit + Kompositionserklärungen |
+| [Bereitstellung](DEPLOYMENT.md) | NAS, entfernte Server, HTTPS, Backups, Mehrbenutzerbetrieb |
 
 ## Unterstützte Dateitypen
 
 - **JPEG** (.jpg, .jpeg)
 - **HEIF/HEIC** (.heic, .heif) — erfordert `pillow-heif`
-- **RAW-Dateien** (.cr2, .cr3, .nef, .arw, .raf, .rw2, .dng, .orf, .srw, .pef) – übersprungen, wenn ein passendes JPEG/HEIC vorhanden ist
+- **RAW** (.cr2, .cr3, .nef, .arw, .raf, .rw2, .dng, .orf, .srw, .pef) — übersprungen, wenn ein passendes JPEG/HEIC vorhanden ist
 
-## Fehlerbehebung
+## Häufige Fragen
 
-| Problem | Lösung |
-|-------|----------|
-| "externally-managed-environment" | Virtuelle Umgebung verwenden |
-| Langsame Verarbeitung | VRAM-Profil prüfen, `--single-pass` für GPUs mit viel VRAM verwenden |
-| Gesichtserkennung nutzt die GPU nicht | `onnxruntime-gpu` installieren |
-| Fehlendes exiftool | Optional — über den System-Paketmanager für beste Ergebnisse installieren, andernfalls verarbeitet `exifread` alle RAW-Formate |
-
-Siehe [Installation](INSTALLATION.md) für detaillierte Einrichtungsanweisungen.
+| Problem | Antwort |
+|-------|--------|
+| Welches Profil soll ich verwenden? | [Installation › Welches Profil passt zu meiner Hardware?](INSTALLATION.md#welches-profil-passt-zu-meiner-hardware) |
+| "externally-managed-environment" bei der Installation | Eine virtuelle Umgebung verwenden (oder Docker) — siehe [Installation](INSTALLATION.md) |
+| Langsame Verarbeitung | Das Profil prüfen; `--single-pass` hilft bei GPUs mit viel VRAM |
+| Gesichtserkennung nutzt die GPU nicht | `onnxruntime-gpu` installieren — siehe [Installation › ONNX Runtime für die Gesichtserkennung](INSTALLATION.md#onnx-runtime-für-die-gesichtserkennung) |
+| Fehlendes exiftool | Optional — siehe [Installation › exiftool](INSTALLATION.md#exiftool) |

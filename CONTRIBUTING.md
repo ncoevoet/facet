@@ -8,19 +8,8 @@ Facet is a photo analysis engine with a Python/FastAPI backend and an Angular 21
 # Clone and set up Python environment
 git clone git@github.com:ncoevoet/facet.git
 cd facet
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
-# Install PyTorch with CUDA separately (adjust for your CUDA version)
-# See https://pytorch.org/get-started/locally/
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
-
-# Build the Angular frontend
-cd client
-npm install
-npm run build
-cd ..
+bash install.sh          # venv/, PyTorch for your GPU, deps, Angular build
+source venv/bin/activate
 
 # Run the web viewer (serves API + Angular SPA on port 5000)
 python viewer.py
@@ -31,6 +20,9 @@ python facet.py /path/to/photos --dry-run
 # Check your environment
 python facet.py --doctor
 ```
+
+Prefer to set the environment up yourself? See
+[Installation › Install by hand](docs/INSTALLATION.md#install-by-hand-without-installsh).
 
 ## Architecture Overview
 

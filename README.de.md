@@ -181,66 +181,31 @@ Die Ästhetikwertung ist modellbasiert und ungefähr; rechnen Sie damit, die Gew
 ### Docker (empfohlen)
 
 ```bash
-docker compose up      # lädt ghcr.io/ncoevoet/facet:latest — kein lokaler Build
-# http://localhost:5000 öffnen
+git clone https://github.com/ncoevoet/facet.git && cd facet
+cp .env.example .env      # .env öffnen und PHOTOS_DIR auf Ihren Fotoordner setzen
+docker compose up -d      # danach http://localhost:5000 öffnen
 ```
 
-`docker compose up` lädt das veröffentlichte CPU-Image, statt den Stack lokal zu bauen; `docker compose build` baut weiterhin aus diesem Repository für lokales Basteln. Dies läuft im CPU-Modus — es ist keine GPU erforderlich, um eine vorhandene Bibliothek zu durchstöbern und bereitzustellen. Binden Sie Ihr Fotoverzeichnis in `docker-compose.yml` ein.
+Haben Sie eine NVIDIA-Karte? Verwenden Sie den Block für ihre Größe in
+[Installation](docs/de/INSTALLATION.md#installation-mit-docker) — je eine Zeile für
+8-GB-, 16-GB- und 24-GB-Karten.
 
-**GPU-Beschleunigung** (optional) erfordert eine NVIDIA-GPU und das [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Aktivieren Sie sie mit der Override-Datei (lädt das `:latest-cuda`-Image):
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up
-```
-
-### Manuelle Installation
+### Ohne Docker (Linux, macOS)
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
-bash install.sh          # erkennt die GPU automatisch, erstellt das venv, installiert alles
-
-source venv/bin/activate         # macOS/Linux
-# .\venv\Scripts\Activate.ps1    # Windows PowerShell
-
-python facet.py /photos  # Fotos bewerten
-python viewer.py         # Web-Viewer starten → http://localhost:5000
+bash install.sh                        # erkennt Ihre Hardware, installiert alles
+source venv/bin/activate
+python facet.py /path/to/your/photos   # Fotos bewerten
+python viewer.py                       # Galerie → http://localhost:5000
 ```
 
 > **macOS:** Der AirPlay-Empfänger des ControlCenters belegt standardmäßig Port 5000. Wenn Sie „Address already in use“ sehen, führen Sie `python viewer.py --port 5001` aus.
 
-Das Installationsskript erkennt automatisch Ihre CUDA-Version, installiert die passende PyTorch-Variante, baut das Angular-Frontend und überprüft alle Importe. Optionen: `--cpu` (CPU erzwingen), `--cuda 12.8` (CUDA-Version überschreiben), `--skip-client` (Frontend-Build überspringen).
-
-<details>
-<summary>Schritt-für-Schritt-Anleitung zur manuellen Installation</summary>
-
-```bash
-# 1. exiftool installieren (optional, aber empfohlen)
-# Ubuntu/Debian: sudo apt install libimage-exiftool-perl
-# macOS:         brew install exiftool
-
-# 2. Virtuelle Umgebung erstellen
-python -m venv venv && source venv/bin/activate
-
-# 3. PyTorch mit CUDA installieren (wähle deine Version unter https://pytorch.org/get-started/locally)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-
-# 4. Python-Abhängigkeiten installieren (alle auf einmal — siehe Fehlerbehebung bei Konflikten)
-pip install -r requirements.txt
-
-# 5. ONNX Runtime für die Gesichtserkennung installieren (wähle EINE)
-pip install onnxruntime-gpu>=1.17.0   # GPU (CUDA 12.x)
-# pip install onnxruntime>=1.15.0     # CPU-Fallback
-
-# 6. Angular-Frontend bauen
-cd client && npm install && npx ng build && cd ..
-
-# 7. Fotos bewerten und Viewer starten
-python facet.py /path/to/photos
-python viewer.py
-```
-</details>
-
-Führen Sie `python facet.py --doctor` aus, um GPU-Probleme zu diagnostizieren. Siehe [Installation](docs/de/INSTALLATION.md) für VRAM-Profile, VLM-Tagging-Pakete (16gb/24gb), optionale Abhängigkeiten und [Fehlerbehebung bei Abhängigkeitskonflikten](docs/de/INSTALLATION.md#troubleshooting-dependency-conflicts).
+Vollständige Anleitung: **[Installation](docs/de/INSTALLATION.md)** — Einrichtung pro
+Hardware, Downloads beim ersten Start, und
+[Fehlerbehebung bei Abhängigkeiten](docs/de/INSTALLATION.md#abhängigkeitskonflikte-beheben).
+Führen Sie `python facet.py --doctor` aus, um GPU-Probleme zu diagnostizieren.
 
 ## Dokumentation
 

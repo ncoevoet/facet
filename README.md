@@ -191,67 +191,30 @@ The aesthetic score is model-based and approximate; expect to tune the weights t
 ### Docker (recommended)
 
 ```bash
-cp .env.example .env      # set PHOTOS_DIR + FACET_VRAM_PROFILE (auto-detects the GPU)
-docker compose up -d      # pulls ghcr.io/ncoevoet/facet:latest — no local build
-# Open http://localhost:5000
+git clone https://github.com/ncoevoet/facet.git && cd facet
+cp .env.example .env      # open .env and set PHOTOS_DIR to your photo folder
+docker compose up -d      # then open http://localhost:5000
 ```
 
-`docker compose up` pulls the published slim **CPU** image instead of building the stack locally; `docker compose build` still builds from this repo's `Dockerfile` for local hacking. `FACET_VRAM_PROFILE=auto` detects the GPU (no GPU → CPU `legacy`), model weights download at runtime, and `PHOTOS_DIR` in `.env` points at your photos.
+Have an NVIDIA card? Use the block for its size in
+[Installation](docs/INSTALLATION.md#install-with-docker) — one line each for 8 GB, 16 GB
+and 24 GB cards.
 
-**GPU acceleration** (optional) requires an NVIDIA GPU and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html). Enable it with an override — the generic GPU file (pulls the `:latest-cuda` image) or a per-profile overlay (`docker-compose.{legacy,8gb,16gb}.yml`):
-
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-```
-
-### Manual Install
+### Without Docker (Linux, macOS)
 
 ```bash
 git clone https://github.com/ncoevoet/facet.git && cd facet
-bash install.sh          # auto-detects GPU, creates venv, installs everything
-
-source venv/bin/activate         # macOS/Linux
-# .\venv\Scripts\Activate.ps1    # Windows PowerShell
-
-python facet.py /photos  # score photos
-python viewer.py         # start web viewer → http://localhost:5000
+bash install.sh                        # detects your hardware, installs everything
+source venv/bin/activate
+python facet.py /path/to/your/photos   # score photos
+python viewer.py                       # gallery → http://localhost:5000
 ```
 
 > **macOS:** ControlCenter's AirPlay Receiver binds port 5000 by default. If you see "Address already in use", run `python viewer.py --port 5001`.
 
-The install script auto-detects your CUDA version, installs the right PyTorch variant, builds the Angular frontend, and verifies all imports. Options: `--cpu` (force CPU), `--cuda 12.8` (override CUDA version), `--skip-client` (skip frontend build).
-
-<details>
-<summary>Step-by-step manual install</summary>
-
-```bash
-# 1. Install exiftool (optional but recommended)
-# Ubuntu/Debian: sudo apt install libimage-exiftool-perl
-# macOS:         brew install exiftool
-
-# 2. Create virtual environment
-python -m venv venv && source venv/bin/activate
-
-# 3. Install PyTorch with CUDA (pick your version at https://pytorch.org/get-started/locally)
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-
-# 4. Install Python dependencies (all at once — see Troubleshooting if you hit conflicts)
-pip install -r requirements.txt
-
-# 5. Install ONNX Runtime for face detection (choose ONE)
-pip install onnxruntime-gpu>=1.17.0   # GPU (CUDA 12.x)
-# pip install onnxruntime>=1.15.0     # CPU fallback
-
-# 6. Build Angular frontend
-cd client && npm install && npx ng build && cd ..
-
-# 7. Score photos and start viewer
-python facet.py /path/to/photos
-python viewer.py
-```
-</details>
-
-Run `python facet.py --doctor` to diagnose GPU issues. See [Installation](docs/INSTALLATION.md) for VRAM profiles, VLM tagging packages (16gb/24gb), optional dependencies, and [dependency troubleshooting](docs/INSTALLATION.md#troubleshooting-dependency-conflicts).
+Full guide: **[Installation](docs/INSTALLATION.md)** — per-hardware setup, first-run
+downloads, and [dependency troubleshooting](docs/INSTALLATION.md#troubleshooting-dependency-conflicts).
+Run `python facet.py --doctor` to diagnose GPU issues.
 
 ## Documentation
 
