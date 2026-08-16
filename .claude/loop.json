@@ -15,7 +15,7 @@
     "severityFloor": "debt"
   },
   "budget": {
-    "maxIterations": 12,
+    "maxIterations": 40,
     "maxRepeatedFailures": 3,
     "usagePauseFloor": 96,
     "weeklyUsageCap": 40

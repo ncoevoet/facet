@@ -227,9 +227,11 @@ than a copy. The semantics you cannot read off a column name:
   carries no clipping badge and matches neither side of the gallery's clipping filter.
   Distinct from the binary `shadow_clipped`/`highlight_clipped` flags, which cover
   luminance bands 0–30/225–255 and feed `exposure_score`.
-- **BLOB columns** (`thumbnail`, `clip_embedding`, `caption_embedding`, `histogram_data`,
-  `face_embedding`) must be excluded from any bulk scan — the ranker's inference pass and
-  the viewer DB export both do this deliberately.
+- **BLOB columns** (`thumbnail`, `clip_embedding`, `caption_embedding`, `face_embedding`)
+  must be excluded from any bulk scan — the ranker's inference pass and the viewer DB
+  export both do this deliberately. `histogram_data` is the one exception: the viewer DB
+  export keeps it (unlike the ranker's inference scan, which still excludes it) because
+  `/api/photo/histogram` serves it to the viewer's RGB histogram widget.
 - **`user_preferences` holds per-user ratings** in multi-user mode; the `photos` rating
   columns are the single-user/global fallback. A feature that reads one must know which.
 
