@@ -2475,6 +2475,13 @@
       "face_padding_ratio": 0.3
     }
   },
+  "raw_decode": {
+    "bright": 1.62,
+    "prefer_embedded_preview": true,
+    "preview_min_sensor_ratio": 0.5,
+    "viewer_concurrency": 3,
+    "faithful_bracket_render": true
+  },
   "burst_detection": {
     "similarity_threshold_percent": 70,
     "time_window_minutes": 0.8,
@@ -3287,7 +3294,7 @@
       "24gb": {
         "aesthetic_model": "topiq",
         "clip_config": "clip",
-        "composition_model": "qwen2-vl-2b",
+        "composition_model": "samp-net",
         "tagging_model": "qwen3.5-4b",
         "supplementary_pyiqa": [
           "topiq_iaa",
@@ -3316,25 +3323,7 @@
       "similarity_threshold_percent": 22
     },
     "samp_net": {
-      "model_path": "pretrained_models/samp_net.pth",
-      "download_url": "https://github.com/bcmi/Image-Composition-Assessment-with-SAMP/releases/download/v1.0/samp_net.pth",
-      "input_size": 384,
-      "patterns": [
-        "none",
-        "center",
-        "rule_of_thirds",
-        "golden_ratio",
-        "triangle",
-        "horizontal",
-        "vertical",
-        "diagonal",
-        "symmetric",
-        "curved",
-        "radial",
-        "vanishing_point",
-        "pattern",
-        "fill_frame"
-      ]
+      "model_path": "pretrained_models/samp_net.pth"
     },
     "qwen2_5_vl_7b": {
       "model_path": "Qwen/Qwen2.5-VL-7B-Instruct",
@@ -3609,6 +3598,23 @@
         "step_px": 8
       }
     },
+    "badges": {
+      "favorite": true,
+      "star_rating": true,
+      "rejected": true,
+      "sequence_kind": true,
+      "sequence_override_pending": true,
+      "keeper_hint": true,
+      "best_of_burst": true,
+      "clipping_highlight": true,
+      "clipping_shadow": false
+    },
+    "clipping": {
+      "badge_percent": 5,
+      "indicator_percent": 1,
+      "histogram_mode": "rgb",
+      "tooltip_histogram_mode": "luma"
+    },
     "face_thumbnails": {
       "output_size_px": 64,
       "jpeg_quality": 80,
@@ -3641,6 +3647,7 @@
       "hide_panoramas": true,
       "hide_details": true,
       "tooltip_mode": "hover",
+      "panel_activation": "both",
       "hide_rejected": true,
       "sort": "aggregate",
       "sort_direction": "DESC",
@@ -3651,7 +3658,6 @@
       "show_similar_button": true,
       "show_merge_suggestions": true,
       "show_rating_controls": true,
-      "show_rating_badge": true,
       "show_semantic_search": true,
       "show_albums": true,
       "show_critique": true,

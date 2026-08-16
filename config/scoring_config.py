@@ -465,6 +465,26 @@ class ScoringConfig:
             }
         })
 
+    def get_raw_decode_settings(self):
+        """Get RAW demosaic and embedded-preview settings.
+
+        ``bright`` is a fixed exposure gain applied to every frame, replacing
+        LibRaw's per-frame auto-brightness: the latter equalises exposure
+        across a bracket, which erases the exposure ladder the scoring engine
+        is supposed to measure.
+        """
+        defaults = {
+            'bright': 1.62,
+            'prefer_embedded_preview': True,
+            'preview_min_sensor_ratio': 0.5,
+            'viewer_concurrency': 3,
+            'faithful_bracket_render': True,
+        }
+        block = self.config.get('raw_decode', {})
+        if not isinstance(block, dict):
+            return defaults
+        return {**defaults, **block}
+
     def get_scanning_settings(self):
         """Get directory scanning settings.
 
@@ -695,9 +715,9 @@ class ScoringConfig:
                 },
                 '24gb': {
                     'aesthetic_model': 'topiq',
-                    'composition_model': 'qwen2-vl-2b',
+                    'composition_model': 'samp-net',
                     'tagging_model': 'qwen2.5-vl-7b',
-                    'description': 'TOPIQ aesthetic, Qwen2-VL composition (~18GB VRAM)'
+                    'description': 'TOPIQ aesthetic, SAMP-Net composition (~18GB VRAM)'
                 }
             },
             'qwen2_vl': {
@@ -728,14 +748,7 @@ class ScoringConfig:
     def get_samp_net_config(self):
         """Get SAMP-Net model configuration for composition scoring."""
         models_config = self.get_model_config()
-        return models_config.get('samp_net', {
-            'model_path': 'pretrained_models/samp_net.pth',
-            'download_url': 'https://github.com/bcmi/Image-Composition-Assessment-with-SAMP/releases/download/v1.0/samp_net.pth',
-            'input_size': 384,
-            'patterns': ['none', 'center', 'rule_of_thirds', 'golden_ratio', 'triangle',
-                        'horizontal', 'vertical', 'diagonal', 'symmetric',
-                        'curved', 'radial', 'vanishing_point', 'pattern', 'fill_frame']
-        })
+        return models_config.get('samp_net', {'model_path': 'pretrained_models/samp_net.pth'})
 
     def _resolved_vram_profile(self) -> str:
         """The active VRAM profile name, with 'auto' resolved to the detected one.

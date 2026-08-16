@@ -34,13 +34,17 @@ def _get_raw_config() -> dict:
 # Display conversion (always rawpy)
 # ---------------------------------------------------------------------------
 
-def convert_raw_to_jpeg(file_path: str, quality: int = 96) -> bytes:
+def convert_raw_to_jpeg(file_path: str, quality: int = 96,
+                        sequence_kind: str | None = None) -> bytes:
     """Convert a RAW file to JPEG bytes via rawpy/libraw.
 
     Used by the ``/image`` display endpoint.  Always uses rawpy so that the
     browser preview is independent of any darktable style configuration.
+
+    ``sequence_kind`` is the row's ``photos.sequence_kind``: a bracketed frame
+    renders with no correction at all rather than from the camera preview.
     """
-    return _convert_rawpy(file_path, quality)
+    return _convert_rawpy(file_path, quality, sequence_kind)
 
 
 # ---------------------------------------------------------------------------
@@ -213,19 +217,21 @@ def _find_companion_raw_cached(stem: str, parent_dir: str, raw_extensions: set[s
 # Internal backends
 # ---------------------------------------------------------------------------
 
-def _convert_rawpy(file_path: str, quality: int) -> bytes:
-    """Convert via rawpy/libraw."""
-    import rawpy
-    from PIL import Image as PILImage
+def _convert_rawpy(file_path: str, quality: int, sequence_kind: str | None = None) -> bytes:
+    """Convert via rawpy/libraw.
 
-    with rawpy.imread(file_path) as raw:
-        rgb = raw.postprocess(
-            use_camera_wb=True,
-            no_auto_bright=False,
-            output_color=rawpy.ColorSpace.sRGB,
-            output_bps=8,
-        )
-    pil_img = PILImage.fromarray(rgb)
+    Serves the camera-embedded preview when it covers enough of the sensor to
+    pass for the full frame; the rest demosaic. Preview coverage is a body
+    decision, not a brand one: Nikon, Pentax, Samsung and Canon CR3 embed a
+    near-full-size preview, while Sony, Fuji, Olympus and DNG embed a small one.
+    """
+    from utils.image_loading import get_raw_decode_settings, load_display_image
+
+    ratio = float(get_raw_decode_settings()['preview_min_sensor_ratio'])
+    pil_img = load_display_image(file_path, min_preview_sensor_ratio=ratio,
+                                decode_budget='viewer', sequence_kind=sequence_kind)
+    if pil_img is None:
+        raise RuntimeError(f"RAW decode failed: {file_path}")
     buffer = BytesIO()
     pil_img.save(buffer, format='JPEG', quality=quality)
     return buffer.getvalue()
