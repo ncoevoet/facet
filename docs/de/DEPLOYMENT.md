@@ -57,6 +57,43 @@ Mehrere Zuordnungen werden unterstützt (die erste Übereinstimmung gewinnt):
 - Sowohl UNC-Pfade (`\\server\share`) als auch Laufwerksbuchstaben (`Z:\`) werden unterstützt
 - Das erste übereinstimmende Präfix gewinnt
 
+## Pfadsemantik im Container
+
+Alles, was Sie in ein Ordnerfeld im Viewer eingeben — ein Ziel für „In Ordner aussortieren", das Kopier-/Symlink-Exportziel eines Albums, oder `viewer.export.allowed_target_dirs` in `scoring_config.json` — wird vom Facet-Prozess selbst aufgelöst. **Unter Docker/Podman läuft dieser Prozess innerhalb des Containers**, sodass jeder Pfad der Pfad ist, den *der Container* sieht: der Einhängepunkt, niemals der host-seitige Pfad.
+
+**Beispiel.** Die mitgelieferte `docker-compose.yml` hängt Ihren Fotoordner unter `/data/photos` ein:
+
+```yaml
+volumes:
+  - ${PHOTOS_DIR:-./photos}:/data/photos
+```
+
+Um Abgelehnte in einen Unterordner `rejects` auszusortieren, geben Sie im Dialog `/data/photos/rejects` ein — niemals den Host-Pfad (`/home/sie/Bilder`, `D:\Fotos`, …), den der Container überhaupt nicht sehen kann. Dasselbe gilt für `viewer.export.allowed_target_dirs`: Geben Sie den containerseitigen Pfad an.
+
+Um an einen anderen Ort als den gescannten Fotobaum zu schreiben — etwa ein separates Export-Volume —, hängen Sie es zuerst in den Container ein und fügen Sie dann seinen containerseitigen Pfad zu `viewer.export.allowed_target_dirs` hinzu:
+
+```yaml
+services:
+  facet:
+    volumes:
+      - ${PHOTOS_DIR:-./photos}:/data/photos
+      - /volume1/Exports:/data/exports   # zusätzliches Volume für Cull-/Export-Ausgabe
+```
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+Ein Ziel, das außerhalb jedes eingehängten Volumes liegt, wird abgelehnt (`403`) — Facets Ziel-Verzeichnis-Prüfung führt `os.path.realpath()` sowohl auf die Anfrage *als auch* auf jede erlaubte Wurzel aus, löst dabei Symlinks und `..` auf, bevor sie vergleicht — ein Pfad, der nur von außerhalb des Containers richtig aussieht (oder ein Symlink, der aus einem Mount hinausweist), besteht die Containment-Prüfung trotzdem nicht. Siehe [Konfiguration — Ziele für Export und Aussortierung](CONFIGURATION.md#ziele-für-export-und-aussortierung) für die vollständige Allowlist-Referenz.
+
+**Das ist kein Rechteproblem des Container-Benutzers.** Die UID des `facet`-Benutzers im Container unterscheidet sich häufig von der Ihres Host-Kontos, und das kann auf einem Bind-Mount ein echtes, separates Dateisystem-Rechteproblem verursachen — aber das geschieht *nachdem* diese Pfadprüfung bestanden wurde, wenn das Kopieren/Verlinken/Verschieben tatsächlich läuft, und es wird serverseitig mit dem zugrunde liegenden Betriebssystemfehler für die fehlgeschlagene Datei protokolliert. Ein `403 target_dir is not an allowed export location` (oder ein allgemeines „Zugriff verweigert" in der Oberfläche) geschieht *bevor* irgendeine Datei berührt wird und hat nichts mit UIDs zu tun.
+
 ## Erstellen des Angular-Clients
 
 Der FastAPI-Server stellt die vorab erstellte SPA aus `client/dist/client/browser/` bereit. Erstellen Sie sie vor der Bereitstellung:
@@ -102,7 +139,8 @@ python database.py --export-viewer-db
 ```
 
 Dies erstellt `photo_scores_viewer.db`, die:
-- CLIP-Embeddings, Histogrammdaten und Gesichts-Embeddings entfernt
+- CLIP-Embeddings, Bildunterschrift-Embeddings und Gesichts-Embeddings entfernt
+- Das Histogramm pro Foto (~2 KB) behält, das das RGB-Histogramm-Widget der Galerie liest
 - Vorschaubilder von 640px auf 320px verkleinert
 - Eine 14-GB-Datenbank typischerweise auf ~4-5 GB reduziert
 
@@ -214,11 +252,14 @@ dokumentiert. Was folgt, ist nur das, was sich auf einem NAS unterscheidet.
 
 **Beide veröffentlichten Images sind ausschließlich `linux/amd64` (x86_64).** Das deckt x86-NAS-Hardware ab (Synology Plus/x86, UGREEN, UnifyDrive und alles, was Coolify, Portainer oder ein gewöhnliches Docker auf einer Intel-/AMD-CPU betreibt). Es gibt kein `arm64`-Image: Das Cross-Compilieren eines mehrere Gigabyte großen ML-Stacks unter QEMU kostet Stunden pro Tag, und die CUDA-Variante ist ohnehin nur für x86 verfügbar. Bauen Sie es auf einem ARM-NAS oder einem Raspberry Pi stattdessen lokal mit `docker compose build`, statt es zu ziehen – `docker compose up` behält `build: .` unterhalb des Schlüssels `image:` genau für diesen Fall bei.
 
-**Planen Sie den Speicherplatz.** Das CPU-Image ist ~3,3 GB groß und das CUDA-Image
-~21 GB, dazu kommen die Modellgewichte, die jedes Profil beim ersten Lauf herunterlädt
-(~3–4 GB für `legacy`/`8gb`, ~10–11 GB für `16gb`, ~18 GB für `24gb` — vollständige
-Tabelle unter [Installation › Downloadgrößen](INSTALLATION.md#downloadgrößen)).
-`docker compose down -v` löscht die Modell-Volumes und erzwingt einen erneuten Download.
+**Planen Sie den Speicherplatz.** Entpackt ist das CPU-Image etwa 3,3 GB groß und das
+CUDA-Image etwa 21 GB (ungefähre Werte, nicht gegen den aktuellen Build reverifiziert;
+der Download selbst überträgt weniger, komprimiert — siehe [Image-Größe](#image-größe)
+weiter unten), dazu kommen die Modellgewichte, die jedes Profil beim ersten Lauf
+herunterlädt (`legacy` 4,69 GB, `8gb` 6,93 GB, `16gb` 14,55 GB, `24gb` 19,13 GB —
+vollständige Tabelle unter
+[Installation › Downloadgrößen](INSTALLATION.md#downloadgrößen)). `docker compose down -v`
+löscht die Modell-Volumes und erzwingt einen erneuten Download.
 
 **Versionierte Tags.** `:latest` und `:latest-cuda` bewegen sich bei jedem Release; pinnen Sie eine Version (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, …) auf einem NAS, das sich nicht unter Ihnen ändern soll. Beide Varianten werden aus demselben `Dockerfile` über die Build-Argumente `BASE_IMAGE`, `STRIP_TORCH` und `INSTALL_CUML` gebaut, pro Variante gesetzt in `.github/workflows/docker-publish.yml`. Dieser Workflow akzeptiert auch einen manuellen `workflow_dispatch`-Lauf, der `latest`/`latest-cuda` ausgehend von `master` erneut veröffentlicht, ohne dass dafür ein Release geschnitten oder ein versionierter Tag geprägt werden muss.
 
@@ -334,10 +375,16 @@ Keines der veröffentlichten Images enthält Modellgewichte — diese werden bei
 Start in die benannten Volumes heruntergeladen ([Summen pro Profil](INSTALLATION.md#downloadgrößen)).
 Planen Sie Speicherplatz für das Image **plus** diese Volumes ein.
 
-| Image | Gemessene Größe | Basis |
-|-------|------|------|
-| `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3,3 GB | `python:3.12-slim` + CPU-Wheel-PyTorch |
-| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 GB | CUDA-PyTorch + RAPIDS cuML |
+| Image | Komprimierter Download | Auf der Platte (ca.) | Basis |
+|-------|------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | 4,18 GB | ~3,3 GB | `python:3.12-slim` + CPU-Wheel-PyTorch |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 7,33 GB | ~21 GB | CUDA-PyTorch + RAPIDS cuML |
+
+„Komprimierter Download" ist das, was `docker pull` überträgt, gemessen anhand der
+aktuellen `ghcr.io/ncoevoet/facet`-Registry-Manifeste. „Auf der Platte" ist der
+entpackte Image-Fußabdruck nach der Dekomprimierung; diese Werte wurden für diesen
+Durchgang nicht gegen den aktuellen `:latest`-Digest reverifiziert — behandeln Sie sie
+als ungefähre Planungsgröße, nicht als präzise aktuelle Messung.
 
 Das CPU-Image wird vom ML-Abhängigkeits-Stack dominiert (~1,9 GB) und nicht von
 PyTorch selbst (~960 MB), dazu kommen System-Bibliotheken (~288 MB) und das Basis-OS

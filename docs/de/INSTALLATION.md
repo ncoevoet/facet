@@ -155,7 +155,8 @@ nutzen, folgen Sie der [WSL2-Anleitung](DEPLOYMENT.md#windows-wsl2-mit-einer-nvi
 ## Erster Start: was Sie erwartet
 
 - **Ein Download.** Der erste Scan lädt die KI-Modelle für Ihr Profil herunter — etwa
-  3–4 GB für `legacy` und `8gb`, 10–11 GB für `16gb`, 18 GB für `24gb`. Das geschieht
+  4,7 GB für `legacy`, 6,9 GB für `8gb`, 14,6 GB für `16gb`, 19,1 GB für `24gb`
+  (vollständige Aufschlüsselung unter [Downloadgrößen](#downloadgrößen)). Das geschieht
   einmalig; spätere Läufe starten sofort.
 - **Keine Einrichtung.** Es gibt nichts zu konfigurieren. Facet erstellt seine Datenbank
   beim ersten Scan und liefert funktionierende Einstellungen mit.
@@ -238,8 +239,11 @@ Die profilspezifischen Dateien (`docker-compose.legacy.yml`, `docker-compose.8gb
 `auto`).
 
 Zwei Images werden aus einem `Dockerfile` veröffentlicht: `ghcr.io/ncoevoet/facet:latest`
-ist ein schlanker CPU-Build (~3,3 GB), `ghcr.io/ncoevoet/facet:latest-cuda` bringt CUDA
-und RAPIDS cuML mit (~21 GB) und ist das, was die GPU-Profile ziehen. Beide sind
+ist ein schlanker CPU-Build (~3,3 GB entpackt auf der Platte, ungefährer Wert — der
+Download selbst überträgt weniger, 4,18 GB komprimiert; siehe
+[Downloadgrößen](#downloadgrößen)), `ghcr.io/ncoevoet/facet:latest-cuda` bringt CUDA und
+RAPIDS cuML mit (~21 GB entpackt auf der Platte, ungefähr; 7,33 GB komprimiert zum
+Herunterladen) und ist das, was die GPU-Profile ziehen. Beide sind
 ausschließlich `linux/amd64` — bauen Sie auf einem ARM-Rechner lokal mit
 `docker compose build`, statt zu ziehen. `docker compose build` (oder `up --build`)
 baut immer aus diesem Repository; siehe die Build-Argumente `BASE_IMAGE`,
@@ -401,23 +405,56 @@ es konfiguriert ist — setzen Sie eines, um diese Schwellen in beide Richtungen
 
 ## Downloadgrößen
 
-Modelle werden bei der ersten Verwendung nach `~/.cache/` und `~/.insightface/`
-heruntergeladen (oder in die benannten Docker-Volumes). Keine Modellgewichte sind ins
-Image eingebacken.
+Modelle werden bei der ersten Verwendung nach `~/.cache/huggingface/` (Hugging-Face-Modelle),
+`~/.cache/torch/hub/` (PyIQA-Gewichte) und `~/.insightface/` (Gesichtserkennung)
+heruntergeladen, oder in die benannten Docker-Volumes. `samp_net.pth`, `u2netp.pth`,
+`face_landmarker.task` und das `aesthetic_predictor_weights.pth` des CLIP-MLP-Ästhetik-Kopfs
+(nur `legacy`/`8gb`) landen alle in `pretrained_models/`, aufgelöst relativ zur
+Repository-Wurzel statt zum Arbeitsverzeichnis des Prozesses — unter Docker ist das das
+gemountete Volume `facet-pretrained`, sodass keines davon bei einer Container-Neuerstellung
+erneut heruntergeladen wird. Keine Modellgewichte sind ins Image eingebacken.
+
+Die folgenden Größen sind dezimal (GB = 10⁹ Byte, MB = 10⁶ Byte), gemessen anhand der
+lokalen Modell-Caches und der Hugging-Face-API.
 
 | Modell | Größe | Profile |
 |-------|------|----------|
-| CLIP ViT-L-14 laion2b (Embeddings + Tagging) | ~1,6 GB | `legacy`/`8gb` |
-| SigLIP 2 NaFlex SO400M (Embeddings) | ~4,3 GB | `16gb`/`24gb` |
-| Qwen3.5-2B (VLM-Tagging) | ~4,2 GB | `16gb` |
-| Qwen3.5-4B (VLM-Tagging) | ~8 GB | `24gb` |
-| Qwen2-VL-2B (Komposition) | ~4,2 GB | `24gb` |
-| InsightFace buffalo_l (Gesichter) | ~600 MB | alle |
-| SAMP-Net-Gewichte (Komposition) | ~175 MB | alle (`24gb` verwendet stattdessen Qwen2-VL) |
-| BiRefNet_dynamic (Motiverkennung) | ~424 MB | alle |
-| U2-Net-P (Salienz-Hilfsmodell) | ~5 MB | alle |
+| CLIP ViT-L-14 laion2b (Embeddings + CLIP-Tagging + CLIP-MLP-Ästhetik) | 1,711 GB | `legacy`/`8gb` |
+| Ästhetik-MLP-Kopf (`sac+logos+ava1-l14-linearMSE.pth`) | 3,7 MB | nur `legacy`/`8gb` |
+| SigLIP 2 NaFlex SO400M (Embeddings) | 4,581 GB | `16gb`/`24gb` |
+| Qwen3.5-2B (VLM-Tagging) | 4,571 GB | `16gb` |
+| Qwen3.5-4B (VLM-Tagging) | 9,343 GB | `24gb` |
+| Qwen2-VL-2B (Komposition) | 4,430 GB | standardmäßig kein Profil — nur wenn Sie manuell `composition_model: "qwen2-vl-2b"` **und** `processing.mode: "single-pass"` setzen |
+| InsightFace buffalo_l (Gesichter) | 289 MB Download / 630 MB auf der Platte (das Zip bleibt neben den extrahierten `.onnx`-Dateien erhalten) | alle |
+| SAMP-Net-Gewichte (Komposition) | 183 MB | alle |
+| U2-Net-P (Salienz-Untermodell von SAMP-Net) | 4,7 MB | dieselben Profile wie SAMP-Net |
+| BiRefNet_dynamic (Motiverkennung) | 445 MB | alle |
+| TOPIQ NR (Ästhetikmodell) | 181 MB | `16gb`/`24gb` |
+| TOPIQ IAA (ergänzende Ästhetik) | 873 MB | alle |
+| TOPIQ NR-Face (ergänzende Gesichtsqualität) | 376 MB | alle |
+| LIQE (ergänzende Qualität/Verzerrung) | 708 MB | alle |
+| timm resnet50.a1_in1k (gemeinsames PyIQA-Backbone) | 102 MB | alle |
+| Q-ReAlign-Mini-0.8B (`iqa_extended.qrealign`) | 2,235 GB | `8gb`/`16gb`/`24gb`, **standardmäßig aktiv** (`"auto"` löst sich auf jedem Profil außer `legacy` als aktiv auf) |
 
-Summen pro Profil: `legacy`/`8gb` ~3–4 GB · `16gb` ~10–11 GB · `24gb` ~18 GB.
+Summen pro Profil (Download): `legacy` 4,69 GB · `8gb` 6,93 GB · `16gb` 14,55 GB ·
+`24gb` 19,32 GB · `24gb` mit `composition_model: "qwen2-vl-2b"` und
+`processing.mode: "single-pass"` 23,56 GB (die manuelle Überschreibung ersetzt
+SAMP-Net/U2-Net-P, statt sie zu ergänzen).
+
+Zum Vergleich: Der Download des Docker-Images selbst (vor jedem Modell-Download)
+überträgt `ghcr.io/ncoevoet/facet:latest` mit 4,18 GB komprimiert und `:latest-cuda`
+mit 7,33 GB komprimiert, laut den aktuellen Registry-Manifesten.
+
+Optionale Modelle, die in den obigen Summen nicht enthalten sind:
+
+| Modell | Größe | Auslöser |
+|-------|------|----------|
+| DeQA-Score-Mix3 (`iqa_extended.deqa`) | 16,41 GB | standardmäßig aus |
+| SigLIP-so400m-patch14-384-Backbone (`iqa_extended.aesthetic_v25`) | 3,515 GB | standardmäßig aus, **veraltet** (AGPL-3.0, upstream unmaintained — `qrealign` vorziehen) |
+| Helsinki-NLP OPUS-MT, pro Zielsprache (Untertitel-Übersetzung) | en→fr 303 MB · en→de 298 MB · en→es 312 MB · en→it 343 MB · en→pt 465 MB | nur für aktivierte Sprachen |
+| MediaPipe `face_landmarker.task` | 3,76 MB | nur wenn `mediapipe` installiert ist |
+
+`reverse_geocoder` braucht keinen Download — seine Daten sind im Wheel enthalten.
 
 Die SAMP-Net-Gewichte stammen aus dem
 [model-weights-v1-Release](https://github.com/ncoevoet/facet/releases/download/model-weights-v1/samp_net.pth)

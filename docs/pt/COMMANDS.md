@@ -55,7 +55,7 @@ campo `progress` de `/api/scan/status` e no fluxo SSE.
 | `quality-face` | TOPIQ NR-Face | pontuação `face_quality_iqa` (qualidade facial dedicada) | Compartilhado com TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + diagnóstico de distorção (desfoque, superexposição, ruído) | ~2 GB |
 | `tags` | CLIP / Qwen VLM | Tags semânticas do vocabulário configurado | 0-16 GB |
-| `composition` | SAMP-Net | `composition_pattern` (14 padrões) + `comp_score` | ~2 GB |
+| `composition` | SAMP-Net | `composition_pattern` (8 padrões) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Detecção facial, landmarks, detecção de piscadas, embeddings de reconhecimento | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 ou SigLIP 2 NaFlex | BLOB `clip_embedding` para similaridade/marcação | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
@@ -142,6 +142,7 @@ Esses comandos atualizam métricas específicas, derivam novos dados (legendas p
 | `python facet.py --recompute-embeddings` | Recalcula os embeddings CLIP/SigLIP para todas as fotos (necessário após troca de modelo) |
 | `python facet.py --score-topiq` | Preenche retroativamente as pontuações de qualidade TOPIQ a partir das miniaturas armazenadas (requer GPU) |
 | `python facet.py --backfill-focal-35mm` | Preenche retroativamente a distância focal equivalente a 35mm a partir do EXIF para fotos que não a têm |
+| `python facet.py --backfill-clipping` | Deriva as percentagens de recorte por canal a partir dos histogramas armazenados. Apenas base de dados (sem descodificar imagens) e retomável; as fotos cujo histograma é anterior ao formato RGB ficam desconhecidas (NULL) |
 | `python facet.py --compute-recommendations` | Analisa o banco de dados, exibe um resumo de pontuação |
 | `python facet.py --compute-recommendations --verbose` | Exibe estatísticas detalhadas |
 | `python facet.py --compute-recommendations --apply-recommendations` | Aplica automaticamente as correções de pontuação |

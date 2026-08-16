@@ -155,10 +155,10 @@ python database.py --migrate-user-preferences --user alice
 
 ### Padrões de Composição
 
-Filtrar pelos padrões detectados pelo SAMP-Net:
-- rule_of_thirds, golden_ratio, center, diagonal
-- horizontal, vertical, symmetric, triangle
-- curved, radial, vanishing_point, pattern, fill_frame
+Filtrar pelos padrões detectados pelo SAMP-Net (o modelo emite exatamente estes 8,
+em `models/samp_net.py`):
+- global, horizontal, vertical, triangular
+- surround, quarter, cross, rule_of_thirds
 
 ## Ordenação
 
@@ -215,6 +215,10 @@ Um controle **Manter top %** na barra de ferramentas da galeria (modo de ediçã
 ### Selecionar para pasta
 
 O diálogo **Selecionar para pasta…** da barra de ações em lote (modo de edição) copia as mantidas, ou move/descarta para a lixeira as rejeitadas, para uma pasta de destino em uma única etapa (a lixeira do sistema é controlada por `viewer.cull.allow_trash`, nunca uma exclusão permanente). Aplicar é seguro por construção: `POST /api/cull/apply` nunca confia cegamente em uma lista de exclusão fornecida pelo cliente — ele rederiva no servidor o conjunto real da ação a partir do estado `is_rejected` de cada foto (copiar age apenas sobre as mantidas, mover/lixeira apenas sobre as rejeitadas) e reporta tudo fora desse escopo como `excluded_by_state`, em vez de agir sobre isso. Cada chamada tem `dry_run` habilitado por padrão — uma pré-visualização sempre roda antes de qualquer gravação — e mover/lixeira exigem um `dry_run=false` explícito para prosseguir; incluir o RAW ou sidecar intocado de uma foto rejeitada é opcional (`include_companions`), de forma que rejeitar um JPEG derivado nunca arrasta silenciosamente seu RAW junto. Várias ferramentas fotográficas comerciais já tiveram bugs de seleção de exclusão que afetaram as fotos erradas; o endpoint de aplicação do Facet foi projetado para que o cliente nunca possa especificar diretamente um conjunto a excluir.
+
+**Onde você pode gravar.** Sem `viewer.export.allowed_target_dirs` configurado, as únicas pastas nas quais o Facet pode gravar são seus diretórios de varredura — aponte a caixa de diálogo para uma subpasta da árvore de fotos (por exemplo, `_rejected`) e funciona sem nenhuma configuração. Para usar uma pasta fora da árvore varrida, adicione-a primeiro a `viewer.export.allowed_target_dirs`; qualquer outra coisa é recusada com um `403`, independentemente das permissões do sistema de arquivos. Veja [Configuração — Destinos de exportação e seleção](CONFIGURATION.md#destinos-de-exportação-e-seleção). Ao rodar em Docker/Podman, o caminho digitado é resolvido **dentro do contêiner**, em relação ao que está realmente montado ali — nunca em relação ao sistema de arquivos do host — veja [Implantação — Semântica de caminhos em contêiner](DEPLOYMENT.md#semântica-de-caminhos-em-contêiner).
+
+**"Acesso negado" em toda ação.** Isso é um `403` — uma recusa deliberada da verificação de pasta de destino acima, ou uma sessão de edição expirada — nunca um problema de permissões do sistema de arquivos ou do usuário do contêiner. O aviso não diz qual dos dois é; verifique o corpo da resposta da requisição que falhou na aba Rede do seu navegador para o campo `detail`. Um problema real de permissões do sistema de arquivos se apresenta de forma diferente: a ação reporta sucesso parcial com uma contagem `errors` diferente de zero, e o servidor registra o erro subjacente do sistema operacional para cada arquivo que falhou.
 
 ### Opções de Exibição
 
@@ -317,7 +321,7 @@ Cada álbum pode carregar um contexto de pontuação que decide qual categoria v
 
 ### Exportação de Portfólio
 
-Quando `viewer.features.show_portfolio_export` é `true` (padrão) e a edição está desbloqueada, cada cartão de álbum manual ganha uma ação **Exportar portfólio**. Ela abre uma pequena caixa de diálogo (título da galeria, pasta de destino, alternância para incluir legendas) e renderiza o álbum como uma galeria HTML estática autônoma — o caso de uso do thumbsup/sigal, mas nativo, sem dependência de ferramentas externas. O diretório de saída contém `index.html` (uma grade de miniaturas responsiva apenas em CSS com uma lightbox vanilla-JS integrada — **zero** referências externas/CDN, então funciona totalmente offline), uma pasta `assets/` de JPEG com nomes sequenciais (nenhum caminho da biblioteca é divulgado) e um `manifest.json` que registra contagens e origens por foto. Cada foto prefere o **original** em disco (reduzido para `portfolio.max_edge`, com a orientação EXIF aplicada) e recorre à miniatura de 640 px armazenada quando o original está inacessível (compartilhamentos de rede offline). O endpoint é `POST /api/albums/{album_id}/export-portfolio` (somente edição); o `target_dir` é validado contra a mesma lista de permissões (`viewer.export.allowed_target_dirs` mais os diretórios de varredura) que os endpoints de exportação copiar/mover, e álbuns acima de `portfolio.max_photos` (padrão 500) são recusados. Reexportar o mesmo álbum é idempotente — apenas os próprios arquivos da exportação são reescritos. Veja [Configuração da exportação de portfólio](CONFIGURATION.md#exportação-de-portefólio).
+Quando `viewer.features.show_portfolio_export` é `true` (padrão) e a edição está desbloqueada, cada cartão de álbum manual ganha uma ação **Exportar portfólio**. Ela abre uma pequena caixa de diálogo (título da galeria, pasta de destino, alternância para incluir legendas) e renderiza o álbum como uma galeria HTML estática autônoma — o caso de uso do thumbsup/sigal, mas nativo, sem dependência de ferramentas externas. O diretório de saída contém `index.html` (uma grade de miniaturas responsiva apenas em CSS com uma lightbox vanilla-JS integrada — **zero** referências externas/CDN, então funciona totalmente offline), uma pasta `assets/` de JPEG com nomes sequenciais (nenhum caminho da biblioteca é divulgado) e um `manifest.json` que registra contagens e origens por foto. Cada foto prefere o **original** em disco (reduzido para `portfolio.max_edge`, com a orientação EXIF aplicada) e recorre à miniatura de 640 px armazenada quando o original está inacessível (compartilhamentos de rede offline). O endpoint é `POST /api/albums/{album_id}/export-portfolio` (somente edição); o `target_dir` é validado contra a mesma lista de permissões (`viewer.export.allowed_target_dirs` mais os diretórios de varredura, veja [Configuração — Destinos de exportação e seleção](CONFIGURATION.md#destinos-de-exportação-e-seleção)) que os endpoints de exportação copiar/mover, e álbuns acima de `portfolio.max_photos` (padrão 500) são recusados. Reexportar o mesmo álbum é idempotente — apenas os próprios arquivos da exportação são reescritos. Veja [Configuração da exportação de portfólio](CONFIGURATION.md#exportação-de-portefólio).
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
@@ -527,7 +531,7 @@ Encontre clusters de pessoas que podem ser o mesmo indivíduo. Acesse por `/merg
 Grave suas avaliações, favoritos e rejeições no disco como sidecars XMP, para que editores externos (darktable, Lightroom) os reconheçam. Requer o modo de edição.
 
 - **Da galeria** — selecione fotos, então **Ações → Exportar** grava um sidecar ao lado de cada arquivo.
-- **De um álbum** ("cesta") — exporte o álbum inteiro como sidecars, ou copie/crie links simbólicos dos arquivos para um diretório de destino.
+- **De um álbum** ("cesta") — exporte o álbum inteiro como sidecars, ou copie/crie links simbólicos dos arquivos para um diretório de destino (mesma lista de destinos permitidos que [Selecionar para pasta](#selecionar-para-pasta)).
 - **Gravar metadados no arquivo** — a ação "Gravar metadados no arquivo" nos detalhes da foto incorpora a avaliação/palavras-chave diretamente no arquivo original (JPEG/HEIC/TIFF/PNG/DNG via exiftool) além de gravar o sidecar, para que todo o ecossistema de fotos os veja. Originais RAW proprietários nunca são modificados. Controlado por `viewer.features.show_embed_metadata` (padrão: `true`).
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
@@ -1023,6 +1027,7 @@ A documentação interativa da API está disponível em `/api/docs` (Swagger UI)
 |----------|-------------|
 | `GET /api/photos` | Lista paginada de fotos com filtros |
 | `GET /api/photo` | Detalhes de uma única foto |
+| `GET /api/photo/histogram?path=&bins=` | Bins de luminância + R/G/B prontos para desenhar (`bins` ∈ 32/64/128/256, padrão 64), medidos durante a análise na imagem em resolução total. Cada canal é escalado por um único máximo global, nunca pelo seu próprio. `r`/`g`/`b` são `null` para uma linha gravada antes do formato por canal; 404 quando a linha não tem histograma algum, o sinal para o widget recorrer à amostragem da miniatura |
 | `GET /api/type_counts` | Contagens de fotos por tipo |
 | `GET /api/similar_photos/{path}` | Fotos semelhantes (modos: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Busca semântica de texto para imagem (`scope=text` = apenas texto OCR/legenda) |

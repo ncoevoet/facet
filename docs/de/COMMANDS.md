@@ -55,7 +55,7 @@ Viewers im `progress`-Feld von `/api/scan/status` und im SSE-Stream bereitstellt
 | `quality-face` | TOPIQ NR-Face | `face_quality_iqa`-Score (eigens für Gesichtsqualität entwickelt) | Geteilt mit TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + Verzerrungsdiagnose (Unschärfe, Überbelichtung, Rauschen) | ~2 GB |
 | `tags` | CLIP / Qwen VLM | Semantische Tags aus dem konfigurierten Vokabular | 0-16 GB |
-| `composition` | SAMP-Net | `composition_pattern` (14 Muster) + `comp_score` | ~2 GB |
+| `composition` | SAMP-Net | `composition_pattern` (8 Muster) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Gesichtserkennung, Landmarken, Blinzelerkennung, Erkennungs-Embeddings | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 oder SigLIP 2 NaFlex | `clip_embedding`-BLOB für Ähnlichkeit/Verschlagwortung | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
@@ -142,6 +142,7 @@ Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunt
 | `python facet.py --recompute-embeddings` | CLIP/SigLIP-Embeddings für alle Fotos neu berechnen (nach Modellwechsel erforderlich) |
 | `python facet.py --score-topiq` | TOPIQ-Qualitätsscores aus gespeicherten Thumbnails nachfüllen (GPU erforderlich) |
 | `python facet.py --backfill-focal-35mm` | 35-mm-äquivalente Brennweite aus EXIF für Fotos nachfüllen, denen sie fehlt |
+| `python facet.py --backfill-clipping` | Leitet die Beschnitt-Prozentsätze pro Kanal aus den gespeicherten Histogrammen ab. Nur Datenbank (keine Bilddekodierung) und fortsetzbar; Fotos, deren Histogramm älter als das RGB-Format ist, bleiben unbekannt (NULL) |
 | `python facet.py --compute-recommendations` | Datenbank analysieren, Bewertungszusammenfassung anzeigen |
 | `python facet.py --compute-recommendations --verbose` | Detaillierte Statistiken anzeigen |
 | `python facet.py --compute-recommendations --apply-recommendations` | Bewertungskorrekturen automatisch anwenden |

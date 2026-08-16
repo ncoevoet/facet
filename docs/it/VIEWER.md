@@ -155,10 +155,10 @@ python database.py --migrate-user-preferences --user alice
 
 ### Modelli compositivi
 
-Filtra per modelli rilevati da SAMP-Net:
-- rule_of_thirds, golden_ratio, center, diagonal
-- horizontal, vertical, symmetric, triangle
-- curved, radial, vanishing_point, pattern, fill_frame
+Filtra per modelli rilevati da SAMP-Net (il modello ne emette esattamente questi 8,
+da `models/samp_net.py`):
+- global, horizontal, vertical, triangular
+- surround, quarter, cross, rule_of_thirds
 
 ## Ordinamento
 
@@ -215,6 +215,10 @@ Un controllo **Tieni top %** nella barra degli strumenti della galleria (modalit
 ### Scarta in cartella
 
 La finestra di dialogo **Scarta in cartella…** nella barra delle azioni di gruppo (modalità di modifica) copia i mantenuti, o sposta/cestina gli scartati, in una cartella di destinazione in un solo passaggio (il cestino di sistema è vincolato a `viewer.cull.allow_trash`, mai un'eliminazione permanente). L'applicazione è sicura per costruzione: `POST /api/cull/apply` non si fida mai ciecamente di un elenco di eliminazione fornito dal client — rideriva lato server l'insieme effettivo dell'azione a partire dallo stato `is_rejected` proprio di ogni foto (la copia agisce solo sui mantenuti, lo spostamento/cestino solo sugli scartati) e segnala tutto ciò che è fuori da questo ambito come `excluded_by_state` invece di agirvi sopra. Ogni chiamata ha come predefinito una simulazione (dry run): un'anteprima viene sempre eseguita prima di qualsiasi scrittura, e spostamento/cestino richiedono un `dry_run=false` esplicito per procedere; includere il RAW o il sidecar non toccato di una foto scartata è opzionale (`include_companions`), così scartare un JPEG derivato non trascina mai silenziosamente il suo RAW. Diversi strumenti fotografici commerciali hanno avuto bug di selezione dell'eliminazione che hanno colpito le foto sbagliate; l'endpoint di applicazione di Facet è progettato in modo che il client non possa mai specificare direttamente un insieme da eliminare.
+
+**Dove è possibile scrivere.** Senza `viewer.export.allowed_target_dirs` configurato, le uniche cartelle in cui Facet può scrivere sono le directory di scansione — punta la finestra di dialogo verso una sottocartella dell'albero fotografico (ad es. `_rejected`) e funziona senza alcuna configurazione. Per usare una cartella fuori dall'albero scansionato, aggiungila prima a `viewer.export.allowed_target_dirs`; qualsiasi altra cosa viene rifiutata con un `403`, indipendentemente dai permessi del filesystem. Vedi [Configurazione — Destinazioni di esportazione e scarto](CONFIGURATION.md#destinazioni-di-esportazione-e-scarto). In esecuzione su Docker/Podman, il percorso digitato viene risolto **all'interno del container**, rispetto a ciò che è effettivamente montato lì — mai rispetto al filesystem host — vedi [Deployment — Semantica dei percorsi nel container](DEPLOYMENT.md#semantica-dei-percorsi-nel-container).
+
+**"Accesso negato" a ogni azione.** È un `403` — un rifiuto deliberato del controllo sulla cartella di destinazione sopra descritto, oppure una sessione di modifica scaduta — mai un problema di permessi del filesystem o dell'utente del container. Il messaggio non specifica quale dei due casi si sia verificato; controlla il corpo della risposta della richiesta fallita nella scheda Rete del browser per il campo `detail`. Un vero problema di permessi del filesystem si presenta diversamente: l'azione segnala un successo parziale con un conteggio `errors` diverso da zero, e il server registra l'errore del sistema operativo sottostante per ogni file non riuscito.
 
 ### Opzioni di visualizzazione
 
@@ -318,7 +322,7 @@ Ogni album può portare un contesto di punteggio che decide quale categoria vinc
 
 ### Esportazione portfolio
 
-Quando `viewer.features.show_portfolio_export` è `true` (predefinito) e la modalità di modifica è sbloccata, ogni scheda di album manuale acquisisce un'azione **Esporta portfolio**. Apre una piccola finestra di dialogo (titolo della galleria, cartella di destinazione, interruttore per includere le didascalie) e trasforma l'album in una galleria HTML statica autonoma — il caso d'uso di thumbsup/sigal, ma nativo, senza dipendenza da strumenti esterni. La directory di output contiene `index.html` (una griglia di miniature responsive solo in CSS con una lightbox vanilla-JS integrata — **zero** riferimenti esterni/CDN, quindi funziona completamente offline), una cartella `assets/` di JPEG con nomi sequenziali (nessun percorso della libreria viene divulgato) e un `manifest.json` che registra conteggi e sorgenti per foto. Ogni foto preferisce l'**originale** su disco (ridotto a `portfolio.max_edge`, con orientamento EXIF applicato) e ripiega sulla miniatura da 640 px memorizzata quando l'originale è irraggiungibile (condivisioni di rete offline). L'endpoint è `POST /api/albums/{album_id}/export-portfolio` (riservato alla modalità di modifica); il `target_dir` viene convalidato rispetto alla stessa allow-list (`viewer.export.allowed_target_dirs` più le directory di scansione) degli endpoint di esportazione copia/spostamento, e gli album oltre `portfolio.max_photos` (predefinito 500) vengono rifiutati. Riesportare lo stesso album è idempotente — vengono riscritti solo i file propri dell'esportazione. Vedi [Configurazione dell'esportazione portfolio](CONFIGURATION.md#esportazione-portfolio).
+Quando `viewer.features.show_portfolio_export` è `true` (predefinito) e la modalità di modifica è sbloccata, ogni scheda di album manuale acquisisce un'azione **Esporta portfolio**. Apre una piccola finestra di dialogo (titolo della galleria, cartella di destinazione, interruttore per includere le didascalie) e trasforma l'album in una galleria HTML statica autonoma — il caso d'uso di thumbsup/sigal, ma nativo, senza dipendenza da strumenti esterni. La directory di output contiene `index.html` (una griglia di miniature responsive solo in CSS con una lightbox vanilla-JS integrata — **zero** riferimenti esterni/CDN, quindi funziona completamente offline), una cartella `assets/` di JPEG con nomi sequenziali (nessun percorso della libreria viene divulgato) e un `manifest.json` che registra conteggi e sorgenti per foto. Ogni foto preferisce l'**originale** su disco (ridotto a `portfolio.max_edge`, con orientamento EXIF applicato) e ripiega sulla miniatura da 640 px memorizzata quando l'originale è irraggiungibile (condivisioni di rete offline). L'endpoint è `POST /api/albums/{album_id}/export-portfolio` (riservato alla modalità di modifica); il `target_dir` viene convalidato rispetto alla stessa allow-list (`viewer.export.allowed_target_dirs` più le directory di scansione, vedi [Configurazione — Destinazioni di esportazione e scarto](CONFIGURATION.md#destinazioni-di-esportazione-e-scarto)) degli endpoint di esportazione copia/spostamento, e gli album oltre `portfolio.max_photos` (predefinito 500) vengono rifiutati. Riesportare lo stesso album è idempotente — vengono riscritti solo i file propri dell'esportazione. Vedi [Configurazione dell'esportazione portfolio](CONFIGURATION.md#esportazione-portfolio).
 
 API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
@@ -528,7 +532,7 @@ Trova cluster di persone che potrebbero essere lo stesso individuo. Accessibile 
 Scrivi su disco le tue valutazioni, preferiti e scarti come sidecar XMP, così che gli editor esterni (darktable, Lightroom) li rilevino. Richiede la modalità di modifica.
 
 - **Dalla galleria** — seleziona le foto, quindi **Azioni → Esporta** scrive un sidecar accanto a ogni file.
-- **Da un album** ("paniere") — esporta l'intero album come sidecar, oppure copia/crea collegamenti simbolici dei file in una directory di destinazione.
+- **Da un album** ("paniere") — esporta l'intero album come sidecar, oppure copia/crea collegamenti simbolici dei file in una directory di destinazione (stessa allow-list di destinazione di [Scarta in cartella](#scarta-in-cartella)).
 - **Scrivi metadati nel file** — l'azione "Scrivi metadati nel file" della pagina di dettaglio incorpora la valutazione/le parole chiave direttamente nel file originale (JPEG/HEIC/TIFF/PNG/DNG tramite exiftool) oltre a scrivere il sidecar, così che l'intero ecosistema fotografico le veda. I file RAW proprietari originali non vengono mai modificati. Controllato da `viewer.features.show_embed_metadata` (predefinito: `true`).
 
 API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
@@ -1023,6 +1027,7 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 |----------|-------------|
 | `GET /api/photos` | Elenco foto impaginato con filtri |
 | `GET /api/photo` | Dettagli di una singola foto |
+| `GET /api/photo/histogram?path=&bins=` | Bin di luminanza + R/G/B pronti da disegnare (`bins` ∈ 32/64/128/256, predefinito 64), misurati durante la scansione sull'immagine a piena risoluzione. Ogni canale è scalato da un unico massimo globale, mai dal proprio. `r`/`g`/`b` sono `null` per una riga salvata prima del formato per canale; 404 quando la riga non ha alcun istogramma, il segnale per cui il widget ripiega sul campionamento della miniatura |
 | `GET /api/type_counts` | Conteggi foto per tipo |
 | `GET /api/similar_photos/{path}` | Foto simili (modalità: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Ricerca semantica testo-immagine (`scope=text` = solo testo OCR/didascalia) |

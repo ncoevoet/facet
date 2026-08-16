@@ -56,6 +56,43 @@ Sono supportate più mappature (vince la prima corrispondenza):
 - Sono supportati sia i percorsi UNC (`\\server\share`) che le lettere di unità (`Z:\`)
 - Vince il primo prefisso corrispondente
 
+## Semantica dei percorsi nel container
+
+Qualsiasi cosa digiti in un campo cartella nel viewer — una destinazione "Scarta in cartella", la destinazione di esportazione copia/symlink di un album, oppure `viewer.export.allowed_target_dirs` in `scoring_config.json` — viene risolta dal processo Facet stesso. **Su Docker/Podman quel processo gira dentro il container**, quindi ogni percorso è il percorso che *il container* vede: il punto di montaggio, mai il percorso lato host.
+
+**Esempio.** Il `docker-compose.yml` fornito monta la tua cartella fotografica su `/data/photos`:
+
+```yaml
+volumes:
+  - ${PHOTOS_DIR:-./photos}:/data/photos
+```
+
+Per scartare gli elementi rifiutati in una sottocartella `rejects`, inserisci `/data/photos/rejects` nella finestra di dialogo — mai il percorso host (`/home/tu/Immagini`, `D:\Foto`, …), che il container non può vedere affatto. Lo stesso vale per `viewer.export.allowed_target_dirs`: elenca il percorso lato container.
+
+Per scrivere altrove rispetto all'albero fotografico scansionato — ad esempio un volume di esportazione separato — montalo prima nel container, quindi aggiungi il suo percorso lato container a `viewer.export.allowed_target_dirs`:
+
+```yaml
+services:
+  facet:
+    volumes:
+      - ${PHOTOS_DIR:-./photos}:/data/photos
+      - /volume1/Exports:/data/exports   # volume aggiuntivo per l'output di cull/export
+```
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+Una destinazione che si risolve al di fuori di ogni volume montato viene rifiutata (`403`) — il controllo del target-dir di Facet esegue `os.path.realpath()` sia sulla richiesta *sia* su ogni radice consentita, risolvendo symlink e `..` prima del confronto, quindi un percorso che sembra corretto solo dall'esterno del container (o un symlink che punta fuori da un mount) fallisce comunque il test di contenimento. Vedi [Configurazione — Destinazioni di esportazione e scarto](CONFIGURATION.md#destinazioni-di-esportazione-e-scarto) per il riferimento completo dell'allow-list.
+
+**Questo non è un problema di permessi dell'utente del container.** La UID dell'utente `facet` all'interno del container spesso differisce da quella del tuo account host, e questo può causare un vero e separato problema di permessi del filesystem su un bind mount — ma ciò accade *dopo* che questo controllo del percorso è stato superato, quando la copia/symlink/spostamento viene effettivamente eseguita, e viene registrato lato server con l'errore del sistema operativo sottostante per il file non riuscito. Un `403 target_dir is not an allowed export location` (o un generico "accesso negato" nell'interfaccia) avviene *prima* che qualsiasi file venga toccato e non ha nulla a che fare con le UID.
+
 ## Compilazione del client Angular
 
 Il server FastAPI serve la SPA precompilata da `client/dist/client/browser/`. Compilala prima del deployment:
@@ -101,7 +138,8 @@ python database.py --export-viewer-db
 ```
 
 Questo crea `photo_scores_viewer.db`, che:
-- Rimuove gli embedding CLIP, i dati dell'istogramma e gli embedding dei volti
+- Rimuove gli embedding CLIP, gli embedding delle didascalie e gli embedding dei volti
+- Mantiene l'istogramma per foto (~2 KB ciascuno), letto dal widget istogramma RGB della galleria
 - Riduce le miniature da 640px a 320px
 - Riduce tipicamente un database di 14GB a ~4-5GB
 
@@ -211,9 +249,12 @@ Quanto segue è solo ciò che cambia su un NAS.
 
 **Entrambe le immagini pubblicate sono solo `linux/amd64` (x86_64).** Questo copre l'hardware NAS x86 (Synology Plus/x86, UGREEN, UnifyDrive e qualsiasi cosa esegua Coolify, Portainer o Docker semplice su una CPU Intel/AMD). Non esiste un'immagine `arm64`: la compilazione incrociata di uno stack ML di diversi gigabyte sotto QEMU costa ore per tag, e la variante CUDA è comunque disponibile solo per x86. Su un NAS ARM o un Raspberry Pi, compila in locale con `docker compose build` invece di scaricare l'immagine — `docker compose up` mantiene `build: .` sotto la chiave `image:` proprio per questo caso.
 
-**Prevedi lo spazio su disco.** L'immagine CPU è ~3,3 GB e quella CUDA ~21 GB, più i pesi
-dei modelli scaricati da ogni profilo al primo avvio (~3–4 GB per `legacy`/`8gb`, ~10–11 GB
-per `16gb`, ~18 GB per `24gb` — tabella completa in
+**Prevedi lo spazio su disco.** Decompressa, l'immagine CPU occupa circa 3,3 GB su
+disco e quella CUDA circa 21 GB (valori approssimativi, non riverificati rispetto alla
+build attuale; il download vero e proprio trasferisce meno, compresso — vedi
+[Dimensione dell'immagine](#dimensione-dellimmagine) più sotto), più i pesi dei modelli
+scaricati da ogni profilo al primo avvio (`legacy` 4,69 GB, `8gb` 6,93 GB, `16gb`
+14,55 GB, `24gb` 19,13 GB — tabella completa in
 [Installazione › Dimensioni dei download](INSTALLATION.md#dimensioni-dei-download)).
 `docker compose down -v` elimina i volumi dei modelli e forza un nuovo download.
 
@@ -336,10 +377,16 @@ Nessuna delle due immagini pubblicate contiene i pesi dei modelli — questi si 
 al primo avvio nei volumi con nome ([totali per profilo](INSTALLATION.md#dimensioni-dei-download)).
 Prevedi spazio su disco per l'immagine **più** questi volumi.
 
-| Immagine | Dimensione misurata | Base |
-|-------|------|------|
-| `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3,3 GB | `python:3.12-slim` + PyTorch in wheel CPU |
-| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 GB | PyTorch CUDA + RAPIDS cuML |
+| Immagine | Download compresso | Su disco (approssimativo) | Base |
+|-------|------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | 4,18 GB | ~3,3 GB | `python:3.12-slim` + PyTorch in wheel CPU |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 7,33 GB | ~21 GB | PyTorch CUDA + RAPIDS cuML |
+
+Il "download compresso" è ciò che trasferisce `docker pull`, misurato dagli attuali
+manifest del registro `ghcr.io/ncoevoet/facet`. Il valore "su disco" è l'ingombro
+dell'immagine decompressa; queste cifre non sono state riverificate rispetto al digest
+`:latest` attuale in questo passaggio, quindi trattale come una stima di
+pianificazione approssimativa e non come una misurazione attuale precisa.
 
 Nell'immagine CPU domina lo stack di dipendenze ML (~1,9 GB) più che PyTorch stesso
 (~960 MB), più le librerie di sistema (~288 MB) e l'OS di base (~150 MB). Nell'immagine

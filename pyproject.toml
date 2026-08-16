@@ -119,6 +119,9 @@ filterwarnings = [
     "ignore::DeprecationWarning:pydantic",
     "ignore::DeprecationWarning:pkg_resources",
 ]
+markers = [
+    "raw_brand_samples: real-file coverage for non-Canon RAW brands (decodes 20-30MB fixtures; skips cleanly when fixtures are absent)",
+]
 
 [tool.mypy]
 # Advisory type checking only — the CI mypy step is non-blocking

@@ -55,7 +55,7 @@ visor expone en el campo `progress` de `/api/scan/status` y del flujo SSE.
 | `quality-face` | TOPIQ NR-Face | puntuación `face_quality_iqa` (calidad facial específica) | Compartida con TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + diagnóstico de distorsión (desenfoque, sobreexposición, ruido) | ~2 GB |
 | `tags` | CLIP / Qwen VLM | Etiquetas semánticas del vocabulario configurado | 0-16 GB |
-| `composition` | SAMP-Net | `composition_pattern` (14 patrones) + `comp_score` | ~2 GB |
+| `composition` | SAMP-Net | `composition_pattern` (8 patrones) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Detección facial, puntos de referencia, detección de parpadeo, embeddings de reconocimiento | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 o SigLIP 2 NaFlex | BLOB `clip_embedding` para similitud/etiquetado | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
@@ -142,6 +142,7 @@ Estos comandos actualizan métricas específicas, derivan datos nuevos (leyendas
 | `python facet.py --recompute-embeddings` | Recalcula los embeddings CLIP/SigLIP para todas las fotos (necesario tras cambiar de modelo) |
 | `python facet.py --score-topiq` | Rellena las puntuaciones de calidad TOPIQ a partir de las miniaturas almacenadas (requiere GPU) |
 | `python facet.py --backfill-focal-35mm` | Rellena la distancia focal equivalente a 35 mm desde el EXIF para las fotos que la tengan ausente |
+| `python facet.py --backfill-clipping` | Deriva los porcentajes de recorte por canal a partir de los histogramas almacenados. Solo base de datos (sin descodificar imágenes) y reanudable; las fotos cuyo histograma es anterior al formato RGB quedan como desconocidas (NULL) |
 | `python facet.py --compute-recommendations` | Analiza la base de datos y muestra un resumen de puntuación |
 | `python facet.py --compute-recommendations --verbose` | Muestra estadísticas detalladas |
 | `python facet.py --compute-recommendations --apply-recommendations` | Aplica automáticamente las correcciones de puntuación |

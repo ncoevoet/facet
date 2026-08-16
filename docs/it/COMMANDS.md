@@ -55,7 +55,7 @@ campo `progress` di `/api/scan/status` e nel flusso SSE.
 | `quality-face` | TOPIQ NR-Face | punteggio `face_quality_iqa` (qualità del volto dedicata) | Condivisa con TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + diagnosi delle distorsioni (sfocatura, sovraesposizione, rumore) | ~2 GB |
 | `tags` | CLIP / Qwen VLM | Tag semantici dal vocabolario configurato | 0-16 GB |
-| `composition` | SAMP-Net | `composition_pattern` (14 modelli) + `comp_score` | ~2 GB |
+| `composition` | SAMP-Net | `composition_pattern` (8 modelli) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Rilevamento volti, punti di riferimento, rilevamento occhi chiusi, embedding di riconoscimento | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 o SigLIP 2 NaFlex | BLOB `clip_embedding` per somiglianza/tagging | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
@@ -142,6 +142,7 @@ Questi comandi aggiornano metriche specifiche, derivano nuovi dati (didascalie A
 | `python facet.py --recompute-embeddings` | Ricalcola gli embedding CLIP/SigLIP per tutte le foto (necessario dopo il cambio di modello) |
 | `python facet.py --score-topiq` | Riempie i punteggi di qualità TOPIQ dalle miniature memorizzate (richiede GPU) |
 | `python facet.py --backfill-focal-35mm` | Riempie la lunghezza focale equivalente a 35mm dall'EXIF per le foto che ne sono prive |
+| `python facet.py --backfill-clipping` | Deriva le percentuali di clipping per canale dagli istogrammi memorizzati. Solo database (nessuna decodifica di immagini) e riprendibile; le foto il cui istogramma precede il formato RGB restano sconosciute (NULL) |
 | `python facet.py --compute-recommendations` | Analizza il database, mostra un riepilogo dei punteggi |
 | `python facet.py --compute-recommendations --verbose` | Mostra statistiche dettagliate |
 | `python facet.py --compute-recommendations --apply-recommendations` | Applica automaticamente le correzioni dei punteggi |

@@ -20,6 +20,7 @@ Todos los ajustes están en `scoring_config.json`. Tras modificarlos, ejecuta `p
 - [Modelos](#modelos)
 - [Modelos de evaluación de calidad](#modelos-de-evaluación-de-calidad)
 - [Procesamiento](#procesamiento)
+- [Decodificación RAW](#decodificación-raw)
 - [Detección de ráfagas](#detección-de-ráfagas)
 - [Puntuación de ráfagas](#puntuación-de-ráfagas)
 - [Detección de duplicados](#detección-de-duplicados)
@@ -447,7 +448,7 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
       "24gb": {
         "aesthetic_model": "topiq",
         "clip_config": "clip",
-        "composition_model": "qwen2-vl-2b",
+        "composition_model": "samp-net",
         "tagging_model": "qwen3.5-4b",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
@@ -490,14 +491,7 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
       "min_subject_pixels": 50
     },
     "samp_net": {
-      "model_path": "pretrained_models/samp_net.pth",
-      "download_url": "https://github.com/bcmi/Image-Composition-Assessment-with-SAMP/releases/download/v1.0/samp_net.pth",
-      "input_size": 384,
-      "patterns": [
-        "none", "center", "rule_of_thirds", "golden_ratio", "triangle",
-        "horizontal", "vertical", "diagonal", "symmetric", "curved",
-        "radial", "vanishing_point", "pattern", "fill_frame"
-      ]
+      "model_path": "pretrained_models/samp_net.pth"
     }
   }
 }
@@ -517,7 +511,7 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
 | `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | Pesos preentrenados heredados |
 | `clip_legacy.embedding_dim` | `768` | Dimensiones del embedding heredado |
 | `clip_legacy.similarity_threshold_percent` | `22` | Umbral de coincidencia de etiqueta para CLIP heredado |
-| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | Ruta de HuggingFace (VLM de composición 24gb) |
+| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | Ruta de Hugging Face para la opción manual `composition_model: "qwen2-vl-2b"` — ningún perfil la selecciona por defecto |
 | `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | Modelo de etiquetado para el perfil 16gb |
 | `qwen3_5_2b.vlm_batch_size` | `4` | Imágenes por lote de inferencia VLM |
 | `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | Modelo de etiquetado para el perfil 24gb |
@@ -526,7 +520,6 @@ Selecciona qué modelos se usan por cada perfil de VRAM.
 | `saliency.resolution` | `1024` | Resolución de inferencia |
 | `saliency.mask_threshold` | `0.3` | Umbral sigmoide para la máscara binaria del sujeto |
 | `saliency.min_subject_pixels` | `50` | Píxeles mínimos del sujeto para contar un sujeto como detectado |
-| `samp_net.input_size` | `384` | Tamaño de entrada del modelo de composición |
 
 ### Detección automática de VRAM
 
@@ -723,6 +716,152 @@ python facet.py /path --pass saliency      # Saliencia del sujeto BiRefNet
 # Listar los modelos disponibles
 python facet.py --list-models
 ```
+
+---
+
+## Decodificación RAW
+
+Cómo se convierten los archivos RAW en píxeles. Existen dos perfiles, y no son
+intercambiables.
+
+**Perfil de métricas** — el demosaicado a partir del cual se calcula cada
+puntuación, y el espacio de píxeles en el que viven los cuadros de rostro
+almacenados y `image_width`/`image_height`. Es deliberadamente fiel: sin
+adaptación por toma, una sola ganancia de exposición fija para toda la
+biblioteca.
+
+**Perfil de visualización** — lo que muestran la miniatura almacenada, la
+galería y `/image`. Prefiere la vista previa incorporada por la cámara, que ya
+lleva la curva tonal, los modos de rango dinámico y la exposición propios del
+modelo, y recae en el demosaicado del perfil de métricas cuando no existe una
+vista previa utilizable.
+
+```json
+"raw_decode": {
+  "bright": 1.62,
+  "prefer_embedded_preview": true,
+  "preview_min_sensor_ratio": 0.5,
+  "viewer_concurrency": 3,
+  "faithful_bracket_render": true
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|--------|-----------------|-------------|
+| `bright` | `1.62` | Ganancia de exposición fija aplicada a cada demosaicado (`1.0` = el nivel propio de LibRaw). La única constante arbitraria aquí: coincide con el +0,7 EV predeterminado de darktable, y nada en el archivo lo impone — valídala en tu propia biblioteca con `--check-raw-rendering` antes de un escaneo grande |
+| `prefer_embedded_preview` | `true` | Genera las imágenes de visualización a partir de la vista previa de la cámara cuando existe una. `false` demosaica todo, lo cual es más lento y descarta la curva tonal de la cámara |
+| `preview_min_sensor_ratio` | `0.5` | Cuánto del sensor debe cubrir una vista previa para que `/image` la sirva en lugar de demosaicar. Nikon, Pentax, Samsung y Canon CR3 incorporan una vista previa casi a tamaño completo (0,98-0,99); Panasonic se sitúa en 0,52, mientras que Olympus, Fuji, Sony y DNG incorporan una vista previa pequeña (0,29-0,49) y por tanto se demosaican |
+| `viewer_concurrency` | `3` | Máximo de demosaicados RAW simultáneos para la ruta del visor `/image`, con un presupuesto propio separado de `processing.raw_decode_concurrency` de arriba, de modo que una petición del visor nunca hace cola detrás del trabajo de escaneo o de decodificación por CLI |
+| `faithful_bracket_render` | `true` | Renderiza una toma de horquillado sin corrección alguna: sin vista previa de la cámara, sin ganancia `bright`. Ver [más abajo](#las-tomas-de-un-horquillado-se-representan-sin-corrección). `false` renderiza los horquillados como cualquier otra foto |
+
+### Compromiso de memoria
+
+`viewer_concurrency` y `processing.raw_decode_concurrency` son presupuestos
+independientes, cada uno con su propio semáforo, y ninguno toma margen prestado
+del otro. En el peor de los casos, el proceso puede por tanto tener en curso a
+la vez demosaicados de "biblioteca + visor", cada uno con un pico de unos
+200-400 MB de datos intermedios — reduce `viewer_concurrency` en un host con
+memoria limitada. En la práctica este presupuesto está mayormente inactivo:
+solo se gasta cuando `/image` tiene que recaer en un demosaicado completo, algo
+que `preview_min_sensor_ratio` de arriba ya evita para cualquier RAW cuya vista
+previa incorporada sea suficientemente grande (Nikon, Pentax, Samsung, Canon
+CR3). Sony, Fuji, Olympus y DNG son las cámaras que realmente lo consumen.
+
+### Por qué no hay brillo automático
+
+LibRaw aclara cada toma hasta que aproximadamente el 1% de sus *propios*
+píxeles se recorta, y sustituye el píxel más brillante de esa misma toma por el
+nivel de blanco de la cámara. Ambos términos son por toma, así que un
+horquillado sale igualado: una serie Canon de 5 tomas medida, que abarca de
+-3,4 a +3,3 EV, dio luminancias medias de 54-56 para sus tres tomas oscuras,
+indistinguibles entre sí. Con la ganancia fija, la misma serie va de 8,7 a 160
+— una escala de 18x en lugar de 2,6x.
+
+Aumentar `bright` escala linealmente cada renderizado; nunca restaura el
+comportamiento por toma. Las métricas de exposición se mueven con él, así que
+vuelve a ejecutar `--recompute-average` después de cambiarlo, y vuelve a
+escanear para reescribir las métricas mismas.
+
+### Las tomas de un horquillado se representan sin corrección
+
+Una foto cuyo `sequence_kind` es `bracket` o `hdr_panorama` se muestra sin
+ninguna de las dos correcciones anteriores: sin vista previa incorporada por la
+cámara, y sin ganancia `bright`. Todo lo demás conserva el perfil de
+visualización. Un `panorama` corriente *no* es un horquillado y queda excluido
+— solo un panorama HDR, que está en horquillado en cada posición, se une aquí
+a los horquillados.
+
+La razón es que ambas correcciones comprimen las altas luces, y el margen de
+altas luces es todo el sentido de las tomas a +EV de un horquillado. La
+ganancia uniforme conserva la exposición *relativa* entre las tomas pero
+recorta el extremo brillante: a `bright` 2.0, una escala medida de 4,85x salió
+como 3,67x, siendo la diferencia solo el recorte. El JPEG incorporado de la
+cámara tiene su propia curva tonal, que comprime el mismo rango por el mismo
+motivo. Para una foto corriente eso es una imagen más favorecedora; para un
+horquillado oculta exactamente lo que el fotógrafo está juzgando.
+
+Esto se aplica a toda superficie que representa un horquillado, para que no
+puedan contradecirse: `/image` (la vista de detalle, la lupa de comparación y
+la lupa de descarte) lo renderiza así al vuelo, `--refresh-thumbnails` lo
+incorpora en `photos.thumbnail` para la tarjeta de galería y la cuadrícula de
+comparación, y `GET /api/download` con `type=original` lo convierte de la
+misma forma — una toma de horquillado descargada suele ir camino de una fusión
+HDR, donde las altas luces recortadas que introducen las demás
+representaciones serían irrecuperables.
+
+Dos tipos de descarga se dejan deliberadamente intactos: `type=raw` copia el
+archivo RAW sin tocar, y `type=darktable` es la exportación de "aspecto
+editado", cuyo propósito entero es una curva tonal. `GET
+/api/photo/cull_preview` tampoco se ve afectado — se renderiza mediante
+darktable-cli, no rawpy.
+
+*No* se aplica en el momento del escaneo, porque la detección de secuencias se
+ejecuta después de un escaneo y la pertenencia a un horquillado aún no se
+conoce — ejecuta primero `--detect-sequences`, luego `--refresh-thumbnails`,
+para que las tarjetas lo reflejen.
+
+La puntuación no se ve afectada. Las métricas se calculan a partir de
+`load_image_from_path`, que es una decodificación separada a las dimensiones
+del sensor y es donde vive cada cuadro de rostro almacenado y
+`image_width`/`image_height`; nada de esto llega a alcanzarla.
+
+Pon `faithful_bracket_render` en `false` para renderizar los horquillados como
+cualquier otra foto.
+
+### Migrar una biblioteca escaneada antes de este perfil
+
+Las miniaturas y los histogramas se generan en el momento del escaneo, así que
+cambiar el perfil no modifica retroactivamente lo que contiene una fila ya
+escaneada. `photos.render_version` registra qué pipeline produjo la miniatura
+almacenada de cada fila: `NULL` significa "de antes de la corrección", y el
+pipeline actual marca `1`.
+
+No hay nada que configurar — la marca es contabilidad, no un ajuste — pero
+conviene saber qué rutas la hacen avanzar:
+
+- **Un nuevo escaneo** reescribe la miniatura y el histograma, y marca la
+  fila.
+- **`--refresh-thumbnails`** reescribe las miniaturas RAW y las marca. Las
+  filas no se omiten según la marca, así que volver a ejecutarlo tras un
+  cambio de `bright` reconstruye todo.
+
+Esas son las únicas dos. Navegar por la biblioteca no repara nada: `/image` se
+renderiza al vuelo, así que la vista de detalle siempre está al día, pero la
+cuadrícula de galería lee `photos.thumbnail`, y solo un escaneo o
+`--refresh-thumbnails` la reescriben.
+
+El banner descartable de la galería cuenta las filas que siguen en el
+renderizado antiguo. Lee una entrada de `stats_cache` con un TTL de una hora
+en lugar de recorrer `photos` en cada carga de página, así que puede quedar
+por detrás de la realidad tras un nuevo escaneo; `python database.py
+--refresh-stats` lo recalcula de inmediato.
+
+Un renderizado que resulta completamente negro se rechaza en lugar de
+almacenarse, y la fila queda sin marcar para que una ejecución posterior lo
+reintente. LibRaw rellena de ceros un RW2 Panasonic gravemente truncado hasta
+convertirlo en una toma negra válida a tamaño completo en lugar de fallar, y
+una migración desatendida es el peor lugar para que eso pase desapercibido. El
+rechazo se registra con el nombre del archivo.
 
 ---
 
@@ -1395,6 +1534,72 @@ Visualización y comportamiento de la galería web.
 | `notification_duration_ms` | `2000` | Duración del aviso emergente |
 | `moment_confidence_min` | `0` | Por debajo de este posterior `narrative_moment_confidence` almacenado (0-1), las etiquetas de momento se muestran atenuadas con un sufijo "(incierto)" en la cabecera de Escenas, la cabecera de grupo de escena del Descarte y el tooltip de foto de la galería. `0` = nunca atenuar |
 
+### Insignias de tarjeta y recorte
+
+`viewer.badges` activa o desactiva cada insignia de la tarjeta de galería. Todas
+las insignias anteriores a este bloque valen `true` por defecto, así que omitirlo
+no cambia nada.
+
+```json
+{
+  "viewer": {
+    "badges": {
+      "favorite": true,
+      "star_rating": true,
+      "rejected": true,
+      "sequence_kind": true,
+      "sequence_override_pending": true,
+      "keeper_hint": true,
+      "best_of_burst": true,
+      "clipping_highlight": true,
+      "clipping_shadow": false
+    },
+    "clipping": {
+      "badge_percent": 5,
+      "indicator_percent": 1,
+      "histogram_mode": "rgb",
+      "tooltip_histogram_mode": "luma"
+    }
+  }
+}
+```
+
+| Clave | Predeterminado | Descripción |
+|-------|----------------|-------------|
+| `badges.favorite` | `true` | Insignia de corazón en una foto favorita (modo edición) |
+| `badges.star_rating` | `true` | Insignia de estrella y contador en una foto valorada (modo edición) |
+| `badges.rejected` | `true` | Insignia de pulgar abajo en una foto rechazada (modo edición) |
+| `badges.sequence_kind` | `true` | Insignia de horquillado/panorama, visible solo mientras la opción de ocultar contrae la serie |
+| `badges.sequence_override_pending` | `true` | Insignia de reloj para una corrección de panorama pendiente de la próxima detección |
+| `badges.keeper_hint` | `true` | Flecha «existe una toma mejor en este grupo» del modelo de selección aprendido |
+| `badges.best_of_burst` | `true` | Insignia «Mejor» en la foto principal de una ráfaga. Solo se muestra con `hide_bursts` desactivado: de lo contrario toda foto de ráfaga en pantalla ya es la principal |
+| `badges.clipping_highlight` | `true` | Insignia para una foto cuyas altas luces superan `clipping.badge_percent` |
+| `badges.clipping_shadow` | `false` | Lo mismo para sombras empastadas. Desactivada por defecto: el recorte de sombras suele ser intencionado (siluetas, noche, clave baja) |
+
+`viewer.clipping` es la definición única de «recortado» que comparten la insignia
+de la tarjeta, los marcadores del histograma y el filtro de galería, de modo que
+los tres no puedan discrepar.
+
+| Clave | Predeterminado | Descripción |
+|-------|----------------|-------------|
+| `badge_percent` | `5` | Porcentaje de píxeles, en el peor canal R/G/B, por encima del cual se marca la tarjeta. Medido sobre 28 fotos de muestra: la mediana fue 0,31 % y el p90 2,35 %, así que 5 % se activa en 1 de cada 25 fotos aproximadamente |
+| `indicator_percent` | `1` | Umbral de los marcadores R/G/B del histograma. Más fino que la insignia porque ya se está mirando una sola foto |
+| `histogram_mode` | `"rgb"` | Valor predeterminado del histograma del **panel de detalle**: `"luma"`, `"rgb"`, o un solo canal (`"r"` / `"g"` / `"b"`). La elección propia del usuario para esta superficie se guarda en `localStorage` bajo `facet_histogram_mode` y prevalece sobre este valor |
+| `tooltip_histogram_mode` | `"luma"` | Valor predeterminado del histograma del **tooltip al pasar el cursor/fijado**, los mismos cinco valores. Deliberadamente independiente de `histogram_mode` y persistido bajo su propia clave de `localStorage` (`facet_histogram_mode_tooltip`): el panel de detalle sirve para estudiar una sola foto, donde el detalle por canal se justifica; el tooltip sirve para recorrer muchas fotos rápido, donde una curva de luminancia simple suele leerse más rápido. Ajustar uno nunca reajusta el otro, y el interruptor para cambiarlo solo se muestra mientras el tooltip está fijado (panel acoplado, o `tooltip_mode: "click"`) — en modo de simple paso del cursor muestra solo su modo resuelto de solo lectura |
+
+**El recorte se mide por canal, exactamente en los bins 0 y 255.** Se almacena en
+`photos.channel_clip_shadow_pct` / `channel_clip_highlight_pct` como el porcentaje
+de píxeles del peor canal — una medida *distinta* de los indicadores
+`shadow_clipped` / `highlight_clipped`, que son binarios, cubren las bandas de
+luminancia 0–30 y 225–255 y alimentan `exposure_score`.
+
+**`NULL` significa desconocido, nunca limpio.** Una foto cuyo histograma
+almacenado es anterior al formato por canal no tiene datos de canal: no lleva
+insignia y no coincide con ningún lado del filtro. Ejecuta
+`python facet.py --backfill-clipping` para derivar las columnas de las filas que ya
+tienen un histograma completo — solo lee la base de datos, no descodifica imágenes
+y es reanudable.
+
 ### Funciones
 
 Activa o desactiva funciones opcionales para reducir el uso de memoria o simplificar la UI:
@@ -1406,7 +1611,6 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
       "show_similar_button": true,
       "show_merge_suggestions": true,
       "show_rating_controls": true,
-      "show_rating_badge": true,
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
@@ -1423,7 +1627,6 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
 | `show_similar_button` | `true` | Mostrar el botón "Buscar similares" en las tarjetas de foto (usa numpy para la similitud CLIP) |
 | `show_merge_suggestions` | `true` | Activar la función de sugerencias de fusión en la página de gestión de personas |
 | `show_rating_controls` | `true` | Mostrar los controles de valoración por estrellas y favoritos |
-| `show_rating_badge` | `true` | Mostrar la insignia de valoración en las tarjetas de foto |
 | `show_scan_button` | `false` | Mostrar el botón de iniciar escaneo para los usuarios superadmin (requiere GPU en el host del visor) |
 | `metrics_enabled` | `false` | Activar el endpoint público de Prometheus `GET /metrics`. Desactivado por defecto: expone recuentos de fotos/personas/rostros, tamaño de la BD y memoria del proceso; actívalo solo cuando el endpoint sea accesible desde la red del scraper, no desde internet público. |
 | `show_semantic_search` | `true` | Mostrar la barra de búsqueda semántica (búsqueda de texto a imagen usando embeddings CLIP/SigLIP) |
@@ -2032,6 +2235,32 @@ python facet.py --recompute-text   # vuelve a leer toda la biblioteca
 
 **Coste.** Una miniatura de 640px tarda aproximadamente 0,4s en CPU, así que una biblioteca de 50.000 fotos es un trabajo de CPU de toda una noche — es un relleno retroactivo puntual, y los escaneos posteriores solo añaden fotos nuevas. Se usa una GPU automáticamente cuando torch informa de una.
 
+## Destinos de exportación y descarte
+
+Cualquier endpoint que copie, enlace simbólicamente o mueva archivos de fotos fuera de la biblioteca — la exportación "cesta" de un álbum (`POST /api/albums/{id}/export`, modos `copy`/`symlink`) y el descarte a carpeta (`POST /api/cull/apply`, acciones `copy_keeps` / `move_rejects`) — escribe en un `target_dir` que debe resolverse bajo una raíz permitida, o la solicitud se rechaza antes de tocar ningún archivo.
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|---------|---------|-------------|
+| `allowed_target_dirs` | *(clave ausente)* | Directorios raíz adicionales en los que puede escribir una exportación copiar/symlink o un descarte-a-carpeta copiar/mover, además de los directorios de escaneo (siempre permitidos). **Ausente por defecto** — de fábrica, los únicos destinos de exportación escribibles son tus directorios de escaneo configurados |
+
+**Orden de resolución.** La lista de permitidos es primero `allowed_target_dirs`, luego cada directorio de escaneo (por usuario, compartidos y destinos de `path_mapping`) — así que exportar *dentro* del árbol de fotos no necesita configuración, pero un destino fuera de él necesita una entrada aquí. Tanto el `target_dir` solicitado como cada raíz permitida se canonicalizan con `os.path.realpath()` (enlaces simbólicos resueltos, `..` colapsados) antes de la comparación, así que un enlace simbólico que se resuelve fuera de una raíz permitida se rechaza aunque el propio enlace esté dentro de una de ellas.
+
+**Cerrado por defecto (fail-closed).** Sin ninguna raíz en absoluto — ni `allowed_target_dirs` ni directorios de escaneo configurados —, la exportación copiar/symlink/mover se rechaza por completo en lugar de recurrir a escribir en cualquier sitio. En la práctica este caso es poco frecuente una vez que has escaneado una biblioteca, ya que los directorios de escaneo siempre están en la lista de permitidos.
+
+**Solución de problemas de "acceso denegado".** Esta comprobación se ejecuta antes de cualquier acceso al sistema de archivos, así que un destino rechazado nunca toca el disco y no produce ningún traceback en los registros del servidor — un `403` aquí es una respuesta HTTP normal de una comprobación deliberada, no un error del servidor. La interfaz web actualmente muestra un aviso genérico de "Acceso denegado" para *cualquier* `403` en estos endpoints, sin indicar el motivo; abre la pestaña Red de tu navegador, busca la solicitud fallida a `/api/cull/apply` o `/api/albums/{id}/export`, y lee el campo `detail` del cuerpo de la respuesta para conocer la causa real (esta lista de permitidos, o una sesión de edición caducada). Un problema real de permisos del sistema de archivos se ve diferente: la propia solicitud tiene éxito (`200`), el recuento `errors` de la respuesta es distinto de cero, y el servidor registra un traceback completo por cada archivo fallido — consulta [Despliegue — Semántica de rutas en contenedores](DEPLOYMENT.md#semántica-de-rutas-en-contenedores) para el caso del contenedor, donde esto a menudo se confunde con una discrepancia de UID.
+
+Consulta [Visor web — Descartar a carpeta](VIEWER.md#descartar-a-carpeta) y [Visor web — Exportación al editor](VIEWER.md#exportación-al-editor).
+
 ## Exportación social
 
 Recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales (`GET /api/photo/social_crop`, restringido a edición). Cada preajuste recorta el original a resolución completa a una relación de aspecto objetivo y lo encuadra en el sujeto detectado — el mayor rectángulo de esa relación de aspecto que cabe dentro de la imagen, centrado en el sujeto y ajustado a los bordes. La caja del sujeto sigue una cadena de reserva: la caja de sujeto BiRefNet persistida (`photos.subject_bbox`) → la unión de las cajas de caras detectadas → un recorte centrado simple. Consulta [Visor web — Descarga](VIEWER.md#download).
@@ -2077,7 +2306,7 @@ Exporta un álbum como una galería HTML estática y autónoma que un fotógrafo
 | `max_edge` | `2048` | Límite del lado largo (px) para los originales exportados; la solicitud puede anularlo (acotado 256–8000) |
 | `jpeg_quality` | `88` | Calidad JPEG de las imágenes exportadas |
 
-El `target_dir` pasa por la misma lista de permitidos que los endpoints de exportación copiar/mover (`viewer.export.allowed_target_dirs` más los directorios de escaneo). Controlado por `viewer.features.show_portfolio_export` (predeterminado `true`).
+El `target_dir` pasa por la misma lista de permitidos que los endpoints de exportación copiar/mover (`viewer.export.allowed_target_dirs` más los directorios de escaneo — consulta [Destinos de exportación y descarte](#destinos-de-exportación-y-descarte)). Controlado por `viewer.features.show_portfolio_export` (predeterminado `true`).
 
 ## Marco de fotos / Quiosco
 

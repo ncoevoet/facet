@@ -55,7 +55,7 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 | `quality-face` | TOPIQ NR-Face | `face_quality_iqa` score (purpose-built face quality) | Shared w/ TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + distortion diagnosis (blur, overexposure, noise) | ~2 GB |
 | `tags` | CLIP / Qwen VLM | Semantic tags from configured vocabulary | 0-16 GB |
-| `composition` | SAMP-Net | `composition_pattern` (14 patterns) + `comp_score` | ~2 GB |
+| `composition` | SAMP-Net | `composition_pattern` (8 patterns) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Face detection, landmarks, blink detection, recognition embeddings | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 or SigLIP 2 NaFlex | `clip_embedding` BLOB for similarity/tagging | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
@@ -142,6 +142,7 @@ These commands update specific metrics, derive new data (AI captions, GPS, embed
 | `python facet.py --recompute-embeddings` | Recompute CLIP/SigLIP embeddings for all photos (required after model switch) |
 | `python facet.py --score-topiq` | Backfill TOPIQ quality scores from stored thumbnails (GPU required) |
 | `python facet.py --backfill-focal-35mm` | Backfill 35mm-equivalent focal length from EXIF for photos missing it |
+| `python facet.py --backfill-clipping` | Derive per-channel clipping percentages from stored histograms. Database-only (no image decode) and resumable; photos whose histogram predates the RGB format stay unknown (NULL) |
 | `python facet.py --compute-recommendations` | Analyze database, show scoring summary |
 | `python facet.py --compute-recommendations --verbose` | Show detailed statistics |
 | `python facet.py --compute-recommendations --apply-recommendations` | Auto-apply scoring fixes |
@@ -216,8 +217,33 @@ Embeddings power semantic tagging, duplicate detection, similar-photo search, an
 | Command | Description |
 |---------|-------------|
 | `python facet.py --fix-thumbnail-rotation` | Fix rotation of stored thumbnails using EXIF orientation |
+| `python facet.py --refresh-thumbnails` | Rebuild RAW thumbnails from the camera-embedded preview |
+| `python facet.py --refresh-thumbnails --refresh-thumbnails-workers 16` | Same, with more parallel reads |
 
 Reads EXIF orientation from the original files and rotates the stored thumbnail bytes; for photos processed before EXIF handling existed. It reads only the EXIF header and the stored thumbnail, not the full images.
+
+`--refresh-thumbnails` re-renders the stored thumbnail of every RAW photo through the display profile (camera preview first, demosaic as fallback — see [CONFIGURATION.md](CONFIGURATION.md#raw-decode)). It is the migration for a library scanned before that profile existed: thumbnails written by an older scan carry LibRaw's per-frame auto-brightness, which flattens the exposure differences between bracketed frames. No model is loaded and no scoring column is touched — only `photos.thumbnail` is rewritten.
+
+The command is bound by storage throughput rather than CPU, so its cost scales with library size and how fast the library's disk or network mount is, not with the machine's core count. `--refresh-thumbnails-workers` (default 8) sets how many files are read at once: raise it on a fast network mount where each read spends its time waiting, lower it on a slow local disk. It also bounds the full demosaics a preview-less RAW falls back to, so very high values cost memory.
+
+It is resumable. Each committed batch records how far it got, so a run stopped with Ctrl-C (or by a dropped mount) leaves a consistent database and the next `--refresh-thumbnails` continues where it left off. A run that completes clears the marker, so re-running it later starts over.
+
+A photo whose fresh render comes back entirely black keeps its existing thumbnail and is logged by name. That is not paranoia: a severely truncated Panasonic RW2 does not fail to decode — LibRaw zero-fills the missing data and returns a valid, full-size black frame — so without the check a corrupt file would quietly replace a good thumbnail with a black one. Such a photo stays unstamped and is retried on the next run, so repairing the file is enough to fix it.
+
+A photo belonging to an exposure bracket is re-rendered without the camera preview and without any exposure gain, so its tile shows what the sensor recorded (see [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected)). Because bracket membership comes from sequence detection, which runs after a scan, run this command after `--detect-sequences` for those tiles to pick the rendering up.
+
+### What updates a stored thumbnail
+
+Stored thumbnails are baked at scan time, so a library scanned before the display profile existed keeps showing the old rendering in the gallery grid. `photos.render_version` records which pipeline built each row's thumbnail, and two paths bring it up to date:
+
+| Path | Covers | Cost |
+|------|--------|------|
+| A rescan (`python facet.py <dir>`) | Everything it scans, thumbnail and histogram | Full scoring run |
+| `--refresh-thumbnails` | Every RAW row's thumbnail | Storage-bound, hours on a large library |
+
+**Nothing happens on its own.** The detail view is always current because `/image` renders on the fly, but the gallery grid serves `photos.thumbnail`, and no amount of browsing rewrites it. That is what `--refresh-thumbnails` is for, and why the gallery shows a dismissible banner counting the rows still waiting.
+
+The banner's count comes from the statistics cache with a one-hour TTL, refreshed outright by `--refresh-thumbnails` and by `python database.py --refresh-stats`, so after a rescan it can trail reality by up to an hour.
 
 ## Diagnostics
 
@@ -229,6 +255,13 @@ Reads EXIF orientation from the original files and rotates the stored thumbnail 
 Reports Python version, PyTorch/CUDA build, GPU detection and driver, VRAM profile recommendation, optional dependencies, and config/database status. When PyTorch can't see the GPU but `nvidia-smi` can, it prints the `pip install` command to fix the CUDA build.
 
 `--simulate-gpu NAME` and `--simulate-vram GB` test behavior with different hardware. Both require `--doctor`; `--simulate-vram` requires `--simulate-gpu`.
+
+| Command | Description |
+|---------|-------------|
+| `python facet.py --check-raw-rendering` | Render 20 sampled RAW photos under the old and current decode settings |
+| `python facet.py --check-raw-rendering 50` | Sample 50 photos instead |
+
+Read-only: it decodes a random sample straight from disk and prints the mean luminance each rendering produces — LibRaw's per-frame auto-brightness, the fixed-gain metrics demosaic, and the camera-embedded preview the thumbnails and viewer use. Use it to check `raw_decode.bright` on your own files before committing to a scan or a `--refresh-thumbnails` run; the fixed and preview columns keep a bracket's exposure ladder, the auto-bright column collapses it.
 
 ## Model Information
 

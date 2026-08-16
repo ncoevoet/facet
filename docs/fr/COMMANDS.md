@@ -55,7 +55,7 @@ visionneuse expose dans le champ `progress` de `/api/scan/status` et du flux SSE
 | `quality-face` | TOPIQ NR-Face | Score `face_quality_iqa` (qualité de visage dédiée) | Partagé avec TOPIQ |
 | `quality-liqe` | LIQE | Score `liqe_score` + diagnostic de distorsion (flou, surexposition, bruit) | ~2 Go |
 | `tags` | CLIP / Qwen VLM | Étiquettes sémantiques depuis le vocabulaire configuré | 0-16 Go |
-| `composition` | SAMP-Net | `composition_pattern` (14 motifs) + `comp_score` | ~2 Go |
+| `composition` | SAMP-Net | `composition_pattern` (8 motifs) + `comp_score` | ~2 Go |
 | `faces` | InsightFace buffalo_l | Détection de visages, points de repère, détection de clignement, embeddings de reconnaissance | ~2 Go |
 | `embeddings` | CLIP ViT-L-14 ou SigLIP 2 NaFlex | BLOB `clip_embedding` pour similarité/étiquetage | 4-5 Go |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 Go |
@@ -142,6 +142,7 @@ Ces commandes mettent à jour des métriques spécifiques, dérivent de nouvelle
 | `python facet.py --recompute-embeddings` | Recalcule les embeddings CLIP/SigLIP pour toutes les photos (requis après un changement de modèle) |
 | `python facet.py --score-topiq` | Remplit les scores de qualité TOPIQ à partir des miniatures stockées (GPU requis) |
 | `python facet.py --backfill-focal-35mm` | Remplit la focale équivalente 35 mm depuis l'EXIF pour les photos qui en manquent |
+| `python facet.py --backfill-clipping` | Dérive les pourcentages d'écrêtage par canal depuis les histogrammes stockés. Base de données uniquement (aucun décodage d'image) et reprenable ; les photos dont l'histogramme précède le format RVB restent inconnues (NULL) |
 | `python facet.py --compute-recommendations` | Analyse la base de données, affiche un résumé de notation |
 | `python facet.py --compute-recommendations --verbose` | Affiche des statistiques détaillées |
 | `python facet.py --compute-recommendations --apply-recommendations` | Applique automatiquement les correctifs de notation |

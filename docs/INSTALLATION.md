@@ -152,8 +152,9 @@ Use [Docker](#install-with-docker). To use an NVIDIA card on Windows, follow the
 ## First run: what to expect
 
 - **A download.** The first scan fetches the AI models for your profile — roughly
-  3–4 GB for `legacy` and `8gb`, 10–11 GB for `16gb`, 18 GB for `24gb`. This happens
-  once; later runs start immediately.
+  4.7 GB for `legacy`, 6.9 GB for `8gb`, 14.6 GB for `16gb`, 19.1 GB for `24gb`
+  (full breakdown in [Download sizes](#download-sizes)). This happens once; later
+  runs start immediately.
 - **No setup.** There is nothing to configure. Facet creates its database on the first
   scan and ships with working settings.
 - **Your photos are not modified.** Scanning only reads them; results go to Facet's own
@@ -232,8 +233,10 @@ alternative: it reserves the GPU but leaves the profile to the config's own
 `vram_profile` (default `auto`).
 
 Two images are published from one `Dockerfile`: `ghcr.io/ncoevoet/facet:latest` is a
-slim CPU build (~3.3 GB), `ghcr.io/ncoevoet/facet:latest-cuda` carries CUDA and RAPIDS
-cuML (~21 GB) and is what the GPU profiles pull. Both are `linux/amd64` only — on an ARM
+slim CPU build (~3.3 GB unpacked on disk, approximate — pulling it transfers less,
+4.18 GB compressed; see [Download sizes](#download-sizes)), `ghcr.io/ncoevoet/facet:latest-cuda`
+carries CUDA and RAPIDS cuML (~21 GB unpacked on disk, approximate; 7.33 GB compressed
+to pull) and is what the GPU profiles pull. Both are `linux/amd64` only — on an ARM
 machine, build locally with `docker compose build` instead of pulling. `docker compose build`
 (or `up --build`) always builds from this repository; see the `BASE_IMAGE`, `STRIP_TORCH`
 and `INSTALL_CUML` build args in the `Dockerfile`.
@@ -391,22 +394,55 @@ direction.
 
 ## Download sizes
 
-Models download on first use into `~/.cache/` and `~/.insightface/` (or the Docker named
-volumes). No model weights are baked into the image.
+Models download on first use into `~/.cache/huggingface/` (Hugging Face models),
+`~/.cache/torch/hub/` (PyIQA weights) and `~/.insightface/` (face detection/recognition),
+or the Docker named volumes. `samp_net.pth`, `u2netp.pth`, `face_landmarker.task` and the
+CLIP-MLP aesthetic head's `aesthetic_predictor_weights.pth` (`legacy`/`8gb` only) all land
+in `pretrained_models/`, resolved against the repository root rather than the process's
+working directory — in Docker that's the mapped `facet-pretrained` volume, so none of them
+re-download on container recreation. No model weights are baked into the image.
+
+Sizes below are decimal (GB = 10⁹ bytes, MB = 10⁶ bytes), measured from the local model
+caches and the Hugging Face API.
 
 | Model | Size | Profiles |
 |-------|------|----------|
-| CLIP ViT-L-14 laion2b (embeddings + tagging) | ~1.6 GB | `legacy`/`8gb` |
-| SigLIP 2 NaFlex SO400M (embeddings) | ~4.3 GB | `16gb`/`24gb` |
-| Qwen3.5-2B (VLM tagging) | ~4.2 GB | `16gb` |
-| Qwen3.5-4B (VLM tagging) | ~8 GB | `24gb` |
-| Qwen2-VL-2B (composition) | ~4.2 GB | `24gb` |
-| InsightFace buffalo_l (faces) | ~600 MB | all |
-| SAMP-Net weights (composition) | ~175 MB | all (`24gb` uses Qwen2-VL instead) |
-| BiRefNet_dynamic (subject saliency) | ~424 MB | all |
-| U2-Net-P (saliency helper) | ~5 MB | all |
+| CLIP ViT-L-14 laion2b (embeddings + CLIP tagging + CLIP-MLP aesthetic) | 1.711 GB | `legacy`/`8gb` |
+| Aesthetic-MLP head (`sac+logos+ava1-l14-linearMSE.pth`) | 3.7 MB | `legacy`/`8gb` only |
+| SigLIP 2 NaFlex SO400M (embeddings) | 4.581 GB | `16gb`/`24gb` |
+| Qwen3.5-2B (VLM tagging) | 4.571 GB | `16gb` |
+| Qwen3.5-4B (VLM tagging) | 9.343 GB | `24gb` |
+| Qwen2-VL-2B (composition) | 4.430 GB | none by default — only if you manually set `composition_model: "qwen2-vl-2b"` **and** `processing.mode: "single-pass"` |
+| InsightFace buffalo_l (faces) | 289 MB download / 630 MB on disk (the zip is kept alongside the extracted `.onnx` files) | all |
+| SAMP-Net weights (composition) | 183 MB | all |
+| U2-Net-P (SAMP-Net's saliency sub-model) | 4.7 MB | same as SAMP-Net |
+| BiRefNet_dynamic (subject saliency) | 445 MB | all |
+| TOPIQ NR (aesthetic model) | 181 MB | `16gb`/`24gb` |
+| TOPIQ IAA (supplementary aesthetic) | 873 MB | all |
+| TOPIQ NR-Face (supplementary face quality) | 376 MB | all |
+| LIQE (supplementary quality/distortion) | 708 MB | all |
+| timm resnet50.a1_in1k (shared PyIQA backbone) | 102 MB | all |
+| Q-ReAlign-Mini-0.8B (`iqa_extended.qrealign`) | 2.235 GB | `8gb`/`16gb`/`24gb`, **on by default** (`"auto"` resolves to enabled on every profile but `legacy`) |
 
-Totals per profile: `legacy`/`8gb` ~3–4 GB · `16gb` ~10–11 GB · `24gb` ~18 GB.
+Totals per profile (download): `legacy` 4.69 GB · `8gb` 6.93 GB · `16gb` 14.55 GB ·
+`24gb` 19.32 GB · `24gb` with `composition_model: "qwen2-vl-2b"` and
+`processing.mode: "single-pass"` 23.56 GB (the manual override replaces SAMP-Net/U2-Net-P
+rather than adding to them).
+
+For reference, pulling the Docker image itself (before any model downloads) transfers
+`ghcr.io/ncoevoet/facet:latest` at 4.18 GB compressed and `:latest-cuda` at 7.33 GB
+compressed, per the current registry manifests.
+
+Opt-in models not counted in the totals above:
+
+| Model | Size | Trigger |
+|-------|------|---------|
+| DeQA-Score-Mix3 (`iqa_extended.deqa`) | 16.41 GB | off by default |
+| SigLIP so400m-patch14-384 backbone (`iqa_extended.aesthetic_v25`) | 3.515 GB | off by default, **deprecated** (AGPL-3.0, unmaintained upstream — prefer `qrealign`) |
+| Helsinki-NLP OPUS-MT, per target language (caption translation) | en→fr 303 MB · en→de 298 MB · en→es 312 MB · en→it 343 MB · en→pt 465 MB | only for the languages you enable |
+| MediaPipe `face_landmarker.task` | 3.76 MB | only when `mediapipe` is installed |
+
+`reverse_geocoder` needs no download — its data ships inside the wheel.
 
 SAMP-Net weights come from the project's
 [model-weights-v1 release](https://github.com/ncoevoet/facet/releases/download/model-weights-v1/samp_net.pth).
@@ -471,7 +507,6 @@ Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a high
 | SigLIP 2 embeddings | yes | `16gb`/`24gb` | — | — |
 | VLM tagging (Qwen3.5) | yes | `16gb`/`24gb` | — | — |
 | Composition pattern (SAMP-Net) | optional | any (`legacy` = CPU) | — | — |
-| Composition (Qwen2-VL) | yes | `24gb` | — | — |
 | Subject saliency (BiRefNet) | optional | any (`legacy` = CPU) | — | — |
 | AI captions (generate / view) | yes | `16gb`/`24gb` | — | — |
 | AI captions (edit) | yes | `16gb`/`24gb` | edition | — |
