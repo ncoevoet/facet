@@ -77,6 +77,7 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone
 from db import DEFAULT_DB_PATH, init_database, get_connection, check_disk_space
+from db.render_version import CURRENT_RENDER_VERSION, raw_path_predicate
 
 try:
     from tqdm import tqdm
@@ -628,6 +629,7 @@ UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
 DEFAULT_SCAN_STALE_SECONDS = 120
 
 LIBRARY_JOB_ARGS = (
+    'backfill_clipping',
     'backfill_focal_35mm',
     'cluster_faces_force',
     'cluster_faces_incremental',
@@ -667,6 +669,7 @@ LIBRARY_JOB_ARGS = (
     'tag_untagged',
     'refill_face_thumbnails_force',
     'refill_face_thumbnails_incremental',
+    'refresh_thumbnails',
     'rescan_gps',
     'score_topiq',
     'sync_label_comparisons',
@@ -716,6 +719,217 @@ def detect_all_sequences(db_path, config_path, incremental=False, contain_failur
         logger.warning("Panorama detection failed (non-fatal)", exc_info=True)
         panoramas = None
     return brackets, panoramas
+
+
+REFRESH_THUMBNAILS_WATERMARK_KEY = 'refresh_thumbnails_watermark'
+REFRESH_THUMBNAILS_CHUNK = 200
+
+# Refreshing thumbnails is bound by storage round-trips, not by CPU: each file
+# is a small read at the far end of whatever mount the library lives on. The
+# default is therefore wider than the scan's decode concurrency, which is sized
+# as a memory governor for full demosaics, while still bounding the demosaics a
+# preview-less RAW falls back to.
+DEFAULT_REFRESH_THUMBNAIL_WORKERS = 8
+
+DEFAULT_CHECK_RAW_SAMPLE = 20
+
+# An interrupted refresh has left work undone, and a wrapper script must be able
+# to tell that from a finished one.
+INTERRUPTED_EXIT_CODE = 130
+
+
+def _raw_rows_after(conn, watermark):
+    """``(path, sequence_kind)`` for every RAW row past the watermark.
+
+    The kind rides along because it selects the rendering — a bracketed frame
+    is re-rendered with no correction at all (see
+    ``utils.image_loading.renders_faithfully``).
+    """
+    where = f"({raw_path_predicate()})"
+    params = ()
+    if watermark:
+        where += " AND path > ?"
+        params = (watermark,)
+    return [(row['path'], row['sequence_kind']) for row in conn.execute(
+        f"SELECT path, sequence_kind FROM photos WHERE {where} ORDER BY path",
+        params).fetchall()]
+
+
+def _read_thumbnail_watermark(conn):
+    row = conn.execute("SELECT value FROM stats_cache WHERE key = ?",
+                       (REFRESH_THUMBNAILS_WATERMARK_KEY,)).fetchone()
+    return row[0] if row and row[0] else None
+
+
+def _write_thumbnail_watermark(conn, path):
+    conn.execute(
+        "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+        (REFRESH_THUMBNAILS_WATERMARK_KEY, path, time.time()))
+
+
+def _clear_thumbnail_watermark(conn):
+    conn.execute("DELETE FROM stats_cache WHERE key = ?",
+                 (REFRESH_THUMBNAILS_WATERMARK_KEY,))
+
+
+def _display_thumbnail_bytes(path, size, quality, sequence_kind=None):
+    """Build one stored thumbnail from the display profile, or None if unusable.
+
+    "Unusable" covers more than a failed decode. A severely truncated Panasonic
+    RW2 decodes *successfully* into a zero-filled, full-size black frame, so a
+    bare ``is None`` check would let a corrupt file overwrite a good stored
+    thumbnail with a black one. Rejecting it here keeps the old thumbnail and
+    leaves the row unstamped, so a repaired file is picked up on a later run.
+    """
+    from utils import generate_photo_thumbnail, load_display_image, thumbnail_has_signal
+    img = load_display_image(path, sequence_kind=sequence_kind)
+    if img is None:
+        return None
+    blob = generate_photo_thumbnail(img, size=size, quality=quality)
+    if not thumbnail_has_signal(blob):
+        logger.warning("Discarded a black render of %s (truncated or corrupt file?) — "
+                       "kept the stored thumbnail", path)
+        return None
+    return blob
+
+
+def refresh_thumbnails(db_path, config, workers):
+    """Rebuild stored thumbnails for RAW rows from the display profile.
+
+    Resumable: every committed chunk advances a watermark in ``stats_cache``,
+    so an interrupted run picks up at the next path and a finished run clears
+    it. Reads run on the shared RAW decode pool because the cost here is
+    storage throughput, not CPU.
+
+    Every rewritten row is stamped ``CURRENT_RENDER_VERSION``, which is what
+    drops it out of the viewer's migration-status count. Rows are NOT skipped on
+    that stamp: a completed run starts over on purpose, so re-running after a
+    ``raw_decode.bright`` change rebuilds everything.
+
+    Sequence detection runs after a scan, so bracket membership is only known
+    here — which is why a bracketed frame's uncorrected rendering is applied at
+    refresh time rather than at scan time.
+    """
+    from db.stats_cache import refresh_pending_render_stat
+    from utils import configure_raw_decode_profile, configure_raw_decoding
+    from utils.image_loading import submit_decode
+
+    configure_raw_decode_profile(config.get_raw_decode_settings())
+    proc = config.get_processing_settings()
+    thumbs = proc.get('thumbnails', {})
+    size = thumbs.get('photo_size', 640)
+    quality = thumbs.get('photo_quality', 80)
+    configure_raw_decoding(concurrency=workers,
+                           timeout_seconds=proc.get('raw_decode_timeout_seconds', 120))
+
+    with get_connection(db_path) as conn:
+        watermark = _read_thumbnail_watermark(conn)
+        rows = _raw_rows_after(conn, watermark)
+    if watermark:
+        logger.info("Resuming thumbnail refresh after %s", watermark)
+    if not rows:
+        logger.info("No RAW photos left to refresh.")
+        return 0, 0, False
+
+    logger.info("Refreshing thumbnails for %d RAW photos (%d parallel reads)",
+                len(rows), workers)
+    updated = 0
+    failed = 0
+    interrupted = False
+    with get_connection(db_path) as conn:
+        with tqdm(total=len(rows), desc="Thumbnails") as pbar:
+            for start in range(0, len(rows), REFRESH_THUMBNAILS_CHUNK):
+                chunk = rows[start:start + REFRESH_THUMBNAILS_CHUNK]
+                try:
+                    futures = [(p, submit_decode(_display_thumbnail_bytes, p, size, quality, kind))
+                               for p, kind in chunk]
+                    rendered = [(p, f.result()) for p, f in futures]
+                except KeyboardInterrupt:
+                    interrupted = True
+                    break
+                for path, blob in rendered:
+                    if blob is None:
+                        failed += 1
+                        continue
+                    conn.execute(
+                        "UPDATE photos SET thumbnail = ?, render_version = ? WHERE path = ?",
+                        (blob, CURRENT_RENDER_VERSION, path))
+                    updated += 1
+                _write_thumbnail_watermark(conn, chunk[-1][0])
+                conn.commit()
+                pbar.update(len(chunk))
+        if not interrupted:
+            _clear_thumbnail_watermark(conn)
+        refresh_pending_render_stat(conn)
+        conn.commit()
+
+    if interrupted:
+        logger.warning("Interrupted after %d thumbnails — re-run --refresh-thumbnails to continue.",
+                       updated)
+    if failed:
+        logger.warning("%d photos could not be re-rendered and kept their old thumbnail "
+                       "(see the warnings above for which, and why).", failed)
+    return updated, failed, interrupted
+
+
+def _mean_luminance(pil_img):
+    import numpy as np
+    return float(np.asarray(pil_img.convert('L'), dtype=np.float32).mean())
+
+
+def _render_raw_variants(path):
+    """Mean luminance of one RAW under the pre-fix, fixed and display renderings."""
+    import rawpy
+    from PIL import Image
+    from utils.image_loading import load_display_image, raw_postprocess_kwargs
+
+    with rawpy.imread(path) as raw:
+        previous = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs(auto_bright=True)))
+    with rawpy.imread(path) as raw:
+        metrics = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs()))
+    display = load_display_image(path)
+    return (_mean_luminance(previous), _mean_luminance(metrics),
+            _mean_luminance(display) if display is not None else None)
+
+
+def check_raw_rendering(db_path, config, sample_size):
+    """Print how a sample of RAW files renders before and after the decode fix.
+
+    Answers "what would a rescan change?" without running one: per-frame
+    auto-brightness against the fixed ``raw_decode.bright`` gain, plus the
+    camera preview the stored thumbnail and the viewer now use.
+    """
+    from utils import configure_raw_decode_profile
+
+    if not os.path.exists(db_path):
+        logger.error("Database not found: %s", db_path)
+        return 1
+    bright = configure_raw_decode_profile(config.get_raw_decode_settings())['bright']
+    with get_connection(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT path FROM photos WHERE ({raw_path_predicate()}) "
+            "ORDER BY RANDOM() LIMIT ?", (sample_size,)).fetchall()
+    sample = [row['path'] for row in rows if os.path.exists(row['path'])]
+    if not sample:
+        logger.error("No readable RAW photos found in %s", db_path)
+        return 1
+
+    logger.info("raw_decode.bright = %.2f — mean luminance per rendering (0-255)", bright)
+    logger.info("%-40s %10s %10s %10s %8s", "Filename", "auto-bright", "fixed", "preview", "delta%")
+    logger.info("%s %s %s %s %s", "-" * 40, "-" * 10, "-" * 10, "-" * 10, "-" * 8)
+    for path in tqdm(sample, desc="Rendering"):
+        try:
+            previous, metrics, display = _render_raw_variants(path)
+        except Exception as ex:
+            logger.warning("%-40s failed: %s", os.path.basename(path)[:39], ex)
+            continue
+        delta = (metrics - previous) / previous * 100 if previous else 0.0
+        logger.info("%-40s %10.1f %10.1f %10s %+8.1f",
+                    os.path.basename(path)[:39], previous, metrics,
+                    "-" if display is None else f"{display:.1f}", delta)
+    logger.info("A bracket rendered under 'auto-bright' converges to one exposure; "
+                "under 'fixed' and 'preview' it keeps its ladder.")
+    return 0
 
 
 class LibraryLockError(RuntimeError):
@@ -1356,7 +1570,7 @@ def _run_scan(args, resumed_run):
         exit(1)
 
     # 2. Main Processing Loop
-    from utils import configure_raw_decoding
+    from utils import configure_raw_decode_profile, configure_raw_decoding
     from processing.scan_state import ScanRun, scan_in_progress
     from processing.progress import emit_progress
     _proc = scorer.config.get_processing_settings()
@@ -1364,6 +1578,7 @@ def _run_scan(args, resumed_run):
         concurrency=_proc.get('raw_decode_concurrency', 0),
         timeout_seconds=_proc.get('raw_decode_timeout_seconds', 120),
     )
+    configure_raw_decode_profile(scorer.config.get_raw_decode_settings())
 
     # Concurrency guard: a run with a fresh heartbeat looks genuinely live.
     # Resuming on top of it would double-process, so refuse; a fresh scan only
@@ -1773,8 +1988,27 @@ Configuration:
                              'never rewrites the active config). Run --detect-moments first to populate caption_embedding.')
     db_group.add_argument('--discover-min-cluster-size', type=int, default=30, metavar='N',
                         help='HDBSCAN granularity for --discover-moments (smaller = more, finer moments; default 30)')
+    db_group.add_argument('--refresh-thumbnails', action='store_true',
+                        help='Rebuild stored thumbnails for RAW photos from the camera-embedded '
+                             'preview (CPU only, no models, no scoring column touched). Bound by '
+                             'storage throughput, so the cost scales with library size and link '
+                             'speed. Resumable: re-run it after an interrupt to continue.')
+    db_group.add_argument('--refresh-thumbnails-workers', type=int, metavar='N',
+                        default=DEFAULT_REFRESH_THUMBNAIL_WORKERS,
+                        help=f'Parallel reads for --refresh-thumbnails (default '
+                             f'{DEFAULT_REFRESH_THUMBNAIL_WORKERS}). The work is storage-bound; '
+                             'raise it for a fast network mount, lower it for a slow disk')
+    db_group.add_argument('--check-raw-rendering', type=int, nargs='?', metavar='N',
+                        const=DEFAULT_CHECK_RAW_SAMPLE, default=None,
+                        help=f'Render N sampled RAW photos (default {DEFAULT_CHECK_RAW_SAMPLE}) '
+                             'under the pre-fix and current decode settings and print the '
+                             'mean-luminance deltas. Read-only — validate settings before a rescan')
     db_group.add_argument('--backfill-focal-35mm', action='store_true',
                         help='Backfill focal_length_35mm from EXIF for photos missing it')
+    db_group.add_argument('--backfill-clipping', action='store_true',
+                        help='Derive per-channel clipping percentages from stored histograms. '
+                             'Database-only (no image decode) and resumable; photos whose '
+                             'histogram predates the RGB format stay unknown')
     db_group.add_argument('--score-topiq', action='store_true',
                         help='Backfill TOPIQ quality scores from stored thumbnails (requires GPU)')
     db_group.add_argument('--recompute-iqa', action='store_true',
@@ -1995,6 +2229,10 @@ Configuration:
     if args.dry_run_count != 10 and not args.dry_run:
         parser.error("--dry-run-count requires --dry-run")
 
+    if (args.refresh_thumbnails_workers != DEFAULT_REFRESH_THUMBNAIL_WORKERS
+            and not args.refresh_thumbnails):
+        parser.error("--refresh-thumbnails-workers requires --refresh-thumbnails")
+
     # Whole-library rewriters take the cross-process lock before any work, so
     # a conflict costs nothing. --upgrade-db is deliberately absent: it runs
     # the locked jobs below as subprocesses and would deadlock every one. Its
@@ -2176,6 +2414,20 @@ Configuration:
         list_available_models()
         exit()
 
+    # Compare RAW renderings before committing to a rescan (read-only, no GPU)
+    if args.check_raw_rendering is not None:
+        exit(check_raw_rendering(args.db, ScoringConfig(args.config),
+                                 args.check_raw_rendering))
+
+    # Rebuild RAW thumbnails from the display profile (storage-bound, no GPU)
+    if args.refresh_thumbnails:
+        init_database(args.db)
+        updated, failed, interrupted = refresh_thumbnails(
+            args.db, ScoringConfig(args.config), args.refresh_thumbnails_workers)
+        logger.info("Thumbnail refresh %s: %d updated, %d unreadable.",
+                    "stopped early" if interrupted else "complete", updated, failed)
+        exit(INTERRUPTED_EXIT_CODE if interrupted else 0)
+
     # Detect duplicate photos (lightweight - no GPU needed)
     if args.detect_duplicates:
         from utils.duplicate import detect_duplicates
@@ -2238,6 +2490,13 @@ Configuration:
         elif apply_recs:
             logger.info("No recommendations to apply.")
 
+        exit()
+
+    # Derive per-channel clipping from stored histograms (no image decode)
+    if args.backfill_clipping:
+        from db.maintenance import backfill_channel_clipping
+        init_database(args.db)
+        backfill_channel_clipping(args.db)
         exit()
 
     # Backfill focal_length_35mm from EXIF (lightweight - no GPU needed)
@@ -2872,6 +3131,7 @@ Configuration:
     if args.generate_captions:
         from models.vlm_tagger import VLMTagger
         from PIL import Image
+        from utils import load_display_image
         import io
 
         config = ScoringConfig(args.config)
@@ -2927,15 +3187,9 @@ Configuration:
                             if row['thumbnail']:
                                 img = Image.open(io.BytesIO(row['thumbnail'])).convert('RGB')
                             else:
-                                path = row['path']
-                                ext = os.path.splitext(path)[1].lower()
-                                if ext in RAW_EXTENSIONS:
-                                    import rawpy
-                                    with rawpy.imread(path) as raw:
-                                        rgb = raw.postprocess()
-                                    img = Image.fromarray(rgb).convert('RGB')
-                                else:
-                                    img = Image.open(path).convert('RGB')
+                                img = load_display_image(row['path'])
+                                if img is None:
+                                    raise RuntimeError("image could not be decoded")
                                 img.thumbnail((640, 640))
                             caption = vlm.generate(img, "Describe this photo in one concise sentence.", max_new_tokens=100)
                             conn.execute("UPDATE photos SET caption = ? WHERE path = ?", (caption.strip(), row['path']))
