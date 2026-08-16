@@ -1517,7 +1517,8 @@ Affichage et comportement de la galerie web.
 | `hide_brackets` | `true` | Afficher uniquement l'exposition de base de chaque bracketing par défaut |
 | `hide_panoramas` | `true` | N'afficher qu'une image représentative par panorama par défaut |
 | `hide_details` | `true` | Masquer les détails des photos sur les cartes par défaut |
-| `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"` ou `"off"`. Remplace l'ancien booléen `hide_tooltip`. |
+| `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"`, `"off"` ou `"panel"` (rail ancré au lieu d'une infobulle flottante — voir `panel_activation` ci-dessous). Remplace l'ancien booléen `hide_tooltip`. |
+| `panel_activation` | `"both"` | Geste qui redirige la photo sélectionnée du rail ancré quand `tooltip_mode` vaut `"panel"` : `"hover"`, `"click"` ou `"both"`. Sans effet sur les autres modes d'infobulle. La valeur par défaut `"both"` préserve le comportement d'origine du panneau |
 | `hide_rejected` | `true` | Masquer les photos rejetées par défaut |
 | `gallery_mode` | `"mosaic"` | Disposition de galerie par défaut (`"grid"` ou `"mosaic"`) |
 | **allowed_origins** | | |

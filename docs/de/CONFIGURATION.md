@@ -1521,7 +1521,8 @@ Anzeige und Verhalten der Web-Galerie.
 | `hide_brackets` | `true` | Standardmäßig nur die Basisbelichtung einer Belichtungsreihe anzeigen |
 | `hide_panoramas` | `true` | Standardmäßig nur ein repräsentatives Bild je Panorama zeigen |
 | `hide_details` | `true` | Fotodetails auf Karten standardmäßig ausblenden |
-| `tooltip_mode` | `"hover"` | Tooltip-Auslöser: `"hover"`, `"click"` oder `"off"`. Ersetzt das frühere boolesche `hide_tooltip`. |
+| `tooltip_mode` | `"hover"` | Tooltip-Auslöser: `"hover"`, `"click"`, `"off"` oder `"panel"` (angedockte Leiste statt schwebendem Tooltip — siehe `panel_activation` unten). Ersetzt das frühere boolesche `hide_tooltip`. |
+| `panel_activation` | `"both"` | Geste, das das ausgewählte Foto der angedockten Leiste umschaltet, wenn `tooltip_mode` `"panel"` ist: `"hover"`, `"click"` oder `"both"`. Ohne Wirkung bei den anderen Tooltip-Modi. Der Standard `"both"` erhält das ursprüngliche Panel-Verhalten |
 | `hide_rejected` | `true` | Abgelehnte Fotos standardmäßig ausblenden |
 | `gallery_mode` | `"mosaic"` | Standard-Galerie-Layout (`"grid"` oder `"mosaic"`) |
 | **allowed_origins** | | |

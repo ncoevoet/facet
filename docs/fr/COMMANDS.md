@@ -217,8 +217,33 @@ Les embeddings alimentent l'étiquetage sémantique, la détection de doublons, 
 | Commande | Description |
 |---------|-------------|
 | `python facet.py --fix-thumbnail-rotation` | Corrige la rotation des miniatures stockées en utilisant l'orientation EXIF |
+| `python facet.py --refresh-thumbnails` | Reconstruit les miniatures RAW à partir de l'aperçu intégré par le boîtier |
+| `python facet.py --refresh-thumbnails --refresh-thumbnails-workers 16` | Idem, avec plus de lectures en parallèle |
 
 Lit l'orientation EXIF des fichiers originaux et fait pivoter les octets de la miniature stockée ; pour les photos traitées avant l'existence de la gestion EXIF. Ne lit que l'en-tête EXIF et la miniature stockée, pas les images complètes.
+
+`--refresh-thumbnails` régénère la miniature stockée de chaque photo RAW à travers le profil d'affichage (aperçu du boîtier en priorité, démosaïçage en repli — voir [CONFIGURATION.md](CONFIGURATION.md#raw-decode)). C'est la migration pour une bibliothèque scannée avant l'existence de ce profil : les miniatures écrites par un scan plus ancien portent la luminosité automatique par vue de LibRaw, qui aplatit les écarts d'exposition entre les vues d'un bracketing. Aucun modèle n'est chargé et aucune colonne de score n'est modifiée — seul `photos.thumbnail` est réécrit.
+
+La commande est limitée par le débit de stockage plutôt que par le CPU, donc son coût dépend de la taille de la bibliothèque et de la vitesse du disque ou du montage réseau de la bibliothèque, pas du nombre de cœurs de la machine. `--refresh-thumbnails-workers` (8 par défaut) définit le nombre de fichiers lus en parallèle : augmentez-le sur un montage réseau rapide où chaque lecture passe son temps à attendre, réduisez-le sur un disque local lent. Cela borne aussi les démosaïçages complets vers lesquels bascule un RAW sans aperçu, donc des valeurs très élevées coûtent en mémoire.
+
+Elle est reprenable. Chaque lot validé enregistre jusqu'où il est allé, si bien qu'une exécution interrompue par Ctrl+C (ou par un montage perdu) laisse une base de données cohérente, et le `--refresh-thumbnails` suivant reprend où il s'était arrêté. Une exécution qui se termine efface le marqueur, donc la relancer plus tard repart de zéro.
+
+Une photo dont le nouveau rendu revient entièrement noir conserve sa miniature existante et est journalisée par son nom. Ce n'est pas de la paranoïa : un RW2 Panasonic sévèrement tronqué n'échoue pas au décodage — LibRaw le remplit de zéros pour en faire une vue noire pleine taille valide au lieu d'échouer — donc sans cette vérification, un fichier corrompu remplacerait silencieusement une bonne miniature par une noire. Une telle photo reste sans marqueur et est retentée à l'exécution suivante, donc réparer le fichier suffit à corriger le problème.
+
+Une photo appartenant à un bracketing est rendue à nouveau sans l'aperçu du boîtier et sans aucun gain d'exposition, si bien que sa vignette montre ce que le capteur a enregistré (voir [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected)). Comme l'appartenance à un bracketing provient de la détection de séquences, qui s'exécute après un scan, lancez cette commande après `--detect-sequences` pour que ces vignettes récupèrent le rendu.
+
+### Ce qui met à jour une miniature stockée
+
+Les miniatures stockées sont figées au moment du scan, donc une bibliothèque scannée avant l'existence du profil d'affichage continue d'afficher l'ancien rendu dans la grille de galerie. `photos.render_version` enregistre quel pipeline a produit la miniature de chaque ligne, et deux chemins la mettent à jour :
+
+| Chemin | Couvre | Coût |
+|------|--------|------|
+| Un rescan (`python facet.py <répertoire>`) | Tout ce qu'il scanne, miniature et histogramme | Analyse complète |
+| `--refresh-thumbnails` | La miniature de chaque ligne RAW | Limité par le stockage, des heures sur une grande bibliothèque |
+
+**Rien ne se passe tout seul.** La vue détail est toujours à jour car `/image` s'affiche à la volée, mais la grille de galerie sert `photos.thumbnail`, et aucune navigation ne le réécrit. C'est à cela que sert `--refresh-thumbnails`, et c'est pourquoi la galerie affiche une bannière rejetable comptant les lignes encore en attente.
+
+Le compte de la bannière provient du cache de statistiques avec un TTL d'une heure, actualisé directement par `--refresh-thumbnails` et par `python database.py --refresh-stats`, donc après un scan il peut retarder par rapport à la réalité jusqu'à une heure.
 
 ## Diagnostics
 
@@ -230,6 +255,13 @@ Lit l'orientation EXIF des fichiers originaux et fait pivoter les octets de la m
 Rapporte la version de Python, la build PyTorch/CUDA, la détection du GPU et du pilote, la recommandation de profil VRAM, les dépendances optionnelles et l'état de la config/base de données. Lorsque PyTorch ne voit pas le GPU mais que `nvidia-smi` le voit, il affiche la commande `pip install` pour corriger la build CUDA.
 
 `--simulate-gpu NAME` et `--simulate-vram GB` testent le comportement avec différents matériels. Les deux nécessitent `--doctor` ; `--simulate-vram` nécessite `--simulate-gpu`.
+
+| Commande | Description |
+|---------|-------------|
+| `python facet.py --check-raw-rendering` | Rend 20 photos RAW échantillonnées avec les anciens et les nouveaux réglages de décodage |
+| `python facet.py --check-raw-rendering 50` | Échantillonne 50 photos à la place |
+
+Lecture seule : elle décode un échantillon aléatoire directement depuis le disque et affiche la luminance moyenne produite par chaque rendu — la luminosité automatique par vue de LibRaw, le démosaïçage à gain fixe des métriques, et l'aperçu intégré par le boîtier utilisé par les miniatures et la visionneuse. Utilisez-la pour vérifier `raw_decode.bright` sur vos propres fichiers avant de lancer un scan ou une exécution de `--refresh-thumbnails` ; les colonnes fixe et aperçu conservent l'échelle d'exposition d'un bracketing, la colonne luminosité automatique l'aplatit.
 
 ## Informations sur les modèles
 

@@ -217,8 +217,33 @@ Los embeddings impulsan el etiquetado semántico, la detección de duplicados, l
 | Comando | Descripción |
 |---------|-------------|
 | `python facet.py --fix-thumbnail-rotation` | Corrige la rotación de las miniaturas almacenadas usando la orientación EXIF |
+| `python facet.py --refresh-thumbnails` | Reconstruye las miniaturas RAW a partir de la vista previa incorporada de la cámara |
+| `python facet.py --refresh-thumbnails --refresh-thumbnails-workers 16` | Lo mismo, con más lecturas en paralelo |
 
 Lee la orientación EXIF de los archivos originales y rota los bytes de la miniatura almacenada; para fotos procesadas antes de que existiera el manejo del EXIF. Solo lee la cabecera EXIF y la miniatura almacenada, no las imágenes completas.
+
+`--refresh-thumbnails` vuelve a renderizar la miniatura almacenada de cada foto RAW a través del perfil de visualización (primero la vista previa de la cámara, con el demosaicado como respaldo — consulta [CONFIGURATION.md](CONFIGURATION.md#raw-decode)). Es la migración para una biblioteca escaneada antes de que existiera ese perfil: las miniaturas escritas por un escaneo anterior llevan el brillo automático por toma de LibRaw, que aplana las diferencias de exposición entre las tomas de un bracketing. No se carga ningún modelo y no se toca ninguna columna de puntuación — solo se reescribe `photos.thumbnail`.
+
+El comando está limitado por el rendimiento de almacenamiento más que por la CPU, así que su coste depende del tamaño de la biblioteca y de la velocidad del disco o del punto de montaje de red de la biblioteca, no del número de núcleos de la máquina. `--refresh-thumbnails-workers` (8 por defecto) define cuántos archivos se leen a la vez: auméntalo en un punto de montaje de red rápido donde cada lectura pasa el tiempo esperando, redúcelo en un disco local lento. También limita los demosaicados completos a los que recurre un RAW sin vista previa, así que valores muy altos cuestan memoria.
+
+Es reanudable. Cada lote confirmado registra hasta dónde llegó, de modo que una ejecución detenida con Ctrl+C (o por un punto de montaje caído) deja una base de datos coherente, y el siguiente `--refresh-thumbnails` continúa donde lo dejó. Una ejecución que se completa borra el marcador, así que volver a ejecutarlo más tarde empieza de nuevo.
+
+Una foto cuyo nuevo renderizado sale completamente negro conserva su miniatura existente y queda registrada por su nombre. No es paranoia: un RW2 de Panasonic gravemente truncado no falla al decodificar — LibRaw lo rellena de ceros hasta convertirlo en una toma negra válida a tamaño completo en lugar de fallar — así que sin esta comprobación, un archivo corrupto reemplazaría silenciosamente una buena miniatura por una negra. Esa foto queda sin marcar y se reintenta en la siguiente ejecución, así que basta con reparar el archivo para solucionarlo.
+
+Una foto perteneciente a un bracketing se vuelve a renderizar sin la vista previa de la cámara y sin ninguna ganancia de exposición, de modo que su miniatura muestra lo que registró el sensor (consulta [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected)). Como la pertenencia a un bracketing proviene de la detección de secuencias, que se ejecuta después de un escaneo, ejecuta este comando después de `--detect-sequences` para que esas miniaturas reciban el renderizado.
+
+### Qué actualiza una miniatura almacenada
+
+Las miniaturas almacenadas se generan en el momento del escaneo, así que una biblioteca escaneada antes de que existiera el perfil de visualización sigue mostrando el renderizado antiguo en la cuadrícula de galería. `photos.render_version` registra qué pipeline generó la miniatura de cada fila, y dos caminos la ponen al día:
+
+| Camino | Cubre | Coste |
+|------|--------|------|
+| Un nuevo escaneo (`python facet.py <directorio>`) | Todo lo que escanea, miniatura e histograma | Escaneo completo |
+| `--refresh-thumbnails` | La miniatura de cada fila RAW | Limitado por el almacenamiento, horas en una biblioteca grande |
+
+**Nada ocurre por sí solo.** La vista de detalle siempre está al día porque `/image` se renderiza al vuelo, pero la cuadrícula de galería lee `photos.thumbnail`, y ninguna cantidad de navegación lo reescribe. Para eso está `--refresh-thumbnails`, y por eso la galería muestra un banner descartable que cuenta las filas que aún están pendientes.
+
+El recuento del banner proviene de una entrada de `stats_cache` con un TTL de una hora, actualizada directamente por `--refresh-thumbnails` y por `python database.py --refresh-stats`, así que tras un escaneo puede quedar por detrás de la realidad hasta una hora.
 
 ## Diagnóstico
 
@@ -230,6 +255,13 @@ Lee la orientación EXIF de los archivos originales y rota los bytes de la minia
 Informa de la versión de Python, la compilación de PyTorch/CUDA, la detección de GPU y el controlador, la recomendación de perfil de VRAM, las dependencias opcionales y el estado de la configuración/base de datos. Cuando PyTorch no puede ver la GPU pero `nvidia-smi` sí, imprime el comando `pip install` para corregir la compilación de CUDA.
 
 `--simulate-gpu NAME` y `--simulate-vram GB` prueban el comportamiento con hardware diferente. Ambos requieren `--doctor`; `--simulate-vram` requiere `--simulate-gpu`.
+
+| Comando | Descripción |
+|---------|-------------|
+| `python facet.py --check-raw-rendering` | Renderiza 20 fotos RAW muestreadas con los ajustes de decodificación antiguos y actuales |
+| `python facet.py --check-raw-rendering 50` | Muestrea 50 fotos en su lugar |
+
+Solo lectura: decodifica una muestra aleatoria directamente desde el disco e imprime la luminancia media que produce cada renderizado — el brillo automático por toma de LibRaw, el demosaicado de ganancia fija para las métricas y la vista previa incorporada de la cámara que usan las miniaturas y el visor. Úsalo para comprobar `raw_decode.bright` en tus propios archivos antes de lanzar un escaneo o una ejecución de `--refresh-thumbnails`; las columnas fija y vista previa conservan la escalera de exposición de un bracketing, la columna de brillo automático la aplana.
 
 ## Información de modelos
 

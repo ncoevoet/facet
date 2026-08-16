@@ -1520,7 +1520,8 @@ Visualizzazione e comportamento della galleria web.
 | `hide_brackets` | `true` | Mostra per impostazione predefinita solo l'esposizione base di ogni bracketing |
 | `hide_panoramas` | `true` | Mostrare per impostazione predefinita un solo fotogramma per panorama |
 | `hide_details` | `true` | Nasconde per impostazione predefinita i dettagli della foto sulle schede |
-| `tooltip_mode` | `"hover"` | Attivazione del tooltip: `"hover"`, `"click"` o `"off"`. Sostituisce il precedente booleano `hide_tooltip`. |
+| `tooltip_mode` | `"hover"` | Attivazione del tooltip: `"hover"`, `"click"`, `"off"` o `"panel"` (barra ancorata invece di un tooltip fluttuante — vedi `panel_activation` sotto). Sostituisce il precedente booleano `hide_tooltip`. |
+| `panel_activation` | `"both"` | Gesto che aggiorna la foto selezionata nella barra ancorata quando `tooltip_mode` è `"panel"`: `"hover"`, `"click"` o `"both"`. Nessun effetto sugli altri modi tooltip. Il valore predefinito `"both"` preserva il comportamento originale del pannello |
 | `hide_rejected` | `true` | Nasconde per impostazione predefinita le foto rifiutate |
 | `gallery_mode` | `"mosaic"` | Layout predefinito della galleria (`"grid"` o `"mosaic"`) |
 | **allowed_origins** | | |

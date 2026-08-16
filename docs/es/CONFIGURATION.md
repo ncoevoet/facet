@@ -1521,7 +1521,8 @@ Visualización y comportamiento de la galería web.
 | `hide_brackets` | `true` | Mostrar solo la exposición base de cada horquillado por defecto |
 | `hide_panoramas` | `true` | Mostrar solo un fotograma representativo por panorámica por defecto |
 | `hide_details` | `true` | Ocultar los detalles de la foto en las tarjetas por defecto |
-| `tooltip_mode` | `"hover"` | Activación del tooltip: `"hover"`, `"click"` u `"off"`. Sustituye al booleano `hide_tooltip` anterior. |
+| `tooltip_mode` | `"hover"` | Activación del tooltip: `"hover"`, `"click"`, `"off"` o `"panel"` (panel acoplado en lugar de un tooltip flotante — consulta `panel_activation` más abajo). Sustituye al booleano `hide_tooltip` anterior. |
+| `panel_activation` | `"both"` | Gesto que actualiza la foto seleccionada del panel acoplado cuando `tooltip_mode` es `"panel"`: `"hover"`, `"click"` o `"both"`. Sin efecto en los demás modos de tooltip. El valor predeterminado `"both"` conserva el comportamiento original del panel |
 | `hide_rejected` | `true` | Ocultar las fotos rechazadas por defecto |
 | `gallery_mode` | `"mosaic"` | Disposición de la galería por defecto (`"grid"` o `"mosaic"`) |
 | **allowed_origins** | | |

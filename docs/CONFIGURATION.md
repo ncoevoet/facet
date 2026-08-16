@@ -1527,7 +1527,8 @@ Web gallery display and behavior.
 | `hide_brackets` | `true` | Show only a bracket's base exposure by default |
 | `hide_panoramas` | `true` | Show only one representative frame per panorama by default |
 | `hide_details` | `true` | Hide photo details on cards by default |
-| `tooltip_mode` | `"hover"` | Tooltip trigger: `"hover"`, `"click"`, or `"off"`. Replaces the prior `hide_tooltip` boolean. |
+| `tooltip_mode` | `"hover"` | Tooltip trigger: `"hover"`, `"click"`, `"off"`, or `"panel"` (docked rail instead of a floating tooltip — see `panel_activation` below). Replaces the prior `hide_tooltip` boolean. |
+| `panel_activation` | `"both"` | Which gesture retargets the docked rail's selected photo when `tooltip_mode` is `"panel"`: `"hover"`, `"click"`, or `"both"`. No effect on the other tooltip modes. Default `"both"` preserves the original panel behaviour |
 | `hide_rejected` | `true` | Hide rejected photos by default |
 | `gallery_mode` | `"mosaic"` | Default gallery layout (`"grid"` or `"mosaic"`) |
 | **allowed_origins** | | |

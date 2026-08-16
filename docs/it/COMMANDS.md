@@ -217,8 +217,33 @@ Gli embedding alimentano il tagging semantico, il rilevamento dei duplicati, la 
 | Comando | Descrizione |
 |---------|-------------|
 | `python facet.py --fix-thumbnail-rotation` | Corregge la rotazione delle miniature memorizzate usando l'orientamento EXIF |
+| `python facet.py --refresh-thumbnails` | Ricostruisce le miniature RAW a partire dall'anteprima incorporata dalla fotocamera |
+| `python facet.py --refresh-thumbnails --refresh-thumbnails-workers 16` | Lo stesso, con più letture in parallelo |
 
 Legge l'orientamento EXIF dai file originali e ruota i byte della miniatura memorizzata; per le foto elaborate prima dell'esistenza della gestione EXIF. Legge solo l'intestazione EXIF e la miniatura memorizzata, non le immagini complete.
+
+`--refresh-thumbnails` ridisegna la miniatura memorizzata di ogni foto RAW attraverso il profilo di visualizzazione (prima l'anteprima della fotocamera, poi la demosaicizzazione come ripiego — vedi [CONFIGURATION.md](CONFIGURATION.md#raw-decode)). È la migrazione per una libreria scansionata prima che questo profilo esistesse: le miniature scritte da una scansione più vecchia portano la luminosità automatica per scatto di LibRaw, che appiattisce le differenze di esposizione tra gli scatti di un bracket. Non viene caricato alcun modello e nessuna colonna di punteggio viene toccata — viene riscritto solo `photos.thumbnail`.
+
+Il comando è limitato dal throughput di storage piuttosto che dalla CPU, quindi il suo costo scala con la dimensione della libreria e con la velocità del disco o del mount di rete della libreria, non con il numero di core della macchina. `--refresh-thumbnails-workers` (predefinito 8) imposta quanti file vengono letti contemporaneamente: aumentalo su un mount di rete veloce dove ogni lettura passa il tempo in attesa, riducilo su un disco locale lento. Limita anche le demosaicizzazioni complete a cui ricade un RAW privo di anteprima, quindi valori molto alti costano memoria.
+
+È riprendibile. Ogni batch confermato registra fin dove è arrivato, quindi un'esecuzione interrotta con Ctrl+C (o da un mount disconnesso) lascia un database coerente, e il successivo `--refresh-thumbnails` riprende da dove si era fermato. Un'esecuzione completata cancella il marcatore, quindi una successiva riesecuzione riparte da zero.
+
+Una foto il cui nuovo rendering risulta completamente nero mantiene la sua miniatura esistente e viene registrata per nome. Non è paranoia: un RW2 Panasonic gravemente troncato non fallisce la decodifica — LibRaw lo riempie di zeri trasformandolo in un fotogramma nero valido a piena dimensione invece di fallire — quindi senza questo controllo un file corrotto sostituirebbe silenziosamente una buona miniatura con una nera. Una foto del genere resta non marcata e viene ritentata all'esecuzione successiva, quindi riparare il file è sufficiente per risolverlo.
+
+Una foto appartenente a un bracket viene ridisegnata senza l'anteprima della fotocamera e senza alcun guadagno di esposizione, così il suo riquadro mostra ciò che il sensore ha registrato (vedi [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected)). Poiché l'appartenenza a un bracket deriva dal rilevamento delle sequenze, che viene eseguito dopo una scansione, esegui questo comando dopo `--detect-sequences` perché quei riquadri recepiscano il rendering.
+
+### Cosa aggiorna una miniatura memorizzata
+
+Le miniature memorizzate vengono generate al momento della scansione, quindi una libreria scansionata prima che il profilo di visualizzazione esistesse continua a mostrare il vecchio rendering nella griglia di galleria. `photos.render_version` registra quale pipeline ha generato la miniatura di ogni riga, e due percorsi la aggiornano:
+
+| Percorso | Copre | Costo |
+|------|--------|------|
+| Una nuova scansione (`python facet.py <directory>`) | Tutto ciò che scansiona, miniatura e istogramma | Scansione completa |
+| `--refresh-thumbnails` | La miniatura di ogni riga RAW | Limitato dallo storage, ore su una libreria grande |
+
+**Non succede nulla da solo.** La vista dettaglio è sempre aggiornata perché `/image` si renderizza al volo, ma la griglia di galleria legge `photos.thumbnail`, e nessuna quantità di navigazione lo riscrive. È proprio a questo che serve `--refresh-thumbnails`, ed è per questo che la galleria mostra un banner rimovibile che conta le righe ancora in attesa.
+
+Il conteggio del banner proviene da una voce `stats_cache` con un TTL di un'ora, aggiornata direttamente da `--refresh-thumbnails` e da `python database.py --refresh-stats`, quindi dopo una scansione può restare indietro rispetto alla realtà fino a un'ora.
 
 ## Diagnostica
 
@@ -230,6 +255,13 @@ Legge l'orientamento EXIF dai file originali e ruota i byte della miniatura memo
 Riporta la versione di Python, la build PyTorch/CUDA, il rilevamento della GPU e il driver, la raccomandazione del profilo VRAM, le dipendenze opzionali e lo stato di configurazione/database. Quando PyTorch non vede la GPU ma `nvidia-smi` sì, stampa il comando `pip install` per correggere la build CUDA.
 
 `--simulate-gpu NAME` e `--simulate-vram GB` testano il comportamento con hardware diverso. Entrambi richiedono `--doctor`; `--simulate-vram` richiede `--simulate-gpu`.
+
+| Comando | Descrizione |
+|---------|-------------|
+| `python facet.py --check-raw-rendering` | Renderizza 20 foto RAW campionate con le vecchie e le attuali impostazioni di decodifica |
+| `python facet.py --check-raw-rendering 50` | Campiona 50 foto invece |
+
+Sola lettura: decodifica un campione casuale direttamente dal disco e stampa la luminanza media prodotta da ogni rendering — la luminosità automatica per scatto di LibRaw, la demosaicizzazione a guadagno fisso delle metriche e l'anteprima incorporata dalla fotocamera usata da miniature e visualizzatore. Usalo per verificare `raw_decode.bright` sui tuoi file prima di avviare una scansione o un'esecuzione di `--refresh-thumbnails`; le colonne fisso e anteprima mantengono la scala di esposizione di un bracket, la colonna di luminosità automatica la appiattisce.
 
 ## Informazioni sui modelli
 
