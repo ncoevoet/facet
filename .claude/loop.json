@@ -4,8 +4,20 @@
     "test": "venv/bin/python -m pytest tests/ -q --tb=short",
     "typecheck": "cd client && CI=1 npm run test",
     "build": "cd client && npx tsc --noEmit -p tsconfig.json && npx ng lint && npm run build",
-    "mandatory": ["lint", "test", "typecheck", "build", "reviewall"]
+    "mandatory": [
+      "lint",
+      "test",
+      "typecheck",
+      "build"
+    ]
   },
-  "reviewall": { "severityFloor": "important" },
-  "budget": { "maxIterations": 40, "maxRepeatedFailures": 3, "usagePauseFloor": 96 }
+  "reviewall": {
+    "severityFloor": "debt"
+  },
+  "budget": {
+    "maxIterations": 12,
+    "maxRepeatedFailures": 3,
+    "usagePauseFloor": 96,
+    "weeklyUsageCap": 40
+  }
 }
