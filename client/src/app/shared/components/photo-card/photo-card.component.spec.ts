@@ -266,7 +266,7 @@ describe('PhotoCardComponent', () => {
       // Every earlier spec asserted a falsy one, which is why a badge keyed on
       // a field no backend ever sent passed for the life of the viewer.
       fixture.componentInstance.burstFramesVisible.set(true);
-      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true }));
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 'burst-1' }));
       fixture.detectChanges();
 
       expect(hasBestBadge()).toBe(true);
@@ -274,7 +274,7 @@ describe('PhotoCardComponent', () => {
 
     it('stays hidden while the burst is collapsed behind its lead', () => {
       fixture.componentInstance.burstFramesVisible.set(false);
-      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true }));
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 'burst-1' }));
       fixture.detectChanges();
 
       expect(hasBestBadge()).toBe(false);
@@ -282,7 +282,15 @@ describe('PhotoCardComponent', () => {
 
     it('stays hidden for a frame that does not lead its burst', () => {
       fixture.componentInstance.burstFramesVisible.set(true);
-      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: false }));
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: false, burst_group_id: 'burst-1' }));
+      fixture.detectChanges();
+
+      expect(hasBestBadge()).toBe(false);
+    });
+
+    it('stays hidden for a standalone photo that is in no burst at all, even though is_burst_lead is also the sentinel for "not a hidden burst member"', () => {
+      fixture.componentInstance.burstFramesVisible.set(true);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: null }));
       fixture.detectChanges();
 
       expect(hasBestBadge()).toBe(false);
@@ -291,7 +299,7 @@ describe('PhotoCardComponent', () => {
     it('can be turned off in the config', () => {
       fixture.componentInstance.config.set({ badges: { best_of_burst: false } });
       fixture.componentInstance.burstFramesVisible.set(true);
-      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true }));
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 'burst-1' }));
       fixture.detectChanges();
 
       expect(hasBestBadge()).toBe(false);

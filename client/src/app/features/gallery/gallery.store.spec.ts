@@ -116,7 +116,6 @@ function makeConfig(overrides: Partial<ViewerConfig> = {}): ViewerConfig {
       show_similar_button: false,
       show_merge_suggestions: false,
       show_rating_controls: false,
-      show_rating_badge: false,
       show_semantic_search: false,
       show_albums: false,
       show_critique: false,

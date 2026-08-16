@@ -83,7 +83,8 @@ interface CullResponse {
       }
 
       @if (errorDetail(); as detail) {
-        <p class="mt-3 text-sm text-[var(--mat-sys-error)]">{{ I18N.cull.error | translate }}: {{ detail }}</p>
+        <p class="mt-3 text-sm text-[var(--mat-sys-error)]">{{ I18N.cull.error | translate }}</p>
+        <p class="mt-1 text-xs text-[var(--mat-sys-error)] opacity-80">{{ I18N.errors.server_detail | translate }} {{ detail }}</p>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">

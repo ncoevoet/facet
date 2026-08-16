@@ -509,10 +509,31 @@ describe('PhotoTooltipComponent', () => {
       vi.advanceTimersByTime(300);
       setFixture.detectChanges();
 
-      const thumbs = setFixture.nativeElement.querySelectorAll('img[alt="/photos/a.jpg"], img[alt="/photos/test.jpg"], img[alt="/photos/c.jpg"]');
+      // size=96 scopes to the sibling strip's thumbnails specifically -- the
+      // main preview image reuses the same "test.jpg" filename at size=640.
+      const thumbs = setFixture.nativeElement.querySelectorAll(
+        'img[src*="size=96"][src*="a.jpg"], img[src*="size=96"][src*="test.jpg"], img[src*="size=96"][src*="c.jpg"]',
+      );
       expect(thumbs.length).toBe(3);
       expect(setFixture.nativeElement.textContent).toContain('+2');
       expect(setFixture.nativeElement.textContent).toContain('−2');
+    });
+
+    it('labels each sibling button with its position in the set and EV offset, not the filesystem path', () => {
+      mockSetWithMembers();
+      setFixture.componentInstance.docked.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket', sequence_ev_offset: 0 }));
+      setFixture.detectChanges();
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+
+      const img = setFixture.nativeElement.querySelector('img[src*="a.jpg"]') as HTMLElement;
+      const button = img.closest('button') as HTMLButtonElement;
+      // mockI18n.t() returns the raw key (no interpolation), so the position
+      // clause below is the untranslated key -- only the EV suffix comes from
+      // the real (unmocked) evOffset pipe.
+      expect(button.getAttribute('aria-label')).toBe('photo_detail.set.member_position, −2 EV');
+      expect(img.getAttribute('alt')).toBe('');
     });
 
     it('does not show sibling thumbnails in the floating (non-docked, non-pinned) tooltip', () => {
@@ -522,7 +543,7 @@ describe('PhotoTooltipComponent', () => {
       vi.advanceTimersByTime(300);
       setFixture.detectChanges();
 
-      expect(setFixture.nativeElement.querySelector('img[alt="/photos/a.jpg"]')).toBeNull();
+      expect(setFixture.nativeElement.querySelector('img[src*="a.jpg"]')).toBeNull();
     });
 
     it('clicking a sibling thumbnail opens that frame\'s own detail page', () => {
@@ -533,7 +554,7 @@ describe('PhotoTooltipComponent', () => {
       vi.advanceTimersByTime(300);
       setFixture.detectChanges();
 
-      const img = setFixture.nativeElement.querySelector('img[alt="/photos/a.jpg"]') as HTMLElement;
+      const img = setFixture.nativeElement.querySelector('img[src*="a.jpg"]') as HTMLElement;
       (img.closest('button') as HTMLButtonElement).click();
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/photos/a.jpg' } });
@@ -547,8 +568,8 @@ describe('PhotoTooltipComponent', () => {
       vi.advanceTimersByTime(300);
       setFixture.detectChanges();
 
-      const currentImg = setFixture.nativeElement.querySelector('img[alt="/photos/test.jpg"]') as HTMLElement;
-      const otherImg = setFixture.nativeElement.querySelector('img[alt="/photos/a.jpg"]') as HTMLElement;
+      const currentImg = setFixture.nativeElement.querySelector('img[src*="size=96"][src*="test.jpg"]') as HTMLElement;
+      const otherImg = setFixture.nativeElement.querySelector('img[src*="a.jpg"]') as HTMLElement;
       expect(currentImg.closest('button')!.className).toContain('ring-2');
       expect(otherImg.closest('button')!.className).not.toContain('ring-2');
     });

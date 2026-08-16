@@ -543,7 +543,8 @@
     "access_denied": "Accesso negato",
     "edition_expired": "La modalità di modifica non è più attiva - sbloccala e riprova",
     "server_error": "Errore del server — riprovare",
-    "action_failed": "Azione non riuscita — modifica annullata"
+    "action_failed": "Azione non riuscita — modifica annullata",
+    "server_detail": "Messaggio del server:"
   },
   "language": {
     "en": "Inglese",
@@ -2319,7 +2320,8 @@
       "title": "Gruppo",
       "ev_span": "Intervallo EV",
       "kind_duplicate": "Duplicato",
-      "open_in_gallery": "Apri questo gruppo nella galleria"
+      "open_in_gallery": "Apri questo gruppo nella galleria",
+      "member_position": "Fotogramma {position} di {count}"
     }
   },
   "photo": {

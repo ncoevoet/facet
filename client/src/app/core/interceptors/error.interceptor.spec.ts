@@ -167,12 +167,12 @@ describe('errorInterceptor', () => {
     );
   });
 
-  it('appends the server-supplied detail to the 403 toast', async () => {
+  it('appends the server-supplied detail to the 403 toast, labelled as a server message', async () => {
     await raise403('/api/photos', { detail: 'target_dir is not an allowed export location' });
 
     await vi.waitFor(() =>
       expect(snackBarMock.open).toHaveBeenCalledWith(
-        'errors.access_denied: target_dir is not an allowed export location',
+        'errors.access_denied — errors.server_detail target_dir is not an allowed export location',
         '',
         { duration: 8000 },
       ),

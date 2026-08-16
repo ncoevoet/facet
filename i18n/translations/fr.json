@@ -543,7 +543,8 @@
     "access_denied": "Accès refusé",
     "edition_expired": "Le mode édition n'est plus actif - déverrouillez Édition et réessayez",
     "server_error": "Erreur serveur — veuillez réessayer",
-    "action_failed": "Échec de l'action — modification annulée"
+    "action_failed": "Échec de l'action — modification annulée",
+    "server_detail": "Message du serveur :"
   },
   "language": {
     "en": "Anglais",
@@ -2319,7 +2320,8 @@
       "title": "Groupe",
       "ev_span": "Écart EV",
       "kind_duplicate": "Doublon",
-      "open_in_gallery": "Ouvrir ce groupe dans la galerie"
+      "open_in_gallery": "Ouvrir ce groupe dans la galerie",
+      "member_position": "Image {position} sur {count}"
     }
   },
   "photo": {

@@ -545,8 +545,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   @for (member of set.members; track member.path) {
                     <button class="relative rounded-lg overflow-hidden w-16 h-16 shrink-0 cursor-pointer hover:opacity-80 transition-opacity ring-[var(--mat-sys-primary)]"
                             [class.ring-2]="member.path === p.path"
+                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '')"
                             (click)="openSetMember(member.path)">
-                      <img [src]="member.path | thumbnailUrl:96" [alt]="member.path" class="w-full h-full object-cover" />
+                      <img [src]="member.path | thumbnailUrl:96" alt="" class="w-full h-full object-cover" />
                       @if (member.ev_offset !== null) {
                         <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 bg-black/60 text-white">{{ member.ev_offset | evOffset }}</span>
                       }

@@ -543,7 +543,8 @@
     "access_denied": "Zugriff verweigert",
     "edition_expired": "Bearbeitungsmodus nicht mehr aktiv - Bearbeitung entsperren und erneut versuchen",
     "server_error": "Serverfehler — bitte versuchen Sie es erneut",
-    "action_failed": "Aktion fehlgeschlagen — Änderung rückgängig gemacht"
+    "action_failed": "Aktion fehlgeschlagen — Änderung rückgängig gemacht",
+    "server_detail": "Servermeldung:"
   },
   "language": {
     "en": "Englisch",
@@ -2319,7 +2320,8 @@
       "title": "Gruppe",
       "ev_span": "EV-Spanne",
       "kind_duplicate": "Duplikat",
-      "open_in_gallery": "Diese Gruppe in der Galerie öffnen"
+      "open_in_gallery": "Diese Gruppe in der Galerie öffnen",
+      "member_position": "Bild {position} von {count}"
     }
   },
   "photo": {

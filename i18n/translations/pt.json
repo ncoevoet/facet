@@ -543,7 +543,8 @@
     "access_denied": "Acesso negado",
     "edition_expired": "O modo de edição já não está ativo - desbloqueie Edição e tente novamente",
     "server_error": "Erro no servidor — tente novamente",
-    "action_failed": "Ação falhou — alteração revertida"
+    "action_failed": "Ação falhou — alteração revertida",
+    "server_detail": "Mensagem do servidor:"
   },
   "language": {
     "en": "Inglês",
@@ -2319,7 +2320,8 @@
       "title": "Grupo",
       "ev_span": "Intervalo EV",
       "kind_duplicate": "Duplicata",
-      "open_in_gallery": "Abrir este grupo na galeria"
+      "open_in_gallery": "Abrir este grupo na galeria",
+      "member_position": "Quadro {position} de {count}"
     }
   },
   "photo": {

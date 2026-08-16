@@ -17,7 +17,6 @@ interface AppConfig {
   features?: {
     show_similar_button?: boolean;
     show_rating_controls?: boolean;
-    show_rating_badge?: boolean;
     show_critique?: boolean;
     show_embed_metadata?: boolean;
   };
@@ -323,7 +322,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           <div class="flex items-center gap-1">
             <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
-              @if (badges().best_of_burst && burstFramesVisible() && photo().is_burst_lead) {
+              @if (badges().best_of_burst && burstFramesVisible() && photo().is_burst_lead && photo().burst_group_id) {
                 <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
               }
               @if (currentSort() !== 'aggregate') {

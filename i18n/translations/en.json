@@ -543,7 +543,8 @@
     "access_denied": "Access denied",
     "edition_expired": "Edition mode is no longer active - unlock Edition and try again",
     "server_error": "Server error — please try again",
-    "action_failed": "Action failed — change reverted"
+    "action_failed": "Action failed — change reverted",
+    "server_detail": "Server message:"
   },
   "language": {
     "en": "English",
@@ -2319,7 +2320,8 @@
       "title": "Set",
       "ev_span": "EV span",
       "kind_duplicate": "Duplicate",
-      "open_in_gallery": "Open this set in the gallery"
+      "open_in_gallery": "Open this set in the gallery",
+      "member_position": "Frame {position} of {count}"
     }
   },
   "photo": {

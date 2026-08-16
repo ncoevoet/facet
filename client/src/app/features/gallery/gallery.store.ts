@@ -110,7 +110,6 @@ export interface ViewerConfig {
     show_similar_button: boolean;
     show_merge_suggestions: boolean;
     show_rating_controls: boolean;
-    show_rating_badge: boolean;
     show_semantic_search: boolean;
     show_albums: boolean;
     show_critique: boolean;

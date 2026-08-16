@@ -48,8 +48,12 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         void auth.revalidate().then(() => {
           const lostEdition = hadEdition && !auth.isEdition();
           const base = i18n.t(lostEdition ? I18N.errors.edition_expired : I18N.errors.access_denied);
+          // The detail is the server's own (untranslated) prose, so it is
+          // labelled as a server message rather than spliced straight after
+          // a translated sentence -- otherwise a non-English user sees their
+          // language switch to English mid-toast with nothing explaining why.
           snackBar.open(
-            detail ? `${base}: ${detail}` : base,
+            detail ? `${base} — ${i18n.t(I18N.errors.server_detail)} ${detail}` : base,
             '',
             { duration: detail ? 8000 : (lostEdition ? 6000 : 3000) },
           );

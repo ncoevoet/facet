@@ -55,7 +55,8 @@ export interface ExportEditorDialogData {
       }
 
       @if (errorDetail(); as detail) {
-        <p class="text-sm text-[var(--mat-sys-error)]">{{ I18N.export.failed | translate }}: {{ detail }}</p>
+        <p class="text-sm text-[var(--mat-sys-error)]">{{ I18N.export.failed | translate }}</p>
+        <p class="text-xs text-[var(--mat-sys-error)] opacity-80">{{ I18N.errors.server_detail | translate }} {{ detail }}</p>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">

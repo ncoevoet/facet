@@ -560,6 +560,7 @@ export const I18N = {
     edition_expired: "errors.edition_expired",
     server_error: "errors.server_error",
     action_failed: "errors.action_failed",
+    server_detail: "errors.server_detail",
   },
   language: {
     en: "language.en",
@@ -2336,6 +2337,7 @@ export const I18N = {
       ev_span: "photo_detail.set.ev_span",
       kind_duplicate: "photo_detail.set.kind_duplicate",
       open_in_gallery: "photo_detail.set.open_in_gallery",
+      member_position: "photo_detail.set.member_position",
     },
   },
   photo: {
