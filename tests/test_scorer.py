@@ -615,3 +615,43 @@ class TestScorePhotoFromPilHonorsOverride:
         assert recorded_metrics['scoring_context'] == 'action_stage'
         assert recorded_metrics['category_override'] == 'sports'
         assert res['category'] == 'sports'
+
+
+class TestAestheticHeadWeights:
+    """The scorer loads the shared head from ``pretrained_models/``, not the CWD.
+
+    The weights were previously written to the process working directory, which
+    is not a mounted volume in Docker and differs between a facet.py scan and a
+    viewer.py run, so the same 3.7 MB file was downloaded again and again.
+    """
+
+    def test_head_is_read_from_the_pretrained_dir_not_the_cwd(self, tmp_path, monkeypatch):
+        import torch
+        import processing.scorer as scorer_module
+        from models import weights
+        from models.aesthetic_head import AestheticMLP
+        from models.aesthetic_head import AESTHETIC_HEAD_WEIGHTS_FILENAME
+        from processing.scorer import Facet
+
+        pretrained_dir = tmp_path / 'pretrained_models'
+        pretrained_dir.mkdir()
+        torch.manual_seed(5)
+        checkpoint = AestheticMLP().state_dict()
+        torch.save(checkpoint, pretrained_dir / AESTHETIC_HEAD_WEIGHTS_FILENAME)
+        monkeypatch.setattr(weights, 'PRETRAINED_MODELS_DIR', pretrained_dir)
+
+        scorer = Facet(db_path=':memory:', lightweight=True)
+        scorer.device = 'cpu'
+        scorer.config.config['models']['vram_profile'] = 'legacy'
+        monkeypatch.setattr(scorer_module, 'torch', torch)
+        from models.aesthetic_head import load_aesthetic_head
+        monkeypatch.setattr(scorer_module, 'load_aesthetic_head', load_aesthetic_head)
+        # Only now: the head must come from pretrained_models/, whatever the CWD is
+        monkeypatch.chdir(tmp_path)
+
+        scorer._load_aesthetic_head()
+
+        assert scorer.aesthetic_head is not None
+        for key, tensor in scorer.aesthetic_head.state_dict().items():
+            assert torch.equal(tensor, checkpoint[key]), key
+        assert not (tmp_path / AESTHETIC_HEAD_WEIGHTS_FILENAME).exists()

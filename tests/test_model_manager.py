@@ -298,3 +298,59 @@ class TestLoadedModelsTracking:
         assert 'vlm_tagger' not in manager.models
         assert 'vlm_tagger' not in manager._cpu_cache
         fake_model.cpu.assert_called_once()
+
+
+class TestWeightsDestination:
+    """Auto-downloaded weights must land in ``pretrained_models/``, not the CWD.
+
+    ``aesthetic_predictor_weights.pth`` used to be written to the process working
+    directory, so it was re-downloaded whenever facet.py and viewer.py ran from
+    different directories -- and on every Docker container recreation, since the
+    image's WORKDIR is not a mounted volume.
+    """
+
+    def test_path_is_absolute_and_independent_of_the_working_directory(self, tmp_path, monkeypatch):
+        from models.weights import pretrained_model_path
+
+        before = pretrained_model_path('aesthetic_predictor_weights.pth')
+        monkeypatch.chdir(tmp_path)
+        after = pretrained_model_path('aesthetic_predictor_weights.pth')
+
+        assert after.is_absolute()
+        assert after == before
+        assert after.parent.name == 'pretrained_models'
+        assert tmp_path not in after.parents
+
+    def test_download_is_atomic_and_leaves_no_partial_file(self, tmp_path):
+        from models import weights
+
+        destination = tmp_path / 'nested' / 'weights.pth'
+        observed = {}
+
+        def fake_urlretrieve(url, path):
+            observed['temp_path'] = path
+            with open(path, 'wb') as handle:
+                handle.write(b'payload')
+
+        with mock.patch.object(weights.urllib.request, 'urlretrieve', fake_urlretrieve):
+            weights.download_weights('https://example.invalid/w.pth', destination)
+
+        assert destination.read_bytes() == b'payload'
+        assert observed['temp_path'] != str(destination)
+        assert list(destination.parent.glob('*.part')) == []
+
+    def test_download_of_an_existing_file_is_idempotent(self, tmp_path):
+        from models import weights
+
+        destination = tmp_path / 'weights.pth'
+        destination.write_bytes(b'first')
+
+        def fake_urlretrieve(url, path):
+            with open(path, 'wb') as handle:
+                handle.write(b'second')
+
+        with mock.patch.object(weights.urllib.request, 'urlretrieve', fake_urlretrieve):
+            weights.download_weights('https://example.invalid/w.pth', destination)
+
+        assert destination.read_bytes() == b'second'
+        assert list(tmp_path.glob('*.part')) == []

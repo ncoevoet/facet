@@ -9,6 +9,7 @@ from calibrate import (
     build_metric_matrix,
     load_current_category_weights,
     log_run_to_db,
+    optimize_modifiers,
     optimize_weights,
 )
 from db.schema import init_database
@@ -128,3 +129,58 @@ class TestLogRunToDbUsesRealBaseline:
         ).fetchone()
         conn.close()
         assert json.loads(row[0]) == {"aesthetic": 0.5, "comp_score": 0.5}
+
+
+class TestOptimizeModifiersReadsThePenaltiesBlock:
+    """Regression: optimize_modifiers must read the shipped 'penalties' config
+    block, not a 'penalty_settings' key that has never existed in any shipped
+    config. Under the bug, config_data.get('penalty_settings', {}) is always
+    {} regardless of what an install tunes 'penalties' to, so it silently
+    falls back to hardcoded literals that happen to match the shipped values.
+    """
+
+    def _rows(self):
+        # Oversaturation is the only active penalty (noise_sigma and
+        # histogram_bimodality are 0 for every row). aesthetic=10 for every
+        # row keeps the simulated score off the simulate() clip(0, 10) floor
+        # after a penalty is subtracted. mean_saturation crosses the tuned
+        # threshold (0.5) for half the rows but crosses the hardcoded
+        # fallback (0.9) for only one -- so the two thresholds bucket the
+        # rows differently and must produce different SRCCs.
+        saturations = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+        mos_values = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
+        return [
+            {
+                "aesthetic": 10.0, "mos": mos, "mean_saturation": sat,
+                "noise_sigma": 0.0, "histogram_bimodality": 0.0,
+                "shadow_clipped": 0.0, "highlight_clipped": 0.0,
+            }
+            for sat, mos in zip(saturations, mos_values)
+        ]
+
+    def _write_config(self, tmp_path, name, penalties):
+        cfg = tmp_path / name
+        body = {"categories": [{
+            "name": "test_cat",
+            "weights": {"aesthetic_percent": 100},
+            "modifiers": {},
+        }]}
+        if penalties is not None:
+            body["penalties"] = penalties
+        cfg.write_text(json.dumps(body))
+        return str(cfg)
+
+    def test_tuned_oversaturation_threshold_changes_srcc_before(self, tmp_path):
+        rows = self._rows()
+        default_cfg = self._write_config(tmp_path, "default.json", None)
+        tuned_cfg = self._write_config(
+            tmp_path, "tuned.json",
+            {"oversaturation_threshold": 0.5, "oversaturation_penalty_points": 5.0},
+        )
+
+        default_result = optimize_modifiers(rows, "test_cat", default_cfg)
+        tuned_result = optimize_modifiers(rows, "test_cat", tuned_cfg)
+
+        assert default_result is not None
+        assert tuned_result is not None
+        assert tuned_result["srcc_before"] != pytest.approx(default_result["srcc_before"])

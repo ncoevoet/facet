@@ -9,7 +9,6 @@ import logging
 import os
 import sys
 from typing import Dict, List
-from pathlib import Path
 
 logger = logging.getLogger("facet.models")
 
@@ -239,7 +238,8 @@ class ModelManager:
             model = model.to(self.device).eval()
 
             # Load MLP head
-            mlp = self._load_aesthetic_mlp()
+            from models.aesthetic_head import load_aesthetic_head
+            mlp = load_aesthetic_head(self.device)
 
             self.models['clip_aesthetic'] = {
                 'model': model,
@@ -252,43 +252,6 @@ class ModelManager:
         except Exception as e:
             logger.error("Failed to load CLIP+MLP: %s", e)
             return None
-
-    def _load_aesthetic_mlp(self):
-        """Load the MLP head for aesthetic prediction."""
-        import torch.nn as nn
-        import urllib.request
-
-        class AestheticMLP(nn.Module):
-            def __init__(self, input_size=768):
-                super().__init__()
-                self.layers = nn.Sequential(
-                    nn.Linear(input_size, 1024),
-                    nn.Dropout(0.2),
-                    nn.Linear(1024, 128),
-                    nn.Dropout(0.2),
-                    nn.Linear(128, 64),
-                    nn.Dropout(0.1),
-                    nn.Linear(64, 16),
-                    nn.Linear(16, 1)
-                )
-
-            def forward(self, x):
-                return self.layers(x)
-
-        mlp = AestheticMLP()
-        weights_path = Path("aesthetic_predictor_weights.pth")
-
-        if not weights_path.exists():
-            logger.info("Downloading aesthetic MLP weights...")
-            url = "https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac%2Blogos%2Bava1-l14-linearMSE.pth"
-            urllib.request.urlretrieve(url, weights_path)
-
-        _torch = _ensure_torch()
-        state_dict = _torch.load(weights_path, map_location=self.device)
-        mlp.load_state_dict(state_dict)
-        mlp = mlp.to(self.device).eval()
-
-        return mlp
 
     def is_using_qwen_composition(self) -> bool:
         """Check if Qwen2-VL is the configured composition model."""

@@ -15,7 +15,6 @@ if _project_dir not in sys.path:
     sys.path.insert(0, _project_dir)
 
 import numpy as np
-import struct
 import warnings
 import json
 import logging
@@ -23,10 +22,12 @@ import functools
 import re as _re
 from pathlib import Path
 from db import init_database, get_connection
+from db.render_version import CURRENT_RENDER_VERSION
 from db.schema import FACES_UPSERT_SQL, face_upsert_row
 from db.scoring_overrides import get_photo_scoring_overrides
 from db.vec import sync_vec_batch
 from processing.progress import emit_progress
+from utils.histogram import unpack_histogram
 
 
 @functools.lru_cache(maxsize=8)
@@ -68,15 +69,16 @@ def _photos_partial_upsert(computed_columns):
     """Build a partial UPSERT that writes ONLY the columns a restricted pass computed.
 
     A ``--pass X`` / ``--recompute-*`` backfill runs one model, so only its
-    columns should change. New identity/EXIF, ``thumbnail`` and ``scanned_at``
-    are inserted for a genuinely new file but excluded from the conflict update,
-    so an existing row keeps everything the pass did not touch — no reset of
-    ``scanned_at`` (``--force-since`` reads it), no thumbnail re-encode, no NULLing
-    of another pass's data.
+    columns should change. New identity/EXIF, ``thumbnail``, ``scanned_at`` and
+    ``render_version`` are inserted for a genuinely new file but excluded from the
+    conflict update, so an existing row keeps everything the pass did not touch —
+    no reset of ``scanned_at`` (``--force-since`` reads it), no thumbnail
+    re-encode, no NULLing of another pass's data, and no stamp claiming a
+    thumbnail this pass never rebuilt.
     """
     insert_cols = list(_PARTIAL_CORE_COLUMNS) + list(computed_columns)
-    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')"]
-    all_cols = insert_cols + ['scanned_at']
+    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')", str(CURRENT_RENDER_VERSION)]
+    all_cols = insert_cols + ['scanned_at', 'render_version']
     updates = ', '.join(f"{c}=excluded.{c}" for c in computed_columns)
     return (
         f"INSERT INTO photos ({', '.join(all_cols)}) "
@@ -106,7 +108,8 @@ logger = logging.getLogger("facet.scorer")
 
 # Import shared utilities (lightweight, no cv2/torch dependency)
 from utils import (
-    get_tag_params, detect_silhouette, tags_to_string, RAW_EXTENSIONS,
+    get_tag_params, detect_silhouette, tags_to_string,
+    load_image_from_path, thumbnail_source,
 )
 from utils.image_transforms import generate_photo_thumbnail
 
@@ -129,6 +132,8 @@ torch = None
 F = None
 open_clip = None
 BatchProcessor = None
+load_aesthetic_head = None
+score_aesthetic = None
 
 # Lazy imports for new model manager
 ModelManager = None
@@ -164,7 +169,7 @@ def _load_image_modules():
 
 def _load_gpu_modules():
     """Load torch and related modules only when needed."""
-    global torch, F, open_clip, BatchProcessor
+    global torch, F, open_clip, BatchProcessor, load_aesthetic_head, score_aesthetic
     if torch is None:
         # Import device policy first so the MPS fallback environment variable
         # is present before torch initialises its Metal backend.
@@ -173,10 +178,14 @@ def _load_gpu_modules():
         import torch.nn.functional as _F
         import open_clip as _open_clip
         from processing.batch_processor import BatchProcessor as _BatchProcessor
+        from models.aesthetic_head import load_aesthetic_head as _load_aesthetic_head_fn
+        from models.aesthetic_head import score_aesthetic as _score_aesthetic
         torch = _torch
         F = _F
         open_clip = _open_clip
         BatchProcessor = _BatchProcessor
+        load_aesthetic_head = _load_aesthetic_head_fn
+        score_aesthetic = _score_aesthetic
 
 
 def _load_model_manager_modules():
@@ -906,19 +915,7 @@ class Facet:
             self.aesthetic_head = None
             return
 
-        weights_path = 'aesthetic_predictor_weights.pth'
-        if not os.path.exists(weights_path):
-            url = "https://github.com/christophschuhmann/improved-aesthetic-predictor/raw/main/sac%2Blogos%2Bava1-l14-linearMSE.pth"
-            import urllib.request
-            urllib.request.urlretrieve(url, weights_path)
-
-        self.aesthetic_head = torch.nn.Sequential(
-            torch.nn.Linear(768, 256),
-            torch.nn.ReLU(),
-            torch.nn.Linear(256, 1)
-        )
-        self.aesthetic_head.load_state_dict(torch.load(weights_path, map_location=self.device), strict=False)
-        self.aesthetic_head = self.aesthetic_head.to(self.device).eval()
+        self.aesthetic_head = load_aesthetic_head(self.device)
 
     @property
     def uses_transformers_backend(self):
@@ -967,20 +964,15 @@ class Facet:
         if self.aesthetic_head is None:
             return 5.0  # No MLP head — aesthetic comes from TOPIQ in multi-pass
 
-        features, _ = self._encode_images(image_pil)
-        with torch.no_grad():
-            raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
-        aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
-        return aesthetic_score
+        _, features_normalized = self._encode_images(image_pil)
+        return float(score_aesthetic(self.aesthetic_head, features_normalized)[0])
 
     def get_aesthetic_with_embedding(self, image_pil):
         """Calculate aesthetic score and return CLIP/SigLIP embedding for storage."""
-        features, features_normalized = self._encode_images(image_pil)
+        _, features_normalized = self._encode_images(image_pil)
 
         if self.aesthetic_head is not None:
-            with torch.no_grad():
-                raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
-            aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
+            aesthetic_score = float(score_aesthetic(self.aesthetic_head, features_normalized)[0])
         else:
             aesthetic_score = 5.0  # Aesthetic comes from TOPIQ, not CLIP MLP
 
@@ -1001,12 +993,9 @@ class Facet:
         # Only works with 768-dim embeddings (ViT-L-14)
         if len(embedding) != 768:
             return None
+        # Stored embeddings are already L2-normalized, which is what the head expects
         features = torch.tensor(embedding).unsqueeze(0).to(self.device)
-        with torch.no_grad():
-            # Ensure float32 for MLP head
-            raw_score = float(self.aesthetic_head(features.float()).cpu().numpy()[0][0])
-            aesthetic_score = max(0.0, min(10.0, (raw_score + 1) * 5))
-        return aesthetic_score
+        return float(score_aesthetic(self.aesthetic_head, features)[0])
 
     def get_aesthetic_and_quality(self, pil_img):
         """
@@ -1029,15 +1018,14 @@ class Facet:
         """
         n = len(pil_images)
 
-        features, features_normalized = self._encode_images(pil_images, clip_inputs)
+        _, features_normalized = self._encode_images(pil_images, clip_inputs)
         embeddings = features_normalized.cpu().numpy()
 
         if self.aesthetic_head is not None:
-            with torch.no_grad():
-                clip_scores = self.aesthetic_head(features.float()).cpu().numpy().flatten()
+            clip_scores = score_aesthetic(self.aesthetic_head, features_normalized)
             results = []
             for i in range(n):
-                clip_aesthetic = max(0.0, min(10.0, (float(clip_scores[i]) + 1) * 5))
+                clip_aesthetic = float(clip_scores[i])
                 clip_embedding = embeddings[i].astype(np.float32).tobytes()
                 results.append((clip_aesthetic, clip_embedding, None, 'clip-mlp'))
         else:
@@ -1421,6 +1409,8 @@ class Facet:
                 # New columns for scoring improvements
                 'shadow_clipped': histogram_data.get('shadow_clipped', 0),
                 'highlight_clipped': histogram_data.get('highlight_clipped', 0),
+                'channel_clip_shadow_pct': histogram_data.get('channel_clip_shadow_pct'),
+                'channel_clip_highlight_pct': histogram_data.get('channel_clip_highlight_pct'),
                 'is_silhouette': is_silhouette,
                 'is_group_portrait': face_res.get('is_group_portrait', 0),
                 'leading_lines_score': leading_lines_data.get('leading_lines_score', 0),
@@ -1601,12 +1591,14 @@ class Facet:
                 row_dict['is_group_portrait'] = new_is_group
 
                 # Recompute exposure_score from stored histogram if available
-                histogram_data = row_dict.get('histogram_data')
-                if histogram_data and len(histogram_data) == 256 * 4:
-                    hist = struct.unpack('256f', histogram_data)
-                    total = sum(hist)
+                decoded_histogram = unpack_histogram(row_dict.get('histogram_data'))
+                if decoded_histogram is not None:
+                    hist = decoded_histogram['luma']
+                    total = float(hist.sum())
                     if total > 0:
-                        norm_hist = [h / total for h in hist]
+                        # Back to plain floats: the per-bin loops below are far
+                        # slower over NumPy scalars, and this runs per row.
+                        norm_hist = (hist / total).tolist()
                         mean_luminance = sum(i * norm_hist[i] for i in range(256)) / 255.0
                         variance = sum(((i / 255.0 - mean_luminance) ** 2) * norm_hist[i] for i in range(256))
                         spread = (variance ** 0.5) * 255.0
@@ -2341,7 +2333,8 @@ class Facet:
 
         # Phase 1: Pre-generate thumbnails (CPU work, no DB lock held)
         for res, pil_img in results_with_images:
-            res['thumbnail'] = generate_photo_thumbnail(pil_img)
+            res['thumbnail'] = generate_photo_thumbnail(
+                thumbnail_source(res['path'], pil_img))
 
         # Phase 2: Collect all face records for batch insert (including thumbnails,
         # landmarks and per-face quality signals — shared upsert: see db.schema)
@@ -2363,9 +2356,11 @@ class Facet:
                 res.setdefault('aesthetic_v25', None)
                 res.setdefault('deqa_score', None)
                 res.setdefault('subject_bbox', None)
+                res.setdefault('channel_clip_shadow_pct', None)
+                res.setdefault('channel_clip_highlight_pct', None)
                 for form_col in FORM_METRIC_COLUMNS:
                     res.setdefault(form_col, None)
-                conn.execute(_photos_upsert('''
+                conn.execute(_photos_upsert(f'''
                     INSERT OR REPLACE INTO photos (
                         path, filename, category, image_width, image_height,
                         date_taken, camera_model, lens_model, iso, f_stop,
@@ -2375,7 +2370,9 @@ class Facet:
                         clip_embedding, raw_sharpness_variance, histogram_data, histogram_spread,
                         mean_luminance, histogram_bimodality, power_point_score, raw_color_entropy,
                         raw_eye_sharpness, config_version,
-                        shadow_clipped, highlight_clipped, is_silhouette, is_group_portrait, leading_lines_score,
+                        shadow_clipped, highlight_clipped,
+                        channel_clip_shadow_pct, channel_clip_highlight_pct,
+                        is_silhouette, is_group_portrait, leading_lines_score,
                         face_confidence, is_monochrome, mean_saturation,
                         dynamic_range_stops, noise_sigma, contrast_score, tags,
                         quality_score, topiq_score, composition_explanation, scoring_model, composition_pattern,
@@ -2383,7 +2380,7 @@ class Facet:
                         qrealign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation, subject_bbox,
                         form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
-                        gps_latitude, gps_longitude, scanned_at
+                        gps_latitude, gps_longitude, scanned_at, render_version
                     )
                     VALUES (
                         :path, :filename, :category, :image_width, :image_height,
@@ -2394,7 +2391,9 @@ class Facet:
                         :clip_embedding, :raw_sharpness_variance, :histogram_data, :histogram_spread,
                         :mean_luminance, :histogram_bimodality, :power_point_score, :raw_color_entropy,
                         :raw_eye_sharpness, :config_version,
-                        :shadow_clipped, :highlight_clipped, :is_silhouette, :is_group_portrait, :leading_lines_score,
+                        :shadow_clipped, :highlight_clipped,
+                        :channel_clip_shadow_pct, :channel_clip_highlight_pct,
+                        :is_silhouette, :is_group_portrait, :leading_lines_score,
                         :face_confidence, :is_monochrome, :mean_saturation,
                         :dynamic_range_stops, :noise_sigma, :contrast_score, :tags,
                         :quality_score, :topiq_score, :composition_explanation, :scoring_model, :composition_pattern,
@@ -2402,7 +2401,7 @@ class Facet:
                         :qrealign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation, :subject_bbox,
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
-                        :gps_latitude, :gps_longitude, datetime('now')
+                        :gps_latitude, :gps_longitude, datetime('now'), {CURRENT_RENDER_VERSION}
                     )
                 '''), res)
 
@@ -2465,7 +2464,8 @@ class Facet:
         new_paths = self.filter_unscanned_paths([res['path'] for res, _, _ in batch])
         for res, pil_img, _ in batch:
             if res['path'] in new_paths:
-                res['thumbnail'] = generate_photo_thumbnail(pil_img)
+                res['thumbnail'] = generate_photo_thumbnail(
+                    thumbnail_source(res['path'], pil_img))
             else:
                 res['thumbnail'] = None
 
@@ -2786,38 +2786,17 @@ def process_bursts(db_path, config_path='scoring_config.json'):
 
 
 def process_single_photo(photo_path, scorer):
-    """Worker function to handle image loading and metadata extraction."""
-    try:
-        photo = Path(photo_path)
-        # Handle RAW files
-        if photo.suffix.lower() in RAW_EXTENSIONS:
-            import rawpy
-            current_pil = None
-            with rawpy.imread(str(photo)) as raw:
-                try:
-                    thumb = raw.extract_thumb()
-                    if thumb.format == rawpy.ThumbFormat.JPEG:
-                        current_pil = Image.open(BytesIO(thumb.data))
-                        current_pil = ImageOps.exif_transpose(current_pil)
-                    else:
-                        current_pil = Image.fromarray(thumb.data)
-                except Exception:
-                    pass  # Don't use corrupted raw object
-            # If thumbnail extraction failed, reopen file for demosaic
-            if current_pil is None:
-                with rawpy.imread(str(photo)) as raw:
-                    rgb = raw.postprocess(use_camera_wb=True, no_auto_bright=False,
-                                          output_color=rawpy.ColorSpace.sRGB, output_bps=8)
-                    current_pil = Image.fromarray(rgb)
-        else:
-            current_pil = Image.open(photo)
-            current_pil = ImageOps.exif_transpose(current_pil)
-            if current_pil.mode != 'RGB':
-                current_pil = current_pil.convert('RGB')
+    """Worker function to handle image loading and metadata extraction.
 
-        img_cv = cv2.cvtColor(np.array(current_pil), cv2.COLOR_RGB2BGR)
+    Loads through the same metrics-profile decode a scan uses, so a --dry-run
+    preview reports the scores the scan would actually store.
+    """
+    try:
+        current_pil, img_cv = load_image_from_path(photo_path)
+        if current_pil is None:
+            return None, f"could not load {photo_path}"
         # Run the scoring (The AI parts will still use the GPU lock)
-        res = scorer.score_photo_from_pil(current_pil, img_cv, str(photo))
+        res = scorer.score_photo_from_pil(current_pil, img_cv, str(photo_path))
         return res, current_pil
     except Exception as e:
         return None, str(e)

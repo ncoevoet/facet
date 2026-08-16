@@ -61,7 +61,7 @@ EXTRA_COLUMNS = [
     'noise_sigma', 'shadow_clipped', 'highlight_clipped',
     'histogram_bimodality', 'mean_saturation', 'is_blink',
     'is_monochrome', 'is_silhouette', 'face_ratio', 'face_count',
-    'ISO', 'shutter_speed', 'tags', 'luminance',
+    'iso', 'shutter_speed', 'tags', 'mean_luminance',
 ]
 
 MIN_PHOTOS_FOR_CATEGORY = 100
@@ -746,7 +746,7 @@ def _analyze_numeric_filters(
     filter_metrics = {
         'face_ratio_min': ('face_ratio', 'min'),
         'face_ratio_max': ('face_ratio', 'max'),
-        'luminance_max': ('luminance', 'max'),
+        'luminance_max': ('mean_luminance', 'max'),
         'shutter_speed_min': ('shutter_speed', 'min'),
         'shutter_speed_max': ('shutter_speed', 'max'),
     }
@@ -895,7 +895,7 @@ def optimize_modifiers(
 
     weights = cat_cfg.get('weights', {})
     modifiers = cat_cfg.get('modifiers', {})
-    penalty_settings = config_data.get('penalty_settings', {})
+    penalty_settings = config_data.get('penalties', {})
 
     # Current modifier values
     current_bonus = modifiers.get('bonus', 0.0)

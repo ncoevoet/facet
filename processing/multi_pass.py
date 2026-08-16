@@ -332,9 +332,19 @@ class ChunkedMultiPassProcessor:
             models.append(tagging_entry[0])
         # else: CLIP tagging uses clip embeddings, no extra model needed
 
-        # Composition model (SAMP-Net if configured)
-        if profile.get('composition_model') == 'samp-net':
+        # Composition model. SAMP-Net is the only one with a multi-pass pass;
+        # qwen2-vl-2b runs a per-photo VLM generation and exists for
+        # `processing.mode: "single-pass"` only. Say so instead of silently
+        # leaving composition to the rule-based fallback, which is what made the
+        # 24gb profile ship without any composition model on the default path.
+        composition_model = profile.get('composition_model', 'rule-based')
+        if composition_model == 'samp-net':
             models.append('samp_net')
+        elif composition_model not in ('rule-based', 'none'):
+            logger.warning(
+                "Composition model '%s' has no multi-pass pass; composition falls back to the "
+                "rule-based analyzer. Set composition_model to 'samp-net', or "
+                "processing.mode to 'single-pass'.", composition_model)
 
         # Face analysis
         models.append('insightface')
@@ -718,12 +728,13 @@ class ChunkedMultiPassProcessor:
 
             # Get aesthetic scores using MLP head (only available with 768-dim ViT-L-14)
             if hasattr(self.scorer, 'aesthetic_head') and self.scorer.aesthetic_head is not None:
-                scores = self.scorer.aesthetic_head(features.float()).cpu().numpy().flatten()
+                from models.aesthetic_head import score_aesthetic
+                scores = score_aesthetic(self.scorer.aesthetic_head, features_normalized)
 
         for i, path in enumerate(paths):
             results[path]['clip_embedding'] = embeddings[i].astype(np.float32).tobytes()
             if hasattr(self.scorer, 'aesthetic_head') and self.scorer.aesthetic_head is not None:
-                results[path]['aesthetic'] = max(0.0, min(10.0, (float(scores[i]) + 1) * 5))
+                results[path]['aesthetic'] = float(scores[i])
 
     def _pass_samp_net(self, scorer: Any, images: Dict, results: Dict):
         """SAMP-Net pass: composition patterns and scores."""
@@ -1075,6 +1086,8 @@ class ChunkedMultiPassProcessor:
                 'histogram_bimodality': float(histogram.get('bimodality', 0)),
                 'shadow_clipped': histogram.get('shadow_clipped', 0),
                 'highlight_clipped': histogram.get('highlight_clipped', 0),
+                'channel_clip_shadow_pct': histogram.get('channel_clip_shadow_pct'),
+                'channel_clip_highlight_pct': histogram.get('channel_clip_highlight_pct'),
                 'dynamic_range_stops': dynamic_range.get('dynamic_range_stops', 0),
                 'noise_sigma': noise.get('noise_sigma', 0),
                 'contrast_score': contrast.get('contrast_score', 5.0),
@@ -1279,6 +1292,8 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
 
 def list_available_models():
     """Print list of available models and their requirements."""
+    from models.samp_net import COMPOSITION_PATTERNS
+
     logger.info("Available Models:")
     logger.info("=" * 70)
 
@@ -1312,7 +1327,8 @@ def list_available_models():
     logger.info("COMPOSITION MODELS")
     logger.info("-" * 70)
     logger.info("  %-15s %-8s %-8s CPU rule-based analysis", "rule-based", "0GB", "--")
-    logger.info("  %-15s %-8s %-8s Neural network (14 patterns)", "samp-net", "~2GB", "--")
+    logger.info("  %-15s %-8s %-8s Neural network (%d patterns)",
+                "samp-net", "~2GB", "--", len(COMPOSITION_PATTERNS))
 
     logger.info("-" * 70)
     logger.info("FACE ANALYSIS")
