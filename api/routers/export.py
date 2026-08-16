@@ -256,16 +256,14 @@ def _validate_target_dir(target_dir):
     """Canonicalize ``target_dir`` and require it under an allowed export root.
 
     Without this an edition user could copy/symlink album photos to an arbitrary
-    host location (path traversal / symlink planting). Fail-closed: if no roots
-    are configured, copy/symlink export is refused rather than writing anywhere.
+    host location (path traversal / symlink planting). Fail-closed: a target
+    outside every configured root (including the case where none are
+    configured at all) is refused rather than writing anywhere. The caller is
+    already edition-authenticated, so the 403 names the config key and the
+    resolved roots — a misconfiguration is otherwise unfixable from the UI.
     """
     real = os.path.realpath(target_dir)
     roots = _allowed_export_roots()
-    if not roots:
-        raise HTTPException(
-            status_code=403,
-            detail="Copy/symlink export is disabled — configure viewer.export.allowed_target_dirs",
-        )
     # Two separate guards rather than any(...) or an or-condition: the direct
     # startswith true-branch is the containment shape static analysis credits
     # as a sanitizer, and the equality case returns the config-derived root
@@ -275,7 +273,14 @@ def _validate_target_dir(target_dir):
             return root
         if real.startswith(root + os.sep):
             return real
-    raise HTTPException(status_code=403, detail="target_dir is not an allowed export location")
+    allowed = ", ".join(roots) if roots else "none configured"
+    raise HTTPException(
+        status_code=403,
+        detail=(
+            "target_dir is not an allowed export location. Configure "
+            f"viewer.export.allowed_target_dirs to add one — allowed roots: {allowed}"
+        ),
+    )
 
 
 def _contained_dest(target_dir, filename):

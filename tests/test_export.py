@@ -297,6 +297,9 @@ class TestAlbumExport:
 
         assert resp.status_code == 403
         assert not os.path.exists(os.path.join(evil, "a.jpg"))
+        detail = resp.json()["detail"]
+        assert "viewer.export.allowed_target_dirs" in detail
+        assert allowed in detail
 
     def test_copy_disabled_without_allowlist(self, client, tmp_path):
         """With no allowed roots configured, copy/symlink export is fail-closed."""
@@ -315,6 +318,9 @@ class TestAlbumExport:
             )
 
         assert resp.status_code == 403
+        detail = resp.json()["detail"]
+        assert "viewer.export.allowed_target_dirs" in detail
+        assert "none configured" in detail
 
     def test_copy_dest_confined_to_target(self, client, tmp_path):
         """Copied files land inside (and only inside) the validated target_dir."""
