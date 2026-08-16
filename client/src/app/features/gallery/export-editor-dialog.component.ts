@@ -12,6 +12,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { AlbumExportMode, ExportService } from '../../core/services/export.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { extractErrorDetail } from '../../core/utils/http-error.util';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
@@ -49,8 +50,12 @@ export interface ExportEditorDialogData {
       } @else {
         <mat-form-field class="w-full">
           <mat-label>{{ I18N.export.target_dir | translate }}</mat-label>
-          <input matInput [ngModel]="targetDir()" (ngModelChange)="targetDir.set($event)" />
+          <input matInput [ngModel]="targetDir()" (ngModelChange)="targetDir.set($event); errorDetail.set(null)" />
         </mat-form-field>
+      }
+
+      @if (errorDetail(); as detail) {
+        <p class="text-sm text-[var(--mat-sys-error)]">{{ I18N.export.failed | translate }}: {{ detail }}</p>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
@@ -74,6 +79,7 @@ export class ExportEditorDialogComponent {
   readonly overwrite = signal(false);
   readonly targetDir = signal('');
   readonly running = signal(false);
+  readonly errorDetail = signal<string | null>(null);
 
   readonly canRun = computed(() => {
     if (this.mode() === 'sidecars') {
@@ -85,6 +91,7 @@ export class ExportEditorDialogComponent {
   async run(): Promise<void> {
     if (!this.canRun() || this.running()) return;
     this.running.set(true);
+    this.errorDetail.set(null);
     try {
       const result = this.data.albumId
         ? await firstValueFrom(this.exportService.exportAlbum(this.data.albumId, this.mode(), this.targetDir().trim(), this.overwrite()))
@@ -92,7 +99,8 @@ export class ExportEditorDialogComponent {
       const count = ('copied' in result ? result.copied : result.written) ?? 0;
       this.snackBar.open(this.i18n.t(I18N.export.done, { count }), '', { duration: 2500 });
       this.dialogRef.close(result);
-    } catch {
+    } catch (error) {
+      this.errorDetail.set(extractErrorDetail(error) ?? null);
       this.snackBar.open(this.i18n.t(I18N.export.failed), '', { duration: 2500 });
       this.running.set(false);
     }

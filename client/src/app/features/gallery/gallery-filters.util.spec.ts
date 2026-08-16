@@ -10,6 +10,7 @@ import {
   saveDisplayOptionsToStorage,
   DISPLAY_OPTIONS_KEY,
   TOOLTIP_MODES,
+  PANEL_ACTIVATIONS,
 } from './gallery-filters.util';
 
 function filters(overrides: Partial<GalleryFilters> = {}): GalleryFilters {
@@ -28,6 +29,13 @@ describe('countActiveFilters', () => {
   });
   it('counts similar_to and semanticQuery', () => {
     expect(countActiveFilters(filters({ similar_to: '/p.jpg', semanticQuery: 'dog' }))).toBe(2);
+  });
+  it('never counts the ephemeral set-scope fields', () => {
+    // They deliberately escape RANGE_AND_SELECT_KEYS so a set-scoped gallery
+    // needs its own dismissible chip -- the badge must stay silent about it.
+    expect(countActiveFilters(filters({
+      sequence_kind: 'bracket', sequence_group_id: '1', burst_group_id: '5', duplicate_group_id: '9',
+    }))).toBe(0);
   });
 });
 
@@ -51,6 +59,11 @@ describe('buildApiParams', () => {
     expect(buildApiParams(filters({ album_id: '7' }), true)['album_id']).toBeUndefined();
     expect(buildApiParams(filters({ album_id: '7' }), false)['album_id']).toBe('7');
   });
+  it('sends the set-scope fields to the API when set', () => {
+    const p = buildApiParams(filters({ sequence_kind: 'bracket', sequence_group_id: '1' }), false);
+    expect(p['sequence_kind']).toBe('bracket');
+    expect(p['sequence_group_id']).toBe('1');
+  });
 });
 
 describe('buildSyncParams', () => {
@@ -68,6 +81,18 @@ describe('buildSyncParams', () => {
   });
   it('emits hide_blinks=false when it differs from the true default', () => {
     expect(buildSyncParams(filters({ hide_blinks: false }), undefined)['hide_blinks']).toBe('false');
+  });
+  it('never writes the set-scope fields to the URL', () => {
+    // sequence_group_id is renumbered from 1 on every detection pass, so a
+    // bookmarked/shared URL carrying it would silently resolve to a
+    // different set later -- it must stay in-memory only.
+    const p = buildSyncParams(filters({
+      sequence_kind: 'bracket', sequence_group_id: '1', burst_group_id: '5', duplicate_group_id: '9',
+    }), undefined);
+    expect(p['sequence_kind']).toBeUndefined();
+    expect(p['sequence_group_id']).toBeUndefined();
+    expect(p['burst_group_id']).toBeUndefined();
+    expect(p['duplicate_group_id']).toBeUndefined();
   });
 });
 
@@ -95,9 +120,28 @@ describe('applyQueryParams', () => {
     expect(applyQueryParams(DEFAULT_FILTERS, { tooltip_mode: 'sidebar' }).tooltip_mode)
       .toBe(DEFAULT_FILTERS.tooltip_mode);
   });
+  it('accepts every panel activation and ignores anything else', () => {
+    for (const activation of PANEL_ACTIVATIONS) {
+      expect(applyQueryParams(DEFAULT_FILTERS, { panel_activation: activation }).panel_activation)
+        .toBe(activation);
+    }
+    expect(applyQueryParams(DEFAULT_FILTERS, { panel_activation: 'bogus' }).panel_activation)
+      .toBe(DEFAULT_FILTERS.panel_activation);
+  });
   it('parses page as int with fallback to 1', () => {
     expect(applyQueryParams(DEFAULT_FILTERS, { page: '3' }).page).toBe(3);
     expect(applyQueryParams(DEFAULT_FILTERS, { page: 'x' }).page).toBe(1);
+  });
+  it('ignores the set-scope fields even if present in the URL', () => {
+    // A crafted or stale URL must not resurrect a scope the server would
+    // resolve against a since-renumbered group id.
+    const r = applyQueryParams(DEFAULT_FILTERS, {
+      sequence_kind: 'bracket', sequence_group_id: '1', burst_group_id: '5', duplicate_group_id: '9',
+    });
+    expect(r.sequence_kind).toBe('');
+    expect(r.sequence_group_id).toBe('');
+    expect(r.burst_group_id).toBe('');
+    expect(r.duplicate_group_id).toBe('');
   });
   it('round-trips through buildSyncParams', () => {
     const original = filters({ camera: 'Canon', min_score: '7', hide_blinks: false, favorites_only: true });
@@ -118,6 +162,10 @@ describe('display options storage', () => {
     expect(loaded.tooltip_mode).toBe('click');
     expect(loaded.is_monochrome).toBe(true);
   });
+  it('saves and loads panel_activation, same channel as tooltip_mode', () => {
+    saveDisplayOptionsToStorage(filters({ panel_activation: 'click' }));
+    expect(loadDisplayOptionsFromStorage().panel_activation).toBe('click');
+  });
   it('returns {} when storage is empty', () => {
     expect(loadDisplayOptionsFromStorage()).toEqual({});
   });
@@ -126,3 +174,38 @@ describe('display options storage', () => {
     expect(loadDisplayOptionsFromStorage()).toEqual({});
   });
 });
+
+describe('per-channel clipping filters', () => {
+  const CLIPPING = {
+    min_channel_clip_highlight: '5',
+    max_channel_clip_shadow: '2',
+  };
+
+  it('reaches the API', () => {
+    const p = buildApiParams(filters(CLIPPING), false);
+    expect(p['min_channel_clip_highlight']).toBe('5');
+    expect(p['max_channel_clip_shadow']).toBe('2');
+  });
+
+  it('round-trips through the URL', () => {
+    // Unlike the ephemeral set-scope fields, this is a real filter: a link to
+    // "everything with blown highlights" has to survive being bookmarked.
+    const synced = buildSyncParams(filters(CLIPPING), undefined);
+    expect(synced['min_channel_clip_highlight']).toBe('5');
+    expect(synced['max_channel_clip_shadow']).toBe('2');
+
+    const restored = applyQueryParams(DEFAULT_FILTERS, synced);
+    expect(restored.min_channel_clip_highlight).toBe('5');
+    expect(restored.max_channel_clip_shadow).toBe('2');
+  });
+
+  it('counts towards the active-filter badge', () => {
+    expect(countActiveFilters(filters(CLIPPING))).toBe(2);
+  });
+
+  it('is absent from the defaults, so it never filters until asked for', () => {
+    expect(DEFAULT_FILTERS.min_channel_clip_highlight).toBe('');
+    expect(buildApiParams(DEFAULT_FILTERS, false)['min_channel_clip_highlight']).toBeUndefined();
+  });
+});
+

@@ -202,7 +202,8 @@
     "form_fractal": "Fractal",
     "color_harmony": "Color Harmony",
     "caption": "Caption",
-    "persons": "Persons",
+    "filter_by_person": "Filter by {name}",
+    "set_section": "Set",
     "histogram": "Histogram"
   },
   "photoCard": {
@@ -1033,6 +1034,13 @@
       "restore": "Restore filters",
       "showing_all": "Showing every photo — blinks, bursts and duplicates included"
     },
+    "render_migration": {
+      "message": "{n} RAW photos still show a thumbnail from the previous rendering.",
+      "command_hint": "Run {command} to refresh them all at once."
+    },
+    "set_scope": {
+      "message": "Showing one photo set: {kind}"
+    },
     "all_photos": "All Photos",
     "sort": "Sort by",
     "sort_aggregate": "Aggregate",
@@ -1079,6 +1087,12 @@
       "panel": "Side panel",
       "off": "Off",
       "panel_empty": "Hover or click a photo to see its details here"
+    },
+    "panel_activation": {
+      "label": "Panel activation",
+      "hover": "Hover",
+      "click": "Click",
+      "both": "Hover or click"
     },
     "hide_blinks": "Hide Blinks",
     "hide_bursts": "Best of Burst",
@@ -1238,7 +1252,13 @@
       "title": "Comparing {count} photos",
       "hint": "Scroll to zoom, drag to pan — every pane moves together. Double-click to reset.",
       "reset_zoom": "Reset zoom"
-    }
+    },
+    "clipping": {
+      "badge_highlight": "Clipped highlights: {percent}% of pixels",
+      "badge_shadow": "Clipped shadows: {percent}% of pixels"
+    },
+    "channel_clip_highlight_range": "Clipped Highlights %",
+    "channel_clip_shadow_range": "Clipped Shadows %"
   },
   "composition_patterns": {
     "none": "None",
@@ -2294,7 +2314,13 @@
     "caption_error": "Failed to generate caption",
     "translating_caption": "Translating...",
     "location": "Location",
-    "social_crop": "Social crop"
+    "social_crop": "Social crop",
+    "set": {
+      "title": "Set",
+      "ev_span": "EV span",
+      "kind_duplicate": "Duplicate",
+      "open_in_gallery": "Open this set in the gallery"
+    }
   },
   "photo": {
     "category_override": {
@@ -2466,6 +2492,20 @@
       "save_failed": "Could not save the settings",
       "redetect_started": "Detection started; it runs in the background",
       "redetect_failed": "Could not start detection"
+    }
+  },
+  "histogram": {
+    "mode": {
+      "label": "Histogram channels",
+      "luminance": "Lum",
+      "rgb": "RGB",
+      "red": "R",
+      "green": "G",
+      "blue": "B"
+    },
+    "clipping": {
+      "shadow": "Shadow clipping: {channels}",
+      "highlight": "Highlight clipping: {channels}"
     }
   }
 }

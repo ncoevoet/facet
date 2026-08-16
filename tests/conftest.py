@@ -72,7 +72,6 @@ MINIMAL_VIEWER_CONFIG: dict = {
         "show_similar_button": True,
         "show_merge_suggestions": True,
         "show_rating_controls": True,
-        "show_rating_badge": True,
         "show_folders": True,
     },
     "dropdowns": {"max_cameras": 50, "max_lenses": 50, "max_persons": 50, "max_tags": 20},

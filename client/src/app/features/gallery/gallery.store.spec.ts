@@ -61,7 +61,7 @@ function makePhoto(overrides: Partial<Photo> = {}): Photo {
     date_taken: null,
     image_width: 1920,
     image_height: 1080,
-    is_best_of_burst: null,
+    is_burst_lead: null,
     burst_group_id: null,
     duplicate_group_id: null,
     is_duplicate_lead: null,
@@ -106,6 +106,7 @@ function makeConfig(overrides: Partial<ViewerConfig> = {}): ViewerConfig {
       hide_panoramas: true,
       hide_details: true,
       tooltip_mode: "hover",
+      panel_activation: "both",
       hide_rejected: true,
       gallery_mode: 'mosaic',
     },
@@ -269,6 +270,7 @@ describe('GalleryStore', () => {
           hide_panoramas: false,
           hide_details: false,
           tooltip_mode: "hover",
+          panel_activation: "both",
           hide_rejected: false,
           gallery_mode: 'mosaic',
         },
@@ -744,6 +746,7 @@ describe('GalleryStore', () => {
           hide_panoramas: true,
           hide_details: true,
           tooltip_mode: "hover",
+          panel_activation: "both",
           hide_rejected: true,
           gallery_mode: 'mosaic',
         },
@@ -1102,6 +1105,27 @@ describe('GalleryStore optimistic mutations', () => {
     void store.toggleRejected('/b.jpg');
     expect(store.photos()[1].is_rejected).toBe(true);
     expect(store.photos()[1].is_favorite).toBe(false);
+  });
+
+  it('toggleRejected clears the star rating, not just is_rejected/is_favorite', () => {
+    apiPost.mockReturnValue(of({ is_rejected: true, star_rating: 0 }));
+    void store.toggleRejected('/a.jpg'); // starts at star_rating: 3
+    expect(store.photos()[0].star_rating).toBeNull();
+  });
+
+  it('toggleRejected reconciles the star rating from the server response', async () => {
+    apiPost.mockReturnValue(of({ is_rejected: true, star_rating: 0 }));
+    await store.toggleRejected('/a.jpg');
+    expect(store.photos()[0].star_rating).toBe(0);
+  });
+
+  it('un-rejecting keeps the prior star rating (server sends null = unchanged)', async () => {
+    store.photos.update(photos =>
+      photos.map(p => p.path === '/a.jpg' ? { ...p, is_rejected: true, star_rating: null } : p));
+    apiPost.mockReturnValue(of({ is_rejected: false, star_rating: null }));
+    await store.toggleRejected('/a.jpg');
+    expect(store.photos()[0].is_rejected).toBe(false);
+    expect(store.photos()[0].star_rating).toBeNull();
   });
 
   it('ignores a second toggleFavorite call for the same path while the first is still in flight', async () => {

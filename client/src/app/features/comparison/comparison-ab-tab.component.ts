@@ -32,7 +32,6 @@ interface ComparisonStats {
   winner_breakdown: Record<string, number>;
   category_breakdown: { category: string; count: number }[];
   unique_photos_compared: number;
-  photos_with_learned_scores: number;
   min_comparisons_for_optimization?: number;
 }
 

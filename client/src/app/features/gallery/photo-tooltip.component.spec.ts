@@ -1,8 +1,12 @@
+import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Component, signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { of } from 'rxjs';
 import { PhotoTooltipComponent, CategoryLabelPipe } from './photo-tooltip.component';
+import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
-import type { Photo } from '../../shared/models/photo.model';
+import type { Photo, PhotoSet } from '../../shared/models/photo.model';
 
 const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   path: '/photos/test.jpg',
@@ -47,7 +51,7 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   date_taken: null,
   image_width: 1920,
   image_height: 1080,
-  is_best_of_burst: null,
+  is_burst_lead: null,
   burst_group_id: null,
   duplicate_group_id: null,
   is_duplicate_lead: null,
@@ -70,21 +74,29 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
 @Component({
   selector: 'test-host',
   imports: [PhotoTooltipComponent],
-  template: `<app-photo-tooltip [photo]="photo()" [x]="0" [y]="0" [flipped]="flipped()" />`,
+  template: `<app-photo-tooltip [photo]="photo()" [x]="0" [y]="0" [flipped]="flipped()"
+                                 [pinned]="pinned()" [docked]="docked()" />`,
 })
 class TestHostComponent {
   photo = signal<Photo | null>(null);
   flipped = signal(false);
+  pinned = signal(false);
+  docked = signal(false);
 }
 
 describe('PhotoTooltipComponent', () => {
   let fixture: ComponentFixture<TestHostComponent>;
   const mockI18n = { t: (key: string) => key, locale: vi.fn(() => 'en'), translations: vi.fn(() => ({})) };
+  const mockRouter = { navigate: vi.fn(() => Promise.resolve(true)) };
 
   beforeEach(async () => {
+    mockRouter.navigate.mockClear();
     await TestBed.configureTestingModule({
       imports: [TestHostComponent],
-      providers: [{ provide: I18nService, useValue: mockI18n }],
+      providers: [
+        { provide: I18nService, useValue: mockI18n },
+        { provide: Router, useValue: mockRouter },
+      ],
     }).compileComponents();
     fixture = TestBed.createComponent(TestHostComponent);
   });
@@ -285,18 +297,24 @@ describe('PhotoTooltipComponent', () => {
       expect(avatars[1].alt).toBe('Bob');
     });
 
-    it('does not render person section when persons array is empty', () => {
+    it('does not render any avatar when persons array is empty', () => {
       fixture.componentInstance.photo.set(makePhoto({ persons: [] }));
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).not.toContain('tooltip.persons');
+      expect(fixture.nativeElement.querySelectorAll('img[class*="rounded-full"]').length).toBe(0);
     });
 
-    it('renders persons label', () => {
+    it('renders a plain, non-interactive image (no button) in the floating hover tooltip', () => {
+      // showInteractiveControls() is false here: neither docked nor pinned
+      // was set on the host, so the avatar must not look clickable when it
+      // is not -- a hover bubble dismisses before a click could land.
       fixture.componentInstance.photo.set(makePhoto({
         persons: [{ id: 1, name: 'Alice' }],
       }));
       fixture.detectChanges();
-      expect(fixture.nativeElement.textContent).toContain('tooltip.persons');
+      expect(fixture.nativeElement.querySelector('button')).toBeNull();
+      const avatar = fixture.nativeElement.querySelector('img[class*="rounded-full"]');
+      expect(avatar).not.toBeNull();
+      expect(avatar.className).toContain('w-6');
     });
 
     it('handles person with empty name', () => {
@@ -308,6 +326,294 @@ describe('PhotoTooltipComponent', () => {
       expect(avatars.length).toBe(1);
       expect(avatars[0].src).toContain('/person_thumbnail/3');
       expect(avatars[0].alt).toBe('');
+    });
+  });
+
+  describe('Set section', () => {
+    let mockApi: { get: Mock };
+    let setFixture: ComponentFixture<TestHostComponent>;
+
+    beforeEach(async () => {
+      // Discriminates by URL: the histogram widget shares this same mocked
+      // ApiService and needs its own valid response to render anything at all.
+      mockApi = {
+        get: vi.fn((url: string) => {
+          if (url === '/photo/set') {
+            return of({ kind: 'bracket', group_id: 1, count: 3, ev_span: 4, members: [] });
+          }
+          if (url === '/photo/histogram') {
+            return of({ bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null });
+          }
+          return of(null);
+        }),
+      };
+      mockRouter.navigate.mockClear();
+      TestBed.resetTestingModule();
+      await TestBed.configureTestingModule({
+        imports: [TestHostComponent],
+        providers: [
+          { provide: I18nService, useValue: mockI18n },
+          { provide: ApiService, useValue: mockApi },
+          { provide: Router, useValue: mockRouter },
+        ],
+      }).compileComponents();
+      setFixture = TestBed.createComponent(TestHostComponent);
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('shows nothing for a photo that belongs to no set', () => {
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.textContent).not.toContain('tooltip.set_section');
+      expect(mockApi.get).not.toHaveBeenCalledWith('/photo/set', expect.anything());
+    });
+
+    it('shows the kind and this frame\'s own EV offset immediately, with zero set requests', () => {
+      setFixture.componentInstance.photo.set(makePhoto({
+        sequence_kind: 'bracket', sequence_ev_offset: 1.5,
+      }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.textContent).toContain('tooltip.set_section');
+      expect(setFixture.nativeElement.textContent).toContain('culling.bracket.label');
+      expect(setFixture.nativeElement.textContent).toContain('+1.5 EV');
+      expect(mockApi.get).not.toHaveBeenCalledWith('/photo/set', expect.anything());
+    });
+
+    it('fills in the frame count and EV span once the dwell-delayed fetch resolves', () => {
+      setFixture.componentInstance.photo.set(makePhoto({
+        sequence_kind: 'bracket', sequence_ev_offset: 0,
+      }));
+      setFixture.detectChanges();
+      expect(setFixture.nativeElement.textContent).not.toContain('capsules.photos_count');
+
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+
+      expect(mockApi.get).toHaveBeenCalledWith('/photo/set', { path: '/photos/test.jpg' });
+      expect(setFixture.nativeElement.textContent).toContain('capsules.photos_count');
+      expect(setFixture.nativeElement.textContent).toContain('±4.0 EV');
+    });
+
+    it('never fires the request at all when the pointer only passes through', () => {
+      setFixture.componentInstance.photo.set(makePhoto({
+        path: '/photos/a.jpg', sequence_kind: 'bracket', sequence_ev_offset: 0,
+      }));
+      setFixture.detectChanges();
+      vi.advanceTimersByTime(150); // half the dwell delay
+
+      setFixture.componentInstance.photo.set(makePhoto({
+        path: '/photos/b.jpg', sequence_kind: 'bracket', sequence_ev_offset: 0,
+      }));
+      setFixture.detectChanges();
+      vi.advanceTimersByTime(150); // the first photo's timer never reaches 300ms
+
+      expect(mockApi.get).not.toHaveBeenCalledWith('/photo/set', expect.anything());
+    });
+
+    it('hides the histogram mode toggle in plain hover mode (neither pinned nor docked)', () => {
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.querySelectorAll('button').length).toBe(0);
+    });
+
+    it('shows the histogram mode toggle when pinned', () => {
+      setFixture.componentInstance.pinned.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.querySelectorAll('button').length).toBeGreaterThan(0);
+    });
+
+    it('shows the histogram mode toggle when docked', () => {
+      setFixture.componentInstance.docked.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.querySelectorAll('button').length).toBeGreaterThan(0);
+    });
+
+    // --- full-width histogram when the photo belongs to no set ---------------
+
+    function histogramContainer(): HTMLElement | null {
+      return setFixture.nativeElement.querySelector('app-histogram')?.parentElement ?? null;
+    }
+
+    it('the histogram is its own full-width block, not a grid column, when the photo belongs to no set', () => {
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.textContent).not.toContain('tooltip.set_section');
+      const container = histogramContainer();
+      expect(container).not.toBeNull();
+      expect(container!.parentElement?.classList.contains('grid')).toBe(false);
+    });
+
+    it('the layout is already full-width on the very first render, before the debounced fetch resolves -- no reflow once it does', () => {
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null }));
+      setFixture.detectChanges();
+
+      // Presence of the set block is decided by the synchronous
+      // p.sequence_kind, never by GET /api/photo/set -- assert the layout is
+      // already correct before advancing the fake timer past the dwell delay.
+      const beforeFetch = histogramContainer()!.parentElement?.classList.contains('grid');
+
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+
+      const afterFetch = histogramContainer()!.parentElement?.classList.contains('grid');
+      expect(beforeFetch).toBe(false);
+      expect(afterFetch).toBe(false);
+    });
+
+    it('keeps the set block and the histogram as two stacked full-width blocks when the photo IS in a set', () => {
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket', sequence_ev_offset: 0 }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.textContent).toContain('tooltip.set_section');
+      const container = histogramContainer();
+      expect(container!.parentElement?.classList.contains('grid')).toBe(false);
+    });
+
+    // --- docked-only sibling thumbnails ---------------------------------------
+
+    const MEMBERS: PhotoSet['members'] = [
+      { path: '/photos/a.jpg', ev_offset: -2, is_lead: false },
+      { path: '/photos/test.jpg', ev_offset: 0, is_lead: true },
+      { path: '/photos/c.jpg', ev_offset: 2, is_lead: false },
+    ];
+
+    function mockSetWithMembers(): void {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/set') {
+          return of({ kind: 'bracket', group_id: 1, count: 3, ev_span: 2, members: MEMBERS });
+        }
+        if (url === '/photo/histogram') {
+          return of({ bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null });
+        }
+        return of(null);
+      });
+    }
+
+    it('shows sibling thumbnails with an EV badge in the docked panel once the fetch resolves', () => {
+      mockSetWithMembers();
+      setFixture.componentInstance.docked.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket', sequence_ev_offset: 0 }));
+      setFixture.detectChanges();
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+
+      const thumbs = setFixture.nativeElement.querySelectorAll('img[alt="/photos/a.jpg"], img[alt="/photos/test.jpg"], img[alt="/photos/c.jpg"]');
+      expect(thumbs.length).toBe(3);
+      expect(setFixture.nativeElement.textContent).toContain('+2');
+      expect(setFixture.nativeElement.textContent).toContain('−2');
+    });
+
+    it('does not show sibling thumbnails in the floating (non-docked, non-pinned) tooltip', () => {
+      mockSetWithMembers();
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket', sequence_ev_offset: 0 }));
+      setFixture.detectChanges();
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.querySelector('img[alt="/photos/a.jpg"]')).toBeNull();
+    });
+
+    it('clicking a sibling thumbnail opens that frame\'s own detail page', () => {
+      mockSetWithMembers();
+      setFixture.componentInstance.docked.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket', sequence_ev_offset: 0 }));
+      setFixture.detectChanges();
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+
+      const img = setFixture.nativeElement.querySelector('img[alt="/photos/a.jpg"]') as HTMLElement;
+      (img.closest('button') as HTMLButtonElement).click();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], { queryParams: { path: '/photos/a.jpg' } });
+    });
+
+    it('rings the current frame among its siblings', () => {
+      mockSetWithMembers();
+      setFixture.componentInstance.docked.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket', sequence_ev_offset: 0 }));
+      setFixture.detectChanges();
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+
+      const currentImg = setFixture.nativeElement.querySelector('img[alt="/photos/test.jpg"]') as HTMLElement;
+      const otherImg = setFixture.nativeElement.querySelector('img[alt="/photos/a.jpg"]') as HTMLElement;
+      expect(currentImg.closest('button')!.className).toContain('ring-2');
+      expect(otherImg.closest('button')!.className).not.toContain('ring-2');
+    });
+
+    // --- clickable, per-surface-sized person avatars --------------------------
+
+    function personButton(): HTMLButtonElement | null {
+      return setFixture.nativeElement.querySelector('button[aria-label]');
+    }
+
+    it('renders person avatars as clickable 44px buttons in the docked panel', () => {
+      setFixture.componentInstance.docked.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({
+        sequence_kind: null, persons: [{ id: 1, name: 'Alice' }],
+      }));
+      setFixture.detectChanges();
+
+      const button = personButton();
+      expect(button).not.toBeNull();
+      expect(button!.className).toContain('w-11');
+      expect(button!.className).toContain('cursor-pointer');
+      expect(button!.getAttribute('aria-label')).toBe('tooltip.filter_by_person');
+      expect(button!.getAttribute('title')).toBe('Alice');
+    });
+
+    it('keeps person avatars small (24px) in a click-pinned floating tooltip, though still clickable', () => {
+      setFixture.componentInstance.pinned.set(true); // not docked
+      setFixture.componentInstance.photo.set(makePhoto({
+        sequence_kind: null, persons: [{ id: 1, name: 'Alice' }],
+      }));
+      setFixture.detectChanges();
+
+      const button = personButton();
+      expect(button).not.toBeNull();
+      expect(button!.className).toContain('w-6');
+      expect(button!.className).not.toContain('w-11');
+    });
+
+    it('renders a plain, non-clickable image in plain hover mode (neither docked nor pinned)', () => {
+      setFixture.componentInstance.photo.set(makePhoto({
+        sequence_kind: null, persons: [{ id: 1, name: 'Alice' }],
+      }));
+      setFixture.detectChanges();
+
+      expect(personButton()).toBeNull();
+      const img = setFixture.nativeElement.querySelector('img[alt="Alice"]');
+      expect(img).not.toBeNull();
+      expect(img.className).toContain('w-6');
+    });
+
+    it('clicking a person avatar emits its id as a plain string -- a bare number would silently match nothing or the wrong set', () => {
+      setFixture.componentInstance.docked.set(true);
+      setFixture.componentInstance.photo.set(makePhoto({
+        sequence_kind: null, persons: [{ id: 42, name: 'Alice' }],
+      }));
+      setFixture.detectChanges();
+
+      const tooltip = setFixture.debugElement.children[0].componentInstance as PhotoTooltipComponent;
+      const emitted: string[] = [];
+      tooltip.personSelected.subscribe((id: string) => emitted.push(id));
+
+      personButton()!.click();
+
+      expect(emitted).toEqual(['42']);
+      expect(typeof emitted[0]).toBe('string');
     });
   });
 });

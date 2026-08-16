@@ -75,11 +75,17 @@ def _get_image_jpeg_quality() -> int:
 
 
 @lru_cache(maxsize=5)
-def _convert_raw_cached(file_path: str, mtime: float, quality: int = 96) -> bytes:
-    """Convert a RAW file to JPEG bytes, cached by path+mtime+quality."""
+def _convert_raw_cached(file_path: str, mtime: float, quality: int = 96,
+                        sequence_kind: Optional[str] = None) -> bytes:
+    """Convert a RAW file to JPEG bytes, cached by path+mtime+quality+sequence kind.
+
+    The sequence kind is part of the key because it selects the rendering: a
+    frame relabelled as a bracket by a later detection pass must not keep
+    serving the camera-preview render cached before it.
+    """
     from api.raw_processing import convert_raw_to_jpeg
 
-    return convert_raw_to_jpeg(file_path, quality)
+    return convert_raw_to_jpeg(file_path, quality, sequence_kind)
 
 
 @lru_cache(maxsize=32)
@@ -291,11 +297,15 @@ def image(
     404/500 when the original is unavailable (e.g. an offline volume) or fails to
     convert. The loupe in Scenes/Culling uses this so it degrades to the embedded
     thumbnail rather than going blank.
+
+    ``sequence_kind`` rides along on the visibility query rather than costing a
+    second round trip: it selects how a RAW renders (see
+    ``utils.image_loading.renders_faithfully``).
     """
     vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
     with get_db() as conn:
         row = conn.execute(
-            f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
+            f"SELECT path, sequence_kind FROM photos WHERE path = ? AND {vis_sql}",
             [path, *vis_params],
         ).fetchone()
     if not row:
@@ -315,7 +325,7 @@ def image(
         try:
             mtime = os.path.getmtime(real_disk)
             quality = _get_image_jpeg_quality()
-            jpeg_bytes = _convert_raw_cached(real_disk, mtime, quality)
+            jpeg_bytes = _convert_raw_cached(real_disk, mtime, quality, row['sequence_kind'])
             return _cached_image_response(jpeg_bytes, request)
         except (OSError, ValueError):
             logger.exception("Failed to convert RAW file: %s", real_disk)

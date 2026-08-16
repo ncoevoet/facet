@@ -53,7 +53,7 @@ import { I18N_KEYS } from '../../core/i18n/keys';
 
         <div class="flex flex-col gap-1 max-h-[360px] overflow-y-auto">
           <button
-            class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full border border-dashed border-neutral-600"
+            class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full border border-dashed border-neutral-600 cursor-pointer"
             (click)="startCreate()"
           >
             <div class="w-14 h-14 rounded-full bg-[var(--mat-sys-surface-container-high)] flex items-center justify-center">
@@ -66,7 +66,7 @@ import { I18N_KEYS } from '../../core/i18n/keys';
 
           @for (person of filtered(); track person.id) {
             <button
-              class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full"
+              class="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full cursor-pointer"
               (click)="dialogRef.close({ kind: 'select', person })"
             >
               <img [src]="person.id | personThumbnailUrl"

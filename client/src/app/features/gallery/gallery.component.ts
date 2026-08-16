@@ -35,6 +35,7 @@ import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
 import { SequenceKindIconPipe } from '../../shared/pipes/sequence-kind.pipe';
+import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { downloadAll } from '../../shared/utils/download';
@@ -62,10 +63,13 @@ import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
+import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 
 /** The three toggles the hidden-photos banner clears and restores together. */
 type HiddenFilterFlags = Pick<GalleryFilters,
   'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas'>;
+
+const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
 
 
 @Component({
@@ -85,6 +89,8 @@ type HiddenFilterFlags = Pick<GalleryFilters,
     MatBottomSheetModule,
     TranslatePipe,
     SequenceKindIconPipe,
+    PhotoSetKindIconPipe,
+    PhotoSetKindLabelPipe,
     MatSnackBarModule,
     PhotoTooltipComponent,
     SlideshowComponent,
@@ -170,7 +176,10 @@ type HiddenFilterFlags = Pick<GalleryFilters,
         @if (detailsRailVisible()) {
           <div class="p-2">
             @if (tooltipPhoto(); as p) {
-              <app-photo-tooltip [photo]="p" [docked]="true" />
+              <app-photo-tooltip [photo]="p" [docked]="true" [pinned]="true"
+                                 [histogramDefaultMode]="tooltipHistogramDefaultMode()"
+                                 [indicatorPercent]="clippingIndicatorPercent()"
+                                 (personSelected)="store.updateFilter('person_id', $event)" />
             } @else {
               <div class="rounded-xl p-4 text-sm opacity-60 text-center"
                    style="background: var(--facet-tooltip-bg); border: 1px solid var(--facet-tooltip-border)">
@@ -205,6 +214,38 @@ type HiddenFilterFlags = Pick<GalleryFilters,
             </span>
             <button mat-button class="!min-w-0" (click)="restoreHidden()">
               {{ I18N.gallery.hidden_banner.restore | translate }}
+            </button>
+          </div>
+        }
+
+        <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
+             Never reflected in the URL (sequence_group_id is renumbered on every
+             detection pass), so this is the only affordance out of it. -->
+        @if (setScopeKind(); as kind) {
+          <div class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex items-center gap-3 text-sm">
+            <mat-icon class="opacity-70 !text-base !w-5 !h-5">{{ kind | photoSetKindIcon }}</mat-icon>
+            <span class="flex-1">
+              {{ I18N.gallery.set_scope.message | translate:{ kind: (kind | photoSetKindLabel | translate) } }}
+            </span>
+            <button mat-button class="!min-w-0" (click)="clearSetScope()">
+              {{ I18N.ui.buttons.clear | translate }}
+            </button>
+          </div>
+        }
+
+        <!-- Thumbnail-migration notice. The grid reads photos.thumbnail, so a RAW
+             scanned before the render fix keeps showing the old rendering until it
+             is regenerated, and browsing never regenerates it. This banner is the
+             only place the command that does is surfaced. -->
+        @if (showRenderMigrationBanner()) {
+          <div class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex items-center gap-3 text-sm">
+            <mat-icon class="opacity-70 !text-base !w-5 !h-5">auto_fix_high</mat-icon>
+            <span class="flex-1">
+              {{ I18N.gallery.render_migration.message | translate:{ n: renderMigrationPending() } }}
+              {{ I18N.gallery.render_migration.command_hint | translate:{ command: REFRESH_THUMBNAILS_COMMAND } }}
+            </span>
+            <button mat-button class="!min-w-0" (click)="dismissRenderMigration()">
+              {{ I18N.ui.buttons.dismiss | translate }}
             </button>
           </div>
         }
@@ -250,6 +291,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
                   [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [burstFramesVisible]="burstFramesVisible()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
                       [style.width.px]="row.widths[i]"
@@ -264,6 +306,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
                       [isEditionMode]="auth.isEdition()"
                       [personFilterId]="store.filters().person_id"
                       [tooltipMode]="tooltipMode()"
+                      [panelActivation]="panelActivation()"
                       (selectionChange)="toggleSelection($event.photo, $event.event)"
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
                       (tooltipHide)="hideTooltip()"
@@ -296,6 +339,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
               @for (photo of store.photos(); track photo.path; let i = $index) {
                 <app-photo-card
                   [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [burstFramesVisible]="burstFramesVisible()"
                   [photo]="photo"
                   [attr.data-pidx]="i"
                   [config]="store.config()"
@@ -306,6 +350,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
                   [isEditionMode]="auth.isEdition()"
                   [personFilterId]="store.filters().person_id"
                   [tooltipMode]="tooltipMode()"
+                      [panelActivation]="panelActivation()"
                   [style.content-visibility]="'auto'"
                   [style.contain-intrinsic-size]="'auto ' + (cardWidth() + 80) + 'px'"
                   (selectionChange)="toggleSelection($event.photo, $event.event)"
@@ -338,6 +383,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
                   [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [burstFramesVisible]="burstFramesVisible()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
                       [style.width.px]="row.widths[i]"
@@ -351,6 +397,7 @@ type HiddenFilterFlags = Pick<GalleryFilters,
                       [isEditionMode]="auth.isEdition()"
                       [personFilterId]="store.filters().person_id"
                       [tooltipMode]="tooltipMode()"
+                      [panelActivation]="panelActivation()"
                       (selectionChange)="toggleSelection($event.photo, $event.event)"
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
                       (tooltipHide)="hideTooltip()"
@@ -459,6 +506,10 @@ type HiddenFilterFlags = Pick<GalleryFilters,
         [x]="tooltipX()"
         [y]="tooltipY()"
         [flipped]="tooltipFlipped()"
+        [pinned]="tooltipMode() === 'click'"
+        [histogramDefaultMode]="tooltipHistogramDefaultMode()"
+        [indicatorPercent]="clippingIndicatorPercent()"
+        (personSelected)="store.updateFilter('person_id', $event)"
       />
     }
 
@@ -670,6 +721,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Tooltip mode signal — 'hover' | 'click' | 'off' */
   readonly tooltipMode = computed(() => this.store.filters().tooltip_mode);
+  /** Which gesture(s) retarget the docked panel — only meaningful when tooltipMode is 'panel'. */
+  readonly panelActivation = computed(() => this.store.filters().panel_activation);
   /** Whether tooltip is fully disabled (off mode) — used for skipping rendering and hover handlers */
   readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off');
 
@@ -698,6 +751,25 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (f.hide_brackets) kinds.push('bracket');
     if (f.hide_panoramas) kinds.push('panorama', 'hdr_panorama');
     return kinds;
+  });
+
+  /** Whether a burst's non-lead frames are on screen.
+   *
+   *  Drives the "best" badge, and is the mirror of the rule above: with
+   *  `hide_bursts` on -- the default -- every burst photo in the grid is
+   *  already its group's lead, so badging each of them would say nothing. */
+  readonly burstFramesVisible = computed(() => !this.store.filters().hide_bursts);
+
+  /** Percent of clipped pixels a channel must exceed to earn a histogram marker. */
+  readonly clippingIndicatorPercent = computed(
+    () => this.store.config()?.clipping?.indicator_percent ?? 1);
+
+  /** House default for the tooltip's OWN histogram channel mode -- independent
+   *  of the detail panel's `viewer.clipping.histogram_mode`. A stale/unrecognised
+   *  config value degrades to 'luma' rather than the widget rendering nothing. */
+  readonly tooltipHistogramDefaultMode = computed<HistogramMode>(() => {
+    const configured = this.store.config()?.clipping?.tooltip_histogram_mode;
+    return isHistogramMode(configured) ? configured : 'luma';
   });
 
   /** Show the hidden-photos banner when filters are hiding rows and at least one is on. */
@@ -749,6 +821,54 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (!stash) return;
     this.hiddenFiltersStash.set(null);
     void this.store.updateFilters({ ...stash });
+  }
+
+  /** The active set-scope kind (from photo-detail's "open this set"), or null. */
+  readonly setScopeKind = computed(() => {
+    const f = this.store.filters();
+    if (f.sequence_kind && f.sequence_group_id) return f.sequence_kind;
+    if (f.burst_group_id) return 'burst';
+    if (f.duplicate_group_id) return 'duplicate';
+    return null;
+  });
+
+  /** The command that migrates the whole library in one go. */
+  protected readonly REFRESH_THUMBNAILS_COMMAND = 'python facet.py --refresh-thumbnails';
+
+  /** RAW rows still on the pre-fix rendering, as of the last config load. */
+  readonly renderMigrationPending = computed(
+    () => this.store.config()?.render_migration?.pending ?? 0,
+  );
+
+  /**
+   * Dismissal is remembered, like the culling swipe hint: the notice is advisory
+   * and the migration can take hours, so re-raising it on every visit would be
+   * nagging rather than informing.
+   */
+  private readonly renderMigrationDismissed = signal(
+    localStorage.getItem(RENDER_MIGRATION_DISMISSED_KEY) === 'true',
+  );
+
+  readonly showRenderMigrationBanner = computed(
+    () => this.renderMigrationPending() > 0 && !this.renderMigrationDismissed(),
+  );
+
+  dismissRenderMigration(): void {
+    localStorage.setItem(RENDER_MIGRATION_DISMISSED_KEY, 'true');
+    this.renderMigrationDismissed.set(true);
+  }
+
+  clearSetScope(): void {
+    const kind = this.setScopeKind();
+    if (!kind) return;
+    const updates: Partial<GalleryFilters> = {
+      sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+    };
+    if (kind === 'burst') updates.hide_bursts = true;
+    else if (kind === 'duplicate') updates.hide_duplicates = true;
+    else if (kind === 'bracket') updates.hide_brackets = true;
+    else updates.hide_panoramas = true;
+    void this.store.updateFilters(updates);
   }
 
   /** Container width for mosaic layout (updated via ResizeObserver) */
@@ -874,15 +994,38 @@ export class GalleryComponent implements OnInit, OnDestroy {
       // Re-measure the virtual window once the new rows are in the DOM
       requestAnimationFrame(() => this.updateWindowPosition());
     });
+
+    // A tooltip shown under one mode's semantics (hover tracks the cursor,
+    // click toggles on the same photo, panel docks and keeps the last one on
+    // mouse-out) must not carry over into another's. Most visibly: a photo
+    // left in tooltipPhoto by hover survives a switch to click mode, so the
+    // FIRST click on that same photo matches showTooltip's toggle condition
+    // and hides instead of shows. A dedicated effect rather than folding this
+    // into the one above: that one also recomputes scroll/virtual-window
+    // layout, which a mode switch has no reason to trigger.
+    effect(() => {
+      this.tooltipMode(); // track dependency
+      untracked(() => this.tooltipPhoto.set(null));
+    });
   }
 
   async ngOnInit(): Promise<void> {
     this.pageHelp.setDescription(I18N.gallery.help);
-    if (this.tryRestoreView()) return;
+    // Read (and clear) BEFORE tryRestoreView: a scoped "open this set" request
+    // means the user wants that new scoped view, never a resumed previous one.
+    const setScope = this.consumeSetScopeState();
+    if (!setScope && this.tryRestoreView()) return;
     // Reset album state to avoid stale singleton data; loadConfig() resets filters from scratch
     this.store.currentAlbum.set(null);
     this.store.initializing.set(true);
     await this.store.loadConfig();
+    // Apply the ephemeral set scope AFTER loadConfig, which replaces `filters`
+    // wholesale -- applying it before would just be discarded. Never in the
+    // URL: sequence_group_id is renumbered on every detection pass, so a
+    // bookmarked/shared/reloaded link must never resolve to a different set.
+    if (setScope) {
+      this.store.filters.update(current => ({ ...current, ...setScope }));
+    }
     // Set album_id from route path param (for /album/:albumId route)
     const albumId = this.route.snapshot.paramMap.get('albumId');
     if (albumId) {
@@ -931,6 +1074,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
       albumId: this.route.snapshot.paramMap.get('albumId'),
       filterKey: this.store.filterKey(),
     });
+  }
+
+  /**
+   * Read, and immediately clear, the ephemeral set-scope filters carried from
+   * photo-detail's "open this set in the gallery" action via router
+   * navigation `state` rather than the URL -- `sequence_group_id` is
+   * renumbered on every detection pass, so it must never be bookmarkable or
+   * shareable. Browsers keep `history.state` for the current history entry
+   * across a reload, so it is cleared right after being read: a reload of a
+   * scoped gallery must fall back to the normal unscoped view, not silently
+   * resolve to a possibly-different set.
+   */
+  private consumeSetScopeState(): Partial<GalleryFilters> | null {
+    const state = history.state as Record<string, unknown> | undefined;
+    const scope = state?.['setScope'] as Partial<GalleryFilters> | undefined;
+    if (!scope) return null;
+    const rest: Record<string, unknown> = { ...state };
+    delete rest['setScope'];
+    history.replaceState(rest, '', location.href);
+    return scope;
   }
 
   /**

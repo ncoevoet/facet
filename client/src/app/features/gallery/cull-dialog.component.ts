@@ -8,6 +8,7 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { extractErrorDetail } from '../../core/utils/http-error.util';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
@@ -80,6 +81,10 @@ interface CullResponse {
           }
         </div>
       }
+
+      @if (errorDetail(); as detail) {
+        <p class="mt-3 text-sm text-[var(--mat-sys-error)]">{{ I18N.cull.error | translate }}: {{ detail }}</p>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.cull.cancel | translate }}</button>
@@ -110,6 +115,7 @@ export class CullDialogComponent {
   protected readonly includeCompanions = signal(false);
   protected readonly preview = signal<{ affected: string[]; skipped: string[]; excluded: number } | null>(null);
   protected readonly busy = signal(false);
+  protected readonly errorDetail = signal<string | null>(null);
 
   protected readonly needsTarget = computed(() => this.action() !== 'trash_rejects');
   protected readonly count = this.data.paths.length;
@@ -117,11 +123,13 @@ export class CullDialogComponent {
   protected setAction(a: CullAction): void {
     this.action.set(a);
     this.preview.set(null);
+    this.errorDetail.set(null);
   }
 
   protected onTargetInput(event: Event): void {
     this.targetDir.set((event.target as HTMLInputElement).value);
     this.preview.set(null);
+    this.errorDetail.set(null);
   }
 
   private body(dryRun: boolean): CullRequest {
@@ -143,6 +151,7 @@ export class CullDialogComponent {
 
   async runPreview(): Promise<void> {
     this.busy.set(true);
+    this.errorDetail.set(null);
     const requested = this.body(true);
     try {
       const res = await firstValueFrom(this.api.post<CullResponse>('/cull/apply', requested));
@@ -151,7 +160,8 @@ export class CullDialogComponent {
       }
       const affected = res.would_copy ?? res.would_move ?? res.would_trash ?? [];
       this.preview.set({ affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0 });
-    } catch {
+    } catch (error) {
+      this.errorDetail.set(extractErrorDetail(error) ?? null);
       this.snackBar.open(this.i18n.t(I18N.cull.error), '', { duration: 3000 });
     } finally {
       this.busy.set(false);
@@ -160,11 +170,13 @@ export class CullDialogComponent {
 
   async apply(): Promise<void> {
     this.busy.set(true);
+    this.errorDetail.set(null);
     try {
       await firstValueFrom(this.api.post<CullResponse>('/cull/apply', this.body(false)));
       this.snackBar.open(this.i18n.t(I18N.cull.done), '', { duration: 2500 });
       this.dialogRef.close(true);
-    } catch {
+    } catch (error) {
+      this.errorDetail.set(extractErrorDetail(error) ?? null);
       this.snackBar.open(this.i18n.t(I18N.cull.error), '', { duration: 3000 });
     } finally {
       this.busy.set(false);

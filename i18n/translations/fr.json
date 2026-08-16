@@ -202,7 +202,8 @@
     "form_fractal": "Fractale",
     "color_harmony": "Harmonie couleurs",
     "caption": "Légende",
-    "persons": "Personnes",
+    "filter_by_person": "Filtrer par {name}",
+    "set_section": "Groupe",
     "histogram": "Histogramme"
   },
   "photoCard": {
@@ -1033,6 +1034,13 @@
       "restore": "Rétablir les filtres",
       "showing_all": "Toutes les photos sont affichées, y compris clignements, rafales et doublons"
     },
+    "render_migration": {
+      "message": "{n} photos RAW affichent encore une miniature issue du rendu précédent.",
+      "command_hint": "Lancez {command} pour toutes les rafraîchir d'un coup."
+    },
+    "set_scope": {
+      "message": "Un groupe de photos est affiché : {kind}"
+    },
     "all_photos": "Toutes les photos",
     "sort": "Trier par",
     "sort_aggregate": "Agrégat",
@@ -1079,6 +1087,12 @@
       "panel": "Panneau latéral",
       "off": "Désactivée",
       "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici"
+    },
+    "panel_activation": {
+      "label": "Activation du panneau",
+      "hover": "Survol",
+      "click": "Clic",
+      "both": "Survol ou clic"
     },
     "hide_blinks": "Masquer clignements",
     "hide_bursts": "Meilleure de la rafale",
@@ -1238,7 +1252,13 @@
       "title": "Comparaison de {count} photos",
       "hint": "Molette pour zoomer, glisser pour déplacer : tous les volets bougent ensemble. Double-clic pour réinitialiser.",
       "reset_zoom": "Réinitialiser le zoom"
-    }
+    },
+    "clipping": {
+      "badge_highlight": "Hautes lumières écrêtées : {percent} % des pixels",
+      "badge_shadow": "Ombres écrêtées : {percent} % des pixels"
+    },
+    "channel_clip_highlight_range": "Hautes lumières écrêtées %",
+    "channel_clip_shadow_range": "Ombres écrêtées %"
   },
   "composition_patterns": {
     "none": "Aucun",
@@ -2294,7 +2314,13 @@
     "caption_error": "Échec de la génération de la légende",
     "translating_caption": "Traduction en cours...",
     "location": "Localisation",
-    "social_crop": "Recadrage social"
+    "social_crop": "Recadrage social",
+    "set": {
+      "title": "Groupe",
+      "ev_span": "Écart EV",
+      "kind_duplicate": "Doublon",
+      "open_in_gallery": "Ouvrir ce groupe dans la galerie"
+    }
   },
   "photo": {
     "category_override": {
@@ -2466,6 +2492,20 @@
       "save_failed": "Impossible d'enregistrer les réglages",
       "redetect_started": "Détection lancée ; elle s'exécute en arrière-plan",
       "redetect_failed": "Impossible de lancer la détection"
+    }
+  },
+  "histogram": {
+    "mode": {
+      "label": "Canaux de l’histogramme",
+      "luminance": "Lum",
+      "rgb": "RVB",
+      "red": "R",
+      "green": "V",
+      "blue": "B"
+    },
+    "clipping": {
+      "shadow": "Écrêtage des ombres : {channels}",
+      "highlight": "Écrêtage des hautes lumières : {channels}"
     }
   }
 }

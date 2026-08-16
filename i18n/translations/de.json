@@ -202,7 +202,8 @@
     "histogram_spread": "Histogramm",
     "star_rating": "Bewertung",
     "topiq_score": "TOPIQ",
-    "persons": "Personen",
+    "filter_by_person": "Nach {name} filtern",
+    "set_section": "Gruppe",
     "histogram": "Histogramm"
   },
   "photoCard": {
@@ -1033,6 +1034,13 @@
       "restore": "Filter wiederherstellen",
       "showing_all": "Alle Fotos werden angezeigt – einschließlich Blinzler, Serien und Duplikate"
     },
+    "render_migration": {
+      "message": "{n} RAW-Fotos zeigen noch eine Miniatur aus der vorherigen Darstellung.",
+      "command_hint": "Führen Sie {command} aus, um alle auf einmal aufzufrischen."
+    },
+    "set_scope": {
+      "message": "Eine Fotogruppe wird angezeigt: {kind}"
+    },
     "all_photos": "Alle Fotos",
     "sort": "Sortieren nach",
     "sort_aggregate": "Gesamtwertung",
@@ -1079,6 +1087,12 @@
       "panel": "Seitenleiste",
       "off": "Aus",
       "panel_empty": "Fahre über ein Foto oder klicke es an, um seine Details hier zu sehen"
+    },
+    "panel_activation": {
+      "label": "Panel-Aktivierung",
+      "hover": "Hover",
+      "click": "Klick",
+      "both": "Hover oder Klick"
     },
     "hide_blinks": "Blinzler ausblenden",
     "hide_bursts": "Beste aus Serie",
@@ -1238,7 +1252,13 @@
       "title": "{count} Fotos im Vergleich",
       "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben – alle Bereiche bewegen sich gemeinsam. Doppelklick setzt zurück.",
       "reset_zoom": "Zoom zurücksetzen"
-    }
+    },
+    "clipping": {
+      "badge_highlight": "Beschnittene Lichter: {percent}% der Pixel",
+      "badge_shadow": "Beschnittene Schatten: {percent}% der Pixel"
+    },
+    "channel_clip_highlight_range": "Beschnittene Lichter %",
+    "channel_clip_shadow_range": "Beschnittene Schatten %"
   },
   "composition_patterns": {
     "none": "Keines",
@@ -2294,7 +2314,13 @@
     "add_location": "Standort hinzufügen",
     "gps_click_to_place": "Klicken Sie auf die Karte, um eine Markierung zu setzen",
     "gps_clear": "Standort entfernen",
-    "social_crop": "Social-Zuschnitt"
+    "social_crop": "Social-Zuschnitt",
+    "set": {
+      "title": "Gruppe",
+      "ev_span": "EV-Spanne",
+      "kind_duplicate": "Duplikat",
+      "open_in_gallery": "Diese Gruppe in der Galerie öffnen"
+    }
   },
   "photo": {
     "category_override": {
@@ -2466,6 +2492,20 @@
       "save_failed": "Einstellungen konnten nicht gespeichert werden",
       "redetect_started": "Erkennung gestartet; sie läuft im Hintergrund",
       "redetect_failed": "Erkennung konnte nicht gestartet werden"
+    }
+  },
+  "histogram": {
+    "mode": {
+      "label": "Histogramm-Kanäle",
+      "luminance": "Lum",
+      "rgb": "RGB",
+      "red": "R",
+      "green": "G",
+      "blue": "B"
+    },
+    "clipping": {
+      "shadow": "Schatten beschnitten: {channels}",
+      "highlight": "Lichter beschnitten: {channels}"
     }
   }
 }

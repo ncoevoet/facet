@@ -272,10 +272,34 @@
               <mat-icon>view_sidebar</mat-icon>
               {{ I18N.gallery.tooltip_mode.panel | translate }}
             </button>
+            @if (store.filters().tooltip_mode === 'panel') {
+              <button mat-menu-item [matMenuTriggerFor]="panelActivationMenu">
+                <mat-icon>{{
+                  store.filters().panel_activation === 'hover' ? 'chat_bubble_outline'
+                  : store.filters().panel_activation === 'click' ? 'touch_app'
+                  : 'swap_horiz'
+                }}</mat-icon>
+                {{ I18N.gallery.panel_activation.label | translate }}
+              </button>
+            }
           }
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
             <mat-icon>visibility_off</mat-icon>
             {{ I18N.gallery.tooltip_mode.off | translate }}
+          </button>
+        </mat-menu>
+        <mat-menu #panelActivationMenu="matMenu">
+          <button mat-menu-item (click)="store.updateFilter('panel_activation', 'hover')">
+            <mat-icon>chat_bubble_outline</mat-icon>
+            {{ I18N.gallery.panel_activation.hover | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('panel_activation', 'click')">
+            <mat-icon>touch_app</mat-icon>
+            {{ I18N.gallery.panel_activation.click | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('panel_activation', 'both')">
+            <mat-icon>swap_horiz</mat-icon>
+            {{ I18N.gallery.panel_activation.both | translate }}
           </button>
         </mat-menu>
       }
@@ -543,10 +567,34 @@
               <mat-icon>view_sidebar</mat-icon>
               {{ I18N.gallery.tooltip_mode.panel | translate }}
             </button>
+            @if (store.filters().tooltip_mode === 'panel') {
+              <button mat-menu-item [matMenuTriggerFor]="panelActivationMenuMobile">
+                <mat-icon>{{
+                  store.filters().panel_activation === 'hover' ? 'chat_bubble_outline'
+                  : store.filters().panel_activation === 'click' ? 'touch_app'
+                  : 'swap_horiz'
+                }}</mat-icon>
+                {{ I18N.gallery.panel_activation.label | translate }}
+              </button>
+            }
           }
           <button mat-menu-item (click)="store.updateFilter('tooltip_mode', 'off')">
             <mat-icon>visibility_off</mat-icon>
             {{ I18N.gallery.tooltip_mode.off | translate }}
+          </button>
+        </mat-menu>
+        <mat-menu #panelActivationMenuMobile="matMenu">
+          <button mat-menu-item (click)="store.updateFilter('panel_activation', 'hover')">
+            <mat-icon>chat_bubble_outline</mat-icon>
+            {{ I18N.gallery.panel_activation.hover | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('panel_activation', 'click')">
+            <mat-icon>touch_app</mat-icon>
+            {{ I18N.gallery.panel_activation.click | translate }}
+          </button>
+          <button mat-menu-item (click)="store.updateFilter('panel_activation', 'both')">
+            <mat-icon>swap_horiz</mat-icon>
+            {{ I18N.gallery.panel_activation.both | translate }}
           </button>
         </mat-menu>
 

@@ -42,11 +42,11 @@ export interface GalleryActionsSheetData {
       </div>
 
       @if (data.isEdition) {
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'favorite' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'favorite' })">
           <mat-icon aria-hidden="true">favorite</mat-icon>
           {{ I18N.gallery.selection.favorite | translate }}
         </button>
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'reject' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'reject' })">
           <mat-icon aria-hidden="true">thumb_down</mat-icon>
           {{ I18N.gallery.selection.reject | translate }}
         </button>
@@ -54,73 +54,73 @@ export interface GalleryActionsSheetData {
           <mat-icon class="mr-2 opacity-70" aria-hidden="true">star</mat-icon>
           @for (star of [1, 2, 3, 4, 5]; track star) {
             <button
-              class="w-9 h-9 rounded-full text-yellow-400 text-sm font-semibold hover:bg-white/10"
+              class="w-9 h-9 rounded-full text-yellow-400 text-sm font-semibold hover:bg-white/10 cursor-pointer"
               [attr.aria-label]="(I18N.gallery.selection.rate | translate) + ' ' + star"
               (click)="pick({ kind: 'rate', rating: star })"
             >{{ star }}★</button>
           }
-          <button class="w-9 h-9 rounded-full text-sm hover:bg-white/10"
+          <button class="w-9 h-9 rounded-full text-sm hover:bg-white/10 cursor-pointer"
                   [attr.aria-label]="I18N.gallery.selection.clear | translate"
                   (click)="pick({ kind: 'rate', rating: 0 })">0</button>
         </div>
         @if (data.showAlbums) {
           @for (album of data.albums; track album.id) {
-            <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'album', albumId: album.id })">
+            <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'album', albumId: album.id })">
               <mat-icon aria-hidden="true">photo_library</mat-icon>
               {{ album.name }}
             </button>
           }
-          <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'create-album' })">
+          <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'create-album' })">
             <mat-icon aria-hidden="true">add</mat-icon>
             {{ I18N.albums.create | translate }}
           </button>
         }
         <!-- Present on the desktop bar but previously unreachable on a phone,
              where this sheet is the only way to any bulk action. -->
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'export' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'export' })">
           <mat-icon aria-hidden="true">drive_file_move</mat-icon>
           {{ I18N.export.action | translate }}
         </button>
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'cull' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'cull' })">
           <mat-icon aria-hidden="true">folder_move</mat-icon>
           {{ I18N.cull.action | translate }}
         </button>
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'panorama' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'panorama' })">
           <mat-icon aria-hidden="true">{{ 'panorama' | sequenceKindIcon }}</mat-icon>
           {{ I18N.gallery.selection.mark_panorama | translate }}
         </button>
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'hdr_panorama' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'hdr_panorama' })">
           <mat-icon aria-hidden="true">{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon>
           {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
         </button>
       }
 
-      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'invert' })">
+      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'invert' })">
         <mat-icon aria-hidden="true">flip</mat-icon>
         {{ I18N.gallery.selection.invert | translate }}
       </button>
       @if (data.canCompare) {
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'compare' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'compare' })">
           <mat-icon aria-hidden="true">compare</mat-icon>
           {{ I18N.gallery.selection.compare | translate }}
         </button>
       }
-      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'copy' })">
+      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'copy' })">
         <mat-icon aria-hidden="true">content_copy</mat-icon>
         {{ I18N.gallery.selection.copy_filenames | translate }}
       </button>
-      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'download', type: 'original' })">
+      <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'download', type: 'original' })">
         <mat-icon aria-hidden="true">download</mat-icon>
         {{ I18N.download.type_original | translate }}
       </button>
       @for (profile of data.downloadProfiles; track profile) {
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'download', type: 'darktable', profile })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'download', type: 'darktable', profile })">
           <mat-icon aria-hidden="true">photo_filter</mat-icon>
           {{ profile }}
         </button>
       }
       @if (data.downloadProfiles.length) {
-        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10" (click)="pick({ kind: 'download', type: 'raw' })">
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'download', type: 'raw' })">
           <mat-icon aria-hidden="true">raw_on</mat-icon>
           {{ I18N.download.type_raw | translate }}
         </button>

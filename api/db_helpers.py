@@ -305,6 +305,7 @@ PHOTO_BASE_COLS = [
 PHOTO_OPTIONAL_COLS = [
     'histogram_spread', 'mean_luminance', 'power_point_score',
     'shadow_clipped', 'highlight_clipped', 'is_silhouette', 'is_group_portrait', 'leading_lines_score',
+    'channel_clip_shadow_pct', 'channel_clip_highlight_pct',
     'face_confidence', 'is_monochrome', 'mean_saturation',
     'dynamic_range_stops', 'noise_sigma', 'contrast_score', 'tags',
     'composition_pattern', 'quality_score', 'topiq_score',
@@ -313,6 +314,7 @@ PHOTO_OPTIONAL_COLS = [
     'subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation',
     'star_rating', 'is_favorite', 'is_rejected',
     'duplicate_group_id', 'is_duplicate_lead',
+    'burst_group_id',
     'caption', 'caption_translated', 'gps_latitude', 'gps_longitude',
     'dominant_hue', 'color_temp',
     'form_symmetry', 'form_balance', 'form_edge_entropy', 'form_fractal', 'color_harmony',

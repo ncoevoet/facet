@@ -9,7 +9,7 @@ import { I18nService } from '../../core/services/i18n.service';
 import { Photo, KeeperHint } from '../../shared/models/photo.model';
 import { I18N } from '../../core/i18n/keys';
 import {
-  type GalleryFilters, type GalleryMode, type TooltipMode, type DisplayOptions,
+  type GalleryFilters, type GalleryMode, type TooltipMode, type PanelActivation, type DisplayOptions,
   DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS, DISPLAY_OPTION_KEYS,
   GALLERY_MODE_KEY, DRAWER_STATE_KEY, CARD_WIDTH_KEY,
   loadDisplayOptionsFromStorage, saveDisplayOptionsToStorage,
@@ -17,7 +17,7 @@ import {
 } from './gallery-filters.util';
 
 // Re-export the filter types/consts so existing importers of gallery.store keep working.
-export type { GalleryFilters, GalleryMode, TooltipMode, DisplayOptions };
+export type { GalleryFilters, GalleryMode, TooltipMode, PanelActivation, DisplayOptions };
 export { DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS };
 
 export const FILTER_OPTIONS_TIMEOUT_MS = 20000;
@@ -90,6 +90,7 @@ export interface ViewerConfig {
     hide_panoramas: boolean;
     hide_details: boolean;
     tooltip_mode: TooltipMode;
+    panel_activation: PanelActivation;
     hide_rejected: boolean;
     gallery_mode: GalleryMode;
   };
@@ -131,6 +132,19 @@ export interface ViewerConfig {
     excellent: number;
     best: number;
   };
+  /** Per-badge opt-out for the gallery card (`viewer.badges`). Every key
+   *  defaults to true except shadow clipping — see DEFAULT_BADGE_VISIBILITY. */
+  badges?: Record<string, boolean>;
+  /** One definition of "clipped" shared by the card badge, the histogram
+   *  markers and the gallery filter, plus each histogram surface's own house
+   *  default channel mode (validated with `isHistogramMode` before use — the
+   *  server sends a plain string). */
+  clipping?: {
+    badge_percent?: number;
+    indicator_percent?: number;
+    histogram_mode?: string;
+    tooltip_histogram_mode?: string;
+  };
   /** Min narrative-moment posterior below which a moment label is shown dimmed + "(uncertain)". 0 = never dim. */
   moment_confidence_min?: number;
   /** Social-export crop presets surfaced to the download menu. */
@@ -139,6 +153,10 @@ export interface ViewerConfig {
   };
   /** Named darktable styles for the edited-look cull preview. Empty/absent = feature hidden. */
   cull_styles?: { name: string; label_key: string }[];
+  /** RAW rows whose stored thumbnail still comes from the pre-fix rendering.
+   *  Served from the stats cache, so it is an estimate that trails the last refresh
+   *  by at most one TTL — never a number to drive anything but the advisory banner. */
+  render_migration?: { pending: number };
   [key: string]: unknown;
 }
 
@@ -357,6 +375,7 @@ export class GalleryStore {
         type: defaults?.type ?? '',
         hide_details: storedDisplay.hide_details ?? (defaults?.hide_details ?? true),
         tooltip_mode: storedDisplay.tooltip_mode ?? (defaults?.tooltip_mode ?? 'hover'),
+        panel_activation: storedDisplay.panel_activation ?? (defaults?.panel_activation ?? 'both'),
         hide_blinks: storedDisplay.hide_blinks ?? (defaults?.hide_blinks ?? true),
         hide_bursts: storedDisplay.hide_bursts ?? (defaults?.hide_bursts ?? true),
         hide_duplicates: storedDisplay.hide_duplicates ?? (defaults?.hide_duplicates ?? true),
@@ -477,7 +496,7 @@ export class GalleryStore {
 
   /** Display-only keys that never affect the API query */
   private static readonly DISPLAY_ONLY_KEYS: ReadonlySet<keyof GalleryFilters> = new Set([
-    'hide_details', 'tooltip_mode',
+    'hide_details', 'tooltip_mode', 'panel_activation',
   ]);
 
   /** Update a single filter and reload photos from page 1 */
@@ -555,6 +574,7 @@ export class GalleryStore {
       sort_direction: defaults?.sort_direction ?? 'DESC',
       hide_details: defaults?.hide_details ?? true,
       tooltip_mode: defaults?.tooltip_mode ?? 'hover',
+      panel_activation: defaults?.panel_activation ?? 'both',
       hide_blinks: defaults?.hide_blinks ?? true,
       hide_bursts: defaults?.hide_bursts ?? true,
       hide_duplicates: defaults?.hide_duplicates ?? true,
@@ -794,14 +814,16 @@ export class GalleryStore {
       this.patchPhoto(photoPath, {
         is_rejected: next,
         is_favorite: next ? false : prev.is_favorite,
+        star_rating: next ? null : prev.star_rating,
       });
       try {
         const res = await firstValueFrom(
-          this.api.post<{ is_rejected: boolean }>('/photo/toggle_rejected', { photo_path: photoPath }),
+          this.api.post<{ is_rejected: boolean; star_rating: number | null }>('/photo/toggle_rejected', { photo_path: photoPath }),
         );
         this.patchPhoto(photoPath, {
           is_rejected: res.is_rejected,
           is_favorite: res.is_rejected ? false : prev.is_favorite,
+          star_rating: res.star_rating === null ? prev.star_rating : res.star_rating,
         });
       } catch {
         this.revertSnapshot(snap);

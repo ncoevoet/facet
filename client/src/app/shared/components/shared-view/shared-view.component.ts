@@ -518,7 +518,7 @@ interface SharedFilters {
 
       <!-- Client proofing: pick + comment overlay buttons (shared by mosaic & grid) -->
       <ng-template #proofingButtons let-photo let-btnSize="btnSize" let-iconSize="iconSize" let-commentPos="commentPos">
-        <button class="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+        <button class="absolute top-1 right-1 z-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 cursor-pointer"
                 [ngClass]="btnSize"
                 [matTooltip]="(pickedPaths().has(photo.path) ? I18N.proofing.unpick : I18N.proofing.pick) | translate"
                 [attr.aria-label]="(pickedPaths().has(photo.path) ? I18N.proofing.unpick : I18N.proofing.pick) | translate"
@@ -526,7 +526,7 @@ interface SharedFilters {
                 (click)="togglePick(photo, $event)">
           <mat-icon [ngClass]="iconSize" [class.!text-red-400]="pickedPaths().has(photo.path)">{{ pickedPaths().has(photo.path) ? 'favorite' : 'favorite_border' }}</mat-icon>
         </button>
-        <button class="absolute top-1 z-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60"
+        <button class="absolute top-1 z-10 flex items-center justify-center rounded-full bg-black/40 text-white hover:bg-black/60 cursor-pointer"
                 [ngClass]="[btnSize, commentPos]"
                 [matTooltip]="I18N.proofing.comment | translate"
                 [attr.aria-label]="I18N.proofing.comment | translate"
