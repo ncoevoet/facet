@@ -354,3 +354,39 @@ class TestWeightsDestination:
 
         assert destination.read_bytes() == b'second'
         assert list(tmp_path.glob('*.part')) == []
+
+    def test_a_matching_checksum_installs_the_file(self, tmp_path):
+        import hashlib
+
+        from models import weights
+
+        destination = tmp_path / 'weights.pth'
+
+        def fake_urlretrieve(url, path):
+            with open(path, 'wb') as handle:
+                handle.write(b'payload')
+
+        with mock.patch.object(weights.urllib.request, 'urlretrieve', fake_urlretrieve):
+            weights.download_weights(
+                'https://example.invalid/w.pth', destination,
+                sha256=hashlib.sha256(b'payload').hexdigest())
+
+        assert destination.read_bytes() == b'payload'
+
+    def test_a_mismatched_checksum_is_rejected_and_leaves_no_partial_file(self, tmp_path):
+        from models import weights
+
+        destination = tmp_path / 'weights.pth'
+
+        def fake_urlretrieve(url, path):
+            with open(path, 'wb') as handle:
+                handle.write(b'tampered')
+
+        with mock.patch.object(weights.urllib.request, 'urlretrieve', fake_urlretrieve):
+            with pytest.raises(ValueError):
+                weights.download_weights(
+                    'https://example.invalid/w.pth', destination,
+                    sha256='0' * 64)
+
+        assert not destination.exists()
+        assert list(tmp_path.glob('*.part')) == []

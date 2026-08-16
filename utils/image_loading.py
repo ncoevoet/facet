@@ -14,6 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
+from config.scoring_config import RAW_DECODE_DEFAULTS
 from utils._lazy import ensure_cv2 as _ensure_cv2, ensure_pil as _ensure_pil
 
 logger = logging.getLogger("facet.image_loading")
@@ -33,14 +34,6 @@ RAW_EXTENSIONS = {'.cr2', '.cr3', '.nef', '.arw', '.raf', '.rw2', '.dng', '.orf'
 # HEIF/HEIC formats (iPhone default since iOS 11) — empty when pillow-heif is missing
 HEIF_EXTENSIONS = {'.heic', '.heif'} if _heif_available else set()
 
-
-RAW_DECODE_DEFAULTS = {
-    'bright': 1.62,
-    'prefer_embedded_preview': True,
-    'preview_min_sensor_ratio': 0.5,
-    'viewer_concurrency': 3,
-    'faithful_bracket_render': True,
-}
 
 # A bracket exists to capture highlight headroom in its +EV frames, and an HDR
 # panorama is bracketed at every position. Both the camera preview's tone curve

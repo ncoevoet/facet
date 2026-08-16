@@ -1010,5 +1010,5 @@ def backfill_channel_clipping(db_path='photo_scores_pro.db', batch_size=2000, ve
         if legacy:
             logger.info(
                 "%d photos still hold a luminance-only histogram and stay unknown — "
-                "rescan them (or view them once) to measure the channels.", legacy)
+                "rescan them to measure the channels.", legacy)
     return updated

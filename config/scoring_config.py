@@ -35,6 +35,19 @@ UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB = (
 )
 UNIFIED_MEMORY_MINIMUM_PROFILE = 'legacy'
 
+# RAW demosaic and embedded-preview defaults. ``bright`` is a fixed exposure
+# gain applied to every frame, replacing LibRaw's per-frame auto-brightness:
+# the latter equalises exposure across a bracket, which erases the exposure
+# ladder the scoring engine is supposed to measure. Authoritative copy —
+# utils/image_loading.py imports this rather than redefining it.
+RAW_DECODE_DEFAULTS = {
+    'bright': 1.62,
+    'prefer_embedded_preview': True,
+    'preview_min_sensor_ratio': 0.5,
+    'viewer_concurrency': 3,
+    'faithful_bracket_render': True,
+}
+
 
 def default_config_path():
     """Absolute path to the repo-root scoring_config.json.
@@ -466,24 +479,11 @@ class ScoringConfig:
         })
 
     def get_raw_decode_settings(self):
-        """Get RAW demosaic and embedded-preview settings.
-
-        ``bright`` is a fixed exposure gain applied to every frame, replacing
-        LibRaw's per-frame auto-brightness: the latter equalises exposure
-        across a bracket, which erases the exposure ladder the scoring engine
-        is supposed to measure.
-        """
-        defaults = {
-            'bright': 1.62,
-            'prefer_embedded_preview': True,
-            'preview_min_sensor_ratio': 0.5,
-            'viewer_concurrency': 3,
-            'faithful_bracket_render': True,
-        }
+        """Get RAW demosaic and embedded-preview settings."""
         block = self.config.get('raw_decode', {})
         if not isinstance(block, dict):
-            return defaults
-        return {**defaults, **block}
+            return dict(RAW_DECODE_DEFAULTS)
+        return {**RAW_DECODE_DEFAULTS, **block}
 
     def get_scanning_settings(self):
         """Get directory scanning settings.

@@ -118,7 +118,6 @@ cv2 = None
 imagehash = None
 Image = None
 ExifTags = None
-ImageOps = None
 BytesIO = None
 ThreadPoolExecutor = None
 as_completed = None
@@ -142,12 +141,12 @@ SAMPNetScorer = None
 
 def _load_image_modules():
     """Load image processing modules only when needed."""
-    global cv2, imagehash, Image, ExifTags, ImageOps, BytesIO, ThreadPoolExecutor, as_completed
+    global cv2, imagehash, Image, ExifTags, BytesIO, ThreadPoolExecutor, as_completed
     global TechnicalAnalyzer, CompositionAnalyzer, FaceAnalyzer, ImageCache
     if cv2 is None:
         import cv2 as _cv2
         import imagehash as _imagehash
-        from PIL import Image as _Image, ExifTags as _ExifTags, ImageOps as _ImageOps
+        from PIL import Image as _Image, ExifTags as _ExifTags
         from io import BytesIO as _BytesIO
         from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor, as_completed as _as_completed
         from analyzers import TechnicalAnalyzer as _TechnicalAnalyzer
@@ -158,7 +157,6 @@ def _load_image_modules():
         imagehash = _imagehash
         Image = _Image
         ExifTags = _ExifTags
-        ImageOps = _ImageOps
         BytesIO = _BytesIO
         ThreadPoolExecutor = _ThreadPoolExecutor
         as_completed = _as_completed

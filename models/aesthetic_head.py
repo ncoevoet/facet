@@ -21,7 +21,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from models.weights import AESTHETIC_MLP_WEIGHTS_URL, download_weights, pretrained_model_path
+from models.weights import (
+    AESTHETIC_MLP_WEIGHTS_SHA256, AESTHETIC_MLP_WEIGHTS_URL, download_weights, pretrained_model_path,
+)
 
 logger = logging.getLogger("facet.models")
 
@@ -60,10 +62,10 @@ def load_aesthetic_head(device: str = 'cpu') -> AestheticMLP:
     """
     weights_path = pretrained_model_path(AESTHETIC_HEAD_WEIGHTS_FILENAME)
     if not weights_path.exists():
-        download_weights(AESTHETIC_MLP_WEIGHTS_URL, weights_path)
+        download_weights(AESTHETIC_MLP_WEIGHTS_URL, weights_path, sha256=AESTHETIC_MLP_WEIGHTS_SHA256)
 
     head = AestheticMLP()
-    state_dict = torch.load(weights_path, map_location=device)
+    state_dict = torch.load(weights_path, map_location=device, weights_only=True)
     try:
         head.load_state_dict(state_dict, strict=True)
     except RuntimeError as ex:

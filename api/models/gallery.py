@@ -50,10 +50,6 @@ class Photo(BaseModel):
     mean_saturation: Optional[float] = None
     mean_luminance: Optional[float] = None
     histogram_spread: Optional[float] = None
-    # Worst-channel share of pixels pinned to bin 0 / bin 255, as a percentage.
-    # None means never measured (a pre-RGB histogram), never "clean".
-    channel_clip_shadow_pct: Optional[float] = None
-    channel_clip_highlight_pct: Optional[float] = None
     power_point_score: Optional[float] = None
     leading_lines_score: Optional[float] = None
     quality_score: Optional[float] = None

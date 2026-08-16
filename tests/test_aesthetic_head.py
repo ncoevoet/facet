@@ -13,6 +13,7 @@ rather than a random head's.
 
 from __future__ import annotations
 
+import pickle
 from unittest import mock
 
 import pytest
@@ -128,6 +129,26 @@ class TestStrictLoading:
         message = str(excinfo.value)
         assert 'Missing key(s)' in message and 'layers.0.weight' in message
         assert 'Unexpected key(s)' in message and '0.weight' in message
+
+
+class TestWeightsOnlyLoad:
+    """The checkpoint is fetched over the network with no signature, so the
+    unpickler must not execute arbitrary code it happens to contain.
+    """
+
+    class _CodeExecutionPayload:
+        def __reduce__(self):
+            return (eval, ("1 + 1",))
+
+    def test_a_checkpoint_carrying_executable_pickle_data_is_rejected(self, weights_dir):
+        from models.aesthetic_head import AESTHETIC_HEAD_WEIGHTS_FILENAME
+
+        state_dict = _state_dict(PUBLISHED_CHECKPOINT_SHAPES)
+        state_dict['payload'] = self._CodeExecutionPayload()
+        torch.save(state_dict, weights_dir / AESTHETIC_HEAD_WEIGHTS_FILENAME)
+
+        with pytest.raises(pickle.UnpicklingError):
+            load_aesthetic_head('cpu')
 
 
 class TestScoreMapping:
