@@ -15,6 +15,7 @@ import pytest
 from analyzers.composition import CompositionAnalyzer
 from analyzers.face import FaceAnalyzer
 from analyzers.technical import TechnicalAnalyzer
+from utils.histogram import HISTOGRAM_BLOB_SIZE
 
 
 # ---------------------------------------------------------------------------
@@ -397,8 +398,8 @@ class TestHistogramData:
     def test_histogram_bytes_length(self):
         img = np.full((10, 10, 3), 50, dtype=np.uint8)
         out = TechnicalAnalyzer.get_histogram_data(img)
-        # 256 float32s = 1024 bytes
-        assert len(out['histogram_bytes']) == 256 * 4
+        # 4 channels x 256 uint16 bins = 2048 bytes
+        assert len(out['histogram_bytes']) == HISTOGRAM_BLOB_SIZE
 
 
 # ---------------------------------------------------------------------------

@@ -13,6 +13,7 @@ from PIL import Image
 
 from db.maintenance import export_viewer_db
 from db.schema import init_database
+from utils.histogram import HISTOGRAM_BLOB_SIZE, pack_histogram
 
 _A = '/photos/a.jpg'
 _B = '/photos/b.jpg'
@@ -38,6 +39,64 @@ def _make_source_db(path):
         )
     conn.commit()
     conn.close()
+
+
+def _spike_histogram(index):
+    counts = [0.0] * 256
+    counts[index] = 1000.0
+    return pack_histogram(counts, counts, counts, counts)
+
+
+def test_full_export_keeps_the_histogram_the_viewer_draws(tmp_path):
+    """The viewer's RGB histogram widget reads photos.histogram_data through
+    /api/photo/histogram, so the export must stop stripping it — a stripped
+    column silently downgrades every NAS deployment to thumbnail sampling."""
+    src = str(tmp_path / 'scan.db')
+    out = str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    sconn = sqlite3.connect(src)
+    sconn.execute("UPDATE photos SET histogram_data = ?, clip_embedding = ?",
+                  (sqlite3.Binary(_spike_histogram(42)), sqlite3.Binary(b'\x01' * 128)))
+    sconn.commit()
+    sconn.close()
+
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False, force=True)
+
+    vconn = sqlite3.connect(out)
+    hist, clip = vconn.execute(
+        "SELECT histogram_data, clip_embedding FROM photos WHERE path = ?", (_A,)
+    ).fetchone()
+    vconn.close()
+    assert len(hist) == HISTOGRAM_BLOB_SIZE
+    assert clip is None
+
+
+def test_incremental_export_carries_the_histogram_to_new_and_existing_photos(tmp_path):
+    src = str(tmp_path / 'scan.db')
+    out = str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False)
+
+    sconn = sqlite3.connect(src)
+    sconn.execute("UPDATE photos SET histogram_data = ? WHERE path = ?",
+                  (sqlite3.Binary(_spike_histogram(7)), _A))
+    sconn.execute(
+        "INSERT INTO photos (path, filename, thumbnail, histogram_data) VALUES (?, ?, ?, ?)",
+        ('/photos/c.jpg', 'c.jpg', _thumb_bytes(), sqlite3.Binary(_spike_histogram(9))),
+    )
+    sconn.commit()
+    sconn.close()
+
+    export_viewer_db(src, out, thumbnail_size=320, verbose=False)
+
+    vconn = sqlite3.connect(out)
+    existing = vconn.execute(
+        "SELECT histogram_data FROM photos WHERE path = ?", (_A,)).fetchone()[0]
+    added = vconn.execute(
+        "SELECT histogram_data FROM photos WHERE path = ?", ('/photos/c.jpg',)).fetchone()[0]
+    vconn.close()
+    assert len(existing) == HISTOGRAM_BLOB_SIZE
+    assert len(added) == HISTOGRAM_BLOB_SIZE
 
 
 def test_incremental_export_preserves_viewer_ratings(tmp_path):
