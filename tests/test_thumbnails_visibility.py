@@ -31,11 +31,31 @@ ALICE_PHOTO = "/photos/alice/a.jpg"
 BOB_PHOTO = "/photos/bob/b.jpg"
 
 
-def _jpeg() -> bytes:
+def _jpeg(rgb) -> bytes:
     from PIL import Image
     buf = BytesIO()
-    Image.new("RGB", (8, 8), (10, 20, 30)).save(buf, format="JPEG")
+    Image.new("RGB", (8, 8), rgb).save(buf, format="JPEG")
     return buf.getvalue()
+
+
+# Every stored BLOB is a different image on purpose. These routes were seeded
+# with one shared JPEG, which made a wrong-row leak — Bob's crop served for
+# Alice's face, or a photo thumbnail served as a person's — satisfy every
+# assertion in the file that exists to prevent exactly that.
+ALICE_THUMB = _jpeg((10, 20, 30))
+BOB_THUMB = _jpeg((40, 50, 60))
+ALICE_FACE = _jpeg((70, 80, 90))
+BOB_FACE = _jpeg((100, 110, 120))
+ALICE_PERSON = _jpeg((130, 140, 150))
+BOB_PERSON = _jpeg((160, 170, 180))
+
+_ALL_BLOBS = (ALICE_THUMB, BOB_THUMB, ALICE_FACE, BOB_FACE, ALICE_PERSON, BOB_PERSON)
+
+
+def _expect_image(resp, expected: bytes, what: str) -> None:
+    """Assert a pixel route returned 200 carrying exactly the row it was asked for."""
+    assert resp.status_code == 200, f"{what}: expected 200, got {resp.status_code}"
+    assert resp.content == expected, f"{what}: served another row's bytes"
 
 
 _SCHEMA = """
@@ -50,19 +70,18 @@ _SCHEMA = """
 
 @pytest.fixture()
 def db_path(tmp_path):
-    jpeg = _jpeg()
     path = str(tmp_path / "thumbs.db")
     conn = sqlite3.connect(path)
     conn.executescript(_SCHEMA)
     conn.executemany("INSERT INTO photos (path, thumbnail) VALUES (?, ?)",
-                     [(ALICE_PHOTO, jpeg), (BOB_PHOTO, jpeg)])
+                     [(ALICE_PHOTO, ALICE_THUMB), (BOB_PHOTO, BOB_THUMB)])
     conn.executemany(
         "INSERT INTO faces VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        [(1, ALICE_PHOTO, 1, jpeg, 0, 0, 10, 10),
-         (2, BOB_PHOTO, 2, jpeg, 0, 0, 10, 10)],
+        [(1, ALICE_PHOTO, 1, ALICE_FACE, 0, 0, 10, 10),
+         (2, BOB_PHOTO, 2, BOB_FACE, 0, 0, 10, 10)],
     )
     conn.executemany("INSERT INTO persons VALUES (?, ?, ?)",
-                     [(1, jpeg, 1), (2, jpeg, 2)])
+                     [(1, ALICE_PERSON, 1), (2, BOB_PERSON, 2)])
     conn.commit()
     conn.close()
     _get_face_thumbnail_data.cache_clear()
@@ -127,14 +146,15 @@ class TestPasswordLock:
     def test_authenticated_allowed(self, db_path):
         user = CurrentUser(user_id="owner")
         with _env(db_path, user, multi_user=False, password="secret") as client:
-            assert client.get("/thumbnail", params={"path": ALICE_PHOTO}).status_code == 200
+            _expect_image(client.get("/thumbnail", params={"path": ALICE_PHOTO}),
+                          ALICE_THUMB, "/thumbnail alice")
             # /image falls back to the stored thumbnail once the disk path can't
             # be resolved, proving the request cleared the visibility gate.
-            assert client.get(
-                "/image", params={"path": ALICE_PHOTO, "fallback": "thumbnail"}
-            ).status_code == 200
-            assert client.get("/face_thumbnail/1").status_code == 200
-            assert client.get("/person_thumbnail/1").status_code == 200
+            _expect_image(
+                client.get("/image", params={"path": ALICE_PHOTO, "fallback": "thumbnail"}),
+                ALICE_THUMB, "/image alice fallback")
+            _expect_image(client.get("/face_thumbnail/1"), ALICE_FACE, "/face_thumbnail/1")
+            _expect_image(client.get("/person_thumbnail/1"), ALICE_PERSON, "/person_thumbnail/1")
 
 
 # --- default open single-user deployment (no password, no multi-user) ------
@@ -148,12 +168,13 @@ class TestOpenSingleUserMode:
 
     def test_anonymous_allowed_all_pixel_routes(self, db_path):
         with _env(db_path, None, multi_user=False, password="") as client:
-            assert client.get("/thumbnail", params={"path": ALICE_PHOTO}).status_code == 200
-            assert client.get(
-                "/image", params={"path": ALICE_PHOTO, "fallback": "thumbnail"}
-            ).status_code == 200
-            assert client.get("/face_thumbnail/1").status_code == 200
-            assert client.get("/person_thumbnail/1").status_code == 200
+            _expect_image(client.get("/thumbnail", params={"path": ALICE_PHOTO}),
+                          ALICE_THUMB, "/thumbnail alice")
+            _expect_image(
+                client.get("/image", params={"path": ALICE_PHOTO, "fallback": "thumbnail"}),
+                ALICE_THUMB, "/image alice fallback")
+            _expect_image(client.get("/face_thumbnail/1"), ALICE_FACE, "/face_thumbnail/1")
+            _expect_image(client.get("/person_thumbnail/1"), ALICE_PERSON, "/person_thumbnail/1")
 
 
 # --- F4': multi-user per-directory isolation --------------------------------
@@ -163,10 +184,13 @@ class TestMultiUserIsolation:
         alice = CurrentUser(user_id="alice", role="user")
         dirs = {"alice": ["/photos/alice"], "bob": ["/photos/bob"]}
         with _env(db_path, alice, multi_user=True, dirs_map=dirs) as client:
-            # Own directory: visible.
-            assert client.get("/thumbnail", params={"path": ALICE_PHOTO}).status_code == 200
-            assert client.get("/face_thumbnail/1").status_code == 200
-            assert client.get("/person_thumbnail/1").status_code == 200
+            # Own directory: visible, and carrying Alice's own rows rather than
+            # merely some 200 — the isolation this suite exists to pin is about
+            # WHICH bytes are served, not whether a response arrives.
+            _expect_image(client.get("/thumbnail", params={"path": ALICE_PHOTO}),
+                          ALICE_THUMB, "/thumbnail alice")
+            _expect_image(client.get("/face_thumbnail/1"), ALICE_FACE, "/face_thumbnail/1")
+            _expect_image(client.get("/person_thumbnail/1"), ALICE_PERSON, "/person_thumbnail/1")
             # Foreign directory: denied.
             assert client.get("/thumbnail", params={"path": BOB_PHOTO}).status_code == 404
             assert client.get(
@@ -174,3 +198,14 @@ class TestMultiUserIsolation:
             ).status_code == 404
             assert client.get("/face_thumbnail/2").status_code == 404
             assert client.get("/person_thumbnail/2").status_code == 404
+
+
+# --- fixture integrity ------------------------------------------------------
+
+def test_fixture_blobs_are_all_distinct():
+    """Every seeded BLOB must differ, or the content assertions above go vacuous.
+
+    This is the property that failed before: six rows sharing one JPEG made
+    "served the wrong row" indistinguishable from "served the right row".
+    """
+    assert len(set(_ALL_BLOBS)) == len(_ALL_BLOBS)
