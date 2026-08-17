@@ -14,6 +14,7 @@ mechanism that actually bypasses the captured reference.
 """
 
 import os
+import sqlite3
 import tempfile
 
 # Point ``DB_PATH`` at a per-session tmp file BEFORE any project module is
@@ -26,8 +27,6 @@ import tempfile
 _TEST_DB_FILE = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _TEST_DB_FILE.close()
 os.environ["DB_PATH"] = _TEST_DB_FILE.name
-
-from unittest.mock import MagicMock  # noqa: E402
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -196,58 +195,49 @@ def anonymous_client():
 
 
 # ---------------------------------------------------------------------------
-# User fixtures
+# Seeded photos (shared session database)
 # ---------------------------------------------------------------------------
 
-@pytest.fixture()
-def edition_user():
-    """A legacy-mode user with edition privileges."""
-    return CurrentUser(edition_authenticated=True)
+# Rows live under one path prefix so teardown is a single prefix-scoped
+# DELETE that cannot touch another module's rows in the shared session DB.
+SEEDED_PHOTOS_PREFIX = "/conftest-seeded/"
+
+_SEEDED_PHOTOS = [
+    {"path": SEEDED_PHOTOS_PREFIX + "a.jpg", "filename": "a.jpg", "aggregate": 8.5,
+     "category": "portrait", "date_taken": "2026:01:01 10:00:00"},
+    {"path": SEEDED_PHOTOS_PREFIX + "b.jpg", "filename": "b.jpg", "aggregate": 5.0,
+     "category": "landscape", "date_taken": "2026:01:02 10:00:00"},
+    {"path": SEEDED_PHOTOS_PREFIX + "c.jpg", "filename": "c.jpg", "aggregate": 2.0,
+     "category": "default", "date_taken": "2026:01:03 10:00:00"},
+]
 
 
 @pytest.fixture()
-def admin_user():
-    """A multi-user admin."""
-    return CurrentUser(
-        user_id="admin",
-        role="admin",
-        display_name="Admin",
-        edition_authenticated=True,
-    )
+def seeded_photos():
+    """Insert a small set of photo rows into the SHARED session database.
 
+    Writes into the DB behind ``DB_PATH`` (the one every ``client`` /
+    ``edition_client`` / ``regular_client`` / ``superadmin_client`` /
+    ``anonymous_client`` fixture builds its app against) instead of a
+    private tmp DB, so a test can combine this with an auth-overridden
+    client fixture and see the rows without standing up a second
+    ``create_app()``. Modeled on tests/test_immich_webhook.py's
+    ``_seed_photos`` / ``_clear_side_state`` idiom.
 
-@pytest.fixture()
-def superadmin_user():
-    """A multi-user superadmin."""
-    return CurrentUser(
-        user_id="superadmin",
-        role="superadmin",
-        display_name="Super Admin",
-        edition_authenticated=True,
-    )
-
-
-@pytest.fixture()
-def regular_user():
-    """A multi-user regular user (no edition)."""
-    return CurrentUser(
-        user_id="user1",
-        role="user",
-        display_name="User One",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Database mock
-# ---------------------------------------------------------------------------
-
-@pytest.fixture()
-def mock_db():
-    """Fresh MagicMock that mimics a sqlite3 connection."""
-    conn = MagicMock()
-    cursor = MagicMock()
-    conn.cursor.return_value = cursor
-    conn.execute.return_value = cursor
-    cursor.fetchone.return_value = None
-    cursor.fetchall.return_value = []
-    return conn
+    Yields the seeded photo dicts (``path``, ``filename``, ``aggregate``,
+    ``category``, ``date_taken``).
+    """
+    conn = sqlite3.connect(_TEST_DB_FILE.name)
+    try:
+        cols = list(_SEEDED_PHOTOS[0].keys())
+        placeholders = ", ".join("?" for _ in cols)
+        conn.executemany(
+            f"INSERT INTO photos ({', '.join(cols)}) VALUES ({placeholders})",
+            [[p[c] for c in cols] for p in _SEEDED_PHOTOS],
+        )
+        conn.commit()
+        yield _SEEDED_PHOTOS
+    finally:
+        conn.execute("DELETE FROM photos WHERE path LIKE ?", (SEEDED_PHOTOS_PREFIX + "%",))
+        conn.commit()
+        conn.close()

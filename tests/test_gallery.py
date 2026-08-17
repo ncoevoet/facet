@@ -13,48 +13,12 @@ from fastapi.testclient import TestClient
 
 from api import create_app
 from api.auth import get_optional_user
+from db.schema import init_database
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
-
-_PHOTOS_SCHEMA = """
-    CREATE TABLE photos (
-        path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT,
-        camera_model TEXT, lens_model TEXT, iso REAL,
-        f_stop REAL, shutter_speed TEXT, focal_length REAL,
-        focal_length_35mm REAL,
-        aesthetic REAL, face_count INTEGER, face_quality REAL,
-        eye_sharpness REAL, face_sharpness REAL, face_ratio REAL,
-        tech_sharpness REAL, color_score REAL, exposure_score REAL,
-        comp_score REAL, isolation_bonus REAL, is_blink INTEGER,
-        phash TEXT, is_burst_lead INTEGER, burst_group_id INTEGER,
-        is_duplicate_lead INTEGER, duplicate_group_id INTEGER,
-        sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
-        is_sequence_lead INTEGER DEFAULT 0,
-        aggregate REAL,
-        category TEXT, image_width INTEGER, image_height INTEGER,
-        tags TEXT, composition_pattern TEXT, person_id INTEGER,
-        is_monochrome INTEGER, dynamic_range_stops REAL,
-        noise_sigma REAL, contrast_score REAL,
-        star_rating INTEGER DEFAULT 0,
-        is_favorite INTEGER DEFAULT 0,
-        is_rejected INTEGER DEFAULT 0
-    );
-    CREATE TABLE faces (
-        id INTEGER PRIMARY KEY, photo_path TEXT, face_index INTEGER,
-        person_id INTEGER, confidence REAL
-    );
-    CREATE TABLE persons (
-        id INTEGER PRIMARY KEY, name TEXT, representative_face_id INTEGER,
-        face_count INTEGER, face_thumbnail BLOB
-    );
-    CREATE TABLE photo_sequence_overrides (
-        photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
-        source TEXT, created_at TEXT, created_by TEXT, applied_at TEXT
-    );
-"""
 
 _SAMPLE_PHOTO = {
     "filename": "a.jpg", "aggregate": 7.0, "aesthetic": 6.0,
@@ -69,8 +33,8 @@ def _photo(path, date_taken, **overrides):
 
 
 def _make_db(path, photos, persons=None, faces=None):
+    init_database(path)
     conn = sqlite3.connect(path)
-    conn.executescript(_PHOTOS_SCHEMA)
     for p in photos:
         cols = list(p.keys())
         placeholders = ", ".join("?" for _ in cols)
@@ -83,13 +47,31 @@ def _make_db(path, photos, persons=None, faces=None):
             "INSERT INTO persons (id, name, face_count) VALUES (?, ?, ?)",
             person,
         )
-    for face in (faces or []):
+    for i, face in enumerate(faces or []):
+        face_id, photo_path, person_id = face
         conn.execute(
-            "INSERT INTO faces (id, photo_path, person_id) VALUES (?, ?, ?)",
-            face,
+            "INSERT INTO faces (id, photo_path, face_index, embedding, person_id) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (face_id, photo_path, i, b"\x00" * 4, person_id),
         )
     conn.commit()
     conn.close()
+
+
+def _existing_columns(db_path):
+    """The real column set for the temp DB's photos table.
+
+    Mirrors tests/test_extended_iqa_gallery.py's ``gallery_db`` fixture:
+    pre-seeds ``api.db_helpers._existing_columns_cache`` from the SAME temp
+    DB the request will query, so ``build_photo_select_columns`` (which
+    intersects ``PHOTO_OPTIONAL_COLS`` against this set) selects every
+    optional column the real schema defines instead of a hand-picked subset.
+    """
+    conn = sqlite3.connect(db_path)
+    try:
+        return {row[1] for row in conn.execute("PRAGMA table_info(photos)")}
+    finally:
+        conn.close()
 
 
 def _conn_factory(db_path):
@@ -144,23 +126,6 @@ _VIEWER_CONFIG = {
     "features": {},
 }
 
-# Columns declared in _PHOTOS_SCHEMA above — used to pre-seed
-# _existing_columns_cache so the async /api/photos handler builds its
-# SELECT list against the test schema, not the production DB schema.
-_TEST_PHOTOS_COLUMNS = {
-    "path", "filename", "date_taken", "camera_model", "lens_model", "iso",
-    "f_stop", "shutter_speed", "focal_length", "focal_length_35mm",
-    "aesthetic", "face_count", "face_quality", "eye_sharpness",
-    "face_sharpness", "face_ratio", "tech_sharpness", "color_score",
-    "exposure_score", "comp_score", "isolation_bonus", "is_blink",
-    "phash", "is_burst_lead", "burst_group_id", "is_duplicate_lead",
-    "duplicate_group_id", "aggregate", "category", "image_width",
-    "image_height", "tags", "composition_pattern", "person_id",
-    "is_monochrome", "dynamic_range_stops", "noise_sigma", "contrast_score",
-    "star_rating", "is_favorite", "is_rejected",
-}
-
-
 # ---------------------------------------------------------------------------
 # Gallery Photos
 # ---------------------------------------------------------------------------
@@ -177,7 +142,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&per_page=2")
@@ -196,7 +161,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch("api.db_helpers.VIEWER_CONFIG", {"password": "secret"}),
             mock.patch("api.db_helpers.is_multi_user_enabled", lambda: False),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
@@ -219,7 +184,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&sort=aesthetic&sort_direction=DESC")
@@ -236,7 +201,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&sort=NONEXISTENT")
@@ -254,7 +219,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&camera=Canon+R6")
@@ -274,7 +239,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&date_from=2024-06-01&date_to=2024-06-30")
@@ -294,7 +259,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&category=portrait")
@@ -311,7 +276,7 @@ class TestGalleryPhotos:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&per_page=9999")
@@ -348,7 +313,7 @@ class TestGalleryPathPrefixFilter:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos", params={"path_prefix": path_prefix, "per_page": 50})
@@ -405,7 +370,7 @@ class TestGalleryHideBursts:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photos?page=1&hide_bursts=1")
@@ -457,7 +422,7 @@ class TestGalleryHideBrackets:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get(f"/api/photos?page=1&{query}")
@@ -522,7 +487,7 @@ class TestGallerySinglePhoto:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app, raise_server_exceptions=False).get(
@@ -538,7 +503,7 @@ class TestGallerySinglePhoto:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get("/api/photo?path=/found.jpg")
@@ -546,6 +511,92 @@ class TestGallerySinglePhoto:
         data = resp.json()
         assert data["path"] == "/found.jpg"
         assert data["aggregate"] == 7.0
+
+
+# ---------------------------------------------------------------------------
+# Extended Metric Columns
+# ---------------------------------------------------------------------------
+
+class TestGalleryExtendedMetricColumns:
+    """GET /api/photos must surface every optional metric column with its
+    real value, not just the handful the old hand-rolled test schema had
+    columns for.
+
+    ``build_photo_select_columns`` (api/db_helpers.py) intersects
+    ``PHOTO_OPTIONAL_COLS`` — the real optional-column list — against
+    whatever the photos table actually has. A test schema missing a column
+    hides it from this SELECT forever, so a serialisation regression on that
+    column (wrong key, dropped value, wrong type) could never fail this
+    suite. This seeds a row that populates every one of them and asserts the
+    payload carries the exact value through, not merely the key.
+    """
+
+    _EXTENDED_METRICS = {
+        "histogram_spread": 42.5,
+        "mean_luminance": 128.75,
+        "power_point_score": 6.25,
+        "shadow_clipped": 1,
+        "highlight_clipped": 0,
+        "is_silhouette": 1,
+        "is_group_portrait": 0,
+        "leading_lines_score": 3.4,
+        "channel_clip_shadow_pct": 2.1,
+        "channel_clip_highlight_pct": 0.5,
+        "face_confidence": 0.91,
+        "mean_saturation": 55.3,
+        "quality_score": 7.8,
+        "topiq_score": 6.9,
+        "aesthetic_iaa": 5.4,
+        "face_quality_iqa": 8.1,
+        "liqe_score": 4.2,
+        "qrealign_score": 7.3,
+        "aesthetic_v25": 6.6,
+        "deqa_score": 5.9,
+        "subject_sharpness": 120.4,
+        "subject_prominence": 0.35,
+        "subject_placement": 0.62,
+        "bg_separation": 0.78,
+        "caption": "A hiker on a ridge at sunset",
+        "caption_translated": "Un randonneur sur une crête au coucher du soleil",
+        "gps_latitude": 45.1885,
+        "gps_longitude": 5.7245,
+        "dominant_hue": 27.5,
+        "color_temp": "warm",
+        "form_symmetry": 6.1,
+        "form_balance": 7.2,
+        "form_edge_entropy": 5.5,
+        "form_fractal": 4.8,
+        "color_harmony": 8.3,
+        "narrative_moment": "celebration",
+        "narrative_moment_confidence": 0.87,
+        "junk_kind": "not_junk",
+        # Not asserting the "NULL whenever width/height are real" invariant
+        # here (see db/schema.py) -- this test only checks serialisation.
+        "image_aspect": 1.6,
+    }
+
+    def test_extended_metric_columns_survive_into_the_payload(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo("/extended.jpg", "2024:06:15 12:00:00", **self._EXTENDED_METRICS)
+        ])
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
+            # caption_translated is only selected when translation is on
+            # (see build_photo_select_columns) -- pin it rather than
+            # depending on the repo's own scoring_config.json content.
+            mock.patch("api.db_helpers._FULL_CONFIG", {"translation": {"target_language": "fr"}}),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get("/api/photos?page=1")
+        assert resp.status_code == 200
+        photo = resp.json()["photos"][0]
+        for col, expected in self._EXTENDED_METRICS.items():
+            assert photo[col] == expected, f"{col}: expected {expected!r}, got {photo.get(col)!r}"
 
 
 class TestSelectBottomPercent:
@@ -557,7 +608,7 @@ class TestSelectBottomPercent:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             return TestClient(app).get(f"/api/photos/select_bottom_percent?{query}")
@@ -657,7 +708,7 @@ class TestGalleryHidePanoramas:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get(f"/api/photos?page=1&{query}")
@@ -717,7 +768,7 @@ class TestGallerySequenceOverrideFilter:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get(f"/api/photos?page=1&per_page=50&{query}")
@@ -812,7 +863,7 @@ class TestGallerySetScopeFilter:
             mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
             mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
             mock.patch.dict("api.config._count_cache", {}, clear=True),
         ):
             resp = TestClient(app).get(f"/api/photos?page=1&per_page=50&{query}")
@@ -953,7 +1004,7 @@ class TestPhotoSetEndpoint:
         app = _create_app_no_auth()
         with (
             mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
-            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
         ):
             return TestClient(app, raise_server_exceptions=False).get(f"/api/photo/set?path={path}")
 
@@ -1021,3 +1072,28 @@ class TestPhotoSetEndpoint:
         assert data["kind"] == "burst"
         assert data["group_id"] == 11
         assert {m["path"] for m in data["members"]} == {"/burst-over-dup.jpg", "/burst-over-dup-sibling.jpg"}
+
+
+# ---------------------------------------------------------------------------
+# Shared conftest.seeded_photos fixture
+# ---------------------------------------------------------------------------
+
+class TestSeededPhotosFixture:
+    """Proves conftest's ``seeded_photos`` is actually wired to the live app.
+
+    Every other class in this file mocks ``get_db``/``get_async_db`` onto a
+    private ``tmp_path`` database. ``seeded_photos`` instead writes into the
+    SAME shared session database ``edition_client``'s app reads from
+    (``DB_PATH``), so this test needs neither mock -- if the rows weren't
+    landing in the right database, this would 404/empty rather than pass.
+    """
+
+    def test_edition_client_sees_seeded_rows_without_mocking(self, edition_client, seeded_photos):
+        prefix = seeded_photos[0]["path"].rsplit("/", 1)[0] + "/"
+        resp = edition_client.get(f"/api/photos?path_prefix={prefix}&per_page=50")
+        assert resp.status_code == 200
+        photos_by_path = {p["path"]: p for p in resp.json()["photos"]}
+        assert set(photos_by_path) == {p["path"] for p in seeded_photos}
+        for expected in seeded_photos:
+            assert photos_by_path[expected["path"]]["aggregate"] == expected["aggregate"]
+            assert photos_by_path[expected["path"]]["category"] == expected["category"]
