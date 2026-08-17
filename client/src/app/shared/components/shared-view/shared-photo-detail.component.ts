@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
 import { firstValueFrom } from 'rxjs';
-import { Photo } from '../../models/photo.model';
+import { Photo, normalisePhotoFlags } from '../../models/photo.model';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../pipes/translate.pipe';
@@ -305,7 +305,8 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
       const path = this.route.snapshot.queryParamMap.get('path');
       if (path) {
         try {
-          const photo = await firstValueFrom(this.api.get<Photo>('/photo', { path, token: this.token }));
+          const photo = normalisePhotoFlags(await firstValueFrom(
+            this.api.get<Photo>('/photo', { path, token: this.token })));
           if (!photo.tags_list) {
             photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];
           }

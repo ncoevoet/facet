@@ -345,6 +345,40 @@ describe('GalleryStore', () => {
       expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ page: 1, per_page: 64 }));
     });
 
+    it('coerces the 0/1 flag columns the API sends into real booleans', async () => {
+      // The API serialises these straight out of SQLite, so the wire carries 1/0
+      // while Photo declares booleans. Without the normalisation at ingest this
+      // assertion sees the integers.
+      apiGet.mockReturnValue(of(makePhotosResponse({
+        photos: [{
+          ...makePhoto({ filename: 'a.jpg' }),
+          is_favorite: 1,
+          is_rejected: 0,
+          is_burst_lead: 1,
+        } as unknown as Photo],
+      })));
+
+      await store.loadPhotos();
+
+      const p = store.photos()[0];
+      expect(p.is_favorite).toBe(true);
+      expect(p.is_rejected).toBe(false);
+      expect(p.is_burst_lead).toBe(true);
+    });
+
+    it('keeps a null flag null instead of turning it into false', async () => {
+      // NULL means "no stored value" — the state of is_favorite/is_rejected on
+      // all but a handful of rows in a real library.
+      apiGet.mockReturnValue(of(makePhotosResponse({
+        photos: [makePhoto({ filename: 'a.jpg', is_favorite: null, is_rejected: null })],
+      })));
+
+      await store.loadPhotos();
+
+      expect(store.photos()[0].is_favorite).toBeNull();
+      expect(store.photos()[0].is_rejected).toBeNull();
+    });
+
     it('should surface the error and NOT restore the previous photos on failure', async () => {
       // Set initial state
       store.photos.set([makePhoto({ filename: 'existing.jpg' })]);

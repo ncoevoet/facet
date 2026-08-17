@@ -18,7 +18,7 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDatepickerModule, MatDatepickerInputEvent } from '@angular/material/datepicker';
 import { toIsoDateString } from '../../utils/date-format';
 import { firstValueFrom } from 'rxjs';
-import { Photo } from '../../models/photo.model';
+import { Photo, normalisePhotoFlagsAll } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { I18nService } from '../../../core/services/i18n.service';
@@ -1074,7 +1074,8 @@ export class SharedViewComponent implements OnInit {
     this.applyPhotos(res.photos, append);
   }
 
-  private applyPhotos(photos: Photo[], append: boolean): void {
+  private applyPhotos(wirePhotos: Photo[], append: boolean): void {
+    const photos = normalisePhotoFlagsAll(wirePhotos);
     // Ensure tags_list exists on all photos
     for (const p of photos) {
       if (!p.tags_list) {

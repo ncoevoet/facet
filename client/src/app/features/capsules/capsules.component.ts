@@ -15,7 +15,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
-import { Photo } from '../../shared/models/photo.model';
+import { Photo, normalisePhotoFlagsAll } from '../../shared/models/photo.model';
 import { SlideshowComponent } from '../gallery/slideshow.component';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
@@ -332,7 +332,7 @@ export class CapsulesComponent implements OnDestroy {
       if (this.destroyed) return;
 
       // Shuffle photos for playback variety
-      const shuffled = [...res.photos];
+      const shuffled = normalisePhotoFlagsAll(res.photos);
       this.shuffleArray(shuffled);
       this.capsuleShuffledPhotos.set(capsule.id, shuffled);
       this.slideshowStartIndex.set(0);

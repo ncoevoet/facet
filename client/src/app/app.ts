@@ -38,7 +38,7 @@ import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { SortGroupKeyPipe } from './shared/pipes/sort-group-key.pipe';
 import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 import { SlideshowComponent } from './features/gallery/slideshow.component';
-import { Photo } from './shared/models/photo.model';
+import { Photo, normalisePhotoFlagsAll } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N, I18N_KEYS } from './core/i18n/keys';
 import { folderDisplayName } from './features/folders/folders.util';
@@ -575,7 +575,7 @@ export class App implements OnInit {
       const res = await firstValueFrom(
         this.api.get<{ years: { photos: Photo[] }[] }>('/memories'),
       );
-      const photos = (res.years ?? []).flatMap(y => y.photos ?? []);
+      const photos = normalisePhotoFlagsAll((res.years ?? []).flatMap(y => y.photos ?? []));
       if (photos.length === 0) {
         this.memoriesActive.set(false);
         this.snackBar.open(this.i18n.t(I18N.memories.no_memories), '', { duration: 3000 });

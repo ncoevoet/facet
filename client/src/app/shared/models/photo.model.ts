@@ -151,3 +151,44 @@ export interface PhotoSet {
   ev_span: number | null;
   members: PhotoSetMember[];
 }
+
+/** The columns SQLite stores as 0/1 and this client declares as booleans. */
+const PHOTO_FLAG_FIELDS = [
+  'is_blink',
+  'is_monochrome',
+  'is_silhouette',
+  'is_burst_lead',
+  'is_duplicate_lead',
+  'is_favorite',
+  'is_rejected',
+] as const;
+
+/**
+ * Coerce the 0/1 flag columns to real booleans as a photo enters the client.
+ *
+ * The API serialises these straight out of SQLite, so every `boolean`
+ * declaration above was a lie about the wire until this ran — the values
+ * arrived as `1`/`0` and only ever worked because nothing compared them with
+ * `===`. `GET /api/photo/set` already returns real booleans for `is_lead`, so
+ * this brings the photo payloads in line with the shape the client declares.
+ *
+ * `null` is preserved rather than folded to `false`: it means "no stored
+ * value", which is what `is_favorite` and `is_rejected` hold for all but a
+ * handful of rows in a real library, and photo-detail depends on the
+ * distinction to leave a flag untouched when the server has no opinion.
+ */
+export function normalisePhotoFlags<T extends Partial<Photo>>(photo: T): T {
+  const out: Record<string, unknown> = { ...photo };
+  for (const field of PHOTO_FLAG_FIELDS) {
+    const value = out[field];
+    if (value !== null && value !== undefined) {
+      out[field] = !!value;
+    }
+  }
+  return out as T;
+}
+
+/** {@link normalisePhotoFlags} over a payload's worth of photos. */
+export function normalisePhotoFlagsAll<T extends Partial<Photo>>(photos: T[]): T[] {
+  return photos.map(normalisePhotoFlags);
+}

@@ -6,7 +6,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { I18nService } from '../../core/services/i18n.service';
-import { Photo, KeeperHint } from '../../shared/models/photo.model';
+import { Photo, KeeperHint, normalisePhotoFlagsAll } from '../../shared/models/photo.model';
 import { I18N } from '../../core/i18n/keys';
 import {
   type GalleryFilters, type GalleryMode, type TooltipMode, type PanelActivation, type DisplayOptions,
@@ -410,7 +410,7 @@ export class GalleryStore {
       if (f.similar_to) {
         const res = await this.fetchSimilarPage(f, (f.page - 1) * f.per_page);
         if (seq !== this._loadSeq) return;
-        this.photos.set(res.similar ?? []);
+        this.photos.set(normalisePhotoFlagsAll(res.similar ?? []));
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
         return;
@@ -425,7 +425,7 @@ export class GalleryStore {
           }),
         );
         if (seq !== this._loadSeq) return;
-        this.photos.set(res.photos);
+        this.photos.set(normalisePhotoFlagsAll(res.photos));
         this.total.set(res.total);
         this.hasMore.set(false);
         return;
@@ -434,7 +434,7 @@ export class GalleryStore {
       const params = buildApiParams(f, this.currentAlbum()?.is_smart ?? false);
       const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
       if (seq !== this._loadSeq) return;
-      this.photos.set(res.photos);
+      this.photos.set(normalisePhotoFlagsAll(res.photos));
       this.total.set(res.total);
       this.hasMore.set(res.has_more);
       this.hiddenSummary.set(
@@ -466,14 +466,14 @@ export class GalleryStore {
       if (f.similar_to) {
         const res = await this.fetchSimilarPage(f, (nextPage - 1) * f.per_page);
         if (seq !== this._loadSeq) return;
-        this.photos.update(current => [...current, ...(res.similar ?? [])]);
+        this.photos.update(current => [...current, ...normalisePhotoFlagsAll(res.similar ?? [])]);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
       } else {
         const params = buildApiParams(this.filters(), this.currentAlbum()?.is_smart ?? false);
         const res = await firstValueFrom(this.api.get<PhotosResponse>('/photos', params));
         if (seq !== this._loadSeq) return;
-        this.photos.update(current => [...current, ...res.photos]);
+        this.photos.update(current => [...current, ...normalisePhotoFlagsAll(res.photos)]);
         this.total.set(res.total);
         this.hasMore.set(res.has_more);
         if (res.hidden_summary) {

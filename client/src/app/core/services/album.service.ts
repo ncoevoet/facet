@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ApiService } from './api.service';
-import { Photo } from '../../shared/models/photo.model';
+import { Photo, normalisePhotoFlagsAll } from '../../shared/models/photo.model';
 
 export interface Album {
   id: number;
@@ -88,7 +88,9 @@ export class AlbumService {
   }
 
   getPhotos(albumId: number, params?: Record<string, string | number | boolean>): Observable<AlbumPhotosResponse> {
-    return this.api.get(`/albums/${albumId}/photos`, params);
+    return this.api
+      .get<AlbumPhotosResponse>(`/albums/${albumId}/photos`, params)
+      .pipe(map(res => ({ ...res, photos: normalisePhotoFlagsAll(res.photos ?? []) })));
   }
 
   share(albumId: number): Observable<{ share_url: string; share_token: string }> {
@@ -100,7 +102,9 @@ export class AlbumService {
   }
 
   getShared(albumId: number, token: string): Observable<{ album: Album; photos: Photo[]; total: number }> {
-    return this.api.get(`/shared/album/${albumId}`, { token });
+    return this.api
+      .get<{ album: Album; photos: Photo[]; total: number }>(`/shared/album/${albumId}`, { token })
+      .pipe(map(res => ({ ...res, photos: normalisePhotoFlagsAll(res.photos ?? []) })));
   }
 
   /** Set the album's scoring context; materializes it onto member photos (last-write-wins). */

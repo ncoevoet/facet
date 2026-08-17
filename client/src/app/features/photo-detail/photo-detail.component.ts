@@ -11,7 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
-import { Photo, KeeperHint, PhotoSet } from '../../shared/models/photo.model';
+import { Photo, KeeperHint, PhotoSet, normalisePhotoFlags } from '../../shared/models/photo.model';
 import { AuthService } from '../../core/services/auth.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
@@ -778,7 +778,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   private async fetchPhoto(path: string): Promise<Photo> {
-    const photo = await firstValueFrom(this.api.get<Photo>('/photo', { path }));
+    const photo = normalisePhotoFlags(
+      await firstValueFrom(this.api.get<Photo>('/photo', { path })));
     if (!photo.tags_list) {
       photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];
     }
