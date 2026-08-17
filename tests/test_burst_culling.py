@@ -607,10 +607,15 @@ class TestConfirmBracketGroup:
         assert self._rejected(conn) == {"/k0.jpg"}
 
     def test_empty_paths_is_rejected_as_a_bad_request(self, client):
+        """`paths` is now a required, non-empty field on the request body
+
+        itself, so a malformed body 422s before the handler -- and before
+        `_confirm_sequence_group`'s own `paths is required` guard -- runs.
+        """
         conn = self._db()
         resp = self._confirm(client, conn, {"paths": [], "keep_paths": []})
-        assert resp.status_code == 400
-        assert 'paths is required' in resp.json()['detail']
+        assert resp.status_code == 422
+        assert self._rejected(conn) == set()
 
 
 class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
@@ -723,22 +728,45 @@ class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
         assert resp.json() == {'success': True, 'kept': 1, 'rejected': 2, 'skipped': 1}
         assert self._rejected(conn) == {"/s0.jpg", "/s2.jpg"}
 
-    def test_empty_paths_on_a_burst_feed_rejects_the_whole_group(self, client):
-        """An empty `paths` list is NOT rejected as a bad request on this feed.
+    def test_empty_paths_on_a_burst_feed_is_rejected_as_a_bad_request(self, client):
+        """An empty `paths` list no longer reaches `select_burst_photos`.
 
         `_keep_whole_kind_for([])` finds nothing to look up and returns None,
-        so the request falls through to `select_burst_photos`, which ignores
-        `paths` entirely and operates on the whole `burst_id` -- an empty
-        `keep_paths` then rejects every photo in the group. The `paths is
-        required` guard lives only in `_confirm_sequence_group`, reached
-        through an explicit sequence type or an unmixed sequence-kind set,
-        never through a plain burst-typed confirm.
+        so an empty-`paths` request used to fall through to
+        `select_burst_photos`, which ignores `paths` entirely and operates on
+        the whole `burst_id` -- an empty `keep_paths` then rejected every
+        photo in the group. `paths` is now a required, non-empty field on
+        `CullingConfirmBody`, so the request 422s for every feed type, not
+        just the sequence-kind branch that already guarded itself.
         """
         conn = self._db()
         resp = self._confirm(client, conn, {"paths": [], "keep_paths": []})
+        assert resp.status_code == 422
+        assert self._rejected(conn) == set()
+        unreviewed = conn.execute(
+            "SELECT COUNT(*) FROM photos WHERE burst_group_id = 7 "
+            "AND COALESCE(burst_reviewed, 0) = 0").fetchone()[0]
+        assert unreviewed == 3
+
+    def test_a_mixed_group_with_empty_keep_paths_rejects_the_whole_group(self, client):
+        """Empty `keep_paths` legitimately means "reject all of these".
+
+        The defect the guard above closes is an empty `paths`, not an empty
+        `keep_paths` -- with a non-empty `paths` this still reaches
+        `select_burst_photos` (via the mixed-kind group used by
+        `test_a_mixed_group_is_still_culled_as_competing_takes` above) and
+        rejects the whole group, exactly as an explicit "keep nothing"
+        selection should.
+        """
+        conn = self._db()
+        conn.execute("INSERT INTO photos (path, filename, sequence_kind, burst_group_id) "
+                     "VALUES ('/other.jpg', 'other.jpg', NULL, 7)")
+        conn.commit()
+        resp = self._confirm(client, conn, {
+            "paths": self._SWEEP + ["/other.jpg"], "keep_paths": []})
         assert resp.status_code == 200
-        assert resp.json() == {'status': 'ok', 'kept': 0, 'rejected': 3}
-        assert self._rejected(conn) == {"/s0.jpg", "/s1.jpg", "/s2.jpg"}
+        assert resp.json() == {'status': 'ok', 'kept': 0, 'rejected': 4}
+        assert self._rejected(conn) == {"/s0.jpg", "/s1.jpg", "/s2.jpg", "/other.jpg"}
 
 
 class TestFilterSimilarGroups:

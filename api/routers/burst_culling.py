@@ -100,7 +100,12 @@ class SimilarSelectionBody(BaseModel):
 class CullingConfirmBody(BaseModel):
     group_id: int
     type: Literal['burst', 'similar', 'scene', 'bracket', 'panorama', 'hdr_panorama']
-    paths: list[str]
+    # Non-empty for every feed type: `select_burst_photos` and
+    # `select_similar_photos` operate on the whole named group, so an empty
+    # `paths` here would leave an empty `keep_paths` rejecting everything in
+    # it. Empty `keep_paths` with a non-empty `paths` stays legal -- that is
+    # the legitimate "reject all of these" selection.
+    paths: list[str] = Field(min_length=1)
     keep_paths: list[str]
 
 
