@@ -19,6 +19,7 @@ interface CullRequest {
   action: CullAction;
   target_dir: string | null;
   include_companions: boolean;
+  include_sequence_siblings: boolean;
   dry_run: boolean;
 }
 
@@ -28,6 +29,8 @@ interface CullResponse {
   would_trash?: string[];
   skipped?: string[];
   excluded_by_state?: number;
+  matched?: number;
+  sequence_siblings?: number;
   copied?: number;
   moved?: number;
   trashed?: number;
@@ -66,13 +69,25 @@ interface CullResponse {
       }
 
       <mat-checkbox [checked]="includeCompanions()" (change)="includeCompanions.set($event.checked); preview.set(null)"
-                    class="text-sm">
+                    class="text-sm block">
         {{ I18N.cull.include_companions | translate }}
+      </mat-checkbox>
+      <mat-checkbox [checked]="includeSequenceSiblings()"
+                    (change)="includeSequenceSiblings.set($event.checked); preview.set(null)"
+                    class="text-sm block">
+        {{ I18N.cull.include_sequence_siblings | translate }}
       </mat-checkbox>
 
       @if (preview(); as p) {
         <div class="mt-3 p-2 rounded bg-[var(--mat-sys-surface-container)] text-sm">
-          <p>{{ p.affected.length }} {{ I18N.cull.would_affect | translate }}</p>
+          @if (p.matched === 0) {
+            <p>{{ I18N.cull.nothing_matched | translate }}</p>
+          } @else {
+            <p>{{ p.affected.length }} {{ I18N.cull.would_affect | translate }}</p>
+          }
+          @if (p.siblings) {
+            <p class="opacity-60">{{ p.siblings }} {{ I18N.cull.sequence_siblings | translate }}</p>
+          }
           @if (p.excluded) {
             <p class="opacity-60">{{ p.excluded }} {{ I18N.cull.excluded_by_state | translate }}</p>
           }
@@ -114,7 +129,10 @@ export class CullDialogComponent {
   protected readonly action = signal<CullAction>('copy_keeps');
   protected readonly targetDir = signal('');
   protected readonly includeCompanions = signal(false);
-  protected readonly preview = signal<{ affected: string[]; skipped: string[]; excluded: number } | null>(null);
+  protected readonly includeSequenceSiblings = signal(false);
+  protected readonly preview = signal<{
+    affected: string[]; skipped: string[]; excluded: number; matched: number; siblings: number;
+  } | null>(null);
   protected readonly busy = signal(false);
   protected readonly errorDetail = signal<string | null>(null);
 
@@ -139,6 +157,7 @@ export class CullDialogComponent {
       action: this.action(),
       target_dir: this.needsTarget() ? this.targetDir() : null,
       include_companions: this.includeCompanions(),
+      include_sequence_siblings: this.includeSequenceSiblings(),
       dry_run: dryRun,
     };
   }
@@ -147,7 +166,8 @@ export class CullDialogComponent {
     const current = this.body(true);
     return requested.action === current.action
       && requested.target_dir === current.target_dir
-      && requested.include_companions === current.include_companions;
+      && requested.include_companions === current.include_companions
+      && requested.include_sequence_siblings === current.include_sequence_siblings;
   }
 
   async runPreview(): Promise<void> {
@@ -160,7 +180,10 @@ export class CullDialogComponent {
         return;
       }
       const affected = res.would_copy ?? res.would_move ?? res.would_trash ?? [];
-      this.preview.set({ affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0 });
+      this.preview.set({
+        affected, skipped: res.skipped ?? [], excluded: res.excluded_by_state ?? 0,
+        matched: res.matched ?? affected.length, siblings: res.sequence_siblings ?? 0,
+      });
     } catch (error) {
       this.errorDetail.set(extractErrorDetail(error) ?? null);
       this.snackBar.open(this.i18n.t(I18N.cull.error), '', { duration: 3000 });

@@ -37,20 +37,55 @@ def _db_cm(db_path):
 
 
 def _db(tmp_path, photos):
-    """photos: list of (path, is_rejected). Creates a photos table + rows."""
+    """photos: list of (path, is_rejected) or (path, is_rejected, extra).
+
+    ``extra`` is an optional dict of sequence columns (sequence_kind,
+    sequence_group_id, is_sequence_lead, sequence_ev_offset, date_taken) for
+    bracket/panorama fixtures. Creates a photos table + rows.
+
+    ``date_taken`` is here because the lead reassignment orders survivors by
+    capture order, the way the detector picked the original lead. A fixture
+    missing a column the code under test selects fails as an OperationalError,
+    not as a wrong answer -- which is how this column came to be added.
+    """
     db = str(tmp_path / "t.db")
     conn = sqlite3.connect(db)
     conn.execute(
-        "CREATE TABLE photos (path TEXT PRIMARY KEY, filename TEXT, is_rejected INTEGER DEFAULT 0)"
+        "CREATE TABLE photos ("
+        "path TEXT PRIMARY KEY, filename TEXT, is_rejected INTEGER DEFAULT 0, "
+        "sequence_kind TEXT, sequence_group_id INTEGER, "
+        "is_sequence_lead INTEGER DEFAULT 0, sequence_ev_offset REAL, "
+        "date_taken TEXT)"
     )
-    for path, rejected in photos:
+    for entry in photos:
+        path, rejected = entry[0], entry[1]
+        extra = entry[2] if len(entry) > 2 else {}
         conn.execute(
-            "INSERT INTO photos (path, filename, is_rejected) VALUES (?, ?, ?)",
-            (path, path.split("/")[-1], rejected),
+            "INSERT INTO photos (path, filename, is_rejected, sequence_kind, "
+            "sequence_group_id, is_sequence_lead, sequence_ev_offset, date_taken) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (path, path.split("/")[-1], rejected,
+             extra.get("sequence_kind"), extra.get("sequence_group_id"),
+             extra.get("is_sequence_lead", 0), extra.get("sequence_ev_offset"),
+             extra.get("date_taken")),
         )
     conn.commit()
     conn.close()
     return db
+
+
+def _lead_paths(db, kind, group_id):
+    """Paths carrying ``is_sequence_lead = 1`` for a (kind, group_id) pair."""
+    conn = sqlite3.connect(db)
+    try:
+        rows = conn.execute(
+            "SELECT path FROM photos WHERE sequence_kind = ? AND sequence_group_id = ? "
+            "AND is_sequence_lead = 1",
+            (kind, group_id),
+        ).fetchall()
+    finally:
+        conn.close()
+    return [r[0] for r in rows]
 
 
 def _make_file(tmp_path, name, content=b"DATA"):
@@ -233,6 +268,179 @@ class TestCullApply:
         assert body["not_visible"] == 1  # missing
         # The three counts now reconcile with the request's own path count.
         assert len(body["would_copy"]) + body["excluded_by_state"] + body["not_visible"] == 3
+
+
+_BRACKET = "bracket"
+_PANORAMA = "panorama"
+
+
+class TestCullApplySequences:
+    def test_copy_keeps_bracket_siblings_reported_and_included_when_flag_on(self, client, tmp_path):
+        """A5#1: a 5-frame bracket contributes ONE selected path (the gallery
+        hides the rest by default), so 'Copy keeps to folder' used to copy one
+        file and the sibling count went unreported. It must always be
+        reported, and only pulled into the copy when the flag is set."""
+        lead = _make_file(tmp_path, "lead.jpg")
+        siblings = [_make_file(tmp_path, f"sib{i}.jpg") for i in range(4)]
+        photos = [(lead, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
+                              "sequence_ev_offset": 0.0})]
+        for i, sib in enumerate(siblings):
+            photos.append((sib, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
+                                     "sequence_ev_offset": float(i + 1)}))
+        db = _db(tmp_path, photos)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp_off = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "copy_keeps", "target_dir": str(tmp_path / "k"),
+                "dry_run": True, "include_companions": False,
+                "include_sequence_siblings": False,
+            })
+            resp_on = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "copy_keeps", "target_dir": str(tmp_path / "k"),
+                "dry_run": True, "include_companions": False,
+                "include_sequence_siblings": True,
+            })
+        body_off = resp_off.json()
+        assert body_off["would_copy"] == [lead]
+        assert body_off["sequence_siblings"] == 4  # reported even though flag is off
+
+        body_on = resp_on.json()
+        assert set(body_on["would_copy"]) == {lead, *siblings}
+        assert len(body_on["would_copy"]) == 5
+        assert body_on["sequence_siblings"] == 4
+
+    def test_move_rejects_panorama_lead_reassigns_surviving_frame(self, client, tmp_path):
+        """A5#2 + #3: move/trash never wrote to the DB, so a moved panorama
+        lead kept satisfying HIDE_PANORAMAS_SQL (and kept serving its stored
+        thumbnail) until a rescan pruned it -- at which point every surviving
+        frame had is_sequence_lead = 0 and the whole set vanished. A surviving
+        frame must be promoted instead, and the two un-moved siblings must be
+        reported rather than silently orphaned."""
+        lead = _make_file(tmp_path, "lead.jpg")
+        f1 = _make_file(tmp_path, "f1.jpg")
+        f2 = _make_file(tmp_path, "f2.jpg")
+        db = _db(tmp_path, [
+            (lead, 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 1}),
+            (f1, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+            (f2, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+        ])
+        target = str(tmp_path / "out")
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "move_rejects", "target_dir": target,
+                "dry_run": False, "include_companions": False,
+                "include_sequence_siblings": False,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["moved"] == 1
+        assert body["sequence_siblings"] == 2  # f1, f2 reported, not silently orphaned
+        leads = _lead_paths(db, _PANORAMA, 1)
+        assert len(leads) == 1
+        assert leads[0] in (f1, f2)  # exactly one surviving frame promoted
+
+    def test_promoted_lead_is_the_middle_surviving_frame_not_the_first(self, client, tmp_path):
+        """The detector marks the MIDDLE frame of a sweep as its representative
+        (utils/panorama.py: "a sweep has no best frame, and the middle one is
+        the likeliest to hold the subject"), so a replacement picked off the
+        edge would represent the set in the gallery by its least
+        representative tile. Ordered by capture time, the way the detector saw
+        the segment -- promoting by path happened to pass a 3-frame fixture
+        where the only survivor was also the middle one.
+        """
+        frames = []
+        for i in range(5):
+            f = _make_file(tmp_path, f"pan_{i}.jpg")
+            frames.append(f)
+        # Lead is the middle frame, as the detector would have left it.
+        db = _db(tmp_path, [
+            (f, 1 if i == 2 else 0,
+             {"sequence_kind": _PANORAMA, "sequence_group_id": 1,
+              "is_sequence_lead": 1 if i == 2 else 0,
+              "date_taken": f"2026:03:01 12:00:0{i}"})
+            for i, f in enumerate(frames)
+        ])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [frames[2]], "action": "move_rejects",
+                "target_dir": str(tmp_path / "out"), "dry_run": False,
+                "include_companions": False, "include_sequence_siblings": False,
+            })
+        assert resp.status_code == 200
+        # Survivors in capture order are 0,1,3,4 -- the middle of four is index 2,
+        # i.e. frame 3. Frame 0 is what a first-survivor promotion would pick.
+        assert _lead_paths(db, _PANORAMA, 1) == [frames[3]]
+
+    def test_sequence_groups_scoped_by_kind_not_just_group_id(self, client, tmp_path):
+        """A5 invariant: sequence_group_id is renumbered from 1 independently
+        by the bracket and panorama passes, so two sets sharing group_id=1 but
+        a different sequence_kind must never bleed into each other, either
+        when collecting siblings or when re-picking a lead."""
+        bracket_lead = _make_file(tmp_path, "bracket_lead.jpg")
+        bracket_sib = _make_file(tmp_path, "bracket_sib.jpg")
+        pano_lead = _make_file(tmp_path, "pano_lead.jpg")
+        pano_f1 = _make_file(tmp_path, "pano_f1.jpg")
+        db = _db(tmp_path, [
+            (bracket_lead, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
+                                "sequence_ev_offset": 0.0}),
+            (bracket_sib, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
+                               "sequence_ev_offset": 2.0}),
+            (pano_lead, 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1,
+                             "is_sequence_lead": 1}),
+            (pano_f1, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1,
+                           "is_sequence_lead": 0}),
+        ])
+        target = str(tmp_path / "out")
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            copy_resp = client.post("/api/cull/apply", json={
+                "paths": [bracket_lead], "action": "copy_keeps",
+                "target_dir": str(tmp_path / "k"), "dry_run": True,
+                "include_companions": False, "include_sequence_siblings": True,
+            })
+            move_resp = client.post("/api/cull/apply", json={
+                "paths": [pano_lead], "action": "move_rejects",
+                "target_dir": target, "dry_run": False,
+                "include_companions": False, "include_sequence_siblings": False,
+            })
+        copy_body = copy_resp.json()
+        assert copy_body["sequence_siblings"] == 1
+        assert set(copy_body["would_copy"]) == {bracket_lead, bracket_sib}  # never pano_*
+
+        assert move_resp.json()["moved"] == 1
+        assert _lead_paths(db, _PANORAMA, 1) == [pano_f1]  # only the pano group reassigned
+        assert _lead_paths(db, _BRACKET, 1) == []  # the bracket group must stay untouched
+
+    def test_all_paths_excluded_by_state_is_distinguishable(self, client, tmp_path):
+        """A5#4: a response with copied/moved == 0 used to give no way to tell
+        'nothing here qualified for this action' apart from 'it qualified but
+        every file op failed'. `matched` makes that explicit."""
+        rejected_a = _make_file(tmp_path, "a.jpg")
+        rejected_b = _make_file(tmp_path, "b.jpg")
+        db = _db(tmp_path, [(rejected_a, 1), (rejected_b, 1)])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [rejected_a, rejected_b], "action": "copy_keeps",
+                "target_dir": str(tmp_path / "k"), "dry_run": True,
+                "include_companions": False,
+            })
+        body = resp.json()
+        assert body["would_copy"] == []
+        assert body["matched"] == 0
+        assert body["excluded_by_state"] == 2
 
 
 class TestCullAuth:
