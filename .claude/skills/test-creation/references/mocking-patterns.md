@@ -126,11 +126,9 @@ const createMockPhoto = (overrides?: Partial<Photo>): Photo => ({
   image_height: 4000,
   face_count: 0,
   face_ratio: 0,
-  is_best_of_burst: null,
+  is_burst_lead: null,
   burst_group_id: null,
   duplicate_group_id: null,
-  is_duplicate_lead: null,
-  top_picks_score: null,
   ...overrides,
 });
 ```

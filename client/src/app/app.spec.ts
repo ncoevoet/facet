@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Provider, signal } from '@angular/core';
-import { NEVER, Subject } from 'rxjs';
+import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
 import { AuthService } from './core/services/auth.service';
@@ -369,6 +369,58 @@ describe('App', () => {
       (app as any).setupUpdateNotifications();
       versionUpdates.next({ type: 'VERSION_READY' });
       expect(open).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('new release notice', () => {
+    function withRelease(payload: unknown, { edition = true } = {}) {
+      const onAction = vi.fn(() => new Subject<void>());
+      const open = vi.fn(() => ({ onAction }));
+      const get = vi.fn(() => of(payload));
+      const { app } = createApp('/', [
+        {
+          provide: AuthService,
+          useValue: {
+            isAuthenticated: vi.fn(() => true),
+            checkStatus: vi.fn(() => Promise.resolve()),
+            isEdition: vi.fn(() => edition),
+          },
+        },
+        { provide: ApiService, useValue: { get, post: vi.fn(() => NEVER) } },
+        { provide: MatSnackBar, useValue: { open } },
+      ]);
+      return { app, get, open };
+    }
+
+    const AVAILABLE = { update_available: true, latest: 'v9.9.9', release_url: 'https://example/r' };
+
+    beforeEach(() => localStorage.clear());
+
+    it('requests the endpoint path ApiService expects, not a doubled /api prefix', async () => {
+      const { app, get } = withRelease(AVAILABLE);
+      await (app as any).maybeAnnounceNewRelease();
+      // ApiService prepends /api itself. Passing '/api/updates/check' here asked
+      // for /api/api/updates/check, which 404s, and the catch below swallowed it
+      // -- so the notice could never fire and no test noticed.
+      expect(get).toHaveBeenCalledWith('/updates/check');
+    });
+
+    it('opens the notice when the server reports an update', async () => {
+      const { app, open } = withRelease(AVAILABLE);
+      await (app as any).maybeAnnounceNewRelease();
+      expect(open).toHaveBeenCalled();
+    });
+
+    it('stays quiet when the server reports no update', async () => {
+      const { app, open } = withRelease({ update_available: false, latest: null, release_url: null });
+      await (app as any).maybeAnnounceNewRelease();
+      expect(open).not.toHaveBeenCalled();
+    });
+
+    it('never reaches the endpoint outside edition mode', async () => {
+      const { app, get } = withRelease(AVAILABLE, { edition: false });
+      await (app as any).maybeAnnounceNewRelease();
+      expect(get).not.toHaveBeenCalled();
     });
   });
 });

@@ -420,7 +420,7 @@ export class App implements OnInit {
     const last = Number(localStorage.getItem(RELEASE_NOTICE_KEY)) || 0;
     if (now - last < RELEASE_NOTICE_INTERVAL_MS) return;
     try {
-      const res = await firstValueFrom(this.api.get<ReleaseCheck>('/api/updates/check'));
+      const res = await firstValueFrom(this.api.get<ReleaseCheck>('/updates/check'));
       if (!res?.update_available || !res.latest) return;
       localStorage.setItem(RELEASE_NOTICE_KEY, String(now));
       const ref = this.snackBar.open(
