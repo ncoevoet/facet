@@ -15,7 +15,6 @@ export const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   exposure_score: null,
   quality_score: null,
   topiq_score: null,
-  top_picks_score: null,
   isolation_bonus: null,
   face_count: 0,
   face_ratio: 0,
@@ -49,7 +48,6 @@ export const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   is_burst_lead: null,
   burst_group_id: null,
   duplicate_group_id: null,
-  is_duplicate_lead: null,
   persons: [],
   unassigned_faces: 0,
   star_rating: null,
@@ -86,7 +84,5 @@ export const makePhotoFull = (overrides: Partial<Photo> = {}): Photo => makePhot
   leading_lines_score: 5.4,
   subject_placement: 6.7,
   unassigned_faces: 2,
-  top_picks_score: 8.0,
-  is_duplicate_lead: true,
   ...overrides,
 });

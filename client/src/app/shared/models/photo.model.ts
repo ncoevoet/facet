@@ -9,7 +9,8 @@ export interface Photo {
   path: string;
   filename: string;
   // Scores
-  aggregate: number;
+  /** Null for a row the scoring pass has not reached yet (e.g. mid-scan). */
+  aggregate: number | null;
   aesthetic: number;
   face_quality: number | null;
   comp_score: number | null;
@@ -21,8 +22,6 @@ export interface Photo {
   // the DB's actual column set at query time — see api/__init__.py).
   quality_score?: number | null;
   topiq_score?: number | null;
-  /** Computed sort alias, sent only when sorting by it (never a stored column). */
-  top_picks_score?: number | null;
   isolation_bonus: number | null;
   // Extended quality
   aesthetic_iaa?: number | null;
@@ -100,7 +99,6 @@ export interface Photo {
   is_burst_lead: boolean | null;
   burst_group_id?: string | null;
   duplicate_group_id?: string | null;
-  is_duplicate_lead?: boolean | null;
   // Persons & Rating
   persons: { id: number; name: string }[];
   unassigned_faces: number;
@@ -158,7 +156,6 @@ const PHOTO_FLAG_FIELDS = [
   'is_monochrome',
   'is_silhouette',
   'is_burst_lead',
-  'is_duplicate_lead',
   'is_favorite',
   'is_rejected',
 ] as const;

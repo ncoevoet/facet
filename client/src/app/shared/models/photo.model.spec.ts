@@ -16,7 +16,6 @@ describe('normalisePhotoFlags', () => {
       is_monochrome: 0,
       is_silhouette: 1,
       is_burst_lead: 1,
-      is_duplicate_lead: 0,
       is_favorite: 1,
       is_rejected: 0,
     }));
@@ -24,7 +23,6 @@ describe('normalisePhotoFlags', () => {
     expect(p.is_monochrome).toBe(false);
     expect(p.is_silhouette).toBe(true);
     expect(p.is_burst_lead).toBe(true);
-    expect(p.is_duplicate_lead).toBe(false);
     expect(p.is_favorite).toBe(true);
     expect(p.is_rejected).toBe(false);
   });
