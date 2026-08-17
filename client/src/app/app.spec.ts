@@ -30,6 +30,7 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
     config: signal(null),
     types: signal<{ id: string; count: number }[]>([]),
     loadTypeCounts: vi.fn(() => Promise.resolve()),
+    loadConfig: vi.fn(),
   };
 
   const mockRouter = { url: routerUrl, events: NEVER, navigate: vi.fn() };
@@ -421,6 +422,50 @@ describe('App', () => {
       const { app, get } = withRelease(AVAILABLE, { edition: false });
       await (app as any).maybeAnnounceNewRelease();
       expect(get).not.toHaveBeenCalled();
+    });
+
+    describe('on startup', () => {
+      const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
+
+      function withStartup(payload: unknown, { edition = true } = {}) {
+        const onAction = vi.fn(() => new Subject<void>());
+        const open = vi.fn(() => ({ onAction }));
+        const get = vi.fn((path: string) => of(path === '/updates/check' ? payload : {}));
+        const { app } = createApp('/', [
+          {
+            provide: AuthService,
+            useValue: {
+              isAuthenticated: vi.fn(() => true),
+              checkStatus: vi.fn(() => Promise.resolve()),
+              isEdition: vi.fn(() => edition),
+            },
+          },
+          { provide: ApiService, useValue: { get, post: vi.fn(() => NEVER) } },
+          { provide: MatSnackBar, useValue: { open } },
+        ]);
+        return { app, get, open };
+      }
+
+      it('checks for a release when the app loads already in edition mode', async () => {
+        const { app, get, open } = withStartup(AVAILABLE);
+        await app.ngOnInit();
+        expect(get).toHaveBeenCalledWith('/updates/check');
+        expect(open).toHaveBeenCalled();
+      });
+
+      it('never reaches the endpoint when the app loads outside edition mode', async () => {
+        const { app, get } = withStartup(AVAILABLE, { edition: false });
+        await app.ngOnInit();
+        expect(get).not.toHaveBeenCalledWith('/updates/check');
+      });
+
+      it('stays quiet when this week already had a notice', async () => {
+        localStorage.setItem(RELEASE_NOTICE_KEY, String(Date.now()));
+        const { app, get, open } = withStartup(AVAILABLE);
+        await app.ngOnInit();
+        expect(get).not.toHaveBeenCalledWith('/updates/check');
+        expect(open).not.toHaveBeenCalled();
+      });
     });
   });
 });

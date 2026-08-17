@@ -483,6 +483,11 @@ export class App implements OnInit {
       const promises: Promise<void>[] = [];
       if (this.auth.isEdition()) {
         this.refreshBurstGroupsIndicator();
+        // A page load that starts already in edition mode is not a transition,
+        // so the effect below never sees it (lastAuthKey's own first resolution
+        // is exempt, same as the config-refresh it guards); a later mid-session
+        // grant is still caught there, with the weekly stamp stopping a re-notify.
+        void this.maybeAnnounceNewRelease();
       }
       // "My Taste" confidence badge: the personal-ranker training status. Fetched
       // for everyone (the global pooled ranker is a shared sort, not edition-only).
