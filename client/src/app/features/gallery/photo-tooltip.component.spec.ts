@@ -447,7 +447,7 @@ describe('PhotoTooltipComponent', () => {
         return of(null);
       });
       setFixture.componentInstance.photo.set(
-        makePhoto({ path: '/photos/test.jpg', sequence_kind: null, burst_group_id: 'b1' }),
+        makePhoto({ path: '/photos/test.jpg', sequence_kind: null, burst_group_id: 1 }),
       );
       setFixture.detectChanges();
 
@@ -468,7 +468,7 @@ describe('PhotoTooltipComponent', () => {
         }
         return of(null);
       });
-      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null, duplicate_group_id: 'd1' }));
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null, duplicate_group_id: 1 }));
       setFixture.detectChanges();
 
       expect(setFixture.nativeElement.textContent).toContain('tooltip.set_section');

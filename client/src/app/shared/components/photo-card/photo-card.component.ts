@@ -322,7 +322,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           <div class="flex items-center gap-1">
             <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
-              @if (badges().best_of_burst && burstFramesVisible() && photo().is_burst_lead && photo().burst_group_id) {
+              @if (showsBestBadge()) {
                 <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
               }
               @if (currentSort() !== 'aggregate') {
@@ -430,6 +430,19 @@ export class PhotoCardComponent {
     }
     return null;
   });
+
+  /**
+   * Whether this card carries the "Best" badge.
+   *
+   * `burst_group_id` is an INTEGER counting from 0, so the library's first
+   * burst group has the id `0` and a truthiness test silently drops it. Only
+   * null/undefined means "in no burst", which is why this is a null check.
+   */
+  protected readonly showsBestBadge = computed(() =>
+    this.badges().best_of_burst
+    && this.burstFramesVisible()
+    && !!this.photo().is_burst_lead
+    && this.photo().burst_group_id != null);
 
   // Progressive loading
   readonly imageLoaded = signal(false);

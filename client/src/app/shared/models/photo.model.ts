@@ -100,8 +100,8 @@ export interface Photo {
    *  the client used to declare an `is_best_of_burst` that no backend has ever
    *  produced, so the badge keyed on it could never fire. */
   is_burst_lead: boolean | null;
-  burst_group_id?: string | null;
-  duplicate_group_id?: string | null;
+  burst_group_id?: number | null;
+  duplicate_group_id?: number | null;
   // Persons & Rating
   persons: { id: number; name: string }[];
   unassigned_faces: number;
