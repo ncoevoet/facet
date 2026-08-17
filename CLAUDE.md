@@ -74,8 +74,13 @@ python database.py
 venv/bin/python -m pytest tests/ -q
 venv/bin/python -m ruff check .
 cd client && npm run test          # Vitest builder, not `ng test`
-cd client && npx tsc --noEmit -p tsconfig.json
+cd client && npx tsc --noEmit -p tsconfig.app.json && npx tsc --noEmit -p tsconfig.spec.json
 ```
+
+Typecheck the two leaf projects, never the root `tsconfig.json`: it carries
+`"files": []` plus `references`, so `tsc -p tsconfig.json` compiles **nothing** and
+exits 0 no matter how broken the tree is. That is why a missing import once passed
+this gate and was caught only by `ng build`.
 
 A gate that ran through a pipe reports the pipe's exit code, not the command's —
 use `${PIPESTATUS[0]}` or redirect to a file before calling a suite green.

@@ -149,3 +149,11 @@ jobs:
         working-directory: client
       - run: npx ng lint
         working-directory: client
+      - name: Typecheck the client
+        # The two leaf projects, never the root tsconfig.json: that one is
+        # solution-style ("files": [] plus references), so -p tsconfig.json
+        # compiles nothing and exits 0 however broken the tree is.
+        working-directory: client
+        run: |
+          npx tsc --noEmit -p tsconfig.app.json
+          npx tsc --noEmit -p tsconfig.spec.json
