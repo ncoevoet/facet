@@ -121,11 +121,30 @@ jobs:
           done < <(grep -iE '^[[:space:]]*COPY[[:space:]]' Dockerfile)
           [ "$fail" = 0 ] && echo "All Dockerfile COPY sources are git-tracked."
           exit $fail
+      - name: Translation bundles agree with en.json
+        # Stdlib-only and self-locating, so it needs no pip install and no venv.
+        # tests/test_audit_i18n.py already exercises this script's logic against
+        # temp fixtures -- nothing gated the REAL bundles until this step.
+        # Deliberately not on the Windows job: scripts/audit_i18n.py opens files
+        # with no encoding=, so cp1252 would crash on fr.json/de.json.
+        run: python scripts/audit_i18n.py
       - uses: actions/setup-node@v7
         with:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: client/package.json
+      - name: keys.ts is regenerated from en.json
+        # Catches the subtractive direction the compiler cannot see: deleting a
+        # key from en.json without regenerating keys.ts still type-checks today.
+        # The generator imports only node:fs/node:path, so it runs before
+        # npm install and costs nothing.
+        run: |
+          node client/scripts/gen-i18n-keys.mjs
+          if ! git diff --exit-code client/src/app/core/i18n/keys.ts; then
+            echo "::error file=client/src/app/core/i18n/keys.ts::keys.ts is out of date with i18n/translations/en.json."
+            echo "Run 'cd client && npm run gen:i18n' and commit the result."
+            exit 1
+          fi
       - run: npm install --no-audit --no-fund
         working-directory: client
       - run: npx ng lint
