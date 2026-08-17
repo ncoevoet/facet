@@ -226,6 +226,80 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  // Double-click on a tile. For an ordinary burst/similar/scene it is the
+  // fast "keep only this one" gesture the feature exists for. For a bracket
+  // or a pan the frames were shot to be merged, not to compete -- the same
+  // reason computeAutoKeep starts every frame of those kinds KEPT and the
+  // auto-cull button hides in that granularity -- so it must be a no-op there.
+  describe('selectExclusive (double-click)', () => {
+    const buildKeepWholeGroup = (kind: 'bracket' | 'panorama' | 'hdr_panorama') => ({
+      group_id: 42,
+      type: kind,
+      reason: '3 frames',
+      sequence_kind: kind,
+      best_path: '/kw0.jpg',
+      count: 3,
+      photos: [0, 1, 2].map(i => ({
+        path: `/kw${i}.jpg`, filename: `kw${i}.jpg`, aggregate: 5, aesthetic: 5,
+        tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2025-04-15',
+        burst_score: 5, sequence_kind: kind,
+      })),
+    });
+
+    it('refuses to reduce a bracket set to a single frame', () => {
+      const group = buildKeepWholeGroup('bracket');
+      component['groups'].set([group] as never);
+      component['selectionsMap'].set(
+        new Map([[group.group_id, new Set(group.photos.map(p => p.path))]]),
+      );
+
+      component['selectExclusive']('/kw1.jpg', group as never);
+
+      const kept = component['selectionsMap']().get(group.group_id);
+      expect(kept?.size).toBe(3);
+      expect([...(kept ?? [])].sort()).toEqual(['/kw0.jpg', '/kw1.jpg', '/kw2.jpg']);
+    });
+
+    it('refuses to reduce a panorama set to a single frame', () => {
+      const group = buildKeepWholeGroup('panorama');
+      component['groups'].set([group] as never);
+      component['selectionsMap'].set(
+        new Map([[group.group_id, new Set(group.photos.map(p => p.path))]]),
+      );
+
+      component['selectExclusive']('/kw1.jpg', group as never);
+
+      const kept = component['selectionsMap']().get(group.group_id);
+      expect(kept?.size).toBe(3);
+      expect([...(kept ?? [])].sort()).toEqual(['/kw0.jpg', '/kw1.jpg', '/kw2.jpg']);
+    });
+
+    it('refuses to reduce an hdr_panorama set to a single frame', () => {
+      const group = buildKeepWholeGroup('hdr_panorama');
+      component['groups'].set([group] as never);
+      component['selectionsMap'].set(
+        new Map([[group.group_id, new Set(group.photos.map(p => p.path))]]),
+      );
+
+      component['selectExclusive']('/kw1.jpg', group as never);
+
+      const kept = component['selectionsMap']().get(group.group_id);
+      expect(kept?.size).toBe(3);
+      expect([...(kept ?? [])].sort()).toEqual(['/kw0.jpg', '/kw1.jpg', '/kw2.jpg']);
+    });
+
+    it('still collapses an ordinary burst to the single double-clicked frame', async () => {
+      await (component as any).loadGroups();
+      const group = component['groups']()[0]; // type: 'burst', no sequence_kind
+
+      component['selectExclusive']('/photo2.jpg', group);
+
+      const kept = component['selectionsMap']().get(group.group_id);
+      expect(kept?.size).toBe(1);
+      expect(kept?.has('/photo2.jpg')).toBe(true);
+    });
+  });
+
   // The one write behind the arrow keys, a swipe and the compare panes' own
   // buttons. It takes a path because "the current photo" is a question only the
   // keyboard can answer, and a compare grid has four of them on screen.

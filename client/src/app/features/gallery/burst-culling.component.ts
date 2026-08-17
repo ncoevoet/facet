@@ -3120,7 +3120,15 @@ export class BurstCullingComponent implements OnDestroy {
     this.selectionsMap.set(map);
   }
 
+  /**
+   * A bracket or a pan is a no-op here: its frames were shot to be merged, not
+   * to compete (see KEEP_WHOLE_KINDS), and every other surface -- computeAutoKeep,
+   * the hidden auto-cull button -- already protects that. The persistent hint
+   * badge on these groups already explains why, so this stays silent rather
+   * than adding a second, redundant message.
+   */
   protected selectExclusive(path: string, group: CullingGroup): void {
+    if (group.sequence_kind && KEEP_WHOLE_KINDS.includes(group.sequence_kind)) return;
     this.updateMapSignal(this.selectionsMap, group.group_id, new Set([path]));
   }
 
