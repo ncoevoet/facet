@@ -397,7 +397,7 @@ describe('PhotoTooltipComponent', () => {
 
       expect(mockApi.get).toHaveBeenCalledWith('/photo/set', { path: '/photos/test.jpg' });
       expect(setFixture.nativeElement.textContent).toContain('capsules.photos_count');
-      expect(setFixture.nativeElement.textContent).toContain('±4.0 EV');
+      expect(setFixture.nativeElement.textContent).toContain('4.0 EV');
     });
 
     it('never fires the request at all when the pointer only passes through', () => {

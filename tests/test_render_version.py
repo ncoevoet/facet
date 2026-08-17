@@ -3,8 +3,9 @@
 A stored thumbnail is baked at scan time, so the RAW display-profile fix left
 every existing row rendering the old, exposure-equalizing way.
 ``photos.render_version`` is what says which rows are still on it; these tests
-pin the three things that make the stamp trustworthy — a rescanned row ends up
-stamped current rather than NULL, a render that comes back black never
+pin the four things that make the stamp trustworthy — a rescanned row ends up
+stamped rather than NULL, a frame a later pass groups into a bracket stops
+matching the render its kind now demands, a render that comes back black never
 overwrites a good thumbnail, and the count the banner reads comes from the
 statistics cache rather than a scan of ``photos`` per request.
 """
@@ -15,7 +16,7 @@ from unittest import mock
 
 import pytest
 
-from db.render_version import CURRENT_RENDER_VERSION, count_pending_render
+from db.render_version import DISPLAY_RENDER_VERSION, FAITHFUL_RENDER_VERSION, count_pending_render
 from db.schema import init_database
 
 _RAW_PATH = '/photos/raw/frame.CR3'
@@ -61,7 +62,7 @@ class TestScanStampsCurrentVersion:
         stamp = conn.execute(
             "SELECT render_version FROM photos WHERE path = ?", (_RAW_PATH,)).fetchone()[0]
         conn.close()
-        assert stamp == CURRENT_RENDER_VERSION
+        assert stamp == DISPLAY_RENDER_VERSION
 
     def test_rescan_restamps_a_row_written_before_the_stamp_existed(self, library_db):
         from tests.test_rescan_preservation import _base_result
@@ -80,7 +81,7 @@ class TestScanStampsCurrentVersion:
             facet.save_photos_batch([(_base_result(_RAW_PATH, 8.0), None)])
 
         conn = sqlite3.connect(library_db)
-        assert conn.execute("SELECT render_version FROM photos").fetchone()[0] == CURRENT_RENDER_VERSION
+        assert conn.execute("SELECT render_version FROM photos").fetchone()[0] == DISPLAY_RENDER_VERSION
         assert count_pending_render(conn) == 0
         conn.close()
 
@@ -94,7 +95,96 @@ class TestScanStampsCurrentVersion:
 
 
 # ---------------------------------------------------------------------------
-# 2. A decode that "succeeds" into a black frame must not overwrite anything
+# 2. The stamp is read against the row's CURRENT sequence kind
+# ---------------------------------------------------------------------------
+
+def _stamped_raw_row(db_path, path, stamp, sequence_kind=None):
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO photos (path, filename, thumbnail, render_version, sequence_kind) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (path, path.rsplit('/', 1)[-1], b'thumb', stamp, sequence_kind))
+    conn.commit()
+    conn.close()
+
+
+def _pending(db_path):
+    conn = sqlite3.connect(db_path)
+    try:
+        return count_pending_render(conn)
+    finally:
+        conn.close()
+
+
+class TestABracketedFrameIsFoundByTheMigration:
+    """Sequence detection runs AFTER a scan, so a bracket's frames are baked
+    with the preview rendering and stamped for it before anything knows they
+    are bracketed. Left as a version number alone the stamp would read as
+    "current" and the whole migration would skip the very photos the faithful
+    rendering exists for, so it is compared against the kind the row carries
+    now."""
+
+    def test_a_scanned_row_is_settled_until_a_later_pass_brackets_it(self, tmp_path):
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, '/photos/frame.CR3', DISPLAY_RENDER_VERSION)
+        assert _pending(db_path) == 0
+
+        conn = sqlite3.connect(db_path)
+        conn.execute("UPDATE photos SET sequence_kind = 'bracket'")
+        conn.commit()
+        conn.close()
+        assert _pending(db_path) == 1
+
+    def test_a_refreshed_bracket_is_settled(self, tmp_path):
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, '/photos/frame.CR3', FAITHFUL_RENDER_VERSION, 'bracket')
+        assert _pending(db_path) == 0
+
+    def test_an_hdr_panorama_frame_is_bracketed_too(self, tmp_path):
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, '/photos/frame.CR3', DISPLAY_RENDER_VERSION, 'hdr_panorama')
+        assert _pending(db_path) == 1
+
+    def test_a_plain_panorama_frame_keeps_the_display_render(self, tmp_path):
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, '/photos/frame.CR3', DISPLAY_RENDER_VERSION, 'panorama')
+        assert _pending(db_path) == 0
+
+    def test_a_frame_that_leaves_its_bracket_is_pending_again(self, tmp_path):
+        """Detection can un-group a frame, and its uncorrected thumbnail is then
+        as wrong as an equalized one is inside a bracket."""
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, '/photos/frame.CR3', FAITHFUL_RENDER_VERSION)
+        assert _pending(db_path) == 1
+
+    def test_a_bracketed_jpeg_is_never_pending(self, tmp_path):
+        """Only RAW rendering ever changed."""
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, '/photos/frame.jpg', DISPLAY_RENDER_VERSION, 'bracket')
+        assert _pending(db_path) == 0
+
+    def test_turning_the_faithful_render_off_settles_brackets(self, tmp_path, monkeypatch):
+        """With the behaviour disabled nothing will ever bake the uncorrected
+        render, so demanding it would leave the banner up forever."""
+        from utils import image_loading
+
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, '/photos/frame.CR3', DISPLAY_RENDER_VERSION, 'bracket')
+        monkeypatch.setattr(image_loading, '_raw_decode_settings',
+                            dict(image_loading.get_raw_decode_settings(),
+                                 faithful_bracket_render=False))
+        assert _pending(db_path) == 0
+
+
+# ---------------------------------------------------------------------------
+# 3. A decode that "succeeds" into a black frame must not overwrite anything
 # ---------------------------------------------------------------------------
 
 def _black_frame(height=1200, width=1800):
@@ -157,7 +247,7 @@ class TestThumbnailSignalPredicate:
 
 
 # ---------------------------------------------------------------------------
-# 3. The status count is served from cache, never from a scan per request
+# 4. The status count is served from cache, never from a scan per request
 # ---------------------------------------------------------------------------
 
 class TestMigrationStatus:

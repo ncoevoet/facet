@@ -195,12 +195,16 @@ PHOTOS_COLUMNS = [
     ('skin_tone_delta', 'REAL'),        # worst-face CIEDE2000 distance to the natural skin locus (--recompute-skin-tone)
     ('skin_tone_cast', 'TEXT'),         # 'green'|'magenta'|'blue'|'yellow' when the delta exceeds the cast threshold, else NULL
 
-    # Which display-render pipeline produced this row's stored thumbnail (and,
-    # for a RAW, its histogram). DERIVED state, which is why it lives here and
-    # not in a side table despite the INSERT-OR-REPLACE invariant: a rescan
-    # regenerates the thumbnail with current code, so the stamp SHOULD be
-    # rewritten with the row. NULL = written before the stamp existed, i.e.
-    # before the RAW exposure fix. See db/render_version.py.
+    # Which of the two RAW display renders produced this row's stored thumbnail,
+    # and nothing else: the camera preview one every scan bakes, or the
+    # uncorrected demosaic a bracketed frame needs. Says nothing about
+    # histogram_data or any other scored column — those come from the metrics
+    # demosaic, and --refresh-thumbnails never rewrites them. DERIVED state,
+    # which is why it lives here and not in a side table despite the
+    # INSERT-OR-REPLACE invariant: a rescan regenerates the thumbnail with
+    # current code, so the stamp SHOULD be rewritten with the row. Read against
+    # the row's sequence_kind, never on its own. NULL = written before the stamp
+    # existed, i.e. before the RAW exposure fix. See db/render_version.py.
     ('render_version', 'INTEGER'),
 ]
 

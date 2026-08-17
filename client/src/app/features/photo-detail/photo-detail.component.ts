@@ -538,7 +538,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   <span class="font-medium">{{ set.kind | photoSetKindLabel | translate }}</span>
                   <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.capsules.photos_count | translate:{ count: set.count } }}</span>
                   @if (set.ev_span !== null) {
-                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.set.ev_span | translate }}: &plusmn;{{ set.ev_span | fixed:1 }} EV</span>
+                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.set.ev_span | translate }}: {{ set.ev_span | fixed:1 }} EV</span>
                   }
                 </div>
                 <div class="flex gap-2 flex-wrap">

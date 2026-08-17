@@ -277,8 +277,57 @@ describe('HistogramComponent', () => {
     const label = fixture.nativeElement
       .querySelector('div.absolute.left-0')!.getAttribute('aria-label');
     expect(label).toBe('histogram.clipping.shadow');
+    // Channel names come from the same i18n keys as the mode buttons
+    // (histogram.mode.red/green/blue), not hardcoded letters, so a marker's
+    // tooltip never disagrees with the button that selects that channel.
     expect(mockI18n.t).toHaveBeenCalledWith(
-      'histogram.clipping.shadow', { channels: 'R 9.6% · G 2.9%' });
+      'histogram.clipping.shadow',
+      { channels: 'histogram.mode.red 9.6% · histogram.mode.green 2.9%' });
+  });
+
+  it('names a channel in the marker tooltip the same way the mode button does, in a non-English locale', () => {
+    // Simulates French, where the green mode button reads "V" (vert) rather
+    // than "G". The marker tooltip must resolve the SAME key, not a
+    // hardcoded English letter, so the two never disagree on screen. Uses
+    // its own TestBed configuration (rather than mutating the shared
+    // mockI18n) so this locale swap can't leak into later tests.
+    const FR_CHANNEL_LABEL: Record<string, string> = {
+      'histogram.mode.luminance': 'Lum',
+      'histogram.mode.rgb': 'RVB',
+      'histogram.mode.red': 'R',
+      'histogram.mode.green': 'V',
+      'histogram.mode.blue': 'B',
+      'histogram.clipping.shadow': 'Écrêtage des ombres : {channels}',
+    };
+    const frI18n = {
+      t: vi.fn((key: string, vars?: Record<string, string | number>) => {
+        const template = FR_CHANNEL_LABEL[key] ?? key;
+        return Object.entries(vars ?? {}).reduce(
+          (out, [k, v]) => out.replaceAll(`{${k}}`, String(v)), template);
+      }),
+      currentLang: vi.fn(() => 'fr'),
+      locale: vi.fn(() => 'fr'),
+      translations: vi.fn(() => ({})),
+    };
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: ApiService, useValue: mockApi },
+        { provide: I18nService, useValue: frI18n },
+      ],
+    });
+    fixture = TestBed.createComponent(HistogramComponent);
+    mockApi.get.mockReturnValue(of(CLIPPED));
+
+    render({ path: '/a.jpg', showModeToggle: true, indicatorPercent: 2 });
+
+    const greenButtonLabel = modeButtons()[3].textContent?.trim();
+    expect(greenButtonLabel).toBe('V');
+
+    const shadowLabel = fixture.nativeElement
+      .querySelector('div.absolute.left-0')!.getAttribute('aria-label');
+    expect(shadowLabel).toContain('V 2.9%');
+    expect(shadowLabel).not.toContain('G 2.9%');
   });
 
   it('shows no markers at all for a photo that was never measured', () => {

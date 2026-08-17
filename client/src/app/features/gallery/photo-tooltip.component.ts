@@ -329,7 +329,7 @@ export class CategoryLabelPipe implements PipeTransform {
                 <div class="flex justify-between gap-2 text-[var(--facet-tooltip-text-secondary)]">
                   <span>{{ 'capsules.photos_count' | translate:{ count: set.count } }}</span>
                   @if (set.ev_span !== null) {
-                    <span>&plusmn;{{ set.ev_span | fixed:1 }} EV</span>
+                    <span>{{ set.ev_span | fixed:1 }} EV</span>
                   }
                 </div>
                 @if (docked() && set.members.length) {

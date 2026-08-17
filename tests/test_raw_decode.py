@@ -549,6 +549,41 @@ class TestEverySurfaceAgrees:
         assert seen == {'/photos/a.CR2': 'bracket', '/photos/b.CR2': None,
                         '/photos/c.CR2': 'panorama'}
 
+    def test_the_cli_refresh_stamps_the_render_each_row_was_given(self, monkeypatch, tmp_path):
+        """The stamp is what the migration counts, so a bracket refreshed
+        uncorrected must record THAT render — stamping it like a preview render
+        would put the frame straight back in the pending set."""
+        import sqlite3
+
+        import facet
+        from db.render_version import DISPLAY_RENDER_VERSION, FAITHFUL_RENDER_VERSION, count_pending_render
+        from db.schema import init_database
+
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.executemany(
+            "INSERT INTO photos (path, filename, sequence_kind) VALUES (?, ?, ?)",
+            [('/photos/a.CR2', 'a.CR2', 'bracket'),
+             ('/photos/b.CR2', 'b.CR2', None),
+             ('/photos/c.CR2', 'c.CR2', 'hdr_panorama')])
+        conn.commit()
+        assert count_pending_render(conn) == 3
+        conn.close()
+
+        monkeypatch.setattr(facet, '_display_thumbnail_bytes',
+                            lambda path, size, quality, sequence_kind: b'thumb')
+
+        facet.refresh_thumbnails(db_path, ScoringConfig(validate=False), workers=2)
+
+        conn = sqlite3.connect(db_path)
+        stamps = dict(conn.execute("SELECT path, render_version FROM photos"))
+        assert stamps == {'/photos/a.CR2': FAITHFUL_RENDER_VERSION,
+                          '/photos/b.CR2': DISPLAY_RENDER_VERSION,
+                          '/photos/c.CR2': FAITHFUL_RENDER_VERSION}
+        assert count_pending_render(conn) == 0
+        conn.close()
+
     def test_the_download_resolver_returns_the_rows_sequence_kind(self, monkeypatch):
         """Folded into the visibility query the download already runs, so the
         rendering decision costs no extra round trip."""
@@ -595,3 +630,51 @@ class TestEverySurfaceAgrees:
 
         assert seen['kind'] == kind
 
+
+class TestRefreshThumbnailsPool:
+    """``--refresh-thumbnails`` renders through ``load_display_image``, which
+    hands a RAW demosaic to the shared decode pool and waits on its future. The
+    refresh must therefore dispatch its own work somewhere else: a pool whose
+    every worker is blocked on a future queued behind the work those same
+    workers still have to run can never make progress, and a bounded pool turns
+    that into a hang rather than an error."""
+
+    def test_the_refresh_completes_when_every_row_demosaics(self, monkeypatch, tmp_path):
+        import sqlite3
+
+        import facet
+        from db.schema import init_database
+
+        db_path = str(tmp_path / 'library.db')
+        init_database(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.executemany(
+            "INSERT INTO photos (path, filename, sequence_kind) VALUES (?, ?, 'bracket')",
+            [(f'/photos/{i:02d}.CR2', f'{i:02d}.CR2') for i in range(12)])
+        conn.commit()
+        conn.close()
+
+        def _fake_decode(photo, use_thumbnail, started_event=None,
+                         decode_budget='library', bright=None):
+            if started_event is not None:
+                started_event.set()
+            return Image.fromarray(np.full((120, 160, 3), 200, dtype=np.uint8))
+
+        monkeypatch.setattr(image_loading, '_decode_raw', _fake_decode)
+
+        outcome = {}
+        finished = threading.Event()
+
+        def _refresh():
+            try:
+                outcome['result'] = facet.refresh_thumbnails(
+                    db_path, ScoringConfig(validate=False), workers=2)
+            finally:
+                finished.set()
+
+        runner = threading.Thread(target=_refresh, daemon=True)
+        runner.start()
+        assert finished.wait(timeout=60), (
+            "refresh_thumbnails never returned: its tasks are waiting on futures "
+            "from the pool they are running in")
+        assert outcome['result'] == (12, 0, False)

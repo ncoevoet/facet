@@ -851,6 +851,35 @@ class TestGallerySetScopeFilter:
         paths = self._fetch(tmp_path, self._ALL_HIDE_TOGGLES)
         assert paths == {"/plain.jpg", "/b-base.jpg", "/p-b.jpg", "/burst-b.jpg", "/dup-a.jpg"}
 
+    def test_bracket_scope_excludes_a_panorama_sharing_the_same_group_id(self, tmp_path):
+        """The bracket and panorama detection passes own disjoint rows but
+        each renumbers its own groups from 1 every run, so a bracket and a
+        panorama can legitimately share sequence_group_id=1 at the same
+        time on real data. The scope filter must key on the
+        (sequence_kind, sequence_group_id) PAIR -- if sequence_kind were
+        ever dropped from the WHERE clause, this query would silently pull
+        in the panorama's frames too.
+        """
+        colliding_group_id = [
+            _photo("/b-under.jpg", "2024:06:15 12:00:00",
+                   sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=-2.0),
+            _photo("/b-base.jpg", "2024:06:15 12:00:01",
+                   sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=0.0),
+            _photo("/b-over.jpg", "2024:06:15 12:00:02",
+                   sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=2.0),
+            _photo("/p-a.jpg", "2024:06:15 13:00:00",
+                   sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=0),
+            _photo("/p-b.jpg", "2024:06:15 13:00:01",
+                   sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=1),
+            _photo("/p-c.jpg", "2024:06:15 13:00:02",
+                   sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=0),
+        ]
+        paths = self._fetch(
+            tmp_path, f"sequence_kind=bracket&sequence_group_id=1&{self._ALL_HIDE_TOGGLES}",
+            photos=colliding_group_id,
+        )
+        assert paths == {"/b-under.jpg", "/b-base.jpg", "/b-over.jpg"}
+
     def test_bracket_scope_survives_hide_bursts_when_the_set_is_also_a_burst(self, tmp_path):
         """A real AEB set fired in continuous drive mode is grouped as BOTH a
         bracket (by the sequence pass) and a burst (by the burst pass), with
@@ -938,11 +967,13 @@ class TestPhotoSetEndpoint:
         assert resp.json() == {"kind": None, "group_id": None, "count": 0, "ev_span": None, "members": []}
 
     def test_bracket_set_orders_by_distance_from_base_and_reports_ev_span(self, tmp_path):
+        """The span is darkest-to-brightest, not the largest offset: this set is
+        shot at -2/0/+1, which covers three stops and never reaches +2."""
         data = self._fetch(tmp_path, "/b-base.jpg").json()
         assert data["kind"] == "bracket"
         assert data["group_id"] == 1
         assert data["count"] == 3
-        assert data["ev_span"] == 2.0
+        assert data["ev_span"] == 3.0
         assert [m["path"] for m in data["members"]] == ["/b-base.jpg", "/b-over.jpg", "/b-under.jpg"]
         base = next(m for m in data["members"] if m["path"] == "/b-base.jpg")
         assert base["is_lead"] is True

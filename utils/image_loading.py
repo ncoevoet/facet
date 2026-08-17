@@ -373,16 +373,6 @@ def _decode_raw_bounded(photo, use_thumbnail=False, decode_budget='library', bri
     return _decode_raw(photo, use_thumbnail, decode_budget=decode_budget, bright=bright)
 
 
-def submit_decode(fn, *args):
-    """Schedule storage-bound decode work on the shared RAW decode pool.
-
-    Keeps bulk maintenance jobs on the one pool ``configure_raw_decoding``
-    sizes, so a run can never open more concurrent decodes than the memory
-    governor allows.
-    """
-    return _get_decode_executor().submit(fn, *args)
-
-
 def load_display_image(photo_path, min_preview_sensor_ratio=0.0, decode_budget='library',
                        sequence_kind=None):
     """Load an image in display space: what a viewer or a thumbnail should show.

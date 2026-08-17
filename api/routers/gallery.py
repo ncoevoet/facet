@@ -593,6 +593,10 @@ async def _fetch_sequence_set(conn, vis_sql, vis_params, kind, group_id):
     burst_culling.py: a bracket orders by distance from its base exposure, a
     panorama has no base so it orders by capture time; only a bracket has an
     EV span to report, since `sequence_ev_offset` is NULL for panoramas.
+
+    `ev_span` is the total stops between the darkest and the brightest frame,
+    NOT a symmetric ± bound: a set shot at -3/-1/+1 covers four stops, and the
+    largest offset in it says three.
     """
     order_col = "ABS(sequence_ev_offset)" if kind == BRACKET_KIND else "date_taken"
     cur = await conn.execute(
@@ -612,7 +616,7 @@ async def _fetch_sequence_set(conn, vis_sql, vis_params, kind, group_id):
     if kind == BRACKET_KIND:
         offsets = [m['ev_offset'] for m in members if m['ev_offset'] is not None]
         if offsets:
-            ev_span = max(abs(o) for o in offsets)
+            ev_span = max(offsets) - min(offsets)
     return {'kind': kind, 'group_id': group_id, 'count': len(members), 'ev_span': ev_span, 'members': members}
 
 

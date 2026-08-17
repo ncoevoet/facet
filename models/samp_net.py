@@ -12,6 +12,7 @@ import logging
 import os
 import numpy as np
 import urllib.request
+from pathlib import Path
 
 import torch
 import torch.nn as nn
@@ -19,6 +20,8 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 import torchvision.models as models
 from PIL import Image
+
+from models.weights import download_weights
 
 logger = logging.getLogger("facet.samp_net")
 
@@ -84,6 +87,7 @@ COMPOSITION_PATTERNS = [
 WEIGHTS_RELEASE_BASE_URL = "https://github.com/ncoevoet/facet/releases/download/model-weights-v1"
 U2NETP_WEIGHTS_URL = f"{WEIGHTS_RELEASE_BASE_URL}/u2netp.pth"
 SAMPNET_WEIGHTS_URL = f"{WEIGHTS_RELEASE_BASE_URL}/samp_net.pth"
+SAMPNET_WEIGHTS_SHA256 = "d3d02f36967734fd6f0d2770380a04b777b5cd800a9ba68d4ccc9656f6fef603"
 
 
 # =============================================================================
@@ -898,19 +902,19 @@ class SAMPNetScorer:
         self.saliency_detector.ensure_loaded()
 
     def _download_weights(self):
-        """Download SAMP-Net weights if not present."""
+        """Fetch the pinned SAMP-Net checkpoint if it is not already on disk.
+
+        The download is checksum-verified and installed atomically by
+        ``models.weights.download_weights``, so a 404 page, a truncated
+        transfer or a substituted asset is discarded instead of being unpickled
+        on the next run.
+        """
         if os.path.exists(self.model_path):
             return
 
-        os.makedirs(os.path.dirname(self.model_path), exist_ok=True)
-
-        logger.info("Downloading SAMP-Net weights to %s...", self.model_path)
         try:
-            urllib.request.urlretrieve(SAMPNET_WEIGHTS_URL, self.model_path)
-            # A 404/error page saved as .pth would poison the next load
-            if os.path.getsize(self.model_path) < 1_000_000:
-                os.remove(self.model_path)
-                raise Exception("download resulted in an invalid file (too small)")
+            download_weights(SAMPNET_WEIGHTS_URL, Path(self.model_path),
+                             sha256=SAMPNET_WEIGHTS_SHA256)
             logger.info("SAMP-Net download complete.")
         except Exception as e:
             # Composition is one signal among many; ModelManager catches the
@@ -936,7 +940,7 @@ class SAMPNetScorer:
         # Load checkpoint
         try:
             logger.info("Loading SAMP-Net weights from %s...", self.model_path)
-            checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=False)
+            checkpoint = torch.load(self.model_path, map_location=self.device, weights_only=True)
 
             # Handle different checkpoint formats
             if 'model_state_dict' in checkpoint:

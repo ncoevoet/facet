@@ -22,7 +22,7 @@ import functools
 import re as _re
 from pathlib import Path
 from db import init_database, get_connection
-from db.render_version import CURRENT_RENDER_VERSION
+from db.render_version import DISPLAY_RENDER_VERSION
 from db.schema import FACES_UPSERT_SQL, face_upsert_row
 from db.scoring_overrides import get_photo_scoring_overrides
 from db.vec import sync_vec_batch
@@ -77,7 +77,7 @@ def _photos_partial_upsert(computed_columns):
     thumbnail this pass never rebuilt.
     """
     insert_cols = list(_PARTIAL_CORE_COLUMNS) + list(computed_columns)
-    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')", str(CURRENT_RENDER_VERSION)]
+    placeholders = [f":{c}" for c in insert_cols] + ["datetime('now')", str(DISPLAY_RENDER_VERSION)]
     all_cols = insert_cols + ['scanned_at', 'render_version']
     updates = ', '.join(f"{c}=excluded.{c}" for c in computed_columns)
     return (
@@ -2399,7 +2399,7 @@ class Facet:
                         :qrealign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation, :subject_bbox,
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
-                        :gps_latitude, :gps_longitude, datetime('now'), {CURRENT_RENDER_VERSION}
+                        :gps_latitude, :gps_longitude, datetime('now'), {DISPLAY_RENDER_VERSION}
                     )
                 '''), res)
 

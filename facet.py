@@ -77,7 +77,7 @@ import json
 from pathlib import Path
 from datetime import datetime, timezone
 from db import DEFAULT_DB_PATH, init_database, get_connection, check_disk_space
-from db.render_version import CURRENT_RENDER_VERSION, raw_path_predicate
+from db.render_version import raw_path_predicate
 
 try:
     from tqdm import tqdm
@@ -798,21 +798,27 @@ def refresh_thumbnails(db_path, config, workers):
 
     Resumable: every committed chunk advances a watermark in ``stats_cache``,
     so an interrupted run picks up at the next path and a finished run clears
-    it. Reads run on the shared RAW decode pool because the cost here is
-    storage throughput, not CPU.
+    it. The reads run on a pool of this function's own, NOT on the shared RAW
+    decode pool: rendering a preview-less or bracketed RAW submits the demosaic
+    to that pool and waits on its future, so dispatching this work there too
+    would leave every worker blocked on a future queued behind the work those
+    same workers still have to run.
 
-    Every rewritten row is stamped ``CURRENT_RENDER_VERSION``, which is what
-    drops it out of the viewer's migration-status count. Rows are NOT skipped on
-    that stamp: a completed run starts over on purpose, so re-running after a
-    ``raw_decode.bright`` change rebuilds everything.
+    Every rewritten row is stamped with the rendering it was given, which is
+    what drops it out of the viewer's migration-status count. Rows are NOT
+    skipped on that stamp: a completed run starts over on purpose, so re-running
+    after a ``raw_decode.bright`` change rebuilds everything.
 
     Sequence detection runs after a scan, so bracket membership is only known
-    here — which is why a bracketed frame's uncorrected rendering is applied at
+    here — which is why a bracketed frame's uncorrected rendering, and the
+    ``FAITHFUL_RENDER_VERSION`` stamp that says it was applied, are written at
     refresh time rather than at scan time.
     """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from db.render_version import render_version_for
     from db.stats_cache import refresh_pending_render_stat
     from utils import configure_raw_decode_profile, configure_raw_decoding
-    from utils.image_loading import submit_decode
 
     configure_raw_decode_profile(config.get_raw_decode_settings())
     proc = config.get_processing_settings()
@@ -836,32 +842,36 @@ def refresh_thumbnails(db_path, config, workers):
     updated = 0
     failed = 0
     interrupted = False
-    with get_connection(db_path) as conn:
-        with tqdm(total=len(rows), desc="Thumbnails") as pbar:
-            for start in range(0, len(rows), REFRESH_THUMBNAILS_CHUNK):
-                chunk = rows[start:start + REFRESH_THUMBNAILS_CHUNK]
-                try:
-                    futures = [(p, submit_decode(_display_thumbnail_bytes, p, size, quality, kind))
-                               for p, kind in chunk]
-                    rendered = [(p, f.result()) for p, f in futures]
-                except KeyboardInterrupt:
-                    interrupted = True
-                    break
-                for path, blob in rendered:
-                    if blob is None:
-                        failed += 1
-                        continue
-                    conn.execute(
-                        "UPDATE photos SET thumbnail = ?, render_version = ? WHERE path = ?",
-                        (blob, CURRENT_RENDER_VERSION, path))
-                    updated += 1
-                _write_thumbnail_watermark(conn, chunk[-1][0])
-                conn.commit()
-                pbar.update(len(chunk))
-        if not interrupted:
-            _clear_thumbnail_watermark(conn)
-        refresh_pending_render_stat(conn)
-        conn.commit()
+    pool = ThreadPoolExecutor(max_workers=workers, thread_name_prefix='thumbrefresh')
+    try:
+        with get_connection(db_path) as conn:
+            with tqdm(total=len(rows), desc="Thumbnails") as pbar:
+                for start in range(0, len(rows), REFRESH_THUMBNAILS_CHUNK):
+                    chunk = rows[start:start + REFRESH_THUMBNAILS_CHUNK]
+                    try:
+                        futures = [(p, kind, pool.submit(_display_thumbnail_bytes, p, size, quality, kind))
+                                   for p, kind in chunk]
+                        rendered = [(p, kind, f.result()) for p, kind, f in futures]
+                    except KeyboardInterrupt:
+                        interrupted = True
+                        break
+                    for path, kind, blob in rendered:
+                        if blob is None:
+                            failed += 1
+                            continue
+                        conn.execute(
+                            "UPDATE photos SET thumbnail = ?, render_version = ? WHERE path = ?",
+                            (blob, render_version_for(kind), path))
+                        updated += 1
+                    _write_thumbnail_watermark(conn, chunk[-1][0])
+                    conn.commit()
+                    pbar.update(len(chunk))
+            if not interrupted:
+                _clear_thumbnail_watermark(conn)
+            refresh_pending_render_stat(conn)
+            conn.commit()
+    finally:
+        pool.shutdown(wait=False, cancel_futures=True)
 
     if interrupted:
         logger.warning("Interrupted after %d thumbnails — re-run --refresh-thumbnails to continue.",

@@ -6,6 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { catchError, of } from 'rxjs';
 import { ApiService } from '../../../core/services/api.service';
 import { HistogramPreferencesService, HistogramSurface } from '../../../core/services/histogram-preferences.service';
+import { I18nService } from '../../../core/services/i18n.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { I18N_KEYS } from '../../../core/i18n/keys';
 import {
@@ -36,6 +37,16 @@ const BUTTON_IDLE_CLASS = 'text-neutral-400 hover:text-neutral-200';
 
 const MARKER_COLOR_CLASS: Record<ClipChannel, string> = {
   luma: 'bg-neutral-300', r: 'bg-red-500', g: 'bg-green-500', b: 'bg-blue-500',
+};
+
+/** Same channel labels as the mode buttons, so a marker's tooltip never names
+ *  a channel differently than the button that selects it (e.g. French "V"
+ *  for vert vs. a hardcoded "G"). */
+const CHANNEL_LABEL_KEY: Record<ClipChannel, string> = {
+  luma: I18N_KEYS.histogram.mode.luminance,
+  r: I18N_KEYS.histogram.mode.red,
+  g: I18N_KEYS.histogram.mode.green,
+  b: I18N_KEYS.histogram.mode.blue,
 };
 
 const CHANNEL_FILL_CLASS: Record<SingleChannel, string> = {
@@ -254,8 +265,8 @@ export class HistogramComponent {
 
   protected readonly shadowMarkers = computed(() => this.markersFor('shadow'));
   protected readonly highlightMarkers = computed(() => this.markersFor('highlight'));
-  protected readonly shadowDetail = computed(() => describeMarkers(this.shadowMarkers()));
-  protected readonly highlightDetail = computed(() => describeMarkers(this.highlightMarkers()));
+  protected readonly shadowDetail = computed(() => this.describeMarkers(this.shadowMarkers()));
+  protected readonly highlightDetail = computed(() => this.describeMarkers(this.highlightMarkers()));
 
   protected readonly lumaButtonClass = computed(() => this.buttonClass('luma'));
   protected readonly rgbButtonClass = computed(() => this.buttonClass('rgb'));
@@ -265,6 +276,7 @@ export class HistogramComponent {
 
   private readonly api = inject(ApiService);
   private readonly preferences = inject(HistogramPreferencesService);
+  private readonly i18n = inject(I18nService);
   private readonly destroyRef = inject(DestroyRef);
   private destroyed = false;
   // Bumped on every input change so a slow response can't overwrite the curves
@@ -325,6 +337,14 @@ export class HistogramComponent {
       }));
   }
 
+  /** "R 21.0% · B 41.7%" for a marker tooltip, using the same translated
+   *  channel labels as the mode buttons so the two never disagree. */
+  private describeMarkers(markers: ClipMarker[]): string {
+    return markers
+      .map(m => `${this.i18n.t(CHANNEL_LABEL_KEY[m.channel])} ${m.percent.toFixed(1)}%`)
+      .join(' · ');
+  }
+
   private loadStored(path: string, url: string, token: number): () => void {
     const subscription = this.api
       .get<HistogramChannels & { clipped?: ClipPercents | null }>(
@@ -369,9 +389,4 @@ export class HistogramComponent {
     };
     img.src = url;
   }
-}
-
-/** "R 21.0% · B 41.7%" for a marker tooltip. */
-function describeMarkers(markers: ClipMarker[]): string {
-  return markers.map(m => `${m.channel.toUpperCase()} ${m.percent.toFixed(1)}%`).join(' · ');
 }
