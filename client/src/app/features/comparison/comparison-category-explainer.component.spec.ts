@@ -5,13 +5,13 @@ import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ComparisonCategoryExplainerComponent } from './comparison-category-explainer.component';
 
-type SuggestFiltersResponse = {
+interface SuggestFiltersResponse {
   current_category: string;
   target_category: string;
   conflicts: unknown[];
   suggestions: unknown[];
   no_conflicts: boolean;
-};
+}
 
 const RESPONSE = (overrides: Partial<SuggestFiltersResponse> = {}): SuggestFiltersResponse => ({
   current_category: 'silhouette',
