@@ -3,68 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { I18nService } from '../../../core/services/i18n.service';
 import { PhotoCardComponent } from './photo-card.component';
 import type { Photo } from '../../models/photo.model';
-
-const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
-  path: '/test.jpg',
-  filename: 'test.jpg',
-  aggregate: 7.5,
-  aesthetic: 8.0,
-  face_quality: null,
-  comp_score: null,
-  tech_sharpness: null,
-  color_score: null,
-  exposure_score: null,
-  quality_score: null,
-  topiq_score: null,
-  top_picks_score: null,
-  isolation_bonus: null,
-  face_count: 0,
-  face_ratio: 0,
-  eye_sharpness: null,
-  face_sharpness: null,
-  face_confidence: null,
-  is_blink: null,
-  camera_model: null,
-  lens_model: null,
-  iso: null,
-  f_stop: null,
-  shutter_speed: null,
-  focal_length: null,
-  noise_sigma: null,
-  contrast_score: null,
-  dynamic_range_stops: null,
-  mean_saturation: null,
-  mean_luminance: null,
-  histogram_spread: null,
-  composition_pattern: null,
-  power_point_score: null,
-  leading_lines_score: null,
-  category: null,
-  tags: null,
-  tags_list: [],
-  is_monochrome: null,
-  is_silhouette: null,
-  date_taken: null,
-  image_width: 1920,
-  image_height: 1080,
-  is_burst_lead: null,
-  burst_group_id: null,
-  duplicate_group_id: null,
-  is_duplicate_lead: null,
-  persons: [],
-  unassigned_faces: 0,
-  star_rating: null,
-  is_favorite: null,
-  is_rejected: null,
-  aesthetic_iaa: null,
-  face_quality_iqa: null,
-  liqe_score: null,
-  subject_sharpness: null,
-  subject_prominence: null,
-  subject_placement: null,
-  bg_separation: null,
-  ...overrides,
-});
+import { makePhoto } from '../../../../testing/photo.fixture';
 
 /* eslint-disable @angular-eslint/component-selector */
 @Component({
@@ -380,6 +319,44 @@ describe('PhotoCardComponent', () => {
 
       expect(clipIcon()).toBeNull();
     });
+  });
+});
+
+describe('PhotoCardComponent unassigned faces action', () => {
+  const mockI18n = { t: vi.fn((key: string) => key), currentLang: vi.fn(() => 'en'), locale: vi.fn(() => 'en'), translations: vi.fn(() => ({})) };
+
+  function createCard(photo: Photo, isEditionMode: boolean): ComponentFixture<PhotoCardComponent> {
+    TestBed.configureTestingModule({
+      imports: [PhotoCardComponent],
+      providers: [{ provide: I18nService, useValue: mockI18n }],
+    });
+    const fixture = TestBed.createComponent(PhotoCardComponent);
+    fixture.componentRef.setInput('photo', photo);
+    fixture.componentRef.setInput('isEditionMode', isEditionMode);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  function hasAssignFaceAction(fixture: ComponentFixture<PhotoCardComponent>): boolean {
+    return Array.from(fixture.nativeElement.querySelectorAll('mat-icon'))
+      .some(icon => (icon as HTMLElement).textContent?.trim() === 'person_add');
+  }
+
+  afterEach(() => TestBed.resetTestingModule());
+
+  it('renders the assign-face action in edition mode when faces are unassigned', () => {
+    const fixture = createCard(makePhoto({ unassigned_faces: 3 }), true);
+    expect(hasAssignFaceAction(fixture)).toBe(true);
+  });
+
+  it('hides the assign-face action outside edition mode even with unassigned faces', () => {
+    const fixture = createCard(makePhoto({ unassigned_faces: 3 }), false);
+    expect(hasAssignFaceAction(fixture)).toBe(false);
+  });
+
+  it('hides the assign-face action in edition mode when there are no unassigned faces', () => {
+    const fixture = createCard(makePhoto({ unassigned_faces: 0 }), true);
+    expect(hasAssignFaceAction(fixture)).toBe(false);
   });
 });
 

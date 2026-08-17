@@ -7,68 +7,7 @@ import { PhotoTooltipComponent, CategoryLabelPipe } from './photo-tooltip.compon
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import type { Photo, PhotoSet } from '../../shared/models/photo.model';
-
-const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
-  path: '/photos/test.jpg',
-  filename: 'test.jpg',
-  aggregate: 7.5,
-  aesthetic: 8.0,
-  face_quality: null,
-  comp_score: null,
-  tech_sharpness: null,
-  color_score: null,
-  exposure_score: null,
-  quality_score: null,
-  topiq_score: null,
-  top_picks_score: null,
-  isolation_bonus: null,
-  face_count: 0,
-  face_ratio: 0,
-  eye_sharpness: null,
-  face_sharpness: null,
-  face_confidence: null,
-  is_blink: null,
-  camera_model: null,
-  lens_model: null,
-  iso: null,
-  f_stop: null,
-  shutter_speed: null,
-  focal_length: null,
-  noise_sigma: null,
-  contrast_score: null,
-  dynamic_range_stops: null,
-  mean_saturation: null,
-  mean_luminance: null,
-  histogram_spread: null,
-  composition_pattern: null,
-  power_point_score: null,
-  leading_lines_score: null,
-  category: null,
-  tags: null,
-  tags_list: [],
-  is_monochrome: null,
-  is_silhouette: null,
-  date_taken: null,
-  image_width: 1920,
-  image_height: 1080,
-  is_burst_lead: null,
-  burst_group_id: null,
-  duplicate_group_id: null,
-  is_duplicate_lead: null,
-  persons: [],
-  unassigned_faces: 0,
-  star_rating: null,
-  is_favorite: null,
-  is_rejected: null,
-  aesthetic_iaa: null,
-  face_quality_iqa: null,
-  liqe_score: null,
-  subject_sharpness: null,
-  subject_prominence: null,
-  subject_placement: null,
-  bg_separation: null,
-  ...overrides,
-});
+import { makePhoto, makePhotoFull } from '../../../testing/photo.fixture';
 
 /* eslint-disable @angular-eslint/component-selector */
 @Component({
@@ -278,6 +217,104 @@ describe('PhotoTooltipComponent', () => {
       fixture.detectChanges();
       expect(fixture.nativeElement.textContent).toContain('8.0');
     });
+
+    it('renders subject_placement when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ subject_placement: 6.7 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.subject_placement');
+      expect(fixture.nativeElement.textContent).toContain('6.7');
+    });
+  });
+
+  describe('Quality section extra metrics', () => {
+    it('renders quality_score when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ quality_score: 8.2 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.quality_score');
+      expect(fixture.nativeElement.textContent).toContain('8.2');
+    });
+
+    it('renders topiq_score when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ topiq_score: 7.6 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.topiq_score');
+      expect(fixture.nativeElement.textContent).toContain('7.6');
+    });
+  });
+
+  describe('Face section sharpness metrics', () => {
+    it('renders face_sharpness when a scored face is present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ face_count: 1, face_quality: 8.4, face_sharpness: 8.1 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.face_sharpness');
+      expect(fixture.nativeElement.textContent).toContain('8.1');
+    });
+
+    it('renders eye_sharpness when a scored face is present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ face_count: 1, face_quality: 8.4, eye_sharpness: 8.9 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.eye_sharpness');
+      expect(fixture.nativeElement.textContent).toContain('8.9');
+    });
+  });
+
+  describe('Composition section extra metrics', () => {
+    it('renders power_point_score when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ power_point_score: 6.1 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.power_points');
+      expect(fixture.nativeElement.textContent).toContain('6.1');
+    });
+
+    it('renders leading_lines_score when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ leading_lines_score: 5.4 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.leading_lines');
+      expect(fixture.nativeElement.textContent).toContain('5.4');
+    });
+  });
+
+  describe('Technical section extra metrics', () => {
+    it('renders contrast_score when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ contrast_score: 6.8 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.contrast');
+      expect(fixture.nativeElement.textContent).toContain('6.8');
+    });
+
+    it('renders dynamic_range_stops when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ dynamic_range_stops: 9.5 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.dynamic_range');
+      expect(fixture.nativeElement.textContent).toContain('9.5');
+    });
+
+    it('renders noise_sigma when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ noise_sigma: 2.4 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.noise');
+      expect(fixture.nativeElement.textContent).toContain('2.4');
+    });
+
+    it('renders histogram_spread when present', () => {
+      fixture.componentInstance.photo.set(makePhoto({ histogram_spread: 5.3 }));
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain('tooltip.histogram_spread');
+      expect(fixture.nativeElement.textContent).toContain('5.3');
+    });
+  });
+
+  it('renders every gated metric row at once from the full fixture', () => {
+    fixture.componentInstance.photo.set(makePhotoFull());
+    fixture.detectChanges();
+    const text = fixture.nativeElement.textContent as string;
+    for (const key of [
+      'quality_score', 'topiq_score', 'face_sharpness', 'eye_sharpness',
+      'power_points', 'leading_lines', 'subject_placement',
+      'contrast', 'dynamic_range', 'noise', 'histogram_spread',
+    ]) {
+      expect(text).toContain(`tooltip.${key}`);
+    }
   });
 
   describe('Person avatars', () => {
@@ -409,7 +446,9 @@ describe('PhotoTooltipComponent', () => {
         }
         return of(null);
       });
-      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null, burst_group_id: 'b1' }));
+      setFixture.componentInstance.photo.set(
+        makePhoto({ path: '/photos/test.jpg', sequence_kind: null, burst_group_id: 'b1' }),
+      );
       setFixture.detectChanges();
 
       expect(setFixture.nativeElement.textContent).toContain('tooltip.set_section');
@@ -450,7 +489,7 @@ describe('PhotoTooltipComponent', () => {
 
     it('fills in the frame count and EV span once the dwell-delayed fetch resolves', () => {
       setFixture.componentInstance.photo.set(makePhoto({
-        sequence_kind: 'bracket', sequence_ev_offset: 0,
+        path: '/photos/test.jpg', sequence_kind: 'bracket', sequence_ev_offset: 0,
       }));
       setFixture.detectChanges();
       expect(setFixture.nativeElement.textContent).not.toContain('capsules.photos_count');
@@ -626,7 +665,9 @@ describe('PhotoTooltipComponent', () => {
     it('rings the current frame among its siblings', () => {
       mockSetWithMembers();
       setFixture.componentInstance.docked.set(true);
-      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket', sequence_ev_offset: 0 }));
+      setFixture.componentInstance.photo.set(
+        makePhoto({ path: '/photos/test.jpg', sequence_kind: 'bracket', sequence_ev_offset: 0 }),
+      );
       setFixture.detectChanges();
       vi.advanceTimersByTime(300);
       setFixture.detectChanges();
