@@ -184,7 +184,7 @@ def extract_raw_preview(photo_path, min_long_edge=0, min_sensor_ratio=0.0):
             else:
                 preview = Image.fromarray(np.array(thumb.data))
     except Exception as ex:
-        logger.debug("No usable embedded preview in %s: %s", photo_path, ex)
+        logger.debug("No usable embedded preview in %s: %s", os.path.basename(photo_path), ex)
         return None
 
     preview = _upright_preview(preview, flip)
@@ -420,7 +420,7 @@ def load_display_image(photo_path, min_preview_sensor_ratio=0.0, decode_budget='
     except RuntimeError:
         raise
     except Exception as e:
-        logger.error("Error loading display image %s: %s", photo_path, e)
+        logger.error("Error loading display image %s: %s", os.path.basename(photo_path), e)
         return None
 
 

@@ -27,10 +27,13 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-import rawpy
 from PIL import Image
 
-from utils.image_loading import (
+# rawpy is an optional dependency; skip this whole module (rather than
+# error collection) on environments that don't install it.
+rawpy = pytest.importorskip("rawpy")
+
+from utils.image_loading import (  # noqa: E402
     DISPLAY_PREVIEW_MIN_LONG_EDGE,
     extract_raw_preview,
     load_display_image,
