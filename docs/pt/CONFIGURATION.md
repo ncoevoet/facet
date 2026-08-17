@@ -2260,6 +2260,9 @@ Qualquer endpoint que copie, crie links simbólicos ou mova arquivos de fotos pa
   "viewer": {
     "export": {
       "allowed_target_dirs": ["/data/exports"]
+    },
+    "cull": {
+      "allow_trash": false
     }
   }
 }
@@ -2268,6 +2271,9 @@ Qualquer endpoint que copie, crie links simbólicos ou mova arquivos de fotos pa
 | Configuração | Padrão | Descrição |
 |---------|---------|-------------|
 | `allowed_target_dirs` | *(chave ausente)* | Diretórios raiz adicionais nos quais uma exportação copiar/symlink ou uma seleção-para-pasta copiar/mover pode gravar, além dos diretórios de varredura (sempre permitidos). **Ausente por padrão** — de fábrica, os únicos destinos de exportação graváveis são seus diretórios de varredura configurados |
+| `cull.allow_trash` | `false` | Se a ação `trash_rejects` da seleção-para-pasta pode enviar arquivos para a lixeira do sistema operacional (recuperável, via `send2trash`) em vez de suportar apenas `copy_keeps`/`move_rejects`. Desativado por padrão; `trash_rejects` retorna `403` até ser ativado |
+
+**Séries multi-fotograma e ações em lote.** `hide_brackets` / `hide_panoramas` (veja [Visualizador web — Filtros Padrão](VIEWER.md#filtros-padrão), ambos `true` por padrão) limitam o que qualquer ação em lote *baseada em seleção* consegue alcançar, incluindo a seleção-para-pasta e a exportação de álbum a partir de uma seleção: com uma série recolhida ao seu fotograma representativo, agir sobre a seleção age sobre essa única foto, não sobre o resto da série, por padrão. O opt-in `include_sequence_siblings` da própria seleção-para-pasta amplia uma foto correspondida para toda a sua série, independentemente da seleção; veja [Visualizador web — Selecionar para pasta § Séries multi-fotograma](VIEWER.md#selecionar-para-pasta) para isso e as demais vias de escape.
 
 **Ordem de resolução.** A lista de permissões é primeiro `allowed_target_dirs`, depois cada diretório de varredura (por usuário, compartilhados e destinos de `path_mapping`) — assim, exportar *dentro* da árvore de fotos não precisa de nenhuma configuração, mas um destino fora dela precisa de uma entrada aqui. Tanto o `target_dir` solicitado quanto cada raiz permitida são canonicalizados com `os.path.realpath()` (links simbólicos resolvidos, `..` colapsados) antes da comparação, então um link simbólico que se resolve fora de uma raiz permitida é recusado mesmo quando o próprio link está dentro de uma delas.
 

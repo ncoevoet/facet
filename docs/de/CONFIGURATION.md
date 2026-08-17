@@ -2259,6 +2259,9 @@ Jeder Endpunkt, der Fotodateien aus der Bibliothek kopiert, verlinkt oder versch
   "viewer": {
     "export": {
       "allowed_target_dirs": ["/data/exports"]
+    },
+    "cull": {
+      "allow_trash": false
     }
   }
 }
@@ -2267,6 +2270,9 @@ Jeder Endpunkt, der Fotodateien aus der Bibliothek kopiert, verlinkt oder versch
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
 | `allowed_target_dirs` | *(Schlüssel fehlt)* | Zusätzliche Wurzelverzeichnisse, in die ein Kopier-/Symlink-Export oder ein In-Ordner-aussortieren-Kopieren/Verschieben schreiben darf, zusätzlich zu den Scan-Verzeichnissen (immer erlaubt). **Standardmäßig nicht vorhanden** — ohne weitere Einrichtung sind die einzigen beschreibbaren Exportziele Ihre konfigurierten Scan-Verzeichnisse |
+| `cull.allow_trash` | `false` | Ob die Aktion `trash_rejects` von „In Ordner aussortieren" Dateien in den Systempapierkorb verschieben darf (wiederherstellbar, über `send2trash`), statt nur `copy_keeps`/`move_rejects` zu unterstützen. Standardmäßig aus; `trash_rejects` liefert ein 403, bis dies aktiviert ist |
+
+**Mehrbild-Sets und Sammelaktionen.** `hide_brackets` / `hide_panoramas` (siehe [Web-Viewer — Standardfilter](VIEWER.md#standardfilter), beide standardmäßig `true`) begrenzen, was jede *auswahlbasierte* Sammelaktion erreichen kann, einschließlich In-Ordner-aussortieren und Album-Export aus einer Auswahl: Ist eine Serie auf ihr repräsentatives Bild eingeklappt, wirkt eine Aktion auf die Auswahl standardmäßig nur auf dieses eine Bild, nicht auf den Rest der Serie. Das eigene Opt-in `include_sequence_siblings` von In-Ordner-aussortieren weitet ein getroffenes Foto unabhängig von der Auswahl auf seine gesamte Serie aus; siehe [Web-Viewer — In Ordner aussortieren § Mehrbild-Sets](VIEWER.md#in-ordner-aussortieren) für dieses und die weiteren Auswege.
 
 **Auflösungsreihenfolge.** Die Allowlist besteht zuerst aus `allowed_target_dirs`, dann aus jedem Scan-Verzeichnis (pro Benutzer, gemeinsam, und `path_mapping`-Ziele) — Exportieren *innerhalb* des Fotobaums benötigt also keine Konfiguration, aber ein Ziel außerhalb davon braucht einen Eintrag hier. Sowohl das angeforderte `target_dir` als auch jede erlaubte Wurzel werden vor dem Vergleich mit `os.path.realpath()` kanonisiert (Symlinks aufgelöst, `..` zusammengefasst), sodass ein Symlink, der außerhalb einer erlaubten Wurzel aufgelöst wird, abgelehnt wird, selbst wenn der Link selbst innerhalb einer solchen liegt.
 

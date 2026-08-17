@@ -2260,6 +2260,9 @@ Qualsiasi endpoint che copia, crea collegamenti simbolici o sposta file fotograf
   "viewer": {
     "export": {
       "allowed_target_dirs": ["/data/exports"]
+    },
+    "cull": {
+      "allow_trash": false
     }
   }
 }
@@ -2268,6 +2271,9 @@ Qualsiasi endpoint che copia, crea collegamenti simbolici o sposta file fotograf
 | Impostazione | Predefinito | Descrizione |
 |---------|---------|-------------|
 | `allowed_target_dirs` | *(chiave assente)* | Directory radice aggiuntive in cui un'esportazione copia/symlink o uno scarto-in-cartella copia/sposta può scrivere, oltre alle directory di scansione (sempre consentite). **Assente per impostazione predefinita** — di base, le uniche destinazioni di esportazione scrivibili sono le directory di scansione configurate |
+| `cull.allow_trash` | `false` | Se l'azione `trash_rejects` dello scarto-in-cartella può inviare i file al cestino del sistema operativo (recuperabile, tramite `send2trash`) invece di supportare solo `copy_keeps`/`move_rejects`. Disattivato per impostazione predefinita; `trash_rejects` restituisce `403` finché non viene abilitato |
+
+**Serie multi-scatto e azioni collettive.** `hide_brackets` / `hide_panoramas` (vedi [Visualizzatore web — Filtri predefiniti](VIEWER.md#filtri-predefiniti), entrambi `true` per impostazione predefinita) delimitano ciò che qualsiasi azione collettiva *basata sulla selezione* può raggiungere, incluso lo scarto-in-cartella e l'esportazione di album da una selezione: con una serie compressa nel suo fotogramma rappresentativo, agire sulla selezione agisce per impostazione predefinita solo su quel fotogramma, non sul resto della serie. L'opzione `include_sequence_siblings` dello scarto-in-cartella allarga una foto corrispondente all'intera sua serie indipendentemente dalla selezione; vedi [Visualizzatore web — Scarta in cartella § Serie multi-scatto](VIEWER.md#scarta-in-cartella) per questa e le altre vie d'uscita.
 
 **Ordine di risoluzione.** L'allow-list è prima `allowed_target_dirs`, poi ogni directory di scansione (per utente, condivisa, e i target di `path_mapping`) — esportare *all'interno* dell'albero fotografico non richiede quindi alcuna configurazione, ma una destinazione al di fuori richiede una voce qui. Sia il `target_dir` richiesto sia ogni radice consentita vengono canonicalizzati con `os.path.realpath()` (symlink risolti, `..` collassati) prima del confronto, quindi un symlink che si risolve al di fuori di una radice consentita viene rifiutato anche quando il link stesso si trova all'interno di una di esse.
 
