@@ -1,0 +1,25 @@
+name: Release guard
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  changelog-and-version-consistency:
+    name: CHANGELOG section is non-empty, versions agree
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      # Runs on every push/PR to master, not just tag pushes: the failure this
+      # guards (1.13.0 shipping an empty CHANGELOG section) happens the moment
+      # a chore(release) commit lands, before the tag or GitHub Release exist.
+      # A tag-triggered check would only fire after the mistake is published.
+      - run: python scripts/release.py --check
