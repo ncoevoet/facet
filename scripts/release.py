@@ -33,7 +33,9 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -43,11 +45,15 @@ CHANGELOG_PATH = REPO_ROOT / "CHANGELOG.md"
 PYPROJECT_PATH = REPO_ROOT / "pyproject.toml"
 PACKAGE_JSON_PATH = REPO_ROOT / "client" / "package.json"
 UNRELEASED_MARKER = "## [Unreleased]\n\n"
+GH_RELEASE_LIST_TIMEOUT_S = 15
+CODENAME_WORD_LIMIT = 2
 
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 HEADER_RE = re.compile(r'^## \[(?P<version>[^\]]+)\](?P<rest>.*)$')
 NAME_RE = re.compile(r'"([^"]+)"')
 BULLET_RE = re.compile(r'^\s*[-*]\s+\S')
+CODENAME_PAREN_VERSION_RE = re.compile(r'^(?P<name>[^()]+?)\s*\(\s*v?\d+\s*\.\s*\d+\s*\.\s*\d+\s*\)\s*$')
+CODENAME_VERSION_PREFIX_RE = re.compile(r'^(?:Facet\s+)?v?\d+\.\d+\.\d+\s*(?:[—-]\s*)?(?P<name>\S.*)$')
 
 
 class ReleaseError(Exception):
@@ -89,6 +95,93 @@ def section_has_content(body: str) -> bool:
         elif in_subsection and BULLET_RE.match(line):
             return True
     return False
+
+
+def extract_codename(label: str) -> str | None:
+    """Best-effort codename extraction from a free-form tag/release label.
+
+    The current convention quotes the name (``Facet X.Y.Z "Name"``), but
+    history predates it: early GitHub Release titles wrap it in parens
+    after the version (``bokeh (v1.0.0)``, ``Clarity (v1.0.2)`` — never
+    recorded anywhere else), and some tags/titles just trail it after the
+    version (``v1.0.8 — Luxon``, ``1.12.0 Alexandrite``). That last, loosest
+    fallback is capped at two words so an ordinary sentence (e.g. a
+    commit-style tag subject) isn't mistaken for a codename — every
+    codename used so far is one or two words.
+    """
+    label = label.strip()
+    m = NAME_RE.search(label)
+    if m:
+        return m.group(1).strip()
+    m = CODENAME_PAREN_VERSION_RE.match(label)
+    if m:
+        return m.group("name").strip()
+    m = CODENAME_VERSION_PREFIX_RE.match(label)
+    if m:
+        name = m.group("name").strip()
+        if name and len(name.split()) <= CODENAME_WORD_LIMIT:
+            return name
+    return None
+
+
+def used_codenames_from_changelog(released_sections: list[tuple[str, str | None, str]]) -> dict[str, str]:
+    used: dict[str, str] = {}
+    for version, name, _ in released_sections:
+        if name:
+            used.setdefault(name.strip().casefold(), f"{version} (CHANGELOG.md)")
+    return used
+
+
+def used_codenames_from_tags() -> dict[str, str]:
+    """Annotated tag subjects predate the CHANGELOG convention for some
+    early releases and occasionally carry a codename CHANGELOG.md never
+    got. Local and always available in a git checkout, so a failure here is
+    treated like the other git-backed checks (a hard error)."""
+    output = git("tag", "--list", "--format=%(refname:short)\t%(contents:subject)")
+    used: dict[str, str] = {}
+    for line in output.splitlines():
+        tag, _, subject = line.partition("\t")
+        name = extract_codename(subject)
+        if name:
+            used.setdefault(name.casefold(), f"{tag} (git tag)")
+    return used
+
+
+def used_codenames_from_gh_releases() -> dict[str, str]:
+    """The GitHub Release title is the only place some early codenames were
+    ever recorded (1.0.0 "bokeh", 1.0.2 "Clarity" — neither CHANGELOG.md nor
+    the tag annotation has them). Best-effort only: `gh` may be missing,
+    unauthenticated, or offline, and release-guard.yml must never fail on
+    that alone, so every failure here degrades to a warning instead of a
+    ReleaseError."""
+    if shutil.which("gh") is None:
+        print("warning: 'gh' not found; skipping GitHub Release codename history.", file=sys.stderr)
+        return {}
+    try:
+        result = subprocess.run(
+            ["gh", "release", "list", "--json", "name,tagName", "--limit", "1000"],
+            cwd=REPO_ROOT, capture_output=True, text=True, timeout=GH_RELEASE_LIST_TIMEOUT_S,
+        )
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        print(f"warning: could not run 'gh release list' for codename history: {exc}", file=sys.stderr)
+        return {}
+    if result.returncode != 0:
+        print(
+            f"warning: 'gh release list' failed; skipping GitHub Release codename history: {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        return {}
+    try:
+        releases = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        print(f"warning: could not parse 'gh release list' output: {exc}", file=sys.stderr)
+        return {}
+    used: dict[str, str] = {}
+    for release in releases:
+        name = extract_codename(release.get("name") or "")
+        if name:
+            used.setdefault(name.casefold(), f"{release.get('tagName', '?')} (GitHub Release)")
+    return used
 
 
 def read_pyproject_version(text: str) -> str:
@@ -207,10 +300,16 @@ def cmd_prepare(version: str, codename: str, perform: bool) -> int:
     if VERSION_RE.match(version) and latest is not None and version_tuple(version) <= version_tuple(latest[0]):
         errors.append(f"{version} does not move forward from the latest CHANGELOG entry {latest[0]}.")
 
-    used_names = {(name.strip().casefold(), ver) for ver, name, _ in released if name}
-    hit = next((ver for name, ver in used_names if name == codename.strip().casefold()), None)
+    used_names: dict[str, str] = {}
+    used_names.update(used_codenames_from_tags())
+    used_names.update(used_codenames_from_gh_releases())
+    used_names.update(used_codenames_from_changelog(released))
+    hit = used_names.get(codename.strip().casefold())
     if hit is not None:
-        errors.append(f'the codename "{codename}" was already used for {hit} — pick one that has not appeared in CHANGELOG.md.')
+        errors.append(
+            f'the codename "{codename}" was already used for {hit} — pick one that has not '
+            "appeared in CHANGELOG.md, the git tags, or the GitHub Releases."
+        )
 
     tag = f"v{version}"
     if local_tag_exists(tag):
