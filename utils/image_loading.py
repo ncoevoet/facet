@@ -360,7 +360,7 @@ def _decode_raw_with_timeout(photo, use_thumbnail, decode_budget='library', brig
             abandoned = _abandoned_decodes
         logger.error(
             "RAW decode timed out after %.0fs (%d hung): %s",
-            _decode_timeout, abandoned, photo,
+            _decode_timeout, abandoned, os.path.basename(photo),
         )
         future.add_done_callback(_on_hung_decode_done)
         return None

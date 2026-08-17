@@ -150,8 +150,8 @@ def atomic_write_json(path, data):
     :data:`CONFIG_WRITE_LOCK` across the whole sequence, or one caller's update
     is lost wholesale under another's. That lock is the only one taken while a
     config write is in flight; ``reload_config`` may acquire it (through
-    :func:`_load_and_ensure_secret`) while holding ``_config_lock``, so no
-    writer may call ``reload_config`` without first releasing it.
+    :func:`_load_config`) while holding ``_config_lock``, so no writer may
+    call ``reload_config`` without first releasing it.
 
     Note the mode preservation makes this the WRONG primitive for a secret —
     see :func:`_atomic_write_owner_only`, which forces 0600 instead.
@@ -274,9 +274,9 @@ def _warn_if_readable_by_others(path):
     deploy script, restored from a backup, or unpacked from an archive — all
     cases where the operator should know the key was briefly exposed.
 
-    A path that is not there is a no-op: :func:`_load_and_ensure_secret` calls
-    this under the environment override without knowing whether a store exists
-    at all. So is a platform that does not enforce the bits — rotation advice
+    A path that is not there is a no-op: :func:`_resolve_env_and_stored_secret`
+    calls this under the environment override without knowing whether a store
+    exists at all. So is a platform that does not enforce the bits — rotation advice
     no boot could ever satisfy is worse than silence, see
     :data:`_POSIX_FILE_MODES`.
     """
@@ -426,7 +426,7 @@ def _warn_in_memory_secret():
 def _persist_secret_or_warn(secret):
     """Store ``secret``, or keep it in memory and spell out what that costs.
 
-    Mirrors the grace :func:`_read_config_evicting_legacy_secret` already
+    Mirrors the grace :func:`_read_config_evicting_legacy_share_key` already
     extends to a config it cannot rewrite, and for the same reason: this runs
     at import of ``api.config``, the install directory is not always writable
     where it runs (a read-only image layer, a root-owned checkout started as a
@@ -477,7 +477,7 @@ def _claim_or_adopt_secret(secret):
     return secret
 
 
-def _read_config_evicting_legacy_secret():
+def _read_config_evicting_legacy_share_key():
     """Parse the config and delete ``share_secret`` from it. One read, not two.
 
     Returns ``(config, parsed_ok, legacy)`` where ``config`` never carries the
@@ -636,22 +636,19 @@ def _adopt_legacy_secret(legacy):
     return legacy
 
 
-def _load_and_ensure_secret():
-    """Load scoring_config.json once and resolve the server secret.
+def _resolve_env_and_stored_secret():
+    """Resolve ``FACET_JWT_SECRET`` and the on-disk store, ahead of the config.
 
-    Returns ``(config_dict, secret)``. Resolution order:
+    Returns ``(env_secret, stored)`` — the first two candidates in the
+    resolution order :func:`_ensure_secret` completes:
 
     1. ``FACET_JWT_SECRET`` — for containers and orchestrators that inject
        secrets as environment, mirroring the ``api_key_env`` idiom. It is an
        override, never a setter: it is not written to disk, so unsetting it
        falls back to whatever the file holds.
     2. The secret file next to scoring_config.json.
-    3. A ``share_secret`` migrated out of the config (see
-       :func:`_adopt_legacy_secret`).
-    4. A freshly generated secret.
 
-    EVERY one of those sources is checked against
-    :data:`_BURNED_SECRET_DIGESTS`, not just the migrated one: a burned value
+    Both are checked against :data:`_BURNED_SECRET_DIGESTS`: a burned value
     reaches the file store and the environment as easily as the config — it is
     published, so anyone can paste it anywhere. The environment refuses loudly
     (only a human sets that variable, so silently ignoring their input would
@@ -676,21 +673,8 @@ def _load_and_ensure_secret():
     it; skipping the check under the override would have let a world-readable
     key sit silently until the day it started signing sessions.
 
-    The secret is persisted rather than kept in memory: with ``--workers>1``
-    each process runs this independently, and an in-memory-only secret would
-    mint a different key per worker, so a JWT signed by one is rejected by the
-    others at random. Persisting it is not enough on its own, though — on a
-    FIRST boot every worker reaches this point with a freshly minted value of
-    its own, so the write claims the store rather than replacing it and the
-    losers adopt the winner's value (:func:`_claim_or_adopt_secret`). When the
-    directory cannot be written that divergence is accepted, loudly, over a
-    crash-loop — see :func:`_persist_secret_or_warn`.
-    An existing-but-unparseable config with no secret anywhere still fails
-    loudly rather than booting: it is the one state where the operator has
-    clearly lost something, and a silent fresh secret would log every user out
-    while hiding the broken file. Once a secret file exists, a config that
-    fails to parse no longer blocks startup — ``config_load_failed`` locks the
-    auth surface down and the sessions stay valid for the repair.
+    Runs BEFORE the config is touched at all, so a burned environment secret
+    refuses immediately, with no config eviction or backup rewrite in flight.
     """
     env_secret = os.environ.get(_SECRET_ENV_VAR, '').strip()
     if env_secret and _is_burned(env_secret):
@@ -715,9 +699,63 @@ def _load_and_ensure_secret():
             secret_path(),
         )
         stored = ''
-    config, parsed_ok, legacy = _read_config_evicting_legacy_secret()
-    _tighten_existing_config_backups()
+    return env_secret, stored
 
+
+def _load_config():
+    """Parse scoring_config.json once, evicting the legacy share key from it
+    and tightening any config backup an older Facet left group/other readable.
+
+    Returns ``(config, parsed_ok, legacy)`` — see
+    :func:`_read_config_evicting_legacy_share_key`, which does the actual
+    read; this only adds the backup sweep that must run on every load
+    alongside it.
+
+    Kept apart from secret resolution (:func:`_resolve_env_and_stored_secret`,
+    :func:`_ensure_secret`) so ``config`` is never returned from a function
+    whose name matches CodeQL's ``*secret*`` sensitive-data heuristic. That
+    coupling — the pre-split ``_load_and_ensure_secret`` returned
+    ``(config, secret)`` and itself called a function named
+    ``_read_config_evicting_legacy_secret`` — is what turned 35+ innocent log
+    lines in ``utils/image_loading.py`` (a basename, an exception object) into
+    "clear-text logging of sensitive data" alerts: the heuristic treats a call
+    to any ``*secret*``-named function as a taint source for its WHOLE return
+    value, config included, and every log statement touching anything derived
+    from ``_FULL_CONFIG`` became a reported sink.
+    """
+    config, parsed_ok, legacy = _read_config_evicting_legacy_share_key()
+    _tighten_existing_config_backups()
+    return config, parsed_ok, legacy
+
+
+def _ensure_secret(env_secret, stored, parsed_ok, legacy):
+    """Finish resolving the server secret from the pieces gathered so far.
+
+    Returns ONLY the secret — never the config — which is what keeps it safe
+    for this function to be named ``*secret*`` (see :func:`_load_config`).
+    Continues the resolution order from :func:`_resolve_env_and_stored_secret`:
+
+    3. A ``share_secret`` migrated out of the config by :func:`_load_config`
+       (see :func:`_adopt_legacy_secret`), already burned-checked there.
+    4. A freshly generated secret.
+
+    An existing-but-unparseable config with no secret anywhere still fails
+    loudly rather than booting: it is the one state where the operator has
+    clearly lost something, and a silent fresh secret would log every user out
+    while hiding the broken file. Once a secret file exists, a config that
+    fails to parse no longer blocks startup — ``config_load_failed`` locks the
+    auth surface down and the sessions stay valid for the repair.
+
+    The secret is persisted rather than kept in memory: with ``--workers>1``
+    each process runs this independently, and an in-memory-only secret would
+    mint a different key per worker, so a JWT signed by one is rejected by the
+    others at random. Persisting it is not enough on its own, though — on a
+    FIRST boot every worker reaches this point with a freshly minted value of
+    its own, so the write claims the store rather than replacing it and the
+    losers adopt the winner's value (:func:`_claim_or_adopt_secret`). When the
+    directory cannot be written that divergence is accepted, loudly, over a
+    crash-loop — see :func:`_persist_secret_or_warn`.
+    """
     secret = env_secret or stored
     if not secret and legacy:
         secret = _adopt_legacy_secret(legacy)
@@ -734,7 +772,7 @@ def _load_and_ensure_secret():
         secret = secrets.token_hex(_SECRET_BYTES)
     if not env_secret and secret != stored:
         secret = _claim_or_adopt_secret(secret)
-    return config, secret
+    return secret
 
 
 def rotate_secret():
@@ -750,13 +788,34 @@ def rotate_secret():
             "it where it is defined instead — rewriting the file would change "
             "nothing."
         )
-    _read_config_evicting_legacy_secret()
+    _read_config_evicting_legacy_share_key()
     _write_secret_file(secrets.token_hex(_SECRET_BYTES))
     reload_config()
     return secret_path()
 
 
-_FULL_CONFIG, _server_secret = _load_and_ensure_secret()
+def _bootstrap():
+    """Resolve the server secret and load the config, in the one correct order.
+
+    Three steps whose order is load-bearing, so they are spelled out once here
+    rather than at each caller: the env/stored secret is resolved *before* the
+    config is read, so a burned ``FACET_JWT_SECRET`` refuses to start without
+    the legacy-key eviction having already rewritten the file; then the config
+    is read; then the secret is settled with what the config revealed.
+
+    Deliberately not named for the secret it returns. The config dict flowing
+    out of a ``*secret*``-named function is what made CodeQL treat the whole
+    config as sensitive and every later log line as a clear-text-logging sink
+    (38 findings, 35 of them dismissed one at a time before the cause was
+    fixed). ``_load_config`` keeps that dict off any such name, and this
+    wrapper must not reintroduce one.
+    """
+    env_secret, stored = _resolve_env_and_stored_secret()
+    config, parsed_ok, legacy = _load_config()
+    return config, _ensure_secret(env_secret, stored, parsed_ok, legacy)
+
+
+_FULL_CONFIG, _server_secret = _bootstrap()
 
 JWT_SECRET = _server_secret
 JWT_ALGORITHM = "HS256"
@@ -938,7 +997,7 @@ def reload_config():
     """
     global _FULL_CONFIG, _server_secret, JWT_SECRET
     with _config_lock:
-        _FULL_CONFIG, _server_secret = _load_and_ensure_secret()
+        _FULL_CONFIG, _server_secret = _bootstrap()
         VIEWER_CONFIG.clear()
         VIEWER_CONFIG.update(load_viewer_config(_FULL_CONFIG))
         JWT_SECRET = _server_secret

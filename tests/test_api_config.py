@@ -1,6 +1,7 @@
 """Unit tests for api/config.py: the ``viewer.path_mapping`` prefix-boundary
-match in ``map_disk_path`` (A5#2) and the server-secret store in
-``_load_and_ensure_secret`` (A6#9, F1).
+match in ``map_disk_path`` (A5#2) and the server-secret store, resolved by
+``_resolve_env_and_stored_secret`` / ``_load_config`` / ``_ensure_secret``
+(A6#9, F1).
 """
 
 import hashlib
@@ -107,6 +108,16 @@ class TestMapDiskPathPrefixBoundary:
 
 
 _LEGACY_KEY = "share_secret"
+
+
+def _load_and_ensure_secret():
+    """Boot exactly as ``api.config`` does, recombined as ``(config, secret)``.
+
+    Delegates to the production ``_bootstrap`` rather than re-chaining its three
+    steps here: a local copy of that order would keep passing after production's
+    changed, which is the one regression these tests exist to catch.
+    """
+    return api_config._bootstrap()
 
 
 @pytest.fixture
@@ -263,7 +274,7 @@ class TestServerSecretBootstrap:
         secret_file = Path(api_config.secret_path())
         assert not secret_file.exists()
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret_file.exists(), "a fresh install must persist its secret to disk"
         assert secret_file.read_text().strip() == secret
@@ -271,26 +282,26 @@ class TestServerSecretBootstrap:
 
     @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_bootstrapped_secret_file_is_owner_only(self, isolated_config):
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
         assert _mode_of(api_config.secret_path()) == 0o600
 
     def test_second_worker_reads_the_same_secret(self, isolated_config):
         """The divergence that breaks JWT validation under --workers>1."""
-        _, secret1 = api_config._load_and_ensure_secret()
-        _, secret2 = api_config._load_and_ensure_secret()
+        _, secret1 = _load_and_ensure_secret()
+        _, secret2 = _load_and_ensure_secret()
         assert secret1 == secret2
         assert not api_config.CONFIG_WRITE_LOCK.locked()
 
     def test_secret_never_lands_in_the_config_file(self, isolated_config):
         _write_config(isolated_config)
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
         on_disk = isolated_config.read_text()
         assert _LEGACY_KEY not in on_disk
         assert secret not in on_disk
 
     @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_loose_permissions_are_tightened_on_read(self, isolated_config):
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o644)
 
         assert api_config._read_secret_file()
@@ -301,7 +312,7 @@ class TestServerSecretBootstrap:
         isolated_config.write_text("{not valid json")
 
         with pytest.raises(RuntimeError):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
 
         # Refusing to mint a secret must not also destroy the broken file.
         assert isolated_config.read_text() == "{not valid json"
@@ -315,10 +326,10 @@ class TestServerSecretBootstrap:
         guard against, so startup proceeds and ``config_load_failed`` locks the
         auth surface down while the operator repairs the file.
         """
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
         isolated_config.write_text("{not valid json")
 
-        config, reloaded = api_config._load_and_ensure_secret()
+        config, reloaded = _load_and_ensure_secret()
 
         assert reloaded == secret
         assert config == {}
@@ -365,19 +376,19 @@ class TestFirstBootSecretClaim:
             return real_claim(secret)
 
         with mock.patch(f"{_MOD}._claim_secret_file", _lose_the_race):
-            _, secret = api_config._load_and_ensure_secret()
+            _, secret = _load_and_ensure_secret()
 
         assert secret == rival, "this worker signs with a key that is not on disk"
         assert Path(api_config.secret_path()).read_text().strip() == rival
 
     def test_the_winner_keeps_its_own_value(self, isolated_config):
         """The other side of the race: an uncontended claim is not re-read."""
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
         assert Path(api_config.secret_path()).read_text().strip() == secret
 
     def test_sequential_boots_converge_on_the_stored_value(self, isolated_config):
-        _, first = api_config._load_and_ensure_secret()
-        _, second = api_config._load_and_ensure_secret()
+        _, first = _load_and_ensure_secret()
+        _, second = _load_and_ensure_secret()
 
         assert first == second == Path(api_config.secret_path()).read_text().strip()
 
@@ -389,7 +400,7 @@ class TestFirstBootSecretClaim:
         """
         Path(api_config.secret_path()).write_text("")
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert len(secret) == api_config._SECRET_BYTES * 2
         assert Path(api_config.secret_path()).read_text().strip() == secret
@@ -404,7 +415,7 @@ class TestFirstBootSecretClaim:
         """
         Path(api_config.secret_path()).write_text(burned_digest + "\n")
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret != burned_digest
         assert Path(api_config.secret_path()).read_text().strip() == secret
@@ -419,7 +430,7 @@ class TestFirstBootSecretClaim:
         with mock.patch(f"{_MOD}._claim_secret_file",
                         side_effect=PermissionError(13, "read-only")):
             with caplog.at_level("ERROR"):
-                _, secret = api_config._load_and_ensure_secret()
+                _, secret = _load_and_ensure_secret()
 
         assert len(secret) == api_config._SECRET_BYTES * 2
         assert not Path(api_config.secret_path()).exists()
@@ -430,7 +441,7 @@ class TestFirstBootSecretClaim:
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
 
         with mock.patch(f"{_MOD}._claim_secret_file") as claim:
-            _, secret = api_config._load_and_ensure_secret()
+            _, secret = _load_and_ensure_secret()
 
         assert secret == "env-provided-secret"
         assert not claim.called
@@ -439,7 +450,7 @@ class TestFirstBootSecretClaim:
     def test_a_rotation_still_replaces_the_store(self, isolated_config, preserved_globals):
         """Claim-or-adopt is the FIRST-boot shape; a rotation must still clobber."""
         _write_config(isolated_config)
-        _, before = api_config._load_and_ensure_secret()
+        _, before = _load_and_ensure_secret()
 
         api_config.rotate_secret()
 
@@ -513,8 +524,8 @@ class TestPermissionChecksAreGatedOnPosix:
         self._loose_file(Path(f"{isolated_config}.backup"))
 
         with caplog.at_level("WARNING"):
-            api_config._load_and_ensure_secret()
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
+            _load_and_ensure_secret()
 
         assert "readable beyond its owner" not in caplog.text
         assert "config backup" not in caplog.text
@@ -545,18 +556,18 @@ class TestUnreadableSecretFile:
         os.mkdir(api_config.secret_path())
 
         with pytest.raises(RuntimeError, match="could not be read"):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
 
         assert os.path.isdir(api_config.secret_path()), "the path was replaced anyway"
 
     @pytest.mark.skipif(IS_ROOT, reason="root reads through mode 000")
     @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_unreadable_secret_survives_the_boot_that_could_not_read_it(self, isolated_config):
-        _, stored = api_config._load_and_ensure_secret()
+        _, stored = _load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o000)
 
         with pytest.raises(RuntimeError, match="could not be read"):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
 
         os.chmod(api_config.secret_path(), 0o600)
         assert Path(api_config.secret_path()).read_text().strip() == stored
@@ -571,11 +582,11 @@ class TestUnreadableSecretFile:
         exported the variable still could not boot, and every CLI that imports
         this module died the same way at import.
         """
-        _, stored = api_config._load_and_ensure_secret()
+        _, stored = _load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o000)
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
         try:
-            _, secret = api_config._load_and_ensure_secret()
+            _, secret = _load_and_ensure_secret()
         finally:
             os.chmod(api_config.secret_path(), 0o600)
 
@@ -592,12 +603,12 @@ class TestUnreadableSecretFile:
         it must not buy the boot past a file the account cannot read — that
         would be the G1 catastrophe, a fresh secret replacing a stored one.
         """
-        _, stored = api_config._load_and_ensure_secret()
+        _, stored = _load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o000)
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "   ")
         try:
             with pytest.raises(RuntimeError, match="could not be read"):
-                api_config._load_and_ensure_secret()
+                _load_and_ensure_secret()
         finally:
             os.chmod(api_config.secret_path(), 0o600)
 
@@ -662,7 +673,7 @@ class TestUnwritableInstallDirectory:
         os.chmod(tmp_path, 0o500)
         try:
             with caplog.at_level("ERROR"):
-                _, secret = api_config._load_and_ensure_secret()
+                _, secret = _load_and_ensure_secret()
         finally:
             os.chmod(tmp_path, 0o700)
 
@@ -691,7 +702,7 @@ class TestLegacySecretMigration:
     def test_private_secret_is_moved_out_and_preserved(self, isolated_config):
         _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret == "a" * 64, "a private install must not be logged out by the upgrade"
         assert Path(api_config.secret_path()).read_text().strip() == "a" * 64
@@ -708,7 +719,7 @@ class TestLegacySecretMigration:
         module exists to close.
         """
         payload = _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
 
         backup = Path(f"{isolated_config}.backup")
         assert backup.exists()
@@ -722,7 +733,7 @@ class TestLegacySecretMigration:
             self, isolated_config, tmp_path):
         """Sweep the whole install directory, not just the files we know about."""
         _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
 
         secret_file = Path(api_config.secret_path())
         holders = [
@@ -746,7 +757,7 @@ class TestLegacySecretMigration:
         """The whole point of F1: a burned value must not survive the migration."""
         _write_config(isolated_config, {_LEGACY_KEY: burned_digest})
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret != burned_digest
         assert len(secret) == api_config._SECRET_BYTES * 2
@@ -766,23 +777,23 @@ class TestLegacySecretMigration:
 
     def test_key_is_evicted_even_when_the_secret_file_wins(self, isolated_config):
         """Removal is unconditional -- the key in a tracked file IS the bug."""
-        _, existing = api_config._load_and_ensure_secret()
+        _, existing = _load_and_ensure_secret()
         _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret == existing, "the established store must win over a stale config key"
         assert _LEGACY_KEY not in isolated_config.read_text()
 
     def test_blank_leftover_key_is_removed_too(self, isolated_config):
         _write_config(isolated_config, {_LEGACY_KEY: ""})
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
         assert secret
         assert _LEGACY_KEY not in json.loads(isolated_config.read_text())
 
     def test_unparseable_config_is_left_alone(self, isolated_config):
         isolated_config.write_text("{not valid json")
-        _, parsed_ok, legacy = api_config._read_config_evicting_legacy_secret()
+        _, parsed_ok, legacy = api_config._read_config_evicting_legacy_share_key()
         assert legacy == ""
         assert not parsed_ok
         assert isolated_config.read_text() == "{not valid json"
@@ -803,7 +814,7 @@ class TestLegacySecretMigration:
             return real_read()
 
         with mock.patch(f"{_MOD}._read_config", counting_read):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
 
         assert len(calls) == 1
 
@@ -819,7 +830,7 @@ class TestLegacySecretMigration:
 
         with mock.patch(f"{_MOD}.atomic_write_json", side_effect=OSError("read-only")):
             with caplog.at_level("ERROR"):
-                _, secret = api_config._load_and_ensure_secret()
+                _, secret = _load_and_ensure_secret()
 
         assert secret == "a" * 64, "the install must keep working on its existing secret"
         assert _LEGACY_KEY in json.loads(isolated_config.read_text())
@@ -828,7 +839,7 @@ class TestLegacySecretMigration:
 
     def test_migration_preserves_the_rest_of_the_config(self, isolated_config):
         payload = _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
         surviving = json.loads(isolated_config.read_text())
         assert surviving == {k: v for k, v in payload.items() if k != _LEGACY_KEY}
 
@@ -866,6 +877,36 @@ class TestBurnedSecretGate:
         assert api_config._is_burned(burned_digest)
         assert not api_config._is_burned("c" * 64)
 
+    def test_a_burned_env_secret_refuses_before_the_config_is_rewritten(
+            self, isolated_config, burned_digest, monkeypatch):
+        """Pins the ORDER inside ``_bootstrap``, which nothing else does.
+
+        The env/stored secret is resolved before the config is read precisely so
+        a burned ``FACET_JWT_SECRET`` aborts a boot that has not yet touched the
+        file. Read the config first and the legacy-key eviction rewrites
+        scoring_config.json and drops a 0600 backup, on a boot that is about to
+        refuse to start -- mutating an install while reporting that it will not
+        run. Reordering the two calls leaves every other test in this module
+        green, so this is the only thing standing between that invariant and a
+        future refactor.
+        """
+        _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
+        before = isolated_config.read_text()
+        monkeypatch.setenv(api_config._SECRET_ENV_VAR, burned_digest)
+
+        with pytest.raises(RuntimeError, match="PUBLISHED"):
+            _load_and_ensure_secret()
+
+        assert isolated_config.read_text() == before, (
+            "the config was rewritten during a boot that refused to start"
+        )
+        assert _LEGACY_KEY in json.loads(isolated_config.read_text()), (
+            "the legacy key was evicted before the refusal"
+        )
+        assert not Path(str(isolated_config) + ".backup").exists(), (
+            "a backup was written during a boot that refused to start"
+        )
+
     @pytest.mark.parametrize("noise", ["", "\n", "  ", "\r\n", "\t"])
     def test_whitespace_does_not_smuggle_a_burned_value_past(self, burned_digest, noise):
         assert api_config._is_burned(burned_digest + noise)
@@ -877,7 +918,7 @@ class TestBurnedSecretGate:
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, burned_digest)
 
         with pytest.raises(RuntimeError, match="PUBLISHED"):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
 
         assert not Path(api_config.secret_path()).exists()
 
@@ -886,14 +927,14 @@ class TestBurnedSecretGate:
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, f"  {burned_digest}\n")
 
         with pytest.raises(RuntimeError, match="PUBLISHED"):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
 
     def test_burned_secret_file_is_regenerated(self, isolated_config, burned_digest, caplog):
         """Inherited from an older install, not chosen -- so replace, don't refuse."""
         Path(api_config.secret_path()).write_text(burned_digest + "\n")
 
         with caplog.at_level("WARNING"):
-            _, secret = api_config._load_and_ensure_secret()
+            _, secret = _load_and_ensure_secret()
 
         assert secret != burned_digest
         assert len(secret) == api_config._SECRET_BYTES * 2
@@ -904,7 +945,7 @@ class TestBurnedSecretGate:
                                                                  burned_digest):
         _write_config(isolated_config, {_LEGACY_KEY: burned_digest + "\n"})
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret.strip() != burned_digest
         assert len(secret) == api_config._SECRET_BYTES * 2
@@ -928,7 +969,7 @@ class TestBurnedSecretGate:
         """Layer 1 again, for the config source it was actually exploited through."""
         _write_config(isolated_config, {_LEGACY_KEY: f"  {burned_digest}\n"})
 
-        _, _, legacy = api_config._read_config_evicting_legacy_secret()
+        _, _, legacy = api_config._read_config_evicting_legacy_share_key()
 
         assert legacy == burned_digest
 
@@ -944,8 +985,8 @@ class TestBurnedSecretGate:
         """
         _write_config(isolated_config, {_LEGACY_KEY: burned_digest + "\n"})
 
-        api_config._load_and_ensure_secret()
-        _, second_boot = api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
+        _, second_boot = _load_and_ensure_secret()
 
         assert second_boot != burned_digest
         assert Path(api_config.secret_path()).read_text().strip() != burned_digest
@@ -957,29 +998,29 @@ class TestSecretEnvOverride:
     """
 
     def test_env_secret_wins_over_the_stored_file(self, isolated_config, monkeypatch):
-        _, stored = api_config._load_and_ensure_secret()
+        _, stored = _load_and_ensure_secret()
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret == "env-provided-secret"
         assert Path(api_config.secret_path()).read_text().strip() == stored
 
     def test_env_secret_is_not_persisted(self, isolated_config, monkeypatch):
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
         assert not Path(api_config.secret_path()).exists()
 
     def test_blank_env_var_falls_through_to_the_file(self, isolated_config, monkeypatch):
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "   ")
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
         assert secret == Path(api_config.secret_path()).read_text().strip()
 
     def test_env_override_still_evicts_the_legacy_key(self, isolated_config, monkeypatch):
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
         _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
 
-        _, secret = api_config._load_and_ensure_secret()
+        _, secret = _load_and_ensure_secret()
 
         assert secret == "env-provided-secret"
         assert _LEGACY_KEY not in isolated_config.read_text()
@@ -994,12 +1035,12 @@ class TestSecretEnvOverride:
         the variable was not set — a shell without it, an edited unit file, a
         container run plainly — and it started signing every session again.
         """
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o644)
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
 
         with caplog.at_level("WARNING"):
-            _, secret = api_config._load_and_ensure_secret()
+            _, secret = _load_and_ensure_secret()
 
         assert secret == "env-provided-secret"
         assert _mode_of(api_config.secret_path()) == 0o600
@@ -1008,11 +1049,11 @@ class TestSecretEnvOverride:
     @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_a_loose_store_is_reported_without_the_override_too(self, isolated_config, caplog):
         """The other branch: the boot that DOES read the file still warns."""
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
         os.chmod(api_config.secret_path(), 0o644)
 
         with caplog.at_level("WARNING"):
-            _, secret = api_config._load_and_ensure_secret()
+            _, secret = _load_and_ensure_secret()
 
         assert secret == Path(api_config.secret_path()).read_text().strip()
         assert _mode_of(api_config.secret_path()) == 0o600
@@ -1025,7 +1066,7 @@ class TestSecretRotation:
     @pytest.mark.skipif(sys.platform == "win32", reason=_WIN32_PERMS_REASON)
     def test_rotation_replaces_the_stored_secret(self, isolated_config, preserved_globals):
         _write_config(isolated_config)
-        _, before = api_config._load_and_ensure_secret()
+        _, before = _load_and_ensure_secret()
 
         path = api_config.rotate_secret()
 
@@ -1048,7 +1089,7 @@ class TestSecretRotation:
     def test_rotation_refuses_while_the_env_override_is_set(self, isolated_config, monkeypatch):
         """Writing the file would rotate nothing -- the env var still wins."""
         _write_config(isolated_config)
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
         stored = Path(api_config.secret_path()).read_text()
         monkeypatch.setenv(api_config._SECRET_ENV_VAR, "env-provided-secret")
 
@@ -1333,7 +1374,7 @@ class TestExistingConfigBackupsAreTightened:
     def test_a_group_readable_backup_is_tightened_on_boot(self, isolated_config, suffix):
         backup = self._seed_backup(isolated_config, suffix)
 
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
 
         assert _mode_of(backup) == 0o600
 
@@ -1341,7 +1382,7 @@ class TestExistingConfigBackupsAreTightened:
         """They are the operator's backups: only the permission bits change."""
         backup = self._seed_backup(isolated_config, self.STAMPED)
 
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
 
         assert backup.read_text() == self.SECRETS
 
@@ -1351,11 +1392,11 @@ class TestExistingConfigBackupsAreTightened:
         self._seed_backup(isolated_config, self.STAMPED)
 
         with caplog.at_level("WARNING"):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
         first = caplog.text
         caplog.clear()
         with caplog.at_level("WARNING"):
-            api_config._load_and_ensure_secret()
+            _load_and_ensure_secret()
 
         assert "0600" in first
         assert "config backup" in first
@@ -1365,7 +1406,7 @@ class TestExistingConfigBackupsAreTightened:
     def test_an_already_owner_only_backup_is_left_alone(self, isolated_config):
         backup = self._seed_backup(isolated_config, self.STAMPED, mode=0o600)
 
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
 
         assert _mode_of(backup) == 0o600
         assert backup.read_text() == self.SECRETS
@@ -1383,7 +1424,7 @@ class TestExistingConfigBackupsAreTightened:
         os.chmod(outside, 0o664)
         os.symlink(outside, Path(f"{isolated_config}{self.STAMPED}"))
 
-        api_config._load_and_ensure_secret()
+        _load_and_ensure_secret()
 
         assert _mode_of(outside) == 0o664
 
@@ -1404,7 +1445,7 @@ class TestExistingConfigBackupsAreTightened:
             return real_chmod(path, mode, *args, **kwargs)
 
         with mock.patch("os.chmod", _refuse_that_one):
-            _, secret = api_config._load_and_ensure_secret()
+            _, secret = _load_and_ensure_secret()
 
         assert len(secret) == api_config._SECRET_BYTES * 2
         assert _mode_of(api_config.secret_path()) == 0o600
