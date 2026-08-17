@@ -524,7 +524,13 @@ describe('GalleryStore', () => {
           has_better: true, best_path: '/b.jpg', keeper_prob: 0.4,
         }),
       );
-      expect(store.photos().find(p => p.path === '/b.jpg')?.keeper_hint).toBeUndefined();
+      // Assert /b.jpg is still THERE before asserting it has no hint: with `?.`
+      // a bug that dropped every unhinted photo from the store read the same as
+      // "this photo correctly has no hint".
+      expect(store.photos()).toHaveLength(2);
+      const unhinted = store.photos().find(p => p.path === '/b.jpg');
+      expect(unhinted).toBeDefined();
+      expect(unhinted!.keeper_hint).toBeUndefined();
     });
 
     it('leaves photos untouched when the keeper-hints request fails', async () => {
