@@ -36,6 +36,7 @@ Checklists for recurring multi-file changes — consult before starting:
 | [`i18n-sync.md`](.claude/patterns/i18n-sync.md) | Adding or renaming user-facing strings across all 6 languages |
 | [`vlm-model-change-checklist.md`](.claude/patterns/vlm-model-change-checklist.md) | Adding/upgrading/renaming/removing a VLM tagging or caption model (config, loaders, all routing sites, docs) |
 | [`panorama-detection.md`](.claude/patterns/panorama-detection.md) | Touching panorama detection, the sequence override table, or any "pending correction" surface |
+| [`test-fixtures.md`](.claude/patterns/test-fixtures.md) | Writing a test that needs photo rows — schema, the shared seeder, wire types, BLOBs, sequence sets |
 
 ## Project Overview
 
@@ -75,6 +76,8 @@ venv/bin/python -m pytest tests/ -q
 venv/bin/python -m ruff check .
 cd client && npm run test          # Vitest builder, not `ng test`
 cd client && npx tsc --noEmit -p tsconfig.app.json && npx tsc --noEmit -p tsconfig.spec.json
+cd client && npx ng lint          # NOT covered by tsc: a `type` alias where the
+                                  # rule wants `interface` type-checks clean and fails lint
 ```
 
 Typecheck the two leaf projects, never the root `tsconfig.json`: it carries
@@ -84,6 +87,18 @@ this gate and was caught only by `ng build`.
 
 A gate that ran through a pipe reports the pipe's exit code, not the command's —
 use `${PIPESTATUS[0]}` or redirect to a file before calling a suite green.
+
+**A behaviour change updates its own documentation, in the same change.** Prose has no
+gate: the description of `include_sequence_siblings` was accurate when it was committed
+and false three hours later, when a review found the endpoint was destroying frames the
+user had kept and the fix narrowed it. Nothing in CI can catch that, and the docs are
+translated into five languages, so the drift multiplies by six.
+
+**When you inject a fault to prove a test can fail, confirm the restore.** Retype the
+original by hand — never `git checkout`, which would discard concurrent work — and then
+assert `git status --porcelain <file>` is empty. A `replace()` whose anchor silently did
+not match leaves the fault in the tree; that happened twice here, once with a
+destructive endpoint's guard removed.
 
 ## Dependencies
 
@@ -240,6 +255,28 @@ than a copy. The semantics you cannot read off a column name:
   `/api/photo/histogram` serves it to the viewer's RGB histogram widget.
 - **`user_preferences` holds per-user ratings** in multi-user mode; the `photos` rating
   columns are the single-user/global fallback. A feature that reads one must know which.
+
+**Test fixtures must build the schema with `db.schema.init_database`, never a
+hand-rolled `CREATE TABLE photos`.** `build_photo_select_columns` intersects
+`PHOTO_OPTIONAL_COLS` with the columns the database actually has, so a fixture that
+omits one makes the endpoint legitimately drop the field and the assertion pass — the
+test does not fail, it stops testing. Three separate suites had silently done this
+(one omitted 39 of 50 optional columns; two more raised `OperationalError` the moment
+a query touched a missing column). `tests/conftest.py` exposes `seeded_photos` /
+`seed_photos_prefix`, which write into the shared session DB and clean up by path
+prefix — use them rather than a fourth private copy of the idiom.
+
+**What SQLite actually puts on the wire**, which the TypeScript side has twice been
+wrong about:
+- there is no boolean type, so every flag column arrives as `0`/`1`. The client
+  coerces at ingest (`normalisePhotoFlags`) rather than changing the wire, and
+  **preserves `null`** — `is_favorite`/`is_rejected` are NULL on almost every row of a
+  real library, because the per-user values live in `user_preferences`.
+- TEXT affinity stringifies what you store: the scanner writes `shutter_speed` as a
+  float and reads it back as `'0.0125'`. A column typed `TEXT` sends a string even
+  when every value looks numeric.
+`tests/test_api_contract.py` now asserts wire types, so a declaration that lies about
+either of these fails there.
 
 Lookup and side tables: `photo_tags`, `faces`, `persons`, `albums`, `album_photos`,
 `album_client_picks`, `photo_scoring_overrides`, `photo_sequence_overrides`,
