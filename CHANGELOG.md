@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.13.0] "Sténopé" — 2026-08-17
+
 ## [1.12.0] "Alexandrite" — 2026-08-13
 
 ### Security
