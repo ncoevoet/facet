@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.13.1] "Catchlight" — 2026-08-17
+
 ### Fixed
 
 - **Cull-to-folder destroyed frames the user had explicitly kept.** `include_sequence_siblings` collected every frame sharing a set's `(sequence_kind, sequence_group_id)` and acted on all of them, ignoring each frame's own `is_rejected`: rejecting one tile of a ten-frame panorama and ticking the box moved or trashed the nine the user had kept, while the same response reported one of them as `excluded_by_state`. Siblings now pass through the same reject-state map as the requested paths, in both directions — a rejected sibling is never copied as a keep, and a kept sibling is never moved or trashed. Found by reading the integrated diff, after the full test suite, ruff, both typechecks and lint were all green.
