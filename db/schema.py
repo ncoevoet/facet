@@ -311,10 +311,6 @@ INDEXES = [
     ('idx_category_aggregate', 'photos', 'category, aggregate DESC'),
     ('idx_narrative_moment', 'photos', 'narrative_moment'),
     ('idx_junk_kind', 'photos', 'junk_kind'),
-    # Prunes the migration-status count once a library is stamped: a fully
-    # migrated row set answers it from the index alone instead of reading every
-    # path to test the RAW suffix.
-    ('idx_render_version', 'photos', 'render_version'),
     ('idx_sequence_group', 'photos', 'sequence_group_id'),
     ('idx_sequence_kind', 'photos', 'sequence_kind, sequence_group_id'),
     # Additional composite indexes for viewer sorting performance
@@ -1084,7 +1080,13 @@ def init_database(db_path='photo_scores_pro.db'):
         # Q-ReAlign, and the migration is additive-only, so the qalign_score
         # column itself survives on upgraded DBs (its data is still readable).
         # Dropping only its index stops a retired column from taxing every write.
-        for stale_idx in ('idx_burst_moment', 'idx_burst_learned', 'idx_qalign_score'):
+        # idx_render_version never earned its keep: the pending-render count
+        # (db.render_version.pending_render_predicate) compares the column
+        # against a per-row CASE on sequence_kind, not a constant, so no
+        # single- or multi-column shape on render_version is sargable for it —
+        # EXPLAIN QUERY PLAN shows a full `SCAN photos` with or without the
+        # index. Dropped rather than reshaped.
+        for stale_idx in ('idx_burst_moment', 'idx_burst_learned', 'idx_qalign_score', 'idx_render_version'):
             conn.execute(f'DROP INDEX IF EXISTS {stale_idx}')
 
         # Create the photos-table indexes first so the ANALYZE gate below can

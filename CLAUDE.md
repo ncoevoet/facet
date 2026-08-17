@@ -216,11 +216,12 @@ than a copy. The semantics you cannot read off a column name:
   equality rather than a window function per query.
 - **`sequence_ev_offset`** is signed the way a camera labels an AEB set: `-2` dark, `+2`
   bright. NULL for panoramas, which have no base exposure.
-- **`render_version`** marks which RAW-decode pipeline produced a row's stored
-  thumbnail: `NULL` means the row predates the current decode profile, `1` means the
-  current pipeline produced it. Only a rescan or `--refresh-thumbnails` advances the
-  stamp — browsing the library never does. See
-  [docs/CONFIGURATION.md § RAW Decode](docs/CONFIGURATION.md#raw-decode).
+- **`render_version`** marks WHICH RAW display render baked a row's stored thumbnail,
+  not merely how current it is: `NULL` predates the stamp, `1` is the camera-preview
+  render every scan bakes, `2` is the uncorrected render only `--refresh-thumbnails`
+  bakes for a bracketed frame. Read it against `sequence_kind`, never alone — a `1` is
+  current for an ordinary photo and stale for one a later pass groups into a bracket.
+  See `db/render_version.py`.
 - **`channel_clip_shadow_pct` / `channel_clip_highlight_pct`** are per-channel clipping
   percentages (worst of R/G/B), `NULL` until `--backfill-clipping` or a rescan derives
   them from a stored histogram — `NULL` means *unknown*, never *clean*, so the row
