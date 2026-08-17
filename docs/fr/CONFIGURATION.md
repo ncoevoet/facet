@@ -2055,7 +2055,7 @@ Tri automatique en un bouton pour la chambre noire de tri (`POST /api/culling/au
 | `default_strictness` | `50` | Budget de conservation (0–100) utilisé lorsque la requête omet `strictness`. Plus élevé = conserver moins de photos par groupe (marge plus serrée autour de la meilleure du groupe) |
 | `highlights_min` | `8.0` | Score agrégé minimal pour que la meilleure photo d'un groupe soit rassemblée dans l'album **Highlights** facultatif lorsqu'un tri automatique est appliqué (idempotent) |
 
-`dry_run` est activé par défaut et renvoie un aperçu conservation/rejet par groupe ; une application enregistre en plus des lignes de comparaison `source='culling'` et déclenche un ré-entraînement automatique. Voir [Visionneuse web — Tri automatique](VIEWER.md#auto-cull).
+`dry_run` est activé par défaut et renvoie un aperçu conservation/rejet par groupe ; une application enregistre en plus des lignes de comparaison `source='culling'` et déclenche un ré-entraînement automatique. Voir [Visionneuse web — Tri automatique](VIEWER.md#tri-automatique).
 
 ## Ré-entraînement automatique
 
@@ -2255,6 +2255,9 @@ Tout endpoint qui copie, lie symboliquement ou déplace des fichiers photo hors 
   "viewer": {
     "export": {
       "allowed_target_dirs": ["/data/exports"]
+    },
+    "cull": {
+      "allow_trash": false
     }
   }
 }
@@ -2263,6 +2266,9 @@ Tout endpoint qui copie, lie symboliquement ou déplace des fichiers photo hors 
 | Réglage | Défaut | Description |
 |---------|---------|-------------|
 | `allowed_target_dirs` | *(clé absente)* | Répertoires racine supplémentaires dans lesquels un export copie/symlink ou un tri-vers-dossier copie/déplacement peut écrire, en plus des répertoires de scan (toujours autorisés). **Absente par défaut** : par défaut, les seules destinations d'export inscriptibles sont vos répertoires de scan configurés |
+| `cull.allow_trash` | `false` | Autorise ou non l'action `trash_rejects` du tri-vers-dossier à envoyer les fichiers vers la corbeille du système (récupérable, via `send2trash`) au lieu de se limiter à `copy_keeps`/`move_rejects`. Désactivé par défaut ; `trash_rejects` renvoie un 403 tant que ce n'est pas activé |
+
+**Séries multi-images et actions groupées.** `hide_brackets` / `hide_panoramas` (voir [Visionneuse web — Filtres par défaut](VIEWER.md#filtres-par-défaut), tous deux à `true` par défaut) bornent ce qu'une action groupée *fondée sur la sélection* peut atteindre, y compris le tri-vers-dossier et l'export d'album depuis une sélection : une fois une série repliée derrière son image représentative, agir sur la sélection agit par défaut sur cette seule image, pas sur le reste de la série. L'option `include_sequence_siblings`, propre au tri-vers-dossier, élargit une photo correspondante à toute sa série indépendamment de la sélection ; voir [Visionneuse web — Trier vers un dossier § Séries multi-images](VIEWER.md#trier-vers-un-dossier) pour cette option et les autres échappatoires.
 
 **Ordre de résolution.** La liste d'autorisation est d'abord `allowed_target_dirs`, puis chaque répertoire de scan (par utilisateur, partagé, et les cibles de `path_mapping`) — exporter *à l'intérieur* de l'arborescence photo ne demande donc aucune configuration, mais une destination en dehors nécessite une entrée ici. Le `target_dir` demandé et chaque racine autorisée sont tous deux canonicalisés avec `os.path.realpath()` (liens symboliques résolus, `..` réduits) avant comparaison, si bien qu'un lien symbolique se résolvant hors d'une racine autorisée est refusé même si le lien lui-même se trouve dans l'une d'elles.
 
@@ -2274,7 +2280,7 @@ Voir [Visionneuse web — Trier vers un dossier](VIEWER.md#trier-vers-un-dossier
 
 ## Export social
 
-Recadrages sensibles au sujet pour les formats des réseaux sociaux (`GET /api/photo/social_crop`, réservé à l'édition). Chaque préréglage recadre l'original en pleine résolution vers un format cible et le cadre sur le sujet détecté — le plus grand rectangle de ce format tenant dans l'image, centré sur le sujet et borné aux bords. La boîte du sujet suit une chaîne de repli : la boîte de sujet BiRefNet persistée (`photos.subject_bbox`) → l'union des boîtes de visages détectés → un recadrage centré simple. Voir [Visionneuse web — Téléchargement](VIEWER.md#download).
+Recadrages sensibles au sujet pour les formats des réseaux sociaux (`GET /api/photo/social_crop`, réservé à l'édition). Chaque préréglage recadre l'original en pleine résolution vers un format cible et le cadre sur le sujet détecté — le plus grand rectangle de ce format tenant dans l'image, centré sur le sujet et borné aux bords. La boîte du sujet suit une chaîne de repli : la boîte de sujet BiRefNet persistée (`photos.subject_bbox`) → l'union des boîtes de visages détectés → un recadrage centré simple. Voir [Visionneuse web — Téléchargement](VIEWER.md#téléchargement).
 
 ```json
 {
@@ -2465,7 +2471,7 @@ Configuration du prompt de la critique propulsée par VLM (profils 16gb/24gb). L
 |---------|--------|-------------|
 | `critique.vlm.max_new_tokens` | `320` | Budget de jetons pour la génération de la critique VLM structurée |
 
-Voir [Visionneuse web — Critique IA](VIEWER.md#ai-critique).
+Voir [Visionneuse web — Critique IA](VIEWER.md#critique-ia).
 
 ## Attributs de distorsion
 

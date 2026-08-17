@@ -2060,7 +2060,7 @@ Descarte automático de un botón para el laboratorio de descarte (`POST /api/cu
 | `default_strictness` | `50` | Presupuesto de fotos a conservar (0–100) usado cuando la solicitud omite `strictness`. Más alto = conservar menos fotos por grupo (margen más ajustado en torno a la mejor del grupo) |
 | `highlights_min` | `8.0` | Puntuación agregada mínima para que la mejor foto de un grupo se recopile en el álbum opcional de **Destacados** cuando se aplica un descarte automático (idempotente) |
 
-`dry_run` está activado por defecto y devuelve una vista previa de conservar/descartar por grupo; una aplicación registra además filas de comparación con `source='culling'` e impulsa un reentrenamiento automático. Consulta [Galería web — Descarte automático](VIEWER.md#auto-cull).
+`dry_run` está activado por defecto y devuelve una vista previa de conservar/descartar por grupo; una aplicación registra además filas de comparación con `source='culling'` e impulsa un reentrenamiento automático. Consulta [Galería web — Descarte automático](VIEWER.md#descarte-automático).
 
 ## Reentrenamiento automático
 
@@ -2260,6 +2260,9 @@ Cualquier endpoint que copie, enlace simbólicamente o mueva archivos de fotos f
   "viewer": {
     "export": {
       "allowed_target_dirs": ["/data/exports"]
+    },
+    "cull": {
+      "allow_trash": false
     }
   }
 }
@@ -2268,6 +2271,9 @@ Cualquier endpoint que copie, enlace simbólicamente o mueva archivos de fotos f
 | Ajuste | Predeterminado | Descripción |
 |---------|---------|-------------|
 | `allowed_target_dirs` | *(clave ausente)* | Directorios raíz adicionales en los que puede escribir una exportación copiar/symlink o un descarte-a-carpeta copiar/mover, además de los directorios de escaneo (siempre permitidos). **Ausente por defecto** — de fábrica, los únicos destinos de exportación escribibles son tus directorios de escaneo configurados |
+| `cull.allow_trash` | `false` | Si la acción `trash_rejects` del descarte a carpeta puede enviar archivos a la papelera del sistema operativo (recuperable, mediante `send2trash`) en lugar de admitir solo `copy_keeps`/`move_rejects`. Desactivado por defecto; `trash_rejects` responde `403` hasta que se activa |
+
+**Series multifotograma y acciones masivas.** `hide_brackets` / `hide_panoramas` (consulta [Visor web — Filtros predeterminados](VIEWER.md#filtros-predeterminados), ambos `true` por defecto) acotan lo que puede alcanzar cualquier acción masiva *basada en la selección*, incluidos el descarte a carpeta y la exportación de álbum desde una selección: con una serie contraída a su fotograma representativo, actuar sobre la selección actúa sobre ese único fotograma, no sobre el resto de la serie por defecto. La opción `include_sequence_siblings` propia del descarte a carpeta amplía una foto encontrada a toda su serie con independencia de la selección; consulta [Visor web — Descartar a carpeta § Series multifotograma](VIEWER.md#descartar-a-carpeta) para eso y las demás vías de escape.
 
 **Orden de resolución.** La lista de permitidos es primero `allowed_target_dirs`, luego cada directorio de escaneo (por usuario, compartidos y destinos de `path_mapping`) — así que exportar *dentro* del árbol de fotos no necesita configuración, pero un destino fuera de él necesita una entrada aquí. Tanto el `target_dir` solicitado como cada raíz permitida se canonicalizan con `os.path.realpath()` (enlaces simbólicos resueltos, `..` colapsados) antes de la comparación, así que un enlace simbólico que se resuelve fuera de una raíz permitida se rechaza aunque el propio enlace esté dentro de una de ellas.
 
@@ -2279,7 +2285,7 @@ Consulta [Visor web — Descartar a carpeta](VIEWER.md#descartar-a-carpeta) y [V
 
 ## Exportación social
 
-Recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales (`GET /api/photo/social_crop`, restringido a edición). Cada preajuste recorta el original a resolución completa a una relación de aspecto objetivo y lo encuadra en el sujeto detectado — el mayor rectángulo de esa relación de aspecto que cabe dentro de la imagen, centrado en el sujeto y ajustado a los bordes. La caja del sujeto sigue una cadena de reserva: la caja de sujeto BiRefNet persistida (`photos.subject_bbox`) → la unión de las cajas de caras detectadas → un recorte centrado simple. Consulta [Visor web — Descarga](VIEWER.md#download).
+Recortes con reconocimiento del sujeto para relaciones de aspecto de redes sociales (`GET /api/photo/social_crop`, restringido a edición). Cada preajuste recorta el original a resolución completa a una relación de aspecto objetivo y lo encuadra en el sujeto detectado — el mayor rectángulo de esa relación de aspecto que cabe dentro de la imagen, centrado en el sujeto y ajustado a los bordes. La caja del sujeto sigue una cadena de reserva: la caja de sujeto BiRefNet persistida (`photos.subject_bbox`) → la unión de las cajas de caras detectadas → un recorte centrado simple. Consulta [Visor web — Descarga](VIEWER.md#descarga).
 
 ```json
 {
@@ -2470,7 +2476,7 @@ Configuración de prompt para la crítica basada en VLM (perfiles 16gb/24gb). La
 |---------|---------|-------------|
 | `critique.vlm.max_new_tokens` | `320` | Presupuesto de tokens para la generación estructurada de la crítica con VLM |
 
-Consulta [Galería web — Crítica con IA](VIEWER.md#ai-critique).
+Consulta [Galería web — Crítica con IA](VIEWER.md#crítica-con-ia).
 
 ## Atributos de distorsión
 
