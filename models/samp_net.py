@@ -21,6 +21,7 @@ import torchvision.transforms as transforms
 import torchvision.models as models
 from PIL import Image
 
+from models.composition_patterns import COMPOSITION_PATTERNS
 from models.weights import download_weights
 
 logger = logging.getLogger("facet.samp_net")
@@ -69,18 +70,6 @@ def _manual_adaptive_avg_pool2d(
             )
         rows.append(torch.stack(columns, dim=-1))
     return torch.stack(rows, dim=-2)
-
-# 8 composition patterns based on spatial pooling strategies
-COMPOSITION_PATTERNS = [
-    'global',           # 0: Global average pooling
-    'horizontal',       # 1: Upper/lower halves
-    'vertical',         # 2: Left/right halves
-    'triangular',       # 3: Triangular regions
-    'surround',         # 4: Center vs surroundings
-    'quarter',          # 5: 2x2 grid
-    'cross',            # 6: Cross divisions
-    'rule_of_thirds',   # 7: 3x3 composition grid
-]
 
 # Weight download URLs
 # Note: U2-Net-P weights must be downloaded from Google Drive

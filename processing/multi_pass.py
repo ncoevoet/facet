@@ -1292,7 +1292,7 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
 
 def list_available_models():
     """Print list of available models and their requirements."""
-    from models.samp_net import COMPOSITION_PATTERNS
+    from models.composition_patterns import COMPOSITION_PATTERNS
 
     logger.info("Available Models:")
     logger.info("=" * 70)

@@ -626,7 +626,7 @@ class TestAestheticHeadWeights:
     """
 
     def test_head_is_read_from_the_pretrained_dir_not_the_cwd(self, tmp_path, monkeypatch):
-        import torch
+        torch = pytest.importorskip("torch")
         import processing.scorer as scorer_module
         from models import weights
         from models.aesthetic_head import AestheticMLP
