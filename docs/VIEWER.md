@@ -158,10 +158,10 @@ python database.py --migrate-user-preferences --user alice
 
 ### Composition Patterns
 
-Filter by SAMP-Net detected patterns:
-- rule_of_thirds, golden_ratio, center, diagonal
-- horizontal, vertical, symmetric, triangle
-- curved, radial, vanishing_point, pattern, fill_frame
+Filter by SAMP-Net detected patterns (the model emits exactly these 8, from
+`models/samp_net.py`):
+- global, horizontal, vertical, triangular
+- surround, quarter, cross, rule_of_thirds
 
 ## Sorting
 
@@ -218,6 +218,10 @@ A **Keep top %** control in the gallery toolbar (edition mode) turns the whole f
 ### Cull to folder
 
 The bulk-action bar's **Cull to folder…** dialog (edition mode) copies keeps, or moves/trashes rejects, to a target folder in one step (OS-trash is gated behind `viewer.cull.allow_trash`, never a permanent delete). Applying is safe by construction: `POST /api/cull/apply` never trusts a client-supplied deletion list at face value — it re-derives the action's actual target set server-side from each photo's own `is_rejected` state (copy acts only on keeps, move/trash only on rejects) and reports anything outside that scope as `excluded_by_state` instead of acting on it. Every call defaults to a dry run, so a preview always runs before anything is written, and move/trash need an explicit `dry_run=false` to proceed; pulling in a rejected photo's untouched RAW or sidecar is opt-in (`include_companions`), so rejecting a derived JPEG never silently takes its RAW down with it. Several commercial photo tools have shipped delete-selection bugs that acted on the wrong photos; Facet's apply endpoint is designed so the client cannot specify a deletion set directly.
+
+**Where you can write.** With no `viewer.export.allowed_target_dirs` configured, the only folders Facet will write into are your scan directories — point the dialog at a subfolder of the photo tree (e.g. `_rejected`) and it works with no setup. To use a folder outside the scanned tree, add it to `viewer.export.allowed_target_dirs` first; anything else is refused with a `403`, regardless of filesystem permissions. See [Configuration — Export and Cull Destinations](CONFIGURATION.md#export-and-cull-destinations). Running in Docker/Podman, the path you type is resolved **inside the container**, against whatever is actually mounted there — never against the host filesystem — see [Deployment — Container Path Semantics](DEPLOYMENT.md#container-path-semantics).
+
+**"Access denied" on every action.** That's a `403` — a deliberate refusal from the target-folder check above, or an expired edition session — not a filesystem or container-user permission problem. The toast doesn't say which, so check the failed request's response body in your browser's Network tab for the `detail` field. A real filesystem/permission problem looks different: the action reports partial success with a nonzero `errors` count instead of failing outright, and the server logs the underlying OS error for each file that failed.
 
 ### Display Options
 
@@ -377,7 +381,7 @@ Each album can carry a scoring context that decides which category wins for its 
 
 ### Portfolio Export
 
-When `viewer.features.show_portfolio_export` is `true` (default) and edition is unlocked, each manual album card gains an **Export portfolio** action. It opens a small dialog (gallery title, target folder, include-captions toggle) and renders the album into a self-contained static HTML gallery — the thumbsup/sigal use case, but native, with no external tool dependency. The output directory holds `index.html` (a responsive CSS-only thumbnail grid with a built-in vanilla-JS lightbox — **zero** external/CDN references, so it works fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json` recording counts and per-photo sources. Each photo prefers the on-disk **original** (downscaled to `portfolio.max_edge`, EXIF orientation applied) and falls back to the stored 640px thumbnail when the original is unreachable (offline network shares). The endpoint is `POST /api/albums/{album_id}/export-portfolio` (edition-gated); the `target_dir` is validated against the same allow-list (`viewer.export.allowed_target_dirs` plus the scan directories) as the copy/move export endpoints, and albums over `portfolio.max_photos` (default 500) are refused. Re-exporting the same album is idempotent — only the export's own files are rewritten. See [Portfolio Export configuration](CONFIGURATION.md#portfolio-export).
+When `viewer.features.show_portfolio_export` is `true` (default) and edition is unlocked, each manual album card gains an **Export portfolio** action. It opens a small dialog (gallery title, target folder, include-captions toggle) and renders the album into a self-contained static HTML gallery — the thumbsup/sigal use case, but native, with no external tool dependency. The output directory holds `index.html` (a responsive CSS-only thumbnail grid with a built-in vanilla-JS lightbox — **zero** external/CDN references, so it works fully offline), an `assets/` folder of sequentially-named JPEGs (no library paths leaked), and a `manifest.json` recording counts and per-photo sources. Each photo prefers the on-disk **original** (downscaled to `portfolio.max_edge`, EXIF orientation applied) and falls back to the stored 640px thumbnail when the original is unreachable (offline network shares). The endpoint is `POST /api/albums/{album_id}/export-portfolio` (edition-gated); the `target_dir` is validated against the same allow-list (`viewer.export.allowed_target_dirs` plus the scan directories, see [Configuration — Export and Cull Destinations](CONFIGURATION.md#export-and-cull-destinations)) as the copy/move export endpoints, and albums over `portfolio.max_photos` (default 500) are refused. Re-exporting the same album is idempotent — only the export's own files are rewritten. See [Portfolio Export configuration](CONFIGURATION.md#portfolio-export).
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
@@ -570,7 +574,7 @@ Find person clusters that may be the same individual. Access via `/merge-suggest
 Write your ratings, favorites, and rejections to disk as XMP sidecars, so external editors (darktable, Lightroom) pick them up. Requires edition mode.
 
 - **From the gallery** — select photos, then **Actions → Export** writes a sidecar next to each file.
-- **From an album** ("basket") — export the whole album as sidecars, or copy/symlink the files to a target directory.
+- **From an album** ("basket") — export the whole album as sidecars, or copy/symlink the files to a target directory (same destination allow-list as [Cull to folder](#cull-to-folder)).
 - **Write metadata to file** — the photo detail "Write metadata to file" action embeds the rating/keywords directly into the original file (JPEG/HEIC/TIFF/PNG/DNG via exiftool) in addition to writing the sidecar, so the whole photo ecosystem sees them. Proprietary RAW originals are never modified. Controlled by `viewer.features.show_embed_metadata` (default: `true`).
 
 API: see the [API Endpoints](#api-endpoints) section below.
@@ -1070,6 +1074,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 |----------|-------------|
 | `GET /api/photos` | Paginated photo list with filters |
 | `GET /api/photo` | Single photo details |
+| `GET /api/photo/set?path=` | The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to (sequence takes precedence over burst, burst over duplicate), keyed on `path` — never a group id, which the bracket and panorama passes each renumber from 1 on every run |
+| `GET /api/photo/histogram?path=&bins=` | Draw-ready luminance + R/G/B bins (`bins` ∈ 32/64/128/256, default 64) measured at scan time on the full-resolution image. Every channel is scaled by one global max, never its own. `r`/`g`/`b` are `null` for a row stored before the per-channel format; 404 when the row has no histogram at all, which is the widget's signal to fall back to sampling the thumbnail |
 | `GET /api/type_counts` | Photo counts per type |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantic text-to-image search (`scope=text` = OCR/caption text only) |
@@ -1318,6 +1324,8 @@ Interactive API documentation is available at `/api/docs` (Swagger UI) and the O
 - `raw` — Serve the companion RAW file as-is (not available in shared albums).
 
 The `/api/download/options` endpoint detects companion RAW files automatically and returns available options including configured darktable profiles. The viewer uses this to populate a per-photo download menu.
+
+`type=original` converts a RAW through the same rendering the viewer shows, so a bracketed frame downloads with no camera preview and no exposure gain — see [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected). `type=raw` and `type=darktable` are unaffected.
 
 **Saliency-aware social crop.** When `viewer.features.show_social_export` is `true` (default) and edition is unlocked, the photo detail download bar gains a **Social crop** menu listing the configured `social_export.presets` (square 1:1, portrait 4:5, story 9:16 out of the box). Choosing a preset downloads a full-resolution JPEG cropped to that aspect and framed on the detected subject — something Lightroom export presets cannot do. The crop window is the largest rectangle of the target aspect that fits inside the image, centered on the subject and clamped at the edges. The subject box comes from a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`, written by the saliency pass and `--recompute-saliency`) → the union of detected face boxes → a plain center crop. The `preview` endpoint returns which source drove the crop (`saliency` / `faces` / `center`), shown in the menu tooltip. Original decoding reuses the same RAW (rawpy) and HEIC (pillow-heif) loader as the download path, with EXIF orientation applied before cropping.
 

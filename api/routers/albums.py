@@ -427,9 +427,10 @@ def list_albums(
         total = row[0] if row else 0
 
         # Paginated fetch
-        _SORT_MAP = {'updated_at': 'updated_at DESC', 'name': 'name ASC', 'photo_count': 'photo_count_cache DESC'}
+        _SORT_MAP = {'updated_at': 'updated_at DESC', 'name': 'name ASC'}
         order_by = _SORT_MAP.get(sort, 'updated_at DESC')
-        # photo_count sort needs a subquery since it's not a column
+        # photo_count has no column of its own — always resolved via this subquery,
+        # never through _SORT_MAP, since album_photos rows are not cached on albums
         if sort == 'photo_count':
             order_by = '(SELECT COUNT(*) FROM album_photos WHERE album_id = albums.id) DESC'
         total_pages, offset = paginate(total, page, per_page)

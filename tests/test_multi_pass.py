@@ -147,6 +147,83 @@ class TestTaggingModelRouting:
         assert proc._pass_vlm_tagger.called
 
 
+SHIPPED_CONFIGS = ("scoring_config.json", "scoring_config.default.json")
+
+# Composition model string in a profile -> the model name the multi-pass path
+# selects and dispatches for it. A profile configured with anything else gets no
+# composition model at all on the default scan path.
+MULTI_PASS_COMPOSITION_MODELS = {"samp-net": "samp_net"}
+
+
+def _shipped_config_path(config_name):
+    from pathlib import Path
+    return Path(__file__).resolve().parent.parent / config_name
+
+
+def _shipped_profiles(config_name):
+    import json
+    config = json.loads(_shipped_config_path(config_name).read_text())
+    return config["models"]["profiles"]
+
+
+def _processor_for_shipped_profile(config_name, profile_name):
+    from config import ScoringConfig
+    from models.model_manager import ModelManager
+
+    config = ScoringConfig(str(_shipped_config_path(config_name)))
+    config.config["models"]["vram_profile"] = profile_name
+    scorer = mock.MagicMock()
+    scorer.config = config
+    proc = ChunkedMultiPassProcessor(scorer, ModelManager(config), config.config)
+    proc.available_vram = {"legacy": 0.0, "8gb": 8.0, "16gb": 16.0, "24gb": 24.0}[profile_name]
+    return proc
+
+
+class TestShippedProfileCompositionRouting:
+    """Regression guard: composition must run on the DEFAULT (multi-pass) scan path.
+
+    The shipped 24gb profile was configured with ``qwen2-vl-2b``, which
+    ``_select_models`` never selected and ``_run_model_pass`` never dispatched --
+    only the single-pass scorer loaded it. A default scan on 24gb therefore ran no
+    composition model at all: comp_score silently came from the CPU rule-based
+    analyzer and composition_pattern stayed NULL. Exercising single-pass only would
+    reproduce that blind spot, so these run the multi-pass selection.
+    """
+
+    @pytest.mark.parametrize("config_name", SHIPPED_CONFIGS)
+    @pytest.mark.parametrize("profile_name", ["legacy", "8gb", "16gb", "24gb"])
+    def test_profile_composition_model_is_selected_and_dispatched(self, config_name, profile_name):
+        profile = _shipped_profiles(config_name)[profile_name]
+        composition_model = profile.get("composition_model")
+        assert composition_model in MULTI_PASS_COMPOSITION_MODELS, (
+            f"{config_name} profile '{profile_name}' configures composition_model "
+            f"'{composition_model}', which the default multi-pass path cannot run"
+        )
+        expected = MULTI_PASS_COMPOSITION_MODELS[composition_model]
+
+        proc = _processor_for_shipped_profile(config_name, profile_name)
+        assert expected in proc._select_models()
+
+        proc._pass_samp_net = mock.MagicMock()
+        proc._run_model_pass(expected, model=None, images={}, results={})
+        assert proc._pass_samp_net.called
+
+    @pytest.mark.parametrize("profile_name", ["legacy", "8gb", "16gb", "24gb"])
+    def test_selected_composition_model_survives_pass_grouping(self, profile_name):
+        proc = _processor_for_shipped_profile("scoring_config.json", profile_name)
+        models = proc._select_models()
+        groups = proc.model_manager.group_passes_by_vram(models, proc.available_vram)
+        assert any("samp_net" in group for group in groups)
+
+    def test_composition_model_without_a_pass_is_reported(self, caplog):
+        proc = _make_with_profile("clip", available_vram=24.0)
+        proc.model_manager._profile["composition_model"] = "qwen2-vl-2b"
+        with caplog.at_level("WARNING", logger="facet.multi_pass"):
+            models = proc._select_models()
+        assert "samp_net" not in models
+        assert "qwen2-vl-2b" in caplog.text
+
+
 class _SpyScorer:
     """Records the metrics dict handed to calculate_aggregate_logic."""
 
@@ -210,3 +287,31 @@ class TestComputeAggregatesHonorsOverride:
         assert metrics['category_override'] == 'sports'
         assert results[photo_path]['category'] == 'spy-category'
         assert results[photo_path]['aggregate'] == 7.5
+
+
+class TestCompositionPatternVocabulary:
+    """The pattern vocabulary is the model's, and --list-models must report it.
+
+    scoring_config.json carried a 14-name ``samp_net.patterns`` list nothing read
+    and the model never emits, and --list-models advertised "14 patterns" to
+    match it. The authoritative set is the 8 SAMP-Net actually predicts -- the
+    same 8 the maintainer's 126,661-photo library contains.
+    """
+
+    def test_the_model_emits_exactly_eight_patterns(self):
+        from models.samp_net import COMPOSITION_PATTERNS
+
+        assert COMPOSITION_PATTERNS == [
+            'global', 'horizontal', 'vertical', 'triangular',
+            'surround', 'quarter', 'cross', 'rule_of_thirds',
+        ]
+
+    def test_list_models_reports_the_model_s_own_pattern_count(self, caplog):
+        from models.samp_net import COMPOSITION_PATTERNS
+        from processing.multi_pass import list_available_models
+
+        with caplog.at_level("INFO", logger="facet.multi_pass"):
+            list_available_models()
+
+        assert f"({len(COMPOSITION_PATTERNS)} patterns)" in caplog.text
+        assert "14 patterns" not in caplog.text

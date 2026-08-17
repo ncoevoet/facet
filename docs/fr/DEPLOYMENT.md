@@ -56,6 +56,43 @@ Plusieurs mappages sont pris en charge (la première correspondance l'emporte) 
 - Les chemins UNC (`\\server\share`) comme les lettres de lecteur (`Z:\`) sont pris en charge
 - Le premier préfixe correspondant l'emporte
 
+## Sémantique des chemins en conteneur
+
+Tout ce que vous saisissez dans un champ de dossier de la visionneuse — une cible « Trier vers un dossier », la destination d'export copie/symlink d'un album, ou `viewer.export.allowed_target_dirs` dans `scoring_config.json` — est résolu par le processus Facet lui-même. **Sous Docker/Podman, ce processus s'exécute à l'intérieur du conteneur**, si bien que chaque chemin est celui que *le conteneur* voit : le point de montage, jamais le chemin côté hôte.
+
+**Exemple.** Le `docker-compose.yml` fourni monte votre dossier photo sur `/data/photos` :
+
+```yaml
+volumes:
+  - ${PHOTOS_DIR:-./photos}:/data/photos
+```
+
+Pour trier les rejetées vers un sous-dossier `rejects`, saisissez `/data/photos/rejects` dans la boîte de dialogue — jamais le chemin hôte (`/home/vous/Photos`, `D:\Photos`, …), que le conteneur ne peut pas voir du tout. Il en va de même pour `viewer.export.allowed_target_dirs` : indiquez le chemin côté conteneur.
+
+Pour écrire ailleurs que dans l'arborescence photo scannée — un volume d'export séparé, par exemple —, montez-le d'abord dans le conteneur, puis ajoutez son chemin côté conteneur à `viewer.export.allowed_target_dirs` :
+
+```yaml
+services:
+  facet:
+    volumes:
+      - ${PHOTOS_DIR:-./photos}:/data/photos
+      - /volume1/Exports:/data/exports   # volume supplémentaire pour la sortie de tri/export
+```
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+Une destination qui se résout hors de tout volume monté est refusée (`403`) — le contrôle de target-dir de Facet exécute `os.path.realpath()` à la fois sur la requête *et* sur chaque racine autorisée, résolvant les liens symboliques et les `..` avant comparaison, si bien qu'un chemin qui ne semble correct que depuis l'extérieur du conteneur (ou un lien symbolique pointant hors d'un montage) échoue quand même au test de confinement. Voir [Configuration — Destinations d'export et de tri](CONFIGURATION.md#destinations-dexport-et-de-tri) pour la référence complète de la liste d'autorisation.
+
+**Ce n'est pas un problème de droits de l'utilisateur conteneur.** L'UID de l'utilisateur `facet` à l'intérieur du conteneur diffère couramment de celui de votre compte hôte, et cela peut causer un vrai problème de droits du système de fichiers, distinct, sur un montage bind — mais cela se produit *après* que ce contrôle de chemin a été franchi, quand la copie/le lien symbolique/le déplacement s'exécute réellement, et c'est journalisé côté serveur avec l'erreur système sous-jacente pour le fichier en échec. Un `403 target_dir is not an allowed export location` (ou un « accès refusé » générique dans l'interface) se produit *avant* que le moindre fichier ne soit touché et n'a rien à voir avec les UID.
+
 ## Compilation du client Angular
 
 Le serveur FastAPI sert la SPA pré-compilée depuis `client/dist/client/browser/`. Compilez-la avant le déploiement :
@@ -101,7 +138,8 @@ python database.py --export-viewer-db
 ```
 
 Cela crée `photo_scores_viewer.db`, qui :
-- Supprime les embeddings CLIP, les données d'histogramme et les embeddings de visage
+- Supprime les embeddings CLIP, les embeddings de légende et les embeddings de visage
+- Conserve l'histogramme par photo (~2 Ko chacun), lu par le widget d'histogramme RVB de la galerie
 - Réduit les miniatures de 640 px à 320 px
 - Fait généralement passer une base de données de 14 Go à environ 4-5 Go
 
@@ -211,9 +249,12 @@ Ce qui suit ne couvre que ce qui diffère sur un NAS.
 
 **Les deux images publiées sont uniquement en `linux/amd64` (x86_64).** Cela couvre le matériel NAS x86 (Synology Plus/x86, UGREEN, UnifyDrive, et tout ce qui fait tourner Coolify, Portainer ou un Docker classique sur un CPU Intel/AMD). Il n'existe pas d'image `arm64` : la compilation croisée d'une pile ML de plusieurs gigaoctets sous QEMU coûte des heures par tag, et la variante CUDA est de toute façon réservée à x86. Sur un NAS ARM ou un Raspberry Pi, compilez localement avec `docker compose build` plutôt que de récupérer l'image — `docker compose up` conserve `build: .` sous la clé `image:` précisément pour ce cas.
 
-**Prévoyez l'espace disque.** L'image CPU fait ~3,3 Go et l'image CUDA ~21 Go, plus les
-poids des modèles que chaque profil télécharge au premier lancement (~3–4 Go pour
-`legacy`/`8gb`, ~10–11 Go pour `16gb`, ~18 Go pour `24gb` — tableau complet dans
+**Prévoyez l'espace disque.** Une fois décompressée, l'image CPU pèse environ 3,3 Go
+sur disque et l'image CUDA environ 21 Go (valeurs approximatives, non revérifiées par
+rapport à la build actuelle : le téléchargement lui-même transfère moins,
+compressé — voir [Taille de l'image](#taille-de-limage) plus bas), plus les poids des
+modèles que chaque profil télécharge au premier lancement (`legacy` 4,69 Go, `8gb`
+6,93 Go, `16gb` 14,55 Go, `24gb` 19,13 Go — tableau complet dans
 [Installation › Tailles de téléchargement](INSTALLATION.md#tailles-de-téléchargement)).
 `docker compose down -v` supprime les volumes de modèles et force un nouveau
 téléchargement.
@@ -331,10 +372,16 @@ Aucune des deux images publiées ne contient les poids des modèles — ils se t
 lancement dans les volumes nommés ([totaux par profil](INSTALLATION.md#tailles-de-téléchargement)). Prévoyez de l'espace disque pour
 l'image **plus** ces volumes.
 
-| Image | Taille mesurée | Base |
-|-------|------|------|
-| `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3,3 Go | `python:3.12-slim` + PyTorch en wheels CPU |
-| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 Go | PyTorch CUDA + RAPIDS cuML |
+| Image | Téléchargement compressé | Sur disque (approx.) | Base |
+|-------|------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | 4,18 Go | ~3,3 Go | `python:3.12-slim` + PyTorch en wheels CPU |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 7,33 Go | ~21 Go | PyTorch CUDA + RAPIDS cuML |
+
+Le « téléchargement compressé » est ce que transfère `docker pull`, mesuré à partir des
+manifestes actuels du registre `ghcr.io/ncoevoet/facet`. La valeur « sur disque » est
+l'empreinte de l'image une fois décompressée ; ces chiffres n'ont pas été revérifiés par
+rapport au digest `:latest` actuel pour cette passe — traitez-les comme un ordre de
+grandeur pour la planification plutôt qu'une mesure précise et actuelle.
 
 L'image CPU est dominée par la pile de dépendances ML (~1,9 Go) plutôt que par PyTorch
 lui-même (~960 Mo), plus les bibliothèques système (~288 Mo) et l'OS de base (~150 Mo). Dans l'image CUDA,

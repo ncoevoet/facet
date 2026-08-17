@@ -27,6 +27,7 @@ import { PersonCardComponent, Person } from '../../shared/components/person-card
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { PersonsFiltersService } from './persons-filters.service';
+import { GalleryStore } from '../gallery/gallery.store';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 
 interface PersonsResponse {
@@ -60,7 +61,7 @@ export interface SplitPersonResult {
       <div class="grid grid-cols-3 gap-3">
         @for (person of data.persons; track person.id) {
           <button
-            class="flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors"
+            class="flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-colors cursor-pointer"
             [class.border-blue-500]="selectedTarget === person.id"
             [class.border-transparent]="selectedTarget !== person.id"
             [class.bg-blue-900/30]="selectedTarget === person.id"
@@ -157,7 +158,7 @@ export class NewPersonDialogComponent {
         <div class="flex flex-wrap gap-2 justify-center">
           @for (face of faces(); track face.id; let i = $index) {
             <button
-              class="relative rounded-lg overflow-hidden border-2 transition-colors"
+              class="relative rounded-lg overflow-hidden border-2 transition-colors cursor-pointer"
               [class.border-blue-500]="selectedIds().has(face.id)"
               [class.border-transparent]="!selectedIds().has(face.id)"
               [attr.aria-pressed]="selectedIds().has(face.id)"
@@ -279,9 +280,11 @@ export class PersonFacesDialogComponent implements OnInit {
         <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.manage_persons.new_person | translate" [attr.aria-label]="I18N.manage_persons.new_person | translate" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
           <mat-icon>person_add</mat-icon>
         </button>
-        <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/merge-suggestions" [matTooltip]="I18N.persons.merge_suggestions | translate" [attr.aria-label]="I18N.persons.merge_suggestions | translate">
-          <mat-icon>auto_fix_high</mat-icon>
-        </a>
+        @if (store.config()?.features?.show_merge_suggestions) {
+          <a mat-icon-button class="!hidden lg:!inline-flex" routerLink="/merge-suggestions" [matTooltip]="I18N.persons.merge_suggestions | translate" [attr.aria-label]="I18N.persons.merge_suggestions | translate">
+            <mat-icon>auto_fix_high</mat-icon>
+          </a>
+        }
         <button
           class="!hidden lg:!inline-flex"
           mat-icon-button
@@ -308,7 +311,7 @@ export class PersonFacesDialogComponent implements OnInit {
       @if (auth.isEdition() && needsNaming().length > 0) {
         <div class="mb-6 rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] overflow-hidden">
           <button
-            class="flex items-center w-full px-4 py-2 gap-2 text-left hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+            class="flex items-center w-full px-4 py-2 gap-2 text-left hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
             (click)="needsNamingExpanded.set(!needsNamingExpanded())"
           >
             <mat-icon class="opacity-60">{{ needsNamingExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
@@ -393,6 +396,7 @@ export class PersonFacesDialogComponent implements OnInit {
 export class ManagePersonsComponent implements OnInit {
   protected readonly I18N = I18N_KEYS;
   readonly auth = inject(AuthService);
+  protected readonly store = inject(GalleryStore);
   private readonly api = inject(ApiService);
   private readonly i18n = inject(I18nService);
   private readonly pageHelp = inject(PageHelpService);

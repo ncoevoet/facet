@@ -92,7 +92,7 @@ export interface FolderPickerData {
         <div class="flex flex-col gap-1 max-h-[360px] overflow-y-auto">
           @for (folder of filteredChildren(); track folder.path) {
             <button
-              class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full"
+              class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-[var(--mat-sys-surface-container-high)] transition-colors text-left w-full cursor-pointer"
               (click)="navigateTo(folder.path)"
             >
               <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60 shrink-0">folder</mat-icon>

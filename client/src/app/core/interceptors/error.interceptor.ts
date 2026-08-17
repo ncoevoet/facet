@@ -5,6 +5,7 @@ import { catchError, throwError } from 'rxjs';
 import { AuthService } from '../services/auth.service';
 import { I18nService } from '../services/i18n.service';
 import { I18N } from '../i18n/keys';
+import { extractErrorDetail } from '../utils/http-error.util';
 
 const CLIENT_ERRORS_URL = '/api/client-errors';
 
@@ -43,23 +44,25 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         // Reconcile before reporting, so the toast can say which of the two it
         // was and the Edition indicator stops lying either way.
         const hadEdition = auth.isEdition();
+        const detail = extractErrorDetail(error);
         void auth.revalidate().then(() => {
           const lostEdition = hadEdition && !auth.isEdition();
+          const base = i18n.t(lostEdition ? I18N.errors.edition_expired : I18N.errors.access_denied);
+          // The detail is the server's own (untranslated) prose, so it is
+          // labelled as a server message rather than spliced straight after
+          // a translated sentence -- otherwise a non-English user sees their
+          // language switch to English mid-toast with nothing explaining why.
           snackBar.open(
-            i18n.t(lostEdition ? I18N.errors.edition_expired : I18N.errors.access_denied),
+            detail ? `${base} — ${i18n.t(I18N.errors.server_detail)} ${detail}` : base,
             '',
-            { duration: lostEdition ? 6000 : 3000 },
+            { duration: detail ? 8000 : (lostEdition ? 6000 : 3000) },
           );
         });
       } else if (error.status >= 500) {
         snackBar.open(i18n.t(I18N.errors.server_error), '', { duration: 3000 });
         if (!isCrashReportUrl(req.url)) {
           let msg = `${req.method} ${req.url} -> ${error.status}`;
-          const body = error.error as Record<string, unknown> | null;
-          const detail = body && typeof body === 'object'
-            ? (typeof body['detail'] === 'string' ? body['detail'] :
-               typeof body['message'] === 'string' ? body['message'] : undefined)
-            : undefined;
+          const detail = extractErrorDetail(error);
           if (detail) msg += `: ${detail}`;
           crashReporter.post(CLIENT_ERRORS_URL, {
             message: msg.slice(0, 2000),

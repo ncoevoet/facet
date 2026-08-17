@@ -6,7 +6,28 @@ Sharpness, color harmony, exposure, noise, contrast, dynamic range.
 
 import cv2
 import numpy as np
-import struct
+
+from utils.histogram import (
+    CLIP_MEASURED_CHANNELS, HIGHLIGHT_CLIP_BIN, SHADOW_CLIP_BIN, pack_histogram,
+)
+
+
+def _channel_clip_percents(red, green, blue):
+    """``(shadow_pct, highlight_pct)``: the worst channel's share of clipped pixels.
+
+    Measured here from the real per-channel counts rather than re-derived from
+    the packed BLOB, so the scan's own numbers carry no packing error at all.
+    ``utils.histogram.max_clip_percents`` reproduces these from a stored blob
+    for the rows that were written before the columns existed.
+    """
+    channels = dict(zip(CLIP_MEASURED_CHANNELS, (red, green, blue)))
+    total = float(np.asarray(red, dtype=np.float64).sum())
+    if total <= 0:
+        return 0.0, 0.0
+    return tuple(
+        round(max(float(c[index]) for c in channels.values()) / total * 100.0, 4)
+        for index in (SHADOW_CLIP_BIN, HIGHLIGHT_CLIP_BIN)
+    )
 
 
 class TechnicalAnalyzer:
@@ -140,6 +161,8 @@ class TechnicalAnalyzer:
                 'exposure_score': 5.0,
                 'shadow_clipped': 0,
                 'highlight_clipped': 0,
+                'channel_clip_shadow_pct': None,
+                'channel_clip_highlight_pct': None,
                 'is_silhouette': 0
             }
 
@@ -153,8 +176,13 @@ class TechnicalAnalyzer:
         total = hist.sum()
         hist_normalized = hist / total if total > 0 else hist
 
-        # Convert histogram to bytes for storage (256 floats as binary)
-        histogram_bytes = struct.pack('256f', *hist_normalized)
+        # image_cv is BGR; the stored channel order is R, G, B.
+        blue, green, red = (
+            cv2.calcHist([image_cv], [c], None, [256], [0, 256]).flatten()
+            for c in (0, 1, 2)
+        )
+        histogram_bytes = pack_histogram(hist, red, green, blue)
+        channel_clip_shadow, channel_clip_highlight = _channel_clip_percents(red, green, blue)
 
         # Calculate histogram spread (standard deviation of distribution)
         bins = np.arange(256)
@@ -210,6 +238,8 @@ class TechnicalAnalyzer:
             'exposure_score': round(exposure_score, 2),
             'shadow_clipped': shadow_clipped,
             'highlight_clipped': highlight_clipped,
+            'channel_clip_shadow_pct': channel_clip_shadow,
+            'channel_clip_highlight_pct': channel_clip_highlight,
             'is_silhouette': is_silhouette
         }
 

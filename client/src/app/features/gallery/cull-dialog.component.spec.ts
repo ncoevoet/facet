@@ -68,4 +68,44 @@ describe('CullDialogComponent', () => {
     await component.apply();
     expect(dialogClose).not.toHaveBeenCalled();
   });
+
+  it('surfaces the server-supplied reason in the dialog on apply failure', async () => {
+    build();
+    set('targetDir', '/dest');
+    post.mockReturnValueOnce(throwError(() => ({
+      error: { detail: 'target_dir is not an allowed export location. Configure viewer.export.allowed_target_dirs' },
+    })));
+    await component.apply();
+    expect(read<string | null>('errorDetail')).toBe(
+      'target_dir is not an allowed export location. Configure viewer.export.allowed_target_dirs',
+    );
+  });
+
+  it('surfaces the server-supplied reason in the dialog on preview failure', async () => {
+    build();
+    set('targetDir', '/dest');
+    post.mockReturnValueOnce(throwError(() => ({ error: { detail: 'no allowed roots configured' } })));
+    await component.runPreview();
+    expect(read<string | null>('errorDetail')).toBe('no allowed roots configured');
+  });
+
+  it('falls back to null errorDetail when the error has no detail', async () => {
+    build();
+    set('targetDir', '/dest');
+    post.mockReturnValueOnce(throwError(() => new Error('boom')));
+    await component.apply();
+    expect(read<string | null>('errorDetail')).toBeNull();
+  });
+
+  it('clears a prior errorDetail on a new attempt', async () => {
+    build();
+    set('targetDir', '/dest');
+    post.mockReturnValueOnce(throwError(() => ({ error: { detail: 'first failure' } })));
+    await component.apply();
+    expect(read<string | null>('errorDetail')).toBe('first failure');
+
+    post.mockReturnValueOnce(of({ would_copy: [], skipped: [] }));
+    await component.runPreview();
+    expect(read<string | null>('errorDetail')).toBeNull();
+  });
 });

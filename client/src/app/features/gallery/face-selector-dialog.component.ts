@@ -39,7 +39,7 @@ interface PhotoFace {
         <div class="flex flex-wrap gap-2 justify-center">
           @for (face of unassignedFaces(); track face.id) {
             <button
-              class="relative rounded-full overflow-hidden border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors"
+              class="relative rounded-full overflow-hidden border-2 border-transparent hover:border-[var(--mat-sys-primary)] transition-colors cursor-pointer"
               (click)="dialogRef.close(face)">
               <img [src]="face.id | faceThumbnailUrl"
                    alt=""

@@ -47,7 +47,7 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   date_taken: null,
   image_width: 1920,
   image_height: 1080,
-  is_best_of_burst: null,
+  is_burst_lead: null,
   burst_group_id: null,
   duplicate_group_id: null,
   is_duplicate_lead: null,
@@ -71,10 +71,13 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   selector: 'test-host',
   standalone: true,
   imports: [PhotoCardComponent],
-  template: `<app-photo-card [photo]="photo()" />`,
+  template: `<app-photo-card [photo]="photo()" [config]="config()"
+                             [burstFramesVisible]="burstFramesVisible()" />`,
 })
 class TestHostComponent {
   photo = signal<Photo>(makePhoto());
+  config = signal<Record<string, unknown> | null>(null);
+  burstFramesVisible = signal(false);
 }
 
 describe('PhotoCardComponent', () => {
@@ -225,13 +228,166 @@ describe('PhotoCardComponent', () => {
       expect(getTile().getAttribute('aria-label')).toBe('shot.jpg');
     });
   });
+
+  describe('badge visibility config', () => {
+    function iconNames(): string[] {
+      return (Array.from(fixture.nativeElement.querySelectorAll('mat-icon')) as HTMLElement[])
+        .map(icon => icon.textContent?.trim() ?? '');
+    }
+
+    it('draws every badge by default, so an install that configures nothing is unchanged', () => {
+      fixture.componentInstance.photo.set(
+        makePhoto({ keeper_hint: { has_better: true, best_path: '/o.jpg', keeper_prob: 0.2 } }),
+      );
+      fixture.detectChanges();
+
+      expect(iconNames()).toContain('arrow_circle_up');
+    });
+
+    it('hides a badge the config turns off', () => {
+      fixture.componentInstance.config.set({ badges: { keeper_hint: false } });
+      fixture.componentInstance.photo.set(
+        makePhoto({ keeper_hint: { has_better: true, best_path: '/o.jpg', keeper_prob: 0.2 } }),
+      );
+      fixture.detectChanges();
+
+      expect(iconNames()).not.toContain('arrow_circle_up');
+    });
+  });
+
+  describe('best-of-burst badge', () => {
+    function hasBestBadge(): boolean {
+      return Array.from(fixture.nativeElement.querySelectorAll('span'))
+        .some(el => (el as HTMLElement).textContent?.trim() === 'ui.badges.best');
+    }
+
+    it('renders when the photo leads a burst whose other frames are on screen', () => {
+      // The assertion this whole badge lacked: PRESENT for a truthy value.
+      // Every earlier spec asserted a falsy one, which is why a badge keyed on
+      // a field no backend ever sent passed for the life of the viewer.
+      fixture.componentInstance.burstFramesVisible.set(true);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 'burst-1' }));
+      fixture.detectChanges();
+
+      expect(hasBestBadge()).toBe(true);
+    });
+
+    it('stays hidden while the burst is collapsed behind its lead', () => {
+      fixture.componentInstance.burstFramesVisible.set(false);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 'burst-1' }));
+      fixture.detectChanges();
+
+      expect(hasBestBadge()).toBe(false);
+    });
+
+    it('stays hidden for a frame that does not lead its burst', () => {
+      fixture.componentInstance.burstFramesVisible.set(true);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: false, burst_group_id: 'burst-1' }));
+      fixture.detectChanges();
+
+      expect(hasBestBadge()).toBe(false);
+    });
+
+    it('stays hidden for a standalone photo that is in no burst at all, even though is_burst_lead is also the sentinel for "not a hidden burst member"', () => {
+      fixture.componentInstance.burstFramesVisible.set(true);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: null }));
+      fixture.detectChanges();
+
+      expect(hasBestBadge()).toBe(false);
+    });
+
+    it('can be turned off in the config', () => {
+      fixture.componentInstance.config.set({ badges: { best_of_burst: false } });
+      fixture.componentInstance.burstFramesVisible.set(true);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 'burst-1' }));
+      fixture.detectChanges();
+
+      expect(hasBestBadge()).toBe(false);
+    });
+  });
+
+  describe('clipping badge', () => {
+    function clipIcon(): string | null {
+      const icons = Array.from(fixture.nativeElement.querySelectorAll('mat-icon')) as HTMLElement[];
+      const found = icons.find(
+        icon => icon.textContent?.trim() === 'flare' || icon.textContent?.trim() === 'brightness_low',
+      );
+      return found ? found.textContent!.trim() : null;
+    }
+
+    it('badges a photo whose highlights clip past the threshold', () => {
+      fixture.componentInstance.photo.set(makePhoto({ channel_clip_highlight_pct: 41.7 }));
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBe('flare');
+    });
+
+    it('leaves a photo below the threshold alone', () => {
+      // 2.35% is the p90 of the sampled library — common, and not worth a badge.
+      fixture.componentInstance.photo.set(makePhoto({ channel_clip_highlight_pct: 2.35 }));
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBeNull();
+    });
+
+    it('says nothing about a photo that was never measured', () => {
+      // null is unknown, not clean — and must not be compared as if it were 0.
+      fixture.componentInstance.photo.set(
+        makePhoto({ channel_clip_highlight_pct: null, channel_clip_shadow_pct: null }),
+      );
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBeNull();
+    });
+
+    it('ignores shadow clipping by default, because it is usually deliberate', () => {
+      fixture.componentInstance.photo.set(makePhoto({ channel_clip_shadow_pct: 30.4 }));
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBeNull();
+    });
+
+    it('badges shadows once they are opted in', () => {
+      fixture.componentInstance.config.set({ badges: { clipping_shadow: true } });
+      fixture.componentInstance.photo.set(makePhoto({ channel_clip_shadow_pct: 30.4 }));
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBe('brightness_low');
+    });
+
+    it('prefers the highlight badge when both directions clip', () => {
+      fixture.componentInstance.config.set({ badges: { clipping_shadow: true } });
+      fixture.componentInstance.photo.set(
+        makePhoto({ channel_clip_highlight_pct: 20, channel_clip_shadow_pct: 30 }),
+      );
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBe('flare');
+    });
+
+    it('honours a configured threshold', () => {
+      fixture.componentInstance.config.set({ clipping: { badge_percent: 1 } });
+      fixture.componentInstance.photo.set(makePhoto({ channel_clip_highlight_pct: 2.35 }));
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBe('flare');
+    });
+
+    it('can be turned off entirely', () => {
+      fixture.componentInstance.config.set({ badges: { clipping_highlight: false } });
+      fixture.componentInstance.photo.set(makePhoto({ channel_clip_highlight_pct: 41.7 }));
+      fixture.detectChanges();
+
+      expect(clipIcon()).toBeNull();
+    });
+  });
 });
 
 describe('PhotoCardComponent tooltip emission', () => {
   const mockI18n = { t: vi.fn((key: string) => key), currentLang: vi.fn(() => 'en'), locale: vi.fn(() => 'en'), translations: vi.fn(() => ({})) };
 
   /** Drive the card directly: this is about which gesture emits, not markup. */
-  function card(mode: 'hover' | 'click' | 'off' | 'panel') {
+  function card(mode: 'hover' | 'click' | 'off' | 'panel', panelActivation?: 'hover' | 'click' | 'both') {
     TestBed.configureTestingModule({
       imports: [PhotoCardComponent],
       providers: [{ provide: I18nService, useValue: mockI18n }],
@@ -239,6 +395,7 @@ describe('PhotoCardComponent tooltip emission', () => {
     const fixture = TestBed.createComponent(PhotoCardComponent);
     fixture.componentRef.setInput('photo', makePhoto());
     fixture.componentRef.setInput('tooltipMode', mode);
+    if (panelActivation) fixture.componentRef.setInput('panelActivation', panelActivation);
     fixture.detectChanges();
     const shown: string[] = [];
     let hidden = 0;
@@ -278,6 +435,57 @@ describe('PhotoCardComponent tooltip emission', () => {
     const { c, hidden } = card('panel');
     c.onMouseLeave();
     expect(hidden()).toBe(1);
+  });
+
+  // --- panelActivation: which gesture(s) retarget panel mode ----------------
+
+  it('activation "both" (the default) retargets on hover AND click', () => {
+    const { c, shown } = card('panel', 'both');
+    c.onMouseEnter(clickEvent);
+    c.onSelect(clickEvent);
+    expect(shown).toEqual(['/test.jpg', '/test.jpg']);
+  });
+
+  it('activation "hover" retargets on hover but does NOT retarget on click', () => {
+    const { c, shown } = card('panel', 'hover');
+    c.onMouseEnter(clickEvent);
+    expect(shown).toEqual(['/test.jpg']);
+    c.onSelect(clickEvent);
+    // A test that only checked the 'both' default would pass even if 'hover'
+    // also retargeted on click -- assert the click contributed nothing.
+    expect(shown).toEqual(['/test.jpg']);
+  });
+
+  it('activation "click" retargets on click but does NOT retarget on hover', () => {
+    const { c, shown } = card('panel', 'click');
+    c.onMouseEnter(clickEvent);
+    // A test that only checked the 'both' default would pass even if 'click'
+    // also retargeted on hover -- assert the hover contributed nothing.
+    expect(shown).toEqual([]);
+    c.onSelect(clickEvent);
+    expect(shown).toEqual(['/test.jpg']);
+  });
+
+  it('activation "click" does not clear the panel on mouse-out -- it was deliberately pinned there', () => {
+    const { c, hidden } = card('panel', 'click');
+    c.onMouseLeave();
+    expect(hidden()).toBe(0);
+  });
+
+  it('activation "hover" still clears the panel on mouse-out', () => {
+    const { c, hidden } = card('panel', 'hover');
+    c.onMouseLeave();
+    expect(hidden()).toBe(1);
+  });
+
+  it('Space retargets the panel regardless of activation -- a keyboard user has no hover to fall back on', () => {
+    const keyEvent = { preventDefault: () => {} } as unknown as Event;
+    for (const activation of ['hover', 'click', 'both'] as const) {
+      const { c, shown } = card('panel', activation);
+      c.onKeySelect(keyEvent);
+      expect(shown).toEqual(['/test.jpg']);
+      TestBed.resetTestingModule();
+    }
   });
 
   it('off mode reports nothing at all', () => {
@@ -334,4 +542,5 @@ describe('PhotoCardComponent tooltip emission', () => {
       TestBed.resetTestingModule();
     }
   });
+
 });

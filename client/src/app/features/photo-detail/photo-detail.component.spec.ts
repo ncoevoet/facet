@@ -392,6 +392,27 @@ describe('PhotoDetailComponent', () => {
       expect(component.photo().is_favorite).toBe(false);
     });
 
+    it('clears the star rating when the response reports a reject', async () => {
+      mockApi.post.mockReturnValue(of({ is_rejected: true, is_favorite: null, star_rating: 0 }));
+      createComponent();
+      component.photo.set({ ...samplePhoto, is_rejected: false, is_favorite: false, star_rating: 3 });
+
+      await component.toggleRejected('/photos/test.jpg');
+
+      expect(component.photo().star_rating).toBe(0);
+    });
+
+    it('keeps the prior star rating when un-rejecting (server sends null = unchanged)', async () => {
+      mockApi.post.mockReturnValue(of({ is_rejected: false, is_favorite: null, star_rating: null }));
+      createComponent();
+      component.photo.set({ ...samplePhoto, is_rejected: true, is_favorite: false, star_rating: 4 });
+
+      await component.toggleRejected('/photos/test.jpg');
+
+      expect(component.photo().is_rejected).toBe(false);
+      expect(component.photo().star_rating).toBe(4);
+    });
+
     it('should not call API when photo is null', async () => {
       createComponent();
       component.photo.set(null);
@@ -516,6 +537,167 @@ describe('PhotoDetailComponent', () => {
 
       expect(component.explainerOpen()).toBe(false);
       expect(mockApi.get).not.toHaveBeenCalledWith('/config/category_priorities');
+    });
+  });
+
+  describe('photo set', () => {
+    it('fetches the set for the photo and exposes it', async () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/set') {
+          return of({ kind: 'bracket', group_id: 1, count: 3, ev_span: 2, members: [] });
+        }
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+      createComponent();
+
+      component.photo.set(samplePhoto);
+      TestBed.flushEffects();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+      expect(component.photoSet()).toEqual({ kind: 'bracket', group_id: 1, count: 3, ev_span: 2, members: [] });
+    });
+
+    it('ignores a stale set response after navigating to another photo', async () => {
+      const photoA = { ...samplePhoto, path: '/photos/a.jpg' };
+      const photoB = { ...samplePhoto, path: '/photos/b.jpg' };
+      const setSubjects: Subject<{ kind: string; group_id: number; count: number; ev_span: number | null; members: unknown[] }>[] = [];
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/set') {
+          const subject = new Subject<{ kind: string; group_id: number; count: number; ev_span: number | null; members: unknown[] }>();
+          setSubjects.push(subject);
+          return subject.asObservable();
+        }
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+
+      createComponent();
+      component.photo.set(photoA);
+      TestBed.flushEffects();
+      component.photo.set(photoB);
+      TestBed.flushEffects();
+
+      expect(setSubjects.length).toBe(2);
+
+      setSubjects[1].next({ kind: 'burst', group_id: 5, count: 2, ev_span: null, members: [] });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(component.photoSet()?.kind).toBe('burst');
+
+      setSubjects[0].next({ kind: 'duplicate', group_id: 9, count: 2, ev_span: null, members: [] });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(component.photoSet()?.kind).toBe('burst');
+    });
+  });
+
+  describe('openSetMember', () => {
+    it('does nothing when clicking the currently open photo', async () => {
+      createComponent();
+      component.photo.set(samplePhoto);
+
+      await component.openSetMember(samplePhoto.path);
+
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
+    it('loads and navigates to the sibling photo', async () => {
+      const sibling = { ...samplePhoto, path: '/photos/sibling.jpg', tags: '', tags_list: undefined, persons: undefined };
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo') return of(sibling);
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of({ kind: null, group_id: null, count: 0, ev_span: null, members: [] });
+      });
+      createComponent();
+      component.photo.set(samplePhoto);
+
+      await component.openSetMember('/photos/sibling.jpg');
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/photo'], {
+        queryParams: { path: '/photos/sibling.jpg' },
+        state: { photo: expect.objectContaining({ path: '/photos/sibling.jpg' }) },
+      });
+      expect(component.photo()?.path).toBe('/photos/sibling.jpg');
+    });
+  });
+
+  describe('openSetInGallery', () => {
+    it('does nothing without an active set', () => {
+      createComponent();
+
+      component.openSetInGallery();
+
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
+    it('scopes to the bracket set and clears only hide_brackets, carried via navigation state', () => {
+      createComponent();
+      component.photoSet.set({ kind: 'bracket', group_id: 3, count: 3, ev_span: 2, members: [] });
+      mockRouter.navigate.mockResolvedValue(true);
+
+      component.openSetInGallery();
+
+      // Never the URL / a post-navigate updateFilters() call: the gallery
+      // route re-initialises filters from config + localStorage + URL on
+      // activation, which races a call made after navigate() resolves.
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
+        state: {
+          setScope: {
+            sequence_group_id: '3', sequence_kind: 'bracket', burst_group_id: '', duplicate_group_id: '',
+            hide_brackets: false,
+          },
+        },
+      });
+    });
+
+    it('scopes to the panorama set and clears only hide_panoramas', () => {
+      createComponent();
+      component.photoSet.set({ kind: 'panorama', group_id: 4, count: 5, ev_span: null, members: [] });
+      mockRouter.navigate.mockResolvedValue(true);
+
+      component.openSetInGallery();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
+        state: {
+          setScope: {
+            sequence_group_id: '4', sequence_kind: 'panorama', burst_group_id: '', duplicate_group_id: '',
+            hide_panoramas: false,
+          },
+        },
+      });
+    });
+
+    it('scopes to the burst set and clears only hide_bursts', () => {
+      createComponent();
+      component.photoSet.set({ kind: 'burst', group_id: 5, count: 2, ev_span: null, members: [] });
+      mockRouter.navigate.mockResolvedValue(true);
+
+      component.openSetInGallery();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
+        state: {
+          setScope: {
+            sequence_group_id: '', sequence_kind: '', burst_group_id: '5', duplicate_group_id: '',
+            hide_bursts: false,
+          },
+        },
+      });
+    });
+
+    it('scopes to the duplicate set and clears only hide_duplicates', () => {
+      createComponent();
+      component.photoSet.set({ kind: 'duplicate', group_id: 9, count: 2, ev_span: null, members: [] });
+      mockRouter.navigate.mockResolvedValue(true);
+
+      component.openSetInGallery();
+
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
+        state: {
+          setScope: {
+            sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '9',
+            hide_duplicates: false,
+          },
+        },
+      });
     });
   });
 });

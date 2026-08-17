@@ -296,7 +296,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                   <div class="flex flex-wrap gap-2">
                     @for (name of promotableCategories(); track name) {
                       <button type="button"
-                        class="px-2 py-1 rounded-full text-xs border border-[var(--mat-sys-outline-variant)] text-gray-400 hover:text-gray-200"
+                        class="px-2 py-1 rounded-full text-xs border border-[var(--mat-sys-outline-variant)] text-gray-400 hover:text-gray-200 cursor-pointer"
                         (click)="promoteCategory(name)">
                         {{ ('category_names.' + name) | translate }}
                       </button>
@@ -316,6 +316,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
               <div class="flex flex-wrap gap-2">
                 @for (chip of exclusionChips(); track chip.name) {
                   <button type="button"
+                    class="cursor-pointer"
                     [class]="chip.excluded
                       ? 'px-2 py-1 rounded-full text-xs border border-red-500/30 bg-red-500/10 text-red-400'
                       : 'px-2 py-1 rounded-full text-xs border border-[var(--mat-sys-outline-variant)] text-gray-400 hover:text-gray-200'"

@@ -56,6 +56,43 @@ Multiple mappings are supported (first match wins):
 - Both UNC paths (`\\server\share`) and drive letters (`Z:\`) are supported
 - The first matching prefix wins
 
+## Container Path Semantics
+
+Anything you type into a folder field in the viewer — a "Cull to folder" target, an album's copy/symlink export destination, or `viewer.export.allowed_target_dirs` in `scoring_config.json` — is resolved by the Facet process itself. **In Docker/Podman that process runs inside the container**, so every path is the path *the container* sees: the mount point, never the host-side path.
+
+**Example.** The shipped `docker-compose.yml` mounts your photo folder at `/data/photos`:
+
+```yaml
+volumes:
+  - ${PHOTOS_DIR:-./photos}:/data/photos
+```
+
+To cull rejects into a `rejects` subfolder, enter `/data/photos/rejects` in the dialog — never the host path (`/home/you/Pictures`, `D:\Photos`, …), which the container cannot see at all. The same applies to `viewer.export.allowed_target_dirs`: list the container-side path.
+
+To write somewhere other than the scanned photo tree — a separate export volume, say — mount it into the container first, then add its container-side path to `viewer.export.allowed_target_dirs`:
+
+```yaml
+services:
+  facet:
+    volumes:
+      - ${PHOTOS_DIR:-./photos}:/data/photos
+      - /volume1/Exports:/data/exports   # extra volume for cull/export output
+```
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+A destination that resolves outside every mounted volume is refused (`403`) — Facet's target-dir check runs `os.path.realpath()` on the request *and* on every allowed root, resolving symlinks and `..` before comparing, so a path that only looks right from outside the container (or a symlink pointing outside a mount) still fails the containment test. See [Configuration — Export and Cull Destinations](CONFIGURATION.md#export-and-cull-destinations) for the full allow-list reference.
+
+**This is not a container-user permission problem.** The `facet` user's UID inside the container commonly differs from your host account's UID, and that can cause a real, separate filesystem-permission failure on a bind mount — but that happens *after* this path check passes, when the copy/symlink/move actually runs, and it is logged server-side with the underlying OS error for the file that failed. A `403 target_dir is not an allowed export location` (or a generic "access denied" in the UI) happens *before* any file is touched and has nothing to do with UIDs.
+
 ## Building the Angular Client
 
 The FastAPI server serves the pre-built SPA from `client/dist/client/browser/`. Build it before deployment:
@@ -101,7 +138,8 @@ python database.py --export-viewer-db
 ```
 
 This creates `photo_scores_viewer.db`, which:
-- Strips CLIP embeddings, histogram data, and face embeddings
+- Strips CLIP embeddings, caption embeddings, and face embeddings
+- Keeps the per-photo histogram (~2 KB each), which the viewer's RGB histogram widget reads
 - Downsizes thumbnails from 640px to 320px
 - Typically reduces a 14GB database to ~4-5GB
 
@@ -207,9 +245,11 @@ What follows is only what differs on a NAS.
 
 **Both published images are `linux/amd64` (x86_64) only.** That covers x86 NAS hardware (Synology Plus/x86, UGREEN, UnifyDrive, and anything running Coolify, Portainer or plain Docker on an Intel/AMD CPU). There is no `arm64` image: cross-building a multi-gigabyte ML stack under QEMU costs hours per tag, and the CUDA variant is x86-only regardless. On an ARM NAS or a Raspberry Pi, build locally with `docker compose build` instead of pulling — `docker compose up` keeps `build: .` underneath the `image:` key for exactly this case.
 
-**Budget the disk.** The CPU image is ~3.3 GB and the CUDA image ~21 GB, plus the model
-weights each profile downloads at first run (~3–4 GB for `legacy`/`8gb`, ~10–11 GB for
-`16gb`, ~18 GB for `24gb` — full table in
+**Budget the disk.** Unpacked, the CPU image is approximately 3.3 GB on disk and the
+CUDA image approximately 21 GB (approximate, not reverified against the current build;
+pulling either transfers less, compressed — see [Image size](#image-size) below), plus
+the model weights each profile downloads at first run (`legacy` 4.69 GB, `8gb` 6.93 GB,
+`16gb` 14.55 GB, `24gb` 19.13 GB — full table in
 [Installation › Download sizes](INSTALLATION.md#download-sizes)). `docker compose down -v`
 deletes the model volumes and forces a re-download.
 
@@ -352,10 +392,16 @@ Neither published image contains model weights — those download at first run i
 named volumes ([per-profile totals](INSTALLATION.md#download-sizes)). Budget disk for the
 image **plus** those volumes.
 
-| Image | Measured size | Base |
-|-------|------|------|
-| `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3.3 GB | `python:3.12-slim` + CPU-wheel PyTorch |
-| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 GB | CUDA PyTorch + RAPIDS cuML |
+| Image | Compressed download | On disk (approx.) | Base |
+|-------|------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | 4.18 GB | ~3.3 GB | `python:3.12-slim` + CPU-wheel PyTorch |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 7.33 GB | ~21 GB | CUDA PyTorch + RAPIDS cuML |
+
+"Compressed download" is what `docker pull` transfers, measured from the current
+`ghcr.io/ncoevoet/facet` registry manifests. "On disk" is the unpacked image footprint
+after decompression; those figures were not reverified against the current `:latest`
+digest for this pass, so treat them as an approximate planning number rather than a
+precise current measurement.
 
 The CPU image is dominated by the ML dependency stack (~1.9 GB) rather than PyTorch
 itself (~960 MB), plus system libs (~288 MB) and the base OS (~150 MB). In the CUDA image

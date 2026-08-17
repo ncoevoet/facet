@@ -101,5 +101,12 @@ the confirm's 7-second cooldown — the correction lands only at the next run, s
 - Gallery toggle `hide_panoramas` (default `true`), keyed on `is_sequence_lead`; the
   representative tile carries a `sequence_kind` badge (shared `SequenceKindIconPipe`), shown
   only while the matching hide toggle is collapsing the set.
+- `GET /api/photo/set?path=` resolves the set (bracket/panorama/hdr_panorama, else burst,
+  else duplicate) a photo belongs to, keyed on `path`. It filters by `sequence_kind` before
+  grouping by `sequence_group_id` for the same reason every other reader must. The gallery's
+  "open this set" scope (`sequence_group_id`/`sequence_kind`/`burst_group_id`/
+  `duplicate_group_id` on `GalleryParams`) is deliberately excluded from the URL sync and
+  `RANGE_AND_SELECT_KEYS` in `gallery-filters.util.ts` — the group id is not stable across a
+  re-run, so it must never be bookmarkable.
 - Config block: `panorama_detection`. Thresholds are documented in
   [docs/CONFIGURATION.md](../../docs/CONFIGURATION.md).

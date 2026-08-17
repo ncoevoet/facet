@@ -146,6 +146,9 @@ class TestCullApply:
         assert body["excluded_by_state"] == 1
 
     def test_move_outside_allowlist_403(self, client, tmp_path):
+        """The 403 names the config key and the resolved roots so a container
+        user hitting 'Cull to folder' can fix their own config instead of
+        getting a bare 'Access denied' (see discussion #106)."""
         path = _make_file(tmp_path, "a.jpg")
         db = _db(tmp_path, [(path, 1)])
         allowed = str(tmp_path / "allowed")
@@ -160,6 +163,9 @@ class TestCullApply:
             })
         assert resp.status_code == 403
         assert os.path.isfile(path)  # never moved
+        detail = resp.json()["detail"]
+        assert "viewer.export.allowed_target_dirs" in detail
+        assert allowed in detail
 
     def test_move_requires_target_dir(self, client, tmp_path):
         path = _make_file(tmp_path, "a.jpg")

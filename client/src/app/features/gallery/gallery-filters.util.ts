@@ -11,6 +11,13 @@ export type TooltipMode = 'hover' | 'click' | 'off' | 'panel';
 /** Every accepted tooltip mode, so the URL parser and the mode picker cannot drift apart. */
 export const TOOLTIP_MODES: readonly TooltipMode[] = ['hover', 'click', 'off', 'panel'];
 
+/** Which gesture(s) retarget the docked panel (tooltip_mode 'panel'). Meaningless
+ *  for every other tooltip mode, which already has a single, fixed gesture.
+ *  Default 'both' preserves the original panel behaviour exactly. */
+export type PanelActivation = 'hover' | 'click' | 'both';
+
+export const PANEL_ACTIVATIONS: readonly PanelActivation[] = ['hover', 'click', 'both'];
+
 export const GALLERY_MODE_KEY = 'facet_gallery_mode';
 export const DRAWER_STATE_KEY = 'facet_filter_drawer_open';
 export const DISPLAY_OPTIONS_KEY = 'facet_display_options';
@@ -102,6 +109,13 @@ export interface GalleryFilters {
   max_luminance: string;
   min_histogram_spread: string;
   max_histogram_spread: string;
+  /** Per-channel clipping, percent of pixels in the worst of R/G/B. A photo
+   *  that was never measured is NULL server-side and matches neither bound:
+   *  unknown is not clean. */
+  min_channel_clip_shadow: string;
+  max_channel_clip_shadow: string;
+  min_channel_clip_highlight: string;
+  max_channel_clip_highlight: string;
   // User ratings
   min_star_rating: string;
   max_star_rating: string;
@@ -133,9 +147,18 @@ export interface GalleryFilters {
   gps_lat: string;
   gps_lng: string;
   gps_radius_km: string;
+  // Set scope (photo-detail "open this set in the gallery"). Ephemeral --
+  // NEVER added to RANGE_AND_SELECT_KEYS: sequence_group_id is renumbered
+  // from 1 on every detection pass, so round-tripping it through the URL
+  // would let a bookmarked link silently resolve to a different set later.
+  sequence_group_id: string;
+  sequence_kind: string;
+  burst_group_id: string;
+  duplicate_group_id: string;
   // Display
   hide_details: boolean;
   tooltip_mode: TooltipMode;
+  panel_activation: PanelActivation;
   hide_blinks: boolean;
   hide_bursts: boolean;
   hide_duplicates: boolean;
@@ -164,15 +187,17 @@ export interface FilterDefaults {
   hide_panoramas?: boolean;
   hide_rejected?: boolean;
   tooltip_mode?: TooltipMode;
+  panel_activation?: PanelActivation;
 }
 
 /** Keys excluded when building smart album filter JSON (display-only, ephemeral, or handled separately). */
 export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
   'page', 'per_page', 'semanticQuery', 'album_id',
   'similar_to', 'similarity_mode', 'min_similarity',
-  'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts',
+  'hide_details', 'tooltip_mode', 'panel_activation', 'hide_blinks', 'hide_bursts',
   'hide_duplicates', 'hide_brackets', 'hide_panoramas', 'hide_rejected',
   'gps_lat', 'gps_lng', 'gps_radius_km',
+  'sequence_group_id', 'sequence_kind', 'burst_group_id', 'duplicate_group_id',
 ]);
 
 /** Common string-typed filter keys shared across URL sync, API params, and filter counting. */
@@ -187,6 +212,8 @@ export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'min_noise', 'max_noise', 'min_dynamic_range', 'max_dynamic_range',
   'min_saturation', 'max_saturation', 'min_luminance', 'max_luminance',
   'min_histogram_spread', 'max_histogram_spread',
+  'min_channel_clip_shadow', 'max_channel_clip_shadow',
+  'min_channel_clip_highlight', 'max_channel_clip_highlight',
   'min_power_point', 'max_power_point', 'min_leading_lines', 'max_leading_lines',
   'min_isolation', 'max_isolation',
   'min_aesthetic_iaa', 'max_aesthetic_iaa', 'min_face_quality_iqa', 'max_face_quality_iqa',
@@ -283,6 +310,10 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   max_luminance: '',
   min_histogram_spread: '',
   max_histogram_spread: '',
+  min_channel_clip_shadow: '',
+  max_channel_clip_shadow: '',
+  min_channel_clip_highlight: '',
+  max_channel_clip_highlight: '',
   min_star_rating: '',
   max_star_rating: '',
   min_iso: '',
@@ -301,11 +332,16 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   gps_lat: '',
   gps_lng: '',
   gps_radius_km: '',
+  sequence_group_id: '',
+  sequence_kind: '',
+  burst_group_id: '',
+  duplicate_group_id: '',
   similar_to: '',
   similarity_mode: 'visual',
   min_similarity: '70',
   hide_details: true,
   tooltip_mode: 'hover',
+  panel_activation: 'both',
   hide_blinks: true,
   hide_bursts: true,
   hide_duplicates: true,
@@ -321,11 +357,11 @@ export const DEFAULT_FILTERS: GalleryFilters = {
 };
 
 export type DisplayOptions = Pick<GalleryFilters,
-  'hide_details' | 'tooltip_mode' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas' |
+  'hide_details' | 'tooltip_mode' | 'panel_activation' | 'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas' |
   'hide_rejected' | 'favorites_only' | 'is_monochrome'>;
 
 export const DISPLAY_OPTION_KEYS: (keyof DisplayOptions)[] = [
-  'hide_details', 'tooltip_mode', 'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_panoramas',
+  'hide_details', 'tooltip_mode', 'panel_activation', 'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_panoramas',
   'hide_rejected', 'favorites_only', 'is_monochrome',
 ];
 
@@ -391,6 +427,9 @@ export function applyQueryParams(
   if (params['tooltip_mode'] && TOOLTIP_MODES.includes(params['tooltip_mode'] as TooltipMode)) {
     result.tooltip_mode = params['tooltip_mode'] as TooltipMode;
   }
+  if (params['panel_activation'] && PANEL_ACTIVATIONS.includes(params['panel_activation'] as PanelActivation)) {
+    result.panel_activation = params['panel_activation'] as PanelActivation;
+  }
   if (params['page']) result.page = parseInt(params['page'], 10) || 1;
 
   return result;
@@ -429,6 +468,8 @@ export function buildSyncParams(
     params['hide_rejected'] = String(f.hide_rejected);
   if (f.tooltip_mode !== (defaults?.tooltip_mode ?? 'hover'))
     params['tooltip_mode'] = f.tooltip_mode;
+  if (f.panel_activation !== (defaults?.panel_activation ?? 'both'))
+    params['panel_activation'] = f.panel_activation;
   if (f.favorites_only) params['favorites_only'] = 'true';
   if (f.is_monochrome) params['is_monochrome'] = 'true';
 
@@ -447,7 +488,10 @@ export function buildApiParams(
     sort_direction: f.sort_direction,
   };
 
-  const stringKeys: (keyof GalleryFilters)[] = [...RANGE_AND_SELECT_KEYS, 'album_id'];
+  const stringKeys: (keyof GalleryFilters)[] = [
+    ...RANGE_AND_SELECT_KEYS, 'album_id',
+    'sequence_group_id', 'sequence_kind', 'burst_group_id', 'duplicate_group_id',
+  ];
   for (const key of stringKeys) {
     if (f[key]) params[key] = String(f[key]);
   }

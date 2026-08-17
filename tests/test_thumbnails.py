@@ -135,3 +135,49 @@ class TestImage:
             resp = client.get("/image", params={"path": "/etc/passwd"})
 
         assert resp.status_code == 404
+
+    def test_image_raw_decode_failure_falls_back_to_thumbnail(self, client, jpeg_bytes, tmp_path):
+        """fallback=thumbnail degrades to the stored thumbnail on a RuntimeError, not a 500."""
+        raw_file = tmp_path / "photo.cr2"
+        raw_file.write_bytes(b"not a real raw file")
+
+        mock_conn = mock.MagicMock()
+        photo_row = {"path": "/library/photo.cr2", "sequence_kind": None}
+        thumbnail_row = {"thumbnail": jpeg_bytes}
+        mock_conn.execute.side_effect = [
+            mock.Mock(fetchone=mock.Mock(return_value=photo_row)),
+            mock.Mock(fetchone=mock.Mock(return_value=thumbnail_row)),
+        ]
+
+        with mock.patch("api.routers.thumbnails.get_db", _cm(mock_conn)), \
+             mock.patch("api.routers.thumbnails.resolve_photo_disk_path", return_value=str(raw_file)), \
+             mock.patch(
+                 "api.routers.thumbnails._convert_raw_cached",
+                 side_effect=RuntimeError(f"RAW decode failed: {raw_file}"),
+             ):
+            resp = client.get(
+                "/image", params={"path": "/library/photo.cr2", "fallback": "thumbnail"}
+            )
+
+        assert resp.status_code == 200
+        assert resp.headers["content-type"] == "image/jpeg"
+        assert resp.content == jpeg_bytes
+
+    def test_image_raw_decode_failure_without_fallback_returns_500(self, client, tmp_path):
+        """Without fallback=thumbnail, a RAW decode failure still surfaces as a 500."""
+        raw_file = tmp_path / "photo.cr2"
+        raw_file.write_bytes(b"not a real raw file")
+
+        mock_conn = mock.MagicMock()
+        photo_row = {"path": "/library/photo.cr2", "sequence_kind": None}
+        mock_conn.execute.return_value.fetchone.return_value = photo_row
+
+        with mock.patch("api.routers.thumbnails.get_db", _cm(mock_conn)), \
+             mock.patch("api.routers.thumbnails.resolve_photo_disk_path", return_value=str(raw_file)), \
+             mock.patch(
+                 "api.routers.thumbnails._convert_raw_cached",
+                 side_effect=RuntimeError(f"RAW decode failed: {raw_file}"),
+             ):
+            resp = client.get("/image", params={"path": "/library/photo.cr2"})
+
+        assert resp.status_code == 500

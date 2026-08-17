@@ -11,8 +11,16 @@ import time as time_module
 
 logger = logging.getLogger("facet.stats_cache")
 
-from db.connection import get_connection
+from db.connection import DEFAULT_DB_PATH, get_connection
+from db.render_version import count_pending_render
 from db.schema import _build_create_table_sql, STATS_CACHE_COLUMNS
+
+PENDING_RENDER_KEY = 'pending_render_count'
+
+# The count only moves when a scan or a --refresh-thumbnails run writes, and the
+# banner it drives is advisory. An hour keeps the scan off every SPA startup
+# without letting a finished migration keep nagging for long.
+PENDING_RENDER_TTL_SECONDS = 3600
 
 
 def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
@@ -234,12 +242,46 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
         except sqlite3.OperationalError:
             pass
 
+        pending_render = refresh_pending_render_stat(conn)
+        stats[PENDING_RENDER_KEY] = pending_render
+        if verbose:
+            logger.info("  RAW photos awaiting a thumbnail refresh: %d", pending_render)
+
         conn.commit()
 
     if verbose:
         logger.info("Statistics cache refreshed.")
 
     return stats
+
+
+def refresh_pending_render_stat(conn):
+    """Recount RAW rows awaiting a thumbnail refresh and re-cache the total."""
+    count = count_pending_render(conn)
+    _cache_stat(conn, PENDING_RENDER_KEY, count, time_module.time())
+    return count
+
+
+def get_pending_render_count(db_path=None, max_age_seconds=PENDING_RENDER_TTL_SECONDS):
+    """Cached count of RAW rows whose thumbnail predates the current render.
+
+    Served to ``/api/config``, which the SPA calls on every startup, so the
+    underlying scan must never run per request. A stale entry is recomputed once
+    and re-cached; a miss on a read-only database still answers, it just cannot
+    persist the result.
+    """
+    path = db_path or DEFAULT_DB_PATH
+    value, is_fresh = get_cached_stat(path, PENDING_RENDER_KEY, max_age_seconds)
+    if is_fresh and isinstance(value, int):
+        return value
+    with get_connection(path) as conn:
+        count = count_pending_render(conn)
+        try:
+            _cache_stat(conn, PENDING_RENDER_KEY, count, time_module.time())
+            conn.commit()
+        except sqlite3.OperationalError:
+            logger.debug("Could not persist %s (read-only database?)", PENDING_RENDER_KEY)
+    return count
 
 
 def _cache_stat(conn, key, value, timestamp):

@@ -8,6 +8,7 @@ from typing import Any, Dict, List
 
 
 from db import get_connection
+from utils.histogram import HISTOGRAM_BLOB_SIZE, LEGACY_HISTOGRAM_BLOB_SIZE
 from validation.validation_result import ValidationResult
 
 logger = logging.getLogger("facet.validator")
@@ -375,24 +376,27 @@ class DatabaseValidator:
         self.results.append(result2)
         self._print_result(result2)
 
-        # Check 3: histogram_data BLOB size
+        # Check 3: histogram_data BLOB size. Two formats are valid on disk —
+        # the legacy 256 float32 luminance bins and the current four uint16
+        # channels (see utils.histogram) — so both lengths pass.
         result3 = ValidationResult(
             "histogram_blob_size",
-            "histogram_data BLOB incorrect size (should be 1024 bytes)"
+            f"histogram_data BLOB incorrect size (should be "
+            f"{LEGACY_HISTOGRAM_BLOB_SIZE} or {HISTOGRAM_BLOB_SIZE} bytes)"
         )
 
         cursor.execute("""
             SELECT path, filename, LENGTH(histogram_data) as len
             FROM photos
             WHERE histogram_data IS NOT NULL
-              AND LENGTH(histogram_data) != 1024
+              AND LENGTH(histogram_data) NOT IN (?, ?)
             LIMIT 100
-        """)
+        """, (LEGACY_HISTOGRAM_BLOB_SIZE, HISTOGRAM_BLOB_SIZE))
 
         for row in cursor.fetchall():
             result3.add_issue(
                 {'path': row[0], 'filename': row[1], 'blob_size': row[2]},
-                f"size={row[2]} bytes (expected 1024)"
+                f"size={row[2]} bytes (expected {LEGACY_HISTOGRAM_BLOB_SIZE} or {HISTOGRAM_BLOB_SIZE})"
             )
 
         self.results.append(result3)

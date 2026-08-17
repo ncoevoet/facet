@@ -6,7 +6,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
-import { buildApiParams } from './gallery-filters.util';
+import { buildApiParams, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -317,6 +317,130 @@ describe('GalleryComponent', () => {
       expect(mockStore.photos()).toHaveLength(1);
       expect(mockStore.initializing()).toBe(false);
     });
+
+    describe('set scope carried from photo-detail navigation state', () => {
+      afterEach(() => {
+        history.replaceState({}, '', '/');
+      });
+
+      it('applies the scope before the first load, then clears it so a reload falls back to the plain gallery', async () => {
+        history.replaceState({
+          setScope: {
+            sequence_group_id: '68', sequence_kind: 'bracket', burst_group_id: '', duplicate_group_id: '',
+            hide_brackets: false,
+          },
+        }, '', '/');
+
+        await component.ngOnInit();
+
+        expect(mockStore.loadConfig).toHaveBeenCalled();
+        expect(mockStore.filters()).toMatchObject({
+          sequence_group_id: '68', sequence_kind: 'bracket', hide_brackets: false,
+        });
+        // Cleared immediately: browsers keep history.state for the current
+        // entry across a reload, so leaving it would resolve a reload to a
+        // possibly different (renumbered) set instead of the plain gallery.
+        expect((history.state as Record<string, unknown> | null)?.['setScope']).toBeUndefined();
+      });
+
+      it('bypasses the restore-previous-view fast path even when the snapshot matches', async () => {
+        // Same setup as 'restores the previous view when the URL matches the
+        // snapshot' above, which normally skips loadConfig/loadPhotos entirely
+        // -- a scoped "open this set" request must still get a fresh load.
+        mockStore.photos.set([{ path: '/a.jpg' }]);
+        mockStore.viewSnapshot.set({ scrollTop: 0, albumId: null, filterKey: mockStore.filterKey() });
+        history.replaceState({
+          setScope: {
+            sequence_group_id: '5', sequence_kind: 'panorama', burst_group_id: '', duplicate_group_id: '',
+            hide_panoramas: false,
+          },
+        }, '', '/');
+
+        await component.ngOnInit();
+
+        expect(mockStore.loadConfig).toHaveBeenCalled();
+        expect(mockStore.loadPhotos).toHaveBeenCalled();
+        expect(mockStore.filters()).toMatchObject({
+          sequence_group_id: '5', sequence_kind: 'panorama', hide_panoramas: false,
+        });
+      });
+
+      it('preserves unrelated history-state keys when clearing the consumed scope', async () => {
+        history.replaceState({
+          setScope: {
+            sequence_group_id: '1', sequence_kind: '', burst_group_id: '1', duplicate_group_id: '',
+            hide_bursts: false,
+          },
+          unrelated: 'keep-me',
+        }, '', '/');
+
+        await component.ngOnInit();
+
+        const state = history.state as Record<string, unknown>;
+        expect(state['unrelated']).toBe('keep-me');
+        expect(state['setScope']).toBeUndefined();
+      });
+
+      it('does not touch filters when there is no set-scope state', async () => {
+        history.replaceState({}, '', '/');
+        const before = mockStore.filters();
+
+        await component.ngOnInit();
+
+        expect(mockStore.filters()).toBe(before);
+      });
+    });
+  });
+
+  describe('clearSetScope()', () => {
+    afterEach(() => {
+      localStorage.removeItem(DISPLAY_OPTIONS_KEY);
+    });
+
+    it('does nothing when no set scope is active', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).not.toHaveBeenCalled();
+    });
+
+    it('restores the user\'s stored hide_bursts preference instead of hardcoding true', () => {
+      localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: false }));
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '7', hide_bursts: false });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        hide_bursts: false,
+      });
+    });
+
+    it('falls back to the config default when nothing is stored in localStorage', () => {
+      mockStore.config.set({ defaults: { hide_panoramas: false } });
+      mockStore.filters.set({
+        ...DEFAULT_FILTERS, sequence_kind: 'panorama', sequence_group_id: '3', hide_panoramas: false,
+      });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        hide_panoramas: false,
+      });
+    });
+
+    it('falls back to true when neither storage nor config supplies a value', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, duplicate_group_id: '9', hide_duplicates: false });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        hide_duplicates: true,
+      });
+    });
   });
 
   describe('hidden-photos banner toggle', () => {
@@ -347,6 +471,50 @@ describe('GalleryComponent', () => {
       component.showAllHidden();
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
       expect(component.canRestoreHidden()).toBe(false);
+    });
+  });
+
+  describe('thumbnail-migration banner', () => {
+    const RENDER_MIGRATION_KEY = 'facet_render_migration_dismissed';
+
+    function rebuild(): GalleryComponent {
+      return TestBed.runInInjectionContext(() => new GalleryComponent());
+    }
+
+    beforeEach(() => {
+      localStorage.removeItem(RENDER_MIGRATION_KEY);
+      component = rebuild();
+    });
+
+    afterEach(() => localStorage.removeItem(RENDER_MIGRATION_KEY));
+
+    it('stays hidden until the server reports rows awaiting regeneration', () => {
+      mockStore.config.set({ render_migration: { pending: 0 } });
+      expect(component.showRenderMigrationBanner()).toBe(false);
+    });
+
+    it('stays hidden on a build whose config carries no migration block', () => {
+      mockStore.config.set({ features: {} });
+      expect(component.renderMigrationPending()).toBe(0);
+      expect(component.showRenderMigrationBanner()).toBe(false);
+    });
+
+    it('shows the pending count once the server reports one', () => {
+      mockStore.config.set({ render_migration: { pending: 1234 } });
+      expect(component.renderMigrationPending()).toBe(1234);
+      expect(component.showRenderMigrationBanner()).toBe(true);
+    });
+
+    it('hides on dismiss and stays hidden for the next visit', () => {
+      mockStore.config.set({ render_migration: { pending: 12 } });
+      component.dismissRenderMigration();
+
+      expect(component.showRenderMigrationBanner()).toBe(false);
+      expect(localStorage.getItem(RENDER_MIGRATION_KEY)).toBe('true');
+
+      // A migration takes hours, so a reload must not raise the notice again.
+      const reloaded = rebuild();
+      expect(reloaded.showRenderMigrationBanner()).toBe(false);
     });
   });
 
@@ -423,6 +591,87 @@ describe('GalleryComponent', () => {
       component['tooltipPhoto'].set(photo);
       component.hideTooltip();
       expect(component['tooltipPhoto']()).toBeNull();
+    });
+  });
+
+  describe('tooltip mode switch clears a stale tooltipPhoto', () => {
+    function makeCard(): HTMLElement {
+      const card = document.createElement('div');
+      card.className = 'relative rounded-lg';
+      document.body.appendChild(card);
+      return card;
+    }
+    const photo = { path: '/a.jpg', image_width: 4000, image_height: 3000 } as never;
+
+    it('a hover-shown tooltip does not survive a switch to click mode', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      TestBed.flushEffects();
+      const card = makeCard();
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+      expect(component['tooltipPhoto']()).toBe(photo);
+
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'click' });
+      TestBed.flushEffects();
+
+      expect(component['tooltipPhoto']()).toBeNull();
+      card.remove();
+    });
+
+    it('the first click in the new mode shows the tooltip rather than hiding it', () => {
+      // A test asserting only "clicking twice toggles" would pass even if a
+      // stale hover-set tooltipPhoto made this very first click hide instead
+      // of show -- assert the show explicitly.
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      TestBed.flushEffects();
+      const card = makeCard();
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'click' });
+      TestBed.flushEffects();
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+
+      expect(component['tooltipPhoto']()).toBe(photo);
+      card.remove();
+    });
+
+    it('a click-pinned tooltip does not survive a switch to hover mode', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'click' });
+      TestBed.flushEffects();
+      const card = makeCard();
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+      expect(component['tooltipPhoto']()).toBe(photo);
+
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      TestBed.flushEffects();
+
+      expect(component['tooltipPhoto']()).toBeNull();
+      card.remove();
+    });
+
+    it('a tooltip does not survive a switch to off mode', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      TestBed.flushEffects();
+      const card = makeCard();
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'off' });
+      TestBed.flushEffects();
+
+      expect(component['tooltipPhoto']()).toBeNull();
+      card.remove();
+    });
+
+    it('switching into panel mode does not carry over a stale hover tooltip', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      TestBed.flushEffects();
+      const card = makeCard();
+      component.showTooltip({ currentTarget: card } as unknown as MouseEvent, photo);
+
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+      TestBed.flushEffects();
+
+      expect(component['tooltipPhoto']()).toBeNull();
+      card.remove();
     });
   });
 

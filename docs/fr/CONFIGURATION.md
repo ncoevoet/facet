@@ -20,6 +20,7 @@ Tous les réglages se trouvent dans `scoring_config.json`. Après modification, 
 - [Modèles](#models)
 - [Modèles d'évaluation de la qualité](#quality-assessment-models)
 - [Traitement](#processing)
+- [Décodage RAW](#décodage-raw)
 - [Détection de rafales](#burst-detection)
 - [Notation des rafales](#burst-scoring)
 - [Détection de doublons](#duplicate-detection)
@@ -447,7 +448,7 @@ Sélectionne les modèles utilisés selon le profil VRAM.
       "24gb": {
         "aesthetic_model": "topiq",
         "clip_config": "clip",
-        "composition_model": "qwen2-vl-2b",
+        "composition_model": "samp-net",
         "tagging_model": "qwen3.5-4b",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
@@ -490,14 +491,7 @@ Sélectionne les modèles utilisés selon le profil VRAM.
       "min_subject_pixels": 50
     },
     "samp_net": {
-      "model_path": "pretrained_models/samp_net.pth",
-      "download_url": "https://github.com/bcmi/Image-Composition-Assessment-with-SAMP/releases/download/v1.0/samp_net.pth",
-      "input_size": 384,
-      "patterns": [
-        "none", "center", "rule_of_thirds", "golden_ratio", "triangle",
-        "horizontal", "vertical", "diagonal", "symmetric", "curved",
-        "radial", "vanishing_point", "pattern", "fill_frame"
-      ]
+      "model_path": "pretrained_models/samp_net.pth"
     }
   }
 }
@@ -517,7 +511,7 @@ Sélectionne les modèles utilisés selon le profil VRAM.
 | `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | Poids pré-entraînés historiques |
 | `clip_legacy.embedding_dim` | `768` | Dimensions de l'embedding historique |
 | `clip_legacy.similarity_threshold_percent` | `22` | Seuil de correspondance d'étiquette pour le CLIP historique |
-| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | Chemin HuggingFace (VLM de composition 24gb) |
+| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | Chemin HuggingFace pour l'option manuelle `composition_model: "qwen2-vl-2b"` — aucun profil ne la sélectionne par défaut |
 | `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | Modèle d'étiquetage pour le profil 16gb |
 | `qwen3_5_2b.vlm_batch_size` | `4` | Images par lot d'inférence VLM |
 | `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | Modèle d'étiquetage pour le profil 24gb |
@@ -526,7 +520,6 @@ Sélectionne les modèles utilisés selon le profil VRAM.
 | `saliency.resolution` | `1024` | Résolution d'inférence |
 | `saliency.mask_threshold` | `0.3` | Seuil sigmoïde pour le masque binaire du sujet |
 | `saliency.min_subject_pixels` | `50` | Nombre minimal de pixels de sujet pour considérer qu'un sujet est détecté |
-| `samp_net.input_size` | `384` | Taille d'entrée du modèle de composition |
 
 ### Détection automatique de la VRAM
 
@@ -723,6 +716,144 @@ python facet.py /path --pass saliency      # Saillance du sujet BiRefNet
 # Lister les modèles disponibles
 python facet.py --list-models
 ```
+
+---
+
+## Décodage RAW
+
+Comment les fichiers RAW sont transformés en pixels. Deux profils existent, et ils ne
+sont pas interchangeables.
+
+**Profil métriques** — le démosaïçage à partir duquel chaque score est calculé, et
+l'espace de pixels dans lequel vivent les cadres de visage stockés et
+`image_width`/`image_height`. Il est délibérément fidèle : aucune adaptation par vue,
+un seul gain d'exposition fixe pour toute la bibliothèque.
+
+**Profil d'affichage** — ce que montrent la miniature stockée, la galerie et `/image`.
+Il privilégie l'aperçu intégré par le boîtier, qui porte déjà la courbe de tons, les
+modes de plage dynamique et l'exposition propres au modèle, et retombe sur le
+démosaïçage du profil métriques quand aucun aperçu exploitable n'existe.
+
+```json
+"raw_decode": {
+  "bright": 1.62,
+  "prefer_embedded_preview": true,
+  "preview_min_sensor_ratio": 0.5,
+  "viewer_concurrency": 3,
+  "faithful_bracket_render": true
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|--------|-------------|
+| `bright` | `1.62` | Gain d'exposition fixe appliqué à chaque démosaïçage (`1.0` = le niveau propre de LibRaw). La seule constante arbitraire ici : elle correspond au +0,7 IL par défaut de darktable, et rien dans le fichier ne l'impose — validez-la sur votre propre bibliothèque avec `--check-raw-rendering` avant un grand scan |
+| `prefer_embedded_preview` | `true` | Générer les images d'affichage à partir de l'aperçu du boîtier quand il y en a un. `false` démosaïque tout, ce qui est plus lent et perd la courbe de tons du boîtier |
+| `preview_min_sensor_ratio` | `0.5` | Quelle part du capteur un aperçu doit couvrir pour que `/image` le serve au lieu de démosaïquer. Nikon, Pentax, Samsung et Canon CR3 intègrent un aperçu quasi plein format (0,98-0,99) ; le Panasonic se situe à 0,52, tandis qu'Olympus, Fuji, Sony et DNG intègrent un petit aperçu (0,29-0,49) et démosaïquent donc |
+| `viewer_concurrency` | `3` | Nombre maximal de démosaïçages RAW simultanés pour le chemin de la visionneuse `/image`, sur son propre budget séparé de `processing.raw_decode_concurrency` ci-dessus, si bien qu'une requête de la visionneuse ne fait jamais la queue derrière un scan ou un décodage en ligne de commande |
+| `faithful_bracket_render` | `true` | Afficher une vue d'un bracketing sans aucune correction : ni aperçu du boîtier, ni gain `bright`. Voir [plus bas](#les-vues-dun-bracketing-saffichent-sans-correction). `false` affiche les bracketings comme n'importe quelle autre photo |
+
+### Compromis mémoire
+
+`viewer_concurrency` et `processing.raw_decode_concurrency` sont des budgets
+indépendants, chacun avec son propre sémaphore, et ni l'un ni l'autre n'emprunte de
+marge à l'autre. Dans le pire des cas, le processus peut donc tenir en vol des
+démosaïçages « bibliothèque + visionneuse » à la fois, chacun culminant à environ
+200-400 Mo d'intermédiaires — abaissez `viewer_concurrency` sur un hôte contraint en
+mémoire. En pratique ce budget est le plus souvent inactif : il n'est dépensé que
+lorsque `/image` doit retomber sur un démosaïçage complet, ce que
+`preview_min_sensor_ratio` ci-dessus évite déjà pour tout RAW dont l'aperçu intégré est
+assez grand (Nikon, Pentax, Samsung, Canon CR3). Sony, Fuji, Olympus et DNG sont les
+boîtiers qui le consomment réellement.
+
+### Pourquoi il n'y a pas de luminosité automatique
+
+LibRaw éclaircit chaque vue jusqu'à ce qu'environ 1 % de ses propres pixels soit
+écrêté, et substitue le pixel le plus clair de cette même vue au niveau de blanc du
+boîtier. Les deux termes sont propres à chaque vue, si bien qu'un bracketing ressort
+égalisé : un ensemble Canon de 5 vues mesuré, couvrant -3,4 à +3,3 IL, a rendu des
+luminances moyennes de 54 à 56 pour ses trois vues sombres, indiscernables les unes des
+autres. Avec le gain fixe, le même ensemble s'étend de 8,7 à 160 — une échelle de 18x
+au lieu de 2,6x.
+
+Augmenter `bright` étire linéairement chaque rendu ; cela ne restaure jamais le
+comportement par vue. Les métriques d'exposition en dépendent, donc relancez
+`--recompute-average` après l'avoir modifié, et rescannez pour réécrire les métriques
+elles-mêmes.
+
+### Les vues d'un bracketing s'affichent sans correction
+
+Une photo dont le `sequence_kind` est `bracket` ou `hdr_panorama` s'affiche sans
+aucune des deux corrections ci-dessus : ni aperçu intégré par le boîtier, ni gain
+`bright`. Tout le reste conserve le profil d'affichage. Un `panorama` ordinaire n'est
+*pas* un bracketing et en est exclu — seul un panorama HDR, qui est en bracketing à
+chaque position, rejoint les bracketings ici.
+
+La raison est que les deux corrections compressent les hautes lumières, et la marge
+de hautes lumières est tout l'intérêt des vues en +IL d'un bracketing. Le gain
+uniforme préserve l'exposition *relative* entre les vues mais écrête le haut de
+l'échelle : à `bright` 2.0, une échelle mesurée de 4,85x est ressortie à 3,67x, l'écart
+tenant uniquement à l'écrêtage. Le JPEG intégré du boîtier a sa propre courbe de
+tons, qui compresse la même plage pour la même raison. Pour une photo ordinaire,
+c'est une image plus flatteuse ; pour un bracketing, cela cache exactement ce que le
+photographe est en train de juger.
+
+Cela s'applique à toute surface qui affiche un bracketing, afin qu'elles ne puissent
+pas se contredire : `/image` (la vue détail, la loupe de comparaison et la loupe de
+tri) le rend ainsi à la volée, `--refresh-thumbnails` le fige dans
+`photos.thumbnail` pour la vignette de galerie et la grille de comparaison, et
+`GET /api/download` avec `type=original` le convertit de la même façon — une vue de
+bracketing téléchargée est généralement en route vers une fusion HDR, où les hautes
+lumières écrêtées que les autres rendus introduisent seraient irrécupérables.
+
+Deux types de téléchargement sont délibérément laissés de côté : `type=raw` copie
+le fichier RAW intact, et `type=darktable` est l'export « rendu retouché », dont le
+but même est une courbe de tons. `GET /api/photo/cull_preview` n'est pas affecté non
+plus — il s'affiche via darktable-cli, pas via rawpy.
+
+Ce n'est *pas* appliqué au moment du scan, car la détection de séquence tourne après
+un scan et l'appartenance à un bracketing n'est pas encore connue — lancez
+`--detect-sequences` d'abord, puis `--refresh-thumbnails`, pour que les vignettes
+suivent.
+
+La notation n'est pas affectée. Les métriques sont calculées à partir de
+`load_image_from_path`, qui est un décodage séparé aux dimensions du capteur et où
+vivent chaque cadre de visage stocké et `image_width`/`image_height` ; rien ici ne
+les atteint.
+
+Réglez `faithful_bracket_render` sur `false` pour afficher les bracketings comme
+n'importe quelle autre photo.
+
+### Migration d'une bibliothèque scannée avant ce profil
+
+Les miniatures et les histogrammes sont figés au moment du scan, donc changer de
+profil ne modifie pas rétroactivement ce que contient une ligne déjà scannée.
+`photos.render_version` enregistre quel pipeline a produit la miniature stockée de
+chaque ligne : `NULL` signifie « d'avant le correctif », et le pipeline actuel
+marque `1`.
+
+Il n'y a rien à configurer — le marqueur est une écriture comptable, pas un réglage —
+mais il vaut la peine de savoir quels chemins le font avancer :
+
+- **Un rescan** réécrit la miniature et l'histogramme, et marque la ligne.
+- **`--refresh-thumbnails`** réécrit les miniatures RAW et les marque. Les lignes ne
+  sont pas ignorées sur la base du marqueur, donc relancer la commande après un
+  changement de `bright` reconstruit tout.
+
+Ce sont les deux seuls. Parcourir la bibliothèque ne répare rien : `/image` s'affiche
+à la volée, donc la vue détail est toujours à jour, mais la grille de galerie lit
+`photos.thumbnail` et seuls un scan ou `--refresh-thumbnails` la réécrivent.
+
+La bannière rejetable de la galerie compte les lignes encore sur l'ancien rendu.
+Elle lit une entrée `stats_cache` avec un TTL d'une heure plutôt que de parcourir
+`photos` à chaque chargement de page, donc elle peut retarder par rapport à la
+réalité après un rescan ; `python database.py --refresh-stats` la recalcule
+immédiatement.
+
+Un rendu qui revient entièrement noir est refusé plutôt que stocké, et la ligne
+reste sans marqueur pour qu'une exécution ultérieure la retente. LibRaw remplit de
+zéros un RW2 Panasonic sévèrement tronqué pour en faire une vue noire pleine taille
+valide au lieu d'échouer, et une migration sans supervision est le pire endroit pour
+que cela passe inaperçu. Le rejet est journalisé avec le nom du fichier.
 
 ---
 
@@ -1386,7 +1517,8 @@ Affichage et comportement de la galerie web.
 | `hide_brackets` | `true` | Afficher uniquement l'exposition de base de chaque bracketing par défaut |
 | `hide_panoramas` | `true` | N'afficher qu'une image représentative par panorama par défaut |
 | `hide_details` | `true` | Masquer les détails des photos sur les cartes par défaut |
-| `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"` ou `"off"`. Remplace l'ancien booléen `hide_tooltip`. |
+| `tooltip_mode` | `"hover"` | Déclencheur d'infobulle : `"hover"`, `"click"`, `"off"` ou `"panel"` (rail ancré au lieu d'une infobulle flottante — voir `panel_activation` ci-dessous). Remplace l'ancien booléen `hide_tooltip`. |
+| `panel_activation` | `"both"` | Geste qui redirige la photo sélectionnée du rail ancré quand `tooltip_mode` vaut `"panel"` : `"hover"`, `"click"` ou `"both"`. Sans effet sur les autres modes d'infobulle. La valeur par défaut `"both"` préserve le comportement d'origine du panneau |
 | `hide_rejected` | `true` | Masquer les photos rejetées par défaut |
 | `gallery_mode` | `"mosaic"` | Disposition de galerie par défaut (`"grid"` ou `"mosaic"`) |
 | **allowed_origins** | | |
@@ -1399,6 +1531,72 @@ Affichage et comportement de la galerie web.
 | `notification_duration_ms` | `2000` | Durée des notifications toast |
 | `moment_confidence_min` | `0` | En dessous de ce postérieur `narrative_moment_confidence` stocké (0–1), les libellés de moment sont affichés atténués avec un suffixe « (uncertain) » dans l'en-tête Scènes, l'en-tête du groupe de scène du tri (Culling) et l'infobulle photo de la galerie. `0` = jamais atténué |
 
+### Badges de carte et écrêtage
+
+`viewer.badges` active ou désactive chaque badge de la carte de galerie. Tous les
+badges antérieurs à ce bloc valent `true` par défaut : omettre le bloc ne change
+donc rien.
+
+```json
+{
+  "viewer": {
+    "badges": {
+      "favorite": true,
+      "star_rating": true,
+      "rejected": true,
+      "sequence_kind": true,
+      "sequence_override_pending": true,
+      "keeper_hint": true,
+      "best_of_burst": true,
+      "clipping_highlight": true,
+      "clipping_shadow": false
+    },
+    "clipping": {
+      "badge_percent": 5,
+      "indicator_percent": 1,
+      "histogram_mode": "rgb",
+      "tooltip_histogram_mode": "luma"
+    }
+  }
+}
+```
+
+| Clé | Défaut | Description |
+|-----|--------|-------------|
+| `badges.favorite` | `true` | Badge cœur sur une photo favorite (mode édition) |
+| `badges.star_rating` | `true` | Badge étoile + compteur sur une photo notée (mode édition) |
+| `badges.rejected` | `true` | Badge pouce baissé sur une photo rejetée (mode édition) |
+| `badges.sequence_kind` | `true` | Badge bracketing/panorama, affiché seulement quand l'option de masquage replie la série |
+| `badges.sequence_override_pending` | `true` | Badge horloge pour une correction de panorama en attente de la prochaine détection |
+| `badges.keeper_hint` | `true` | Flèche « une meilleure photo existe dans ce groupe » issue du modèle de sélection appris |
+| `badges.best_of_burst` | `true` | Badge « Meilleure » sur la photo de tête d'une rafale. Affiché uniquement quand `hide_bursts` est désactivé : sinon toutes les photos de rafale à l'écran sont déjà des têtes de groupe |
+| `badges.clipping_highlight` | `true` | Badge sur une photo dont les hautes lumières dépassent `clipping.badge_percent` |
+| `badges.clipping_shadow` | `false` | Idem pour les ombres bouchées. Désactivé par défaut : l'écrêtage des ombres est souvent intentionnel (silhouettes, nuit, low-key) |
+
+`viewer.clipping` est la définition unique de « écrêté », partagée par le badge de
+la carte, les repères de l'histogramme et le filtre de galerie, afin que les trois
+ne puissent pas diverger.
+
+| Clé | Défaut | Description |
+|-----|--------|-------------|
+| `badge_percent` | `5` | Pourcentage de pixels, dans le pire des canaux R/V/B, au-delà duquel la carte est badgée. Mesuré sur un échantillon de 28 photos : l'écrêtage des hautes lumières du pire canal avait une médiane de 0,31 % et un p90 de 2,35 %, donc 5 % se déclenche sur environ 1 photo sur 25 |
+| `indicator_percent` | `1` | Seuil des repères R/V/B de l'histogramme. Plus fin que le badge, car vous regardez déjà une seule photo |
+| `histogram_mode` | `"rgb"` | Valeur par défaut de l'histogramme du **panneau de détail** : `"luma"`, `"rgb"`, ou un canal isolé (`"r"` / `"g"` / `"b"`). Le choix propre de l'utilisateur pour cette surface est stocké dans `localStorage` sous `facet_histogram_mode` et prévaut sur cette valeur |
+| `tooltip_histogram_mode` | `"luma"` | Valeur par défaut de l'histogramme de l'**infobulle au survol/épinglée**, mêmes cinq valeurs possibles. Volontairement indépendante de `histogram_mode` et persistée sous sa propre clé `localStorage` (`facet_histogram_mode_tooltip`) : le panneau de détail sert à étudier une seule photo, où le détail par canal se justifie ; l'infobulle sert à parcourir rapidement de nombreuses photos, où une simple courbe de luminance se lit généralement plus vite. Modifier l'une ne retouche jamais l'autre, et le bouton pour la changer ne s'affiche que lorsque l'infobulle est épinglée (rail ancré, ou `tooltip_mode: "click"`) — en simple survol, elle affiche son mode résolu en lecture seule |
+
+**L'écrêtage est mesuré par canal, exactement aux bins 0 et 255.** Il est stocké
+dans `photos.channel_clip_shadow_pct` / `channel_clip_highlight_pct` sous forme du
+pourcentage de pixels du pire canal — une mesure *différente* des indicateurs
+`shadow_clipped` / `highlight_clipped`, qui sont binaires, couvrent les plages de
+luminance 0–30 et 225–255 et alimentent `exposure_score`.
+
+**`NULL` signifie inconnu, jamais propre.** Une photo dont l'histogramme stocké
+précède le format par canal n'a aucune donnée de canal : elle ne porte aucun badge
+et ne correspond à aucun des deux côtés du filtre. Lancez
+`python facet.py --backfill-clipping` pour dériver les colonnes des lignes qui
+possèdent déjà un histogramme complet — la commande ne lit que la base, ne décode
+aucune image et est reprenable.
+
 ### Fonctionnalités
 
 Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisation mémoire ou simplifier l'interface :
@@ -1410,7 +1608,6 @@ Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisa
       "show_similar_button": true,
       "show_merge_suggestions": true,
       "show_rating_controls": true,
-      "show_rating_badge": true,
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
@@ -1427,7 +1624,6 @@ Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisa
 | `show_similar_button` | `true` | Afficher le bouton « Trouver des similaires » sur les cartes photo (utilise numpy pour la similarité CLIP) |
 | `show_merge_suggestions` | `true` | Activer la fonctionnalité de suggestions de fusion sur la page de gestion des personnes |
 | `show_rating_controls` | `true` | Afficher les commandes de notation par étoiles et de favori |
-| `show_rating_badge` | `true` | Afficher le badge de notation sur les cartes photo |
 | `show_scan_button` | `false` | Afficher le bouton de déclenchement d'analyse pour les superadmins (nécessite un GPU sur l'hôte de la visionneuse) |
 | `metrics_enabled` | `false` | Activer le point d'accès public Prometheus `GET /metrics`. Désactivé par défaut — il expose les nombres de photos/personnes/visages, la taille de la base et la mémoire du processus ; à n'activer que lorsque le point d'accès est joignable depuis le réseau du collecteur, et non depuis Internet public. |
 | `show_semantic_search` | `true` | Afficher la barre de recherche sémantique (recherche texte-vers-image via les embeddings CLIP/SigLIP) |
@@ -2036,6 +2232,32 @@ python facet.py --recompute-text   # relit toute la bibliothèque
 
 **Coût.** Une miniature 640px prend environ 0,4 s sur CPU, si bien qu'une bibliothèque de 50 000 photos représente une nuit de travail CPU — c'est un remplissage rétroactif ponctuel, et les analyses suivantes n'ajoutent que de nouvelles photos. Un GPU est utilisé automatiquement lorsque torch en signale un.
 
+## Destinations d'export et de tri
+
+Tout endpoint qui copie, lie symboliquement ou déplace des fichiers photo hors de la bibliothèque — l'export « panier » d'album (`POST /api/albums/{id}/export`, modes `copy`/`symlink`) et le tri vers un dossier (`POST /api/cull/apply`, actions `copy_keeps` / `move_rejects`) — écrit dans un `target_dir` qui doit se résoudre sous une racine autorisée, sinon la requête est refusée avant de toucher le moindre fichier.
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+| Réglage | Défaut | Description |
+|---------|---------|-------------|
+| `allowed_target_dirs` | *(clé absente)* | Répertoires racine supplémentaires dans lesquels un export copie/symlink ou un tri-vers-dossier copie/déplacement peut écrire, en plus des répertoires de scan (toujours autorisés). **Absente par défaut** : par défaut, les seules destinations d'export inscriptibles sont vos répertoires de scan configurés |
+
+**Ordre de résolution.** La liste d'autorisation est d'abord `allowed_target_dirs`, puis chaque répertoire de scan (par utilisateur, partagé, et les cibles de `path_mapping`) — exporter *à l'intérieur* de l'arborescence photo ne demande donc aucune configuration, mais une destination en dehors nécessite une entrée ici. Le `target_dir` demandé et chaque racine autorisée sont tous deux canonicalisés avec `os.path.realpath()` (liens symboliques résolus, `..` réduits) avant comparaison, si bien qu'un lien symbolique se résolvant hors d'une racine autorisée est refusé même si le lien lui-même se trouve dans l'une d'elles.
+
+**Fermé par défaut (fail-closed).** Sans aucune racine du tout — ni `allowed_target_dirs` ni répertoires de scan configurés —, l'export copie/symlink/déplacement est refusé purement et simplement plutôt que de se rabattre sur une écriture n'importe où. En pratique ce cas est rare une fois une bibliothèque scannée, puisque les répertoires de scan sont toujours dans la liste d'autorisation.
+
+**Dépannage « accès refusé ».** Ce contrôle s'exécute avant tout accès au système de fichiers, si bien qu'une destination refusée ne touche jamais le disque et ne produit aucune trace d'erreur dans les journaux du serveur — un `403` ici est une réponse HTTP normale issue d'un contrôle délibéré, pas une erreur serveur. L'interface web affiche actuellement un message générique « Accès refusé » pour *tout* `403` sur ces endpoints, sans en préciser la raison ; ouvrez l'onglet Réseau de votre navigateur, repérez la requête `/api/cull/apply` ou `/api/albums/{id}/export` en échec, et lisez le champ `detail` du corps de la réponse pour connaître la cause réelle (cette liste d'autorisation, ou une session d'édition expirée). Un vrai problème de droits du système de fichiers se présente différemment : la requête elle-même réussit (`200`), le nombre `errors` de la réponse est non nul, et le serveur journalise une trace complète pour chaque fichier en échec — voir [Déploiement — Sémantique des chemins en conteneur](DEPLOYMENT.md#sémantique-des-chemins-en-conteneur) pour le cas du conteneur, où cela est souvent confondu avec une divergence d'UID.
+
+Voir [Visionneuse web — Trier vers un dossier](VIEWER.md#trier-vers-un-dossier) et [Visionneuse web — Export vers éditeur](VIEWER.md#export-vers-éditeur).
+
 ## Export social
 
 Recadrages sensibles au sujet pour les formats des réseaux sociaux (`GET /api/photo/social_crop`, réservé à l'édition). Chaque préréglage recadre l'original en pleine résolution vers un format cible et le cadre sur le sujet détecté — le plus grand rectangle de ce format tenant dans l'image, centré sur le sujet et borné aux bords. La boîte du sujet suit une chaîne de repli : la boîte de sujet BiRefNet persistée (`photos.subject_bbox`) → l'union des boîtes de visages détectés → un recadrage centré simple. Voir [Visionneuse web — Téléchargement](VIEWER.md#download).
@@ -2081,7 +2303,7 @@ Exportez un album sous forme de galerie HTML statique autonome qu'un photographe
 | `max_edge` | `2048` | Plafond du grand côté (px) pour les originaux exportés ; la requête peut le remplacer (borné 256–8000) |
 | `jpeg_quality` | `88` | Qualité JPEG des images exportées |
 
-Le `target_dir` passe par la même liste d'autorisation que les endpoints d'export copie/déplacement (`viewer.export.allowed_target_dirs` plus les répertoires de scan). Contrôlé par `viewer.features.show_portfolio_export` (par défaut `true`).
+Le `target_dir` passe par la même liste d'autorisation que les endpoints d'export copie/déplacement (`viewer.export.allowed_target_dirs` plus les répertoires de scan — voir [Destinations d'export et de tri](#destinations-dexport-et-de-tri)). Contrôlé par `viewer.features.show_portfolio_export` (par défaut `true`).
 
 ## Cadre photo / Kiosque
 

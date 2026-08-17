@@ -202,7 +202,7 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
         user_id = user.user_id if user else None
         vis_sql, vis_params = get_visibility_clause(user_id)
         row = conn.execute(
-            f"SELECT path FROM photos WHERE path = ? AND {vis_sql}",
+            f"SELECT path, sequence_kind FROM photos WHERE path = ? AND {vis_sql}",
             [path] + vis_params
         ).fetchone()
 
@@ -211,7 +211,7 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
 
     db_path = row['path']
     real_disk = resolve_photo_disk_path(db_path)
-    return db_path, real_disk
+    return db_path, real_disk, row['sequence_kind']
 
 
 @router.get("/api/download/options")
@@ -223,7 +223,7 @@ def api_download_options(
     """Return available download types for a photo."""
     from api.raw_processing import find_companion_raw, get_darktable_profiles
 
-    db_path, real_disk = _validate_and_resolve(path, user)
+    db_path, real_disk, _ = _validate_and_resolve(path, user)
 
     options: list[dict] = [{'type': 'original', 'label': 'original'}]
 
@@ -255,7 +255,7 @@ async def api_download_single(
     """
     from api.raw_processing import convert_raw_darktable_async, find_companion_raw
 
-    db_path, real_disk = _validate_and_resolve(path, user)
+    db_path, real_disk, sequence_kind = _validate_and_resolve(path, user)
 
     quality = VIEWER_CONFIG['display'].get('image_jpeg_quality', 96)
     stem = os.path.splitext(os.path.basename(db_path))[0]
@@ -265,7 +265,7 @@ async def api_download_single(
         raw_path = find_companion_raw(real_disk)
         if not raw_path:
             # Fall back to original when no RAW companion exists
-            return _serve_original(real_disk, db_path, quality)
+            return _serve_original(real_disk, db_path, quality, sequence_kind)
 
         try:
             jpeg_bytes = await convert_raw_darktable_async(raw_path, profile, quality)
@@ -287,7 +287,7 @@ async def api_download_single(
     if type == 'raw':
         raw_path = find_companion_raw(real_disk)
         if not raw_path:
-            return _serve_original(real_disk, db_path, quality)
+            return _serve_original(real_disk, db_path, quality, sequence_kind)
 
         return FileResponse(
             raw_path,
@@ -296,16 +296,25 @@ async def api_download_single(
         )
 
     # --- Original file download ---
-    return _serve_original(real_disk, db_path, quality)
+    return _serve_original(real_disk, db_path, quality, sequence_kind)
 
 
-def _serve_original(real_disk: str, db_path: str, quality: int):
-    """Serve a photo file as-is, converting standalone RAW via rawpy."""
+def _serve_original(real_disk: str, db_path: str, quality: int,
+                    sequence_kind: Optional[str] = None):
+    """Serve a photo file as-is, converting standalone RAW via rawpy.
+
+    "As-is" is why a bracketed frame is converted with no correction at all,
+    exactly as ``/image`` serves it: the camera preview's tone curve and the
+    ``bright`` gain both crush the highlight headroom the bracket was shot to
+    capture, and a downloaded bracket frame is on its way to an HDR merge where
+    that headroom is the payload. The edited look is what the ``darktable``
+    download type is for.
+    """
     from api.raw_processing import convert_raw_to_jpeg
 
     if Path(real_disk).suffix.lower() in RAW_EXTENSIONS:
         try:
-            jpeg_bytes = convert_raw_to_jpeg(real_disk, quality)
+            jpeg_bytes = convert_raw_to_jpeg(real_disk, quality, sequence_kind)
         except Exception:
             logger.exception("Failed to convert RAW file for download: %s", real_disk)
             raise HTTPException(status_code=500, detail='Failed to convert RAW file')

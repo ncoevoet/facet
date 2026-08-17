@@ -20,6 +20,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Models](#models)
 - [Quality Assessment Models](#quality-assessment-models)
 - [Processing](#processing)
+- [RAW Decode](#raw-decode)
 - [Burst Detection](#burst-detection)
 - [Burst Scoring](#burst-scoring)
 - [Duplicate Detection](#duplicate-detection)
@@ -447,7 +448,7 @@ Selects which models are used per VRAM profile.
       "24gb": {
         "aesthetic_model": "topiq",
         "clip_config": "clip",
-        "composition_model": "qwen2-vl-2b",
+        "composition_model": "samp-net",
         "tagging_model": "qwen3.5-4b",
         "supplementary_pyiqa": ["topiq_iaa", "topiq_nr_face", "liqe"],
         "saliency_enabled": true,
@@ -490,14 +491,7 @@ Selects which models are used per VRAM profile.
       "min_subject_pixels": 50
     },
     "samp_net": {
-      "model_path": "pretrained_models/samp_net.pth",
-      "download_url": "https://github.com/bcmi/Image-Composition-Assessment-with-SAMP/releases/download/v1.0/samp_net.pth",
-      "input_size": 384,
-      "patterns": [
-        "none", "center", "rule_of_thirds", "golden_ratio", "triangle",
-        "horizontal", "vertical", "diagonal", "symmetric", "curved",
-        "radial", "vanishing_point", "pattern", "fill_frame"
-      ]
+      "model_path": "pretrained_models/samp_net.pth"
     }
   }
 }
@@ -517,7 +511,7 @@ Selects which models are used per VRAM profile.
 | `clip_legacy.pretrained` | `"laion2b_s32b_b82k"` | Legacy pre-trained weights |
 | `clip_legacy.embedding_dim` | `768` | Legacy embedding dimensions |
 | `clip_legacy.similarity_threshold_percent` | `22` | Tag-match threshold for legacy CLIP |
-| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | HuggingFace path (24gb composition VLM) |
+| `qwen2_vl.model_path` | `"Qwen/Qwen2-VL-2B-Instruct"` | HuggingFace path for the manual `composition_model: "qwen2-vl-2b"` opt-in — no profile selects it by default |
 | `qwen3_5_2b.model_path` | `"Qwen/Qwen3.5-2B"` | Tagging model for 16gb profile |
 | `qwen3_5_2b.vlm_batch_size` | `4` | Images per VLM inference batch |
 | `qwen3_5_4b.model_path` | `"Qwen/Qwen3.5-4B"` | Tagging model for 24gb profile |
@@ -526,7 +520,6 @@ Selects which models are used per VRAM profile.
 | `saliency.resolution` | `1024` | Inference resolution |
 | `saliency.mask_threshold` | `0.3` | Sigmoid threshold for the binary subject mask |
 | `saliency.min_subject_pixels` | `50` | Minimum subject pixels to count a subject as detected |
-| `samp_net.input_size` | `384` | Composition model input size |
 
 ### VRAM Auto-Detection
 
@@ -731,6 +724,138 @@ python facet.py /path --pass saliency      # BiRefNet subject saliency
 # List available models
 python facet.py --list-models
 ```
+
+---
+
+## RAW Decode
+
+How RAW files are turned into pixels. Two profiles exist, and they are not
+interchangeable.
+
+**Metrics profile** — the demosaic every score is computed from, and the pixel
+space stored face boxes and `image_width`/`image_height` live in. It is
+deliberately faithful: no per-frame adaptation, one fixed exposure gain for the
+whole library.
+
+**Display profile** — what the stored thumbnail, the gallery and `/image` show.
+It prefers the camera-embedded preview, which already carries the model's own
+tone curve, DR modes and exposure, and falls back to the metrics demosaic when
+no usable preview exists.
+
+```json
+"raw_decode": {
+  "bright": 1.62,
+  "prefer_embedded_preview": true,
+  "preview_min_sensor_ratio": 0.5,
+  "viewer_concurrency": 3,
+  "faithful_bracket_render": true
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `bright` | `1.62` | Fixed exposure gain applied to every demosaic (`1.0` = LibRaw's own level). The one arbitrary constant here: it matches darktable's +0.7 EV default, and nothing in the file dictates it — validate it on your own library with `--check-raw-rendering` before a large scan |
+| `prefer_embedded_preview` | `true` | Render display images from the camera preview when there is one. `false` demosaics everything, which is slower and drops the camera's tone curve |
+| `preview_min_sensor_ratio` | `0.5` | How much of the sensor a preview must cover for `/image` to serve it instead of demosaicing. Nikon, Pentax, Samsung and Canon CR3 embed a near-full-size preview (0.98-0.99); Panasonic sits at 0.52, while Olympus, Fuji, Sony and DNG embed a small one (0.29-0.49) and therefore demosaic |
+| `viewer_concurrency` | `3` | Max simultaneous RAW demosaics for the `/image` viewer path, on its own budget separate from `processing.raw_decode_concurrency` above, so a viewer request never queues behind scan or CLI decode work |
+| `faithful_bracket_render` | `true` | Render a bracketed frame with no correction at all — no camera preview, no `bright` gain. See [below](#bracketed-frames-render-uncorrected). `false` renders brackets like any other photo |
+
+### Memory tradeoff
+
+`viewer_concurrency` and `processing.raw_decode_concurrency` are independent
+budgets, each with its own semaphore, and neither borrows headroom from the
+other. Worst case, the process can therefore hold `library + viewer`
+demosaics in flight at once, each peaking at roughly 200-400MB of
+intermediates — lower `viewer_concurrency` on a memory-constrained host. In
+practice this budget is mostly idle: it is only spent when `/image` has to
+fall back to a full demosaic, which `preview_min_sensor_ratio` above already
+skips for any RAW whose embedded preview is large enough (Nikon, Pentax,
+Samsung, Canon CR3). Sony, Fuji, Olympus and DNG are the bodies that actually
+consume it.
+
+### Why there is no auto-brightness
+
+LibRaw brightens each frame until roughly 1% of *its own* pixels clip, and
+substitutes that same frame's brightest pixel for the camera white level. Both
+terms are per-frame, so a bracket comes out equalised: a measured 5-frame Canon
+set spanning -3.4 to +3.3 EV rendered at mean luminances of 54-56 for its three
+dark frames, indistinguishable from each other. With the fixed gain the same
+set spans 8.7 to 160 — an 18x ladder instead of 2.6x.
+
+Raising `bright` scales every rendering linearly; it never restores the
+per-frame behaviour. Exposure metrics move with it, so re-run
+`--recompute-average` after changing it, and re-scan to rewrite the metrics
+themselves.
+
+### Bracketed frames render uncorrected
+
+A photo whose `sequence_kind` is `bracket` or `hdr_panorama` is displayed with
+neither of the two corrections above: no camera-embedded preview, and no
+`bright` gain. Everything else keeps the display profile. A plain `panorama` is
+*not* bracketed and is excluded — only an HDR panorama, which is bracketed at
+every position, joins brackets here.
+
+The reason is that both corrections compress highlights, and highlight headroom
+is the entire point of a bracket's +EV frames. The uniform gain preserves the
+*relative* exposure between frames but clips the bright end: at `bright` 2.0 a
+measured 4.85x ladder came out as 3.67x, the difference being clipping alone.
+The camera's embedded JPEG has its own tone curve, which compresses the same
+range for the same reason. For an ordinary photo that is a better-looking
+picture; for a bracket it hides exactly what the photographer is judging.
+
+This applies to every surface that renders a bracket, so they cannot disagree:
+`/image` (the detail view, the comparison loupe and the culling loupe) renders
+it this way on the fly, `--refresh-thumbnails` bakes it into `photos.thumbnail`
+for the gallery tile and the comparison grid, and `GET /api/download` with
+`type=original` converts it the same way — a downloaded bracket frame is
+usually on its way to an HDR merge, where the clipped highlights the other
+renderings introduce are unrecoverable.
+
+Two download types are deliberately left alone: `type=raw` copies the untouched
+RAW file, and `type=darktable` is the "edited look" export, whose whole purpose
+is a tone curve. `GET /api/photo/cull_preview` is likewise unaffected — it
+renders through darktable-cli, not rawpy.
+
+It is *not* applied at scan time, because sequence detection runs after a scan
+and bracket membership is not yet known — run `--detect-sequences` first, then
+`--refresh-thumbnails`, for the tiles to follow.
+
+Scoring is unaffected. Metrics are computed from `load_image_from_path`, which
+is a separate decode at sensor dimensions and is where every stored face box
+and `image_width`/`image_height` lives; nothing here reaches it.
+
+Set `faithful_bracket_render` to `false` to render brackets like any other
+photo.
+
+### Migrating a library scanned before this profile
+
+Thumbnails and histograms are baked at scan time, so changing the profile does
+not retroactively change what a scanned row holds. `photos.render_version`
+records which pipeline produced each row's stored thumbnail: `NULL` means "from
+before the fix", and the current pipeline stamps `1`.
+
+There is nothing to configure — the stamp is bookkeeping, not a setting — but it
+is worth knowing which paths advance it:
+
+- **A rescan** rewrites the thumbnail and the histogram, and stamps the row.
+- **`--refresh-thumbnails`** rewrites RAW thumbnails and stamps them. Rows are
+  not skipped on the stamp, so re-running after a `bright` change rebuilds
+  everything.
+
+Those are the only two. Browsing the library repairs nothing: `/image` renders
+on the fly so the detail view is always current, but the gallery grid reads
+`photos.thumbnail` and only a scan or `--refresh-thumbnails` rewrites that.
+
+The gallery's dismissible banner counts the rows still on the old rendering. It
+reads a `stats_cache` entry with a one-hour TTL rather than scanning `photos` on
+every page load, so it can trail reality after a rescan; `python database.py
+--refresh-stats` recomputes it immediately.
+
+A render that comes back entirely black is refused rather than stored, and the
+row is left unstamped so a later run retries it. LibRaw zero-fills a severely
+truncated Panasonic RW2 into a valid full-size black frame instead of failing,
+and an unattended migration is the worst place for that to go unnoticed. The
+rejection is logged with the file name.
 
 ---
 
@@ -1402,7 +1527,8 @@ Web gallery display and behavior.
 | `hide_brackets` | `true` | Show only a bracket's base exposure by default |
 | `hide_panoramas` | `true` | Show only one representative frame per panorama by default |
 | `hide_details` | `true` | Hide photo details on cards by default |
-| `tooltip_mode` | `"hover"` | Tooltip trigger: `"hover"`, `"click"`, or `"off"`. Replaces the prior `hide_tooltip` boolean. |
+| `tooltip_mode` | `"hover"` | Tooltip trigger: `"hover"`, `"click"`, `"off"`, or `"panel"` (docked rail instead of a floating tooltip — see `panel_activation` below). Replaces the prior `hide_tooltip` boolean. |
+| `panel_activation` | `"both"` | Which gesture retargets the docked rail's selected photo when `tooltip_mode` is `"panel"`: `"hover"`, `"click"`, or `"both"`. No effect on the other tooltip modes. Default `"both"` preserves the original panel behaviour |
 | `hide_rejected` | `true` | Hide rejected photos by default |
 | `gallery_mode` | `"mosaic"` | Default gallery layout (`"grid"` or `"mosaic"`) |
 | **allowed_origins** | | |
@@ -1415,6 +1541,71 @@ Web gallery display and behavior.
 | `notification_duration_ms` | `2000` | Toast duration |
 | `moment_confidence_min` | `0` | Below this stored `narrative_moment_confidence` posterior (0–1), moment labels render dimmed with an "(uncertain)" suffix in the Scenes header, the Culling scene-group header, and the gallery photo tooltip. `0` = never dim |
 
+### Card badges and clipping
+
+`viewer.badges` turns individual gallery-card badges on and off. Every badge
+that predates this block defaults to `true`, so leaving the block out changes
+nothing.
+
+```json
+{
+  "viewer": {
+    "badges": {
+      "favorite": true,
+      "star_rating": true,
+      "rejected": true,
+      "sequence_kind": true,
+      "sequence_override_pending": true,
+      "keeper_hint": true,
+      "best_of_burst": true,
+      "clipping_highlight": true,
+      "clipping_shadow": false
+    },
+    "clipping": {
+      "badge_percent": 5,
+      "indicator_percent": 1,
+      "histogram_mode": "rgb",
+      "tooltip_histogram_mode": "luma"
+    }
+  }
+}
+```
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `badges.favorite` | `true` | Heart badge on a favourited photo (edition mode) |
+| `badges.star_rating` | `true` | Star + count badge on a rated photo (edition mode) |
+| `badges.rejected` | `true` | Thumb-down badge on a rejected photo (edition mode) |
+| `badges.sequence_kind` | `true` | Bracket/panorama badge, shown only while the matching hide toggle collapses the set |
+| `badges.sequence_override_pending` | `true` | Clock badge for a panorama correction awaiting the next detection run |
+| `badges.keeper_hint` | `true` | "A better shot exists in this group" arrow from the learned keeper head |
+| `badges.best_of_burst` | `true` | "Best" badge on a burst lead. Shown only when `hide_bursts` is off — with it on, every burst photo on screen is already its group's lead |
+| `badges.clipping_highlight` | `true` | Badge a photo whose highlights clip past `clipping.badge_percent` |
+| `badges.clipping_shadow` | `false` | Same for crushed shadows. Off by default: shadow clipping is frequently intentional (silhouettes, night, low-key) |
+
+`viewer.clipping` is the single definition of "clipped" shared by the card
+badge, the histogram markers and the gallery filter, so the three cannot
+disagree.
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `badge_percent` | `5` | Percent of pixels, in the worst of R/G/B, above which the gallery card is badged. Measured over a 28-photo sample: worst-channel highlight clipping had a median of 0.31% and a p90 of 2.35%, so 5% fires on roughly 1 photo in 25 |
+| `indicator_percent` | `1` | Threshold for the histogram's own R/G/B end markers. Finer than the badge because you are already looking at a single photo |
+| `histogram_mode` | `"rgb"` | House default for the **detail panel's** histogram: `"luma"`, `"rgb"`, or a single channel (`"r"` / `"g"` / `"b"`). A user's own choice for this surface is stored in `localStorage` under `facet_histogram_mode` and wins over this |
+| `tooltip_histogram_mode` | `"luma"` | House default for the **hover/pinned tooltip's** histogram, same five values. Deliberately independent of `histogram_mode` and persisted under its own `localStorage` key (`facet_histogram_mode_tooltip`): the panel is for studying one photo, where per-channel detail earns its space; the tooltip is for scanning many quickly, where a plain luminance curve usually reads faster. Setting one never retunes the other, and the toggle to change it only renders while the tooltip is pinned (docked rail, or `tooltip_mode: "click"`) — in plain hover mode it shows its resolved mode read-only |
+
+**Clipping is measured per channel, at exactly bin 0 and bin 255.** It is stored
+in `photos.channel_clip_shadow_pct` / `channel_clip_highlight_pct` as the worst
+channel's percentage of pixels — a *different* measurement from the
+`shadow_clipped` / `highlight_clipped` flags, which are binary and cover the
+luminance bands 0–30 and 225–255 and feed `exposure_score`.
+
+**`NULL` means unknown, never clean.** A photo whose stored histogram predates
+the per-channel format has no channel data, so it carries no badge and matches
+neither side of the gallery filter. Run `python facet.py --backfill-clipping` to
+derive the columns for rows that already hold a full histogram — it reads only
+the database, decodes no images, and is resumable.
+
 ### Features
 
 Toggle optional features to reduce memory usage or simplify the UI:
@@ -1426,7 +1617,6 @@ Toggle optional features to reduce memory usage or simplify the UI:
       "show_similar_button": true,
       "show_merge_suggestions": true,
       "show_rating_controls": true,
-      "show_rating_badge": true,
       "show_memories": true,
       "show_captions": true,
       "show_timeline": true,
@@ -1443,7 +1633,6 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_similar_button` | `true` | Show "Find Similar" button on photo cards (uses numpy for CLIP similarity) |
 | `show_merge_suggestions` | `true` | Enable merge suggestions feature on manage persons page |
 | `show_rating_controls` | `true` | Show star rating and favorite controls |
-| `show_rating_badge` | `true` | Show rating badge on photo cards |
 | `show_scan_button` | `false` | Show scan trigger button for superadmin users (requires GPU on viewer host) |
 | `metrics_enabled` | `false` | Enable the public `GET /metrics` Prometheus endpoint. Off by default — it exposes photo/person/face counts, DB size, and process memory; enable only when the endpoint is reachable from the scraper network, not from the public internet. |
 | `show_semantic_search` | `true` | Show semantic search bar (text-to-image search using CLIP/SigLIP embeddings) |
@@ -2060,6 +2249,32 @@ python facet.py --recompute-text   # re-read the whole library
 
 **Cost.** A 640px thumbnail takes roughly 0.4s on CPU, so a 50k-photo library is an overnight CPU job — it is a one-time backfill, and later scans only ever add new photos. A GPU is used automatically when torch reports one.
 
+## Export and Cull Destinations
+
+Any endpoint that copies, symlinks, or moves photo files out of the library — album "basket" export (`POST /api/albums/{id}/export`, modes `copy`/`symlink`) and cull-to-folder (`POST /api/cull/apply`, actions `copy_keeps` / `move_rejects`) — writes to a `target_dir` that must resolve under an allowed root, or the request is refused before touching any file.
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `allowed_target_dirs` | *(key absent)* | Extra root directories a copy/symlink export or a cull-to-folder copy/move may write into, on top of the scan directories (always allowed). **Absent by default** — out of the box, the only writable export destinations are your configured scan directories |
+
+**Resolution order.** The allow-list is `allowed_target_dirs` first, then every scan directory (per-user, shared, and `path_mapping` targets) — so exporting *within* the photo tree needs no configuration, but a destination outside it needs an entry here. Both the requested `target_dir` and every allowed root are canonicalized with `os.path.realpath()` (symlinks resolved, `..` collapsed) before comparison, so a symlink that resolves outside an allowed root is rejected even when the link itself sits inside one.
+
+**Fail-closed by design.** With no roots at all — no `allowed_target_dirs` and no scan directories configured — copy/symlink/move export is refused outright rather than falling back to writing anywhere. In practice this case is rare once you have scanned a library, since the scan directories are always in the allow-list.
+
+**Troubleshooting "access denied."** This check runs before any filesystem access, so a refused destination never touches disk and produces no traceback in the server logs — a `403` here is a normal HTTP response from a deliberate check, not a server error. The web UI currently shows a generic "Access denied" toast for *any* `403` on these endpoints without naming the reason; open your browser's Network tab, find the failed `/api/cull/apply` or `/api/albums/{id}/export` request, and read its response body's `detail` field for the actual cause (either this allow-list, or an expired edition session). A genuine filesystem/permission failure looks different: the request itself succeeds (`200`), the response's `errors` count is nonzero, and the server logs a full traceback for each failed file — see [Deployment — Container Path Semantics](DEPLOYMENT.md#container-path-semantics) for the container case, where this is often mistaken for a UID mismatch.
+
+See [Web Viewer — Cull to folder](VIEWER.md#cull-to-folder) and [Web Viewer — Editor Export](VIEWER.md#editor-export).
+
 ## Social Export
 
 Saliency-aware crop presets for social aspect ratios (`GET /api/photo/social_crop`, edition-gated). Each preset crops the full-resolution original to a target aspect and frames it on the detected subject — the largest rectangle of that aspect fitting inside the image, centered on the subject and clamped at the edges. The subject box follows a fallback chain: the persisted BiRefNet subject box (`photos.subject_bbox`) → the union of detected face boxes → a plain center crop. See [Web Viewer — Download](VIEWER.md#download).
@@ -2105,7 +2320,7 @@ Export an album as a self-contained static HTML gallery a photographer can drop 
 | `max_edge` | `2048` | Long-edge cap (px) for exported originals; the request may override it (clamped 256–8000) |
 | `jpeg_quality` | `88` | JPEG quality of the exported images |
 
-The `target_dir` goes through the exact same allow-list as the copy/move export endpoints (`viewer.export.allowed_target_dirs` plus the scan directories). Gated by `viewer.features.show_portfolio_export` (default `true`). See [Web Viewer — Portfolio export](VIEWER.md#portfolio-export).
+The `target_dir` goes through the exact same allow-list as the copy/move export endpoints (`viewer.export.allowed_target_dirs` plus the scan directories — see [Export and Cull Destinations](#export-and-cull-destinations)). Gated by `viewer.features.show_portfolio_export` (default `true`). See [Web Viewer — Portfolio export](VIEWER.md#portfolio-export).
 
 ## Photo Frame / Kiosk
 

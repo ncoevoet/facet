@@ -1830,11 +1830,12 @@ def _fetch_bracket_groups(conn, user_id, vis_sql, vis_params, album_id=None,
             continue
         for photo in photos:
             photo['burst_score'] = round(_compute_burst_score(photo), 2)
-        span = max(abs(p.get('sequence_ev_offset') or 0) for p in photos)
+        offsets = [p.get('sequence_ev_offset') or 0 for p in photos]
+        span = max(offsets) - min(offsets)
         groups.append({
             'group_id': seq_id,
             'type': 'bracket',
-            'reason': f'{len(photos)} frames, ±{span:g} EV',
+            'reason': f'{len(photos)} frames, {span:g} EV span',
             'photos': photos,
             'best_path': photos[0]['path'],
             'count': len(photos),

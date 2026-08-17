@@ -72,6 +72,12 @@ export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   { id: 'dynamic_range', labelKey: 'gallery.dynamic_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_dynamic_range', maxKey: 'max_dynamic_range', sliderMin: 0, sliderMax: 15, step: 0.5, displaySuffix: ' EV', spanWidth: 'w-16' },
   { id: 'luminance_range', labelKey: 'gallery.luminance_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_luminance', maxKey: 'max_luminance', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
   { id: 'histogram_range', labelKey: 'gallery.histogram_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_histogram_spread', maxKey: 'max_histogram_spread', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  // Percent of pixels, worst of R/G/B. Capped at 25 rather than 100: over 28
+  // sampled photos the worst highlight clipping seen was 12.7% and the worst
+  // shadow 30.4%, so a 0-100 slider would spend nine tenths of its travel on
+  // values no photo has.
+  { id: 'channel_clip_highlight_range', labelKey: 'gallery.channel_clip_highlight_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_highlight', maxKey: 'max_channel_clip_highlight', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
+  { id: 'channel_clip_shadow_range', labelKey: 'gallery.channel_clip_shadow_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_shadow', maxKey: 'max_channel_clip_shadow', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
   { id: 'iso_range', labelKey: 'gallery.iso_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_iso', maxKey: 'max_iso', sliderMin: 50, sliderMax: 25600, step: 50, spanWidth: 'w-20' },
   { id: 'aperture_range', labelKey: 'gallery.aperture_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_aperture', maxKey: 'max_aperture', sliderMin: 0.7, sliderMax: 64, step: 0.1, displayPrefix: 'f/', spanWidth: 'w-20' },
   { id: 'focal_range', labelKey: 'gallery.focal_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_focal_length', maxKey: 'max_focal_length', sliderMin: 1, sliderMax: 1200, step: 1, displaySuffix: 'mm', spanWidth: 'w-24' },
@@ -309,7 +315,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
             @if (selectedPersons().length) {
               <div class="flex flex-wrap gap-1.5">
                 @for (p of selectedPersons(); track p.id) {
-                  <button class="relative shrink-0 group/person" [matTooltip]="p.name || (I18N.gallery.unknown_person | translate)" (click)="removePersonChip(p.id)">
+                  <button class="relative shrink-0 group/person cursor-pointer" [matTooltip]="p.name || (I18N.gallery.unknown_person | translate)" (click)="removePersonChip(p.id)">
                     <img [src]="p.id | personThumbnailUrl" class="w-9 h-9 rounded-full object-cover" [alt]="p.name || (I18N.gallery.unknown_person | translate)" />
                     <div class="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/person:opacity-100 transition-opacity">
                       <mat-icon class="!text-sm !w-4 !h-4 !leading-4 text-white">close</mat-icon>
@@ -449,7 +455,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
               <div class="flex flex-wrap gap-1.5">
                 @for (h of store.hueBuckets(); track h.value) {
                   <button type="button"
-                    class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)]"
+                    class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)] cursor-pointer"
                     [class.!border-[var(--mat-sys-primary)]]="store.filters().hue_bucket === h.value"
                     [class.bg-[var(--mat-sys-primary-container)]]="store.filters().hue_bucket === h.value"
                     [matTooltip]="('gallery.hue_buckets.' + h.value | translate) + ' (' + h.count + ')'"

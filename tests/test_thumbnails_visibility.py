@@ -39,7 +39,7 @@ def _jpeg() -> bytes:
 
 
 _SCHEMA = """
-    CREATE TABLE photos (path TEXT PRIMARY KEY, thumbnail BLOB);
+    CREATE TABLE photos (path TEXT PRIMARY KEY, thumbnail BLOB, sequence_kind TEXT);
     CREATE TABLE persons (id INTEGER PRIMARY KEY, face_thumbnail BLOB,
                           representative_face_id INTEGER);
     CREATE TABLE faces (id INTEGER PRIMARY KEY, photo_path TEXT, person_id INTEGER,
@@ -54,7 +54,7 @@ def db_path(tmp_path):
     path = str(tmp_path / "thumbs.db")
     conn = sqlite3.connect(path)
     conn.executescript(_SCHEMA)
-    conn.executemany("INSERT INTO photos VALUES (?, ?)",
+    conn.executemany("INSERT INTO photos (path, thumbnail) VALUES (?, ?)",
                      [(ALICE_PHOTO, jpeg), (BOB_PHOTO, jpeg)])
     conn.executemany(
         "INSERT INTO faces VALUES (?, ?, ?, ?, ?, ?, ?, ?)",

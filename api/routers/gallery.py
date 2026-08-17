@@ -30,6 +30,8 @@ from api.types import (
     JUNK_ANY, JUNK_NOT_JUNK,
     SEQUENCE_OVERRIDE_FORCED, SEQUENCE_OVERRIDE_SUPPRESSED, SEQUENCE_OVERRIDE_VALUES,
 )
+from utils.histogram import unpack_histogram
+from utils.sequence import BRACKET as BRACKET_KIND
 
 router = APIRouter(tags=["gallery"])
 logger = logging.getLogger(__name__)
@@ -265,6 +267,48 @@ def _apply_sequence_override_filter(where_clauses, params):
         f"WHERE 1=1{kind_sql})")
 
 
+def _active_set_scope(params):
+    """The (kind, group_id) of the set-scope filter in `params`, or (None, None).
+
+    Priority mirrors `GET /api/photo/set`: sequence, then burst, then
+    duplicate. Ephemeral -- see `sequence_group_id` on `GalleryParams` --
+    so this is read straight from the request params, never the URL.
+    """
+    sequence_kind = params.get('sequence_kind')
+    sequence_group_id = params.get('sequence_group_id')
+    if sequence_kind and sequence_group_id:
+        return sequence_kind, sequence_group_id
+    burst_group_id = params.get('burst_group_id')
+    if burst_group_id:
+        return 'burst', burst_group_id
+    duplicate_group_id = params.get('duplicate_group_id')
+    if duplicate_group_id:
+        return 'duplicate', duplicate_group_id
+    return None, None
+
+
+def _apply_set_scope_filter(where_clauses, sql_params, params):
+    """Narrow the gallery to one bracket/panorama/burst/duplicate set.
+
+    Powers the photo-detail "open this set in the gallery" action. Never
+    driven by the URL -- `sequence_group_id` is renumbered from 1 on every
+    detection pass, so a bookmarked scope would silently resolve to a
+    different set later (see gallery-filters.util.ts).
+    """
+    kind, group_id = _active_set_scope(params)
+    if kind is None:
+        return
+    if kind == 'burst':
+        where_clauses.append("photos.burst_group_id = ?")
+        sql_params.append(group_id)
+    elif kind == 'duplicate':
+        where_clauses.append("photos.duplicate_group_id = ?")
+        sql_params.append(group_id)
+    else:
+        where_clauses.append("photos.sequence_kind = ? AND photos.sequence_group_id = ?")
+        sql_params.extend([kind, group_id])
+
+
 def _quality_tier_bounds(tier):
     """Return (min, max) aggregate bounds for a quality tier, or None if invalid.
 
@@ -343,6 +387,23 @@ def _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_i
     hide_duplicates_val = params.get('hide_duplicates', '')
     hide_brackets_val = params.get('hide_brackets', '')
     hide_panoramas_val = params.get('hide_panoramas', '')
+
+    # A set-scope filter must show every frame of the set it scoped to, not
+    # just the one representative the matching hide toggle would keep -- the
+    # toggles default on, so without this the "open this set in the gallery"
+    # action would land on a gallery showing the single lead tile the user
+    # came from. ALL FOUR toggles are suppressed, not just the one matching
+    # the scope's own kind: a photo can belong to a bracket AND a burst AND a
+    # duplicate group at once (an AEB set fired in continuous drive mode is
+    # both a bracket and a burst), so any one of them could still collapse
+    # the very set the user asked to see.
+    scope_kind, _ = _active_set_scope(params)
+    if scope_kind is not None:
+        hide_bursts_val = ''
+        hide_duplicates_val = ''
+        hide_brackets_val = ''
+        hide_panoramas_val = ''
+
     where_clauses.extend(build_hide_clauses(
         hide_blinks_val, hide_bursts_val, hide_duplicates_val, hide_brackets_val,
         hide_panoramas_val))
@@ -382,6 +443,8 @@ SCORE_RANGE_COLUMNS = [
     ("mean_saturation", "min_saturation", "max_saturation", True),
     ("mean_luminance", "min_luminance", "max_luminance", True),
     ("histogram_spread", "min_histogram_spread", "max_histogram_spread", True),
+    ("channel_clip_shadow_pct", "min_channel_clip_shadow", "max_channel_clip_shadow", True),
+    ("channel_clip_highlight_pct", "min_channel_clip_highlight", "max_channel_clip_highlight", True),
     ("dynamic_range_stops", "min_dynamic_range", "max_dynamic_range", True),
     ("comp_score", "min_composition", "max_composition", True),
     ("power_point_score", "min_power_point", "max_power_point", True),
@@ -480,6 +543,7 @@ def _build_gallery_where(params, conn=None, user_id=None):
     _apply_exif_range_filters(where_clauses, sql_params, params)
     _apply_color_quality_filters(where_clauses, sql_params, params)
     _apply_date_album_geo_filters(where_clauses, sql_params, params)
+    _apply_set_scope_filter(where_clauses, sql_params, params)
     return where_clauses, sql_params
 
 
@@ -516,6 +580,110 @@ async def api_photo(
         raise
     except sqlite3.Error:
         logger.exception("Failed to fetch photo details")
+        raise HTTPException(status_code=500, detail='Internal server error')
+
+
+_EMPTY_PHOTO_SET = {'kind': None, 'group_id': None, 'count': 0, 'ev_span': None, 'members': []}
+
+
+async def _fetch_sequence_set(conn, vis_sql, vis_params, kind, group_id):
+    """A bracket/panorama/hdr_panorama set, base exposure or capture order.
+
+    Ordering and `ev_span` mirror the culling-group fetchers in
+    burst_culling.py: a bracket orders by distance from its base exposure, a
+    panorama has no base so it orders by capture time; only a bracket has an
+    EV span to report, since `sequence_ev_offset` is NULL for panoramas.
+
+    `ev_span` is the total stops between the darkest and the brightest frame,
+    NOT a symmetric ± bound: a set shot at -3/-1/+1 covers four stops, and the
+    largest offset in it says three.
+    """
+    order_col = "ABS(sequence_ev_offset)" if kind == BRACKET_KIND else "date_taken"
+    cur = await conn.execute(
+        f"""SELECT path, sequence_ev_offset, is_sequence_lead
+            FROM photos
+            WHERE sequence_kind = ? AND sequence_group_id = ? AND {vis_sql}
+            ORDER BY {order_col}, path""",
+        [kind, group_id, *vis_params],
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    members = [
+        {'path': r['path'], 'ev_offset': r['sequence_ev_offset'], 'is_lead': bool(r['is_sequence_lead'])}
+        for r in rows
+    ]
+    ev_span = None
+    if kind == BRACKET_KIND:
+        offsets = [m['ev_offset'] for m in members if m['ev_offset'] is not None]
+        if offsets:
+            ev_span = max(offsets) - min(offsets)
+    return {'kind': kind, 'group_id': group_id, 'count': len(members), 'ev_span': ev_span, 'members': members}
+
+
+async def _fetch_grouped_set(conn, vis_sql, vis_params, kind, group_col, lead_col, group_id):
+    """A burst or duplicate set, in capture order. Neither carries an EV offset."""
+    cur = await conn.execute(
+        f"""SELECT path, {lead_col}
+            FROM photos
+            WHERE {group_col} = ? AND {vis_sql}
+            ORDER BY date_taken, path""",
+        [group_id, *vis_params],
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    members = [
+        {'path': r['path'], 'ev_offset': None, 'is_lead': bool(r[lead_col])}
+        for r in rows
+    ]
+    return {'kind': kind, 'group_id': group_id, 'count': len(members), 'ev_span': None, 'members': members}
+
+
+@router.get("/api/photo/set")
+async def api_photo_set(
+    path: str = Query(...),
+    user: Optional[CurrentUser] = Depends(get_optional_user),
+):
+    """Resolve the bracket/panorama/burst/duplicate set a photo belongs to.
+
+    Precedence is sequence, then burst, then duplicate, resolved from the
+    photo's own row -- never from a group id, which is not stable across
+    runs. The pair `(sequence_kind, sequence_group_id)` is a sequence set's
+    real identity: the bracket and panorama passes each renumber their groups
+    from 1 on every run and own disjoint rows, so grouping by
+    `sequence_group_id` alone would merge unrelated sets. See
+    .claude/patterns/panorama-detection.md.
+    """
+    try:
+        async with get_async_db() as conn:
+            user_id = user.user_id if user else None
+            vis_sql, vis_params = get_visibility_clause(user_id)
+
+            cur = await conn.execute(
+                f"""SELECT sequence_kind, sequence_group_id, burst_group_id, duplicate_group_id
+                    FROM photos WHERE path = ? AND {vis_sql}""",
+                [path, *vis_params],
+            )
+            row = await cur.fetchone()
+            await cur.close()
+            if not row:
+                raise HTTPException(status_code=404, detail="Photo not found")
+
+            if row['sequence_kind'] and row['sequence_group_id'] is not None:
+                return await _fetch_sequence_set(
+                    conn, vis_sql, vis_params, row['sequence_kind'], row['sequence_group_id'])
+            if row['burst_group_id'] is not None:
+                return await _fetch_grouped_set(
+                    conn, vis_sql, vis_params, 'burst', 'burst_group_id', 'is_burst_lead', row['burst_group_id'])
+            if row['duplicate_group_id'] is not None:
+                return await _fetch_grouped_set(
+                    conn, vis_sql, vis_params, 'duplicate', 'duplicate_group_id', 'is_duplicate_lead',
+                    row['duplicate_group_id'])
+
+            return dict(_EMPTY_PHOTO_SET)
+    except HTTPException:
+        raise
+    except sqlite3.Error:
+        logger.exception("Failed to resolve photo set")
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
@@ -1018,16 +1186,20 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
     """Find photos with similar color palette using histogram intersection + saturation/luminance."""
     import numpy as np
 
-    src_hist_blob = source.get('histogram_data')
-    if not src_hist_blob:
+    src_decoded = unpack_histogram(source.get('histogram_data'))
+    if src_decoded is None:
         return [], 'no_histogram'
 
     src_mono = source.get('is_monochrome', 0)
     src_sat = source.get('mean_saturation', 0) or 0
     src_lum = source.get('mean_luminance', 0) or 0
 
-    # Decode source histogram (256 float32 = 1024 bytes)
-    src_hist = np.frombuffer(src_hist_blob, dtype=np.float32).copy()
+    # Luminance only, even for a photo whose blob carries the R/G/B channels: a
+    # library mid-rescan holds both formats, so a per-channel term would score
+    # rescanned candidates on a different scale than legacy ones and shuffle the
+    # ranking by scan order rather than by colour. The chroma signal stays in the
+    # saturation and monochrome terms below, which every row has.
+    src_hist = src_decoded['luma']
     src_norm = src_hist.sum()
     if src_norm > 0:
         src_hist = src_hist / src_norm
@@ -1046,7 +1218,10 @@ def _find_similar_color(conn, source, photo_path, min_similarity, vis_sql, vis_p
     results = []
     for r in rows:
         r = dict(r)
-        cand_hist = np.frombuffer(r['histogram_data'], dtype=np.float32).copy()
+        cand_decoded = unpack_histogram(r['histogram_data'])
+        if cand_decoded is None:
+            continue
+        cand_hist = cand_decoded['luma']
         cand_norm = cand_hist.sum()
         if cand_norm > 0:
             cand_hist = cand_hist / cand_norm
@@ -1244,6 +1419,25 @@ def _social_export_presets() -> dict:
     return {'presets': presets}
 
 
+def _render_migration_status():
+    """How many RAW rows still carry a thumbnail from the old render profile.
+
+    ``/api/config`` is on the SPA's startup path, so the number comes from the
+    ``stats_cache`` entry (``db.stats_cache.get_pending_render_count``) rather
+    than from a scan of ``photos``: the exact count is recomputed at most once
+    per TTL, and is refreshed outright by ``--refresh-thumbnails`` and
+    ``--refresh-stats``.
+    """
+    from db.stats_cache import get_pending_render_count
+
+    try:
+        pending = get_pending_render_count()
+    except sqlite3.Error:
+        logger.debug("Could not read the render-migration count", exc_info=True)
+        return {'pending': 0}
+    return {'pending': pending}
+
+
 @router.get("/api/config")
 def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Get viewer configuration for Angular client initialization."""
@@ -1285,6 +1479,8 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'defaults': VIEWER_CONFIG['defaults'],
         'pagination': VIEWER_CONFIG['pagination'],
         'display': VIEWER_CONFIG['display'],
+        'badges': VIEWER_CONFIG['badges'],
+        'clipping': VIEWER_CONFIG['clipping'],
         'features': features,
         'quality_thresholds': VIEWER_CONFIG['quality_thresholds'],
         'social_export': _social_export_presets(),
@@ -1295,4 +1491,5 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'is_multi_user': is_multi_user_enabled(),
         'edition_enabled': is_edition_enabled(),
         'edition_authenticated': is_edition_authenticated(user),
+        'render_migration': _render_migration_status(),
     }

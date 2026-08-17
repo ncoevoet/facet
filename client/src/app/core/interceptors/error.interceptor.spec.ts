@@ -129,10 +129,10 @@ describe('errorInterceptor', () => {
       });
     }));
 
-  const raise403 = (url = '/api/photos') =>
+  const raise403 = (url = '/api/photos', error: unknown = null) =>
     new Promise<void>((resolve) => {
       const req = new HttpRequest('GET', url);
-      next.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403, url })));
+      next.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 403, url, error })));
       runInterceptor(req).subscribe({ error: () => resolve() });
     });
 
@@ -164,6 +164,34 @@ describe('errorInterceptor', () => {
 
     await vi.waitFor(() =>
       expect(snackBarMock.open).toHaveBeenCalledWith('errors.edition_expired', '', { duration: 6000 }),
+    );
+  });
+
+  it('appends the server-supplied detail to the 403 toast, labelled as a server message', async () => {
+    await raise403('/api/photos', { detail: 'target_dir is not an allowed export location' });
+
+    await vi.waitFor(() =>
+      expect(snackBarMock.open).toHaveBeenCalledWith(
+        'errors.access_denied — errors.server_detail target_dir is not an allowed export location',
+        '',
+        { duration: 8000 },
+      ),
+    );
+  });
+
+  it('falls back to the generic 403 toast when no detail is present', async () => {
+    await raise403('/api/photos', {});
+
+    await vi.waitFor(() =>
+      expect(snackBarMock.open).toHaveBeenCalledWith('errors.access_denied', '', { duration: 3000 }),
+    );
+  });
+
+  it('does not crash on a non-string detail (FastAPI validation error list)', async () => {
+    await raise403('/api/photos', { detail: [{ loc: ['body', 'target_dir'], msg: 'field required' }] });
+
+    await vi.waitFor(() =>
+      expect(snackBarMock.open).toHaveBeenCalledWith('errors.access_denied', '', { duration: 3000 }),
     );
   });
 

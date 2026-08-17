@@ -16,7 +16,7 @@ from unittest import mock
 import pytest
 
 import api.config as api_config
-from api.config import map_disk_path
+from api.config import load_viewer_config, map_disk_path
 
 _MOD = "api.config"
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1409,3 +1409,20 @@ class TestExistingConfigBackupsAreTightened:
         assert len(secret) == api_config._SECRET_BYTES * 2
         assert _mode_of(api_config.secret_path()) == 0o600
         assert _mode_of(backup) == 0o664
+
+
+class TestViewerFeatureDefaults:
+    """``load_viewer_config`` is the single merge point both ``/api/config``
+    and ``/api/auth/status`` read their ``features`` dict from. A key present
+    in neither this function's defaults nor the shipped config JSON reads as
+    off everywhere, even when the feature itself defaults to enabled
+    server-side (see ``api/routers/portfolio.py``'s own ``True`` default).
+    """
+
+    def test_show_portfolio_export_defaults_true_on_a_config_missing_it(self):
+        viewer = load_viewer_config({"viewer": {"features": {}}})
+        assert viewer["features"]["show_portfolio_export"] is True
+
+    def test_show_portfolio_export_defaults_true_on_an_empty_config(self):
+        viewer = load_viewer_config({})
+        assert viewer["features"]["show_portfolio_export"] is True

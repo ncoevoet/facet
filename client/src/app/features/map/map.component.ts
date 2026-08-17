@@ -67,7 +67,7 @@ interface MapResponse {
              role="status">
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0">cloud_off</mat-icon>
           <span>{{ I18N.map.tiles_unavailable | translate }}</span>
-          <button type="button" class="inline-flex items-center justify-center shrink-0 rounded-full p-0.5 hover:bg-black/20 transition-colors"
+          <button type="button" class="inline-flex items-center justify-center shrink-0 rounded-full p-0.5 hover:bg-black/20 transition-colors cursor-pointer"
                   (click)="dismissTileError()"
                   [attr.aria-label]="I18N.ui.buttons.dismiss | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>

@@ -1624,13 +1624,15 @@ _JOB_MODIFIERS = frozenset({
     "apply_recommendations", "config", "db", "discover_min_cluster_size", "dry_run",
     "dry_run_count", "embed_originals", "force", "force_library_lock", "force_low_space",
     "force_since", "limit", "merge_threshold", "optimize_category", "optimize_force",
-    "optimize_sources", "ranker_category", "resume", "retry_failed", "score_to_stars",
+    "optimize_sources", "ranker_category", "refresh_thumbnails_workers", "resume",
+    "retry_failed", "score_to_stars",
     "simulate", "simulate_gpu", "simulate_vram", "single_pass", "single_pass_name",
     "train_keeper_force", "train_ranker_force", "user", "verbose", "watch_debounce",
 })
 
 _READ_ONLY_LIBRARY_COMMANDS = frozenset({
-    "auto_tune_categories", "comparison_stats", "doctor", "eval_iqa_srcc", "export_csv",
+    "auto_tune_categories", "check_raw_rendering", "comparison_stats", "doctor",
+    "eval_iqa_srcc", "export_csv",
     "export_json", "export_manifest", "immich_sync", "immich_test", "list_models",
     "mine_insights", "report_unreviewed_bursts", "suggest_person_merges",
     "sweep_dedup_thresholds", "validate_categories",

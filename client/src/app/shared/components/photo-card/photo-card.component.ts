@@ -1,4 +1,4 @@
-import { Component, effect, input, output, signal, untracked } from '@angular/core';
+import { Component, computed, effect, input, output, signal, untracked } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -17,11 +17,42 @@ interface AppConfig {
   features?: {
     show_similar_button?: boolean;
     show_rating_controls?: boolean;
-    show_rating_badge?: boolean;
     show_critique?: boolean;
     show_embed_metadata?: boolean;
   };
+  badges?: Partial<BadgeVisibility>;
+  clipping?: { badge_percent?: number };
 }
+
+/** Which card badges are drawn, from `viewer.badges`. */
+export interface BadgeVisibility {
+  favorite: boolean;
+  star_rating: boolean;
+  rejected: boolean;
+  sequence_kind: boolean;
+  sequence_override_pending: boolean;
+  keeper_hint: boolean;
+  best_of_burst: boolean;
+  clipping_highlight: boolean;
+  clipping_shadow: boolean;
+}
+
+/** Every badge that predates the config block stays on, so an install that
+ *  says nothing about badges looks exactly as it did. Shadow clipping is the
+ *  one default-off badge: crushed blacks are routinely deliberate. */
+export const DEFAULT_BADGE_VISIBILITY: BadgeVisibility = {
+  favorite: true,
+  star_rating: true,
+  rejected: true,
+  sequence_kind: true,
+  sequence_override_pending: true,
+  keeper_hint: true,
+  best_of_burst: true,
+  clipping_highlight: true,
+  clipping_shadow: false,
+};
+
+const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
 
 @Component({
   selector: 'app-photo-card',
@@ -85,7 +116,7 @@ interface AppConfig {
              right-9 the bar's own px-1.5 py-1 and gap-0.5 produce. They were
              6px off before, which read as the icons jumping every time the
              pointer entered or left the tile. -->
-        @if (isEditionMode() && photo().is_favorite) {
+        @if (badges().favorite && isEditionMode() && photo().is_favorite) {
           <div class="absolute bottom-1 right-1.5 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md">favorite</mat-icon>
           </div>
@@ -94,7 +125,7 @@ interface AppConfig {
         <!-- A rating the user set is a standing fact about the photo, so it
              should not take a hover to see it. Carries the same count bubble the
              control does. -->
-        @if (isEditionMode() && photo().star_rating) {
+        @if (badges().star_rating && isEditionMode() && photo().star_rating) {
           <div class="absolute bottom-1 left-1.5 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
                [attr.aria-label]="'rating.rating_badge' | translate:{ stars: photo().star_rating ?? 0 }">
             <mat-icon class="!text-lg !w-[18px] !h-[18px] !leading-[18px] !text-yellow-400 drop-shadow-md"
@@ -114,7 +145,7 @@ interface AppConfig {
              because the bar replaces them with their own controls, whereas this
              one states a fact the bar never repeats, so hiding it on hover just
              loses information. Sits above the bar's gradient. -->
-        @if (collapsedSequenceKinds().includes(photo().sequence_kind ?? '')) {
+        @if (badges().sequence_kind && collapsedSequenceKinds().includes(photo().sequence_kind ?? '')) {
           <div class="absolute bottom-1 left-10 w-7 h-7 z-30 inline-flex items-center justify-center"
                [matTooltip]="photo().sequence_kind | sequenceKindLabel | translate"
                [attr.aria-label]="photo().sequence_kind | sequenceKindLabel | translate">
@@ -128,7 +159,7 @@ interface AppConfig {
              until the next run, and that miss is exactly what was corrected.
              Unconditional, unlike the badge above -- a correction is not
              collapsed behind anything, so a hide toggle says nothing about it. -->
-        @if (photo().sequence_override_pending && photo().sequence_override; as pending) {
+        @if (badges().sequence_override_pending && photo().sequence_override_pending && photo().sequence_override; as pending) {
           <div class="absolute bottom-1 left-[4.5rem] w-7 h-7 z-30 inline-flex items-center justify-center"
                [matTooltip]="(pending === 'suppressed' ? 'gallery.sequence_override.badge_suppressed' : 'gallery.sequence_override.badge') | translate"
                [attr.aria-label]="(pending === 'suppressed' ? 'gallery.sequence_override.badge_suppressed' : 'gallery.sequence_override.badge') | translate">
@@ -143,7 +174,7 @@ interface AppConfig {
              corners so they never collided, and hiding it left desaturation as
              the only signal -- which conveys nothing to a screen reader and
              nothing at all on an already-monochrome photo. -->
-        @if (isEditionMode() && photo().is_rejected) {
+        @if (badges().rejected && isEditionMode() && photo().is_rejected) {
           <div class="absolute bottom-1 right-9 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
                [attr.aria-label]="'rating.rejected_badge' | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>
@@ -151,9 +182,24 @@ interface AppConfig {
         }
 
         <!-- Keeper hint: a better shot exists in this group (learned keeper head) -->
-        @if (photo().keeper_hint?.has_better) {
+        @if (badges().keeper_hint && photo().keeper_hint?.has_better) {
           <div class="absolute top-1.5 left-3 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-amber-300 drop-shadow-md" aria-hidden="true">arrow_circle_up</mat-icon>
+          </div>
+        }
+
+        <!-- Clipping: a channel ran out of range and lost its detail. Top
+             right, fading on hover so it never sits under the overlay's own
+             buttons. Highlight and shadow are separate badges because they are
+             separate decisions -- a blown sky is usually a mistake, crushed
+             blacks are routinely the point -- which is why shadow is off by
+             default. A photo whose row was never measured has no percentage at
+             all and is silent, rather than claiming to be clean. -->
+        @if (clipping(); as clip) {
+          <div class="absolute top-1.5 right-1.5 z-20 pointer-events-none flex items-center gap-1 px-1.5 py-0.5 rounded bg-black/60 transition-opacity md:group-hover/img:opacity-0"
+               [attr.aria-label]="clip.label | translate:{ percent: clip.percentText }">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 drop-shadow-md"
+                      [class]="clip.colorClass" aria-hidden="true">{{ clip.icon }}</mat-icon>
           </div>
         }
 
@@ -163,7 +209,7 @@ interface AppConfig {
           <div class="flex justify-end items-center gap-1 p-1.5">
             @if (config()?.features?.show_similar_button) {
               <button
-                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
+                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                 [matMenuTriggerFor]="similarMenu"
                 [matTooltip]="'similar.find_similar' | translate"
                 [attr.aria-label]="'similar.find_similar' | translate"
@@ -187,7 +233,7 @@ interface AppConfig {
             }
             @if (config()?.features?.show_critique) {
               <button
-                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
+                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                 [matTooltip]="'critique.title' | translate"
                 [attr.aria-label]="'critique.title' | translate"
                 (click)="openCritiqueClicked.emit(photo()); $event.stopPropagation()">
@@ -196,7 +242,7 @@ interface AppConfig {
             }
             @if (isEditionMode() && config()?.features?.show_embed_metadata) {
               <button
-                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
+                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                 [matTooltip]="'photoCard.embed_to_file' | translate"
                 [attr.aria-label]="'photoCard.embed_to_file' | translate"
                 (click)="embedMetadataClicked.emit(photo()); $event.stopPropagation()">
@@ -205,7 +251,7 @@ interface AppConfig {
             }
             @if (isEditionMode() && photo().unassigned_faces > 0) {
               <button
-                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white"
+                class="w-7 h-7 rounded-full bg-black/50 inline-flex items-center justify-center hover:bg-black/80 transition-colors text-white cursor-pointer"
                 [matTooltip]="'manage_persons.assign_face' | translate"
                 [attr.aria-label]="'manage_persons.assign_face' | translate"
                 (click)="openAddPersonClicked.emit(photo()); $event.stopPropagation()">
@@ -220,7 +266,7 @@ interface AppConfig {
               <!-- Left: compact star rating -->
               @if (config()?.features?.show_rating_controls) {
                 <button
-                  class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400"
+                  class="relative w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-yellow-400 cursor-pointer"
                   [matTooltip]="'rating.set_rating' | translate"
                   [attr.aria-label]="'rating.set_rating' | translate"
                   (click)="cycleStarRating(); $event.stopPropagation()"
@@ -235,7 +281,7 @@ interface AppConfig {
               <div class="flex items-center gap-0.5 ml-auto">
                 @if (!photo().star_rating) {
                   <button
-                    class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors"
+                    class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                     [class.text-red-400]="photo().is_rejected"
                     [class.text-white]="!photo().is_rejected"
                     [matTooltip]="(photo().is_rejected ? 'rating.unmark_rejected' : 'rating.mark_rejected') | translate"
@@ -247,7 +293,7 @@ interface AppConfig {
                   </button>
                 }
                 <button
-                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors"
+                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors cursor-pointer"
                   [class.text-red-400]="photo().is_favorite"
                   [class.text-white]="!photo().is_favorite"
                   [matTooltip]="(photo().is_favorite ? 'rating.remove_favorite' : 'rating.add_favorite') | translate"
@@ -276,7 +322,7 @@ interface AppConfig {
           <div class="flex items-center gap-1">
             <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
-              @if (photo().is_best_of_burst) {
+              @if (badges().best_of_burst && burstFramesVisible() && photo().is_burst_lead && photo().burst_group_id) {
                 <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
               }
               @if (currentSort() !== 'aggregate') {
@@ -318,7 +364,7 @@ interface AppConfig {
               @for (person of photo().persons | sortPersons:personFilterId(); track person.id) {
                 @if (isEditionMode() && personFilterId() === '' + person.id) {
                   <button
-                    class="w-8 h-8 rounded-full bg-red-900/60 inline-flex items-center justify-center hover:bg-red-800 transition-colors"
+                    class="w-8 h-8 rounded-full bg-red-900/60 inline-flex items-center justify-center hover:bg-red-800 transition-colors cursor-pointer"
                     [matTooltip]="('ui.buttons.remove' | translate) + ': ' + person.name"
                     [attr.aria-label]="('ui.buttons.remove' | translate) + ': ' + person.name"
                     (click)="personRemoveClicked.emit({photo: photo(), personId: person.id}); $event.stopPropagation()">
@@ -347,6 +393,43 @@ export class PhotoCardComponent {
   // Data
   readonly photo = input.required<Photo>();
   readonly config = input<AppConfig | null>(null);
+
+  /** Which badges this install draws, with every unset key left at its default. */
+  protected readonly badges = computed<BadgeVisibility>(
+    () => ({ ...DEFAULT_BADGE_VISIBILITY, ...(this.config()?.badges ?? {}) }));
+
+  /**
+   * The clipping badge for this photo, or null when it has not earned one.
+   *
+   * Highlights win when both directions clip: a blown highlight is
+   * unrecoverable, while a crushed black usually still reads as black.
+   * A null percentage means the photo was never measured (its stored
+   * histogram predates the per-channel format) and is treated as unknown,
+   * never as clean.
+   */
+  protected readonly clipping = computed(() => {
+    const badges = this.badges();
+    const threshold = this.config()?.clipping?.badge_percent ?? DEFAULT_CLIPPING_BADGE_PERCENT;
+    const highlight = this.photo().channel_clip_highlight_pct;
+    const shadow = this.photo().channel_clip_shadow_pct;
+    if (badges.clipping_highlight && highlight != null && highlight > threshold) {
+      return {
+        label: 'gallery.clipping.badge_highlight',
+        icon: 'flare',
+        colorClass: '!text-amber-300',
+        percentText: highlight.toFixed(1),
+      };
+    }
+    if (badges.clipping_shadow && shadow != null && shadow > threshold) {
+      return {
+        label: 'gallery.clipping.badge_shadow',
+        icon: 'brightness_low',
+        colorClass: '!text-sky-300',
+        percentText: shadow.toFixed(1),
+      };
+    }
+    return null;
+  });
 
   // Progressive loading
   readonly imageLoaded = signal(false);
@@ -380,24 +463,52 @@ export class PhotoCardComponent {
    *  toggle is on, and the badge would then be claiming a set is collapsed when
    *  every one of its frames is on screen. */
   readonly collapsedSequenceKinds = input<readonly string[]>([]);
+  /** Whether a burst's non-lead frames are on screen.
+   *
+   *  The mirror image of `collapsedSequenceKinds`: with `hide_bursts` on --
+   *  the default -- every burst photo in the grid IS its group's lead, so a
+   *  "best" badge on each would be decoration. It only carries information
+   *  once the siblings it was picked over are visible beside it. */
+  readonly burstFramesVisible = input(false);
   readonly personFilterId = input('');
   /** 'hover' (default) | 'click' | 'off' | 'panel' — drives tooltip emission strategy.
    *
-   *  'panel' feeds the gallery's docked rail, which is the one mode driven by
-   *  BOTH gestures: it was asked for as "changes with the photo selected (click)
-   *  or hovered (hover)", and since the rail is parked rather than chasing the
-   *  cursor there is no reason to make that an either/or. It also keeps the rail
-   *  usable on a touch screen, where hover never fires. */
+   *  'panel' feeds the gallery's docked rail. By default it responds to BOTH
+   *  gestures: it was asked for as "changes with the photo selected (click) or
+   *  hovered (hover)", and since the rail is parked rather than chasing the
+   *  cursor there is no reason to make that an either/or by default. It also
+   *  keeps the rail usable on a touch screen, where hover never fires.
+   *  panelActivation narrows this per-install/per-user. */
   readonly tooltipMode = input<'hover' | 'click' | 'off' | 'panel'>('hover');
+  /** Which gesture(s) retarget the docked panel when tooltipMode is 'panel'.
+   *  Irrelevant for every other mode, which already has one fixed gesture.
+   *  Default 'both' preserves the original panel behaviour exactly. */
+  readonly panelActivation = input<'hover' | 'click' | 'both'>('both');
 
-  /** Whether this mode reports hover at all (both hover and the docked rail do). */
+  /** Whether a mouse hover retargets the panel: always for 'hover', for
+   *  'panel' only when panelActivation allows hover. */
   private hoverDriven(): boolean {
-    return this.tooltipMode() === 'hover' || this.tooltipMode() === 'panel';
+    const mode = this.tooltipMode();
+    if (mode === 'hover') return true;
+    if (mode === 'panel') return this.panelActivation() !== 'click';
+    return false;
   }
 
-  /** Whether this mode reports clicks (the click tooltip and the docked rail). */
+  /** Whether a mouse click retargets the panel: always for 'click', for
+   *  'panel' only when panelActivation allows click. */
   private clickDriven(): boolean {
-    return this.tooltipMode() === 'click' || this.tooltipMode() === 'panel';
+    const mode = this.tooltipMode();
+    if (mode === 'click') return true;
+    if (mode === 'panel') return this.panelActivation() !== 'hover';
+    return false;
+  }
+
+  /** Keyboard selection always retargets 'click' and 'panel', regardless of
+   *  panelActivation -- a keyboard user has no hover to fall back on, so
+   *  narrowing this the same way as clickDriven() would strand them. */
+  private keyboardDriven(): boolean {
+    const mode = this.tooltipMode();
+    return mode === 'click' || mode === 'panel';
   }
 
   // Events
@@ -414,7 +525,7 @@ export class PhotoCardComponent {
   onKeySelect(event: Event): void {
     event.preventDefault();
     this.selectionChange.emit({ photo: this.photo(), event: event as MouseEvent });
-    if (this.clickDriven()) {
+    if (this.keyboardDriven()) {
       this.tooltipShow.emit({ photo: this.photo(), event: event as MouseEvent });
     }
   }

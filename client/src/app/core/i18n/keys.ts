@@ -218,7 +218,8 @@ export const I18N = {
     form_fractal: "tooltip.form_fractal",
     color_harmony: "tooltip.color_harmony",
     caption: "tooltip.caption",
-    persons: "tooltip.persons",
+    filter_by_person: "tooltip.filter_by_person",
+    set_section: "tooltip.set_section",
     histogram: "tooltip.histogram",
   },
   photoCard: {
@@ -559,6 +560,7 @@ export const I18N = {
     edition_expired: "errors.edition_expired",
     server_error: "errors.server_error",
     action_failed: "errors.action_failed",
+    server_detail: "errors.server_detail",
   },
   language: {
     en: "language.en",
@@ -1049,6 +1051,13 @@ export const I18N = {
       restore: "gallery.hidden_banner.restore",
       showing_all: "gallery.hidden_banner.showing_all",
     },
+    render_migration: {
+      message: "gallery.render_migration.message",
+      command_hint: "gallery.render_migration.command_hint",
+    },
+    set_scope: {
+      message: "gallery.set_scope.message",
+    },
     all_photos: "gallery.all_photos",
     sort: "gallery.sort",
     sort_aggregate: "gallery.sort_aggregate",
@@ -1095,6 +1104,12 @@ export const I18N = {
       panel: "gallery.tooltip_mode.panel",
       off: "gallery.tooltip_mode.off",
       panel_empty: "gallery.tooltip_mode.panel_empty",
+    },
+    panel_activation: {
+      label: "gallery.panel_activation.label",
+      hover: "gallery.panel_activation.hover",
+      click: "gallery.panel_activation.click",
+      both: "gallery.panel_activation.both",
     },
     hide_blinks: "gallery.hide_blinks",
     hide_bursts: "gallery.hide_bursts",
@@ -1255,6 +1270,12 @@ export const I18N = {
       hint: "gallery.compare.hint",
       reset_zoom: "gallery.compare.reset_zoom",
     },
+    clipping: {
+      badge_highlight: "gallery.clipping.badge_highlight",
+      badge_shadow: "gallery.clipping.badge_shadow",
+    },
+    channel_clip_highlight_range: "gallery.channel_clip_highlight_range",
+    channel_clip_shadow_range: "gallery.channel_clip_shadow_range",
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -2311,6 +2332,13 @@ export const I18N = {
     translating_caption: "photo_detail.translating_caption",
     location: "photo_detail.location",
     social_crop: "photo_detail.social_crop",
+    set: {
+      title: "photo_detail.set.title",
+      ev_span: "photo_detail.set.ev_span",
+      kind_duplicate: "photo_detail.set.kind_duplicate",
+      open_in_gallery: "photo_detail.set.open_in_gallery",
+      member_position: "photo_detail.set.member_position",
+    },
   },
   photo: {
     category_override: {
@@ -2482,6 +2510,20 @@ export const I18N = {
       save_failed: "panorama.settings.save_failed",
       redetect_started: "panorama.settings.redetect_started",
       redetect_failed: "panorama.settings.redetect_failed",
+    },
+  },
+  histogram: {
+    mode: {
+      label: "histogram.mode.label",
+      luminance: "histogram.mode.luminance",
+      rgb: "histogram.mode.rgb",
+      red: "histogram.mode.red",
+      green: "histogram.mode.green",
+      blue: "histogram.mode.blue",
+    },
+    clipping: {
+      shadow: "histogram.clipping.shadow",
+      highlight: "histogram.clipping.highlight",
     },
   },
 } as const;

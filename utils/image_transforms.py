@@ -15,6 +15,38 @@ def _ensure_pil():
     return Image
 
 
+# Brightest pixel a regenerated thumbnail must reach to count as a real render.
+#
+# A severely truncated Panasonic RW2 does not fail to decode: LibRaw zero-fills
+# the missing buffer and hands back a valid, full-size, entirely black frame
+# (pinned by tests/test_raw_brands.py). A `is None` check does not see that, so
+# a corrupt file would silently overwrite a good stored thumbnail with a black
+# one. Measured behaviour picks the bound: a zero-filled buffer encodes to a
+# thumbnail whose peak is exactly 0, while a night frame with a highlight over
+# even 0.1% of the area measures 83+. Four leaves the guard clear of both.
+#
+# The test is the MAXIMUM, never the mean: a real night shot is mostly black by
+# intent and a mean-based bound would reject it. Content dim enough to fail this
+# renders as black in the grid anyway, so keeping the previous thumbnail costs
+# the user nothing.
+DEGENERATE_THUMBNAIL_PEAK = 4
+
+
+def thumbnail_has_signal(thumbnail_bytes):
+    """Whether a freshly generated thumbnail carries any image signal at all.
+
+    Deliberately measured on the encoded thumbnail rather than the
+    full-resolution buffer: it is three orders of magnitude smaller and it is
+    the artifact actually about to be stored.
+    """
+    Image = _ensure_pil()
+    if not thumbnail_bytes:
+        return False
+    with Image.open(BytesIO(thumbnail_bytes)) as img:
+        peak = img.convert('L').getextrema()[1]
+    return peak >= DEGENERATE_THUMBNAIL_PEAK
+
+
 def generate_photo_thumbnail(pil_img, size=640, quality=80):
     """
     Generate JPEG thumbnail from PIL image.

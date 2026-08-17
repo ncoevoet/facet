@@ -196,6 +196,13 @@ class GalleryParams(BaseModel):
     max_luminance: str = ''
     min_histogram_spread: str = ''
     max_histogram_spread: str = ''
+    # Per-channel clipping (percent of pixels, worst of R/G/B). A row that was
+    # never measured is NULL and is excluded by either bound -- unknown is not
+    # clean, so it must not answer a "show me clipped photos" filter either way.
+    min_channel_clip_shadow: str = ''
+    max_channel_clip_shadow: str = ''
+    min_channel_clip_highlight: str = ''
+    max_channel_clip_highlight: str = ''
     min_power_point: str = ''
     max_power_point: str = ''
     min_leading_lines: str = ''
@@ -242,5 +249,12 @@ class GalleryParams(BaseModel):
     max_moment_confidence: str = ''
     # Path
     path_prefix: str = ''
+    # Set scope (photo-detail "open this set in the gallery"). Ephemeral: never
+    # round-tripped through the URL, because sequence_group_id is renumbered
+    # from 1 on every detection pass -- see gallery-filters.util.ts.
+    sequence_group_id: str = ''
+    sequence_kind: str = ''
+    burst_group_id: str = ''
+    duplicate_group_id: str = ''
 
     model_config = {'extra': 'ignore'}

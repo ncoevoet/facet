@@ -449,6 +449,8 @@ class BatchProcessor:
                     # New columns for scoring improvements
                     'shadow_clipped': histogram_data.get('shadow_clipped', 0),
                     'highlight_clipped': histogram_data.get('highlight_clipped', 0),
+                    'channel_clip_shadow_pct': histogram_data.get('channel_clip_shadow_pct'),
+                    'channel_clip_highlight_pct': histogram_data.get('channel_clip_highlight_pct'),
                     'is_silhouette': is_silhouette,
                     'is_group_portrait': face_res.get('is_group_portrait', 0),
                     'leading_lines_score': leading_lines_data.get('leading_lines_score', 0),

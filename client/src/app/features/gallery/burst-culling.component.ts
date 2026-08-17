@@ -688,7 +688,7 @@ class RunGeneration {
                       </div>
                     }
                     @if (!(photo.path | isKept:selectionsMap():group.group_id)) {
-                      <button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 inline-flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity"
+                      <button class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 inline-flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity cursor-pointer"
                               [matTooltip]="I18N.culling.view_detail | translate"
                               [attr.aria-label]="I18N.culling.view_detail | translate"
                               (click)="openDetail($event, photo.path)">
@@ -708,14 +708,14 @@ class RunGeneration {
                 @if (group.category; as category) {
                   @if (comparisonStats(); as stats) {
                     @if ((category | weightRemaining:stats); as remaining) {
-                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
                               (click)="tuneCategory(category)"
                               [matTooltip]="I18N.culling.weight_remaining | translate:{ count: remaining }"
                               [attr.aria-label]="I18N.culling.weight_remaining | translate:{ count: remaining }">
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-60">tune</mat-icon>
                       </button>
                     } @else {
-                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                      <button class="inline-flex items-center justify-center w-6 h-6 rounded hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
                               (click)="tuneCategory(category)"
                               [matTooltip]="I18N.culling.weight_ready | translate"
                               [attr.aria-label]="I18N.culling.weight_ready | translate">
@@ -1059,7 +1059,7 @@ class RunGeneration {
                          actually looking at. Same write as those keys. -->
                     <div class="absolute bottom-2 right-2 flex items-center gap-2 pointer-events-auto">
                       <button type="button"
-                              class="w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100"
+                              class="w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100 cursor-pointer"
                               [class.opacity-70]="!(photo.path | isKept:selectionsMap():lbGroup.group_id)"
                               [attr.aria-pressed]="photo.path | isKept:selectionsMap():lbGroup.group_id"
                               [matTooltip]="I18N.culling.lightbox.keep | translate"
@@ -1068,7 +1068,7 @@ class RunGeneration {
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
                       </button>
                       <button type="button"
-                              class="w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100"
+                              class="w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100 cursor-pointer"
                               [class.opacity-70]="!(photo.path | isDecided:selectionsMap():lbGroup.group_id)"
                               [attr.aria-pressed]="photo.path | isDecided:selectionsMap():lbGroup.group_id"
                               [matTooltip]="I18N.culling.lightbox.reject | translate"

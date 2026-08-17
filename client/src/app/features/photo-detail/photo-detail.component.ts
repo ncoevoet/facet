@@ -11,7 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
-import { Photo, KeeperHint } from '../../shared/models/photo.model';
+import { Photo, KeeperHint, PhotoSet } from '../../shared/models/photo.model';
 import { AuthService } from '../../core/services/auth.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
@@ -23,11 +23,17 @@ import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { CategoryLabelPipe } from '../gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../shared/pipes/is-lens-name.pipe';
 import { DownloadIconPipe } from '../../shared/pipes/download-icon.pipe';
-import { HistogramComponent } from '../../shared/components/histogram/histogram.component';
+import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
+import { EvOffsetPipe } from '../gallery/burst-culling.pipes';
+import {
+  HISTOGRAM_PANEL_HEIGHT, HistogramComponent,
+} from '../../shared/components/histogram/histogram.component';
+import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
 import { DownloadOption } from '../../shared/models/download.model';
 import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
+import { GalleryFilters } from '../gallery/gallery-filters.util';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
@@ -60,6 +66,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     CategoryLabelPipe,
     IsLensNamePipe,
     DownloadIconPipe,
+    PhotoSetKindIconPipe,
+    PhotoSetKindLabelPipe,
+    EvOffsetPipe,
     HistogramComponent,
     ComparisonCategoryExplainerComponent,
   ],
@@ -262,7 +271,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.caption | translate }}</div>
               @if (auth.isEdition()) {
                 <div class="flex gap-1">
-                  @if (!p.caption) {
+                  @if (!p.caption && store.config()?.features?.show_captions) {
                     <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate">
                       @if (generatingCaption()) {
                         <mat-spinner diameter="16" />
@@ -312,7 +321,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 @if (p.eye_sharpness !== null) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.eye_sharpness | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.eye_sharpness | fixed:1 }}</span></div>
                 }
-                @if (p.face_confidence !== null) {
+                @if (p.face_confidence !== null && p.face_confidence !== undefined) {
                   <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.face_confidence | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.face_confidence * 100 | fixed:0 }}%</span></div>
                 }
               }
@@ -396,13 +405,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (p.dynamic_range_stops !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.dynamic_range | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.dynamic_range_stops | fixed:1 }}</span></div>
               }
-              @if (p.mean_saturation !== null) {
+              @if (p.mean_saturation !== null && p.mean_saturation !== undefined) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.saturation | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ (p.mean_saturation * 100) | fixed:0 }}%</span></div>
               }
               @if (p.noise_sigma !== null) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.noise | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.noise_sigma | fixed:1 }}</span></div>
               }
-              @if (p.mean_luminance !== null) {
+              @if (p.mean_luminance !== null && p.mean_luminance !== undefined) {
                 <div class="flex justify-between items-baseline gap-2"><span class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.tooltip.luminance | translate }}</span><span class="text-[var(--mat-sys-primary)] font-medium">{{ p.mean_luminance * 100 | fixed:0 }}%</span></div>
               }
               @if (p.histogram_spread !== null) {
@@ -438,10 +447,18 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
-          <!-- Luminance histogram -->
-          <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
-            <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.tooltip.histogram | translate }}</div>
-            <app-histogram [src]="p.path | thumbnailUrl:640" />
+          <!-- Histogram: the graph runs edge to edge (the panel's only full-width
+               block), so the negative margin cancelling the panel's own p-4
+               goes on this section's container. The label gets its own
+               horizontal padding back so it still lines up with every other
+               section's label above it. -->
+          <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3 -mx-4">
+            <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2 px-4">{{ I18N.tooltip.histogram | translate }}</div>
+            <app-histogram [path]="p.path" [src]="p.path | thumbnailUrl:640" [monochrome]="!!p.is_monochrome"
+                           [height]="HISTOGRAM_PANEL_HEIGHT" [showModeToggle]="true"
+                           [surface]="'detail'"
+                           [defaultMode]="histogramDefaultMode()"
+                           [indicatorPercent]="clippingIndicatorPercent()" />
           </div>
 
           <!-- Location -->
@@ -504,6 +521,41 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 }
               </div>
             </div>
+          }
+
+          <!-- Set section (bracket/panorama/hdr_panorama/burst/duplicate) -->
+          @if (photoSet(); as set) {
+            @if (set.kind) {
+              <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
+                <div class="flex items-center justify-between mb-2">
+                  <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.set.title | translate }}</div>
+                  <button mat-button class="!min-w-0" (click)="openSetInGallery()">
+                    <mat-icon>photo_library</mat-icon> {{ I18N.photo_detail.set.open_in_gallery | translate }}
+                  </button>
+                </div>
+                <div class="flex items-center gap-2 flex-wrap mb-2 text-sm">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-70">{{ set.kind | photoSetKindIcon }}</mat-icon>
+                  <span class="font-medium">{{ set.kind | photoSetKindLabel | translate }}</span>
+                  <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.capsules.photos_count | translate:{ count: set.count } }}</span>
+                  @if (set.ev_span !== null) {
+                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.set.ev_span | translate }}: {{ set.ev_span | fixed:1 }} EV</span>
+                  }
+                </div>
+                <div class="flex gap-2 flex-wrap">
+                  @for (member of set.members; track member.path) {
+                    <button class="relative rounded-lg overflow-hidden w-16 h-16 shrink-0 cursor-pointer hover:opacity-80 transition-opacity ring-[var(--mat-sys-primary)]"
+                            [class.ring-2]="member.path === p.path"
+                            [attr.aria-label]="(I18N.photo_detail.set.member_position | translate:{ position: $index + 1, count: set.members.length }) + (member.ev_offset !== null ? ', ' + (member.ev_offset | evOffset) : '')"
+                            (click)="openSetMember(member.path)">
+                      <img [src]="member.path | thumbnailUrl:96" alt="" class="w-full h-full object-cover" />
+                      @if (member.ev_offset !== null) {
+                        <span class="absolute bottom-0 inset-x-0 text-center text-[0.625rem] leading-4 bg-black/60 text-white">{{ member.ev_offset | evOffset }}</span>
+                      }
+                    </button>
+                  }
+                </div>
+              </div>
+            }
           }
         </div>
       </div>
@@ -571,6 +623,17 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   });
 
   // Social-export crop presets (from viewer config) + which signal frames the crop
+  protected readonly HISTOGRAM_PANEL_HEIGHT = HISTOGRAM_PANEL_HEIGHT;
+  /** House default for the histogram's channels, until the user picks one.
+   *  A stale/unrecognised config value degrades to 'rgb' rather than the
+   *  widget rendering nothing. */
+  protected readonly histogramDefaultMode = computed<HistogramMode>(() => {
+    const configured = this.store.config()?.clipping?.histogram_mode;
+    return isHistogramMode(configured) ? configured : 'rgb';
+  });
+  protected readonly clippingIndicatorPercent = computed(
+    () => this.store.config()?.clipping?.indicator_percent ?? 1);
+
   protected readonly socialPresets = computed(() => this.store.config()?.social_export?.presets ?? []);
   protected readonly socialExportEnabled = computed(() =>
     this.auth.isEdition() && !!this.store.config()?.features?.show_social_export && this.socialPresets().length > 0,
@@ -603,6 +666,18 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     firstValueFrom(this.api.post<Record<string, KeeperHint>>('/photos/keeper_hints', { paths: [requestedPath] }))
       .then(hints => { if (this.photo()?.path === requestedPath) this.keeperHint.set(hints[requestedPath] ?? null); })
       .catch(() => { if (this.photo()?.path === requestedPath) this.keeperHint.set(null); });
+  });
+
+  // Set membership (bracket/panorama/hdr_panorama/burst/duplicate)
+  protected readonly photoSet = signal<PhotoSet | null>(null);
+  private photoSetEffect = effect(() => {
+    const p = this.photo();
+    this.photoSet.set(null);
+    if (!p) return;
+    const requestedPath = p.path;
+    firstValueFrom(this.api.get<PhotoSet>('/photo/set', { path: requestedPath }))
+      .then(res => { if (this.photo()?.path === requestedPath) this.photoSet.set(res); })
+      .catch(() => { if (this.photo()?.path === requestedPath) this.photoSet.set(null); });
   });
 
   // Location
@@ -692,15 +767,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       const path = this.route.snapshot.queryParamMap.get('path');
       if (path) {
         try {
-          const photo = await firstValueFrom(this.api.get<Photo>('/photo', { path }));
-          // Ensure tags_list exists
-          if (!photo.tags_list) {
-            photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];
-          }
-          if (!photo.persons) {
-            photo.persons = [];
-          }
-          this.photo.set(photo);
+          this.photo.set(await this.fetchPhoto(path));
         } catch {
           this.router.navigate(['/']);
         }
@@ -708,6 +775,61 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         this.router.navigate(['/']);
       }
     }
+  }
+
+  private async fetchPhoto(path: string): Promise<Photo> {
+    const photo = await firstValueFrom(this.api.get<Photo>('/photo', { path }));
+    if (!photo.tags_list) {
+      photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];
+    }
+    if (!photo.persons) {
+      photo.persons = [];
+    }
+    return photo;
+  }
+
+  protected async openSetMember(path: string): Promise<void> {
+    if (this.photo()?.path === path) return;
+    try {
+      const photo = await this.fetchPhoto(path);
+      this.router.navigate(['/photo'], { queryParams: { path }, state: { photo } });
+      this.photo.set(photo);
+      this.fullImageLoaded.set(false);
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    }
+  }
+
+  protected openSetInGallery(): void {
+    const set = this.photoSet();
+    if (!set?.kind || set.group_id == null) return;
+    const groupId = String(set.group_id);
+    const updates: Partial<GalleryFilters> = {
+      sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+    };
+    if (set.kind === 'burst') {
+      updates.burst_group_id = groupId;
+      updates.hide_bursts = false;
+    } else if (set.kind === 'duplicate') {
+      updates.duplicate_group_id = groupId;
+      updates.hide_duplicates = false;
+    } else if (set.kind === 'bracket') {
+      updates.sequence_kind = set.kind;
+      updates.sequence_group_id = groupId;
+      updates.hide_brackets = false;
+    } else {
+      updates.sequence_kind = set.kind;
+      updates.sequence_group_id = groupId;
+      updates.hide_panoramas = false;
+    }
+    // Carried via router navigation state, never the URL or a post-navigate
+    // updateFilters() call: the gallery route re-initialises its filters from
+    // config + localStorage + URL on activation, which either overwrites a
+    // post-navigate update or discards it as arriving too late. `state` is
+    // read by GalleryComponent.ngOnInit before its first load. See
+    // GalleryComponent.consumeSetScopeState for why it is also never
+    // bookmarkable: sequence_group_id is renumbered on every detection pass.
+    this.router.navigate(['/'], { state: { setScope: updates } });
   }
 
   @HostListener('document:keydown.escape')
@@ -798,8 +920,13 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const p = this.photo();
     if (!p) return;
     try {
-      const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null }>('/photo/toggle_rejected', { photo_path: path }));
-      this.photo.set({ ...p, is_rejected: res.is_rejected, is_favorite: res.is_favorite === null ? p.is_favorite : res.is_favorite });
+      const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null; star_rating: number | null }>('/photo/toggle_rejected', { photo_path: path }));
+      this.photo.set({
+        ...p,
+        is_rejected: res.is_rejected,
+        is_favorite: res.is_favorite === null ? p.is_favorite : res.is_favorite,
+        star_rating: res.star_rating === null ? p.star_rating : res.star_rating,
+      });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }

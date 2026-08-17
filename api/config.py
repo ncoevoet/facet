@@ -823,11 +823,35 @@ def load_viewer_config(config=None):
             },
         },
         'display': {'tags_per_photo': 3, 'card_width_px': 168, 'image_width_px': 160, 'image_jpeg_quality': 96},
+        # Per-badge opt-out for the gallery card. Every badge that predates this
+        # block defaults to True, so an install that says nothing is unchanged.
+        # Shadow clipping is the one default-off badge: crushed blacks are
+        # routinely deliberate (silhouettes, night, low-key).
+        'badges': {
+            'favorite': True, 'star_rating': True, 'rejected': True,
+            'sequence_kind': True, 'sequence_override_pending': True,
+            'keeper_hint': True, 'best_of_burst': True,
+            'clipping_highlight': True, 'clipping_shadow': False,
+        },
+        # One definition of "clipped" for all three surfaces. The percentages are
+        # measured: over 28 sampled photos, worst-channel highlight clipping had a
+        # median of 0.31% and a p90 of 2.35%, so 5% badges roughly 1 in 25 photos
+        # and stays a signal. The histogram indicator is finer because the user is
+        # already looking at a single photo and wants the detail.
+        # histogram_mode / tooltip_histogram_mode are independent defaults: the
+        # detail panel is for studying one photo (RGB detail earns its space),
+        # the hover/pinned tooltip is for scanning many quickly (a plain
+        # luminance curve usually reads faster). Each surface persists its own
+        # user override, so tuning one default here never retunes the other.
+        'clipping': {
+            'badge_percent': 5, 'indicator_percent': 1,
+            'histogram_mode': 'rgb', 'tooltip_histogram_mode': 'luma',
+        },
         'face_thumbnails': {'output_size_px': 64, 'jpeg_quality': 80, 'crop_padding_ratio': 0.2, 'min_crop_size_px': 20},
         'quality_thresholds': {'good': 6, 'great': 7, 'excellent': 8, 'best': 9},
         'photo_types': {'top_picks_min_score': 7, 'low_light_max_luminance': 0.2},
-        'defaults': {'hide_blinks': True, 'hide_bursts': True, 'hide_duplicates': True, 'hide_brackets': True, 'hide_panoramas': True, 'hide_details': True, 'hide_rejected': True, 'sort': 'aggregate', 'sort_direction': 'DESC'},
-        'features': {'show_similar_button': True, 'show_merge_suggestions': True, 'show_rating_controls': True, 'show_rating_badge': True, 'show_semantic_search': True, 'show_albums': True, 'show_critique': True, 'show_vlm_critique': False, 'show_embed_metadata': True, 'show_memories': True, 'show_captions': True, 'show_timeline': True, 'show_map': False, 'show_capsules': True, 'show_my_taste': True, 'show_scenes': True, 'show_junk_sweep': True, 'show_proofing': False},
+        'defaults': {'hide_blinks': True, 'hide_bursts': True, 'hide_duplicates': True, 'hide_brackets': True, 'hide_panoramas': True, 'hide_details': True, 'hide_rejected': True, 'sort': 'aggregate', 'sort_direction': 'DESC', 'panel_activation': 'both'},
+        'features': {'show_similar_button': True, 'show_merge_suggestions': True, 'show_rating_controls': True, 'show_semantic_search': True, 'show_albums': True, 'show_critique': True, 'show_vlm_critique': False, 'show_embed_metadata': True, 'show_memories': True, 'show_captions': True, 'show_timeline': True, 'show_map': False, 'show_capsules': True, 'show_my_taste': True, 'show_scenes': True, 'show_junk_sweep': True, 'show_proofing': False, 'show_portfolio_export': True},
         'proofing': {'pin': '', 'session_minutes': 1440},
         'cache_ttl_seconds': 3600,
         'notification_duration_ms': 2000

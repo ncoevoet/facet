@@ -96,6 +96,17 @@ PHOTOS_COLUMNS = [
     # Technical metrics
     ('shadow_clipped', 'INTEGER'),
     ('highlight_clipped', 'INTEGER'),
+    # Share of pixels that reached the end of the scale, in the worst of R/G/B:
+    # exactly bin 0 and exactly bin 255 of the stored histogram, as a percentage
+    # (0-100). A DIFFERENT measurement from the two flags above, which are
+    # binary and cover the luminance bands 0-30 / 225-255.
+    #
+    # NULL means unknown, never clean: a row whose histogram_data is still a
+    # legacy 1024-byte luminance-only blob has no per-channel data to derive
+    # from, and its bins came from an auto-brightened decode anyway. Every
+    # reader treats NULL as "not measured" -- see --backfill-clipping.
+    ('channel_clip_shadow_pct', 'REAL'),
+    ('channel_clip_highlight_pct', 'REAL'),
     ('dynamic_range_stops', 'REAL'),
     ('noise_sigma', 'REAL'),
     ('contrast_score', 'REAL'),
@@ -183,6 +194,18 @@ PHOTOS_COLUMNS = [
     ('distortion_attributes', 'TEXT'),  # JSON [{attribute, confidence}] from --recompute-distortions (zero-shot ExIQA-style)
     ('skin_tone_delta', 'REAL'),        # worst-face CIEDE2000 distance to the natural skin locus (--recompute-skin-tone)
     ('skin_tone_cast', 'TEXT'),         # 'green'|'magenta'|'blue'|'yellow' when the delta exceeds the cast threshold, else NULL
+
+    # Which of the two RAW display renders produced this row's stored thumbnail,
+    # and nothing else: the camera preview one every scan bakes, or the
+    # uncorrected demosaic a bracketed frame needs. Says nothing about
+    # histogram_data or any other scored column — those come from the metrics
+    # demosaic, and --refresh-thumbnails never rewrites them. DERIVED state,
+    # which is why it lives here and not in a side table despite the
+    # INSERT-OR-REPLACE invariant: a rescan regenerates the thumbnail with
+    # current code, so the stamp SHOULD be rewritten with the row. Read against
+    # the row's sequence_kind, never on its own. NULL = written before the stamp
+    # existed, i.e. before the RAW exposure fix. See db/render_version.py.
+    ('render_version', 'INTEGER'),
 ]
 
 FACES_COLUMNS = [
@@ -347,6 +370,8 @@ INDEXES = [
     ('idx_dynamic_range_stops', 'photos', 'dynamic_range_stops'),
     ('idx_mean_luminance', 'photos', 'mean_luminance'),
     ('idx_histogram_spread', 'photos', 'histogram_spread'),
+    ('idx_channel_clip_shadow', 'photos', 'channel_clip_shadow_pct'),
+    ('idx_channel_clip_highlight', 'photos', 'channel_clip_highlight_pct'),
     ('idx_iso', 'photos', 'iso'),
     ('idx_f_stop', 'photos', 'f_stop'),
     ('idx_focal_length', 'photos', 'focal_length'),
@@ -1055,7 +1080,13 @@ def init_database(db_path='photo_scores_pro.db'):
         # Q-ReAlign, and the migration is additive-only, so the qalign_score
         # column itself survives on upgraded DBs (its data is still readable).
         # Dropping only its index stops a retired column from taxing every write.
-        for stale_idx in ('idx_burst_moment', 'idx_burst_learned', 'idx_qalign_score'):
+        # idx_render_version never earned its keep: the pending-render count
+        # (db.render_version.pending_render_predicate) compares the column
+        # against a per-row CASE on sequence_kind, not a constant, so no
+        # single- or multi-column shape on render_version is sargable for it —
+        # EXPLAIN QUERY PLAN shows a full `SCAN photos` with or without the
+        # index. Dropped rather than reshaped.
+        for stale_idx in ('idx_burst_moment', 'idx_burst_learned', 'idx_qalign_score', 'idx_render_version'):
             conn.execute(f'DROP INDEX IF EXISTS {stale_idx}')
 
         # Create the photos-table indexes first so the ANALYZE gate below can

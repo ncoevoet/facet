@@ -98,7 +98,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 - **Sortierung „Mein Geschmack“** — sortieren Sie die Galerie nach der gelernten Wertung des persönlichen Rankers, mit einem Konfidenz-Badge, das die gelernte Abdeckung und die Holdout-Genauigkeit anzeigt
 - **Lernen aus Labels** — Auswahlentscheidungen, Sternebewertungen, Favoriten und Ablehnungen fließen in den Gewichtsoptimierer ein (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — Gewichtskonfigurationen speichern, wiederherstellen und vergleichen
-- **Histogramm** — Helligkeitshistogramm im Foto-Tooltip und in der Detailansicht
+- **Histogramm** — RGB-/Helligkeitshistogramm mit Clipping-Indikatoren, im Foto-Tooltip und in der Detailansicht
 - **KI-Beschreibungen** `[GPU]` `[16gb/24gb]` `[Edition]` — Textbeschreibungen, bearbeitbar und in 5 Sprachen übersetzbar
 
 <table><tr>

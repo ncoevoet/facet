@@ -760,3 +760,264 @@ class TestGallerySequenceOverrideFilter:
             tmp_path, "sequence_override=any&hide_panoramas=1")}
         assert "/killed.jpg" in paths  # it is its own set's lead
         assert paths == {"/killed.jpg", "/forced-a.jpg", "/forced-b.jpg"}
+
+
+# ---------------------------------------------------------------------------
+# Photo Set Scope (GET /api/photos?sequence_kind=...&sequence_group_id=...
+#                                  |burst_group_id=...|duplicate_group_id=...)
+# ---------------------------------------------------------------------------
+
+class TestGallerySetScopeFilter:
+    """The photo-detail "open this set in the gallery" action.
+
+    Never round-tripped through the URL client-side (sequence_group_id is
+    renumbered from 1 on every detection pass), but server-side it must both
+    narrow to the one set AND suppress EVERY hide toggle, not just the one
+    matching the scope's own kind -- without that, the default hide toggles
+    (all on) would collapse the filtered gallery back down to a single lead
+    tile. A photo can belong to a bracket AND a burst AND a duplicate group
+    at once (an AEB set fired in continuous drive mode is grouped as both a
+    bracket and a burst), so suppressing only the matching toggle is
+    insufficient by construction -- see
+    test_bracket_scope_survives_hide_bursts_when_the_set_is_also_a_burst.
+    """
+
+    _PHOTOS = [
+        _photo("/plain.jpg", "2024:06:15 11:00:00"),
+        _photo("/b-under.jpg", "2024:06:15 12:00:00",
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=-2.0),
+        _photo("/b-base.jpg", "2024:06:15 12:00:01",
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=0.0),
+        _photo("/b-over.jpg", "2024:06:15 12:00:02",
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=2.0),
+        _photo("/p-a.jpg", "2024:06:15 13:00:00",
+               sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=0),
+        _photo("/p-b.jpg", "2024:06:15 13:00:01",
+               sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=1),
+        _photo("/p-c.jpg", "2024:06:15 13:00:02",
+               sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=0),
+        _photo("/burst-a.jpg", "2024:06:15 14:00:00", burst_group_id=5, is_burst_lead=0),
+        _photo("/burst-b.jpg", "2024:06:15 14:00:01", burst_group_id=5, is_burst_lead=1),
+        _photo("/dup-a.jpg", "2024:06:15 15:00:00", duplicate_group_id=9, is_duplicate_lead=1),
+        _photo("/dup-b.jpg", "2024:06:15 15:00:01", duplicate_group_id=9, is_duplicate_lead=0),
+    ]
+
+    _ALL_HIDE_TOGGLES = "hide_bursts=1&hide_duplicates=1&hide_brackets=1&hide_panoramas=1"
+
+    def _fetch(self, tmp_path, query, photos=None):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, photos if photos is not None else self._PHOTOS)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_db", _conn_factory(db_path)),
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.gallery.VIEWER_CONFIG", _VIEWER_CONFIG),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+            mock.patch.dict("api.config._count_cache", {}, clear=True),
+        ):
+            resp = TestClient(app).get(f"/api/photos?page=1&per_page=50&{query}")
+        assert resp.status_code == 200
+        return {p["path"] for p in resp.json()["photos"]}
+
+    def test_bracket_scope_returns_every_frame_with_default_hide_toggles(self, tmp_path):
+        paths = self._fetch(
+            tmp_path, f"sequence_kind=bracket&sequence_group_id=1&{self._ALL_HIDE_TOGGLES}")
+        assert paths == {"/b-under.jpg", "/b-base.jpg", "/b-over.jpg"}
+
+    def test_panorama_scope_returns_every_frame_with_default_hide_toggles(self, tmp_path):
+        paths = self._fetch(
+            tmp_path, f"sequence_kind=panorama&sequence_group_id=2&{self._ALL_HIDE_TOGGLES}")
+        assert paths == {"/p-a.jpg", "/p-b.jpg", "/p-c.jpg"}
+
+    def test_burst_scope_returns_every_frame_with_default_hide_toggles(self, tmp_path):
+        paths = self._fetch(tmp_path, f"burst_group_id=5&{self._ALL_HIDE_TOGGLES}")
+        assert paths == {"/burst-a.jpg", "/burst-b.jpg"}
+
+    def test_duplicate_scope_returns_every_frame_with_default_hide_toggles(self, tmp_path):
+        paths = self._fetch(tmp_path, f"duplicate_group_id=9&{self._ALL_HIDE_TOGGLES}")
+        assert paths == {"/dup-a.jpg", "/dup-b.jpg"}
+
+    def test_scope_narrows_to_only_that_set(self, tmp_path):
+        """Every hide toggle is suppressed while scoped, but the WHERE clause
+        narrowing to the scoped set's own id is unaffected -- unrelated sets
+        stay scoped out even though their hide toggles are also off."""
+        paths = self._fetch(tmp_path, f"burst_group_id=5&{self._ALL_HIDE_TOGGLES}")
+        assert "/b-under.jpg" not in paths
+        assert "/p-a.jpg" not in paths
+        assert "/dup-a.jpg" not in paths
+        assert "/plain.jpg" not in paths
+
+    def test_unscoped_request_still_collapses_every_set_to_its_lead(self, tmp_path):
+        paths = self._fetch(tmp_path, self._ALL_HIDE_TOGGLES)
+        assert paths == {"/plain.jpg", "/b-base.jpg", "/p-b.jpg", "/burst-b.jpg", "/dup-a.jpg"}
+
+    def test_bracket_scope_excludes_a_panorama_sharing_the_same_group_id(self, tmp_path):
+        """The bracket and panorama detection passes own disjoint rows but
+        each renumbers its own groups from 1 every run, so a bracket and a
+        panorama can legitimately share sequence_group_id=1 at the same
+        time on real data. The scope filter must key on the
+        (sequence_kind, sequence_group_id) PAIR -- if sequence_kind were
+        ever dropped from the WHERE clause, this query would silently pull
+        in the panorama's frames too.
+        """
+        colliding_group_id = [
+            _photo("/b-under.jpg", "2024:06:15 12:00:00",
+                   sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=-2.0),
+            _photo("/b-base.jpg", "2024:06:15 12:00:01",
+                   sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=0.0),
+            _photo("/b-over.jpg", "2024:06:15 12:00:02",
+                   sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=2.0),
+            _photo("/p-a.jpg", "2024:06:15 13:00:00",
+                   sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=0),
+            _photo("/p-b.jpg", "2024:06:15 13:00:01",
+                   sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=1),
+            _photo("/p-c.jpg", "2024:06:15 13:00:02",
+                   sequence_group_id=1, sequence_kind="panorama", is_sequence_lead=0),
+        ]
+        paths = self._fetch(
+            tmp_path, f"sequence_kind=bracket&sequence_group_id=1&{self._ALL_HIDE_TOGGLES}",
+            photos=colliding_group_id,
+        )
+        assert paths == {"/b-under.jpg", "/b-base.jpg", "/b-over.jpg"}
+
+    def test_bracket_scope_survives_hide_bursts_when_the_set_is_also_a_burst(self, tmp_path):
+        """A real AEB set fired in continuous drive mode is grouped as BOTH a
+        bracket (by the sequence pass) and a burst (by the burst pass), with
+        none of the sequence-lead frames necessarily the burst lead. Scoping
+        to the bracket must suppress hide_bursts too, or hide_bursts=1 (on by
+        default) collapses the set to its one burst-lead frame.
+        """
+        overlapping = [
+            _photo("/ab-1.jpg", "2024:06:15 18:00:00", sequence_group_id=4, sequence_kind="bracket",
+                   sequence_ev_offset=-2.0, burst_group_id=20, is_burst_lead=0),
+            _photo("/ab-2.jpg", "2024:06:15 18:00:01", sequence_group_id=4, sequence_kind="bracket",
+                   sequence_ev_offset=-1.0, burst_group_id=20, is_burst_lead=0),
+            _photo("/ab-3.jpg", "2024:06:15 18:00:02", sequence_group_id=4, sequence_kind="bracket",
+                   sequence_ev_offset=0.0, burst_group_id=20, is_burst_lead=1),
+            _photo("/ab-4.jpg", "2024:06:15 18:00:03", sequence_group_id=4, sequence_kind="bracket",
+                   sequence_ev_offset=1.0, burst_group_id=20, is_burst_lead=0),
+            _photo("/ab-5.jpg", "2024:06:15 18:00:04", sequence_group_id=4, sequence_kind="bracket",
+                   sequence_ev_offset=2.0, burst_group_id=20, is_burst_lead=0),
+        ]
+        paths = self._fetch(
+            tmp_path, f"sequence_kind=bracket&sequence_group_id=4&{self._ALL_HIDE_TOGGLES}",
+            photos=overlapping,
+        )
+        assert paths == {"/ab-1.jpg", "/ab-2.jpg", "/ab-3.jpg", "/ab-4.jpg", "/ab-5.jpg"}
+
+
+# ---------------------------------------------------------------------------
+# GET /api/photo/set
+# ---------------------------------------------------------------------------
+
+class TestPhotoSetEndpoint:
+    """GET /api/photo/set -- resolve the set a photo belongs to, keyed on path.
+
+    Priority is sequence, then burst, then duplicate, resolved from the
+    photo's own row -- see .claude/patterns/panorama-detection.md.
+    """
+
+    _PHOTOS = [
+        _photo("/lone.jpg", "2024:06:15 10:00:00"),
+        _photo("/b-under.jpg", "2024:06:15 12:00:00",
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=-2.0, is_sequence_lead=0),
+        _photo("/b-base.jpg", "2024:06:15 12:00:01",
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=0.0, is_sequence_lead=1),
+        _photo("/b-over.jpg", "2024:06:15 12:00:02",
+               sequence_group_id=1, sequence_kind="bracket", sequence_ev_offset=1.0, is_sequence_lead=0),
+        _photo("/p-a.jpg", "2024:06:15 13:00:02",
+               sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=0),
+        _photo("/p-b.jpg", "2024:06:15 13:00:00",
+               sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=1),
+        _photo("/p-c.jpg", "2024:06:15 13:00:01",
+               sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=0),
+        _photo("/burst-a.jpg", "2024:06:15 14:00:01", burst_group_id=5, is_burst_lead=0),
+        _photo("/burst-b.jpg", "2024:06:15 14:00:00", burst_group_id=5, is_burst_lead=1),
+        _photo("/dup-a.jpg", "2024:06:15 15:00:00", duplicate_group_id=9, is_duplicate_lead=1),
+        _photo("/dup-b.jpg", "2024:06:15 15:00:01", duplicate_group_id=9, is_duplicate_lead=0),
+        # A sequence AND a burst group -- sequence must win.
+        _photo("/seq-over-burst.jpg", "2024:06:15 16:00:00",
+               sequence_group_id=3, sequence_kind="bracket", sequence_ev_offset=0.0, is_sequence_lead=1,
+               burst_group_id=7),
+        _photo("/seq-over-burst-sibling.jpg", "2024:06:15 16:00:01",
+               sequence_group_id=3, sequence_kind="bracket", sequence_ev_offset=1.0, is_sequence_lead=0),
+        # A burst AND a duplicate group -- burst must win.
+        _photo("/burst-over-dup.jpg", "2024:06:15 17:00:00", burst_group_id=11, is_burst_lead=1,
+               duplicate_group_id=13),
+        _photo("/burst-over-dup-sibling.jpg", "2024:06:15 17:00:01", burst_group_id=11, is_burst_lead=0),
+    ]
+
+    def _fetch(self, tmp_path, path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.db_helpers._existing_columns_cache", _TEST_PHOTOS_COLUMNS),
+        ):
+            return TestClient(app, raise_server_exceptions=False).get(f"/api/photo/set?path={path}")
+
+    def test_photo_not_found(self, tmp_path):
+        resp = self._fetch(tmp_path, "/nonexistent.jpg")
+        assert resp.status_code == 404
+
+    def test_a_photo_in_no_set_reports_an_empty_result(self, tmp_path):
+        resp = self._fetch(tmp_path, "/lone.jpg")
+        assert resp.status_code == 200
+        assert resp.json() == {"kind": None, "group_id": None, "count": 0, "ev_span": None, "members": []}
+
+    def test_bracket_set_orders_by_distance_from_base_and_reports_ev_span(self, tmp_path):
+        """The span is darkest-to-brightest, not the largest offset: this set is
+        shot at -2/0/+1, which covers three stops and never reaches +2."""
+        data = self._fetch(tmp_path, "/b-base.jpg").json()
+        assert data["kind"] == "bracket"
+        assert data["group_id"] == 1
+        assert data["count"] == 3
+        assert data["ev_span"] == 3.0
+        assert [m["path"] for m in data["members"]] == ["/b-base.jpg", "/b-over.jpg", "/b-under.jpg"]
+        base = next(m for m in data["members"] if m["path"] == "/b-base.jpg")
+        assert base["is_lead"] is True
+        assert base["ev_offset"] == 0.0
+        under = next(m for m in data["members"] if m["path"] == "/b-under.jpg")
+        assert under["ev_offset"] == -2.0
+        assert under["is_lead"] is False
+
+    def test_panorama_set_orders_by_capture_time_and_has_no_ev_span(self, tmp_path):
+        data = self._fetch(tmp_path, "/p-a.jpg").json()
+        assert data["kind"] == "panorama"
+        assert data["group_id"] == 2
+        assert data["count"] == 3
+        assert data["ev_span"] is None
+        assert [m["path"] for m in data["members"]] == ["/p-b.jpg", "/p-c.jpg", "/p-a.jpg"]
+        lead = next(m for m in data["members"] if m["path"] == "/p-b.jpg")
+        assert lead["is_lead"] is True
+
+    def test_burst_set_orders_by_capture_time_and_has_no_ev_span(self, tmp_path):
+        data = self._fetch(tmp_path, "/burst-a.jpg").json()
+        assert data["kind"] == "burst"
+        assert data["group_id"] == 5
+        assert data["count"] == 2
+        assert data["ev_span"] is None
+        assert [m["path"] for m in data["members"]] == ["/burst-b.jpg", "/burst-a.jpg"]
+        lead = next(m for m in data["members"] if m["path"] == "/burst-b.jpg")
+        assert lead["is_lead"] is True
+
+    def test_duplicate_set(self, tmp_path):
+        data = self._fetch(tmp_path, "/dup-b.jpg").json()
+        assert data["kind"] == "duplicate"
+        assert data["group_id"] == 9
+        assert data["count"] == 2
+        lead = next(m for m in data["members"] if m["path"] == "/dup-a.jpg")
+        assert lead["is_lead"] is True
+
+    def test_sequence_takes_precedence_over_burst(self, tmp_path):
+        data = self._fetch(tmp_path, "/seq-over-burst.jpg").json()
+        assert data["kind"] == "bracket"
+        assert data["group_id"] == 3
+        assert {m["path"] for m in data["members"]} == {"/seq-over-burst.jpg", "/seq-over-burst-sibling.jpg"}
+
+    def test_burst_takes_precedence_over_duplicate(self, tmp_path):
+        data = self._fetch(tmp_path, "/burst-over-dup.jpg").json()
+        assert data["kind"] == "burst"
+        assert data["group_id"] == 11
+        assert {m["path"] for m in data["members"]} == {"/burst-over-dup.jpg", "/burst-over-dup-sibling.jpg"}

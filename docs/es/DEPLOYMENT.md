@@ -56,6 +56,43 @@ Se admiten varios mapeos (gana la primera coincidencia):
 - Se admiten tanto las rutas UNC (`\\server\share`) como las letras de unidad (`Z:\`)
 - Gana el primer prefijo coincidente
 
+## Semántica de rutas en contenedores
+
+Todo lo que escribas en un campo de carpeta del visor — un destino de "Descartar a carpeta", el destino de exportación copiar/symlink de un álbum, o `viewer.export.allowed_target_dirs` en `scoring_config.json` — lo resuelve el propio proceso de Facet. **En Docker/Podman ese proceso se ejecuta dentro del contenedor**, así que cada ruta es la ruta que *el contenedor* ve: el punto de montaje, nunca la ruta del lado del host.
+
+**Ejemplo.** El `docker-compose.yml` incluido monta tu carpeta de fotos en `/data/photos`:
+
+```yaml
+volumes:
+  - ${PHOTOS_DIR:-./photos}:/data/photos
+```
+
+Para descartar los rechazados a una subcarpeta `rejects`, escribe `/data/photos/rejects` en el diálogo — nunca la ruta del host (`/home/tu/Fotos`, `D:\Fotos`, …), que el contenedor no puede ver en absoluto. Lo mismo aplica a `viewer.export.allowed_target_dirs`: indica la ruta del lado del contenedor.
+
+Para escribir en un sitio distinto del árbol de fotos escaneado — un volumen de exportación separado, por ejemplo —, móntalo primero en el contenedor y luego añade su ruta del lado del contenedor a `viewer.export.allowed_target_dirs`:
+
+```yaml
+services:
+  facet:
+    volumes:
+      - ${PHOTOS_DIR:-./photos}:/data/photos
+      - /volume1/Exports:/data/exports   # volumen adicional para la salida de cull/export
+```
+
+```json
+{
+  "viewer": {
+    "export": {
+      "allowed_target_dirs": ["/data/exports"]
+    }
+  }
+}
+```
+
+Un destino que se resuelve fuera de todo volumen montado se rechaza (`403`) — la comprobación de target-dir de Facet ejecuta `os.path.realpath()` tanto en la solicitud *como* en cada raíz permitida, resolviendo enlaces simbólicos y `..` antes de comparar, así que una ruta que solo parece correcta desde fuera del contenedor (o un enlace simbólico que apunta fuera de un montaje) sigue fallando la prueba de contención. Consulta [Configuración — Destinos de exportación y descarte](CONFIGURATION.md#destinos-de-exportación-y-descarte) para la referencia completa de la lista de permitidos.
+
+**Esto no es un problema de permisos del usuario del contenedor.** El UID del usuario `facet` dentro del contenedor suele diferir del de tu cuenta del host, y eso puede causar un problema real y separado de permisos del sistema de archivos en un montaje bind — pero eso ocurre *después* de que esta comprobación de ruta se supera, cuando la copia/symlink/movimiento se ejecuta realmente, y se registra en el servidor con el error del sistema operativo subyacente para el archivo fallido. Un `403 target_dir is not an allowed export location` (o un "acceso denegado" genérico en la interfaz) ocurre *antes* de que se toque ningún archivo y no tiene nada que ver con los UID.
+
 ## Compilar el cliente Angular
 
 El servidor FastAPI sirve la SPA precompilada desde `client/dist/client/browser/`. Compílala antes del despliegue:
@@ -101,7 +138,8 @@ python database.py --export-viewer-db
 ```
 
 Esto crea `photo_scores_viewer.db`, que:
-- Elimina los embeddings de CLIP, los datos de histograma y los embeddings faciales
+- Elimina los embeddings de CLIP, los embeddings de subtítulos y los embeddings faciales
+- Conserva el histograma por foto (~2 KB cada uno), que lee el widget de histograma RGB de la galería
 - Reduce las miniaturas de 640px a 320px
 - Normalmente reduce una base de datos de 14 GB a ~4-5 GB
 
@@ -220,9 +258,12 @@ Raspberry Pi, compílala localmente con `docker compose build` en lugar de desca
 `docker compose up` mantiene `build: .` bajo la clave `image:` precisamente para este
 caso.
 
-**Presupuesta el disco.** La imagen CPU pesa ~3,3 GB y la imagen CUDA ~21 GB, más los
-pesos de los modelos que cada perfil descarga en el primer arranque (~3–4 GB para
-`legacy`/`8gb`, ~10–11 GB para `16gb`, ~18 GB para `24gb` — tabla completa en
+**Presupuesta el disco.** Ya descomprimida, la imagen CPU pesa aproximadamente 3,3 GB
+en disco y la imagen CUDA aproximadamente 21 GB (cifras aproximadas, no reverificadas
+contra la build actual; la propia descarga transfiere menos, comprimida — ver
+[Tamaño de la imagen](#tamaño-de-la-imagen) más abajo), más los pesos de los modelos que
+cada perfil descarga en el primer arranque (`legacy` 4,69 GB, `8gb` 6,93 GB, `16gb`
+14,55 GB, `24gb` 19,13 GB — tabla completa en
 [Instalación › Tamaños de descarga](INSTALLATION.md#tamaños-de-descarga)). `docker
 compose down -v` elimina los volúmenes de modelos y fuerza una nueva descarga.
 
@@ -347,10 +388,16 @@ descargan en el primer arranque en los volúmenes con nombre
 ([totales por perfil](INSTALLATION.md#tamaños-de-descarga)). Presupuesta espacio en disco
 para la imagen **más** esos volúmenes.
 
-| Imagen | Tamaño medido | Base |
-|-------|------|------|
-| `ghcr.io/ncoevoet/facet:latest` (CPU) | ~3,3 GB | `python:3.12-slim` + PyTorch en wheels de CPU |
-| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | ~21 GB | PyTorch CUDA + RAPIDS cuML |
+| Imagen | Descarga comprimida | En disco (aprox.) | Base |
+|-------|------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | 4,18 GB | ~3,3 GB | `python:3.12-slim` + PyTorch en wheels de CPU |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 7,33 GB | ~21 GB | PyTorch CUDA + RAPIDS cuML |
+
+La "descarga comprimida" es lo que transfiere `docker pull`, medida a partir de los
+manifiestos actuales del registro `ghcr.io/ncoevoet/facet`. El valor "en disco" es el
+tamaño de la imagen ya descomprimida; esas cifras no se han reverificado contra el
+digest `:latest` actual en esta pasada, así que trátalas como una cifra aproximada de
+planificación y no como una medición actual precisa.
 
 En la imagen CPU predomina la pila de dependencias ML (~1,9 GB) más que PyTorch en sí
 (~960 MB), más las bibliotecas del sistema (~288 MB) y el SO base (~150 MB). En la imagen

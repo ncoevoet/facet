@@ -202,7 +202,8 @@
     "histogram_spread": "Istogramma",
     "star_rating": "Valutazione",
     "topiq_score": "TOPIQ",
-    "persons": "Persone",
+    "filter_by_person": "Filtra per {name}",
+    "set_section": "Gruppo",
     "histogram": "Istogramma"
   },
   "photoCard": {
@@ -542,7 +543,8 @@
     "access_denied": "Accesso negato",
     "edition_expired": "La modalità di modifica non è più attiva - sbloccala e riprova",
     "server_error": "Errore del server — riprovare",
-    "action_failed": "Azione non riuscita — modifica annullata"
+    "action_failed": "Azione non riuscita — modifica annullata",
+    "server_detail": "Messaggio del server:"
   },
   "language": {
     "en": "Inglese",
@@ -1033,6 +1035,13 @@
       "restore": "Ripristina i filtri",
       "showing_all": "Vengono mostrate tutte le foto, inclusi occhi chiusi, raffiche e duplicati"
     },
+    "render_migration": {
+      "message": "{n} foto RAW mostrano ancora una miniatura del rendering precedente.",
+      "command_hint": "Esegui {command} per aggiornarle tutte in una volta."
+    },
+    "set_scope": {
+      "message": "Viene mostrato un gruppo di foto: {kind}"
+    },
     "all_photos": "Tutte le foto",
     "sort": "Ordina per",
     "sort_aggregate": "Aggregato",
@@ -1079,6 +1088,12 @@
       "panel": "Pannello laterale",
       "off": "Disattivato",
       "panel_empty": "Passa il cursore su una foto o fai clic per vederne qui i dettagli"
+    },
+    "panel_activation": {
+      "label": "Attivazione pannello",
+      "hover": "Hover",
+      "click": "Clic",
+      "both": "Hover o clic"
     },
     "hide_blinks": "Nascondi occhi chiusi",
     "hide_bursts": "Migliore della raffica",
@@ -1238,7 +1253,13 @@
       "title": "Confronto di {count} foto",
       "hint": "Rotella per ingrandire, trascina per spostare: tutti i riquadri si muovono insieme. Doppio clic per reimpostare.",
       "reset_zoom": "Reimposta lo zoom"
-    }
+    },
+    "clipping": {
+      "badge_highlight": "Alte luci tagliate: {percent}% dei pixel",
+      "badge_shadow": "Ombre tagliate: {percent}% dei pixel"
+    },
+    "channel_clip_highlight_range": "% alte luci tagliate",
+    "channel_clip_shadow_range": "% ombre tagliate"
   },
   "composition_patterns": {
     "none": "Nessuno",
@@ -2294,7 +2315,14 @@
     "caption_error": "Generazione della didascalia non riuscita",
     "translating_caption": "Traduzione in corso...",
     "location": "Posizione",
-    "social_crop": "Ritaglio social"
+    "social_crop": "Ritaglio social",
+    "set": {
+      "title": "Gruppo",
+      "ev_span": "Intervallo EV",
+      "kind_duplicate": "Duplicato",
+      "open_in_gallery": "Apri questo gruppo nella galleria",
+      "member_position": "Fotogramma {position} di {count}"
+    }
   },
   "photo": {
     "category_override": {
@@ -2466,6 +2494,20 @@
       "save_failed": "Impossibile salvare le impostazioni",
       "redetect_started": "Rilevamento avviato; viene eseguito in background",
       "redetect_failed": "Impossibile avviare il rilevamento"
+    }
+  },
+  "histogram": {
+    "mode": {
+      "label": "Canali dell’istogramma",
+      "luminance": "Lum",
+      "rgb": "RGB",
+      "red": "R",
+      "green": "G",
+      "blue": "B"
+    },
+    "clipping": {
+      "shadow": "Ombre tagliate: {channels}",
+      "highlight": "Alte luci tagliate: {channels}"
     }
   }
 }

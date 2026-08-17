@@ -520,7 +520,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     # Use intersection of src/dest columns to handle any schema skew gracefully
     src_photo_cols = [r[1] for r in dest_conn.execute("PRAGMA src.table_info(photos)").fetchall()]
     dest_photo_col_set = {r[1] for r in dest_conn.execute("PRAGMA main.table_info(photos)").fetchall()}
-    _STRIP_COLS = {'clip_embedding', 'histogram_data', 'raw_sharpness_variance', 'caption_embedding', 'thumbnail', 'path'}
+    _STRIP_COLS = {'clip_embedding', 'raw_sharpness_variance', 'caption_embedding', 'thumbnail', 'path'}
     # On-demand caches (VLM critique, caption) may be generated on the viewer
     # deployment itself, while the source scan DB keeps them NULL. COALESCE onto
     # the current destination value so a re-export never overwrites that
@@ -557,7 +557,7 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     batch_size = 200
     if new_paths:
         common_photo_cols = [c for c in src_photo_cols if c in dest_photo_col_set]
-        _BLOB_STRIP = {'clip_embedding', 'histogram_data', 'raw_sharpness_variance', 'caption_embedding', 'thumbnail'}
+        _BLOB_STRIP = {'clip_embedding', 'raw_sharpness_variance', 'caption_embedding', 'thumbnail'}
         select_exprs = ', '.join(
             f"NULL AS {c}" if c in _BLOB_STRIP else c
             for c in common_photo_cols
@@ -778,7 +778,7 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     """Export a lightweight database for viewer-only deployment.
 
     Creates a stripped-down copy suitable for low-memory NAS devices by:
-    - Removing unused BLOB columns (clip_embedding, histogram_data, face embeddings)
+    - Removing unused BLOB columns (clip_embedding, caption_embedding, face embeddings)
     - Downsizing photo thumbnails from 640px to the specified size
     - Running VACUUM + ANALYZE on the result
 
@@ -828,10 +828,13 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     if verbose:
         logger.info("  Stripping unused BLOB columns...")
 
-    # photos: clip_embedding, histogram_data, raw_sharpness_variance, caption_embedding
+    # photos: clip_embedding, raw_sharpness_variance, caption_embedding
     # (caption_embedding is the scan-side moment signal, ~4.6KB/captioned photo,
     # and is never read by the viewer — stripping it keeps the export lightweight).
-    dst_conn.execute("UPDATE photos SET clip_embedding = NULL, histogram_data = NULL, "
+    # histogram_data is NOT stripped: /api/photo/histogram serves it to the
+    # viewer's RGB histogram widget, which falls back to sampling a subsampled
+    # thumbnail when it is absent. It costs ~2KB/photo.
+    dst_conn.execute("UPDATE photos SET clip_embedding = NULL, "
                      "raw_sharpness_variance = NULL, caption_embedding = NULL")
     dst_conn.commit()
 
@@ -949,3 +952,63 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
         logger.info("  Saved:   %.1f MB (%.1f%%)", saved / 1024 / 1024, saved / source_size * 100)
 
     return source_size, output_size
+
+
+# Rows are claimed by the current blob format, not by "the column is NULL":
+# a legacy 1024-byte blob has no per-channel data and must STAY NULL, and
+# selecting on NULL alone would re-read every one of those rows on every run.
+_CLIPPING_BACKFILL_SELECT = """
+    SELECT path, histogram_data FROM photos
+    WHERE channel_clip_highlight_pct IS NULL
+      AND length(histogram_data) = ?
+    LIMIT ?
+"""
+
+
+def backfill_channel_clipping(db_path='photo_scores_pro.db', batch_size=2000, verbose=True):
+    """Derive the per-channel clipping columns from already-stored histograms.
+
+    No image decode: the ratio of a bin to its channel's total survives the
+    uint16 packing (all four channels share one scale factor), so the numbers
+    come straight out of the BLOB. Commits per batch and re-selects only rows
+    still missing the columns, so an interrupted run resumes where it stopped.
+
+    Rows still holding a legacy luminance-only blob are never selected — they
+    have no per-channel data, so their answer is unknown and stays NULL.
+    """
+    from db.connection import get_connection
+    from utils.histogram import HISTOGRAM_BLOB_SIZE, max_clip_percents, unpack_histogram
+
+    updated = 0
+    while True:
+        with get_connection(db_path) as conn:
+            rows = conn.execute(
+                _CLIPPING_BACKFILL_SELECT, (HISTOGRAM_BLOB_SIZE, batch_size)).fetchall()
+            if not rows:
+                break
+            payload = []
+            for row in rows:
+                shadow_pct, highlight_pct = max_clip_percents(unpack_histogram(row['histogram_data']))
+                if highlight_pct is None:
+                    continue
+                payload.append((shadow_pct, highlight_pct, row['path']))
+            if not payload:
+                break
+            conn.executemany(
+                "UPDATE photos SET channel_clip_shadow_pct = ?, channel_clip_highlight_pct = ? "
+                "WHERE path = ?", payload)
+            conn.commit()
+            updated += len(payload)
+        if verbose:
+            logger.info("Derived per-channel clipping for %d photos...", updated)
+    if verbose:
+        with get_connection(db_path) as conn:
+            legacy = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE histogram_data IS NOT NULL "
+                "AND length(histogram_data) != ?", (HISTOGRAM_BLOB_SIZE,)).fetchone()[0]
+        logger.info("Per-channel clipping: %d photos updated.", updated)
+        if legacy:
+            logger.info(
+                "%d photos still hold a luminance-only histogram and stay unknown — "
+                "rescan them to measure the channels.", legacy)
+    return updated

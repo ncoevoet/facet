@@ -55,7 +55,7 @@ campo `progress` de `/api/scan/status` e no fluxo SSE.
 | `quality-face` | TOPIQ NR-Face | pontuação `face_quality_iqa` (qualidade facial dedicada) | Compartilhado com TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + diagnóstico de distorção (desfoque, superexposição, ruído) | ~2 GB |
 | `tags` | CLIP / Qwen VLM | Tags semânticas do vocabulário configurado | 0-16 GB |
-| `composition` | SAMP-Net | `composition_pattern` (14 padrões) + `comp_score` | ~2 GB |
+| `composition` | SAMP-Net | `composition_pattern` (8 padrões) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Detecção facial, landmarks, detecção de piscadas, embeddings de reconhecimento | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 ou SigLIP 2 NaFlex | BLOB `clip_embedding` para similaridade/marcação | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
@@ -142,6 +142,7 @@ Esses comandos atualizam métricas específicas, derivam novos dados (legendas p
 | `python facet.py --recompute-embeddings` | Recalcula os embeddings CLIP/SigLIP para todas as fotos (necessário após troca de modelo) |
 | `python facet.py --score-topiq` | Preenche retroativamente as pontuações de qualidade TOPIQ a partir das miniaturas armazenadas (requer GPU) |
 | `python facet.py --backfill-focal-35mm` | Preenche retroativamente a distância focal equivalente a 35mm a partir do EXIF para fotos que não a têm |
+| `python facet.py --backfill-clipping` | Deriva as percentagens de recorte por canal a partir dos histogramas armazenados. Apenas base de dados (sem descodificar imagens) e retomável; as fotos cujo histograma é anterior ao formato RGB ficam desconhecidas (NULL) |
 | `python facet.py --compute-recommendations` | Analisa o banco de dados, exibe um resumo de pontuação |
 | `python facet.py --compute-recommendations --verbose` | Exibe estatísticas detalhadas |
 | `python facet.py --compute-recommendations --apply-recommendations` | Aplica automaticamente as correções de pontuação |
@@ -216,8 +217,33 @@ Os embeddings impulsionam a marcação semântica, a detecção de duplicatas, a
 | Comando | Descrição |
 |---------|-------------|
 | `python facet.py --fix-thumbnail-rotation` | Corrige a rotação das miniaturas armazenadas usando a orientação EXIF |
+| `python facet.py --refresh-thumbnails` | Reconstrói as miniaturas RAW a partir da pré-visualização incorporada pela câmera |
+| `python facet.py --refresh-thumbnails --refresh-thumbnails-workers 16` | O mesmo, com mais leituras em paralelo |
 
 Lê a orientação EXIF dos arquivos originais e gira os bytes da miniatura armazenada; para fotos processadas antes de existir o tratamento de EXIF. Lê apenas o cabeçalho EXIF e a miniatura armazenada, não as imagens completas.
+
+`--refresh-thumbnails` renderiza novamente a miniatura armazenada de cada foto RAW através do perfil de exibição (pré-visualização da câmera primeiro, demosaicagem como alternativa — veja [CONFIGURATION.md](CONFIGURATION.md#raw-decode)). É a migração para uma biblioteca varrida antes de esse perfil existir: as miniaturas escritas por uma varredura mais antiga carregam o brilho automático por fotograma do LibRaw, que achata as diferenças de exposição entre os fotogramas de um bracket de exposição. Nenhum modelo é carregado e nenhuma coluna de pontuação é tocada — apenas `photos.thumbnail` é reescrita.
+
+O comando é limitado pela taxa de transferência do armazenamento em vez da CPU, então seu custo escala com o tamanho da biblioteca e com a velocidade do disco ou do ponto de montagem de rede da biblioteca, não com o número de núcleos da máquina. `--refresh-thumbnails-workers` (padrão 8) define quantos arquivos são lidos ao mesmo tempo: aumente-o em um ponto de montagem de rede rápido, onde cada leitura passa o tempo esperando, diminua-o em um disco local lento. Também limita as demosaicagens completas para as quais um RAW sem pré-visualização recorre, então valores muito altos custam memória.
+
+É retomável. Cada lote confirmado registra até onde chegou, de modo que uma execução interrompida com Ctrl+C (ou por um ponto de montagem perdido) deixa um banco de dados consistente, e o próximo `--refresh-thumbnails` continua de onde parou. Uma execução concluída limpa o marcador, então executá-lo novamente mais tarde recomeça do zero.
+
+Uma foto cuja nova renderização volta totalmente preta mantém sua miniatura existente e é registrada pelo nome. Isso não é paranoia: um RW2 da Panasonic severamente truncado não falha ao decodificar — o LibRaw o preenche com zeros, transformando-o em um fotograma preto válido de tamanho completo em vez de falhar — então, sem essa verificação, um arquivo corrompido substituiria silenciosamente uma boa miniatura por uma preta. Essa foto permanece sem marcação e é tentada novamente na próxima execução, então reparar o arquivo já é suficiente para corrigi-la.
+
+Uma foto pertencente a um bracket de exposição é renderizada novamente sem a pré-visualização da câmera e sem nenhum ganho de exposição, de modo que sua miniatura mostra o que o sensor registrou (veja [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected)). Como a associação a um bracket vem da detecção de sequências, que roda depois de uma varredura, execute este comando após `--detect-sequences` para que essas miniaturas recebam a renderização.
+
+### O que atualiza uma miniatura armazenada
+
+As miniaturas armazenadas são geradas no momento da varredura, então uma biblioteca varrida antes de o perfil de exibição existir continua mostrando a renderização antiga na grade da galeria. `photos.render_version` registra qual pipeline gerou a miniatura de cada linha, e dois caminhos a atualizam:
+
+| Caminho | Cobre | Custo |
+|------|--------|------|
+| Uma nova varredura (`python facet.py <diretório>`) | Tudo o que ela varre, miniatura e histograma | Varredura completa |
+| `--refresh-thumbnails` | A miniatura de cada linha RAW | Limitado pelo armazenamento, horas em uma biblioteca grande |
+
+**Nada acontece sozinho.** A visualização detalhada está sempre atualizada porque `/image` renderiza em tempo real, mas a grade da galeria lê `photos.thumbnail`, e nenhuma quantidade de navegação a reescreve. É para isso que serve `--refresh-thumbnails`, e por isso a galeria mostra um banner descartável contando as linhas ainda pendentes.
+
+A contagem do banner vem de uma entrada de `stats_cache` com um TTL de uma hora, atualizada diretamente por `--refresh-thumbnails` e por `python database.py --refresh-stats`, então, depois de uma varredura, ela pode ficar atrás da realidade em até uma hora.
 
 ## Diagnostics
 
@@ -229,6 +255,13 @@ Lê a orientação EXIF dos arquivos originais e gira os bytes da miniatura arma
 Reporta a versão do Python, o build do PyTorch/CUDA, a detecção e o driver da GPU, a recomendação de perfil de VRAM, as dependências opcionais e o status da configuração/banco de dados. Quando o PyTorch não consegue enxergar a GPU mas o `nvidia-smi` consegue, ele imprime o comando `pip install` para corrigir o build do CUDA.
 
 `--simulate-gpu NAME` e `--simulate-vram GB` testam o comportamento com hardware diferente. Ambos requerem `--doctor`; `--simulate-vram` requer `--simulate-gpu`.
+
+| Comando | Descrição |
+|---------|-------------|
+| `python facet.py --check-raw-rendering` | Renderiza 20 fotos RAW amostradas com as configurações de decodificação antigas e atuais |
+| `python facet.py --check-raw-rendering 50` | Amostra 50 fotos em vez disso |
+
+Somente leitura: decodifica uma amostra aleatória diretamente do disco e imprime a luminância média que cada renderização produz — o brilho automático por fotograma do LibRaw, a demosaicagem de ganho fixo das métricas e a pré-visualização incorporada pela câmera usada pelas miniaturas e pelo visualizador. Use-o para verificar `raw_decode.bright` nos seus próprios arquivos antes de iniciar uma varredura ou uma execução de `--refresh-thumbnails`; as colunas fixo e pré-visualização mantêm a escada de exposição de um bracket, a coluna de brilho automático a achata.
 
 ## Model Information
 

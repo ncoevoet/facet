@@ -216,9 +216,23 @@ than a copy. The semantics you cannot read off a column name:
   equality rather than a window function per query.
 - **`sequence_ev_offset`** is signed the way a camera labels an AEB set: `-2` dark, `+2`
   bright. NULL for panoramas, which have no base exposure.
-- **BLOB columns** (`thumbnail`, `clip_embedding`, `caption_embedding`, `histogram_data`,
-  `face_embedding`) must be excluded from any bulk scan — the ranker's inference pass and
-  the viewer DB export both do this deliberately.
+- **`render_version`** marks WHICH RAW display render baked a row's stored thumbnail,
+  not merely how current it is: `NULL` predates the stamp, `1` is the camera-preview
+  render every scan bakes, `2` is the uncorrected render only `--refresh-thumbnails`
+  bakes for a bracketed frame. Read it against `sequence_kind`, never alone — a `1` is
+  current for an ordinary photo and stale for one a later pass groups into a bracket.
+  See `db/render_version.py`.
+- **`channel_clip_shadow_pct` / `channel_clip_highlight_pct`** are per-channel clipping
+  percentages (worst of R/G/B), `NULL` until `--backfill-clipping` or a rescan derives
+  them from a stored histogram — `NULL` means *unknown*, never *clean*, so the row
+  carries no clipping badge and matches neither side of the gallery's clipping filter.
+  Distinct from the binary `shadow_clipped`/`highlight_clipped` flags, which cover
+  luminance bands 0–30/225–255 and feed `exposure_score`.
+- **BLOB columns** (`thumbnail`, `clip_embedding`, `caption_embedding`, `face_embedding`)
+  must be excluded from any bulk scan — the ranker's inference pass and the viewer DB
+  export both do this deliberately. `histogram_data` is the one exception: the viewer DB
+  export keeps it (unlike the ranker's inference scan, which still excludes it) because
+  `/api/photo/histogram` serves it to the viewer's RGB histogram widget.
 - **`user_preferences` holds per-user ratings** in multi-user mode; the `photos` rating
   columns are the single-user/global fallback. A feature that reads one must know which.
 
@@ -266,7 +280,7 @@ The cache is stored in the `stats_cache` table with a 5-minute TTL. Run `--stats
 
 ### Composition Analysis
 
-Two approaches: `--recompute-composition-cpu` (rule-based, fast) and `--recompute-composition-gpu` (SAMP-Net, 14 patterns). After either, run `--recompute-average` to update aggregate scores.
+Two approaches: `--recompute-composition-cpu` (rule-based, fast) and `--recompute-composition-gpu` (SAMP-Net, 8 patterns). After either, run `--recompute-average` to update aggregate scores.
 
 ### Face Recognition
 
@@ -333,7 +347,7 @@ only what reading those two will NOT tell you.
 - **Embeddings:** SigLIP 2 NaFlex SO400M (1152-dim, 16gb/24gb, native aspect ratio via `transformers`) or CLIP ViT-L-14 (768-dim, legacy/8gb via `open_clip`)
 - **Quality:** TOPIQ (0.93 SRCC), HyperIQA (0.90), DBCNN (0.90), MUSIQ (0.87)
 - **Supplementary PyIQA:** TOPIQ IAA (aesthetic merit), TOPIQ NR-Face (face quality), LIQE (quality + distortion diagnosis)
-- **Composition:** SAMP-Net for pattern detection (14 patterns including rule_of_thirds, golden_ratio, vanishing_point)
+- **Composition:** SAMP-Net for pattern detection (8 patterns: global, horizontal, vertical, triangular, surround, quarter, cross, rule_of_thirds)
 - **Subject saliency:** BiRefNet_dynamic (`ZhengPeng7/BiRefNet_dynamic`) via `transformers` — subject sharpness, prominence, placement, background separation
 - **Faces:** InsightFace buffalo_l for detection with 106-point landmarks and recognition embeddings
 - **Tagging:** CLIP similarity (legacy/8gb), Qwen3.5-2B (16gb), Qwen3.5-4B (24gb)

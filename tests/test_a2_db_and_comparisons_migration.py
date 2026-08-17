@@ -186,6 +186,44 @@ class TestSubmitComparisonPerUser:
         assert rows == [("b",)]  # single row, updated — not duplicated
 
 
+class TestGetStatisticsKeys:
+    """Regression: comparison-ab-tab.component.ts declared a
+    ``photos_with_learned_scores`` field that ``ComparisonManager.get_statistics``
+    has never returned (``git log -S`` over every .py file is empty) -- pin the
+    real key set so a client interface can never again drift ahead of the
+    actual API contract.
+    """
+
+    def _fresh_db(self, tmp_path):
+        db_path = str(tmp_path / "stats.db")
+        init_database(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.execute("PRAGMA foreign_keys=ON")
+        conn.executemany("INSERT INTO photos (path) VALUES (?)",
+                         [("/p/a",), ("/p/b",)])
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def test_returns_exactly_the_documented_keys(self, tmp_path):
+        from comparison.comparison_manager import ComparisonManager
+
+        db_path = self._fresh_db(tmp_path)
+        mgr = ComparisonManager(db_path)
+        mgr.submit_comparison("/p/a", "/p/b", "a", category="portrait")
+
+        stats = mgr.get_statistics()
+
+        assert "photos_with_learned_scores" not in stats
+        assert set(stats.keys()) == {
+            "total_comparisons",
+            "winner_breakdown",
+            "category_breakdown",
+            "unique_photos_compared",
+            "recent_optimization_runs",
+        }
+
+
 class TestRecordCullingPairsNullSafe:
     def _burst_conn(self, tmp_path):
         db_path = str(tmp_path / "cull.db")

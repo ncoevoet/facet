@@ -55,7 +55,7 @@ Viewers im `progress`-Feld von `/api/scan/status` und im SSE-Stream bereitstellt
 | `quality-face` | TOPIQ NR-Face | `face_quality_iqa`-Score (eigens für Gesichtsqualität entwickelt) | Geteilt mit TOPIQ |
 | `quality-liqe` | LIQE | `liqe_score` + Verzerrungsdiagnose (Unschärfe, Überbelichtung, Rauschen) | ~2 GB |
 | `tags` | CLIP / Qwen VLM | Semantische Tags aus dem konfigurierten Vokabular | 0-16 GB |
-| `composition` | SAMP-Net | `composition_pattern` (14 Muster) + `comp_score` | ~2 GB |
+| `composition` | SAMP-Net | `composition_pattern` (8 Muster) + `comp_score` | ~2 GB |
 | `faces` | InsightFace buffalo_l | Gesichtserkennung, Landmarken, Blinzelerkennung, Erkennungs-Embeddings | ~2 GB |
 | `embeddings` | CLIP ViT-L-14 oder SigLIP 2 NaFlex | `clip_embedding`-BLOB für Ähnlichkeit/Verschlagwortung | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~2 GB |
@@ -142,6 +142,7 @@ Diese Befehle aktualisieren bestimmte Metriken, leiten neue Daten ab (KI-Bildunt
 | `python facet.py --recompute-embeddings` | CLIP/SigLIP-Embeddings für alle Fotos neu berechnen (nach Modellwechsel erforderlich) |
 | `python facet.py --score-topiq` | TOPIQ-Qualitätsscores aus gespeicherten Thumbnails nachfüllen (GPU erforderlich) |
 | `python facet.py --backfill-focal-35mm` | 35-mm-äquivalente Brennweite aus EXIF für Fotos nachfüllen, denen sie fehlt |
+| `python facet.py --backfill-clipping` | Leitet die Beschnitt-Prozentsätze pro Kanal aus den gespeicherten Histogrammen ab. Nur Datenbank (keine Bilddekodierung) und fortsetzbar; Fotos, deren Histogramm älter als das RGB-Format ist, bleiben unbekannt (NULL) |
 | `python facet.py --compute-recommendations` | Datenbank analysieren, Bewertungszusammenfassung anzeigen |
 | `python facet.py --compute-recommendations --verbose` | Detaillierte Statistiken anzeigen |
 | `python facet.py --compute-recommendations --apply-recommendations` | Bewertungskorrekturen automatisch anwenden |
@@ -216,8 +217,33 @@ Embeddings treiben die semantische Verschlagwortung, Duplikaterkennung, Ähnlich
 | Befehl | Beschreibung |
 |---------|-------------|
 | `python facet.py --fix-thumbnail-rotation` | Rotation gespeicherter Thumbnails anhand der EXIF-Orientierung korrigieren |
+| `python facet.py --refresh-thumbnails` | RAW-Thumbnails aus der kamerainternen Vorschau neu erstellen |
+| `python facet.py --refresh-thumbnails --refresh-thumbnails-workers 16` | Dasselbe, mit mehr parallelen Lesevorgängen |
 
 Liest die EXIF-Orientierung aus den Originaldateien und rotiert die gespeicherten Thumbnail-Bytes; für Fotos, die verarbeitet wurden, bevor es eine EXIF-Behandlung gab. Es liest nur den EXIF-Header und das gespeicherte Thumbnail, nicht die vollständigen Bilder.
+
+`--refresh-thumbnails` rendert das gespeicherte Thumbnail jedes RAW-Fotos neu durch das Anzeigeprofil (zuerst die Kameravorschau, als Fallback das Demosaicing — siehe [CONFIGURATION.md](CONFIGURATION.md#raw-decode)). Es ist die Migration für eine Bibliothek, die gescannt wurde, bevor dieses Profil existierte: Von einem älteren Scan geschriebene Thumbnails tragen LibRaws automatische Aufhellung pro Aufnahme, die die Belichtungsunterschiede zwischen den Aufnahmen einer Belichtungsreihe einebnet. Es wird kein Modell geladen und keine Score-Spalte berührt — nur `photos.thumbnail` wird neu geschrieben.
+
+Der Befehl ist durch den Speicherdurchsatz begrenzt, nicht durch die CPU, daher skaliert sein Aufwand mit der Bibliotheksgröße und der Geschwindigkeit der Festplatte oder des Netzlaufwerks der Bibliothek, nicht mit der Kernzahl der Maschine. `--refresh-thumbnails-workers` (Standard 8) legt fest, wie viele Dateien gleichzeitig gelesen werden: auf einem schnellen Netzlaufwerk erhöhen, wo jeder Lesevorgang wartend verbringt, auf einer langsamen lokalen Festplatte verringern. Es begrenzt auch die vollständigen Demosaicing-Vorgänge, auf die ein RAW ohne Vorschau zurückfällt, sodass sehr hohe Werte Arbeitsspeicher kosten.
+
+Er ist fortsetzbar. Jeder committete Batch merkt sich, wie weit er gekommen ist, sodass ein mit Ctrl+C (oder durch ein getrenntes Laufwerk) gestoppter Lauf eine konsistente Datenbank hinterlässt, und der nächste `--refresh-thumbnails` dort fortsetzt, wo er aufgehört hat. Ein abgeschlossener Lauf löscht die Markierung, sodass ein späteres erneutes Ausführen von vorn beginnt.
+
+Ein Foto, dessen frisches Rendering komplett schwarz zurückkommt, behält sein bestehendes Thumbnail und wird namentlich protokolliert. Das ist keine Paranoia: Ein schwer beschädigtes Panasonic-RW2 schlägt beim Dekodieren nicht fehl — LibRaw füllt es mit Nullen zu einem gültigen, formatfüllenden schwarzen Bild auf, statt fehlzuschlagen — sodass ohne diese Prüfung eine beschädigte Datei ein gutes Thumbnail stillschweigend durch ein schwarzes ersetzen würde. Ein solches Foto bleibt ungestempelt und wird beim nächsten Lauf erneut versucht, sodass es genügt, die Datei zu reparieren.
+
+Ein Foto, das zu einer Belichtungsreihe gehört, wird ohne Kameravorschau und ohne jegliche Belichtungsverstärkung neu gerendert, sodass seine Kachel zeigt, was der Sensor aufgezeichnet hat (siehe [CONFIGURATION.md](CONFIGURATION.md#bracketed-frames-render-uncorrected)). Da die Zugehörigkeit zu einer Belichtungsreihe aus der Sequenzerkennung stammt, die nach einem Scan läuft, führen Sie diesen Befehl nach `--detect-sequences` aus, damit diese Kacheln das Rendering übernehmen.
+
+### Was ein gespeichertes Thumbnail aktualisiert
+
+Gespeicherte Thumbnails werden zur Scanzeit gebacken, sodass eine Bibliothek, die vor der Existenz des Anzeigeprofils gescannt wurde, im Galerie-Raster weiterhin das alte Rendering zeigt. `photos.render_version` verzeichnet, welche Pipeline das Thumbnail jeder Zeile erzeugt hat, und zwei Wege bringen es auf den aktuellen Stand:
+
+| Weg | Deckt ab | Kosten |
+|------|--------|------|
+| Ein erneuter Scan (`python facet.py <verzeichnis>`) | Alles, was er scannt, Thumbnail und Histogramm | Vollständiger Scoring-Lauf |
+| `--refresh-thumbnails` | Das Thumbnail jeder RAW-Zeile | Speicherbegrenzt, Stunden bei einer großen Bibliothek |
+
+**Nichts geschieht von allein.** Die Detailansicht ist immer aktuell, weil `/image` in Echtzeit rendert, aber das Galerie-Raster liest `photos.thumbnail`, und keine Menge an Durchsuchen schreibt es neu. Genau dafür ist `--refresh-thumbnails` da, und deshalb zeigt die Galerie ein schließbares Banner, das die noch wartenden Zeilen zählt.
+
+Die Zählung im Banner stammt aus einem `stats_cache`-Eintrag mit einer TTL von einer Stunde, direkt aktualisiert durch `--refresh-thumbnails` und durch `python database.py --refresh-stats`, sodass sie nach einem Scan hinter der Realität zurückbleiben kann.
 
 ## Diagnose
 
@@ -229,6 +255,13 @@ Liest die EXIF-Orientierung aus den Originaldateien und rotiert die gespeicherte
 Berichtet die Python-Version, den PyTorch/CUDA-Build, die GPU-Erkennung und den Treiber, die Empfehlung für das VRAM-Profil, optionale Abhängigkeiten und den Konfigurations-/Datenbankstatus. Wenn PyTorch die GPU nicht sehen kann, `nvidia-smi` aber schon, gibt es den `pip install`-Befehl zur Behebung des CUDA-Builds aus.
 
 `--simulate-gpu NAME` und `--simulate-vram GB` testen das Verhalten mit anderer Hardware. Beide erfordern `--doctor`; `--simulate-vram` erfordert `--simulate-gpu`.
+
+| Befehl | Beschreibung |
+|---------|-------------|
+| `python facet.py --check-raw-rendering` | 20 stichprobenartig ausgewählte RAW-Fotos unter den alten und aktuellen Dekodiereinstellungen rendern |
+| `python facet.py --check-raw-rendering 50` | Stattdessen 50 Fotos als Stichprobe |
+
+Nur lesend: Es dekodiert eine Zufallsstichprobe direkt von der Festplatte und gibt die mittlere Leuchtdichte aus, die jedes Rendering erzeugt — LibRaws automatische Aufhellung pro Aufnahme, das Demosaicing mit fester Verstärkung für die Metriken und die kamerainterne Vorschau, die Thumbnails und Viewer verwenden. Damit lässt sich `raw_decode.bright` an eigenen Dateien prüfen, bevor man sich auf einen Scan oder einen `--refresh-thumbnails`-Lauf festlegt; die Spalten für festen Gain und Vorschau erhalten die Belichtungsleiter einer Belichtungsreihe, die Spalte für automatische Aufhellung ebnet sie ein.
 
 ## Modellinformationen
 

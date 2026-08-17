@@ -394,6 +394,7 @@ def create_app() -> FastAPI:
     from api.routers.ranker import router as ranker_router
     from api.routers.scenes import router as scenes_router
     from api.routers.saliency import router as saliency_router
+    from api.routers.histogram import router as histogram_router
     from api.routers.social_crop import router as social_crop_router
     from api.routers.portfolio import router as portfolio_router
     from api.routers.cull_preview import router as cull_preview_router
@@ -431,6 +432,7 @@ def create_app() -> FastAPI:
     app.include_router(updates_router)
     app.include_router(scenes_router)
     app.include_router(saliency_router)
+    app.include_router(histogram_router)
     app.include_router(social_crop_router)
     app.include_router(portfolio_router)
     app.include_router(cull_preview_router)

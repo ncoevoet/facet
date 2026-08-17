@@ -154,7 +154,8 @@ Usa [Docker](#instalar-con-docker). Para usar una tarjeta NVIDIA en Windows, sig
 ## Primera ejecución: qué esperar
 
 - **Una descarga.** El primer escaneo obtiene los modelos de IA de tu perfil —
-  aproximadamente 3–4 GB para `legacy` y `8gb`, 10–11 GB para `16gb`, 18 GB para `24gb`.
+  aproximadamente 4,7 GB para `legacy`, 6,9 GB para `8gb`, 14,6 GB para `16gb`, 19,1 GB
+  para `24gb` (desglose completo en [Tamaños de descarga](#tamaños-de-descarga)).
   Esto ocurre una sola vez; las siguientes ejecuciones arrancan de inmediato.
 - **Sin configuración.** No hay nada que configurar. Facet crea su base de datos en el
   primer escaneo y viene con ajustes que funcionan de fábrica.
@@ -236,8 +237,11 @@ Los archivos por perfil (`docker-compose.legacy.yml`, `docker-compose.8gb.yml`,
 al `vram_profile` propio de la configuración (predeterminado `auto`).
 
 Se publican dos imágenes desde un único `Dockerfile`: `ghcr.io/ncoevoet/facet:latest` es
-una compilación ligera para CPU (~3,3 GB), `ghcr.io/ncoevoet/facet:latest-cuda` incluye
-CUDA y RAPIDS cuML (~21 GB) y es la que descargan los perfiles de GPU. Ambas son
+una compilación ligera para CPU (~3,3 GB descomprimidos en disco, valor aproximado —
+descargarla transfiere menos, 4,18 GB comprimidos; ver
+[Tamaños de descarga](#tamaños-de-descarga)), `ghcr.io/ncoevoet/facet:latest-cuda`
+incluye CUDA y RAPIDS cuML (~21 GB descomprimidos en disco, aproximado; 7,33 GB
+comprimidos para descargar) y es la que descargan los perfiles de GPU. Ambas son
 únicamente `linux/amd64` — en una máquina ARM, compila en local con `docker compose
 build` en lugar de descargar. `docker compose build` (o `up --build`) siempre compila
 desde este repositorio; consulta los argumentos de compilación `BASE_IMAGE`,
@@ -399,22 +403,56 @@ cual, así que define uno para anular estos umbrales en cualquiera de los dos se
 
 ## Tamaños de descarga
 
-Los modelos se descargan en el primer uso a `~/.cache/` y `~/.insightface/` (o a los
-volúmenes con nombre de Docker). Ningún peso de modelo viene integrado en la imagen.
+Los modelos se descargan en el primer uso a `~/.cache/huggingface/` (modelos Hugging
+Face), `~/.cache/torch/hub/` (pesos de PyIQA) y `~/.insightface/` (detección/reconocimiento
+facial), o a los volúmenes con nombre de Docker. `samp_net.pth`, `u2netp.pth`,
+`face_landmarker.task` y el `aesthetic_predictor_weights.pth` de la cabeza estética CLIP-MLP
+(solo `legacy`/`8gb`) van todos a `pretrained_models/`, resuelto respecto a la raíz del
+repositorio y no al directorio de trabajo del proceso — en Docker eso es el volumen montado
+`facet-pretrained`, así que ninguno de ellos se vuelve a descargar al recrear el
+contenedor. Ningún peso de modelo viene integrado en la imagen.
+
+Los tamaños siguientes son decimales (GB = 10⁹ bytes, MB = 10⁶ bytes), medidos a partir
+de las cachés de modelos locales y de la API de Hugging Face.
 
 | Modelo | Tamaño | Perfiles |
 |-------|------|----------|
-| CLIP ViT-L-14 laion2b (embeddings + etiquetado) | ~1,6 GB | `legacy`/`8gb` |
-| SigLIP 2 NaFlex SO400M (embeddings) | ~4,3 GB | `16gb`/`24gb` |
-| Qwen3.5-2B (etiquetado VLM) | ~4,2 GB | `16gb` |
-| Qwen3.5-4B (etiquetado VLM) | ~8 GB | `24gb` |
-| Qwen2-VL-2B (composición) | ~4,2 GB | `24gb` |
-| InsightFace buffalo_l (rostros) | ~600 MB | todos |
-| Pesos de SAMP-Net (composición) | ~175 MB | todos (`24gb` usa Qwen2-VL en su lugar) |
-| BiRefNet_dynamic (saliencia del sujeto) | ~424 MB | todos |
-| U2-Net-P (ayuda de saliencia) | ~5 MB | todos |
+| CLIP ViT-L-14 laion2b (embeddings + etiquetado CLIP + estética CLIP-MLP) | 1,711 GB | `legacy`/`8gb` |
+| Cabeza estética MLP (`sac+logos+ava1-l14-linearMSE.pth`) | 3,7 MB | solo `legacy`/`8gb` |
+| SigLIP 2 NaFlex SO400M (embeddings) | 4,581 GB | `16gb`/`24gb` |
+| Qwen3.5-2B (etiquetado VLM) | 4,571 GB | `16gb` |
+| Qwen3.5-4B (etiquetado VLM) | 9,343 GB | `24gb` |
+| Qwen2-VL-2B (composición) | 4,430 GB | ninguno por defecto — solo si estableces manualmente `composition_model: "qwen2-vl-2b"` **y** `processing.mode: "single-pass"` |
+| InsightFace buffalo_l (rostros) | 289 MB de descarga / 630 MB en disco (el zip se conserva junto a los archivos `.onnx` extraídos) | todos |
+| Pesos de SAMP-Net (composición) | 183 MB | todos |
+| U2-Net-P (submodelo de saliencia de SAMP-Net) | 4,7 MB | los mismos perfiles que SAMP-Net |
+| BiRefNet_dynamic (saliencia del sujeto) | 445 MB | todos |
+| TOPIQ NR (modelo estético) | 181 MB | `16gb`/`24gb` |
+| TOPIQ IAA (estética complementaria) | 873 MB | todos |
+| TOPIQ NR-Face (calidad facial complementaria) | 376 MB | todos |
+| LIQE (calidad/distorsión complementaria) | 708 MB | todos |
+| timm resnet50.a1_in1k (backbone PyIQA compartido) | 102 MB | todos |
+| Q-ReAlign-Mini-0.8B (`iqa_extended.qrealign`) | 2,235 GB | `8gb`/`16gb`/`24gb`, **activado por defecto** (`"auto"` se resuelve como activado en todos los perfiles salvo `legacy`) |
 
-Totales por perfil: `legacy`/`8gb` ~3–4 GB · `16gb` ~10–11 GB · `24gb` ~18 GB.
+Totales por perfil (descarga): `legacy` 4,69 GB · `8gb` 6,93 GB · `16gb` 14,55 GB ·
+`24gb` 19,32 GB · `24gb` con `composition_model: "qwen2-vl-2b"` y
+`processing.mode: "single-pass"` 23,56 GB (la sustitución manual reemplaza a
+SAMP-Net/U2-Net-P en lugar de sumarse a ellos).
+
+Como referencia, descargar la propia imagen de Docker (antes de cualquier descarga de
+modelos) transfiere `ghcr.io/ncoevoet/facet:latest` con 4,18 GB comprimidos y
+`:latest-cuda` con 7,33 GB comprimidos, según los manifiestos actuales del registro.
+
+Modelos opcionales no incluidos en los totales anteriores:
+
+| Modelo | Tamaño | Activación |
+|-------|------|----------|
+| DeQA-Score-Mix3 (`iqa_extended.deqa`) | 16,41 GB | desactivado por defecto |
+| Backbone SigLIP so400m-patch14-384 (`iqa_extended.aesthetic_v25`) | 3,515 GB | desactivado por defecto, **obsoleto** (AGPL-3.0, sin mantenimiento upstream — se prefiere `qrealign`) |
+| Helsinki-NLP OPUS-MT, por idioma de destino (traducción de leyendas) | en→fr 303 MB · en→de 298 MB · en→es 312 MB · en→it 343 MB · en→pt 465 MB | solo para los idiomas activados |
+| MediaPipe `face_landmarker.task` | 3,76 MB | solo si `mediapipe` está instalado |
+
+`reverse_geocoder` no necesita ninguna descarga: sus datos van incluidos en el wheel.
 
 Los pesos de SAMP-Net provienen de la
 [versión model-weights-v1](https://github.com/ncoevoet/facet/releases/download/model-weights-v1/samp_net.pth)

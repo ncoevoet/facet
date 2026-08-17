@@ -98,7 +98,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 - **Ordenação Meu Gosto** — ordene a galeria pela pontuação aprendida do classificador pessoal, com um selo de confiança que mostra a cobertura aprendida e a precisão em dados separados
 - **Aprendizado a partir de rótulos** — decisões de seleção, classificações por estrelas, favoritos e rejeições alimentam o otimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — salve, restaure e compare configurações de pesos
-- **Histograma** — histograma de luminância na dica da foto e na visualização de detalhes
+- **Histograma** — histograma RGB/luminância com indicadores de clipping, na dica da foto e na visualização de detalhes
 - **Legendas por IA** `[GPU]` `[16gb/24gb]` — descrições em texto, editáveis `[Edition]` e traduzíveis para 5 idiomas (a geração e a visualização são abertas)
 
 <table><tr>

@@ -133,14 +133,14 @@ const ANY_KIND = 'any';
               </span>
               <div class="absolute inset-x-0 bottom-0 flex justify-end items-center gap-1 p-1.5 bg-gradient-to-t from-black/70 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
                 <button
-                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-green-400"
+                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-green-400 cursor-pointer"
                   [matTooltip]="I18N.junk.keep_hint | translate"
                   [attr.aria-label]="I18N.junk.keep | translate"
                   (click)="keep(photo)">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4" aria-hidden="true">check</mat-icon>
                 </button>
                 <button
-                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-red-400"
+                  class="w-7 h-7 rounded-full inline-flex items-center justify-center hover:bg-white/20 transition-colors text-red-400 cursor-pointer"
                   [matTooltip]="I18N.junk.reject_hint | translate"
                   [attr.aria-label]="I18N.junk.reject | translate"
                   (click)="reject(photo)">
