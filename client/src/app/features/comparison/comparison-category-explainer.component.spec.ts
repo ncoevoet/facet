@@ -1,144 +1,174 @@
 import type { Mock } from 'vitest';
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { I18nService } from '../../core/services/i18n.service';
 import { ComparisonCategoryExplainerComponent } from './comparison-category-explainer.component';
 
-describe('ComparisonCategoryExplainerComponent', () => {
+type SuggestFiltersResponse = {
+  current_category: string;
+  target_category: string;
+  conflicts: unknown[];
+  suggestions: unknown[];
+  no_conflicts: boolean;
+};
 
-  let component: any;
+const RESPONSE = (overrides: Partial<SuggestFiltersResponse> = {}): SuggestFiltersResponse => ({
+  current_category: 'silhouette',
+  target_category: 'sports',
+  conflicts: [],
+  suggestions: [],
+  no_conflicts: true,
+  ...overrides,
+});
+
+describe('ComparisonCategoryExplainerComponent', () => {
+  let fixture: ComponentFixture<ComparisonCategoryExplainerComponent>;
+  let component: ComparisonCategoryExplainerComponent;
   let mockApi: { post: Mock };
+  const mockI18n = {
+    t: vi.fn((key: string) => key),
+    currentLang: vi.fn(() => 'en'),
+    locale: vi.fn(() => 'en'),
+    translations: vi.fn(() => ({})),
+  };
 
   beforeEach(() => {
-    mockApi = { post: vi.fn(() => of({})) };
+    mockApi = { post: vi.fn(() => of(RESPONSE())) };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiService, useValue: mockApi },
+        { provide: I18nService, useValue: mockI18n },
       ],
     });
-    TestBed.runInInjectionContext(() => {
-      component = new ComparisonCategoryExplainerComponent();
-    });
+    fixture = TestBed.createComponent(ComparisonCategoryExplainerComponent);
+    component = fixture.componentInstance;
   });
 
-  describe('load', () => {
+  /** Sets both required inputs and runs the constructor effect that loads on their change. */
+  function setInputs(path: string, targetCategory: string): void {
+    fixture.componentRef.setInput('path', path);
+    fixture.componentRef.setInput('targetCategory', targetCategory);
+    fixture.detectChanges();
+  }
+
+  describe('loading via the path/targetCategory effect', () => {
     it('does nothing without a path', async () => {
-      await component.load('', 'sports');
+      setInputs('', 'sports');
+      await fixture.whenStable();
+
       expect(mockApi.post).not.toHaveBeenCalled();
       expect(component.result()).toBeNull();
     });
 
     it('does nothing without a target category', async () => {
-      await component.load('/a.jpg', '');
+      setInputs('/a.jpg', '');
+      await fixture.whenStable();
+
       expect(mockApi.post).not.toHaveBeenCalled();
     });
 
     it('calls suggest_filters with path and target_category', async () => {
-      component.path = () => '/a.jpg';
-      component.targetCategory = () => 'sports';
-      mockApi.post.mockReturnValue(of({
-        current_category: 'silhouette',
-        target_category: 'sports',
-        conflicts: [],
-        suggestions: [],
-        no_conflicts: false,
-      }));
+      mockApi.post.mockReturnValue(of(RESPONSE({ current_category: 'silhouette', target_category: 'sports', no_conflicts: false })));
 
-      await component.load('/a.jpg', 'sports');
+      setInputs('/a.jpg', 'sports');
+      await fixture.whenStable();
 
       expect(mockApi.post).toHaveBeenCalledWith('/comparison/suggest_filters', { path: '/a.jpg', target_category: 'sports' });
     });
 
     it('stores the response in result', async () => {
-      component.path = () => '/a.jpg';
-      component.targetCategory = () => 'sports';
-      const response = {
+      const response = RESPONSE({
         current_category: 'silhouette',
         target_category: 'sports',
         conflicts: [{ type: 'above_maximum', filter: 'shutter_speed_max', message: 'Shutter speed is above maximum' }],
         suggestions: [{ type: 'raise_maximum', filter: 'shutter_speed_max', message: 'Raise shutter_speed_max from 0.02 to 0.033' }],
         no_conflicts: false,
-      };
+      });
       mockApi.post.mockReturnValue(of(response));
 
-      await component.load('/a.jpg', 'sports');
+      setInputs('/a.jpg', 'sports');
+      await fixture.whenStable();
 
       expect(component.result()).toEqual(response);
     });
 
     it('sets loading false after completion', async () => {
-      component.path = () => '/a.jpg';
-      component.targetCategory = () => 'sports';
-      mockApi.post.mockReturnValue(of({ current_category: 'a', target_category: 'b', conflicts: [], suggestions: [], no_conflicts: true }));
-
-      await component.load('/a.jpg', 'sports');
+      setInputs('/a.jpg', 'sports');
+      await fixture.whenStable();
 
       expect(component.loading()).toBe(false);
     });
 
     it('sets error and clears result on failure', async () => {
-      component.path = () => '/a.jpg';
-      component.targetCategory = () => 'sports';
-      component.result.set({ current_category: 'a', target_category: 'b', conflicts: [], suggestions: [], no_conflicts: true });
-      mockApi.post.mockReturnValue(throwError(() => new Error('fail')));
+      mockApi.post.mockReturnValueOnce(of(RESPONSE()));
+      setInputs('/a.jpg', 'sports');
+      await fixture.whenStable();
+      expect(component.result()).not.toBeNull();
 
-      await component.load('/a.jpg', 'sports');
+      mockApi.post.mockReturnValueOnce(throwError(() => new Error('fail')));
+      fixture.componentRef.setInput('path', '/b.jpg');
+      fixture.detectChanges();
+      await fixture.whenStable();
 
       expect(component.error()).toBe(true);
       expect(component.result()).toBeNull();
       expect(component.loading()).toBe(false);
     });
+  });
 
-    // Defect 2: holding ArrowRight in photo detail re-sets the `photo` input on the
-    // same mounted instance, so a slow response for the PREVIOUS photo/category can
-    // land after a newer request already resolved. The stale response must never
-    // overwrite the fresh result.
+  // Defect 2: holding ArrowRight in photo detail re-sets the `path` input on the
+  // same mounted instance, so a slow response for the PREVIOUS photo/category can
+  // land after a newer request already resolved. The stale response must never
+  // overwrite the fresh result.
+  describe('stale-response race across a real input change', () => {
     it('discards a stale response that resolves after a newer request has already applied', async () => {
-      const staleResponse = new Subject<{ current_category: string; target_category: string; conflicts: unknown[]; suggestions: unknown[]; no_conflicts: boolean }>();
-      mockApi.post.mockImplementationOnce(() => staleResponse.asObservable());
-      mockApi.post.mockImplementationOnce(() => of({
-        current_category: 'b_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true,
-      }));
+      const staleResponse = new Subject<SuggestFiltersResponse>();
+      mockApi.post.mockReturnValueOnce(staleResponse.asObservable());
+      mockApi.post.mockReturnValueOnce(of(RESPONSE({ current_category: 'b_current' })));
 
-      // The input has already moved on to photo B by the time both requests are in flight.
-      component.path = () => '/b.jpg';
-      component.targetCategory = () => 'sports';
+      fixture.componentRef.setInput('path', '/a.jpg');
+      fixture.componentRef.setInput('targetCategory', 'sports');
+      fixture.detectChanges();
 
-      const stalePending = component.load('/a.jpg', 'sports');
-      await component.load('/b.jpg', 'sports');
+      // The user moved on to photo B (e.g. holding ArrowRight) while A is still in flight.
+      fixture.componentRef.setInput('path', '/b.jpg');
+      fixture.detectChanges();
+      await fixture.whenStable();
 
       expect(component.result()?.current_category).toBe('b_current');
       expect(component.loading()).toBe(false);
 
-      staleResponse.next({ current_category: 'a_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true });
+      staleResponse.next(RESPONSE({ current_category: 'a_current' }));
       staleResponse.complete();
-      await stalePending;
+      await fixture.whenStable();
 
       expect(component.result()?.current_category).toBe('b_current');
       expect(component.loading()).toBe(false);
     });
 
     it('keeps loading true while a newer request is still in flight after the previous one settled', async () => {
-      const slowB = new Subject<{ current_category: string; target_category: string; conflicts: unknown[]; suggestions: unknown[]; no_conflicts: boolean }>();
-      mockApi.post.mockImplementationOnce(() => of({
-        current_category: 'a_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true,
-      }));
-      mockApi.post.mockImplementationOnce(() => slowB.asObservable());
+      const slowB = new Subject<SuggestFiltersResponse>();
+      mockApi.post.mockReturnValueOnce(of(RESPONSE({ current_category: 'a_current' })));
+      mockApi.post.mockReturnValueOnce(slowB.asObservable());
 
-      component.path = () => '/b.jpg';
-      component.targetCategory = () => 'sports';
+      // Both inputs move before either request settles: A resolves only after
+      // B is already the current input, so A is discarded as stale on arrival.
+      fixture.componentRef.setInput('path', '/a.jpg');
+      fixture.componentRef.setInput('targetCategory', 'sports');
+      fixture.detectChanges();
 
-      const pendingA = component.load('/a.jpg', 'sports');
-      const pendingB = component.load('/b.jpg', 'sports');
-      await pendingA;
+      fixture.componentRef.setInput('path', '/b.jpg');
+      fixture.detectChanges();
+      await fixture.whenStable();
 
       expect(component.loading()).toBe(true);
       expect(component.result()).toBeNull();
 
-      slowB.next({ current_category: 'b_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true });
+      slowB.next(RESPONSE({ current_category: 'b_current' }));
       slowB.complete();
-      await pendingB;
+      await fixture.whenStable();
 
       expect(component.loading()).toBe(false);
       expect(component.result()?.current_category).toBe('b_current');
@@ -146,19 +176,19 @@ describe('ComparisonCategoryExplainerComponent', () => {
 
     it('never lets a stale FAILURE clobber the fresh result already shown', async () => {
       const failA = new Subject<unknown>();
-      mockApi.post.mockImplementationOnce(() => failA.asObservable());
-      mockApi.post.mockImplementationOnce(() => of({
-        current_category: 'b_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true,
-      }));
+      mockApi.post.mockReturnValueOnce(failA.asObservable());
+      mockApi.post.mockReturnValueOnce(of(RESPONSE({ current_category: 'b_current' })));
 
-      component.path = () => '/b.jpg';
-      component.targetCategory = () => 'sports';
+      fixture.componentRef.setInput('path', '/a.jpg');
+      fixture.componentRef.setInput('targetCategory', 'sports');
+      fixture.detectChanges();
 
-      const pendingA = component.load('/a.jpg', 'sports');
-      await component.load('/b.jpg', 'sports');
+      fixture.componentRef.setInput('path', '/b.jpg');
+      fixture.detectChanges();
+      await fixture.whenStable();
 
       failA.error(new Error('boom'));
-      await pendingA;
+      await fixture.whenStable();
 
       expect(component.error()).toBe(false);
       expect(component.result()?.current_category).toBe('b_current');
@@ -172,20 +202,20 @@ describe('ComparisonCategoryExplainerComponent', () => {
     // belongs to the now-superseded in-flight request.
     it('leaves loading stuck true if an input goes falsy while a request is still in flight', async () => {
       const slowA = new Subject<unknown>();
-      mockApi.post.mockImplementationOnce(() => slowA.asObservable());
+      mockApi.post.mockReturnValueOnce(slowA.asObservable());
 
-      component.path = () => '/a.jpg';
-      component.targetCategory = () => 'sports';
-      const pendingA = component.load('/a.jpg', 'sports');
+      fixture.componentRef.setInput('path', '/a.jpg');
+      fixture.componentRef.setInput('targetCategory', 'sports');
+      fixture.detectChanges();
+
       expect(component.loading()).toBe(true);
 
-      component.targetCategory = () => '';
-      await component.load('/a.jpg', '');
+      fixture.componentRef.setInput('targetCategory', '');
+      fixture.detectChanges();
 
-      slowA.next({ current_category: 'a_current', target_category: 'sports', conflicts: [], suggestions: [], no_conflicts: true });
+      slowA.next(RESPONSE({ current_category: 'a_current' }));
       slowA.complete();
-      await pendingA;
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await fixture.whenStable();
 
       expect(component.loading()).toBe(true);
     });
@@ -193,15 +223,13 @@ describe('ComparisonCategoryExplainerComponent', () => {
 
   describe('retry', () => {
     it('re-runs load with the current input values', async () => {
-      mockApi.post.mockReturnValue(of({ current_category: 'a', target_category: 'b', conflicts: [], suggestions: [], no_conflicts: true }));
-      // Stub the (required) input signals directly rather than going through a
-      // full fixture + setInput -- consistent with this file's lightweight,
-      // fixture-free instantiation style.
-      component.path = () => '/a.jpg';
-      component.targetCategory = () => 'sports';
+      setInputs('/a.jpg', 'sports');
+      await fixture.whenStable();
+      mockApi.post.mockClear();
+      mockApi.post.mockReturnValue(of(RESPONSE()));
 
       component.retry();
-      await new Promise(resolve => setTimeout(resolve, 0));
+      await fixture.whenStable();
 
       expect(mockApi.post).toHaveBeenCalledWith('/comparison/suggest_filters', { path: '/a.jpg', target_category: 'sports' });
     });
