@@ -275,12 +275,12 @@ def get_pending_render_count(db_path=None, max_age_seconds=PENDING_RENDER_TTL_SE
     if is_fresh and isinstance(value, int):
         return value
     with get_connection(path) as conn:
+        count = count_pending_render(conn)
         try:
-            count = refresh_pending_render_stat(conn)
+            _cache_stat(conn, PENDING_RENDER_KEY, count, time_module.time())
             conn.commit()
         except sqlite3.OperationalError:
             logger.debug("Could not persist %s (read-only database?)", PENDING_RENDER_KEY)
-            count = count_pending_render(conn)
     return count
 
 

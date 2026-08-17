@@ -1028,6 +1028,7 @@ Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar
 |----------|-------------|
 | `GET /api/photos` | Paginierte Fotoliste mit Filtern |
 | `GET /api/photo` | Details zu einem einzelnen Foto |
+| `GET /api/photo/set?path=` | Die Belichtungsreihen-/Panorama-/HDR-Panorama-/Serienbild-/Duplikat-Menge, zu der ein Foto gehört (Sequenz hat Vorrang vor Serienbild, Serienbild vor Duplikat), referenziert über `path` — niemals eine Gruppen-ID, welche die Belichtungsreihen- und Panorama-Durchläufe bei jedem Lauf jeweils neu ab 1 durchnummerieren |
 | `GET /api/photo/histogram?path=&bins=` | Zeichenfertige Luminanz- + R/G/B-Bins (`bins` ∈ 32/64/128/256, Standard 64), beim Scan am Bild in voller Auflösung gemessen. Jeder Kanal wird mit einem einzigen globalen Maximum skaliert, nie mit seinem eigenen. `r`/`g`/`b` sind `null` für eine Zeile, die vor dem Kanalformat gespeichert wurde; 404, wenn die Zeile überhaupt kein Histogramm hat — das Signal für das Widget, auf das Abtasten des Vorschaubilds zurückzufallen |
 | `GET /api/type_counts` | Fotoanzahlen pro Typ |
 | `GET /api/similar_photos/{path}` | Ähnliche Fotos (Modi: `visual`, `color`, `person`) |

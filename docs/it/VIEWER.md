@@ -1027,6 +1027,7 @@ La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger U
 |----------|-------------|
 | `GET /api/photos` | Elenco foto impaginato con filtri |
 | `GET /api/photo` | Dettagli di una singola foto |
+| `GET /api/photo/set?path=` | L'insieme bracketing/panorama/hdr_panorama/raffica/duplicato a cui appartiene una foto (la sequenza ha la precedenza sulla raffica, la raffica sul duplicato), indicizzato su `path` — mai un ID di gruppo, che i passaggi di bracketing e panorama rinumerano ciascuno a partire da 1 a ogni esecuzione |
 | `GET /api/photo/histogram?path=&bins=` | Bin di luminanza + R/G/B pronti da disegnare (`bins` ∈ 32/64/128/256, predefinito 64), misurati durante la scansione sull'immagine a piena risoluzione. Ogni canale è scalato da un unico massimo globale, mai dal proprio. `r`/`g`/`b` sono `null` per una riga salvata prima del formato per canale; 404 quando la riga non ha alcun istogramma, il segnale per cui il widget ripiega sul campionamento della miniatura |
 | `GET /api/type_counts` | Conteggi foto per tipo |
 | `GET /api/similar_photos/{path}` | Foto simili (modalità: `visual`, `color`, `person`) |

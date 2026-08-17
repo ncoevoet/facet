@@ -54,7 +54,7 @@ import {
   GalleryRow, aspectOf, buildGridRows, buildMosaicRows, gridColumnCount, totalRowsHeight,
   windowRange,
 } from './gallery-rows.util';
-import { GalleryFilters, applyQueryParams } from './gallery-filters.util';
+import { GalleryFilters, applyQueryParams, loadDisplayOptionsFromStorage } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
 import { ExportEditorDialogComponent } from './export-editor-dialog.component';
@@ -864,10 +864,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const updates: Partial<GalleryFilters> = {
       sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
     };
-    if (kind === 'burst') updates.hide_bursts = true;
-    else if (kind === 'duplicate') updates.hide_duplicates = true;
-    else if (kind === 'bracket') updates.hide_brackets = true;
-    else updates.hide_panoramas = true;
+    const stored = loadDisplayOptionsFromStorage();
+    const defaults = this.store.config()?.defaults;
+    if (kind === 'burst') updates.hide_bursts = stored.hide_bursts ?? (defaults?.hide_bursts ?? true);
+    else if (kind === 'duplicate') updates.hide_duplicates = stored.hide_duplicates ?? (defaults?.hide_duplicates ?? true);
+    else if (kind === 'bracket') updates.hide_brackets = stored.hide_brackets ?? (defaults?.hide_brackets ?? true);
+    else updates.hide_panoramas = stored.hide_panoramas ?? (defaults?.hide_panoramas ?? true);
     void this.store.updateFilters(updates);
   }
 

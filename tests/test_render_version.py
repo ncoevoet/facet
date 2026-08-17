@@ -274,6 +274,28 @@ class TestMigrationStatus:
         monkeypatch.setattr('db.stats_cache.count_pending_render', _forbidden)
         assert get_pending_render_count(library_db) == 5
 
+    def test_a_persist_failure_does_not_rescan_photos(self, library_db, monkeypatch):
+        """The scan that already ran must not be discarded and re-run just
+        because caching its result failed (e.g. a read-only database)."""
+        from db.stats_cache import get_pending_render_count
+        import db.stats_cache as stats_cache_mod
+
+        real_count_pending_render = stats_cache_mod.count_pending_render
+        calls = []
+
+        def _counting(conn):
+            calls.append(1)
+            return real_count_pending_render(conn)
+
+        def _raise(*args, **kwargs):
+            raise sqlite3.OperationalError("attempt to write a readonly database")
+
+        monkeypatch.setattr(stats_cache_mod, 'count_pending_render', _counting)
+        monkeypatch.setattr(stats_cache_mod, '_cache_stat', _raise)
+
+        assert get_pending_render_count(library_db) == 1
+        assert len(calls) == 1
+
     def test_a_stale_entry_is_recomputed_and_re_cached(self, library_db):
         from db.stats_cache import PENDING_RENDER_KEY, get_pending_render_count
 

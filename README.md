@@ -103,7 +103,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **My Taste sort** — sort the gallery by the personal ranker's learned score, with a confidence badge showing learned coverage and held-out accuracy
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
-- **Histogram** — luminance histogram in the photo tooltip and detail view
+- **Histogram** — RGB/luminance histogram with clipping indicators, in the photo tooltip and detail view
 - **AI captions** `[GPU]` `[16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (generation and viewing are open)
 
 <table><tr>

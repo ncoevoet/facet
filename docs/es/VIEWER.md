@@ -1026,6 +1026,7 @@ La documentación interactiva de la API está disponible en `/api/docs` (Swagger
 |----------|-------------|
 | `GET /api/photos` | Lista paginada de fotos con filtros |
 | `GET /api/photo` | Detalles de una sola foto |
+| `GET /api/photo/set?path=` | El conjunto horquillado/panorama/hdr_panorama/ráfaga/duplicada al que pertenece una foto (la secuencia tiene prioridad sobre la ráfaga, la ráfaga sobre la duplicada), indexado por `path` — nunca un id de grupo, que los pases de horquillado y panorama renumeran cada uno desde 1 en cada ejecución |
 | `GET /api/photo/histogram?path=&bins=` | Bins de luminancia + R/G/B listos para dibujar (`bins` ∈ 32/64/128/256, 64 por defecto), medidos durante el análisis sobre la imagen a resolución completa. Cada canal se escala por un único máximo global, nunca por el suyo. `r`/`g`/`b` son `null` para una fila guardada antes del formato por canal; 404 cuando la fila no tiene histograma alguno, la señal para que el widget recurra al muestreo de la miniatura |
 | `GET /api/type_counts` | Recuentos de fotos por tipo |
 | `GET /api/similar_photos/{path}` | Fotos similares (modos: `visual`, `color`, `person`) |

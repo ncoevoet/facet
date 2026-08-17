@@ -98,7 +98,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 - **Ordinamento "I miei gusti"** — ordina la galleria in base al punteggio appreso dal ranker personale, con un badge di confidenza che mostra la copertura appresa e l'accuratezza su dati di validazione
 - **Apprendimento dalle etichette** — le decisioni di selezione, le valutazioni a stelle, i preferiti e i rifiuti alimentano l'ottimizzatore dei pesi (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshot** — salva, ripristina e confronta le configurazioni dei pesi
-- **Istogramma** — istogramma della luminanza nel tooltip della foto e nella vista di dettaglio
+- **Istogramma** — istogramma RGB/luminanza con indicatori di clipping, nel tooltip della foto e nella vista di dettaglio
 - **Didascalie IA** `[GPU]` `[16gb/24gb]` `[Edition]` — descrizioni testuali, modificabili e traducibili in 5 lingue
 
 <table><tr>

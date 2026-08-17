@@ -6,7 +6,7 @@ import { Subject, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
-import { buildApiParams } from './gallery-filters.util';
+import { buildApiParams, DISPLAY_OPTIONS_KEY } from './gallery-filters.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -388,6 +388,57 @@ describe('GalleryComponent', () => {
         await component.ngOnInit();
 
         expect(mockStore.filters()).toBe(before);
+      });
+    });
+  });
+
+  describe('clearSetScope()', () => {
+    afterEach(() => {
+      localStorage.removeItem(DISPLAY_OPTIONS_KEY);
+    });
+
+    it('does nothing when no set scope is active', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).not.toHaveBeenCalled();
+    });
+
+    it('restores the user\'s stored hide_bursts preference instead of hardcoding true', () => {
+      localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: false }));
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '7', hide_bursts: false });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        hide_bursts: false,
+      });
+    });
+
+    it('falls back to the config default when nothing is stored in localStorage', () => {
+      mockStore.config.set({ defaults: { hide_panoramas: false } });
+      mockStore.filters.set({
+        ...DEFAULT_FILTERS, sequence_kind: 'panorama', sequence_group_id: '3', hide_panoramas: false,
+      });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        hide_panoramas: false,
+      });
+    });
+
+    it('falls back to true when neither storage nor config supplies a value', () => {
+      mockStore.filters.set({ ...DEFAULT_FILTERS, duplicate_group_id: '9', hide_duplicates: false });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        hide_duplicates: true,
       });
     });
   });

@@ -56,7 +56,7 @@ export class CategoryLabelPipe implements PipeTransform {
         class="fixed z-[1000] pointer-events-none flex flex-col backdrop-blur-sm p-2.5 rounded-xl shadow-2xl"
         style="background: var(--facet-tooltip-bg); border: 1px solid var(--facet-tooltip-border)"
         [style.position]="docked() ? 'static' : null"
-        [style.pointer-events]="docked() ? 'auto' : null"
+        [style.pointer-events]="showInteractiveControls() ? 'auto' : null"
         [style.width]="docked() ? '100%' : null"
         [style.left.px]="docked() ? null : x()"
         [style.top.px]="docked() ? null : y()"
@@ -242,7 +242,7 @@ export class CategoryLabelPipe implements PipeTransform {
              the histogram used to share Technical/EXIF's grid-cols, so a set-less
              photo left the histogram in a half-width column with dead space
              beside it -- pulling them into their own block fixes that, and since
-             the block's presence is decided by the synchronous p.sequence_kind
+             the block's presence is decided by the synchronous setKind()
              (never by the debounced GET /api/photo/set fetch), the layout is
              correct from the very first render and never reflows once the fetch
              resolves. -->
@@ -315,12 +315,12 @@ export class CategoryLabelPipe implements PipeTransform {
                while reaching for one in the floating hover bubble would dismiss
                it before the click could land -- the same problem that keeps the
                histogram's mode toggle hover-only-hidden too. -->
-          @if (p.sequence_kind) {
+          @if (setKind(); as kind) {
             <div class="mt-2">
               <div class="text-[10px] text-[var(--facet-tooltip-text-muted)] uppercase tracking-wider mb-1">{{ 'tooltip.set_section' | translate }}</div>
               <div class="flex items-center gap-1 flex-wrap">
-                <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px] opacity-70">{{ p.sequence_kind | photoSetKindIcon }}</mat-icon>
-                <span class="text-[var(--mat-sys-primary)] font-medium">{{ p.sequence_kind | photoSetKindLabel | translate }}</span>
+                <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px] opacity-70">{{ kind | photoSetKindIcon }}</mat-icon>
+                <span class="text-[var(--mat-sys-primary)] font-medium">{{ kind | photoSetKindLabel | translate }}</span>
                 @if (p.sequence_ev_offset !== null && p.sequence_ev_offset !== undefined) {
                   <span class="text-[var(--facet-tooltip-text-secondary)]">{{ p.sequence_ev_offset | evOffset }}</span>
                 }
@@ -464,6 +464,19 @@ export class PhotoTooltipComponent {
     return !!(p.camera_model || p.lens_model || p.focal_length || p.f_stop || p.shutter_speed || p.iso);
   });
 
+  /** The set this frame resolves into, mirroring `GET /api/photo/set`'s own
+   *  precedence (sequence, then burst, then duplicate) from fields already on
+   *  the photo object -- 'burst' and 'duplicate' have no `sequence_kind`
+   *  counterpart, since neither is a value that column can hold. */
+  protected readonly setKind = computed(() => {
+    const p = this.photo();
+    if (!p) return null;
+    if (p.sequence_kind) return p.sequence_kind;
+    if (p.burst_group_id != null) return 'burst';
+    if (p.duplicate_group_id != null) return 'duplicate';
+    return null;
+  });
+
   protected readonly HISTOGRAM_TOOLTIP_HEIGHT = HISTOGRAM_TOOLTIP_HEIGHT;
   /** Whether this bubble is safe to host click targets beyond the
    *  toggle-the-photo click itself: the docked rail is always parked, and a
@@ -483,7 +496,7 @@ export class PhotoTooltipComponent {
 
   /** Frame count + EV span for the photo's set (kind and this frame's own EV
    *  offset are already on `Photo` and need no fetch). null until the fetch
-   *  resolves, or when the photo has no `sequence_kind` at all. */
+   *  resolves, or when the photo belongs to no set at all. */
   protected readonly photoSet = signal<PhotoSet | null>(null);
 
   constructor() {
@@ -492,7 +505,7 @@ export class PhotoTooltipComponent {
       const p = this.photo();
       const token = ++this.setGeneration;
       untracked(() => this.photoSet.set(null));
-      if (!p?.sequence_kind) return;
+      if (!p || !this.setKind()) return;
       const requestedPath = p.path;
       // Dwell delay: a pointer merely crossing many tiles never fires this
       // request at all, since each new photo cancels the previous timer.

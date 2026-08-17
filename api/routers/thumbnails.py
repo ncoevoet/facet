@@ -327,7 +327,7 @@ def image(
             quality = _get_image_jpeg_quality()
             jpeg_bytes = _convert_raw_cached(real_disk, mtime, quality, row['sequence_kind'])
             return _cached_image_response(jpeg_bytes, request)
-        except (OSError, ValueError):
+        except (OSError, ValueError, RuntimeError):
             logger.exception("Failed to convert RAW file: %s", real_disk)
             if want_fallback:
                 return _stored_thumbnail_response(path, request)

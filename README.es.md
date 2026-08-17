@@ -98,7 +98,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **Orden "Mi gusto"** — ordena la galería según la puntuación aprendida del clasificador personal, con una insignia de confianza que muestra la cobertura aprendida y la precisión en datos de validación
 - **Aprendizaje a partir de etiquetas** — las decisiones de selección, las valoraciones por estrellas, los favoritos y los rechazos alimentan el optimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantáneas** — guarda, restaura y compara configuraciones de pesos
-- **Histograma** — histograma de luminancia en el tooltip de la foto y en la vista de detalle
+- **Histograma** — histograma RGB/luminancia con indicadores de recorte, en el tooltip de la foto y en la vista de detalle
 - **Leyendas con IA** `[GPU]` `[16gb/24gb]` — descripciones de texto, editables `[Edition]` y traducibles a 5 idiomas (la generación y la visualización están abiertas)
 
 <table><tr>

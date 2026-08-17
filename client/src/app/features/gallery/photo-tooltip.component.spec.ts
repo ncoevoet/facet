@@ -329,6 +329,32 @@ describe('PhotoTooltipComponent', () => {
     });
   });
 
+  describe('pointer-events on the tooltip container', () => {
+    function container(): HTMLElement {
+      return fixture.nativeElement.querySelector('div[class*="pointer-events-none"]');
+    }
+
+    it('stays pointer-events: none in plain hover mode (neither pinned nor docked)', () => {
+      fixture.componentInstance.photo.set(makePhoto());
+      fixture.detectChanges();
+      expect(container().style.pointerEvents).not.toBe('auto');
+    });
+
+    it('accepts pointer events when click-pinned, so the person and histogram buttons are reachable', () => {
+      fixture.componentInstance.pinned.set(true);
+      fixture.componentInstance.photo.set(makePhoto());
+      fixture.detectChanges();
+      expect(container().style.pointerEvents).toBe('auto');
+    });
+
+    it('accepts pointer events when docked', () => {
+      fixture.componentInstance.docked.set(true);
+      fixture.componentInstance.photo.set(makePhoto());
+      fixture.detectChanges();
+      expect(container().style.pointerEvents).toBe('auto');
+    });
+  });
+
   describe('Set section', () => {
     let mockApi: { get: Mock };
     let setFixture: ComponentFixture<TestHostComponent>;
@@ -371,6 +397,43 @@ describe('PhotoTooltipComponent', () => {
 
       expect(setFixture.nativeElement.textContent).not.toContain('tooltip.set_section');
       expect(mockApi.get).not.toHaveBeenCalledWith('/photo/set', expect.anything());
+    });
+
+    it('shows the Set section for a burst frame even though sequence_kind is null', () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/set') {
+          return of({ kind: 'burst', group_id: 5, count: 4, ev_span: null, members: [] });
+        }
+        if (url === '/photo/histogram') {
+          return of({ bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null });
+        }
+        return of(null);
+      });
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null, burst_group_id: 'b1' }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.textContent).toContain('tooltip.set_section');
+      expect(setFixture.nativeElement.textContent).toContain('culling.type_burst');
+      vi.advanceTimersByTime(300);
+      setFixture.detectChanges();
+      expect(mockApi.get).toHaveBeenCalledWith('/photo/set', { path: '/photos/test.jpg' });
+    });
+
+    it('shows the Set section for a duplicate frame even though sequence_kind is null', () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/set') {
+          return of({ kind: 'duplicate', group_id: 9, count: 2, ev_span: null, members: [] });
+        }
+        if (url === '/photo/histogram') {
+          return of({ bins: 4, luma: [1, 0.5, 0, 0], r: null, g: null, b: null });
+        }
+        return of(null);
+      });
+      setFixture.componentInstance.photo.set(makePhoto({ sequence_kind: null, duplicate_group_id: 'd1' }));
+      setFixture.detectChanges();
+
+      expect(setFixture.nativeElement.textContent).toContain('tooltip.set_section');
+      expect(setFixture.nativeElement.textContent).toContain('photo_detail.set.kind_duplicate');
     });
 
     it('shows the kind and this frame\'s own EV offset immediately, with zero set requests', () => {
