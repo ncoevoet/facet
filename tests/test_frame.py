@@ -195,6 +195,7 @@ class TestAuthGate:
     def test_second_configured_token_accepted(self, client, frame_cfg, seed):
         resp = client.get("/api/frame/photos", params={"token": OTHER_TOKEN})
         assert resp.status_code == 200
+        assert _returned_names(resp, seed) == _ELIGIBLE
 
 
 # --- Curation --------------------------------------------------------------
@@ -359,12 +360,14 @@ class TestHeaderAuth:
     def test_x_frame_token_header_accepted(self, client, frame_cfg, seed):
         resp = client.get("/api/frame/photos", headers={"X-Frame-Token": TOKEN})
         assert resp.status_code == 200
+        assert _returned_names(resp, seed) == _ELIGIBLE
 
     def test_authorization_bearer_accepted(self, client, frame_cfg, seed):
         resp = client.get(
             "/api/frame/photos", headers={"Authorization": f"Bearer {TOKEN}"}
         )
         assert resp.status_code == 200
+        assert _returned_names(resp, seed) == _ELIGIBLE
 
     def test_wrong_header_token_403(self, client, frame_cfg, seed):
         resp = client.get(
@@ -373,9 +376,21 @@ class TestHeaderAuth:
         assert resp.status_code == 403
 
     def test_header_preferred_over_query_param(self, client, frame_cfg, seed):
+        # An invalid query param must not block a valid header — proves the
+        # header is actually consulted (and the request genuinely served).
         resp = client.get(
             "/api/frame/photos",
             params={"token": "not-a-configured-token"},
             headers={"X-Frame-Token": TOKEN},
         )
         assert resp.status_code == 200
+        assert _returned_names(resp, seed) == _ELIGIBLE
+
+        # A valid query param must NOT rescue an invalid header — proves the
+        # header genuinely takes precedence rather than either token working.
+        resp = client.get(
+            "/api/frame/photos",
+            params={"token": OTHER_TOKEN},
+            headers={"X-Frame-Token": "not-a-configured-token"},
+        )
+        assert resp.status_code == 403

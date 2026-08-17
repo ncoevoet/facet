@@ -327,11 +327,25 @@ class TestDateWindowValidation:
     caller could write was whatever they cared to type."""
 
     def test_the_shape_the_scenes_feed_sends_is_accepted(self, edition_client):
-        conn = _db(_wedding_photos(10))
-        response = _get(edition_client, conn, {
+        # Half the scope falls outside the window: accepting the shape is not
+        # enough, the window must actually narrow the evidence.
+        conn = _db(
+            _wedding_photos(10, date_taken=_NOON)
+            + _wedding_photos(5, prefix="/aug", date_taken="2024:08:01 12:00:00")
+        )
+        unwindowed = _get(edition_client, conn).json()
+        assert unwindowed['evidence']['photos'] == 15
+
+        windowed = _get(edition_client, conn, {
             'date_from': '2024:06:01 00:00:00', 'date_to': '2024:06:30 23:59:59',
         })
-        assert response.status_code == 200
+        assert windowed.status_code == 200
+        assert windowed.json()['evidence']['photos'] == 10
+
+        keys = {r['key'] for r in conn.execute(
+            "SELECT key FROM stats_cache WHERE key LIKE ?", (f"{_EVIDENCE_PREFIX}%",)
+        ).fetchall()}
+        assert len(keys) == 2
 
     @pytest.mark.parametrize("value", [
         "2024-06-01",                 # ISO date: the gallery's filter shape, not this one
@@ -354,7 +368,9 @@ class TestDateWindowValidation:
 
     def test_an_absent_window_is_still_allowed(self, edition_client):
         conn = _db(_wedding_photos(10))
-        assert _get(edition_client, conn).status_code == 200
+        response = _get(edition_client, conn)
+        assert response.status_code == 200
+        assert response.json()['evidence']['photos'] == 10
 
 
 class TestScopeCacheKeyShape:

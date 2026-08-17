@@ -184,7 +184,8 @@ class TestSearchEndpointDegradation:
 
     def test_both_paths_unavailable_still_200(self, edition_client, stub_text_encoder):
         # Worst case: no vec, no FTS, no embeddings. Endpoint must still
-        # return a valid 200, not a 5xx.
+        # return a valid 200 with a well-formed body, not a 5xx or a body
+        # that lost the keys a client depends on.
         with mock.patch(
             'api.routers.search._check_vec_available',
             new=mock.AsyncMock(return_value=False),
@@ -194,6 +195,10 @@ class TestSearchEndpointDegradation:
         ):
             resp = edition_client.get('/api/search', params={'q': 'anything'})
         assert resp.status_code == 200
+        body = resp.json()
+        assert body['query'] == 'anything'
+        assert body['total'] == 0
+        assert body['photos'] == []
 
     def test_text_encoder_failure_returns_5xx_or_handled(
         self, edition_client,

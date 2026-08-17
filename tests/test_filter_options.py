@@ -137,17 +137,38 @@ class TestPersonsEndpoint:
         assert len([p for p in persons if p[0] == 1]) == 1
 
     def test_non_numeric_ids_silently_ignored(self, tmp_path):
-        """Non-numeric values in `ids` are silently dropped — no 500 error."""
+        """Non-numeric values in `ids` are silently dropped — none is force-included.
+
+        Person 1 is kept below `min_photos_for_person` so the only way it could
+        appear in the response is via the `ids` force-include path — proving
+        none of "abc", "1drop", ";DELETE" was parsed into a usable id.
+        """
         db_path = str(tmp_path / "test.db")
         _make_db(db_path, [(1, "Alice")], [(i, 1, f"/p_{i}.jpg") for i in range(3)])
         app, patches = _build_app_with(db_path, {
-            "dropdowns": {"min_photos_for_person": 1, "max_persons": 100}
+            "dropdowns": {"min_photos_for_person": 5, "max_persons": 100}
         })
         try:
             resp = TestClient(app).get("/api/filter_options/persons?ids=abc,1drop,;DELETE")
         finally:
             _stop_patches(patches)
         assert resp.status_code == 200
+        assert resp.json()["persons"] == []
+
+    def test_mixed_valid_and_invalid_ids_keeps_only_the_valid_one(self, tmp_path):
+        """A mix of garbage and a real id force-includes exactly the real one."""
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [(1, "Alice")], [(i, 1, f"/p_{i}.jpg") for i in range(3)])
+        app, patches = _build_app_with(db_path, {
+            "dropdowns": {"min_photos_for_person": 5, "max_persons": 100}
+        })
+        try:
+            resp = TestClient(app).get("/api/filter_options/persons?ids=abc,1")
+        finally:
+            _stop_patches(patches)
+        assert resp.status_code == 200
+        persons = resp.json()["persons"]
+        assert [p[0] for p in persons] == [1]
 
     def test_ids_bypasses_cache(self, tmp_path):
         """When `ids` is provided, _cached_filter_query is not called."""
