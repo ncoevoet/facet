@@ -1,9 +1,12 @@
-"""Diff Facet translation files and report missing keys.
+"""Diff Facet translation files and report missing and extra keys.
 
 The reference language is English (``i18n/translations/en.json``). Every
-other language is compared key-by-key and any missing dotted-path is
-listed. Exits non-zero when gaps exist so the script doubles as a CI
-check.
+other language is compared key-by-key against it: a dotted-path present in
+``en.json`` but absent elsewhere is reported as ``missing``, and one present
+elsewhere but absent from ``en.json`` is reported as ``extra``. Either kind
+of drift exits non-zero so the script doubles as a CI check. Keys present
+in both but holding an empty string are reported as ``empty`` for
+visibility only -- they do not affect the exit code.
 
 Usage::
 
@@ -45,8 +48,18 @@ def _set_path(node: dict, path: str, value) -> None:
     cur[parts[-1]] = value
 
 
+def _get_path(node: dict, path: str):
+    """Get ``node[a][b][c]`` given dotted path ``a.b.c``, or ``None`` if absent."""
+    cur = node
+    for part in path.split('.'):
+        if not isinstance(cur, dict) or part not in cur:
+            return None
+        cur = cur[part]
+    return cur
+
+
 def _load(path: Path) -> dict:
-    with path.open() as f:
+    with path.open(encoding='utf-8') as f:
         return json.load(f)
 
 
@@ -56,29 +69,58 @@ def _save(path: Path, data: dict) -> None:
         f.write('\n')
 
 
-def audit() -> dict[str, list[str]]:
-    """Return ``{language: [missing dotted paths]}`` for every non-en file."""
+def audit() -> dict[str, dict[str, list[str]]]:
+    """Return per-language findings against ``en.json``.
+
+    Each language maps to a dict with any of:
+
+    - ``missing`` -- dotted paths present in ``en.json`` but absent here.
+    - ``extra`` -- dotted paths present here but absent from ``en.json``.
+    - ``empty`` -- dotted paths present in both, holding an empty string
+      here. Informational only; never causes a non-zero exit.
+
+    A language with none of the above is omitted from the result.
+    """
     ref_path = TRANSLATIONS_DIR / f"{REFERENCE}.json"
     ref_data = _load(ref_path)
     ref_keys = set(_walk('', ref_data))
 
-    missing: dict[str, list[str]] = {}
+    findings: dict[str, dict[str, list[str]]] = {}
     for path in sorted(TRANSLATIONS_DIR.glob('*.json')):
         lang = path.stem
         if lang == REFERENCE:
             continue
         data = _load(path)
         keys = set(_walk('', data))
-        gaps = sorted(ref_keys - keys)
-        if gaps:
-            missing[lang] = gaps
-    return missing
+        missing = sorted(ref_keys - keys)
+        extra = sorted(keys - ref_keys)
+        empty = sorted(p for p in (keys & ref_keys) if _get_path(data, p) == "")
+
+        lang_findings: dict[str, list[str]] = {}
+        if missing:
+            lang_findings['missing'] = missing
+        if extra:
+            lang_findings['extra'] = extra
+        if empty:
+            lang_findings['empty'] = empty
+        if lang_findings:
+            findings[lang] = lang_findings
+    return findings
 
 
-def fix(missing: dict[str, list[str]]) -> int:
-    """Insert empty strings for every missing path. Returns count of inserts."""
+def fix(findings: dict[str, dict[str, list[str]]]) -> int:
+    """Insert empty strings for every missing path. Returns count of inserts.
+
+    Deliberately leaves ``extra`` and ``empty`` findings untouched: deleting
+    an extra key is a destructive edit to translator work that deserves a
+    human look, not a silent removal, and an empty value cannot be
+    distinguished from one a translator legitimately left blank.
+    """
     inserts = 0
-    for lang, gaps in missing.items():
+    for lang, lang_findings in findings.items():
+        gaps = lang_findings.get('missing', [])
+        if not gaps:
+            continue
         path = TRANSLATIONS_DIR / f"{lang}.json"
         data = _load(path)
         for gap in gaps:
@@ -99,29 +141,57 @@ def main() -> int:
     )
     args = parser.parse_args()
 
-    missing = audit()
+    findings = audit()
+    gate_fails = any('missing' in f or 'extra' in f for f in findings.values())
 
     if args.json:
-        print(json.dumps(missing, indent=2, ensure_ascii=False))
-        return 0 if not missing else 1
+        print(json.dumps(findings, indent=2, ensure_ascii=False))
+        return 1 if gate_fails else 0
 
-    if not missing:
+    if not findings:
         print(f"All translations match {REFERENCE}.json.")
         return 0
 
-    for lang, gaps in missing.items():
-        print(f"\n[{lang}] missing {len(gaps)} keys:")
-        for g in gaps:
-            print(f"  - {g}")
+    for lang, lang_findings in findings.items():
+        missing = lang_findings.get('missing', [])
+        extra = lang_findings.get('extra', [])
+        empty = lang_findings.get('empty', [])
+        summary = ", ".join(
+            f"{len(v)} {label}"
+            for label, v in (('missing', missing), ('extra', extra), ('empty', empty))
+            if v
+        )
+        print(f"\n[{lang}] {summary}:")
+        if missing:
+            print("  missing (in en.json, absent here):")
+            for g in missing:
+                print(f"    - {g}")
+        if extra:
+            print("  extra (absent from en.json, stray here):")
+            for g in extra:
+                print(f"    - {g}")
+        if empty:
+            print("  empty (present but blank -- informational, not gated):")
+            for g in empty:
+                print(f"    - {g}")
 
     if args.fix:
-        n = fix(missing)
-        print(f"\nInserted {n} empty placeholders. Re-run without --fix to verify.")
+        n = fix(findings)
+        extra_note = ""
+        if any('extra' in f for f in findings.values()):
+            extra_note = " Extra keys were left untouched -- review and delete by hand."
+        print(f"\nInserted {n} empty placeholders for missing keys.{extra_note} Re-run without --fix to verify.")
         return 0
 
-    print(f"\nTotal gaps: {sum(len(v) for v in missing.values())} across {len(missing)} languages.")
-    print("Run with --fix to add empty placeholders.")
-    return 1
+    total_missing = sum(len(f.get('missing', [])) for f in findings.values())
+    total_extra = sum(len(f.get('extra', [])) for f in findings.values())
+    if gate_fails:
+        print(f"\nTotal: {total_missing} missing, {total_extra} extra across {len(findings)} languages.")
+        if total_missing:
+            print("Run with --fix to add empty placeholders for missing keys.")
+        if total_extra:
+            print("Extra keys are not auto-removed -- delete them by hand once confirmed stray.")
+    return 1 if gate_fails else 0
 
 
 if __name__ == '__main__':

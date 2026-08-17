@@ -125,8 +125,11 @@ jobs:
         # Stdlib-only and self-locating, so it needs no pip install and no venv.
         # tests/test_audit_i18n.py already exercises this script's logic against
         # temp fixtures -- nothing gated the REAL bundles until this step.
-        # Deliberately not on the Windows job: scripts/audit_i18n.py opens files
-        # with no encoding=, so cp1252 would crash on fr.json/de.json.
+        # Linux only, but no longer for a portability reason -- the script now
+        # reads with an explicit encoding, so a cp1252 runner would be fine. The
+        # bundles are platform-independent, so a second run would add cost and
+        # no signal. Checks both directions: a key missing from a translation,
+        # and a stray key absent from en.json.
         run: python scripts/audit_i18n.py
       - uses: actions/setup-node@v7
         with:
