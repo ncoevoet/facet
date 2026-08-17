@@ -421,6 +421,149 @@ class TestCullApplySequences:
         assert _lead_paths(db, _PANORAMA, 1) == [pano_f1]  # only the pano group reassigned
         assert _lead_paths(db, _BRACKET, 1) == []  # the bracket group must stay untouched
 
+    def test_include_sequence_siblings_never_moves_a_photo_the_user_kept(self, client, tmp_path):
+        """Finding 1 (2026-08-17 review): the sibling query has no is_rejected
+        predicate, so include_sequence_siblings widened move/trash to every
+        frame in the group regardless of its OWN reject state -- rejecting one
+        tile of a panorama destroyed the sibling the user explicitly kept,
+        while the same response claimed it was excluded_by_state."""
+        lead = _make_file(tmp_path, "lead.jpg")
+        keeper = _make_file(tmp_path, "keeper.jpg")
+        db = _db(tmp_path, [
+            (lead, 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 1}),
+            (keeper, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+        ])
+        target = str(tmp_path / "out")
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "move_rejects", "target_dir": target,
+                "dry_run": False, "include_companions": False,
+                "include_sequence_siblings": True,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert os.path.isfile(keeper), "the kept sibling must still be on disk"
+        assert body["moved"] == 1
+        assert body["excluded_by_state"] == 1
+
+    def test_include_sequence_siblings_never_trashes_a_photo_the_user_kept(self, client, tmp_path):
+        """Finding 1, trash_rejects direction: identical want_rejected=True
+        filtering as move_rejects, exercised through the OS-trash branch
+        specifically since it duplicates the lead-reassignment/action-paths
+        wiring rather than sharing it with move_rejects."""
+        lead = _make_file(tmp_path, "lead.jpg")
+        keeper = _make_file(tmp_path, "keeper.jpg")
+        db = _db(tmp_path, [
+            (lead, 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 1}),
+            (keeper, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+        ])
+        fake_send2trash = mock.MagicMock()
+        fake_module = mock.Mock(send2trash=fake_send2trash)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}.VIEWER_CONFIG", {"cull": {"allow_trash": True}}),
+            mock.patch.dict("sys.modules", {"send2trash": fake_module}),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "trash_rejects",
+                "dry_run": False, "include_companions": False,
+                "include_sequence_siblings": True,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert fake_send2trash.call_args_list == [mock.call(lead)], "the kept sibling must never be trashed"
+        assert body["trashed"] == 1
+        assert body["excluded_by_state"] == 1
+
+    def test_include_sequence_siblings_never_copies_a_rejected_sibling_as_a_keep(self, client, tmp_path):
+        """Finding 1, copy_keeps direction: want_rejected is False there, so a
+        sibling must be NOT rejected to be pulled in as a keep."""
+        lead = _make_file(tmp_path, "lead.jpg")
+        rejected_sib = _make_file(tmp_path, "rejected_sib.jpg")
+        db = _db(tmp_path, [
+            (lead, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 1}),
+            (rejected_sib, 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+        ])
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "copy_keeps", "target_dir": str(tmp_path / "k"),
+                "dry_run": True, "include_companions": False,
+                "include_sequence_siblings": True,
+            })
+        body = resp.json()
+        assert body["would_copy"] == [lead]
+        assert rejected_sib not in body["would_copy"]
+
+    def test_removing_whole_panorama_leaves_lead_flag_intact(self, client, tmp_path):
+        """Finding 2 (2026-08-17 review): the is_sequence_lead=0 demotion ran
+        unconditionally while the promotion was guarded by `if survivors:`.
+        Trashing/moving every frame of a set together (recoverable via OS
+        trash) used to leave it with NO lead at all -- permanently invisible
+        under hide_panoramas until a rescan reruns --detect-sequences."""
+        frames = [_make_file(tmp_path, f"f{i}.jpg") for i in range(3)]
+        db = _db(tmp_path, [
+            (frames[0], 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 1}),
+            (frames[1], 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+            (frames[2], 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+        ])
+        target = str(tmp_path / "out")
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": frames, "action": "move_rejects", "target_dir": target,
+                "dry_run": False, "include_companions": False,
+            })
+        assert resp.status_code == 200
+        assert resp.json()["moved"] == 3
+        assert _lead_paths(db, _PANORAMA, 1) == [frames[0]], (
+            "removing the whole group together must leave the lead flag untouched, "
+            "not demote it with nothing to promote"
+        )
+
+    def test_trash_rejects_panorama_lead_reassigns_surviving_frame(self, client, tmp_path):
+        """Finding 8 (2026-08-17 review): the trash_rejects copy of the
+        move_rejects lead-reassignment logic was never exercised by a test --
+        only the 403/400 gates, both dry_run. Mirrors
+        test_move_rejects_panorama_lead_reassigns_surviving_frame with
+        action='trash_rejects', allow_trash=True, and send2trash.send2trash
+        patched to a recording no-op."""
+        lead = _make_file(tmp_path, "lead.jpg")
+        f1 = _make_file(tmp_path, "f1.jpg")
+        f2 = _make_file(tmp_path, "f2.jpg")
+        db = _db(tmp_path, [
+            (lead, 1, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 1}),
+            (f1, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+            (f2, 0, {"sequence_kind": _PANORAMA, "sequence_group_id": 1, "is_sequence_lead": 0}),
+        ])
+        fake_send2trash = mock.MagicMock()
+        fake_module = mock.Mock(send2trash=fake_send2trash)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}.VIEWER_CONFIG", {"cull": {"allow_trash": True}}),
+            mock.patch.dict("sys.modules", {"send2trash": fake_module}),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [lead], "action": "trash_rejects",
+                "dry_run": False, "include_companions": False,
+                "include_sequence_siblings": False,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["trashed"] == 1
+        assert body["sequence_siblings"] == 2
+        assert fake_send2trash.call_args_list == [mock.call(lead)]
+        leads = _lead_paths(db, _PANORAMA, 1)
+        assert len(leads) == 1
+        assert leads[0] in (f1, f2)
+
     def test_all_paths_excluded_by_state_is_distinguishable(self, client, tmp_path):
         """A5#4: a response with copied/moved == 0 used to give no way to tell
         'nothing here qualified for this action' apart from 'it qualified but

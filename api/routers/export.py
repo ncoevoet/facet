@@ -28,6 +28,7 @@ from api.auth import CurrentUser, require_edition
 from api.config import VIEWER_CONFIG, get_all_scan_directories
 from api.database import get_db
 from api.db_helpers import (
+    PANORAMA_KINDS_SQL,
     get_photos_from_clause,
     get_preference_columns,
     get_visibility_clause,
@@ -370,6 +371,21 @@ def _resolve_cull_files(paths, include_companions):
     return items, skipped
 
 
+def _chunked_path_rows(conn, paths, sql_fn, params_fn):
+    """Run a ``path IN (...)`` query once per ``_PATH_QUERY_CHUNK``-sized chunk
+    of ``paths`` and yield every row, so no caller has to re-derive its own
+    chunk boundary or SQLite's placeholder limit.
+
+    ``sql_fn(placeholders)`` builds the query text for a chunk's placeholder
+    string; ``params_fn(chunk)`` builds that chunk's bound parameters (its own
+    prefix/suffix params plus the chunk itself, in bind order).
+    """
+    paths = list(paths)
+    for start in range(0, len(paths), _PATH_QUERY_CHUNK):
+        chunk = paths[start:start + _PATH_QUERY_CHUNK]
+        yield from conn.execute(sql_fn(",".join("?" * len(chunk))), params_fn(chunk)).fetchall()
+
+
 def _sequence_group_keys(conn, paths, user_id):
     """Map each of ``paths`` with a sequence group to its ``(kind, group_id)``.
 
@@ -379,20 +395,16 @@ def _sequence_group_keys(conn, paths, user_id):
     if not paths:
         return {}
     vis_sql, vis_params = get_visibility_clause(user_id)
-    keys = {}
-    paths = list(paths)
-    for start in range(0, len(paths), _PATH_QUERY_CHUNK):
-        chunk = paths[start:start + _PATH_QUERY_CHUNK]
-        placeholders = ",".join("?" * len(chunk))
-        rows = conn.execute(
+    rows = _chunked_path_rows(
+        conn, paths,
+        sql_fn=lambda ph: (
             "SELECT path, sequence_kind, sequence_group_id FROM photos "
-            f"WHERE path IN ({placeholders}) AND {vis_sql} "
-            "AND sequence_kind IS NOT NULL AND sequence_group_id IS NOT NULL",
-            chunk + vis_params,
-        ).fetchall()
-        for r in rows:
-            keys[r["path"]] = (r["sequence_kind"], r["sequence_group_id"])
-    return keys
+            f"WHERE path IN ({ph}) AND {vis_sql} "
+            "AND sequence_kind IS NOT NULL AND sequence_group_id IS NOT NULL"
+        ),
+        params_fn=lambda chunk: chunk + vis_params,
+    )
+    return {r["path"]: (r["sequence_kind"], r["sequence_group_id"]) for r in rows}
 
 
 def _sequence_siblings(conn, group_keys, exclude_paths, user_id):
@@ -427,9 +439,9 @@ def _sequence_siblings(conn, group_keys, exclude_paths, user_id):
     return siblings
 
 
-def _reassign_dead_leads(conn, removed_db_paths):
-    """Re-pick a surviving frame as lead for any sequence group whose lead was
-    just moved/trashed.
+def _reassign_dead_leads(conn, removed_db_paths, user_id):
+    """Re-pick a surviving frame as lead for any panorama-kind sequence group
+    whose lead was just moved/trashed.
 
     ``move_rejects``/``trash_rejects`` touch only the filesystem, so a removed
     panorama lead keeps satisfying ``HIDE_PANORAMAS_SQL`` -- and keeps serving
@@ -438,34 +450,54 @@ def _reassign_dead_leads(conn, removed_db_paths):
     from the default gallery. Scoped by the ``(sequence_kind,
     sequence_group_id)`` pair per the same invariant as ``_sequence_siblings``,
     and confined to the ``is_sequence_lead`` column -- nothing else about the
-    row is touched. A no-op when the whole group was removed together (no
-    surviving frame to promote): that leaves no row of the group behind to be
-    a dead lead in the first place.
+    row is touched. The demotion is guarded by ``if survivors:`` exactly like
+    the promotion, so a whole group removed together (no surviving frame to
+    promote) is a true no-op: demoting the dead lead's flag with nothing to
+    promote in its place would leave the set with no lead at all, which is
+    worse than leaving a stale flag for the next ``--detect-sequences`` run
+    to clean up.
 
-    Panoramas only, because only they are hidden on this column. A bracket's
-    representative is its ``sequence_ev_offset = 0`` frame -- a physical fact
-    of the exposures, not a mark that can be moved -- so moving or trashing a
-    bracket's base exposure leaves the rest of that set hidden once a rescan
-    prunes the base row, and only re-running ``--detect-sequences`` restores it.
+    Restricted to ``PANORAMA_KINDS`` (``panorama``/``hdr_panorama``): a
+    bracket's representative is its ``sequence_ev_offset = 0`` frame -- a
+    physical fact of the exposures, not a mark that can be moved -- so moving
+    or trashing a bracket's base exposure leaves the rest of that set hidden
+    once a rescan prunes the base row, and only re-running
+    ``--detect-sequences`` restores it. This scoping also matters beyond
+    panoramas: ``is_sequence_lead = 1`` is the one flag ``hide_bursts_sql``
+    exempts from its own hide clause (``api/db_helpers.py``), so setting it on
+    a bracket frame would grant that frame an unintended hide_bursts exemption.
+
+    Fetches each dead lead's group members by the ``(sequence_kind,
+    sequence_group_id)`` key and filters ``removed_db_paths`` out in Python,
+    rather than binding the whole removed-path list into a ``NOT IN`` per dead
+    lead -- O(D) group queries instead of O(D x R) binds, so the write
+    transaction holding the DB lock stays short even when R (every path
+    touched by this request) is large. Both queries are visibility-scoped
+    like every sibling helper in this file, and the dead-lead lookup is
+    chunked at ``_PATH_QUERY_CHUNK`` since ``removed_db_paths`` is unbounded.
     """
     if not removed_db_paths:
         return
-    removed = list(removed_db_paths)
-    placeholders = ",".join("?" * len(removed))
-    dead_leads = conn.execute(
-        f"SELECT path, sequence_kind, sequence_group_id FROM photos "
-        f"WHERE path IN ({placeholders}) AND is_sequence_lead = 1 "
-        "AND sequence_kind IS NOT NULL AND sequence_group_id IS NOT NULL",
-        removed,
-    ).fetchall()
+    removed = set(removed_db_paths)
+    vis_sql, vis_params = get_visibility_clause(user_id)
+    dead_leads = list(_chunked_path_rows(
+        conn, list(removed),
+        sql_fn=lambda ph: (
+            "SELECT path, sequence_kind, sequence_group_id FROM photos "
+            f"WHERE path IN ({ph}) AND is_sequence_lead = 1 "
+            f"AND sequence_kind IN {PANORAMA_KINDS_SQL} AND {vis_sql}"
+        ),
+        params_fn=lambda chunk: chunk + vis_params,
+    ))
     for lead in dead_leads:
-        survivors = conn.execute(
+        members = conn.execute(
             "SELECT path FROM photos WHERE sequence_kind = ? AND sequence_group_id = ? "
-            f"AND path NOT IN ({placeholders}) ORDER BY date_taken, path",
-            [lead["sequence_kind"], lead["sequence_group_id"]] + removed,
+            f"AND {vis_sql} ORDER BY date_taken, path",
+            [lead["sequence_kind"], lead["sequence_group_id"]] + vis_params,
         ).fetchall()
-        conn.execute("UPDATE photos SET is_sequence_lead = 0 WHERE path = ?", (lead["path"],))
+        survivors = [m for m in members if m["path"] not in removed]
         if survivors:
+            conn.execute("UPDATE photos SET is_sequence_lead = 0 WHERE path = ?", (lead["path"],))
             # The MIDDLE surviving frame in capture order, matching how the
             # detector chose in the first place (``utils/panorama.py``): a sweep
             # has no best frame, and the middle one is likeliest to hold the
@@ -476,6 +508,22 @@ def _reassign_dead_leads(conn, removed_db_paths):
                 (survivors[len(survivors) // 2]["path"],),
             )
     conn.commit()
+
+
+def _reassign_dead_leads_after_removal(items, succeeded, user_id):
+    """Re-pick a lead for any panorama group whose lead's PRIMARY file just
+    moved/trashed successfully.
+
+    ``items`` is the ``(db_path, [files])`` list ``_resolve_cull_files``
+    built for the request; only the primary file (``fs[0]``, never a
+    companion) determines whether the db row's own photo is actually gone.
+    Shared by the move and trash branches of ``api_cull_apply`` so the
+    "which files actually moved -> which db rows are gone -> reassign" chain
+    exists in one place.
+    """
+    removed_db_paths = {db_path for db_path, fs in items if fs[0] in succeeded}
+    with get_db() as reassign_conn:
+        _reassign_dead_leads(reassign_conn, removed_db_paths, user_id)
 
 
 def _reject_state_map(conn, paths, user_id):
@@ -489,19 +537,15 @@ def _reject_state_map(conn, paths, user_id):
     pref_cols = get_preference_columns(user_id)
     from_clause, from_params = get_photos_from_clause(user_id)
     vis_sql, vis_params = get_visibility_clause(user_id)
-    paths = list(paths)
-    state = {}
-    for start in range(0, len(paths), _PATH_QUERY_CHUNK):
-        chunk = paths[start:start + _PATH_QUERY_CHUNK]
-        placeholders = ",".join("?" * len(chunk))
-        rows = conn.execute(
+    rows = _chunked_path_rows(
+        conn, paths,
+        sql_fn=lambda ph: (
             f"SELECT photos.path AS path, {pref_cols['is_rejected']} AS is_rejected "
-            f"FROM {from_clause} WHERE photos.path IN ({placeholders}) AND {vis_sql}",
-            from_params + chunk + vis_params,
-        ).fetchall()
-        for r in rows:
-            state[r["path"]] = bool(r["is_rejected"])
-    return state
+            f"FROM {from_clause} WHERE photos.path IN ({ph}) AND {vis_sql}"
+        ),
+        params_fn=lambda chunk: from_params + chunk + vis_params,
+    )
+    return {r["path"]: bool(r["is_rejected"]) for r in rows}
 
 
 def _move_into(files, target_dir):
@@ -648,11 +692,16 @@ def api_cull_apply(
     are counted in ``sequence_siblings`` regardless of ``include_sequence_siblings``
     — the count is reported so the user can see a multi-frame set exists even
     when they decline to expand it — and only added to the acted-on files when
-    the flag is set. ``matched`` is how many of the request's own paths matched
-    this action's reject-state, so a response with ``matched == 0`` reads as
-    "nothing here qualified" rather than a silent no-op. Moving/trashing a
-    panorama's lead frame re-picks a surviving sibling as the new lead so the
-    set stays visible under the default hide toggles.
+    the flag is set AND the sibling's own reject state matches the action,
+    exactly like a path the caller named directly: a kept sibling of a
+    rejected lead is never moved/trashed just because the flag is on, and a
+    rejected sibling of a kept lead is never copied as a keep. A sibling whose
+    own state doesn't match folds into ``excluded_by_state`` too. ``matched``
+    is how many of the request's own paths matched this action's
+    reject-state, so a response with ``matched == 0`` reads as "nothing here
+    qualified" rather than a silent no-op. Moving/trashing a panorama's lead
+    frame re-picks a surviving sibling as the new lead so the set stays
+    visible under the default hide toggles.
     """
     if not body.paths and body.filters is None:
         raise HTTPException(status_code=400, detail="Either paths or filters is required")
@@ -667,7 +716,15 @@ def api_cull_apply(
         matching = [p for p in paths if state.get(p) == want_rejected]
         group_keys = _sequence_group_keys(conn, matching, user_id)
         sibling_paths = _sequence_siblings(conn, group_keys, matching, user_id)
+        # Siblings are auto-added, not requested directly -- bound them to the
+        # SAME reject-state check as `matching` (Finding 1, 2026-08-17 review)
+        # rather than acting on a whole group regardless of each frame's own
+        # state.
+        sibling_state = _reject_state_map(conn, sibling_paths, user_id)
+    sibling_matching = [p for p in sibling_paths if sibling_state.get(p) == want_rejected]
     excluded_by_state = sum(1 for p in paths if p in state and state[p] != want_rejected)
+    if body.include_sequence_siblings:
+        excluded_by_state += len(sibling_paths) - len(sibling_matching)
     # Not in state at all: invisible to this user, or not in the DB. Not acted
     # on either way, but distinct from excluded_by_state — surface it so the
     # totals (matching + excluded_by_state + not_visible) reconcile with len(paths).
@@ -675,17 +732,27 @@ def api_cull_apply(
     matched = len(matching)
     sequence_siblings = len(sibling_paths)
 
-    action_paths = matching + sibling_paths if body.include_sequence_siblings else matching
+    action_paths = matching + sibling_matching if body.include_sequence_siblings else matching
     items, skipped = _resolve_cull_files(action_paths, body.include_companions)
     files = [f for _, fs in items for f in fs]
+
+    def respond(dry_run, errors, **verb):
+        return {
+            "action": body.action,
+            "dry_run": dry_run,
+            **verb,
+            "skipped": skipped,
+            "excluded_by_state": excluded_by_state,
+            "not_visible": not_visible,
+            "matched": matched,
+            "sequence_siblings": sequence_siblings,
+            "errors": errors,
+        }
 
     if body.action == "copy_keeps":
         safe_target = _validate_target_dir_required(body.target_dir)
         if body.dry_run:
-            return {"action": body.action, "dry_run": True, "would_copy": files,
-                    "skipped": skipped, "excluded_by_state": excluded_by_state,
-                    "not_visible": not_visible, "matched": matched,
-                    "sequence_siblings": sequence_siblings, "errors": []}
+            return respond(True, [], would_copy=files)
         copied = errors = 0
         os.makedirs(safe_target, exist_ok=True)
         for src in files:
@@ -695,26 +762,15 @@ def api_cull_apply(
             except OSError:
                 logger.exception("Failed to copy %s into %s", src, safe_target)
                 errors += 1
-        return {"action": body.action, "dry_run": False, "copied": copied,
-                "skipped": skipped, "excluded_by_state": excluded_by_state,
-                "not_visible": not_visible, "matched": matched,
-                "sequence_siblings": sequence_siblings, "errors": errors}
+        return respond(False, errors, copied=copied)
 
     if body.action == "move_rejects":
         safe_target = _validate_target_dir_required(body.target_dir)
         if body.dry_run:
-            return {"action": body.action, "dry_run": True, "would_move": files,
-                    "skipped": skipped, "excluded_by_state": excluded_by_state,
-                    "not_visible": not_visible, "matched": matched,
-                    "sequence_siblings": sequence_siblings, "errors": []}
+            return respond(True, [], would_move=files)
         moved, errors, succeeded = _move_into(files, safe_target)
-        removed_db_paths = {db_path for db_path, fs in items if fs[0] in succeeded}
-        with get_db() as reassign_conn:
-            _reassign_dead_leads(reassign_conn, removed_db_paths)
-        return {"action": body.action, "dry_run": False, "moved": moved,
-                "skipped": skipped, "excluded_by_state": excluded_by_state,
-                "not_visible": not_visible, "matched": matched,
-                "sequence_siblings": sequence_siblings, "errors": errors}
+        _reassign_dead_leads_after_removal(items, succeeded, user_id)
+        return respond(False, errors, moved=moved)
 
     # trash_rejects
     if not (VIEWER_CONFIG.get("cull", {}) or {}).get("allow_trash", False):
@@ -725,10 +781,7 @@ def api_cull_apply(
     except ImportError:
         raise HTTPException(status_code=400, detail="send2trash is not installed")
     if body.dry_run:
-        return {"action": body.action, "dry_run": True, "would_trash": files,
-                "skipped": skipped, "excluded_by_state": excluded_by_state,
-                "not_visible": not_visible, "matched": matched,
-                "sequence_siblings": sequence_siblings, "errors": []}
+        return respond(True, [], would_trash=files)
     trashed = errors = 0
     succeeded = set()
     for src in files:
@@ -739,13 +792,8 @@ def api_cull_apply(
         except OSError:
             logger.exception("Failed to trash %s", src)
             errors += 1
-    removed_db_paths = {db_path for db_path, fs in items if fs[0] in succeeded}
-    with get_db() as reassign_conn:
-        _reassign_dead_leads(reassign_conn, removed_db_paths)
-    return {"action": body.action, "dry_run": False, "trashed": trashed,
-            "skipped": skipped, "excluded_by_state": excluded_by_state,
-            "not_visible": not_visible, "matched": matched,
-            "sequence_siblings": sequence_siblings, "errors": errors}
+    _reassign_dead_leads_after_removal(items, succeeded, user_id)
+    return respond(False, errors, trashed=trashed)
 
 
 def _validate_target_dir_required(target_dir):
