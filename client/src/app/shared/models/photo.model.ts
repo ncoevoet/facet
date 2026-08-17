@@ -125,10 +125,10 @@ export interface Photo {
    *  keys on this, never on `sequence_override`, which stays set afterwards. */
   sequence_override_pending?: number | null;
   similarity?: number;
-  caption?: string;
-  caption_translated?: string;
-  gps_latitude?: number;
-  gps_longitude?: number;
+  caption?: string | null;
+  caption_translated?: string | null;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
 }
 
 /** One sibling frame within a `PhotoSet`, from `GET /api/photo/set`. */

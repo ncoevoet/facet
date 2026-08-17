@@ -8,11 +8,16 @@ that no backend has ever produced, so the badge keyed on it could never fire, an
 how ``photos_with_learned_scores`` survived one layer up. Both were found by
 reading, not by a failing test.
 
-This reads the required fields straight out of the ``.ts`` sources with a regex —
+This reads the declared fields straight out of the ``.ts`` sources with a regex —
 crude, but it means the contract has exactly one definition and the test cannot
 drift from it — then drives the real endpoints against a seeded database and
-fails on "declared required but absent" or "declared required and present, but
-the wrong JSON type".
+fails on "declared required but absent" or "present, but the wrong JSON type".
+
+Presence is required-only; the wire type is checked for **every** declared field
+that is present, optional ones included. Absence is what ``?`` means and stays
+legal. Skipping the optional half is how ``burst_group_id`` kept a ``string``
+declaration against an INTEGER column: the fixture seeded a string to match it,
+so the one test written to catch this could not.
 
 Two things this deliberately does NOT do:
 
@@ -68,11 +73,11 @@ INTERFACE_SOURCES = {
 _FIELD = re.compile(r'^\s*([a-z_][a-zA-Z0-9_]*)(\?)?\s*:\s*(.+);\s*$')
 
 
-def required_fields(interface: str) -> dict[str, str]:
-    """The non-optional fields of a TypeScript interface, mapped to their declared type.
+def _declared_fields(interface: str, optional: bool) -> dict[str, str]:
+    """The fields of a TypeScript interface, mapped to their declared type.
 
-    A field without ``?`` is one the client reads unconditionally, which is
-    exactly the set the server must send. The type string is what lets
+    ``optional`` picks which half of the interface to return — the ``?``-marked
+    fields or the ones without it. The type string is what lets
     ``_wire_type_ok`` check the wire shape too, not just presence.
     """
     source = INTERFACE_SOURCES[interface].read_text(encoding='utf-8')
@@ -82,9 +87,29 @@ def required_fields(interface: str) -> dict[str, str]:
     fields = {}
     for line in body.splitlines():
         m = _FIELD.match(line)
-        if m and not m.group(2):
+        if m and bool(m.group(2)) is optional:
             fields[m.group(1)] = m.group(3).strip()
     return fields
+
+
+def required_fields(interface: str) -> dict[str, str]:
+    """The non-optional fields — exactly the set the server must send.
+
+    A field without ``?`` is one the client reads unconditionally.
+    """
+    return _declared_fields(interface, optional=False)
+
+
+def optional_fields(interface: str) -> dict[str, str]:
+    """The ``?``-marked fields — legal to omit, but not to send mistyped.
+
+    Absence is what ``?`` means and is never an error here. A field that IS
+    present still has to match its declared type, and for a long time nothing
+    checked that: ``burst_group_id`` was declared ``string | null`` against an
+    INTEGER column that has only ever served ints, and the badge keyed on it
+    could not render for the group whose id is ``0``.
+    """
+    return _declared_fields(interface, optional=True)
 
 
 # Field-level overrides of the TS-declared type, for wire formats that are
@@ -103,6 +128,18 @@ _KNOWN_WIRE_TYPE_EXCEPTIONS: dict[tuple[str, str], str] = {
     # recognised only by `_wire_type_ok`, never present in a real .ts source.
     ('Photo', 'is_blink'): 'sqlite_boolean | null',
     ('Photo', 'is_burst_lead'): 'sqlite_boolean | null',
+    # The same convention, for the rest of the columns the client coerces at
+    # ingest. `PHOTO_FLAG_FIELDS` in photo.model.ts is the closed list of six
+    # that `normalisePhotoFlags` turns into real booleans, and these four are
+    # the remainder of it. They are exempt for the reason the two above are,
+    # not because they are optional -- an optional field still has to match
+    # its declared type when it is present. `is_silhouette` is here despite
+    # not yet appearing in a fixture: it is the same column class with the
+    # same declaration, so leaving it out only defers an identical failure.
+    ('Photo', 'is_monochrome'): 'sqlite_boolean | null',
+    ('Photo', 'is_silhouette'): 'sqlite_boolean | null',
+    ('Photo', 'is_favorite'): 'sqlite_boolean | null',
+    ('Photo', 'is_rejected'): 'sqlite_boolean | null',
 }
 
 
@@ -145,10 +182,11 @@ def assert_satisfies(payload: dict, interface: str, endpoint: str) -> None:
         f"{absent}. Either the endpoint stopped sending them or the client declares a "
         f"field the server never had."
     )
+    typed = {**optional_fields(interface), **fields}
     mismatched = [
         f"{field} (declared {ts_type!r}, server sent {payload[field]!r} "
         f"[{type(payload[field]).__name__}])"
-        for field, ts_type in fields.items()
+        for field, ts_type in typed.items()
         if field in payload
         and not _wire_type_ok(payload[field], _KNOWN_WIRE_TYPE_EXCEPTIONS.get((interface, field), ts_type))
     ]
@@ -169,7 +207,7 @@ _FULL_PHOTO_ROW = {
     "camera_model": "Canon EOS R5", "lens_model": "RF 50mm", "iso": 400, "f_stop": 1.8,
     "shutter_speed": "1/200", "focal_length": 50.0, "category": "portrait",
     "date_taken": "2026:01:01 12:00:00", "image_width": 6000, "image_height": 4000,
-    "is_burst_lead": 1, "burst_group_id": "bg1", "tags": "portrait,indoor",
+    "is_burst_lead": 1, "burst_group_id": 0, "tags": "portrait,indoor",
     "thumbnail": b"\xff\xd8\xff\xd9",
 }
 
@@ -511,10 +549,38 @@ class TestWireTypeIsActuallyChecked:
         # Guards against the exceptions map growing into another blanket
         # CLIENT_DERIVED: every entry must name a real (interface, field)
         # pair that Photo actually declares, not a made-up shortcut.
-        photo_fields = required_fields('Photo')
+        photo_fields = {**required_fields('Photo'), **optional_fields('Photo')}
         for interface, field in _KNOWN_WIRE_TYPE_EXCEPTIONS:
             assert interface == 'Photo'
-            assert field in photo_fields, f"{field} is not a required Photo field"
+            assert field in photo_fields, f"{field} is not a declared Photo field"
+
+    def test_optional_fields_are_extracted_and_disjoint_from_required(self):
+        # The split is what the whole optional check rests on: for as long as
+        # the parser dropped every `?` field, 50 of Photo's fields were
+        # unchecked for presence AND type.
+        optional = optional_fields('Photo')
+        required = required_fields('Photo')
+        assert len(optional) >= 40, f"only {len(optional)} optional fields parsed"
+        assert not set(optional) & set(required)
+        assert 'burst_group_id' in optional and 'burst_group_id' not in required
+        assert 'is_burst_lead' in required and 'is_burst_lead' not in optional
+
+    def test_absent_optional_field_passes_but_a_present_mistyped_one_fails(self, tmp_path, monkeypatch):
+        # Absence is what `?` means and must stay legal; only a field that is
+        # actually present is type-checked. Driven through a synthetic
+        # interface so the two halves are asserted in isolation, without
+        # standing up a full Photo payload.
+        source = tmp_path / 'synthetic.ts'
+        source.write_text(
+            'export interface Synthetic {\n  path: string;\n  note?: string;\n}\n',
+            encoding='utf-8',
+        )
+        monkeypatch.setitem(INTERFACE_SOURCES, 'Synthetic', source)
+
+        assert_satisfies({'path': '/x.jpg'}, 'Synthetic', 'synthetic')
+        assert_satisfies({'path': '/x.jpg', 'note': 'ok'}, 'Synthetic', 'synthetic')
+        with pytest.raises(AssertionError, match='wire type'):
+            assert_satisfies({'path': '/x.jpg', 'note': 7}, 'Synthetic', 'synthetic')
 
     def test_number_accepts_int_float_and_null_but_not_bool_or_string(self):
         assert _wire_type_ok(1, 'number | null')
