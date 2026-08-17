@@ -18,7 +18,7 @@ Facet è un motore locale di analisi e selezione delle foto. Assegna a ogni imma
 
 1. **Scansione** — Indica a Facet una cartella di foto. Ogni immagine viene analizzata per qualità, composizione e volti. Supporta JPG, HEIF/HEIC e 10 formati RAW (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
 2. **Sfogliare** — Apri la galleria web per esplorare la tua libreria con filtri, ricerca e più modalità di visualizzazione.
-3. **Selezione** — Facet rileva le raffiche, segnala gli occhi chiusi, raggruppa le foto simili e mette in evidenza le migliori scelte.
+3. **Selezione** — Facet rileva le raffiche, segnala gli occhi chiusi, raggruppa le foto simili e mette in evidenza le migliori scelte. I bracket di esposizione e le serie panorama/HDR vengono riconosciuti e mantenuti interi anziché smembrati dalla selezione.
 
 La GPU viene rilevata automaticamente ed è opzionale. Facet funziona solo su CPU oppure con un massimo di 24 GB di VRAM.
 
@@ -35,6 +35,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 ### Selezione
 
 - **Rilevamento raffiche** — raggruppa gli scatti in rapida successione e seleziona automaticamente il migliore in base a nitidezza, qualità e rilevamento degli occhi chiusi
+- **Protezione delle serie** — i bracket di esposizione, le sequenze panoramiche e i panorami HDR (`--detect-sequences` / `--detect-panoramas`) vengono riconosciuti come serie multi-scatto deliberate e mantenuti interi: la camera oscura di selezione fa partire ogni scatto di una serie come conservato e non lo riduce mai a un singolo "vincitore"
 - **Gruppi di somiglianza** — trova le foto visivamente simili in tutta la libreria, indipendentemente da quando sono state scattate
 - **Scene** — raggruppa una sessione in "scene" cronologiche in base agli intervalli tra gli scatti, così da selezionare nell'ordine del racconto; tocca per contrassegnare e conferma per rifiutare
 - **Pulizia degli scarti** — rilevamento zero-shot di file non fotografici superflui (screenshot, documenti, ricevute, meme, diapositive) con una coda di revisione rapida: conserva o rifiuta ogni candidato, oppure rifiutali tutti in una volta

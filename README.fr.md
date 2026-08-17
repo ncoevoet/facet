@@ -18,7 +18,7 @@ Facet est un moteur local d'analyse et de tri de photos. Il évalue chaque image
 
 1. **Analyse** — Pointez Facet vers un dossier de photos. Chaque image est analysée pour sa qualité, sa composition et ses visages. Prend en charge le JPG, le HEIF/HEIC et 10 formats RAW (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
 2. **Parcours** — Ouvrez la galerie web pour explorer votre bibliothèque avec des filtres, une recherche et plusieurs modes d'affichage.
-3. **Tri** — Facet détecte les rafales, signale les clignements, regroupe les photos similaires et fait remonter les meilleurs choix.
+3. **Tri** — Facet détecte les rafales, signale les clignements, regroupe les photos similaires et fait remonter les meilleurs choix. Les bracketings d'exposition et les séries panorama/HDR sont reconnus et conservés intacts plutôt que dispersés par le tri.
 
 Le GPU est détecté automatiquement et reste optionnel. Facet fonctionne en mode CPU uniquement ou avec jusqu'à 24 Go de VRAM.
 
@@ -35,6 +35,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 ### Trier
 
 - **Détection de rafales** — regroupe les prises de vue en rafale et sélectionne automatiquement la meilleure d'après la netteté, la qualité et la détection des clignements
+- **Protection des séries** — les bracketings d'exposition, les balayages panoramiques et les panoramas HDR (`--detect-sequences` / `--detect-panoramas`) sont reconnus comme des séries multi-images délibérées et conservés intacts : la chambre noire de tri marque d'emblée toutes les images d'une série comme gardées et ne la réduit jamais à une seule « gagnante »
 - **Groupes de similarité** — trouve les photos visuellement similaires dans toute la bibliothèque, quel que soit leur moment de prise de vue
 - **Scènes** — regroupe une séance en « scènes » chronologiques selon les écarts entre prises de vue, pour trier dans l'ordre du récit ; touchez pour marquer puis confirmez pour rejeter
 - **Nettoyage des indésirables** — détection zero-shot des fichiers non photographiques parasites (captures d'écran, documents, reçus, mèmes, diapositives) avec une file de revue rapide : conservez ou rejetez chaque candidat, ou rejetez-les tous d'un coup

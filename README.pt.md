@@ -18,7 +18,7 @@ O Facet é um mecanismo local de análise e seleção de fotos. Ele pontua cada 
 
 1. **Escanear** — Aponte o Facet para uma pasta de fotos. Cada imagem é analisada quanto à qualidade, composição e rostos. Suporta JPG, HEIF/HEIC e 10 formatos RAW (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
 2. **Navegar** — Abra a galeria web para explorar sua biblioteca com filtros, busca e múltiplos modos de visualização.
-3. **Selecionar** — O Facet detecta rajadas, sinaliza piscadas, agrupa fotos semelhantes e destaca as melhores escolhas.
+3. **Selecionar** — O Facet detecta rajadas, sinaliza piscadas, agrupa fotos semelhantes e destaca as melhores escolhas. Os bracketings de exposição e os conjuntos de panorâmica/HDR são reconhecidos e mantidos inteiros, em vez de serem separados pela seleção.
 
 A GPU é detectada automaticamente e é opcional. O Facet roda somente com CPU ou com até 24 GB de VRAM.
 
@@ -35,6 +35,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 ### Selecionar
 
 - **Detecção de rajadas** — agrupa disparos em sequência rápida e seleciona automaticamente o melhor com base em nitidez, qualidade e detecção de piscadas
+- **Proteção de sequências** — bracketings de exposição, varreduras panorâmicas e panorâmicas HDR (`--detect-sequences` / `--detect-panoramas`) são reconhecidos como séries deliberadas de vários fotogramas e mantidos inteiros: o laboratório de triagem começa com todas as fotos de uma série marcadas para manter e nunca a reduz a uma única "vencedora"
 - **Grupos de similaridade** — encontra fotos visualmente semelhantes em toda a biblioteca, independentemente de quando foram capturadas
 - **Cenas** — agrupa uma sessão em "cenas" cronológicas por intervalos do horário de captura, para que você selecione na ordem da narrativa; toque para marcar e confirme para rejeitar
 - **Limpeza de lixo** — detecção zero-shot de arquivos não fotográficos supérfluos (capturas de tela, documentos, recibos, memes, slides) com uma fila de revisão rápida: mantenha ou rejeite cada candidato, ou rejeite todos de uma vez

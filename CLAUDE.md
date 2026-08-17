@@ -334,6 +334,18 @@ only what reading those two will NOT tell you.
   re-derives the target set from the user's own `is_rejected` state and reports the mismatch as
   `excluded_by_state`; `include_companions` is opt-in because a rejected JPEG must not silently
   destroy its untouched companion RAW.
+- **Facet has two features named "cull" and they default to opposite rules about multi-frame
+  sets.** `POST /api/cull/apply` (gallery "Cull to folder" / "Keep top N%") starts from the
+  gallery selection, which under the default `hide_brackets` / `hide_panoramas` (both `true`)
+  contains only a bracket's base exposure or a panorama's marked middle frame — so by default,
+  acting on a set touches that ONE file. `include_companions` only ever reaches the SAME frame's
+  same-stem RAW/`.xmp`; the separate `include_sequence_siblings` opt-in is what reaches the rest
+  of the set (every other row sharing `(sequence_kind, sequence_group_id)`), and moving/trashing
+  a set's lead re-picks a surviving sibling as the new `is_sequence_lead` so the set stays visible
+  under the default hide toggles — the one DB write this otherwise file-only endpoint makes. The
+  `/culling` darkroom is set-aware unconditionally: `_KEEP_WHOLE_KINDS` (`bracket` / `panorama` /
+  `hdr_panorama`) starts every frame of a set kept and records no comparison pairs on confirm, and
+  its feeds ignore the `hide_*` toggles entirely — the opposite of the gallery's default.
 - **`/api/frame/*` ids are signed rowids, never filesystem paths**, and `/dav` authenticates with
   HTTP Basic against `upload.*` — never a user session or JWT — with every path realpath-contained
   to `upload.inbox_dir`.

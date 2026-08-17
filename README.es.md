@@ -18,7 +18,7 @@ Facet es un motor local de análisis y selección de fotos. Puntúa cada imagen 
 
 1. **Escanear** — Apunta Facet a una carpeta de fotos. Cada imagen se analiza en cuanto a calidad, composición y rostros. Admite JPG, HEIF/HEIC y 10 formatos RAW (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
 2. **Explorar** — Abre la galería web para recorrer tu biblioteca con filtros, búsqueda y varios modos de visualización.
-3. **Seleccionar** — Facet detecta ráfagas, marca parpadeos, agrupa fotos similares y destaca la mejor selección.
+3. **Seleccionar** — Facet detecta ráfagas, marca parpadeos, agrupa fotos similares y destaca la mejor selección. Los horquillados de exposición y las series panorámicas/HDR se reconocen y se mantienen íntegros en lugar de descartarse por separado.
 
 La GPU se detecta automáticamente y es opcional. Facet funciona solo con CPU o con hasta 24 GB de VRAM.
 
@@ -35,6 +35,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 ### Seleccionar
 
 - **Detección de ráfagas** — agrupa las tomas en serie y selecciona automáticamente la mejor según la nitidez, la calidad y la detección de parpadeos
+- **Protección de secuencias** — los horquillados de exposición, los barridos panorámicos y las panorámicas HDR (`--detect-sequences` / `--detect-panoramas`) se reconocen como series deliberadas de varios fotogramas y se mantienen íntegras: el laboratorio de descarte marca todos los fotogramas de una serie como conservados desde el principio y nunca los reduce a un único «ganador»
 - **Grupos de similitud** — encuentra fotos visualmente similares en toda la biblioteca, sin importar cuándo se tomaron
 - **Escenas** — agrupa una sesión en "escenas" cronológicas según los intervalos entre tomas, para seleccionar en orden narrativo; toca para marcar y confirma para rechazar
 - **Limpieza de basura** — detección zero-shot de archivos no fotográficos superfluos (capturas de pantalla, documentos, recibos, memes, diapositivas) con una cola de revisión rápida: conserva o rechaza cada candidato, o recházalos todos de una vez

@@ -18,7 +18,7 @@ Facet is a local photo-analysis and culling engine. It scores each image across 
 
 1. **Scan** — Point Facet at a folder of photos. Each image is analyzed for quality, composition, and faces. Supports JPG, HEIF/HEIC, and 10 RAW formats (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
 2. **Browse** — Open the web gallery to explore your library with filters, search, and multiple view modes.
-3. **Cull** — Facet detects bursts, flags blinks, groups similar photos, and surfaces top picks.
+3. **Cull** — Facet detects bursts, flags blinks, groups similar photos, and surfaces top picks. Exposure brackets and panorama/HDR sets are recognized and kept whole rather than culled apart.
 
 GPU is auto-detected and optional. Facet runs CPU-only or with up to 24 GB VRAM.
 
@@ -35,6 +35,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 ### Cull
 
 - **Burst detection** — groups rapid-fire shots and auto-selects the best one based on sharpness, quality, and blink detection
+- **Sequence protection** — exposure brackets, panorama sweeps, and HDR panoramas (`--detect-sequences` / `--detect-panoramas`) are recognized as deliberate multi-frame sets and kept whole: the culling darkroom starts every frame of a set kept and never reduces it to a single "winner"
 - **Similarity groups** — finds visually similar photos across the library, regardless of when they were taken
 - **Scenes** — groups a shoot into chronological "scenes" by capture-time gaps, so you cull in story order; tap to mark and confirm to reject
 - **Auto-cull** — one button culls a whole scope (all groups, or bursts / similars / scenes only, optionally narrowed to an album or date window) with a dry-run preview, a keeper budget, and an optional Highlights album

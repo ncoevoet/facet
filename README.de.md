@@ -18,7 +18,7 @@ Facet ist eine lokale Engine zur Fotoanalyse und Bildauswahl. Sie bewertet jedes
 
 1. **Scannen** — Richten Sie Facet auf einen Ordner mit Fotos. Jedes Bild wird auf Qualität, Komposition und Gesichter analysiert. Unterstützt JPG, HEIF/HEIC und 10 RAW-Formate (CR2, CR3, NEF, ARW, RAF, RW2, DNG, ORF, SRW, PEF).
 2. **Durchstöbern** — Öffnen Sie die Web-Galerie, um Ihre Bibliothek mit Filtern, Suche und mehreren Ansichtsmodi zu erkunden.
-3. **Aussortieren** — Facet erkennt Serienbilder, markiert Blinzler, gruppiert ähnliche Fotos und hebt die beste Auswahl hervor.
+3. **Aussortieren** — Facet erkennt Serienbilder, markiert Blinzler, gruppiert ähnliche Fotos und hebt die beste Auswahl hervor. Belichtungsreihen und Panorama-/HDR-Sets werden erkannt und vollständig erhalten, statt auseinandergerissen zu werden.
 
 Die GPU wird automatisch erkannt und ist optional. Facet läuft rein über CPU oder mit bis zu 24 GB VRAM.
 
@@ -35,6 +35,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 ### Aussortieren
 
 - **Serienbilderkennung** — gruppiert Schnellfeuer-Aufnahmen und wählt automatisch die beste anhand von Schärfe, Qualität und Blinzelerkennung aus
+- **Sequenzschutz** — Belichtungsreihen, Panorama-Schwenks und HDR-Panoramen (`--detect-sequences` / `--detect-panoramas`) werden als bewusste Mehrbild-Serien erkannt und vollständig erhalten: Die Auswahl-Dunkelkammer markiert jede Aufnahme einer Serie von vornherein als „behalten" und reduziert sie nie auf einen einzigen „Gewinner"
 - **Ähnlichkeitsgruppen** — findet visuell ähnliche Fotos in der gesamten Bibliothek, unabhängig vom Aufnahmezeitpunkt
 - **Szenen** — gruppiert eine Aufnahmesession anhand der zeitlichen Abstände in chronologische „Szenen“, sodass Sie in Erzählreihenfolge aussortieren; antippen zum Markieren, bestätigen zum Ablehnen
 - **Müll aufräumen** — Zero-Shot-Erkennung von nicht-fotografischem Ballast (Screenshots, Dokumente, Belege, Memes, Folien) mit einer schnellen Review-Warteschlange: jeden Kandidaten behalten oder verwerfen, oder alle auf einmal verwerfen
