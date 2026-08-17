@@ -54,7 +54,10 @@ export interface Photo {
   lens_model: string | null;
   iso: number | null;
   f_stop: number | null;
-  shutter_speed: number | null;
+  /** EXIF exposure time in seconds, as the API sends it: the column has TEXT
+   *  affinity, so SQLite stores the scanner's float as a string ('0.0125').
+   *  ShutterSpeedPipe coerces before formatting. */
+  shutter_speed: string | null;
   focal_length: number | null;
   // Technical
   noise_sigma?: number | null;

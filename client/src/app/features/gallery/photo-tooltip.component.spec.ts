@@ -176,7 +176,7 @@ describe('PhotoTooltipComponent', () => {
     });
 
     it('returns true when shutter_speed is present', () => {
-      fixture.componentInstance.photo.set(makePhoto({ shutter_speed: 0.004 }));
+      fixture.componentInstance.photo.set(makePhoto({ shutter_speed: '0.004' }));
       fixture.detectChanges();
       const tooltip = fixture.debugElement.children[0].componentInstance as PhotoTooltipComponent;
       expect(tooltip.hasExif()).toBe(true);

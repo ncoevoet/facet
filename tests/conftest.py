@@ -213,8 +213,8 @@ _SEEDED_PHOTOS = [
 
 
 @pytest.fixture()
-def seeded_photos():
-    """Insert a small set of photo rows into the SHARED session database.
+def seed_photos_prefix():
+    """Factory: insert arbitrary photo rows into the SHARED session database.
 
     Writes into the DB behind ``DB_PATH`` (the one every ``client`` /
     ``edition_client`` / ``regular_client`` / ``superadmin_client`` /
@@ -224,20 +224,43 @@ def seeded_photos():
     ``create_app()``. Modeled on tests/test_immich_webhook.py's
     ``_seed_photos`` / ``_clear_side_state`` idiom.
 
+    Yields a ``seed(prefix, rows)`` function. ``rows`` is a list of dicts
+    keyed by column name — rows may have different column sets from each
+    other, since each is inserted with its own column list (a full contract
+    row and a bare-bones sequence-set frame both fit through the same call).
+    Every ``prefix`` a test passes is deleted in teardown, so callers with
+    different row shapes can share one connection and one cleanup pass
+    instead of each hand-rolling "seed under a prefix, delete the prefix".
+    """
+    conn = sqlite3.connect(_TEST_DB_FILE.name)
+    prefixes: list[str] = []
+
+    def seed(prefix, rows):
+        prefixes.append(prefix)
+        for row in rows:
+            cols = list(row.keys())
+            placeholders = ", ".join("?" for _ in cols)
+            conn.execute(
+                f"INSERT OR REPLACE INTO photos ({', '.join(cols)}) VALUES ({placeholders})",
+                [row[c] for c in cols],
+            )
+        conn.commit()
+        return rows
+
+    try:
+        yield seed
+    finally:
+        for prefix in prefixes:
+            conn.execute("DELETE FROM photos WHERE path LIKE ?", (prefix + "%",))
+        conn.commit()
+        conn.close()
+
+
+@pytest.fixture()
+def seeded_photos(seed_photos_prefix):
+    """Insert a small set of photo rows into the SHARED session database.
+
     Yields the seeded photo dicts (``path``, ``filename``, ``aggregate``,
     ``category``, ``date_taken``).
     """
-    conn = sqlite3.connect(_TEST_DB_FILE.name)
-    try:
-        cols = list(_SEEDED_PHOTOS[0].keys())
-        placeholders = ", ".join("?" for _ in cols)
-        conn.executemany(
-            f"INSERT INTO photos ({', '.join(cols)}) VALUES ({placeholders})",
-            [[p[c] for c in cols] for p in _SEEDED_PHOTOS],
-        )
-        conn.commit()
-        yield _SEEDED_PHOTOS
-    finally:
-        conn.execute("DELETE FROM photos WHERE path LIKE ?", (SEEDED_PHOTOS_PREFIX + "%",))
-        conn.commit()
-        conn.close()
+    return seed_photos_prefix(SEEDED_PHOTOS_PREFIX, _SEEDED_PHOTOS)
