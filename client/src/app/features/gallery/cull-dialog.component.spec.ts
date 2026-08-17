@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, throwError } from 'rxjs';
+import { Subject, of, throwError } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
@@ -107,5 +107,83 @@ describe('CullDialogComponent', () => {
     post.mockReturnValueOnce(of({ would_copy: [], skipped: [] }));
     await component.runPreview();
     expect(read<string | null>('errorDetail')).toBeNull();
+  });
+
+  describe('include_sequence_siblings', () => {
+    it('request body carries include_sequence_siblings as the checkbox sets it', async () => {
+      build();
+      set('targetDir', '/dest');
+      set('includeSequenceSiblings', true);
+      await component.runPreview();
+      expect(post).toHaveBeenCalledWith(
+        '/cull/apply',
+        expect.objectContaining({ include_sequence_siblings: true }),
+      );
+    });
+
+    it('sameRequest is false when only include_sequence_siblings differs, so a stale preview is not reused across a toggle', async () => {
+      build();
+      set('targetDir', '/dest');
+      const response = new Subject<{ would_copy: string[]; skipped: string[] }>();
+      post.mockReturnValueOnce(response);
+
+      const pending = component.runPreview();
+      // Toggle after the request went out but before the response lands --
+      // the in-flight request no longer matches the current form.
+      set('includeSequenceSiblings', true);
+      response.next({ would_copy: ['/a.jpg'], skipped: [] });
+      response.complete();
+      await pending;
+
+      expect(read('preview')).toBeNull();
+    });
+  });
+
+  describe('preview rendering', () => {
+    function buildRendered(paths = ['/a.jpg', '/b.jpg']) {
+      post = vi.fn(() => of({ would_copy: paths, skipped: [] }));
+      TestBed.configureTestingModule({
+        imports: [CullDialogComponent],
+        providers: [
+          { provide: ApiService, useValue: { post } },
+          { provide: MatSnackBar, useValue: { open: vi.fn() } },
+          { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
+          { provide: MatDialogRef, useValue: { close: vi.fn() } },
+          { provide: MAT_DIALOG_DATA, useValue: { paths } },
+        ],
+      });
+      const fixture = TestBed.createComponent(CullDialogComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function paragraphs(fixture: ReturnType<typeof buildRendered>): string[] {
+      return Array.from(fixture.debugElement.nativeElement.querySelectorAll('p'))
+        .map((el) => (el as HTMLElement).textContent?.trim() ?? '');
+    }
+
+    it('matched: 0 renders the cull.nothing_matched message', async () => {
+      const fixture = buildRendered();
+      post.mockReturnValueOnce(of({ would_copy: [], skipped: [], matched: 0 }));
+      const comp = fixture.componentInstance as unknown as { targetDir: { set(v: string): void } };
+      comp.targetDir.set('/dest');
+      await fixture.componentInstance.runPreview();
+      fixture.detectChanges();
+
+      const text = paragraphs(fixture);
+      expect(text).toContain('cull.nothing_matched');
+      expect(text).not.toContain('cull.would_affect');
+    });
+
+    it('sequence_siblings: 4 renders the siblings line', async () => {
+      const fixture = buildRendered();
+      post.mockReturnValueOnce(of({ would_copy: ['/a.jpg'], skipped: [], matched: 1, sequence_siblings: 4 }));
+      const comp = fixture.componentInstance as unknown as { targetDir: { set(v: string): void } };
+      comp.targetDir.set('/dest');
+      await fixture.componentInstance.runPreview();
+      fixture.detectChanges();
+
+      expect(paragraphs(fixture)).toContain('4 cull.sequence_siblings');
+    });
   });
 });
