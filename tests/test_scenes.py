@@ -21,7 +21,7 @@ _SCHEMA = """
     CREATE TABLE photos (
         path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
         is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
-        is_rejected INTEGER, category TEXT
+        is_rejected INTEGER, category TEXT, sequence_kind TEXT
     );
     CREATE TABLE album_photos (
         id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT

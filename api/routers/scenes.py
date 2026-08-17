@@ -363,25 +363,31 @@ async def apply_scene_cull(
             # Bound the action to photos the caller can actually see: a client must
             # not reject (or train the ranker on) arbitrary library paths it never
             # had in its scene. In single-user mode the clause is a no-op.
+            sequence_members = set()
             if group_paths:
                 vis_sql, vis_params = get_visibility_clause(user_id)
                 placeholders = ','.join('?' * len(group_paths))
                 all_paths = list(group_paths)
-                visible = {
-                    row[0] for row in conn.execute(
-                        f"SELECT path FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
-                        all_paths + vis_params,
-                    ).fetchall()
-                }
+                rows = conn.execute(
+                    f"SELECT path, sequence_kind FROM photos WHERE path IN ({placeholders}) AND {vis_sql}",
+                    all_paths + vis_params,
+                ).fetchall()
+                visible = {row['path'] for row in rows}
                 group_paths &= visible
                 keep_set &= visible
+                # A mixed scene's bracket/panorama frame must not enter
+                # record_culling_pairs below -- see burst_culling._sequence_members.
+                from api.routers.burst_culling import _sequence_members
+                sequence_members = _sequence_members(rows)
 
             reject_paths = list(group_paths - keep_set)
             set_photos_rejected(conn, reject_paths, user_id)
 
             conn.execute("DELETE FROM stats_cache WHERE key LIKE 'scenes_%'")
-            record_culling_pairs(
-                conn, list(keep_set), reject_paths, user_id=user_id, group_type='scene',
+            pairable_keep = [p for p in keep_set if p not in sequence_members]
+            pairable_reject = [p for p in reject_paths if p not in sequence_members]
+            added = record_culling_pairs(
+                conn, pairable_keep, pairable_reject, user_id=user_id, group_type='scene',
             )
             conn.commit()
 
@@ -392,7 +398,7 @@ async def apply_scene_cull(
             _invalidate_culling_groups_cache()
 
             from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_set) * len(reject_paths), conn=conn)
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
         except HTTPException:

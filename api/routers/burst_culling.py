@@ -105,7 +105,7 @@ class CullingConfirmBody(BaseModel):
     # `paths` here would leave an empty `keep_paths` rejecting everything in
     # it. Empty `keep_paths` with a non-empty `paths` stays legal -- that is
     # the legitimate "reject all of these" selection.
-    paths: list[str] = Field(min_length=1)
+    paths: list[str] = Field(min_length=1, max_length=1000)
     keep_paths: list[str]
 
 
@@ -605,6 +605,20 @@ def _mark_similarity_reviewed(conn, paths, vis_sql, vis_params):
         )
 
 
+def _sequence_members(rows):
+    """Paths among ``rows`` (each exposing ``path`` and ``sequence_kind``) that
+    belong to a keep-whole sequence set (bracket/panorama/hdr_panorama).
+
+    These frames must never enter ``record_culling_pairs``: a comparison pair
+    there would teach the ranker how the set was shot -- which frame of a pan,
+    which rung of an exposure ladder -- rather than any quality judgement.
+    Shared by every feed that calls ``record_culling_pairs`` directly (burst,
+    similar, scene); the true keep-whole route (``_confirm_sequence_group``)
+    never calls it at all, so it needs no such filter.
+    """
+    return {r['path'] for r in rows if r['sequence_kind'] in _KEEP_WHOLE_KINDS}
+
+
 @router.post("/api/burst-groups/select")
 async def select_burst_photos(
     body: BurstSelectionBody,
@@ -639,7 +653,7 @@ async def select_burst_photos(
                 raise HTTPException(status_code=404, detail='Burst group not found')
 
             group_paths = {p['path'] for p in photos}
-            sequence_members = {p['path'] for p in photos if p['sequence_kind'] in _KEEP_WHOLE_KINDS}
+            sequence_members = _sequence_members(photos)
             keep_set = set(body.keep_paths)
 
             # Validate that all keep_paths are in the burst group
@@ -759,6 +773,12 @@ async def select_similar_photos(
                     detail=f'Paths not in similarity group: {list(invalid)[:3]}',
                 )
 
+            sequence_members = _sequence_members(select_in_chunks(
+                conn,
+                f"SELECT path, sequence_kind FROM photos WHERE path IN ({{placeholders}}) AND {vis_sql}",
+                group_paths, after=vis_params,
+            ))
+
             # Mark non-kept photos as rejected (per-user in multi-user mode, visibility-checked)
             reject_paths = list(group_paths - keep_set)
             set_photos_rejected(conn, reject_paths, user_id)
@@ -776,15 +796,17 @@ async def select_similar_photos(
             # photos as still-unreviewed for up to the 1h TTL.
             conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
 
-            record_culling_pairs(
-                conn, list(keep_set), reject_paths,
+            pairable_keep = [p for p in keep_set if p not in sequence_members]
+            pairable_reject = [p for p in reject_paths if p not in sequence_members]
+            added = record_culling_pairs(
+                conn, pairable_keep, pairable_reject,
                 user_id=user_id, group_type='similar',
             )
 
             conn.commit()
             _invalidate_culling_groups_cache()
             from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_set) * len(reject_paths), conn=conn)
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
         except HTTPException:
@@ -1608,7 +1630,7 @@ def keeper_hints(
         return hints
 
 
-def _keep_whole_kind_for(paths):
+def _keep_whole_kind_for(paths, user_id):
     """The keep-whole kind every named frame carries, or None if they differ.
 
     Read from the labels rather than taken from the request's ``type``. A
@@ -1618,24 +1640,32 @@ def _keep_whole_kind_for(paths):
     branching on ``type`` alone sends it down the path that records comparison
     pairs. Deriving it here also means a client cannot ask for the no-pairs
     treatment for a set that is not one.
+
+    Bounded to what the caller can see. This runs *before* any of the feeds it
+    routes to apply their own scoping, so an unscoped lookup here would answer
+    "does this path exist, and is it a bracket/panorama frame?" for a
+    directory the caller cannot read -- the disclosure ``_confirm_sequence_group``'s
+    own visibility check exists to prevent, just one call earlier.
     """
     paths = [p for p in (paths or []) if p]
     if not paths:
         return None
-    placeholders = ','.join('?' * len(paths))
+    vis_sql, vis_params = get_visibility_clause(user_id)
     with get_db() as conn:
         kinds = {
-            row['sequence_kind'] for row in conn.execute(
-                f"SELECT sequence_kind FROM photos WHERE path IN ({placeholders})",
-                paths).fetchall()
+            row['sequence_kind'] for row in select_in_chunks(
+                conn,
+                f"SELECT sequence_kind FROM photos WHERE path IN ({{placeholders}}) AND {vis_sql}",
+                paths, after=vis_params,
+            )
         }
     # Unmixed, exactly as `_group_sequence_kind` requires: a burst that merely
     # contains a panorama frame is still a set of competing takes for its
     # ordinary members, so it does not get the full no-pairs treatment this
     # function grants an unmixed set. The panorama frame itself is still
-    # protected -- `select_burst_photos` excludes any `_KEEP_WHOLE_KINDS`
-    # member from `record_culling_pairs` on its own, regardless of what this
-    # function returns.
+    # protected -- every feed that calls `record_culling_pairs` (burst,
+    # similar, scene) filters `_KEEP_WHOLE_KINDS` members out via
+    # `_sequence_members` first, regardless of what this function returns.
     if len(kinds) != 1:
         return None
     kind = kinds.pop()
@@ -1705,11 +1735,12 @@ async def confirm_culling_group(
     something about how the set was shot rather than about the picture, and
     feeding that to the ranker would bias every later ranking.
     """
+    user_id = user.user_id if user else None
     # A declared sequence kind still routes on its own, so a set reached through
     # its own granularity keeps the existing "paths outside the set are skipped"
     # behaviour. The label is consulted only for the feeds that do NOT name one.
     keep_whole = (body.type if body.type in _KEEP_WHOLE_KINDS
-                  else _keep_whole_kind_for(body.paths))
+                  else _keep_whole_kind_for(body.paths, user_id))
     if keep_whole is not None:
         return _confirm_sequence_group(body, user, keep_whole)
     if body.type == 'burst':

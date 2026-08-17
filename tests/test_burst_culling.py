@@ -740,10 +740,18 @@ class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
     # burst-typed feed: a present-but-different-kind path never reaches the
     # per-path skip logic here -- it makes the group mixed instead, which
     # test_a_mixed_group_is_still_culled_as_competing_takes above already
-    # covers. Un-skipped, feed-appropriate replacements for the other two
-    # inherited names are below.
+    # covers.
+    #
+    # `test_empty_paths_is_rejected_as_a_bad_request` used to need the same
+    # treatment: before `CullingConfirmBody.paths` carried `Field(min_length=1)`,
+    # an empty `paths` skipped `_confirm_sequence_group`'s own guard and fell
+    # through to `select_burst_photos`, which ignores `paths` and rejects the
+    # whole group instead of 422ing. That bound now lives on the model and is
+    # enforced before `type`-based routing ever runs, so the inherited version
+    # holds unmodified here too and is left un-shadowed. The burst-specific
+    # `test_empty_paths_on_a_burst_feed_is_rejected_as_a_bad_request` below adds
+    # the `unreviewed` assertion the inherited one doesn't make.
     test_a_path_outside_the_bracket_is_skipped_not_rejected = None
-    test_empty_paths_is_rejected_as_a_bad_request = None
 
     def test_an_unknown_path_is_skipped_not_rejected(self, client):
         """An unmatched path is invisible to `_keep_whole_kind_for`, not mixed.
@@ -799,6 +807,292 @@ class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
         assert resp.status_code == 200
         assert resp.json() == {'status': 'ok', 'kept': 0, 'rejected': 4}
         assert self._rejected(conn) == {"/s0.jpg", "/s1.jpg", "/s2.jpg", "/other.jpg"}
+
+
+class TestConfirmSimilarWithSequenceMember:
+    """Finding 3: only the burst feed filtered sequence-kind members out of
+    `record_culling_pairs` (see
+    `TestConfirmPanoramaServedAsBurst.test_sequence_member_is_excluded_from_pairs_but_ordinary_members_still_pair`
+    above). The similar feed (`select_similar_photos`) did not, so a mixed
+    similarity group would still train the ranker on which panorama tile
+    "won" -- an artefact of how the set was shot, not a quality judgement.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
+            sequence_kind TEXT, category TEXT DEFAULT 'default',
+            is_rejected INTEGER DEFAULT 0, similarity_reviewed INTEGER DEFAULT 0
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
+            category TEXT, session_id TEXT, user_id TEXT, source TEXT
+        );
+        CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
+
+    @staticmethod
+    def _db():
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestConfirmSimilarWithSequenceMember._SCHEMA)
+        for index in range(2):
+            conn.execute(
+                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind) "
+                "VALUES (?, ?, 1, 'panorama')", (f'/s{index}.jpg', f's{index}.jpg'))
+        conn.execute(
+            "INSERT INTO photos (path, filename, sequence_kind) "
+            "VALUES ('/other.jpg', 'other.jpg', NULL)"
+        )
+        conn.commit()
+        return conn
+
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import get_optional_user, require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="test", edition_authenticated=True)
+        app.dependency_overrides[get_optional_user] = lambda: fake_user
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _confirm(client, conn, body):
+        with mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)):
+            return client.post("/api/culling-groups/confirm", json={
+                "group_id": 1, "type": "similar", **body,
+            })
+
+    def test_sequence_member_records_no_pair_via_similar_feed(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/s0.jpg", "/s1.jpg", "/other.jpg"],
+            "keep_paths": ["/other.jpg"],
+        })
+        assert resp.status_code == 200
+        assert {r['path'] for r in conn.execute(
+            "SELECT path FROM photos WHERE is_rejected = 1").fetchall()} == {"/s0.jpg", "/s1.jpg"}
+        assert conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0] == 0
+
+
+class TestConfirmSceneWithSequenceMember:
+    """Finding 3, scene feed: `apply_scene_cull` also called `record_culling_pairs`
+    on the raw keep/reject sets without excluding sequence-kind members.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
+            sequence_kind TEXT, category TEXT DEFAULT 'default',
+            is_rejected INTEGER DEFAULT 0
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
+            category TEXT, session_id TEXT, user_id TEXT, source TEXT
+        );
+        CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
+
+    @staticmethod
+    def _db():
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestConfirmSceneWithSequenceMember._SCHEMA)
+        for index in range(2):
+            conn.execute(
+                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind) "
+                "VALUES (?, ?, 1, 'bracket')", (f'/k{index}.jpg', f'k{index}.jpg'))
+        conn.execute(
+            "INSERT INTO photos (path, filename, sequence_kind) "
+            "VALUES ('/other.jpg', 'other.jpg', NULL)"
+        )
+        conn.commit()
+        return conn
+
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import get_optional_user, require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="test", edition_authenticated=True)
+        app.dependency_overrides[get_optional_user] = lambda: fake_user
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _confirm(client, conn, body):
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+            mock.patch("api.routers.scenes.get_db", lambda: _cm(conn)),
+        ):
+            return client.post("/api/culling-groups/confirm", json={
+                "group_id": 1, "type": "scene", **body,
+            })
+
+    def test_sequence_member_records_no_pair_via_scene_feed(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": ["/k0.jpg", "/k1.jpg", "/other.jpg"],
+            "keep_paths": ["/other.jpg"],
+        })
+        assert resp.status_code == 200
+        assert {r['path'] for r in conn.execute(
+            "SELECT path FROM photos WHERE is_rejected = 1").fetchall()} == {"/k0.jpg", "/k1.jpg"}
+        assert conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0] == 0
+
+
+class TestConfirmPathsBound:
+    """Finding 4: `CullingConfirmBody.paths` had `min_length=1` but no upper
+    bound, unlike every sibling model in this file (`max_length=1000`),
+    letting an oversized array reach the unchunked `IN (...)` in
+    `_keep_whole_kind_for`.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
+            sequence_kind TEXT, burst_group_id INTEGER, is_rejected INTEGER DEFAULT 0
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
+            category TEXT, session_id TEXT, user_id TEXT, source TEXT
+        );
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
+
+    @staticmethod
+    def _db(var_limit=None):
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestConfirmPathsBound._SCHEMA)
+        if var_limit is not None:
+            conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, var_limit)
+        conn.commit()
+        return conn
+
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="test", edition_authenticated=True)
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    def test_an_oversized_paths_list_422s_before_any_handler_runs(self, client):
+        conn = self._db()
+        with mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)):
+            resp = client.post("/api/culling-groups/confirm", json={
+                "group_id": 1, "type": "burst",
+                "paths": [f"/p{i}.jpg" for i in range(1001)],
+                "keep_paths": [],
+            })
+        assert resp.status_code == 422
+
+    def test_the_model_cap_still_needs_chunking_to_avoid_a_500(self, client):
+        """At exactly the model's new cap (1000 paths), SQLite's variable-number
+        limit can be lower than this environment's default in the wild (the
+        reviewer's own probe used 250000; other builds go lower) -- so the
+        lookup must chunk, not merely rely on the cap alone. This connection's
+        variable-number limit is constrained to 901 (just above the file's
+        existing `select_in_chunks` default chunk size of 900), so 1000 paths
+        only survives if the query is actually chunked.
+        """
+        conn = self._db(var_limit=901)
+        with mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)):
+            resp = client.post("/api/culling-groups/confirm", json={
+                "group_id": 1, "type": "burst",
+                "paths": [f"/p{i}.jpg" for i in range(1000)],
+                "keep_paths": [],
+            })
+        # No burst group named 1 exists in this DB -- 404, not a 500 crash.
+        assert resp.status_code == 404
+
+
+class TestKeepWholeKindVisibilityLeak:
+    """Finding 5: `_keep_whole_kind_for` queried with no visibility clause and
+    ran BEFORE any scoping, so its 200-vs-404 routing decision let a
+    directory-scoped caller learn whether a guessed foreign path exists and is
+    a bracket/panorama frame -- exactly the leak `_confirm_sequence_group`'s
+    own docstring says it exists to prevent.
+    """
+
+    _SCHEMA = """
+        CREATE TABLE photos (
+            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
+            sequence_kind TEXT, burst_group_id INTEGER, is_rejected INTEGER DEFAULT 0
+        );
+        CREATE TABLE comparisons (
+            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
+            category TEXT, session_id TEXT, user_id TEXT, source TEXT
+        );
+    """ + _SEQUENCE_OVERRIDES_SCHEMA
+
+    @staticmethod
+    def _db():
+        import sqlite3
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(TestKeepWholeKindVisibilityLeak._SCHEMA)
+        conn.execute(
+            "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind) "
+            "VALUES ('/foreign_panorama.jpg', 'foreign_panorama.jpg', 1, 'panorama')"
+        )
+        conn.execute(
+            "INSERT INTO photos (path, filename, sequence_kind) "
+            "VALUES ('/foreign_plain.jpg', 'foreign_plain.jpg', NULL)"
+        )
+        conn.commit()
+        return conn
+
+    @pytest.fixture()
+    def client(self):
+        from fastapi.testclient import TestClient
+        from api import create_app
+        from api.auth import require_edition, CurrentUser
+
+        app = create_app()
+        fake_user = CurrentUser(user_id="scoped", edition_authenticated=True)
+        app.dependency_overrides[require_edition] = lambda: fake_user
+        yield TestClient(app)
+        app.dependency_overrides.clear()
+
+    @staticmethod
+    def _confirm(client, conn, path):
+        # A directory-scoped caller who cannot see either foreign path -- mirrors
+        # the reviewer's multi-user probe (foreign panorama -> 200, foreign
+        # plain / nonexistent -> 404, before this fix).
+        with (
+            mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)),
+            mock.patch("api.routers.burst_culling.get_visibility_clause",
+                       return_value=("photos.path NOT LIKE '/foreign%'", [])),
+        ):
+            return client.post("/api/culling-groups/confirm", json={
+                "group_id": 999, "type": "burst", "paths": [path], "keep_paths": [],
+            })
+
+    def test_foreign_panorama_frame_is_indistinguishable_from_nonexistent(self, client):
+        conn = self._db()
+        resp_foreign_panorama = self._confirm(client, conn, "/foreign_panorama.jpg")
+        resp_nonexistent = self._confirm(client, conn, "/nowhere.jpg")
+        assert resp_foreign_panorama.status_code == resp_nonexistent.status_code == 404
+
+    def test_foreign_plain_photo_is_also_404(self, client):
+        conn = self._db()
+        resp = self._confirm(client, conn, "/foreign_plain.jpg")
+        assert resp.status_code == 404
 
 
 class TestFilterSimilarGroups:
@@ -872,6 +1166,11 @@ class TestSelectSimilarInvalidatesCache:
 
     def test_select_similar_deletes_stats_cache(self, client):
         mock_conn = mock.MagicMock()
+        # record_culling_pairs derives its inserted-row count from
+        # conn.total_changes; a bare MagicMock attribute isn't a real int, so
+        # give it one to keep the downstream trigger_auto_retrain(added <= 0)
+        # comparison meaningful rather than incidentally crashing.
+        mock_conn.total_changes = 0
 
         with (
             mock.patch("api.routers.burst_culling.get_db", lambda: _cm(mock_conn)),
