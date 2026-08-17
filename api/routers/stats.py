@@ -343,6 +343,52 @@ async def api_stats_categories(
     return await _get_stats_cached_async(cache_key, compute)
 
 
+# The twelve averages every gear breakdown reports, aliased so the rows are read
+# by key. They were read as r[2]..r[13] off three separate copies of this SELECT,
+# where inserting a column silently shifted every field after it onto the wrong
+# key -- a wrong number the UI cannot distinguish from a real one.
+_GEAR_AGGREGATES = """COUNT(*) AS cnt,
+                   ROUND(AVG(aggregate),2) AS avg_aggregate,
+                   ROUND(AVG(aesthetic),2) AS avg_aesthetic,
+                   ROUND(AVG(tech_sharpness),2) AS avg_sharpness,
+                   ROUND(AVG(comp_score),2) AS avg_composition,
+                   ROUND(AVG(exposure_score),2) AS avg_exposure,
+                   ROUND(AVG(color_score),2) AS avg_color,
+                   ROUND(AVG(ISO),0) AS avg_iso,
+                   ROUND(AVG(f_stop),1) AS avg_f_stop,
+                   ROUND(AVG(COALESCE(focal_length_35mm, focal_length)),0) AS avg_focal_length,
+                   ROUND(AVG(face_count),2) AS avg_face_count,
+                   ROUND(AVG(is_monochrome),3) AS avg_monochrome,
+                   ROUND(AVG(dynamic_range_stops),2) AS avg_dynamic_range"""
+
+# The score averages serve NULL through as JSON null; the shooting-parameter
+# averages fall back to 0. The split is deliberate and predates this helper --
+# a camera with no scored photo reports no score, while one with no recorded ISO
+# reports 0 -- so both halves are listed rather than folded into one rule.
+_GEAR_SCORE_FIELDS = ('avg_aggregate', 'avg_aesthetic', 'avg_sharpness',
+                      'avg_composition', 'avg_exposure', 'avg_color')
+_GEAR_ZERO_FILLED_FIELDS = ('avg_iso', 'avg_f_stop', 'avg_focal_length',
+                            'avg_face_count', 'avg_monochrome', 'avg_dynamic_range')
+
+
+async def _gear_rows(conn, name_expr, where_sql, params, group_by):
+    """The top 20 gear items for one grouping, keyed as the client reads them.
+
+    ``name_expr``/``group_by`` are server-origin SQL literals, and ``where_sql``
+    carries ``_stats_filter_where``'s already-bound placeholders -- no user
+    string is interpolated here.
+    """
+    cur = await conn.execute(
+        f'SELECT {name_expr} AS name, {_GEAR_AGGREGATES} FROM photos '
+        f'WHERE {where_sql} GROUP BY {group_by} ORDER BY cnt DESC LIMIT 20', params)
+    rows = await cur.fetchall()
+    await cur.close()
+    return [{'name': r['name'], 'count': r['cnt'],
+             **{f: r[f] for f in _GEAR_SCORE_FIELDS},
+             **{f: r[f] or 0 for f in _GEAR_ZERO_FILLED_FIELDS},
+             'history': []} for r in rows]
+
+
 @router.get('/api/stats/gear')
 async def api_stats_gear(
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -354,56 +400,17 @@ async def api_stats_gear(
 
     async def compute():
         async with get_async_db() as conn:
-            # Camera bodies
-            cur = await conn.execute(f'''SELECT camera_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
-                           ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
-                           ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
-                           ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
-                           ROUND(AVG(COALESCE(focal_length_35mm, focal_length)),0),
-                           ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
-                           FROM photos WHERE camera_model IS NOT NULL AND camera_model != ''{vis}
-                           GROUP BY camera_model ORDER BY cnt DESC LIMIT 20''', vp)
-            rows = await cur.fetchall()
-            await cur.close()
-            cameras = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
-                        'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
-                        'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
-                        'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
-                        'history': []} for r in rows]
-
-            # Lenses
-            cur = await conn.execute(f'''SELECT lens_model, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
-                           ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
-                           ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
-                           ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
-                           ROUND(AVG(COALESCE(focal_length_35mm, focal_length)),0),
-                           ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
-                           FROM photos WHERE lens_model IS NOT NULL AND lens_model != ''{vis}
-                           GROUP BY lens_model ORDER BY cnt DESC LIMIT 20''', vp)
-            rows = await cur.fetchall()
-            await cur.close()
-            lenses = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
-                       'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
-                       'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
-                       'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
-                       'history': []} for r in rows]
-
-            # Combos
-            cur = await conn.execute(f'''SELECT camera_model || ' + ' || lens_model as combo, COUNT(*) as cnt, ROUND(AVG(aggregate),2), ROUND(AVG(aesthetic),2),
-                           ROUND(AVG(tech_sharpness),2), ROUND(AVG(comp_score),2),
-                           ROUND(AVG(exposure_score),2), ROUND(AVG(color_score),2),
-                           ROUND(AVG(ISO),0), ROUND(AVG(f_stop),1),
-                           ROUND(AVG(COALESCE(focal_length_35mm, focal_length)),0),
-                           ROUND(AVG(face_count),2), ROUND(AVG(is_monochrome),3), ROUND(AVG(dynamic_range_stops),2)
-                           FROM photos WHERE camera_model IS NOT NULL AND camera_model != '' AND lens_model IS NOT NULL AND lens_model != ''{vis}
-                           GROUP BY camera_model, lens_model ORDER BY cnt DESC LIMIT 20''', vp)
-            rows = await cur.fetchall()
-            await cur.close()
-            combos = [{'name': r[0], 'count': r[1], 'avg_aggregate': r[2], 'avg_aesthetic': r[3],
-                       'avg_sharpness': r[4], 'avg_composition': r[5], 'avg_exposure': r[6], 'avg_color': r[7],
-                       'avg_iso': r[8] or 0, 'avg_f_stop': r[9] or 0, 'avg_focal_length': r[10] or 0,
-                       'avg_face_count': r[11] or 0, 'avg_monochrome': r[12] or 0, 'avg_dynamic_range': r[13] or 0,
-                       'history': []} for r in rows]
+            cameras = await _gear_rows(
+                conn, 'camera_model', f"camera_model IS NOT NULL AND camera_model != ''{vis}",
+                vp, 'camera_model')
+            lenses = await _gear_rows(
+                conn, 'lens_model', f"lens_model IS NOT NULL AND lens_model != ''{vis}",
+                vp, 'lens_model')
+            combos = await _gear_rows(
+                conn, "camera_model || ' + ' || lens_model",
+                f"camera_model IS NOT NULL AND camera_model != '' "
+                f"AND lens_model IS NOT NULL AND lens_model != ''{vis}",
+                vp, 'camera_model, lens_model')
 
             # Category distribution
             cur = await conn.execute(f'''SELECT category, COUNT(*) as cnt
