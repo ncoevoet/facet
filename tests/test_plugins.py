@@ -112,9 +112,33 @@ class TestPluginManagerInit:
 
 class TestPluginManagerEmit:
     def test_emit_does_nothing_when_disabled(self):
+        from concurrent.futures import ThreadPoolExecutor
+
         mgr = PluginManager(config=None)
-        # Should not raise
+        # A disabled manager never gets a pool from __init__; force one so the
+        # only thing standing between the spy and a call is the enabled check.
+        mgr._pool = ThreadPoolExecutor(max_workers=1)
+        calls = []
+        mgr._handlers["on_score_complete"].append(("spy", lambda data: calls.append(data)))
+
         mgr.emit("on_score_complete", {"path": "/a.jpg", "aggregate": 5.0})
+        mgr.shutdown()
+
+        assert calls == []
+
+    def test_emit_calls_registered_handler_when_enabled(self, tmp_path):
+        mgr = PluginManager(
+            config={"plugins": {"enabled": True}},
+            plugins_dir=str(tmp_path),
+        )
+        calls = []
+        mgr._handlers["on_score_complete"].append(("spy", lambda data: calls.append(data)))
+
+        mgr.emit("on_score_complete", {"path": "/a.jpg", "aggregate": 5.0})
+        mgr.shutdown()
+
+        assert len(calls) == 1
+        assert calls[0]["path"] == "/a.jpg"
 
     def test_emit_unknown_event_logs_warning(self, tmp_path):
         mgr = PluginManager(

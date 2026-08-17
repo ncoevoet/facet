@@ -699,14 +699,46 @@ class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
             "paths": self._SWEEP + ["/other.jpg"], "keep_paths": ["/s1.jpg"]})
         assert 'kept' not in resp.json() or resp.json().get('rejected') is not None
 
-    def test_a_path_outside_the_bracket_is_skipped_not_rejected(self, client):
-        pytest.skip("covered by test_a_mixed_group_is_still_culled_as_competing_takes")
+    # Inherited from TestConfirmBracketGroup but not applicable to a
+    # burst-typed feed: a present-but-different-kind path never reaches the
+    # per-path skip logic here -- it makes the group mixed instead, which
+    # test_a_mixed_group_is_still_culled_as_competing_takes above already
+    # covers. Un-skipped, feed-appropriate replacements for the other two
+    # inherited names are below.
+    test_a_path_outside_the_bracket_is_skipped_not_rejected = None
+    test_empty_paths_is_rejected_as_a_bad_request = None
 
     def test_an_unknown_path_is_skipped_not_rejected(self, client):
-        pytest.skip("an unknown path makes the group mixed, which is covered above")
+        """An unmatched path is invisible to `_keep_whole_kind_for`, not mixed.
 
-    def test_empty_paths_is_rejected_as_a_bad_request(self, client):
-        pytest.skip("an empty body never reaches the sequence branch from a burst feed")
+        Unlike a present-but-different-kind path (test_a_mixed_group above),
+        a path absent from the DB contributes no row to the kind lookup, so
+        the group still resolves to the single 'panorama' kind and reaches
+        `_confirm_sequence_group`, which is where the per-path skip actually
+        happens -- the same mechanism the bracket-typed tests exercise.
+        """
+        conn = self._db()
+        resp = self._confirm(client, conn, {
+            "paths": self._SWEEP + ["/nowhere.jpg"], "keep_paths": ["/s1.jpg"]})
+        assert resp.json() == {'success': True, 'kept': 1, 'rejected': 2, 'skipped': 1}
+        assert self._rejected(conn) == {"/s0.jpg", "/s2.jpg"}
+
+    def test_empty_paths_on_a_burst_feed_rejects_the_whole_group(self, client):
+        """An empty `paths` list is NOT rejected as a bad request on this feed.
+
+        `_keep_whole_kind_for([])` finds nothing to look up and returns None,
+        so the request falls through to `select_burst_photos`, which ignores
+        `paths` entirely and operates on the whole `burst_id` -- an empty
+        `keep_paths` then rejects every photo in the group. The `paths is
+        required` guard lives only in `_confirm_sequence_group`, reached
+        through an explicit sequence type or an unmixed sequence-kind set,
+        never through a plain burst-typed confirm.
+        """
+        conn = self._db()
+        resp = self._confirm(client, conn, {"paths": [], "keep_paths": []})
+        assert resp.status_code == 200
+        assert resp.json() == {'status': 'ok', 'kept': 0, 'rejected': 3}
+        assert self._rejected(conn) == {"/s0.jpg", "/s1.jpg", "/s2.jpg"}
 
 
 class TestFilterSimilarGroups:

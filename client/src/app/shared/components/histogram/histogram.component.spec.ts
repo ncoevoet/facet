@@ -191,6 +191,8 @@ describe('HistogramComponent', () => {
 
     expect(svg()).not.toBeNull();
     expect(polylines()).toHaveLength(0);
+    expect(fixture.nativeElement.querySelector('polygon').getAttribute('points'))
+      .toBe('0,40 0.0,0.0 42.7,40.0 85.3,40.0 128.0,40.0 128,40');
   });
 
   it('falls back to sampling the thumbnail when the photo has no stored histogram', () => {

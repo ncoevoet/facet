@@ -139,9 +139,25 @@ def test_working_size_consistency_across_input_resolutions():
         assert large[col] == pytest.approx(thumb[col], abs=1.0), col
 
 
-def test_warmup_is_idempotent():
+def test_warmup_is_idempotent(monkeypatch):
+    from analyzers import form_facet
+
+    calls = []
+
+    class _SpyKMeans:
+        def __init__(self, *args, **kwargs):
+            calls.append((args, kwargs))
+
+        def fit_predict(self, points, sample_weight=None):
+            return np.zeros(len(points), dtype=int)
+
+    monkeypatch.setattr(form_facet, "_WARMED", False)
+    monkeypatch.setattr("sklearn.cluster.KMeans", _SpyKMeans)
+
     warmup()
     warmup()
+
+    assert len(calls) == 1
 
 
 def test_concurrent_color_harmony_does_not_deadlock():
