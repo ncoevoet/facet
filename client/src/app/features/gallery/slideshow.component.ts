@@ -233,6 +233,14 @@ export class SlideshowComponent implements OnDestroy {
     const result: Slide[] = [];
     const buf: Photo[] = [];
 
+    // Flushes whatever portraits are currently buffered as their own slide,
+    // preserving their place in the input order relative to what comes next.
+    const flushBuf = (): void => {
+      if (buf.length > 0) {
+        result.push({ photos: buf.splice(0, buf.length) });
+      }
+    };
+
     for (const p of photos) {
       const isPortrait = p.image_width && p.image_height && p.image_height > p.image_width;
       if (isPortrait) {
@@ -241,17 +249,12 @@ export class SlideshowComponent implements OnDestroy {
           result.push({ photos: buf.splice(0, max) });
         }
       } else {
+        flushBuf();
         result.push({ photos: [p] });
       }
     }
 
-    // Flush remaining buffered portraits
-    while (buf.length >= 2) {
-      result.push({ photos: buf.splice(0, Math.min(buf.length, max)) });
-    }
-    if (buf.length === 1) {
-      result.push({ photos: [buf[0]] });
-    }
+    flushBuf();
 
     return result;
   });

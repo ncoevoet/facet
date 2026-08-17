@@ -18,7 +18,6 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   exposure_score: null,
   quality_score: null,
   topiq_score: null,
-  top_picks_score: null,
   isolation_bonus: null,
   face_count: 0,
   face_ratio: 0,
@@ -52,7 +51,6 @@ const makePhoto = (overrides: Partial<Photo> = {}): Photo => ({
   is_burst_lead: null,
   burst_group_id: null,
   duplicate_group_id: null,
-  is_duplicate_lead: null,
   persons: [],
   unassigned_faces: 0,
   star_rating: null,
@@ -252,6 +250,20 @@ describe('SlideshowComponent', () => {
         ['/l2.jpg'],
       ]);
     });
+
+    it('flushes an incomplete buffered portrait group before an interleaved landscape, preserving input order', () => {
+      mount([
+        portrait('/p1.jpg'),
+        landscape('/l1.jpg'),
+        portrait('/p2.jpg'), portrait('/p3.jpg'),
+      ]);
+      const slides = component.slides();
+      expect(slides.map(s => s.photos.map(p => p.path))).toEqual([
+        ['/p1.jpg'],
+        ['/l1.jpg'],
+        ['/p2.jpg', '/p3.jpg'],
+      ]);
+    });
   });
 
   describe('photoCounter()', () => {
@@ -259,6 +271,26 @@ describe('SlideshowComponent', () => {
       mount();
       const counter = component.photoCounter();
       expect(counter).toEqual({ start: 1, end: 0, total: 0 });
+    });
+
+    it('tracks true input order across an advance, not slide-grouping order', async () => {
+      // slides(): [{p1}, {l1}, {p2, p3}] -- see the slides() ordering test above.
+      mount([
+        portrait('/p1.jpg'),
+        landscape('/l1.jpg'),
+        portrait('/p2.jpg'), portrait('/p3.jpg'),
+      ]);
+      expect(component.photoCounter()).toEqual({ start: 1, end: 1, total: 4 });
+
+      component.next();
+      await flushMicrotasks();
+      expect(component.currentSlideIndex()).toBe(1);
+      expect(component.photoCounter()).toEqual({ start: 2, end: 2, total: 4 });
+
+      component.next();
+      await flushMicrotasks();
+      expect(component.currentSlideIndex()).toBe(2);
+      expect(component.photoCounter()).toEqual({ start: 3, end: 4, total: 4 });
     });
   });
 
