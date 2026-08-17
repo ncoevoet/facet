@@ -6,6 +6,35 @@ All notable changes to Facet are documented in this file.
 
 ## [1.13.0] "Sténopé" — 2026-08-17
 
+### Fixed
+
+- **RAW frames of an exposure bracket no longer render at the same brightness.** Every decode passed `no_auto_bright=False` to LibRaw, enabling a per-frame gain that scales an image until roughly 1% of *its own* pixels clip; the gain can only ever brighten, so applied independently it pulled the dark rungs of a bracket up toward the base exposure. A second per-frame term, `adjust_maximum_thr`, was never passed either, so its 0.75 default replaced the camera's white level with that frame's brightest pixel. On a real five-frame Canon EOS 6D bracket spanning 6.7 stops, the −3.42 EV, −1.74 EV and 0.00 EV frames rendered at means of 56.3, 55.2 and 54.1; the ladder now spans 17.57×. RAW only — JPEG and HEIF were never affected. ([#105](https://github.com/ncoevoet/facet/issues/105))
+- **The CLIP-MLP aesthetic score on `legacy`/`8gb` was an untrained network.** The scorer built a 768-256-1 model for a 1024/128/64/16 checkpoint and `strict=False` swallowed all fourteen mismatched keys, so every parameter stayed at its random initialisation — the same 200 photos scored 4.870, 5.344 and 5.347 under three different seeds. The correct definition existed in `ModelManager` but sat in a path `_select_models` never appends. Rank correlation against an independent aesthetic model rises from 0.072 to 0.297; because the old ordering was noise, the new one is unrelated to it.
+- **The `24gb` profile ran no composition model at all.** It was configured for `qwen2-vl-2b`, which the default multi-pass scan never dispatches, so those libraries silently received rule-based CPU composition and no `composition_pattern`. Rule-based and SAMP-Net scores are statistically uncorrelated on real data (Spearman 0.025), so this was a different signal rather than an offset. `24gb` now uses SAMP-Net like every other profile, and a configured composition model with no pass logs a warning instead of vanishing.
+- **`--refresh-thumbnails` deadlocked on its own worker pool.** Tasks submitted nested decodes to the same bounded executor and waited on them, so it hung rather than failed — indistinguishable from a slow migration over a NAS.
+- **Cull-to-folder refusals were undiagnosable.** The server's actionable message fired only when the allow-list was empty, which cannot happen once scan directories are always appended, and the client discarded the detail regardless. The 403 now names `viewer.export.allowed_target_dirs` and the roots it resolved, and the interceptor and both dialogs surface it.
+- **The best-of-burst badge rendered for the first time.** It read `is_best_of_burst`, a field that has never existed in any API payload; it now reads `is_burst_lead` and requires actual burst membership.
+- **`/image?fallback=thumbnail` returned 500 instead of degrading** when a RAW decode failed, because the new decode raised a `RuntimeError` the fallback did not catch.
+
+### Added
+
+- **Per-channel clipping detection, indicators, badge and filter.** Stored histograms carry luma plus R/G/B as 4×256 uint16, and true clipped fractions — exactly bin 0 and bin 255, per channel — are derived from that blob without decoding the image again. The gallery badge threshold was chosen from measurement: across 28 photos of a real library, a badge at 0.1% fires on 54% of them and at 5% on 4%. Shadow clipping is off by default because it is so often deliberate.
+- **A full-resolution RGB histogram in the viewer**, switchable between luminance, RGB and each channel alone, normalised over the interior bins so a blown highlight can no longer flatten the tonal curve into a hairline. Monochrome photos show luminance only.
+- **Set membership in photo details** — the bracket, panorama, burst or duplicate a frame belongs to, with its siblings, their EV offsets, and a way to scope the gallery to that one set.
+- **`--refresh-thumbnails`** regenerates stored thumbnails from each file's embedded preview without a rescan, and **`--backfill-clipping`** derives the new per-channel percentages from histograms already stored. A banner reports how many rows are still pending.
+- **`--check-raw-rendering`** renders sample photos under current and candidate settings so decode settings can be validated before committing a large scan to them.
+
+### Changed
+
+- **Display and measurement are separate renderings.** Viewers get the camera's embedded preview where one is large enough — it carries the per-model tone curve and in-camera DR modes that no global constant reproduces — while scorers get a faithful demosaic with both adaptive terms disabled. Frames belonging to a bracket bypass the preview *and* the display gain, since a bracket exists to capture the highlight headroom either would clip (`raw_decode.faithful_bracket_render`).
+- **Every gallery badge is individually configurable** under `viewer.badges`, each defaulting to its existing behaviour.
+- **The viewer has its own RAW decode budget** (`raw_decode.viewer_concurrency`), so a full-size request no longer queues behind a running scan.
+- **Documented model download sizes were corrected.** Every figure was a GiB value labelled GB, the supplementary IQA tier (~2 GB on every profile) was missing entirely, and Q-ReAlign (2.2 GB, enabled by default on `8gb` and up) was undocumented. SAMP-Net's pattern vocabulary was documented as 14 names including two the model has never emitted; it produces 8.
+
+### Security
+
+- **Model checkpoints are pinned to immutable revisions, verified by SHA-256 and loaded with `weights_only=True`.** The aesthetic head was fetched from a mutable third-party branch ref with no integrity check and unpickled with arbitrary-object support; a regression test now proves a checkpoint whose `__reduce__` executes code is rejected, where previously it ran. SAMP-Net's checkpoint shares the same path.
+
 ## [1.12.0] "Alexandrite" — 2026-08-13
 
 ### Security
