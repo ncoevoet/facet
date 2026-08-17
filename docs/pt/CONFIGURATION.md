@@ -831,18 +831,33 @@ como qualquer outra foto.
 
 As miniaturas e os histogramas são gerados no momento da varredura, por isso
 mudar de perfil não altera retroativamente o que uma linha já varrida contém.
-`photos.render_version` regista qual pipeline produziu a miniatura
-armazenada de cada linha: `NULL` significa "de antes da correção", e o
-pipeline atual marca `1`.
+`photos.render_version` regista qual das duas renderizações RAW de exibição
+produziu a miniatura armazenada de cada linha:
+
+- `NULL` — anterior à introdução da marca
+- `1` — primeiro a pré-visualização incorporada da câmara, senão o ganho
+  `bright` configurado no demosaicing de reserva: o que toda varredura gera
+- `2` — sem pré-visualização e sem ganho: o que um fotograma de um
+  bracketing deve mostrar, e o que só `--refresh-thumbnails` pode gerar,
+  porque é a primeira passagem que sabe que o fotograma pertence a um
+  bracketing (a deteção de sequências corre depois de uma varredura, por
+  isso uma varredura só pode marcar `1`)
+
+Leia a marca em conjunto com o `sequence_kind` da linha, nunca sozinha: um
+`1` está atual para uma foto comum e desatualizado para uma que uma
+passagem posterior agrupa num bracketing.
 
 Não há nada para configurar — a marca é contabilidade, não uma definição —
 mas vale a pena saber que caminhos a fazem avançar:
 
-- **Uma nova varredura** reescreve a miniatura e o histograma, e marca a
-  linha.
-- **`--refresh-thumbnails`** reescreve as miniaturas RAW e marca-as. As
-  linhas não são ignoradas com base na marca, por isso executar novamente
-  depois de uma alteração de `bright` reconstrói tudo.
+- **Uma nova varredura** reescreve a miniatura e o histograma, e marca
+  sempre `1` — a pertença a uma sequência ainda não é conhecida no momento
+  da varredura.
+- **`--refresh-thumbnails`** reescreve as miniaturas RAW e marca cada linha
+  com `1` ou `2` de acordo com o seu `sequence_kind` atual. As linhas não
+  são ignoradas com base na marca, por isso executar novamente depois de
+  uma alteração de `bright` ou uma passagem de `--detect-sequences`
+  reconstrói tudo.
 
 Esses são os únicos dois. Navegar pela biblioteca não repara nada: `/image`
 renderiza em tempo real, por isso a vista de detalhe está sempre atualizada,

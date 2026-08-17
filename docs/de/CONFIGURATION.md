@@ -828,18 +828,33 @@ andere Foto zu rendern.
 
 Miniaturansichten und Histogramme werden zur Scanzeit gebacken, daher ändert ein
 Profilwechsel nicht rückwirkend, was eine bereits gescannte Zeile enthält.
-`photos.render_version` verzeichnet, welche Pipeline die gespeicherte
-Miniaturansicht jeder Zeile erzeugt hat: `NULL` bedeutet „von vor dem Fix", und
-die aktuelle Pipeline stempelt `1`.
+`photos.render_version` verzeichnet, welches der beiden RAW-Display-Renderings
+die gespeicherte Miniaturansicht jeder Zeile erzeugt hat:
+
+- `NULL` — vor der Einführung des Stempels
+- `1` — zuerst die kameraeingebettete Vorschau, sonst der konfigurierte
+  `bright`-Gain auf dem Demosaic-Fallback: was jeder Scan bäckt
+- `2` — keine Vorschau und kein Gain: was ein Frame einer Belichtungsreihe
+  zeigen soll, und was nur `--refresh-thumbnails` backen kann, da es der erste
+  Durchlauf ist, der weiß, dass der Frame zu einer Belichtungsreihe gehört
+  (die Sequenzerkennung läuft nach einem Scan, daher kann ein Scan immer nur
+  `1` stempeln)
+
+Den Stempel immer gegen das `sequence_kind` der Zeile lesen, nie für sich
+allein: Eine `1` ist aktuell für ein gewöhnliches Foto und veraltet für eines,
+das ein späterer Durchlauf einer Belichtungsreihe zuordnet.
 
 Es gibt nichts zu konfigurieren — der Stempel ist Buchhaltung, keine Einstellung —
 aber es lohnt sich zu wissen, welche Pfade ihn voranbringen:
 
-- **Ein erneuter Scan** schreibt Miniaturansicht und Histogramm neu und stempelt
-  die Zeile.
-- **`--refresh-thumbnails`** schreibt RAW-Miniaturansichten neu und stempelt sie.
-  Zeilen werden nicht anhand des Stempels übersprungen, sodass ein erneuter Lauf
-  nach einer `bright`-Änderung alles neu aufbaut.
+- **Ein erneuter Scan** schreibt Miniaturansicht und Histogramm neu und
+  stempelt immer `1` — die Sequenzzugehörigkeit ist zur Scanzeit noch nicht
+  bekannt.
+- **`--refresh-thumbnails`** schreibt RAW-Miniaturansichten neu und stempelt
+  jede Zeile mit `1` oder `2` passend zu ihrem aktuellen `sequence_kind`.
+  Zeilen werden nicht anhand des Stempels übersprungen, sodass ein erneuter
+  Lauf nach einer `bright`-Änderung oder einem `--detect-sequences`-Durchlauf
+  alles neu aufbaut.
 
 Das sind die einzigen beiden. Das Durchsuchen der Bibliothek repariert nichts:
 `/image` rendert in Echtzeit, sodass die Detailansicht immer aktuell ist, aber das

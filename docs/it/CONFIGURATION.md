@@ -830,17 +830,33 @@ qualsiasi altra foto.
 
 Le miniature e gli istogrammi vengono generati al momento della scansione, quindi
 cambiare il profilo non modifica retroattivamente ciò che contiene una riga già
-scansionata. `photos.render_version` registra quale pipeline ha prodotto la
-miniatura memorizzata di ciascuna riga: `NULL` significa "da prima del
-correttivo", e la pipeline attuale marca `1`.
+scansionata. `photos.render_version` registra quale dei due rendering RAW di
+visualizzazione ha prodotto la miniatura memorizzata di ciascuna riga:
 
-Non c'è nulla da configurare — il marcatore è contabilità, non un'impostazione —
-ma vale la pena sapere quali percorsi lo fanno avanzare:
+- `NULL` — precedente all'introduzione del marcatore
+- `1` — prima l'anteprima incorporata della fotocamera, altrimenti il
+  guadagno `bright` configurato sul demosaicing di riserva: ciò che produce
+  ogni scansione
+- `2` — nessuna anteprima e nessun guadagno: ciò che deve mostrare un
+  fotogramma di un bracketing, e ciò che solo `--refresh-thumbnails` può
+  produrre, perché è il primo passaggio a sapere che il fotogramma appartiene
+  a un bracketing (il rilevamento delle sequenze viene eseguito dopo una
+  scansione, quindi una scansione può marcare solo `1`)
 
-- **Una nuova scansione** riscrive la miniatura e l'istogramma, e marca la riga.
-- **`--refresh-thumbnails`** riscrive le miniature RAW e le marca. Le righe non
-  vengono saltate in base al marcatore, quindi rieseguirlo dopo una modifica di
-  `bright` ricostruisce tutto.
+Leggi il marcatore insieme al `sequence_kind` della riga, mai da solo: un `1`
+è aggiornato per una foto normale ed obsoleto per una che un passaggio
+successivo raggruppa in un bracketing.
+
+Non c'è nulla da configurare — il marcatore è contabilità, non
+un'impostazione — ma vale la pena sapere quali percorsi lo fanno avanzare:
+
+- **Una nuova scansione** riscrive la miniatura e l'istogramma, e marca
+  sempre `1` — l'appartenenza a una sequenza non è ancora nota al momento
+  della scansione.
+- **`--refresh-thumbnails`** riscrive le miniature RAW e marca ciascuna riga
+  con `1` o `2` in base al suo `sequence_kind` attuale. Le righe non vengono
+  saltate in base al marcatore, quindi rieseguirlo dopo una modifica di
+  `bright` o un passaggio di `--detect-sequences` ricostruisce tutto.
 
 Questi sono gli unici due. Sfogliare la libreria non ripara nulla: `/image` si
 renderizza al volo, quindi la vista dettaglio è sempre aggiornata, ma la griglia

@@ -887,8 +887,13 @@ def _mean_luminance(pil_img):
     return float(np.asarray(pil_img.convert('L'), dtype=np.float32).mean())
 
 
-def _render_raw_variants(path):
-    """Mean luminance of one RAW under the pre-fix, fixed and display renderings."""
+def _render_raw_variants(path, sequence_kind=None):
+    """Mean luminance of one RAW under the pre-fix, fixed and display renderings.
+
+    The display rendering is kind-aware, exactly like a real scan or
+    ``--refresh-thumbnails``: a bracketed ``sequence_kind`` renders through the
+    faithful (no preview, no gain) profile instead of the ordinary preview.
+    """
     import rawpy
     from PIL import Image
     from utils.image_loading import load_display_image, raw_postprocess_kwargs
@@ -897,7 +902,7 @@ def _render_raw_variants(path):
         previous = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs(auto_bright=True)))
     with rawpy.imread(path) as raw:
         metrics = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs()))
-    display = load_display_image(path)
+    display = load_display_image(path, sequence_kind=sequence_kind)
     return (_mean_luminance(previous), _mean_luminance(metrics),
             _mean_luminance(display) if display is not None else None)
 
@@ -907,9 +912,14 @@ def check_raw_rendering(db_path, config, sample_size):
 
     Answers "what would a rescan change?" without running one: per-frame
     auto-brightness against the fixed ``raw_decode.bright`` gain, plus the
-    camera preview the stored thumbnail and the viewer now use.
+    display rendering the stored thumbnail and the viewer now use — camera
+    preview for an ordinary photo, the uncorrected faithful demosaic for a
+    bracketed frame. DB paths are mapped through ``viewer.path_mapping``
+    before being read, same as the viewer does.
     """
+    from api.config import map_disk_path
     from utils import configure_raw_decode_profile
+    from utils.image_loading import renders_faithfully
 
     if not os.path.exists(db_path):
         logger.error("Database not found: %s", db_path)
@@ -917,28 +927,32 @@ def check_raw_rendering(db_path, config, sample_size):
     bright = configure_raw_decode_profile(config.get_raw_decode_settings())['bright']
     with get_connection(db_path) as conn:
         rows = conn.execute(
-            f"SELECT path FROM photos WHERE ({raw_path_predicate()}) "
+            f"SELECT path, sequence_kind FROM photos WHERE ({raw_path_predicate()}) "
             "ORDER BY RANDOM() LIMIT ?", (sample_size,)).fetchall()
-    sample = [row['path'] for row in rows if os.path.exists(row['path'])]
+    sample = [(map_disk_path(row['path']), row['sequence_kind']) for row in rows]
+    sample = [(path, kind) for path, kind in sample if os.path.exists(path)]
     if not sample:
         logger.error("No readable RAW photos found in %s", db_path)
         return 1
 
     logger.info("raw_decode.bright = %.2f — mean luminance per rendering (0-255)", bright)
-    logger.info("%-40s %10s %10s %10s %8s", "Filename", "auto-bright", "fixed", "preview", "delta%")
-    logger.info("%s %s %s %s %s", "-" * 40, "-" * 10, "-" * 10, "-" * 10, "-" * 8)
-    for path in tqdm(sample, desc="Rendering"):
+    logger.info("%-40s %10s %10s %10s %10s %8s",
+                "Filename", "auto-bright", "fixed", "display", "profile", "delta%")
+    logger.info("%s %s %s %s %s %s", "-" * 40, "-" * 10, "-" * 10, "-" * 10, "-" * 10, "-" * 8)
+    for path, sequence_kind in tqdm(sample, desc="Rendering"):
         try:
-            previous, metrics, display = _render_raw_variants(path)
+            previous, metrics, display = _render_raw_variants(path, sequence_kind)
         except Exception as ex:
             logger.warning("%-40s failed: %s", os.path.basename(path)[:39], ex)
             continue
         delta = (metrics - previous) / previous * 100 if previous else 0.0
-        logger.info("%-40s %10.1f %10.1f %10s %+8.1f",
+        profile = "faithful" if renders_faithfully(sequence_kind) else "preview"
+        logger.info("%-40s %10.1f %10.1f %10s %10s %+8.1f",
                     os.path.basename(path)[:39], previous, metrics,
-                    "-" if display is None else f"{display:.1f}", delta)
-    logger.info("A bracket rendered under 'auto-bright' converges to one exposure; "
-                "under 'fixed' and 'preview' it keeps its ladder.")
+                    "-" if display is None else f"{display:.1f}", profile, delta)
+    logger.info("A bracket rendered under 'auto-bright' converges to one exposure; under "
+                "'fixed' and 'display' it keeps its ladder — 'profile' shows which display "
+                "rendering ('preview' or 'faithful') that row actually gets.")
     return 0
 
 
@@ -1999,10 +2013,12 @@ Configuration:
     db_group.add_argument('--discover-min-cluster-size', type=int, default=30, metavar='N',
                         help='HDBSCAN granularity for --discover-moments (smaller = more, finer moments; default 30)')
     db_group.add_argument('--refresh-thumbnails', action='store_true',
-                        help='Rebuild stored thumbnails for RAW photos from the camera-embedded '
-                             'preview (CPU only, no models, no scoring column touched). Bound by '
-                             'storage throughput, so the cost scales with library size and link '
-                             'speed. Resumable: re-run it after an interrupt to continue.')
+                        help='Rebuild stored thumbnails for RAW photos: from the camera-embedded '
+                             'preview for an ordinary photo, or the uncorrected faithful demosaic '
+                             'for a bracketed frame (CPU only, no models, no scoring column '
+                             'touched). Bound by storage throughput, so the cost scales with '
+                             'library size and link speed. Resumable: re-run it after an '
+                             'interrupt to continue.')
     db_group.add_argument('--refresh-thumbnails-workers', type=int, metavar='N',
                         default=DEFAULT_REFRESH_THUMBNAIL_WORKERS,
                         help=f'Parallel reads for --refresh-thumbnails (default '

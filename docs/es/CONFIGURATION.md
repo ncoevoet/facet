@@ -832,18 +832,33 @@ cualquier otra foto.
 
 Las miniaturas y los histogramas se generan en el momento del escaneo, así que
 cambiar el perfil no modifica retroactivamente lo que contiene una fila ya
-escaneada. `photos.render_version` registra qué pipeline produjo la miniatura
-almacenada de cada fila: `NULL` significa "de antes de la corrección", y el
-pipeline actual marca `1`.
+escaneada. `photos.render_version` registra cuál de las dos representaciones
+RAW en pantalla produjo la miniatura almacenada de cada fila:
+
+- `NULL` — anterior a la introducción de la marca
+- `1` — primero la vista previa incrustada de la cámara, luego la ganancia
+  `bright` configurada sobre el demosaico de respaldo: lo que genera todo
+  escaneo
+- `2` — sin vista previa y sin ganancia: lo que debe mostrar un fotograma de
+  un horquillado, y lo que solo `--refresh-thumbnails` puede generar, porque
+  es el primer paso que sabe que el fotograma pertenece a un horquillado (la
+  detección de secuencias se ejecuta después de un escaneo, así que un
+  escaneo solo puede marcar `1`)
+
+Lee la marca junto con el `sequence_kind` de la fila, nunca por separado: un
+`1` está al día para una foto normal y desactualizado para una que un paso
+posterior agrupa en un horquillado.
 
 No hay nada que configurar — la marca es contabilidad, no un ajuste — pero
 conviene saber qué rutas la hacen avanzar:
 
-- **Un nuevo escaneo** reescribe la miniatura y el histograma, y marca la
-  fila.
-- **`--refresh-thumbnails`** reescribe las miniaturas RAW y las marca. Las
-  filas no se omiten según la marca, así que volver a ejecutarlo tras un
-  cambio de `bright` reconstruye todo.
+- **Un nuevo escaneo** reescribe la miniatura y el histograma, y siempre
+  marca `1` — la pertenencia a una secuencia aún no se conoce en el momento
+  del escaneo.
+- **`--refresh-thumbnails`** reescribe las miniaturas RAW y marca cada fila
+  con `1` o `2` según su `sequence_kind` actual. Las filas no se omiten según
+  la marca, así que volver a ejecutarlo tras un cambio de `bright` o un paso
+  de `--detect-sequences` reconstruye todo.
 
 Esas son las únicas dos. Navegar por la biblioteca no repara nada: `/image` se
 renderiza al vuelo, así que la vista de detalle siempre está al día, pero la

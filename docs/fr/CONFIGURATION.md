@@ -827,17 +827,31 @@ n'importe quelle autre photo.
 
 Les miniatures et les histogrammes sont figés au moment du scan, donc changer de
 profil ne modifie pas rétroactivement ce que contient une ligne déjà scannée.
-`photos.render_version` enregistre quel pipeline a produit la miniature stockée de
-chaque ligne : `NULL` signifie « d'avant le correctif », et le pipeline actuel
-marque `1`.
+`photos.render_version` enregistre lequel des deux rendus RAW d'affichage a
+produit la miniature stockée de chaque ligne :
 
-Il n'y a rien à configurer — le marqueur est une écriture comptable, pas un réglage —
-mais il vaut la peine de savoir quels chemins le font avancer :
+- `NULL` — antérieur à l'introduction du marqueur
+- `1` — l'aperçu intégré du boîtier d'abord, sinon le gain `bright` configuré
+  sur le repli en dématriçage : ce que produit chaque scan
+- `2` — ni aperçu ni gain : ce que doit afficher une vue d'un bracketing, et
+  ce que seul `--refresh-thumbnails` peut produire, car c'est la première
+  passe qui sait que la vue appartient à un bracketing (la détection de
+  séquence tourne après un scan, donc un scan ne peut marquer que `1`)
 
-- **Un rescan** réécrit la miniature et l'histogramme, et marque la ligne.
-- **`--refresh-thumbnails`** réécrit les miniatures RAW et les marque. Les lignes ne
-  sont pas ignorées sur la base du marqueur, donc relancer la commande après un
-  changement de `bright` reconstruit tout.
+Lire le marqueur en le confrontant au `sequence_kind` de la ligne, jamais
+seul : un `1` est à jour pour une photo ordinaire et périmé pour une vue
+qu'une passe ultérieure regroupe dans un bracketing.
+
+Il n'y a rien à configurer — le marqueur est une écriture comptable, pas un
+réglage — mais il vaut la peine de savoir quels chemins le font avancer :
+
+- **Un rescan** réécrit la miniature et l'histogramme, et marque toujours
+  `1` — l'appartenance à une séquence n'est pas encore connue au moment du
+  scan.
+- **`--refresh-thumbnails`** réécrit les miniatures RAW et marque chaque
+  ligne `1` ou `2` selon son `sequence_kind` actuel. Les lignes ne sont pas
+  ignorées sur la base du marqueur, donc relancer la commande après un
+  changement de `bright` ou une passe `--detect-sequences` reconstruit tout.
 
 Ce sont les deux seuls. Parcourir la bibliothèque ne répare rien : `/image` s'affiche
 à la volée, donc la vue détail est toujours à jour, mais la grille de galerie lit

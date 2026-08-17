@@ -831,16 +831,30 @@ photo.
 
 Thumbnails and histograms are baked at scan time, so changing the profile does
 not retroactively change what a scanned row holds. `photos.render_version`
-records which pipeline produced each row's stored thumbnail: `NULL` means "from
-before the fix", and the current pipeline stamps `1`.
+records which of the two RAW display renderings produced each row's stored
+thumbnail:
+
+- `NULL` — predates the stamp
+- `1` — camera-embedded preview first, the configured `bright` gain on the
+  demosaic fallback: what every scan bakes
+- `2` — no preview and no gain: what a frame of a bracketed set should show,
+  and what only `--refresh-thumbnails` can bake, because it is the first pass
+  that knows the frame is bracketed (sequence detection runs after a scan, so
+  a scan can only ever stamp `1`)
+
+Read the stamp against the row's `sequence_kind`, never alone: a `1` is
+current for an ordinary photo and stale for one a later pass groups into a
+bracket.
 
 There is nothing to configure — the stamp is bookkeeping, not a setting — but it
 is worth knowing which paths advance it:
 
-- **A rescan** rewrites the thumbnail and the histogram, and stamps the row.
-- **`--refresh-thumbnails`** rewrites RAW thumbnails and stamps them. Rows are
-  not skipped on the stamp, so re-running after a `bright` change rebuilds
-  everything.
+- **A rescan** rewrites the thumbnail and the histogram, and always stamps
+  `1` — sequence membership isn't known yet at scan time.
+- **`--refresh-thumbnails`** rewrites RAW thumbnails and stamps each row `1`
+  or `2` to match its current `sequence_kind`. Rows are not skipped on the
+  stamp, so re-running after a `bright` change or a `--detect-sequences` pass
+  rebuilds everything.
 
 Those are the only two. Browsing the library repairs nothing: `/image` renders
 on the fly so the detail view is always current, but the gallery grid reads
