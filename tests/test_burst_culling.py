@@ -690,11 +690,15 @@ class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
         assert unreviewed == 0
 
     def test_a_mixed_group_is_still_culled_as_competing_takes(self, client):
-        """Only an unmixed set is kept whole.
+        """Only an unmixed set gets the group-wide no-pairs treatment.
 
-        A burst that merely contains a panorama frame is still a set of
-        competing takes, and saying otherwise would tell the user not to choose
-        where choosing is exactly what is left to do.
+        A burst that merely contains a panorama frame still reaches
+        `select_burst_photos` -- it is not routed to `_confirm_sequence_group`
+        -- so the group as a whole still resolves keep/reject exactly like an
+        ordinary burst, and saying otherwise would tell the user not to choose
+        where choosing is exactly what is left to do. The panorama frame's own
+        protection from comparison pairs is a separate, narrower guarantee --
+        see test_sequence_member_is_excluded_from_pairs_but_ordinary_members_still_pair.
         """
         conn = self._db()
         conn.execute("INSERT INTO photos (path, filename, sequence_kind, burst_group_id) "
@@ -702,7 +706,35 @@ class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
         conn.commit()
         resp = self._confirm(client, conn, {
             "paths": self._SWEEP + ["/other.jpg"], "keep_paths": ["/s1.jpg"]})
-        assert 'kept' not in resp.json() or resp.json().get('rejected') is not None
+        assert resp.status_code == 200
+        assert resp.json() == {'status': 'ok', 'kept': 1, 'rejected': 3}
+        assert self._rejected(conn) == {"/s0.jpg", "/s2.jpg", "/other.jpg"}
+
+    def test_sequence_member_is_excluded_from_pairs_but_ordinary_members_still_pair(self, client):
+        """A mixed group's sequence-kind frame stays out of comparisons entirely,
+
+        win or lose, while two ordinary members choosing between each other
+        still records a pair -- that comparison says nothing about how the set
+        was shot, unlike one panorama tile beating another.
+        """
+        conn = self._db()
+        conn.execute("INSERT INTO photos (path, filename, sequence_kind, burst_group_id) "
+                     "VALUES ('/other_a.jpg', 'other_a.jpg', NULL, 7)")
+        conn.execute("INSERT INTO photos (path, filename, sequence_kind, burst_group_id) "
+                     "VALUES ('/other_b.jpg', 'other_b.jpg', NULL, 7)")
+        conn.commit()
+        resp = self._confirm(client, conn, {
+            "paths": self._SWEEP + ["/other_a.jpg", "/other_b.jpg"],
+            "keep_paths": ["/other_a.jpg"],
+        })
+        assert resp.status_code == 200
+        assert self._rejected(conn) == {"/s0.jpg", "/s1.jpg", "/s2.jpg", "/other_b.jpg"}
+        rows = conn.execute(
+            "SELECT photo_a_path, photo_b_path, winner FROM comparisons").fetchall()
+        assert len(rows) == 1
+        a, b, winner = rows[0]
+        assert {a, b} == {'/other_a.jpg', '/other_b.jpg'}
+        assert (a if winner == 'a' else b) == '/other_a.jpg'
 
     # Inherited from TestConfirmBracketGroup but not applicable to a
     # burst-typed feed: a present-but-different-kind path never reaches the

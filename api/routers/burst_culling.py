@@ -614,6 +614,14 @@ async def select_burst_photos(
 
     Sets is_burst_lead=1 for kept photos, is_rejected=1 for non-kept,
     and burst_reviewed=1 for all photos in the group.
+
+    A burst group that merely contains a sequence-kind frame (a bracket rung
+    or a panorama tile riding alongside unrelated shots -- see
+    ``_keep_whole_kind_for``) still resolves keep/reject for every member the
+    same way, but a sequence-kind member is never entered into
+    ``record_culling_pairs``: it can win or lose the group like any photo,
+    just without teaching the ranker that it beat (or lost to) another frame,
+    which would encode how the set was shot rather than a quality judgement.
     """
     with get_db() as conn:
         try:
@@ -622,7 +630,7 @@ async def select_burst_photos(
 
             # Fetch photos in this burst group
             photos = conn.execute(
-                f"""SELECT path FROM photos
+                f"""SELECT path, sequence_kind FROM photos
                     WHERE burst_group_id = ? AND {vis_sql}""",
                 [body.burst_id] + vis_params,
             ).fetchall()
@@ -631,6 +639,7 @@ async def select_burst_photos(
                 raise HTTPException(status_code=404, detail='Burst group not found')
 
             group_paths = {p['path'] for p in photos}
+            sequence_members = {p['path'] for p in photos if p['sequence_kind'] in _KEEP_WHOLE_KINDS}
             keep_set = set(body.keep_paths)
 
             # Validate that all keep_paths are in the burst group
@@ -648,15 +657,17 @@ async def select_burst_photos(
             if reject_paths:
                 set_photos_rejected(conn, reject_paths, user_id)
 
-            record_culling_pairs(
-                conn, keep_paths, reject_paths,
+            pairable_keep = [p for p in keep_paths if p not in sequence_members]
+            pairable_reject = [p for p in reject_paths if p not in sequence_members]
+            added = record_culling_pairs(
+                conn, pairable_keep, pairable_reject,
                 user_id=user_id, group_type='burst',
             )
 
             conn.commit()
             _invalidate_culling_groups_cache()
             from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, len(keep_paths) * len(reject_paths), conn=conn)
+            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
         except HTTPException:
@@ -1619,7 +1630,12 @@ def _keep_whole_kind_for(paths):
                 paths).fetchall()
         }
     # Unmixed, exactly as `_group_sequence_kind` requires: a burst that merely
-    # contains a panorama frame is still a set of competing takes.
+    # contains a panorama frame is still a set of competing takes for its
+    # ordinary members, so it does not get the full no-pairs treatment this
+    # function grants an unmixed set. The panorama frame itself is still
+    # protected -- `select_burst_photos` excludes any `_KEEP_WHOLE_KINDS`
+    # member from `record_culling_pairs` on its own, regardless of what this
+    # function returns.
     if len(kinds) != 1:
         return None
     kind = kinds.pop()
