@@ -10,6 +10,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom, filter } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import type { ComparisonStats } from '../../core/api/types';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -25,14 +26,6 @@ interface PairResponse {
   score_a?: number;
   score_b?: number;
   error?: string;
-}
-
-interface ComparisonStats {
-  total_comparisons: number;
-  winner_breakdown: Record<string, number>;
-  category_breakdown: { category: string; count: number }[];
-  unique_photos_compared: number;
-  min_comparisons_for_optimization?: number;
 }
 
 interface LearnedWeightsResponse {
@@ -187,11 +180,11 @@ interface LearnedWeightsResponse {
                   <span class="text-gray-400">{{ I18N.compare.stats.total_comparisons | translate }}</span>
                   <span class="text-right font-mono">{{ stats.total_comparisons }}</span>
                   <span class="text-gray-400">{{ I18N.compare.stats.a_wins | translate }}</span>
-                  <span class="text-right font-mono">{{ stats.winner_breakdown['a'] || 0 }}</span>
+                  <span class="text-right font-mono">{{ stats.winner_breakdown?.['a'] || 0 }}</span>
                   <span class="text-gray-400">{{ I18N.compare.stats.b_wins | translate }}</span>
-                  <span class="text-right font-mono">{{ stats.winner_breakdown['b'] || 0 }}</span>
+                  <span class="text-right font-mono">{{ stats.winner_breakdown?.['b'] || 0 }}</span>
                   <span class="text-gray-400">{{ I18N.compare.stats.ties_label | translate }}</span>
-                  <span class="text-right font-mono">{{ stats.winner_breakdown['tie'] || 0 }}</span>
+                  <span class="text-right font-mono">{{ stats.winner_breakdown?.['tie'] || 0 }}</span>
                 </div>
               } @else {
                 <p class="text-xs text-gray-500">{{ I18N.comparison.no_data_yet | translate }}</p>
@@ -314,15 +307,16 @@ export class ComparisonAbTabComponent {
     if (this.learnedWeightsLoading()) return true;
     const stats = this.comparisonStats();
     if (!stats) return true;
-    return stats.total_comparisons < (stats.min_comparisons_for_optimization ?? 30);
+    return (stats.total_comparisons ?? 0) < (stats.min_comparisons_for_optimization ?? 30);
   });
 
   protected readonly suggestTooltip = computed(() => {
     const stats = this.comparisonStats();
     if (!stats) return '';
     const min = stats.min_comparisons_for_optimization ?? 30;
-    if (stats.total_comparisons < min) {
-      return this.i18n.t(I18N.compare.tooltips.suggest_weights_disabled, { count: stats.total_comparisons, min });
+    const done = stats.total_comparisons ?? 0;
+    if (done < min) {
+      return this.i18n.t(I18N.compare.tooltips.suggest_weights_disabled, { count: done, min });
     }
     return this.i18n.t(I18N.compare.tooltips.suggest_weights);
   });

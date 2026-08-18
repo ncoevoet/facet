@@ -38,6 +38,7 @@ export interface PhotosResponse {
   total: number;
   page: number;
   per_page: number;
+  total_pages: number;
   has_more: boolean;
   hidden_summary?: HiddenSummary;
 }

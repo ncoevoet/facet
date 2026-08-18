@@ -11,6 +11,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSliderModule } from '@angular/material/slider';
 import { ApiService } from '../../core/services/api.service';
+import type { ComparisonStats } from '../../core/api/types';
 import { AuthService } from '../../core/services/auth.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { GalleryStore } from './gallery.store';
@@ -189,12 +190,6 @@ interface SceneSummary {
   end: string | null;
   count: number;
   moment?: string | null;
-}
-
-/** Minimal read-shape of GET /comparison/stats needed for the per-category weight-tuning chip. */
-interface ComparisonStatsLite {
-  category_breakdown?: { category: string; count: number }[];
-  min_comparisons_for_optimization?: number;
 }
 
 interface ShortcutRow {
@@ -1861,7 +1856,7 @@ export class BurstCullingComponent implements OnDestroy {
   });
 
   /** Per-category comparison counts + threshold, for the weight-tuning chip. */
-  protected readonly comparisonStats = signal<ComparisonStatsLite | null>(null);
+  protected readonly comparisonStats = signal<ComparisonStats | null>(null);
 
   /** Dry-run result of POST /culling/auto shown in the confirm dialog (null = closed). */
   protected readonly autoCullPreview = signal<AutoCullResponse | null>(null);
@@ -3313,7 +3308,7 @@ export class BurstCullingComponent implements OnDestroy {
   /** Fetch per-category comparison counts + threshold for the weight-tuning chip. */
   private async refreshComparisonStats(): Promise<void> {
     try {
-      const stats = await firstValueFrom(this.api.get<ComparisonStatsLite>('/comparison/stats'));
+      const stats = await firstValueFrom(this.api.get<ComparisonStats>('/comparison/stats'));
       this.comparisonStats.set(stats);
     } catch {
       // Best-effort: the chip simply stays hidden if stats are unavailable.

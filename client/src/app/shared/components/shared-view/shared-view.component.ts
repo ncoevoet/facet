@@ -39,11 +39,7 @@ import { SlideshowComponent } from '../../../features/gallery/slideshow.componen
 import { InfiniteScrollDirective } from '../../directives/infinite-scroll.directive';
 import { PluralKeyPipe } from '../../pipes/plural-key.pipe';
 import { I18N, I18N_KEYS } from '../../../core/i18n/keys';
-
-interface SortOption {
-  column: string;
-  label: string;
-}
+import type { ViewerConfig, SortOption } from '../../../features/gallery/gallery.store';
 
 interface FilterOption {
   value: string;
@@ -77,12 +73,6 @@ interface SharedPick {
   path: string;
   picked: boolean;
   comment: string | null;
-}
-
-interface ViewerConfig {
-  quality_thresholds?: { excellent: number; great: number; good: number };
-  features?: Record<string, boolean>;
-  sort_options_grouped?: Record<string, SortOption[]>;
 }
 
 interface SharedFilters {
@@ -568,7 +558,9 @@ export class SharedViewComponent implements OnInit {
   protected readonly isManualAlbum = signal(false);
 
   // Config (for sort options and card config)
-  protected readonly config = signal<ViewerConfig | null>(null);
+  // Partial: the shared view synthesises a config from the album response when
+  // /api/config has not been read, so it legitimately holds a subset of the keys.
+  protected readonly config = signal<Partial<ViewerConfig> | null>(null);
 
   protected readonly cardConfig = computed(() => {
     const c = this.config();
@@ -748,7 +740,7 @@ export class SharedViewComponent implements OnInit {
 
     // Fetch config for quality thresholds (used by photo cards)
     try {
-      const cfg = await firstValueFrom(this.api.get<ViewerConfig>('/config'));
+      const cfg = await firstValueFrom(this.api.get<Partial<ViewerConfig>>('/config'));
       this.config.set(cfg);
     } catch {
       // Non-critical — continue without config
@@ -1062,8 +1054,9 @@ export class SharedViewComponent implements OnInit {
     }
 
     // Apply sort_options_grouped from API response if available and config doesn't have them
-    if (res.sort_options_grouped && !this.config()?.sort_options_grouped) {
-      this.config.update(c => c ? { ...c, sort_options_grouped: res.sort_options_grouped } : { sort_options_grouped: res.sort_options_grouped });
+    const grouped = res.sort_options_grouped;
+    if (grouped && !this.config()?.sort_options_grouped) {
+      this.config.update(c => c ? { ...c, sort_options_grouped: grouped } : { sort_options_grouped: grouped });
     }
 
     // Store filter options (returned on page 1 for manual albums)

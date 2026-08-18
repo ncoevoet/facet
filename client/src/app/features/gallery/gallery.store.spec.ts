@@ -85,6 +85,7 @@ function makePhotosResponse(overrides: Partial<PhotosResponse> = {}): PhotosResp
     total: 1,
     page: 1,
     per_page: 64,
+    total_pages: 1,
     has_more: false,
     ...overrides,
   };

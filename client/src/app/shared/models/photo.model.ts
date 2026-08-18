@@ -73,6 +73,8 @@ export interface Photo {
   // Classification
   category: string | null;
   narrative_moment?: string | null;
+  /** Junk classification. 'not_junk' means evaluated and clean; absent means never evaluated. */
+  junk_kind?: string | null;
   narrative_moment_confidence?: number | null;
   tags?: string | null;
   tags_list: string[];

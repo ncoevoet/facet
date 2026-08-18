@@ -1,6 +1,7 @@
 import { Pipe, PipeTransform, inject } from '@angular/core';
 import { I18nService } from '../../core/services/i18n.service';
 import { SEQUENCE_KIND_ICONS } from '../../shared/pipes/sequence-kind.pipe';
+import type { ComparisonStats } from '../../core/api/types';
 
 /** Backend-supplied machine reason key + optional value for why a photo ranks lower. */
 export interface CullReason {
@@ -230,12 +231,6 @@ export class SubjectRingClassPipe implements PipeTransform {
   }
 }
 
-/** Per-category comparison count + threshold, for the weight-tuning progress chip. */
-export interface WeightStats {
-  category_breakdown?: { category: string; count: number }[];
-  min_comparisons_for_optimization?: number;
-}
-
 /**
  * Comparisons still needed in a category before weight optimization unlocks.
  * Returns 0 (falsy) once the threshold is met, so the template's `@else` branch
@@ -246,7 +241,7 @@ export class WeightRemainingPipe implements PipeTransform {
   /** Mirrors scoring_config viewer.comparison_mode.min_comparisons_for_optimization. */
   private static readonly DEFAULT_THRESHOLD = 50;
 
-  transform(category: string | null | undefined, stats: WeightStats | null): number {
+  transform(category: string | null | undefined, stats: ComparisonStats | null): number {
     if (!category || !stats) return 0;
     const threshold = stats.min_comparisons_for_optimization ?? WeightRemainingPipe.DEFAULT_THRESHOLD;
     const count = stats.category_breakdown?.find(c => c.category === category)?.count ?? 0;

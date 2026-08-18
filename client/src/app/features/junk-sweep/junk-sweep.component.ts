@@ -20,21 +20,8 @@ import { createLoupeState } from '../../shared/utils/loupe-state';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { JunkKindLabelPipe, JunkKindIconPipe } from './junk-sweep.pipes';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
-
-interface JunkPhoto {
-  path: string;
-  filename: string;
-  junk_kind: string | null;
-  aggregate: number | null;
-}
-
-interface PhotosResponse {
-  photos: JunkPhoto[];
-  total: number;
-  total_pages: number;
-  page: number;
-  has_more: boolean;
-}
+import type { PhotosResponse } from '../gallery/gallery.store';
+import { normalisePhotoFlagsAll, type Photo } from '../../shared/models/photo.model';
 
 const ANY_KIND = 'any';
 
@@ -178,7 +165,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     });
   }
 
-  protected readonly photos = signal<JunkPhoto[]>([]);
+  protected readonly photos = signal<Photo[]>([]);
   protected readonly kinds = signal<[string, number][]>([]);
   protected readonly activeKind = signal<string>(ANY_KIND);
   protected readonly loading = signal(true);
@@ -245,7 +232,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
         }),
       );
       if (gen !== this.loadGeneration) return;
-      this.photos.update(list => [...list, ...data.photos]);
+      this.photos.update(list => [...list, ...normalisePhotoFlagsAll(data.photos)]);
       this.total.set(data.total);
       this.hasMore.set(this.page < data.total_pages);
     } catch {
@@ -263,7 +250,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
   }
 
   /** Keep a candidate: clear its junk label so it leaves the queue permanently. */
-  protected async keep(photo: JunkPhoto): Promise<void> {
+  protected async keep(photo: Photo): Promise<void> {
     this.removeLocal(photo);
     try {
       await firstValueFrom(this.api.post('/photo/clear_junk', { photo_path: photo.path }));
@@ -275,7 +262,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
   }
 
   /** Reject a candidate via the shared batch_reject plumbing (single path). */
-  protected async reject(photo: JunkPhoto): Promise<void> {
+  protected async reject(photo: Photo): Promise<void> {
     this.removeLocal(photo);
     try {
       await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: [photo.path] }));
@@ -324,7 +311,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     this.notify(I18N.junk.load_error, 3000);
   }
 
-  private removeLocal(photo: JunkPhoto): void {
+  private removeLocal(photo: Photo): void {
     this.photos.update(list => list.filter(p => p.path !== photo.path));
     this.total.update(t => Math.max(0, t - 1));
     if (photo.junk_kind) {
@@ -333,7 +320,7 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     }
   }
 
-  private restoreLocal(photo: JunkPhoto): void {
+  private restoreLocal(photo: Photo): void {
     this.photos.update(list => [photo, ...list]);
     this.total.update(t => t + 1);
     if (photo.junk_kind) {
