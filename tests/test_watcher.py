@@ -367,3 +367,37 @@ class TestRunWatchLoopFailureHandling:
         watcher.run_watch_loop(["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=False)
 
         assert len(runs) == 6
+
+    def test_a_failing_initial_scan_does_not_count_toward_max_consecutive_failures(self, monkeypatch, tmp_path):
+        """Pins current intent (processing/watcher.py:125-126 discards the initial
+        scan's return value), rather than changing behaviour: a failing initial
+        scan must not consume any of the MAX_CONSECUTIVE_FAILURES budget, so it
+        still takes a full MAX_CONSECUTIVE_FAILURES in-loop failures to stop.
+        """
+        native = _FakeObserver()
+        monkeypatch.setattr(watchdog.observers, "Observer", lambda: native)
+        monkeypatch.setattr(watchdog.observers.polling, "PollingObserver", lambda: _FakeObserver())
+
+        returncodes = iter([1, 1, 1, 1])
+        runs = []
+
+        def fake_run(cmd, *a, **kw):
+            runs.append(cmd)
+            return SimpleNamespace(returncode=next(returncodes))
+
+        monkeypatch.setattr(watcher.subprocess, "run", fake_run)
+
+        calls = {"n": 0}
+
+        def fake_sleep(seconds):
+            calls["n"] += 1
+            if calls["n"] > MAX_CONSECUTIVE_FAILURES + 2:
+                raise AssertionError("watch loop did not stop after MAX_CONSECUTIVE_FAILURES in-loop failures")
+            handler, _, _ = native.scheduled[0]
+            handler.on_created(SimpleNamespace(is_directory=False, src_path=f"/library/f{calls['n']}.jpg"))
+
+        monkeypatch.setattr(watcher.time, "sleep", fake_sleep)
+
+        watcher.run_watch_loop(["/library"], str(tmp_path / "photos.db"), debounce_seconds=0, initial_scan=True)
+
+        assert len(runs) == 1 + MAX_CONSECUTIVE_FAILURES

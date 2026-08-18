@@ -165,6 +165,26 @@ const PHOTO_FLAG_FIELDS = [
   'is_rejected',
 ] as const;
 
+type PhotoFlagField = typeof PHOTO_FLAG_FIELDS[number];
+
+type PhotoBooleanField = {
+  [K in keyof Photo]-?: [NonNullable<Photo[K]>] extends [boolean] ? K : never;
+}[keyof Photo];
+
+type AssertNever<T extends never> = T;
+
+/**
+ * Compile-time proof that {@link PHOTO_FLAG_FIELDS} lists every field `Photo`
+ * declares as a boolean.
+ *
+ * SQLite has no boolean type, so a new `boolean` declaration means a new 0/1
+ * column, and one left off the list above would be coerced nowhere — the exact
+ * bug the normaliser exists to prevent, reintroduced silently on a field nobody
+ * thought to re-check. Adding the field to `PHOTO_FLAG_FIELDS` is the fix; a
+ * genuinely non-wire boolean belongs on a nested type, not on `Photo`.
+ */
+export type PhotoFlagCoverage = AssertNever<Exclude<PhotoBooleanField, PhotoFlagField>>;
+
 /**
  * Coerce the 0/1 flag columns to real booleans as a photo enters the client.
  *

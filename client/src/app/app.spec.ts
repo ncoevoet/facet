@@ -374,10 +374,14 @@ describe('App', () => {
   });
 
   describe('new release notice', () => {
+    const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
+
     function withRelease(payload: unknown, { edition = true } = {}) {
-      const onAction = vi.fn(() => new Subject<void>());
+      const actionSubject = new Subject<void>();
+      const onAction = vi.fn(() => actionSubject);
       const open = vi.fn(() => ({ onAction }));
       const get = vi.fn(() => of(payload));
+      const t = vi.fn((key: string, vars?: Record<string, string>) => (vars ? `${key}:${vars['version']}` : key));
       const { app } = createApp('/', [
         {
           provide: AuthService,
@@ -389,8 +393,18 @@ describe('App', () => {
         },
         { provide: ApiService, useValue: { get, post: vi.fn(() => NEVER) } },
         { provide: MatSnackBar, useValue: { open } },
+        {
+          provide: I18nService,
+          useValue: {
+            load: vi.fn(() => Promise.resolve()),
+            loadLanguages: vi.fn(() => Promise.resolve()),
+            languages: signal([]),
+            t,
+            translations: signal({}),
+          },
+        },
       ]);
-      return { app, get, open };
+      return { app, get, open, actionSubject };
     }
 
     const AVAILABLE = { update_available: true, latest: 'v9.9.9', release_url: 'https://example/r' };
@@ -406,16 +420,42 @@ describe('App', () => {
       expect(get).toHaveBeenCalledWith('/updates/check');
     });
 
-    it('opens the notice when the server reports an update', async () => {
+    it('opens the notice with the interpolated version and a View action', async () => {
       const { app, open } = withRelease(AVAILABLE);
       await (app as any).maybeAnnounceNewRelease();
-      expect(open).toHaveBeenCalled();
+      expect(open).toHaveBeenCalledWith(
+        `${I18N.updates.available}:${AVAILABLE.latest}`,
+        I18N.updates.view,
+        { duration: 15000 },
+      );
+    });
+
+    it('drives window.open with the release URL when the View action fires', async () => {
+      const { app, actionSubject } = withRelease(AVAILABLE);
+      const openSpy = vi.spyOn(window, 'open').mockImplementation(() => null);
+      await (app as any).maybeAnnounceNewRelease();
+      actionSubject.next();
+      expect(openSpy).toHaveBeenCalledWith(AVAILABLE.release_url, '_blank', 'noopener');
+      openSpy.mockRestore();
+    });
+
+    it('stamps the notice as shown once it fires, so a reload cannot re-show it', async () => {
+      const { app } = withRelease(AVAILABLE);
+      expect(localStorage.getItem(RELEASE_NOTICE_KEY)).toBeNull();
+      await (app as any).maybeAnnounceNewRelease();
+      expect(localStorage.getItem(RELEASE_NOTICE_KEY)).not.toBeNull();
     });
 
     it('stays quiet when the server reports no update', async () => {
       const { app, open } = withRelease({ update_available: false, latest: null, release_url: null });
       await (app as any).maybeAnnounceNewRelease();
       expect(open).not.toHaveBeenCalled();
+    });
+
+    it('does not stamp the notice when there is no update to report', async () => {
+      const { app } = withRelease({ update_available: false, latest: null, release_url: null });
+      await (app as any).maybeAnnounceNewRelease();
+      expect(localStorage.getItem(RELEASE_NOTICE_KEY)).toBeNull();
     });
 
     it('never reaches the endpoint outside edition mode', async () => {
@@ -425,8 +465,6 @@ describe('App', () => {
     });
 
     describe('on startup', () => {
-      const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
-
       function withStartup(payload: unknown, { edition = true } = {}) {
         const onAction = vi.fn(() => new Subject<void>());
         const open = vi.fn(() => ({ onAction }));
