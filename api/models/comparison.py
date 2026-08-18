@@ -1,6 +1,6 @@
 """Pydantic response models for the comparison / tuning-config endpoints."""
 
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 from pydantic import BaseModel
 
@@ -16,7 +16,7 @@ class NextPairResponse(BaseModel):
 
 
 class DownloadOption(BaseModel):
-    type: str
+    type: Literal['original', 'darktable', 'raw']
     label: str
     profile: Optional[str] = None
     extension: Optional[str] = None
@@ -58,7 +58,7 @@ class ComparisonCategoryCount(BaseModel):
 
 class ComparisonStatsResponse(BaseModel):
     total_comparisons: Optional[int] = None
-    winner_breakdown: dict = {}
+    winner_breakdown: dict[str, int] = {}
     category_breakdown: list[ComparisonCategoryCount] = []
     unique_photos_compared: Optional[int] = None
     recent_optimization_runs: list[dict] = []

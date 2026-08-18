@@ -9,7 +9,7 @@ while every non-fallback row emits a ``ROUND(...)`` ``float``. Declaring
 against.
 """
 
-from typing import Dict, List, Optional, Union
+from typing import Optional, Union
 
 from pydantic import BaseModel
 
@@ -80,7 +80,7 @@ class StatsGearItem(BaseModel):
     avg_face_count: Union[int, float]
     avg_monochrome: Union[int, float]
     avg_dynamic_range: Union[int, float]
-    history: List[StatsGearHistoryPoint]
+    history: list[StatsGearHistoryPoint]
 
 
 class StatsGearCategoryCount(BaseModel):
@@ -89,10 +89,10 @@ class StatsGearCategoryCount(BaseModel):
 
 
 class StatsGearResponse(BaseModel):
-    cameras: List[StatsGearItem]
-    lenses: List[StatsGearItem]
-    combos: List[StatsGearItem]
-    categories: List[StatsGearCategoryCount]
+    cameras: list[StatsGearItem]
+    lenses: list[StatsGearItem]
+    combos: list[StatsGearItem]
+    categories: list[StatsGearCategoryCount]
 
 
 class StatsCorrelationBucket(BaseModel):
@@ -111,29 +111,29 @@ class StatsCorrelationBucket(BaseModel):
 
 
 class StatsCorrelationsGroupedResponse(BaseModel):
-    labels: List[str]
-    groups: Dict[str, Dict[str, StatsCorrelationBucket]]
-    metrics: List[str]
+    labels: list[str]
+    groups: dict[str, dict[str, StatsCorrelationBucket]]
+    metrics: list[str]
     x_axis: str
     group_by: str
 
 
 class StatsCorrelationsUngroupedResponse(BaseModel):
-    labels: List[str]
-    metrics: Dict[str, List[Optional[float]]]
-    counts: List[int]
+    labels: list[str]
+    metrics: dict[str, list[Optional[float]]]
+    counts: list[int]
     x_axis: str
     group_by: str
 
 
 class StatsCategoryCorrelationsResponse(BaseModel):
-    correlations: Dict[str, Dict[str, Optional[Union[float, int]]]]
-    configured_weights: Dict[str, Dict[str, Optional[Union[int, float]]]]
-    dimensions: List[str]
+    correlations: dict[str, dict[str, Optional[Union[float, int]]]]
+    configured_weights: dict[str, dict[str, Optional[Union[int, float]]]]
+    dimensions: list[str]
 
 
 class StatsOverlapPair(BaseModel):
-    pair: List[str]
+    pair: list[str]
     count: int
 
 
@@ -146,8 +146,8 @@ class StatsCategoryOverlapSummary(BaseModel):
 
 
 class StatsCategoryOverlapResponse(BaseModel):
-    overlaps: List[StatsOverlapPair]
-    per_category: List[StatsCategoryOverlapSummary]
+    overlaps: list[StatsOverlapPair]
+    per_category: list[StatsCategoryOverlapSummary]
     uncategorized: int
     total: int
 

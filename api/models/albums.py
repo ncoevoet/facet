@@ -5,18 +5,14 @@ from typing import Any, Optional
 
 from pydantic import BaseModel
 
+from api.models.common import PaginationEnvelope
 from api.models.gallery import Photo
 
 
-class AlbumPhotosResponse(BaseModel):
+class AlbumPhotosResponse(PaginationEnvelope):
     """Paginated photo listing for one album (owner view)."""
 
     photos: list[Photo]
-    total: int
-    page: int
-    per_page: int
-    total_pages: int
-    has_more: bool
 
 
 class Album(BaseModel):
@@ -49,7 +45,7 @@ class AlbumFilterOptions(BaseModel):
     categories: list[AlbumFilterOptionItem] = []
 
 
-class SharedAlbumResponse(BaseModel):
+class SharedAlbumResponse(PaginationEnvelope):
     """The anonymous share-token view of an album.
 
     Carries the same photo listing shape as the owner-facing album-photos
@@ -61,11 +57,6 @@ class SharedAlbumResponse(BaseModel):
     """
 
     photos: list[Photo]
-    total: int
-    page: int
-    per_page: int
-    total_pages: int
-    has_more: bool
     album: Album
     effective_sort: str
     effective_sort_direction: str

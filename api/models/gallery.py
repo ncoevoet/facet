@@ -3,6 +3,8 @@
 from pydantic import BaseModel, Field
 from typing import Optional
 
+from api.models.common import PaginationEnvelope
+
 
 class PhotoPerson(BaseModel):
     id: int
@@ -135,7 +137,7 @@ class HiddenSummary(BaseModel):
     panoramas: int
 
 
-class PhotosResponse(BaseModel):
+class PhotosResponse(PaginationEnvelope):
     """The gallery listing.
 
     Both ``total`` and ``total_pages`` are on the wire: the gallery store reads
@@ -143,11 +145,6 @@ class PhotosResponse(BaseModel):
     """
 
     photos: list[Photo]
-    page: int
-    total: int
-    per_page: int
-    total_pages: int
-    has_more: bool
     sort_col: str
     hidden_summary: Optional[HiddenSummary] = None
 

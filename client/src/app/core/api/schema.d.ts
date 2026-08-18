@@ -1640,8 +1640,10 @@ export interface paths {
          *     ``color_temp`` / ``dominant_hue`` columns.
          *
          *     Cached in ``stats_cache`` (300s TTL) like the sibling dropdowns so the full
-         *     column scan runs at most once per window; bypassed in multi-user mode where
-         *     the counts are visibility-scoped per user.
+         *     column scan runs at most once per window. ``use_cache`` gates the read AND
+         *     the write, so a restricted caller neither reads the whole-library facets nor
+         *     persists its own ``AND 0=1`` result over them — writing back would blank the
+         *     real user's colour filter for a whole TTL.
          */
         get: operations["colors_api_filter_options_colors_get"];
         put?: never;
@@ -1826,6 +1828,11 @@ export interface paths {
         /**
          * Tags
          * @description Lazy-load tag options with counts.
+         *
+         *     Owns a private cache branch instead of ``_cached_filter_query`` because the
+         *     payload is trimmed to ``max_tags`` on the way out, but it is gated on the
+         *     same rule: the cached list is whole-library, so a caller with a non-empty
+         *     ``vis`` fragment must miss it and run the clause.
          */
         get: operations["tags_api_filter_options_tags_get"];
         put?: never;
@@ -4668,7 +4675,7 @@ export interface components {
              * @default {}
              */
             winner_breakdown?: {
-                [key: string]: unknown;
+                [key: string]: number;
             };
         };
         /** ComparisonSubmitBody */
@@ -4895,8 +4902,11 @@ export interface components {
             label: string;
             /** Profile */
             profile?: string | null;
-            /** Type */
-            type: string;
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "original" | "darktable" | "raw";
         };
         /** DownloadOptionsResponse */
         DownloadOptionsResponse: {
