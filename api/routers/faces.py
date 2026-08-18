@@ -17,7 +17,7 @@ from api.database import get_async_db, get_db
 from api.db_helpers import (
     update_person_face_count, trigger_auto_retrain, get_visibility_clause,
     assert_faces_visible, assert_photo_visible, repair_stale_representative,
-    is_locked_error, retry_on_locked,
+    is_locked_error, retry_on_locked, select_in_chunks,
 )
 from api.types import JUNK_NOT_JUNK
 from api.models.culling import (
@@ -63,6 +63,63 @@ class BatchPhotoRequest(BaseModel):
 class BatchRatingRequest(BaseModel):
     photo_paths: list[str] = Field(max_length=1000)
     rating: int = Field(ge=0, le=5)
+
+
+def _require_writable_photo(conn, user, photo_path):
+    """404 unless ``photo_path`` exists AND this caller may write it.
+
+    Both halves are load-bearing and neither replaces the other:
+
+    * ``assert_photo_visible`` is a no-op outside multi-user mode, so on a
+      single-user install it says nothing about existence — and an
+      ``UPDATE photos ... WHERE path = ?`` against an unknown path matches zero
+      rows, which the handlers would otherwise report as success.
+    * a bare existence probe answers for every tenant's library, turning the
+      404 into a per-path existence oracle — and lets the handler write a
+      ``user_preferences`` row for a photo the caller cannot see.
+
+    Both failure modes collapse onto the same 404, so "absent" and "not yours"
+    stay indistinguishable.
+    """
+    try:
+        assert_photo_visible(conn, user.user_id if user else None, photo_path)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="Photo not found") from None
+    if not conn.execute("SELECT 1 FROM photos WHERE path = ?", (photo_path,)).fetchone():
+        raise HTTPException(status_code=404, detail="Photo not found")
+
+
+def _writable_photo_paths(conn, user, photo_paths):
+    """Return the subset of ``photo_paths`` that exists AND this caller may write.
+
+    The batch twin of :func:`_require_writable_photo`, and it drops rather than
+    raises: a batch cannot answer 404 for one bad path out of a thousand without
+    discarding the 999 good ones, and answering differently per path is the same
+    existence oracle the single-photo guard exists to close. Callers report the
+    count actually written instead, so an unwritable path is indistinguishable
+    from an absent one.
+
+    One query does both halves. Existence alone is not enough — it writes
+    ``user_preferences`` rows for other tenants' photos — and the visibility
+    clause alone is not enough either, because it is ``1=1`` outside multi-user
+    mode and so says nothing about whether the row is there.
+
+    Duplicates are collapsed, so ``count`` cannot exceed the number of distinct
+    photos the write touched.
+    """
+    if not photo_paths:
+        return []
+    vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
+    writable = {
+        row[0]
+        for row in select_in_chunks(
+            conn,
+            f"SELECT path FROM photos WHERE path IN ({{placeholders}}) AND {vis_sql}",
+            photo_paths,
+            after=vis_params,
+        )
+    }
+    return [path for path in dict.fromkeys(photo_paths) if path in writable]
 
 
 @router.get("/api/person/{person_id}/faces", response_model=PersonFacesResponse, response_model_exclude_unset=True)
@@ -367,6 +424,7 @@ def api_set_rating(
     """Set star rating (0-5) for a photo."""
     with get_db() as conn:
         try:
+            _require_writable_photo(conn, user, body.photo_path)
             if user.user_id and is_multi_user_enabled():
                 conn.execute("""
                     INSERT INTO user_preferences (user_id, photo_path, star_rating)
@@ -396,11 +454,8 @@ def api_toggle_favorite(
     """Toggle favorite flag for a photo."""
     with get_db() as conn:
         try:
+            _require_writable_photo(conn, user, body.photo_path)
             if user.user_id and is_multi_user_enabled():
-                if not conn.execute(
-                    "SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)
-                ).fetchone():
-                    raise HTTPException(status_code=404, detail="Photo not found")
                 row = conn.execute(
                     "SELECT is_favorite FROM user_preferences WHERE user_id = ? AND photo_path = ?",
                     (user.user_id, body.photo_path)
@@ -421,8 +476,6 @@ def api_toggle_favorite(
                     """, (user.user_id, body.photo_path))
             else:
                 row = conn.execute("SELECT is_favorite FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
-                if not row:
-                    raise HTTPException(status_code=404, detail="Photo not found")
                 new_value = 0 if row['is_favorite'] else 1
                 if new_value == 1:
                     conn.execute("UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path = ?", (body.photo_path,))
@@ -451,11 +504,8 @@ def api_toggle_rejected(
     """Toggle rejected flag for a photo."""
     with get_db() as conn:
         try:
+            _require_writable_photo(conn, user, body.photo_path)
             if user.user_id and is_multi_user_enabled():
-                if not conn.execute(
-                    "SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)
-                ).fetchone():
-                    raise HTTPException(status_code=404, detail="Photo not found")
                 row = conn.execute(
                     "SELECT is_rejected FROM user_preferences WHERE user_id = ? AND photo_path = ?",
                     (user.user_id, body.photo_path)
@@ -476,8 +526,6 @@ def api_toggle_rejected(
                     """, (user.user_id, body.photo_path))
             else:
                 row = conn.execute("SELECT is_rejected FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
-                if not row:
-                    raise HTTPException(status_code=404, detail="Photo not found")
                 new_value = 0 if row['is_rejected'] else 1
                 if new_value == 1:
                     conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path = ?", (body.photo_path,))
@@ -511,17 +559,11 @@ def api_clear_junk(
     """
     with get_db() as conn:
         try:
-            assert_photo_visible(conn, user.user_id if user else None, body.photo_path)
-            row = conn.execute("SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
-            if not row:
-                raise HTTPException(status_code=404, detail="Photo not found")
+            _require_writable_photo(conn, user, body.photo_path)
             conn.execute("UPDATE photos SET junk_kind = ? WHERE path = ?", (JUNK_NOT_JUNK, body.photo_path))
             conn.commit()
             _stats_cache.clear()
             return {'success': True, 'junk_kind': None}
-        except LookupError:
-            conn.rollback()
-            raise HTTPException(status_code=404, detail="Photo not found")
         except HTTPException:
             raise
         except sqlite3.Error as ex:
@@ -537,23 +579,43 @@ def _batch_update(
     photo_paths: list[str],
     user: CurrentUser,
     multi_user_sql: str,
-    multi_user_params: list[tuple],
+    multi_user_row,
     single_user_sql: str,
-    single_user_params: list,
+    single_user_prefix: tuple = (),
 ) -> dict:
-    """Execute a batch update on photos with transaction and cache invalidation."""
+    """Execute a batch update on photos with transaction and cache invalidation.
+
+    ``count`` is the number of photos actually written, not the number asked
+    for: :func:`_writable_photo_paths` drops the paths that do not exist or that
+    this caller may not see. Writing them was two defects at once — a stale path
+    made ``executemany`` raise a FOREIGN KEY ``IntegrityError`` that surfaced as
+    a 500 and lost the whole batch, and in multi-user mode nothing stopped a
+    caller creating ``user_preferences`` rows for photos outside her own
+    directories.
+
+    ``multi_user_row`` builds one bind tuple per path and ``single_user_sql``
+    carries a ``{placeholders}`` field, because both have to be built from the
+    filtered list rather than from the request.
+    """
     if not photo_paths:
         return {'success': True, 'count': 0}
 
     with get_db() as conn:
         try:
+            paths = _writable_photo_paths(conn, user, photo_paths)
+            if not paths:
+                return {'success': True, 'count': 0}
             if user.user_id and is_multi_user_enabled():
-                conn.executemany(multi_user_sql, multi_user_params)
+                conn.executemany(multi_user_sql, [multi_user_row(path) for path in paths])
             else:
-                conn.execute(single_user_sql, single_user_params)
+                placeholders = ','.join('?' * len(paths))
+                conn.execute(
+                    single_user_sql.format(placeholders=placeholders),
+                    [*single_user_prefix, *paths],
+                )
             conn.commit()
             _stats_cache.clear()
-            return {'success': True, 'count': len(photo_paths)}
+            return {'success': True, 'count': len(paths)}
         except HTTPException:
             raise
         except sqlite3.Error as ex:
@@ -570,7 +632,6 @@ def api_batch_favorite(
     user: CurrentUser = Depends(require_edition),
 ):
     """Mark multiple photos as favorite (clears rejected)."""
-    placeholders = ','.join('?' * len(body.photo_paths))
     return _batch_update(
         body.photo_paths, user,
         multi_user_sql="""
@@ -578,9 +639,8 @@ def api_batch_favorite(
             VALUES (?, ?, 1, 0)
             ON CONFLICT(user_id, photo_path) DO UPDATE SET is_favorite = 1, is_rejected = 0
         """,
-        multi_user_params=[(user.user_id, p) for p in body.photo_paths],
-        single_user_sql=f"UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path IN ({placeholders})",
-        single_user_params=body.photo_paths,
+        multi_user_row=lambda path: (user.user_id, path),
+        single_user_sql="UPDATE photos SET is_favorite = 1, is_rejected = 0 WHERE path IN ({placeholders})",
     )
 
 
@@ -590,7 +650,6 @@ def api_batch_reject(
     user: CurrentUser = Depends(require_edition),
 ):
     """Mark multiple photos as rejected (clears favorite and rating)."""
-    placeholders = ','.join('?' * len(body.photo_paths))
     return _batch_update(
         body.photo_paths, user,
         multi_user_sql="""
@@ -598,9 +657,8 @@ def api_batch_reject(
             VALUES (?, ?, 1, 0, 0)
             ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
         """,
-        multi_user_params=[(user.user_id, p) for p in body.photo_paths],
-        single_user_sql=f"UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path IN ({placeholders})",
-        single_user_params=body.photo_paths,
+        multi_user_row=lambda path: (user.user_id, path),
+        single_user_sql="UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path IN ({placeholders})",
     )
 
 
@@ -610,7 +668,6 @@ def api_batch_rating(
     user: CurrentUser = Depends(require_edition),
 ):
     """Set star rating for multiple photos."""
-    placeholders = ','.join('?' * len(body.photo_paths))
     return _batch_update(
         body.photo_paths, user,
         multi_user_sql="""
@@ -618,7 +675,7 @@ def api_batch_rating(
             VALUES (?, ?, ?)
             ON CONFLICT(user_id, photo_path) DO UPDATE SET star_rating = excluded.star_rating
         """,
-        multi_user_params=[(user.user_id, p, body.rating) for p in body.photo_paths],
-        single_user_sql=f"UPDATE photos SET star_rating = ? WHERE path IN ({placeholders})",
-        single_user_params=[body.rating] + list(body.photo_paths),
+        multi_user_row=lambda path: (user.user_id, path, body.rating),
+        single_user_sql="UPDATE photos SET star_rating = ? WHERE path IN ({placeholders})",
+        single_user_prefix=(body.rating,),
     )
