@@ -15,10 +15,12 @@
 // expression such as `(click)="x > y"`.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, extname } from 'node:path';
+import { join, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const SRC_ROOT = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src', 'app');
+const SRC_ROOT = process.env.ICON_BUTTON_LABELS_SRC_ROOT
+  ? resolve(process.env.ICON_BUTTON_LABELS_SRC_ROOT)
+  : join(fileURLToPath(new URL('.', import.meta.url)), '..', 'src', 'app');
 const EXTENSIONS = new Set(['.html', '.ts']);
 const ICON_BUTTON_MARKERS = ['mat-icon-button', 'matIconButton'];
 const ARIA_LABEL_PATTERN = /(^|[^\w-])(aria-label|\[attr\.aria-label\])\s*=/;
@@ -47,14 +49,14 @@ function findOpenTags(content) {
       i++;
       continue;
     }
-    const tagNameMatch = /^<([a-zA-Z][a-zA-Z0-9-]*)/.exec(content.slice(i));
-    if (!tagNameMatch) {
-      i++;
-      continue;
-    }
     if (content.startsWith('<!--', i)) {
       const end = content.indexOf('-->', i);
       i = end === -1 ? len : end + 3;
+      continue;
+    }
+    const tagNameMatch = /^<([a-zA-Z][a-zA-Z0-9-]*)/.exec(content.slice(i));
+    if (!tagNameMatch) {
+      i++;
       continue;
     }
     const start = i;
