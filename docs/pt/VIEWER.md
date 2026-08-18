@@ -1030,6 +1030,8 @@ Os menus suspensos de filtro carregam sob demanda via API:
 
 A documentação interativa da API está disponível em `/api/docs` (Swagger UI) e o esquema OpenAPI em `/api/openapi.json`.
 
+Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/src/app/core/api/schema.d.ts` com `cd client && npm run gen:api`. O ficheiro gerado é versionado e a CI regenera-o, falhando se diferir: um modelo de resposta e o tipo com que o cliente o lê não podem divergir.
+
 ### Galeria
 
 | Endpoint | Descrição |

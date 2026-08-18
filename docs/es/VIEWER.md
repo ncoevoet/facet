@@ -1029,6 +1029,8 @@ Los desplegables de filtros se cargan bajo demanda mediante la API:
 
 La documentación interactiva de la API está disponible en `/api/docs` (Swagger UI) y el esquema OpenAPI en `/api/openapi.json`.
 
+Los tipos TypeScript del cliente se generan a partir de ese esquema en `client/src/app/core/api/schema.d.ts` con `cd client && npm run gen:api`. El archivo generado está versionado y CI lo regenera y falla si difiere: así, un modelo de respuesta y el tipo con el que el cliente lo lee no pueden divergir.
+
 ### Galería
 
 | Endpoint | Descripción |

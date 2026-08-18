@@ -78,6 +78,8 @@ cd client && npm run test          # Vitest builder, not `ng test`
 cd client && npx tsc --noEmit -p tsconfig.app.json && npx tsc --noEmit -p tsconfig.spec.json
 cd client && npx ng lint          # NOT covered by tsc: a `type` alias where the
                                   # rule wants `interface` type-checks clean and fails lint
+cd client && npm run gen:api      # regenerate src/app/core/api/schema.d.ts from the
+                                  # FastAPI OpenAPI schema; CI fails if it is stale
 ```
 
 Typecheck the two leaf projects, never the root `tsconfig.json`: it carries
@@ -276,7 +278,10 @@ wrong about:
   float and reads it back as `'0.0125'`. A column typed `TEXT` sends a string even
   when every value looks numeric.
 `tests/test_api_contract.py` now asserts wire types, so a declaration that lies about
-either of these fails there.
+either of these fails there. The response models enforce the same two facts server-side:
+`shutter_speed` is declared `Optional[str]` because the column is TEXT, and the flags are
+`Optional[int]` because SQLite has no boolean — Pydantic **coerces**, so declaring either
+as what it means rather than what it is silently rewrites the wire.
 
 Lookup and side tables: `photo_tags`, `faces`, `persons`, `albums`, `album_photos`,
 `album_client_picks`, `photo_scoring_overrides`, `photo_sequence_overrides`,

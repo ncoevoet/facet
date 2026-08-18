@@ -1030,6 +1030,8 @@ I menu a tendina dei filtri si caricano su richiesta tramite API:
 
 La documentazione interattiva delle API è disponibile in `/api/docs` (Swagger UI) e lo schema OpenAPI in `/api/openapi.json`.
 
+I tipi TypeScript del client sono generati da questo schema in `client/src/app/core/api/schema.d.ts` con `cd client && npm run gen:api`. Il file generato è versionato e la CI lo rigenera, fallendo se differisce: un modello di risposta e il tipo con cui il client lo legge non possono più divergere.
+
 ### Galleria
 
 | Endpoint | Descrizione |

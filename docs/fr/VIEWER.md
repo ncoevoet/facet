@@ -1032,6 +1032,8 @@ Les menus déroulants de filtre se chargent à la demande via l'API :
 
 La documentation interactive de l'API est disponible à `/api/docs` (Swagger UI) et le schéma OpenAPI à `/api/openapi.json`.
 
+Les types TypeScript du client sont générés à partir de ce schéma dans `client/src/app/core/api/schema.d.ts` par `cd client && npm run gen:api`. Le fichier généré est versionné et la CI le régénère puis échoue s'il diffère : un modèle de réponse et le type avec lequel le client le lit ne peuvent donc plus diverger.
+
 ### Galerie
 
 | Point d'accès | Description |

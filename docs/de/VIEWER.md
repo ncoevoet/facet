@@ -1031,6 +1031,8 @@ Filter-Dropdowns werden bei Bedarf über die API geladen:
 
 Eine interaktive API-Dokumentation ist unter `/api/docs` (Swagger UI) verfügbar, das OpenAPI-Schema unter `/api/openapi.json`.
 
+Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus diesem Schema nach `client/src/app/core/api/schema.d.ts` generiert. Die generierte Datei ist eingecheckt; die CI generiert sie neu und schlägt fehl, wenn sie abweicht — so können ein Response-Model und der Typ, mit dem der Client es liest, nicht auseinanderlaufen.
+
 ### Galerie
 
 | Endpunkt | Beschreibung |

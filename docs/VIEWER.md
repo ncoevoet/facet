@@ -1077,6 +1077,8 @@ Filter dropdowns load on-demand via API:
 
 Interactive API documentation is available at `/api/docs` (Swagger UI) and the OpenAPI schema at `/api/openapi.json`.
 
+The client's TypeScript types are generated from that schema into `client/src/app/core/api/schema.d.ts` by `cd client && npm run gen:api`. The generated file is committed, and CI regenerates it and fails if it differs — so a response model and the type the client reads it with cannot drift apart.
+
 ### Gallery
 
 | Endpoint | Description |

@@ -4,6 +4,19 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **The client's API types are generated from the server's OpenAPI schema.** `cd client && npm run gen:api` dumps `app.openapi()` and writes `client/src/app/core/api/schema.d.ts`; CI regenerates it and fails if it is stale, the same way `keys.ts` is gated. Every duplicated response interface now resolves to a single declaration — the comparison-stats shape, which had drifted into three incompatible copies, onto the generated type, and `PhotosResponse`, `ViewerConfig` and `SortOption` onto one canonical declaration each. A new contract test asserts that no field the client declares is absent from the server's — the automated form of the `is_best_of_burst` bug, where the client read a field no backend has ever sent.
+
+### Changed
+
+- **76 endpoints now declare a `response_model`**, up from 4. Every one is paired with `response_model_exclude_unset=True` and was accepted only on a byte-identical response: a plain `response_model` inflates the payload with `null` for every declared field the handler did not send, which would have turned the three-state `is_favorite` (absent / null / 0-1) into something the client reads differently. The models declare each field with the type the wire actually carries rather than the type its name suggests — `shutter_speed` is a TEXT column that reads back as the string `'0.0125'`, and the flags are 0/1 integers — because Pydantic coerces, and a coerced field is a silently rewritten response.
+
+### Fixed
+
+- **The shared `Photo` model never declared `junk_kind`**, though the server has always sent it and the junk-sweep view has always read it — that view kept a private four-field copy of the photo row to compensate, and every other view was blind to the field.
+- **A comparison-stats test asserted on a key the API has never returned.** Its mock invented `unique_photos` and `categories`, while `ComparisonManager.get_statistics()` returns `unique_photos_compared` and `category_breakdown`; with no response model the endpoint echoed the mock's dict back verbatim, so the assertion passed against a fiction. Declaring the real shape made the endpoint filter the invented keys and the test fail honestly.
+
 ## [1.13.1] "Catchlight" — 2026-08-17
 
 ### Fixed
