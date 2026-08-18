@@ -45,7 +45,15 @@ function runGenerator(schemaPath) {
   if (fs.existsSync(local)) {
     execFileSync(local, args, { stdio: 'inherit', cwd: clientDir });
   } else {
-    execFileSync('npx', ['--yes', pinnedGeneratorSpec(), ...args], { stdio: 'inherit', cwd: clientDir });
+    // --ignore-scripts: this branch downloads and installs openapi-typescript
+    // (and its transitive tree) on demand, with no local lockfile to check
+    // integrity hashes against, so nothing should be allowed to run an
+    // install/postinstall lifecycle script.
+    execFileSync(
+      'npx',
+      ['--yes', '--ignore-scripts', pinnedGeneratorSpec(), ...args],
+      { stdio: 'inherit', cwd: clientDir },
+    );
   }
 }
 

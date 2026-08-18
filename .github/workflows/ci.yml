@@ -103,48 +103,12 @@ jobs:
       - run: ruff check . --select E,F,W --ignore E501
       - name: Type check (ratchet against mypy-baseline.txt)
         # Not advisory: fails when the error count exceeds the committed
-        # baseline. The baseline only ever goes down -- fix errors and lower
-        # mypy-baseline.txt in the same change, never raise it to make room
-        # for new ones. mypy's own exit code is the source of truth: 0 is
-        # clean, 1 is "errors found", anything else is a crash or usage
-        # error that must fail loudly rather than silently read as 0 errors.
-        # The count is environment-dependent: this job installs only `ruff
-        # mypy` above, so mypy resolves far fewer imports than it would in a
-        # venv with the project's own dependencies (fastapi, pydantic,
-        # numpy, torch, ...) installed, which reports a different, higher
-        # count. The baseline tracks THIS job's environment, not a dev venv.
-        run: |
-          set +e
-          output=$(mypy api/ 2>&1)
-          status=$?
-          set -e
-          echo "$output"
-          if [ "$status" -eq 0 ]; then
-            current=0
-          elif [ "$status" -eq 1 ]; then
-            matches=$(echo "$output" | grep -cE 'Found [0-9]+ error' || true)
-            if [ "$matches" -ne 1 ]; then
-              echo "::error::mypy exited 1 but printed $matches 'Found N error' summary lines (expected exactly 1). Cannot trust the measurement."
-              exit 1
-            fi
-            current=$(echo "$output" | grep -oE 'Found [0-9]+ error' | grep -oE '[0-9]+')
-          else
-            echo "::error::mypy exited $status (crash or usage error, not 0-clean / 1-errors-found). Cannot trust the measurement."
-            exit 1
-          fi
-          baseline=$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' mypy-baseline.txt)
-          if ! [[ "$baseline" =~ ^[0-9]+$ ]]; then
-            echo "::error::mypy-baseline.txt must contain a single non-negative integer (surrounding whitespace is trimmed); got '$baseline'. Cannot trust the measurement."
-            exit 1
-          fi
-          echo "mypy errors: $current (baseline: $baseline)"
-          if [ "$current" -gt "$baseline" ]; then
-            echo "::error::mypy error count increased from $baseline to $current. Fix the new errors instead of raising mypy-baseline.txt."
-            exit 1
-          fi
-          if [ "$current" -lt "$baseline" ]; then
-            echo "::notice::mypy error count decreased from $baseline to $current. Lower mypy-baseline.txt to $current to lock in the improvement."
-          fi
+        # baseline. See scripts/check_mypy_ratchet.py's docstring for the
+        # full rationale, including why the count is environment-dependent
+        # (this job installs only `ruff mypy` above, so mypy resolves far
+        # fewer imports than a dev venv with the project's own dependencies
+        # installed, which reports a different, higher count).
+        run: python scripts/check_mypy_ratchet.py
       - name: Forbid broken FastAPI auth mock pattern
         run: |
           # Catches both direct ("api.routers.albums.require_edition") and
@@ -231,6 +195,7 @@ jobs:
         # screen reader. Stdlib-only (node:fs/node:path), so it runs before
         # npm install and costs nothing.
         run: node client/scripts/check-icon-button-labels.mjs
+      - run: node --test client/scripts/check-icon-button-labels.test.mjs
       - run: npm install --no-audit --no-fund
         working-directory: client
       - run: npx ng lint
