@@ -624,11 +624,24 @@ class TestWireTypeIsActuallyChecked:
 
 GENERATED_SCHEMA = CLIENT_SRC / 'core' / 'api' / 'schema.d.ts'
 
-# Fields the client attaches itself, which no server response carries.
-_CLIENT_ATTACHED_PHOTO_FIELDS = {
+# (client interface, field) pairs the paired response model legitimately does
+# not declare, each with the reason it is absent. Every entry is asserted to
+# still describe a real gap by `test_no_client_only_field_is_stale`, so an
+# entry cannot outlive the reason it was written for.
+_CLIENT_ONLY_FIELDS: dict[tuple[str, str], str] = {
     # Patched onto a row in gallery.store.ts from the separate
     # POST /api/photos/keeper_hints call, never sent with the photo row.
-    'keeper_hint',
+    ('Photo', 'keeper_hint'): 'client-derived, from POST /api/photos/keeper_hints',
+    # `GET /api/albums` declares no `response_model`, so its rows are not
+    # filtered and carry these two. The server's `Album` model backs only the
+    # album metadata embedded in `SharedAlbumResponse`, which has neither.
+    ('Album', 'first_photo_path'): 'served unfiltered by GET /api/albums, which has no response_model',
+    ('Album', 'photo_count'): 'served unfiltered by GET /api/albums, which has no response_model',
+}
+
+# Fields the client attaches itself, which no server response carries.
+_CLIENT_ATTACHED_PHOTO_FIELDS = {
+    field for interface, field in _CLIENT_ONLY_FIELDS if interface == 'Photo'
 }
 
 
@@ -662,3 +675,210 @@ class TestHandWrittenModelMatchesGeneratedSchema:
         assert len(generated) > 50, f"only parsed {len(generated)} fields — the regex has drifted"
         assert 'shutter_speed' in generated
         assert 'junk_kind' in generated
+
+
+# ---------------------------------------------------------------------------
+# EVERY hand-written client interface, against the live response model behind it.
+#
+# `response_model` FILTERS. A field the model does not declare is dropped from
+# an otherwise valid 200, and nothing above notices: the endpoint still answers,
+# the status is still 200, and every assertion written against the fields that
+# survived still passes. Deleting `sort_options_grouped` from
+# `ViewerConfigResponse` — read by `app.ts` and `shared-view.component.ts` — left
+# the entire suite green, and only `gallery.Photo` was pinned against it.
+#
+# `schema.d.ts` cannot close that on its own: it is generated FROM the server, so
+# regenerating it after a deletion erases the evidence. The client's own
+# hand-written interfaces are the one declaration of what the client reads that
+# does not move when the server does.
+#
+# The pairing is DERIVED, not listed: a client interface pairs with the live
+# schema of the same name, or with that name plus the `Response` suffix the
+# models use. There is no per-model list to maintain, so there is none to rot —
+# a new client interface named after its response model is covered the day it
+# lands. Interfaces that pair with nothing (dialog data, view models, request
+# bodies with invented names) are simply not checked; a speculative alias map
+# was tried first and produced false pairs, e.g. `SplitPersonResult` onto
+# `SplitPersonRequest`, so name equality is the only pairing rule.
+# ---------------------------------------------------------------------------
+
+_INTERFACE_HEAD = re.compile(r'\binterface ([A-Z][A-Za-z0-9_]*)(?:\s+extends\s+[^{]+)?\s*\{')
+
+
+def _interface_body(source: str, brace: int) -> tuple[str, int]:
+    """The text between ``source[brace]`` and its matching close brace."""
+    depth = 0
+    for i in range(brace, len(source)):
+        if source[i] == '{':
+            depth += 1
+        elif source[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return source[brace + 1:i], i
+    raise AssertionError(f"unbalanced interface body at offset {brace}")
+
+
+def _top_level_field_names(body: str) -> set[str]:
+    """The fields an interface declares itself, ignoring nested object literals.
+
+    Depth-tracked rather than indentation-matched: `ViewerConfig` nests eight
+    inline object literals whose members would otherwise be counted as its own
+    fields, and `[key: string]` index signatures and `foo(): void` methods must
+    not be counted at all — neither matches ``_FIELD``.
+    """
+    fields: set[str] = set()
+    depth, chunk = 0, ''
+    for ch in body:
+        if ch in '{[(':
+            depth += 1
+        elif ch in '}])':
+            depth -= 1
+        elif ch == ';' and depth == 0:
+            if (m := _FIELD.match(' '.join(chunk.split()) + ';')):
+                fields.add(m.group(1))
+            chunk = ''
+            continue
+        chunk += ch
+    return fields
+
+
+def _client_interfaces() -> dict[str, dict[Path, set[str]]]:
+    """Every interface the client hand-writes, mapped to its declared fields.
+
+    Keyed by name then by source file: the same name is declared in more than
+    one component (`LearnedWeightsResponse`, `PhotoFace`), and each declaration
+    is checked separately so the report names the file that has to change.
+    """
+    found: dict[str, dict[Path, set[str]]] = {}
+    for path in sorted(CLIENT_SRC.rglob('*.ts')):
+        if path.name == 'schema.d.ts' or path.name.endswith('.spec.ts'):
+            continue
+        source = re.sub(r'/\*.*?\*/', '', path.read_text(encoding='utf-8'), flags=re.S)
+        pos = 0
+        while (head := _INTERFACE_HEAD.search(source, pos)):
+            body, end = _interface_body(source, head.end() - 1)
+            fields = _top_level_field_names(re.sub(r'//[^\n]*', '', body))
+            found.setdefault(head.group(1), {})[path] = fields
+            pos = end + 1
+    return found
+
+
+def _paired_response_models(schemas: dict) -> dict[str, str]:
+    """Client interface name → the live schema name it mirrors."""
+    pairs = {}
+    for name in _client_interfaces():
+        for candidate in (name, name + 'Response'):
+            if candidate in schemas:
+                pairs[name] = candidate
+                break
+    return pairs
+
+
+def _stripped_fields(schemas: dict) -> list[str]:
+    """Fields a paired client interface reads that its response model drops."""
+    interfaces = _client_interfaces()
+    reports = []
+    for interface, schema_name in _paired_response_models(schemas).items():
+        declared = set(schemas[schema_name].get('properties', {}))
+        for path, fields in interfaces[interface].items():
+            missing = sorted(
+                f for f in fields - declared
+                if (interface, f) not in _CLIENT_ONLY_FIELDS
+            )
+            if missing:
+                reports.append(
+                    f"{schema_name} does not declare {missing}, read by {interface} "
+                    f"in {path.relative_to(REPO_ROOT)}"
+                )
+    return reports
+
+
+class TestResponseModelsCarryWhatTheClientReads:
+    """No response model may drop a field a client interface declares."""
+
+    def test_no_paired_response_model_strips_a_field_the_client_declares(self, app):
+        stripped = _stripped_fields(app.openapi()['components']['schemas'])
+        assert not stripped, (
+            f"{len(stripped)} field(s) would be filtered out of a 200 response by their "
+            "`response_model` while the client still reads them:\n  " + "\n  ".join(stripped)
+            + "\nEither re-declare the field on the model, drop it from the client "
+              "interface, or record it in _CLIENT_ONLY_FIELDS with the reason."
+        )
+
+    def test_no_client_only_field_is_stale(self, app):
+        """An exception that no longer describes a gap must not linger.
+
+        Otherwise the map turns into a place to silence the check, and a field
+        the server has since (re-)declared stays permanently unverified.
+        """
+        schemas = app.openapi()['components']['schemas']
+        pairs = _paired_response_models(schemas)
+        interfaces = _client_interfaces()
+        for (interface, field), reason in _CLIENT_ONLY_FIELDS.items():
+            assert reason, f"({interface}, {field}) needs a reason"
+            assert interface in pairs, f"{interface} pairs with no response model"
+            assert any(field in f for f in interfaces[interface].values()), (
+                f"{interface} no longer declares {field} — drop the exception"
+            )
+            assert field not in schemas[pairs[interface]].get('properties', {}), (
+                f"{pairs[interface]} now declares {field}; the exception is obsolete "
+                "and is hiding the field from the check"
+            )
+
+
+class TestTheResponseModelCheckIsActuallyChecking:
+    """Guards the mechanism above the way `TestTheContractIsActuallyChecked`
+    guards the presence check: a parser that quietly matched nothing would make
+    every assertion loop over an empty set and pass.
+    """
+
+    def test_the_client_interfaces_are_actually_parsed(self):
+        interfaces = _client_interfaces()
+        assert len(interfaces) >= 140, f"only parsed {len(interfaces)} client interfaces"
+        # One flat interface, one with eight nested object literals, one that
+        # sits behind the `Response` suffix rule.
+        scan_status = next(iter(interfaces['ScanStatus'].values()))
+        assert scan_status >= {'running', 'directories', 'exit_code'}
+        viewer_config = next(iter(interfaces['ViewerConfig'].values()))
+        assert 'sort_options_grouped' in viewer_config
+        assert 'show_map' not in viewer_config, "nested object members leaked in as own fields"
+
+    def test_enough_interfaces_pair_with_a_response_model(self, app):
+        schemas = app.openapi()['components']['schemas']
+        pairs = _paired_response_models(schemas)
+        checked = sum(
+            len(fields)
+            for interface in pairs
+            for fields in _client_interfaces()[interface].values()
+        )
+        assert len(pairs) >= 30, f"only {len(pairs)} interfaces paired: {sorted(pairs)}"
+        assert checked >= 250, f"only {checked} client-declared fields are checked"
+        # Both halves of the pairing rule, and the model whose deletion the
+        # whole suite failed to notice.
+        assert pairs['Photo'] == 'Photo'
+        assert pairs['ViewerConfig'] == 'ViewerConfigResponse'
+        assert pairs['ScanStatus'] == 'ScanStatusResponse'
+
+    def test_a_response_model_that_drops_a_declared_field_is_reported(self, app):
+        """The mutation the real thing has to catch, without editing a model."""
+        schemas = app.openapi()['components']['schemas']
+        assert not _stripped_fields(schemas)
+
+        mutated = dict(schemas)
+        properties = dict(mutated['ViewerConfigResponse']['properties'])
+        del properties['sort_options_grouped']
+        mutated['ViewerConfigResponse'] = {**mutated['ViewerConfigResponse'], 'properties': properties}
+
+        reports = _stripped_fields(mutated)
+        assert any('sort_options_grouped' in r for r in reports), reports
+
+    def test_an_exception_only_silences_its_own_interface(self, app):
+        """`keeper_hint` is exempt on `Photo`; the same name elsewhere is not."""
+        schemas = app.openapi()['components']['schemas']
+        mutated = dict(schemas)
+        properties = dict(mutated['KeeperHint']['properties'])
+        dropped = sorted(properties)[0]
+        del properties[dropped]
+        mutated['KeeperHint'] = {**mutated['KeeperHint'], 'properties': properties}
+
+        assert any(dropped in r and 'KeeperHint' in r for r in _stripped_fields(mutated))
