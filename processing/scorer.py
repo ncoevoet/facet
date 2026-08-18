@@ -282,12 +282,15 @@ _EXIF_NUMERIC_FIELDS = (
 
 
 def _sanitize_exif_numeric(exif_data):
-    """Null out non-finite numeric EXIF fields before they reach the database.
+    """Null out non-finite or unparseable numeric EXIF fields before they reach the database.
 
     A lens without electronic contacts reports FNumber as N/0, which parses to
     inf; storing it poisons MIN/MAX aggregates (np.histogram rejects a non-finite
-    range). Guards the exifread/Pillow/subprocess parse paths; the persistent
-    ExifTool path is already guarded in exiftool_batch._safe_numeric.
+    range). A value that does not parse as a float at all (e.g. an ``iso`` of
+    ``"Auto"``) is nulled the same way, rather than left in place as TEXT in an
+    INTEGER/REAL-affinity column. Guards the exifread/Pillow/subprocess parse
+    paths; the persistent ExifTool path is already guarded the same way in
+    exiftool_batch._safe_numeric.
     """
     for key in _EXIF_NUMERIC_FIELDS:
         value = exif_data.get(key)
@@ -296,6 +299,7 @@ def _sanitize_exif_numeric(exif_data):
         try:
             number = float(value)
         except (TypeError, ValueError):
+            exif_data[key] = None
             continue
         if not np.isfinite(number):
             exif_data[key] = None
@@ -2236,7 +2240,8 @@ class Facet:
             exif_data['lens_model'] = data.get('LensModel') or data.get('LensID')
             exif_data['iso'] = data.get('ISO')
             exif_data['f_stop'] = data.get('Aperture')
-            exif_data['shutter_speed'] = str(data.get('ExposureTime'))
+            exposure = data.get('ExposureTime')
+            exif_data['shutter_speed'] = str(exposure) if exposure else None
             exif_data['focal_length'] = data.get('FocalLength')
             exif_data['focal_length_35mm'] = data.get('FocalLengthIn35mmFilm')
             exif_data['gps_latitude'] = data.get('GPSLatitude')
