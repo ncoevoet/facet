@@ -315,6 +315,16 @@ The feature is disabled. Either `webhook.token_env` is empty, or the variable it
 
 `401` means no token arrived: the header name Immich sends does not match `webhook.header`. `403` means a token arrived and was wrong — compare the workflow's header value against the environment variable, character for character.
 
+### `ModuleNotFoundError: No module named 'sync'`
+
+The server starts and looks healthy, but the webhook fails only once Immich actually calls it, and `--immich-sync` fails outright. Confirm with:
+
+```bash
+docker run --rm --entrypoint python ghcr.io/ncoevoet/facet:latest -c "import sync.immich"
+```
+
+A `ModuleNotFoundError: No module named 'sync'` means your image predates the fix — `sync/` was missing from the Docker build. Pull the current image, or rebuild from a checkout that includes the fix.
+
 ### Ratings push, but the clears do not
 
 Facet only sends a clear for a photo it has actually pushed before; that memory lives in `stats_cache` in the Facet database. Restoring an older database (or running against a fresh one) loses it, and a rating cleared during the gap will not be un-set in Immich. Re-rate and re-clear the photo, or fix it in Immich directly.

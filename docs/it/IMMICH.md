@@ -315,6 +315,16 @@ La funzionalità è disattivata. O `webhook.token_env` è vuoto, oppure la varia
 
 `401` significa che non è arrivato alcun token: il nome dell'intestazione inviata da Immich non corrisponde a `webhook.header`. `403` significa che è arrivato un token, ma era sbagliato — confronta il valore dell'intestazione del workflow con la variabile d'ambiente, carattere per carattere.
 
+### `ModuleNotFoundError: No module named 'sync'`
+
+Il server si avvia e sembra sano, ma il webhook fallisce solo quando Immich lo chiama davvero, e `--immich-sync` fallisce direttamente. Verifica con:
+
+```bash
+docker run --rm --entrypoint python ghcr.io/ncoevoet/facet:latest -c "import sync.immich"
+```
+
+Un `ModuleNotFoundError: No module named 'sync'` significa che la tua immagine è precedente al fix — `sync/` mancava dalla build Docker. Scarica l'immagine attuale, oppure ricostruiscila da un checkout che include il fix.
+
 ### Le valutazioni vengono inviate, ma gli azzeramenti no
 
 Facet invia un azzeramento solo per una foto che ha effettivamente inviato in precedenza; questa memoria vive in `stats_cache` nel database di Facet. Ripristinare un database più vecchio (o partire da uno nuovo) la fa perdere, e una valutazione azzerata durante quell'intervallo non verrà rimossa in Immich. Rivaluta e riazzera la foto, oppure correggila direttamente in Immich.

@@ -124,16 +124,26 @@ markers = [
 ]
 
 [tool.mypy]
-# Advisory type checking only — the CI mypy step is non-blocking
-# (continue-on-error). Heavy ML deps (torch, cv2, insightface, ...) ship no
-# type stubs, so missing imports are ignored rather than reported. The goal is
-# a running punch-list for api/; promote to a blocking gate once it is clean.
+# Type checking is a ratchet, not advisory: the CI lint job runs `mypy api/`
+# and fails if the error count exceeds the baseline committed in
+# mypy-baseline.txt. The baseline only ever goes down — fix errors and lower
+# it in the same change, never raise it to make room for new ones. Heavy ML
+# deps (torch, cv2, insightface, ...) ship no type stubs, so missing imports
+# are ignored rather than reported.
+#
+# The baseline number is specific to CI's environment: that job installs only
+# `ruff mypy`, with none of the project's own dependencies, so mypy resolves
+# far fewer imports there than in a dev venv with fastapi/pydantic/numpy/
+# torch/... present — the same tree reports a different, higher count under a
+# dev venv. To check the baseline honestly before changing it, reproduce
+# CI's number: run mypy from a venv containing only mypy itself, not this
+# project's dependencies.
 python_version = "3.12"
 ignore_missing_imports = true
 warn_unused_ignores = false
 
 [tool.setuptools]
-py-modules = ["facet", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics"]
+py-modules = ["facet", "cli_args", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics"]
 
 [tool.setuptools.packages.find]
 include = [
@@ -148,6 +158,8 @@ include = [
     "models*",
     "optimization*",
     "processing*",
+    "storage*",
+    "sync*",
     "utils*",
     "validation*",
     "plugins*",

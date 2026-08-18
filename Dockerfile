@@ -90,8 +90,9 @@ COPY processing/ processing/
 COPY utils/ utils/
 COPY plugins/ plugins/
 COPY storage/ storage/
+COPY sync/ sync/
 COPY validation/ validation/
-COPY facet.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
+COPY facet.py cli_args.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
 # Ship a sanitized default config so the image runs preconfigured with zero host
 # setup (empty secrets, darktable-cli on PATH, vram_profile=auto, all profiles at
 # full feature set). Baked as the active scoring_config.json AND kept alongside so

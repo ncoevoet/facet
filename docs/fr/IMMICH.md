@@ -315,6 +315,16 @@ La fonctionnalité est désactivée. Soit `webhook.token_env` est vide, soit la 
 
 `401` signifie qu'aucun jeton n'est arrivé : le nom d'en-tête envoyé par Immich ne correspond pas à `webhook.header`. `403` signifie qu'un jeton est arrivé mais qu'il était erroné — comparez la valeur d'en-tête du workflow avec la variable d'environnement, caractère par caractère.
 
+### `ModuleNotFoundError: No module named 'sync'`
+
+Le serveur démarre et semble sain, mais le webhook échoue seulement quand Immich l'appelle réellement, et `--immich-sync` échoue d'emblée. Vérifiez avec :
+
+```bash
+docker run --rm --entrypoint python ghcr.io/ncoevoet/facet:latest -c "import sync.immich"
+```
+
+Un `ModuleNotFoundError: No module named 'sync'` signifie que votre image est antérieure au correctif — `sync/` manquait de la construction Docker. Récupérez l'image actuelle, ou reconstruisez-la depuis un dépôt qui inclut le correctif.
+
 ### Les notes se poussent, mais pas les effacements
 
 Facet n'envoie un effacement que pour une photo qu'il a réellement poussée auparavant ; cette mémoire vit dans `stats_cache`, dans la base de données de Facet. Restaurer une base de données plus ancienne (ou repartir d'une base neuve) la fait perdre, et une note effacée pendant cet intervalle ne sera pas désactivée dans Immich. Re-notez puis re-effacez la photo, ou corrigez-la directement dans Immich.
