@@ -607,3 +607,58 @@ class TestWireTypeIsActuallyChecked:
     def test_assert_satisfies_passes_when_the_boolean_field_is_a_real_bool(self):
         payload = {'path': '/x.jpg', 'ev_offset': None, 'is_lead': True}
         assert_satisfies(payload, 'PhotoSetMember', 'synthetic')
+
+
+# ---------------------------------------------------------------------------
+# The hand-written client model vs the GENERATED server declaration.
+#
+# The contract test above compares a client declaration against a live response.
+# This compares it against what the server *declares* — the OpenAPI-generated
+# `schema.d.ts` — which catches the same class of bug one step earlier and
+# without needing the field to be present in a seeded row.
+#
+# It is what would have caught `junk_kind`: the server has always sent it, the
+# junk-sweep view has always read it, and the shared `Photo` model never
+# declared it, so every other view was blind to the field.
+# ---------------------------------------------------------------------------
+
+GENERATED_SCHEMA = CLIENT_SRC / 'core' / 'api' / 'schema.d.ts'
+
+# Fields the client attaches itself, which no server response carries.
+_CLIENT_ATTACHED_PHOTO_FIELDS = {
+    # Patched onto a row in gallery.store.ts from the separate
+    # POST /api/photos/keeper_hints call, never sent with the photo row.
+    'keeper_hint',
+}
+
+
+def _generated_schema_fields(name: str) -> set[str]:
+    """Field names of one `components['schemas'][name]` block."""
+    source = GENERATED_SCHEMA.read_text(encoding='utf-8')
+    match = re.search(r'\n        %s: \{\n(.*?)\n        \};' % re.escape(name), source, re.S)
+    assert match, f"schema {name} not found in {GENERATED_SCHEMA} — run `cd client && npm run gen:api`"
+    body = re.sub(r'/\*\*.*?\*/', '', match.group(1), flags=re.S)
+    return {m.group(1) for line in body.splitlines() if (m := _FIELD.match(line))}
+
+
+class TestHandWrittenModelMatchesGeneratedSchema:
+    """A field the client declares must be one the server actually declares."""
+
+    def test_photo_declares_nothing_the_server_does_not_send(self):
+        hand = set(required_fields('Photo')) | set(optional_fields('Photo'))
+        generated = _generated_schema_fields('Photo')
+        assert generated, "the generated Photo schema is empty"
+        unknown = hand - generated - _CLIENT_ATTACHED_PHOTO_FIELDS
+        assert not unknown, (
+            "client/src/app/shared/models/photo.model.ts declares field(s) no API "
+            f"response model carries: {sorted(unknown)}. Either the server dropped "
+            "them, or they are client-derived and belong in "
+            "_CLIENT_ATTACHED_PHOTO_FIELDS with a reason."
+        )
+
+    def test_the_generated_schema_is_actually_parsed(self):
+        """Guard: a rename or format change must not silently empty the check."""
+        generated = _generated_schema_fields('Photo')
+        assert len(generated) > 50, f"only parsed {len(generated)} fields — the regex has drifted"
+        assert 'shutter_speed' in generated
+        assert 'junk_kind' in generated
