@@ -33,7 +33,7 @@ interface PhotoFace {
     <mat-dialog-content class="!flex !flex-col gap-3 min-w-[320px] min-h-[120px]">
       @if (loading()) {
         <div class="flex items-center justify-center gap-3 py-8">
-          <mat-spinner diameter="24"></mat-spinner>
+          <mat-spinner diameter="24" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner>
         </div>
       } @else {
         <div class="flex flex-wrap gap-2 justify-center">

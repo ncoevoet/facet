@@ -332,7 +332,7 @@ class RunGeneration {
                   <span>{{ I18N.culling.scope_whole_album | translate }}</span>
                 </button>
                 @if (loadingScenes()) {
-                  <div class="flex justify-center px-4 py-2"><mat-spinner diameter="18" /></div>
+                  <div class="flex justify-center px-4 py-2"><mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
                 } @else {
                   @for (s of expandedScenes(); track s.scene_id) {
                     <button mat-menu-item (click)="scopeAlbumScene(s)">
@@ -554,7 +554,7 @@ class RunGeneration {
                   [matTooltip]="I18N.panorama.settings.redetect_tooltip | translate">
             <mat-icon>refresh</mat-icon>{{ I18N.panorama.settings.redetect | translate }}
           </button>
-          @if (detecting()) { <mat-spinner diameter="18" /> }
+          @if (detecting()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate" /> }
           @if (detectMessage(); as m) {
             <span class="text-sm opacity-80" [class.text-red-500]="detectFailed()">{{ m | translate }}</span>
           }
@@ -566,7 +566,7 @@ class RunGeneration {
       <!-- Content -->
       @if (loading()) {
         <div class="flex justify-center items-center py-20">
-          <mat-spinner diameter="40" />
+          <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else if (visibleGroups().length === 0) {
         <p class="text-center py-20 opacity-60">{{ (scoped() ? I18N.culling.scene_complete : I18N.culling.no_bursts) | translate }}</p>
@@ -794,7 +794,7 @@ class RunGeneration {
           @if (hasMore()) {
             <div appInfiniteScroll scrollRoot="[data-culling-scroll]" (scrollReached)="onScrollReached()" class="flex justify-center py-6">
               @if (loadingMore()) {
-                <mat-spinner diameter="32" />
+                <mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" />
               }
             </div>
           }
@@ -993,7 +993,7 @@ class RunGeneration {
               @if (previewLoading()) {
                 <div class="absolute inset-0 flex items-center justify-center bg-black/40 pointer-events-none"
                      [attr.aria-label]="I18N.culling.cull_style.loading | translate">
-                  <mat-spinner diameter="40" />
+                  <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                 </div>
               }
               <!-- Swipe feedback. Rendered inside the element the gesture moves,
@@ -1297,7 +1297,7 @@ class RunGeneration {
                last run's. Say so rather than let them read as this run's answer. -->
           @if (autoCullBusy()) {
             <p class="flex items-center gap-2 text-sm opacity-80" role="status">
-              <mat-spinner diameter="16" />
+              <mat-spinner diameter="16" [attr.aria-label]="I18N.ui.labels.loading | translate" />
               {{ I18N.culling.auto_cull.updating | translate }}
             </p>
           }

@@ -115,7 +115,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
     </ng-template>
     @if (loading()) {
       <div class="flex justify-center py-16">
-        <mat-spinner diameter="48" />
+        <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else {
       <mat-tab-group class="stats-tabs" mat-stretch-tabs="false" mat-align-tabs="start" [selectedIndex]="selectedTab()" (selectedIndexChange)="selectedTab.set($event)">
@@ -170,7 +170,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                     </mat-card-header>
                     <mat-card-content class="!pt-4">
                       @if (categoriesLoading()) {
-                        <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
+                        <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
                       } @else {
                         <div [style.height.px]="categoryScoreProfile() | chartHeight:80">
                           <canvas #categoryScoreProfileCanvas></canvas>
@@ -191,7 +191,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
                   </mat-card-header>
                   <mat-card-content class="!pt-4">
                     @if (scoreLoading()) {
-                      <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
+                      <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
                     } @else {
                       <div [style.height.px]="scoreBins() | chartHeight">
                         <canvas #scoreCanvas></canvas>

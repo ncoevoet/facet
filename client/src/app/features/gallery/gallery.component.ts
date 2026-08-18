@@ -154,7 +154,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             </div>
             <button mat-flat-button class="w-full" [disabled]="keepApplying() || keepPreviewCut() === 0" (click)="applyKeepTop()">
               @if (keepApplying()) {
-                <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner>
+                <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner>
               } @else {
                 <mat-icon>checklist</mat-icon>
               }
@@ -533,7 +533,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
           }
           <!-- Mobile: single Actions trigger opening a touch-friendly bottom sheet -->
           <button mat-flat-button class="lg:!hidden" (click)="openActionsSheet()" [disabled]="downloading()">
-            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
             {{ I18N.gallery.selection.actions | translate }}
           </button>
           @if (auth.isEdition()) {
@@ -585,7 +585,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             <button mat-button class="!hidden lg:!inline-flex" (click)="openCullDialog()"><mat-icon>folder_move</mat-icon> {{ I18N.cull.action | translate }}</button>
           }
           @if (auth.downloadProfiles().length) {
-            <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
+            <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
             <mat-menu #dlMenu="matMenu">
               <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ I18N.download.type_original | translate }}</button>
               @for (profile of auth.downloadProfiles(); track profile) {
@@ -594,7 +594,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
               <button mat-menu-item (click)="downloadSelected('raw')"><mat-icon>raw_on</mat-icon> {{ I18N.download.type_raw | translate }}</button>
             </mat-menu>
           } @else {
-            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
+            <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
           }
         </div>
       </div>

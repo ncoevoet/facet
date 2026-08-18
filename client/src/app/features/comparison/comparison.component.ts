@@ -58,7 +58,7 @@ Chart.register(...registerables);
               [matTooltip]="I18N.comparison.apply_suggested | translate"
               [attr.aria-label]="I18N.comparison.apply_suggested | translate">
               @if (suggestionsTab()?.saving()) {
-                <mat-spinner diameter="20" />
+                <mat-spinner diameter="20" [attr.aria-label]="I18N.ui.labels.loading | translate" />
               } @else {
                 <mat-icon>auto_fix_high</mat-icon>
               }
@@ -70,7 +70,7 @@ Chart.register(...registerables);
                 [matTooltip]="I18N.comparison.recompute_category | translate"
                 [attr.aria-label]="I18N.comparison.recompute_category | translate">
                 @if (suggestionsTab()?.recomputing()) {
-                  <mat-spinner diameter="20" />
+                  <mat-spinner diameter="20" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                 } @else {
                   <mat-icon>calculate</mat-icon>
                 }
@@ -92,7 +92,7 @@ Chart.register(...registerables);
                   (click)="suggestionsTab()?.applySuggested()">
                   <span class="inline-flex items-center gap-1.5">
                     @if (suggestionsTab()?.saving()) {
-                      <mat-spinner diameter="16" class="!w-4 !h-4" />
+                      <mat-spinner diameter="16" class="!w-4 !h-4" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                     } @else {
                       <mat-icon class="!m-0">auto_fix_high</mat-icon>
                     }
@@ -106,7 +106,7 @@ Chart.register(...registerables);
                   (click)="suggestionsTab()?.recompute()">
                   <span class="inline-flex items-center gap-1.5">
                     @if (suggestionsTab()?.recomputing()) {
-                      <mat-spinner diameter="16" class="!w-4 !h-4" />
+                      <mat-spinner diameter="16" class="!w-4 !h-4" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                     } @else {
                       <mat-icon class="!m-0">calculate</mat-icon>
                     }

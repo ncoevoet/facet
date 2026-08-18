@@ -102,7 +102,7 @@ const ANY_KIND = 'any';
 
     <div class="px-4 pt-3 md:px-8 mx-auto w-full max-w-[96%] max-lg:pb-24">
       @if (loading() && photos().length === 0) {
-        <div class="flex justify-center py-10"><mat-spinner diameter="32" /></div>
+        <div class="flex justify-center py-10"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
       } @else if (photos().length === 0) {
         <div class="text-white/50 py-10 text-center whitespace-pre-line">{{ I18N.junk.empty | translate }}</div>
       } @else {

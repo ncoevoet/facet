@@ -105,7 +105,7 @@ interface SharedFilters {
   template: `
     @if (loading()) {
       <div class="flex items-center justify-center h-64">
-        <mat-spinner diameter="40" />
+        <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     } @else if (error()) {
       <div class="flex flex-col items-center justify-center h-64 opacity-60">
@@ -417,8 +417,8 @@ interface SharedFilters {
             <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="I18N.gallery.selection.copy_filenames | translate" [attr.aria-label]="I18N.gallery.selection.copy_filenames | translate"><mat-icon>content_copy</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ I18N.gallery.selection.copy_filenames | translate }}</button>
             @if (auth.downloadProfiles().length) {
-              <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate" [attr.aria-label]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-              <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
+              <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate" [attr.aria-label]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+              <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
               <mat-menu #dlMenu="matMenu">
                 <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ I18N.download.type_original | translate }}</button>
                 @for (profile of auth.downloadProfiles(); track profile) {
@@ -426,8 +426,8 @@ interface SharedFilters {
                 }
               </mat-menu>
             } @else {
-              <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate" [attr.aria-label]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-              <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
+              <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate" [attr.aria-label]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+              <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
             }
           </div>
         </div>

@@ -4,6 +4,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
 
 interface DateEntry {
@@ -22,11 +23,11 @@ interface CalendarCell {
 @Component({
   selector: 'app-timeline-days',
   standalone: true,
-  imports: [MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe],
+  imports: [MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
   template: `
     @if (loading()) {
       <div class="flex justify-center py-16">
-        <mat-spinner diameter="48" />
+        <mat-spinner diameter="48" [attr.aria-label]="'ui.labels.loading' | translate" />
       </div>
     }
 

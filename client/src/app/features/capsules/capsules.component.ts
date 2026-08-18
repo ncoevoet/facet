@@ -69,7 +69,7 @@ interface CapsulesResponse {
 
     @if (loading() && capsules().length === 0) {
       <div class="flex flex-col items-center justify-center py-16 gap-3">
-        <mat-spinner diameter="48" />
+        <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         <p class="text-sm opacity-60">{{ I18N.capsules.loading | translate }}</p>
       </div>
     }
@@ -142,7 +142,7 @@ interface CapsulesResponse {
     @if (hasMore()) {
       <div appInfiniteScroll (scrollReached)="loadMore()" class="flex justify-center py-8">
         @if (loading()) {
-          <mat-spinner diameter="32" />
+          <mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         }
       </div>
     }

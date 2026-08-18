@@ -34,7 +34,7 @@ import { PanoramaSettingsService, PanoramaSettings } from './panorama-settings.s
   host: { class: 'block p-4' },
   template: `
     @if (loading()) {
-      <div class="flex justify-center p-8"><mat-spinner diameter="32" /></div>
+      <div class="flex justify-center p-8"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
     } @else if (settings(); as s) {
       <p class="text-sm opacity-70 mb-4 max-w-3xl">
         {{ I18N.panorama.settings.intro | translate }}
@@ -78,7 +78,7 @@ import { PanoramaSettingsService, PanoramaSettings } from './panorama-settings.s
                 [matTooltip]="I18N.panorama.settings.redetect_tooltip | translate">
           <mat-icon>refresh</mat-icon>{{ I18N.panorama.settings.redetect | translate }}
         </button>
-        @if (detecting()) { <mat-spinner diameter="20" /> }
+        @if (detecting()) { <mat-spinner diameter="20" [attr.aria-label]="I18N.ui.labels.loading | translate" /> }
       </div>
 
       @if (message(); as m) {

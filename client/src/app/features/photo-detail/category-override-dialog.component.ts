@@ -40,7 +40,7 @@ interface CategoryOption {
     <mat-dialog-content class="!pt-2 min-w-[16rem]">
       @if (loading()) {
         <div class="flex justify-center py-4">
-          <mat-spinner diameter="28" />
+          <mat-spinner diameter="28" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else {
         <mat-form-field class="w-full">

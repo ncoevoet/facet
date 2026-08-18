@@ -150,7 +150,7 @@ export class NewPersonDialogComponent {
       <p class="text-sm text-gray-400">{{ I18N.persons.split_dialog_desc | translate }}</p>
       @if (loading()) {
         <div class="flex items-center justify-center py-8">
-          <mat-spinner diameter="32" />
+          <mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else if (faces().length === 0) {
         <p class="text-sm opacity-60 text-center py-8">{{ I18N.persons.no_faces | translate }}</p>
@@ -304,7 +304,7 @@ export class PersonFacesDialogComponent implements OnInit {
       <!-- Loading -->
       @if (loading() && persons().length === 0) {
         <div class="flex justify-center py-16">
-          <mat-spinner diameter="48" />
+          <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       }
 
@@ -367,7 +367,7 @@ export class PersonFacesDialogComponent implements OnInit {
       <!-- Infinite scroll sentinel -->
       @if (hasMore()) {
         <div appInfiniteScroll (scrollReached)="onScrollReached()" class="flex justify-center py-8">
-          <mat-spinner diameter="36" />
+          <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       }
     </div>

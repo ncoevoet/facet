@@ -60,7 +60,7 @@ interface SuggestFiltersResponse {
       </mat-card-header>
       <mat-card-content class="!pt-4">
         @if (loading()) {
-          <div class="flex justify-center py-6"><mat-spinner diameter="28" /></div>
+          <div class="flex justify-center py-6"><mat-spinner diameter="28" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
         } @else if (error()) {
           <div class="flex items-center gap-2 text-sm text-red-400">
             <mat-icon class="!text-base !w-4 !h-4">error_outline</mat-icon>

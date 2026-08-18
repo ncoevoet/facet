@@ -62,7 +62,7 @@ export interface ExportEditorDialogData {
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
       <button mat-flat-button [disabled]="!canRun() || running()" (click)="run()">
-        @if (running()) { <mat-spinner diameter="18" class="!inline-block !align-baseline"></mat-spinner> }
+        @if (running()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> }
         {{ running() ? (I18N.export.running | translate) : (I18N.export.run | translate) }}
       </button>
     </mat-dialog-actions>

@@ -55,7 +55,7 @@ interface MapResponse {
     <div class="relative h-full">
       @if (loading()) {
         <div class="absolute inset-0 flex items-center justify-center z-[1000] bg-black/20">
-          <mat-spinner diameter="40" />
+          <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       }
       <!-- Without this, an unreachable tile server is silent: the markers still

@@ -76,7 +76,7 @@ export interface FolderPickerData {
 
       @if (loading()) {
         <div class="flex justify-center py-8">
-          <mat-spinner diameter="32" />
+          <mat-spinner diameter="32" [attr.aria-label]="'ui.labels.loading' | translate" />
         </div>
       } @else if (loadError()) {
         <div class="flex flex-col items-center gap-2 px-1 py-6">

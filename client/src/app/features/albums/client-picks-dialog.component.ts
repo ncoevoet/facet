@@ -43,7 +43,7 @@ interface ClientPicksResponse {
     <mat-dialog-content>
       @if (loading()) {
         <div class="flex justify-center py-8">
-          <mat-spinner diameter="36" />
+          <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else if (picks().length === 0) {
         <p class="opacity-60 py-4">{{ I18N.proofing.no_picks | translate }}</p>

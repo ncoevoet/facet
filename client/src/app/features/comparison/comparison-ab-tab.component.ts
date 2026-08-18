@@ -119,7 +119,7 @@ interface LearnedWeightsResponse {
               </div>
             } @else if (pairLoading()) {
               <div class="flex justify-center py-8">
-                <mat-spinner diameter="40" />
+                <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
               </div>
             } @else if (pairA() && pairB()) {
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -201,7 +201,7 @@ interface LearnedWeightsResponse {
               <button mat-stroked-button class="w-full mb-3" [disabled]="suggestDisabled()"
                 (click)="loadLearnedWeights()" [matTooltip]="suggestTooltip()">
                 @if (learnedWeightsLoading()) {
-                  <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" />
+                  <mat-spinner diameter="16" class="inline-flex !w-4 !h-4" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                 } @else {
                   <mat-icon>auto_fix_high</mat-icon>
                 }

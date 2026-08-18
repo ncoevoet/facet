@@ -23,7 +23,7 @@ interface MonthSummary {
   template: `
     @if (loading() && months().length === 0) {
       <div class="flex justify-center py-16">
-        <mat-spinner diameter="48" />
+        <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     }
 

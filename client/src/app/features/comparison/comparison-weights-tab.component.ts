@@ -128,7 +128,7 @@ class SignalErrorMatcher {
         [matTooltip]="I18N.comparison.recalculate | translate"
         [attr.aria-label]="I18N.comparison.recalculate | translate">
         @if (recalculating()) {
-          <mat-spinner diameter="20" />
+          <mat-spinner diameter="20" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         } @else {
           <mat-icon>calculate</mat-icon>
         }
@@ -160,7 +160,7 @@ class SignalErrorMatcher {
         <mat-card-content class="!pt-4">
           @if (loading()) {
             <div class="flex justify-center py-8">
-              <mat-spinner diameter="40" />
+              <mat-spinner diameter="40" [attr.aria-label]="I18N.ui.labels.loading | translate" />
             </div>
           } @else {
             <div class="flex flex-col gap-4">
@@ -189,7 +189,7 @@ class SignalErrorMatcher {
         </mat-card-header>
         <mat-card-content class="!pt-4">
           @if (weightImpactLoading()) {
-            <div class="flex justify-center py-8"><mat-spinner diameter="32" /></div>
+            <div class="flex justify-center py-8"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
           } @else if (weightImpactData()) {
             <div class="h-80">
               <canvas #weightImpactCanvas></canvas>
@@ -207,7 +207,7 @@ class SignalErrorMatcher {
         <mat-card-title class="flex items-center gap-2">
           {{ I18N.comparison.preview | translate }}
           @if (previewLoading()) {
-            <mat-spinner diameter="18" class="inline-flex !w-[18px] !h-[18px]" />
+            <mat-spinner diameter="18" class="inline-flex !w-[18px] !h-[18px]" [attr.aria-label]="I18N.ui.labels.loading | translate" />
           }
         </mat-card-title>
         <mat-card-subtitle>{{ I18N.comparison.top_n_photos | translate:{ count: previewCount } }}</mat-card-subtitle>

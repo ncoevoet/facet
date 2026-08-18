@@ -94,7 +94,7 @@ const COLORS = ['#22c55e', '#3b82f6', '#a855f7', '#f59e0b', '#ef4444', '#06b6d4'
             <div class="text-sm text-gray-400 mb-4">{{ I18N.stats.correlations.select_metric | translate }}</div>
           }
           @if (correlationLoading()) {
-            <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
+            <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
           } @else if (corrData()) {
             <div class="h-72 md:h-96 lg:h-[28rem]">
               <canvas #correlationsCanvas></canvas>

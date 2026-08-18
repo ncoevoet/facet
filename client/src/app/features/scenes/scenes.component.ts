@@ -99,7 +99,7 @@ interface ScenesResponse {
       <p class="text-sm text-white/50 mb-4">{{ I18N.scenes.subtitle | translate }}</p>
 
       @if (loading() && scenes().length === 0) {
-        <div class="flex justify-center py-10"><mat-spinner diameter="32" /></div>
+        <div class="flex justify-center py-10"><mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" /></div>
       } @else if (scenes().length === 0) {
         <div class="text-white/50 py-10 text-center">{{ I18N.scenes.empty | translate }}</div>
       } @else {

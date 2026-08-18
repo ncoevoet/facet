@@ -79,7 +79,7 @@ const GEAR_METRIC_OPTIONS = [
       </mat-card-header>
       <mat-card-content class="!pt-4">
         @if (loading()) {
-          <div class="flex justify-center py-4"><mat-spinner diameter="32" /></div>
+          <div class="flex justify-center py-4"><mat-spinner diameter="32" [attr.aria-label]="'ui.labels.loading' | translate" /></div>
         } @else {
           <div [style.height.px]="sortedItems() | chartHeight">
             <canvas #chartCanvas></canvas>

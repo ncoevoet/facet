@@ -130,7 +130,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
         @if (downloadOptions().length > 1) {
           <button mat-button [matMenuTriggerFor]="downloadMenu" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate">
-            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" /> } @else { <mat-icon>download</mat-icon> }
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" /> } @else { <mat-icon>download</mat-icon> }
             {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.photo_detail.download | translate) }}
           </button>
           <mat-menu #downloadMenu="matMenu">
@@ -147,7 +147,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </mat-menu>
         } @else {
           <button mat-button (click)="download(p.path)" [disabled]="downloading()" [matTooltip]="I18N.photo_detail.download | translate">
-            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" /> } @else { <mat-icon>download</mat-icon> }
+            @if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" /> } @else { <mat-icon>download</mat-icon> }
             {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.photo_detail.download | translate) }}
           </button>
         }
@@ -280,7 +280,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   @if (!p.caption && store.config()?.features?.show_captions) {
                     <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
                       @if (generatingCaption()) {
-                        <mat-spinner diameter="16" />
+                        <mat-spinner diameter="16" [attr.aria-label]="I18N.ui.labels.loading | translate" />
                       } @else {
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4">auto_fix_high</mat-icon>
                       }

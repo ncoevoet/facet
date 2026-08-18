@@ -182,7 +182,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                 [matTooltip]="'comparison.save' | translate"
                 [attr.aria-label]="'comparison.save' | translate">
                 @if (saving()) {
-                  <mat-spinner diameter="20" />
+                  <mat-spinner diameter="20" [attr.aria-label]="'ui.labels.loading' | translate" />
                 } @else {
                   <mat-icon>save</mat-icon>
                 }
@@ -191,7 +191,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
           </mat-card-header>
           <mat-card-content class="!pt-4">
             @if (categoriesLoading()) {
-              <div class="flex justify-center py-8"><mat-spinner diameter="40" /></div>
+              <div class="flex justify-center py-8"><mat-spinner diameter="40" [attr.aria-label]="'ui.labels.loading' | translate" /></div>
             } @else {
               <div cdkDropList class="flex flex-col gap-1.5" (cdkDropListDropped)="drop($event)">
                 @for (cat of orderedCategories(); track cat.name; let i = $index) {
@@ -241,7 +241,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
                 [matTooltip]="'comparison.save' | translate"
                 [attr.aria-label]="'comparison.save' | translate">
                 @if (savingContext()) {
-                  <mat-spinner diameter="20" />
+                  <mat-spinner diameter="20" [attr.aria-label]="'ui.labels.loading' | translate" />
                 } @else {
                   <mat-icon>save</mat-icon>
                 }
@@ -403,7 +403,7 @@ export class CategoryFilterSummaryPipe implements PipeTransform {
         </mat-card-header>
         <mat-card-content class="!pt-4 overflow-x-auto">
           @if (overlapLoading()) {
-            <div class="flex justify-center py-8"><mat-spinner diameter="40" /></div>
+            <div class="flex justify-center py-8"><mat-spinner diameter="40" [attr.aria-label]="'ui.labels.loading' | translate" /></div>
           } @else if (sortedOverlapCategories().length > 0) {
             <table class="w-full text-sm">
               <thead>

@@ -68,7 +68,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
 
     @if (loading() && albums().length === 0) {
       <div class="flex justify-center py-16">
-        <mat-spinner diameter="48" />
+        <mat-spinner diameter="48" [attr.aria-label]="'ui.labels.loading' | translate" />
       </div>
     }
 
@@ -182,7 +182,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
     <!-- Infinite scroll sentinel -->
     @if (hasMore()) {
       <div appInfiniteScroll (scrollReached)="onScrollReached()" class="flex justify-center py-8">
-        <mat-spinner diameter="36" />
+        <mat-spinner diameter="36" [attr.aria-label]="'ui.labels.loading' | translate" />
       </div>
     }
   `,

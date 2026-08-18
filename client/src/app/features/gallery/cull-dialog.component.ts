@@ -106,7 +106,7 @@ interface CullResponse {
       <button mat-button mat-dialog-close>{{ I18N.cull.cancel | translate }}</button>
       <button mat-stroked-button [disabled]="busy() || (needsTarget() && !targetDir())"
               (click)="runPreview()">
-        @if (busy()) { <mat-spinner diameter="16" class="!inline-block !align-middle !mr-1" /> }
+        @if (busy()) { <mat-spinner diameter="16" class="!inline-block !align-middle !mr-1" [attr.aria-label]="I18N.ui.labels.loading | translate" /> }
         {{ I18N.cull.preview | translate }}
       </button>
       <button mat-flat-button color="primary"

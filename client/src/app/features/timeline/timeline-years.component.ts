@@ -22,7 +22,7 @@ interface YearSummary {
   template: `
     @if (loading() && years().length === 0) {
       <div class="flex justify-center py-16">
-        <mat-spinner diameter="48" />
+        <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
       </div>
     }
 

@@ -181,7 +181,7 @@ export class DistortionLabelPipe implements PipeTransform {
     <mat-dialog-content class="!max-h-[70vh]">
       @if (loading()) {
         <div class="flex items-center justify-center py-8">
-          <mat-spinner diameter="32" />
+          <mat-spinner diameter="32" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
       } @else if (error(); as e) {
         <div class="flex flex-col items-center gap-2 py-8 text-red-400">
@@ -321,7 +321,7 @@ export class DistortionLabelPipe implements PipeTransform {
             <div class="flex items-center mb-1">
               <div class="flex-1 text-xs uppercase tracking-wider opacity-50">{{ I18N.critique.vlm_title | translate }}</div>
               @if (vlmRefreshing()) {
-                <mat-spinner diameter="16" />
+                <mat-spinner diameter="16" [attr.aria-label]="I18N.ui.labels.loading | translate" />
               } @else {
                 <button mat-icon-button class="!w-6 !h-6 !p-0 opacity-50 hover:opacity-90"
                         [attr.aria-label]="I18N.critique.vlm_refresh | translate"
