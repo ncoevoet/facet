@@ -20,7 +20,7 @@ jobs:
           python-version: "3.12"
           cache: "pip"
       - name: Install test dependencies
-        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt pillow numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil
+        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt pillow numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog
       - name: Run tests
         run: python -m pytest --tb=short -q --cov=api --cov=processing --cov=analyzers --cov=config --cov=utils --cov-report=term-missing
       - uses: actions/setup-node@v7
@@ -100,10 +100,51 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install ruff mypy
-      - run: ruff check api/ tests/ --select E,F,W --ignore E501
-      - name: Type check (advisory)
-        continue-on-error: true
-        run: mypy api/
+      - run: ruff check . --select E,F,W --ignore E501
+      - name: Type check (ratchet against mypy-baseline.txt)
+        # Not advisory: fails when the error count exceeds the committed
+        # baseline. The baseline only ever goes down -- fix errors and lower
+        # mypy-baseline.txt in the same change, never raise it to make room
+        # for new ones. mypy's own exit code is the source of truth: 0 is
+        # clean, 1 is "errors found", anything else is a crash or usage
+        # error that must fail loudly rather than silently read as 0 errors.
+        # The count is environment-dependent: this job installs only `ruff
+        # mypy` above, so mypy resolves far fewer imports than it would in a
+        # venv with the project's own dependencies (fastapi, pydantic,
+        # numpy, torch, ...) installed, which reports a different, higher
+        # count. The baseline tracks THIS job's environment, not a dev venv.
+        run: |
+          set +e
+          output=$(mypy api/ 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -eq 0 ]; then
+            current=0
+          elif [ "$status" -eq 1 ]; then
+            matches=$(echo "$output" | grep -cE 'Found [0-9]+ error' || true)
+            if [ "$matches" -ne 1 ]; then
+              echo "::error::mypy exited 1 but printed $matches 'Found N error' summary lines (expected exactly 1). Cannot trust the measurement."
+              exit 1
+            fi
+            current=$(echo "$output" | grep -oE 'Found [0-9]+ error' | grep -oE '[0-9]+')
+          else
+            echo "::error::mypy exited $status (crash or usage error, not 0-clean / 1-errors-found). Cannot trust the measurement."
+            exit 1
+          fi
+          baseline=$(sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' mypy-baseline.txt)
+          if ! [[ "$baseline" =~ ^[0-9]+$ ]]; then
+            echo "::error::mypy-baseline.txt must contain a single non-negative integer (surrounding whitespace is trimmed); got '$baseline'. Cannot trust the measurement."
+            exit 1
+          fi
+          echo "mypy errors: $current (baseline: $baseline)"
+          if [ "$current" -gt "$baseline" ]; then
+            echo "::error::mypy error count increased from $baseline to $current. Fix the new errors instead of raising mypy-baseline.txt."
+            exit 1
+          fi
+          if [ "$current" -lt "$baseline" ]; then
+            echo "::notice::mypy error count decreased from $baseline to $current. Lower mypy-baseline.txt to $current to lock in the improvement."
+          fi
       - name: Forbid broken FastAPI auth mock pattern
         run: |
           # Catches both direct ("api.routers.albums.require_edition") and
@@ -149,6 +190,13 @@ jobs:
           done < <(grep -iE '^[[:space:]]*COPY[[:space:]]' Dockerfile)
           [ "$fail" = 0 ] && echo "All Dockerfile COPY sources are git-tracked."
           exit $fail
+      - name: Every top-level module/package is packaged
+        # Catches the other direction from the check above: a top-level *.py
+        # module or __init__.py package that IS git-tracked but was never
+        # added to the Dockerfile's COPY set or to pyproject.toml's
+        # py-modules / packages.find.include -- how sync/ shipped 2026-07-01
+        # and was absent from both until this gate existed.
+        run: python scripts/check_packaging.py
       - name: Translation bundles agree with en.json
         # Stdlib-only and self-locating, so it needs no pip install and no venv.
         # tests/test_audit_i18n.py already exercises this script's logic against
@@ -176,6 +224,13 @@ jobs:
             echo "Run 'cd client && npm run gen:i18n' and commit the result."
             exit 1
           fi
+      - name: Icon-only buttons have an accessible name
+        # <mat-icon> renders aria-hidden internally and matTooltip is not an
+        # accessible name, so an icon-only mat-icon-button with neither
+        # aria-label nor [attr.aria-label] is announced as just "button" by a
+        # screen reader. Stdlib-only (node:fs/node:path), so it runs before
+        # npm install and costs nothing.
+        run: node client/scripts/check-icon-button-labels.mjs
       - run: npm install --no-audit --no-fund
         working-directory: client
       - run: npx ng lint
