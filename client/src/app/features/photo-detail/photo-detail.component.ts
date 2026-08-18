@@ -30,7 +30,7 @@ import {
 } from '../../shared/components/histogram/histogram.component';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
-import { DownloadOption } from '../../shared/models/download.model';
+import { DownloadOption } from '../../core/api/types';
 import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
 import { GalleryFilters } from '../gallery/gallery-filters.util';
@@ -76,14 +76,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     @if (photo(); as p) {
       <!-- Header bar -->
       <div class="flex items-center gap-2 px-1 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)]">
-        <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate">
+        <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="flex-1 truncate font-medium">{{ p.filename }}</span>
 
         @if (store.config()?.features?.show_similar_button) {
           <button mat-icon-button [matMenuTriggerFor]="similarMenu"
-            [matTooltip]="I18N.similar.find_similar | translate">
+            [matTooltip]="I18N.similar.find_similar | translate" [attr.aria-label]="I18N.similar.find_similar | translate">
             <mat-icon>image_search</mat-icon>
           </button>
           <mat-menu #similarMenu="matMenu">
@@ -101,14 +101,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
         @if (store.config()?.features?.show_critique) {
           <button mat-icon-button (click)="openCritique(p)"
-            [matTooltip]="I18N.critique.title | translate">
+            [matTooltip]="I18N.critique.title | translate" [attr.aria-label]="I18N.critique.title | translate">
             <mat-icon>analytics</mat-icon>
           </button>
         }
 
         @if (auth.isEdition()) {
           <button mat-icon-button [matMenuTriggerFor]="categoryOverrideMenu"
-            [matTooltip]="I18N.photo.category_override.menu_tooltip | translate">
+            [matTooltip]="I18N.photo.category_override.menu_tooltip | translate" [attr.aria-label]="I18N.photo.category_override.menu_tooltip | translate">
             <mat-icon>category</mat-icon>
           </button>
           <mat-menu #categoryOverrideMenu="matMenu">
@@ -123,7 +123,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
         @if (auth.isEdition() && p.unassigned_faces > 0) {
           <button mat-icon-button (click)="openAddPerson(p)"
-            [matTooltip]="I18N.manage_persons.assign_face | translate">
+            [matTooltip]="I18N.manage_persons.assign_face | translate" [attr.aria-label]="I18N.manage_persons.assign_face | translate">
             <mat-icon>person_add</mat-icon>
           </button>
         }
@@ -135,7 +135,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </button>
           <mat-menu #downloadMenu="matMenu">
             @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
-              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile)">
+              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile ?? undefined)">
                 <mat-icon>{{ opt.type | downloadIcon }}</mat-icon>
                 @if (opt.type === 'darktable') {
                   {{ opt.profile }}
@@ -255,11 +255,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               }
               <div class="flex-1"></div>
               <!-- Favorite -->
-              <button mat-icon-button (click)="toggleFavorite(p.path)" [matTooltip]="I18N.photo_detail.favorite | translate">
+              <button mat-icon-button (click)="toggleFavorite(p.path)" [matTooltip]="I18N.photo_detail.favorite | translate" [attr.aria-label]="I18N.photo_detail.favorite | translate">
                 <mat-icon class="!text-red-400">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
               </button>
               <!-- Reject -->
-              <button mat-icon-button (click)="toggleRejected(p.path)" [class.text-orange-400]="p.is_rejected" [matTooltip]="I18N.photo_detail.rejected | translate">
+              <button mat-icon-button (click)="toggleRejected(p.path)" [class.text-orange-400]="p.is_rejected" [matTooltip]="I18N.photo_detail.rejected | translate" [attr.aria-label]="I18N.photo_detail.rejected | translate">
                 <mat-icon>{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>
               </button>
             </div>
@@ -272,7 +272,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (auth.isEdition()) {
                 <div class="flex gap-1">
                   @if (!p.caption && store.config()?.features?.show_captions) {
-                    <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate">
+                    <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="generateCaption(p.path)" [disabled]="generatingCaption()" [matTooltip]="I18N.photo_detail.generate_caption | translate" [attr.aria-label]="I18N.photo_detail.generate_caption | translate">
                       @if (generatingCaption()) {
                         <mat-spinner diameter="16" />
                       } @else {
@@ -280,7 +280,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                       }
                     </button>
                   }
-                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate">
+                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editCaption(p)" [matTooltip]="I18N.photo_detail.edit_caption | translate" [attr.aria-label]="I18N.photo_detail.edit_caption | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit</mat-icon>
                   </button>
                 </div>
@@ -467,7 +467,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <div class="flex items-center justify-between mb-2">
                 <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
                 @if (auth.isEdition()) {
-                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate">
+                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.edit_location | translate" [attr.aria-label]="I18N.photo_detail.edit_location | translate">
                     <mat-icon class="!text-base !w-4 !h-4 !leading-4">edit_location</mat-icon>
                   </button>
                 }
@@ -482,7 +482,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
               <div class="flex items-center justify-between">
                 <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.location | translate }}</div>
-                <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate">
+                <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="editGps(p)" [matTooltip]="I18N.photo_detail.add_location | translate" [attr.aria-label]="I18N.photo_detail.add_location | translate">
                   <mat-icon class="!text-base !w-4 !h-4 !leading-4">add_location</mat-icon>
                 </button>
               </div>

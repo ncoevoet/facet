@@ -73,7 +73,7 @@ interface LearnedWeightsResponse {
           </mat-select>
         </mat-form-field>
         <button mat-icon-button (click)="showStrategyHelp.set(!showStrategyHelp())"
-          [matTooltip]="I18N.compare.tooltips.strategy_info | translate">
+          [matTooltip]="I18N.compare.tooltips.strategy_info | translate" [attr.aria-label]="I18N.compare.tooltips.strategy_info | translate">
           <mat-icon>help_outline</mat-icon>
         </button>
         <span class="ml-auto text-xs text-gray-500 hidden md:inline">

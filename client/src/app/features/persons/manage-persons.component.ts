@@ -256,7 +256,7 @@ export class PersonFacesDialogComponent implements OnInit {
         <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" />
         <mat-icon matPrefix class="opacity-60">search</mat-icon>
         @if (personsFilters.search()) {
-          <button matSuffix mat-icon-button (click)="personsFilters.search.set('')">
+          <button matSuffix mat-icon-button (click)="personsFilters.search.set('')" [attr.aria-label]="I18N.persons.clear_search | translate">
             <mat-icon>close</mat-icon>
           </button>
         }
@@ -273,6 +273,7 @@ export class PersonFacesDialogComponent implements OnInit {
         mat-icon-button
         (click)="togglePersonsSortDirection()"
         [matTooltip]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+        [attr.aria-label]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
       >
         <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
       </button>

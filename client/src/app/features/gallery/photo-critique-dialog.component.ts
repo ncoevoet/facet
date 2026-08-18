@@ -174,7 +174,7 @@ export class DistortionLabelPipe implements PipeTransform {
     <h2 mat-dialog-title class="!flex items-center gap-2 truncate">
       <mat-icon>analytics</mat-icon>
       <span class="flex-1">{{ I18N.critique.title | translate }}</span>
-      <button mat-icon-button mat-dialog-close class="shrink-0 !-mt-1 !-mr-2">
+      <button mat-icon-button mat-dialog-close class="shrink-0 !-mt-1 !-mr-2" [attr.aria-label]="I18N.critique.close | translate">
         <mat-icon>close</mat-icon>
       </button>
     </h2>

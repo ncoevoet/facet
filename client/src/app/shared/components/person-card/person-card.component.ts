@@ -98,10 +98,10 @@ export interface Person {
                   (keyup.escape)="editCancel.emit()"
                   [attr.aria-label]="'persons.rename' | translate"
                 />
-                <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.confirm' | translate" (click)="onSave()">
+                <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.confirm' | translate" [attr.aria-label]="'dialog.confirm' | translate" (click)="onSave()">
                   <mat-icon class="!text-base">check</mat-icon>
                 </button>
-                <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.cancel' | translate" (click)="editCancel.emit()">
+                <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.cancel' | translate" [attr.aria-label]="'dialog.cancel' | translate" (click)="editCancel.emit()">
                   <mat-icon class="!text-base">close</mat-icon>
                 </button>
               </div>
@@ -115,10 +115,10 @@ export interface Person {
                  tabindex="-1"
                  (click)="$event.stopPropagation()"
                  (keydown)="$event.stopPropagation()">
-              <button mat-icon-button [matTooltip]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
+              <button mat-icon-button [matTooltip]="'persons.rename' | translate" [attr.aria-label]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
                 <mat-icon class="opacity-60">edit</mat-icon>
               </button>
-              <button mat-icon-button [matTooltip]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
+              <button mat-icon-button [matTooltip]="'persons.view_photos' | translate" [attr.aria-label]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
                 <mat-icon class="opacity-60">photo_library</mat-icon>
               </button>
               <button mat-icon-button [matTooltip]="'persons.split' | translate" [attr.aria-label]="'persons.split' | translate" (click)="split.emit(person().id)">
@@ -133,7 +133,7 @@ export interface Person {
                   <mat-icon class="opacity-60">visibility_off</mat-icon>
                 </button>
               }
-              <button mat-icon-button [matTooltip]="'persons.delete' | translate" (click)="deleted.emit(person().id)">
+              <button mat-icon-button [matTooltip]="'persons.delete' | translate" [attr.aria-label]="'persons.delete' | translate" (click)="deleted.emit(person().id)">
                 <mat-icon class="opacity-60">delete</mat-icon>
               </button>
             </div>

@@ -13,7 +13,7 @@ import { ThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
 import { CategoryLabelPipe } from '../../../features/gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
 import { DownloadIconPipe } from '../../pipes/download-icon.pipe';
-import { DownloadOption } from '../../models/download.model';
+import { DownloadOption } from '../../../core/api/types';
 import { PhotoDetailBase } from '../../directives/photo-detail-base.directive';
 import { I18N_KEYS } from '../../../core/i18n/keys';
 
@@ -30,7 +30,7 @@ import { I18N_KEYS } from '../../../core/i18n/keys';
     @if (photo(); as p) {
       <!-- Header bar -->
       <div class="flex items-center gap-2 px-1 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)]">
-        <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate">
+        <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
           <mat-icon>arrow_back</mat-icon>
         </button>
         <span class="flex-1 truncate font-medium">{{ p.filename }}</span>
@@ -41,7 +41,7 @@ import { I18N_KEYS } from '../../../core/i18n/keys';
           </button>
           <mat-menu #downloadMenu="matMenu">
             @for (opt of downloadOptions(); track opt.type + (opt.profile ?? '')) {
-              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile)">
+              <button mat-menu-item (click)="download(p.path, opt.type, opt.profile ?? undefined)">
                 <mat-icon>{{ opt.type | downloadIcon }}</mat-icon>
                 @if (opt.type === 'darktable') {
                   {{ opt.profile }}

@@ -861,14 +861,17 @@ class RunGeneration {
             <button mat-icon-button [class.!text-white]="compareMode() !== 'single'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
                     [matTooltip]="I18N.culling.compare.single | translate"
+                    [attr.aria-label]="I18N.culling.compare.single | translate"
                     (click)="setCompareMode('single')"><mat-icon>crop_original</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== '2up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '2up'"
                     [matTooltip]="I18N.culling.compare['2up'] | translate"
+                    [attr.aria-label]="I18N.culling.compare['2up'] | translate"
                     (click)="setCompareMode('2up')"><mat-icon>splitscreen</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== '4up'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === '4up'"
                     [matTooltip]="I18N.culling.compare['4up'] | translate"
+                    [attr.aria-label]="I18N.culling.compare['4up'] | translate"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
             <button mat-icon-button [class.!text-white]="!peakingActive()"
                     [class.!text-[var(--mat-sys-primary)]]="peakingActive()"

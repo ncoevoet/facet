@@ -123,7 +123,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
           (blur)="onSearchChange($event)"
         />
         @if (store.filters().search) {
-          <button matSuffix mat-icon-button (click)="clearSearch()">
+          <button matSuffix mat-icon-button (click)="clearSearch()" [attr.aria-label]="I18N.gallery.clear_search | translate">
             <mat-icon>close</mat-icon>
           </button>
         } @else {
@@ -519,16 +519,16 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
       <div class="fixed bottom-0 left-0 right-0 z-50 flex items-center justify-center gap-1 lg:gap-3 px-2 lg:px-6 py-1 lg:py-3 max-lg:pb-[max(0.25rem,env(safe-area-inset-bottom))] bg-[var(--mat-sys-surface-container)] border-t border-[var(--mat-sys-outline-variant)] shadow-lg">
         <span class="text-sm font-medium shrink-0">{{ I18N.gallery.selection.count | translate:{ count: selectionCount() } }}</span>
         <div class="flex items-center gap-0 lg:gap-2">
-          <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
+          <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
           <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ I18N.gallery.selection.clear | translate }}</button>
           @if (!allLoadedSelected()) {
-            <button mat-icon-button class="lg:!hidden" (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon></button>
+            <button mat-icon-button class="lg:!hidden" (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="selectAll()"><mat-icon>select_all</mat-icon> {{ I18N.gallery.selection.select_all | translate }}</button>
           }
-          <button mat-icon-button class="lg:!hidden" (click)="invertSelection()" [matTooltip]="I18N.gallery.selection.invert | translate"><mat-icon>flip</mat-icon></button>
+          <button mat-icon-button class="lg:!hidden" (click)="invertSelection()" [matTooltip]="I18N.gallery.selection.invert | translate" [attr.aria-label]="I18N.gallery.selection.invert | translate"><mat-icon>flip</mat-icon></button>
           <button mat-button class="!hidden lg:!inline-flex" (click)="invertSelection()"><mat-icon>flip</mat-icon> {{ I18N.gallery.selection.invert | translate }}</button>
           @if (canCompareSelection()) {
-            <button mat-icon-button class="lg:!hidden" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate"><mat-icon>compare</mat-icon></button>
+            <button mat-icon-button class="lg:!hidden" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate"><mat-icon>compare</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="compareSelection()"><mat-icon>compare</mat-icon> {{ I18N.gallery.selection.compare | translate }}</button>
           }
           <!-- Mobile: single Actions trigger opening a touch-friendly bottom sheet -->

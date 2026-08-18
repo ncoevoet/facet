@@ -193,7 +193,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
                [attr.aria-label]="I18N.gallery.sidebar.find_filter | translate"
                [value]="filterQuery()" (input)="filterQuery.set($any($event.target).value)" />
         @if (filterQuery()) {
-          <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="filterQuery.set('')">
+          <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="filterQuery.set('')" [attr.aria-label]="I18N.gallery.sidebar.clear_find_filter | translate">
             <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
           </button>
         }
@@ -237,7 +237,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
                 (input)="onSemanticSearch($event)"
                 [placeholder]="I18N.gallery.semantic_search_placeholder | translate" />
               @if (store.filters().semanticQuery) {
-                <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('semanticQuery', '')">
+                <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('semanticQuery', '')" [attr.aria-label]="I18N.gallery.clear_semantic_search | translate">
                   <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
                 </button>
               }
@@ -266,7 +266,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
             (keyup.enter)="onSidebarSearchChange($event)"
             (blur)="onSidebarSearchChange($event)" />
           @if (store.filters().search) {
-            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('search', '')">
+            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('search', '')" [attr.aria-label]="I18N.gallery.clear_search | translate">
               <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
             </button>
           }
@@ -605,12 +605,14 @@ function saveSectionStates(states: Record<string, boolean>): void {
               <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
                 [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'grid'"
                 [matTooltip]="I18N.gallery.layout_grid | translate"
+                [attr.aria-label]="I18N.gallery.layout_grid | translate"
                 (click)="store.setGalleryMode('grid')">
                 <mat-icon class="!text-lg !w-5 !h-5 !leading-5">grid_view</mat-icon>
               </button>
               <button mat-icon-button class="!w-8 !h-8 !p-0 inline-flex items-center justify-center"
                 [class.!bg-[var(--mat-sys-primary-container)]]="store.galleryMode() === 'mosaic'"
                 [matTooltip]="I18N.gallery.layout_mosaic | translate"
+                [attr.aria-label]="I18N.gallery.layout_mosaic | translate"
                 (click)="store.setGalleryMode('mosaic')">
                 <mat-icon class="!text-lg !w-5 !h-5 !leading-5">auto_awesome_mosaic</mat-icon>
               </button>

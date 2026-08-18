@@ -126,6 +126,7 @@ interface CapsulesResponse {
                 mat-icon-button
                 class="shrink-0"
                 [matTooltip]="I18N.capsules.save_as_album | translate"
+                [attr.aria-label]="I18N.capsules.save_as_album | translate"
                 [disabled]="savingAlbum()"
                 (click)="saveAsAlbumFromCard($event, capsule)"
               >

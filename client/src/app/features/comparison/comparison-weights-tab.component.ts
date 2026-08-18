@@ -152,7 +152,7 @@ class SignalErrorMatcher {
           </div>
           @if (weightTotal() !== 100) {
             <button mat-icon-button class="!w-8 !h-8 shrink-0" (click)="normalizeWeights()"
-              [matTooltip]="I18N.stats.categories.weights.normalize | translate">
+              [matTooltip]="I18N.stats.categories.weights.normalize | translate" [attr.aria-label]="I18N.stats.categories.weights.normalize | translate">
               <mat-icon>balance</mat-icon>
             </button>
           }

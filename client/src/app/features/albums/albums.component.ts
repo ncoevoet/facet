@@ -120,6 +120,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
               @if (!album.is_smart) {
                 <button mat-icon-button
                         [matTooltip]="'albums.scenes' | translate"
+                        [attr.aria-label]="'albums.scenes' | translate"
                         (click)="openScoped($event, '/scenes', album)">
                   <mat-icon class="opacity-60">movie_filter</mat-icon>
                 </button>
@@ -128,39 +129,46 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
                 @if (!album.is_smart && proofingEnabled()) {
                   <button mat-icon-button
                           [matTooltip]="'proofing.client_picks' | translate"
+                          [attr.aria-label]="'proofing.client_picks' | translate"
                           (click)="openClientPicks($event, album)">
                     <mat-icon class="opacity-60">how_to_vote</mat-icon>
                   </button>
                 }
                 <button mat-icon-button
                         [matTooltip]="'albums.cull' | translate"
+                        [attr.aria-label]="'albums.cull' | translate"
                         (click)="openScoped($event, '/culling', album)">
                   <mat-icon class="opacity-60">auto_delete</mat-icon>
                 </button>
                 @if (!album.is_smart && portfolioEnabled()) {
                   <button mat-icon-button
                           [matTooltip]="'albums.portfolio' | translate"
+                          [attr.aria-label]="'albums.portfolio' | translate"
                           (click)="exportPortfolio($event, album)">
                     <mat-icon class="opacity-60">web</mat-icon>
                   </button>
                 }
                 <button mat-icon-button
                         [matTooltip]="'albums.scoring_context.action' | translate"
+                        [attr.aria-label]="'albums.scoring_context.action' | translate"
                         (click)="openScoringContext($event, album)">
                   <mat-icon class="opacity-60">tune</mat-icon>
                 </button>
                 <button mat-icon-button
                         [matTooltip]="'albums.edit' | translate"
+                        [attr.aria-label]="'albums.edit' | translate"
                         (click)="editAlbum($event, album)">
                   <mat-icon class="opacity-60">edit</mat-icon>
                 </button>
                 <button mat-icon-button
                         [matTooltip]="'albums.share' | translate"
+                        [attr.aria-label]="'albums.share' | translate"
                         (click)="shareAlbum($event, album)">
                   <mat-icon class="opacity-60">{{ album.is_shared ? 'link' : 'share' }}</mat-icon>
                 </button>
                 <button mat-icon-button
                         [matTooltip]="'albums.delete' | translate"
+                        [attr.aria-label]="'albums.delete' | translate"
                         (click)="deleteAlbum($event, album)">
                   <mat-icon class="opacity-60">delete</mat-icon>
                 </button>

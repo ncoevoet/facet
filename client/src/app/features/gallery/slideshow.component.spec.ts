@@ -545,4 +545,52 @@ describe('SlideshowComponent', () => {
       expect(removeSpy).toHaveBeenCalledWith('fullscreenchange', component['boundFullscreenHandler']);
     });
   });
+
+  describe('focus management', () => {
+    /** The shared `component`/`fixture` from the outer beforeEach are already
+     *  constructed by the time a test body runs, which is too late to control
+     *  document.activeElement before the field initializer captures it. Each
+     *  test here creates its own instance instead, under the same TestBed
+     *  configuration (fake timers, mocked Image/rAF already stubbed above). */
+    function mountFresh(trigger: HTMLElement): ComponentFixture<SlideshowComponent> {
+      // Focus must happen before createComponent(): the previously-focused
+      // element is captured by a field initializer, which runs synchronously
+      // during component construction.
+      trigger.focus();
+      const freshFixture = TestBed.createComponent(SlideshowComponent);
+      freshFixture.componentRef.setInput('photos', [landscape('/a.jpg')]);
+      freshFixture.detectChanges();
+      TestBed.tick();
+      return freshFixture;
+    }
+
+    let trigger: HTMLButtonElement;
+
+    beforeEach(() => {
+      trigger = document.createElement('button');
+      document.body.appendChild(trigger);
+    });
+
+    afterEach(() => {
+      trigger.remove();
+    });
+
+    it('moves focus into the dialog container on open', () => {
+      const freshFixture = mountFresh(trigger);
+      const container = freshFixture.nativeElement.querySelector('[role="dialog"]');
+
+      expect(document.activeElement).toBe(container);
+
+      freshFixture.componentInstance.ngOnDestroy();
+    });
+
+    it('restores focus to the previously focused element on close', () => {
+      const freshFixture = mountFresh(trigger);
+      expect(document.activeElement).not.toBe(trigger);
+
+      freshFixture.componentInstance.ngOnDestroy();
+
+      expect(document.activeElement).toBe(trigger);
+    });
+  });
 });

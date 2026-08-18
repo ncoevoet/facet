@@ -13,6 +13,7 @@ import {
   afterNextRender,
   viewChild,
 } from '@angular/core';
+import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatSliderModule } from '@angular/material/slider';
@@ -30,6 +31,7 @@ interface Slide {
 @Component({
   selector: 'app-slideshow',
   imports: [
+    CdkTrapFocus,
     MatIconModule,
     MatButtonModule,
     MatSliderModule,
@@ -38,6 +40,12 @@ interface Slide {
     TranslatePipe,
   ],
   template: `
+    <!-- cdkTrapFocus without auto-capture: the shortcuts in onKeyDown() are bound
+         on window, so they fire regardless of which element inside the overlay
+         holds focus. Auto-capture would instead land focus on a toolbar button
+         (e.g. Close), and Space would then both toggle play/pause via the window
+         handler and activate that focused button. The effect below focuses the
+         container itself so Space only reaches the slideshow's own shortcut. -->
     <div
       #slideshowContainer
       class="fixed inset-0 z-[9999] bg-black overflow-hidden select-none"
@@ -45,6 +53,7 @@ interface Slide {
       role="dialog"
       aria-modal="true"
       tabindex="-1"
+      cdkTrapFocus
       (mousemove)="showControls()"
       (click)="showControls()"
       (keydown.enter)="showControls()"
@@ -72,7 +81,7 @@ interface Slide {
             / {{ c.total }}
           </span>
         }
-        <button mat-icon-button (click)="close()" [matTooltip]="I18N.slideshow.close | translate">
+        <button mat-icon-button (click)="close()" [matTooltip]="I18N.slideshow.close | translate" [attr.aria-label]="I18N.slideshow.close | translate">
           <mat-icon class="!text-white">close</mat-icon>
         </button>
       </div>
@@ -137,6 +146,7 @@ interface Slide {
           [class.pointer-events-none]="!controlsVisible()"
           (click)="prev()"
           [matTooltip]="I18N.slideshow.prev | translate"
+          [attr.aria-label]="I18N.slideshow.prev | translate"
         >
           <mat-icon class="!text-white">chevron_left</mat-icon>
         </button>
@@ -149,6 +159,7 @@ interface Slide {
           [class.pointer-events-none]="!controlsVisible()"
           (click)="next()"
           [matTooltip]="I18N.slideshow.next | translate"
+          [attr.aria-label]="I18N.slideshow.next | translate"
         >
           <mat-icon class="!text-white">chevron_right</mat-icon>
         </button>
@@ -173,6 +184,7 @@ interface Slide {
             mat-icon-button
             (click)="togglePlay()"
             [matTooltip]="(isPlaying() ? 'slideshow.pause' : 'slideshow.play') | translate"
+            [attr.aria-label]="(isPlaying() ? 'slideshow.pause' : 'slideshow.play') | translate"
           >
             <mat-icon class="!text-white">{{ isPlaying() ? 'pause' : 'play_arrow' }}</mat-icon>
           </button>
@@ -189,6 +201,7 @@ interface Slide {
             mat-icon-button
             (click)="toggleFullscreen()"
             [matTooltip]="I18N.slideshow.fullscreen | translate"
+            [attr.aria-label]="I18N.slideshow.fullscreen | translate"
           >
             <mat-icon class="!text-white">{{ isFullscreen() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
           </button>
@@ -374,7 +387,21 @@ export class SlideshowComponent implements OnDestroy {
   /** True once ngOnDestroy has run — guards pending async work from mutating a destroyed component. */
   private destroyed = false;
 
+  // Captured synchronously at construction, before the effect below moves focus
+  // into the overlay, so it still points at whatever triggered the slideshow.
+  // cdkTrapFocus does not restore it for us: that only happens via its
+  // autoCapture path, which is deliberately off here (see the template comment).
+  private readonly previouslyFocusedElement: HTMLElement | null =
+    document.activeElement instanceof HTMLElement ? document.activeElement : null;
+
   constructor() {
+    // Move focus onto the dialog container when it mounts, so cdkTrapFocus has
+    // somewhere inside the overlay to trap Tab from (without this, focus stays
+    // on whatever triggered the slideshow, which is now hidden behind it).
+    effect(() => {
+      this.container().nativeElement.focus();
+    });
+
     // Watch for slides to become available (handles async photo loading)
     effect(() => {
       const slides = this.slides();
@@ -495,6 +522,9 @@ export class SlideshowComponent implements OnDestroy {
     }
     if (this.boundOrientationHandler) {
       screen.orientation?.removeEventListener('change', this.boundOrientationHandler);
+    }
+    if (this.previouslyFocusedElement && document.contains(this.previouslyFocusedElement)) {
+      this.previouslyFocusedElement.focus();
     }
     this.destroyed = true;
     this.store.slideshowActive.set(false);

@@ -67,7 +67,7 @@ interface MergeSuggestionsResponse {
                     max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-50
                     max-lg:px-4 max-lg:py-2 max-lg:bg-[var(--mat-sys-surface-container)]
                     max-lg:border-t max-lg:border-[var(--mat-sys-outline-variant)] safe-area-pb">
-          <a mat-icon-button routerLink="/persons" [matTooltip]="I18N.photo_detail.back | translate">
+          <a mat-icon-button routerLink="/persons" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
             <mat-icon>arrow_back</mat-icon>
           </a>
           <span class="text-sm opacity-70 shrink-0">{{ I18N.persons.similarity_threshold | translate }}</span>
@@ -167,6 +167,7 @@ interface MergeSuggestionsResponse {
                   mat-icon-button
                   [disabled]="merging()"
                   [matTooltip]="I18N.common.dismiss | translate"
+                  [attr.aria-label]="I18N.common.dismiss | translate"
                   (click)="rejectSuggestion(suggestion)"
                 >
                   <mat-icon>close</mat-icon>

@@ -19,3 +19,5 @@ import type { components } from './schema';
  * not, and it type-checks every declared field against a live response.
  */
 export type ComparisonStats = components['schemas']['ComparisonStatsResponse'];
+
+export type DownloadOption = components['schemas']['DownloadOption'];
