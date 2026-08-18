@@ -8,7 +8,8 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "gen:i18n": "node scripts/gen-i18n-keys.mjs"
+    "gen:i18n": "node scripts/gen-i18n-keys.mjs",
+    "gen:api": "node scripts/gen-api-types.mjs"
   },
   "prettier": {
     "printWidth": 100,
@@ -51,6 +52,7 @@
     "angular-eslint": "21.4.0",
     "eslint": "9.39.5",
     "jsdom": "29.1.1",
+    "openapi-typescript": "7.13.0",
     "postcss": "8.5.25",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",

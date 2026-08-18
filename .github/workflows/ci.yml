@@ -23,6 +23,34 @@ jobs:
         run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt pillow numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil
       - name: Run tests
         run: python -m pytest --tb=short -q --cov=api --cov=processing --cov=analyzers --cov=config --cov=utils --cov-report=term-missing
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - name: schema.d.ts is regenerated from the live OpenAPI schema
+        # This job is the only one whose pip install makes `api` importable, so
+        # the dump has to run here; `lint` installs ruff and mypy only. The
+        # generator falls back to `npx --yes openapi-typescript@<pinned>` when
+        # client/node_modules is absent, so this costs no Angular install.
+        env:
+          PYTHON: python
+        run: npm run gen:api
+        working-directory: client
+      - name: schema.d.ts is up to date
+        # Catches the subtractive direction the compiler cannot see: deleting a
+        # response_model, or a field from one, still type-checks on both sides.
+        run: |
+          # `git diff --exit-code` exits 0 for an UNTRACKED path, which would make
+          # this gate silently vacuous if the generated file ever stopped being
+          # committed. Assert it is tracked first.
+          if ! git ls-files --error-unmatch client/src/app/core/api/schema.d.ts > /dev/null 2>&1; then
+            echo "::error file=client/src/app/core/api/schema.d.ts::schema.d.ts is not tracked by git, so the staleness check below cannot fail. Commit it."
+            exit 1
+          fi
+          if ! git diff --exit-code client/src/app/core/api/schema.d.ts; then
+            echo "::error file=client/src/app/core/api/schema.d.ts::schema.d.ts is out of date with the FastAPI response models."
+            echo "Run 'cd client && npm run gen:api' and commit the result."
+            exit 1
+          fi
 
   windows-tests:
     name: Python Tests (Windows)

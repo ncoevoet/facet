@@ -6,6 +6,12 @@ const angular = require("angular-eslint");
 
 module.exports = defineConfig([
   {
+    // Generated from the FastAPI OpenAPI schema by scripts/gen-api-types.mjs.
+    // openapi-typescript emits index signatures and mixes interface/type, which
+    // the stylistic rules reject; the file is never hand-edited.
+    ignores: ["src/app/core/api/schema.d.ts"],
+  },
+  {
     files: ["**/*.ts"],
     extends: [
       eslint.configs.recommended,
