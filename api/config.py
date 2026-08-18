@@ -46,6 +46,7 @@ _SECRET_ENV_VAR = 'FACET_JWT_SECRET'
 _SECRET_FILE_MODE = 0o600
 _SECRET_BYTES = 32
 _LEGACY_SECRET_KEY = 'share_secret'
+_NO_CONFIG_MIGRATION_ENV_VAR = 'FACET_NO_CONFIG_MIGRATION'
 _GROUP_OTHER_MODE = 0o077
 _CONFIG_BACKUP_SUFFIX = '.backup'
 
@@ -477,6 +478,25 @@ def _claim_or_adopt_secret(secret):
     return secret
 
 
+def _config_migration_suppressed():
+    """True when this process reads the config but must not rewrite it.
+
+    Set by tooling that imports the app for its metadata rather than to serve
+    it — ``scripts/dump_openapi.py``, and therefore ``npm run gen:api`` and the
+    CI step that runs it. Creating the app runs the boot migration below, so a
+    codegen command was silently performing a security migration on whatever
+    config happened to be next to it: rewriting the operator's
+    ``scoring_config.json`` and leaving a ``.backup``, under whatever account
+    happened to run the build.
+
+    Deliberately absent from the deployment docs. It is a build-tooling escape
+    hatch, not a server setting: a server that sets it keeps a forgeable
+    ``share_secret`` in a git-tracked file, which is the whole vulnerability the
+    migration exists to close. The suppressed path says so, loudly, every time.
+    """
+    return bool(os.environ.get(_NO_CONFIG_MIGRATION_ENV_VAR, '').strip())
+
+
 def _read_config_evicting_legacy_share_key():
     """Parse the config and delete ``share_secret`` from it. One read, not two.
 
@@ -488,7 +508,11 @@ def _read_config_evicting_legacy_share_key():
     Eviction happens on every boot until the key is gone, and even when the
     secret is already sourced from the environment or the secret file —
     leaving the key behind in a tracked file is the vulnerability, so its
-    removal is not conditional on needing its value.
+    removal is not conditional on needing its value. The one exception is
+    :func:`_config_migration_suppressed`, which skips the DISK write only: the
+    key is still dropped from the returned config and still returned as
+    ``legacy``, so an in-process caller sees exactly the migrated state it
+    would otherwise see and only the file is left alone.
 
     The read-modify-write is held under :data:`CONFIG_WRITE_LOCK`, mirroring
     ``api.auth.upgrade_legacy_password``: a concurrent weights, priority,
@@ -509,6 +533,16 @@ def _read_config_evicting_legacy_share_key():
         if not parsed_ok or _LEGACY_SECRET_KEY not in config:
             return config, parsed_ok, ''
         legacy = config.pop(_LEGACY_SECRET_KEY)
+        if _config_migration_suppressed():
+            logger.warning(
+                "$%s is set, so `%s` was left in %s. This process reads the config "
+                "without migrating it; the next ordinary server start will evict the "
+                "key. If you are seeing this from a SERVER, unset the variable — while "
+                "the key is in that git-tracked file, anyone who can read it can forge "
+                "any session.",
+                _NO_CONFIG_MIGRATION_ENV_VAR, _LEGACY_SECRET_KEY, _CONFIG_PATH,
+            )
+            return config, parsed_ok, legacy.strip() if isinstance(legacy, str) else ''
         try:
             _write_config_backup(config)
             atomic_write_json(_CONFIG_PATH, config)

@@ -14,6 +14,7 @@ from unittest import mock
 import pytest
 from fastapi import HTTPException
 
+from api import config as api_config
 from api.auth import _is_hashed, upgrade_legacy_password
 from api.config import CONFIG_WRITE_LOCK, atomic_write_json
 from api.config_writes import (
@@ -636,3 +637,69 @@ class TestWritersOfDifferentPartsShareOneLock:
         written = json.loads(config_copy.read_text())
         assert written["scoring_contexts"][self.CONTEXT]["promote"] == ["wildlife"]
         assert _is_hashed(written["viewer"]["password"])
+
+
+class TestConfigMigrationSuppression:
+    """`FACET_NO_CONFIG_MIGRATION` skips the disk write, and nothing else.
+
+    Creating the app runs the boot migration, so `scripts/dump_openapi.py` —
+    and therefore `npm run gen:api` and the CI step that runs it — was
+    rewriting whatever `scoring_config.json` sat next to it and leaving a
+    `.backup`, under whatever account ran the build. The flag stops the write.
+
+    It must not weaken the migration itself: the key is the vulnerability while
+    it sits in a git-tracked file, so an ordinary boot still has to evict it.
+    That is what `test_an_unset_flag_still_evicts_and_rewrites` pins.
+    """
+
+    LEGACY = "b" * 64
+
+    def _config_with_legacy(self, path):
+        cfg = json.loads(path.read_text())
+        cfg["share_secret"] = self.LEGACY
+        path.write_text(json.dumps(cfg))
+
+    def _read(self, path, suppressed):
+        env = {"FACET_NO_CONFIG_MIGRATION": "1"} if suppressed else {}
+        with (
+            mock.patch.object(api_config, "_CONFIG_PATH", str(path)),
+            mock.patch.dict(os.environ, env, clear=False),
+        ):
+            if not suppressed:
+                os.environ.pop("FACET_NO_CONFIG_MIGRATION", None)
+            return api_config._read_config_evicting_legacy_share_key()
+
+    def test_the_flag_leaves_the_file_and_its_backup_alone(self, config_copy):
+        self._config_with_legacy(config_copy)
+        before = config_copy.read_text()
+
+        config, parsed_ok, legacy = self._read(config_copy, suppressed=True)
+
+        assert config_copy.read_text() == before, "the config was rewritten anyway"
+        assert not list(config_copy.parent.glob("*.backup")), "a backup was written anyway"
+        assert parsed_ok
+        assert legacy == self.LEGACY, "the caller must still receive the secret"
+        assert "share_secret" not in config, (
+            "the key must still be evicted from the config this process holds, "
+            "so the in-process view is identical either way"
+        )
+
+    def test_an_unset_flag_still_evicts_and_rewrites(self, config_copy):
+        """Control: the security migration is unchanged for an ordinary boot."""
+        self._config_with_legacy(config_copy)
+
+        config, parsed_ok, legacy = self._read(config_copy, suppressed=False)
+
+        assert "share_secret" not in json.loads(config_copy.read_text()), (
+            "the boot migration stopped evicting the legacy key"
+        )
+        assert list(config_copy.parent.glob("*.backup")), "no backup was written"
+        assert legacy == self.LEGACY
+        assert "share_secret" not in config
+
+    def test_a_config_without_the_key_is_never_written_either_way(self, config_copy):
+        before = config_copy.read_text()
+        for suppressed in (True, False):
+            self._read(config_copy, suppressed=suppressed)
+            assert config_copy.read_text() == before
+            assert not list(config_copy.parent.glob("*.backup"))
