@@ -16,6 +16,8 @@ from unittest import mock
 
 import pytest
 
+from db.schema import init_database
+
 _EXPORT_MODULE = "api.routers.export"
 
 
@@ -41,22 +43,18 @@ def _db(tmp_path, photos):
 
     ``extra`` is an optional dict of sequence columns (sequence_kind,
     sequence_group_id, is_sequence_lead, sequence_ev_offset, date_taken) for
-    bracket/panorama fixtures. Creates a photos table + rows.
+    bracket/panorama fixtures.
 
-    ``date_taken`` is here because the lead reassignment orders survivors by
-    capture order, the way the detector picked the original lead. A fixture
-    missing a column the code under test selects fails as an OperationalError,
-    not as a wrong answer -- which is how this column came to be added.
+    The schema comes from ``db.schema.init_database``, never a hand-rolled
+    CREATE TABLE: ``build_photo_select_columns`` intersects the optional column
+    list with the columns the database actually has, so a short fixture makes
+    the endpoint legitimately drop a field and the assertion pass vacuously --
+    the test stops testing instead of failing. ``date_taken`` used to be one
+    such omission here, and only surfaced as an OperationalError.
     """
     db = str(tmp_path / "t.db")
+    init_database(db)
     conn = sqlite3.connect(db)
-    conn.execute(
-        "CREATE TABLE photos ("
-        "path TEXT PRIMARY KEY, filename TEXT, is_rejected INTEGER DEFAULT 0, "
-        "sequence_kind TEXT, sequence_group_id INTEGER, "
-        "is_sequence_lead INTEGER DEFAULT 0, sequence_ev_offset REAL, "
-        "date_taken TEXT)"
-    )
     for entry in photos:
         path, rejected = entry[0], entry[1]
         extra = entry[2] if len(entry) > 2 else {}

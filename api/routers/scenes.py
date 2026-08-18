@@ -19,11 +19,11 @@ from pydantic import BaseModel
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_db
 from api.db_helpers import (
-    get_visibility_clause, trigger_auto_retrain, set_photos_rejected,
-    album_filter_clause, time_window_clauses, scope_cache_key, HIDE_BURSTS_SQL,
+    get_visibility_clause, record_culling_decision, set_photos_rejected,
+    album_filter_clause, time_window_clauses, scope_cache_key, paginate,
+    HIDE_BURSTS_SQL,
 )
 from api.models.albums import ScenesResponse
-from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
 
 logger = logging.getLogger(__name__)
@@ -330,7 +330,7 @@ async def api_scenes(
             conn, user_id=user_id, album_id=album_id, date_from=date_from, date_to=date_to,
         )
     total = len(scenes)
-    start = max(0, (page - 1) * per_page)
+    total_pages, start = paginate(total, page, per_page)
     page_scenes = scenes[start:start + per_page]
     if summary:
         page_scenes = [{k: v for k, v in s.items() if k != 'photos'} for s in page_scenes]
@@ -339,7 +339,7 @@ async def api_scenes(
         'total': total,
         'page': page,
         'per_page': per_page,
-        'total_pages': (total + per_page - 1) // per_page if per_page else 1,
+        'total_pages': total_pages,
     }
 
 
@@ -380,8 +380,8 @@ async def apply_scene_cull(
                 visible = {row['path'] for row in rows}
                 group_paths &= visible
                 keep_set &= visible
-                # A mixed scene's bracket/panorama frame must not enter
-                # record_culling_pairs below -- see burst_culling._sequence_members.
+                # A mixed scene's bracket/panorama frame must not enter the
+                # ranker's training pairs -- see burst_culling._sequence_members.
                 from api.routers.burst_culling import _sequence_members
                 sequence_members = _sequence_members(rows)
 
@@ -389,21 +389,16 @@ async def apply_scene_cull(
             set_photos_rejected(conn, reject_paths, user_id)
 
             conn.execute("DELETE FROM stats_cache WHERE key LIKE 'scenes_%'")
-            pairable_keep = [p for p in keep_set if p not in sequence_members]
-            pairable_reject = [p for p in reject_paths if p not in sequence_members]
-            added = record_culling_pairs(
-                conn, pairable_keep, pairable_reject, user_id=user_id, group_type='scene',
+            record_culling_decision(
+                conn, keep_set, reject_paths, sequence_members,
+                user_id=user_id, group_type='scene',
             )
-            conn.commit()
 
             # The unified culling feed memoizes its enriched burst/similar groups
             # in-process; a scene cull rejects photos those groups may include, so
             # drop the memo (imported lazily — burst_culling imports this module).
             from api.routers.burst_culling import _invalidate_culling_groups_cache
             _invalidate_culling_groups_cache()
-
-            from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
         except HTTPException:

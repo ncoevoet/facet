@@ -24,13 +24,13 @@ from api.database import get_db
 from api.subject_bbox import parse_subject_bbox
 from api.db_helpers import (
     get_visibility_clause, paginate, is_multi_user_enabled, get_photos_from_clause,
-    trigger_auto_retrain, set_photos_rejected, album_filter_clause, time_window_clauses,
+    trigger_auto_retrain, record_culling_decision, set_photos_rejected,
+    album_filter_clause, time_window_clauses,
     select_in_chunks, scope_cache_key, NO_VISIBILITY_SQL,
     SEQUENCE_OVERRIDE_SELECT, SEQUENCE_OVERRIDE_PENDING_SELECT,
 )
 from api.similarity_groups import compute_similarity_groups
 from api.routers.scenes import compute_scenes, apply_scene_cull, SceneConfirmBody
-from comparison.comparison_manager import record_culling_pairs
 from processing.burst_score import burst_weights_from_config, compute_burst_score
 from utils.date_utils import parse_date
 from db.sequence_overrides import (
@@ -616,11 +616,22 @@ def _sequence_members(rows):
     These frames must never enter ``record_culling_pairs``: a comparison pair
     there would teach the ranker how the set was shot -- which frame of a pan,
     which rung of an exposure ladder -- rather than any quality judgement.
-    Shared by every feed that calls ``record_culling_pairs`` directly (burst,
-    similar, scene); the true keep-whole route (``_confirm_sequence_group``)
-    never calls it at all, so it needs no such filter.
+    Handed to ``db_helpers.record_culling_decision`` by every feed that writes
+    pairs: the burst, similar and scene confirms, and the ``/api/culling/auto``
+    sweep. The true keep-whole route (``_confirm_sequence_group``) records no
+    pairs at all, so it needs no such filter.
+
+    ``rows`` may be ``sqlite3.Row`` objects from an explicit
+    ``SELECT path, sequence_kind`` or the plain dicts the group builders assemble
+    (``_score_burst_group`` and friends), so the key is read the same tolerant
+    way ``_group_sequence_kind`` reads it -- a group builder that stops carrying
+    the column must fail loudly at its own gate, not silently return an empty
+    set here and let sequence frames into the ranker.
     """
-    return {r['path'] for r in rows if r['sequence_kind'] in _KEEP_WHOLE_KINDS}
+    return {
+        r['path'] for r in rows
+        if ('sequence_kind' in r.keys() and r['sequence_kind'] in _KEEP_WHOLE_KINDS)
+    }
 
 
 @router.post("/api/burst-groups/select")
@@ -675,17 +686,11 @@ async def select_burst_photos(
             if reject_paths:
                 set_photos_rejected(conn, reject_paths, user_id)
 
-            pairable_keep = [p for p in keep_paths if p not in sequence_members]
-            pairable_reject = [p for p in reject_paths if p not in sequence_members]
-            added = record_culling_pairs(
-                conn, pairable_keep, pairable_reject,
+            record_culling_decision(
+                conn, keep_paths, reject_paths, sequence_members,
                 user_id=user_id, group_type='burst',
             )
-
-            conn.commit()
             _invalidate_culling_groups_cache()
-            from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(group_paths - keep_set)}
 
         except HTTPException:
@@ -800,17 +805,11 @@ async def select_similar_photos(
             # photos as still-unreviewed for up to the 1h TTL.
             conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
 
-            pairable_keep = [p for p in keep_set if p not in sequence_members]
-            pairable_reject = [p for p in reject_paths if p not in sequence_members]
-            added = record_culling_pairs(
-                conn, pairable_keep, pairable_reject,
+            record_culling_decision(
+                conn, keep_set, reject_paths, sequence_members,
                 user_id=user_id, group_type='similar',
             )
-
-            conn.commit()
             _invalidate_culling_groups_cache()
-            from db import DEFAULT_DB_PATH
-            trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
             return {'status': 'ok', 'kept': len(keep_set), 'rejected': len(reject_paths)}
 
         except HTTPException:
@@ -1991,9 +1990,16 @@ def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_s
 
     Mirrors ``select_burst_photos`` / ``select_similar_photos`` /
     ``apply_scene_cull``: per-user rejection via ``set_photos_rejected``,
-    reviewed flags per type, and one ``record_culling_pairs`` call per group
-    (source='culling'). Runs inside the caller's transaction. Returns the
-    number of comparison pairs inserted.
+    reviewed flags per type, and one ``record_culling_decision`` call per group
+    (source='culling'). Runs inside the caller's transaction, so it defers the
+    commit and the retrain nudge to the caller, which does both once for the
+    whole sweep.
+
+    The ``keep_whole`` early return below tests the GROUP's kind, which is
+    ``None`` for a MIXED group (see ``_group_sequence_kind``) -- so it cannot be
+    the only guard. The per-frame ``_sequence_members`` filter is what catches a
+    scene holding a panorama alongside ordinary frames. Returns the number of
+    comparison pairs inserted.
     """
     gtype = group['type']
     keep_whole = group.get('sequence_kind') in _KEEP_WHOLE_KINDS
@@ -2013,8 +2019,9 @@ def _apply_auto_cull_group(conn, group, keep_paths, reject_paths, user_id, vis_s
         # group needs no separate test -- `_fetch_bracket_groups` sets both keys
         # on the same dict, so its kind already answers for it.
         return 0
-    return record_culling_pairs(
-        conn, keep_paths, reject_paths, user_id=user_id, group_type=gtype,
+    return record_culling_decision(
+        conn, keep_paths, reject_paths, _sequence_members(group['photos']),
+        user_id=user_id, group_type=gtype, commit=False,
     )
 
 

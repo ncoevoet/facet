@@ -1,5 +1,6 @@
 """Tests for burst culling helpers and endpoints (api/routers/burst_culling.py)."""
 
+import sqlite3
 from contextlib import contextmanager
 from unittest import mock
 
@@ -17,6 +18,7 @@ from api.routers.burst_culling import (
     _group_sequence_kind,
     _order_group_photos_by_capture,
 )
+from db.schema import init_database
 
 
 def _cm(conn):
@@ -24,6 +26,28 @@ def _cm(conn):
     def _ctx():
         yield conn
     return _ctx()
+
+
+def _real_schema_db(tmp_path, var_limit=None):
+    """An empty database carrying the real schema, open for the whole test.
+
+    Never a hand-rolled ``CREATE TABLE photos``: ``build_photo_select_columns``
+    intersects the optional column list with the columns the database actually
+    has, so a short fixture makes an endpoint legitimately drop a field and the
+    assertion pass for the wrong reason -- the test stops testing rather than
+    turning red.
+
+    ``var_limit`` constrains ``SQLITE_LIMIT_VARIABLE_NUMBER`` so a query that
+    forgot to chunk its ``IN (...)`` list fails here instead of only on the
+    builds whose limit is lower than this one's.
+    """
+    db_path = str(tmp_path / "burst_culling.db")
+    init_database(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    if var_limit is not None:
+        conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, var_limit)
+    return conn
 
 
 # Every culling feed reports each frame's pending panorama correction, so this
@@ -818,32 +842,17 @@ class TestConfirmSimilarWithSequenceMember:
     "won" -- an artefact of how the set was shot, not a quality judgement.
     """
 
-    _SCHEMA = """
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
-            sequence_kind TEXT, category TEXT DEFAULT 'default',
-            is_rejected INTEGER DEFAULT 0, similarity_reviewed INTEGER DEFAULT 0
-        );
-        CREATE TABLE comparisons (
-            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
-            category TEXT, session_id TEXT, user_id TEXT, source TEXT
-        );
-        CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
-
     @staticmethod
-    def _db():
-        import sqlite3
-        conn = sqlite3.connect(":memory:", check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.executescript(TestConfirmSimilarWithSequenceMember._SCHEMA)
+    def _db(tmp_path):
+        conn = _real_schema_db(tmp_path)
         for index in range(2):
             conn.execute(
-                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind) "
-                "VALUES (?, ?, 1, 'panorama')", (f'/s{index}.jpg', f's{index}.jpg'))
+                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind, "
+                "category) VALUES (?, ?, 1, 'panorama', 'default')",
+                (f'/s{index}.jpg', f's{index}.jpg'))
         conn.execute(
-            "INSERT INTO photos (path, filename, sequence_kind) "
-            "VALUES ('/other.jpg', 'other.jpg', NULL)"
+            "INSERT INTO photos (path, filename, sequence_kind, category) "
+            "VALUES ('/other.jpg', 'other.jpg', NULL, 'default')"
         )
         conn.commit()
         return conn
@@ -868,8 +877,8 @@ class TestConfirmSimilarWithSequenceMember:
                 "group_id": 1, "type": "similar", **body,
             })
 
-    def test_sequence_member_records_no_pair_via_similar_feed(self, client):
-        conn = self._db()
+    def test_sequence_member_records_no_pair_via_similar_feed(self, client, tmp_path):
+        conn = self._db(tmp_path)
         resp = self._confirm(client, conn, {
             "paths": ["/s0.jpg", "/s1.jpg", "/other.jpg"],
             "keep_paths": ["/other.jpg"],
@@ -879,38 +888,51 @@ class TestConfirmSimilarWithSequenceMember:
             "SELECT path FROM photos WHERE is_rejected = 1").fetchall()} == {"/s0.jpg", "/s1.jpg"}
         assert conn.execute("SELECT COUNT(*) FROM comparisons").fetchone()[0] == 0
 
+    def test_two_ordinary_photos_still_record_a_pair_via_similar_feed(self, client, tmp_path):
+        """The positive control for the assertion above.
+
+        `COUNT(*) == 0` holds just as well if the similar feed stopped
+        recording ranker training pairs altogether, so the exclusion is only
+        proven alongside a group of ordinary frames that does record one.
+        """
+        conn = self._db(tmp_path)
+        conn.execute(
+            "INSERT INTO photos (path, filename, sequence_kind, category) "
+            "VALUES ('/other_b.jpg', 'other_b.jpg', NULL, 'default')"
+        )
+        conn.commit()
+        resp = self._confirm(client, conn, {
+            "paths": ["/other.jpg", "/other_b.jpg"],
+            "keep_paths": ["/other.jpg"],
+        })
+        assert resp.status_code == 200
+        rows = conn.execute(
+            "SELECT photo_a_path, photo_b_path, winner, session_id, source "
+            "FROM comparisons").fetchall()
+        assert len(rows) == 1
+        assert rows[0]['session_id'] == 'cull-similar'
+        assert rows[0]['source'] == 'culling'
+        a, b, winner = rows[0]['photo_a_path'], rows[0]['photo_b_path'], rows[0]['winner']
+        assert {a, b} == {'/other.jpg', '/other_b.jpg'}
+        assert (a if winner == 'a' else b) == '/other.jpg'
+
 
 class TestConfirmSceneWithSequenceMember:
     """Finding 3, scene feed: `apply_scene_cull` also called `record_culling_pairs`
     on the raw keep/reject sets without excluding sequence-kind members.
     """
 
-    _SCHEMA = """
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
-            sequence_kind TEXT, category TEXT DEFAULT 'default',
-            is_rejected INTEGER DEFAULT 0
-        );
-        CREATE TABLE comparisons (
-            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
-            category TEXT, session_id TEXT, user_id TEXT, source TEXT
-        );
-        CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
-
     @staticmethod
-    def _db():
-        import sqlite3
-        conn = sqlite3.connect(":memory:", check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.executescript(TestConfirmSceneWithSequenceMember._SCHEMA)
+    def _db(tmp_path):
+        conn = _real_schema_db(tmp_path)
         for index in range(2):
             conn.execute(
-                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind) "
-                "VALUES (?, ?, 1, 'bracket')", (f'/k{index}.jpg', f'k{index}.jpg'))
+                "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind, "
+                "category) VALUES (?, ?, 1, 'bracket', 'default')",
+                (f'/k{index}.jpg', f'k{index}.jpg'))
         conn.execute(
-            "INSERT INTO photos (path, filename, sequence_kind) "
-            "VALUES ('/other.jpg', 'other.jpg', NULL)"
+            "INSERT INTO photos (path, filename, sequence_kind, category) "
+            "VALUES ('/other.jpg', 'other.jpg', NULL, 'default')"
         )
         conn.commit()
         return conn
@@ -938,8 +960,8 @@ class TestConfirmSceneWithSequenceMember:
                 "group_id": 1, "type": "scene", **body,
             })
 
-    def test_sequence_member_records_no_pair_via_scene_feed(self, client):
-        conn = self._db()
+    def test_sequence_member_records_no_pair_via_scene_feed(self, client, tmp_path):
+        conn = self._db(tmp_path)
         resp = self._confirm(client, conn, {
             "paths": ["/k0.jpg", "/k1.jpg", "/other.jpg"],
             "keep_paths": ["/other.jpg"],
@@ -957,27 +979,9 @@ class TestConfirmPathsBound:
     `_keep_whole_kind_for`.
     """
 
-    _SCHEMA = """
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
-            sequence_kind TEXT, burst_group_id INTEGER, is_rejected INTEGER DEFAULT 0
-        );
-        CREATE TABLE comparisons (
-            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
-            category TEXT, session_id TEXT, user_id TEXT, source TEXT
-        );
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
-
     @staticmethod
-    def _db(var_limit=None):
-        import sqlite3
-        conn = sqlite3.connect(":memory:", check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.executescript(TestConfirmPathsBound._SCHEMA)
-        if var_limit is not None:
-            conn.setlimit(sqlite3.SQLITE_LIMIT_VARIABLE_NUMBER, var_limit)
-        conn.commit()
-        return conn
+    def _db(tmp_path, var_limit=None):
+        return _real_schema_db(tmp_path, var_limit=var_limit)
 
     @pytest.fixture()
     def client(self):
@@ -991,8 +995,8 @@ class TestConfirmPathsBound:
         yield TestClient(app)
         app.dependency_overrides.clear()
 
-    def test_an_oversized_paths_list_422s_before_any_handler_runs(self, client):
-        conn = self._db()
+    def test_an_oversized_paths_list_422s_before_any_handler_runs(self, client, tmp_path):
+        conn = self._db(tmp_path)
         with mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)):
             resp = client.post("/api/culling-groups/confirm", json={
                 "group_id": 1, "type": "burst",
@@ -1001,7 +1005,7 @@ class TestConfirmPathsBound:
             })
         assert resp.status_code == 422
 
-    def test_the_model_cap_still_needs_chunking_to_avoid_a_500(self, client):
+    def test_the_model_cap_still_needs_chunking_to_avoid_a_500(self, client, tmp_path):
         """At exactly the model's new cap (1000 paths), SQLite's variable-number
         limit can be lower than this environment's default in the wild (the
         reviewer's own probe used 250000; other builds go lower) -- so the
@@ -1010,7 +1014,7 @@ class TestConfirmPathsBound:
         existing `select_in_chunks` default chunk size of 900), so 1000 paths
         only survives if the query is actually chunked.
         """
-        conn = self._db(var_limit=901)
+        conn = self._db(tmp_path, var_limit=901)
         with mock.patch("api.routers.burst_culling.get_db", lambda: _cm(conn)):
             resp = client.post("/api/culling-groups/confirm", json={
                 "group_id": 1, "type": "burst",
@@ -1029,23 +1033,9 @@ class TestKeepWholeKindVisibilityLeak:
     own docstring says it exists to prevent.
     """
 
-    _SCHEMA = """
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
-            sequence_kind TEXT, burst_group_id INTEGER, is_rejected INTEGER DEFAULT 0
-        );
-        CREATE TABLE comparisons (
-            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
-            category TEXT, session_id TEXT, user_id TEXT, source TEXT
-        );
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
-
     @staticmethod
-    def _db():
-        import sqlite3
-        conn = sqlite3.connect(":memory:", check_same_thread=False)
-        conn.row_factory = sqlite3.Row
-        conn.executescript(TestKeepWholeKindVisibilityLeak._SCHEMA)
+    def _db(tmp_path):
+        conn = _real_schema_db(tmp_path)
         conn.execute(
             "INSERT INTO photos (path, filename, sequence_group_id, sequence_kind) "
             "VALUES ('/foreign_panorama.jpg', 'foreign_panorama.jpg', 1, 'panorama')"
@@ -1083,14 +1073,14 @@ class TestKeepWholeKindVisibilityLeak:
                 "group_id": 999, "type": "burst", "paths": [path], "keep_paths": [],
             })
 
-    def test_foreign_panorama_frame_is_indistinguishable_from_nonexistent(self, client):
-        conn = self._db()
+    def test_foreign_panorama_frame_is_indistinguishable_from_nonexistent(self, client, tmp_path):
+        conn = self._db(tmp_path)
         resp_foreign_panorama = self._confirm(client, conn, "/foreign_panorama.jpg")
         resp_nonexistent = self._confirm(client, conn, "/nowhere.jpg")
         assert resp_foreign_panorama.status_code == resp_nonexistent.status_code == 404
 
-    def test_foreign_plain_photo_is_also_404(self, client):
-        conn = self._db()
+    def test_foreign_plain_photo_is_also_404(self, client, tmp_path):
+        conn = self._db(tmp_path)
         resp = self._confirm(client, conn, "/foreign_plain.jpg")
         assert resp.status_code == 404
 

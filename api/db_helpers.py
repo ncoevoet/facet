@@ -24,6 +24,7 @@ from api.config import (
     config_load_failed,
 )
 from api.database import get_db_connection
+from comparison.comparison_manager import record_culling_pairs
 from db import DEFAULT_DB_PATH
 from utils.detection import DEFAULT_PHOTO_THUMBNAIL_SIZE
 from utils.panorama import KINDS as PANORAMA_KINDS
@@ -133,6 +134,45 @@ def trigger_auto_retrain(db_path, user_id, added=1, conn=None):
         maybe_retrain(db_path, scope, added=added, conn=conn)
     except Exception:  # noqa: BLE001 — never let retrain bookkeeping break the request
         logger.debug("Auto-retrain trigger skipped", exc_info=True)
+
+
+def record_culling_decision(conn, keep_paths, reject_paths, sequence_members,
+                            user_id=None, group_type='burst', commit=True):
+    """Turn a culling confirm into ranker training pairs, commit, nudge retrain.
+
+    ``sequence_members`` are the paths belonging to a keep-whole sequence set
+    (bracket/panorama/hdr_panorama, resolved by
+    ``api.routers.burst_culling._sequence_members``). They are dropped from both
+    sides first: a comparison pair there would teach the ranker how the set was
+    shot -- which frame of a pan, which rung of an exposure ladder -- rather
+    than any quality judgement.
+
+    EVERY feed that writes pairs from a culling decision goes through here, so
+    that exclusion cannot be forgotten by the next one. That is four: the burst,
+    similar and scene confirms, and the ``/api/culling/auto`` sweep. The sweep
+    was the counter-example this helper is named for -- it tested the GROUP's
+    ``sequence_kind``, which ``_group_sequence_kind`` sets to ``None`` for a
+    mixed group, so a scene holding a panorama plus ordinary frames wrote
+    "pan tile 3 beat pan tile 5" pairs while looking guarded.
+
+    ``commit=False`` is for exactly that sweep: it batches many groups into one
+    transaction and fires ONE ``trigger_auto_retrain`` for the whole run, so
+    committing per group would publish a half-finished sweep and nudging per
+    group would arm the retrain N times. The caller then owns both. When it is
+    left True the commit is part of the contract -- ``trigger_auto_retrain``
+    must only ever see a decision that is already durable.
+
+    Returns the number of comparison rows inserted.
+    """
+    pairable_keep = [p for p in keep_paths if p not in sequence_members]
+    pairable_reject = [p for p in reject_paths if p not in sequence_members]
+    added = record_culling_pairs(
+        conn, pairable_keep, pairable_reject, user_id=user_id, group_type=group_type,
+    )
+    if commit:
+        conn.commit()
+        trigger_auto_retrain(DEFAULT_DB_PATH, user_id, added, conn=conn)
+    return added
 
 
 # --- DATE FORMATTING ---

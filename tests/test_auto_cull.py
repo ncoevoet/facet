@@ -650,3 +650,85 @@ class TestProfileEndpoints:
         ids = {p["id"] for p in body["profiles"]}
         assert {"balanced", "wedding", "sports", "concert", "wildlife"} <= ids
         assert body["default"] == "balanced"
+
+
+class TestAutoCullMixedSequenceGroup:
+    """A group mixing sequence frames with ordinary ones must pair neither frame.
+
+    ``_group_sequence_kind`` returns ``None`` unless EVERY frame shares a kind,
+    so ``_apply_auto_cull_group``'s group-level ``keep_whole`` guard does not
+    fire here — it only ever protected wholly-sequence groups. The sweep
+    therefore wrote "pan tile beat pan tile" pairs, teaching the ranker how the
+    set was shot, which is exactly what the three manual confirm feeds were
+    fixed for. The per-frame filter in ``record_culling_decision`` is what
+    closes it.
+    """
+
+    GROUP_ID = 7
+    PAN_A = "/mix-pan-a.jpg"
+    PAN_B = "/mix-pan-b.jpg"
+    PLAIN_BEST = "/mix-plain-best.jpg"
+    PLAIN_WEAK = "/mix-plain-weak.jpg"
+
+    ROWS = [
+        # path, date_taken, score, sequence_kind
+        (PLAIN_BEST, "2024:07:01 09:00:00", 9.0, None),
+        (PAN_A, "2024:07:01 09:00:01", 6.0, "panorama"),
+        (PAN_B, "2024:07:01 09:00:02", 5.0, "panorama"),
+        (PLAIN_WEAK, "2024:07:01 09:00:03", 2.0, None),
+    ]
+
+    def _conn(self):
+        conn = sqlite3.connect(":memory:", check_same_thread=False)
+        conn.row_factory = sqlite3.Row
+        conn.executescript(_SCHEMA)
+        for path, dt, score, kind in self.ROWS:
+            conn.execute(
+                "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
+                "tech_sharpness, is_blink, is_burst_lead, burst_group_id, "
+                "sequence_kind, sequence_group_id) "
+                "VALUES (?, ?, ?, ?, ?, ?, 0, 0, ?, ?, ?)",
+                (path, path.lstrip('/'), dt, score, score, score, self.GROUP_ID,
+                 kind, 1 if kind else None),
+            )
+        conn.commit()
+        return conn
+
+    def _pairs(self, conn):
+        return conn.execute(
+            "SELECT photo_a_path, photo_b_path FROM comparisons"
+        ).fetchall()
+
+    def test_the_group_is_genuinely_mixed(self):
+        """Guard the guard: if this stops being mixed the test proves nothing."""
+        from api.routers.burst_culling import _group_sequence_kind
+
+        photos = [{"sequence_kind": kind} for _, _, _, kind in self.ROWS]
+        assert _group_sequence_kind(photos) is None, (
+            "the fixture is no longer a mixed group, so the group-level "
+            "keep_whole guard would fire and this test would pass vacuously"
+        )
+
+    def test_no_pair_ever_references_a_sequence_frame(self, edition_client):
+        conn = self._conn()
+        resp, _ = _post(edition_client, conn, {"dry_run": False, "group_by": "burst"})
+        assert resp.status_code == 200, resp.text
+
+        paired = {p for row in self._pairs(conn) for p in row}
+        assert self.PAN_A not in paired, (
+            f"a panorama frame entered the ranker's training pairs: {paired}"
+        )
+        assert self.PAN_B not in paired, (
+            f"a panorama frame entered the ranker's training pairs: {paired}"
+        )
+
+    def test_the_ordinary_frames_still_pair(self, edition_client):
+        """Positive control: the filter must not silence the whole group."""
+        conn = self._conn()
+        resp, _ = _post(edition_client, conn, {"dry_run": False, "group_by": "burst"})
+        assert resp.status_code == 200, resp.text
+
+        paired = {p for row in self._pairs(conn) for p in row}
+        assert paired == {self.PLAIN_BEST, self.PLAIN_WEAK}, (
+            f"expected exactly the two ordinary frames to pair, got {paired}"
+        )

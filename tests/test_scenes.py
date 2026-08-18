@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from api import create_app
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.routers.scenes import compute_scenes
+from db.schema import init_database
 
 _SCHEMA = """
     CREATE TABLE photos (
@@ -60,6 +61,16 @@ def _db():
         "INSERT INTO photos (path, filename, aggregate, date_taken, is_burst_lead, "
         "is_rejected, category) VALUES (?, ?, ?, ?, ?, ?, ?)", _PHOTOS)
     conn.commit()
+    return conn
+
+
+def _empty_db(tmp_path):
+    """A photo-less library on the real schema, so the empty page is measured
+    against the columns ``compute_scenes`` really selects."""
+    db_path = str(tmp_path / "scenes.db")
+    init_database(db_path)
+    conn = sqlite3.connect(db_path, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
     return conn
 
 
@@ -298,6 +309,24 @@ def test_get_scenes_paginates(client):
     assert len(body["scenes"]) == 1
 
 
+def test_an_empty_scenes_result_still_reports_one_page(client, tmp_path):
+    """A library with no scenes reports `total_pages == 1`, like every other
+    paginated endpoint — they all derive it from `db_helpers.paginate`, whose
+    `max(1, ceil(...))` floor a hand-rolled ceiling here used to miss.
+    """
+    conn = _empty_db(tmp_path)
+    with (
+        mock.patch("api.routers.scenes.get_db", lambda: _cm(conn)),
+        mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])),
+    ):
+        resp = client.get("/api/scenes")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 0
+    assert body["scenes"] == []
+    assert body["total_pages"] == 1
+
+
 def test_confirm_scene_rejects_and_records_pairs(client):
     # The dedicated POST /api/scenes/confirm route is gone — scene culling now
     # runs through the unified feed (type='scene'), delegating to apply_scene_cull
@@ -306,7 +335,7 @@ def test_confirm_scene_rejects_and_records_pairs(client):
     with (
         mock.patch("api.routers.scenes.get_db", lambda: _cm(conn)),
         mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])),
-        mock.patch("api.routers.scenes.trigger_auto_retrain", lambda *a, **k: None),
+        mock.patch("api.db_helpers.trigger_auto_retrain", lambda *a, **k: None),
     ):
         resp = client.post("/api/culling-groups/confirm", json={
             "group_id": 0,
