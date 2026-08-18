@@ -2314,7 +2314,7 @@
     "trash_rejects": "Abgelehnte in den Papierkorb",
     "target_dir": "Zielordner",
     "include_companions": "Zugehörige RAW / XMP einbeziehen",
-    "include_sequence_siblings": "Sequenz-Geschwister einbeziehen (Belichtungsreihe/Panorama)",
+    "include_sequence_siblings": "Zugehörige Bilder einbeziehen (Belichtungsreihe/Panorama)",
     "would_affect": "Dateien wären betroffen",
     "skipped": "übersprungen (nicht auf Datenträger)",
     "excluded_by_state": "ausgeschlossen (außerhalb des Bereichs dieser Aktion)",

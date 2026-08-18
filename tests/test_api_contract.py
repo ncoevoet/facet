@@ -129,8 +129,8 @@ _KNOWN_WIRE_TYPE_EXCEPTIONS: dict[tuple[str, str], str] = {
     ('Photo', 'is_blink'): 'sqlite_boolean | null',
     ('Photo', 'is_burst_lead'): 'sqlite_boolean | null',
     # The same convention, for the rest of the columns the client coerces at
-    # ingest. `PHOTO_FLAG_FIELDS` in photo.model.ts is the closed list of six
-    # that `normalisePhotoFlags` turns into real booleans, and these four are
+    # ingest. `PHOTO_FLAG_FIELDS` in photo.model.ts is the closed list of seven
+    # that `normalisePhotoFlags` turns into real booleans, and these five are
     # the remainder of it. They are exempt for the reason the two above are,
     # not because they are optional -- an optional field still has to match
     # its declared type when it is present. `is_silhouette` is here despite
@@ -138,6 +138,7 @@ _KNOWN_WIRE_TYPE_EXCEPTIONS: dict[tuple[str, str], str] = {
     # same declaration, so leaving it out only defers an identical failure.
     ('Photo', 'is_monochrome'): 'sqlite_boolean | null',
     ('Photo', 'is_silhouette'): 'sqlite_boolean | null',
+    ('Photo', 'is_duplicate_lead'): 'sqlite_boolean | null',
     ('Photo', 'is_favorite'): 'sqlite_boolean | null',
     ('Photo', 'is_rejected'): 'sqlite_boolean | null',
 }

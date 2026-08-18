@@ -104,6 +104,12 @@ export interface Photo {
   is_burst_lead: boolean | null;
   burst_group_id?: number | null;
   duplicate_group_id?: number | null;
+  /** The frame that stands for its duplicate group. No template reads it yet,
+   *  but it is a live wire field — `HIDDEN_DUPLICATE_SQL` and the gallery's
+   *  visibility clause both key on it — so it is declared and normalised here
+   *  rather than left off. Dropping it once already meant the next reader would
+   *  have got a raw 0/1 that no longer passed through `normalisePhotoFlags`. */
+  is_duplicate_lead?: boolean | null;
   // Persons & Rating
   persons: { id: number; name: string }[];
   unassigned_faces: number;
@@ -161,6 +167,7 @@ const PHOTO_FLAG_FIELDS = [
   'is_monochrome',
   'is_silhouette',
   'is_burst_lead',
+  'is_duplicate_lead',
   'is_favorite',
   'is_rejected',
 ] as const;
