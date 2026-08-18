@@ -98,3 +98,57 @@ def test_filter_options_cameras_anonymous_hits_visibility_clause(
     assert resp.status_code == 200
     assert None in seen, "anon endpoint must resolve visibility for user_id=None"
     assert resp.json()['cameras'] == []
+
+
+# ---------------------------------------------------------------------------
+# The cache short-circuit.
+#
+# Resolving the clause is not the same as applying it. ``_vis_where`` is
+# correct now, but ``_cached_filter_query`` returned the cached payload BEFORE
+# running the query the clause lives in, so a restricted caller still got the
+# whole-library answer. The tests above cannot catch that: nothing populates
+# the stats cache during a test run, so the cache branch is never taken and
+# they pass without ever exercising it. These force the cache hit.
+# ---------------------------------------------------------------------------
+
+import db as db_module  # noqa: E402
+
+LEAKED = [['SECRET CAMERA', 42]]
+
+
+def _force_fresh_cache(monkeypatch, payload=LEAKED):
+    """Make every cache lookup a hit, as `database.py --refresh-stats` would."""
+    monkeypatch.setattr(db_module, 'get_cached_stat', lambda *a, **k: (payload, True))
+
+
+def test_cache_hit_is_bypassed_when_visibility_restricts(monkeypatch, anonymous_client):
+    """A restricted caller must not be served the library-wide cached payload."""
+    _force_fresh_cache(monkeypatch)
+    monkeypatch.setattr(filter_options, 'get_visibility_clause', lambda user_id: ('0=1', []))
+
+    resp = anonymous_client.get('/api/filter_options/cameras')
+
+    assert resp.status_code == 200
+    assert resp.json()['cameras'] == [], "cached whole-library payload leaked past the visibility clause"
+
+
+def test_cache_hit_is_bypassed_for_person_names(monkeypatch, anonymous_client):
+    """Person names are the most sensitive thing these dropdowns carry."""
+    _force_fresh_cache(monkeypatch, [[1, 'Alice', 12]])
+    monkeypatch.setattr(filter_options, 'get_visibility_clause', lambda user_id: ('0=1', []))
+
+    resp = anonymous_client.get('/api/filter_options/persons')
+
+    assert resp.status_code == 200
+    assert resp.json()['persons'] == [], "cached person names leaked to a restricted caller"
+
+
+def test_cache_is_still_used_on_an_open_install(monkeypatch, anonymous_client):
+    """The bypass must not cost every open install its cache."""
+    _force_fresh_cache(monkeypatch)
+    monkeypatch.setattr(filter_options, 'get_visibility_clause', lambda user_id: ('1=1', []))
+
+    resp = anonymous_client.get('/api/filter_options/cameras')
+
+    assert resp.status_code == 200
+    assert resp.json() == {'cameras': LEAKED, 'cached': True}

@@ -15,6 +15,14 @@ from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
 from api.db_helpers import is_photo_tags_available, get_visibility_clause
+from api.models.media import (
+    MediaFilterOptionCamerasResponse,
+    MediaFilterOptionJunkKindsResponse,
+    MediaFilterOptionLensesResponse,
+    MediaFilterOptionPersonsResponse,
+    MediaFilterOptionTagsResponse,
+    MediaLocationNameResponse,
+)
 from db import person_not_hidden_clause
 
 router = APIRouter(prefix="/api/filter_options", tags=["filter_options"])
@@ -36,14 +44,22 @@ def _vis_where(user: Optional[CurrentUser]):
     return f' AND {vis_sql}', vis_params
 
 
-async def _cached_filter_query(cache_key, result_key, query_fn):
+async def _cached_filter_query(cache_key, result_key, query_fn, vis):
     """Generic cache-then-async-query helper for filter option endpoints.
 
     ``query_fn`` is an ``async def fn(conn)`` coroutine that returns the
     list of rows for the dropdown.
+
+    ``vis`` is the fragment ``_vis_where`` resolved for this caller. The cached
+    payload is whole-library — ``database.py --refresh-stats`` builds it with no
+    user in scope — so it may only answer a caller under no restriction at all.
+    A non-empty fragment means this request must not see everything, and the
+    cache is skipped so the clause inside ``query_fn`` actually runs. Resolving
+    the clause is not the same as applying it: returning here first is how the
+    whole-library answer reached a caller the clause was meant to stop.
     """
     from db import get_cached_stat, DEFAULT_DB_PATH
-    if not is_multi_user_enabled():
+    if not vis and not is_multi_user_enabled():
         data, is_fresh = get_cached_stat(DEFAULT_DB_PATH, cache_key, max_age_seconds=300)
         if data and is_fresh:
             return {result_key: data, 'cached': True}
@@ -61,7 +77,7 @@ async def _fetch_all(conn, sql: str, params=None):
         await cursor.close()
 
 
-@router.get("/cameras")
+@router.get("/cameras", response_model=MediaFilterOptionCamerasResponse, response_model_exclude_unset=True)
 async def cameras(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load camera options with counts."""
     vis, vp = _vis_where(user)
@@ -78,10 +94,10 @@ async def cameras(user: Optional[CurrentUser] = Depends(get_optional_user)):
         )
         return [(r[0], r[1]) for r in rows]
 
-    return await _cached_filter_query('cameras', 'cameras', query)
+    return await _cached_filter_query('cameras', 'cameras', query, vis)
 
 
-@router.get("/lenses")
+@router.get("/lenses", response_model=MediaFilterOptionLensesResponse, response_model_exclude_unset=True)
 async def lenses(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load lens options with counts."""
     vis, vp = _vis_where(user)
@@ -98,10 +114,10 @@ async def lenses(user: Optional[CurrentUser] = Depends(get_optional_user)):
         )
         return [(r[0], r[1]) for r in rows]
 
-    return await _cached_filter_query('lenses', 'lenses', query)
+    return await _cached_filter_query('lenses', 'lenses', query, vis)
 
 
-@router.get("/tags")
+@router.get("/tags", response_model=MediaFilterOptionTagsResponse, response_model_exclude_unset=True)
 async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load tag options with counts."""
     from db import get_cached_stat, DEFAULT_DB_PATH
@@ -164,7 +180,7 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
             return {'tags': [], 'cached': False}
 
 
-@router.get("/persons")
+@router.get("/persons", response_model=MediaFilterOptionPersonsResponse, response_model_exclude_unset=True)
 async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load person options with photo counts. `ids` forces specific persons to be included."""
     vis, vp = _vis_where(user)
@@ -213,7 +229,7 @@ async def persons(ids: Optional[str] = None, user: Optional[CurrentUser] = Depen
         async with get_async_db() as conn:
             data = await query(conn)
         return {'persons': data, 'cached': False}
-    return await _cached_filter_query('persons', 'persons', query)
+    return await _cached_filter_query('persons', 'persons', query, vis)
 
 
 @router.get("/patterns")
@@ -237,7 +253,7 @@ async def patterns(user: Optional[CurrentUser] = Depends(get_optional_user)):
             logger.exception("Failed to query composition patterns")
             return []
 
-    return await _cached_filter_query('composition_patterns', 'patterns', query)
+    return await _cached_filter_query('composition_patterns', 'patterns', query, vis)
 
 
 @router.get("/apertures")
@@ -262,7 +278,7 @@ async def apertures(user: Optional[CurrentUser] = Depends(get_optional_user)):
             logger.exception("Failed to query apertures")
             return []
 
-    return await _cached_filter_query('apertures', 'apertures', query)
+    return await _cached_filter_query('apertures', 'apertures', query, vis)
 
 
 @router.get("/focal_lengths")
@@ -287,7 +303,7 @@ async def focal_lengths(user: Optional[CurrentUser] = Depends(get_optional_user)
             logger.exception("Failed to query focal lengths")
             return []
 
-    return await _cached_filter_query('focal_lengths', 'focal_lengths', query)
+    return await _cached_filter_query('focal_lengths', 'focal_lengths', query, vis)
 
 
 async def _store_color_cache(conn, temps, hue_buckets):
@@ -397,7 +413,7 @@ async def categories(user: Optional[CurrentUser] = Depends(get_optional_user)):
             logger.exception("Failed to query categories")
             return []
 
-    return await _cached_filter_query('categories', 'categories', query)
+    return await _cached_filter_query('categories', 'categories', query, vis)
 
 
 @router.get("/narrative_moments")
@@ -421,10 +437,10 @@ async def narrative_moments(user: Optional[CurrentUser] = Depends(get_optional_u
             logger.exception("Failed to query narrative_moments")
             return []
 
-    return await _cached_filter_query('narrative_moments', 'narrative_moments', query)
+    return await _cached_filter_query('narrative_moments', 'narrative_moments', query, vis)
 
 
-@router.get("/junk_kinds")
+@router.get("/junk_kinds", response_model=MediaFilterOptionJunkKindsResponse, response_model_exclude_unset=True)
 async def junk_kinds(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Lazy-load junk-kind options with counts (excludes the 'not_junk' sentinel)."""
     from api.types import JUNK_NOT_JUNK
@@ -446,10 +462,10 @@ async def junk_kinds(user: Optional[CurrentUser] = Depends(get_optional_user)):
             logger.exception("Failed to query junk_kinds")
             return []
 
-    return await _cached_filter_query('junk_kinds', 'junk_kinds', query)
+    return await _cached_filter_query('junk_kinds', 'junk_kinds', query, vis)
 
 
-@router.get("/location_name")
+@router.get("/location_name", response_model=MediaLocationNameResponse, response_model_exclude_unset=True)
 def location_name(
     lat: float, lng: float,
     user: CurrentUser = Depends(require_authenticated),
