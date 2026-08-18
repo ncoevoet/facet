@@ -20,6 +20,9 @@ from api.db_helpers import (
     is_locked_error, retry_on_locked,
 )
 from api.types import JUNK_NOT_JUNK
+from api.models.culling import (
+    PersonFacesResponse, PhotoFacesResponse, ToggleFavoriteResponse, ToggleRejectedResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -62,7 +65,7 @@ class BatchRatingRequest(BaseModel):
     rating: int = Field(ge=0, le=5)
 
 
-@router.get("/api/person/{person_id}/faces")
+@router.get("/api/person/{person_id}/faces", response_model=PersonFacesResponse, response_model_exclude_unset=True)
 async def api_person_faces(
     person_id: int,
     user: CurrentUser = Depends(require_auth),
@@ -115,7 +118,7 @@ def api_set_person_avatar(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.get("/api/photo/faces")
+@router.get("/api/photo/faces", response_model=PhotoFacesResponse, response_model_exclude_unset=True)
 async def api_photo_faces(
     path: str,
     user: CurrentUser = Depends(require_auth),
@@ -384,7 +387,7 @@ def api_set_rating(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.post("/api/photo/toggle_favorite")
+@router.post("/api/photo/toggle_favorite", response_model=ToggleFavoriteResponse, response_model_exclude_unset=True)
 @retry_on_locked()
 def api_toggle_favorite(
     body: TogglePhotoRequest,
@@ -394,6 +397,10 @@ def api_toggle_favorite(
     with get_db() as conn:
         try:
             if user.user_id and is_multi_user_enabled():
+                if not conn.execute(
+                    "SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)
+                ).fetchone():
+                    raise HTTPException(status_code=404, detail="Photo not found")
                 row = conn.execute(
                     "SELECT is_favorite FROM user_preferences WHERE user_id = ? AND photo_path = ?",
                     (user.user_id, body.photo_path)
@@ -435,7 +442,7 @@ def api_toggle_favorite(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.post("/api/photo/toggle_rejected")
+@router.post("/api/photo/toggle_rejected", response_model=ToggleRejectedResponse, response_model_exclude_unset=True)
 @retry_on_locked()
 def api_toggle_rejected(
     body: TogglePhotoRequest,
@@ -445,6 +452,10 @@ def api_toggle_rejected(
     with get_db() as conn:
         try:
             if user.user_id and is_multi_user_enabled():
+                if not conn.execute(
+                    "SELECT 1 FROM photos WHERE path = ?", (body.photo_path,)
+                ).fetchone():
+                    raise HTTPException(status_code=404, detail="Photo not found")
                 row = conn.execute(
                     "SELECT is_rejected FROM user_preferences WHERE user_id = ? AND photo_path = ?",
                     (user.user_id, body.photo_path)
