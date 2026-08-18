@@ -25,6 +25,7 @@ _AUTH_MODULE = "api.auth"
 _ROUTER_MODULE = "api.routers.scan"
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 _FACET_SCRIPT = os.path.join(_REPO_ROOT, "facet.py")
+_CLI_ARGS_SCRIPT = os.path.join(_REPO_ROOT, "cli_args.py")
 
 
 @contextlib.contextmanager
@@ -87,8 +88,9 @@ def _cli_flag_dests():
 
     Read off the parser's own ``add_argument`` calls rather than copied, so a
     flag added later turns up here whether or not anyone remembers this file.
+    The parser itself is built in cli_args.py, not facet.py.
     """
-    with open(_FACET_SCRIPT, encoding="utf-8") as f:
+    with open(_CLI_ARGS_SCRIPT, encoding="utf-8") as f:
         tree = ast.parse(f.read())
     dests = set()
     for node in ast.walk(tree):
