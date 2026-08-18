@@ -4,14 +4,9 @@ import { Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ComparisonCategoryExplainerComponent } from './comparison-category-explainer.component';
+import type { components } from '../../core/api/schema';
 
-interface SuggestFiltersResponse {
-  current_category: string;
-  target_category: string;
-  conflicts: unknown[];
-  suggestions: unknown[];
-  no_conflicts: boolean;
-}
+type SuggestFiltersResponse = components['schemas']['SuggestFiltersResponse'];
 
 const RESPONSE = (overrides: Partial<SuggestFiltersResponse> = {}): SuggestFiltersResponse => ({
   current_category: 'silhouette',
@@ -232,6 +227,78 @@ describe('ComparisonCategoryExplainerComponent', () => {
       await fixture.whenStable();
 
       expect(mockApi.post).toHaveBeenCalledWith('/comparison/suggest_filters', { path: '/a.jpg', target_category: 'sports' });
+    });
+  });
+
+  // SuggestFiltersResponse (api/models/comparison.py:109) documents "Either the
+  // early-exit shape (message only) or the full analysis" -- every field but
+  // `message` is Optional. The suite above only ever drives the full shape.
+  describe('the documented early-exit response shape', () => {
+    it('renders the already-in-category message without throwing for the real early-exit response', async () => {
+      // What api_comparison_suggest_filters actually returns when current_category
+      // === target_category (api/routers/comparison.py:956-963): categories and
+      // empty arrays are present, but no_conflicts/target_filters/photo_values are
+      // never set, so response_model_exclude_unset drops them off the wire.
+      const earlyExit: SuggestFiltersResponse = {
+        current_category: 'sports',
+        target_category: 'sports',
+        conflicts: [],
+        suggestions: [],
+        message: 'Photo is already in the target category',
+      };
+      mockApi.post.mockReturnValue(of(earlyExit));
+
+      setInputs('/a.jpg', 'sports');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(component.result()).toEqual(earlyExit);
+      expect(component.error()).toBe(false);
+      expect(fixture.nativeElement.textContent).toContain('comparison.context.explainer_already_in_category');
+    });
+
+    it('renders neither a category nor the already-in-category branch when only message is sent', async () => {
+      // Every field but `message` is Optional server-side, so this shape is
+      // legal. Asserting only "did not throw" is not enough: with the pair
+      // declared required the template rendered the literal
+      // `category_names.undefined` as visible text, and `undefined ===
+      // undefined` took the green "already in the target category" branch for a
+      // response that says nothing of the sort.
+      const earlyExit: SuggestFiltersResponse = { message: 'nothing to suggest' };
+      mockApi.post.mockReturnValue(of(earlyExit));
+
+      setInputs('/a.jpg', 'sports');
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(component.result()).toEqual(earlyExit);
+      expect(component.error()).toBe(false);
+      const rendered = fixture.nativeElement.textContent;
+      expect(rendered).not.toContain('category_names.undefined');
+      expect(rendered).not.toContain('comparison.context.explainer_already_in_category');
+    });
+
+    it('does not throw when conflicts and suggestions are absent and the categories differ', async () => {
+      // Distinct from the previous case: current_category !== target_category
+      // and no_conflicts is falsy drives the @else branch, the only template
+      // path that reads r.conflicts / r.suggestions. The Optional server model
+      // (api/models/comparison.py:109, SuggestFiltersResponse) permits exactly
+      // this shape, and the template must render it rather than dereferencing
+      // an absent array.
+      const earlyExit: SuggestFiltersResponse = {
+        current_category: 'silhouette',
+        target_category: 'sports',
+        message: 'nothing to suggest',
+      };
+      mockApi.post.mockReturnValue(of(earlyExit));
+
+      setInputs('/a.jpg', 'sports');
+
+      await fixture.whenStable();
+      fixture.detectChanges();
+
+      expect(component.result()).toEqual(earlyExit);
+      expect(component.error()).toBe(false);
     });
   });
 });

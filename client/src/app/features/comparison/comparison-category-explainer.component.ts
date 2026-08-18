@@ -29,13 +29,13 @@ interface FilterSuggestion {
 }
 
 interface SuggestFiltersResponse {
-  current_category: string;
-  target_category: string;
+  current_category?: string | null;
+  target_category?: string | null;
   target_filters?: Record<string, unknown>;
-  conflicts: FilterConflict[];
-  suggestions: FilterSuggestion[];
+  conflicts?: FilterConflict[];
+  suggestions?: FilterSuggestion[];
   photo_values?: Record<string, unknown>;
-  no_conflicts: boolean;
+  no_conflicts?: boolean;
   message?: string;
 }
 
@@ -71,12 +71,14 @@ interface SuggestFiltersResponse {
             {{ I18N.comparison.reset | translate }}
           </button>
         } @else if (result(); as r) {
-          <div class="flex items-center gap-2 text-sm mb-3">
-            <span class="text-gray-400">{{ I18N.comparison.context.explainer_current_category | translate }}:</span>
-            <span class="font-medium">{{ ('category_names.' + r.current_category) | translate }}</span>
-          </div>
+          @if (r.current_category) {
+            <div class="flex items-center gap-2 text-sm mb-3">
+              <span class="text-gray-400">{{ I18N.comparison.context.explainer_current_category | translate }}:</span>
+              <span class="font-medium">{{ ('category_names.' + r.current_category) | translate }}</span>
+            </div>
+          }
 
-          @if (r.current_category === r.target_category) {
+          @if (r.current_category && r.current_category === r.target_category) {
             <div class="flex items-center gap-2 text-sm text-green-400">
               <mat-icon class="!text-base !w-4 !h-4">check_circle</mat-icon>
               {{ I18N.comparison.context.explainer_already_in_category | translate }}
@@ -100,7 +102,7 @@ interface SuggestFiltersResponse {
                 }
               </ul>
             </div>
-            @if (r.suggestions.length > 0) {
+            @if ((r.suggestions?.length ?? 0) > 0) {
               <div>
                 <h4 class="text-xs uppercase tracking-wide text-gray-500 mb-2">
                   {{ I18N.comparison.context.explainer_suggestions_title | translate }}
