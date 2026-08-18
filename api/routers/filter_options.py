@@ -119,13 +119,19 @@ async def lenses(user: Optional[CurrentUser] = Depends(get_optional_user)):
 
 @router.get("/tags", response_model=MediaFilterOptionTagsResponse, response_model_exclude_unset=True)
 async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    """Lazy-load tag options with counts."""
+    """Lazy-load tag options with counts.
+
+    Owns a private cache branch instead of ``_cached_filter_query`` because the
+    payload is trimmed to ``max_tags`` on the way out, but it is gated on the
+    same rule: the cached list is whole-library, so a caller with a non-empty
+    ``vis`` fragment must miss it and run the clause.
+    """
     from db import get_cached_stat, DEFAULT_DB_PATH
 
     max_tags = VIEWER_CONFIG['dropdowns']['max_tags']
     vis, vp = _vis_where(user)
 
-    if not is_multi_user_enabled():
+    if not vis and not is_multi_user_enabled():
         data, is_fresh = get_cached_stat(DEFAULT_DB_PATH, 'tags', max_age_seconds=300)
         if data and is_fresh:
             return {'tags': data[:max_tags], 'cached': True}
@@ -337,13 +343,15 @@ async def colors(user: Optional[CurrentUser] = Depends(get_optional_user)):
     ``color_temp`` / ``dominant_hue`` columns.
 
     Cached in ``stats_cache`` (300s TTL) like the sibling dropdowns so the full
-    column scan runs at most once per window; bypassed in multi-user mode where
-    the counts are visibility-scoped per user.
+    column scan runs at most once per window. ``use_cache`` gates the read AND
+    the write, so a restricted caller neither reads the whole-library facets nor
+    persists its own ``AND 0=1`` result over them — writing back would blank the
+    real user's colour filter for a whole TTL.
     """
     from api.routers.gallery import HUE_BUCKETS, bucket_for_hue
     from db import get_cached_stat, DEFAULT_DB_PATH
     vis, vp = _vis_where(user)
-    use_cache = not is_multi_user_enabled()
+    use_cache = not vis and not is_multi_user_enabled()
 
     if use_cache:
         temps_cached, temps_fresh = get_cached_stat(DEFAULT_DB_PATH, 'color_temps', max_age_seconds=300)
