@@ -2253,8 +2253,6 @@
     "exif": "Dati EXIF",
     "tags": "Tag",
     "rating": "Valutazione",
-    "favorite": "Preferito",
-    "rejected": "Rifiutato",
     "generate_caption": "Genera",
     "edit_caption": "Modifica",
     "caption_edit_title": "Modifica didascalia",

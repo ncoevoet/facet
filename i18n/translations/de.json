@@ -2249,8 +2249,6 @@
     "exif": "EXIF-Daten",
     "tags": "Schlagwörter",
     "rating": "Bewertung",
-    "favorite": "Favorit",
-    "rejected": "Abgelehnt",
     "generate_caption": "Generieren",
     "edit_caption": "Bearbeiten",
     "caption_edit_title": "Beschreibung bearbeiten",

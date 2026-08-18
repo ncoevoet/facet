@@ -2253,8 +2253,6 @@
     "exif": "EXIF Data",
     "tags": "Tags",
     "rating": "Rating",
-    "favorite": "Favorite",
-    "rejected": "Rejected",
     "generate_caption": "Generate",
     "edit_caption": "Edit",
     "caption_edit_title": "Edit Caption",

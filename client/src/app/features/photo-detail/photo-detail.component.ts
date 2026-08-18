@@ -255,11 +255,17 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               }
               <div class="flex-1"></div>
               <!-- Favorite -->
-              <button mat-icon-button (click)="toggleFavorite(p.path)" [matTooltip]="I18N.photo_detail.favorite | translate" [attr.aria-label]="I18N.photo_detail.favorite | translate">
+              <button mat-icon-button (click)="toggleFavorite(p.path)"
+                [matTooltip]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
+                [attr.aria-label]="(p.is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate"
+                [attr.aria-pressed]="!!p.is_favorite">
                 <mat-icon class="!text-red-400">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
               </button>
               <!-- Reject -->
-              <button mat-icon-button (click)="toggleRejected(p.path)" [class.text-orange-400]="p.is_rejected" [matTooltip]="I18N.photo_detail.rejected | translate" [attr.aria-label]="I18N.photo_detail.rejected | translate">
+              <button mat-icon-button (click)="toggleRejected(p.path)" [class.text-orange-400]="p.is_rejected"
+                [matTooltip]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
+                [attr.aria-label]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
+                [attr.aria-pressed]="!!p.is_rejected">
                 <mat-icon>{{ p.is_rejected ? 'thumb_down' : 'thumb_down_off_alt' }}</mat-icon>
               </button>
             </div>

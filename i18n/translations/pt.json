@@ -2253,8 +2253,6 @@
     "exif": "Dados EXIF",
     "tags": "Tags",
     "rating": "Avaliação",
-    "favorite": "Favorito",
-    "rejected": "Rejeitado",
     "generate_caption": "Gerar",
     "edit_caption": "Editar",
     "caption_edit_title": "Editar legenda",

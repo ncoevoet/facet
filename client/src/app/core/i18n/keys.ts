@@ -2269,8 +2269,6 @@ export const I18N = {
     exif: "photo_detail.exif",
     tags: "photo_detail.tags",
     rating: "photo_detail.rating",
-    favorite: "photo_detail.favorite",
-    rejected: "photo_detail.rejected",
     generate_caption: "photo_detail.generate_caption",
     edit_caption: "photo_detail.edit_caption",
     caption_edit_title: "photo_detail.caption_edit_title",

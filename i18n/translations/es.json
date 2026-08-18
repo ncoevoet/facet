@@ -2249,8 +2249,6 @@
     "exif": "Datos EXIF",
     "tags": "Etiquetas",
     "rating": "Valoración",
-    "favorite": "Favorito",
-    "rejected": "Rechazado",
     "generate_caption": "Generar",
     "edit_caption": "Editar",
     "caption_edit_title": "Editar leyenda",
