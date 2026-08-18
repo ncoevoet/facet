@@ -158,8 +158,11 @@ class TestComparisonStats:
         mock_manager = mock.MagicMock()
         mock_manager.get_statistics.return_value = {
             "total_comparisons": 42,
-            "unique_photos": 15,
-            "categories": {"portrait": 20, "landscape": 22},
+            "unique_photos_compared": 15,
+            "category_breakdown": [
+                {"category": "portrait", "count": 20},
+                {"category": "landscape", "count": 22},
+            ],
         }
 
         app, client = _make_app_and_client()
@@ -180,8 +183,8 @@ class TestComparisonStats:
         mock_manager = mock.MagicMock()
         mock_manager.get_statistics.return_value = {
             "total_comparisons": 0,
-            "unique_photos": 0,
-            "categories": {},
+            "unique_photos_compared": 0,
+            "category_breakdown": [],
         }
 
         app, client = _make_app_and_client()
@@ -196,7 +199,7 @@ class TestComparisonStats:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total_comparisons"] == 0
-        assert data["unique_photos"] == 0
+        assert data["unique_photos_compared"] == 0
 
 
 # ---------------------------------------------------------------------------

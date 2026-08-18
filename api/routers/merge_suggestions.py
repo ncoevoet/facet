@@ -11,6 +11,7 @@ from api.auth import CurrentUser, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
+from api.models.albums import MergeSuggestionsResponse
 
 router = APIRouter(tags=["merge_suggestions"])
 
@@ -112,7 +113,11 @@ def _pairwise_suggestions(threshold):
     return suggestions
 
 
-@router.get("/api/merge_suggestions")
+@router.get(
+    "/api/merge_suggestions",
+    response_model=MergeSuggestionsResponse,
+    response_model_exclude_unset=True,
+)
 def get_merge_suggestions(
     threshold: float = Query(0.6, ge=0.0, le=1.0),
     user: CurrentUser = Depends(require_authenticated),

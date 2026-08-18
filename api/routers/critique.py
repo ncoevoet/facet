@@ -15,6 +15,7 @@ from api.auth import CurrentUser, get_optional_user, is_edition_authenticated
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
+from api.models.media import MediaCritiqueResponse
 from api.model_cache import (
     get_or_load_vlm_tagger,
     resolve_vlm_config,
@@ -355,7 +356,7 @@ def _build_rule_critique(photo):
     }
 
 
-@router.get("/api/critique")
+@router.get("/api/critique", response_model=MediaCritiqueResponse, response_model_exclude_unset=True)
 async def api_critique(
     path: str = Query(...),
     mode: str = Query("rule"),

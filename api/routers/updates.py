@@ -12,6 +12,7 @@ from fastapi import APIRouter, Depends, Query
 
 from api.auth import CurrentUser, require_edition
 from api.database import get_db
+from api.models.scan import UpdateCheckResponse
 from api.updates import check_for_update
 
 router = APIRouter(tags=["updates"])
@@ -28,7 +29,7 @@ def _check_off_the_loop(force):
         return check_for_update(conn, force=force)
 
 
-@router.get("/api/updates/check")
+@router.get("/api/updates/check", response_model=UpdateCheckResponse, response_model_exclude_unset=True)
 async def api_check_updates(
     force: bool = Query(False),
     user: CurrentUser = Depends(require_edition),

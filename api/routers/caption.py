@@ -17,6 +17,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition, is_edition
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause
+from api.models.media import MediaCaptionResponse
 from api.path_validation import resolve_photo_disk_path
 
 from api.model_cache import (
@@ -31,7 +32,7 @@ router = APIRouter(tags=["caption"])
 logger = logging.getLogger(__name__)
 
 
-@router.get("/api/caption")
+@router.get("/api/caption", response_model=MediaCaptionResponse, response_model_exclude_unset=True)
 async def api_caption(
     path: str = Query(...),
     lang: Optional[str] = Query(None),

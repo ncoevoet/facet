@@ -10,15 +10,34 @@ class PhotoPerson(BaseModel):
 
 
 class Photo(BaseModel):
+    """A photo row exactly as the gallery endpoints put it on the wire.
+
+    Every column-backed field carries the SQLite affinity of its column in
+    ``db/schema.py``, never the type its name suggests. ``shutter_speed`` is a
+    TEXT column that reads back as the string ``'0.0125'``, and the flags are
+    0/1 integers because SQLite has no boolean. Declaring either as what it
+    means rather than what it is makes Pydantic coerce the value and silently
+    change the wire.
+
+    The field set is a SUPERSET of everything ``build_photo_select_columns``
+    can emit, because ``response_model`` filters: a column absent here is a
+    column dropped from the response. ``tests/test_response_models.py`` pins
+    that against ``PHOTO_BASE_COLS`` and ``PHOTO_OPTIONAL_COLS``.
+
+    The trailing fields are computed by the handlers rather than selected.
+    ``top_picks_score``, ``learned_score`` and ``similarity`` are conditional --
+    only the request that sorts or filters by them carries them -- so they must
+    stay optional or the requests that do not trigger them would 500.
+    """
+
     path: str
     filename: Optional[str] = None
     date_taken: Optional[str] = None
-    date_formatted: Optional[str] = None
     camera_model: Optional[str] = None
     lens_model: Optional[str] = None
     iso: Optional[int] = None
     f_stop: Optional[float] = None
-    shutter_speed: Optional[float] = None
+    shutter_speed: Optional[str] = None
     focal_length: Optional[float] = None
     aesthetic: Optional[float] = None
     face_count: Optional[int] = None
@@ -31,73 +50,106 @@ class Photo(BaseModel):
     exposure_score: Optional[float] = None
     comp_score: Optional[float] = None
     isolation_bonus: Optional[float] = None
+    is_blink: Optional[int] = None
+    phash: Optional[str] = None
+    is_burst_lead: Optional[int] = None
     aggregate: Optional[float] = None
     category: Optional[str] = None
-    narrative_moment: Optional[str] = None
-    narrative_moment_confidence: Optional[float] = None
-    junk_kind: Optional[str] = None
-    sequence_override: Optional[str] = None
-    sequence_override_pending: Optional[int] = None
-    tags: Optional[str] = None
-    tags_list: list[str] = []
-    composition_pattern: Optional[str] = None
-    is_blink: Optional[int] = None
-    is_burst_lead: Optional[int] = None
+    image_width: Optional[int] = None
+    image_height: Optional[int] = None
+    histogram_spread: Optional[float] = None
+    mean_luminance: Optional[float] = None
+    power_point_score: Optional[float] = None
+    shadow_clipped: Optional[int] = None
+    highlight_clipped: Optional[int] = None
+    is_silhouette: Optional[int] = None
+    is_group_portrait: Optional[int] = None
+    leading_lines_score: Optional[float] = None
+    channel_clip_shadow_pct: Optional[float] = None
+    channel_clip_highlight_pct: Optional[float] = None
+    face_confidence: Optional[float] = None
     is_monochrome: Optional[int] = None
+    mean_saturation: Optional[float] = None
+    dynamic_range_stops: Optional[float] = None
     noise_sigma: Optional[float] = None
     contrast_score: Optional[float] = None
-    dynamic_range_stops: Optional[float] = None
-    mean_saturation: Optional[float] = None
-    mean_luminance: Optional[float] = None
-    histogram_spread: Optional[float] = None
-    power_point_score: Optional[float] = None
-    leading_lines_score: Optional[float] = None
+    tags: Optional[str] = None
+    composition_pattern: Optional[str] = None
     quality_score: Optional[float] = None
+    topiq_score: Optional[float] = None
+    aesthetic_iaa: Optional[float] = None
+    face_quality_iqa: Optional[float] = None
+    liqe_score: Optional[float] = None
+    qrealign_score: Optional[float] = None
+    aesthetic_v25: Optional[float] = None
+    deqa_score: Optional[float] = None
+    subject_sharpness: Optional[float] = None
+    subject_prominence: Optional[float] = None
+    subject_placement: Optional[float] = None
+    bg_separation: Optional[float] = None
     star_rating: Optional[int] = None
     is_favorite: Optional[int] = None
     is_rejected: Optional[int] = None
     duplicate_group_id: Optional[int] = None
     is_duplicate_lead: Optional[int] = None
-    top_picks_score: Optional[float] = None
+    burst_group_id: Optional[int] = None
+    caption: Optional[str] = None
+    caption_translated: Optional[str] = None
+    gps_latitude: Optional[float] = None
+    gps_longitude: Optional[float] = None
+    dominant_hue: Optional[float] = None
+    color_temp: Optional[str] = None
+    form_symmetry: Optional[float] = None
+    form_balance: Optional[float] = None
+    form_edge_entropy: Optional[float] = None
+    form_fractal: Optional[float] = None
+    color_harmony: Optional[float] = None
+    narrative_moment: Optional[str] = None
+    narrative_moment_confidence: Optional[float] = None
+    junk_kind: Optional[str] = None
+    sequence_group_id: Optional[int] = None
+    sequence_kind: Optional[str] = None
+    sequence_ev_offset: Optional[float] = None
+    image_aspect: Optional[float] = None
+    sequence_override: Optional[str] = None
+    sequence_override_pending: Optional[int] = None
+    date_formatted: Optional[str] = None
+    tags_list: list[str] = []
     persons: list[PhotoPerson] = []
-    unassigned_faces: int = 0
+    unassigned_faces: Optional[int] = None
+    top_picks_score: Optional[float] = None
+    learned_score: Optional[float] = None
+    similarity: Optional[float] = None
 
     model_config = {'from_attributes': True}
 
 
-class GalleryResponse(BaseModel):
-    photos: list[dict]  # Using dict for flexibility with optional columns
+class HiddenSummary(BaseModel):
+    """How many rows the gallery's hide toggles removed from this page's count."""
+
+    total: int
+    blinks: int
+    bursts: int
+    duplicates: int
+    brackets: int
+    panoramas: int
+
+
+class PhotosResponse(BaseModel):
+    """The gallery listing.
+
+    Both ``total`` and ``total_pages`` are on the wire: the gallery store reads
+    ``total``, junk-sweep reads ``total_pages``. Neither may be dropped.
+    """
+
+    photos: list[Photo]
     page: int
+    total: int
+    per_page: int
     total_pages: int
-    total_count: int
     has_more: bool
     sort_col: str
-
-
-class TypeCountItem(BaseModel):
-    id: str
-    label: str
-    count: int
-
-
-class TypeCountsResponse(BaseModel):
-    types: list[TypeCountItem]
-
-
-class SimilarPhoto(BaseModel):
-    path: str
-    filename: Optional[str] = None
-    similarity: float
-    breakdown: dict
-    aggregate: Optional[float] = None
-    aesthetic: Optional[float] = None
-    date_taken: Optional[str] = None
-
-
-class SimilarPhotosResponse(BaseModel):
-    source: str
-    weights: dict
-    similar: list[SimilarPhoto]
+    hidden_summary: Optional[HiddenSummary] = None
 
 
 # --- Gallery query parameters ---

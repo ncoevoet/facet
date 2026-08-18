@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Query
 from api.auth import CurrentUser, get_optional_user
 from api.database import get_async_db
 from api.db_helpers import get_visibility_clause, build_hide_clauses, get_photos_from_clause
+from api.models.scan import FoldersResponse
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ def _normalize_path(path: str) -> str:
     return path.replace('\\', '/')
 
 
-@router.get("/api/folders")
+@router.get("/api/folders", response_model=FoldersResponse, response_model_exclude_unset=True)
 async def api_folders(
     prefix: str = Query('', description="Parent directory path, empty = root level"),
     hide_blinks: str = Query('0'),

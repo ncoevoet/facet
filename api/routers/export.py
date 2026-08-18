@@ -33,6 +33,7 @@ from api.db_helpers import (
     get_preference_columns,
     get_visibility_clause,
 )
+from api.models.scan import CullApplyResponse
 from api.path_validation import resolve_photo_disk_path
 from api.raw_processing import find_companion_raw
 from processing.xmp_export import (
@@ -670,7 +671,7 @@ def api_export_sidecars(
         return _write_sidecars_for_paths(conn, paths, user_id, body.overwrite)
 
 
-@router.post("/api/cull/apply")
+@router.post("/api/cull/apply", response_model=CullApplyResponse, response_model_exclude_unset=True)
 def api_cull_apply(
     body: CullApplyRequest,
     user: CurrentUser = Depends(require_edition),

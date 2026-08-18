@@ -19,6 +19,7 @@ from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
     split_photo_tags, attach_person_data_async, format_date,
 )
+from api.models.albums import MemoriesCheckResponse, MemoriesResponse
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,11 @@ def _get_top_per_year():
     return VIEWER_CONFIG.get('memories', {}).get('top_per_year', 5)
 
 
-@router.get("/api/memories/check")
+@router.get(
+    "/api/memories/check",
+    response_model=MemoriesCheckResponse,
+    response_model_exclude_unset=True,
+)
 async def check_memories(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_str: Optional[str] = Query(None, alias="date"),
@@ -82,7 +87,11 @@ async def check_memories(
         return {'has_memories': False}
 
 
-@router.get("/api/memories")
+@router.get(
+    "/api/memories",
+    response_model=MemoriesResponse,
+    response_model_exclude_unset=True,
+)
 async def get_memories(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_str: Optional[str] = Query(None, alias="date"),

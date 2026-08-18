@@ -14,7 +14,8 @@ from pydantic import ValidationError
 from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db, get_db
-from api.models.gallery import GalleryParams
+from api.models.gallery import GalleryParams, Photo, PhotosResponse
+from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, ViewerConfigResponse
 from api.db_helpers import (
     get_existing_columns, get_cached_count_async,
     get_cached_hidden_aggregates_async, _add_tag_filter,
@@ -547,7 +548,7 @@ def _build_gallery_where(params, conn=None, user_id=None):
     return where_clauses, sql_params
 
 
-@router.get("/api/photo")
+@router.get("/api/photo", response_model=Photo, response_model_exclude_unset=True)
 async def api_photo(
     path: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -638,7 +639,7 @@ async def _fetch_grouped_set(conn, vis_sql, vis_params, kind, group_col, lead_co
     return {'kind': kind, 'group_id': group_id, 'count': len(members), 'ev_span': None, 'members': members}
 
 
-@router.get("/api/photo/set")
+@router.get("/api/photo/set", response_model=PhotoSetResponse, response_model_exclude_unset=True)
 async def api_photo_set(
     path: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -687,7 +688,7 @@ async def api_photo_set(
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.get("/api/type_counts")
+@router.get("/api/type_counts", response_model=PhotoTypeCountsResponse, response_model_exclude_unset=True)
 def api_type_counts(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
@@ -835,7 +836,8 @@ async def api_select_bottom_percent(
     }
 
 
-@router.get("/api/photos")
+@router.get("/api/photos", response_model=PhotosResponse,
+            response_model_exclude_unset=True)
 async def api_photos(
     request: Request,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -1438,7 +1440,7 @@ def _render_migration_status():
     return {'pending': pending}
 
 
-@router.get("/api/config")
+@router.get("/api/config", response_model=ViewerConfigResponse, response_model_exclude_unset=True)
 def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Get viewer configuration for Angular client initialization."""
     from api.config import is_multi_user_enabled

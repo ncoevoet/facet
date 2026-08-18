@@ -14,6 +14,7 @@ from pydantic import BaseModel
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause, to_exif_date
+from api.models.discovery import PhotoMapCountResponse, PhotoMapResponse
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
 
@@ -111,7 +112,7 @@ async def _get_individual_photos(conn, base_where, base_params, limit):
     return {'clusters': [], 'photos': photos}
 
 
-@router.get("/api/photos/map")
+@router.get("/api/photos/map", response_model=PhotoMapResponse, response_model_exclude_unset=True)
 async def api_photos_map(
     bounds: str = Query(..., description="sw_lat,sw_lng,ne_lat,ne_lng"),
     zoom: int = Query(10, ge=0, le=22),
@@ -175,7 +176,7 @@ async def api_photos_map(
             )
 
 
-@router.get("/api/photos/map/count")
+@router.get("/api/photos/map/count", response_model=PhotoMapCountResponse, response_model_exclude_unset=True)
 async def api_photos_map_count(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):

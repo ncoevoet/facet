@@ -9,7 +9,7 @@ import math
 import sqlite3
 import sys
 from collections import defaultdict
-from typing import Optional
+from typing import Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -23,6 +23,13 @@ from api.config import (
 from api.database import get_async_db, get_db
 from api.db_helpers import get_visibility_clause, to_exif_date, to_iso_date
 from api.config_writes import update_category_weights
+from api.models.stats import (
+    StatsCategoryCorrelationsResponse, StatsCategoryOverlapResponse,
+    StatsCategoryRecomputeResponse, StatsCategoryStat,
+    StatsCorrelationsGroupedResponse, StatsCorrelationsUngroupedResponse,
+    StatsGearResponse, StatsOverviewResponse, StatsScoreDistributionBin,
+    StatsTopCamera,
+)
 
 router = APIRouter(tags=["stats"])
 logger = logging.getLogger(__name__)
@@ -113,7 +120,8 @@ def _stats_filter_where(user: Optional[CurrentUser],
 
 # --- Endpoints ---
 
-@router.get('/api/stats/overview')
+@router.get('/api/stats/overview', response_model=StatsOverviewResponse,
+            response_model_exclude_unset=True)
 async def api_stats_overview(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
@@ -192,7 +200,8 @@ async def api_stats_overview(
     return await _get_stats_cached_async(cache_key, compute)
 
 
-@router.get('/api/stats/score_distribution')
+@router.get('/api/stats/score_distribution', response_model=list[StatsScoreDistributionBin],
+            response_model_exclude_unset=True)
 async def api_stats_score_distribution(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
@@ -230,7 +239,8 @@ async def api_stats_score_distribution(
     return await _get_stats_cached_async(cache_key, compute)
 
 
-@router.get('/api/stats/top_cameras')
+@router.get('/api/stats/top_cameras', response_model=list[StatsTopCamera],
+            response_model_exclude_unset=True)
 async def api_stats_top_cameras(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
@@ -258,7 +268,8 @@ async def api_stats_top_cameras(
     return await _get_stats_cached_async(cache_key, compute)
 
 
-@router.get('/api/stats/categories')
+@router.get('/api/stats/categories', response_model=list[StatsCategoryStat],
+            response_model_exclude_unset=True)
 async def api_stats_categories(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
@@ -389,7 +400,8 @@ async def _gear_rows(conn, name_expr, where_sql, params, group_by):
              'history': []} for r in rows]
 
 
-@router.get('/api/stats/gear')
+@router.get('/api/stats/gear', response_model=StatsGearResponse,
+            response_model_exclude_unset=True)
 async def api_stats_gear(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     date_from: Optional[str] = Query(None),
@@ -618,7 +630,9 @@ async def api_stats_timeline(
     return await _get_stats_cached_async(cache_key, compute)
 
 
-@router.get('/api/stats/correlations')
+@router.get('/api/stats/correlations',
+            response_model=Union[StatsCorrelationsGroupedResponse, StatsCorrelationsUngroupedResponse],
+            response_model_exclude_unset=True)
 async def api_stats_correlations(
     x: str = Query('iso'),
     y: str = Query('aggregate'),
@@ -840,7 +854,8 @@ def api_stats_categories_weights(user: Optional[CurrentUser] = Depends(get_optio
     }
 
 
-@router.get('/api/stats/categories/correlations')
+@router.get('/api/stats/categories/correlations', response_model=StatsCategoryCorrelationsResponse,
+            response_model_exclude_unset=True)
 async def api_stats_categories_correlations(user: Optional[CurrentUser] = Depends(get_optional_user)):
     vis, vp = _vis_where(user)
 
@@ -941,7 +956,8 @@ async def api_stats_categories_metrics(
     return await _get_stats_cached_async(cache_key, compute)
 
 
-@router.get('/api/stats/categories/overlap')
+@router.get('/api/stats/categories/overlap', response_model=StatsCategoryOverlapResponse,
+            response_model_exclude_unset=True)
 async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get_optional_user)):
     vis, vp = _vis_where(user)
 
@@ -1091,7 +1107,8 @@ def api_stats_categories_update(
     }
 
 
-@router.post('/api/stats/categories/recompute')
+@router.post('/api/stats/categories/recompute', response_model=StatsCategoryRecomputeResponse,
+             response_model_exclude_unset=True)
 async def api_stats_categories_recompute(
     body: CategoryRecomputeRequest,
     user: CurrentUser = Depends(require_edition),

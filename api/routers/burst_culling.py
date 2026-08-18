@@ -38,6 +38,10 @@ from db.sequence_overrides import (
 )
 from utils.panorama import HDR_PANORAMA, PANORAMA
 from utils.sequence import BRACKET as BRACKET_KIND
+from api.models.culling import (
+    AutoCullResponse, BurstGroupsResponse, CullingGroupsResponse,
+    CullProfilesResponse, KeeperHint, SuggestCullProfileResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -542,7 +546,7 @@ def _query_burst_groups(conn, vis_sql, vis_params, page=None, per_page=None, exc
 
 # --- Endpoints ---
 
-@router.get("/api/burst-groups")
+@router.get("/api/burst-groups", response_model=BurstGroupsResponse, response_model_exclude_unset=True)
 def get_burst_groups(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     page: int = Query(1, ge=1),
@@ -1417,7 +1421,7 @@ async def api_culling_group_subjects(
     return {'subjects_by_path': subjects_by_path}
 
 
-@router.get("/api/culling-groups")
+@router.get("/api/culling-groups", response_model=CullingGroupsResponse, response_model_exclude_unset=True)
 async def api_culling_groups(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
@@ -1567,7 +1571,7 @@ async def api_culling_groups(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.post("/api/photos/keeper_hints")
+@router.post("/api/photos/keeper_hints", response_model=dict[str, KeeperHint], response_model_exclude_unset=True)
 def keeper_hints(
     body: KeeperHintsBody,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -2036,7 +2040,7 @@ def _fill_highlights_album(conn, user_id, album_name, paths):
     return append_album_photos(conn, album_id, paths)
 
 
-@router.get("/api/culling/profiles")
+@router.get("/api/culling/profiles", response_model=CullProfilesResponse, response_model_exclude_unset=True)
 def list_cull_profiles(user: Optional[CurrentUser] = Depends(get_optional_user)):
     """Genre-aware culling presets for the darkroom toolbar.
 
@@ -2227,7 +2231,7 @@ def _score_shoot_types(rows):
     return scores, evidence, photos
 
 
-@router.get("/api/culling/suggest_profile")
+@router.get("/api/culling/suggest_profile", response_model=SuggestCullProfileResponse, response_model_exclude_unset=True)
 def suggest_cull_profile(
     album_id: Optional[int] = Query(None),
     date_from: Optional[str] = Query(None, pattern=_EXIF_TIMESTAMP_PATTERN),
@@ -2281,7 +2285,7 @@ def suggest_cull_profile(
     }
 
 
-@router.post("/api/culling/auto")
+@router.post("/api/culling/auto", response_model=AutoCullResponse, response_model_exclude_unset=True)
 def auto_cull(
     body: AutoCullBody,
     user: CurrentUser = Depends(require_edition),

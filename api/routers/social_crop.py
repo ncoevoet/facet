@@ -24,6 +24,7 @@ from api.auth import CurrentUser, require_edition
 from api.config import VIEWER_CONFIG
 from api.database import get_db
 from api.db_helpers import get_visibility_clause
+from api.models.media import MediaSocialCropPreviewResponse
 from api.subject_bbox import parse_subject_bbox
 from api.path_validation import resolve_photo_disk_path
 from processing.social_crop import compute_crop_rect, parse_aspect
@@ -121,7 +122,7 @@ def _resolve_subject(row, faces):
     return None, SOURCE_CENTER
 
 
-@router.get("/api/photo/social_crop/preview")
+@router.get("/api/photo/social_crop/preview", response_model=MediaSocialCropPreviewResponse, response_model_exclude_unset=True)
 def api_social_crop_preview(
     path: str = Query(...),
     preset: str = Query(...),

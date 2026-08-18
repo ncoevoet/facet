@@ -8,6 +8,7 @@ import json
 import os
 from fastapi import APIRouter, HTTPException
 
+from api.models.scan import LanguagesResponse
 from i18n import LANGUAGES, SUPPORTED_LANGUAGES, DEFAULT_LANGUAGE
 
 router = APIRouter(tags=["i18n"])
@@ -43,7 +44,7 @@ def _load_translations(lang: str) -> dict:
         return {}
 
 
-@router.get("/api/i18n/languages")
+@router.get("/api/i18n/languages", response_model=LanguagesResponse, response_model_exclude_unset=True)
 def get_languages():
     """List supported languages as ``[{code, name}]`` plus the default code."""
     return {'languages': LANGUAGES, 'default': DEFAULT_LANGUAGE}

@@ -28,6 +28,7 @@ from api.auth import (
 )
 from api.config import VIEWER_CONFIG
 from api.database import get_db
+from api.models.albums import AlbumPicksResponse
 from api.routers.albums import _check_album_access, _get_user_id
 
 router = APIRouter(tags=["proofing"])
@@ -198,7 +199,11 @@ def get_share_picks(
 
 # --- Owner endpoint (edition auth) ---
 
-@router.get("/api/albums/{album_id}/picks")
+@router.get(
+    "/api/albums/{album_id}/picks",
+    response_model=AlbumPicksResponse,
+    response_model_exclude_unset=True,
+)
 def get_owner_picks(
     album_id: int,
     user: CurrentUser = Depends(require_edition),

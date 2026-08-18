@@ -19,6 +19,7 @@ from api.db_helpers import (
     attach_person_data_async,
     format_date,
 )
+from api.models.albums import CapsulesResponse, CapsulePhotosResponse
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,11 @@ def _resolve_capsule(capsule_id: str, user_id, date_from="", date_to="") -> dict
     raise HTTPException(status_code=404, detail="Capsule not found")
 
 
-@router.get("/api/capsules")
+@router.get(
+    "/api/capsules",
+    response_model=CapsulesResponse,
+    response_model_exclude_unset=True,
+)
 def get_capsules(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     refresh: bool = Query(False),
@@ -145,7 +150,11 @@ def get_capsules(
     }
 
 
-@router.get("/api/capsules/{capsule_id}/photos")
+@router.get(
+    "/api/capsules/{capsule_id}/photos",
+    response_model=CapsulePhotosResponse,
+    response_model_exclude_unset=True,
+)
 async def get_capsule_photos(
     capsule_id: str,
     user: Optional[CurrentUser] = Depends(get_optional_user),

@@ -31,6 +31,7 @@ from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG
 from api.database import get_db
 from api.db_helpers import FACE_FRAME_TOLERANCE, get_visibility_clause, select_in_chunks
+from api.models.media import MediaFaceMarkersResponse
 from api.subject_bbox import parse_subject_bbox
 from db.schema import person_not_hidden_clause
 
@@ -96,7 +97,7 @@ def api_saliency_overlay(
                     headers={"Cache-Control": "private, max-age=300"})
 
 
-@router.get("/api/photo/face_markers")
+@router.get("/api/photo/face_markers", response_model=MediaFaceMarkersResponse, response_model_exclude_unset=True)
 def api_face_markers(
     path: str = Query(...),
     user: Optional[CurrentUser] = Depends(get_optional_user),

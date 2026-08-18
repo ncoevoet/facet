@@ -24,6 +24,7 @@ from api.db_helpers import (
     split_photo_tags, attach_person_data_async, format_date, paginate,
     is_access_controlled_install,
 )
+from api.models.albums import AlbumPhotosResponse, SharedAlbumResponse
 from api.types import VALID_SORT_COLS, SORT_OPTIONS_GROUPED, normalize_params
 
 router = APIRouter(tags=["albums"])
@@ -858,7 +859,11 @@ def remove_photos_from_album(
         return {'ok': True, 'photo_count': count}
 
 
-@router.get("/api/albums/{album_id}/photos")
+@router.get(
+    "/api/albums/{album_id}/photos",
+    response_model=AlbumPhotosResponse,
+    response_model_exclude_unset=True,
+)
 async def get_album_photos(
     request: Request,
     album_id: int,
@@ -1090,7 +1095,11 @@ def unshare_album(
         return {'ok': True}
 
 
-@router.get("/api/shared/album/{album_id}")
+@router.get(
+    "/api/shared/album/{album_id}",
+    response_model=SharedAlbumResponse,
+    response_model_exclude_unset=True,
+)
 async def get_shared_album(
     request: Request,
     album_id: int,

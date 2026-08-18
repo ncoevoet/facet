@@ -26,6 +26,13 @@ from api.config import (
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
 from api.db_helpers import get_visibility_clause
+from api.models.comparison import (
+    NextPairResponse, DownloadOptionsResponse, CategoryPrioritiesResponse,
+    ScoringContextsResponse, ComparisonStatsResponse, CategoryWeightsResponse,
+    LearnedWeightsResponse, SuggestFiltersResponse, CategoryOverrideResponse,
+    WeightSnapshotsResponse, RestoreWeightsResponse,
+    PanoramaDetectionSettingsResponse, PanoramaDetectionUpdateResponse,
+)
 from config.category_filter import _to_float
 from db import DEFAULT_DB_PATH, record_weight_snapshot, delete_weight_snapshot
 from api.config_writes import update_category_weights
@@ -167,7 +174,7 @@ class RestoreWeightsBody(BaseModel):
 # Routes
 # ---------------------------------------------------------------------------
 
-@router.get("/api/comparison/next_pair")
+@router.get("/api/comparison/next_pair", response_model=NextPairResponse, response_model_exclude_unset=True)
 def api_comparison_next_pair(
     strategy: Optional[str] = Query(None),
     category: Optional[str] = Query(None),
@@ -214,7 +221,7 @@ def _validate_and_resolve(path: str, user: Optional[CurrentUser]):
     return db_path, real_disk, row['sequence_kind']
 
 
-@router.get("/api/download/options")
+@router.get("/api/download/options", response_model=DownloadOptionsResponse, response_model_exclude_unset=True)
 def api_download_options(
     path: str = Query(...),
     is_shared: bool = Query(False),
@@ -497,7 +504,7 @@ async def api_update_weights(
         raise HTTPException(status_code=500, detail='Failed to update weights')
 
 
-@router.get("/api/config/category_priorities")
+@router.get("/api/config/category_priorities", response_model=CategoryPrioritiesResponse, response_model_exclude_unset=True)
 def api_get_category_priorities(
     user: CurrentUser = Depends(require_edition),
 ):
@@ -548,7 +555,7 @@ def api_update_category_priorities(
         raise HTTPException(status_code=500, detail='Failed to update category priorities')
 
 
-@router.get("/api/config/scoring_contexts")
+@router.get("/api/config/scoring_contexts", response_model=ScoringContextsResponse, response_model_exclude_unset=True)
 def api_get_scoring_contexts(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
@@ -616,7 +623,7 @@ def api_update_scoring_context(
         raise HTTPException(status_code=500, detail='Failed to update scoring context')
 
 
-@router.get("/api/comparison/stats")
+@router.get("/api/comparison/stats", response_model=ComparisonStatsResponse, response_model_exclude_unset=True)
 def api_comparison_stats(
     user: CurrentUser = Depends(require_edition),
 ):
@@ -677,7 +684,7 @@ def api_comparison_photo_metrics(
     return result
 
 
-@router.get("/api/comparison/category_weights")
+@router.get("/api/comparison/category_weights", response_model=CategoryWeightsResponse, response_model_exclude_unset=True)
 def api_comparison_category_weights(
     category: Optional[str] = Query(None),
     user: CurrentUser = Depends(require_edition),
@@ -725,7 +732,7 @@ def api_comparison_category_weights(
         return {'categories': categories}
 
 
-@router.get("/api/comparison/learned_weights")
+@router.get("/api/comparison/learned_weights", response_model=LearnedWeightsResponse, response_model_exclude_unset=True)
 def api_comparison_learned_weights(
     category: Optional[str] = Query(None),
     include_ties: str = Query('true'),
@@ -924,7 +931,7 @@ def api_comparison_preview_score(
     }
 
 
-@router.post("/api/comparison/suggest_filters")
+@router.post("/api/comparison/suggest_filters", response_model=SuggestFiltersResponse, response_model_exclude_unset=True)
 def api_comparison_suggest_filters(
     body: SuggestFiltersBody,
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -1194,7 +1201,7 @@ def _recompute_category_and_aggregate(row, *, category_override=None, scoring_co
     return category, round(new_score, 2)
 
 
-@router.post("/api/comparison/override_category")
+@router.post("/api/comparison/override_category", response_model=CategoryOverrideResponse, response_model_exclude_unset=True)
 def api_comparison_override_category(
     body: OverrideCategoryBody,
     user: CurrentUser = Depends(require_edition),
@@ -1255,7 +1262,7 @@ def api_comparison_override_category(
     }
 
 
-@router.post("/api/comparison/clear_category_override")
+@router.post("/api/comparison/clear_category_override", response_model=CategoryOverrideResponse, response_model_exclude_unset=True)
 def api_comparison_clear_category_override(
     body: ClearCategoryOverrideBody,
     user: CurrentUser = Depends(require_edition),
@@ -1460,7 +1467,7 @@ def api_comparison_confidence(
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.get("/api/config/weight_snapshots")
+@router.get("/api/config/weight_snapshots", response_model=WeightSnapshotsResponse, response_model_exclude_unset=True)
 def api_weight_snapshots(
     category: Optional[str] = Query(None),
     limit: int = Query(20, ge=1, le=100),
@@ -1532,7 +1539,7 @@ def api_save_weight_snapshot(
         raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.post("/api/config/restore_weights")
+@router.post("/api/config/restore_weights", response_model=RestoreWeightsResponse, response_model_exclude_unset=True)
 def api_restore_weights(
     body: RestoreWeightsBody,
     user: CurrentUser = Depends(require_edition),
@@ -1601,7 +1608,7 @@ def api_delete_weight_snapshot(
     return {'success': True}
 
 
-@router.get("/api/config/panorama_detection")
+@router.get("/api/config/panorama_detection", response_model=PanoramaDetectionSettingsResponse, response_model_exclude_unset=True)
 def api_get_panorama_detection():
     """The panorama detector's effective settings, config over module defaults.
 
@@ -1635,7 +1642,7 @@ PanoramaDetectionBody = create_model(
 )
 
 
-@router.put("/api/config/panorama_detection")
+@router.put("/api/config/panorama_detection", response_model=PanoramaDetectionUpdateResponse, response_model_exclude_unset=True)
 def api_update_panorama_detection(
     body: PanoramaDetectionBody,
     user: CurrentUser = Depends(require_edition),

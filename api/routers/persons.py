@@ -18,6 +18,7 @@ from api.db_helpers import (
     recompute_person_centroid,
 )
 from db import person_not_hidden_clause
+from api.models.culling import PersonsListResponse, PersonsNeedsNamingResponse
 
 logger = logging.getLogger(__name__)
 
@@ -119,7 +120,7 @@ def _assert_person_assignable(conn, user_id, person_id):
 
 # --- Endpoints ---
 
-@router.get("/api/persons")
+@router.get("/api/persons", response_model=PersonsListResponse, response_model_exclude_unset=True)
 async def list_persons(
     page: int = Query(1, ge=1),
     per_page: int = Query(48, ge=1, le=200),
@@ -448,7 +449,7 @@ def delete_persons_batch(
             raise HTTPException(status_code=500, detail='Internal server error')
 
 
-@router.get("/api/persons/needs_naming")
+@router.get("/api/persons/needs_naming", response_model=PersonsNeedsNamingResponse, response_model_exclude_unset=True)
 async def api_persons_needs_naming(
     min_faces: Optional[int] = Query(None, ge=0),
     user: CurrentUser = Depends(require_authenticated),

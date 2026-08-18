@@ -22,6 +22,7 @@ from api.db_helpers import (
     get_visibility_clause, trigger_auto_retrain, set_photos_rejected,
     album_filter_clause, time_window_clauses, scope_cache_key, HIDE_BURSTS_SQL,
 )
+from api.models.albums import ScenesResponse
 from comparison.comparison_manager import record_culling_pairs
 from utils.date_utils import parse_date
 
@@ -303,7 +304,11 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
     return scenes
 
 
-@router.get("/api/scenes")
+@router.get(
+    "/api/scenes",
+    response_model=ScenesResponse,
+    response_model_exclude_unset=True,
+)
 async def api_scenes(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),

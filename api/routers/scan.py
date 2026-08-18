@@ -21,6 +21,14 @@ from starlette.responses import StreamingResponse
 
 from api.auth import CurrentUser, create_access_token, decode_access_token, require_edition, require_superadmin
 from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, _photo_types_cache, _stats_cache
+from api.models.scan import (
+    LibraryJobStartResponse,
+    RecomputeStatusResponse,
+    ScanDirectoriesResponse,
+    ScanStartResponse,
+    ScanStatusResponse,
+    ScanStreamTokenResponse,
+)
 from processing.progress import parse_progress_line
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
@@ -127,7 +135,7 @@ class RecomputeRequest(BaseModel):
     confirm: bool
 
 
-@router.post("/start")
+@router.post("/start", response_model=ScanStartResponse, response_model_exclude_unset=True)
 def start_scan(
     body: ScanStartRequest,
     user: CurrentUser = Depends(require_superadmin),
@@ -207,7 +215,7 @@ def start_scan(
         _scan_lock.release()
 
 
-@router.get("/status")
+@router.get("/status", response_model=ScanStatusResponse, response_model_exclude_unset=True)
 def scan_status(
     lines: int = Query(20),
     user: CurrentUser = Depends(require_superadmin),
@@ -219,7 +227,7 @@ def scan_status(
     return _build_scan_snapshot(lines)
 
 
-@router.get("/stream_token")
+@router.get("/stream_token", response_model=ScanStreamTokenResponse, response_model_exclude_unset=True)
 def scan_stream_token(
     user: CurrentUser = Depends(require_superadmin),
 ):
@@ -321,7 +329,7 @@ async def scan_stream(
     )
 
 
-@router.get("/directories")
+@router.get("/directories", response_model=ScanDirectoriesResponse, response_model_exclude_unset=True)
 def scan_directories(
     user: CurrentUser = Depends(require_superadmin),
 ):
@@ -340,7 +348,7 @@ def scan_directories(
     }
 
 
-@router.post("/recompute")
+@router.post("/recompute", response_model=LibraryJobStartResponse, response_model_exclude_unset=True)
 def start_recompute(
     body: RecomputeRequest,
     user: CurrentUser = Depends(require_edition),
@@ -428,7 +436,7 @@ def _spawn_fixed_library_job(body, flag, kind, message):
     finally:
         _scan_lock.release()
 
-@router.post("/detect_panoramas")
+@router.post("/detect_panoramas", response_model=LibraryJobStartResponse, response_model_exclude_unset=True)
 def start_detect_panoramas(
     body: RecomputeRequest,
     user: CurrentUser = Depends(require_edition),
@@ -467,7 +475,7 @@ def _cross_process_job_holder():
     return library_job_holder(DEFAULT_DB_PATH)
 
 
-@router.get("/recompute_status")
+@router.get("/recompute_status", response_model=RecomputeStatusResponse, response_model_exclude_unset=True)
 def recompute_status(
     user: CurrentUser = Depends(require_edition),
 ):

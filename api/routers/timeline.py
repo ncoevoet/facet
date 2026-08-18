@@ -17,6 +17,9 @@ from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
     format_date,
 )
+from api.models.discovery import (
+    TimelineDatesResponse, TimelineMonthsResponse, TimelineYearsResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +245,7 @@ async def api_timeline(
     }
 
 
-@router.get("/api/timeline/dates")
+@router.get("/api/timeline/dates", response_model=TimelineDatesResponse, response_model_exclude_unset=True)
 async def api_timeline_dates(
     year: int = Query(..., ge=1900, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
@@ -302,7 +305,7 @@ async def api_timeline_dates(
     return {'dates': dates}
 
 
-@router.get("/api/timeline/years")
+@router.get("/api/timeline/years", response_model=TimelineYearsResponse, response_model_exclude_unset=True)
 async def api_timeline_years(
     hide_blinks: str = Query('0'),
     hide_bursts: str = Query('0'),
@@ -351,7 +354,7 @@ async def api_timeline_years(
     return {'years': years}
 
 
-@router.get("/api/timeline/months")
+@router.get("/api/timeline/months", response_model=TimelineMonthsResponse, response_model_exclude_unset=True)
 async def api_timeline_months(
     year: int = Query(..., ge=1900, le=2100),
     hide_blinks: str = Query('0'),

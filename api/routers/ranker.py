@@ -13,12 +13,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.database import get_db
+from api.models.scan import RankerStatusResponse
 from optimization.personal_ranker import ranker_metrics_key
 
 router = APIRouter(tags=["ranker"])
 
 
-@router.get("/api/ranker/status")
+@router.get("/api/ranker/status", response_model=RankerStatusResponse, response_model_exclude_unset=True)
 async def api_ranker_status(
     user: Optional[CurrentUser] = Depends(get_optional_user),
     scope: Optional[str] = Query(None, alias="user"),

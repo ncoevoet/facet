@@ -21,6 +21,7 @@ from api.db_helpers import (
     build_photo_select_columns,
     split_photo_tags, attach_person_data_async, format_date, sanitize_float_values,
 )
+from api.models.discovery import PhotoSearchResponse
 from db.connection import HAS_SQLITE_VEC
 
 router = APIRouter(tags=["search"])
@@ -460,7 +461,7 @@ async def _fts_search(conn, query, limit, scope=None):
     return scores
 
 
-@router.get("/api/search")
+@router.get("/api/search", response_model=PhotoSearchResponse, response_model_exclude_unset=True)
 async def api_search(
     request: Request,
     q: str = Query(..., min_length=1, max_length=500),
