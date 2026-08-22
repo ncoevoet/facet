@@ -13,9 +13,9 @@ import logging
 import numpy as np
 from typing import Optional
 
-logger = logging.getLogger("facet.saliency")
+from utils.system_memory import BYTES_PER_GB
 
-BYTES_PER_GB = 1024 ** 3
+logger = logging.getLogger("facet.saliency")
 
 # Lazy imports
 torch = None

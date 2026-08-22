@@ -539,6 +539,14 @@ class TestInsightFacePassUsesTheModelItIsGiven:
     manager's copy went unread and the scorer's stayed resident for the whole
     scan. Nothing else in this suite calls ``_pass_insightface``, so without
     this the swap back is invisible.
+
+    One test carries that, and it has to be this one rather than a companion
+    asserting the scorer's analyzer went unread: ``_pass_insightface`` wraps
+    its per-image body in a bare ``except Exception``, which swallows the
+    ``AssertionError`` ``_ExplodingFaceScorer`` raises. Reading the scorer's
+    analyzer instead therefore leaves every result at the zero-face fallback
+    and raises nothing -- caught here by ``seen``, and by results only the
+    passed analyzer could have produced.
     """
 
     def _processor(self):
@@ -558,17 +566,6 @@ class TestInsightFacePassUsesTheModelItIsGiven:
         assert analyzer.seen == [img]
         assert results['/p.jpg']['face_details'] == [{'analyzer': 'from-the-manager'}]
         assert results['/p.jpg']['face_count'] == 1
-
-    def test_the_scorers_analyzer_is_never_touched(self):
-        proc = self._processor()
-        img = mock.MagicMock()
-        img.shape = (100, 100, 3)
-
-        proc._pass_insightface(
-            _RecordingAnalyzer('from-the-manager'),
-            {'/p.jpg': {'cv': img, 'cache': None}},
-            {'/p.jpg': {}},
-        )
 
 
 class _WeighedModel:
@@ -605,7 +602,7 @@ class _RefWatchingModelManager:
         self.refs[name] = weakref.ref(model)
         return model
 
-    def unload_model(self, name):
+    def unload_model(self, name, reclaim=True):
         gc.collect()
         ref = self.refs.get(name)
         self.alive_at_unload[name] = ref is not None and ref() is not None
@@ -647,14 +644,22 @@ class TestChunkReleasesItsModelsAndItsHeap:
             'clip': False, 'topiq': False, 'insightface': False
         }
 
-    def test_the_chunk_end_hands_the_freed_heap_back(self, monkeypatch):
+    def test_the_heap_is_handed_back_once_per_pass_group_and_once_at_the_chunk_end(
+            self, monkeypatch):
+        """Batched, not per model: a nine-model pass paid a full collection nine
+        times over to reclaim what one call at the end of the group reclaims.
+        This manager's own unload does not trim, so every call counted here
+        comes from the chunk itself.
+        """
         calls = []
         monkeypatch.setattr(system_memory, 'release_freed_heap', lambda: calls.append(1))
         manager = _RefWatchingModelManager()
-        proc = _chunk_processor(manager, [['clip']], monkeypatch)
+        pass_groups = [['clip', 'topiq'], ['insightface']]
+        proc = _chunk_processor(manager, pass_groups, monkeypatch)
 
         proc._process_chunk(['/a.jpg'], 0, 1)
 
-        assert len(calls) == 1, (
-            "the chunk end must trim once; this manager's unload does not trim"
+        assert len(calls) == len(pass_groups) + 1, (
+            "expected one trim per pass group plus one at the chunk end, not one "
+            "per model and not one for the whole chunk"
         )

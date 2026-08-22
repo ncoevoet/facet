@@ -486,7 +486,8 @@ class ChunkedMultiPassProcessor:
             unload_start = time.time()
             for model_name in model_group:
                 loaded_models.pop(model_name, None)
-                self.model_manager.unload_model(model_name)
+                self.model_manager.unload_model(model_name, reclaim=False)
+            self._reclaim_freed_memory()
             self.metrics['model_unload_time'] += time.time() - unload_start
 
         if failed_stages:
@@ -503,6 +504,16 @@ class ChunkedMultiPassProcessor:
 
         # Free memory
         del images
+        self._reclaim_freed_memory()
+
+    def _reclaim_freed_memory(self):
+        """Collect, clear the device cache and hand the freed heap back.
+
+        Called once per pass group rather than once per model: the group's
+        models are unloaded back to back with nothing allocated between them,
+        so one pass reclaims exactly what a call per model would, and a full
+        collection costs about 88 ms once torch is loaded.
+        """
         gc.collect()
         from utils.device import clear_device_cache
         clear_device_cache(getattr(self.model_manager, 'device', 'cpu'))

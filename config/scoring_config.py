@@ -146,16 +146,18 @@ def _readable_system_ram_gb():
     """Total memory in GB -- the cgroup limit where one binds -- or None.
 
     None means no reading at all, which covers both ways that happens: the
-    reader raised, or it answered the zero total ``utils.system_memory`` uses
-    for "nothing could be read". The caller picks a message from the absence
-    rather than from a number it would otherwise have to invent.
+    reader raised, or it answered the None ``utils.system_memory.total_gb``
+    returns for "nothing could be read". The caller picks a message from the
+    absence rather than from a number it would otherwise have to invent.
+
+    The import stays inside the call because ``utils`` reaches back into this
+    module for ``RAW_DECODE_DEFAULTS``, so a module-level one would be a cycle.
     """
     try:
-        from utils.system_memory import effective_memory
-        total_bytes = effective_memory().total
+        from utils.system_memory import total_gb
+        return total_gb()
     except Exception:
         return None
-    return total_bytes / (1024 ** 3) if total_bytes else None
 
 
 class ScoringConfig:
