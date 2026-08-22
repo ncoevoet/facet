@@ -311,12 +311,13 @@ reader reports 0.500 GB where `/proc/meminfo` still reports the host's 46.8 GB.
 Model weights are only part of peak memory use — the torch runtime, the decoded
 image chunk, and per-layer activations all add to it — so treat these figures as
 floors, not budgets. The `legacy`/`8gb` row is now backed by real container
-testing (see below); the `16gb` and `24gb` rows remain provisional
-placeholders with no real-run measurement behind them.
+testing — 50-photo scans completing at `--memory=8g` on both profiles (see
+below); the `16gb` and `24gb` rows remain provisional placeholders with no
+real-run measurement behind them.
 
 | VRAM profile | Model weights (total) | Recommended container memory |
 |---|---|---|
-| `legacy` / `8gb` | 15.0 GB | 12 GB (GPU) / 16 GB (CPU, provisional) |
+| `legacy` / `8gb` | 15.0 GB | 12 GB (GPU) / 8 GB minimum, 12 GB recommended (CPU) |
 | `16gb` | 22.0 GB | at least 18 GB (provisional) |
 | `24gb` | 25.0 GB | at least 18 GB (provisional) |
 
@@ -343,23 +344,36 @@ container limit reports, so it stops growing with the container: the `8gb`
 profile on CPU always plans the same 5 passes regardless of limit — `Pass 1:
 qrealign [~5.0GB RAM]`, `Pass 2: clip + topiq_iaa [~5.0GB RAM]`, `Pass 3:
 topiq_nr_face + liqe [~4.0GB RAM]`, `Pass 4: saliency + samp_net [~4.0GB
-RAM]`, `Pass 5: insightface [~2.0GB RAM]`. That flat shape still does not fit
-an 8 GB container: real testing still gets `OOMKilled` (exit code 137), in
-Pass 4, at a peak of 7.67 GB of the 8 GB budget. A 16 GB container runs past
-the point where 8 GB and 12 GB failed — that run was still going when last
-checked, so what follows is a floor, not a final peak. Its cgroup already
-showed at least 12.55 GB of anonymous memory, the figure the kernel's OOM
-killer actually charges: not `docker stats`' MemUsage nor the cgroup's
-`memory.current`, both of which count reclaimable page cache, so the former
-under-reports the real risk and the latter sits pinned near the container
-limit regardless of how much headroom is actually left. That same 12.55 GB is
-also why the 12 GB run above was killed, and it lines up with the issue
+RAM]`, `Pass 5: insightface [~2.0GB RAM]`.
+
+That flat shape was still not enough on its own, because two things outside
+the pass plan were spending the budget. The chunk auto-tuner grew on the
+memory trough between passes — every unload drops usage almost to the floor,
+and three such readings in a row read as headroom — so `ram_chunk_size` ran
+from 10 to 500 during the very first chunk and the second tried to decode
+every remaining photo at once. And unloading a model returned nothing to the
+kernel: glibc kept the freed blocks in its arenas, so the process held a
+high-water mark set by its first pass and every later pass ran on top of
+memory it could not use. With growth now decided from each chunk's peak and
+the freed heap handed back explicitly, a 50-photo scan at `--memory=8g`
+completes on both profiles — `legacy` peaking at 7.26 GB and `8gb` at 7.56 GB
+of anonymous memory, five chunks of ten, exit code 0, no OOM kill and no
+recorded scan failure.
+
+**8 GB is a floor, not a comfortable budget.** Both runs finished within
+about half a gigabyte of the cap, on 18-20 MP JPEGs; larger frames, RAW
+decoding or a busier host will erode that margin, which is why 12 GB is the
+recommendation rather than the minimum. Anonymous memory is the number to
+watch — not `docker stats`' MemUsage nor the cgroup's `memory.current`, both
+of which count reclaimable page cache, so the former under-reports the real
+risk and the latter sits pinned near the container limit regardless of how
+much headroom is actually left. A 16 GB container was measured carrying at
+least 12.55 GB of anonymous memory, which is also why an earlier 12 GB run
+was killed before these two fixes landed, and it lines up with the issue
 author's 9.23 GB peak on GPU — the same model roster, minus whatever sits in
-VRAM instead of container RAM. The 16 GB figure in the table above reflects
-that floor, not a confirmed final ceiling — still labeled provisional for
-exactly that reason. A GPU user sizing off the CPU numbers here would
-over-provision; a CPU user sizing off the GPU figure would under-provision —
-use whichever matches how your container actually runs.
+VRAM instead of container RAM. A GPU user sizing off the CPU numbers here
+would over-provision; a CPU user sizing off the GPU figure would
+under-provision — use whichever matches how your container actually runs.
 
 More generally: `MODEL_RAM_REQUIREMENTS` prices model weight cost only. Real
 peak RSS additionally carries the torch runtime, the decoded image chunk, and
