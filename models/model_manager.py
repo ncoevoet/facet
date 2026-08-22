@@ -428,7 +428,7 @@ class ModelManager:
             return False
 
         from utils.system_memory import effective_memory
-        available_gb = effective_memory().available / (1024**3)
+        available_gb = effective_memory().available / self._BYTES_PER_GB
         model_ram = self.MODEL_RAM_REQUIREMENTS.get(model_name, 2.0)
         return available_gb > model_ram + self._RAM_HEADROOM_GB
 
@@ -486,16 +486,22 @@ class ModelManager:
     def _restore_from_cache(self, model_name: str):
         """Restore a model from CPU cache to the active device.
 
+        A single ``pop`` decides both whether the model is cached and which
+        object it is, rather than a membership test followed by a separate
+        lookup: ``evict_cpu_cache`` deletes from this same dict on the monitor
+        thread, and an eviction landing between the two raised ``KeyError`` on
+        the scan thread, where nothing catches it.
+
         Args:
             model_name: Name of the model
 
         Returns:
             The restored model, or None if not cached or restoration failed
         """
-        if model_name not in self._cpu_cache:
+        model = self._cpu_cache.pop(model_name, None)
+        if model is None:
             return None
 
-        model = self._cpu_cache.pop(model_name)
         try:
             self._move_to_device(model, model_name)
             self.models[model_name] = model
@@ -870,7 +876,7 @@ class ModelManager:
         total = effective_memory().total
         if total == 0:
             return 8.0
-        return total / (1024**3)
+        return total / ModelManager._BYTES_PER_GB
 
     @staticmethod
     def get_recommended_profile(vram_gb: float) -> str:
@@ -1128,6 +1134,11 @@ class ModelManager:
         that ends in SIGKILL from the kernel; on bare metal it ends in
         swapping, slow rather than fatal. Naming which is the difference
         between an actionable warning and an unexplained exit 137.
+
+        Every over-budget pass is reported, not just the heaviest: a 4 GiB
+        limit puts both ``qrealign`` (5.0 GB) and ``clip`` (3.0 GB) over a
+        2.0 GB capacity, and naming only the first sends the operator back to
+        be killed by the second.
         """
         if limit_bytes is None:
             logger.warning(
@@ -1199,11 +1210,10 @@ class ModelManager:
                 bins.append([model])
                 bin_usage.append(required)
 
-        if cpu_mode and bin_usage:
-            heaviest = max(range(len(bin_usage)), key=bin_usage.__getitem__)
-            if bin_usage[heaviest] > capacity:
-                self._warn_unfittable_pass(
-                    bins[heaviest], bin_usage[heaviest], capacity, limit_bytes)
+        if cpu_mode:
+            for group, usage in zip(bins, bin_usage):
+                if usage > capacity:
+                    self._warn_unfittable_pass(group, usage, capacity, limit_bytes)
 
         self._cpu_plan = bins if cpu_mode else None
 

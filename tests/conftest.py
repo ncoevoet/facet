@@ -28,6 +28,16 @@ _TEST_DB_FILE = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _TEST_DB_FILE.close()
 os.environ["DB_PATH"] = _TEST_DB_FILE.name
 
+# Drop ``FACET_CONFIG`` for the same reason, in the other direction: the shipped
+# docker-compose.yml sets it to /config/scoring_config.json, so running the suite
+# inside the container -- or on any host that exports it -- pointed every bare
+# ``ScoringConfig()`` and every module-level ``_CONFIG_PATH`` at a file the tests
+# do not own. ``tests/test_api_config.py`` passes os.environ to a subprocess and
+# asserts what that child resolves, so the variable also has to be gone from the
+# environment itself, not merely patched per test. Tests that exercise the
+# variable set it back with ``monkeypatch.setenv``.
+os.environ.pop("FACET_CONFIG", None)
+
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -264,3 +274,46 @@ def seeded_photos(seed_photos_prefix):
     ``category``, ``date_taken``).
     """
     return seed_photos_prefix(SEEDED_PHOTOS_PREFIX, _SEEDED_PHOTOS)
+
+
+CGROUP_PATH_CONSTANTS = {
+    'v2_limit': 'CGROUP_V2_LIMIT_PATH',
+    'v2_usage': 'CGROUP_V2_USAGE_PATH',
+    'v2_stat': 'CGROUP_V2_STAT_PATH',
+    'v1_limit': 'CGROUP_V1_LIMIT_PATH',
+    'v1_usage': 'CGROUP_V1_USAGE_PATH',
+    'v1_stat': 'CGROUP_V1_STAT_PATH',
+}
+
+
+@pytest.fixture()
+def fake_cgroup(monkeypatch, tmp_path):
+    """Point EVERY cgroup path constant into ``tmp_path``, writing those named.
+
+    All six, which is the whole point of sharing this. Three suites each kept
+    their own copy naming five, and each omitted the same one --
+    ``CGROUP_V1_STAT_PATH``. ``_cgroup_used_bytes`` consults the v1 stat file
+    after the v2 one and before either usage file, so on a cgroup v1 host
+    (Synology DSM, and every older Docker) those tests fell through to the
+    real ``/sys/fs/cgroup/memory/memory.stat`` and asserted against the
+    runner's own live memory.
+
+    Contents are written verbatim so a test can pass ``max``, a blank file or
+    garbage. A path left unnamed is pointed at a file that does not exist,
+    which is what a host lacking that hierarchy -- or cgroups entirely --
+    looks like.
+
+    Returns:
+        A callable taking the file contents by key, returning ``tmp_path``.
+    """
+    from utils import system_memory
+
+    def point(**contents):
+        for key, constant in CGROUP_PATH_CONSTANTS.items():
+            target = tmp_path / key
+            if key in contents:
+                target.write_text(contents[key])
+            monkeypatch.setattr(system_memory, constant, str(target))
+        return tmp_path
+
+    return point

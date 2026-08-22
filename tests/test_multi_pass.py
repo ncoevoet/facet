@@ -487,3 +487,83 @@ class TestFaceModelCoResidency:
             "the pass built the scan-long analyzer on the scorer, which nothing "
             "unloads, instead of the managed model the planner budgeted"
         )
+
+
+class _RecordingAnalyzer:
+    """A face analyzer that records which images it was asked about."""
+
+    def __init__(self, name):
+        self.name = name
+        self.seen = []
+
+    def analyze_faces(self, img_cv):
+        self.seen.append(img_cv)
+        return {
+            'face_count': 1,
+            'face_quality': 7.5,
+            'eye_sharpness': 120.0,
+            'face_sharpness': 200.0,
+            'is_blink': False,
+            'is_group_portrait': False,
+            'max_face_confidence': 0.9,
+            'raw_eye_sharpness': 130.0,
+            'face_details': [{'analyzer': self.name}],
+            'face_area': 400,
+        }
+
+
+class _ExplodingFaceScorer:
+    """A scorer whose ``face_analyzer`` must never be read.
+
+    ``Facet.face_analyzer`` builds a 2.0 GB InsightFace on first access and
+    nothing in the scan ever releases it, so a pass that reaches for it undoes
+    the whole point of routing the model through the manager. Raising is the
+    only way to tell "did not use it" apart from "used an identical one".
+    """
+
+    @property
+    def face_analyzer(self):
+        raise AssertionError(
+            "_pass_insightface read scorer.face_analyzer instead of using the "
+            "analyzer the model manager loaded and will unload")
+
+
+class TestInsightFacePassUsesTheModelItIsGiven:
+    """The pass must analyse with its argument, not with the scorer's analyzer.
+
+    ``_process_chunk`` loads ``insightface`` through the manager and unloads it
+    when the pass ends. That only frees anything if the pass actually USES the
+    loaded object: the previous code took ``self.scorer.face_analyzer``, so the
+    manager's copy went unread and the scorer's stayed resident for the whole
+    scan. Nothing else in this suite calls ``_pass_insightface``, so without
+    this the swap back is invisible.
+    """
+
+    def _processor(self):
+        with mock.patch("processing.multi_pass._ensure_imports"):
+            return ChunkedMultiPassProcessor(_ExplodingFaceScorer(), _FakeModelManager(), {})
+
+    def test_the_passed_analyzer_is_the_one_that_runs(self):
+        proc = self._processor()
+        analyzer = _RecordingAnalyzer('from-the-manager')
+        img = mock.MagicMock()
+        img.shape = (100, 100, 3)
+        images = {'/p.jpg': {'cv': img, 'cache': None}}
+        results = {'/p.jpg': {}}
+
+        proc._pass_insightface(analyzer, images, results)
+
+        assert analyzer.seen == [img]
+        assert results['/p.jpg']['face_details'] == [{'analyzer': 'from-the-manager'}]
+        assert results['/p.jpg']['face_count'] == 1
+
+    def test_the_scorers_analyzer_is_never_touched(self):
+        proc = self._processor()
+        img = mock.MagicMock()
+        img.shape = (100, 100, 3)
+
+        proc._pass_insightface(
+            _RecordingAnalyzer('from-the-manager'),
+            {'/p.jpg': {'cv': img, 'cache': None}},
+            {'/p.jpg': {}},
+        )

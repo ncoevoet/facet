@@ -220,9 +220,8 @@ class TestPassGrouping:
         monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
         with mock.patch.object(manager, 'detect_system_ram_gb', return_value=16.0):
             bins = manager.group_passes_by_vram(['topiq', 'clip'], 0.0)
-        # Capacity = (16 - 1.0 OS reserve) / 1.6 = 9.375 GB; both fit.
-        assert bins == [sorted(['clip', 'topiq'], key=manager.get_model_ram, reverse=True)] \
-            or sum(len(b) for b in bins) == 2
+        # Capacity = (16 - 1.0 OS reserve) / 1.6 = 9.375 GB; 3.0 + 2.0 both fit.
+        assert bins == [['clip', 'topiq']]
 
     def test_an_8gb_host_no_longer_plans_the_pass_that_killed_an_8gib_container(
             self, manager, monkeypatch):
@@ -350,8 +349,9 @@ class TestPassGrouping:
             bins = manager.group_passes_by_vram(
                 ['topiq_nr_face', 'liqe', 'saliency'], 0.0
             )
-        # Capacity = min(8-2, 5.0) = 5.0 GB; 2+2+2=6 GB no longer fits.
-        assert len(bins) > 1
+        # Capacity = min(8-2, 5.0) = 5.0 GB; 2+2+2=6 GB no longer fits, so the
+        # third model spills into a pass of its own.
+        assert bins == [['topiq_nr_face', 'liqe'], ['saliency']]
 
     def test_group_passes_cpu_8gb_profile_splits_saliency_under_cgroup_limit(self, manager, monkeypatch):
         """Reproduces the roster that OOM-killed on an 8 GiB container
@@ -475,22 +475,14 @@ class TestCachePolicy:
         assert not manager._can_cache_to_ram('topiq')
 
     def test_can_cache_to_ram_auto_denied_by_cgroup_limit_despite_host_headroom(
-        self, manager, monkeypatch, tmp_path,
+        self, manager, monkeypatch, fake_cgroup,
     ):
         """Issue #111: a container's cgroup must gate caching, not the host's
         own idle memory, which Docker never virtualises into
         ``/proc/meminfo``. A 1 GiB cgroup headroom refuses a 2 GB model even
         though the host itself reports 60 GiB free.
         """
-        cgroup_limit = tmp_path / 'memory.max'
-        cgroup_limit.write_text(str(2 * GIB))
-        cgroup_stat = tmp_path / 'memory.stat'
-        cgroup_stat.write_text(f'anon {1 * GIB}\n')
-        monkeypatch.setattr(system_memory, 'CGROUP_V2_LIMIT_PATH', str(cgroup_limit))
-        monkeypatch.setattr(system_memory, 'CGROUP_V2_STAT_PATH', str(cgroup_stat))
-        monkeypatch.setattr(system_memory, 'CGROUP_V2_USAGE_PATH', str(tmp_path / 'no_usage_v2'))
-        monkeypatch.setattr(system_memory, 'CGROUP_V1_LIMIT_PATH', str(tmp_path / 'no_limit_v1'))
-        monkeypatch.setattr(system_memory, 'CGROUP_V1_USAGE_PATH', str(tmp_path / 'no_usage_v1'))
+        fake_cgroup(v2_limit=str(2 * GIB), v2_stat=f'anon {1 * GIB}\n')
         monkeypatch.setattr(
             system_memory, '_host_memory',
             lambda: EffectiveMemory(60 * GIB, 4 * GIB, 60 * GIB, 6.7),
@@ -867,3 +859,145 @@ class TestFaceModelIsAManagedModel:
 
         assert 'insightface' not in manager.models
         assert 'insightface' not in manager._cpu_cache
+
+
+class TestBuildFaceAnalyzerMapsEverySetting:
+    """Every configured face setting must reach the FaceAnalyzer it builds.
+
+    ``build_face_analyzer`` is the ONE construction site for the analyzer, for
+    both the single-pass scan and the managed multi-pass model, and its whole
+    reason to exist is that the two must not disagree about the thresholds
+    deciding what counts as a face. Nine settings are mapped by hand; asserting
+    one of them would let the other eight be silently transposed or defaulted.
+    """
+
+    SETTINGS = {
+        'min_confidence_percent': 55,
+        'min_face_size': 41,
+        'blink_ear_threshold': 0.33,
+        'min_faces_for_group': 7,
+        'enable_3d_landmarks': True,
+        'blendshapes': {'enabled': False, 'min_crop_size': 321},
+    }
+    PROCESSING = {'face_thumbnail_size': 222, 'face_thumbnail_quality': 71}
+
+    def _built_kwargs(self):
+        import analyzers
+        from models.model_manager import build_face_analyzer
+
+        config = mock.MagicMock()
+        config.get_face_detection_settings.return_value = dict(self.SETTINGS)
+        config.get_face_processing_settings.return_value = dict(self.PROCESSING)
+        with mock.patch.object(analyzers, 'FaceAnalyzer') as face_analyzer:
+            build_face_analyzer(config, 'cuda')
+        return face_analyzer.call_args
+
+    def test_the_device_is_positional_and_every_setting_is_mapped(self):
+        pytest.importorskip('cv2')
+        call = self._built_kwargs()
+
+        assert call.args == ('cuda',)
+        assert call.kwargs == {
+            'min_confidence': pytest.approx(0.55),
+            'min_face_size': 41,
+            'thumbnail_size': 222,
+            'thumbnail_quality': 71,
+            'blink_ear_threshold': 0.33,
+            'min_faces_for_group': 7,
+            'enable_3d_landmarks': True,
+            'enable_blendshapes': False,
+            'blendshape_min_crop': 321,
+        }
+
+    def test_an_absent_blendshapes_block_still_enables_them(self):
+        pytest.importorskip('cv2')
+        import analyzers
+        from models.model_manager import build_face_analyzer
+
+        config = mock.MagicMock()
+        config.get_face_detection_settings.return_value = {}
+        config.get_face_processing_settings.return_value = {}
+        with mock.patch.object(analyzers, 'FaceAnalyzer') as face_analyzer:
+            build_face_analyzer(config, 'cpu')
+
+        assert face_analyzer.call_args.kwargs['enable_blendshapes'] is True
+        assert face_analyzer.call_args.kwargs['blendshape_min_crop'] == 192
+        assert face_analyzer.call_args.kwargs['thumbnail_size'] == 128
+        assert face_analyzer.call_args.kwargs['thumbnail_quality'] == 85
+
+
+class TestEveryUnfittablePassIsNamed:
+    """A budget that cannot hold two passes has to name both.
+
+    ``_warn_unfittable_pass`` exists so an OOM kill arrives with an
+    explanation instead of a bare exit 137. Reporting only the heaviest bin
+    turns that into a trap: the operator raises the limit for the model named,
+    restarts, and is killed by the one that was not.
+    """
+
+    ROSTER = ['qrealign', 'clip', 'topiq_iaa', 'topiq_nr_face',
+              'liqe', 'saliency', 'samp_net', 'insightface']
+
+    def test_a_4gib_limit_names_both_over_budget_passes(self, manager, monkeypatch, caplog):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 4 * GIB)
+        with caplog.at_level('WARNING', logger='facet.models'):
+            bins = manager.group_passes_by_vram(self.ROSTER, 0.0)
+
+        capacity = manager._cpu_pass_capacity_gb(4 * GIB)
+        over = [b for b in bins if sum(manager.get_model_ram(n) for n in b) > capacity]
+        assert len(over) == 2, f"expected two over-budget passes, got {over}"
+        assert "'qrealign'" in caplog.text
+        assert "'clip'" in caplog.text
+        assert caplog.text.count('expect the kernel to OOM-kill it') == 2
+
+    def test_a_plan_that_fits_warns_about_nothing(self, manager, monkeypatch, caplog):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 8 * GIB)
+        with caplog.at_level('WARNING', logger='facet.models'):
+            manager.group_passes_by_vram(['topiq', 'insightface'], 0.0)
+
+        assert caplog.text == ''
+
+
+class TestRestoreFromCacheSurvivesConcurrentEviction:
+    """``evict_cpu_cache`` runs on the monitor thread and deletes from the
+    same dict this reads. A membership test followed by a separate ``pop``
+    raised ``KeyError`` when an eviction landed between them -- on the scan
+    thread, where nothing catches it, so the whole scan died. The commit that
+    made the 85% eviction path reachable is what put that in reach.
+    """
+
+    class _EvictingCache(dict):
+        """A cache the monitor empties the instant anyone looks at it.
+
+        Clearing from ``__contains__`` is the interleaving that used to be
+        fatal: the membership test said yes, the eviction ran, the ``pop``
+        that followed found nothing. Code that asks a single ``pop`` never
+        opens that window, so it never reaches ``__contains__`` at all.
+        """
+
+        def __contains__(self, key):
+            present = super().__contains__(key)
+            self.clear()
+            return present
+
+    def test_an_eviction_between_the_lookup_and_the_pop_is_not_fatal(self, manager):
+        model = mock.MagicMock(spec=['cpu', 'to'])
+        manager._cpu_cache = self._EvictingCache({'clip': model})
+
+        restored = manager._restore_from_cache('clip')
+
+        assert restored is None or restored is model
+        assert 'clip' not in manager._cpu_cache
+
+    def test_a_cache_that_never_holds_it_reports_a_miss_rather_than_raising(self, manager):
+        manager._cpu_cache = self._EvictingCache()
+
+        assert manager._restore_from_cache('clip') is None
+
+    def test_an_uncontended_restore_still_returns_the_model(self, manager):
+        model = mock.MagicMock(spec=['cpu', 'to'])
+        manager._cpu_cache = {'clip': model}
+
+        assert manager._restore_from_cache('clip') is model
+        assert manager.models['clip'] is model
+        assert 'clip' not in manager._cpu_cache

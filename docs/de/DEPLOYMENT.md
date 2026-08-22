@@ -322,9 +322,13 @@ services:
     mem_limit: 16g
 ```
 
-### Die Pass-Gruppierung hat eine Untergrenze und eine Obergrenze
+### Die Pass-Gruppierung hat eine Obergrenze und gar keine Untergrenze
 
-Facets Pass-Planer bemisst jeden CPU-Pass am Cgroup-Speicherlimit des Containers abzüglich einer Reserve von 2 GB für die Torch-Laufzeitumgebung, gedeckelt bei 5 GB — eine Obergrenze, die einen Pass unabhängig von der Größe des Limits nie weiter wachsen lässt. Unter einem Cgroup-Limit gibt es keine Untergrenze: Ein Container mit wenig Spielraum nach der Reserve erhält ein kleines Budget, das bis auf null sinken kann, was schlicht ein Modell pro Pass isoliert. Nur wenn überhaupt kein Container-Speicherlimit gesetzt ist, greift der Planer auf eine optimistische Untergrenze zurück und hält einen Pass bei mindestens 4 GB, selbst wenn der System-RAM knapp ist. Ein Modell, das größer als das Budget ist, bekommt trotzdem einen eigenen Pass, statt aufgeteilt zu werden: Bei einem Container-Limit von 4 GB beträgt die Kapazität 2 GB, und das `24gb`-Profil plant weiterhin einen 8,0-GB-Pass, weil `qwen3_5_4b_tagger` allein 8 GB benötigt und nicht geteilt werden kann, egal wie klein das Budget ist. Dimensionieren Sie einen Container niemals kleiner als das größte einzelne Modell im verwendeten Profil.
+Facets Pass-Planer bemisst jeden CPU-Pass am Cgroup-Speicherlimit des Containers abzüglich einer Reserve von 2 GB für die Torch-Laufzeitumgebung, gedeckelt bei 5 GB — eine Obergrenze, die einen Pass unabhängig von der Größe des Limits nie weiter wachsen lässt. Unter diesem Limit gibt es keine Untergrenze: Ein Container mit wenig Spielraum nach der Reserve erhält ein kleines Budget, das bis auf null sinken kann, was schlicht ein Modell pro Pass isoliert.
+
+Ist überhaupt kein Container-Speicherlimit gesetzt, stammt das Budget stattdessen aus dem System-RAM: was die Maschine neben ihrem Betriebssystem hält (1 GB dafür reserviert), geteilt durch 1,6 — das gemessene Verhältnis von realer RSS zum deklarierten Modellgewicht. Auch dieser Pfad hat keine Untergrenze: Ein 4-GB-Host bemisst 1,9 GB pro Pass, ein 2-GB-Host 0,6 GB. Frühere Versionen hielten hier ein optimistisches Minimum von 4 GB — genau der auf dieser Seite beschriebene Defekt im Gewand von Bare Metal: Er plante einen 5-GB-Pass in einer 4-GB-Maschine.
+
+Ein Modell, das größer als das Budget ist, bekommt trotzdem einen eigenen Pass, statt aufgeteilt zu werden, und **jeder** solche Pass wird in einer Warnung benannt, nicht nur der schwerste: Bei einem Container-Limit von 4 GB beträgt die Kapazität 2 GB, und das `24gb`-Profil plant weiterhin einen 8,0-GB-Pass, weil `qwen3_5_4b_tagger` allein 8 GB benötigt und nicht geteilt werden kann, egal wie klein das Budget ist. Dimensionieren Sie einen Container niemals kleiner als das größte einzelne Modell im verwendeten Profil.
 
 ## Windows (WSL2) mit einer NVIDIA-GPU
 

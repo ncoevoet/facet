@@ -320,9 +320,13 @@ services:
     mem_limit: 16g
 ```
 
-### Le regroupement des passes a un plancher et un plafond
+### Le regroupement des passes a un plafond, et aucun plancher
 
-Le planificateur de passes de Facet budgète chaque passe CPU à la limite mémoire du cgroup du conteneur moins une réserve de 2 Go pour le runtime torch, plafonnée à 5 Go — un plafond qui empêche toute passe de grandir davantage, quelle que soit la taille de la limite. Il n'y a aucun plancher sous une limite de cgroup : un conteneur avec peu de marge après la réserve reçoit un petit budget, pouvant descendre jusqu'à zéro, ce qui revient simplement à isoler un modèle par passe. Ce n'est qu'en l'absence totale de limite mémoire de conteneur que le planificateur revient à un plancher optimiste, maintenant une passe à au moins 4 Go même quand la RAM système est rare. Un modèle plus gros que le budget obtient quand même sa propre passe plutôt que d'être scindé : à une limite de conteneur de 4 Go, la capacité est de 2 Go, et le profil `24gb` planifie encore une passe de 8,0 Go, car `qwen3_5_4b_tagger` à lui seul nécessite 8 Go et ne peut pas être divisé, quelle que soit la petitesse du budget. Ne dimensionnez jamais un conteneur en dessous du plus gros modèle unique du profil que vous utilisez.
+Le planificateur de passes de Facet budgète chaque passe CPU à la limite mémoire du cgroup du conteneur moins une réserve de 2 Go pour le runtime torch, plafonnée à 5 Go — un plafond qui empêche toute passe de grandir davantage, quelle que soit la taille de la limite. Il n'y a aucun plancher sous cette limite : un conteneur avec peu de marge après la réserve reçoit un petit budget, pouvant descendre jusqu'à zéro, ce qui revient simplement à isoler un modèle par passe.
+
+En l'absence totale de limite mémoire de conteneur, le budget vient de la RAM système : ce que la machine contient hors de son système d'exploitation (1 Go lui est réservé), divisé par 1,6 — le rapport mesuré entre la RSS réelle et le poids déclaré des modèles. Ce chemin n'a pas non plus de plancher : un hôte de 4 Go budgète 1,9 Go par passe et un hôte de 2 Go, 0,6 Go. Les versions antérieures maintenaient ici un minimum optimiste de 4 Go, qui était exactement le défaut décrit dans cette page sous les habits du bare metal : il planifiait une passe de 5 Go dans une machine de 4 Go.
+
+Un modèle plus gros que le budget obtient quand même sa propre passe plutôt que d'être scindé, et **chacune** de ces passes est nommée dans un avertissement, pas seulement la plus lourde : à une limite de conteneur de 4 Go, la capacité est de 2 Go, et le profil `24gb` planifie encore une passe de 8,0 Go, car `qwen3_5_4b_tagger` à lui seul nécessite 8 Go et ne peut pas être divisé, quelle que soit la petitesse du budget. Ne dimensionnez jamais un conteneur en dessous du plus gros modèle unique du profil que vous utilisez.
 
 ## Windows (WSL2) avec un GPU NVIDIA
 

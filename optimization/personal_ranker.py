@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 
-from config.scoring_config import _resolve_scoring_config_path
+from config.scoring_config import resolve_scoring_config_path
 from db import DEFAULT_DB_PATH, get_connection
 from models.piaa_prior import DEFAULT_MODELS_DIR, PiaaPrior
 from optimization.weight_optimizer import WeightOptimizer
@@ -378,7 +378,7 @@ def train_ranker(db_path=DEFAULT_DB_PATH, category=None, user_id=None,
     ``force``), returns ``{'error': ...}`` / ``{'gated': True, ...}`` and writes
     nothing.
     """
-    config_path = _resolve_scoring_config_path(config_path)
+    config_path = resolve_scoring_config_path(config_path)
     piaa = _load_piaa_config(config_path)
     prior_enabled = bool(piaa.get('enabled', False))
     prior_models_dir = piaa.get('models_dir', DEFAULT_MODELS_DIR) if prior_enabled else None

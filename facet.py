@@ -91,7 +91,7 @@ except ImportError:
 
 # Import config module (lightweight, no cv2/torch dependency)
 from config import ScoringConfig, PercentileNormalizer
-from config.scoring_config import _resolve_scoring_config_path
+from config.scoring_config import resolve_scoring_config_path
 from utils.image_loading import RAW_EXTENSIONS, HEIF_EXTENSIONS
 
 
@@ -1845,7 +1845,7 @@ def main():
     level_name = os.environ.get("FACET_LOG_LEVEL")
     if not level_name:
         try:
-            with open(_resolve_scoring_config_path(None)) as f:
+            with open(resolve_scoring_config_path(None)) as f:
                 cfg = json.load(f)
             level_name = cfg.get("log_level")
         except Exception:

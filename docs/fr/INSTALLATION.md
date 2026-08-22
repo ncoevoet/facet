@@ -226,6 +226,22 @@ up`. Éditez directement `./facet-config/scoring_config.json` pour personnaliser
 les poids, le mot de passe d'édition ou les catégories ; un fichier déjà présent n'est
 jamais écrasé.
 
+> **Vous migrez depuis une version antérieure à ce changement ?** Les versions
+> précédentes indiquaient de faire `cp scoring_config.default.json scoring_config.json`
+> puis de décommenter une ligne `- ./scoring_config.json:/app/scoring_config.json`
+> dans `docker-compose.yml`. Ce montage a disparu du fichier compose livré. Si vous
+> adoptez le nouveau, **déplacez d'abord votre configuration existante** :
+>
+> ```bash
+> mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
+> ```
+>
+> Sinon l'entrypoint installe une configuration par défaut neuve et vos poids, vos
+> catégories et **votre mot de passe d'édition ne sont plus lus** — or un
+> `viewer.edition_password` vide désactive entièrement le contrôle d'édition. Si vous
+> conservez votre propre `docker-compose.yml` avec l'ancien montage en place,
+> l'entrypoint initialise `./facet-config` à partir de *ce* fichier : rien n'est perdu.
+
 Les caches de modèles vivent dans des volumes nommés gérés par Docker
 (`facet-hf-cache`, `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), si
 bien que l'image ne lit jamais les caches propres à votre machine et que les modèles

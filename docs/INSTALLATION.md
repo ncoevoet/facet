@@ -219,6 +219,22 @@ weights, priorities, scoring contexts) survives `docker compose down && up`. Edi
 `./facet-config/scoring_config.json` directly to customize weights, the viewer password
 or categories by hand; an existing file is never overwritten.
 
+> **Upgrading from a release before this change?** Earlier versions told you to
+> `cp scoring_config.default.json scoring_config.json` and uncomment a
+> `- ./scoring_config.json:/app/scoring_config.json` line in `docker-compose.yml`.
+> That mount is gone from the shipped compose file. If you adopt the new one,
+> **move your existing config across first**:
+>
+> ```bash
+> mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
+> ```
+>
+> Otherwise the entrypoint seeds a fresh default and your weights, categories and
+> **viewer password are silently no longer read** — and an empty
+> `viewer.edition_password` disables edition gating entirely. If you keep your own
+> edited `docker-compose.yml` with the old mount still in place, the entrypoint
+> seeds `./facet-config` from *that* file, so nothing is lost.
+
 Model caches live in Docker-managed named volumes (`facet-hf-cache`, `facet-torch-cache`,
 `facet-insightface`, `facet-pretrained`), so the image never reads your machine's own
 caches and the models survive restarts. `docker compose down -v` deletes them and forces

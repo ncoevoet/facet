@@ -334,9 +334,13 @@ services:
     mem_limit: 16g
 ```
 
-### La agrupación de pasadas tiene un límite mínimo y un límite máximo
+### La agrupación de pasadas tiene un límite máximo, y ningún mínimo
 
-El planificador de pasadas de Facet presupuesta cada pasada de CPU al límite de memoria del cgroup del contenedor menos una reserva de 2 GB para el runtime de torch, con un techo de 5 GB que nunca deja crecer una pasada por grande que sea el límite. No hay un suelo bajo un límite de cgroup: un contenedor con poco margen tras la reserva recibe un presupuesto pequeño, que puede bajar hasta cero, lo que simplemente aísla un modelo por pasada. Solo cuando no hay ningún límite de memoria de contenedor el planificador recurre a un suelo optimista, manteniendo una pasada en al menos 4 GB incluso cuando la RAM del sistema escasea. Un modelo más grande que el presupuesto recibe igualmente su propia pasada en lugar de dividirse: con un límite de contenedor de 4 GB, la capacidad es de 2 GB, y el perfil `24gb` todavía planifica una pasada de 8,0 GB, porque `qwen3_5_4b_tagger` por sí solo necesita 8 GB y no se puede dividir, por pequeño que sea el presupuesto. Nunca dimensiones un contenedor por debajo del modelo individual más grande del perfil que uses.
+El planificador de pasadas de Facet presupuesta cada pasada de CPU al límite de memoria del cgroup del contenedor menos una reserva de 2 GB para el runtime de torch, con un techo de 5 GB que nunca deja crecer una pasada por grande que sea el límite. No hay un suelo bajo ese límite: un contenedor con poco margen tras la reserva recibe un presupuesto pequeño, que puede bajar hasta cero, lo que simplemente aísla un modelo por pasada.
+
+Cuando no hay ningún límite de memoria de contenedor, el presupuesto sale en cambio de la RAM del sistema: lo que la máquina tiene aparte de su sistema operativo (1 GB reservado para él), dividido entre 1,6 — la proporción medida entre la RSS real y el peso declarado de los modelos. Ese camino tampoco tiene suelo: un host de 4 GB presupuesta 1,9 GB por pasada y uno de 2 GB, 0,6 GB. Las versiones anteriores mantenían aquí un mínimo optimista de 4 GB, que era exactamente el defecto que describe esta página vestido de bare metal: planificaba una pasada de 5 GB dentro de una máquina de 4 GB.
+
+Un modelo más grande que el presupuesto recibe igualmente su propia pasada en lugar de dividirse, y **cada una** de esas pasadas se nombra en una advertencia, no solo la más pesada: con un límite de contenedor de 4 GB, la capacidad es de 2 GB, y el perfil `24gb` todavía planifica una pasada de 8,0 GB, porque `qwen3_5_4b_tagger` por sí solo necesita 8 GB y no se puede dividir, por pequeño que sea el presupuesto. Nunca dimensiones un contenedor por debajo del modelo individual más grande del perfil que uses.
 
 ## Windows (WSL2) con una GPU NVIDIA
 

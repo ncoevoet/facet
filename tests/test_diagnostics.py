@@ -482,7 +482,7 @@ class TestSuggestVramProfile:
         assert 'FACET_DEVICE=cpu' in msg
 
     def test_container_memory_limit_sizes_the_profile_not_the_host_total(
-            self, monkeypatch, tmp_path):
+            self, monkeypatch, fake_cgroup):
         """Inside a memory-limited container the profile must be sized from
         the cgroup limit, not the idle host's total -- the whole reason
         ``suggest_vram_profile`` was rewired onto ``effective_memory()``
@@ -493,17 +493,7 @@ class TestSuggestVramProfile:
             total=128 * 1024**3, used=8 * 1024**3, available=120 * 1024**3, percent=6.0,
         )
         monkeypatch.setattr(system_memory, "_host_memory", lambda: host_reading)
-        monkeypatch.setattr(
-            system_memory, "CGROUP_V2_LIMIT_PATH", str(tmp_path / "memory.max"))
-        (tmp_path / "memory.max").write_text(f"{16 * 1024**3}\n")
-        monkeypatch.setattr(
-            system_memory, "CGROUP_V1_LIMIT_PATH", str(tmp_path / "absent-v1-limit"))
-        monkeypatch.setattr(
-            system_memory, "CGROUP_V2_USAGE_PATH", str(tmp_path / "absent-v2-usage"))
-        monkeypatch.setattr(
-            system_memory, "CGROUP_V1_USAGE_PATH", str(tmp_path / "absent-v1-usage"))
-        monkeypatch.setattr(
-            system_memory, "CGROUP_V2_STAT_PATH", str(tmp_path / "absent-v2-stat"))
+        fake_cgroup(v2_limit=f"{16 * 1024**3}\n")
         monkeypatch.delenv("FACET_DEVICE", raising=False)
 
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \

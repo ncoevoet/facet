@@ -22,7 +22,6 @@ pytest.importorskip("psutil")
 
 from faces.resource_monitor import FaceResourceMonitor  # noqa: E402
 from processing.resource_monitor import MultiPassResourceMonitor, ResourceMonitor  # noqa: E402
-from utils import system_memory  # noqa: E402
 from utils.system_memory import EffectiveMemory  # noqa: E402
 
 GIB = 1024 ** 3
@@ -89,25 +88,15 @@ def test_collect_metrics_reads_effective_memory():
     assert metrics["memory_available_gb"] == pytest.approx(8.0)
 
 
-def _pin_cgroup_near_its_limit(monkeypatch, tmp_path, limit_bytes, used_bytes):
-    """Point the cgroup v2 path constants at real files under ``tmp_path``.
+def _pin_cgroup_near_its_limit(fake_cgroup, limit_bytes, used_bytes):
+    """Fake a cgroup v2 hierarchy reporting ``used_bytes`` of ``limit_bytes``.
 
-    Mirrors ``tests/test_system_memory.py``'s ``_fake_cgroup`` idiom -- the
-    path constants are module-level precisely so a test can retarget them,
-    the same way ``facet.LIBRARY_LOCK_MOUNTS_PATH`` is faked in
-    ``tests/test_scan.py``. The v1 constants are pointed at files that do
-    not exist, which is what a host with only the unified hierarchy looks
-    like, so v2 is unambiguously what gets read.
+    The ``fake_cgroup`` fixture (tests/conftest.py) points every path constant
+    at ``tmp_path``, v1 included, so nothing falls through to the runner's own
+    /sys/fs/cgroup -- which is what three separate copies of this idiom used
+    to do for the v1 stat file.
     """
-    limit_path = tmp_path / "memory.max"
-    stat_path = tmp_path / "memory.stat"
-    limit_path.write_text(f"{limit_bytes}\n")
-    stat_path.write_text(f"anon {used_bytes}\n")
-    monkeypatch.setattr(system_memory, "CGROUP_V2_LIMIT_PATH", str(limit_path))
-    monkeypatch.setattr(system_memory, "CGROUP_V2_STAT_PATH", str(stat_path))
-    monkeypatch.setattr(system_memory, "CGROUP_V2_USAGE_PATH", str(tmp_path / "memory.current"))
-    monkeypatch.setattr(system_memory, "CGROUP_V1_LIMIT_PATH", str(tmp_path / "v1_limit"))
-    monkeypatch.setattr(system_memory, "CGROUP_V1_USAGE_PATH", str(tmp_path / "v1_usage"))
+    fake_cgroup(v2_limit=f"{limit_bytes}\n", v2_stat=f"anon {used_bytes}\n")
 
 
 class _FakeChunkProcessor:
@@ -151,9 +140,9 @@ class TestMultiPassResourceMonitorHonoursTheCgroupLimit:
     the shipped 5s interval); it must instead shrink towards the floor.
     """
 
-    def test_chunk_size_never_grows_and_the_reduce_path_fires(self, tmp_path, monkeypatch):
+    def test_chunk_size_never_grows_and_the_reduce_path_fires(self, fake_cgroup, monkeypatch):
         _pin_cgroup_near_its_limit(
-            monkeypatch, tmp_path, limit_bytes=8 * GIB, used_bytes=int(7.6 * GIB)
+            fake_cgroup, limit_bytes=8 * GIB, used_bytes=int(7.6 * GIB)
         )
         idle_host = SimpleNamespace(total=23 * GIB, used=6 * GIB, available=17 * GIB, percent=26.0)
         monkeypatch.setattr(

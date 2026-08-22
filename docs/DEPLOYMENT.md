@@ -378,21 +378,29 @@ services:
     mem_limit: 16g
 ```
 
-### The pass grouping has a floor and a ceiling
+### The pass grouping has a ceiling, and no floor at all
 
 Facet's pass planner budgets each CPU pass at the container's cgroup memory
 limit less a 2 GB reserve for the torch runtime, held under a 5 GB ceiling
 that never lets a pass grow no matter how large the limit is. There is no
-floor under a cgroup limit: a container with little headroom left after the
+floor under that limit: a container with little headroom left after the
 reserve gets a small budget, shrinking toward zero, which simply packs one
-model per pass. Only with no container memory limit at all does the planner
-fall back to an optimistic floor, keeping a pass at least 4 GB even when
-system RAM is scarce. A single model larger than the budget still gets its
-own pass rather than being split: at a 4 GB container limit, capacity is 2
-GB, and the `24gb` profile still plans an 8.0 GB pass, because
-`qwen3_5_4b_tagger` alone needs 8 GB and cannot be divided regardless of how
-small the budget is. Never size a container below the largest single model in
-the profile you run.
+model per pass.
+
+With no container memory limit at all, the budget comes from system RAM
+instead — what the machine holds beside its operating system (1 GB reserved
+for it), divided by 1.6, the measured ratio of real RSS to declared model
+weight. That path has no floor either: a 4 GB host budgets 1.9 GB per pass
+and a 2 GB host 0.6 GB. Earlier versions kept an optimistic 4 GB minimum
+here, which was the same defect this page describes wearing bare metal's
+clothes — it planned a 5 GB pass inside a 4 GB machine.
+
+A single model larger than the budget still gets its own pass rather than
+being split, and **every** such pass is named in a warning, not just the
+heaviest one: at a 4 GB container limit, capacity is 2 GB, and the `24gb`
+profile still plans an 8.0 GB pass, because `qwen3_5_4b_tagger` alone needs
+8 GB and cannot be divided regardless of how small the budget is. Never size
+a container below the largest single model in the profile you run.
 
 ## Windows (WSL2) with an NVIDIA GPU
 

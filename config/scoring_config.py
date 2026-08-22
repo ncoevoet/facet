@@ -34,7 +34,6 @@ UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB = (
     ('8gb', 16.0),
 )
 UNIFIED_MEMORY_MINIMUM_PROFILE = 'legacy'
-UNREADABLE_SYSTEM_MEMORY = 'system memory could not be read'
 
 # RAW demosaic and embedded-preview defaults. ``bright`` is a fixed exposure
 # gain applied to every frame, replacing LibRaw's per-frame auto-brightness:
@@ -131,7 +130,7 @@ def _usable_category_name(category):
     return name if isinstance(name, str) and name.strip() else None
 
 
-def _resolve_scoring_config_path(explicit):
+def resolve_scoring_config_path(explicit):
     """Path a caller-less ``ScoringConfig()`` loads: the argument, then
     $FACET_CONFIG, then the relative ``'scoring_config.json'`` every CLI entry
     point already resolves against its own working directory. Not
@@ -143,6 +142,22 @@ def _resolve_scoring_config_path(explicit):
     return explicit or os.environ.get('FACET_CONFIG', '').strip() or 'scoring_config.json'
 
 
+def _readable_system_ram_gb():
+    """Total memory in GB -- the cgroup limit where one binds -- or None.
+
+    None means no reading at all, which covers both ways that happens: the
+    reader raised, or it answered the zero total ``utils.system_memory`` uses
+    for "nothing could be read". The caller picks a message from the absence
+    rather than from a number it would otherwise have to invent.
+    """
+    try:
+        from utils.system_memory import effective_memory
+        total_bytes = effective_memory().total
+    except Exception:
+        return None
+    return total_bytes / (1024 ** 3) if total_bytes else None
+
+
 class ScoringConfig:
     """Loads and manages scoring configuration from JSON file.
 
@@ -151,7 +166,7 @@ class ScoringConfig:
     """
 
     def __init__(self, config_path=None, validate=True):
-        self.config_path = _resolve_scoring_config_path(config_path)
+        self.config_path = resolve_scoring_config_path(config_path)
         self.config = self._load_config()
         self._context_order_cache = {}
         self.version_hash = self._compute_version_hash()
@@ -874,34 +889,29 @@ class ScoringConfig:
                 has_mps = False
             force_cpu = os.environ.get('FACET_DEVICE', 'auto').strip().lower() == 'cpu'
             profile = UNIFIED_MEMORY_MINIMUM_PROFILE
-            try:
-                from utils.system_memory import effective_memory
-                total_bytes = effective_memory().total
-                if not total_bytes:
-                    raise OSError(UNREADABLE_SYSTEM_MEMORY)
-                ram_gb = total_bytes / (1024**3)
-                if has_mps and not force_cpu:
-                    profile = ScoringConfig.suggest_profile_for_unified_memory(ram_gb)
-                    msg = (
-                        f"Apple Metal (MPS) detected, {ram_gb:.0f}GB unified memory - "
-                        f"{profile} profile (sized from total unified memory; "
-                        "Torch models accelerated, InsightFace on CPU)"
-                    )
-                elif has_mps:
-                    msg = (
-                        f"Apple Metal (MPS) available, {ram_gb:.0f}GB RAM - "
-                        "legacy profile (FACET_DEVICE=cpu)"
-                    )
-                elif ram_gb >= 8:
-                    msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (TOPIQ + SAMP-Net on CPU)"
-                else:
-                    msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (limited CPU mode)"
-            except Exception:
+            ram_gb = _readable_system_ram_gb()
+            if ram_gb is None:
                 msg = (
                     "Apple Metal (MPS) detected, using legacy profile"
                     if has_mps and not force_cpu else
                     "No GPU detected, using legacy (CPU-only) profile"
                 )
+            elif has_mps and not force_cpu:
+                profile = ScoringConfig.suggest_profile_for_unified_memory(ram_gb)
+                msg = (
+                    f"Apple Metal (MPS) detected, {ram_gb:.0f}GB unified memory - "
+                    f"{profile} profile (sized from total unified memory; "
+                    "Torch models accelerated, InsightFace on CPU)"
+                )
+            elif has_mps:
+                msg = (
+                    f"Apple Metal (MPS) available, {ram_gb:.0f}GB RAM - "
+                    "legacy profile (FACET_DEVICE=cpu)"
+                )
+            elif ram_gb >= 8:
+                msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (TOPIQ + SAMP-Net on CPU)"
+            else:
+                msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (limited CPU mode)"
             msg += "\n  Tip: run 'python facet.py --doctor' for GPU setup diagnostics"
             return profile, None, msg
 

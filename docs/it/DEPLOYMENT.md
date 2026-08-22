@@ -325,9 +325,13 @@ services:
     mem_limit: 16g
 ```
 
-### Il raggruppamento dei pass ha un limite minimo e un limite massimo
+### Il raggruppamento dei pass ha un limite massimo, e nessun minimo
 
-Il pianificatore dei pass di Facet stabilisce il budget di ogni pass CPU al limite di memoria del cgroup del container meno una riserva di 2 GB per il runtime di torch, con un tetto di 5 GB che non fa mai crescere un pass oltre, per quanto grande sia il limite. Non esiste un minimo sotto un limite di cgroup: un container con poco margine dopo la riserva riceve un budget piccolo, che può scendere fino a zero, il che isola semplicemente un modello per pass. Solo in assenza totale di un limite di memoria del container il pianificatore ricade su un minimo ottimistico, mantenendo un pass ad almeno 4 GB anche quando la RAM di sistema scarseggia. Un modello più grande del budget ottiene comunque un proprio pass invece di essere diviso: con un limite del container di 4 GB, la capacità è di 2 GB, e il profilo `24gb` pianifica comunque un pass da 8,0 GB, perché `qwen3_5_4b_tagger` da solo richiede 8 GB e non può essere diviso, per quanto piccolo sia il budget. Non dimensionare mai un container al di sotto del modello singolo più grande del profilo che usi.
+Il pianificatore dei pass di Facet stabilisce il budget di ogni pass CPU al limite di memoria del cgroup del container meno una riserva di 2 GB per il runtime di torch, con un tetto di 5 GB che non fa mai crescere un pass oltre, per quanto grande sia il limite. Non esiste un minimo sotto quel limite: un container con poco margine dopo la riserva riceve un budget piccolo, che può scendere fino a zero, il che isola semplicemente un modello per pass.
+
+In assenza totale di un limite di memoria del container, il budget viene invece dalla RAM di sistema: quanto la macchina tiene oltre al proprio sistema operativo (1 GB riservato a esso), diviso per 1,6 — il rapporto misurato tra la RSS reale e il peso dichiarato dei modelli. Nemmeno questo percorso ha un minimo: un host da 4 GB stabilisce un budget di 1,9 GB per pass e uno da 2 GB di 0,6 GB. Le versioni precedenti mantenevano qui un minimo ottimistico di 4 GB, che era esattamente il difetto descritto in questa pagina vestito da bare metal: pianificava un pass da 5 GB dentro una macchina da 4 GB.
+
+Un modello più grande del budget ottiene comunque un proprio pass invece di essere diviso, e **ognuno** di questi pass viene nominato in un avviso, non solo il più pesante: con un limite del container di 4 GB, la capacità è di 2 GB, e il profilo `24gb` pianifica comunque un pass da 8,0 GB, perché `qwen3_5_4b_tagger` da solo richiede 8 GB e non può essere diviso, per quanto piccolo sia il budget. Non dimensionare mai un container al di sotto del modello singolo più grande del profilo che usi.
 
 ## Windows (WSL2) con una GPU NVIDIA
 

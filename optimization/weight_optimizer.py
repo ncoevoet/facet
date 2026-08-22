@@ -31,7 +31,7 @@ import numpy as np
 from scipy.optimize import minimize
 from db import DEFAULT_DB_PATH, get_connection
 from config import ScoringConfig
-from config.scoring_config import _resolve_scoring_config_path
+from config.scoring_config import resolve_scoring_config_path
 from processing.scorer import build_metric_vector, SCORING_METRIC_KEYS
 
 logger = logging.getLogger("facet.optimizer")
@@ -59,7 +59,7 @@ class WeightOptimizer:
 
     def __init__(self, db_path: str = DEFAULT_DB_PATH, config_path: Optional[str] = None):
         self.db_path = db_path
-        self.config_path = _resolve_scoring_config_path(config_path)
+        self.config_path = resolve_scoring_config_path(config_path)
         self._cfg: Optional[ScoringConfig] = None
 
     @property
@@ -956,7 +956,7 @@ def run_weight_optimization(
                   required to apply.
         force: Apply the fitted weights even if the held-out gate is not met.
     """
-    config_path = _resolve_scoring_config_path(config_path)
+    config_path = resolve_scoring_config_path(config_path)
     optimizer = WeightOptimizer(db_path, config_path)
 
     logger.info("=" * 60)

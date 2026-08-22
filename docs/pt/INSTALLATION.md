@@ -224,6 +224,22 @@ pontuação) agora sobrevive a um `docker compose down && up`. Edite
 `./facet-config/scoring_config.json` diretamente para personalizar pesos, a senha do
 visualizador ou categorias à mão; um arquivo já existente nunca é sobrescrito.
 
+> **Está atualizando de uma versão anterior a esta mudança?** As versões anteriores
+> mandavam fazer `cp scoring_config.default.json scoring_config.json` e descomentar uma
+> linha `- ./scoring_config.json:/app/scoring_config.json` no `docker-compose.yml`. Esse
+> mount saiu do arquivo compose distribuído. Se você adotar o novo, **mova antes a sua
+> configuração existente**:
+>
+> ```bash
+> mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
+> ```
+>
+> Caso contrário o entrypoint cria uma configuração padrão nova e seus pesos, suas
+> categorias e **sua senha do visualizador deixam de ser lidos** — e um
+> `viewer.edition_password` vazio desativa por completo o controle de edição. Se você
+> mantiver seu próprio `docker-compose.yml` com o mount antigo, o entrypoint inicializa
+> `./facet-config` a partir *desse* arquivo e nada se perde.
+
 Os caches de modelos ficam em volumes nomeados gerenciados pelo Docker (`facet-hf-cache`,
 `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), então a imagem nunca lê os
 caches da sua própria máquina, e os modelos sobrevivem a reinicializações.

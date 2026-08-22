@@ -2543,7 +2543,7 @@ class Facet:
 # HELPER FUNCTIONS
 # ============================================
 
-def process_bursts(db_path, config_path='scoring_config.json'):
+def process_bursts(db_path, config_path=None):
     """Flags the highest-scoring image in groups of visually similar photos."""
     # Load burst detection settings from config
     config = ScoringConfig(config_path)

@@ -35,7 +35,9 @@ def _resolve_config_path():
     env_path = os.environ.get(_CONFIG_PATH_ENV_VAR, '').strip()
     if env_path:
         return env_path
-    return os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring_config.json')
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'scoring_config.json')
 
 
 _CONFIG_PATH = _resolve_config_path()

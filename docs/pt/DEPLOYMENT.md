@@ -323,9 +323,13 @@ services:
     mem_limit: 16g
 ```
 
-### O agrupamento de passes tem um piso e um teto
+### O agrupamento de passes tem um teto, e nenhum piso
 
-O planejador de passes do Facet orça cada passe de CPU pelo limite de memória do cgroup do contêiner menos uma reserva de 2 GB para o runtime do torch, limitado a um teto de 5 GB que nunca deixa um passe crescer além disso, não importa quão grande seja o limite. Não há piso sob um limite de cgroup: um contêiner com pouca margem depois da reserva recebe um orçamento pequeno, que pode cair até zero, o que simplesmente isola um modelo por passe. Só na ausência total de um limite de memória de contêiner o planejador recorre a um piso otimista, mantendo um passe em pelo menos 4 GB mesmo quando a RAM do sistema é escassa. Um modelo maior do que o orçamento ainda recebe seu próprio passe em vez de ser dividido: com um limite de contêiner de 4 GB, a capacidade é de 2 GB, e o perfil `24gb` ainda planeja um passe de 8,0 GB, porque o `qwen3_5_4b_tagger` sozinho precisa de 8 GB e não pode ser dividido, não importa quão pequeno seja o orçamento. Nunca dimensione um contêiner abaixo do maior modelo individual do perfil que você usa.
+O planejador de passes do Facet orça cada passe de CPU pelo limite de memória do cgroup do contêiner menos uma reserva de 2 GB para o runtime do torch, limitado a um teto de 5 GB que nunca deixa um passe crescer além disso, não importa quão grande seja o limite. Não há piso sob esse limite: um contêiner com pouca margem depois da reserva recebe um orçamento pequeno, que pode cair até zero, o que simplesmente isola um modelo por passe.
+
+Na ausência total de um limite de memória de contêiner, o orçamento vem da RAM do sistema: o que a máquina tem além do seu sistema operacional (1 GB reservado para ele), dividido por 1,6 — a razão medida entre a RSS real e o peso declarado dos modelos. Esse caminho também não tem piso: um host de 4 GB orça 1,9 GB por passe e um de 2 GB, 0,6 GB. Versões anteriores mantinham aqui um mínimo otimista de 4 GB, que era exatamente o defeito que esta página descreve vestido de bare metal: planejava um passe de 5 GB dentro de uma máquina de 4 GB.
+
+Um modelo maior do que o orçamento ainda recebe seu próprio passe em vez de ser dividido, e **cada** passe assim é nomeado em um aviso, não apenas o mais pesado: com um limite de contêiner de 4 GB, a capacidade é de 2 GB, e o perfil `24gb` ainda planeja um passe de 8,0 GB, porque o `qwen3_5_4b_tagger` sozinho precisa de 8 GB e não pode ser dividido, não importa quão pequeno seja o orçamento. Nunca dimensione um contêiner abaixo do maior modelo individual do perfil que você usa.
 
 ## Windows (WSL2) com uma GPU NVIDIA
 
