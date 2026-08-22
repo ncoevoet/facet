@@ -14,8 +14,11 @@ Two modes:
 * ``release.py VERSION CODENAME [--check]`` — cut a release. Validates every
   precondition, then (unless ``--check``) inserts the CHANGELOG header, bumps
   pyproject.toml and client/package.json, commits ``chore(release): VERSION
-  "CODENAME"`` and creates annotated tag ``vVERSION``. The GitHub Release
-  itself is created separately by hand — never a copy of the CHANGELOG.
+  "CODENAME"`` and creates annotated tag ``vVERSION``. The GitHub Release is
+  published separately, and is written rather than pasted: it opens with what
+  the codename means and why it fits, retells each change as prose instead of
+  copying the CHANGELOG entry, and ends with upgrade notes and an explicit list
+  of what this release did NOT verify.
 * ``release.py --check`` (no VERSION/CODENAME) — validates the *current*
   on-disk state: the version files agree, and the CHANGELOG section matching
   the current version has content. This is what CI runs on every push, so
@@ -351,7 +354,7 @@ def do_release(version: str, codename: str, changelog: str, pyproject_text: str,
     git("tag", "-a", f"v{version}", "-m", f'Facet {version} "{codename}"')
 
     print(f'Released {version} "{codename}": committed and tagged v{version}.')
-    print("The GitHub Release is created separately and must be hand-written — never a copy of the CHANGELOG.")
+    print(f'Next: publish the GitHub Release for v{version} — written, not pasted from the CHANGELOG.')
 
 
 def main() -> int:

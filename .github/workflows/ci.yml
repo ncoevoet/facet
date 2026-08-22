@@ -87,8 +87,8 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: client/package.json
-      - run: npm install --no-audit --no-fund
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci --no-audit --no-fund
       - run: npm test
 
   lint:
@@ -175,7 +175,7 @@ jobs:
         with:
           node-version: "24"
           cache: "npm"
-          cache-dependency-path: client/package.json
+          cache-dependency-path: client/package-lock.json
       - name: keys.ts is regenerated from en.json
         # Catches the subtractive direction the compiler cannot see: deleting a
         # key from en.json without regenerating keys.ts still type-checks today.
@@ -196,7 +196,7 @@ jobs:
         # npm install and costs nothing.
         run: node client/scripts/check-icon-button-labels.mjs
       - run: node --test client/scripts/check-icon-button-labels.test.mjs
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
         working-directory: client
       - run: npx ng lint
         working-directory: client
