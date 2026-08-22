@@ -779,7 +779,7 @@
       @if (anyTimelinePhotosHiddenByFilters()) {
         <button mat-icon-button class="!w-10 !h-10 shrink-0"
                 [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
-                [attr.aria-label]="I18N.gallery.hidden_banner.some_hidden | translate"
+                [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
                 (click)="store.showAllHidden()">
           <mat-icon>visibility_off</mat-icon>
         </button>
