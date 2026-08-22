@@ -91,6 +91,7 @@ except ImportError:
 
 # Import config module (lightweight, no cv2/torch dependency)
 from config import ScoringConfig, PercentileNormalizer
+from config.scoring_config import resolve_scoring_config_path
 from utils.image_loading import RAW_EXTENSIONS, HEIF_EXTENSIONS
 
 
@@ -128,7 +129,7 @@ def _resolve_cli_user(config, username):
 
 
 def _resolve_trainer_cli_context(args):
-    config_path = args.config or 'scoring_config.json'
+    config_path = args.config
     user_id = None
     if args.user:
         cfg = ScoringConfig(config_path, validate=False)
@@ -1844,7 +1845,7 @@ def main():
     level_name = os.environ.get("FACET_LOG_LEVEL")
     if not level_name:
         try:
-            with open("scoring_config.json") as f:
+            with open(resolve_scoring_config_path(None)) as f:
                 cfg = json.load(f)
             level_name = cfg.get("log_level")
         except Exception:
@@ -1900,7 +1901,7 @@ def main():
 
     # Category validation mode (lightweight - no GPU needed)
     if args.validate_categories:
-        config_path = args.config or 'scoring_config.json'
+        config_path = args.config
         config = ScoringConfig(config_path, validate=False)
         config.validate_categories(verbose=True)
         logger.info("Categories in priority order:")
@@ -1926,7 +1927,7 @@ def main():
     # Weight optimization mode (lightweight - no GPU needed)
     if args.optimize_weights:
         from optimization import run_weight_optimization
-        config_path = args.config or 'scoring_config.json'
+        config_path = args.config
         sources = None
         if args.optimize_sources:
             sources = [s.strip() for s in args.optimize_sources.split(',') if s.strip()]
@@ -1945,7 +1946,7 @@ def main():
     # operator. The auto-apply loop is deferred pending sufficient labels — this
     # reports per-category readiness and applies nothing.
     if args.auto_tune_categories:
-        config_path = args.config or 'scoring_config.json'
+        config_path = args.config
         cfg = ScoringConfig(config_path, validate=False)
         if not _autotune_superadmin_allowed(cfg.config, args.user):
             logger.error(
@@ -3342,7 +3343,7 @@ def main():
     if args.export_sidecars:
         from processing.xmp_export import export_sidecars
         root = None if args.export_sidecars == 'all' else args.export_sidecars
-        _export_cfg = ScoringConfig(args.config or 'scoring_config.json', validate=False).config
+        _export_cfg = ScoringConfig(args.config, validate=False).config
         with get_connection(args.db) as conn:
             stats = export_sidecars(
                 conn, root, embed_original=args.embed_originals, user_id=args.user,
@@ -3358,8 +3359,7 @@ def main():
     # Immich connectivity test (lightweight - no GPU needed)
     if args.immich_test:
         from sync.immich import ImmichClient
-        _immich_cfg = ScoringConfig(args.config or 'scoring_config.json',
-                                    validate=False).config.get('immich', {})
+        _immich_cfg = ScoringConfig(args.config, validate=False).config.get('immich', {})
         try:
             client = ImmichClient(_immich_cfg.get('url', ''), _immich_cfg.get('api_key', ''),
                                   timeout=_immich_cfg.get('timeout_seconds', 30))
@@ -3375,7 +3375,7 @@ def main():
     if args.immich_sync:
         import urllib.error
         from sync.immich import sync_to_immich
-        _immich_config = ScoringConfig(args.config or 'scoring_config.json', validate=False).config
+        _immich_config = ScoringConfig(args.config, validate=False).config
         try:
             stats = sync_to_immich(args.db, _immich_config, user_id=args.user, dry_run=args.dry_run)
         except ValueError as e:

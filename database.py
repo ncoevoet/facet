@@ -48,8 +48,9 @@ from db import (
     cleanup_missing_photos,
     backup_database,
 )
+from config import default_config_path
 
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
+CONFIG_PATH = default_config_path()
 
 
 def _drop_legacy_secret(config):

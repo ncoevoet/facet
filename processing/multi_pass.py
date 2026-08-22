@@ -204,13 +204,15 @@ class ChunkedMultiPassProcessor:
     def _apply_ram_safe_chunk_start(self):
         """Start with a small chunk when model memory comes out of system RAM.
 
-        Avoids an OOM on the very first chunk; ResourceMonitor grows it back as
-        soon as it measures headroom. A unified-memory accelerator is budgeted
-        the same way, since its memory *is* system RAM.
+        Avoids an OOM on the very first chunk; ResourceMonitor grows it back
+        after any chunk whose peak usage left room to spare -- which, under a
+        container limit tight enough for the models to fill it, may be no chunk
+        at all. A unified-memory accelerator is budgeted the same way, since
+        its memory *is* system RAM.
         """
         if not self.auto_tuning_enabled or self.chunk_size <= self.min_chunk_size:
             return
-        logger.info("  Chunk size: %d -> %d (%s safe start, auto-tuning will increase)",
+        logger.info("  Chunk size: %d -> %d (%s safe start, auto-tuning may increase it)",
                     self.chunk_size, self.min_chunk_size, self._memory_budget_label())
         self.chunk_size = self.min_chunk_size
 
@@ -400,6 +402,7 @@ class ChunkedMultiPassProcessor:
 
                 self.metrics['chunks_processed'] += 1
                 self.metrics['images_processed'] += len(chunk_paths)
+                self._ram_monitor.note_chunk_complete()
 
                 offset = chunk_end
                 chunk_idx += 1
@@ -424,6 +427,15 @@ class ChunkedMultiPassProcessor:
         """
         Process a single chunk through all passes.
 
+        The pass loop hands each model straight from ``loaded_models`` to the
+        inference call and drops its entry before the unload, so nothing here
+        still refers to a model when ``ModelManager.unload_model`` collects and
+        trims the heap. A model bound to a leftover loop variable, or left in
+        ``loaded_models``, keeps its refcount above zero: the unload then frees
+        nothing and ``release_freed_heap`` walks arenas the weights still hold.
+        Under a container limit the RAM cache retains nothing, so every model
+        takes that full-unload path.
+
         Args:
             paths: Photo paths in this chunk
             chunk_idx: Index of current chunk
@@ -438,7 +450,7 @@ class ChunkedMultiPassProcessor:
 
         # Track results for each photo
         results = {path: {} for path in paths}
-        failed_stages = []
+        failed_stages: List[str] = []
 
         # Supplementary/optional models — load failures skip rather than abort
         supplementary = set(self.model_manager.get_active_profile().get('supplementary_pyiqa', []))
@@ -451,31 +463,14 @@ class ChunkedMultiPassProcessor:
         for group_idx, model_group in enumerate(self.pass_groups):
             # Load models for this pass
             load_start = time.time()
-            loaded_models = {}
-            for model_name in model_group:
-                if model_name == 'insightface':
-                    # Reuse scorer's face_analyzer to avoid loading a duplicate (~2GB)
-                    loaded_models[model_name] = self.scorer.face_analyzer
-                    continue
-                model = self.model_manager.load_model_only(model_name)
-                if model is None:
-                    if model_name in supplementary:
-                        logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
-                        continue
-                    logger.error(
-                        "Required model '%s' failed to load (likely OOM); recording "
-                        "chunk for retry via --retry-failed instead of aborting.", model_name)
-                    failed_stages.append(model_name)
-                    continue
-                loaded_models[model_name] = model
-
+            loaded_models = self._load_pass_models(model_group, supplementary, failed_stages)
             self.metrics['model_load_time'] += time.time() - load_start
 
             # Run inference for each model in this pass
             infer_start = time.time()
-            for model_name, model in loaded_models.items():
+            for model_name in list(loaded_models):
                 try:
-                    self._run_model_pass(model_name, model, images, results)
+                    self._run_model_pass(model_name, loaded_models[model_name], images, results)
                 except Exception as ex:
                     if model_name in supplementary:
                         logger.error("Supplementary %s inference failed, skipping: %s", model_name, ex)
@@ -490,8 +485,7 @@ class ChunkedMultiPassProcessor:
             # Unload models from this pass
             unload_start = time.time()
             for model_name in model_group:
-                if model_name == 'insightface':
-                    continue  # Managed by scorer, not model_manager
+                loaded_models.pop(model_name, None)
                 self.model_manager.unload_model(model_name)
             self.metrics['model_unload_time'] += time.time() - unload_start
 
@@ -512,6 +506,42 @@ class ChunkedMultiPassProcessor:
         gc.collect()
         from utils.device import clear_device_cache
         clear_device_cache(getattr(self.model_manager, 'device', 'cpu'))
+        from utils.system_memory import release_freed_heap
+        release_freed_heap()
+
+    def _load_pass_models(self, model_group: List[str], supplementary: set,
+                          failed_stages: List[str]) -> Dict[str, Any]:
+        """Load one pass's models, returning those that came up.
+
+        Loading has a call of its own so that the loaded objects live nowhere
+        but the returned dict. A model bound to a local in :meth:`_process_chunk`
+        would outlive the loop that set it and still be referenced when the
+        pass's ``unload_model`` collects and trims the heap, which frees
+        nothing while the refcount is above zero.
+
+        Args:
+            model_group: Model names this pass runs
+            supplementary: Names whose load failure skips the model
+            failed_stages: Appended with the names whose failure makes the
+                chunk retryable
+
+        Returns:
+            Dict of model name -> loaded model, in pass order.
+        """
+        loaded_models = {}
+        for model_name in model_group:
+            model = self.model_manager.load_model_only(model_name)
+            if model is None:
+                if model_name in supplementary:
+                    logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
+                    continue
+                logger.error(
+                    "Required model '%s' failed to load (likely OOM); recording "
+                    "chunk for retry via --retry-failed instead of aborting.", model_name)
+                failed_stages.append(model_name)
+                continue
+            loaded_models[model_name] = model
+        return loaded_models
 
     def _record_chunk_pass_failure(self, images: Dict, results: Dict, failed_stages: List[str]):
         """Record every image in a chunk whose required model pass failed.
@@ -749,15 +779,16 @@ class ChunkedMultiPassProcessor:
             except Exception as e:
                 logger.error("SAMP-Net failed for %s: %s", path, e)
 
-    def _pass_insightface(self, app: Any, images: Dict, results: Dict):
-        """InsightFace pass: face detection and analysis with full metrics."""
-        # Use scorer's face_analyzer for consistent processing
-        face_analyzer = self.scorer.face_analyzer
+    def _pass_insightface(self, face_analyzer: Any, images: Dict, results: Dict):
+        """InsightFace pass: face detection and analysis with full metrics.
 
+        The analyzer comes from the model manager, like every other pass's
+        model, so the unload at the end of the pass really frees it. Taking
+        the scorer's instead kept it alive for the whole scan.
+        """
         for path, img_data in images.items():
             img_cv = img_data['cv']
             try:
-                # Use face_analyzer.analyze_faces for full metrics
                 face_res = face_analyzer.analyze_faces(img_cv)
 
                 # Store all face metrics in results

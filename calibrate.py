@@ -37,6 +37,8 @@ import numpy as np
 from scipy.optimize import differential_evolution, minimize
 from scipy.stats import pearsonr, spearmanr
 
+from config import default_config_path
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -68,7 +70,7 @@ MIN_PHOTOS_FOR_CATEGORY = 100
 MIN_PHOTOS_FOR_BASELINE = 10
 MIN_MISCLASSIFIED_FOR_ANALYSIS = 20
 
-SCORING_CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'scoring_config.json')
+SCORING_CONFIG_PATH = default_config_path()
 
 # ---------------------------------------------------------------------------
 # AVA Semantic Tag Constants

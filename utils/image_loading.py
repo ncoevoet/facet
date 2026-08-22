@@ -214,15 +214,11 @@ def _display_preview(photo_path, min_sensor_ratio):
 
 def _auto_decode_concurrency():
     """Pick a safe default RAW decode concurrency from CPU and available RAM."""
+    from utils.system_memory import effective_memory
     cpu = os.cpu_count() or 2
     limit = max(1, min(4, cpu // 2))
-    try:
-        import psutil
-        available_gb = psutil.virtual_memory().available / 2 ** 30
-        limit = max(1, min(limit, int(available_gb // 3)))
-    except ImportError:
-        limit = min(limit, 2)
-    return limit
+    available_gb = effective_memory().available / 2 ** 30
+    return max(1, min(limit, int(available_gb // 3)))
 
 
 # Hung RAW decodes (stalled NAS I/O) cannot be killed; a decode that exceeds

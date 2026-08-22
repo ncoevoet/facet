@@ -13,7 +13,7 @@ Facet has two workloads:
 
 | Component | Hardware | Purpose |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB+ RAM) | Analyze and score photos |
+| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB minimum RAM, 12GB recommended, more for the `16gb`/`24gb` profiles — see [Container Memory Limits](#container-memory-limits)) | Analyze and score photos |
 | **Viewer** (`viewer.py`) | Any machine (low resources) | Serve the web gallery |
 
 Only the viewer needs to run on the server. Score on a workstation, then sync the database.
@@ -286,6 +286,135 @@ services:
       - /volume1/Photos:/volume1/Photos:ro  # Mount photos for downloads
     restart: always
 ```
+
+## Container Memory Limits
+
+Facet now reads the container's cgroup memory limit (`memory.max` on cgroup v2,
+`memory.limit_in_bytes` on v1) instead of the host's total RAM, and sizes pass
+grouping (which models load together), the RAM chunk size, model CPU-caching, and
+RAW-decode concurrency against it. Before this fix, all of those were sized against
+host RAM: `psutil.virtual_memory()` reads `/proc/meminfo`, which Docker does not
+virtualize, so a `mem_limit` was silently ignored — a container capped well below the
+host's RAM would still plan itself as if the whole host were available, and get
+OOM-killed ([issue #111](https://github.com/ncoevoet/facet/issues/111)).
+
+Reproducing the bug on a published image predating the fix (v1.7.2) shows the
+mechanism: an `8gb`-profile container capped at `--memory=8g` on a 47 GB host logs
+`Mode: CPU-only (47GB RAM)` — the host's RAM, not the container's — and plans a
+single pass of `clip + topiq_iaa + topiq_nr_face + liqe + saliency + samp_net +
+insightface [~15.0GB RAM]`. It is killed (`OOMKilled`, exit code 137) before
+finishing a single chunk of 200 photos. Against a 512 MB cgroup limit, the fixed
+reader reports 0.500 GB where `/proc/meminfo` still reports the host's 46.8 GB.
+
+### Recommended minimum memory per profile
+
+Model weights are only part of peak memory use — the torch runtime, the decoded
+image chunk, and per-layer activations all add to it — so treat these figures as
+floors, not budgets. The `legacy`/`8gb` row is now backed by real container
+testing — 50-photo scans completing at `--memory=8g` on both profiles (see
+below); the `16gb` and `24gb` rows remain provisional placeholders with no
+real-run measurement behind them.
+
+| VRAM profile | Model weights (total) | Recommended container memory |
+|---|---|---|
+| `legacy` / `8gb` | 15.0 GB | 12 GB (GPU) / 8 GB minimum, 12 GB recommended (CPU) |
+| `16gb` | 22.0 GB | at least 18 GB (provisional) |
+| `24gb` | 25.0 GB | at least 18 GB (provisional) |
+
+**GPU and CPU are not interchangeable here, and the 12 GB figure above is a GPU
+number.** On an RTX 3080, the issue author's `8gb` profile peaked at 9.23 GB of
+system RAM for 405 photos even with `ram_chunk_size: 12` and `num_workers: 2`,
+and succeeded at `mem_limit: 12g`. On a GPU, model weights sit in VRAM; the
+container's RAM mainly holds the decoded image chunk, which is why that number
+is so much smaller than what CPU-only needs.
+
+Running the same `8gb` profile on CPU loads the entire model roster into the
+container's RAM instead. Before issue #111's follow-up added a ceiling, the
+planner's per-pass capacity scaled straight up with the container limit, which
+made the plan worse, not better, as the limit grew: an 8 GB limit produced 4
+passes topping out at 6.0 GB, OOM-killing in the pass holding
+`topiq_nr_face + liqe + saliency` (declared 6.0 GB, peak RSS 10.46 GB); a 12
+GB limit collapsed to only 2 passes topping out at 10.0 GB, and OOM-killed
+too. The memory governor did fire at the 12 GB limit — `Evicted 1 model(s)
+from RAM cache: topiq_iaa` is a real log line — but that was the governor
+intervening and still not being enough, not the thing that saved the run.
+
+The ceiling now holds per-pass capacity at 5.0 GB no matter how large the
+container limit reports, so it stops growing with the container: the `8gb`
+profile on CPU always plans the same 5 passes regardless of limit — `Pass 1:
+qrealign [~5.0GB RAM]`, `Pass 2: clip + topiq_iaa [~5.0GB RAM]`, `Pass 3:
+topiq_nr_face + liqe [~4.0GB RAM]`, `Pass 4: saliency + samp_net [~4.0GB
+RAM]`, `Pass 5: insightface [~2.0GB RAM]`.
+
+That flat shape was still not enough on its own, because two things outside
+the pass plan were spending the budget. The chunk auto-tuner grew on the
+memory trough between passes — every unload drops usage almost to the floor,
+and three such readings in a row read as headroom — so `ram_chunk_size` ran
+from 10 to 500 during the very first chunk and the second tried to decode
+every remaining photo at once. And unloading a model returned nothing to the
+kernel: glibc kept the freed blocks in its arenas, so the process held a
+high-water mark set by its first pass and every later pass ran on top of
+memory it could not use. With growth now decided from each chunk's peak and
+the freed heap handed back explicitly, a 50-photo scan at `--memory=8g`
+completes on both profiles — `legacy` peaking at 7.26 GB and `8gb` at 7.56 GB
+of anonymous memory, five chunks of ten, exit code 0, no OOM kill and no
+recorded scan failure.
+
+**8 GB is a floor, not a comfortable budget.** Both runs finished within
+about half a gigabyte of the cap, on 18-20 MP JPEGs; larger frames, RAW
+decoding or a busier host will erode that margin, which is why 12 GB is the
+recommendation rather than the minimum. Anonymous memory is the number to
+watch — not `docker stats`' MemUsage nor the cgroup's `memory.current`, both
+of which count reclaimable page cache, so the former under-reports the real
+risk and the latter sits pinned near the container limit regardless of how
+much headroom is actually left. A 16 GB container was measured carrying at
+least 12.55 GB of anonymous memory, which is also why an earlier 12 GB run
+was killed before these two fixes landed, and it lines up with the issue
+author's 9.23 GB peak on GPU — the same model roster, minus whatever sits in
+VRAM instead of container RAM. A GPU user sizing off the CPU numbers here
+would over-provision; a CPU user sizing off the GPU figure would
+under-provision — use whichever matches how your container actually runs.
+
+More generally: `MODEL_RAM_REQUIREMENTS` prices model weight cost only. Real
+peak RSS additionally carries the torch runtime, the decoded image chunk, and
+per-layer activations, none of which are in that figure — sizing a container
+off the model weights (total) column alone will under-provision.
+
+The `16gb` and `24gb` estimates have no real-run measurement behind them at
+all, on either GPU or CPU; treat 18 GB as a provisional placeholder, not a
+validated floor.
+
+Set the limit in `docker-compose.yml` (or an override file):
+
+```yaml
+services:
+  facet:
+    mem_limit: 16g
+```
+
+### The pass grouping has a ceiling, and no floor at all
+
+Facet's pass planner budgets each CPU pass at the container's cgroup memory
+limit less a 2 GB reserve for the torch runtime, held under a 5 GB ceiling
+that never lets a pass grow no matter how large the limit is. There is no
+floor under that limit: a container with little headroom left after the
+reserve gets a small budget, shrinking toward zero, which simply packs one
+model per pass.
+
+With no container memory limit at all, the budget comes from system RAM
+instead — what the machine holds beside its operating system (1 GB reserved
+for it), divided by 1.6, the measured ratio of real RSS to declared model
+weight. That path has no floor either: a 4 GB host budgets 1.9 GB per pass
+and a 2 GB host 0.6 GB. Earlier versions kept an optimistic 4 GB minimum
+here, which was the same defect this page describes wearing bare metal's
+clothes — it planned a 5 GB pass inside a 4 GB machine.
+
+A single model larger than the budget still gets its own pass rather than
+being split, and **every** such pass is named in a warning, not just the
+heaviest one: at a 4 GB container limit, capacity is 2 GB, and the `24gb`
+profile still plans an 8.0 GB pass, because `qwen3_5_4b_tagger` alone needs
+8 GB and cannot be divided regardless of how small the budget is. Never size
+a container below the largest single model in the profile you run.
 
 ## Windows (WSL2) with an NVIDIA GPU
 

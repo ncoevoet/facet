@@ -620,7 +620,7 @@ Réglages de traitement unifiés pour le traitement par lots GPU et le mode mult
 
 **`gpu_batch_size`** - Nombre d'images traitées ensemble sur le GPU en une seule passe avant. Limité par la VRAM. Auto-réglé : réduit lorsque la mémoire GPU dépasse la limite.
 
-**`ram_chunk_size`** - Nombre d'images mises en cache en RAM entre les passes de modèle (mode multi-pass uniquement). Réduit les E/S disque en chargeant les images une fois par bloc. Limité par la RAM système. Auto-réglé : réduit lorsque la mémoire système dépasse la limite.
+**`ram_chunk_size`** - Nombre d'images mises en cache en RAM entre les passes de modèle (mode multi-pass uniquement). Réduit les E/S disque en chargeant les images une fois par bloc. Limité par la limite de mémoire effective (voir `memory_limit_percent` ci-dessous). Auto-réglé dans les deux sens : réduit immédiatement lorsque l'utilisation dépasse la limite, et augmenté seulement en fin de bloc, et uniquement si l'utilisation *maximale* de tout ce bloc est restée sous la limite. Le maximum est ce qui compte, car un bloc n'est pas une seule mesure : chaque déchargement de modèle entre les passes fait chuter l'utilisation presque jusqu'au plancher, et c'est cette croissance sur ce creux qui a fait passer `ram_chunk_size` de 10 à 500 dans un conteneur de 8 Go et a provoqué un OOM kill sur le bloc suivant.
 
 ### Référence des réglages
 
@@ -644,7 +644,7 @@ Réglages de traitement unifiés pour le traitement par lots GPU et le mode mult
 | `max_gpu_batch_size` | `32` | Taille maximale de lot GPU |
 | `min_ram_chunk_size` | `10` | Taille minimale de bloc RAM |
 | `max_ram_chunk_size` | `128` | Taille maximale de bloc RAM |
-| `memory_limit_percent` | `85` | Limite d'utilisation de la mémoire système |
+| `memory_limit_percent` | `85` | Pourcentage de la limite de mémoire effective (limite cgroup sous un plafond conteneur, sinon RAM hôte) |
 | `cpu_target_percent` | `85` | Cible d'utilisation du CPU |
 | `metrics_print_interval_seconds` | `30` | Intervalle d'affichage des statistiques |
 | **thumbnails** | | |
@@ -674,11 +674,13 @@ Chaque image est chargée une fois par bloc, et les passes sont regroupées pour
 
 Le système surveille l'utilisation des ressources et ajuste :
 
+`memory_limit_percent` est mesuré par rapport à la limite de mémoire *effective* : la limite cgroup lorsque l'exécution a lieu sous un plafond de conteneur ou d'orchestrateur (`mem_limit` Docker, `--memory` Podman, `resources.limits.memory` Kubernetes), sinon la RAM hôte. Sous une limite cgroup, l'utilisation provient désormais de la comptabilité propre au cgroup plutôt que de la mémoire libre de l'hôte, si bien que `mem_limit` borne réellement l'auto-réglage — auparavant, il lisait la mémoire de l'hôte même à l'intérieur d'un conteneur plafonné, ce qui pouvait sous-évaluer l'utilisation et laisser `ram_chunk_size` croître jusqu'à provoquer un OOM kill. `memory_limit_percent` est un pourcentage de cette limite : `85` contre un plafond de 8 Go donne environ 6,8 Go, et non 85 % de la RAM hôte.
+
 | Métrique | Action |
 |----------|--------|
 | Mémoire GPU > limite | Réduire `gpu_batch_size` de 25 % |
-| RAM système > limite | Réduire `ram_chunk_size` de 25 % |
-| RAM système < (limite - 20 %) | Augmenter `ram_chunk_size` de 25 % |
+| Utilisation mémoire > limite | Réduire `ram_chunk_size` de 25 % (immédiatement) |
+| Bloc terminé dont l'utilisation maximale est restée < (limite - 20 %) | Augmenter `ram_chunk_size` de 25 % |
 | CPU > cible | Suggérer moins de workers |
 | Délais de file d'attente > 5 % | Suggérer plus de workers |
 
@@ -1235,7 +1237,7 @@ Contrôle l'extraction des visages et la génération de vignettes.
 | `refill_batch_size` | `100` | Taille de lot de regénération |
 | **auto_tuning** | | |
 | `enabled` | `true` | Activer le réglage fondé sur la mémoire |
-| `memory_limit_percent` | `80` | Limite d'utilisation de la mémoire |
+| `memory_limit_percent` | `80` | Pourcentage de la limite de mémoire effective (limite cgroup sous un plafond conteneur, sinon RAM hôte) |
 | `min_batch_size` | `8` | Taille minimale de lot |
 | `monitor_interval_seconds` | `5` | Intervalle de vérification |
 

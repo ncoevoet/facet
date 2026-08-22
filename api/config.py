@@ -18,7 +18,29 @@ import secrets
 logger = logging.getLogger(__name__)
 
 # --- CONFIG & SERVER SECRET (single parse of scoring_config.json) ---
-_CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'scoring_config.json')
+_CONFIG_PATH_ENV_VAR = 'FACET_CONFIG'
+
+
+def _resolve_config_path():
+    """Path to scoring_config.json — $FACET_CONFIG when set, else the repo-root file.
+
+    A Docker bind mount of a single file forces the daemon to create an absent
+    host source as a *directory*, shadowing the image's baked config and
+    leaving the entrypoint unable to reclaim its own mount point. Naming the
+    file via an env var instead lets the compose file mount a directory (which
+    the daemon can create safely) and point here without either program
+    changing when the variable is unset — see :func:`config.default_config_path`,
+    which this must keep matching.
+    """
+    env_path = os.environ.get(_CONFIG_PATH_ENV_VAR, '').strip()
+    if env_path:
+        return env_path
+    return os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'scoring_config.json')
+
+
+_CONFIG_PATH = _resolve_config_path()
 CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 

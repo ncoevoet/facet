@@ -620,7 +620,7 @@ Ajustes de procesamiento unificados para el procesamiento por lotes en GPU y el 
 
 **`gpu_batch_size`** - Cuántas imágenes se procesan juntas en la GPU en un único paso hacia delante. Limitado por la VRAM. Autoajustado: se reduce cuando la memoria de la GPU supera el límite.
 
-**`ram_chunk_size`** - Cuántas imágenes se almacenan en caché en la RAM entre los pases del modelo (solo en modo multipase). Reduce la E/S de disco cargando las imágenes una vez por fragmento. Limitado por la RAM del sistema. Autoajustado: se reduce cuando la memoria del sistema supera el límite.
+**`ram_chunk_size`** - Cuántas imágenes se almacenan en caché en la RAM entre los pases del modelo (solo en modo multipase). Reduce la E/S de disco cargando las imágenes una vez por fragmento. Limitado por el límite de memoria efectivo (véase `memory_limit_percent` más abajo). Autoajustado en ambos sentidos: se reduce de inmediato cuando el uso supera el límite, y solo aumenta al final de un fragmento, y únicamente si el uso *máximo* de todo ese fragmento se mantuvo por debajo del límite. Lo que importa es el máximo, porque un fragmento no es una sola lectura: cada descarga de modelo entre pases hace que el uso caiga casi hasta el suelo, y crecer sobre ese valle fue lo que llevó `ram_chunk_size` de 10 a 500 dentro de un contenedor de 8GB y provocó un OOM kill en el siguiente fragmento.
 
 ### Referencia de ajustes
 
@@ -644,7 +644,7 @@ Ajustes de procesamiento unificados para el procesamiento por lotes en GPU y el 
 | `max_gpu_batch_size` | `32` | Tamaño de lote de GPU máximo |
 | `min_ram_chunk_size` | `10` | Tamaño de fragmento de RAM mínimo |
 | `max_ram_chunk_size` | `128` | Tamaño de fragmento de RAM máximo |
-| `memory_limit_percent` | `85` | Límite de uso de memoria del sistema |
+| `memory_limit_percent` | `85` | Porcentaje del límite de memoria efectivo (límite de cgroup bajo un tope de contenedor, si no, RAM del host) |
 | `cpu_target_percent` | `85` | Objetivo de uso de CPU |
 | `metrics_print_interval_seconds` | `30` | Intervalo de impresión de estadísticas |
 | **thumbnails** | | |
@@ -674,11 +674,13 @@ Cada imagen se carga una vez por fragmento, y los pases se agrupan para caber en
 
 El sistema monitoriza el uso de recursos y ajusta:
 
+`memory_limit_percent` se mide contra el límite de memoria *efectivo*: el límite de cgroup cuando se ejecuta bajo un tope de contenedor u orquestador (`mem_limit` de Docker, `--memory` de Podman, `resources.limits.memory` de Kubernetes), o la RAM del host en caso contrario. Bajo un límite de cgroup, el uso ahora proviene de la contabilidad propia del cgroup en lugar de la memoria libre del host, de modo que `mem_limit` acota de verdad el autoajuste — antes leía la memoria del host incluso dentro de un contenedor limitado, lo que podía subestimar el uso y dejar que `ram_chunk_size` creciera hasta provocar un OOM kill. `memory_limit_percent` es un porcentaje de ese límite: `85` sobre un tope de 8GB da unos 6,8GB, no el 85 % de la RAM del host.
+
 | Métrica | Acción |
 |--------|--------|
 | Memoria de GPU > límite | Reduce `gpu_batch_size` en un 25 % |
-| RAM del sistema > límite | Reduce `ram_chunk_size` en un 25 % |
-| RAM del sistema < (límite - 20 %) | Aumenta `ram_chunk_size` en un 25 % |
+| Uso de memoria > límite | Reduce `ram_chunk_size` en un 25 % (de inmediato) |
+| Un fragmento terminado cuyo uso máximo se mantuvo < (límite - 20 %) | Aumenta `ram_chunk_size` en un 25 % |
 | CPU > objetivo | Sugiere menos workers |
 | Tiempos de espera de cola > 5 % | Sugiere más workers |
 
@@ -1240,7 +1242,7 @@ Controla la extracción de rostros y la generación de miniaturas.
 | `refill_batch_size` | `100` | Tamaño del lote de rellenado |
 | **auto_tuning** | | |
 | `enabled` | `true` | Activar el ajuste basado en memoria |
-| `memory_limit_percent` | `80` | Límite de uso de memoria |
+| `memory_limit_percent` | `80` | Porcentaje del límite de memoria efectivo (límite de cgroup bajo un tope de contenedor, si no, RAM del host) |
 | `min_batch_size` | `8` | Tamaño de lote mínimo |
 | `monitor_interval_seconds` | `5` | Intervalo de comprobación |
 

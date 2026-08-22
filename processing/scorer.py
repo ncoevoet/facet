@@ -123,7 +123,6 @@ ThreadPoolExecutor = None
 as_completed = None
 TechnicalAnalyzer = None
 CompositionAnalyzer = None
-FaceAnalyzer = None
 ImageCache = None
 
 # Lazy imports for GPU-dependent modules (torch, open_clip, batch_processor)
@@ -142,7 +141,7 @@ SAMPNetScorer = None
 def _load_image_modules():
     """Load image processing modules only when needed."""
     global cv2, imagehash, Image, ExifTags, BytesIO, ThreadPoolExecutor, as_completed
-    global TechnicalAnalyzer, CompositionAnalyzer, FaceAnalyzer, ImageCache
+    global TechnicalAnalyzer, CompositionAnalyzer, ImageCache
     if cv2 is None:
         import cv2 as _cv2
         import imagehash as _imagehash
@@ -151,7 +150,6 @@ def _load_image_modules():
         from concurrent.futures import ThreadPoolExecutor as _ThreadPoolExecutor, as_completed as _as_completed
         from analyzers import TechnicalAnalyzer as _TechnicalAnalyzer
         from analyzers import CompositionAnalyzer as _CompositionAnalyzer
-        from analyzers import FaceAnalyzer as _FaceAnalyzer
         from analyzers import ImageCache as _ImageCache
         cv2 = _cv2
         imagehash = _imagehash
@@ -162,7 +160,6 @@ def _load_image_modules():
         as_completed = _as_completed
         TechnicalAnalyzer = _TechnicalAnalyzer
         CompositionAnalyzer = _CompositionAnalyzer
-        FaceAnalyzer = _FaceAnalyzer
         ImageCache = _ImageCache
 
 def _load_gpu_modules():
@@ -727,11 +724,13 @@ class Facet:
             config_path: Path to scoring config JSON
             lightweight: If True, skip loading GPU models (for recalculate-only mode)
             multi_pass: If True, skip heavy GPU models (CLIP, SAMP-Net, tagger).
-                        Multi-pass loads its own models via ModelManager per pass.
-                        Still loads face_analyzer, aesthetic_head, tech_analyzer, model_manager.
+                        Multi-pass loads its own models via ModelManager per pass,
+                        the face analyzer included.
+                        Still loads aesthetic_head, tech_analyzer, model_manager.
         """
         self.db_path = db_path
         self.lightweight = lightweight
+        self._face_analyzer = None
 
         # Load scoring configuration
         self.config = ScoringConfig(config_path)
@@ -857,22 +856,6 @@ class Facet:
                 elif self.device == 'cuda' and sys.platform == 'win32':
                     logger.info("Skipping torch.compile() on Windows (Triton not supported)")
 
-            # Initialize face analyzer with config settings
-            face_settings = self.config.get_face_detection_settings()
-            face_proc_settings = self.config.get_face_processing_settings()
-            blendshape_settings = face_settings.get('blendshapes', {})
-            self.face_analyzer = FaceAnalyzer(
-                self.device,
-                min_confidence=face_settings.get('min_confidence_percent', 70) / 100,
-                min_face_size=face_settings.get('min_face_size', 30),
-                thumbnail_size=face_proc_settings.get('face_thumbnail_size', 128),
-                thumbnail_quality=face_proc_settings.get('face_thumbnail_quality', 85),
-                blink_ear_threshold=face_settings.get('blink_ear_threshold', 0.21),
-                min_faces_for_group=face_settings.get('min_faces_for_group', 4),
-                enable_3d_landmarks=face_settings.get('enable_3d_landmarks', False),
-                enable_blendshapes=blendshape_settings.get('enabled', True),
-                blendshape_min_crop=blendshape_settings.get('min_crop_size', 192),
-            )
             self.tech_analyzer = TechnicalAnalyzer()
 
             if not multi_pass:
@@ -918,6 +901,31 @@ class Facet:
             return
 
         self.aesthetic_head = load_aesthetic_head(self.device)
+
+    @property
+    def face_analyzer(self):
+        """The face analyzer, built on first use instead of at construction.
+
+        InsightFace costs a declared 2.0 GB, and building it here eagerly meant
+        a multi-pass scan carried it from startup to the last chunk even though
+        that path never reads this attribute: there the analyzer is a model the
+        pass planner budgets for and ``ModelManager.unload_model`` releases at
+        the end of its pass. Every other pass therefore held 2.0 GB more than
+        the plan allowed for it. Deferring the build leaves the single-pass
+        scan and the face-extraction commands, which do read it, unchanged.
+
+        Lightweight mode has no device and loads no model, so it has no
+        analyzer either; assigning one directly still overrides the build,
+        which is how the scan paths are tested with a stand-in.
+        """
+        if self._face_analyzer is None and not self.lightweight:
+            from models.model_manager import build_face_analyzer
+            self._face_analyzer = build_face_analyzer(self.config, self.device)
+        return self._face_analyzer
+
+    @face_analyzer.setter
+    def face_analyzer(self, analyzer):
+        self._face_analyzer = analyzer
 
     @property
     def uses_transformers_backend(self):
@@ -2535,7 +2543,7 @@ class Facet:
 # HELPER FUNCTIONS
 # ============================================
 
-def process_bursts(db_path, config_path='scoring_config.json'):
+def process_bursts(db_path, config_path=None):
     """Flags the highest-scoring image in groups of visually similar photos."""
     # Load burst detection settings from config
     config = ScoringConfig(config_path)

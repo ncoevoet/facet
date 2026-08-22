@@ -210,10 +210,30 @@ Deploy knobs live in `.env` (copy `.env.example`):
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Database path inside the container, kept on the `./data` bind mount |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | config's `auto_retrain` | Personal-ranker retrain trigger, for heavy raters |
 
-A sanitized `scoring_config.default.json` is baked into the image as the active config,
-so the container runs with zero host setup. To customize weights, the viewer password or
-categories: `cp scoring_config.default.json scoring_config.json`, edit it, then uncomment
-the config mount in `docker-compose.yml`.
+A sanitized `scoring_config.default.json` is baked into the image as the seed config.
+`docker-entrypoint.sh` copies it, on first run only, into the persistent
+`./facet-config/scoring_config.json` that `docker-compose.yml` already bind-mounts (as
+`FACET_CONFIG=/config/scoring_config.json` inside the container) — so the container runs
+with zero host setup, and every runtime config write (the viewer password upgrade,
+weights, priorities, scoring contexts) survives `docker compose down && up`. Edit
+`./facet-config/scoring_config.json` directly to customize weights, the viewer password
+or categories by hand; an existing file is never overwritten.
+
+> **Upgrading from a release before this change?** Earlier versions told you to
+> `cp scoring_config.default.json scoring_config.json` and uncomment a
+> `- ./scoring_config.json:/app/scoring_config.json` line in `docker-compose.yml`.
+> That mount is gone from the shipped compose file. If you adopt the new one,
+> **move your existing config across first**:
+>
+> ```bash
+> mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
+> ```
+>
+> Otherwise the entrypoint seeds a fresh default and your weights, categories and
+> **viewer password are silently no longer read** — and an empty
+> `viewer.edition_password` disables edition gating entirely. If you keep your own
+> edited `docker-compose.yml` with the old mount still in place, the entrypoint
+> seeds `./facet-config` from *that* file, so nothing is lost.
 
 Model caches live in Docker-managed named volumes (`facet-hf-cache`, `facet-torch-cache`,
 `facet-insightface`, `facet-pretrained`), so the image never reads your machine's own

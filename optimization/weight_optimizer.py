@@ -25,12 +25,12 @@ CLI::
 
 import json
 import logging
-import os
 from typing import Dict, List, Optional
 import numpy as np
 from scipy.optimize import minimize
 from db import DEFAULT_DB_PATH, get_connection
 from config import ScoringConfig
+from config.scoring_config import resolve_scoring_config_path
 from processing.scorer import build_metric_vector, SCORING_METRIC_KEYS
 
 logger = logging.getLogger("facet.optimizer")
@@ -56,9 +56,9 @@ class WeightOptimizer:
     # carry real signal but more noise, so their likelihood terms weigh less
     SOURCE_WEIGHTS = {'vote': 1.0, 'rating': 0.7, 'culling': 0.5}
 
-    def __init__(self, db_path: str = DEFAULT_DB_PATH, config_path: str = 'scoring_config.json'):
+    def __init__(self, db_path: str = DEFAULT_DB_PATH, config_path: Optional[str] = None):
         self.db_path = db_path
-        self.config_path = config_path
+        self.config_path = resolve_scoring_config_path(config_path)
         self._cfg: Optional[ScoringConfig] = None
 
     @property
@@ -794,6 +794,26 @@ class WeightOptimizer:
         Returns:
             The snapshot id when backup=True (else None)
         """
+        from api.config import CONFIG_WRITE_LOCK
+        with CONFIG_WRITE_LOCK:
+            return self._apply_weights_locked(new_weights, category, backup)
+
+    def _apply_weights_locked(
+        self,
+        new_weights: Dict[str, float],
+        category: str,
+        backup: bool
+    ) -> Optional[int]:
+        """Rewrite one category's weights with the config lock already held.
+
+        The lock spans this whole read-modify-write rather than the write
+        alone. ``atomic_write_json`` is atomic per WRITE, so a concurrent
+        writer landing between the read below and the write at the end has its
+        update overwritten wholesale; CLAUDE.md makes that lock the single one
+        every scoring_config.json writer shares. Nothing here may call
+        ``reload_config``, which reaches the same lock through ``_load_config``
+        and would deadlock against the frame above.
+        """
         # Load current config
         with open(self.config_path) as f:
             config = json.load(f)
@@ -860,19 +880,20 @@ class WeightOptimizer:
             cat_weights[largest_key] = round(cat_weights[largest_key] + adjustment, 1)
             logger.info("Adjusted %s by %+.1f%% to ensure 100%% total", largest_key, adjustment)
 
-        # Save updated config atomically: write a sibling temp file then
-        # os.replace() it onto config_path, so an interrupted/failed write can
-        # never leave a truncated scoring_config.json (the per-category weight
-        # snapshot above cannot reconstruct the file's other sections).
-        tmp_path = f"{self.config_path}.tmp"
-        try:
-            with open(tmp_path, 'w') as f:
-                json.dump(config, f, indent=2)
-            os.replace(tmp_path, self.config_path)
-        except BaseException:
-            if os.path.exists(tmp_path):
-                os.remove(tmp_path)
-            raise
+        # Save through the shared config writer rather than a local
+        # open()+os.replace(): it is the one primitive that keeps the two
+        # properties this file needs. It copies the DESTINATION's mode onto the
+        # replacement, so the 0600 docker-entrypoint.sh seeds on a config
+        # holding viewer.password, users.*.password_hash, upload.password,
+        # frame.tokens and immich.api_key in plaintext survives an --apply
+        # instead of widening to the umask default forever; and it stages under
+        # a dotted, gitignored scratch name, so a crash between the write and
+        # the rename cannot leave a complete copy of that config under a
+        # stageable one. Imported lazily because api.config mints the server
+        # secret at import — the same lazy-import shape facet.py already uses
+        # for map_disk_path.
+        from api.config import atomic_write_json
+        atomic_write_json(self.config_path, config)
 
         return snapshot_id
 
@@ -928,7 +949,7 @@ def print_comparison_stats(db_path: str = DEFAULT_DB_PATH):
 
 def run_weight_optimization(
     db_path: str = DEFAULT_DB_PATH,
-    config_path: str = 'scoring_config.json',
+    config_path: Optional[str] = None,
     min_comparisons: int = 30,
     sources: Optional[List[str]] = None,
     category: Optional[str] = None,
@@ -955,6 +976,7 @@ def run_weight_optimization(
                   required to apply.
         force: Apply the fitted weights even if the held-out gate is not met.
     """
+    config_path = resolve_scoring_config_path(config_path)
     optimizer = WeightOptimizer(db_path, config_path)
 
     logger.info("=" * 60)

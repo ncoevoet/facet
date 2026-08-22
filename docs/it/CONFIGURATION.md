@@ -620,7 +620,7 @@ Impostazioni unificate per l'elaborazione batch su GPU e la modalità multi-pass
 
 **`gpu_batch_size`** - Quante immagini vengono elaborate insieme sulla GPU in un singolo forward pass. Limitato dalla VRAM. Regolato automaticamente: ridotto quando la memoria GPU supera il limite.
 
-**`ram_chunk_size`** - Quante immagini vengono memorizzate in RAM tra i passaggi del modello (solo in modalità multi-passaggio). Riduce l'I/O su disco caricando le immagini una sola volta per blocco. Limitato dalla RAM di sistema. Regolato automaticamente: ridotto quando la memoria di sistema supera il limite.
+**`ram_chunk_size`** - Quante immagini vengono memorizzate in RAM tra i passaggi del modello (solo in modalità multi-passaggio). Riduce l'I/O su disco caricando le immagini una sola volta per blocco. Limitato dal limite di memoria effettivo (vedi `memory_limit_percent` sotto). Regolato automaticamente in entrambe le direzioni: ridotto immediatamente quando l'utilizzo supera il limite, e aumentato solo al termine di un blocco, e solo se l'utilizzo *massimo* dell'intero blocco è rimasto sotto il limite. Il picco è ciò che conta, perché un blocco non è una singola lettura: ogni scaricamento di modello tra i passaggi fa crollare l'utilizzo quasi al minimo, e crescere su quel minimo è ciò che ha portato `ram_chunk_size` da 10 a 500 all'interno di un container da 8GB, causando un OOM kill sul blocco successivo.
 
 ### Riferimento delle impostazioni
 
@@ -644,7 +644,7 @@ Impostazioni unificate per l'elaborazione batch su GPU e la modalità multi-pass
 | `max_gpu_batch_size` | `32` | Dimensione massima del batch GPU |
 | `min_ram_chunk_size` | `10` | Dimensione minima del blocco RAM |
 | `max_ram_chunk_size` | `128` | Dimensione massima del blocco RAM |
-| `memory_limit_percent` | `85` | Limite di utilizzo della memoria di sistema |
+| `memory_limit_percent` | `85` | Percentuale del limite di memoria effettivo (limite cgroup sotto un tetto del container, altrimenti RAM host) |
 | `cpu_target_percent` | `85` | Obiettivo di utilizzo della CPU |
 | `metrics_print_interval_seconds` | `30` | Intervallo di stampa delle statistiche |
 | **thumbnails** | | |
@@ -674,11 +674,13 @@ Ogni immagine viene caricata una sola volta per blocco e i passaggi sono raggrup
 
 Il sistema monitora l'utilizzo delle risorse e si regola:
 
+`memory_limit_percent` viene misurato rispetto al limite di memoria *effettivo*: il limite cgroup quando si esegue sotto un tetto di container o orchestratore (`mem_limit` Docker, `--memory` Podman, `resources.limits.memory` Kubernetes), altrimenti la RAM host. Sotto un limite cgroup, l'utilizzo proviene ora dalla contabilità propria del cgroup invece che dalla memoria libera dell'host, quindi `mem_limit` limita davvero la regolazione automatica — in precedenza leggeva la memoria dell'host anche dentro un container limitato, il che poteva sottostimare l'utilizzo e lasciare che `ram_chunk_size` crescesse fino a un OOM kill. `memory_limit_percent` è una percentuale di quel limite: `85` su un tetto di 8GB dà circa 6,8GB, non l'85% della RAM host.
+
 | Metrica | Azione |
 |--------|--------|
 | Memoria GPU > limite | Riduce `gpu_batch_size` del 25% |
-| RAM di sistema > limite | Riduce `ram_chunk_size` del 25% |
-| RAM di sistema < (limite - 20%) | Aumenta `ram_chunk_size` del 25% |
+| Utilizzo memoria > limite | Riduce `ram_chunk_size` del 25% (immediatamente) |
+| Un blocco terminato il cui utilizzo massimo è rimasto < (limite - 20%) | Aumenta `ram_chunk_size` del 25% |
 | CPU > obiettivo | Suggerisce meno worker |
 | Timeout della coda > 5% | Suggerisce più worker |
 
@@ -1240,7 +1242,7 @@ Controlla l'estrazione dei volti e la generazione delle miniature.
 | `refill_batch_size` | `100` | Dimensione del batch di rigenerazione |
 | **auto_tuning** | | |
 | `enabled` | `true` | Abilita la regolazione basata sulla memoria |
-| `memory_limit_percent` | `80` | Limite di utilizzo della memoria |
+| `memory_limit_percent` | `80` | Percentuale del limite di memoria effettivo (limite cgroup sotto un tetto del container, altrimenti RAM host) |
 | `min_batch_size` | `8` | Dimensione minima del batch |
 | `monitor_interval_seconds` | `5` | Intervallo di controllo |
 

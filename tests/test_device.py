@@ -139,6 +139,23 @@ def test_detect_accelerator_is_none_without_accelerators(monkeypatch):
     assert ModelManager.detect_accelerator() is None
 
 
+def _fake_effective_memory(monkeypatch, total_gb):
+    """Point ``suggest_vram_profile``'s memory read at a synthetic reading.
+
+    ``suggest_vram_profile`` resolves ``effective_memory`` with a
+    function-local import, so patching the ``utils.system_memory`` module
+    attribute -- not ``sys.modules["psutil"]`` -- is what actually reaches it.
+    """
+    from utils import system_memory
+
+    reading = system_memory.EffectiveMemory(
+        total=int(total_gb * 1024**3), used=0,
+        available=int(total_gb * 1024**3), percent=0.0,
+    )
+    monkeypatch.setattr(system_memory, "effective_memory", lambda: reading)
+    return reading
+
+
 class TestUnifiedMemoryProfileSelection:
     """``auto`` must size a Metal machine, not floor it at the weakest profile.
 
@@ -152,11 +169,7 @@ class TestUnifiedMemoryProfileSelection:
         from config.scoring_config import ScoringConfig
 
         _use_fake_torch(monkeypatch, mps=mps)
-        fake_psutil = types.ModuleType("psutil")
-        fake_psutil.virtual_memory = lambda: types.SimpleNamespace(
-            total=int(total_memory_gb * 1024**3),
-        )
-        monkeypatch.setitem(sys.modules, "psutil", fake_psutil)
+        _fake_effective_memory(monkeypatch, total_memory_gb)
         return ScoringConfig.suggest_vram_profile()
 
     def test_large_mac_gets_the_richest_profile(self, monkeypatch):
@@ -177,9 +190,7 @@ class TestUnifiedMemoryProfileSelection:
         from config.scoring_config import ScoringConfig
 
         _use_fake_torch(monkeypatch, mps=True)
-        fake_psutil = types.ModuleType("psutil")
-        fake_psutil.virtual_memory = lambda: types.SimpleNamespace(total=128 * 1024**3)
-        monkeypatch.setitem(sys.modules, "psutil", fake_psutil)
+        _fake_effective_memory(monkeypatch, 128)
         monkeypatch.setenv("FACET_DEVICE", "cpu")
         profile, _, msg = ScoringConfig.suggest_vram_profile()
         assert profile == "legacy"

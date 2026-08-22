@@ -1,7 +1,10 @@
-"""Tests for the saliency overlay + face-marker endpoints (api/routers/saliency.py).
+"""Tests for the saliency overlay + face-marker endpoints (api/routers/saliency.py),
+and for how ``models.saliency_scorer`` sizes its inference batch.
 
 The BiRefNet model is stubbed via the model_cache loader, so the heatmap path
-runs end-to-end (colourise + PNG encode) on CPU with no real weights.
+runs end-to-end (colourise + PNG encode) on CPU with no real weights. The batch
+sizing tests stub it a second way, counting forward passes instead of computing
+them, because what they assert is a memory decision rather than a mask.
 """
 
 import io
@@ -12,6 +15,14 @@ from unittest import mock
 import numpy as np
 import pytest
 from PIL import Image
+
+pytest.importorskip("torch")
+
+import torch  # noqa: E402
+import torchvision.transforms as T  # noqa: E402
+
+from models.saliency_scorer import BYTES_PER_GB, SaliencyScorer  # noqa: E402
+from utils import system_memory  # noqa: E402
 
 _MODULE = "api.routers.saliency"
 
@@ -166,3 +177,143 @@ class TestFaceMarkers:
         assert face["bbox"] is None
         assert face["eyes"] == []
         assert face["eyes_open_score"] is not None
+
+
+class _RecordingBiRefNet:
+    """Stand-in for BiRefNet that records the size of every forward pass."""
+
+    def __init__(self, resolution):
+        self.batch_sizes = []
+        self.resolution = resolution
+
+    def parameters(self):
+        yield torch.zeros(1)
+
+    def __call__(self, batch_tensor):
+        self.batch_sizes.append(batch_tensor.shape[0])
+        return [torch.zeros(batch_tensor.shape[0], 1, self.resolution, self.resolution)]
+
+
+def _stub_scorer(device="cpu", resolution=8):
+    """A loaded SaliencyScorer whose forward passes are counted, not computed."""
+    scorer = SaliencyScorer(device=device, resolution=resolution)
+    scorer.model = _RecordingBiRefNet(resolution)
+    scorer.transform = T.Compose([T.Resize((resolution, resolution)), T.ToTensor()])
+    scorer._loaded = True
+    return scorer
+
+
+def _memory(available_gb, total_gb=8.0):
+    used = total_gb - available_gb
+    return system_memory.EffectiveMemory(
+        int(total_gb * BYTES_PER_GB), int(used * BYTES_PER_GB),
+        int(available_gb * BYTES_PER_GB), 100.0 * used / total_gb)
+
+
+def _images(count):
+    return [Image.new("RGB", (16, 12))] * count
+
+
+class TestBatchSizing:
+    """Issue #111: the batch must be sized against the memory it lands in.
+
+    BiRefNet's weights are 0.36 GB, but one image at the default 1024x1024
+    costs about 2.4 GB of activations on CPU, so the hardcoded batch of 8 asked
+    for roughly 18 GB whatever the container had -- and an 8 GiB one was
+    OOM-killed in this pass however carefully the planner, which prices
+    declared model weight, had sized it.
+    """
+
+    def test_cpu_batch_shrinks_to_the_container_budget(self, monkeypatch):
+        """6.7 GB free is an 8 GiB container with a chunk already decoded."""
+        scorer = _stub_scorer()
+        monkeypatch.setattr(system_memory, "effective_memory", lambda: _memory(6.7))
+        scorer.get_saliency_masks(_images(6))
+        assert scorer.model.batch_sizes == [2, 2, 2]
+
+    def test_roomy_host_keeps_the_default_batch(self, monkeypatch):
+        """The bound only ever narrows: 32 GB free affords more than 8, so 8 it is."""
+        scorer = _stub_scorer()
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(32.0, total_gb=48.0))
+        scorer.get_saliency_masks(_images(10))
+        assert scorer.model.batch_sizes == [8, 2]
+
+    def test_explicit_batch_size_is_a_ceiling_not_a_floor(self, monkeypatch):
+        """A caller may narrow the batch; it may not widen it past the budget.
+
+        The defect was a number that ignored memory, so letting an argument
+        reinstate one would leave the same hole open through every call site.
+        """
+        starved = _stub_scorer()
+        monkeypatch.setattr(system_memory, "effective_memory", lambda: _memory(6.7))
+        starved.get_saliency_masks(_images(4), batch_size=8)
+        assert starved.model.batch_sizes == [2, 2]
+
+        roomy = _stub_scorer()
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(32.0, total_gb=48.0))
+        roomy.get_saliency_masks(_images(4), batch_size=3)
+        assert roomy.model.batch_sizes == [3, 1]
+
+    def test_unreadable_memory_is_not_headroom(self, monkeypatch):
+        """UNKNOWN_MEMORY reports nothing available, so the batch is the minimum."""
+        scorer = _stub_scorer()
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: system_memory.UNKNOWN_MEMORY)
+        scorer.get_saliency_masks(_images(2))
+        assert scorer.model.batch_sizes == [1, 1]
+
+    def test_cuda_batch_ignores_host_memory(self, monkeypatch):
+        """Activations live in VRAM there, which no cgroup limit governs.
+
+        Asserted on the sizing decision rather than through a forward pass:
+        running one would need a real CUDA device, which is exactly the
+        environment this regression must not depend on.
+        """
+        scorer = _stub_scorer(device="cuda")
+        monkeypatch.setattr(system_memory, "effective_memory", lambda: _memory(0.1))
+        assert scorer._affordable_batch_size(None) == SaliencyScorer.DEFAULT_BATCH_SIZE
+
+    def test_usable_memory_fraction_narrows_the_affordable_batch(self, monkeypatch):
+        """12.0 GB available straddles the 80% margin: claiming all of it
+        would afford a batch of 5 (12 // 2.4), claiming the fifth-held-back
+        fraction affords 4 (12 * 0.8 // 2.4 == 9.6 // 2.4 == 4). The two
+        disagree, which is what proves USABLE_MEMORY_FRACTION is read at all
+        -- every other value in this class floors to the same batch either
+        way and would stay green with the margin deleted.
+        """
+        scorer = _stub_scorer()
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(12.0, total_gb=16.0))
+        scorer.get_saliency_masks(_images(5))
+        assert scorer.model.batch_sizes == [4, 1]
+
+
+class TestLoadPrecision:
+    """Commit 4ef53d3: the published checkpoint is stored fp16, and CPU/MPS
+    have no fp16 kernel path -- a 256x256 forward measured 49.97s in fp16
+    against 1.10s in float32, and a single 1024x1024 forward ran 28 minutes.
+    ``load()`` must upcast off a dedicated GPU and leave CUDA at its
+    checkpoint precision.
+    """
+
+    def test_load_casts_to_float32_off_a_dedicated_gpu(self):
+        fake_model = mock.MagicMock(name="birefnet")
+        with mock.patch(
+            "transformers.AutoModelForImageSegmentation.from_pretrained",
+            return_value=fake_model,
+        ):
+            scorer = SaliencyScorer(device="cpu")
+            scorer.load()
+        fake_model.float.assert_called_once()
+
+    def test_load_leaves_cuda_at_checkpoint_precision(self):
+        fake_model = mock.MagicMock(name="birefnet")
+        with mock.patch(
+            "transformers.AutoModelForImageSegmentation.from_pretrained",
+            return_value=fake_model,
+        ):
+            scorer = SaliencyScorer(device="cuda")
+            scorer.load()
+        fake_model.float.assert_not_called()

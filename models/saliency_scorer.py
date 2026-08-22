@@ -15,6 +15,8 @@ from typing import Optional
 
 logger = logging.getLogger("facet.saliency")
 
+BYTES_PER_GB = 1024 ** 3
+
 # Lazy imports
 torch = None
 cv2 = None
@@ -60,6 +62,11 @@ class SaliencyScorer:
     DEFAULT_RESOLUTION = 1024
     DEFAULT_MASK_THRESHOLD = 0.3
     DEFAULT_MIN_SUBJECT_PIXELS = 50
+    DEFAULT_BATCH_SIZE = 8
+    MIN_BATCH_SIZE = 1
+    ACTIVATION_GB_PER_IMAGE = 2.4
+    USABLE_MEMORY_FRACTION = 0.8
+    DEDICATED_VRAM_DEVICE = 'cuda'
 
     def __init__(self, device: Optional[str] = None, model_name: Optional[str] = None,
                  resolution: Optional[int] = None, mask_threshold: Optional[float] = None,
@@ -87,7 +94,16 @@ class SaliencyScorer:
         self._loaded = False
 
     def load(self):
-        """Load BiRefNet model."""
+        """Load BiRefNet, in float32 anywhere without a dedicated GPU.
+
+        The published checkpoint is stored as F16 and its config carries no
+        ``torch_dtype``, so transformers loads it half-precision. CPU kernels
+        have no fp16 path and fall back to an unvectorised one: measured in a
+        container, a 256x256 forward takes 49.97s in fp16 against 1.10s in
+        float32, and a single 1024x1024 forward ran for 28 minutes. Casting
+        doubles activation memory, which is why the batch size derived in
+        :meth:`_affordable_batch_size` is sized from the float32 slope.
+        """
         if self._loaded:
             return
 
@@ -97,6 +113,8 @@ class SaliencyScorer:
         self.model = AutoModelForImageSegmentation.from_pretrained(
             self.model_name, trust_remote_code=True
         )
+        if not self.device.startswith(self.DEDICATED_VRAM_DEVICE):
+            self.model = self.model.float()
         self.model.to(self.device).eval()
 
         self.transform = T.Compose([
@@ -135,18 +153,78 @@ class SaliencyScorer:
         """
         return self.get_saliency_masks([pil_img])[0]
 
-    def get_saliency_masks(self, pil_images, batch_size=8):
+    def _affordable_batch_size(self, requested):
+        """How many images one forward pass may hold, given where they land.
+
+        BiRefNet's activations dwarf its weights. Measured inside a container
+        against cgroup ``anon``, at the default 1024x1024 on CPU, one image
+        peaks at 2.60 GB and each further image adds 2.32 GB (fp32; the fp16
+        checkpoint costs about three quarters of that) -- against weights of
+        0.36 GB. A fixed batch of 8 therefore asks for roughly 18 GB whatever
+        the budget says, which is how an 8 GiB container was still OOM-killed
+        after the pass planner had been taught to read its real limit
+        (issue #111): the planner prices declared model weight, and none of
+        this is weight. ``ACTIVATION_GB_PER_IMAGE`` takes the larger, fp32
+        figure so that the dtype a checkpoint happens to carry is not what
+        decides whether the container survives.
+
+        ``requested`` is a ceiling, never a floor. The defect being fixed is
+        a batch size that ignores the budget, so an explicit argument may
+        only narrow the batch -- which is also all the parameter has ever
+        claimed to be, a maximum per forward pass.
+
+        Only a dedicated-VRAM device escapes the bound. On CUDA the
+        activations are allocated in VRAM, which no cgroup limit governs, so
+        sizing that batch against host RAM would throttle a GPU run for
+        memory it never touches. CPU and Apple's unified memory both spend
+        the very RAM ``effective_memory`` reports, container limit included.
+
+        The fifth of the reading left unclaimed is not a round number picked
+        for comfort. What this call adds beyond the activations is one mask
+        per image of the WHOLE chunk, held until every sub-batch is done --
+        about 18 MB per 18 MP photo, so roughly a sixth of what the chunk's
+        decoded pixels already cost. That cost is proportional to memory
+        already spent, which a proportional margin tracks and a fixed reserve
+        does not. Measured on the 8 GiB container, same 12 photos: claiming
+        all of the reading peaks at 7.24 GB, 90.5% of the limit; claiming
+        four fifths peaks at 4.85 GB.
+
+        ``UNKNOWN_MEMORY`` -- neither psutil nor the cgroup files readable --
+        reports nothing available and so yields ``MIN_BATCH_SIZE``, because
+        the absence of an answer is not headroom. That minimum is a floor,
+        not a promise: one 1024x1024 image needs about 2.6 GB and there is
+        nothing smaller to fall back to but a lower ``resolution``, which is
+        the caller's setting to make. The figures above are for that default
+        resolution, the only one measured, so a smaller one is merely
+        budgeted conservatively rather than wrongly.
+        """
+        ceiling = self.DEFAULT_BATCH_SIZE if requested is None else max(self.MIN_BATCH_SIZE, requested)
+        if self.device.startswith(self.DEDICATED_VRAM_DEVICE):
+            return ceiling
+        from utils.system_memory import effective_memory
+        spare_gb = effective_memory().available * self.USABLE_MEMORY_FRACTION / BYTES_PER_GB
+        affordable = int(spare_gb // self.ACTIVATION_GB_PER_IMAGE)
+        return max(self.MIN_BATCH_SIZE, min(ceiling, affordable))
+
+    def get_saliency_masks(self, pil_images, batch_size=None):
         """Generate binary saliency masks for a batch of PIL images.
 
         Args:
             pil_images: List of PIL Images (RGB)
-            batch_size: Max images per GPU forward pass
+            batch_size: Ceiling on images per forward pass. None asks for the
+                default ceiling; either way the answer is bounded by the
+                memory the activations land in -- see
+                :meth:`_affordable_batch_size`.
 
         Returns:
             List of numpy.ndarray: Binary masks (H, W) with values 0 or 255
         """
         if not self._loaded:
             self.load()
+
+        batch_size = self._affordable_batch_size(batch_size)
+        logger.debug("  Saliency batch size %d for %d image(s) on %s",
+                     batch_size, len(pil_images), self.device)
 
         orig_sizes = [(img.size[0], img.size[1]) for img in pil_images]
         results = []

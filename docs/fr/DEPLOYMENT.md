@@ -13,7 +13,7 @@ Facet comporte deux charges de travail :
 
 | Composant | Matériel | Rôle |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24 Go VRAM) ou CPU (8 Go+ RAM) | Analyser et noter les photos |
+| **Scoring** (`facet.py`) | GPU (6-24 Go VRAM) ou CPU (8 Go minimum, 12 Go recommandés, plus pour les profils `16gb`/`24gb` — voir [Limites de mémoire du conteneur](#limites-de-mémoire-du-conteneur)) | Analyser et noter les photos |
 | **Galerie web** (`viewer.py`) | Toute machine (peu de ressources) | Servir la galerie web |
 
 Seule la galerie web doit tourner sur le serveur. Notez les photos sur un poste de travail, puis synchronisez la base de données.
@@ -287,6 +287,50 @@ services:
       - /volume1/Photos:/volume1/Photos:ro  # Monter les photos pour les téléchargements
     restart: always
 ```
+
+## Limites de mémoire du conteneur
+
+Facet lit désormais la limite mémoire du cgroup du conteneur (`memory.max` en cgroup v2, `memory.limit_in_bytes` en v1) plutôt que la RAM totale de l'hôte, et dimensionne en fonction de cette limite le regroupement des passes (quels modèles se chargent ensemble), la taille du bloc RAM, la mise en cache CPU des modèles et la concurrence de décodage RAW. Avant ce correctif, tout cela était dimensionné selon la RAM de l'hôte : `psutil.virtual_memory()` lit `/proc/meminfo`, que Docker ne virtualise pas, si bien qu'un `mem_limit` était silencieusement ignoré — un conteneur plafonné bien en dessous de la RAM de l'hôte continuait à se dimensionner comme si toute la RAM de l'hôte lui était accessible, et se faisait tuer par OOM ([issue #111](https://github.com/ncoevoet/facet/issues/111)).
+
+Reproduire le bug sur une image publiée antérieure au correctif (v1.7.2) montre le mécanisme : un conteneur en profil `8gb` plafonné à `--memory=8g` sur un hôte de 47 Go affiche `Mode: CPU-only (47GB RAM)` — la RAM de l'hôte, pas celle du conteneur — et planifie une seule passe regroupant `clip + topiq_iaa + topiq_nr_face + liqe + saliency + samp_net + insightface [~15.0GB RAM]`. Il est tué (`OOMKilled`, code de sortie 137) avant de terminer ne serait-ce qu'un seul lot sur les 200 photos. Face à une limite de cgroup de 512 Mo, le lecteur corrigé rapporte 0,500 Go là où `/proc/meminfo` rapporte toujours les 46,8 Go de l'hôte.
+
+### Mémoire minimale recommandée par profil
+
+Les poids des modèles ne représentent qu'une partie du pic de mémoire — le runtime torch, le bloc d'images décodées et les activations par couche s'y ajoutent — donc considérez ces chiffres comme des planchers, pas des budgets. La ligne `legacy`/`8gb` s'appuie désormais sur des tests réels en conteneur — des scans de 50 photos aboutissant avec `--memory=8g` sur les deux profils (voir ci-dessous) ; les lignes `16gb` et `24gb` restent des valeurs provisoires, sans mesure réelle derrière elles.
+
+| Profil VRAM | Poids des modèles (total) | Mémoire du conteneur recommandée |
+|---|---|---|
+| `legacy` / `8gb` | 15,0 Go | 12 Go (GPU) / 8 Go minimum, 12 Go recommandés (CPU) |
+| `16gb` | 22,0 Go | au moins 18 Go (provisoire) |
+| `24gb` | 25,0 Go | au moins 18 Go (provisoire) |
+
+**GPU et CPU ne sont pas interchangeables ici, et le chiffre de 12 Go ci-dessus est un chiffre GPU.** Sur une RTX 3080, le profil `8gb` de l'auteur du signalement a atteint un pic de 9,23 Go de RAM système pour 405 photos, même avec `ram_chunk_size: 12` et `num_workers: 2`, et a réussi avec `mem_limit: 12g`. Sur un GPU, les poids des modèles résident en VRAM ; la RAM du conteneur ne contient principalement que le bloc d'image décodée, ce qui explique que ce chiffre soit tellement plus petit que ce dont le CPU seul a besoin. Faire tourner ce même profil `8gb` sur CPU charge tout le catalogue de modèles dans la RAM du conteneur à la place. Avant que le correctif de suivi de l'issue #111 n'ajoute un plafond, la capacité par passe du planificateur montait directement avec la limite du conteneur, ce qui rendait le plan pire, pas meilleur, à mesure que la limite augmentait : une limite de 8 Go produisait 4 passes culminant à 6,0 Go, provoquant un OOM dans la passe regroupant `topiq_nr_face + liqe + saliency` (6,0 Go déclarés, pic de RSS de 10,46 Go) ; une limite de 12 Go s'effondrait en seulement 2 passes culminant à 10,0 Go, et provoquait aussi un OOM. Le régulateur de mémoire s'est bien déclenché à la limite de 12 Go — `Evicted 1 model(s) from RAM cache: topiq_iaa` est une ligne de journal réelle — mais c'est le régulateur qui intervenait sans que ce soit suffisant, pas ce qui a sauvé l'exécution.
+
+Le plafond maintient désormais la capacité par passe à 5,0 Go, quelle que soit la limite du conteneur, si bien qu'elle cesse de croître avec le conteneur : le profil `8gb` sur CPU planifie toujours les mêmes 5 passes quelle que soit la limite — `Pass 1: qrealign [~5.0GB RAM]`, `Pass 2: clip + topiq_iaa [~5.0GB RAM]`, `Pass 3: topiq_nr_face + liqe [~4.0GB RAM]`, `Pass 4: saliency + samp_net [~4.0GB RAM]`, `Pass 5: insightface [~2.0GB RAM]`.
+
+Cette forme figée ne suffisait toujours pas à elle seule, car deux éléments extérieurs au plan des passes consommaient le budget. L'auto-ajustement de la taille des lots grossissait sur le creux de mémoire entre les passes — chaque déchargement fait retomber l'usage presque au plancher, et trois lectures de ce type d'affilée se lisaient comme de la marge — si bien que `ram_chunk_size` est passé de 10 à 500 dès le tout premier lot, et le second a tenté de décoder toutes les photos restantes d'un coup. Et décharger un modèle ne rendait rien au noyau : glibc gardait les blocs libérés dans ses arènes, si bien que le processus retenait un pic déterminé par sa première passe, et que chaque passe suivante tournait par-dessus une mémoire qu'elle ne pouvait pas utiliser. Avec une croissance désormais décidée à partir du pic de chaque lot et le heap libéré rendu explicitement, un scan de 50 photos avec `--memory=8g` aboutit sur les deux profils — `legacy` culminant à 7,26 Go et `8gb` à 7,56 Go de mémoire anonyme, cinq lots de dix, code de sortie 0, aucun OOM et aucun échec de scan enregistré.
+
+**8 Go est un plancher, pas un budget confortable.** Les deux exécutions se sont terminées à moins d'un demi-gigaoctet du plafond, sur des JPEG 18-20 MP ; des images plus grandes, un décodage RAW ou un hôte plus chargé réduiront cette marge, ce qui explique pourquoi 12 Go est la recommandation plutôt que le minimum. La mémoire anonyme est le chiffre à surveiller — ni le MemUsage de `docker stats`, ni le `memory.current` du cgroup, qui comptent tous deux le cache de pages récupérable, si bien que le premier sous-évalue le risque réel et que le second reste épinglé près de la limite du conteneur, quelle que soit la marge réellement disponible. Un conteneur de 16 Go a été mesuré portant au moins 12,55 Go de mémoire anonyme, ce qui explique aussi pourquoi une exécution à 12 Go antérieure a été tuée avant que ces deux correctifs n'arrivent, et cela concorde avec le pic de 9,23 Go rapporté par l'auteur du signalement sur GPU — le même catalogue de modèles, moins ce qui réside en VRAM plutôt que dans la RAM du conteneur. Un utilisateur GPU qui dimensionnerait sur les chiffres CPU ci-dessus sur-dimensionnerait ; un utilisateur CPU qui dimensionnerait sur le chiffre GPU sous-dimensionnerait — utilisez celui qui correspond à la façon dont votre conteneur tourne réellement.
+
+Plus généralement : `MODEL_RAM_REQUIREMENTS` ne chiffre que le coût des poids. Le pic réel de RSS porte en plus le runtime torch, le bloc d'image décodée et les activations par couche, dont aucun n'entre dans ce chiffre — dimensionner un conteneur sur la seule colonne poids des modèles (total) le sous-dimensionnera.
+
+Les estimations `16gb` et `24gb` n'ont toujours aucune exécution réelle derrière elles, ni sur GPU ni sur CPU ; considérez 18 Go comme un placeholder provisoire, pas un plancher validé.
+
+Définissez la limite dans `docker-compose.yml` (ou un fichier de surcharge) :
+
+```yaml
+services:
+  facet:
+    mem_limit: 16g
+```
+
+### Le regroupement des passes a un plafond, et aucun plancher
+
+Le planificateur de passes de Facet budgète chaque passe CPU à la limite mémoire du cgroup du conteneur moins une réserve de 2 Go pour le runtime torch, plafonnée à 5 Go — un plafond qui empêche toute passe de grandir davantage, quelle que soit la taille de la limite. Il n'y a aucun plancher sous cette limite : un conteneur avec peu de marge après la réserve reçoit un petit budget, pouvant descendre jusqu'à zéro, ce qui revient simplement à isoler un modèle par passe.
+
+En l'absence totale de limite mémoire de conteneur, le budget vient de la RAM système : ce que la machine contient hors de son système d'exploitation (1 Go lui est réservé), divisé par 1,6 — le rapport mesuré entre la RSS réelle et le poids déclaré des modèles. Ce chemin n'a pas non plus de plancher : un hôte de 4 Go budgète 1,9 Go par passe et un hôte de 2 Go, 0,6 Go. Les versions antérieures maintenaient ici un minimum optimiste de 4 Go, qui était exactement le défaut décrit dans cette page sous les habits du bare metal : il planifiait une passe de 5 Go dans une machine de 4 Go.
+
+Un modèle plus gros que le budget obtient quand même sa propre passe plutôt que d'être scindé, et **chacune** de ces passes est nommée dans un avertissement, pas seulement la plus lourde : à une limite de conteneur de 4 Go, la capacité est de 2 Go, et le profil `24gb` planifie encore une passe de 8,0 Go, car `qwen3_5_4b_tagger` à lui seul nécessite 8 Go et ne peut pas être divisé, quelle que soit la petitesse du budget. Ne dimensionnez jamais un conteneur en dessous du plus gros modèle unique du profil que vous utilisez.
 
 ## Windows (WSL2) avec un GPU NVIDIA
 

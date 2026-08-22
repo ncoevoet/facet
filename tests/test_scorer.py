@@ -655,3 +655,59 @@ class TestAestheticHeadWeights:
         for key, tensor in scorer.aesthetic_head.state_dict().items():
             assert torch.equal(tensor, checkpoint[key]), key
         assert not (tmp_path / AESTHETIC_HEAD_WEIGHTS_FILENAME).exists()
+
+
+class TestFaceAnalyzerIsBuiltOnFirstUse:
+    """``Facet`` no longer pays for InsightFace before anything asks for it.
+
+    It used to build the analyzer in ``__init__``, including under
+    ``multi_pass=True``, where the attribute is never read: the multi-pass path
+    now loads the face model through ``ModelManager`` and unloads it when its
+    pass ends. Building it here as well kept a declared 2.0 GB resident beside
+    every other pass -- memory the pass planner had already handed to those
+    passes -- and nothing in the scan ever released it.
+    """
+
+    def _detached_scorer(self, lightweight):
+        from processing.scorer import Facet
+        scorer = Facet.__new__(Facet)
+        scorer.lightweight = lightweight
+        scorer.config = object()
+        scorer.device = 'cpu'
+        scorer._face_analyzer = None
+        return scorer
+
+    def test_it_is_built_once_on_first_read_and_then_reused(self):
+        from unittest import mock
+
+        scorer = self._detached_scorer(lightweight=False)
+        with mock.patch('models.model_manager.build_face_analyzer') as build:
+            assert scorer._face_analyzer is None
+
+            first = scorer.face_analyzer
+            second = scorer.face_analyzer
+
+        assert first is build.return_value
+        assert second is first
+        assert build.call_count == 1
+        assert build.call_args.args == (scorer.config, 'cpu')
+
+    def test_lightweight_mode_has_no_analyzer_and_builds_none(self):
+        from unittest import mock
+
+        scorer = self._detached_scorer(lightweight=True)
+        with mock.patch('models.model_manager.build_face_analyzer') as build:
+            assert scorer.face_analyzer is None
+
+        assert build.call_count == 0
+
+    def test_an_assigned_analyzer_overrides_the_build(self):
+        from unittest import mock
+
+        scorer = self._detached_scorer(lightweight=False)
+        stand_in = object()
+        scorer.face_analyzer = stand_in
+        with mock.patch('models.model_manager.build_face_analyzer') as build:
+            assert scorer.face_analyzer is stand_in
+
+        assert build.call_count == 0

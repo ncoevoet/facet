@@ -11,11 +11,24 @@ services:
       - ${PHOTOS_DIR:-./photos}:/data/photos
       - ./data:/app/data
       - ./storage:/app/storage
-      # Bring your own config to customize (weights, viewer password, categories):
-      #   cp scoring_config.default.json scoring_config.json   # then edit
-      # and uncomment the next line. Otherwise the image's baked, sanitized
-      # scoring_config.default.json is used and FACET_VRAM_PROFILE picks the profile.
-      # - ./scoring_config.json:/app/scoring_config.json
+      # Persistent, editable config. docker-entrypoint.sh seeds
+      # ./facet-config/scoring_config.json on first run from whatever
+      # /app/scoring_config.json holds — normally the image's baked default, so
+      # it starts equal to scoring_config.default.json, but an operator
+      # upgrading from the old `- ./scoring_config.json:/app/scoring_config.json`
+      # mount gets THEIR file carried across rather than reset. Edit it by hand
+      # afterwards to customize weights, viewer password, categories, etc. It
+      # is seeded 0600: it holds the viewer password and API keys in plaintext,
+      # and the config writer preserves the mode on every later write.
+      # Mounting a directory (rather than the file itself) lets the
+      # Docker daemon auto-create the host side on a first run with no
+      # ./facet-config yet — a single-file mount target would instead get
+      # created as an empty directory, shadowing the baked config. The
+      # container side is /config, not /app/config: the latter is the
+      # `config` PYTHON PACKAGE baked into the image (api/, config/, db/,
+      # ...) — mounting over it would shadow the package itself and the
+      # container would fail to import it.
+      - ./facet-config:/config
       # Model caches are Docker-managed named volumes so the image is fully
       # self-contained: it never reads the host's native model caches or any
       # shared local state. Models download once on first run into these volumes
@@ -27,6 +40,7 @@ services:
     environment:
       - FACET_LOG_LEVEL=INFO
       - DB_PATH=${DB_PATH:-/app/data/photo_scores_pro.db}
+      - FACET_CONFIG=/config/scoring_config.json
       # Pick the VRAM profile without editing any JSON (auto|legacy|8gb|16gb|24gb).
       - FACET_VRAM_PROFILE=${FACET_VRAM_PROFILE:-auto}
       # Personal-ranker auto-retrain: how much new signal arms a retrain, and how

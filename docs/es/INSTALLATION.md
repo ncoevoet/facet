@@ -214,10 +214,31 @@ Los controles de despliegue viven en `.env` (copia `.env.example`):
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` de la configuración | Disparador del reentrenamiento del clasificador personal, para quienes valoran mucho |
 
 Un `scoring_config.default.json` depurado viene integrado en la imagen como
-configuración activa, así que el contenedor funciona sin ninguna configuración en el
-host. Para personalizar los pesos, la contraseña del visor o las categorías: `cp
-scoring_config.default.json scoring_config.json`, edítalo, y luego descomenta el montaje
-de la configuración en `docker-compose.yml`.
+configuración inicial. `docker-entrypoint.sh` lo copia, solo en el primer arranque, al
+archivo persistente `./facet-config/scoring_config.json`, que `docker-compose.yml` ya
+monta (como `FACET_CONFIG=/config/scoring_config.json` dentro del contenedor) — así que
+el contenedor funciona sin ninguna configuración en el host, y cada escritura de
+configuración en tiempo de ejecución (la migración de la contraseña del visor, los pesos,
+las prioridades, los contextos de puntuación) ahora sobrevive a un `docker compose down
+&& up`. Edita `./facet-config/scoring_config.json` directamente para personalizar a mano
+los pesos, la contraseña del visor o las categorías; un archivo ya existente nunca se
+sobrescribe.
+
+> **¿Actualizas desde una versión anterior a este cambio?** Las versiones anteriores
+> indicaban hacer `cp scoring_config.default.json scoring_config.json` y descomentar una
+> línea `- ./scoring_config.json:/app/scoring_config.json` en `docker-compose.yml`. Ese
+> montaje ya no está en el fichero compose que se distribuye. Si adoptas el nuevo,
+> **mueve antes tu configuración existente**:
+>
+> ```bash
+> mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
+> ```
+>
+> De lo contrario el entrypoint crea una configuración por defecto nueva y tus pesos, tus
+> categorías y **tu contraseña del visor dejan de leerse** — y un
+> `viewer.edition_password` vacío desactiva por completo el control de edición. Si
+> conservas tu propio `docker-compose.yml` con el montaje antiguo, el entrypoint
+> inicializa `./facet-config` a partir de *ese* fichero y no se pierde nada.
 
 Las cachés de modelos viven en volúmenes con nombre gestionados por Docker
 (`facet-hf-cache`, `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), así que

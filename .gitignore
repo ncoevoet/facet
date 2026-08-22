@@ -32,6 +32,18 @@ aesthetic_predictor_weights.pth
 photos/
 @eaDir/
 
+# The Docker config bind mount, which docker-compose.yml puts INSIDE the clone
+# and docker-entrypoint.sh seeds on first run. Its scoring_config.json is the
+# live config of a running install: viewer.password, users.*.password_hash,
+# upload.password, frame.tokens and immich.api_key, all plaintext. The backups
+# and the secret beside it were already caught by the basename globs below —
+# the live file was the one gap, and it is the one that always exists.
+facet-config/
+
+# Deployment knobs — copied from .env.example and then filled in with real
+# values (PHOTOS_DIR, DB_PATH, and whatever else a site adds).
+.env
+
 # Config backups — both the bare name the secret migration and the password
 # upgrade write, and the timestamped ones from the config writers. The bare
 # name is NOT covered by the `.backup.*` pattern: it has no suffix.

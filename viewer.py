@@ -26,11 +26,20 @@ def _configure_logging():
     1. FACET_LOG_LEVEL env var
     2. scoring_config.json log_level field
     3. Default: INFO
+
+    The $FACET_CONFIG lookup is spelled out here rather than taken from
+    :func:`config.default_config_path`, for the same reason this function reads
+    the JSON by hand instead of building a ``ScoringConfig``: it runs before
+    ``logging.basicConfig``, and ``config/__init__.py`` imports
+    ``config.percentile_normalizer``, which imports ``db`` -- the whole
+    database layer, pulled in to read one string. The duplication is three
+    lines; the import is not.
     """
     level_name = os.environ.get("FACET_LOG_LEVEL")
     if not level_name:
+        config_path = os.environ.get("FACET_CONFIG", "").strip() or os.path.join(_script_dir, "scoring_config.json")
         try:
-            with open(os.path.join(_script_dir, "scoring_config.json")) as f:
+            with open(config_path) as f:
                 cfg = json.load(f)
             level_name = cfg.get("log_level")
         except Exception:

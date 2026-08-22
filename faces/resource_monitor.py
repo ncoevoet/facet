@@ -6,13 +6,9 @@ import logging
 import threading
 import time
 
-logger = logging.getLogger("facet.face_resources")
+from utils.system_memory import effective_memory
 
-try:
-    import psutil
-    HAS_PSUTIL = True
-except ImportError:
-    HAS_PSUTIL = False
+logger = logging.getLogger("facet.face_resources")
 
 class FaceResourceMonitor(threading.Thread):
     """
@@ -42,7 +38,7 @@ class FaceResourceMonitor(threading.Thread):
 
     def run(self):
         """Main monitoring loop."""
-        if not HAS_PSUTIL or not self.enabled:
+        if not self.enabled:
             return
 
         while not self.stop_event.is_set():
@@ -52,7 +48,7 @@ class FaceResourceMonitor(threading.Thread):
                 break
 
             try:
-                mem = psutil.virtual_memory().percent
+                mem = effective_memory().percent
                 if mem > self.memory_limit:
                     # Reduce batch size by 25%
                     with self.processor.config_lock:

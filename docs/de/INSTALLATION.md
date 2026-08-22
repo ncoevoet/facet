@@ -213,11 +213,31 @@ Bereitstellungs-Einstellungen liegen in `.env` (kopieren Sie `.env.example`):
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Datenbankpfad im Container, gehalten auf dem `./data`-Bind-Mount |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` der Konfiguration | Auslöser für das Neutrainieren des persönlichen Rankers, für Nutzer mit vielen Bewertungen |
 
-Eine bereinigte `scoring_config.default.json` ist als aktive Konfiguration ins Image
-eingebacken, sodass der Container ohne jede Host-Einrichtung läuft. Um Gewichte, das
-Viewer-Passwort oder Kategorien anzupassen: `cp scoring_config.default.json scoring_config.json`,
-bearbeiten Sie sie, und kommentieren Sie dann den Konfigurations-Mount in
-`docker-compose.yml` ein.
+Eine bereinigte `scoring_config.default.json` ist als Ausgangskonfiguration ins Image
+eingebacken. `docker-entrypoint.sh` kopiert sie nur beim ersten Start in die
+persistente Datei `./facet-config/scoring_config.json`, die `docker-compose.yml` bereits
+einhängt (als `FACET_CONFIG=/config/scoring_config.json` im Container) — der Container
+läuft also ohne jede Host-Einrichtung, und jede Konfigurationsänderung zur Laufzeit (die
+Migration des Viewer-Passworts, Gewichte, Prioritäten, Scoring-Kontexte) übersteht jetzt
+ein `docker compose down && up`. Bearbeiten Sie `./facet-config/scoring_config.json`
+direkt, um Gewichte, das Viewer-Passwort oder Kategorien von Hand anzupassen; eine
+bestehende Datei wird nie überschrieben.
+
+> **Sie steigen von einer Version vor dieser Änderung um?** Frühere Versionen rieten zu
+> `cp scoring_config.default.json scoring_config.json` und dem Auskommentieren einer
+> Zeile `- ./scoring_config.json:/app/scoring_config.json` in `docker-compose.yml`.
+> Dieser Mount ist aus der ausgelieferten Compose-Datei verschwunden. Wenn Sie die neue
+> übernehmen, **verschieben Sie Ihre bestehende Konfiguration zuerst**:
+>
+> ```bash
+> mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
+> ```
+>
+> Andernfalls legt der Entrypoint eine frische Standardkonfiguration an, und Ihre
+> Gewichte, Kategorien und **Ihr Viewer-Passwort werden nicht mehr gelesen** — ein leeres
+> `viewer.edition_password` deaktiviert die Bearbeitungssperre vollständig. Behalten Sie
+> Ihre eigene `docker-compose.yml` mit dem alten Mount, initialisiert der Entrypoint
+> `./facet-config` aus *dieser* Datei, und es geht nichts verloren.
 
 Modell-Caches liegen in von Docker verwalteten benannten Volumes (`facet-hf-cache`,
 `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), sodass das Image nie die
