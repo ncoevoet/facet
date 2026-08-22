@@ -14,7 +14,7 @@ Facet hat zwei Arbeitslasten:
 
 | Komponente | Hardware | Zweck |
 |-----------|----------|---------|
-| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (16 GB+ RAM, mehr für die Profile `16gb`/`24gb` — siehe [Speicherlimits für Container](#speicherlimits-für-container)) | Fotos analysieren und bewerten |
+| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (8 GB RAM Minimum, 12 GB empfohlen, mehr für die Profile `16gb`/`24gb` — siehe [Speicherlimits für Container](#speicherlimits-für-container)) | Fotos analysieren und bewerten |
 | **Viewer** (`viewer.py`) | Beliebige Maschine (geringe Ressourcen) | Web-Galerie bereitstellen |
 
 Nur der Viewer muss auf dem Server laufen. Bewerten Sie auf einer Workstation und synchronisieren Sie dann die Datenbank.

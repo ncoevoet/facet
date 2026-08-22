@@ -13,7 +13,7 @@ Facet has two workloads:
 
 | Component | Hardware | Purpose |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (16GB+ RAM, more for the `16gb`/`24gb` profiles — see [Container Memory Limits](#container-memory-limits)) | Analyze and score photos |
+| **Scoring** (`facet.py`) | GPU (6-24GB VRAM) or CPU (8GB minimum RAM, 12GB recommended, more for the `16gb`/`24gb` profiles — see [Container Memory Limits](#container-memory-limits)) | Analyze and score photos |
 | **Viewer** (`viewer.py`) | Any machine (low resources) | Serve the web gallery |
 
 Only the viewer needs to run on the server. Score on a workstation, then sync the database.

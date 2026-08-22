@@ -13,7 +13,7 @@ O Facet tem duas cargas de trabalho:
 
 | Componente | Hardware | Finalidade |
 |-----------|----------|---------|
-| **Pontuação** (`facet.py`) | GPU (6-24GB VRAM) ou CPU (16GB+ de RAM, mais para os perfis `16gb`/`24gb` — veja [Limites de memória do contêiner](#limites-de-memória-do-contêiner)) | Analisar e pontuar fotos |
+| **Pontuação** (`facet.py`) | GPU (6-24GB VRAM) ou CPU (8GB mínimo, 12GB recomendado de RAM, mais para os perfis `16gb`/`24gb` — veja [Limites de memória do contêiner](#limites-de-memória-do-contêiner)) | Analisar e pontuar fotos |
 | **Visualizador** (`viewer.py`) | Qualquer máquina (poucos recursos) | Servir a galeria web |
 
 Apenas o visualizador precisa rodar no servidor. Pontue em uma estação de trabalho e, em seguida, sincronize o banco de dados.

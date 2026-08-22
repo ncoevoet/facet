@@ -13,7 +13,7 @@ Facet comporte deux charges de travail :
 
 | Composant | Matériel | Rôle |
 |-----------|----------|---------|
-| **Scoring** (`facet.py`) | GPU (6-24 Go VRAM) ou CPU (16 Go+ RAM, plus pour les profils `16gb`/`24gb` — voir [Limites de mémoire du conteneur](#limites-de-mémoire-du-conteneur)) | Analyser et noter les photos |
+| **Scoring** (`facet.py`) | GPU (6-24 Go VRAM) ou CPU (8 Go minimum, 12 Go recommandés, plus pour les profils `16gb`/`24gb` — voir [Limites de mémoire du conteneur](#limites-de-mémoire-du-conteneur)) | Analyser et noter les photos |
 | **Galerie web** (`viewer.py`) | Toute machine (peu de ressources) | Servir la galerie web |
 
 Seule la galerie web doit tourner sur le serveur. Notez les photos sur un poste de travail, puis synchronisez la base de données.
