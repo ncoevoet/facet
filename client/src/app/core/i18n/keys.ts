@@ -987,6 +987,7 @@ export const I18N = {
     help: "gallery.help",
     hidden_banner: {
       message: "gallery.hidden_banner.message",
+      some_hidden: "gallery.hidden_banner.some_hidden",
       show_all: "gallery.hidden_banner.show_all",
       restore: "gallery.hidden_banner.restore",
       showing_all: "gallery.hidden_banner.showing_all",

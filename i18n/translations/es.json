@@ -971,6 +971,7 @@
     "help": "Explora y filtra tu biblioteca. Ordena por puntuación, fecha o tu gusto personal; usa los filtros de la barra lateral (personas, etiquetas, cámara, categoría, rango de puntuación, momentos) y la búsqueda para encontrar fotos.",
     "hidden_banner": {
       "message": "{n} fotos ocultas por los filtros actuales",
+      "some_hidden": "Algunas fotos están ocultas por tus filtros",
       "show_all": "Mostrar todas",
       "restore": "Restaurar filtros",
       "showing_all": "Se muestran todas las fotos, incluidos parpadeos, ráfagas y duplicados"

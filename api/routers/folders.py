@@ -9,7 +9,10 @@ from fastapi import APIRouter, Depends, Query
 
 from api.auth import CurrentUser, get_optional_user
 from api.database import get_async_db
-from api.db_helpers import get_visibility_clause, build_hide_clauses, get_photos_from_clause
+from api.db_helpers import (
+    get_visibility_clause, get_photos_from_clause,
+    hide_toggle_params, hide_clauses_from_toggles,
+)
 from api.models.scan import FoldersResponse
 
 logger = logging.getLogger(__name__)
@@ -25,9 +28,7 @@ def _normalize_path(path: str) -> str:
 @router.get("/api/folders", response_model=FoldersResponse, response_model_exclude_unset=True)
 async def api_folders(
     prefix: str = Query('', description="Parent directory path, empty = root level"),
-    hide_blinks: str = Query('0'),
-    hide_bursts: str = Query('0'),
-    hide_duplicates: str = Query('0'),
+    hide_toggles: dict = Depends(hide_toggle_params),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """List subdirectories with cover photos and photo counts.
@@ -44,7 +45,7 @@ async def api_folders(
             where_clauses = [vis_sql]
             sql_params = list(from_params) + list(vis_params)
 
-            where_clauses.extend(build_hide_clauses(hide_blinks, hide_bursts, hide_duplicates))
+            where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
             # Normalize prefix to forward slash
             norm_prefix = _normalize_path(prefix).rstrip('/') + '/' if prefix else ''

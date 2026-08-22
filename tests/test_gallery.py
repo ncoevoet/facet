@@ -471,6 +471,58 @@ class TestGalleryTypeCountsEndpoint:
         assert "types" in data
         assert isinstance(data["types"], list)
 
+    def _spy_get_photo_types(self, captured):
+        def _spy(hide_blinks, hide_bursts, hide_duplicates,
+                 hide_brackets=False, hide_panoramas=False, user_id=None):
+            captured["args"] = (hide_blinks, hide_bursts, hide_duplicates)
+            captured["set_args"] = (hide_brackets, hide_panoramas)
+            return []
+        return _spy
+
+    def test_absent_hide_bursts_resolves_from_viewer_default(self, tmp_path):
+        """Issue #112: an absent hide_bursts must resolve from viewer.defaults,
+        not always be treated as off."""
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [_photo("/a.jpg", "2024:01:01 10:00:00")])
+        app = _create_app_no_auth()
+        captured = {}
+        with (
+            mock.patch("api.routers.gallery.get_photo_types", side_effect=self._spy_get_photo_types(captured)),
+            mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": {"hide_bursts": True}}),
+        ):
+            resp = TestClient(app).get("/api/type_counts")
+        assert resp.status_code == 200
+        assert captured["args"] == (False, True, False)
+
+    def test_explicit_hide_bursts_zero_overrides_the_default(self, tmp_path):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [_photo("/a.jpg", "2024:01:01 10:00:00")])
+        app = _create_app_no_auth()
+        captured = {}
+        with (
+            mock.patch("api.routers.gallery.get_photo_types", side_effect=self._spy_get_photo_types(captured)),
+            mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": {"hide_bursts": True}}),
+        ):
+            resp = TestClient(app).get("/api/type_counts", params={"hide_bursts": "0"})
+        assert resp.status_code == 200
+        assert captured["args"] == (False, False, False)
+
+    def test_bracket_and_panorama_toggles_reach_the_counter(self, tmp_path):
+        """The gallery hides brackets and panoramas by default, so the type chips
+        must count the same way or they advertise photos the grid will not show."""
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [_photo("/a.jpg", "2024:01:01 10:00:00")])
+        app = _create_app_no_auth()
+        captured = {}
+        with (
+            mock.patch("api.routers.gallery.get_photo_types", side_effect=self._spy_get_photo_types(captured)),
+            mock.patch("api.db_helpers.VIEWER_CONFIG",
+                       {"defaults": {"hide_brackets": True, "hide_panoramas": True}}),
+        ):
+            resp = TestClient(app).get("/api/type_counts")
+        assert resp.status_code == 200
+        assert captured["set_args"] == (True, True)
+
 
 # ---------------------------------------------------------------------------
 # Single Photo

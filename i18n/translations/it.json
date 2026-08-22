@@ -971,6 +971,7 @@
     "help": "Sfoglia e filtra la tua libreria. Ordina per punteggio, data o per i tuoi gusti personali; usa i filtri della barra laterale (persone, tag, fotocamera, categoria, intervallo di punteggio, momenti) e la ricerca per trovare le foto.",
     "hidden_banner": {
       "message": "{n} foto nascoste dai filtri attivi",
+      "some_hidden": "Alcune foto sono nascoste dai tuoi filtri",
       "show_all": "Mostra tutte",
       "restore": "Ripristina i filtri",
       "showing_all": "Vengono mostrate tutte le foto, inclusi occhi chiusi, raffiche e duplicati"

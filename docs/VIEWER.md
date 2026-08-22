@@ -460,12 +460,14 @@ Controlled by `viewer.features.show_memories` (default: `true`).
 ## Common workflows
 
 - **Cull a vacation** — open Capsules → look for the auto-generated `journey` capsule for the trip dates. Each capsule offers a Save-as-Album action.
-- **Walk a day-by-day review** — open Timeline → sort by aggregate → step through the year. Top shots float up first when you've enabled `hide_bursts` and `hide_duplicates` (defaults: on).
+- **Browse a day-by-day review** — open Timeline and drill down years → months → a calendar of days; click a day to open the gallery filtered to that date. There's no sort control in Timeline itself, but the day/month/year counts and hero thumbnails now honor the same `hide_bursts` / `hide_duplicates` toggles as the gallery (defaults: on), so a tile's count matches what clicking it opens.
 - **Show what's hidden** — the gallery hides blinks / non-lead bursts / non-lead duplicates by default. When at least one of those filters is on and would exclude rows, a "N photos hidden by current filters · Show all" banner appears above the grid.
 
 ## Timeline View
 
-Chronological photo browser with date-based navigation. Scroll through photos organized by date with a sidebar showing available years and months.
+Chronological photo browser: a grid of years drills down to a grid of months, then to a calendar of days, each tile showing a photo count and hero thumbnail. Click a day to open the gallery filtered to that date. There is no sort control in Timeline itself — sorting happens in the gallery you land on.
+
+The five gallery hide toggles (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) apply at every level, falling back to `viewer.defaults` when a request sends none — so a year/month/day tile counts and picks its hero thumbnail only from photos the gallery would actually show. When at least one toggle is hiding something, a `visibility_off` button appears in the toolbar (and the mobile bottom bar) with the tooltip "Some photos are hidden by your filters"; click it to clear all five, the same as the gallery's own hidden-photos banner.
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
@@ -1087,7 +1089,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `GET /api/photo` | Single photo details |
 | `GET /api/photo/set?path=` | The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to (sequence takes precedence over burst, burst over duplicate), keyed on `path` — never a group id, which the bracket and panorama passes each renumber from 1 on every run |
 | `GET /api/photo/histogram?path=&bins=` | Draw-ready luminance + R/G/B bins (`bins` ∈ 32/64/128/256, default 64) measured at scan time on the full-resolution image. Every channel is scaled by one global max, never its own. `r`/`g`/`b` are `null` for a row stored before the per-channel format; 404 when the row has no histogram at all, which is the widget's signal to fall back to sampling the thumbnail |
-| `GET /api/type_counts` | Photo counts per type |
+| `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Photo counts per type for the sidebar chips. Same five toggles as the gallery; an omitted one falls back to `viewer.defaults` rather than "off" — send `hide_bursts=0` etc. explicitly to count everything |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantic text-to-image search (`scope=text` = OCR/caption text only) |
 | `GET /api/critique?path=&mode=&refresh=` | AI critique (rule-based or VLM); `refresh=true` regenerates the cached VLM critique |
@@ -1185,10 +1187,10 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `GET /api/memories/check` | Check if memories exist for a date |
 | `GET /api/caption?path=` | Get or generate AI caption |
 | `PUT /api/caption` | Update photo caption (edition mode) |
-| `GET /api/timeline?cursor=&limit=&direction=` | Paginated timeline photos |
-| `GET /api/timeline/dates?year=&month=` | Available dates for navigation |
-| `GET /api/timeline/years` | Available years with photo counts |
-| `GET /api/timeline/months` | Available months for a year |
+| `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Paginated timeline photos. The five `hide_*` toggles are the gallery's; an omitted one falls back to `viewer.defaults` rather than "off" |
+| `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available dates for navigation (same `hide_*` fallback) |
+| `GET /api/timeline/years?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available years with photo counts (same `hide_*` fallback) |
+| `GET /api/timeline/months?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available months for a year (same `hide_*` fallback) |
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Geotagged photos within bounds |
 | `GET /api/photos/map/count` | Count of geotagged photos |
 
@@ -1319,7 +1321,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/folders` | List photo folder structure |
+| `GET /api/folders?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | List photo folder structure. Same `hide_*` fallback to `viewer.defaults` as the gallery |
 
 ### Download
 

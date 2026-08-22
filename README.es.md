@@ -70,7 +70,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 </details>
 
 **Consejos de flujo de trabajo:**
-- Para una revisión cronológica de un viaje o un año, abre **`/timeline`** — ordena por puntuación global para recorrer las mejores tomas de un día, o avanza mes a mes.
+- La vista **`/timeline`** desciende de años a meses y a un calendario de días — haz clic en un día para abrir la galería filtrada a esa fecha. Aquí no hay ordenación; para elegir las mejores tomas de un viaje, usa **`/capsules`** más abajo, que aplica un paso de diversidad sobre un rango de fechas que puedes guardar como álbum.
 - La vista **`/capsules`** genera diaporamas temáticos (viajes, "Rostros de", estacionales, dorados) que puedes guardar como álbumes.
 - La galería oculta por defecto los parpadeos, las ráfagas no principales y los duplicados. Cuando aparezca el aviso **"N fotos ocultas por los filtros actuales"**, haz clic en "Mostrar todas" para ampliar la vista.
 

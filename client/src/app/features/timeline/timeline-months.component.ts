@@ -8,6 +8,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
+import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
 import { I18N_KEYS } from '../../core/i18n/keys';
 
 interface MonthSummary {
@@ -68,6 +69,7 @@ export class TimelineMonthsComponent {
   protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
+  private readonly store = inject(GalleryStore);
 
   readonly year = input.required<string>();
   readonly monthSelected = output<string>();
@@ -80,14 +82,17 @@ export class TimelineMonthsComponent {
       const y = this.year();
       const dateFrom = this.filters.dateFrom();
       const dateTo = this.filters.dateTo();
-      if (y) this.load(y, dateFrom, dateTo);
+      const viewParams = this.store.viewFilterParams();
+      if (y) this.load(y, dateFrom, dateTo, viewParams);
     });
   }
 
-  private async load(year: string, dateFrom: string, dateTo: string): Promise<void> {
+  private async load(
+    year: string, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
+  ): Promise<void> {
     this.loading.set(true);
     try {
-      const params: Record<string, string | number> = { year: +year };
+      const params: Record<string, string | number> = { year: +year, ...viewParams };
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(

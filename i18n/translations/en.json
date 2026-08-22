@@ -971,6 +971,7 @@
     "help": "Browse and filter your library. Sort by score, date or your personal taste; use the sidebar filters (people, tags, camera, category, score range, moments) and the search to find photos.",
     "hidden_banner": {
       "message": "{n} photos hidden by current filters",
+      "some_hidden": "Some photos are hidden by your filters",
       "show_all": "Show all",
       "restore": "Restore filters",
       "showing_all": "Showing every photo — blinks, bursts and duplicates included"

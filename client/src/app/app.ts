@@ -26,7 +26,7 @@ import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
 import { PageHelpService } from './core/services/page-help.service';
 import { HeaderSlotService } from './core/services/header-slot.service';
-import { GalleryStore, GalleryFilters } from './features/gallery/gallery.store';
+import { GalleryStore, GalleryFilters, anyHideToggleActive } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { TimelineFiltersService } from './features/timeline/timeline-filters.service';
 import { AlbumsFiltersService } from './features/albums/albums-filters.service';
@@ -203,6 +203,14 @@ export class App implements OnInit {
   protected readonly isCapsuleRoute = computed(() => this.url().split('?')[0] === '/capsules');
   protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
+
+  /** Mirrors TimelineComponent.anyHiddenByFilters for the mobile bottom bar's
+   *  own copy of the affordance — same GalleryStore signal, same shared
+   *  predicate, only the markup is duplicated (matches the mobile gallery bar's
+   *  own precedent of a separate template driven by the same store). */
+  protected readonly anyTimelinePhotosHiddenByFilters = computed(
+    () => anyHideToggleActive(this.store.viewFilterParams()),
+  );
 
   /** On mobile the selection action bar replaces the route's bottom bar rather than
    *  stacking on top of it, so the two can never overlap (issue #73). */

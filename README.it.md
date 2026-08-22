@@ -70,7 +70,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 </details>
 
 **Suggerimenti per il flusso di lavoro:**
-- Per una revisione cronologica di un viaggio o di un anno, apri **`/timeline`** — ordina per aggregato per scorrere i migliori scatti di una giornata, oppure naviga mese per mese.
+- La vista **`/timeline`** scende da anni a mesi fino a un calendario di giorni — clicca su un giorno per aprire la galleria filtrata su quella data. Qui non c'è alcun ordinamento; per scegliere i migliori scatti di un viaggio, usa invece **`/capsules`** più sotto, che applica un passaggio di diversità su un intervallo di date che puoi salvare come album.
 - La vista **`/capsules`** genera diaporami a tema (viaggi, "Volti di", stagionali, dorate) che puoi salvare come album.
 - La galleria nasconde per impostazione predefinita gli occhi chiusi, le raffiche non principali e i duplicati. Quando compare il banner **"N foto nascoste dai filtri attivi"**, clicca su "Mostra tutte" per espandere la vista.
 

@@ -65,10 +65,6 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 
-/** The three toggles the hidden-photos banner clears and restores together. */
-type HiddenFilterFlags = Pick<GalleryFilters,
-  'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas'>;
-
 const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
 
 
@@ -202,7 +198,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             <span class="flex-1">
               {{ I18N.gallery.hidden_banner.message | translate:{ n: store.hiddenSummary().total } }}
             </span>
-            <button mat-button class="!min-w-0" (click)="showAllHidden()">
+            <button mat-button class="!min-w-0" (click)="store.showAllHidden()">
               {{ I18N.gallery.hidden_banner.show_all | translate }}
             </button>
           </div>
@@ -212,7 +208,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             <span class="flex-1">
               {{ I18N.gallery.hidden_banner.showing_all | translate }}
             </span>
-            <button mat-button class="!min-w-0" (click)="restoreHidden()">
+            <button mat-button class="!min-w-0" (click)="store.restoreHidden()">
               {{ I18N.gallery.hidden_banner.restore | translate }}
             </button>
           </div>
@@ -779,49 +775,16 @@ export class GalleryComponent implements OnInit, OnDestroy {
       && (f.hide_blinks || f.hide_bursts || f.hide_duplicates || f.hide_brackets || f.hide_panoramas);
   });
 
-  /**
-   * The hide toggles as they stood before "Show all" cleared them.
-   *
-   * View state, not a filter: "Show all" used to be one-way, so peeking at the
-   * blinks and burst frames a filter was holding back meant walking to the
-   * sidebar and re-ticking three boxes from memory. Kept here rather than in the
-   * store because nothing outside this banner needs it.
-   */
-  private readonly hiddenFiltersStash = signal<HiddenFilterFlags | null>(null);
-
-  /** Offer the restore only while all three are still off, so it never fights a manual change. */
+  /** Offer the restore only while all five are still off, so it never fights a manual change.
+   *  The stash itself (and showAllHidden()/restoreHidden()) lives on GalleryStore — the
+   *  timeline's reachability banner offers the same affordance and needs the same state. */
   readonly canRestoreHidden = computed(() => {
-    const stash = this.hiddenFiltersStash();
+    const stash = this.store.hiddenFiltersStash();
     if (!stash) return false;
     const f = this.store.filters();
     return !f.hide_blinks && !f.hide_bursts && !f.hide_duplicates && !f.hide_brackets
       && !f.hide_panoramas;
   });
-
-  showAllHidden(): void {
-    const f = this.store.filters();
-    this.hiddenFiltersStash.set({
-      hide_blinks: f.hide_blinks,
-      hide_bursts: f.hide_bursts,
-      hide_duplicates: f.hide_duplicates,
-      hide_brackets: f.hide_brackets,
-      hide_panoramas: f.hide_panoramas,
-    });
-    void this.store.updateFilters({
-      hide_blinks: false,
-      hide_bursts: false,
-      hide_duplicates: false,
-      hide_brackets: false,
-      hide_panoramas: false,
-    });
-  }
-
-  restoreHidden(): void {
-    const stash = this.hiddenFiltersStash();
-    if (!stash) return;
-    this.hiddenFiltersStash.set(null);
-    void this.store.updateFilters({ ...stash });
-  }
 
   /** The active set-scope kind (from photo-detail's "open this set"), or null. */
   readonly setScopeKind = computed(() => {

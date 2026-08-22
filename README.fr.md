@@ -70,7 +70,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 </details>
 
 **Conseils de flux de travail :**
-- Pour une revue chronologique d'un voyage ou d'une année, ouvrez **`/timeline`** — triez par agrégat pour parcourir les meilleures prises d'une journée, ou paginez mois par mois.
+- La vue **`/timeline`** descend des années aux mois puis à un calendrier de jours — cliquez sur un jour pour ouvrir la galerie filtrée sur cette date. Il n'y a pas de tri ici ; pour choisir les meilleures prises d'un voyage, utilisez plutôt **`/capsules`** ci-dessous, qui applique une passe de diversité sur une plage de dates que vous pouvez enregistrer comme album.
 - La vue **`/capsules`** génère des diaporamas thématiques (voyages, « Visages de », saisonniers, dorés) que vous pouvez enregistrer comme albums.
 - La galerie masque par défaut les clignements, les rafales secondaires et les doublons. Lorsque la bannière **« N photos masquées par les filtres actuels »** apparaît, cliquez sur « Tout afficher » pour développer la vue.
 

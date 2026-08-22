@@ -971,6 +971,7 @@
     "help": "Parcourez et filtrez votre bibliothèque. Triez par score, date ou par vos goûts personnels ; utilisez les filtres de la barre latérale (personnes, mots-clés, appareil, catégorie, plage de score, moments) et la recherche pour trouver des photos.",
     "hidden_banner": {
       "message": "{n} photos masquées par les filtres actuels",
+      "some_hidden": "Certaines photos sont masquées par vos filtres",
       "show_all": "Tout afficher",
       "restore": "Rétablir les filtres",
       "showing_all": "Toutes les photos sont affichées, y compris clignements, rafales et doublons"

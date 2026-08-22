@@ -70,6 +70,9 @@ describe('GalleryComponent', () => {
       viewSnapshot: signal(null),
       filterKey: vi.fn((f?: GalleryFilters) => JSON.stringify(buildApiParams(f ?? mockStore.filters(), false))),
       hiddenSummary: signal({ total: 0, blinks: 0, bursts: 0, duplicates: 0 }),
+      hiddenFiltersStash: signal(null),
+      showAllHidden: vi.fn(),
+      restoreHidden: vi.fn(),
       updateFilters: vi.fn(() => Promise.resolve()),
       setRating: vi.fn(),
       batchFavorite: vi.fn(() => Promise.resolve(new Map())),
@@ -444,22 +447,15 @@ describe('GalleryComponent', () => {
   });
 
   describe('hidden-photos banner toggle', () => {
-    it('stashes the hide flags and offers to restore them', async () => {
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true });
-
-      component.showAllHidden();
-      expect(mockStore.updateFilters).toHaveBeenCalledWith({
-        hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false,
-      });
-
-      // The store is mocked, so mirror the write the real one would have made.
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
-      expect(component.canRestoreHidden()).toBe(true);
-
-      component.restoreHidden();
-      expect(mockStore.updateFilters).toHaveBeenLastCalledWith({
+    // showAllHidden()/restoreHidden() now live on GalleryStore (see
+    // gallery.store.spec.ts) — the component only derives canRestoreHidden
+    // from the store's hiddenFiltersStash + filters signals.
+    it('offers the restore once a stash exists and every toggle is off', () => {
+      mockStore.hiddenFiltersStash.set({
         hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
       });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
+      expect(component.canRestoreHidden()).toBe(true);
     });
 
     it('offers no restore before Show all has been used', () => {
@@ -467,8 +463,9 @@ describe('GalleryComponent', () => {
     });
 
     it('withdraws the restore once a hide filter is switched back on by hand', () => {
-      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true });
-      component.showAllHidden();
+      mockStore.hiddenFiltersStash.set({
+        hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
+      });
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
       expect(component.canRestoreHidden()).toBe(false);
     });

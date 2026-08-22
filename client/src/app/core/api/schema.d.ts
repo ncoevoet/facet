@@ -9562,9 +9562,11 @@ export interface operations {
             query?: {
                 /** @description Parent directory path, empty = root level */
                 prefix?: string;
-                hide_blinks?: string;
-                hide_bursts?: string;
-                hide_duplicates?: string;
+                hide_blinks?: string | null;
+                hide_bursts?: string | null;
+                hide_duplicates?: string | null;
+                hide_brackets?: string | null;
+                hide_panoramas?: string | null;
             };
             header?: never;
             path?: never;
@@ -12354,12 +12356,14 @@ export interface operations {
                 direction?: string;
                 date_from?: string | null;
                 date_to?: string | null;
-                hide_blinks?: string;
-                hide_bursts?: string;
-                hide_duplicates?: string;
                 photos_per_group?: number | null;
                 sort_by?: string;
                 granularity?: string;
+                hide_blinks?: string | null;
+                hide_bursts?: string | null;
+                hide_duplicates?: string | null;
+                hide_brackets?: string | null;
+                hide_panoramas?: string | null;
             };
             header?: never;
             path?: never;
@@ -12392,11 +12396,13 @@ export interface operations {
             query: {
                 year: number;
                 month?: number | null;
-                hide_blinks?: string;
-                hide_bursts?: string;
-                hide_duplicates?: string;
                 date_from?: string | null;
                 date_to?: string | null;
+                hide_blinks?: string | null;
+                hide_bursts?: string | null;
+                hide_duplicates?: string | null;
+                hide_brackets?: string | null;
+                hide_panoramas?: string | null;
             };
             header?: never;
             path?: never;
@@ -12428,11 +12434,13 @@ export interface operations {
         parameters: {
             query: {
                 year: number;
-                hide_blinks?: string;
-                hide_bursts?: string;
-                hide_duplicates?: string;
                 date_from?: string | null;
                 date_to?: string | null;
+                hide_blinks?: string | null;
+                hide_bursts?: string | null;
+                hide_duplicates?: string | null;
+                hide_brackets?: string | null;
+                hide_panoramas?: string | null;
             };
             header?: never;
             path?: never;
@@ -12463,11 +12471,13 @@ export interface operations {
     api_timeline_years_api_timeline_years_get: {
         parameters: {
             query?: {
-                hide_blinks?: string;
-                hide_bursts?: string;
-                hide_duplicates?: string;
                 date_from?: string | null;
                 date_to?: string | null;
+                hide_blinks?: string | null;
+                hide_bursts?: string | null;
+                hide_duplicates?: string | null;
+                hide_brackets?: string | null;
+                hide_panoramas?: string | null;
             };
             header?: never;
             path?: never;
@@ -12498,9 +12508,11 @@ export interface operations {
     api_type_counts_api_type_counts_get: {
         parameters: {
             query?: {
-                hide_blinks?: string;
-                hide_bursts?: string;
-                hide_duplicates?: string;
+                hide_blinks?: string | null;
+                hide_bursts?: string | null;
+                hide_duplicates?: string | null;
+                hide_brackets?: string | null;
+                hide_panoramas?: string | null;
             };
             header?: never;
             path?: never;

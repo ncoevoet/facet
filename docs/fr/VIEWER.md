@@ -401,12 +401,14 @@ Contrôlé par `viewer.features.show_memories` (par défaut : `true`).
 ## Workflows courants
 
 - **Trier des vacances** — ouvrez Capsules → recherchez la capsule `journey` générée automatiquement pour les dates du voyage. Chaque capsule offre une action Enregistrer comme album.
-- **Parcourir une revue jour par jour** — ouvrez Chronologie → triez par agrégat → avancez à travers l'année. Les meilleurs clichés remontent en premier lorsque vous avez activé `hide_bursts` et `hide_duplicates` (par défaut : activés).
+- **Parcourir une revue jour par jour** — ouvrez Chronologie et descendez des années aux mois puis à un calendrier de jours ; cliquez sur un jour pour ouvrir la galerie filtrée sur cette date. Chronologie n'a pas de tri propre, mais les comptages par jour/mois/année et les vignettes vedettes respectent désormais les mêmes bascules `hide_bursts` / `hide_duplicates` que la galerie (par défaut : activées), si bien que le nombre affiché sur une case correspond à ce que son ouverture montre.
 - **Afficher ce qui est masqué** — la galerie masque par défaut les clignements / rafales non-leaders / doublons non-leaders. Lorsqu'au moins un de ces filtres est actif et exclurait des lignes, une bannière « N photos masquées par les filtres actuels · Tout afficher » apparaît au-dessus de la grille.
 
 ## Vue Chronologie
 
-Navigateur de photos chronologique avec navigation par date. Faites défiler les photos organisées par date avec une barre latérale affichant les années et les mois disponibles.
+Navigateur de photos chronologique : une grille d'années descend vers une grille de mois, puis vers un calendrier de jours, chaque case affichant un nombre de photos et une vignette vedette. Cliquez sur un jour pour ouvrir la galerie filtrée sur cette date. Il n'y a pas de tri dans Chronologie elle-même — le tri se fait dans la galerie sur laquelle vous arrivez.
+
+Les cinq bascules de masquage de la galerie (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) s'appliquent à chaque niveau et retombent sur `viewer.defaults` quand une requête n'en envoie aucune — une case d'année/mois/jour ne compte et ne choisit sa vignette vedette que parmi les photos que la galerie afficherait réellement. Quand au moins une bascule masque quelque chose, un bouton `visibility_off` apparaît dans la barre d'outils (et la barre inférieure mobile) avec l'infobulle « Certaines photos sont masquées par vos filtres » ; cliquez dessus pour effacer les cinq, comme le fait la propre bannière de photos masquées de la galerie.
 
 API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
@@ -1042,7 +1044,7 @@ Les types TypeScript du client sont générés à partir de ce schéma dans `cli
 | `GET /api/photo` | Détails d'une seule photo |
 | `GET /api/photo/set?path=` | L'ensemble bracketing/panorama/hdr_panorama/rafale/doublon auquel appartient une photo (la séquence l'emporte sur la rafale, la rafale sur le doublon), indexé sur `path` — jamais un identifiant de groupe, que les passes de bracketing et de panorama renumérotent chacune à partir de 1 à chaque exécution |
 | `GET /api/photo/histogram?path=&bins=` | Bins de luminance + R/V/B prêts à dessiner (`bins` ∈ 32/64/128/256, 64 par défaut), mesurés lors de l'analyse sur l'image pleine résolution. Chaque canal est mis à l'échelle par un maximum global unique, jamais par le sien. `r`/`g`/`b` valent `null` pour une ligne enregistrée avant le format par canal ; 404 lorsque la ligne n'a aucun histogramme, ce qui indique au widget de retomber sur l'échantillonnage de la miniature |
-| `GET /api/type_counts` | Nombre de photos par type |
+| `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Nombre de photos par type pour les puces de la barre latérale. Mêmes cinq bascules que la galerie ; une bascule omise retombe sur `viewer.defaults` plutôt que sur « désactivé » — envoyez `hide_bursts=0`, etc., explicitement pour tout compter |
 | `GET /api/similar_photos/{path}` | Photos similaires (modes : `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Recherche sémantique texte-vers-image (`scope=text` = texte OCR/légende uniquement) |
 | `GET /api/critique?path=&mode=&refresh=` | Critique IA (basée sur des règles ou VLM) ; `refresh=true` régénère la critique VLM mise en cache |
@@ -1140,10 +1142,10 @@ Les types TypeScript du client sont générés à partir de ce schéma dans `cli
 | `GET /api/memories/check` | Vérifier si des souvenirs existent pour une date |
 | `GET /api/caption?path=` | Obtenir ou générer une légende IA |
 | `PUT /api/caption` | Mettre à jour la légende d'une photo (mode édition) |
-| `GET /api/timeline?cursor=&limit=&direction=` | Photos de chronologie paginées |
-| `GET /api/timeline/dates?year=&month=` | Dates disponibles pour la navigation |
-| `GET /api/timeline/years` | Années disponibles avec comptages de photos |
-| `GET /api/timeline/months` | Mois disponibles pour une année |
+| `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Photos de chronologie paginées. Les cinq bascules `hide_*` sont celles de la galerie ; une bascule omise retombe sur `viewer.defaults` plutôt que sur « désactivé » |
+| `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Dates disponibles pour la navigation (même repli `hide_*`) |
+| `GET /api/timeline/years?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Années disponibles avec comptages de photos (même repli `hide_*`) |
+| `GET /api/timeline/months?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Mois disponibles pour une année (même repli `hide_*`) |
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Photos géolocalisées dans les limites |
 | `GET /api/photos/map/count` | Nombre de photos géolocalisées |
 
@@ -1272,7 +1274,7 @@ Les types TypeScript du client sont générés à partir de ce schéma dans `cli
 
 | Point d'accès | Description |
 |----------|-------------|
-| `GET /api/folders` | Lister la structure des dossiers de photos |
+| `GET /api/folders?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Lister la structure des dossiers de photos. Même repli `hide_*` vers `viewer.defaults` que la galerie |
 
 ### Téléchargement
 

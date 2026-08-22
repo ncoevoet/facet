@@ -1233,7 +1233,7 @@ class TestSmartAlbumCoverAppliesHideDefaults:
         with (
             mock.patch("api.routers.gallery._build_gallery_where",
                        return_value=([], [])) as build_where,
-            mock.patch(f"{_ALBUMS_MODULE}.VIEWER_CONFIG", {'defaults': self._DEFAULTS}),
+            mock.patch("api.db_helpers.VIEWER_CONFIG", {'defaults': self._DEFAULTS}),
         ):
             _compute_smart_album_cover(conn, album)
         return build_where.call_args[0][0]

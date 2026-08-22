@@ -513,3 +513,47 @@ export function buildApiParams(
 
   return params;
 }
+
+/** Wire projection of the five hide toggles as explicit '1'/'0' strings.
+ *  Views fetched independently of the gallery grid (timeline, folders, type
+ *  counts) must send the gallery's EFFECTIVE toggle state rather than omitting
+ *  false ones for the server to resolve from `viewer.defaults` — the moment a
+ *  user has ever toggled anything, localStorage/URL overlays can diverge from
+ *  that config default (see gallery.store.ts loadConfig()). */
+export interface ViewFilterParams {
+  hide_blinks: string;
+  hide_bursts: string;
+  hide_duplicates: string;
+  hide_brackets: string;
+  hide_panoramas: string;
+}
+
+export function buildViewFilterParams(f: GalleryFilters): ViewFilterParams {
+  return {
+    hide_blinks: f.hide_blinks ? '1' : '0',
+    hide_bursts: f.hide_bursts ? '1' : '0',
+    hide_duplicates: f.hide_duplicates ? '1' : '0',
+    hide_brackets: f.hide_brackets ? '1' : '0',
+    hide_panoramas: f.hide_panoramas ? '1' : '0',
+  };
+}
+
+/** Shallow comparator for `viewFilterParams` so unrelated filter churn (camera,
+ *  page, sort…) doesn't re-fire every consumer's effect on every keystroke. */
+export function viewFilterParamsEqual(a: ViewFilterParams, b: ViewFilterParams): boolean {
+  return a.hide_blinks === b.hide_blinks
+    && a.hide_bursts === b.hide_bursts
+    && a.hide_duplicates === b.hide_duplicates
+    && a.hide_brackets === b.hide_brackets
+    && a.hide_panoramas === b.hide_panoramas;
+}
+
+/** True when at least one of the five hide toggles is on — a bucket/day whose
+ *  photos are ALL hidden by such a toggle can render a count of 0, which
+ *  timeline-days.component.ts then makes unreachable. Shared by the desktop
+ *  and mobile timeline banners so the "photos may be hidden" predicate lives
+ *  in exactly one place. */
+export function anyHideToggleActive(p: ViewFilterParams): boolean {
+  return p.hide_blinks === '1' || p.hide_bursts === '1' || p.hide_duplicates === '1'
+    || p.hide_brackets === '1' || p.hide_panoramas === '1';
+}

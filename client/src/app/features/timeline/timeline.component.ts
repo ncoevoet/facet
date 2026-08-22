@@ -4,6 +4,7 @@ import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { TimelineYearsComponent } from './timeline-years.component';
@@ -14,6 +15,7 @@ import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
+import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
 
 @Component({
   selector: 'app-timeline',
@@ -21,6 +23,7 @@ import { DateRangeFilterComponent } from '../../shared/components/date-range-fil
   imports: [
     MatIconModule,
     MatButtonModule,
+    MatTooltipModule,
     TranslatePipe,
     TimelineYearsComponent,
     TimelineMonthsComponent,
@@ -35,6 +38,21 @@ import { DateRangeFilterComponent } from '../../shared/components/date-range-fil
         [from]="filters.dateFrom()" [to]="filters.dateTo()"
         fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
         (fromChange)="filters.dateFrom.set($event)" (toChange)="filters.dateTo.set($event)" />
+      @if (anyHiddenByFilters()) {
+        <button mat-button class="!min-w-0"
+                [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
+                (click)="store.showAllHidden()">
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">visibility_off</mat-icon>
+          {{ I18N.gallery.hidden_banner.show_all | translate }}
+        </button>
+      } @else if (store.hiddenFiltersStash()) {
+        <button mat-button class="!min-w-0"
+                [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
+                (click)="store.restoreHidden()">
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">visibility</mat-icon>
+          {{ I18N.gallery.hidden_banner.restore | translate }}
+        </button>
+      }
     </ng-template>
     <!-- Breadcrumb navigation -->
     @if (level() !== 'years') {
@@ -89,7 +107,13 @@ export class TimelineComponent {
   protected readonly filters = inject(TimelineFiltersService);
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
+  protected readonly store = inject(GalleryStore);
   private readonly timelineToolbar = viewChild<TemplateRef<unknown>>('timelineToolbar');
+
+  /** At least one hide toggle is on — the years/months/days views can then show a
+   *  count of 0 for a bucket whose photos are entirely hidden, and timeline-days
+   *  makes a count-0 cell non-clickable, so this is the only way to reach it. */
+  protected readonly anyHiddenByFilters = computed(() => anyHideToggleActive(this.store.viewFilterParams()));
 
   constructor() {
     this.pageHelp.setDescription(I18N.timeline.help);

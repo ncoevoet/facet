@@ -116,11 +116,13 @@ TYPE_LABELS = {type_id: label for type_id, label, *_ in TYPE_DEFINITIONS}
 QUALITY_MAP = VIEWER_CONFIG['quality_thresholds']
 
 
-def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False, user_id=None):
+def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
+                    hide_brackets=False, hide_panoramas=False, user_id=None):
     """Build type list dynamically from database, showing only non-empty categories with counts."""
     from api.db_helpers import get_db_connection, get_existing_columns, get_visibility_clause
 
-    cache_key = (hide_blinks, hide_bursts, hide_duplicates, user_id or '')
+    cache_key = (hide_blinks, hide_bursts, hide_duplicates,
+                 hide_brackets, hide_panoramas, user_id or '')
     with _photo_types_lock:
         if time.time() < _photo_types_cache['expires'] and cache_key in _photo_types_cache['data']:
             return _photo_types_cache['data'][cache_key]
@@ -133,6 +135,8 @@ def get_photo_types(hide_blinks=False, hide_bursts=False, hide_duplicates=False,
             '1' if hide_blinks else '0',
             '1' if hide_bursts else '0',
             '1' if hide_duplicates else '0',
+            '1' if hide_brackets else '0',
+            '1' if hide_panoramas else '0',
         )
         sql_params = []
 

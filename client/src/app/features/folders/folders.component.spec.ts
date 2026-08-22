@@ -1,16 +1,23 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { signal } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
+import { GalleryStore } from '../gallery/gallery.store';
 import { FoldersComponent } from './folders.component';
 
 describe('FoldersComponent', () => {
-   
+
   let component: any;
   let mockApi: { get: Mock };
   let mockRouter: { navigate: Mock };
   let mockRoute: { queryParams: Observable<Record<string, string>> };
+  let mockStore: { viewFilterParams: ReturnType<typeof signal> };
+
+  const noneHidden = {
+    hide_blinks: '0', hide_bursts: '0', hide_duplicates: '0', hide_brackets: '0', hide_panoramas: '0',
+  };
 
   const foldersResponse = {
     folders: [
@@ -24,12 +31,14 @@ describe('FoldersComponent', () => {
     mockApi = { get: vi.fn(() => of(foldersResponse)) };
     mockRouter = { navigate: vi.fn() };
     mockRoute = { queryParams: of({}) };
+    mockStore = { viewFilterParams: signal({ ...noneHidden }) };
 
     TestBed.configureTestingModule({
       providers: [
         { provide: ApiService, useValue: mockApi },
         { provide: Router, useValue: mockRouter },
         { provide: ActivatedRoute, useValue: mockRoute },
+        { provide: GalleryStore, useValue: mockStore },
       ],
     });
     component = TestBed.runInInjectionContext(() => new FoldersComponent());
@@ -60,10 +69,10 @@ describe('FoldersComponent', () => {
   });
 
   describe('loadFolders', () => {
-    it('should call /folders with current prefix', async () => {
+    it('should call /folders with current prefix and the view filter params', async () => {
       component.currentPrefix.set('Holidays/');
       await (component as any).loadFolders();
-      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: 'Holidays/' });
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: 'Holidays/', ...noneHidden });
     });
 
     it('should populate folders signal', async () => {
@@ -97,6 +106,29 @@ describe('FoldersComponent', () => {
       component.currentPrefix.set('');
       await (component as any).loadFolders();
       expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reactive refetch on hide-toggle change', () => {
+    it('re-fetches /folders when GalleryStore.viewFilterParams changes', () => {
+      TestBed.flushEffects();
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: '', ...noneHidden });
+      mockApi.get.mockClear();
+
+      mockStore.viewFilterParams.set({ ...noneHidden, hide_blinks: '1' });
+      TestBed.flushEffects();
+
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: '', ...noneHidden, hide_blinks: '1' });
+    });
+
+    it('re-fetches when the route prefix changes', () => {
+      TestBed.flushEffects();
+      mockApi.get.mockClear();
+
+      component.currentPrefix.set('Holidays/');
+      TestBed.flushEffects();
+
+      expect(mockApi.get).toHaveBeenCalledWith('/folders', { prefix: 'Holidays/', ...noneHidden });
     });
   });
 

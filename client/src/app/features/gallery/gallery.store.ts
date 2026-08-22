@@ -10,15 +10,21 @@ import { Photo, KeeperHint, normalisePhotoFlagsAll } from '../../shared/models/p
 import { I18N } from '../../core/i18n/keys';
 import {
   type GalleryFilters, type GalleryMode, type TooltipMode, type PanelActivation, type DisplayOptions,
+  type ViewFilterParams,
   DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS, DISPLAY_OPTION_KEYS,
   GALLERY_MODE_KEY, DRAWER_STATE_KEY, CARD_WIDTH_KEY,
   loadDisplayOptionsFromStorage, saveDisplayOptionsToStorage,
   countActiveFilters, applyQueryParams, buildSyncParams, buildApiParams,
+  buildViewFilterParams, viewFilterParamsEqual, anyHideToggleActive,
 } from './gallery-filters.util';
 
 // Re-export the filter types/consts so existing importers of gallery.store keep working.
-export type { GalleryFilters, GalleryMode, TooltipMode, PanelActivation, DisplayOptions };
-export { DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS };
+export type { GalleryFilters, GalleryMode, TooltipMode, PanelActivation, DisplayOptions, ViewFilterParams };
+export { DEFAULT_FILTERS, SMART_ALBUM_EXCLUDE_KEYS, anyHideToggleActive };
+
+/** The five hide toggles the hidden-photos banner clears and restores together. */
+export type HiddenFilterFlags = Pick<GalleryFilters,
+  'hide_blinks' | 'hide_bursts' | 'hide_duplicates' | 'hide_brackets' | 'hide_panoramas'>;
 
 export const FILTER_OPTIONS_TIMEOUT_MS = 20000;
 
@@ -194,6 +200,28 @@ export class GalleryStore {
 
   // Hidden-photo summary (populated from /photos response)
   readonly hiddenSummary = signal<HiddenSummary>({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
+
+  /** The gallery's EFFECTIVE hide-toggle state as explicit '1'/'0' wire strings —
+   *  see buildViewFilterParams. Consumers that fetch independently of the gallery
+   *  grid (timeline, folders, type counts) read this rather than re-deriving it,
+   *  so they stay in sync with whatever the user has actually toggled. The custom
+   *  `equal` keeps this signal stable across unrelated filter churn (camera, page,
+   *  sort…), so effects that depend on it only re-fire when a hide toggle changes. */
+  readonly viewFilterParams = computed(
+    () => buildViewFilterParams(this.filters()),
+    { equal: viewFilterParamsEqual },
+  );
+
+  /**
+   * The hide toggles as they stood before "Show all" cleared them.
+   *
+   * View state, not a filter: "Show all" used to be one-way, so peeking at the
+   * blinks and burst frames a filter was holding back meant walking to the
+   * sidebar and re-ticking boxes from memory. Lives on the store (rather than a
+   * single component) because both the gallery banner and the timeline's
+   * reachability banner offer the same show-all/restore affordance.
+   */
+  readonly hiddenFiltersStash = signal<HiddenFilterFlags | null>(null);
 
   // --- View snapshot for back-navigation restoration ---
   readonly viewSnapshot = signal<{ scrollTop: number; albumId: string | null; filterKey: string } | null>(null);
@@ -562,6 +590,34 @@ export class GalleryStore {
     await this.loadPhotos();
   }
 
+  /** Clear all five hide toggles, stashing their prior state so restoreHidden()
+   *  can bring them back. */
+  showAllHidden(): void {
+    const f = this.filters();
+    this.hiddenFiltersStash.set({
+      hide_blinks: f.hide_blinks,
+      hide_bursts: f.hide_bursts,
+      hide_duplicates: f.hide_duplicates,
+      hide_brackets: f.hide_brackets,
+      hide_panoramas: f.hide_panoramas,
+    });
+    void this.updateFilters({
+      hide_blinks: false,
+      hide_bursts: false,
+      hide_duplicates: false,
+      hide_brackets: false,
+      hide_panoramas: false,
+    });
+  }
+
+  /** Restore the hide toggles stashed by showAllHidden(), if any. */
+  restoreHidden(): void {
+    const stash = this.hiddenFiltersStash();
+    if (!stash) return;
+    this.hiddenFiltersStash.set(null);
+    void this.updateFilters({ ...stash });
+  }
+
   /** Reset all filters to config defaults */
   async resetFilters(): Promise<void> {
     this.currentAlbum.set(null);
@@ -629,7 +685,7 @@ export class GalleryStore {
   /** Load type counts (for the type toggle bar) */
   async loadTypeCounts(): Promise<void> {
     try {
-      const res = await this.fetchFilterOption<{types: TypeCount[]}>('/type_counts');
+      const res = await this.fetchFilterOption<{types: TypeCount[]}>('/type_counts', { ...this.viewFilterParams() });
       this.types.set(res.types.filter(t => t.id).sort((a, b) => b.count - a.count));
     } catch {
       this.types.set([]);

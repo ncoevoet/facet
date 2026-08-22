@@ -21,6 +21,9 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
   const personsSignal = signal<{ id: number; name: string | null }[]>([]);
   const compareCategorySig = signal('');
   const selectionCountSignal = signal(0);
+  const viewFilterParamsSignal = signal({
+    hide_blinks: '0', hide_bursts: '0', hide_duplicates: '0', hide_brackets: '0', hide_panoramas: '0',
+  });
   const mockStore = {
     filters: filtersSignal,
     persons: personsSignal,
@@ -31,6 +34,8 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
     types: signal<{ id: string; count: number }[]>([]),
     loadTypeCounts: vi.fn(() => Promise.resolve()),
     loadConfig: vi.fn(),
+    viewFilterParams: viewFilterParamsSignal,
+    showAllHidden: vi.fn(),
   };
 
   const mockRouter = { url: routerUrl, events: NEVER, navigate: vi.fn() };
@@ -59,6 +64,7 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
     mockRouter,
     compareCategorySig,
     selectionCountSignal,
+    viewFilterParamsSignal,
     personsFilters: TestBed.inject(PersonsFiltersService),
   };
 }
@@ -98,6 +104,21 @@ describe('App', () => {
     it('isCompareRoute ignores query string', () => {
       const { app } = createApp('/compare?category=portrait');
       expect((app as any).isCompareRoute()).toBe(true);
+    });
+  });
+
+  describe('mobile timeline bottom bar — reachability affordance', () => {
+    it('is false when every hide toggle is off', () => {
+      const { app } = createApp('/timeline');
+      expect((app as any).anyTimelinePhotosHiddenByFilters()).toBe(false);
+    });
+
+    it('is true when at least one hide toggle is on', () => {
+      const { app, viewFilterParamsSignal } = createApp('/timeline');
+      viewFilterParamsSignal.set({
+        hide_blinks: '0', hide_bursts: '1', hide_duplicates: '0', hide_brackets: '0', hide_panoramas: '0',
+      });
+      expect((app as any).anyTimelinePhotosHiddenByFilters()).toBe(true);
     });
   });
 

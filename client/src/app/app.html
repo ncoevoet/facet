@@ -776,6 +776,21 @@
         [from]="timelineFilters.dateFrom()" [to]="timelineFilters.dateTo()"
         fromClass="flex-1 min-w-0"
         (fromChange)="timelineFilters.dateFrom.set($event)" (toChange)="timelineFilters.dateTo.set($event)" />
+      @if (anyTimelinePhotosHiddenByFilters()) {
+        <button mat-icon-button class="!w-10 !h-10 shrink-0"
+                [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
+                [attr.aria-label]="I18N.gallery.hidden_banner.show_all | translate"
+                (click)="store.showAllHidden()">
+          <mat-icon>visibility_off</mat-icon>
+        </button>
+      } @else if (store.hiddenFiltersStash()) {
+        <button mat-icon-button class="!w-10 !h-10 shrink-0"
+                [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
+                [attr.aria-label]="I18N.gallery.hidden_banner.restore | translate"
+                (click)="store.restoreHidden()">
+          <mat-icon>visibility</mat-icon>
+        </button>
+      }
     </div>
   }
 

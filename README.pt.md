@@ -70,7 +70,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 </details>
 
 **Dicas de fluxo de trabalho:**
-- Para uma revisão cronológica de uma viagem ou ano, abra **`/timeline`** — ordene por agregado para percorrer as melhores fotos do dia ou navegue mês a mês.
+- A visualização **`/timeline`** desce de anos para meses e depois para um calendário de dias — clique em um dia para abrir a galeria filtrada para essa data. Aqui não há ordenação; para escolher as melhores fotos de uma viagem, use **`/capsules`** abaixo, que aplica uma passagem de diversidade em um intervalo de datas que você pode salvar como álbum.
 - A visualização **`/capsules`** gera diaporamas temáticos (viagens, "Rostos de", sazonais, dourada) que você pode salvar como álbuns.
 - A galeria oculta piscadas, rajadas não principais e duplicatas por padrão. Quando o banner **"N fotos ocultas pelos filtros atuais"** aparecer, clique em "Mostrar tudo" para expandir a visualização.
 
