@@ -397,3 +397,54 @@ class TestTheCgroupFixtureIsolatesEveryPath:
         fake_cgroup(v1_limit=f'{4 * GIB}\n', v1_stat=_v1_memory_stat(rss=3 * GIB))
 
         assert system_memory.effective_memory().used == 3 * GIB
+
+
+class TestReleasingFreedHeap:
+    """What ``release_freed_heap`` actually hands back.
+
+    ``gc.collect()`` drops Python's references; it does not make glibc give
+    the pages to the kernel. Under a container limit that difference is the
+    whole bug -- the OOM killer charges the process for arenas it no longer
+    uses -- so the measurement, not the call, is what this asserts.
+    """
+
+    def test_it_returns_pages_gc_alone_leaves_charged(self):
+        libc_has_trim = system_memory._malloc_trim() is not None
+        if not libc_has_trim:
+            pytest.skip("no malloc_trim on this C library")
+
+        import gc
+
+        block_bytes = 96 * 1024
+        blocks = [bytearray(block_bytes) for _ in range(12000)]
+        for block in blocks:
+            block[::4096] = b'\x01' * len(block[::4096])
+        grown = _resident_bytes()
+
+        del blocks
+        gc.collect()
+        after_gc = _resident_bytes()
+
+        assert system_memory.release_freed_heap() is True
+        after_trim = _resident_bytes()
+
+        allocated = block_bytes * 12000
+        assert after_gc > grown - allocated / 2, (
+            "gc.collect() already returned the pages, so this test no longer "
+            "measures what release_freed_heap is for"
+        )
+        assert after_trim < after_gc - allocated / 2
+
+    def test_a_c_library_without_the_symbol_is_not_an_error(self, monkeypatch):
+        monkeypatch.setattr(system_memory, '_MALLOC_TRIM', None)
+
+        assert system_memory.release_freed_heap() is False
+
+
+def _resident_bytes() -> int:
+    """This process's resident set, read the way the OOM killer accounts it."""
+    with open('/proc/self/status', encoding='utf-8') as handle:
+        for line in handle:
+            if line.startswith('VmRSS:'):
+                return int(line.split()[1]) * 1024
+    pytest.skip("no VmRSS on this platform")

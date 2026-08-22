@@ -311,6 +311,12 @@ class ModelManager:
         For cacheable models, moves to CPU RAM for fast reloading on the
         next chunk. Non-cacheable models are fully deleted.
 
+        Dropping the last reference is not the same as giving the memory back.
+        The collection and ``release_freed_heap`` below are what actually
+        return it: without them the process kept a high-water mark set by its
+        first pass and every later pass ran on top of memory it could not use.
+        See :func:`utils.system_memory.release_freed_heap`.
+
         Args:
             model_name: Name of the model to unload ('clip', 'qwen2_vl',
                        'clip_aesthetic', 'samp_net', 'insightface')
@@ -339,8 +345,12 @@ class ModelManager:
 
         # The model is already popped from self.models above, so the reference is
         # gone before we clear the device cache and the freed VRAM is reclaimed.
+        import gc
+        gc.collect()
         from utils.device import clear_device_cache
         clear_device_cache(self.device)
+        from utils.system_memory import release_freed_heap
+        release_freed_heap()
 
     def _cpu_cache_budget_gb(self) -> float:
         """Declared model weight this machine may hold at one instant, in GB.
@@ -530,6 +540,8 @@ class ModelManager:
 
         import gc
         gc.collect()
+        from utils.system_memory import release_freed_heap
+        release_freed_heap()
         logger.info("Evicted %d model(s) from RAM cache: %s", len(names), ", ".join(names))
 
     def load_model_only(self, model_name: str):
@@ -806,6 +818,8 @@ class ModelManager:
         gc.collect()
         from utils.device import clear_device_cache
         clear_device_cache(self.device)
+        from utils.system_memory import release_freed_heap
+        release_freed_heap()
         logger.info("All models unloaded")
 
     def get_vram_usage(self) -> str:

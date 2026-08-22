@@ -236,3 +236,53 @@ def effective_memory() -> EffectiveMemory:
     if used is None:
         return UNKNOWN_MEMORY
     return _constrained_memory(limit, used)
+
+
+def release_freed_heap() -> bool:
+    """Hand glibc's freed heap pages back to the kernel, reporting whether any moved.
+
+    Freeing a model is not the same as returning its memory. glibc raises its
+    ``mmap`` threshold each time a large mapped block is freed, so after the
+    first model the thousands of medium tensors that make up the next one come
+    out of the heap arenas instead -- and an arena is only ever released from
+    its top. Measured in an 8 GiB container on the ``legacy`` profile, the
+    process sat at 5.62 GiB of anonymous memory from the first pass onward and
+    did not move when a model was unloaded (-0.11 GiB for ``topiq_iaa``, whose
+    weights are ten times that) nor when the next one was loaded. Every later
+    pass then ran on top of a high-water mark it could not use, which is why
+    chunk 2 was OOM-killed at a chunk size chunk 1 had survived: the pass
+    planner was budgeting memory the allocator had already taken out of play.
+
+    ``malloc_trim`` walks the arenas and ``madvise``s their free pages away,
+    which is the part ``gc.collect()`` cannot do. The same 0.74 GiB of touched
+    tensors measured 1.214 GiB RSS after ``del`` and ``gc.collect()``, and
+    0.479 GiB after this call.
+
+    Absent on musl and macOS, where the symbol simply does not resolve; there
+    the caller keeps today's behaviour rather than failing.
+    """
+    trim = _malloc_trim()
+    if trim is None:
+        return False
+    return bool(trim(0))
+
+
+def _malloc_trim():
+    """The C library's ``malloc_trim``, resolved once, or None where absent.
+
+    ``CDLL(None)`` asks for the symbol in the process's own namespace instead
+    of naming a soname, so this neither hardcodes ``libc.so.6`` nor cares
+    which C library the interpreter was linked against.
+    """
+    global _MALLOC_TRIM
+    if _MALLOC_TRIM is _UNRESOLVED:
+        try:
+            import ctypes
+            _MALLOC_TRIM = ctypes.CDLL(None).malloc_trim
+        except (OSError, AttributeError, TypeError):
+            _MALLOC_TRIM = None
+    return _MALLOC_TRIM
+
+
+_UNRESOLVED = object()
+_MALLOC_TRIM = _UNRESOLVED
