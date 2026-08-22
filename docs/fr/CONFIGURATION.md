@@ -620,7 +620,7 @@ Réglages de traitement unifiés pour le traitement par lots GPU et le mode mult
 
 **`gpu_batch_size`** - Nombre d'images traitées ensemble sur le GPU en une seule passe avant. Limité par la VRAM. Auto-réglé : réduit lorsque la mémoire GPU dépasse la limite.
 
-**`ram_chunk_size`** - Nombre d'images mises en cache en RAM entre les passes de modèle (mode multi-pass uniquement). Réduit les E/S disque en chargeant les images une fois par bloc. Limité par la limite de mémoire effective (voir `memory_limit_percent` ci-dessous). Auto-réglé dans les deux sens : réduit lorsque l'utilisation dépasse la limite, augmenté lorsqu'elle reste nettement en dessous.
+**`ram_chunk_size`** - Nombre d'images mises en cache en RAM entre les passes de modèle (mode multi-pass uniquement). Réduit les E/S disque en chargeant les images une fois par bloc. Limité par la limite de mémoire effective (voir `memory_limit_percent` ci-dessous). Auto-réglé dans les deux sens : réduit immédiatement lorsque l'utilisation dépasse la limite, et augmenté seulement en fin de bloc, et uniquement si l'utilisation *maximale* de tout ce bloc est restée sous la limite. Le maximum est ce qui compte, car un bloc n'est pas une seule mesure : chaque déchargement de modèle entre les passes fait chuter l'utilisation presque jusqu'au plancher, et c'est cette croissance sur ce creux qui a fait passer `ram_chunk_size` de 10 à 500 dans un conteneur de 8 Go et a provoqué un OOM kill sur le bloc suivant.
 
 ### Référence des réglages
 
@@ -679,8 +679,8 @@ Le système surveille l'utilisation des ressources et ajuste :
 | Métrique | Action |
 |----------|--------|
 | Mémoire GPU > limite | Réduire `gpu_batch_size` de 25 % |
-| Utilisation mémoire > limite | Réduire `ram_chunk_size` de 25 % |
-| Utilisation mémoire < (limite - 20 %) | Augmenter `ram_chunk_size` de 25 % |
+| Utilisation mémoire > limite | Réduire `ram_chunk_size` de 25 % (immédiatement) |
+| Bloc terminé dont l'utilisation maximale est restée < (limite - 20 %) | Augmenter `ram_chunk_size` de 25 % |
 | CPU > cible | Suggérer moins de workers |
 | Délais de file d'attente > 5 % | Suggérer plus de workers |
 

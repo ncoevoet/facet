@@ -628,7 +628,7 @@ Unified processing settings for GPU batch processing and multi-pass mode.
 
 **`gpu_batch_size`** - How many images are processed together on the GPU in a single forward pass. Limited by VRAM. Auto-tuned: reduced when GPU memory exceeds limit.
 
-**`ram_chunk_size`** - How many images are cached in RAM between model passes (multi-pass mode only). Reduces disk I/O by loading images once per chunk. Limited by the effective memory limit (see `memory_limit_percent` below). Auto-tuned in both directions: reduced when usage exceeds the limit, increased when usage stays well below it.
+**`ram_chunk_size`** - How many images are cached in RAM between model passes (multi-pass mode only). Reduces disk I/O by loading images once per chunk. Limited by the effective memory limit (see `memory_limit_percent` below). Auto-tuned in both directions: reduced immediately when usage exceeds the limit, and increased only at a chunk boundary, and only if that whole chunk's *peak* usage stayed below the limit. The peak is what matters because a chunk is not one reading — every model unload between passes drops usage almost to the floor, and growing on that trough is what drove `ram_chunk_size` from 10 to 500 inside an 8GB container and OOM-killed the next chunk.
 
 ### Settings Reference
 
@@ -687,8 +687,8 @@ The system monitors resource usage and adjusts:
 | Metric | Action |
 |--------|--------|
 | GPU memory > limit | Reduce `gpu_batch_size` by 25% |
-| Memory usage > limit | Reduce `ram_chunk_size` by 25% |
-| Memory usage < (limit - 20%) | Increase `ram_chunk_size` by 25% |
+| Memory usage > limit | Reduce `ram_chunk_size` by 25% (immediately) |
+| A finished chunk whose peak usage stayed < (limit - 20%) | Increase `ram_chunk_size` by 25% |
 | CPU > target | Suggest fewer workers |
 | Queue timeouts > 5% | Suggest more workers |
 

@@ -620,7 +620,7 @@ Ajustes de procesamiento unificados para el procesamiento por lotes en GPU y el 
 
 **`gpu_batch_size`** - Cuántas imágenes se procesan juntas en la GPU en un único paso hacia delante. Limitado por la VRAM. Autoajustado: se reduce cuando la memoria de la GPU supera el límite.
 
-**`ram_chunk_size`** - Cuántas imágenes se almacenan en caché en la RAM entre los pases del modelo (solo en modo multipase). Reduce la E/S de disco cargando las imágenes una vez por fragmento. Limitado por el límite de memoria efectivo (véase `memory_limit_percent` más abajo). Autoajustado en ambos sentidos: se reduce cuando el uso supera el límite, aumenta cuando se mantiene muy por debajo.
+**`ram_chunk_size`** - Cuántas imágenes se almacenan en caché en la RAM entre los pases del modelo (solo en modo multipase). Reduce la E/S de disco cargando las imágenes una vez por fragmento. Limitado por el límite de memoria efectivo (véase `memory_limit_percent` más abajo). Autoajustado en ambos sentidos: se reduce de inmediato cuando el uso supera el límite, y solo aumenta al final de un fragmento, y únicamente si el uso *máximo* de todo ese fragmento se mantuvo por debajo del límite. Lo que importa es el máximo, porque un fragmento no es una sola lectura: cada descarga de modelo entre pases hace que el uso caiga casi hasta el suelo, y crecer sobre ese valle fue lo que llevó `ram_chunk_size` de 10 a 500 dentro de un contenedor de 8GB y provocó un OOM kill en el siguiente fragmento.
 
 ### Referencia de ajustes
 
@@ -679,8 +679,8 @@ El sistema monitoriza el uso de recursos y ajusta:
 | Métrica | Acción |
 |--------|--------|
 | Memoria de GPU > límite | Reduce `gpu_batch_size` en un 25 % |
-| Uso de memoria > límite | Reduce `ram_chunk_size` en un 25 % |
-| Uso de memoria < (límite - 20 %) | Aumenta `ram_chunk_size` en un 25 % |
+| Uso de memoria > límite | Reduce `ram_chunk_size` en un 25 % (de inmediato) |
+| Un fragmento terminado cuyo uso máximo se mantuvo < (límite - 20 %) | Aumenta `ram_chunk_size` en un 25 % |
 | CPU > objetivo | Sugiere menos workers |
 | Tiempos de espera de cola > 5 % | Sugiere más workers |
 

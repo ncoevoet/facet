@@ -204,13 +204,15 @@ class ChunkedMultiPassProcessor:
     def _apply_ram_safe_chunk_start(self):
         """Start with a small chunk when model memory comes out of system RAM.
 
-        Avoids an OOM on the very first chunk; ResourceMonitor grows it back as
-        soon as it measures headroom. A unified-memory accelerator is budgeted
-        the same way, since its memory *is* system RAM.
+        Avoids an OOM on the very first chunk; ResourceMonitor grows it back
+        after any chunk whose peak usage left room to spare -- which, under a
+        container limit tight enough for the models to fill it, may be no chunk
+        at all. A unified-memory accelerator is budgeted the same way, since
+        its memory *is* system RAM.
         """
         if not self.auto_tuning_enabled or self.chunk_size <= self.min_chunk_size:
             return
-        logger.info("  Chunk size: %d -> %d (%s safe start, auto-tuning will increase)",
+        logger.info("  Chunk size: %d -> %d (%s safe start, auto-tuning may increase it)",
                     self.chunk_size, self.min_chunk_size, self._memory_budget_label())
         self.chunk_size = self.min_chunk_size
 
@@ -400,6 +402,7 @@ class ChunkedMultiPassProcessor:
 
                 self.metrics['chunks_processed'] += 1
                 self.metrics['images_processed'] += len(chunk_paths)
+                self._ram_monitor.note_chunk_complete()
 
                 offset = chunk_end
                 chunk_idx += 1
@@ -506,6 +509,8 @@ class ChunkedMultiPassProcessor:
         gc.collect()
         from utils.device import clear_device_cache
         clear_device_cache(getattr(self.model_manager, 'device', 'cpu'))
+        from utils.system_memory import release_freed_heap
+        release_freed_heap()
 
     def _record_chunk_pass_failure(self, images: Dict, results: Dict, failed_stages: List[str]):
         """Record every image in a chunk whose required model pass failed.

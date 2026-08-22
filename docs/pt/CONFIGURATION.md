@@ -620,7 +620,7 @@ Configurações unificadas de processamento para o processamento em lote na GPU 
 
 **`gpu_batch_size`** - Quantas imagens são processadas juntas na GPU em uma única passagem direta. Limitado pela VRAM. Ajustado automaticamente: reduzido quando a memória da GPU excede o limite.
 
-**`ram_chunk_size`** - Quantas imagens são armazenadas em cache na RAM entre as passagens dos modelos (apenas no modo de múltiplas passagens). Reduz a E/S de disco ao carregar as imagens uma vez por bloco. Limitado pelo limite de memória efetivo (veja `memory_limit_percent` abaixo). Ajustado automaticamente em ambas as direções: reduzido quando o uso excede o limite, aumentado quando permanece bem abaixo dele.
+**`ram_chunk_size`** - Quantas imagens são armazenadas em cache na RAM entre as passagens dos modelos (apenas no modo de múltiplas passagens). Reduz a E/S de disco ao carregar as imagens uma vez por bloco. Limitado pelo limite de memória efetivo (veja `memory_limit_percent` abaixo). Ajustado automaticamente em ambas as direções: reduzido imediatamente quando o uso excede o limite, e aumentado apenas no fim de um bloco, e somente se o uso *máximo* de todo esse bloco permaneceu abaixo do limite. O pico é o que importa, porque um bloco não é uma única leitura — cada descarregamento de modelo entre as passagens faz o uso cair quase até o piso, e crescer sobre esse vale foi o que levou `ram_chunk_size` de 10 a 500 dentro de um contêiner de 8GB e causou um OOM kill no bloco seguinte.
 
 ### Referência de Configurações
 
@@ -679,8 +679,8 @@ O sistema monitora o uso de recursos e ajusta:
 | Métrica | Ação |
 |---------|------|
 | Memória de GPU > limite | Reduz `gpu_batch_size` em 25% |
-| Uso de memória > limite | Reduz `ram_chunk_size` em 25% |
-| Uso de memória < (limite - 20%) | Aumenta `ram_chunk_size` em 25% |
+| Uso de memória > limite | Reduz `ram_chunk_size` em 25% (imediatamente) |
+| Um bloco concluído cujo uso máximo permaneceu < (limite - 20%) | Aumenta `ram_chunk_size` em 25% |
 | CPU > meta | Sugere menos workers |
 | Timeouts de fila > 5% | Sugere mais workers |
 

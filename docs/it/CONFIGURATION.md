@@ -620,7 +620,7 @@ Impostazioni unificate per l'elaborazione batch su GPU e la modalità multi-pass
 
 **`gpu_batch_size`** - Quante immagini vengono elaborate insieme sulla GPU in un singolo forward pass. Limitato dalla VRAM. Regolato automaticamente: ridotto quando la memoria GPU supera il limite.
 
-**`ram_chunk_size`** - Quante immagini vengono memorizzate in RAM tra i passaggi del modello (solo in modalità multi-passaggio). Riduce l'I/O su disco caricando le immagini una sola volta per blocco. Limitato dal limite di memoria effettivo (vedi `memory_limit_percent` sotto). Regolato automaticamente in entrambe le direzioni: ridotto quando l'utilizzo supera il limite, aumentato quando resta ben al di sotto.
+**`ram_chunk_size`** - Quante immagini vengono memorizzate in RAM tra i passaggi del modello (solo in modalità multi-passaggio). Riduce l'I/O su disco caricando le immagini una sola volta per blocco. Limitato dal limite di memoria effettivo (vedi `memory_limit_percent` sotto). Regolato automaticamente in entrambe le direzioni: ridotto immediatamente quando l'utilizzo supera il limite, e aumentato solo al termine di un blocco, e solo se l'utilizzo *massimo* dell'intero blocco è rimasto sotto il limite. Il picco è ciò che conta, perché un blocco non è una singola lettura: ogni scaricamento di modello tra i passaggi fa crollare l'utilizzo quasi al minimo, e crescere su quel minimo è ciò che ha portato `ram_chunk_size` da 10 a 500 all'interno di un container da 8GB, causando un OOM kill sul blocco successivo.
 
 ### Riferimento delle impostazioni
 
@@ -679,8 +679,8 @@ Il sistema monitora l'utilizzo delle risorse e si regola:
 | Metrica | Azione |
 |--------|--------|
 | Memoria GPU > limite | Riduce `gpu_batch_size` del 25% |
-| Utilizzo memoria > limite | Riduce `ram_chunk_size` del 25% |
-| Utilizzo memoria < (limite - 20%) | Aumenta `ram_chunk_size` del 25% |
+| Utilizzo memoria > limite | Riduce `ram_chunk_size` del 25% (immediatamente) |
+| Un blocco terminato il cui utilizzo massimo è rimasto < (limite - 20%) | Aumenta `ram_chunk_size` del 25% |
 | CPU > obiettivo | Suggerisce meno worker |
 | Timeout della coda > 5% | Suggerisce più worker |
 

@@ -620,7 +620,7 @@ Vereinheitlichte Verarbeitungseinstellungen für die GPU-Batch-Verarbeitung und 
 
 **`gpu_batch_size`** - Wie viele Bilder zusammen auf der GPU in einem einzigen Forward-Pass verarbeitet werden. Durch den VRAM begrenzt. Automatisch optimiert: wird reduziert, wenn der GPU-Speicher das Limit überschreitet.
 
-**`ram_chunk_size`** - Wie viele Bilder zwischen Modelldurchläufen im RAM zwischengespeichert werden (nur Multi-Pass-Modus). Reduziert Disk-I/O, indem Bilder einmal pro Chunk geladen werden. Durch das effektive Speicherlimit begrenzt (siehe `memory_limit_percent` unten). In beide Richtungen automatisch optimiert: reduziert, wenn die Auslastung das Limit überschreitet, erhöht, wenn sie deutlich darunter bleibt.
+**`ram_chunk_size`** - Wie viele Bilder zwischen Modelldurchläufen im RAM zwischengespeichert werden (nur Multi-Pass-Modus). Reduziert Disk-I/O, indem Bilder einmal pro Chunk geladen werden. Durch das effektive Speicherlimit begrenzt (siehe `memory_limit_percent` unten). In beide Richtungen automatisch optimiert: sofort reduziert, wenn die Auslastung das Limit überschreitet, und nur an einer Chunk-Grenze erhöht, und zwar nur, wenn die *Spitzenauslastung* des gesamten Chunks unter dem Limit geblieben ist. Die Spitze zählt, weil ein Chunk keine einzelne Messung ist — jedes Modell-Entladen zwischen den Durchläufen lässt die Auslastung fast auf den Boden fallen, und genau dieses Wachstum auf diesem Tiefpunkt hat `ram_chunk_size` in einem 8GB-Container von 10 auf 500 getrieben und den nächsten Chunk per OOM-Kill beendet.
 
 ### Einstellungsreferenz
 
@@ -679,8 +679,8 @@ Das System überwacht die Ressourcennutzung und passt an:
 | Metrik | Aktion |
 |--------|--------|
 | GPU-Speicher > Limit | `gpu_batch_size` um 25 % reduzieren |
-| Speicherauslastung > Limit | `ram_chunk_size` um 25 % reduzieren |
-| Speicherauslastung < (Limit − 20 %) | `ram_chunk_size` um 25 % erhöhen |
+| Speicherauslastung > Limit | `ram_chunk_size` um 25 % reduzieren (sofort) |
+| Ein abgeschlossener Chunk, dessen Spitzenauslastung < (Limit − 20 %) blieb | `ram_chunk_size` um 25 % erhöhen |
 | CPU > Ziel | Weniger Worker vorschlagen |
 | Queue-Timeouts > 5 % | Mehr Worker vorschlagen |
 

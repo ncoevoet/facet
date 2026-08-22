@@ -196,3 +196,128 @@ def test_face_resource_monitor_reduces_batch_size_from_effective_memory():
         monitor.join(timeout=2.0)
 
     assert processor.batch_size < 32
+
+
+class _PhasedMemory:
+    """An ``effective_memory`` whose reading the test moves between phases.
+
+    Counting scripted readings would race the monitor's own sampling; a level
+    the test sets and the thread reads does not.
+    """
+
+    def __init__(self, percent):
+        self.percent = percent
+
+    def __call__(self):
+        total = 8 * GIB
+        used = int(total * self.percent / 100)
+        return EffectiveMemory(total=total, used=used, available=total - used,
+                               percent=self.percent)
+
+
+def _cycling_memory(percents):
+    """An ``effective_memory`` that walks ``percents``, holding on the last one.
+
+    A chunk is not one memory reading. It loads its images, then runs each
+    pass in turn, and every unload between passes drops usage back towards
+    the floor -- so any single sample is as likely to catch the trough as
+    the peak.
+    """
+    remaining = list(percents)
+
+    def read():
+        percent = remaining.pop(0) if len(remaining) > 1 else remaining[0]
+        total = 8 * GIB
+        used = int(total * percent / 100)
+        return EffectiveMemory(total=total, used=used, available=total - used,
+                               percent=percent)
+
+    return read
+
+
+class TestGrowthFollowsTheChunkPeakNotTheTroughBetweenPasses:
+    """Issue #111, second half: the trough between passes is not headroom.
+
+    Reading the cgroup instead of the host fixed the denominator, not the
+    policy. Replaying the anonymous-memory trace measured inside the 8 GiB
+    container through this monitor's own decision body, chunk size ran
+    10 -> 12 -> 15 -> ... -> 500 during the FIRST chunk and was clamped back
+    to 375: every unload between passes dropped the reading to 11-56%, three
+    of those in a row cleared the 65% bar, and the chunk that had just peaked
+    at 93% counted for nothing. The next chunk then tried to decode every
+    remaining photo at once and was OOM-killed before it loaded a model.
+
+    The peak is what the chunk has to survive, so the peak is what decides
+    whether the next one may be larger.
+    """
+
+    def _monitor(self, percents, chunk_size=10):
+        processor = _FakeChunkProcessor(
+            chunk_size=chunk_size, min_chunk_size=10, max_chunk_size=500)
+        config = {"processing": {"auto_tuning": {
+            "monitor_interval_seconds": 0.1, "memory_limit_percent": 85}}}
+        monitor = MultiPassResourceMonitor(processor, config)
+        return processor, monitor, _cycling_memory(percents)
+
+    def _drive(self, monitor, reader, seconds=0.8):
+        with mock.patch("processing.resource_monitor.effective_memory", reader):
+            monitor.start()
+            time.sleep(seconds)
+            monitor.stop()
+            monitor.join(timeout=2.0)
+
+    def test_a_trough_between_passes_does_not_grow_the_chunk(self):
+        cycle = [80, 80, 15, 15, 15, 40, 40, 40] * 20
+        processor, monitor, reader = self._monitor(cycle)
+
+        self._drive(monitor, reader)
+        monitor.note_chunk_complete()
+
+        assert processor.chunk_size == 10, (
+            f"chunk grew to {processor.chunk_size} although the chunk peaked at "
+            f"80% of the limit -- adjustments: {monitor.adjustments}"
+        )
+        assert not any(d == "increase" for d, _, _ in monitor.adjustments)
+
+    def test_a_chunk_that_stayed_low_throughout_still_grows(self):
+        processor, monitor, reader = self._monitor([20, 25, 30, 22] * 20)
+
+        self._drive(monitor, reader)
+        monitor.note_chunk_complete()
+
+        assert processor.chunk_size == 12, (
+            "a chunk whose peak stayed well under the threshold must still "
+            f"grow -- adjustments: {monitor.adjustments}"
+        )
+
+    def test_growth_is_decided_once_per_chunk_not_once_per_sample(self):
+        processor, monitor, reader = self._monitor([20] * 200)
+
+        self._drive(monitor, reader, seconds=0.8)
+
+        assert processor.chunk_size == 10, (
+            "the monitor grew the chunk mid-chunk, so the size the chunk was "
+            "sized for changed while it was being processed"
+        )
+
+    def test_the_high_water_mark_resets_with_each_chunk(self):
+        processor, monitor, _ = self._monitor([0])
+        reading = _PhasedMemory(80.0)
+
+        with mock.patch("processing.resource_monitor.effective_memory", reading):
+            monitor.start()
+            time.sleep(0.5)
+            reading.percent = 20.0
+            time.sleep(0.2)
+            monitor.note_chunk_complete()
+            after_heavy_chunk = processor.chunk_size
+            time.sleep(0.5)
+            monitor.stop()
+            monitor.join(timeout=2.0)
+        monitor.note_chunk_complete()
+
+        assert after_heavy_chunk == 10
+        assert processor.chunk_size == 12, (
+            "a high peak in an earlier chunk kept blocking growth, so the "
+            "monitor can never recover from one heavy chunk"
+        )
