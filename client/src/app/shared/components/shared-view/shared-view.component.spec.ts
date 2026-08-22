@@ -176,6 +176,85 @@ describe('SharedViewComponent', () => {
     });
   });
 
+  describe('hide-toggle defaults (issue #112)', () => {
+    function mockApiForConfig(defaults: { hide_blinks?: boolean; hide_bursts?: boolean; hide_duplicates?: boolean }) {
+      mockApi.get.mockImplementation((path: string) => {
+        if (path === '/config') return of({ defaults });
+        return of(sharedAlbumResponse);
+      });
+    }
+
+    it('initialises the hide toggles from config().defaults, not hardcoded false', async () => {
+      mockApiForConfig({ hide_blinks: false, hide_bursts: true, hide_duplicates: true });
+      createComponent('1', 'token');
+
+      await component.ngOnInit();
+
+      expect(component.filters().hide_blinks).toBe(false);
+      expect(component.filters().hide_bursts).toBe(true);
+      expect(component.filters().hide_duplicates).toBe(true);
+    });
+
+    it('keeps the hide toggles false when /config fails (non-critical failure)', async () => {
+      mockApi.get.mockImplementation((path: string) => {
+        if (path === '/config') return throwError(() => new Error('boom'));
+        return of(sharedAlbumResponse);
+      });
+      createComponent('1', 'token');
+
+      await component.ngOnInit();
+
+      expect(component.filters().hide_blinks).toBe(false);
+      expect(component.filters().hide_bursts).toBe(false);
+      expect(component.filters().hide_duplicates).toBe(false);
+    });
+
+    it('resetFilters() resets to the config defaults, not hardcoded false', async () => {
+      mockApiForConfig({ hide_blinks: false, hide_bursts: true, hide_duplicates: true });
+      createComponent('1', 'token');
+      await component.ngOnInit();
+
+      component.updateFilter('hide_bursts', false);
+      component.resetFilters();
+
+      expect(component.filters().hide_bursts).toBe(true);
+    });
+
+    it('activeFilterCount only counts a toggle once it differs from its default', async () => {
+      mockApiForConfig({ hide_blinks: false, hide_bursts: true, hide_duplicates: true });
+      createComponent('1', 'token');
+      await component.ngOnInit();
+
+      expect(component.activeFilterCount()).toBe(0);
+
+      component.updateFilter('hide_bursts', false);
+      expect(component.activeFilterCount()).toBe(1);
+    });
+
+    it('displayFilterCount only counts a toggle once it differs from its default', async () => {
+      mockApiForConfig({ hide_blinks: false, hide_bursts: true, hide_duplicates: true });
+      createComponent('1', 'token');
+      await component.ngOnInit();
+
+      expect(component.displayFilterCount()).toBe(0);
+
+      component.updateFilter('hide_blinks', true);
+      expect(component.displayFilterCount()).toBe(1);
+    });
+
+    it('unchecking a toggle away from a true default sends an explicit "0", never omits it', async () => {
+      mockApiForConfig({ hide_blinks: false, hide_bursts: true, hide_duplicates: true });
+      createComponent('1', 'token');
+      await component.ngOnInit();
+      mockApi.get.mockClear();
+
+      component.updateFilter('hide_bursts', false);
+      await flushPromises();
+
+      expect(mockApi.get).toHaveBeenCalledWith('/shared/album/1', expect.objectContaining({ hide_bursts: '0' }));
+    });
+  });
+
 });
 
 function flushPromises(): Promise<void> {

@@ -1,4 +1,4 @@
-import { Component, inject, signal, computed, OnInit, DestroyRef } from '@angular/core';
+import { Component, inject, signal, computed, effect, OnInit, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Router, ActivatedRoute } from '@angular/router';
 import { DecimalPipe } from '@angular/common';
@@ -13,6 +13,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
 import { buildFolderBreadcrumbs, type FolderItem, type FoldersResponse } from './folders.util';
+import { GalleryStore } from '../gallery/gallery.store';
 
 @Component({
   selector: 'app-folders',
@@ -109,6 +110,7 @@ export class FoldersComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly pageHelp = inject(PageHelpService);
+  private readonly store = inject(GalleryStore);
 
   protected readonly folders = signal<FolderItem[]>([]);
   protected readonly loading = signal(false);
@@ -116,12 +118,23 @@ export class FoldersComponent implements OnInit {
 
   protected readonly breadcrumbs = computed(() => buildFolderBreadcrumbs(this.currentPrefix()));
 
+  constructor() {
+    // Re-fetch on prefix navigation AND whenever the gallery's effective hide
+    // toggles change — deep-linking to /folders can race loadConfig() (it's
+    // fired without awaiting), so reading the store signal here is what makes
+    // the counts self-heal once config lands.
+    effect(() => {
+      this.currentPrefix();
+      this.store.viewFilterParams();
+      this.loadFolders();
+    });
+  }
+
   ngOnInit(): void {
     this.pageHelp.setDescription(I18N.folders.help);
     this.destroyRef.onDestroy(() => this.pageHelp.setDescription(null));
     this.route.queryParams.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(params => {
       this.currentPrefix.set(params['prefix'] || '');
-      this.loadFolders();
     });
   }
 
@@ -131,6 +144,7 @@ export class FoldersComponent implements OnInit {
       const res = await firstValueFrom(
         this.api.get<FoldersResponse>('/folders', {
           prefix: this.currentPrefix(),
+          ...this.store.viewFilterParams(),
         }),
       );
       // Auto-redirect to gallery if no subfolders (leaf directory)

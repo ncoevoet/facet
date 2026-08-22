@@ -2,6 +2,7 @@
 
 import sqlite3
 import types
+from unittest import mock
 
 import pytest
 from fastapi import HTTPException
@@ -9,6 +10,7 @@ from fastapi import HTTPException
 from api import db_helpers
 from api.db_helpers import (
     RETRY_ATTEMPTS, RETRY_BUDGET_SECONDS, retry_on_locked, to_exif_date, to_iso_date,
+    resolve_hide_defaults,
 )
 
 LOCKED_MESSAGE = "database is locked"
@@ -138,3 +140,45 @@ class TestRetryOnLocked:
 
         assert calls == [1]
         assert clock.slept == []
+
+
+class TestResolveHideDefaults:
+    """resolve_hide_defaults fills only the toggles a caller left unset.
+
+    Surfaces with no hide-toggle UI of their own (timeline, folders, a smart
+    album's cover) must answer over the same burst-lead/duplicate-lead subset
+    the gallery does by default, but a caller that explicitly asked for
+    everything (``'0'``) must keep getting everything.
+    """
+
+    def test_explicit_zero_survives_even_when_the_default_is_on(self):
+        with mock.patch.object(db_helpers, "VIEWER_CONFIG", {"defaults": {"hide_bursts": True}}):
+            resolved = resolve_hide_defaults({"hide_bursts": "0"})
+        assert resolved["hide_bursts"] == "0"
+
+    def test_absent_key_resolves_from_config_default_on(self):
+        with mock.patch.object(db_helpers, "VIEWER_CONFIG", {"defaults": {"hide_bursts": True}}):
+            resolved = resolve_hide_defaults({})
+        assert resolved["hide_bursts"] == "1"
+
+    def test_absent_key_resolves_from_config_default_off(self):
+        with mock.patch.object(db_helpers, "VIEWER_CONFIG", {"defaults": {"hide_bursts": False}}):
+            resolved = resolve_hide_defaults({})
+        assert resolved["hide_bursts"] == "0"
+
+    def test_a_defaults_entry_of_true_yields_the_string_one(self):
+        with mock.patch.object(db_helpers, "VIEWER_CONFIG", {"defaults": {"hide_panoramas": True}}):
+            resolved = resolve_hide_defaults({"hide_panoramas": None})
+        assert resolved["hide_panoramas"] == "1"
+
+    def test_a_key_missing_from_defaults_falls_back_to_off(self):
+        with mock.patch.object(db_helpers, "VIEWER_CONFIG", {"defaults": {}}):
+            resolved = resolve_hide_defaults({})
+        for key in db_helpers.HIDE_TOGGLE_KEYS:
+            assert resolved[key] == "0"
+
+    def test_original_params_dict_is_not_mutated(self):
+        params = {"hide_bursts": "0"}
+        with mock.patch.object(db_helpers, "VIEWER_CONFIG", {"defaults": {"hide_blinks": True}}):
+            resolve_hide_defaults(params)
+        assert params == {"hide_bursts": "0"}

@@ -5,9 +5,10 @@ import { Router, ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { TimelineFiltersService } from './timeline-filters.service';
 import { TimelineComponent } from './timeline.component';
+import { GalleryStore } from '../gallery/gallery.store';
 
 describe('TimelineComponent', () => {
-   
+
   let component: any;
   let mockRouter: { navigate: Mock };
   let mockFilters: {
@@ -15,7 +16,12 @@ describe('TimelineComponent', () => {
     dateTo: ReturnType<typeof signal<string>>;
     sortDirection: ReturnType<typeof signal<'older' | 'newer'>>;
   };
+  let mockStore: { viewFilterParams: ReturnType<typeof signal>; showAllHidden: Mock };
   let paramMapSubject: { get: Mock };
+
+  const noneHidden = {
+    hide_blinks: '0', hide_bursts: '0', hide_duplicates: '0', hide_brackets: '0', hide_panoramas: '0',
+  };
 
   beforeEach(() => {
     mockRouter = { navigate: vi.fn() };
@@ -24,6 +30,7 @@ describe('TimelineComponent', () => {
       dateTo: signal(''),
       sortDirection: signal<'older' | 'newer'>('older'),
     };
+    mockStore = { viewFilterParams: signal({ ...noneHidden }), showAllHidden: vi.fn() };
     paramMapSubject = { get: vi.fn().mockReturnValue(null) };
 
     TestBed.configureTestingModule({
@@ -31,6 +38,7 @@ describe('TimelineComponent', () => {
         { provide: Router, useValue: mockRouter },
         { provide: TimelineFiltersService, useValue: mockFilters },
         { provide: ActivatedRoute, useValue: { paramMap: of(paramMapSubject) } },
+        { provide: GalleryStore, useValue: mockStore },
       ],
     });
     component = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -51,6 +59,7 @@ describe('TimelineComponent', () => {
           { provide: Router, useValue: mockRouter },
           { provide: TimelineFiltersService, useValue: mockFilters },
           { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+          { provide: GalleryStore, useValue: mockStore },
         ],
       });
       component = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -66,6 +75,7 @@ describe('TimelineComponent', () => {
           { provide: Router, useValue: mockRouter },
           { provide: TimelineFiltersService, useValue: mockFilters },
           { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+          { provide: GalleryStore, useValue: mockStore },
         ],
       });
       component = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -88,6 +98,7 @@ describe('TimelineComponent', () => {
           { provide: Router, useValue: mockRouter },
           { provide: TimelineFiltersService, useValue: mockFilters },
           { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+          { provide: GalleryStore, useValue: mockStore },
         ],
       });
       component = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -109,6 +120,7 @@ describe('TimelineComponent', () => {
           { provide: Router, useValue: mockRouter },
           { provide: TimelineFiltersService, useValue: mockFilters },
           { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+          { provide: GalleryStore, useValue: mockStore },
         ],
       });
       component = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -129,6 +141,7 @@ describe('TimelineComponent', () => {
           { provide: Router, useValue: mockRouter },
           { provide: TimelineFiltersService, useValue: mockFilters },
           { provide: ActivatedRoute, useValue: { paramMap: of(newParamMap) } },
+          { provide: GalleryStore, useValue: mockStore },
         ],
       });
       component = TestBed.runInInjectionContext(() => new TimelineComponent());
@@ -148,6 +161,29 @@ describe('TimelineComponent', () => {
           sort_direction: 'DESC',
         },
       });
+    });
+  });
+
+  describe('anyHiddenByFilters (reachability banner)', () => {
+    it('is false when every hide toggle is off', () => {
+      expect(component.anyHiddenByFilters()).toBe(false);
+    });
+
+    it('is true when at least one hide toggle is on', () => {
+      mockStore.viewFilterParams.set({ ...noneHidden, hide_bursts: '1' });
+      expect(component.anyHiddenByFilters()).toBe(true);
+    });
+
+    it('goes back to false once every toggle is off again', () => {
+      mockStore.viewFilterParams.set({ ...noneHidden, hide_panoramas: '1' });
+      expect(component.anyHiddenByFilters()).toBe(true);
+      mockStore.viewFilterParams.set({ ...noneHidden });
+      expect(component.anyHiddenByFilters()).toBe(false);
+    });
+
+    it('the banner button calls store.showAllHidden()', () => {
+      component.store.showAllHidden();
+      expect(mockStore.showAllHidden).toHaveBeenCalled();
     });
   });
 });

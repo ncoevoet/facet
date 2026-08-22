@@ -971,6 +971,7 @@
     "help": "Durchsuchen und filtern Sie Ihre Bibliothek. Sortieren Sie nach Bewertung, Datum oder Ihrem persönlichen Geschmack; nutzen Sie die Filter in der Seitenleiste (Personen, Schlagwörter, Kamera, Kategorie, Wertungsbereich, Momente) und die Suche, um Fotos zu finden.",
     "hidden_banner": {
       "message": "{n} Fotos durch aktuelle Filter ausgeblendet",
+      "some_hidden": "Einige Fotos werden durch Ihre Filter ausgeblendet",
       "show_all": "Alle anzeigen",
       "restore": "Filter wiederherstellen",
       "showing_all": "Alle Fotos werden angezeigt – einschließlich Blinzler, Serien und Duplikate"

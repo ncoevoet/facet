@@ -6,6 +6,7 @@ import { ApiService } from '../../core/services/api.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
+import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
 
 interface DateEntry {
   date: string;
@@ -73,6 +74,7 @@ interface CalendarCell {
 export class TimelineDaysComponent {
   private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
+  private readonly store = inject(GalleryStore);
 
   readonly year = input.required<string>();
   readonly month = input.required<string>();
@@ -94,14 +96,17 @@ export class TimelineDaysComponent {
       const m = this.month();
       const dateFrom = this.filters.dateFrom();
       const dateTo = this.filters.dateTo();
-      if (y && m) this.load(+y, +m, dateFrom, dateTo);
+      const viewParams = this.store.viewFilterParams();
+      if (y && m) this.load(+y, +m, dateFrom, dateTo, viewParams);
     });
   }
 
-  private async load(year: number, month: number, dateFrom: string, dateTo: string): Promise<void> {
+  private async load(
+    year: number, month: number, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
+  ): Promise<void> {
     this.loading.set(true);
     try {
-      const params: Record<string, string | number> = { year, month };
+      const params: Record<string, string | number> = { year, month, ...viewParams };
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(

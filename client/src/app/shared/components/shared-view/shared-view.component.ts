@@ -90,6 +90,12 @@ interface SharedFilters {
   [key: string]: string | boolean;
 }
 
+/** The toggles whose default can be `true` (from viewer config) — unlike every
+ *  other filter key, an unchecked box here must still send an explicit '0',
+ *  never be omitted, or unchecking it would be a one-way trip: the server
+ *  would treat "absent" as "use the default", which can itself be `true`. */
+const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as const;
+
 @Component({
   selector: 'app-shared-view',
   standalone: true,
@@ -590,6 +596,19 @@ export class SharedViewComponent implements OnInit {
     filters: FILTERS_BY_SECTION[sectionKey],
   }));
   protected readonly sectionIcons = SECTION_ICONS;
+
+  /** The three hide toggles' viewer-config defaults, false until /config has
+   *  loaded (or failed to). Active-filter counts compare against this rather
+   *  than against a hardcoded false, since the owner's default can be true. */
+  protected readonly hideDefaults = computed((): Pick<SharedFilters, 'hide_blinks' | 'hide_bursts' | 'hide_duplicates'> => {
+    const d = this.config()?.defaults;
+    return {
+      hide_blinks: d?.hide_blinks ?? false,
+      hide_bursts: d?.hide_bursts ?? false,
+      hide_duplicates: d?.hide_duplicates ?? false,
+    };
+  });
+
   protected readonly rangeSectionActiveCounts = computed((): Record<string, number> => {
     const f = this.filters();
     const counts: Record<string, number> = {};
@@ -602,8 +621,12 @@ export class SharedViewComponent implements OnInit {
   });
   protected readonly activeFilterCount = computed(() => {
     const f = this.filters();
+    const d = this.hideDefaults();
     let count = [f.camera, f.lens, f.tag, f.date_from, f.date_to, f.composition_pattern, f.category].filter(v => !!v).length
-      + (f.hide_blinks ? 1 : 0) + (f.hide_bursts ? 1 : 0) + (f.hide_duplicates ? 1 : 0) + (f.is_monochrome ? 1 : 0);
+      + (f.hide_blinks !== d.hide_blinks ? 1 : 0)
+      + (f.hide_bursts !== d.hide_bursts ? 1 : 0)
+      + (f.hide_duplicates !== d.hide_duplicates ? 1 : 0)
+      + (f.is_monochrome ? 1 : 0);
     const sectionCounts = this.rangeSectionActiveCounts();
     for (const key of SECTION_ORDER) {
       count += sectionCounts[key] ?? 0;
@@ -616,7 +639,11 @@ export class SharedViewComponent implements OnInit {
   });
   protected readonly displayFilterCount = computed(() => {
     const f = this.filters();
-    return (f.hide_blinks ? 1 : 0) + (f.hide_bursts ? 1 : 0) + (f.hide_duplicates ? 1 : 0) + (f.is_monochrome ? 1 : 0);
+    const d = this.hideDefaults();
+    return (f.hide_blinks !== d.hide_blinks ? 1 : 0)
+      + (f.hide_bursts !== d.hide_bursts ? 1 : 0)
+      + (f.hide_duplicates !== d.hide_duplicates ? 1 : 0)
+      + (f.is_monochrome ? 1 : 0);
   });
 
   // Responsive: force single-column grid on small screens
@@ -742,6 +769,9 @@ export class SharedViewComponent implements OnInit {
     try {
       const cfg = await firstValueFrom(this.api.get<Partial<ViewerConfig>>('/config'));
       this.config.set(cfg);
+      // Manual albums start with the owner's own hide toggles, not all-off —
+      // otherwise a shared link shows every burst frame while the owner sees one.
+      this.filters.update(f => ({ ...f, ...this.hideDefaults() }));
     } catch {
       // Non-critical — continue without config
     }
@@ -785,7 +815,7 @@ export class SharedViewComponent implements OnInit {
     this.filters.set({
       camera: '', lens: '', tag: '', date_from: '', date_to: '',
       composition_pattern: '', category: '',
-      hide_blinks: false, hide_bursts: false, hide_duplicates: false, is_monochrome: false,
+      ...this.hideDefaults(), is_monochrome: false,
     });
     this.refreshFiltered();
   }
@@ -1031,7 +1061,11 @@ export class SharedViewComponent implements OnInit {
 
     // Add active filters to API call
     for (const [key, value] of Object.entries(this.filters())) {
-      if (value) params[key] = typeof value === 'boolean' ? '1' : value;
+      if ((HIDE_TOGGLE_KEYS as readonly string[]).includes(key)) {
+        params[key] = value ? '1' : '0';
+      } else if (value) {
+        params[key] = typeof value === 'boolean' ? '1' : value;
+      }
     }
 
     const res = await firstValueFrom(

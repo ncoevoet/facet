@@ -763,6 +763,80 @@ describe('GalleryStore', () => {
     });
   });
 
+  describe('viewFilterParams', () => {
+    it('projects the five hide toggles as explicit "1"/"0" strings', () => {
+      store.filters.set({
+        ...DEFAULT_FILTERS,
+        hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: false, hide_panoramas: true,
+      });
+
+      expect(store.viewFilterParams()).toEqual({
+        hide_blinks: '1', hide_bursts: '0', hide_duplicates: '1', hide_brackets: '0', hide_panoramas: '1',
+      });
+    });
+
+    it('stays referentially stable across an unrelated filter change', () => {
+      const before = store.viewFilterParams();
+      store.filters.update(f => ({ ...f, camera: 'Canon', page: 2, sort: 'date_taken' }));
+      expect(store.viewFilterParams()).toBe(before);
+    });
+
+    it('produces a new value once a hide toggle actually changes', () => {
+      const before = store.viewFilterParams();
+      store.filters.update(f => ({ ...f, hide_bursts: false }));
+      const after = store.viewFilterParams();
+      expect(after).not.toBe(before);
+      expect(after.hide_bursts).toBe('0');
+    });
+  });
+
+  describe('showAllHidden() / restoreHidden()', () => {
+    beforeEach(() => {
+      apiGet.mockReturnValue(of(makePhotosResponse()));
+    });
+
+    it('stashes the current hide toggles and clears all five', () => {
+      store.filters.set({
+        ...DEFAULT_FILTERS,
+        hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
+      });
+
+      store.showAllHidden();
+
+      expect(store.hiddenFiltersStash()).toEqual({
+        hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
+      });
+      expect(store.filters().hide_blinks).toBe(false);
+      expect(store.filters().hide_bursts).toBe(false);
+      expect(store.filters().hide_duplicates).toBe(false);
+      expect(store.filters().hide_brackets).toBe(false);
+      expect(store.filters().hide_panoramas).toBe(false);
+    });
+
+    it('restoreHidden() brings back the stashed toggles and clears the stash', () => {
+      store.filters.set({
+        ...DEFAULT_FILTERS,
+        hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
+      });
+      store.showAllHidden();
+
+      store.restoreHidden();
+
+      expect(store.filters().hide_blinks).toBe(true);
+      expect(store.filters().hide_bursts).toBe(false);
+      expect(store.filters().hide_duplicates).toBe(true);
+      expect(store.filters().hide_brackets).toBe(true);
+      expect(store.filters().hide_panoramas).toBe(true);
+      expect(store.hiddenFiltersStash()).toBeNull();
+    });
+
+    it('restoreHidden() is a no-op without a prior showAllHidden()', () => {
+      const before = store.filters();
+      store.restoreHidden();
+      expect(store.filters()).toBe(before);
+    });
+  });
+
   describe('loadTypeCounts()', () => {
     it('should fetch and set type counts', async () => {
       const counts: TypeCount[] = [
@@ -773,8 +847,19 @@ describe('GalleryStore', () => {
 
       await store.loadTypeCounts();
 
-      expect(apiGet).toHaveBeenCalledWith('/type_counts');
+      expect(apiGet).toHaveBeenCalledWith('/type_counts', {
+        hide_blinks: '1', hide_bursts: '1', hide_duplicates: '1', hide_brackets: '1', hide_panoramas: '1',
+      });
       expect(store.types()).toEqual(counts);
+    });
+
+    it('sends the EFFECTIVE hide-toggle state, not the config default', async () => {
+      apiGet.mockReturnValue(of({ types: [] }));
+      store.filters.update(f => ({ ...f, hide_bursts: false }));
+
+      await store.loadTypeCounts();
+
+      expect(apiGet).toHaveBeenCalledWith('/type_counts', expect.objectContaining({ hide_bursts: '0' }));
     });
 
     it('should set empty array on error', async () => {

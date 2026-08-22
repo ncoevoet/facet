@@ -14,6 +14,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
+from db.schema import init_database as _init_real_schema
 
 
 _FOLDERS_SCHEMA = """
@@ -217,3 +218,79 @@ class TestFolders:
         assert len(body["folders"]) > 0
         for f in body["folders"]:
             assert "\\" not in f["path"]
+
+
+# ---------------------------------------------------------------------------
+# Hide-toggle defaults (issue #112)
+# ---------------------------------------------------------------------------
+
+_SAMPLE_PHOTO = {
+    "filename": "a.jpg", "aggregate": 7.0, "aesthetic": 6.0,
+    "comp_score": 5.0, "tech_sharpness": 4.0, "color_score": 5.0,
+    "exposure_score": 6.0, "category": "default",
+    "image_width": 4000, "image_height": 3000,
+}
+
+
+def _real_photo(path, **overrides):
+    return {**_SAMPLE_PHOTO, "path": path, **overrides}
+
+
+def _make_real_db(path, photos):
+    """A real photos schema (via db.schema.init_database), for tests that need
+    columns the local hand-rolled ``_FOLDERS_SCHEMA`` above doesn't carry
+    (``burst_group_id``), rather than growing that schema for one test class.
+    """
+    _init_real_schema(path)
+    conn = sqlite3.connect(path)
+    for p in photos:
+        cols = list(p.keys())
+        placeholders = ", ".join("?" for _ in cols)
+        conn.execute(
+            f"INSERT INTO photos ({', '.join(cols)}) VALUES ({placeholders})",
+            [p[c] for c in cols],
+        )
+    conn.commit()
+    conn.close()
+
+
+class TestFoldersHideDefaults:
+    """/api/folders must resolve absent hide toggles from viewer.defaults
+    instead of counting/covering over every frame (issue #112) — unlike the
+    classes above, ``build_hide_clauses`` is NOT mocked here so the real SQL
+    filtering runs.
+    """
+
+    _PHOTOS = [
+        _real_photo("/photos/2024/lead.jpg", aggregate=8.0, is_burst_lead=1, burst_group_id=1),
+        _real_photo("/photos/2024/follower.jpg", aggregate=5.0, is_burst_lead=0, burst_group_id=1),
+    ]
+
+    def _patches(self, db_path, defaults):
+        return (
+            mock.patch("api.routers.folders.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.routers.folders.get_visibility_clause", _fake_vis),
+            mock.patch("api.routers.folders.get_photos_from_clause", return_value=("photos", [])),
+            mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": defaults}),
+        )
+
+    def test_absent_hide_bursts_falls_back_to_viewer_default(self, client, tmp_path):
+        db = str(tmp_path / "folders_real.db")
+        _make_real_db(db, self._PHOTOS)
+        p_conn, p_vis, p_from, p_cfg = self._patches(db, {"hide_bursts": True})
+        with p_conn, p_vis, p_from, p_cfg:
+            resp = client.get("/api/folders", params={"prefix": "/photos/"})
+        assert resp.status_code == 200
+        folder = resp.json()["folders"][0]
+        assert folder["photo_count"] == 1
+        assert folder["cover_photo_path"] == "/photos/2024/lead.jpg"
+
+    def test_explicit_hide_bursts_zero_shows_both(self, client, tmp_path):
+        db = str(tmp_path / "folders_real.db")
+        _make_real_db(db, self._PHOTOS)
+        p_conn, p_vis, p_from, p_cfg = self._patches(db, {"hide_bursts": True})
+        with p_conn, p_vis, p_from, p_cfg:
+            resp = client.get("/api/folders", params={"prefix": "/photos/", "hide_bursts": "0"})
+        assert resp.status_code == 200
+        folder = resp.json()["folders"][0]
+        assert folder["photo_count"] == 2

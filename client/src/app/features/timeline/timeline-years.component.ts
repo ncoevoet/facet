@@ -7,6 +7,7 @@ import { ApiService } from '../../core/services/api.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
+import { GalleryStore, type ViewFilterParams } from '../gallery/gallery.store';
 import { I18N_KEYS } from '../../core/i18n/keys';
 
 interface YearSummary {
@@ -67,6 +68,7 @@ export class TimelineYearsComponent {
   protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
+  private readonly store = inject(GalleryStore);
 
   protected readonly years = signal<YearSummary[]>([]);
   protected readonly loading = signal(false);
@@ -77,14 +79,15 @@ export class TimelineYearsComponent {
     effect(() => {
       const dateFrom = this.filters.dateFrom();
       const dateTo = this.filters.dateTo();
-      this.load(dateFrom, dateTo);
+      const viewParams = this.store.viewFilterParams();
+      this.load(dateFrom, dateTo, viewParams);
     });
   }
 
-  private async load(dateFrom: string, dateTo: string): Promise<void> {
+  private async load(dateFrom: string, dateTo: string, viewParams: ViewFilterParams): Promise<void> {
     this.loading.set(true);
     try {
-      const params: Record<string, string> = {};
+      const params: Record<string, string> = { ...viewParams };
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
       const res = await firstValueFrom(

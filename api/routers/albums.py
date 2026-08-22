@@ -22,7 +22,7 @@ from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data_async, format_date, paginate,
-    is_access_controlled_install,
+    is_access_controlled_install, resolve_hide_defaults,
 )
 from api.models.albums import AlbumPhotosResponse, SharedAlbumResponse
 from api.types import VALID_SORT_COLS, SORT_OPTIONS_GROUPED, normalize_params
@@ -363,11 +363,7 @@ def _compute_smart_album_cover(conn, album_row, user_id=None):
         saved_filters = json.loads(album_row['smart_filter_json'])
         saved_filters = _normalize_smart_filters(saved_filters)
         # Apply viewer defaults for hide filters (excluded from smart_filter_json but active by default)
-        defaults = VIEWER_CONFIG.get('defaults', {})
-        for key in ('hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets',
-                    'hide_panoramas', 'hide_rejected'):
-            if key not in saved_filters:
-                saved_filters[key] = '1' if defaults.get(key, False) else '0'
+        saved_filters = resolve_hide_defaults(saved_filters)
         where_clauses, sql_params = _build_gallery_where(saved_filters, conn, user_id=user_id)
         from_clause, from_params = get_photos_from_clause(user_id)
         all_params = from_params + sql_params

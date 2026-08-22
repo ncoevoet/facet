@@ -334,6 +334,29 @@ def build_hide_clauses(hide_blinks: str, hide_bursts: str, hide_duplicates: str,
         clauses.append(HIDE_PANORAMAS_SQL)
     return clauses
 
+
+HIDE_TOGGLE_KEYS = ('hide_blinks', 'hide_bursts', 'hide_duplicates',
+                    'hide_brackets', 'hide_panoramas', 'hide_rejected')
+
+
+def resolve_hide_defaults(params: dict) -> dict:
+    """Fill absent hide toggles from ``viewer.defaults``, leaving explicit ones alone.
+
+    The hide toggles are runtime view preferences rather than part of any saved
+    query, so the surfaces that own no toggle UI of their own — the timeline, the
+    folder browser, a smart album's cover — never receive them and would
+    otherwise answer over the whole library while the gallery beside them answers
+    over the leads only. ``None`` means absent: a caller that genuinely wants
+    everything sends ``'0'`` and keeps it.
+    """
+    resolved = dict(params)
+    defaults = VIEWER_CONFIG.get('defaults', {})
+    for key in HIDE_TOGGLE_KEYS:
+        if resolved.get(key) is None:
+            resolved[key] = '1' if defaults.get(key, False) else '0'
+    return resolved
+
+
 # Column lists shared by gallery and person viewer
 PHOTO_BASE_COLS = [
     'path', 'filename', 'date_taken', 'camera_model', 'lens_model', 'iso',
