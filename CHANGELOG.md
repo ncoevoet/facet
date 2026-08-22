@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.14.1] "Isochrone" — 2026-08-22
+
 ### Added
 
 - **The timeline says when filters are hiding photos, and offers to show them.** Making the timeline honour the gallery's hide toggles (below) means a day whose every frame is a burst follower or a blink now counts zero, and a zero-count day cell is deliberately not clickable — so without a way back those photos would be reachable from the gallery but not from the timeline at all. On the library this was measured against, three days went that way. The timeline toolbar, and its mobile bottom bar, now show a `visibility_off` button whenever any toggle is hiding something, captioned "Some photos are hidden by your filters", which clears the toggles the same way the gallery's own hidden-photos banner does. The stash-and-restore logic behind that banner moved from the gallery component into the shared store rather than being written a second time.
