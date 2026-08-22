@@ -759,9 +759,9 @@ class TestRetainedCacheCoResidency:
 
         assert set(retained) == self.ALL_CACHEABLE
 
-    @pytest.mark.parametrize('host_gb', [32, 64])
+    @pytest.mark.parametrize('host_gb,also_retained', [(32, set()), (64, {'insightface'})])
     def test_a_host_that_holds_the_roster_in_one_pass_keeps_its_cache(
-            self, stub_torch, monkeypatch, host_gb):
+            self, stub_torch, monkeypatch, host_gb, also_retained):
         """A cached model the pass will load costs nothing to keep --
         ``_restore_from_cache`` hands the same object over rather than loading
         a second copy -- so only the cached models a pass does NOT use are
@@ -772,12 +772,18 @@ class TestRetainedCacheCoResidency:
         the case that discriminates: its 19.375 GB budget has 1.375 GB free
         beside that pass, less than the smallest model, so charging the cache
         twice would refuse all six and reload them on every chunk while saving
-        nothing."""
+        nothing.
+
+        It is also what separates the two hosts on ``insightface``, the
+        seventh cacheable model and the one the cache retains rather than
+        moves: 1.375 GB free cannot hold its 2.0 GB, so the 32 GB host
+        rebuilds it every chunk and the 64 GB host does not. Being exempt
+        from a move is not being exempt from the bound."""
         from models.model_manager import ModelManager
         _capacity, _peak, retained = _replay_cpu_plan(
             ModelManager(_make_config()), monkeypatch, host_gb, None)
 
-        assert set(retained) == self.ALL_CACHEABLE
+        assert set(retained) == self.ALL_CACHEABLE | also_retained
 
     @pytest.mark.parametrize('budget_gb,limit_bytes', [
         (8, 8 * GIB), (16, 16 * GIB), (32, 32 * GIB),
@@ -846,13 +852,19 @@ class TestFaceModelIsAManagedModel:
         assert face_analyzer.call_args.kwargs['min_confidence'] == pytest.approx(
             config.get_face_detection_settings()['min_confidence_percent'] / 100)
 
-    def test_unloading_it_releases_it_rather_than_caching_it(self, stub_torch):
+    def test_unloading_it_on_a_gpu_releases_it_rather_than_caching_it(self, stub_torch):
+        """Its ONNX sessions are built with ``CUDAExecutionProvider`` there,
+        so retaining the object between passes would keep the VRAM they
+        allocated pinned -- the one thing the cache exists to avoid. Off
+        CUDA it is retained instead; see
+        ``TestFaceModelIsRamCacheableOnCpu``."""
         pytest.importorskip('cv2')
         import analyzers
         from config import ScoringConfig
         from models.model_manager import ModelManager
 
         manager = ModelManager(ScoringConfig())
+        manager.device = 'cuda'
         with mock.patch.object(analyzers, 'FaceAnalyzer'):
             manager.load_model_only('insightface')
         manager.unload_model('insightface')
@@ -1001,3 +1013,230 @@ class TestRestoreFromCacheSurvivesConcurrentEviction:
         assert manager._restore_from_cache('clip') is model
         assert manager.models['clip'] is model
         assert 'clip' not in manager._cpu_cache
+
+
+class TestEvictionSurvivesAConcurrentRestore:
+    """The eviction loops delete from the dict the scan thread pops from.
+
+    ``evict_cpu_cache`` runs on the ``MultiPassResourceMonitor`` thread while
+    ``_restore_from_cache`` runs on the scan thread, and both remove entries
+    from ``_cpu_cache``. The read side was already fixed to a single ``pop``;
+    the write sides still snapshotted the keys and then deleted each one, so a
+    restore landing between the snapshot and the delete raised ``KeyError``.
+    The monitor swallows that at ``processing/resource_monitor.py`` --
+    ``except Exception: pass`` -- and every model AFTER the missing one stays
+    cached, at above 85% of the effective limit, which is the moment the
+    memory is most needed. ``stop()`` only sets an event and does not join, so
+    ``unload_all`` can run while the monitor is still inside the eviction.
+    """
+
+    class _RacingCache(dict):
+        """A cache the scan thread takes an entry from on every removal.
+
+        Whichever removal primitive the eviction loop uses, one other model is
+        gone by the time it lands -- the interleaving that used to raise on
+        the second iteration.
+        """
+
+        def __delitem__(self, key):
+            self._scan_thread_takes_one()
+            super().__delitem__(key)
+
+        def pop(self, key, *default):
+            self._scan_thread_takes_one()
+            return super().pop(key, *default)
+
+        def _scan_thread_takes_one(self):
+            if self:
+                dict.pop(self, list(self)[-1])
+
+    def _racing(self):
+        return self._RacingCache(
+            clip=mock.MagicMock(spec=['cpu', 'to']),
+            samp_net=mock.MagicMock(spec=['cpu', 'to']),
+        )
+
+    def test_evict_cpu_cache_is_not_killed_by_a_concurrent_restore(self, manager):
+        manager._cpu_cache = self._racing()
+
+        manager.evict_cpu_cache()
+
+        assert dict(manager._cpu_cache) == {}
+
+    def test_unload_all_is_not_killed_by_a_concurrent_restore(self, manager):
+        manager._cpu_cache = self._racing()
+
+        manager.unload_all()
+
+        assert dict(manager._cpu_cache) == {}
+
+    def test_the_eviction_count_reports_what_it_really_evicted(self, manager, caplog):
+        manager._cpu_cache = self._racing()
+
+        with caplog.at_level('INFO', logger='facet.models'):
+            manager.evict_cpu_cache()
+
+        assert 'Evicted 2 model(s)' not in caplog.text
+
+
+class TestFreedHeapIsHandedBack:
+    """Every unload path has to return the freed pages to the kernel.
+
+    ``release_freed_heap`` is what actually gives the memory back --
+    dropping the last reference only lets glibc keep it in its arenas -- and
+    replacing it with a no-op left every suite green. These pin the three
+    call sites so the release cannot be dropped silently.
+    """
+
+    @pytest.fixture()
+    def released(self, monkeypatch):
+        release = mock.Mock(return_value=True)
+        monkeypatch.setattr(system_memory, 'release_freed_heap', release)
+        return release
+
+    def test_unload_model_releases_the_heap(self, manager, released):
+        manager.models = {'vlm_tagger': mock.MagicMock(spec=['cpu'])}
+        manager.keep_in_ram = 'never'
+
+        manager.unload_model('vlm_tagger')
+
+        released.assert_called_once_with()
+
+    def test_unload_model_releases_the_heap_on_the_cached_path_too(self, manager, released):
+        manager.models = {'topiq': mock.MagicMock(spec=['cpu', 'to'])}
+        manager.keep_in_ram = 'always'
+
+        manager.unload_model('topiq')
+
+        released.assert_called_once_with()
+
+    def test_evict_cpu_cache_releases_the_heap(self, manager, released):
+        manager._cpu_cache = {'topiq': mock.MagicMock(spec=['cpu', 'to'])}
+
+        manager.evict_cpu_cache()
+
+        released.assert_called_once_with()
+
+    def test_unload_all_releases_the_heap(self, manager, released):
+        manager.models = {'topiq': mock.MagicMock(spec=['cpu', 'to'])}
+
+        manager.unload_all()
+
+        released.assert_called_once_with()
+
+
+class TestFaceModelIsRamCacheableOnCpu:
+    """InsightFace was rebuilt from disk once per chunk and never cached.
+
+    Since it became an ordinary managed model, ``unload_model`` fell through
+    to ``del model`` for it -- ``FaceAnalyzer`` has neither ``unload`` nor
+    ``cpu`` -- so the next chunk reparsed 196 MB of ONNX weights and rebuilt
+    three ``InferenceSession`` objects. On the container path, where the
+    chunk is pinned to 10 photos, a 10 000-photo scan did that a thousand
+    times where a single-pass scan did it once.
+    """
+
+    def _analyzer(self):
+        return mock.MagicMock(spec=['face_app', 'analyze_faces', 'available'])
+
+    def test_a_cpu_run_retains_the_analyzer_instead_of_rebuilding_it(self, manager):
+        analyzer = self._analyzer()
+        manager.models = {'insightface': analyzer}
+        manager.keep_in_ram = 'always'
+
+        manager.unload_model('insightface')
+
+        assert manager._cpu_cache['insightface'] is analyzer
+        assert manager._restore_from_cache('insightface') is analyzer
+        assert manager.models['insightface'] is analyzer
+
+    def test_retaining_it_moves_nothing_because_there_is_nothing_to_move(self, manager):
+        analyzer = self._analyzer()
+
+        manager._move_to_cpu(analyzer, 'insightface')
+        manager._move_to_device(analyzer, 'insightface')
+
+        assert analyzer.mock_calls == []
+
+    def test_a_cuda_run_never_caches_it(self, manager):
+        manager.device = 'cuda'
+        manager.keep_in_ram = 'always'
+
+        assert not manager._can_cache_to_ram('insightface')
+        assert manager._can_cache_to_ram('topiq')
+
+    def test_a_budget_that_holds_it_beside_the_next_pass_keeps_it(self, manager, monkeypatch):
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(64 * GIB, 24 * GIB, 40 * GIB, 37.5),
+        )
+        manager._cpu_plan = [['insightface', 'clip']]
+        monkeypatch.setattr(manager, '_cpu_cache_budget_gb', lambda: 100.0)
+
+        assert manager._can_cache_to_ram('insightface')
+
+    def test_a_budget_too_tight_for_it_still_refuses(self, manager, monkeypatch):
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(64 * GIB, 24 * GIB, 40 * GIB, 37.5),
+        )
+        manager._cpu_plan = [['insightface', 'clip']]
+        monkeypatch.setattr(manager, '_cpu_cache_budget_gb', lambda: 1.0)
+
+        assert not manager._can_cache_to_ram('insightface')
+
+
+class TestThePackingCapIsNotAnOomPrediction:
+    """A pass over the packing ceiling is a deliberate cap, not a danger.
+
+    ``_cpu_pass_capacity_gb`` holds every container's capacity at
+    ``_CGROUP_CAPACITY_CEILING_GB``, so the 8.0 GB ``qwen3_5_4b_tagger``
+    exceeded it at EVERY container size and the plan warned that the kernel
+    would OOM-kill it and told the operator to raise a limit that could never
+    clear the warning -- reproduced with a 64 GiB limit, where an 8.0 GB pass
+    is entirely safe. The OOM prediction belongs to what the container can
+    actually hold, ``_usable_ram_gb``, not to the packing ceiling.
+    """
+
+    ROSTER = ['qwen3_5_4b_tagger', 'topiq']
+
+    def test_a_roomy_container_is_not_told_to_raise_its_limit(
+        self, manager, monkeypatch, caplog,
+    ):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 64 * GIB)
+        with caplog.at_level('WARNING', logger='facet.models'):
+            manager.group_passes_by_vram(self.ROSTER, 0.0)
+
+        assert caplog.text == ''
+
+    def test_the_deliberate_cap_is_reported_without_an_unhelpful_remedy(
+        self, manager, monkeypatch, caplog,
+    ):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 64 * GIB)
+        with caplog.at_level('INFO', logger='facet.models'):
+            manager.group_passes_by_vram(self.ROSTER, 0.0)
+
+        assert 'qwen3_5_4b_tagger' in caplog.text
+        assert 'Raise the memory limit' not in caplog.text
+        assert 'OOM-kill' not in caplog.text
+
+    def test_a_pass_the_container_genuinely_cannot_hold_still_warns(
+        self, manager, monkeypatch, caplog,
+    ):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 6 * GIB)
+        with caplog.at_level('WARNING', logger='facet.models'):
+            manager.group_passes_by_vram(self.ROSTER, 0.0)
+
+        assert 'qwen3_5_4b_tagger' in caplog.text
+        assert 'expect the kernel to OOM-kill it' in caplog.text
+        assert 'Raise the memory limit' in caplog.text
+
+    def test_a_bare_metal_host_still_hears_about_swapping(
+        self, manager, monkeypatch, caplog,
+    ):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
+        monkeypatch.setattr(manager, 'detect_system_ram_gb', lambda: 4.0)
+        with caplog.at_level('WARNING', logger='facet.models'):
+            manager.group_passes_by_vram(self.ROSTER, 0.0)
+
+        assert 'it will swap' in caplog.text

@@ -68,12 +68,14 @@ class ModelManager:
     Automatically selects models based on configured VRAM profile.
     """
 
-    # Models that support .cpu()/.to(device) for RAM caching between passes
+    # Models that support .cpu()/.to(device) for RAM caching between passes,
+    # plus 'insightface', which is retained rather than moved (see
+    # _can_cache_to_ram)
     CPU_CACHEABLE_MODELS = {
         'clip', 'clip_aesthetic', 'samp_net',
         'topiq', 'hyperiqa', 'dbcnn', 'musiq', 'musiq-koniq', 'clipiqa+',
         'topiq_iaa', 'topiq_nr_face', 'liqe',
-        'saliency',
+        'saliency', 'insightface',
     }
 
     # Minimum available RAM headroom (GB) required for auto caching
@@ -422,6 +424,22 @@ class ModelManager:
         which is the GPU case: there _move_to_cpu really does move tensors
         off the device, so the cache spends a different pool than the pass.
 
+        ``insightface`` is cacheable only off CUDA, and that gate is explicit
+        rather than left to the budget. FaceAnalyzer holds its InsightFace
+        object as ``face_app`` and exposes no ``model`` / ``cpu`` / ``to``,
+        so _move_to_cpu and _move_to_device fall through every branch and do
+        nothing at all -- which is the right semantics here: retain the
+        object, move nothing. What that buys is the 196 MB of ONNX weights
+        and the three InferenceSessions that FaceAnalysis.prepare() rebuilds
+        otherwise, once per chunk since insightface became an ordinary
+        managed model -- a thousand rebuilds on a 10 000-photo scan where the
+        container path pins the chunk to 10. On CUDA those sessions are built
+        with CUDAExecutionProvider and pin VRAM, so retaining the object
+        would pin it between passes, which is the one thing the cache exists
+        to avoid; and there is no CPU plan on a GPU, so _fits_cpu_cache_budget
+        is skipped and could not refuse it. Under a cgroup that budget still
+        can, and should: there the rebuild is cheaper than the RAM.
+
         Args:
             model_name: Name of the model
 
@@ -431,6 +449,8 @@ class ModelManager:
         if self.keep_in_ram == 'never':
             return False
         if model_name not in self.CPU_CACHEABLE_MODELS:
+            return False
+        if model_name == 'insightface' and self.device == 'cuda':
             return False
         if self.keep_in_ram == 'always':
             return True
@@ -498,9 +518,10 @@ class ModelManager:
 
         A single ``pop`` decides both whether the model is cached and which
         object it is, rather than a membership test followed by a separate
-        lookup: ``evict_cpu_cache`` deletes from this same dict on the monitor
+        lookup: ``evict_cpu_cache`` empties this same dict on the monitor
         thread, and an eviction landing between the two raised ``KeyError`` on
-        the scan thread, where nothing catches it.
+        the scan thread, where nothing catches it. The eviction side now pops
+        for the mirror-image reason.
 
         Args:
             model_name: Name of the model
@@ -529,20 +550,29 @@ class ModelManager:
     def evict_cpu_cache(self):
         """Evict all models from CPU cache to free RAM.
 
-        Called by ResourceMonitor under memory pressure.
+        Called by ResourceMonitor under memory pressure, on the monitor
+        thread, while ``_restore_from_cache`` pops from this same dict on the
+        scan thread. Snapshotting the keys and then deleting each one raised
+        ``KeyError`` when a restore landed between the two: the monitor
+        swallows that (``except Exception: pass``) and every model AFTER the
+        missing one stays cached, at above 85% of the effective limit, which
+        is exactly when the memory is needed. So each entry is removed with
+        the same forgiving ``pop`` the read side uses, and the count logged is
+        what this call really took rather than what it found a moment earlier.
         """
         if not self._cpu_cache:
             return
 
-        names = list(self._cpu_cache.keys())
-        for name in names:
-            del self._cpu_cache[name]
+        evicted = [name for name in list(self._cpu_cache)
+                   if self._cpu_cache.pop(name, None) is not None]
 
         import gc
         gc.collect()
         from utils.system_memory import release_freed_heap
         release_freed_heap()
-        logger.info("Evicted %d model(s) from RAM cache: %s", len(names), ", ".join(names))
+        if evicted:
+            logger.info("Evicted %d model(s) from RAM cache: %s",
+                        len(evicted), ", ".join(evicted))
 
     def load_model_only(self, model_name: str):
         """
@@ -784,7 +814,14 @@ class ModelManager:
             return None
 
     def unload_all(self):
-        """Unload all models to free VRAM and clear CPU cache."""
+        """Unload all models to free VRAM and clear CPU cache.
+
+        The cache is emptied with ``pop`` rather than ``del`` for the reason
+        ``evict_cpu_cache`` is: ``MultiPassResourceMonitor.stop()`` only sets
+        an event and never joins the thread, so an eviction can still be
+        removing these same keys while this runs, and a ``del`` on the key it
+        already took would raise on the way out of a scan.
+        """
         for name, model in list(self.models.items()):
             if hasattr(model, 'unload'):
                 model.unload()
@@ -810,8 +847,8 @@ class ModelManager:
         self.models.clear()
 
         # Clear CPU cache
-        for name in list(self._cpu_cache.keys()):
-            del self._cpu_cache[name]
+        for name in list(self._cpu_cache):
+            self._cpu_cache.pop(name, None)
         self._cpu_cache.clear()
 
         import gc
@@ -1153,6 +1190,18 @@ class ModelManager:
         limit puts both ``qrealign`` (5.0 GB) and ``clip`` (3.0 GB) over a
         2.0 GB capacity, and naming only the first sends the operator back to
         be killed by the second.
+
+        Over the budget is not the same as over the container, and only the
+        second predicts an OOM. Under a cgroup the budget is held at
+        ``_CGROUP_CAPACITY_CEILING_GB``, so capacity is 5.0 GB at EVERY limit
+        above 7 GiB and the 8.0 GB ``qwen3_5_4b_tagger`` exceeded it at every
+        container size -- a 64 GiB container was told to expect the kernel to
+        kill an 8.0 GB pass and to raise a limit that raising could never
+        clear. What predicts the kill is ``_usable_ram_gb``: the limit less
+        the reserve, what the container can really hold. A pass above the
+        ceiling but inside that is a deliberate cap on how much the packer
+        combines, worth saying so the extra passes are explained, but not
+        worth a warning and never worth a remedy that does not apply.
         """
         if limit_bytes is None:
             logger.warning(
@@ -1160,11 +1209,20 @@ class ModelManager:
                 "its OS: it will swap. Add RAM or drop models from the roster.",
                 models, declared_gb, capacity_gb,
             )
-        else:
+            return
+
+        holdable_gb = self._usable_ram_gb(limit_bytes)
+        if declared_gb > holdable_gb:
             logger.warning(
-                "Pass %s needs %.1fGB, above the %.1fGB budget this %.1fGiB "
-                "container allows: expect the kernel to OOM-kill it. Raise the "
-                "memory limit or drop models from the roster.",
+                "Pass %s needs %.1fGB, above the %.1fGB this %.1fGiB container "
+                "can hold: expect the kernel to OOM-kill it. Raise the memory "
+                "limit or drop models from the roster.",
+                models, declared_gb, holdable_gb, limit_bytes / self._BYTES_PER_GB,
+            )
+        else:
+            logger.info(
+                "Pass %s needs %.1fGB, above the %.1fGB this planner packs into one "
+                "pass, and runs on its own: the %.1fGiB limit holds it.",
                 models, declared_gb, capacity_gb, limit_bytes / self._BYTES_PER_GB,
             )
 
