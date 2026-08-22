@@ -297,6 +297,8 @@ Solo lectura: decodifica una muestra aleatoria directamente desde el disco e imp
 
 ## Configuración
 
+La variable de entorno `FACET_CONFIG`, cuando está definida, proporciona la ruta predeterminada de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` y `calibrate.py` cuando se ejecutan sin un `--config` explícito; `--config` siempre la anula. Si la variable nombra un archivo que no existe, el visor rechaza la ruta de autenticación de instalación abierta en lugar de concluir que la instalación no tiene contraseñas, y registra un error que nombra la ruta que falta.
+
 | Comando | Descripción |
 |---------|-------------|
 | `python facet.py --validate-categories` | Valida las configuraciones de categorías |

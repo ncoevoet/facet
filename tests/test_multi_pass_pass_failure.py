@@ -31,7 +31,7 @@ class _StubModelManager:
     def load_model_only(self, name):
         return object()
 
-    def unload_model(self, name):
+    def unload_model(self, name, reclaim=True):
         pass
 
 

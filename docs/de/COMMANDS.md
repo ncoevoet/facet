@@ -297,6 +297,8 @@ Nur lesend: Es dekodiert eine Zufallsstichprobe direkt von der Festplatte und gi
 
 ## Konfiguration
 
+Die Umgebungsvariable `FACET_CONFIG` liefert, wenn gesetzt, den Standardpfad zu `scoring_config.json` für `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` und `calibrate.py`, sofern diese ohne explizites `--config` ausgeführt werden; `--config` überschreibt sie immer. Benennt die Variable eine nicht vorhandene Datei, verweigert der Viewer den Auth-Pfad für eine offene Installation, statt zu schließen, dass die Installation keine Passwörter hat, und protokolliert einen Fehler mit dem fehlenden Pfad.
+
 | Befehl | Beschreibung |
 |---------|-------------|
 | `python facet.py --validate-categories` | Kategoriekonfigurationen validieren |

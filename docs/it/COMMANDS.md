@@ -297,6 +297,8 @@ Sola lettura: decodifica un campione casuale direttamente dal disco e stampa la 
 
 ## Configurazione
 
+La variabile d'ambiente `FACET_CONFIG`, se impostata, fornisce il percorso predefinito di `scoring_config.json` per `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando vengono eseguiti senza un `--config` esplicito; `--config` la sovrascrive sempre. Se la variabile indica un file inesistente, il viewer rifiuta il percorso di autenticazione da installazione aperta invece di concludere che l'installazione non ha password, e registra un errore che nomina il percorso mancante.
+
 | Comando | Descrizione |
 |---------|-------------|
 | `python facet.py --validate-categories` | Valida le configurazioni delle categorie |

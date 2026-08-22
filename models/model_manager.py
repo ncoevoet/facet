@@ -8,10 +8,17 @@ Supports PyIQA, Qwen2-VL, and CLIP models with automatic selection.
 import logging
 from typing import Dict, List
 
+from utils.system_memory import BYTES_PER_GB
+
 logger = logging.getLogger("facet.models")
 
 CPU_DEVICE = 'cpu'
 UNIFIED_MEMORY_ACCELERATOR = 'mps'
+
+# What ``detect_system_ram_gb`` answers when no reading could be taken at all.
+# Deliberately a modest figure: every consumer sizes a memory budget from it,
+# so guessing high is the direction that ends in an OOM kill.
+UNKNOWN_SYSTEM_RAM_GB = 8.0
 
 # Lazy import for torch
 torch = None
@@ -85,7 +92,6 @@ class ModelManager:
     _CGROUP_CAPACITY_CEILING_GB = 5.0
     _HOST_OS_RESERVE_GB = 1.0
     _RAM_PER_DECLARED_GB = 1.6
-    _BYTES_PER_GB = 1024 ** 3
 
     def __init__(self, config):
         """
@@ -306,7 +312,7 @@ class ModelManager:
         """Check if using legacy CLIP+MLP mode."""
         return self.profile == 'legacy'
 
-    def unload_model(self, model_name: str):
+    def unload_model(self, model_name: str, reclaim: bool = True):
         """
         Unload a specific model to free VRAM.
 
@@ -319,9 +325,23 @@ class ModelManager:
         first pass and every later pass ran on top of memory it could not use.
         See :func:`utils.system_memory.release_freed_heap`.
 
+        ``reclaim=False`` drops the reference but leaves that return to the
+        caller, for a caller unloading a whole pass group back to back. The
+        reference itself goes either way -- it is popped above, outside the
+        block -- so refcounting frees the non-cyclic bulk at the same instant
+        regardless; only the cycle collection, the device cache and the heap
+        trim wait. Nothing is allocated between one unload and the next, so
+        the deferral cannot let the peak exceed a level the pass, which held
+        every one of those models at once, had already reached. What it saves
+        is real: a full ``gc.collect()`` costs about 88 ms once torch is
+        loaded, and a nine-model pass paid it nine times per chunk to reclaim
+        what one pass at the end reclaims.
+
         Args:
             model_name: Name of the model to unload ('clip', 'qwen2_vl',
                        'clip_aesthetic', 'samp_net', 'insightface')
+            reclaim: Collect, clear the device cache and trim the heap before
+                     returning. False leaves all three to the caller.
         """
         if model_name not in self.models:
             return
@@ -347,6 +367,8 @@ class ModelManager:
 
         # The model is already popped from self.models above, so the reference is
         # gone before we clear the device cache and the freed VRAM is reclaimed.
+        if not reclaim:
+            return
         import gc
         gc.collect()
         from utils.device import clear_device_cache
@@ -458,7 +480,7 @@ class ModelManager:
             return False
 
         from utils.system_memory import effective_memory
-        available_gb = effective_memory().available / self._BYTES_PER_GB
+        available_gb = effective_memory().available / BYTES_PER_GB
         model_ram = self.MODEL_RAM_REQUIREMENTS.get(model_name, 2.0)
         return available_gb > model_ram + self._RAM_HEADROOM_GB
 
@@ -921,13 +943,11 @@ class ModelManager:
 
         Returns:
             Total system RAM in GB (the cgroup limit where one applies),
-            or 8.0 where nothing could be read
+            or ``UNKNOWN_SYSTEM_RAM_GB`` where nothing could be read
         """
-        from utils.system_memory import effective_memory
-        total = effective_memory().total
-        if total == 0:
-            return 8.0
-        return total / ModelManager._BYTES_PER_GB
+        from utils.system_memory import total_gb
+        total = total_gb()
+        return UNKNOWN_SYSTEM_RAM_GB if total is None else total
 
     @staticmethod
     def get_recommended_profile(vram_gb: float) -> str:
@@ -1175,7 +1195,7 @@ class ModelManager:
         """
         if limit_bytes is None:
             return max(0.0, self.detect_system_ram_gb() - self._HOST_OS_RESERVE_GB)
-        return max(0.0, limit_bytes / self._BYTES_PER_GB - self._RAM_RESERVE_GB)
+        return max(0.0, limit_bytes / BYTES_PER_GB - self._RAM_RESERVE_GB)
 
     def _warn_unfittable_pass(self, models, declared_gb, capacity_gb, limit_bytes):
         """Report a planned pass the memory budget cannot hold, and its cost.
@@ -1217,13 +1237,13 @@ class ModelManager:
                 "Pass %s needs %.1fGB, above the %.1fGB this %.1fGiB container "
                 "can hold: expect the kernel to OOM-kill it. Raise the memory "
                 "limit or drop models from the roster.",
-                models, declared_gb, holdable_gb, limit_bytes / self._BYTES_PER_GB,
+                models, declared_gb, holdable_gb, limit_bytes / BYTES_PER_GB,
             )
         else:
             logger.info(
                 "Pass %s needs %.1fGB, above the %.1fGB this planner packs into one "
                 "pass, and runs on its own: the %.1fGiB limit holds it.",
-                models, declared_gb, capacity_gb, limit_bytes / self._BYTES_PER_GB,
+                models, declared_gb, capacity_gb, limit_bytes / BYTES_PER_GB,
             )
 
     def group_passes_by_vram(self, models: List[str], available_vram: float) -> List[List[str]]:

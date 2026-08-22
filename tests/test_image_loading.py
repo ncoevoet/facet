@@ -11,8 +11,11 @@ import numpy as np
 import pytest
 from PIL import Image
 
-from utils import image_loading
+from utils import image_loading, system_memory
 from utils.image_loading import configure_raw_decoding, load_image_from_path
+from utils.system_memory import EffectiveMemory
+
+GIB = 1024 ** 3
 
 
 @pytest.fixture(autouse=True)
@@ -40,9 +43,21 @@ class TestConfigureRawDecoding:
         configure_raw_decoding(concurrency=1)
         assert image_loading._raw_semaphore._value == 1
 
-    def test_auto_value_bounded(self):
-        n = image_loading._auto_decode_concurrency()
-        assert 1 <= n <= 4
+    def test_auto_concurrency_narrowed_by_tight_memory(self, monkeypatch):
+        monkeypatch.setattr(image_loading.os, "cpu_count", lambda: 8)
+        monkeypatch.setattr(
+            system_memory, "effective_memory",
+            lambda: EffectiveMemory(total=8 * GIB, used=5 * GIB, available=3 * GIB, percent=62.5),
+        )
+        assert image_loading._auto_decode_concurrency() == 1
+
+    def test_auto_concurrency_reaches_cpu_ceiling_when_roomy(self, monkeypatch):
+        monkeypatch.setattr(image_loading.os, "cpu_count", lambda: 8)
+        monkeypatch.setattr(
+            system_memory, "effective_memory",
+            lambda: EffectiveMemory(total=128 * GIB, used=8 * GIB, available=120 * GIB, percent=6.25),
+        )
+        assert image_loading._auto_decode_concurrency() == 4
 
     def test_zero_keeps_current_concurrency(self):
         configure_raw_decoding(concurrency=3)

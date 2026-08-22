@@ -297,6 +297,8 @@ Read-only: it decodes a random sample straight from disk and prints the mean lum
 
 ## Configuration
 
+`FACET_CONFIG`, when set, supplies the default `scoring_config.json` path for `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` and `calibrate.py` whenever they run without an explicit `--config`; `--config` always overrides it. If the variable names a file that does not exist, the viewer refuses to start the open-install auth path rather than concluding the install has no passwords, and logs an error naming the missing path.
+
 | Command | Description |
 |---------|-------------|
 | `python facet.py --validate-categories` | Validate category configurations |

@@ -28,6 +28,14 @@ V1_USAGE_IN_BYTES = 17 * GIB
 V1_PAGE_CACHE = V1_USAGE_IN_BYTES - V1_RSS
 V1_RSS_PERCENT = 45.0
 V1_HIERARCHY_RSS = 10 * GIB
+DOCKER_CGROUP = '/docker/abc123def456'
+SYSTEMD_SLICE = '/system.slice'
+SYSTEMD_LEAF = '/system.slice/facet.service'
+OTHER_CONTROLLER_CGROUP = '/user.slice'
+PAGE_BYTES = 4096
+TRIM_BLOCK_BYTES = 96 * 1024
+TRIM_BLOCK_COUNT = 1024
+TRIM_WORKING_SET_BYTES = TRIM_BLOCK_BYTES * TRIM_BLOCK_COUNT
 
 
 def _v1_memory_stat(rss=V1_RSS, total_rss=None):
@@ -57,6 +65,30 @@ def _fake_host(monkeypatch, total=HOST_TOTAL, used=HOST_USED,
 
 def _without_psutil(monkeypatch):
     monkeypatch.setattr(system_memory, 'HAS_PSUTIL', False)
+
+
+def _proc_self_cgroup(monkeypatch, tmp_path, content):
+    """Name the cgroups this process belongs to, the way ``/proc/self/cgroup`` does."""
+    path = tmp_path / 'proc_self_cgroup'
+    path.write_text(content)
+    monkeypatch.setattr(system_memory, 'PROC_SELF_CGROUP_PATH', str(path))
+    return path
+
+
+def _write_cgroup(tmp_path, relative, **contents):
+    """Write the files of one cgroup nested below the fixture's hierarchy root.
+
+    ``fake_cgroup`` retargets the six path constants into ``tmp_path``, which
+    the reader treats as the hierarchy root, and an ancestry hangs below that
+    root under the very same file names -- so a nested cgroup is a
+    subdirectory holding files called ``v2_limit``, ``v2_stat`` and so on,
+    named by the fixture's own keys rather than by a second set invented here.
+    """
+    directory = tmp_path.joinpath(*[part for part in relative.split('/') if part])
+    directory.mkdir(parents=True, exist_ok=True)
+    for key, text in contents.items():
+        (directory / key).write_text(text)
+    return directory
 
 
 class TestMemoryLimitBytes:
@@ -133,6 +165,254 @@ class TestMemoryLimitBytes:
         monkeypatch.setattr(system_memory, 'CGROUP_V2_LIMIT_PATH', str(tmp_path))
 
         assert system_memory.memory_limit_bytes() is None
+
+
+class TestTheCgroupThisProcessBelongsTo:
+    """The limit that binds this process, which is rarely the root cgroup's.
+
+    Reading ``/sys/fs/cgroup/memory.max`` alone is right for the DEFAULT
+    container -- cgroup v2 with a private cgroup namespace, where the
+    container's own cgroup IS the mount root -- and wrong everywhere else.
+    ``docker run --cgroupns=host`` and a systemd unit carrying ``MemoryMax=``
+    (which is how ``docs/DEPLOYMENT.md`` ships ``facet.service``) both leave
+    that root file absent or saying ``max`` while the real limit sits on a
+    cgroup further down the tree, so the reader answered "unlimited" and every
+    consumer fell back to host RAM -- the exact issue #111 failure.
+    """
+
+    def test_the_default_container_case_reads_the_hierarchy_root(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        """``0::/`` is what a container with a private cgroup namespace sees,
+        and it must resolve to exactly the path read before this walk existed."""
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_limit=f'{8 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, '0::/\n')
+
+        assert system_memory.memory_limit_bytes() == 8 * GIB
+
+    def test_a_nested_v2_cgroup_carries_the_limit(self, tmp_path, monkeypatch, fake_cgroup):
+        """``--cgroupns=host``: the container's cgroup is a subdirectory of the
+        mount root, and the root itself has no ``memory.max`` at all."""
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, DOCKER_CGROUP, v2_limit=f'{4 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{DOCKER_CGROUP}\n')
+
+        assert system_memory.memory_limit_bytes() == 4 * GIB
+
+    def test_a_nested_v1_cgroup_carries_the_limit(self, tmp_path, monkeypatch, fake_cgroup):
+        """cgroup v1 names one hierarchy per controller, so the memory one has
+        to be picked out of the list rather than taken from the first line."""
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, DOCKER_CGROUP, v1_limit=f'{2 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path,
+                          f'11:pids:{DOCKER_CGROUP}\n'
+                          f'9:memory:{DOCKER_CGROUP}\n'
+                          f'3:cpu,cpuacct:{DOCKER_CGROUP}\n')
+
+        assert system_memory.memory_limit_bytes() == 2 * GIB
+
+    def test_a_v1_controller_that_is_not_memory_does_not_name_the_cgroup(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        """Only the memory hierarchy's path says where the memory limit lives;
+        the other controllers routinely sit on different paths entirely."""
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, OTHER_CONTROLLER_CGROUP, v1_limit=f'{GIB}\n')
+        _write_cgroup(tmp_path, DOCKER_CGROUP, v1_limit=f'{2 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path,
+                          f'11:pids:{OTHER_CONTROLLER_CGROUP}\n'
+                          f'9:memory:{DOCKER_CGROUP}\n')
+
+        assert system_memory.memory_limit_bytes() == 2 * GIB
+
+    def test_a_v1_memory_controller_co_mounted_with_another_is_still_found(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, DOCKER_CGROUP, v1_limit=f'{2 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'6:memory,hugetlb:{DOCKER_CGROUP}\n')
+
+        assert system_memory.memory_limit_bytes() == 2 * GIB
+
+    def test_a_limit_on_an_ancestor_binds_a_leaf_that_sets_none(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        """This is the systemd case: ``MemoryMax=`` on a slice caps every unit
+        below it, and each unit's own ``memory.max`` still reads ``max``."""
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, SYSTEMD_SLICE, v2_limit=f'{6 * GIB}\n')
+        _write_cgroup(tmp_path, SYSTEMD_LEAF, v2_limit='max\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{SYSTEMD_LEAF}\n')
+
+        assert system_memory.memory_limit_bytes() == 6 * GIB
+
+    def test_an_ancestor_limit_is_found_when_the_leaf_has_no_file_at_all(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, SYSTEMD_SLICE, v2_limit=f'{6 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{SYSTEMD_LEAF}\n')
+
+        assert system_memory.memory_limit_bytes() == 6 * GIB
+
+    def test_the_tightest_limit_along_the_ancestry_wins(self, tmp_path, monkeypatch, fake_cgroup):
+        """Every limit between here and the root is enforced at once, so the
+        effective budget is the smallest of them wherever it sits."""
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_limit=f'{32 * GIB}\n')
+        _write_cgroup(tmp_path, SYSTEMD_SLICE, v2_limit=f'{12 * GIB}\n')
+        _write_cgroup(tmp_path, SYSTEMD_LEAF, v2_limit=f'{5 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{SYSTEMD_LEAF}\n')
+
+        assert system_memory.memory_limit_bytes() == 5 * GIB
+
+    def test_an_ancestor_tighter_than_the_leaf_wins_too(self, tmp_path, monkeypatch, fake_cgroup):
+        """The mirror of the previous case: a leaf that raises its own limit
+        cannot buy memory back from the slice that caps it."""
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_limit=f'{32 * GIB}\n')
+        _write_cgroup(tmp_path, SYSTEMD_SLICE, v2_limit=f'{5 * GIB}\n')
+        _write_cgroup(tmp_path, SYSTEMD_LEAF, v2_limit=f'{12 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{SYSTEMD_LEAF}\n')
+
+        assert system_memory.memory_limit_bytes() == 5 * GIB
+
+    def test_the_v2_ancestry_still_wins_over_a_v1_hierarchy(self, tmp_path, monkeypatch, fake_cgroup):
+        """v2 precedence is over the whole ancestry, not over the root file
+        alone: a unified hierarchy saying ``max`` all the way up must not be
+        overruled by a v1 leftover that happens to be mounted too."""
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, DOCKER_CGROUP, v2_limit='max\n', v1_limit=f'{4 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path,
+                          f'0::{DOCKER_CGROUP}\n9:memory:{DOCKER_CGROUP}\n')
+
+        assert system_memory.memory_limit_bytes() is None
+
+    def test_an_unreadable_proc_self_cgroup_reads_the_root_as_before(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        """Degrading to today's behaviour means the root's own limit, never an
+        exception -- opening a directory raises OSError on every platform."""
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_limit=f'{8 * GIB}\n')
+        _write_cgroup(tmp_path, DOCKER_CGROUP, v2_limit=f'{4 * GIB}\n')
+        monkeypatch.setattr(system_memory, 'PROC_SELF_CGROUP_PATH', str(tmp_path))
+
+        assert system_memory.memory_limit_bytes() == 8 * GIB
+
+    def test_lines_that_are_not_cgroup_entries_are_ignored(self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_limit=f'{8 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, 'garbage\n\n1:name=systemd:/elsewhere\n')
+
+        assert system_memory.memory_limit_bytes() == 8 * GIB
+
+    def test_a_nested_ancestry_still_honours_the_host_total_rule(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        """cgroup v1's PAGE_COUNTER_MAX sentinel is written at every level of
+        a v1 tree, so recognising it only at the root would let a nested
+        hierarchy report an 8 EiB budget."""
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, DOCKER_CGROUP, v1_limit=f'{V1_UNLIMITED_SENTINEL}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'9:memory:{DOCKER_CGROUP}\n')
+
+        assert system_memory.memory_limit_bytes() is None
+
+
+class TestUsageIsChargedToTheLimitedCgroup:
+    """Headroom is the limit minus what is charged AGAINST that limit.
+
+    A slice-wide cap is charged for every unit below it, so reading this one
+    unit's own usage against its parent's limit reports headroom the OOM
+    killer will not honour -- an over-estimate, which is the direction that
+    ends in a kill.
+    """
+
+    def test_usage_comes_from_the_cgroup_the_limit_came_from(self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, SYSTEMD_SLICE,
+                      v2_limit=f'{8 * GIB}\n', v2_stat=f'anon {6 * GIB}\n')
+        _write_cgroup(tmp_path, SYSTEMD_LEAF, v2_limit='max\n', v2_stat=f'anon {2 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{SYSTEMD_LEAF}\n')
+
+        assert system_memory.effective_memory() == EffectiveMemory(
+            8 * GIB, 6 * GIB, 2 * GIB, 75.0)
+
+    def test_usage_comes_from_the_leaf_when_the_leaf_carries_the_limit(
+            self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, SYSTEMD_SLICE,
+                      v2_limit=f'{16 * GIB}\n', v2_stat=f'anon {12 * GIB}\n')
+        _write_cgroup(tmp_path, SYSTEMD_LEAF,
+                      v2_limit=f'{8 * GIB}\n', v2_stat=f'anon {2 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{SYSTEMD_LEAF}\n')
+
+        assert system_memory.effective_memory() == EffectiveMemory(
+            8 * GIB, 2 * GIB, 6 * GIB, 25.0)
+
+    def test_a_nested_v1_cgroup_reads_its_own_memory_stat(self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup()
+        _write_cgroup(tmp_path, DOCKER_CGROUP,
+                      v1_limit=f'{V1_LIMIT}\n', v1_usage=f'{V1_USAGE_IN_BYTES}\n',
+                      v1_stat=_v1_memory_stat())
+        _proc_self_cgroup(monkeypatch, tmp_path, f'9:memory:{DOCKER_CGROUP}\n')
+
+        assert system_memory.effective_memory() == EffectiveMemory(
+            V1_LIMIT, V1_RSS, V1_LIMIT - V1_RSS, V1_RSS_PERCENT)
+
+    def test_a_nested_cgroup_falls_back_to_its_own_usage_file(self, tmp_path, monkeypatch, fake_cgroup):
+        """``memory.current`` is the last resort, and it has to be the nested
+        cgroup's -- the root's would be the whole machine's."""
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_usage=f'{30 * GIB}\n')
+        _write_cgroup(tmp_path, DOCKER_CGROUP,
+                      v2_limit=f'{8 * GIB}\n', v2_usage=f'{3 * GIB}\n')
+        _proc_self_cgroup(monkeypatch, tmp_path, f'0::{DOCKER_CGROUP}\n')
+
+        assert system_memory.effective_memory().used == 3 * GIB
+
+
+class TestTotalGb:
+    """The one place that turns the effective total into the GB every consumer
+    reasons in -- ``config/scoring_config.py`` and ``models/model_manager.py``
+    each reimplemented it with a bare literal and disagreed on the sentinel."""
+
+    def test_bytes_per_gb_is_a_binary_gigabyte(self):
+        assert system_memory.BYTES_PER_GB == 1024 ** 3
+
+    def test_it_reports_the_cgroup_limit_in_gb(self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_limit=f'{8 * GIB}\n', v2_stat=f'anon {2 * GIB}\n')
+
+        assert system_memory.total_gb() == 8.0
+
+    def test_it_reports_the_host_total_where_no_limit_applies(self, tmp_path, monkeypatch, fake_cgroup):
+        _fake_host(monkeypatch)
+        fake_cgroup()
+
+        assert system_memory.total_gb() == HOST_TOTAL / GIB
+
+    def test_a_fractional_limit_is_not_rounded(self, tmp_path, monkeypatch, fake_cgroup):
+        """``docker run -m 6.5g`` is a legal limit, and a profile chosen from
+        a rounded-up 7 GB would be one tier too large."""
+        _fake_host(monkeypatch)
+        fake_cgroup(v2_limit=f'{13 * GIB // 2}\n', v2_stat=f'anon {GIB}\n')
+
+        assert system_memory.total_gb() == 6.5
+
+    def test_nothing_readable_at_all_reports_nothing(self, tmp_path, monkeypatch, fake_cgroup):
+        """None, not a fallback number: a caller that cannot tell "unknown"
+        from "small" picks a profile for memory it may not have."""
+        _without_psutil(monkeypatch)
+        fake_cgroup()
+
+        assert system_memory.total_gb() is None
 
 
 class TestEffectiveMemoryWithoutALimit:
@@ -409,16 +689,34 @@ class TestReleasingFreedHeap:
     """
 
     def test_it_returns_pages_gc_alone_leaves_charged(self):
+        """The working set is ``TRIM_WORKING_SET_BYTES``, and deliberately small.
+
+        This once allocated 1.125 GiB and touched every page of it, which
+        measured 1,241,708 KiB of peak resident set for this one test. In a
+        full-suite run that lands on top of an already-loaded torch, so on a
+        memory-constrained runner -- including, exactly, the 8 GiB container
+        this module exists to keep alive -- the suite could be OOM-killed by
+        its own memory test, and an exit 137 does not read as a test failure.
+
+        The size bought no confidence to lose. What the assertions need is for
+        the trim to hand back more than half of what was freed, and it hands
+        back all but a rounding error of it: measured on a heap deliberately
+        fragmented with torch loaded and 2859 live interleaved blocks, the
+        pages left behind were 0.2 MiB against the 48 MiB margin that half of
+        this working set gives -- and the same at 46 MiB and at 187 MiB of
+        working set. ``gc.collect()`` meanwhile returned nothing at any size
+        tried, from 46 MiB up to the original 1.125 GiB: ``after_gc`` equalled
+        ``grown`` to the byte, so the gap this measures is not a fine one.
+        """
         libc_has_trim = system_memory._malloc_trim() is not None
         if not libc_has_trim:
             pytest.skip("no malloc_trim on this C library")
 
         import gc
 
-        block_bytes = 96 * 1024
-        blocks = [bytearray(block_bytes) for _ in range(12000)]
+        blocks = [bytearray(TRIM_BLOCK_BYTES) for _ in range(TRIM_BLOCK_COUNT)]
         for block in blocks:
-            block[::4096] = b'\x01' * len(block[::4096])
+            block[::PAGE_BYTES] = b'\x01' * len(block[::PAGE_BYTES])
         grown = _resident_bytes()
 
         del blocks
@@ -428,7 +726,7 @@ class TestReleasingFreedHeap:
         assert system_memory.release_freed_heap() is True
         after_trim = _resident_bytes()
 
-        allocated = block_bytes * 12000
+        allocated = TRIM_WORKING_SET_BYTES
         assert after_gc > grown - allocated / 2, (
             "gc.collect() already returned the pages, so this test no longer "
             "measures what release_freed_heap is for"
