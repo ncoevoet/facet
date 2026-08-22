@@ -15,32 +15,36 @@ import threading
 import time
 import secrets
 
+from config import default_config_path
+
 logger = logging.getLogger(__name__)
 
 # --- CONFIG & SERVER SECRET (single parse of scoring_config.json) ---
+# Path to scoring_config.json — $FACET_CONFIG when set, else the repo-root file.
+# A Docker bind mount of a single file forces the daemon to create an absent host
+# source as a *directory*, shadowing the image's baked config and leaving the
+# entrypoint unable to reclaim its own mount point. Naming the file via an env var
+# instead lets the compose file mount a directory (which the daemon can create
+# safely) and point here without either program changing when the variable is
+# unset. Resolved by :func:`config.default_config_path` rather than re-derived:
+# this module used to carry a byte-for-byte copy of that function's body, which
+# nothing but a cross-package consistency test kept aligned. The import is not
+# free in the abstract — `config` pulls `config.percentile_normalizer`, which
+# pulls `db`, which pulls numpy: ~50 ms in an interpreter holding none of them.
+# It is free where it actually happens: `api.types` and `api.db_helpers` import
+# `config` at module scope themselves, and so do `facet.py` and `database.py`,
+# so every server and CLI process that reaches this module has already paid for
+# numpy — measured against an interpreter that already holds `db`, the addition
+# is under 1 ms.
 _CONFIG_PATH_ENV_VAR = 'FACET_CONFIG'
+_CONFIG_PATH = default_config_path()
 
+# Whether an operator NAMED that path or merely inherited the default. The two
+# differ only when the file is absent, and there they differ completely: an
+# unnamed absent config is a fresh install and legitimately open, while a named
+# one is a typo, a bad mount or a moved file — see :func:`_read_config`.
+_CONFIG_PATH_IS_EXPLICIT = bool(os.environ.get(_CONFIG_PATH_ENV_VAR, '').strip())
 
-def _resolve_config_path():
-    """Path to scoring_config.json — $FACET_CONFIG when set, else the repo-root file.
-
-    A Docker bind mount of a single file forces the daemon to create an absent
-    host source as a *directory*, shadowing the image's baked config and
-    leaving the entrypoint unable to reclaim its own mount point. Naming the
-    file via an env var instead lets the compose file mount a directory (which
-    the daemon can create safely) and point here without either program
-    changing when the variable is unset — see :func:`config.default_config_path`,
-    which this must keep matching.
-    """
-    env_path = os.environ.get(_CONFIG_PATH_ENV_VAR, '').strip()
-    if env_path:
-        return env_path
-    return os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'scoring_config.json')
-
-
-_CONFIG_PATH = _resolve_config_path()
 CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
@@ -217,14 +221,39 @@ def config_load_failed():
 def _read_config():
     """Parse scoring_config.json, tracking whether an existing file failed to parse.
 
-    Returns ``(config, parsed_ok)``. A missing file yields ``({}, False)``
-    without arming :func:`config_load_failed`.
+    Returns ``(config, parsed_ok)``. A missing file yields ``({}, False)``, and
+    arms :func:`config_load_failed` only when something NAMED that file.
+
+    That distinction is the whole point. An unnamed missing config is a
+    never-configured install, which is legitimately open — fail-open there is
+    what makes a zero-config first run work at all. A missing config at a path
+    ``$FACET_CONFIG`` named is the opposite: the operator has a config and this
+    process is not looking at it. Fail-open there turned a ONE-CHARACTER typo in
+    that variable into a fully open install — no password key in the fallback
+    defaults, so ``api.auth._is_open_install`` granted an anonymous caller
+    edition rights. Nothing but an unrelated ``ScoringConfig`` raising on the
+    same path during ``create_app`` kept that off the wire, and an accident in
+    another component is not an auth decision.
+
+    The named case is ERROR, not debug: docker-compose ships
+    ``FACET_LOG_LEVEL=INFO``, under which the debug line this replaced was
+    invisible — the operator got no signal whatsoever.
     """
     global _config_load_failed
     try:
         with open(_CONFIG_PATH) as f:
             config = json.load(f)
     except FileNotFoundError:
+        if _CONFIG_PATH_IS_EXPLICIT:
+            _config_load_failed = True
+            logger.error(
+                "$%s names %s, which does not exist. Refusing the open-install "
+                "auth path: this process cannot see the config it was pointed "
+                "at, so it must not conclude the install has no passwords. Fix "
+                "the variable or the mount, then restart.",
+                _CONFIG_PATH_ENV_VAR, _CONFIG_PATH,
+            )
+            return {}, False
         logger.debug("No %s — running as a never-configured install", _CONFIG_PATH)
         return {}, False
     except Exception:
