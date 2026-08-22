@@ -53,10 +53,10 @@
     "eslint": "9.39.5",
     "jsdom": "29.1.1",
     "openapi-typescript": "7.13.0",
-    "postcss": "8.5.25",
+    "postcss": "8.5.26",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.65.0",
+    "typescript-eslint": "8.67.0",
     "vitest": "4.1.10",
     "zone.js": "0.16.2"
   },
