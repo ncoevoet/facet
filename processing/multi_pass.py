@@ -450,7 +450,7 @@ class ChunkedMultiPassProcessor:
 
         # Track results for each photo
         results = {path: {} for path in paths}
-        failed_stages = []
+        failed_stages: List[str] = []
 
         # Supplementary/optional models — load failures skip rather than abort
         supplementary = set(self.model_manager.get_active_profile().get('supplementary_pyiqa', []))
