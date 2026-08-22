@@ -627,3 +627,202 @@ class TestWeightsDestination:
 
         assert not destination.exists()
         assert list(tmp_path.glob('*.part')) == []
+
+
+CPU_ROSTER = [
+    'clip', 'topiq_iaa', 'topiq_nr_face', 'liqe',
+    'qrealign', 'saliency', 'samp_net', 'insightface',
+]
+
+
+CHUNKS_TO_STEADY_STATE = 3
+
+
+def _replay_cpu_plan(manager, monkeypatch, budget_gb, limit_bytes, bound=True):
+    """Run the real CPU plan through the real load/unload cycle.
+
+    Mirrors ``ChunkedMultiPassProcessor._process_chunk``: load a pass's models,
+    then unload them one at a time, with ``insightface`` skipped because the
+    processor takes that one from the scorer instead of the manager. Several
+    chunks, because the peak is not reached in the first one -- from the second
+    chunk on, pass 1 runs with the cache already full.
+
+    The memory reading is derived from what is genuinely resident at that
+    instant: the models of the running pass, whatever the RAM cache still
+    holds, and the model being unloaded, which is popped from ``self.models``
+    before the caching decision but is still in memory when it is taken.
+
+    ``bound=False`` reproduces the behaviour before the cache was bounded:
+    the only added clause in ``_can_cache_to_ram`` is the one guarded by a CPU
+    plan being recorded, so clearing it restores the old decision exactly.
+
+    Returns:
+        (capacity_gb, peak_co_residency_gb, retained_model_names)
+    """
+    inflight = []
+
+    def declared(names):
+        return sum(manager.get_model_ram(name) for name in names)
+
+    def reading():
+        resident = declared(
+            list(manager.models) + list(manager._cpu_cache) + inflight)
+        total = int(budget_gb * GIB)
+        used = min(int(resident * GIB), total)
+        return EffectiveMemory(total, used, total - used, 100.0 * used / total)
+
+    def load(name):
+        manager.models[name] = mock.MagicMock(spec=['cpu', 'to'])
+
+    monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: limit_bytes)
+    monkeypatch.setattr(system_memory, 'effective_memory', reading)
+    monkeypatch.setattr(manager, 'detect_system_ram_gb', lambda: budget_gb)
+
+    capacity = manager._cpu_pass_capacity_gb(limit_bytes)
+    plan = manager.group_passes_by_vram(CPU_ROSTER, 0.0)
+    if not bound:
+        manager._cpu_plan = None
+    peak = 0.0
+    for _chunk in range(CHUNKS_TO_STEADY_STATE):
+        for group in plan:
+            for name in group:
+                if name != 'insightface' and manager._restore_from_cache(name) is None:
+                    load(name)
+            peak = max(peak, declared(list(manager.models) + list(manager._cpu_cache)))
+            for name in group:
+                if name == 'insightface':
+                    continue
+                inflight.append(name)
+                manager.unload_model(name)
+                inflight.remove(name)
+    return capacity, peak, sorted(manager._cpu_cache)
+
+
+class TestRetainedCacheCoResidency:
+    """``unload_model`` retains models the pass planner never budgeted for.
+
+    ``group_passes_by_vram`` sizes each CPU pass on its own against
+    ``_cpu_pass_capacity_gb``, but ``_can_cache_to_ram`` decides at unload
+    time whether to keep a model in ``_cpu_cache``, and on CPU that decision
+    costs the model's full RAM: ``_move_to_cpu`` calls ``.cpu()`` on tensors
+    already on the CPU, which torch answers by returning the same storage.
+    So the memory really co-resident is the running pass PLUS everything the
+    cache still holds, and nothing re-checked that sum against the budget the
+    pass was planned against.
+    """
+
+    ALL_CACHEABLE = {
+        'clip', 'liqe', 'saliency', 'samp_net', 'topiq_iaa', 'topiq_nr_face',
+    }
+
+    def test_retained_cache_and_running_pass_fit_the_container(
+            self, manager, monkeypatch):
+        """The 16 GiB case ``docs/DEPLOYMENT.md`` recommends as the CPU floor.
+
+        Retention starts at pass 3 and, once the cache survives into the next
+        chunk, reaches 14.0 GB declared against a 5.0 GB planned capacity --
+        2.8x, or 22.4 GB of real RAM at the measured 1.6 GB per declared GB,
+        inside a 16 GiB container. The only thing standing between that and
+        the OOM killer was a monitor thread sampling every 5 seconds.
+        """
+        _capacity, peak, _retained = _replay_cpu_plan(
+            manager, monkeypatch, 16, 16 * GIB)
+
+        assert peak * manager._RAM_PER_DECLARED_GB <= 16.0, (
+            f"co-residency peaks at {peak:.1f}GB declared, "
+            f"{peak * manager._RAM_PER_DECLARED_GB:.1f}GB of real RAM in a "
+            f"16 GiB container"
+        )
+
+    def test_a_bare_metal_host_is_bounded_by_what_it_can_hold_too(
+            self, manager, monkeypatch):
+        """Not a container-only defect: a 16 GB host plans three passes of
+        8.0 GB and then retains four models across them, peaking at 16.0 GB
+        declared -- 25.6 GB of real RAM on a 16 GB machine, which swaps
+        rather than dying and so reports itself only as a slow scan."""
+        _capacity, peak, _retained = _replay_cpu_plan(
+            manager, monkeypatch, 16, None)
+
+        assert peak * manager._RAM_PER_DECLARED_GB <= 16.0
+
+    def test_a_tight_container_was_already_safe_and_stays_safe(
+            self, manager, monkeypatch):
+        """At 8 GiB the flat 4.0 GB headroom already refused every model, so
+        co-residency never left the planned 5.0 GB. The failure is inverted
+        from the usual shape -- the smaller the budget, the safer the old
+        code -- so a fix must not be keyed to memory pressure."""
+        capacity, peak, retained = _replay_cpu_plan(
+            manager, monkeypatch, 8, 8 * GIB)
+
+        assert retained == []
+        assert peak <= capacity
+
+    def test_a_roomy_container_still_keeps_its_whole_cache(
+            self, manager, monkeypatch):
+        """The other half of the bound: a container with real headroom must
+        keep caching, because every model it drops is reloaded from disk on
+        every chunk (1.0-11.5 s each, measured on this roster). A fix that
+        emptied the cache whenever a cgroup limit exists would tax this
+        container for a problem it does not have."""
+        _capacity, _peak, retained = _replay_cpu_plan(
+            manager, monkeypatch, 32, 32 * GIB)
+
+        assert set(retained) == self.ALL_CACHEABLE
+
+    @pytest.mark.parametrize('host_gb', [32, 64])
+    def test_a_host_that_holds_the_roster_in_one_pass_keeps_its_cache(
+            self, stub_torch, monkeypatch, host_gb):
+        """A cached model the pass will load costs nothing to keep --
+        ``_restore_from_cache`` hands the same object over rather than loading
+        a second copy -- so only the cached models a pass does NOT use are
+        charged on top of it.
+
+        A 64 GB host runs the roster as one pass and a 32 GB host as 18.0 + 2.0,
+        so in both the cache is models the heaviest pass already wants. 32 GB is
+        the case that discriminates: its 19.375 GB budget has 1.375 GB free
+        beside that pass, less than the smallest model, so charging the cache
+        twice would refuse all six and reload them on every chunk while saving
+        nothing."""
+        from models.model_manager import ModelManager
+        _capacity, _peak, retained = _replay_cpu_plan(
+            ModelManager(_make_config()), monkeypatch, host_gb, None)
+
+        assert set(retained) == self.ALL_CACHEABLE
+
+    @pytest.mark.parametrize('budget_gb,limit_bytes', [
+        (8, 8 * GIB), (16, 16 * GIB), (32, 32 * GIB),
+        (8, None), (16, None), (32, None), (64, None),
+    ])
+    def test_the_bound_never_raises_the_peak_it_is_there_to_lower(
+            self, stub_torch, monkeypatch, budget_gb, limit_bytes):
+        """Whatever the budget, bounding the cache can only take models out
+        of it, so no configuration may come out worse than the flat headroom
+        left it -- including the ones the bound is not aimed at."""
+        from models.model_manager import ModelManager
+
+        _capacity, bounded, _retained = _replay_cpu_plan(
+            ModelManager(_make_config()), monkeypatch, budget_gb, limit_bytes)
+        _capacity, unbounded, _retained = _replay_cpu_plan(
+            ModelManager(_make_config()), monkeypatch, budget_gb, limit_bytes,
+            bound=False)
+
+        assert bounded <= unbounded
+
+    def test_a_gpu_plan_leaves_the_cache_decision_to_the_ram_headroom(
+            self, manager, monkeypatch):
+        """On a GPU, ``_move_to_cpu`` really does move tensors off the device,
+        so a cached model and a running pass spend different pools and the
+        pass budget says nothing about the cache. Planning for VRAM must
+        therefore clear any CPU plan left over from an earlier call."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 8 * GIB)
+        manager.group_passes_by_vram(CPU_ROSTER, 0.0)
+        assert manager._cpu_plan is not None
+
+        manager.group_passes_by_vram(CPU_ROSTER, 24.0)
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(64 * GIB, 54 * GIB, 10 * GIB, 84.4),
+        )
+
+        assert manager._cpu_plan is None
+        assert manager._can_cache_to_ram('topiq')

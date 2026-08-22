@@ -70,6 +70,8 @@ class ModelManager:
         self._cache_hits = 0
         self._cache_misses = 0
 
+        self._cpu_plan = None
+
         # Get model configuration
         model_config = config.get_model_config()
         self.profile = model_config.get('vram_profile', 'legacy')
@@ -306,12 +308,75 @@ class ModelManager:
         from utils.device import clear_device_cache
         clear_device_cache(self.device)
 
+    def _cpu_cache_budget_gb(self) -> float:
+        """Declared model weight this machine may hold at one instant, in GB.
+
+        On CPU there is nowhere to move a cached model to: ``_move_to_cpu``
+        calls ``.cpu()`` on tensors already on the CPU, and torch answers that
+        by handing back the same storage -- measured here, the parameter's
+        ``data_ptr`` and the process RSS are both unchanged across the call.
+        So a retained model costs its full RAM, and what is really co-resident
+        is the running pass PLUS everything the cache still holds, while
+        ``group_passes_by_vram`` sized that pass as though it ran alone.
+
+        ``_RAM_PER_DECLARED_GB`` converts the real budget into the declared
+        weight the planner packs in. Unlike ``_cpu_pass_capacity_gb``, the
+        reserve is taken off under a cgroup *and* the ratio applied, which
+        double-counts the torch runtime the ratio already absorbs. That is
+        deliberate: the ratio is a survival bound (a 5.0 GB pass survived
+        8 GiB), not a measurement of the peak, so dividing the whole limit by
+        it would plan the cache to the exact point measured survivable and no
+        further. A cache is optional; it must not be the thing that spends the
+        last GB.
+        """
+        from utils.system_memory import memory_limit_bytes
+        return self._usable_ram_gb(memory_limit_bytes()) / self._RAM_PER_DECLARED_GB
+
+    def _cpu_cache_peak_gb(self, cached) -> float:
+        """Declared GB the heaviest planned pass reaches beside ``cached``.
+
+        A pass does not pay for the models it finds in the cache --
+        ``_restore_from_cache`` moves the object across rather than loading a
+        second copy -- so only the cached models the pass does NOT use are
+        charged on top of it. Skipping that subtraction would refuse to cache
+        anything on a host holding the whole roster in one pass, where the
+        cache costs nothing at all and saves reloading every model on every
+        chunk.
+        """
+        return max(
+            sum(self.get_model_ram(name) for name in group)
+            + sum(self.get_model_ram(name) for name in cached if name not in group)
+            for group in self._cpu_plan
+        )
+
+    def _fits_cpu_cache_budget(self, model_name: str) -> bool:
+        """Whether retaining ``model_name`` keeps every planned pass affordable.
+
+        The flat ``_RAM_HEADROOM_GB`` was the only thing bounding the cache,
+        and it is a free-memory threshold, so it fails in exactly the wrong
+        direction: the roomier the budget the more it retains, and the pass
+        that has to run beside it is never consulted. Replaying the ``8gb``
+        profile's five-pass plan through the real unload cycle, an 8 GiB
+        container retains nothing and peaks at the planned 5.0 GB, while a
+        16 GiB one starts retaining at pass 3 and peaks at 13.0 GB declared
+        against the same 5.0 GB capacity -- 2.6x, or 20.8 GB of real RAM at
+        the measured ratio, inside 16 GiB. That is the 12.55 GB of anonymous
+        memory measured on a live 16 GiB container, and why its log carries
+        ``Evicted 1 model(s) from RAM cache``: the 5-second monitor thread was
+        collecting the overshoot after the fact.
+        """
+        return self._cpu_cache_peak_gb(
+            set(self._cpu_cache) | {model_name}) <= self._cpu_cache_budget_gb()
+
     def _can_cache_to_ram(self, model_name: str) -> bool:
         """Check if a model can be cached to CPU RAM between passes.
 
         On CPU-only systems, caching means keeping the model object alive
-        (since _move_to_cpu is a no-op). The auto mode's RAM headroom
-        check ensures this only happens when there's enough free memory.
+        (since _move_to_cpu is a no-op), so a retained model has to fit
+        beside the pass that runs next -- see _fits_cpu_cache_budget. The RAM
+        headroom check applies on top, and alone where no CPU plan exists,
+        which is the GPU case: there _move_to_cpu really does move tensors
+        off the device, so the cache spends a different pool than the pass.
 
         Args:
             model_name: Name of the model
@@ -325,6 +390,8 @@ class ModelManager:
             return False
         if self.keep_in_ram == 'always':
             return True
+        if self._cpu_plan and not self._fits_cpu_cache_budget(model_name):
+            return False
 
         from utils.system_memory import effective_memory
         available_gb = effective_memory().available / (1024**3)
@@ -1003,12 +1070,23 @@ class ModelManager:
         which packs one model per pass -- the smallest peak this packer can
         build.
         """
+        usable_gb = self._usable_ram_gb(limit_bytes)
         if limit_bytes is None:
-            usable_gb = self.detect_system_ram_gb() - self._HOST_OS_RESERVE_GB
-            return max(0.0, usable_gb / self._RAM_PER_DECLARED_GB)
-        limit_gb = limit_bytes / self._BYTES_PER_GB
-        return max(0.0, min(limit_gb - self._RAM_RESERVE_GB,
-                            self._CGROUP_CAPACITY_CEILING_GB))
+            return usable_gb / self._RAM_PER_DECLARED_GB
+        return min(usable_gb, self._CGROUP_CAPACITY_CEILING_GB)
+
+    def _usable_ram_gb(self, limit_bytes) -> float:
+        """The RAM this process may plan to occupy, in GB.
+
+        The whole limit under a cgroup, less the torch runtime, the decoded
+        image chunk and thumbnail generation; on bare metal what the machine
+        holds beside its operating system, which a cgroup is not charged for.
+        Shared with :meth:`_cpu_cache_budget_gb` so the two budgets cannot
+        drift apart on which reserve applies where.
+        """
+        if limit_bytes is None:
+            return max(0.0, self.detect_system_ram_gb() - self._HOST_OS_RESERVE_GB)
+        return max(0.0, limit_bytes / self._BYTES_PER_GB - self._RAM_RESERVE_GB)
 
     def _warn_unfittable_pass(self, models, declared_gb, capacity_gb, limit_bytes):
         """Report a planned pass the memory budget cannot hold, and its cost.
@@ -1046,6 +1124,10 @@ class ModelManager:
         A single model heavier than that budget still gets a pass of its own
         -- there is nothing to split -- so a plan that cannot fit is logged
         rather than left for the OOM killer or the swap device to announce.
+
+        A CPU plan is remembered, because the RAM cache has to fit beside
+        whichever pass runs next -- see ``_fits_cpu_cache_budget``. A GPU plan
+        clears it: there the cache and the pass spend different pools.
 
         Args:
             models: List of model names to group
@@ -1090,6 +1172,8 @@ class ModelManager:
             if bin_usage[heaviest] > capacity:
                 self._warn_unfittable_pass(
                     bins[heaviest], bin_usage[heaviest], capacity, limit_bytes)
+
+        self._cpu_plan = bins if cpu_mode else None
 
         return bins
 
