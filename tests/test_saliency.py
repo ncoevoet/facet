@@ -274,3 +274,46 @@ class TestBatchSizing:
         scorer = _stub_scorer(device="cuda")
         monkeypatch.setattr(system_memory, "effective_memory", lambda: _memory(0.1))
         assert scorer._affordable_batch_size(None) == SaliencyScorer.DEFAULT_BATCH_SIZE
+
+    def test_usable_memory_fraction_narrows_the_affordable_batch(self, monkeypatch):
+        """12.0 GB available straddles the 80% margin: claiming all of it
+        would afford a batch of 5 (12 // 2.4), claiming the fifth-held-back
+        fraction affords 4 (12 * 0.8 // 2.4 == 9.6 // 2.4 == 4). The two
+        disagree, which is what proves USABLE_MEMORY_FRACTION is read at all
+        -- every other value in this class floors to the same batch either
+        way and would stay green with the margin deleted.
+        """
+        scorer = _stub_scorer()
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(12.0, total_gb=16.0))
+        scorer.get_saliency_masks(_images(5))
+        assert scorer.model.batch_sizes == [4, 1]
+
+
+class TestLoadPrecision:
+    """Commit 4ef53d3: the published checkpoint is stored fp16, and CPU/MPS
+    have no fp16 kernel path -- a 256x256 forward measured 49.97s in fp16
+    against 1.10s in float32, and a single 1024x1024 forward ran 28 minutes.
+    ``load()`` must upcast off a dedicated GPU and leave CUDA at its
+    checkpoint precision.
+    """
+
+    def test_load_casts_to_float32_off_a_dedicated_gpu(self):
+        fake_model = mock.MagicMock(name="birefnet")
+        with mock.patch(
+            "transformers.AutoModelForImageSegmentation.from_pretrained",
+            return_value=fake_model,
+        ):
+            scorer = SaliencyScorer(device="cpu")
+            scorer.load()
+        fake_model.float.assert_called_once()
+
+    def test_load_leaves_cuda_at_checkpoint_precision(self):
+        fake_model = mock.MagicMock(name="birefnet")
+        with mock.patch(
+            "transformers.AutoModelForImageSegmentation.from_pretrained",
+            return_value=fake_model,
+        ):
+            scorer = SaliencyScorer(device="cuda")
+            scorer.load()
+        fake_model.float.assert_not_called()
