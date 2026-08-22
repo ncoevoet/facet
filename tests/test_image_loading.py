@@ -156,11 +156,19 @@ class TestDecodeTimeout:
             load_image_from_path(str(raw_path))
 
     def test_queue_wait_excluded_from_timeout(self, tmp_path, monkeypatch):
+        # The timeout has to sit between one decode and two: below _DECODE it would
+        # abandon the decode this test needs to succeed, above 2x it would pass even
+        # if the queue wait were wrongly counted, proving nothing. Within that band
+        # the only slack the decode has against scheduling jitter is
+        # _TIMEOUT - _DECODE, so the pair is scaled to leave half a second of it --
+        # at 0.3/0.5 the margin was 0.2s and the test failed under full-suite load.
+        _DECODE = 1.0
+        _TIMEOUT = 1.5
         raw_path = tmp_path / "queued.cr2"
         raw_path.write_bytes(b"fake")
-        monkeypatch.setitem(sys.modules, "rawpy", _stub_rawpy(delay=0.3))
+        monkeypatch.setitem(sys.modules, "rawpy", _stub_rawpy(delay=_DECODE))
         image_loading._abandoned_decodes = 0
-        configure_raw_decoding(concurrency=1, timeout_seconds=0.5)
+        configure_raw_decoding(concurrency=1, timeout_seconds=_TIMEOUT)
 
         results = {}
 
