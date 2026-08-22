@@ -7,9 +7,13 @@ config-key apply path, and the held-out gate on the apply decision.
 """
 
 import json
+import os
 import shutil
 import sqlite3
+import stat
+import subprocess
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 import pytest
@@ -343,3 +347,140 @@ class TestHeldOutGate:
             min_comparisons=30, min_improvement=999.0, force=True,
         )
         assert Path(cfg).read_text() != before  # forced write
+
+
+class TestApplyPreservesConfigPermissions:
+    """--optimize-weights --apply rewrites the config that holds the install's
+    plaintext secrets (viewer.password, users.*.password_hash, upload.password,
+    frame.tokens, immich.api_key). docker-entrypoint.sh seeds it 0600 and
+    docker-compose.yml promises the mode survives every later write, so the
+    replacement must land at the destination's mode and must stage through a
+    name no `git add -A` can pick up.
+    """
+
+    REPO_ROOT = Path(__file__).resolve().parent.parent
+
+    @staticmethod
+    def _config(tmp_path, mode):
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps(
+            {"viewer": {"password": "plaintext-secret"},
+             "categories": [{"name": "portrait", "weights": {"aesthetic_percent": 100}}]}
+        ))
+        os.chmod(cfg, mode)
+        return cfg
+
+    def test_apply_preserves_owner_only_mode(self, tmp_path):
+        cfg = self._config(tmp_path, 0o600)
+        WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
+            {"aesthetic": 0.5, "liqe": 0.5}, category="portrait", backup=False
+        )
+        assert json.loads(cfg.read_text())["viewer"]["password"] == "plaintext-secret"
+        assert stat.S_IMODE(os.stat(cfg).st_mode) == 0o600
+
+    def test_apply_preserves_a_group_readable_mode(self, tmp_path):
+        # The mode is copied, not forced to 0600: a co-deployed CLI reading the
+        # config through its group must not lose access on an optimizer run.
+        cfg = self._config(tmp_path, 0o640)
+        WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
+            {"aesthetic": 1.0}, category="portrait", backup=False
+        )
+        assert stat.S_IMODE(os.stat(cfg).st_mode) == 0o640
+
+    def test_scratch_file_name_is_gitignored(self, tmp_path, monkeypatch):
+        # A SIGKILL between the write and the rename leaves the scratch file —
+        # a COMPLETE copy of the config — behind. On a native install that is
+        # the repository root, so the name must match a .gitignore rule.
+        staged = []
+        real_replace = os.replace
+
+        def spy(src, dst, *a, **kw):
+            staged.append(os.path.basename(src))
+            return real_replace(src, dst, *a, **kw)
+
+        monkeypatch.setattr(os, "replace", spy)
+        cfg = self._config(tmp_path, 0o600)
+        WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
+            {"aesthetic": 1.0}, category="portrait", backup=False
+        )
+        assert staged, "apply did not stage the config through a scratch file"
+        for name in staged:
+            ignored = subprocess.run(
+                ["git", "check-ignore", "-q", name],
+                cwd=self.REPO_ROOT, capture_output=True,
+            )
+            assert ignored.returncode == 0, f"scratch name {name!r} is stageable"
+
+    def test_apply_leaves_no_scratch_file_behind(self, tmp_path):
+        cfg = self._config(tmp_path, 0o600)
+        WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
+            {"aesthetic": 1.0}, category="portrait", backup=False
+        )
+        assert [p.name for p in tmp_path.iterdir()] == ["scoring_config.json"]
+
+
+class TestApplyHoldsTheConfigWriteLock:
+    """scoring_config.json is read, edited and written back here, and
+    ``atomic_write_json`` is atomic per WRITE, not per read-modify-write. Any
+    concurrent writer that lands between this read and this write has its
+    update overwritten wholesale, so the lock must span both -- not just the
+    write. CLAUDE.md makes that lock the single one every config writer shares.
+    """
+
+    @staticmethod
+    def _config(tmp_path):
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps(
+            {"categories": [{"name": "portrait", "weights": {"aesthetic_percent": 100}}]}
+        ))
+        return cfg
+
+    def test_the_lock_is_held_when_the_replacement_is_written(self, tmp_path):
+        from api.config import CONFIG_WRITE_LOCK
+        import api.config as api_config
+
+        held = []
+        real_write = api_config.atomic_write_json
+
+        def watching_write(path, data):
+            held.append(CONFIG_WRITE_LOCK.locked())
+            return real_write(path, data)
+
+        cfg = self._config(tmp_path)
+        with mock.patch.object(api_config, "atomic_write_json", watching_write):
+            WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
+                {"aesthetic": 0.5, "liqe": 0.5}, category="portrait", backup=False
+            )
+
+        assert held == [True], "config was rewritten without CONFIG_WRITE_LOCK held"
+
+    def test_the_lock_spans_the_read_not_only_the_write(self, tmp_path):
+        """A lock taken just before the write would still lose an update made
+        after the read, so prove it is already held while the snapshot runs --
+        which happens between the read and the write.
+        """
+        from api.config import CONFIG_WRITE_LOCK
+
+        held = []
+
+        def watching_snapshot(*args, **kwargs):
+            held.append(CONFIG_WRITE_LOCK.locked())
+            return 1
+
+        cfg = self._config(tmp_path)
+        with mock.patch("db.record_weight_snapshot", watching_snapshot):
+            WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
+                {"aesthetic": 0.5, "liqe": 0.5}, category="portrait", backup=True
+            )
+
+        assert held == [True], "the lock was not held across the whole read-modify-write"
+
+    def test_the_lock_is_released_afterwards(self, tmp_path):
+        from api.config import CONFIG_WRITE_LOCK
+
+        cfg = self._config(tmp_path)
+        WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
+            {"aesthetic": 0.5, "liqe": 0.5}, category="portrait", backup=False
+        )
+
+        assert not CONFIG_WRITE_LOCK.locked()
