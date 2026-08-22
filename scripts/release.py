@@ -15,10 +15,13 @@ Two modes:
   precondition, then (unless ``--check``) inserts the CHANGELOG header, bumps
   pyproject.toml and client/package.json, commits ``chore(release): VERSION
   "CODENAME"`` and creates annotated tag ``vVERSION``. The GitHub Release is
-  published separately, and is written rather than pasted: it opens with what
-  the codename means and why it fits, retells each change as prose instead of
-  copying the CHANGELOG entry, and ends with upgrade notes and an explicit list
-  of what this release did NOT verify.
+  published separately. Its title is ``vX.Y.Z "Codename"`` — the tag, then the
+  codename in double quotes, and nothing else; every published release was
+  normalised to that form, and ``extract_codename`` still reads the five older
+  shapes only so the codename-reuse check can see history. Its body is written
+  rather than pasted: it opens with what the codename means and why it fits,
+  retells each change as prose instead of copying the CHANGELOG entry, and ends
+  with upgrade notes and an explicit list of what this release did NOT verify.
 * ``release.py --check`` (no VERSION/CODENAME) — validates the *current*
   on-disk state: the version files agree, and the CHANGELOG section matching
   the current version has content. This is what CI runs on every push, so
@@ -354,7 +357,9 @@ def do_release(version: str, codename: str, changelog: str, pyproject_text: str,
     git("tag", "-a", f"v{version}", "-m", f'Facet {version} "{codename}"')
 
     print(f'Released {version} "{codename}": committed and tagged v{version}.')
-    print(f'Next: publish the GitHub Release for v{version} — written, not pasted from the CHANGELOG.')
+    print(f'Next: publish the GitHub Release, titled exactly: v{version} "{codename}"')
+    print('Write the body rather than pasting the CHANGELOG: what the codename means,')
+    print('each change as prose, then upgrade notes and what this release did NOT verify.')
 
 
 def main() -> int:
