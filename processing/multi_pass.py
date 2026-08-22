@@ -427,6 +427,15 @@ class ChunkedMultiPassProcessor:
         """
         Process a single chunk through all passes.
 
+        The pass loop hands each model straight from ``loaded_models`` to the
+        inference call and drops its entry before the unload, so nothing here
+        still refers to a model when ``ModelManager.unload_model`` collects and
+        trims the heap. A model bound to a leftover loop variable, or left in
+        ``loaded_models``, keeps its refcount above zero: the unload then frees
+        nothing and ``release_freed_heap`` walks arenas the weights still hold.
+        Under a container limit the RAM cache retains nothing, so every model
+        takes that full-unload path.
+
         Args:
             paths: Photo paths in this chunk
             chunk_idx: Index of current chunk
@@ -454,27 +463,14 @@ class ChunkedMultiPassProcessor:
         for group_idx, model_group in enumerate(self.pass_groups):
             # Load models for this pass
             load_start = time.time()
-            loaded_models = {}
-            for model_name in model_group:
-                model = self.model_manager.load_model_only(model_name)
-                if model is None:
-                    if model_name in supplementary:
-                        logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
-                        continue
-                    logger.error(
-                        "Required model '%s' failed to load (likely OOM); recording "
-                        "chunk for retry via --retry-failed instead of aborting.", model_name)
-                    failed_stages.append(model_name)
-                    continue
-                loaded_models[model_name] = model
-
+            loaded_models = self._load_pass_models(model_group, supplementary, failed_stages)
             self.metrics['model_load_time'] += time.time() - load_start
 
             # Run inference for each model in this pass
             infer_start = time.time()
-            for model_name, model in loaded_models.items():
+            for model_name in list(loaded_models):
                 try:
-                    self._run_model_pass(model_name, model, images, results)
+                    self._run_model_pass(model_name, loaded_models[model_name], images, results)
                 except Exception as ex:
                     if model_name in supplementary:
                         logger.error("Supplementary %s inference failed, skipping: %s", model_name, ex)
@@ -489,6 +485,7 @@ class ChunkedMultiPassProcessor:
             # Unload models from this pass
             unload_start = time.time()
             for model_name in model_group:
+                loaded_models.pop(model_name, None)
                 self.model_manager.unload_model(model_name)
             self.metrics['model_unload_time'] += time.time() - unload_start
 
@@ -511,6 +508,40 @@ class ChunkedMultiPassProcessor:
         clear_device_cache(getattr(self.model_manager, 'device', 'cpu'))
         from utils.system_memory import release_freed_heap
         release_freed_heap()
+
+    def _load_pass_models(self, model_group: List[str], supplementary: set,
+                          failed_stages: List[str]) -> Dict[str, Any]:
+        """Load one pass's models, returning those that came up.
+
+        Loading has a call of its own so that the loaded objects live nowhere
+        but the returned dict. A model bound to a local in :meth:`_process_chunk`
+        would outlive the loop that set it and still be referenced when the
+        pass's ``unload_model`` collects and trims the heap, which frees
+        nothing while the refcount is above zero.
+
+        Args:
+            model_group: Model names this pass runs
+            supplementary: Names whose load failure skips the model
+            failed_stages: Appended with the names whose failure makes the
+                chunk retryable
+
+        Returns:
+            Dict of model name -> loaded model, in pass order.
+        """
+        loaded_models = {}
+        for model_name in model_group:
+            model = self.model_manager.load_model_only(model_name)
+            if model is None:
+                if model_name in supplementary:
+                    logger.warning("Supplementary model '%s' failed to load, skipping.", model_name)
+                    continue
+                logger.error(
+                    "Required model '%s' failed to load (likely OOM); recording "
+                    "chunk for retry via --retry-failed instead of aborting.", model_name)
+                failed_stages.append(model_name)
+                continue
+            loaded_models[model_name] = model
+        return loaded_models
 
     def _record_chunk_pass_failure(self, images: Dict, results: Dict, failed_stages: List[str]):
         """Record every image in a chunk whose required model pass failed.

@@ -5,6 +5,8 @@ test_batch_processor_e2e.py; here we lock down the RAM chunk-size auto-tuning
 (the OOM-recovery knob) which is pure arithmetic and must never crash a scan.
 """
 
+import gc
+import weakref
 from unittest import mock
 
 import pytest
@@ -566,4 +568,93 @@ class TestInsightFacePassUsesTheModelItIsGiven:
             _RecordingAnalyzer('from-the-manager'),
             {'/p.jpg': {'cv': img, 'cache': None}},
             {'/p.jpg': {}},
+        )
+
+
+class _WeighedModel:
+    """A stand-in model whose only strong reference is the one the chunk keeps."""
+
+    def __init__(self, name):
+        self.name = name
+
+
+class _RefWatchingModelManager:
+    """Hands out models it holds only weakly, and reads the refcount at unload.
+
+    ``ModelManager.unload_model`` pops its own entry, drops its own local, then
+    collects and trims the heap -- so any reference the caller still holds at
+    that moment keeps the model's arenas mapped and makes the trim walk memory
+    it cannot give back. Holding the model weakly here leaves
+    ``_process_chunk``'s own references as the only ones that can keep it
+    alive, which is exactly what ``alive_at_unload`` measures.
+    """
+
+    def __init__(self, profile=None):
+        self.profile = profile or {'supplementary_pyiqa': []}
+        self.refs = {}
+        self.alive_at_unload = {}
+
+    def detect_vram(self):
+        return 8.0
+
+    def get_active_profile(self):
+        return self.profile
+
+    def load_model_only(self, name):
+        model = _WeighedModel(name)
+        self.refs[name] = weakref.ref(model)
+        return model
+
+    def unload_model(self, name):
+        gc.collect()
+        ref = self.refs.get(name)
+        self.alive_at_unload[name] = ref is not None and ref() is not None
+
+
+def _chunk_processor(manager, pass_groups, monkeypatch):
+    """A processor whose chunk does nothing but load, run and unload models."""
+    with mock.patch("processing.multi_pass._ensure_imports"):
+        proc = ChunkedMultiPassProcessor(
+            scorer=mock.MagicMock(), model_manager=manager, config={})
+    proc.pass_groups = pass_groups
+    monkeypatch.setattr(proc, '_load_images', lambda paths: {})
+    monkeypatch.setattr(proc, '_run_model_pass',
+                        lambda name, model, images, results: None)
+    monkeypatch.setattr(proc, '_compute_aggregates', lambda results, images: None)
+    monkeypatch.setattr(proc, '_save_results', lambda results, images: None)
+    return proc
+
+
+class TestChunkReleasesItsModelsAndItsHeap:
+    """The chunk must be holding nothing by the time the unload trims the heap.
+
+    ``_process_chunk`` kept every model in a ``loaded_models`` dict and left
+    the inference loop's variable bound past the loop, so both survived into
+    ``unload_model`` -- whose ``gc.collect()`` and ``release_freed_heap()`` then
+    ran with the refcount still above zero. Under a container limit the CPU RAM
+    cache retains nothing, so every model takes the full-unload path and every
+    one of them was pinned. Asserting the trim merely happened does not catch
+    that: it was always happening, on memory that was still referenced.
+    """
+
+    def test_no_model_reference_survives_into_its_unload(self, monkeypatch):
+        manager = _RefWatchingModelManager()
+        proc = _chunk_processor(manager, [['clip', 'topiq'], ['insightface']], monkeypatch)
+
+        proc._process_chunk(['/a.jpg'], 0, 1)
+
+        assert manager.alive_at_unload == {
+            'clip': False, 'topiq': False, 'insightface': False
+        }
+
+    def test_the_chunk_end_hands_the_freed_heap_back(self, monkeypatch):
+        calls = []
+        monkeypatch.setattr(system_memory, 'release_freed_heap', lambda: calls.append(1))
+        manager = _RefWatchingModelManager()
+        proc = _chunk_processor(manager, [['clip']], monkeypatch)
+
+        proc._process_chunk(['/a.jpg'], 0, 1)
+
+        assert len(calls) == 1, (
+            "the chunk end must trim once; this manager's unload does not trim"
         )
