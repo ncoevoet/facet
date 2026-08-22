@@ -180,10 +180,5 @@ describe('TimelineComponent', () => {
       mockStore.viewFilterParams.set({ ...noneHidden });
       expect(component.anyHiddenByFilters()).toBe(false);
     });
-
-    it('the banner button calls store.showAllHidden()', () => {
-      component.store.showAllHidden();
-      expect(mockStore.showAllHidden).toHaveBeenCalled();
-    });
   });
 });

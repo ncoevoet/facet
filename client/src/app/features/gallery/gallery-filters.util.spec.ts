@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   DEFAULT_FILTERS,
   type GalleryFilters,
+  type ViewFilterParams,
+  anyHideToggleActive,
   applyQueryParams,
   buildApiParams,
   buildSyncParams,
@@ -209,3 +211,23 @@ describe('per-channel clipping filters', () => {
   });
 });
 
+describe('anyHideToggleActive', () => {
+  const allOff: ViewFilterParams = {
+    hide_blinks: '0',
+    hide_bursts: '0',
+    hide_duplicates: '0',
+    hide_brackets: '0',
+    hide_panoramas: '0',
+  };
+  const keys: (keyof ViewFilterParams)[] = [
+    'hide_blinks', 'hide_bursts', 'hide_duplicates', 'hide_brackets', 'hide_panoramas',
+  ];
+
+  it('returns false when every toggle is off', () => {
+    expect(anyHideToggleActive(allOff)).toBe(false);
+  });
+
+  it.each(keys)('returns true when only %s is on', key => {
+    expect(anyHideToggleActive({ ...allOff, [key]: '1' })).toBe(true);
+  });
+});

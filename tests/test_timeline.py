@@ -145,6 +145,17 @@ _GALLERY_VIEWER_CONFIG = {
 }
 
 
+def _timeline_hide_defaults_patches(db_path, defaults):
+    """Patch the timeline router onto a real temp DB, with a given viewer.defaults."""
+    return (
+        mock.patch("api.routers.timeline.get_async_db", _async_conn_factory(db_path)),
+        mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
+        mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
+        mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": defaults}),
+        mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
+    )
+
+
 class TestTimelineHideDefaultsRealDb:
     """Issue #112: /api/timeline* must resolve absent hide toggles from
     viewer.defaults, the same way the gallery it hands the user to already
@@ -158,20 +169,11 @@ class TestTimelineHideDefaultsRealDb:
                is_burst_lead=0, burst_group_id=1),
     ]
 
-    def _timeline_patches(self, db_path, defaults):
-        return (
-            mock.patch("api.routers.timeline.get_async_db", _async_conn_factory(db_path)),
-            mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
-            mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": defaults}),
-            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
-        )
-
     def test_default_hides_burst_follower(self, tmp_path):
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        patches = self._timeline_patches(db_path, {"hide_bursts": True})
+        patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             resp = client.get("/api/timeline/dates", params={"year": 2025})
         assert resp.status_code == 200
@@ -183,7 +185,7 @@ class TestTimelineHideDefaultsRealDb:
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        patches = self._timeline_patches(db_path, {"hide_bursts": True})
+        patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             resp = client.get("/api/timeline/dates", params={"year": 2025, "hide_bursts": "0"})
         assert resp.status_code == 200
@@ -198,7 +200,7 @@ class TestTimelineHideDefaultsRealDb:
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        patches = self._timeline_patches(db_path, {"hide_bursts": True})
+        patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             resp = client.get("/api/timeline/dates", params={"year": 2025})
         assert resp.status_code == 200
@@ -220,7 +222,7 @@ class TestTimelineHideDefaultsRealDb:
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        tl_patches = self._timeline_patches(db_path, {"hide_bursts": True})
+        tl_patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         gallery_patches = self._gallery_patches(db_path)
         with (
             tl_patches[0], tl_patches[1], tl_patches[2], tl_patches[3], tl_patches[4],
@@ -240,7 +242,7 @@ class TestTimelineHideDefaultsRealDb:
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        tl_patches = self._timeline_patches(db_path, {"hide_bursts": True})
+        tl_patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         gallery_patches = self._gallery_patches(db_path)
         with (
             tl_patches[0], tl_patches[1], tl_patches[2], tl_patches[3], tl_patches[4],
@@ -257,6 +259,52 @@ class TestTimelineHideDefaultsRealDb:
         assert tl_resp.json()["dates"][0]["count"] == gallery_resp.json()["total"]
 
 
+class TestTimelineApiHideDefaultsRealDb:
+    """GET /api/timeline itself wires the hide-toggle fix at two independent
+    call sites: the date/count query and the per-day photo batch query below
+    it. Neither had real-DB coverage — a mock-conn test cannot see whether the
+    WHERE clause actually filtered anything (issue #112 follow-up).
+    """
+
+    _PHOTOS = [
+        _photo("/lead.jpg", "2025:03:10 10:00:00", aggregate=5.0,
+               is_burst_lead=1, burst_group_id=1),
+        _photo("/follower.jpg", "2025:03:10 10:00:01", aggregate=9.0,
+               is_burst_lead=0, burst_group_id=1),
+    ]
+
+    def _patches(self, db_path, defaults):
+        return _timeline_hide_defaults_patches(db_path, defaults) + (
+            mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
+        )
+
+    def test_default_hides_burst_follower_in_count_and_photos(self, tmp_path):
+        db_path = str(tmp_path / "timeline.db")
+        _make_db(db_path, self._PHOTOS)
+        client = TestClient(_app_no_auth())
+        patches = self._patches(db_path, {"hide_bursts": True})
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            resp = client.get("/api/timeline", params={"photos_per_group": 10})
+        assert resp.status_code == 200
+        groups = resp.json()["groups"]
+        assert len(groups) == 1
+        assert groups[0]["count"] == 1
+        assert [p["path"] for p in groups[0]["photos"]] == ["/lead.jpg"]
+
+    def test_explicit_hide_bursts_zero_shows_both_in_count_and_photos(self, tmp_path):
+        db_path = str(tmp_path / "timeline.db")
+        _make_db(db_path, self._PHOTOS)
+        client = TestClient(_app_no_auth())
+        patches = self._patches(db_path, {"hide_bursts": True})
+        with patches[0], patches[1], patches[2], patches[3], patches[4], patches[5]:
+            resp = client.get("/api/timeline", params={"photos_per_group": 10, "hide_bursts": "0"})
+        assert resp.status_code == 200
+        groups = resp.json()["groups"]
+        assert len(groups) == 1
+        assert groups[0]["count"] == 2
+        assert {p["path"] for p in groups[0]["photos"]} == {"/lead.jpg", "/follower.jpg"}
+
+
 class TestTimelineYearsRealDb:
     """GET /api/timeline/years — no coverage previously existed at all."""
 
@@ -268,20 +316,11 @@ class TestTimelineYearsRealDb:
         _photo("/other-year.jpg", "2024:01:05 10:00:00", aggregate=4.0),
     ]
 
-    def _patches(self, db_path, defaults):
-        return (
-            mock.patch("api.routers.timeline.get_async_db", _async_conn_factory(db_path)),
-            mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
-            mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": defaults}),
-            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
-        )
-
     def test_default_hides_burst_follower(self, tmp_path):
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        patches = self._patches(db_path, {"hide_bursts": True})
+        patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             resp = client.get("/api/timeline/years")
         assert resp.status_code == 200
@@ -292,7 +331,7 @@ class TestTimelineYearsRealDb:
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        patches = self._patches(db_path, {"hide_bursts": True})
+        patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             resp = client.get("/api/timeline/years", params={"hide_bursts": "0"})
         assert resp.status_code == 200
@@ -311,20 +350,11 @@ class TestTimelineMonthsRealDb:
         _photo("/other-month.jpg", "2025:06:05 10:00:00", aggregate=4.0),
     ]
 
-    def _patches(self, db_path, defaults):
-        return (
-            mock.patch("api.routers.timeline.get_async_db", _async_conn_factory(db_path)),
-            mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
-            mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
-            mock.patch("api.db_helpers.VIEWER_CONFIG", {"defaults": defaults}),
-            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
-        )
-
     def test_default_hides_burst_follower(self, tmp_path):
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        patches = self._patches(db_path, {"hide_bursts": True})
+        patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             resp = client.get("/api/timeline/months", params={"year": 2025})
         assert resp.status_code == 200
@@ -335,7 +365,7 @@ class TestTimelineMonthsRealDb:
         db_path = str(tmp_path / "timeline.db")
         _make_db(db_path, self._PHOTOS)
         client = TestClient(_app_no_auth())
-        patches = self._patches(db_path, {"hide_bursts": True})
+        patches = _timeline_hide_defaults_patches(db_path, {"hide_bursts": True})
         with patches[0], patches[1], patches[2], patches[3], patches[4]:
             resp = client.get("/api/timeline/months", params={"year": 2025, "hide_bursts": "0"})
         assert resp.status_code == 200

@@ -120,12 +120,6 @@ describe('App', () => {
       });
       expect((app as any).anyTimelinePhotosHiddenByFilters()).toBe(true);
     });
-
-    it('drives the same store.showAllHidden() the desktop banner uses', () => {
-      const { app, mockStore } = createApp('/timeline');
-      (app as any).store.showAllHidden();
-      expect(mockStore.showAllHidden).toHaveBeenCalled();
-    });
   });
 
   describe('mobile bottom bar vs selection (issue #73)', () => {

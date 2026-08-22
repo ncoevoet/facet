@@ -71,7 +71,7 @@ def _patch_folders(db):
         mock.patch("api.routers.folders.get_async_db", _async_conn_factory(db)),
         mock.patch("api.routers.folders.get_visibility_clause", _fake_vis),
         mock.patch("api.routers.folders.get_photos_from_clause", return_value=("photos", [])),
-        mock.patch("api.routers.folders.build_hide_clauses", return_value=[]),
+        mock.patch("api.routers.folders.hide_clauses_from_toggles", return_value=[]),
     )
 
 
@@ -294,3 +294,44 @@ class TestFoldersHideDefaults:
         assert resp.status_code == 200
         folder = resp.json()["folders"][0]
         assert folder["photo_count"] == 2
+
+    # HIDE_BRACKETS_SQL keys off sequence_ev_offset = 0 (the base exposure),
+    # not is_sequence_lead; HIDE_PANORAMAS_SQL keys off is_sequence_lead = 1.
+    _SEQUENCE_PHOTOS = [
+        _real_photo("/photos/sets/bracket_dark.jpg", sequence_kind="bracket",
+                    sequence_group_id=1, sequence_ev_offset=-2, is_sequence_lead=0),
+        _real_photo("/photos/sets/bracket_base.jpg", sequence_kind="bracket",
+                    sequence_group_id=1, sequence_ev_offset=0, is_sequence_lead=1),
+        _real_photo("/photos/sets/bracket_bright.jpg", sequence_kind="bracket",
+                    sequence_group_id=1, sequence_ev_offset=2, is_sequence_lead=0),
+        _real_photo("/photos/sets/pano_1.jpg", sequence_kind="panorama",
+                    sequence_group_id=2, is_sequence_lead=0),
+        _real_photo("/photos/sets/pano_2.jpg", sequence_kind="panorama",
+                    sequence_group_id=2, is_sequence_lead=1),
+        _real_photo("/photos/sets/pano_3.jpg", sequence_kind="panorama",
+                    sequence_group_id=2, is_sequence_lead=0),
+    ]
+
+    def test_absent_hide_brackets_and_panoramas_fall_back_to_viewer_defaults(self, client, tmp_path):
+        db = str(tmp_path / "folders_sequence.db")
+        _make_real_db(db, self._SEQUENCE_PHOTOS)
+        p_conn, p_vis, p_from, p_cfg = self._patches(
+            db, {"hide_brackets": True, "hide_panoramas": True})
+        with p_conn, p_vis, p_from, p_cfg:
+            resp = client.get("/api/folders", params={"prefix": "/photos/"})
+        assert resp.status_code == 200
+        folder = resp.json()["folders"][0]
+        assert folder["photo_count"] == 2
+
+    def test_explicit_hide_brackets_and_panoramas_zero_shows_all(self, client, tmp_path):
+        db = str(tmp_path / "folders_sequence.db")
+        _make_real_db(db, self._SEQUENCE_PHOTOS)
+        p_conn, p_vis, p_from, p_cfg = self._patches(
+            db, {"hide_brackets": True, "hide_panoramas": True})
+        with p_conn, p_vis, p_from, p_cfg:
+            resp = client.get("/api/folders", params={
+                "prefix": "/photos/", "hide_brackets": "0", "hide_panoramas": "0",
+            })
+        assert resp.status_code == 200
+        folder = resp.json()["folders"][0]
+        assert folder["photo_count"] == 6
