@@ -39,7 +39,8 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         simulate_gpu: Simulate a GPU name (e.g., "RTX 5070 Ti") for testing
         simulate_vram: Simulate VRAM in GB (e.g., 16.0) for testing
     """
-    config_path = config_path or 'scoring_config.json'
+    from config.scoring_config import _resolve_scoring_config_path
+    config_path = _resolve_scoring_config_path(config_path)
     db_path = db_path or 'photo_scores_pro.db'
     simulating = simulate_gpu is not None
     torch = None

@@ -34,6 +34,7 @@ UNIFIED_MEMORY_PROFILE_THRESHOLDS_GB = (
     ('8gb', 16.0),
 )
 UNIFIED_MEMORY_MINIMUM_PROFILE = 'legacy'
+UNREADABLE_SYSTEM_MEMORY = 'system memory could not be read'
 
 # RAW demosaic and embedded-preview defaults. ``bright`` is a fixed exposure
 # gain applied to every frame, replacing LibRaw's per-frame auto-brightness:
@@ -50,12 +51,17 @@ RAW_DECODE_DEFAULTS = {
 
 
 def default_config_path():
-    """Absolute path to the repo-root scoring_config.json.
+    """Absolute path to the repo-root scoring_config.json, or $FACET_CONFIG.
 
     Resolves what api.config._CONFIG_PATH resolves, but lives here so modules
     outside the api package can reach it without inverting the
-    api -> optimization import direction.
+    api -> optimization import direction. Duplicated rather than imported for
+    the same reason: this one line of env-var handling is cheaper to keep in
+    sync than a new cross-package dependency.
     """
+    env_path = os.environ.get('FACET_CONFIG', '').strip()
+    if env_path:
+        return env_path
     return os.path.join(
         os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         'scoring_config.json')
@@ -125,6 +131,18 @@ def _usable_category_name(category):
     return name if isinstance(name, str) and name.strip() else None
 
 
+def _resolve_scoring_config_path(explicit):
+    """Path a caller-less ``ScoringConfig()`` loads: the argument, then
+    $FACET_CONFIG, then the relative ``'scoring_config.json'`` every CLI entry
+    point already resolves against its own working directory. Not
+    :func:`default_config_path`: that one is always absolute, while callers
+    here (``facet.py``'s ``--config``, and every bare ``ScoringConfig()`` in
+    ``api/``) have always resolved the plain string against process cwd, and
+    changing that silently would move which file a running install reads.
+    """
+    return explicit or os.environ.get('FACET_CONFIG', '').strip() or 'scoring_config.json'
+
+
 class ScoringConfig:
     """Loads and manages scoring configuration from JSON file.
 
@@ -133,7 +151,7 @@ class ScoringConfig:
     """
 
     def __init__(self, config_path=None, validate=True):
-        self.config_path = config_path or 'scoring_config.json'
+        self.config_path = _resolve_scoring_config_path(config_path)
         self.config = self._load_config()
         self._context_order_cache = {}
         self.version_hash = self._compute_version_hash()
@@ -857,8 +875,11 @@ class ScoringConfig:
             force_cpu = os.environ.get('FACET_DEVICE', 'auto').strip().lower() == 'cpu'
             profile = UNIFIED_MEMORY_MINIMUM_PROFILE
             try:
-                import psutil
-                ram_gb = psutil.virtual_memory().total / (1024**3)
+                from utils.system_memory import effective_memory
+                total_bytes = effective_memory().total
+                if not total_bytes:
+                    raise OSError(UNREADABLE_SYSTEM_MEMORY)
+                ram_gb = total_bytes / (1024**3)
                 if has_mps and not force_cpu:
                     profile = ScoringConfig.suggest_profile_for_unified_memory(ram_gb)
                     msg = (

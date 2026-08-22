@@ -214,10 +214,15 @@ Los controles de despliegue viven en `.env` (copia `.env.example`):
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` de la configuración | Disparador del reentrenamiento del clasificador personal, para quienes valoran mucho |
 
 Un `scoring_config.default.json` depurado viene integrado en la imagen como
-configuración activa, así que el contenedor funciona sin ninguna configuración en el
-host. Para personalizar los pesos, la contraseña del visor o las categorías: `cp
-scoring_config.default.json scoring_config.json`, edítalo, y luego descomenta el montaje
-de la configuración en `docker-compose.yml`.
+configuración inicial. `docker-entrypoint.sh` lo copia, solo en el primer arranque, al
+archivo persistente `./facet-config/scoring_config.json`, que `docker-compose.yml` ya
+monta (como `FACET_CONFIG=/config/scoring_config.json` dentro del contenedor) — así que
+el contenedor funciona sin ninguna configuración en el host, y cada escritura de
+configuración en tiempo de ejecución (la migración de la contraseña del visor, los pesos,
+las prioridades, los contextos de puntuación) ahora sobrevive a un `docker compose down
+&& up`. Edita `./facet-config/scoring_config.json` directamente para personalizar a mano
+los pesos, la contraseña del visor o las categorías; un archivo ya existente nunca se
+sobrescribe.
 
 Las cachés de modelos viven en volúmenes con nombre gestionados por Docker
 (`facet-hf-cache`, `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), así que

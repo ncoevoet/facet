@@ -2,17 +2,23 @@
 
 These tests lock the *current* behaviour of the manager so a planned split
 into ModelRegistry + ModelLoader + VRAMPlanner can be diffed for parity.
-They never actually load a model — torch / psutil / device lookups are
-stubbed at the seams (``_ensure_torch``, ``get_device``, ``psutil``).
+They never actually load a model — torch / device lookups are stubbed at
+the seams (``_ensure_torch``, ``get_device``), and RAM readings go through
+``utils.system_memory.effective_memory``, stubbed or fed real cgroup files
+under ``tmp_path`` the same way ``tests/test_system_memory.py`` does.
 """
 
 from __future__ import annotations
 
-import sys
 import types
 from unittest import mock
 
 import pytest
+
+from utils import system_memory
+from utils.system_memory import UNKNOWN_MEMORY, EffectiveMemory
+
+GIB = 1024 ** 3
 
 
 def _fake_torch_module():
@@ -109,6 +115,26 @@ class TestVRAMRecommendation:
         assert ModelManager.get_recommended_profile(vram_gb) == expected
 
 
+class TestDetectSystemRam:
+    """``detect_system_ram_gb`` feeds ``select_aesthetic_model``'s CPU branch
+    and ``group_passes_by_vram``'s bin-packing capacity, so a wrong answer
+    here is load-bearing two levels up.
+    """
+
+    def test_reflects_a_cgroup_limit_below_host_total(self, monkeypatch):
+        from models.model_manager import ModelManager
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(6 * GIB, 1 * GIB, 5 * GIB, 16.7),
+        )
+        assert ModelManager.detect_system_ram_gb() == pytest.approx(6.0)
+
+    def test_falls_back_to_8gb_when_nothing_could_be_read(self, monkeypatch):
+        from models.model_manager import ModelManager
+        monkeypatch.setattr(system_memory, 'effective_memory', lambda: UNKNOWN_MEMORY)
+        assert ModelManager.detect_system_ram_gb() == 8.0
+
+
 class TestModelRegistry:
     def test_get_model_vram_known(self, manager):
         assert manager.get_model_vram('clip') == 5
@@ -190,12 +216,200 @@ class TestPassGrouping:
         other_bin = next(b for b in bins if 'vlm_tagger' not in b)
         assert set(other_bin) == {'clip', 'topiq'}
 
-    def test_group_passes_cpu_uses_ram(self, manager):
+    def test_group_passes_cpu_uses_ram(self, manager, monkeypatch):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
         with mock.patch.object(manager, 'detect_system_ram_gb', return_value=16.0):
             bins = manager.group_passes_by_vram(['topiq', 'clip'], 0.0)
-        # Capacity = max(4, 16-2) = 14 GB; both fit.
+        # Capacity = (16 - 1.0 OS reserve) / 1.6 = 9.375 GB; both fit.
         assert bins == [sorted(['clip', 'topiq'], key=manager.get_model_ram, reverse=True)] \
             or sum(len(b) for b in bins) == 2
+
+    def test_an_8gb_host_no_longer_plans_the_pass_that_killed_an_8gib_container(
+            self, manager, monkeypatch):
+        """``topiq_nr_face + liqe + saliency`` is 6.0 GB declared -- the exact
+        pass that OOM-killed twice under an 8 GiB cap. Subtracting a fixed
+        reserve planned it on an 8 GB host too, at 1.33 GB of RAM per declared
+        GB, the very ratio measured fatal. Bare metal has swap so it thrashes
+        rather than dying, but ``docs/DEPLOYMENT.md`` recommends CPU on 8 GB,
+        and this is the configuration it recommends."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=8.0):
+            bins = manager.group_passes_by_vram(
+                ['topiq_nr_face', 'liqe', 'saliency'], 0.0
+            )
+
+        assert max(sum(manager.get_model_ram(m) for m in b) for b in bins) <= 5.0
+
+    @pytest.mark.parametrize('host_gb,expected_capacity', [
+        (4.0, 1.875), (8.0, 4.375), (12.0, 6.875),
+        (16.0, 9.375), (32.0, 19.375), (64.0, 39.375),
+    ])
+    def test_bare_metal_capacity_reserves_the_os_then_divides_by_the_ratio(
+            self, manager, host_gb, expected_capacity):
+        """1.6 GB of RAM per declared GB is what an 8 GiB budget was measured
+        to absorb (5.0 GB survived, 6.0 GB did not), but that budget was a
+        cgroup limit, which the OS is not charged to. Dividing a whole HOST
+        by it would let one pass claim 100% of the machine at every size, so
+        ``_HOST_OS_RESERVE_GB`` comes off first."""
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=host_gb):
+            assert manager._cpu_pass_capacity_gb(None) == expected_capacity
+
+    @pytest.mark.parametrize('host_gb', [4.0, 8.0, 12.0, 16.0, 32.0, 64.0])
+    def test_bare_metal_capacity_always_leaves_the_os_its_share(self, manager, host_gb):
+        """The property the removed 4.0 GB floor broke: it bounded capacity at
+        4.0 on a 4 GB host, so the budget exceeded what the machine could hold
+        even before a model was placed in it."""
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=host_gb):
+            capacity = manager._cpu_pass_capacity_gb(None)
+
+        assert capacity * 1.6 <= host_gb - 1.0
+
+    def test_a_host_that_can_hold_the_whole_roster_keeps_its_single_pass(
+            self, manager, monkeypatch):
+        """The bound must not tax a well-provisioned machine. The roster is
+        20.0 GB declared, so it stays one pass from 1.6 x 20.0 + the OS
+        reserve = 33 GB up. A 32 GB host is just under that and splits off one
+        2.0 GB model, because a single 20.0 GB pass there implies 32.0 GB of
+        real usage -- the entire machine, kernel included."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
+        roster = [
+            'clip', 'topiq_iaa', 'topiq_nr_face', 'liqe',
+            'qrealign', 'saliency', 'samp_net', 'insightface',
+        ]
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=64.0):
+            assert len(manager.group_passes_by_vram(roster, 0.0)) == 1
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=32.0):
+            assert [len(group) for group in manager.group_passes_by_vram(roster, 0.0)] == [7, 1]
+
+    def test_a_host_too_small_for_a_model_is_told_it_will_swap(
+            self, manager, monkeypatch, caplog):
+        """Bare metal's version of the container warning. A 4 GB host cannot
+        hold qrealign's 5.0 GB under any packing, and the old floor answered
+        that by raising capacity to 4.0 and planning it anyway."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=4.0), \
+                caplog.at_level('WARNING', logger='facet.models'):
+            manager.group_passes_by_vram(['qrealign', 'topiq'], 0.0)
+
+        assert "['qrealign'] needs 5.0GB" in caplog.text
+        assert 'it will swap' in caplog.text
+        assert 'OOM-kill' not in caplog.text
+
+    @pytest.mark.parametrize('limit_gb,expected_capacity', [
+        (2, 0.0), (4, 2.0), (6, 4.0), (8, 5.0), (12, 5.0), (16, 5.0), (32, 5.0),
+    ])
+    def test_cpu_capacity_never_exceeds_the_cgroup_that_holds_it(
+            self, manager, limit_gb, expected_capacity):
+        """The 4.0 GB floor was applied BEFORE the cgroup ceiling and never
+        re-checked against the limit, so every container up to 6 GiB planned
+        passes of 4.0 GB -- twice the whole cgroup at 2 GiB, exactly the
+        whole cgroup at 4 GiB -- leaving the limit inert in the regime where
+        it binds hardest. Below 8 GiB the budget must come from the limit."""
+        capacity = manager._cpu_pass_capacity_gb(limit_gb * GIB)
+
+        assert capacity == expected_capacity
+        assert capacity < limit_gb
+
+    def test_a_4gib_container_packs_one_model_per_pass(self, manager, monkeypatch):
+        """What a `mem_limit: 4g` deployment now gets: 2.0 GB of budget, so
+        no two models share a pass. Before, a 4.0 GB capacity paired them and
+        planned a pass the size of the entire container."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 4 * GIB)
+        bins = manager.group_passes_by_vram(
+            ['topiq_nr_face', 'liqe', 'saliency', 'samp_net'], 0.0)
+
+        assert bins == [['topiq_nr_face'], ['liqe'], ['saliency'], ['samp_net']]
+
+    def test_a_pass_too_big_for_the_container_is_reported_not_swallowed(
+            self, manager, monkeypatch, caplog):
+        """The packer cannot split one model, so a roster carrying a model
+        heavier than the container still plans a pass that will be OOM-killed.
+        That has to be said out loud rather than left to dmesg."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 4 * GIB)
+        with caplog.at_level('WARNING', logger='facet.models'):
+            manager.group_passes_by_vram(['qrealign', 'topiq'], 0.0)
+
+        assert "['qrealign'] needs 5.0GB" in caplog.text
+        assert '4.0GiB container' in caplog.text
+
+    def test_a_plan_that_fits_the_container_is_not_warned_about(
+            self, manager, monkeypatch, caplog):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 16 * GIB)
+        with caplog.at_level('WARNING', logger='facet.models'):
+            manager.group_passes_by_vram(['topiq_nr_face', 'liqe'], 0.0)
+
+        assert caplog.text == ''
+
+    def test_group_passes_cpu_capacity_ceilinged_under_cgroup_limit(self, manager, monkeypatch):
+        """Under a cgroup limit, capacity is additionally capped at
+        ``_CGROUP_CAPACITY_CEILING_GB`` (5.0): overshooting the limit is
+        fatal (the kernel OOM-kills the pass), so the same three models that
+        fit in one bare-metal pass must now split."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 8 * GIB)
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=8.0):
+            bins = manager.group_passes_by_vram(
+                ['topiq_nr_face', 'liqe', 'saliency'], 0.0
+            )
+        # Capacity = min(8-2, 5.0) = 5.0 GB; 2+2+2=6 GB no longer fits.
+        assert len(bins) > 1
+
+    def test_group_passes_cpu_8gb_profile_splits_saliency_under_cgroup_limit(self, manager, monkeypatch):
+        """Reproduces the roster that OOM-killed on an 8 GiB container
+        (issue #111 follow-up): ``topiq_nr_face + liqe + saliency`` [6.0GB
+        planned] died right after BiRefNet saliency loaded. Under the
+        ceilinged cgroup capacity, no pass containing saliency may reach
+        that 6.0 GB total again."""
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: 8 * GIB)
+        roster = [
+            'clip', 'topiq_iaa', 'topiq_nr_face', 'liqe',
+            'qrealign', 'saliency', 'samp_net', 'insightface',
+        ]
+        with mock.patch.object(manager, 'detect_system_ram_gb', return_value=8.0):
+            bins = manager.group_passes_by_vram(roster, 0.0)
+
+        for group in bins:
+            if 'saliency' in group:
+                total = sum(manager.get_model_ram(m) for m in group)
+                assert total < 6.0, (
+                    f"saliency landed back in the pass that OOM-killed on an "
+                    f"8 GiB container: {group} [{total}GB]"
+                )
+        assert bins == [
+            ['qrealign'],
+            ['clip', 'topiq_iaa'],
+            ['topiq_nr_face', 'liqe'],
+            ['saliency', 'samp_net'],
+            ['insightface'],
+        ]
+
+    def test_group_passes_cpu_plan_identical_across_cgroup_limit_sizes(self, manager, monkeypatch):
+        """issue #111's follow-up measured the SAME roster OOM-kill on both
+        an 8 GiB and a 12 GiB container: a bigger limit only let the packer
+        combine more of the same underestimated models into one larger pass
+        (``topiq_nr_face + liqe + saliency + samp_net + insightface`` at
+        [~10.0GB], one size up from the 8 GiB failure). A capacity that grows
+        with the limit (flat or proportional) was checked against every
+        fraction in the 0.5-0.65 range and reproduces a >=6.0 GB recombination
+        by 12 GiB every time, because six of this roster's models are all
+        declared at 2.0 GB, so any capacity above ~5.9 GB admits three of
+        them at once. Only a ceiling that holds the plan identical regardless
+        of the reported limit -- checked here up to 64 GiB -- stops that
+        recombination from reappearing at a larger size.
+
+        The limit itself is what varies here, not ``detect_system_ram_gb``:
+        the budget is now derived from the limit, so a stubbed sentinel limit
+        would hold the plan constant by pinning the input rather than by
+        proving the ceiling does its job."""
+        roster = [
+            'clip', 'topiq_iaa', 'topiq_nr_face', 'liqe',
+            'qrealign', 'saliency', 'samp_net', 'insightface',
+        ]
+        plans = []
+        for limit_gb in (8, 12, 16, 24, 32, 64):
+            monkeypatch.setattr(
+                system_memory, 'memory_limit_bytes', lambda g=limit_gb: g * GIB)
+            plans.append(manager.group_passes_by_vram(roster, 0.0))
+        assert all(plan == plans[0] for plan in plans[1:])
 
 
 class TestProfileQueries:
@@ -244,21 +458,44 @@ class TestCachePolicy:
         assert m._can_cache_to_ram('topiq')
         assert not m._can_cache_to_ram('vlm_tagger')  # not in CPU_CACHEABLE_MODELS
 
-    def test_can_cache_to_ram_auto_when_headroom_available(self, manager):
-        fake_psutil = types.SimpleNamespace(
-            virtual_memory=lambda: types.SimpleNamespace(available=10 * 1024**3),
+    def test_can_cache_to_ram_auto_when_headroom_available(self, manager, monkeypatch):
+        """10 GB available, topiq needs 2 + 4 headroom = 6 GB → allowed."""
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(64 * GIB, 54 * GIB, 10 * GIB, 84.4),
         )
-        with mock.patch.dict(sys.modules, {'psutil': fake_psutil}):
-            # 10 GB available, topiq needs 2 + 4 headroom = 6 GB → ok
-            assert manager._can_cache_to_ram('topiq')
+        assert manager._can_cache_to_ram('topiq')
 
-    def test_can_cache_to_ram_auto_denied_when_low_memory(self, manager):
-        fake_psutil = types.SimpleNamespace(
-            virtual_memory=lambda: types.SimpleNamespace(available=4 * 1024**3),
+    def test_can_cache_to_ram_auto_denied_when_low_memory(self, manager, monkeypatch):
+        """4 GB available, topiq needs 2 + 4 headroom = 6 GB → denied."""
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(64 * GIB, 60 * GIB, 4 * GIB, 93.8),
         )
-        with mock.patch.dict(sys.modules, {'psutil': fake_psutil}):
-            # 4 GB available, need 2 + 4 = 6 GB → false
-            assert not manager._can_cache_to_ram('topiq')
+        assert not manager._can_cache_to_ram('topiq')
+
+    def test_can_cache_to_ram_auto_denied_by_cgroup_limit_despite_host_headroom(
+        self, manager, monkeypatch, tmp_path,
+    ):
+        """Issue #111: a container's cgroup must gate caching, not the host's
+        own idle memory, which Docker never virtualises into
+        ``/proc/meminfo``. A 1 GiB cgroup headroom refuses a 2 GB model even
+        though the host itself reports 60 GiB free.
+        """
+        cgroup_limit = tmp_path / 'memory.max'
+        cgroup_limit.write_text(str(2 * GIB))
+        cgroup_stat = tmp_path / 'memory.stat'
+        cgroup_stat.write_text(f'anon {1 * GIB}\n')
+        monkeypatch.setattr(system_memory, 'CGROUP_V2_LIMIT_PATH', str(cgroup_limit))
+        monkeypatch.setattr(system_memory, 'CGROUP_V2_STAT_PATH', str(cgroup_stat))
+        monkeypatch.setattr(system_memory, 'CGROUP_V2_USAGE_PATH', str(tmp_path / 'no_usage_v2'))
+        monkeypatch.setattr(system_memory, 'CGROUP_V1_LIMIT_PATH', str(tmp_path / 'no_limit_v1'))
+        monkeypatch.setattr(system_memory, 'CGROUP_V1_USAGE_PATH', str(tmp_path / 'no_usage_v1'))
+        monkeypatch.setattr(
+            system_memory, '_host_memory',
+            lambda: EffectiveMemory(60 * GIB, 4 * GIB, 60 * GIB, 6.7),
+        )
+        assert not manager._can_cache_to_ram('topiq')
 
     def test_can_cache_to_ram_rejects_uncacheable_model(self, manager):
         # vlm_tagger is not in CPU_CACHEABLE_MODELS.

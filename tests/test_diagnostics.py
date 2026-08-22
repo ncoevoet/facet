@@ -11,6 +11,24 @@ import pytest
 
 from config.scoring_config import ScoringConfig
 from diagnostics import _info, _ok, _section, _warn, run_doctor
+from utils import system_memory
+
+
+def _fake_effective_memory(monkeypatch, total_gb):
+    """Point ``suggest_vram_profile``'s memory read at a synthetic reading.
+
+    ``suggest_vram_profile`` resolves ``effective_memory`` with a
+    function-local import, so patching the ``utils.system_memory`` module
+    attribute -- not ``sys.modules["psutil"]`` -- is what actually reaches it:
+    ``system_memory`` binds the real ``psutil`` at its own first import, and a
+    later ``sys.modules`` swap never reaches that already-bound name.
+    """
+    reading = system_memory.EffectiveMemory(
+        total=int(total_gb * 1024**3), used=0,
+        available=int(total_gb * 1024**3), percent=0.0,
+    )
+    monkeypatch.setattr(system_memory, "effective_memory", lambda: reading)
+    return reading
 
 
 def _make_mock_torch_module():
@@ -363,37 +381,31 @@ class TestSuggestVramProfile:
         assert profile == 'legacy'
         assert 'legacy' in msg
 
-    def test_no_gpu_with_ram(self):
+    def test_no_gpu_with_ram(self, monkeypatch):
         """No GPU, sufficient RAM → legacy profile with RAM info."""
-        mock_psutil = types.ModuleType("psutil")
-        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=31 * 1024**3)
+        _fake_effective_memory(monkeypatch, 31)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
-             mock.patch("utils.device.mps_available", return_value=False), \
-             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+             mock.patch("utils.device.mps_available", return_value=False):
             profile, vram, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
         assert vram is None
         assert '31GB RAM' in msg
 
-    def test_no_gpu_large_ram_stays_legacy(self):
+    def test_no_gpu_large_ram_stays_legacy(self, monkeypatch):
         """Plenty of RAM without an accelerator is still the legacy profile."""
-        mock_psutil = types.ModuleType("psutil")
-        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=128 * 1024**3)
+        _fake_effective_memory(monkeypatch, 128)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
-             mock.patch("utils.device.mps_available", return_value=False), \
-             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+             mock.patch("utils.device.mps_available", return_value=False):
             profile, vram, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
         assert vram is None
         assert 'No GPU detected' in msg
 
-    def test_no_gpu_low_ram(self):
+    def test_no_gpu_low_ram(self, monkeypatch):
         """No GPU, low RAM → legacy with limited CPU mode."""
-        mock_psutil = types.ModuleType("psutil")
-        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=4 * 1024**3)
+        _fake_effective_memory(monkeypatch, 4)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
-             mock.patch("utils.device.mps_available", return_value=False), \
-             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+             mock.patch("utils.device.mps_available", return_value=False):
             profile, vram, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
         assert 'limited CPU mode' in msg
@@ -401,14 +413,10 @@ class TestSuggestVramProfile:
     @staticmethod
     def _suggest_on_mps(monkeypatch, total_memory_gb):
         """Run the suggestion on a simulated Metal machine of a given size."""
-        mock_psutil = types.ModuleType("psutil")
-        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(
-            total=int(total_memory_gb * 1024**3),
-        )
+        _fake_effective_memory(monkeypatch, total_memory_gb)
         monkeypatch.delenv("FACET_DEVICE", raising=False)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
-             mock.patch("utils.device.mps_available", return_value=True), \
-             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+             mock.patch("utils.device.mps_available", return_value=True):
             return ScoringConfig.suggest_vram_profile()
 
     def test_mps_sizes_the_profile_from_unified_memory(self, monkeypatch):
@@ -447,27 +455,64 @@ class TestSuggestVramProfile:
         assert profile == 'legacy'
         assert '8GB unified memory' in msg
 
-    def test_mps_without_psutil_falls_back_to_legacy(self, monkeypatch):
-        """Unified memory that cannot be measured must not be assumed large."""
+    def test_mps_falls_back_to_legacy_when_memory_is_unreadable(self, monkeypatch):
+        """Unified memory that cannot be measured must not be assumed large.
+
+        ``UNKNOWN_MEMORY`` (a zero total) is what ``effective_memory()``
+        reports when neither psutil nor a cgroup file could be read -- this
+        covers that degradation, not psutil's absence specifically, since
+        ``suggest_vram_profile`` no longer imports psutil itself.
+        """
         monkeypatch.delenv("FACET_DEVICE", raising=False)
+        monkeypatch.setattr(system_memory, "effective_memory", lambda: system_memory.UNKNOWN_MEMORY)
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
-             mock.patch("utils.device.mps_available", return_value=True), \
-             mock.patch.dict("sys.modules", {"psutil": None}):
+             mock.patch("utils.device.mps_available", return_value=True):
             profile, vram, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
         assert vram is None
         assert 'MPS' in msg
 
     def test_mps_cpu_override_is_reported(self, monkeypatch):
-        mock_psutil = types.ModuleType("psutil")
-        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=48 * 1024**3)
+        _fake_effective_memory(monkeypatch, 48)
         monkeypatch.setenv("FACET_DEVICE", "cpu")
         with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
-             mock.patch("utils.device.mps_available", return_value=True), \
-             mock.patch.dict("sys.modules", {"psutil": mock_psutil}):
+             mock.patch("utils.device.mps_available", return_value=True):
             profile, _, msg = ScoringConfig.suggest_vram_profile()
         assert profile == 'legacy'
         assert 'FACET_DEVICE=cpu' in msg
+
+    def test_container_memory_limit_sizes_the_profile_not_the_host_total(
+            self, monkeypatch, tmp_path):
+        """Inside a memory-limited container the profile must be sized from
+        the cgroup limit, not the idle host's total -- the whole reason
+        ``suggest_vram_profile`` was rewired onto ``effective_memory()``
+        (issue #111). The host here is a 128GB Mac, which alone would reach
+        the richest profile; a 16GB cgroup limit must pull it down instead.
+        """
+        host_reading = system_memory.EffectiveMemory(
+            total=128 * 1024**3, used=8 * 1024**3, available=120 * 1024**3, percent=6.0,
+        )
+        monkeypatch.setattr(system_memory, "_host_memory", lambda: host_reading)
+        monkeypatch.setattr(
+            system_memory, "CGROUP_V2_LIMIT_PATH", str(tmp_path / "memory.max"))
+        (tmp_path / "memory.max").write_text(f"{16 * 1024**3}\n")
+        monkeypatch.setattr(
+            system_memory, "CGROUP_V1_LIMIT_PATH", str(tmp_path / "absent-v1-limit"))
+        monkeypatch.setattr(
+            system_memory, "CGROUP_V2_USAGE_PATH", str(tmp_path / "absent-v2-usage"))
+        monkeypatch.setattr(
+            system_memory, "CGROUP_V1_USAGE_PATH", str(tmp_path / "absent-v1-usage"))
+        monkeypatch.setattr(
+            system_memory, "CGROUP_V2_STAT_PATH", str(tmp_path / "absent-v2-stat"))
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+
+        with mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None), \
+             mock.patch("utils.device.mps_available", return_value=True):
+            profile, vram, msg = ScoringConfig.suggest_vram_profile()
+
+        assert profile == '8gb'
+        assert vram is None
+        assert '16GB unified memory' in msg
 
 
 class TestCheckVramProfileCompatibility:
@@ -521,7 +566,7 @@ class TestCheckVramProfileCompatibility:
 class TestRtx5070TiScenario:
     """End-to-end tests simulating RTX 5070 Ti detection issue."""
 
-    def test_full_doctor_output(self, capsys, tmp_path):
+    def test_full_doctor_output(self, capsys, tmp_path, monkeypatch):
         """Simulate RTX 5070 Ti with no CUDA support — full doctor run."""
         mock_torch = _make_mock_torch_module()
         mock_torch.__version__ = "2.5.0"
@@ -535,10 +580,9 @@ class TestRtx5070TiScenario:
             returncode=0, stdout="NVIDIA RTX 5070 Ti, 565.77\n"
         )
 
-        mock_psutil = types.ModuleType("psutil")
-        mock_psutil.virtual_memory = lambda: types.SimpleNamespace(total=31 * 1024**3)
+        _fake_effective_memory(monkeypatch, 31)
 
-        with mock.patch.dict("sys.modules", {"torch": mock_torch, "psutil": mock_psutil}), \
+        with mock.patch.dict("sys.modules", {"torch": mock_torch}), \
              mock.patch("diagnostics.subprocess.run", return_value=smi_result), \
              mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None):
             run_doctor(

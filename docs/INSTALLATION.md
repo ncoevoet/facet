@@ -210,10 +210,14 @@ Deploy knobs live in `.env` (copy `.env.example`):
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Database path inside the container, kept on the `./data` bind mount |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | config's `auto_retrain` | Personal-ranker retrain trigger, for heavy raters |
 
-A sanitized `scoring_config.default.json` is baked into the image as the active config,
-so the container runs with zero host setup. To customize weights, the viewer password or
-categories: `cp scoring_config.default.json scoring_config.json`, edit it, then uncomment
-the config mount in `docker-compose.yml`.
+A sanitized `scoring_config.default.json` is baked into the image as the seed config.
+`docker-entrypoint.sh` copies it, on first run only, into the persistent
+`./facet-config/scoring_config.json` that `docker-compose.yml` already bind-mounts (as
+`FACET_CONFIG=/config/scoring_config.json` inside the container) — so the container runs
+with zero host setup, and every runtime config write (the viewer password upgrade,
+weights, priorities, scoring contexts) survives `docker compose down && up`. Edit
+`./facet-config/scoring_config.json` directly to customize weights, the viewer password
+or categories by hand; an existing file is never overwritten.
 
 Model caches live in Docker-managed named volumes (`facet-hf-cache`, `facet-torch-cache`,
 `facet-insightface`, `facet-pretrained`), so the image never reads your machine's own

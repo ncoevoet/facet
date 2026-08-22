@@ -213,9 +213,14 @@ Le leve di distribuzione risiedono in `.env` (copia `.env.example`):
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` della configurazione | Innesco del riaddestramento del ranker personale, per chi valuta molte foto |
 
 Un `scoring_config.default.json` sanificato è incorporato nell'immagine come
-configurazione attiva, quindi il container funziona senza alcuna configurazione lato
-host. Per personalizzare pesi, password del viewer o categorie: `cp scoring_config.default.json scoring_config.json`,
-modificalo, poi decommenta il mount della configurazione in `docker-compose.yml`.
+configurazione di partenza. `docker-entrypoint.sh` lo copia, solo al primo avvio, nel
+file persistente `./facet-config/scoring_config.json` che `docker-compose.yml` monta già
+(come `FACET_CONFIG=/config/scoring_config.json` dentro il container) — quindi il
+container funziona senza alcuna configurazione lato host, e ogni scrittura della
+configurazione a runtime (la migrazione della password del viewer, i pesi, le priorità, i
+contesti di scoring) ora sopravvive a un `docker compose down && up`. Modifica
+direttamente `./facet-config/scoring_config.json` per personalizzare a mano pesi,
+password del viewer o categorie; un file già esistente non viene mai sovrascritto.
 
 Le cache dei modelli risiedono in volumi con nome gestiti da Docker (`facet-hf-cache`,
 `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), quindi l'immagine non

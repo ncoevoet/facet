@@ -216,10 +216,15 @@ Les réglages de déploiement se trouvent dans `.env` (copiez `.env.example`) :
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` de la config | Déclencheur de réentraînement du classeur personnel, pour les utilisateurs qui notent beaucoup |
 
 Une version assainie de `scoring_config.default.json` est intégrée à l'image comme
-configuration active, si bien que le conteneur tourne sans aucune configuration côté
-hôte. Pour personnaliser les poids, le mot de passe d'édition ou les catégories :
-`cp scoring_config.default.json scoring_config.json`, éditez-le, puis décommentez le
-montage de la configuration dans `docker-compose.yml`.
+configuration de départ. `docker-entrypoint.sh` la copie, au premier démarrage
+uniquement, dans le fichier persistant `./facet-config/scoring_config.json` que
+`docker-compose.yml` monte déjà (sous la forme `FACET_CONFIG=/config/scoring_config.json`
+dans le conteneur) — le conteneur tourne donc sans aucune configuration côté hôte, et
+chaque écriture de configuration à l'exécution (mise à niveau du mot de passe d'édition,
+poids, priorités, contextes de notation) survit désormais à un `docker compose down &&
+up`. Éditez directement `./facet-config/scoring_config.json` pour personnaliser à la main
+les poids, le mot de passe d'édition ou les catégories ; un fichier déjà présent n'est
+jamais écrasé.
 
 Les caches de modèles vivent dans des volumes nommés gérés par Docker
 (`facet-hf-cache`, `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), si

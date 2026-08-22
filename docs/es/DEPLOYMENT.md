@@ -13,7 +13,7 @@ Facet tiene dos cargas de trabajo:
 
 | Componente | Hardware | Propósito |
 |-----------|----------|---------|
-| **Puntuación** (`facet.py`) | GPU (6-24 GB VRAM) o CPU (8 GB+ de RAM) | Analizar y puntuar fotos |
+| **Puntuación** (`facet.py`) | GPU (6-24 GB VRAM) o CPU (16 GB+ de RAM, más para los perfiles `16gb`/`24gb` — consulta [Límites de memoria del contenedor](#límites-de-memoria-del-contenedor)) | Analizar y puntuar fotos |
 | **Galería web** (`viewer.py`) | Cualquier máquina (pocos recursos) | Servir la galería web |
 
 Solo la galería web necesita ejecutarse en el servidor. Puntúa en una estación de trabajo y luego sincroniza la base de datos.
@@ -301,6 +301,42 @@ services:
       - /volume1/Photos:/volume1/Photos:ro  # Mount photos for downloads
     restart: always
 ```
+
+## Límites de memoria del contenedor
+
+Facet ahora lee el límite de memoria del cgroup del contenedor (`memory.max` en cgroup v2, `memory.limit_in_bytes` en v1) en lugar de la RAM total del host, y dimensiona en función de ese límite la agrupación de pasadas (qué modelos se cargan juntos), el tamaño del bloque de RAM, el almacenamiento en caché de modelos en CPU y la concurrencia de decodificación RAW. Antes de esta corrección, todo eso se dimensionaba según la RAM del host: `psutil.virtual_memory()` lee `/proc/meminfo`, que Docker no virtualiza, así que un `mem_limit` se ignoraba silenciosamente — un contenedor limitado muy por debajo de la RAM del host seguía planificándose como si tuviera toda la RAM del host disponible, y terminaba muerto por OOM ([issue #111](https://github.com/ncoevoet/facet/issues/111)).
+
+Reproducir el error en una imagen publicada anterior a la corrección (v1.7.2) muestra el mecanismo: un contenedor con perfil `8gb` limitado a `--memory=8g` en un host de 47 GB registra `Mode: CPU-only (47GB RAM)` — la RAM del host, no la del contenedor — y planifica una sola pasada agrupando `clip + topiq_iaa + topiq_nr_face + liqe + saliency + samp_net + insightface [~15.0GB RAM]`. Se le mata (`OOMKilled`, código de salida 137) antes de terminar siquiera un lote de las 200 fotos. Frente a un límite de cgroup de 512 MB, el lector corregido reporta 0,500 GB donde `/proc/meminfo` sigue reportando los 46,8 GB del host.
+
+### Memoria mínima recomendada por perfil
+
+Los pesos de los modelos son solo una parte del pico de memoria — el runtime de torch, el bloque de imagen decodificada y las activaciones por capa se suman a eso — así que trata estas cifras como suelos, no como presupuestos. La fila `legacy`/`8gb` ahora se apoya en pruebas reales en contenedor (ver más abajo); las filas `16gb` y `24gb` siguen siendo marcadores provisionales sin ninguna medición real detrás.
+
+| Perfil VRAM | Pesos de los modelos (total) | Memoria de contenedor recomendada |
+|---|---|---|
+| `legacy` / `8gb` | 15,0 GB | 12 GB (GPU) / 16 GB (CPU, provisional) |
+| `16gb` | 22,0 GB | al menos 18 GB (provisional) |
+| `24gb` | 25,0 GB | al menos 18 GB (provisional) |
+
+**GPU y CPU no son intercambiables aquí, y la cifra de 12 GB de arriba es una cifra de GPU.** En una RTX 3080, el perfil `8gb` del autor del informe alcanzó un pico de 9,23 GB de RAM del sistema para 405 fotos, incluso con `ram_chunk_size: 12` y `num_workers: 2`, y tuvo éxito con `mem_limit: 12g`. En una GPU, los pesos de los modelos residen en la VRAM; la RAM del contenedor contiene principalmente el bloque de imagen decodificada, por lo que esa cifra es mucho más pequeña que lo que necesita el CPU en solitario. Ejecutar ese mismo perfil `8gb` en CPU carga en cambio todo el catálogo de modelos en la RAM del contenedor. Antes de que la corrección de seguimiento del issue #111 añadiera un techo, la capacidad por pasada del planificador escalaba directamente con el límite del contenedor, lo que empeoraba el plan, no lo mejoraba, a medida que crecía el límite: un límite de 8 GB producía 4 pasadas que llegaban hasta 6,0 GB, provocando un OOM en la pasada que agrupa `topiq_nr_face + liqe + saliency` (6,0 GB declarados, pico de RSS de 10,46 GB); un límite de 12 GB se reducía a solo 2 pasadas que llegaban hasta 10,0 GB, y también provocaba un OOM. El regulador de memoria sí se activó en el límite de 12 GB — `Evicted 1 model(s) from RAM cache: topiq_iaa` es una línea de registro real —, pero eso era el regulador interviniendo y aun así sin ser suficiente, no lo que salvó la ejecución.
+
+El techo ahora mantiene la capacidad por pasada en 5,0 GB sin importar cuán grande sea el límite del contenedor, así que deja de crecer con el contenedor: el perfil `8gb` en CPU siempre planifica las mismas 5 pasadas sea cual sea el límite — `Pass 1: qrealign [~5.0GB RAM]`, `Pass 2: clip + topiq_iaa [~5.0GB RAM]`, `Pass 3: topiq_nr_face + liqe [~4.0GB RAM]`, `Pass 4: saliency + samp_net [~4.0GB RAM]`, `Pass 5: insightface [~2.0GB RAM]`. Esa forma fija sigue sin caber en un contenedor de 8 GB: las pruebas reales aún terminan en `OOMKilled` (código de salida 137), en la pasada 4, con un pico de 7,67 GB de los 8 GB del presupuesto. Un contenedor de 16 GB llega más allá del punto en el que fallaban los 8 GB y los 12 GB — esa ejecución todavía seguía en marcha en la última comprobación, así que lo que sigue es un mínimo constatado, no un pico final. Su cgroup ya mostraba al menos 12,55 GB de memoria anónima, la cifra que realmente carga el OOM killer del kernel: ni el MemUsage de `docker stats` ni el `memory.current` del cgroup, que cuentan ambos la caché de páginas recuperable, así que el primero infravalora el riesgo real y el segundo se queda anclado cerca del límite del contenedor sin importar cuánto margen quede realmente. Esos mismos 12,55 GB son también la razón de que la ejecución de 12 GB de arriba muriera, y coinciden con el pico de 9,23 GB que reportó el autor del informe en GPU — el mismo catálogo de modelos, menos lo que reside en la VRAM en vez de en la RAM del contenedor. La cifra de 16 GB en la tabla de arriba refleja ese mínimo constatado, no un techo final confirmado — de ahí que siga etiquetada como provisional. Un usuario de GPU que se guiara por las cifras de CPU de aquí sobredimensionaría; un usuario de CPU que se guiara por la cifra de GPU infradimensionaría — usa la que corresponda a cómo se ejecuta realmente tu contenedor.
+
+De forma más general: `MODEL_RAM_REQUIREMENTS` solo tasa el coste de los pesos. El pico real de RSS añade además el runtime de torch, el bloque de imagen decodificada y las activaciones por capa, ninguno de los cuales está en esa cifra — dimensionar un contenedor solo a partir de la columna pesos de los modelos (total) lo infradimensionará.
+
+Las estimaciones de `16gb` y `24gb` todavía no tienen ninguna ejecución real detrás, ni en GPU ni en CPU; trata 18 GB como un marcador provisional, no como un suelo validado.
+
+Configura el límite en `docker-compose.yml` (o en un archivo de override):
+
+```yaml
+services:
+  facet:
+    mem_limit: 16g
+```
+
+### La agrupación de pasadas tiene un límite mínimo y un límite máximo
+
+El planificador de pasadas de Facet presupuesta cada pasada de CPU al límite de memoria del cgroup del contenedor menos una reserva de 2 GB para el runtime de torch, con un techo de 5 GB que nunca deja crecer una pasada por grande que sea el límite. No hay un suelo bajo un límite de cgroup: un contenedor con poco margen tras la reserva recibe un presupuesto pequeño, que puede bajar hasta cero, lo que simplemente aísla un modelo por pasada. Solo cuando no hay ningún límite de memoria de contenedor el planificador recurre a un suelo optimista, manteniendo una pasada en al menos 4 GB incluso cuando la RAM del sistema escasea. Un modelo más grande que el presupuesto recibe igualmente su propia pasada en lugar de dividirse: con un límite de contenedor de 4 GB, la capacidad es de 2 GB, y el perfil `24gb` todavía planifica una pasada de 8,0 GB, porque `qwen3_5_4b_tagger` por sí solo necesita 8 GB y no se puede dividir, por pequeño que sea el presupuesto. Nunca dimensiones un contenedor por debajo del modelo individual más grande del perfil que uses.
 
 ## Windows (WSL2) con una GPU NVIDIA
 

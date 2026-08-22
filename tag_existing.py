@@ -142,7 +142,7 @@ def main():
 
     parser = argparse.ArgumentParser(description='Tag existing photos using stored CLIP embeddings')
     parser.add_argument('--db', default='photo_scores_pro.db', help='Database path')
-    parser.add_argument('--config', default='scoring_config.json', help='Config file path')
+    parser.add_argument('--config', default=None, help='Config file path')
     parser.add_argument('--threshold', type=float, default=None, help='Override similarity threshold')
     parser.add_argument('--max-tags', type=int, default=None, help='Override max tags per image')
     parser.add_argument('--dry-run', action='store_true', help='Show what would be tagged without saving')

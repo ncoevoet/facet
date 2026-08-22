@@ -29,8 +29,9 @@ def _configure_logging():
     """
     level_name = os.environ.get("FACET_LOG_LEVEL")
     if not level_name:
+        config_path = os.environ.get("FACET_CONFIG", "").strip() or os.path.join(_script_dir, "scoring_config.json")
         try:
-            with open(os.path.join(_script_dir, "scoring_config.json")) as f:
+            with open(config_path) as f:
                 cfg = json.load(f)
             level_name = cfg.get("log_level")
         except Exception:

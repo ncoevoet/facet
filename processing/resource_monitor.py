@@ -6,6 +6,8 @@ import logging
 import threading
 import time
 
+from utils.system_memory import effective_memory
+
 logger = logging.getLogger("facet.resources")
 
 import torch
@@ -18,13 +20,13 @@ except ImportError:
 
 class MultiPassResourceMonitor(threading.Thread):
     """
-    Lightweight daemon thread that monitors system RAM and auto-tunes
-    the chunk size of ChunkedMultiPassProcessor.
+    Lightweight daemon thread that monitors effective RAM (host or cgroup
+    limit, whichever binds -- see utils.system_memory.effective_memory) and
+    auto-tunes the chunk size of ChunkedMultiPassProcessor.
 
     - High RAM (>85%): immediately reduces chunk size and evicts CPU-cached models
     - Low RAM (<65%) for 3 consecutive readings: increases chunk size
     - Tracks adjustments for summary reporting
-    - No-op when psutil is unavailable
     """
 
     def __init__(self, multi_pass_processor, config=None):
@@ -46,7 +48,7 @@ class MultiPassResourceMonitor(threading.Thread):
         self.adjustments = []  # list of (direction, old_size, new_size)
 
     def run(self):
-        if not HAS_PSUTIL or not self.processor.auto_tuning_enabled:
+        if not self.processor.auto_tuning_enabled:
             return
 
         while not self.stop_event.is_set():
@@ -60,7 +62,7 @@ class MultiPassResourceMonitor(threading.Thread):
                 break
 
             try:
-                mem_percent = psutil.virtual_memory().percent
+                mem_percent = effective_memory().percent
 
                 if mem_percent > self.high_threshold:
                     self._low_streak = 0
@@ -97,7 +99,7 @@ class ResourceMonitor:
 
     Collects:
     - CPU usage (total + per-core) via psutil.cpu_percent()
-    - Memory (available GB, process RSS) via psutil.virtual_memory()
+    - Memory (available GB, process RSS) via utils.system_memory.effective_memory()
     - GPU memory (allocated GB) via torch.cuda.memory_allocated()
     - I/O rate (bytes/sec) via psutil.disk_io_counters()
     - Queue depths and processing throughput
@@ -197,7 +199,7 @@ class ResourceMonitor:
         metrics['cpu_percent'] = psutil.cpu_percent(interval=None)
 
         # Memory usage
-        mem = psutil.virtual_memory()
+        mem = effective_memory()
         metrics['memory_percent'] = mem.percent
         metrics['memory_available_gb'] = mem.available / (1024**3)
 
@@ -281,7 +283,7 @@ class ResourceMonitor:
         while wait_count < self.MAX_MEMORY_WAIT_SECONDS:
             if self.stop_event.wait(1):
                 return
-            if psutil.virtual_memory().percent < self.MEMORY_RECOVERY_TARGET_PERCENT:
+            if effective_memory().percent < self.MEMORY_RECOVERY_TARGET_PERCENT:
                 break
             wait_count += 1
 

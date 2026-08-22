@@ -11,7 +11,23 @@ import sqlite3
 from contextlib import contextmanager
 
 DEFAULT_DB_PATH = os.environ.get('DB_PATH', 'photo_scores_pro.db')
-_CONFIG_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scoring_config.json')
+
+
+def _resolve_config_path():
+    """Path to scoring_config.json — $FACET_CONFIG when set, else the repo-root
+    file. Mirrors ``config.default_config_path`` byte-for-byte rather than
+    importing it: ``config``'s own ``__init__`` imports
+    ``config.percentile_normalizer``, which imports ``db`` — and this module is
+    the first thing ``db/__init__.py`` imports, so that import would recurse
+    back into a ``db`` package that has not finished initializing yet.
+    """
+    env_path = os.environ.get('FACET_CONFIG', '').strip()
+    if env_path:
+        return env_path
+    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scoring_config.json')
+
+
+_CONFIG_PATH = _resolve_config_path()
 
 logger = logging.getLogger("facet.db_connection")
 

@@ -628,7 +628,7 @@ Unified processing settings for GPU batch processing and multi-pass mode.
 
 **`gpu_batch_size`** - How many images are processed together on the GPU in a single forward pass. Limited by VRAM. Auto-tuned: reduced when GPU memory exceeds limit.
 
-**`ram_chunk_size`** - How many images are cached in RAM between model passes (multi-pass mode only). Reduces disk I/O by loading images once per chunk. Limited by system RAM. Auto-tuned: reduced when system memory exceeds limit.
+**`ram_chunk_size`** - How many images are cached in RAM between model passes (multi-pass mode only). Reduces disk I/O by loading images once per chunk. Limited by the effective memory limit (see `memory_limit_percent` below). Auto-tuned in both directions: reduced when usage exceeds the limit, increased when usage stays well below it.
 
 ### Settings Reference
 
@@ -652,7 +652,7 @@ Unified processing settings for GPU batch processing and multi-pass mode.
 | `max_gpu_batch_size` | `32` | Maximum GPU batch size |
 | `min_ram_chunk_size` | `10` | Minimum RAM chunk size |
 | `max_ram_chunk_size` | `128` | Maximum RAM chunk size |
-| `memory_limit_percent` | `85` | System memory usage limit |
+| `memory_limit_percent` | `85` | Percentage of the effective memory limit (cgroup limit under a container cap, else host RAM) |
 | `cpu_target_percent` | `85` | CPU usage target |
 | `metrics_print_interval_seconds` | `30` | Stats print interval |
 | **thumbnails** | | |
@@ -682,11 +682,13 @@ Each image is loaded once per chunk, and passes are grouped to fit available VRA
 
 The system monitors resource usage and adjusts:
 
+`memory_limit_percent` is measured against the *effective* memory limit: the cgroup limit when running under a container or orchestrator cap (Docker `mem_limit`, Podman `--memory`, Kubernetes `resources.limits.memory`), otherwise host RAM. Under a cgroup limit, usage now comes from the cgroup's own accounting rather than host free memory, so `mem_limit` genuinely bounds auto-tuning — previously it read host memory even inside a capped container, which could under-report usage and let `ram_chunk_size` grow toward an OOM kill. `memory_limit_percent` is a percentage of that limit: `85` against an 8GB cap is ~6.8GB, not 85% of host RAM.
+
 | Metric | Action |
 |--------|--------|
 | GPU memory > limit | Reduce `gpu_batch_size` by 25% |
-| System RAM > limit | Reduce `ram_chunk_size` by 25% |
-| System RAM < (limit - 20%) | Increase `ram_chunk_size` by 25% |
+| Memory usage > limit | Reduce `ram_chunk_size` by 25% |
+| Memory usage < (limit - 20%) | Increase `ram_chunk_size` by 25% |
 | CPU > target | Suggest fewer workers |
 | Queue timeouts > 5% | Suggest more workers |
 
@@ -1245,7 +1247,7 @@ Controls face extraction and thumbnail generation.
 | `refill_batch_size` | `100` | Refill batch size |
 | **auto_tuning** | | |
 | `enabled` | `true` | Enable memory-based tuning |
-| `memory_limit_percent` | `80` | Memory usage limit |
+| `memory_limit_percent` | `80` | Percentage of the effective memory limit (cgroup limit under a container cap, else host RAM) |
 | `min_batch_size` | `8` | Minimum batch size |
 | `monitor_interval_seconds` | `5` | Check interval |
 

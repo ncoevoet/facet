@@ -620,7 +620,7 @@ Vereinheitlichte Verarbeitungseinstellungen für die GPU-Batch-Verarbeitung und 
 
 **`gpu_batch_size`** - Wie viele Bilder zusammen auf der GPU in einem einzigen Forward-Pass verarbeitet werden. Durch den VRAM begrenzt. Automatisch optimiert: wird reduziert, wenn der GPU-Speicher das Limit überschreitet.
 
-**`ram_chunk_size`** - Wie viele Bilder zwischen Modelldurchläufen im RAM zwischengespeichert werden (nur Multi-Pass-Modus). Reduziert Disk-I/O, indem Bilder einmal pro Chunk geladen werden. Durch den System-RAM begrenzt. Automatisch optimiert: wird reduziert, wenn der Systemspeicher das Limit überschreitet.
+**`ram_chunk_size`** - Wie viele Bilder zwischen Modelldurchläufen im RAM zwischengespeichert werden (nur Multi-Pass-Modus). Reduziert Disk-I/O, indem Bilder einmal pro Chunk geladen werden. Durch das effektive Speicherlimit begrenzt (siehe `memory_limit_percent` unten). In beide Richtungen automatisch optimiert: reduziert, wenn die Auslastung das Limit überschreitet, erhöht, wenn sie deutlich darunter bleibt.
 
 ### Einstellungsreferenz
 
@@ -644,7 +644,7 @@ Vereinheitlichte Verarbeitungseinstellungen für die GPU-Batch-Verarbeitung und 
 | `max_gpu_batch_size` | `32` | Maximale GPU-Batchgröße |
 | `min_ram_chunk_size` | `10` | Minimale RAM-Chunkgröße |
 | `max_ram_chunk_size` | `128` | Maximale RAM-Chunkgröße |
-| `memory_limit_percent` | `85` | Limit für die Systemspeicherauslastung |
+| `memory_limit_percent` | `85` | Prozentsatz des effektiven Speicherlimits (cgroup-Limit unter einem Container-Limit, sonst Host-RAM) |
 | `cpu_target_percent` | `85` | Zielwert für die CPU-Auslastung |
 | `metrics_print_interval_seconds` | `30` | Intervall für die Statistikausgabe |
 | **thumbnails** | | |
@@ -674,11 +674,13 @@ Jedes Bild wird einmal pro Chunk geladen, und Durchläufe werden so gruppiert, d
 
 Das System überwacht die Ressourcennutzung und passt an:
 
+`memory_limit_percent` wird gegen das *effektive* Speicherlimit gemessen: das cgroup-Limit, wenn unter einem Container- oder Orchestrator-Limit ausgeführt wird (Docker `mem_limit`, Podman `--memory`, Kubernetes `resources.limits.memory`), sonst der Host-RAM. Unter einem cgroup-Limit stammt die Auslastung jetzt aus der eigenen Abrechnung des cgroups statt aus dem freien Speicher des Hosts, sodass `mem_limit` das Auto-Tuning wirklich begrenzt — zuvor las es selbst innerhalb eines begrenzten Containers den Host-Speicher, was die Auslastung unterschätzen und `ram_chunk_size` bis zu einem OOM-Kill wachsen lassen konnte. `memory_limit_percent` ist ein Prozentsatz dieses Limits: `85` gegen ein 8GB-Limit ergibt ~6,8GB, nicht 85 % des Host-RAM.
+
 | Metrik | Aktion |
 |--------|--------|
 | GPU-Speicher > Limit | `gpu_batch_size` um 25 % reduzieren |
-| System-RAM > Limit | `ram_chunk_size` um 25 % reduzieren |
-| System-RAM < (Limit − 20 %) | `ram_chunk_size` um 25 % erhöhen |
+| Speicherauslastung > Limit | `ram_chunk_size` um 25 % reduzieren |
+| Speicherauslastung < (Limit − 20 %) | `ram_chunk_size` um 25 % erhöhen |
 | CPU > Ziel | Weniger Worker vorschlagen |
 | Queue-Timeouts > 5 % | Mehr Worker vorschlagen |
 
@@ -1240,7 +1242,7 @@ Steuert die Gesichtsextraktion und die Thumbnail-Erzeugung.
 | `refill_batch_size` | `100` | Batchgröße des Nachfüllens |
 | **auto_tuning** | | |
 | `enabled` | `true` | Speicherbasiertes Tuning aktivieren |
-| `memory_limit_percent` | `80` | Limit für die Speicherauslastung |
+| `memory_limit_percent` | `80` | Prozentsatz des effektiven Speicherlimits (cgroup-Limit unter einem Container-Limit, sonst Host-RAM) |
 | `min_batch_size` | `8` | Minimale Batchgröße |
 | `monitor_interval_seconds` | `5` | Prüfintervall |
 

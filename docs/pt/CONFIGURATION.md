@@ -620,7 +620,7 @@ Configurações unificadas de processamento para o processamento em lote na GPU 
 
 **`gpu_batch_size`** - Quantas imagens são processadas juntas na GPU em uma única passagem direta. Limitado pela VRAM. Ajustado automaticamente: reduzido quando a memória da GPU excede o limite.
 
-**`ram_chunk_size`** - Quantas imagens são armazenadas em cache na RAM entre as passagens dos modelos (apenas no modo de múltiplas passagens). Reduz a E/S de disco ao carregar as imagens uma vez por bloco. Limitado pela RAM do sistema. Ajustado automaticamente: reduzido quando a memória do sistema excede o limite.
+**`ram_chunk_size`** - Quantas imagens são armazenadas em cache na RAM entre as passagens dos modelos (apenas no modo de múltiplas passagens). Reduz a E/S de disco ao carregar as imagens uma vez por bloco. Limitado pelo limite de memória efetivo (veja `memory_limit_percent` abaixo). Ajustado automaticamente em ambas as direções: reduzido quando o uso excede o limite, aumentado quando permanece bem abaixo dele.
 
 ### Referência de Configurações
 
@@ -644,7 +644,7 @@ Configurações unificadas de processamento para o processamento em lote na GPU 
 | `max_gpu_batch_size` | `32` | Tamanho máximo do lote de GPU |
 | `min_ram_chunk_size` | `10` | Tamanho mínimo do bloco de RAM |
 | `max_ram_chunk_size` | `128` | Tamanho máximo do bloco de RAM |
-| `memory_limit_percent` | `85` | Limite de uso de memória do sistema |
+| `memory_limit_percent` | `85` | Percentual do limite de memória efetivo (limite de cgroup sob um teto de contêiner, senão RAM do host) |
 | `cpu_target_percent` | `85` | Meta de uso de CPU |
 | `metrics_print_interval_seconds` | `30` | Intervalo de impressão de estatísticas |
 | **thumbnails** | | |
@@ -674,11 +674,13 @@ Cada imagem é carregada uma vez por bloco, e as passagens são agrupadas para c
 
 O sistema monitora o uso de recursos e ajusta:
 
+`memory_limit_percent` é medido em relação ao limite de memória *efetivo*: o limite de cgroup ao rodar sob um teto de contêiner ou orquestrador (`mem_limit` do Docker, `--memory` do Podman, `resources.limits.memory` do Kubernetes), senão a RAM do host. Sob um limite de cgroup, o uso agora vem da contabilidade própria do cgroup em vez da memória livre do host, de modo que `mem_limit` realmente limita o ajuste automático — antes ele lia a memória do host mesmo dentro de um contêiner limitado, o que podia subestimar o uso e deixar `ram_chunk_size` crescer até um OOM kill. `memory_limit_percent` é um percentual desse limite: `85` sobre um teto de 8GB resulta em cerca de 6,8GB, não 85% da RAM do host.
+
 | Métrica | Ação |
 |---------|------|
 | Memória de GPU > limite | Reduz `gpu_batch_size` em 25% |
-| RAM do sistema > limite | Reduz `ram_chunk_size` em 25% |
-| RAM do sistema < (limite - 20%) | Aumenta `ram_chunk_size` em 25% |
+| Uso de memória > limite | Reduz `ram_chunk_size` em 25% |
+| Uso de memória < (limite - 20%) | Aumenta `ram_chunk_size` em 25% |
 | CPU > meta | Sugere menos workers |
 | Timeouts de fila > 5% | Sugere mais workers |
 
@@ -1240,7 +1242,7 @@ Controla a extração de faces e a geração de miniaturas.
 | `refill_batch_size` | `100` | Tamanho do lote de reabastecimento |
 | **auto_tuning** | | |
 | `enabled` | `true` | Ativa o ajuste baseado em memória |
-| `memory_limit_percent` | `80` | Limite de uso de memória |
+| `memory_limit_percent` | `80` | Percentual do limite de memória efetivo (limite de cgroup sob um teto de contêiner, senão RAM do host) |
 | `min_batch_size` | `8` | Tamanho mínimo do lote |
 | `monitor_interval_seconds` | `5` | Intervalo de verificação |
 

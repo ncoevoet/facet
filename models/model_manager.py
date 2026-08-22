@@ -45,6 +45,12 @@ class ModelManager:
     # Minimum available RAM headroom (GB) required for auto caching
     _RAM_HEADROOM_GB = 4.0
 
+    _RAM_RESERVE_GB = 2.0
+    _CGROUP_CAPACITY_CEILING_GB = 5.0
+    _HOST_OS_RESERVE_GB = 1.0
+    _RAM_PER_DECLARED_GB = 1.6
+    _BYTES_PER_GB = 1024 ** 3
+
     def __init__(self, config):
         """
         Initialize the model manager.
@@ -320,14 +326,10 @@ class ModelManager:
         if self.keep_in_ram == 'always':
             return True
 
-        # Auto mode: check available RAM
-        try:
-            import psutil
-            available_gb = psutil.virtual_memory().available / (1024**3)
-            model_ram = self.MODEL_RAM_REQUIREMENTS.get(model_name, 2.0)
-            return available_gb > model_ram + self._RAM_HEADROOM_GB
-        except ImportError:
-            return True  # No psutil = can't check, assume OK
+        from utils.system_memory import effective_memory
+        available_gb = effective_memory().available / (1024**3)
+        model_ram = self.MODEL_RAM_REQUIREMENTS.get(model_name, 2.0)
+        return available_gb > model_ram + self._RAM_HEADROOM_GB
 
     def _move_to_cpu(self, model, model_name: str):
         """Move a model's tensors to CPU for RAM caching.
@@ -759,16 +761,17 @@ class ModelManager:
 
     @staticmethod
     def detect_system_ram_gb() -> float:
-        """Detect total system RAM in GB.
+        """Detect total system RAM in GB, honoring any cgroup limit.
 
         Returns:
-            Total system RAM in GB, or 8.0 if detection fails
+            Total system RAM in GB (the cgroup limit where one applies),
+            or 8.0 where nothing could be read
         """
-        try:
-            import psutil
-            return psutil.virtual_memory().total / (1024**3)
-        except Exception:
+        from utils.system_memory import effective_memory
+        total = effective_memory().total
+        if total == 0:
             return 8.0
+        return total / (1024**3)
 
     @staticmethod
     def get_recommended_profile(vram_gb: float) -> str:
@@ -926,12 +929,123 @@ class ModelManager:
         """
         return self.select_aesthetic_model(available_vram)
 
+    def _cpu_pass_capacity_gb(self, limit_bytes) -> float:
+        """The RAM budget one CPU pass may plan for, in GB.
+
+        Bare metal (``limit_bytes`` None) spends what the machine has left
+        after the OS, divided by ``_RAM_PER_DECLARED_GB`` -- the RAM a pass
+        needs per GB of the weight its models declare.
+
+        That ratio is measured, not chosen: an 8 GiB budget absorbed a 5.0 GB
+        pass and OOM-killed a 6.0 GB one twice, so 1.6 GB per declared GB
+        survives and 1.33 does not. Every other measurement agrees -- the
+        10.0 GB pass killed under a 12 GiB cap had 1.20, and a 16 GiB
+        container running passes capped at 5.0 GB was read at 12.55 GiB of
+        ``anon``, 2.5x its declared weight, because the between-pass model
+        cache expands into whatever headroom exists and is evicted again
+        under pressure. 1.6 is the incompressible part; 2.5 is what the run
+        will use if nothing stops it.
+
+        ``_HOST_OS_RESERVE_GB`` comes off the top first, because the ratio
+        was measured inside a container, where the operating system is NOT
+        charged to the limit. Dividing a whole host by it would say a pass
+        may consume 100% of the machine at every size, leaving nothing for
+        the kernel or anything else resident. On this host the share no
+        process owns (SUnreclaim + KernelStack + PageTables) measures
+        0.51 GiB and seventeen system daemons -- systemd, dbus, sshd, cron,
+        udevd, polkitd, the container runtimes -- hold 0.36 GiB between them,
+        so 0.87 GiB, rounded up so the reserve is not calibrated to one
+        machine. A desktop session and unrelated services cost far more than
+        that (3.92 GiB here), but reserving for them would tax every headless
+        deployment for memory a scanning host should not be spending anyway.
+
+        What the two terms buy: a 16 GB host planned a 14.0 GB pass, 1.14 GB
+        of RAM per declared GB -- thinner than the 1.20 that was OOM-killed
+        -- and an 8 GB host planned the 6.0 GB pass that died twice. Both now
+        stay at or under the measured-survivable ratio. The cost is passes:
+        the plan is unchanged only from 33 GB up (1.6 x this roster's 20.0 GB
+        plus the reserve), so a 32 GB host runs two passes where it ran one,
+        the second holding a single 2.0 GB model. Below that, passes get
+        smaller and more numerous.
+
+        There is no optimistic floor any more. The old ``max(4.0, ...)`` one
+        was the same defect this function fixes for containers, wearing bare
+        metal's clothes: it bounded capacity at 4.0 on a 4 GB host, then
+        planned a 5.0 GB pass inside it. A single model heavier than the
+        budget cannot be split, so ``group_passes_by_vram`` reports it rather
+        than letting a floor pretend it fits.
+
+        Under a cgroup none of that applies. The OS lives outside the limit,
+        so there is nothing to reserve for it, and taking the ratio to the
+        limit as well would cut the measured-survivable 5.0 GB pass an 8 GiB
+        container was validated on down to 3.75. The floor, though, was a lie
+        here: applied before any ceiling and never re-checked against the
+        limit, it planned a 4.0 GB pass inside a 2 GiB container -- twice the
+        whole cgroup -- and left the limit inert everywhere below 8 GiB, the
+        regime where it matters most. So the budget under a limit is derived
+        from that limit alone: the limit less ``_RAM_RESERVE_GB`` for the
+        torch runtime, the decoded image chunk and thumbnail generation, held
+        under ``_CGROUP_CAPACITY_CEILING_GB``.
+
+        That ceiling exists because issue #111's follow-up measured the same
+        roster OOM-kill on both an 8 GiB and a 12 GiB container, in the pass
+        holding ``topiq_nr_face + liqe + saliency`` (declared 6.0 GB, peak
+        RSS 10.46 GiB): a bigger limit only let the packer combine more of
+        those same underestimated models into one larger pass, reproducing
+        the identical failure at a larger size. Held below that
+        reproduced-fatal 6.0 GB total, it stops the recombination no matter
+        how large the limit reports, where a reserve that only subtracts a
+        fixed amount would not. The bare-metal ratio is no substitute for it
+        under a limit: it would hand a 16 GiB container 10.0 GB, and that
+        container was read at 12.55 GiB of ``anon`` on a plan capped at 5.0.
+
+        A budget small enough to leave nothing yields zero on either branch,
+        which packs one model per pass -- the smallest peak this packer can
+        build.
+        """
+        if limit_bytes is None:
+            usable_gb = self.detect_system_ram_gb() - self._HOST_OS_RESERVE_GB
+            return max(0.0, usable_gb / self._RAM_PER_DECLARED_GB)
+        limit_gb = limit_bytes / self._BYTES_PER_GB
+        return max(0.0, min(limit_gb - self._RAM_RESERVE_GB,
+                            self._CGROUP_CAPACITY_CEILING_GB))
+
+    def _warn_unfittable_pass(self, models, declared_gb, capacity_gb, limit_bytes):
+        """Report a planned pass the memory budget cannot hold, and its cost.
+
+        The packer cannot split a single model, so a roster carrying one
+        heavier than the budget always plans a pass over it. Under a cgroup
+        that ends in SIGKILL from the kernel; on bare metal it ends in
+        swapping, slow rather than fatal. Naming which is the difference
+        between an actionable warning and an unexplained exit 137.
+        """
+        if limit_bytes is None:
+            logger.warning(
+                "Pass %s needs %.1fGB, above the %.1fGB this host can hold beside "
+                "its OS: it will swap. Add RAM or drop models from the roster.",
+                models, declared_gb, capacity_gb,
+            )
+        else:
+            logger.warning(
+                "Pass %s needs %.1fGB, above the %.1fGB budget this %.1fGiB "
+                "container allows: expect the kernel to OOM-kill it. Raise the "
+                "memory limit or drop models from the roster.",
+                models, declared_gb, capacity_gb, limit_bytes / self._BYTES_PER_GB,
+            )
+
     def group_passes_by_vram(self, models: List[str], available_vram: float) -> List[List[str]]:
         """
         Group models into passes that fit within VRAM or RAM budget.
 
         For GPU mode (vram > 0): groups by VRAM requirements.
-        For CPU mode (vram = 0): groups by RAM requirements using system RAM.
+
+        For CPU mode (vram = 0): groups by RAM requirements, within the
+        budget ``_cpu_pass_capacity_gb`` derives from the cgroup limit where
+        one applies and from system RAM where none does.
+
+        A single model heavier than that budget still gets a pass of its own
+        -- there is nothing to split -- so a plan that cannot fit is logged
+        rather than left for the OOM killer or the swap device to announce.
 
         Args:
             models: List of model names to group
@@ -940,12 +1054,15 @@ class ModelManager:
         Returns:
             List of model groups, each group fits in available resources
         """
-        # CPU-only mode: use RAM-based grouping with first-fit decreasing
-        if available_vram == 0.0:
-            capacity = max(4.0, self.detect_system_ram_gb() - 2.0)
+        cpu_mode = available_vram == 0.0
+        if cpu_mode:
+            from utils.system_memory import memory_limit_bytes
+            limit_bytes = memory_limit_bytes()
+            capacity = self._cpu_pass_capacity_gb(limit_bytes)
             get_requirement = self.get_model_ram
         else:
             # GPU mode: VRAM-based grouping with 1GB safety margin for CUDA overhead
+            limit_bytes = None
             capacity = available_vram - 1.0
             get_requirement = self.get_model_vram
 
@@ -967,6 +1084,12 @@ class ModelManager:
             if not placed:
                 bins.append([model])
                 bin_usage.append(required)
+
+        if cpu_mode and bin_usage:
+            heaviest = max(range(len(bin_usage)), key=bin_usage.__getitem__)
+            if bin_usage[heaviest] > capacity:
+                self._warn_unfittable_pass(
+                    bins[heaviest], bin_usage[heaviest], capacity, limit_bytes)
 
         return bins
 

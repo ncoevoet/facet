@@ -14,7 +14,7 @@ Facet hat zwei Arbeitslasten:
 
 | Komponente | Hardware | Zweck |
 |-----------|----------|---------|
-| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (8 GB+ RAM) | Fotos analysieren und bewerten |
+| **Bewertung** (`facet.py`) | GPU (6-24 GB VRAM) oder CPU (16 GB+ RAM, mehr für die Profile `16gb`/`24gb` — siehe [Speicherlimits für Container](#speicherlimits-für-container)) | Fotos analysieren und bewerten |
 | **Viewer** (`viewer.py`) | Beliebige Maschine (geringe Ressourcen) | Web-Galerie bereitstellen |
 
 Nur der Viewer muss auf dem Server laufen. Bewerten Sie auf einer Workstation und synchronisieren Sie dann die Datenbank.
@@ -289,6 +289,42 @@ services:
       - /volume1/Photos:/volume1/Photos:ro  # Fotos für Downloads einhängen
     restart: always
 ```
+
+## Speicherlimits für Container
+
+Facet liest jetzt das Cgroup-Speicherlimit des Containers (`memory.max` bei cgroup v2, `memory.limit_in_bytes` bei v1) statt des gesamten RAM des Hosts, und bemisst danach die Pass-Gruppierung (welche Modelle gemeinsam geladen werden), die RAM-Chunk-Größe, das CPU-Caching der Modelle und die RAW-Dekodier-Nebenläufigkeit. Vor diesem Fix wurde all das anhand des Host-RAM bemessen: `psutil.virtual_memory()` liest `/proc/meminfo`, was Docker nicht virtualisiert, sodass ein `mem_limit` stillschweigend ignoriert wurde — ein Container, der weit unter dem RAM des Hosts gedeckelt war, plante sich weiterhin so, als stünde ihm der gesamte Host-RAM zur Verfügung, und wurde vom OOM-Killer beendet ([Issue #111](https://github.com/ncoevoet/facet/issues/111)).
+
+Das Reproduzieren des Bugs mit einem veröffentlichten Image von vor dem Fix (v1.7.2) zeigt den Mechanismus: Ein Container im `8gb`-Profil, gedeckelt auf `--memory=8g` auf einem Host mit 47 GB, protokolliert `Mode: CPU-only (47GB RAM)` — den RAM des Hosts, nicht den des Containers — und plant einen einzigen Pass mit `clip + topiq_iaa + topiq_nr_face + liqe + saliency + samp_net + insightface [~15.0GB RAM]`. Er wird (`OOMKilled`, Exit-Code 137) beendet, bevor auch nur ein Chunk der 200 Fotos fertig ist. Bei einem Cgroup-Limit von 512 MB meldet der korrigierte Reader 0,500 GB, wo `/proc/meminfo` weiterhin die 46,8 GB des Hosts meldet.
+
+### Empfohlener Mindestspeicher pro Profil
+
+Modellgewichte sind nur ein Teil des Speicher-Peaks — die Torch-Laufzeitumgebung, der dekodierte Bild-Chunk und die Aktivierungen pro Schicht kommen hinzu — behandeln Sie diese Werte also als Untergrenzen, nicht als Budgets. Die Zeile `legacy`/`8gb` stützt sich jetzt auf reale Container-Tests (siehe unten); die Zeilen `16gb` und `24gb` bleiben vorläufige Platzhalter ohne realen Testlauf dahinter.
+
+| VRAM-Profil | Modellgewichte (gesamt) | Empfohlener Container-Speicher |
+|---|---|---|
+| `legacy` / `8gb` | 15,0 GB | 12 GB (GPU) / 16 GB (CPU, vorläufig) |
+| `16gb` | 22,0 GB | mindestens 18 GB (vorläufig) |
+| `24gb` | 25,0 GB | mindestens 18 GB (vorläufig) |
+
+**GPU und CPU sind hier nicht austauschbar, und die 12-GB-Zahl oben ist eine GPU-Zahl.** Auf einer RTX 3080 erreichte das `8gb`-Profil des Meldungsautors einen Peak von 9,23 GB System-RAM für 405 Fotos, selbst mit `ram_chunk_size: 12` und `num_workers: 2`, und gelang mit `mem_limit: 12g`. Auf einer GPU liegen die Modellgewichte im VRAM; der RAM des Containers hält hauptsächlich den dekodierten Bild-Chunk, weshalb diese Zahl so viel kleiner ist als das, was reines CPU braucht. Dasselbe `8gb`-Profil auf CPU laufen zu lassen lädt stattdessen das gesamte Modell-Repertoire in den RAM des Containers. Bevor der Nachfolge-Fix zu Issue #111 eine Obergrenze einführte, stieg die Pro-Pass-Kapazität des Planers direkt mit dem Container-Limit, was den Plan mit wachsendem Limit schlechter machte, nicht besser: Ein 8-GB-Limit ergab 4 Pässe mit bis zu 6,0 GB, was in dem Pass mit `topiq_nr_face + liqe + saliency` (deklariert 6,0 GB, Peak-RSS 10,46 GB) zu einem OOM führte; ein 12-GB-Limit brach auf nur noch 2 Pässe mit bis zu 10,0 GB zusammen und führte ebenfalls zu einem OOM. Der Speicherregler griff bei dem 12-GB-Limit tatsächlich ein — `Evicted 1 model(s) from RAM cache: topiq_iaa` ist eine echte Log-Zeile —, aber das war der Regler, der eingreift und trotzdem nicht ausreicht, nicht das, was den Lauf gerettet hat.
+
+Die Obergrenze hält die Pro-Pass-Kapazität jetzt bei 5,0 GB, egal wie groß das Container-Limit gemeldet wird, sodass sie nicht mehr mit dem Container mitwächst: Das `8gb`-Profil auf CPU plant unabhängig vom Limit immer dieselben 5 Pässe — `Pass 1: qrealign [~5.0GB RAM]`, `Pass 2: clip + topiq_iaa [~5.0GB RAM]`, `Pass 3: topiq_nr_face + liqe [~4.0GB RAM]`, `Pass 4: saliency + samp_net [~4.0GB RAM]`, `Pass 5: insightface [~2.0GB RAM]`. Diese starre Form passt trotzdem nicht in einen 8-GB-Container: Reale Tests führen weiterhin zu `OOMKilled` (Exit-Code 137), in Pass 4, bei einem Peak von 7,67 GB der 8-GB-Grenze. Ein 16-GB-Container läuft über den Punkt hinaus, an dem 8 GB und 12 GB scheiterten — dieser Lauf war beim letzten Check noch nicht beendet, daher ist das Folgende ein Mindestwert, kein endgültiger Peak. Seine Cgroup zeigte bereits mindestens 12,55 GB anonymen Speicher, die Zahl, die der Kernel-OOM-Killer tatsächlich anrechnet: nicht das MemUsage von `docker stats` und nicht das `memory.current` der Cgroup, die beide rückgewinnbaren Seiten-Cache mitzählen, sodass Ersteres das reale Risiko unterschätzt und Letzteres nahe am Container-Limit hängen bleibt, egal wie viel Spielraum tatsächlich noch da ist. Dieselben 12,55 GB sind auch der Grund, warum der obige 12-GB-Lauf getötet wurde, und das deckt sich mit dem vom Meldungsautor berichteten Peak von 9,23 GB auf GPU — demselben Modell-Repertoire, minus dem, was in der VRAM statt im Container-RAM liegt. Die 16-GB-Zahl in der obigen Tabelle spiegelt diesen Mindestwert wider, keinen bestätigten endgültigen Deckel — deshalb ist sie weiterhin als vorläufig gekennzeichnet. Ein GPU-Nutzer, der sich an den CPU-Zahlen hier orientiert, würde überdimensionieren; ein CPU-Nutzer, der sich an der GPU-Zahl orientiert, würde unterdimensionieren — verwenden Sie, was zu der Art passt, wie Ihr Container tatsächlich läuft.
+
+Allgemeiner: `MODEL_RAM_REQUIREMENTS` beziffert nur die Gewichtskosten. Der reale Speicher-Peak trägt zusätzlich die Torch-Laufzeitumgebung, den dekodierten Bild-Chunk und die Aktivierungen pro Schicht, von denen keines in dieser Zahl steckt — wer einen Container allein anhand der Spalte Modellgewichte (gesamt) dimensioniert, unterdimensioniert ihn.
+
+Die Schätzungen für `16gb` und `24gb` haben weiterhin überhaupt keinen realen Lauf hinter sich, weder auf GPU noch auf CPU; betrachten Sie 18 GB als vorläufigen Platzhalter, nicht als validierte Untergrenze.
+
+Setzen Sie das Limit in `docker-compose.yml` (oder einer Override-Datei):
+
+```yaml
+services:
+  facet:
+    mem_limit: 16g
+```
+
+### Die Pass-Gruppierung hat eine Untergrenze und eine Obergrenze
+
+Facets Pass-Planer bemisst jeden CPU-Pass am Cgroup-Speicherlimit des Containers abzüglich einer Reserve von 2 GB für die Torch-Laufzeitumgebung, gedeckelt bei 5 GB — eine Obergrenze, die einen Pass unabhängig von der Größe des Limits nie weiter wachsen lässt. Unter einem Cgroup-Limit gibt es keine Untergrenze: Ein Container mit wenig Spielraum nach der Reserve erhält ein kleines Budget, das bis auf null sinken kann, was schlicht ein Modell pro Pass isoliert. Nur wenn überhaupt kein Container-Speicherlimit gesetzt ist, greift der Planer auf eine optimistische Untergrenze zurück und hält einen Pass bei mindestens 4 GB, selbst wenn der System-RAM knapp ist. Ein Modell, das größer als das Budget ist, bekommt trotzdem einen eigenen Pass, statt aufgeteilt zu werden: Bei einem Container-Limit von 4 GB beträgt die Kapazität 2 GB, und das `24gb`-Profil plant weiterhin einen 8,0-GB-Pass, weil `qwen3_5_4b_tagger` allein 8 GB benötigt und nicht geteilt werden kann, egal wie klein das Budget ist. Dimensionieren Sie einen Container niemals kleiner als das größte einzelne Modell im verwendeten Profil.
 
 ## Windows (WSL2) mit einer NVIDIA-GPU
 
