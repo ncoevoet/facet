@@ -45,6 +45,13 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
           <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">visibility_off</mat-icon>
           {{ I18N.gallery.hidden_banner.show_all | translate }}
         </button>
+      } @else if (store.hiddenFiltersStash()) {
+        <button mat-button class="!min-w-0"
+                [matTooltip]="I18N.gallery.hidden_banner.showing_all | translate"
+                (click)="store.restoreHidden()">
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">visibility</mat-icon>
+          {{ I18N.gallery.hidden_banner.restore | translate }}
+        </button>
       }
     </ng-template>
     <!-- Breadcrumb navigation -->
