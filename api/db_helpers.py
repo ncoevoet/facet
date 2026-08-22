@@ -11,8 +11,9 @@ import os
 import random
 import sqlite3
 import time
+from typing import Optional
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Query
 
 from config import ScoringConfig
 
@@ -355,6 +356,36 @@ def resolve_hide_defaults(params: dict) -> dict:
         if resolved.get(key) is None:
             resolved[key] = '1' if defaults.get(key, False) else '0'
     return resolved
+
+
+def hide_toggle_params(
+    hide_blinks: Optional[str] = Query(None),
+    hide_bursts: Optional[str] = Query(None),
+    hide_duplicates: Optional[str] = Query(None),
+    hide_brackets: Optional[str] = Query(None),
+    hide_panoramas: Optional[str] = Query(None),
+) -> dict:
+    """FastAPI dependency declaring the five hide-toggle query params once.
+
+    Every endpoint that owns no toggle UI of its own (the timeline, the folder
+    browser, the type-counts sidebar) needs the same five params resolved the
+    same way; a ``Depends(hide_toggle_params)`` keeps their declaration and
+    ``resolve_hide_defaults`` call from drifting apart across call sites.
+    """
+    return resolve_hide_defaults({
+        'hide_blinks': hide_blinks, 'hide_bursts': hide_bursts,
+        'hide_duplicates': hide_duplicates, 'hide_brackets': hide_brackets,
+        'hide_panoramas': hide_panoramas,
+    })
+
+
+def hide_clauses_from_toggles(hide_toggles: dict) -> list[str]:
+    """Expand a ``hide_toggle_params()``-resolved dict into WHERE fragments."""
+    return build_hide_clauses(
+        hide_toggles['hide_blinks'], hide_toggles['hide_bursts'],
+        hide_toggles['hide_duplicates'], hide_toggles['hide_brackets'],
+        hide_toggles['hide_panoramas'],
+    )
 
 
 # Column lists shared by gallery and person viewer

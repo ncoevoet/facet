@@ -11,11 +11,11 @@ from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG
 from api.database import get_async_db
 from api.db_helpers import (
-    build_hide_clauses, build_date_range_clauses,
+    build_date_range_clauses,
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data_async,
     get_visibility_clause, get_photos_from_clause,
-    format_date, resolve_hide_defaults,
+    format_date, hide_toggle_params, hide_clauses_from_toggles,
 )
 from api.models.discovery import (
     TimelineDatesResponse, TimelineMonthsResponse, TimelineYearsResponse,
@@ -74,11 +74,7 @@ async def api_timeline(
     direction: str = Query("older"),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
-    hide_blinks: Optional[str] = Query(None),
-    hide_bursts: Optional[str] = Query(None),
-    hide_duplicates: Optional[str] = Query(None),
-    hide_brackets: Optional[str] = Query(None),
-    hide_panoramas: Optional[str] = Query(None),
+    hide_toggles: dict = Depends(hide_toggle_params),
     photos_per_group: Optional[int] = Query(None, ge=1, le=100),
     sort_by: str = Query('aggregate'),
     granularity: str = Query('day'),
@@ -95,12 +91,6 @@ async def api_timeline(
         sort_by = 'aggregate'
     if granularity not in ('day', 'week', 'month'):
         granularity = 'day'
-
-    hide_toggles = resolve_hide_defaults({
-        'hide_blinks': hide_blinks, 'hide_bursts': hide_bursts,
-        'hide_duplicates': hide_duplicates, 'hide_brackets': hide_brackets,
-        'hide_panoramas': hide_panoramas,
-    })
 
     # Cap total photo materialisation to prevent unbounded responses (a request
     # with limit=500 & photos_per_group=100 would otherwise return 50k photos
@@ -129,11 +119,7 @@ async def api_timeline(
             where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
             sql_params = list(from_params) + list(vis_params)
 
-            where_clauses.extend(build_hide_clauses(
-                hide_toggles['hide_blinks'], hide_toggles['hide_bursts'],
-                hide_toggles['hide_duplicates'], hide_toggles['hide_brackets'],
-                hide_toggles['hide_panoramas'],
-            ))
+            where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
             if date_from:
                 where_clauses.append(f"{date_expr} >= ?")
@@ -197,11 +183,7 @@ async def api_timeline(
 
                 batch_where = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
                 batch_params = list(from_params) + list(vis_params)
-                batch_where.extend(build_hide_clauses(
-                    hide_toggles['hide_blinks'], hide_toggles['hide_bursts'],
-                    hide_toggles['hide_duplicates'], hide_toggles['hide_brackets'],
-                    hide_toggles['hide_panoramas'],
-                ))
+                batch_where.extend(hide_clauses_from_toggles(hide_toggles))
                 batch_where.append(f"{date_expr} IN ({placeholders})")
                 batch_params.extend(date_list)
 
@@ -265,11 +247,7 @@ async def api_timeline(
 async def api_timeline_dates(
     year: int = Query(..., ge=1900, le=2100),
     month: Optional[int] = Query(None, ge=1, le=12),
-    hide_blinks: Optional[str] = Query(None),
-    hide_bursts: Optional[str] = Query(None),
-    hide_duplicates: Optional[str] = Query(None),
-    hide_brackets: Optional[str] = Query(None),
-    hide_panoramas: Optional[str] = Query(None),
+    hide_toggles: dict = Depends(hide_toggle_params),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -280,11 +258,6 @@ async def api_timeline_dates(
     Migrated to async (aiosqlite).
     """
     user_id = user.user_id if user else None
-    hide_toggles = resolve_hide_defaults({
-        'hide_blinks': hide_blinks, 'hide_bursts': hide_bursts,
-        'hide_duplicates': hide_duplicates, 'hide_brackets': hide_brackets,
-        'hide_panoramas': hide_panoramas,
-    })
     try:
         async with get_async_db() as conn:
             from_clause, from_params = get_photos_from_clause(user_id)
@@ -293,11 +266,7 @@ async def api_timeline_dates(
             where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
             sql_params = list(from_params) + list(vis_params)
 
-            where_clauses.extend(build_hide_clauses(
-                hide_toggles['hide_blinks'], hide_toggles['hide_bursts'],
-                hide_toggles['hide_duplicates'], hide_toggles['hide_brackets'],
-                hide_toggles['hide_panoramas'],
-            ))
+            where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
             date_clauses, date_params = build_date_range_clauses(date_from, date_to)
             where_clauses.extend(date_clauses)
@@ -334,11 +303,7 @@ async def api_timeline_dates(
 
 @router.get("/api/timeline/years", response_model=TimelineYearsResponse, response_model_exclude_unset=True)
 async def api_timeline_years(
-    hide_blinks: Optional[str] = Query(None),
-    hide_bursts: Optional[str] = Query(None),
-    hide_duplicates: Optional[str] = Query(None),
-    hide_brackets: Optional[str] = Query(None),
-    hide_panoramas: Optional[str] = Query(None),
+    hide_toggles: dict = Depends(hide_toggle_params),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
@@ -350,11 +315,6 @@ async def api_timeline_years(
     response shape.
     """
     user_id = user.user_id if user else None
-    hide_toggles = resolve_hide_defaults({
-        'hide_blinks': hide_blinks, 'hide_bursts': hide_bursts,
-        'hide_duplicates': hide_duplicates, 'hide_brackets': hide_brackets,
-        'hide_panoramas': hide_panoramas,
-    })
     try:
         async with get_async_db() as conn:
             from_clause, from_params = get_photos_from_clause(user_id)
@@ -363,11 +323,7 @@ async def api_timeline_years(
             where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
             sql_params = list(from_params) + list(vis_params)
 
-            where_clauses.extend(build_hide_clauses(
-                hide_toggles['hide_blinks'], hide_toggles['hide_bursts'],
-                hide_toggles['hide_duplicates'], hide_toggles['hide_brackets'],
-                hide_toggles['hide_panoramas'],
-            ))
+            where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
             date_clauses, date_params = build_date_range_clauses(date_from, date_to)
             where_clauses.extend(date_clauses)
@@ -395,22 +351,13 @@ async def api_timeline_years(
 @router.get("/api/timeline/months", response_model=TimelineMonthsResponse, response_model_exclude_unset=True)
 async def api_timeline_months(
     year: int = Query(..., ge=1900, le=2100),
-    hide_blinks: Optional[str] = Query(None),
-    hide_bursts: Optional[str] = Query(None),
-    hide_duplicates: Optional[str] = Query(None),
-    hide_brackets: Optional[str] = Query(None),
-    hide_panoramas: Optional[str] = Query(None),
+    hide_toggles: dict = Depends(hide_toggle_params),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Return month summaries for a given year with photo counts and hero thumbnails."""
     user_id = user.user_id if user else None
-    hide_toggles = resolve_hide_defaults({
-        'hide_blinks': hide_blinks, 'hide_bursts': hide_bursts,
-        'hide_duplicates': hide_duplicates, 'hide_brackets': hide_brackets,
-        'hide_panoramas': hide_panoramas,
-    })
     try:
         async with get_async_db() as conn:
             from_clause, from_params = get_photos_from_clause(user_id)
@@ -420,11 +367,7 @@ async def api_timeline_months(
                              "SUBSTR(date_taken,1,4) = ?"]
             sql_params = list(from_params) + list(vis_params) + [str(year)]
 
-            where_clauses.extend(build_hide_clauses(
-                hide_toggles['hide_blinks'], hide_toggles['hide_bursts'],
-                hide_toggles['hide_duplicates'], hide_toggles['hide_brackets'],
-                hide_toggles['hide_panoramas'],
-            ))
+            where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
             date_clauses, date_params = build_date_range_clauses(date_from, date_to)
             where_clauses.extend(date_clauses)

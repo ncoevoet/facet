@@ -19,7 +19,8 @@ from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, View
 from api.db_helpers import (
     get_existing_columns, get_cached_count_async,
     get_cached_hidden_aggregates_async, _add_tag_filter,
-    get_art_tags_from_config, build_hide_clauses, resolve_hide_defaults,
+    get_art_tags_from_config, build_hide_clauses,
+    hide_toggle_params,
     split_photo_tags, attach_person_data_async, sanitize_float_values,
     get_visibility_clause, get_photos_from_clause, get_preference_columns,
     build_photo_select_columns, album_filter_clause,
@@ -690,20 +691,11 @@ async def api_photo_set(
 
 @router.get("/api/type_counts", response_model=PhotoTypeCountsResponse, response_model_exclude_unset=True)
 def api_type_counts(
-    hide_blinks: Optional[str] = Query(None),
-    hide_bursts: Optional[str] = Query(None),
-    hide_duplicates: Optional[str] = Query(None),
-    hide_brackets: Optional[str] = Query(None),
-    hide_panoramas: Optional[str] = Query(None),
+    hide_toggles: dict = Depends(hide_toggle_params),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Get photo type counts for sidebar."""
     user_id = user.user_id if user else None
-    hide_toggles = resolve_hide_defaults({
-        'hide_blinks': hide_blinks, 'hide_bursts': hide_bursts,
-        'hide_duplicates': hide_duplicates, 'hide_brackets': hide_brackets,
-        'hide_panoramas': hide_panoramas,
-    })
     types = get_photo_types(
         hide_toggles['hide_blinks'] in ('1', 'true'),
         hide_toggles['hide_bursts'] in ('1', 'true'),

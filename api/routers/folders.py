@@ -10,8 +10,8 @@ from fastapi import APIRouter, Depends, Query
 from api.auth import CurrentUser, get_optional_user
 from api.database import get_async_db
 from api.db_helpers import (
-    get_visibility_clause, build_hide_clauses, get_photos_from_clause,
-    resolve_hide_defaults,
+    get_visibility_clause, get_photos_from_clause,
+    hide_toggle_params, hide_clauses_from_toggles,
 )
 from api.models.scan import FoldersResponse
 
@@ -28,11 +28,7 @@ def _normalize_path(path: str) -> str:
 @router.get("/api/folders", response_model=FoldersResponse, response_model_exclude_unset=True)
 async def api_folders(
     prefix: str = Query('', description="Parent directory path, empty = root level"),
-    hide_blinks: Optional[str] = Query(None),
-    hide_bursts: Optional[str] = Query(None),
-    hide_duplicates: Optional[str] = Query(None),
-    hide_brackets: Optional[str] = Query(None),
-    hide_panoramas: Optional[str] = Query(None),
+    hide_toggles: dict = Depends(hide_toggle_params),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """List subdirectories with cover photos and photo counts.
@@ -41,11 +37,6 @@ async def api_folders(
     counts photos per directory, and finds the best-scored cover photo.
     """
     user_id = user.user_id if user else None
-    hide_toggles = resolve_hide_defaults({
-        'hide_blinks': hide_blinks, 'hide_bursts': hide_bursts,
-        'hide_duplicates': hide_duplicates, 'hide_brackets': hide_brackets,
-        'hide_panoramas': hide_panoramas,
-    })
     async with get_async_db() as conn:
         try:
             from_clause, from_params = get_photos_from_clause(user_id)
@@ -54,11 +45,7 @@ async def api_folders(
             where_clauses = [vis_sql]
             sql_params = list(from_params) + list(vis_params)
 
-            where_clauses.extend(build_hide_clauses(
-                hide_toggles['hide_blinks'], hide_toggles['hide_bursts'],
-                hide_toggles['hide_duplicates'], hide_toggles['hide_brackets'],
-                hide_toggles['hide_panoramas'],
-            ))
+            where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
 
             # Normalize prefix to forward slash
             norm_prefix = _normalize_path(prefix).rstrip('/') + '/' if prefix else ''

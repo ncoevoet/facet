@@ -621,12 +621,8 @@ export class SharedViewComponent implements OnInit {
   });
   protected readonly activeFilterCount = computed(() => {
     const f = this.filters();
-    const d = this.hideDefaults();
     let count = [f.camera, f.lens, f.tag, f.date_from, f.date_to, f.composition_pattern, f.category].filter(v => !!v).length
-      + (f.hide_blinks !== d.hide_blinks ? 1 : 0)
-      + (f.hide_bursts !== d.hide_bursts ? 1 : 0)
-      + (f.hide_duplicates !== d.hide_duplicates ? 1 : 0)
-      + (f.is_monochrome ? 1 : 0);
+      + this.displayFilterCount();
     const sectionCounts = this.rangeSectionActiveCounts();
     for (const key of SECTION_ORDER) {
       count += sectionCounts[key] ?? 0;
