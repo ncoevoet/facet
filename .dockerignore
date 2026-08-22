@@ -76,4 +76,21 @@ export_test.json
 scoring_config.local-backup.json
 scoring_config.json.backup
 scoring_config.discovered.json
+
+# Live install secrets. docker-compose.yml builds from `.` and mounts
+# ./facet-config into the container, so this directory sits INSIDE the build
+# context: without these rules `docker compose build` ships the plaintext
+# viewer.password, every users.*.password_hash, upload.password, frame.tokens,
+# immich.api_key and the .facet_secret JWT signing key to the daemon and into
+# BuildKit's context cache — a real boundary for a remote DOCKER_HOST, a cloud
+# builder or CI. No COPY in the Dockerfile names any of them.
+facet-config/
+.env
+.facet_secret*
+
+# The live root-level config of a NATIVE install, which holds the same
+# plaintext secrets as the seeded one above. Only scoring_config.default.json
+# is ever a COPY source; the Dockerfile copies THAT to /app/scoring_config.json
+# inside the image, and .dockerignore filters context sources, not destinations.
+scoring_config.json
 PRESERVED_LOCAL_CONFIG.md
