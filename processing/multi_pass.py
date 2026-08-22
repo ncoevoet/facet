@@ -453,10 +453,6 @@ class ChunkedMultiPassProcessor:
             load_start = time.time()
             loaded_models = {}
             for model_name in model_group:
-                if model_name == 'insightface':
-                    # Reuse scorer's face_analyzer to avoid loading a duplicate (~2GB)
-                    loaded_models[model_name] = self.scorer.face_analyzer
-                    continue
                 model = self.model_manager.load_model_only(model_name)
                 if model is None:
                     if model_name in supplementary:
@@ -490,8 +486,6 @@ class ChunkedMultiPassProcessor:
             # Unload models from this pass
             unload_start = time.time()
             for model_name in model_group:
-                if model_name == 'insightface':
-                    continue  # Managed by scorer, not model_manager
                 self.model_manager.unload_model(model_name)
             self.metrics['model_unload_time'] += time.time() - unload_start
 
@@ -749,15 +743,16 @@ class ChunkedMultiPassProcessor:
             except Exception as e:
                 logger.error("SAMP-Net failed for %s: %s", path, e)
 
-    def _pass_insightface(self, app: Any, images: Dict, results: Dict):
-        """InsightFace pass: face detection and analysis with full metrics."""
-        # Use scorer's face_analyzer for consistent processing
-        face_analyzer = self.scorer.face_analyzer
+    def _pass_insightface(self, face_analyzer: Any, images: Dict, results: Dict):
+        """InsightFace pass: face detection and analysis with full metrics.
 
+        The analyzer comes from the model manager, like every other pass's
+        model, so the unload at the end of the pass really frees it. Taking
+        the scorer's instead kept it alive for the whole scan.
+        """
         for path, img_data in images.items():
             img_cv = img_data['cv']
             try:
-                # Use face_analyzer.analyze_faces for full metrics
                 face_res = face_analyzer.analyze_faces(img_cv)
 
                 # Store all face metrics in results

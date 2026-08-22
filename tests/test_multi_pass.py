@@ -12,6 +12,10 @@ import pytest
 pytest.importorskip("torch")
 
 from processing.multi_pass import ChunkedMultiPassProcessor  # noqa: E402
+from utils import system_memory  # noqa: E402
+from utils.system_memory import EffectiveMemory  # noqa: E402
+
+GIB = 1024 ** 3
 
 
 class _FakeModelManager:
@@ -315,3 +319,171 @@ class TestCompositionPatternVocabulary:
 
         assert f"({len(COMPOSITION_PATTERNS)} patterns)" in caplog.text
         assert "14 patterns" not in caplog.text
+
+
+CPU_ROSTER = [
+    'clip', 'topiq_iaa', 'topiq_nr_face', 'liqe',
+    'qrealign', 'saliency', 'samp_net', 'insightface',
+]
+
+CHUNKS_TO_STEADY_STATE = 3
+
+
+class _LazyFaceScorer:
+    """Stands in for ``Facet`` as far as ``_process_chunk`` can see it.
+
+    Deliberately the charitable version of the scorer that owned the face
+    model: it builds the analyzer on first read rather than in ``__init__``,
+    and like ``Facet`` it never drops one. Nothing in the scan releases it, so
+    a lazily-built analyzer is resident from the face pass of the first chunk
+    to the end of the scan -- which is why deferring the build cannot be the
+    fix on its own.
+    """
+
+    def __init__(self):
+        self.built = 0
+        self._analyzer = None
+
+    @property
+    def face_analyzer(self):
+        if self._analyzer is None:
+            self.built += 1
+            self._analyzer = object()
+        return self._analyzer
+
+    @property
+    def holds_face_model(self):
+        return self._analyzer is not None
+
+
+def _stub_load(manager, name):
+    """``load_model_only`` without the weights: cache first, then a stand-in."""
+    if name in manager.models:
+        return manager.models[name]
+    cached = manager._restore_from_cache(name)
+    if cached is not None:
+        return cached
+    spec = ['analyze_faces'] if name == 'insightface' else ['cpu', 'to']
+    manager.models[name] = mock.MagicMock(spec=spec)
+    return manager.models[name]
+
+
+def _cpu_manager():
+    """A real ModelManager on the 8gb profile, planning against RAM."""
+    from config import ScoringConfig
+    from models.model_manager import ModelManager
+
+    config = ScoringConfig(str(_shipped_config_path("scoring_config.json")))
+    config.config["models"]["vram_profile"] = "8gb"
+    return ModelManager(config)
+
+
+def _replay_chunks(monkeypatch, budget_gb, limit_bytes):
+    """Run the real ``_process_chunk`` over the real plan, reading residency.
+
+    Only the weights are stubbed. ``group_passes_by_vram``, ``unload_model``,
+    the RAM cache and ``_process_chunk``'s own load and unload loops are the
+    shipped ones, so what this measures is what a scan does.
+
+    Several chunks, because the peak is not reached in the first one: from the
+    second chunk on, pass 1 runs with the RAM cache already full.
+
+    Returns:
+        (capacity_gb, peak_declared_gb, passes_holding_the_face_model,
+         total_passes, scorer)
+    """
+    manager = _cpu_manager()
+    scorer = _LazyFaceScorer()
+
+    def declared(names):
+        return sum(manager.get_model_ram(name) for name in names)
+
+    def resident():
+        names = list(manager.models) + list(manager._cpu_cache)
+        if scorer.holds_face_model and 'insightface' not in names:
+            names.append('insightface')
+        return names
+
+    def reading():
+        total = int(budget_gb * GIB)
+        used = min(int(declared(resident()) * GIB), total)
+        return EffectiveMemory(total, used, total - used, 100.0 * used / total)
+
+    monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: limit_bytes)
+    monkeypatch.setattr(system_memory, 'effective_memory', reading)
+    monkeypatch.setattr(manager, 'detect_system_ram_gb', lambda: budget_gb)
+    monkeypatch.setattr(manager, 'load_model_only',
+                        lambda name: _stub_load(manager, name))
+
+    capacity = manager._cpu_pass_capacity_gb(limit_bytes)
+    plan = manager.group_passes_by_vram(CPU_ROSTER, 0.0)
+
+    with mock.patch("processing.multi_pass._ensure_imports"):
+        proc = ChunkedMultiPassProcessor(scorer, manager, {})
+    proc.pass_groups = plan
+
+    readings = []
+    starts_a_pass = {group[0] for group in plan}
+
+    def observe(model_name, model, images, results):
+        if model_name in starts_a_pass:
+            readings.append(frozenset(resident()))
+
+    monkeypatch.setattr(proc, '_run_model_pass', observe)
+    monkeypatch.setattr(proc, '_load_images', lambda paths: {})
+    monkeypatch.setattr(proc, '_compute_aggregates', lambda results, images: None)
+    monkeypatch.setattr(proc, '_save_results', lambda results, images: None)
+
+    for chunk_idx in range(CHUNKS_TO_STEADY_STATE):
+        proc._process_chunk([], chunk_idx, CHUNKS_TO_STEADY_STATE)
+
+    peak = max(declared(names) for names in readings)
+    holding = sum(1 for names in readings if 'insightface' in names)
+    return capacity, peak, holding, len(readings), scorer
+
+
+class TestFaceModelCoResidency:
+    """The face model was resident during every pass, AND budgeted as a pass.
+
+    ``_process_chunk`` took the analyzer from the scorer rather than the
+    manager and skipped its unload, so InsightFace's declared 2.0 GB stayed
+    resident for the whole scan while ``group_passes_by_vram`` had already
+    spent that 2.0 GB on a pass of its own. Every other pass therefore held
+    2.0 GB more than the plan allowed, and the peaks below were 7.0 / 10.0 /
+    20.0 GB declared instead of 5.0 / 8.0 / 18.0 -- at the measured 1.6 GB of
+    real RAM per declared GB, 11.2 GB inside an 8 GiB container, which is the
+    configuration issue #111 was reported against.
+    """
+
+    @pytest.mark.parametrize('budget_gb,limit_bytes,expected_peak', [
+        (8, 8 * GIB, 5.0),
+        (16, 16 * GIB, 8.0),
+        (32, 32 * GIB, 18.0),
+        (8, None, 5.0),
+        (16, None, 8.0),
+        (32, None, 18.0),
+    ])
+    def test_co_residency_is_what_the_plan_promised(
+            self, monkeypatch, budget_gb, limit_bytes, expected_peak):
+        _capacity, peak, _holding, _total, _scorer = _replay_chunks(
+            monkeypatch, budget_gb, limit_bytes)
+
+        assert peak == expected_peak
+
+    @pytest.mark.parametrize('budget_gb,limit_bytes', [
+        (8, 8 * GIB), (16, 16 * GIB), (32, 32 * GIB),
+        (8, None), (16, None), (32, None),
+    ])
+    def test_the_face_model_is_resident_for_its_own_pass_and_no_other(
+            self, monkeypatch, budget_gb, limit_bytes):
+        _capacity, _peak, holding, total, scorer = _replay_chunks(
+            monkeypatch, budget_gb, limit_bytes)
+
+        assert holding == CHUNKS_TO_STEADY_STATE, (
+            f"the face model is resident during {holding} of {total} passes, "
+            f"not the {CHUNKS_TO_STEADY_STATE} it was planned for"
+        )
+        assert scorer.built == 0, (
+            "the pass built the scan-long analyzer on the scorer, which nothing "
+            "unloads, instead of the managed model the planner budgeted"
+        )

@@ -642,10 +642,10 @@ def _replay_cpu_plan(manager, monkeypatch, budget_gb, limit_bytes, bound=True):
     """Run the real CPU plan through the real load/unload cycle.
 
     Mirrors ``ChunkedMultiPassProcessor._process_chunk``: load a pass's models,
-    then unload them one at a time, with ``insightface`` skipped because the
-    processor takes that one from the scorer instead of the manager. Several
-    chunks, because the peak is not reached in the first one -- from the second
-    chunk on, pass 1 runs with the cache already full.
+    then unload them one at a time -- ``insightface`` included, since the
+    processor stopped taking that one from the scorer and skipping its unload.
+    Several chunks, because the peak is not reached in the first one -- from
+    the second chunk on, pass 1 runs with the cache already full.
 
     The memory reading is derived from what is genuinely resident at that
     instant: the models of the running pass, whatever the RAM cache still
@@ -686,12 +686,10 @@ def _replay_cpu_plan(manager, monkeypatch, budget_gb, limit_bytes, bound=True):
     for _chunk in range(CHUNKS_TO_STEADY_STATE):
         for group in plan:
             for name in group:
-                if name != 'insightface' and manager._restore_from_cache(name) is None:
+                if manager._restore_from_cache(name) is None:
                     load(name)
             peak = max(peak, declared(list(manager.models) + list(manager._cpu_cache)))
             for name in group:
-                if name == 'insightface':
-                    continue
                 inflight.append(name)
                 manager.unload_model(name)
                 inflight.remove(name)
@@ -826,3 +824,46 @@ class TestRetainedCacheCoResidency:
 
         assert manager._cpu_plan is None
         assert manager._can_cache_to_ram('topiq')
+
+
+class TestFaceModelIsAManagedModel:
+    """``_load_insightface`` hands back the analyzer the face pass really runs.
+
+    It used to build a bare ``insightface.app.FaceAnalysis`` with default
+    modules and default thresholds -- an object with no ``analyze_faces`` on it
+    at all -- which nothing ever called, because ``_process_chunk`` took the
+    scorer's configured ``FaceAnalyzer`` instead and skipped the unload. Owning
+    the lifecycle means owning the configuration: the pass must score faces by
+    the library's own confidence and size settings, not by ONNX defaults.
+    """
+
+    def test_it_builds_the_configured_analyzer_and_registers_it(self, stub_torch):
+        pytest.importorskip('cv2')
+        import analyzers
+        from config import ScoringConfig
+        from models.model_manager import ModelManager
+
+        config = ScoringConfig()
+        manager = ModelManager(config)
+        with mock.patch.object(analyzers, 'FaceAnalyzer') as face_analyzer:
+            loaded = manager.load_model_only('insightface')
+
+        assert loaded is face_analyzer.return_value
+        assert manager.models['insightface'] is loaded
+        assert face_analyzer.call_args.args == ('cpu',)
+        assert face_analyzer.call_args.kwargs['min_confidence'] == pytest.approx(
+            config.get_face_detection_settings()['min_confidence_percent'] / 100)
+
+    def test_unloading_it_releases_it_rather_than_caching_it(self, stub_torch):
+        pytest.importorskip('cv2')
+        import analyzers
+        from config import ScoringConfig
+        from models.model_manager import ModelManager
+
+        manager = ModelManager(ScoringConfig())
+        with mock.patch.object(analyzers, 'FaceAnalyzer'):
+            manager.load_model_only('insightface')
+        manager.unload_model('insightface')
+
+        assert 'insightface' not in manager.models
+        assert 'insightface' not in manager._cpu_cache

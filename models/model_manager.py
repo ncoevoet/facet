@@ -6,8 +6,6 @@ Supports PyIQA, Qwen2-VL, and CLIP models with automatic selection.
 """
 
 import logging
-import os
-import sys
 from typing import Dict, List
 
 logger = logging.getLogger("facet.models")
@@ -26,6 +24,42 @@ def _ensure_torch():
         import torch as _torch
         torch = _torch
     return torch
+
+
+def build_face_analyzer(config, device):
+    """Build the configured FaceAnalyzer, the one construction site for it.
+
+    ``Facet`` reaches this through its lazy ``face_analyzer`` property, for the
+    single-pass scan and the face-extraction commands; ``_load_insightface``
+    reaches it for the multi-pass scan, where the analyzer is an ordinary
+    managed model. A second construction site would let those paths drift apart
+    on the detection thresholds, which decide what counts as a face at all.
+
+    Args:
+        config: ScoringConfig holding the face detection/processing settings
+        device: Device string InsightFace's ONNX Runtime provider is chosen from
+
+    Returns:
+        A FaceAnalyzer; it reports ``available = False`` rather than raising
+        when InsightFace itself cannot be loaded.
+    """
+    from analyzers import FaceAnalyzer
+
+    face_settings = config.get_face_detection_settings()
+    face_proc_settings = config.get_face_processing_settings()
+    blendshape_settings = face_settings.get('blendshapes', {})
+    return FaceAnalyzer(
+        device,
+        min_confidence=face_settings.get('min_confidence_percent', 70) / 100,
+        min_face_size=face_settings.get('min_face_size', 30),
+        thumbnail_size=face_proc_settings.get('face_thumbnail_size', 128),
+        thumbnail_quality=face_proc_settings.get('face_thumbnail_quality', 85),
+        blink_ear_threshold=face_settings.get('blink_ear_threshold', 0.21),
+        min_faces_for_group=face_settings.get('min_faces_for_group', 4),
+        enable_3d_landmarks=face_settings.get('enable_3d_landmarks', False),
+        enable_blendshapes=blendshape_settings.get('enabled', True),
+        blendshape_min_crop=blendshape_settings.get('min_crop_size', 192),
+    )
 
 
 class ModelManager:
@@ -567,30 +601,28 @@ class ModelManager:
             return None
 
     def _load_insightface(self):
-        """Load InsightFace model for face analysis."""
+        """Load the face analyzer the InsightFace pass runs.
+
+        Held in ``self.models`` like every other model, so ``unload_model``
+        releases it when its pass ends. The multi-pass processor used to take
+        this one from the scorer instead and skip the unload, which left
+        InsightFace's declared 2.0 GB resident beside every other pass --
+        memory ``group_passes_by_vram`` had already promised to those passes.
+
+        It is the configured analyzer, not a bare ``FaceAnalysis``: the pass
+        needs ``analyze_faces`` and the library's own confidence, size and
+        blendshape settings, so a default-threshold app would silently score
+        faces by different rules than every other face path in Facet.
+        """
         if 'insightface' in self.models:
             return self.models['insightface']
 
         logger.info("Loading InsightFace model...")
         try:
-            from insightface.app import FaceAnalysis
-
-            with open(os.devnull, 'w') as devnull:
-                _stdout, sys.stdout = sys.stdout, devnull
-                try:
-                    providers = (
-                        ['CUDAExecutionProvider', 'CPUExecutionProvider']
-                        if self.device == 'cuda'
-                        else ['CPUExecutionProvider']
-                    )
-                    app = FaceAnalysis(providers=providers)
-                    app.prepare(ctx_id=0 if self.device == 'cuda' else -1, det_size=(640, 640))
-                finally:
-                    sys.stdout = _stdout
-
-            self.models['insightface'] = app
+            analyzer = build_face_analyzer(self.config, self.device)
+            self.models['insightface'] = analyzer
             logger.info("InsightFace loaded")
-            return app
+            return analyzer
 
         except Exception as e:
             logger.error("Failed to load InsightFace: %s", e)
