@@ -297,6 +297,8 @@ Lecture seule : elle décode un échantillon aléatoire directement depuis le d
 
 ## Configuration
 
+La variable d'environnement `FACET_CONFIG`, si elle est définie, fournit le chemin par défaut de `scoring_config.json` pour `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` et `calibrate.py` lorsqu'ils s'exécutent sans `--config` explicite ; `--config` la remplace toujours. Si la variable désigne un fichier inexistant, la galerie web refuse d'emprunter le chemin d'authentification « installation ouverte » plutôt que d'en conclure que l'installation n'a aucun mot de passe, et journalise une erreur nommant le chemin manquant.
+
 | Commande | Description |
 |---------|-------------|
 | `python facet.py --validate-categories` | Valide les configurations de catégorie |
