@@ -400,12 +400,14 @@ Controlado por `viewer.features.show_memories` (predeterminado: `true`).
 ## Flujos de trabajo habituales
 
 - **Descartar unas vacaciones** — abre Cápsulas → busca la cápsula `journey` autogenerada para las fechas del viaje. Cada cápsula ofrece una acción Guardar como álbum.
-- **Recorrer una revisión día a día** — abre la línea de tiempo → ordena por agregada → avanza por el año. Las mejores tomas suben primero cuando has activado `hide_bursts` y `hide_duplicates` (predeterminados: activados).
+- **Recorrer una revisión día a día** — abre la línea de tiempo y desciende de años a meses y a un calendario de días; haz clic en un día para abrir la galería filtrada a esa fecha. La línea de tiempo no tiene ordenación propia, pero los recuentos por día/mes/año y las miniaturas destacadas ahora respetan los mismos interruptores `hide_bursts` / `hide_duplicates` que la galería (predeterminados: activados), así que el recuento de una celda coincide con lo que abre al hacer clic.
 - **Mostrar lo que está oculto** — la galería oculta por defecto los parpadeos / ráfagas no líderes / duplicados no líderes. Cuando al menos uno de esos filtros está activo y excluiría filas, aparece un banner "N fotos ocultas por los filtros actuales · Mostrar todas" sobre la cuadrícula.
 
 ## Vista de línea de tiempo
 
-Explorador de fotos cronológico con navegación por fechas. Desplázate por las fotos organizadas por fecha con una barra lateral que muestra los años y meses disponibles.
+Explorador de fotos cronológico: una cuadrícula de años desciende a una cuadrícula de meses, y luego a un calendario de días, cada celda con un recuento de fotos y una miniatura destacada. Haz clic en un día para abrir la galería filtrada a esa fecha. La línea de tiempo no tiene ordenación propia — la ordenación ocurre en la galería a la que llegas.
+
+Los cinco interruptores de ocultación de la galería (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) se aplican en cada nivel, recayendo en `viewer.defaults` cuando una solicitud no envía ninguno — así, una celda de año/mes/día cuenta y elige su miniatura destacada solo entre las fotos que la galería mostraría realmente. Cuando al menos un interruptor está ocultando algo, aparece un botón `visibility_off` en la barra de herramientas (y en la barra inferior móvil) con el tooltip "Algunas fotos están ocultas por tus filtros"; haz clic en él para borrar los cinco, igual que el propio banner de fotos ocultas de la galería.
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
@@ -1039,7 +1041,7 @@ Los tipos TypeScript del cliente se generan a partir de ese esquema en `client/s
 | `GET /api/photo` | Detalles de una sola foto |
 | `GET /api/photo/set?path=` | El conjunto horquillado/panorama/hdr_panorama/ráfaga/duplicada al que pertenece una foto (la secuencia tiene prioridad sobre la ráfaga, la ráfaga sobre la duplicada), indexado por `path` — nunca un id de grupo, que los pases de horquillado y panorama renumeran cada uno desde 1 en cada ejecución |
 | `GET /api/photo/histogram?path=&bins=` | Bins de luminancia + R/G/B listos para dibujar (`bins` ∈ 32/64/128/256, 64 por defecto), medidos durante el análisis sobre la imagen a resolución completa. Cada canal se escala por un único máximo global, nunca por el suyo. `r`/`g`/`b` son `null` para una fila guardada antes del formato por canal; 404 cuando la fila no tiene histograma alguno, la señal para que el widget recurra al muestreo de la miniatura |
-| `GET /api/type_counts` | Recuentos de fotos por tipo |
+| `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Recuentos de fotos por tipo para los chips de la barra lateral. Mismos cinco interruptores que la galería; uno omitido recae en `viewer.defaults` en vez de "desactivado" — envía `hide_bursts=0`, etc., explícitamente para contarlo todo |
 | `GET /api/similar_photos/{path}` | Fotos similares (modos: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Búsqueda semántica de texto a imagen (`scope=text` = solo texto de OCR/subtítulos) |
 | `GET /api/critique?path=&mode=&refresh=` | Crítica con IA (basada en reglas o VLM); `refresh=true` regenera la crítica con VLM en caché |
@@ -1137,10 +1139,10 @@ Los tipos TypeScript del cliente se generan a partir de ese esquema en `client/s
 | `GET /api/memories/check` | Comprobar si existen recuerdos para una fecha |
 | `GET /api/caption?path=` | Obtener o generar un subtítulo con IA |
 | `PUT /api/caption` | Actualizar el subtítulo de una foto (modo de edición) |
-| `GET /api/timeline?cursor=&limit=&direction=` | Fotos de la línea de tiempo paginadas |
-| `GET /api/timeline/dates?year=&month=` | Fechas disponibles para la navegación |
-| `GET /api/timeline/years` | Años disponibles con recuentos de fotos |
-| `GET /api/timeline/months` | Meses disponibles para un año |
+| `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Fotos de la línea de tiempo paginadas. Los cinco interruptores `hide_*` son los de la galería; uno omitido recae en `viewer.defaults` en vez de "desactivado" |
+| `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Fechas disponibles para la navegación (mismo respaldo `hide_*`) |
+| `GET /api/timeline/years?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Años disponibles con recuentos de fotos (mismo respaldo `hide_*`) |
+| `GET /api/timeline/months?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Meses disponibles para un año (mismo respaldo `hide_*`) |
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Fotos geoetiquetadas dentro de los límites |
 | `GET /api/photos/map/count` | Recuento de fotos geoetiquetadas |
 
@@ -1269,7 +1271,7 @@ Los tipos TypeScript del cliente se generan a partir de ese esquema en `client/s
 
 | Endpoint | Descripción |
 |----------|-------------|
-| `GET /api/folders` | Listar la estructura de carpetas de fotos |
+| `GET /api/folders?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Listar la estructura de carpetas de fotos. Mismo respaldo `hide_*` a `viewer.defaults` que la galería |
 
 ### Descarga
 

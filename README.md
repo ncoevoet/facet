@@ -75,7 +75,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 </details>
 
 **Workflow tips:**
-- For chronological review across a trip or year, open **`/timeline`** — sort by aggregate to walk a day's best shots, or page month-by-month.
+- The **`/timeline`** view drills down years → months → a day calendar — click a day to open the gallery filtered to that date. There's no sort here; for picking the best shots from a trip, use **`/capsules`** below instead, which runs a diversity pass over a date range you can save as an album.
 - The **`/capsules`** view generates themed diaporamas (journeys, "Faces of", seasonal, golden) you can save as albums.
 - The gallery hides blinks, non-lead bursts, and duplicates by default. When the **"N photos hidden by current filters"** banner appears, click "Show all" to expand the view.
 

@@ -70,7 +70,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 </details>
 
 **Workflow-Tipps:**
-- Für eine chronologische Durchsicht über eine Reise oder ein Jahr öffnen Sie **`/timeline`** — sortieren Sie nach Gesamtwertung, um die besten Aufnahmen eines Tages durchzugehen, oder blättern Sie Monat für Monat.
+- Die Ansicht **`/timeline`** führt von Jahren über Monate zu einem Tageskalender — klicken Sie auf einen Tag, um die Galerie gefiltert auf dieses Datum zu öffnen. Hier gibt es keine Sortierung; um die besten Aufnahmen einer Reise auszuwählen, nutzen Sie stattdessen **`/capsules`** weiter unten, das einen Diversitäts-Durchlauf über einen Datumsbereich ausführt, den Sie als Album speichern können.
 - Die Ansicht **`/capsules`** generiert thematische Diaporamas (Reisen, „Gesichter von“, saisonal, golden), die Sie als Alben speichern können.
 - Die Galerie blendet Blinzler, Nicht-Leitbilder von Serienbildern und Duplikate standardmäßig aus. Wenn das Banner **„N Fotos durch aktuelle Filter ausgeblendet“** erscheint, klicken Sie auf „Alle anzeigen“, um die Ansicht zu erweitern.
 

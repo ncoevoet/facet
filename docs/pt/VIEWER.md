@@ -400,12 +400,14 @@ Controlado por `viewer.features.show_memories` (padrão: `true`).
 ## Fluxos de trabalho comuns
 
 - **Triar umas férias** — abra Cápsulas → procure a cápsula `journey` gerada automaticamente para as datas da viagem. Cada cápsula oferece uma ação Salvar como Álbum.
-- **Percorrer uma revisão dia a dia** — abra a Linha do Tempo → ordene por agregada → percorra o ano. As melhores fotos sobem primeiro quando você habilita `hide_bursts` e `hide_duplicates` (padrões: ativados).
+- **Percorrer uma revisão dia a dia** — abra a Linha do Tempo e desça de anos para meses e depois para um calendário de dias; clique em um dia para abrir a galeria filtrada para essa data. A Linha do Tempo não tem ordenação própria, mas as contagens por dia/mês/ano e as miniaturas em destaque agora respeitam as mesmas chaves `hide_bursts` / `hide_duplicates` da galeria (padrões: ativados), então a contagem de uma célula corresponde ao que o clique nela abre.
 - **Mostrar o que está oculto** — a galeria oculta piscadas / sequências não líderes / duplicatas não líderes por padrão. Quando pelo menos um desses filtros está ativo e excluiria linhas, um banner "N fotos ocultas pelos filtros atuais · Mostrar tudo" aparece acima da grade.
 
 ## Visão de Linha do Tempo
 
-Navegador cronológico de fotos com navegação baseada em datas. Role pelas fotos organizadas por data com uma barra lateral mostrando os anos e meses disponíveis.
+Navegador cronológico de fotos: uma grade de anos desce para uma grade de meses e depois para um calendário de dias, cada célula mostrando uma contagem de fotos e uma miniatura em destaque. Clique em um dia para abrir a galeria filtrada para essa data. Não há controle de ordenação na Linha do Tempo em si — a ordenação acontece na galeria em que você aterrissa.
+
+As cinco chaves de ocultação da galeria (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) se aplicam em cada nível, recorrendo a `viewer.defaults` quando uma solicitação não envia nenhuma — assim, uma célula de ano/mês/dia conta e escolhe sua miniatura em destaque apenas entre as fotos que a galeria realmente mostraria. Quando pelo menos uma chave está ocultando algo, um botão `visibility_off` aparece na barra de ferramentas (e na barra inferior móvel) com a dica de ferramenta "Algumas fotos estão ocultas pelos seus filtros"; clique nele para limpar as cinco, da mesma forma que o próprio banner de fotos ocultas da galeria.
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
@@ -1040,7 +1042,7 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 | `GET /api/photo` | Detalhes de uma única foto |
 | `GET /api/photo/set?path=` | O conjunto bracket/panorâmica/hdr_panorama/sequência/duplicata ao qual uma foto pertence (bracket, panorâmica ou hdr_panorama têm prioridade sobre sequência, que por sua vez tem prioridade sobre duplicata), indexado por `path` — nunca um identificador de grupo, que as passagens de bracket e panorâmica renumeram cada uma a partir de 1 a cada execução |
 | `GET /api/photo/histogram?path=&bins=` | Bins de luminância + R/G/B prontos para desenhar (`bins` ∈ 32/64/128/256, padrão 64), medidos durante a análise na imagem em resolução total. Cada canal é escalado por um único máximo global, nunca pelo seu próprio. `r`/`g`/`b` são `null` para uma linha gravada antes do formato por canal; 404 quando a linha não tem histograma algum, o sinal para o widget recorrer à amostragem da miniatura |
-| `GET /api/type_counts` | Contagens de fotos por tipo |
+| `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Contagens de fotos por tipo para os chips da barra lateral. Mesmas cinco chaves da galeria; uma omitida recorre a `viewer.defaults` em vez de "desativado" — envie `hide_bursts=0`, etc., explicitamente para contar tudo |
 | `GET /api/similar_photos/{path}` | Fotos semelhantes (modos: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Busca semântica de texto para imagem (`scope=text` = apenas texto OCR/legenda) |
 | `GET /api/critique?path=&mode=&refresh=` | Crítica por IA (baseada em regras ou VLM); `refresh=true` regenera a crítica VLM em cache |
@@ -1138,10 +1140,10 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 | `GET /api/memories/check` | Verifica se existem memórias para uma data |
 | `GET /api/caption?path=` | Obtém ou gera uma legenda por IA |
 | `PUT /api/caption` | Atualiza a legenda da foto (modo de edição) |
-| `GET /api/timeline?cursor=&limit=&direction=` | Fotos paginadas da linha do tempo |
-| `GET /api/timeline/dates?year=&month=` | Datas disponíveis para navegação |
-| `GET /api/timeline/years` | Anos disponíveis com contagens de fotos |
-| `GET /api/timeline/months` | Meses disponíveis para um ano |
+| `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Fotos paginadas da linha do tempo. As cinco chaves `hide_*` são as da galeria; uma omitida recorre a `viewer.defaults` em vez de "desativado" |
+| `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Datas disponíveis para navegação (mesmo fallback `hide_*`) |
+| `GET /api/timeline/years?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Anos disponíveis com contagens de fotos (mesmo fallback `hide_*`) |
+| `GET /api/timeline/months?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Meses disponíveis para um ano (mesmo fallback `hide_*`) |
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Fotos geolocalizadas dentro dos limites |
 | `GET /api/photos/map/count` | Contagem de fotos geolocalizadas |
 
@@ -1271,7 +1273,7 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/folders` | Lista a estrutura de pastas de fotos |
+| `GET /api/folders?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Lista a estrutura de pastas de fotos. Mesmo fallback `hide_*` para `viewer.defaults` que a galeria |
 
 ### Download
 

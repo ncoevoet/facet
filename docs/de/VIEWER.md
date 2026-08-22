@@ -401,12 +401,14 @@ Gesteuert über `viewer.features.show_memories` (Standard: `true`).
 ## Häufige Arbeitsabläufe
 
 - **Einen Urlaub aussortieren** — Kapseln öffnen → nach der automatisch generierten `journey`-Kapsel für die Reisedaten suchen. Jede Kapsel bietet eine Aktion „Als Album speichern".
-- **Eine Tag-für-Tag-Durchsicht machen** — Zeitleiste öffnen → nach Gesamtwertung sortieren → das Jahr durchgehen. Die besten Aufnahmen steigen zuerst nach oben, wenn `hide_bursts` und `hide_duplicates` aktiviert sind (Standard: an).
+- **Eine Tag-für-Tag-Durchsicht durchführen** — Zeitleiste öffnen und von Jahren über Monate zu einem Tageskalender vordringen; auf einen Tag klicken, um die Galerie gefiltert auf dieses Datum zu öffnen. Die Zeitleiste selbst hat keine Sortierung, aber die Zählungen pro Tag/Monat/Jahr und die Vorschaubilder berücksichtigen jetzt dieselben `hide_bursts` / `hide_duplicates`-Umschalter wie die Galerie (Standard: an) — die Zahl auf einer Kachel stimmt also mit dem überein, was ein Klick darauf öffnet.
 - **Ausgeblendetes anzeigen** — Die Galerie blendet Blinzler / Nicht-Leitfotos von Serienbildern / Nicht-Leitfotos von Duplikaten standardmäßig aus. Wenn mindestens einer dieser Filter aktiv ist und Zeilen ausschließen würde, erscheint über dem Raster ein Banner „N Fotos durch aktuelle Filter ausgeblendet · Alle anzeigen".
 
 ## Zeitleisten-Ansicht
 
-Chronologischer Foto-Browser mit datumsbasierter Navigation. Scrollen Sie durch nach Datum organisierte Fotos mit einer Seitenleiste, die verfügbare Jahre und Monate anzeigt.
+Chronologischer Foto-Browser: Ein Raster aus Jahren führt zu einem Raster aus Monaten und dann zu einem Tageskalender, wobei jede Kachel eine Fotoanzahl und ein Vorschaubild zeigt. Klicken Sie auf einen Tag, um die Galerie gefiltert auf dieses Datum zu öffnen. Die Zeitleiste selbst hat keine Sortierung — sortiert wird in der Galerie, in der Sie landen.
+
+Die fünf Ausblenden-Umschalter der Galerie (`hide_blinks`, `hide_bursts`, `hide_duplicates`, `hide_brackets`, `hide_panoramas`) gelten auf jeder Ebene und fallen auf `viewer.defaults` zurück, wenn eine Anfrage keinen davon sendet — eine Jahres-/Monats-/Tageskachel zählt und wählt ihr Vorschaubild also nur aus Fotos, die die Galerie tatsächlich anzeigen würde. Wenn mindestens ein Umschalter etwas ausblendet, erscheint in der Werkzeugleiste (und der mobilen unteren Leiste) eine Schaltfläche `visibility_off` mit dem Tooltip „Einige Fotos werden durch Ihre Filter ausgeblendet"; ein Klick darauf löscht alle fünf, genau wie das eigene Banner für ausgeblendete Fotos der Galerie.
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
@@ -1041,7 +1043,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 | `GET /api/photo` | Details zu einem einzelnen Foto |
 | `GET /api/photo/set?path=` | Die Belichtungsreihen-/Panorama-/HDR-Panorama-/Serienbild-/Duplikat-Menge, zu der ein Foto gehört (Sequenz hat Vorrang vor Serienbild, Serienbild vor Duplikat), referenziert über `path` — niemals eine Gruppen-ID, welche die Belichtungsreihen- und Panorama-Durchläufe bei jedem Lauf jeweils neu ab 1 durchnummerieren |
 | `GET /api/photo/histogram?path=&bins=` | Zeichenfertige Luminanz- + R/G/B-Bins (`bins` ∈ 32/64/128/256, Standard 64), beim Scan am Bild in voller Auflösung gemessen. Jeder Kanal wird mit einem einzigen globalen Maximum skaliert, nie mit seinem eigenen. `r`/`g`/`b` sind `null` für eine Zeile, die vor dem Kanalformat gespeichert wurde; 404, wenn die Zeile überhaupt kein Histogramm hat — das Signal für das Widget, auf das Abtasten des Vorschaubilds zurückzufallen |
-| `GET /api/type_counts` | Fotoanzahlen pro Typ |
+| `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Fotoanzahlen pro Typ für die Seitenleisten-Chips. Dieselben fünf Umschalter wie die Galerie; ein ausgelassener fällt auf `viewer.defaults` zurück statt auf „aus" — senden Sie `hide_bursts=0` usw. explizit, um alles zu zählen |
 | `GET /api/similar_photos/{path}` | Ähnliche Fotos (Modi: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantische Text-zu-Bild-Suche (`scope=text` = nur OCR-/Beschreibungstext) |
 | `GET /api/critique?path=&mode=&refresh=` | KI-Kritik (regelbasiert oder VLM); `refresh=true` regeneriert die zwischengespeicherte VLM-Kritik |
@@ -1139,10 +1141,10 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 | `GET /api/memories/check` | Prüfen, ob für ein Datum Erinnerungen existieren |
 | `GET /api/caption?path=` | KI-Bildbeschreibung abrufen oder generieren |
 | `PUT /api/caption` | Bildbeschreibung aktualisieren (Bearbeitungsmodus) |
-| `GET /api/timeline?cursor=&limit=&direction=` | Paginierte Zeitleisten-Fotos |
-| `GET /api/timeline/dates?year=&month=` | Verfügbare Daten für die Navigation |
-| `GET /api/timeline/years` | Verfügbare Jahre mit Fotoanzahlen |
-| `GET /api/timeline/months` | Verfügbare Monate für ein Jahr |
+| `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Paginierte Zeitleisten-Fotos. Die fünf `hide_*`-Umschalter sind die der Galerie; ein ausgelassener fällt auf `viewer.defaults` zurück statt auf „aus" |
+| `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Verfügbare Daten für die Navigation (gleicher `hide_*`-Rückfall) |
+| `GET /api/timeline/years?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Verfügbare Jahre mit Fotoanzahlen (gleicher `hide_*`-Rückfall) |
+| `GET /api/timeline/months?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Verfügbare Monate für ein Jahr (gleicher `hide_*`-Rückfall) |
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Georeferenzierte Fotos innerhalb der Grenzen |
 | `GET /api/photos/map/count` | Anzahl georeferenzierter Fotos |
 
@@ -1271,7 +1273,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `GET /api/folders` | Foto-Ordnerstruktur auflisten |
+| `GET /api/folders?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Foto-Ordnerstruktur auflisten. Gleicher `hide_*`-Rückfall auf `viewer.defaults` wie die Galerie |
 
 ### Download
 
