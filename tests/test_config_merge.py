@@ -17,10 +17,10 @@ from pathlib import Path
 
 import pytest
 
-from config import ScoringConfig, default_config_path
+from config import ScoringConfig
 from config_resolve import (
-    deep_merge, defaults_path, delta_for_write, load_defaults, load_resolved,
-    subtract_defaults,
+    deep_merge, default_config_path, defaults_path, delta_for_write, load_defaults,
+    load_resolved, path_is_named, subtract_defaults,
 )
 
 
@@ -128,6 +128,52 @@ class TestLoadResolved:
         with pytest.raises(FileNotFoundError):
             load_resolved(str(tmp_path / "nope.json"), named=True)
 
+    def test_a_non_dict_override_is_rejected_by_name(self, tmp_path):
+        """A hand-edited file is operator-authored input at a real boundary.
+
+        It used to die with ``AttributeError: 'list' object has no attribute
+        'items'`` from inside the merge, which names neither the file nor the
+        mistake.
+        """
+        path = tmp_path / "scoring_config.json"
+        path.write_text("[1, 2, 3]")
+
+        with pytest.raises(ValueError, match="must hold a JSON object"):
+            load_resolved(str(path), named=True)
+
+    def test_a_null_section_replaces_rather_than_merging(self, tmp_path):
+        """``null`` clobbers, like every other non-dict value.
+
+        Documented rather than special-cased: the merge applies what the
+        operator wrote. What must NOT happen is a crash far from the edit --
+        ``db.connection.get_pragma_values`` used to raise AttributeError on
+        every database connection in the process.
+        """
+        path = tmp_path / "scoring_config.json"
+        path.write_text(json.dumps({"performance": None}))
+
+        assert load_resolved(str(path), named=True)["performance"] is None
+
+    def test_an_override_may_add_a_key_the_defaults_lack(self, tmp_path):
+        path = tmp_path / "scoring_config.json"
+        path.write_text(json.dumps({"users": {"alice": {"role": "admin"}}}))
+
+        resolved = load_resolved(str(path), named=True)
+
+        assert resolved["users"] == {"alice": {"role": "admin"}}
+        assert len(resolved["categories"]) == len(load_defaults()["categories"])
+
+    def test_namedness_falls_back_to_the_environment_when_not_given(self, tmp_path, monkeypatch):
+        """``named=None`` is what every caller without an explicit --config uses."""
+        absent = str(tmp_path / "nope.json")
+
+        monkeypatch.delenv("FACET_CONFIG", raising=False)
+        assert load_resolved(default_config_path()) == load_defaults()
+
+        monkeypatch.setenv("FACET_CONFIG", absent)
+        with pytest.raises(FileNotFoundError):
+            load_resolved(absent)
+
     def test_a_three_key_override_still_yields_a_whole_config(self, tmp_path):
         path = tmp_path / "scoring_config.json"
         path.write_text(json.dumps({"performance": {"mmap_size_mb": 7}}))
@@ -138,6 +184,45 @@ class TestLoadResolved:
         assert len(resolved["categories"]) == len(load_defaults()["categories"])
         assert resolved["performance"]["cache_size_mb"] == \
             load_defaults()["performance"]["cache_size_mb"]
+
+
+class TestPathIsNamed:
+    """One question, one implementation: did a HUMAN choose this path?"""
+
+    def test_no_path_is_the_inherited_default(self, monkeypatch):
+        monkeypatch.delenv("FACET_CONFIG", raising=False)
+        assert path_is_named(None) is False
+
+    def test_the_install_root_default_is_not_named(self, monkeypatch):
+        monkeypatch.delenv("FACET_CONFIG", raising=False)
+        assert path_is_named(default_config_path()) is False
+
+    def test_any_other_path_is_named(self, monkeypatch, tmp_path):
+        monkeypatch.delenv("FACET_CONFIG", raising=False)
+        assert path_is_named(str(tmp_path / "elsewhere.json")) is True
+
+    def test_the_env_var_names_it_whatever_the_argument(self, monkeypatch, tmp_path):
+        """Fail-closed: $FACET_CONFIG is aimed by an operator, so a missing
+        target must raise rather than resolve to defaults carrying an empty
+        ``viewer.edition_password``."""
+        monkeypatch.setenv("FACET_CONFIG", str(tmp_path / "x.json"))
+        assert path_is_named(None) is True
+        assert path_is_named(default_config_path()) is True
+
+    def test_the_env_value_is_stripped(self, monkeypatch, tmp_path):
+        """Whitespace padding in a compose file must not read as unset."""
+        target = tmp_path / "x.json"
+        monkeypatch.setenv("FACET_CONFIG", f"  {target}  ")
+        assert path_is_named(None) is True
+        assert default_config_path() == str(target)
+
+    def test_a_relative_default_from_a_foreign_cwd_is_named(self, monkeypatch, tmp_path):
+        """`python /opt/facet/facet.py` run from elsewhere must not read its
+        own directory's absent file as the inherited default and silently score
+        on shipped defaults while the operator's real config sits unread."""
+        monkeypatch.delenv("FACET_CONFIG", raising=False)
+        monkeypatch.chdir(tmp_path)
+        assert path_is_named("scoring_config.json") is True
 
 
 class TestShippedDefaults:

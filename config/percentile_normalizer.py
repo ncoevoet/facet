@@ -8,6 +8,7 @@ import json
 import logging
 import sqlite3
 from db import get_connection
+from config_resolve import delta_for_write, load_resolved
 
 logger = logging.getLogger("facet.normalizer")
 
@@ -2096,8 +2097,7 @@ class PercentileNormalizer:
         logger.info("  Backup created: %s", backup_path)
 
         # Load current config
-        with open(config_path, 'r') as f:
-            config_data = json.load(f)
+        config_data = load_resolved(config_path)
 
         # Phase 1: Collect all proposed changes into a dedup map
         # Key: (category, weight_key) -> lowest proposed value (most aggressive reduction)
@@ -2215,7 +2215,7 @@ class PercentileNormalizer:
 
         # Save updated config
         with open(config_path, 'w') as f:
-            json.dump(config_data, f, indent=2)
+            json.dump(delta_for_write(config_data), f, indent=2)
 
         # Record applied recommendations to history table
         if applied_count > 0:

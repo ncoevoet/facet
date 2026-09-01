@@ -264,6 +264,14 @@ def _read_config():
     ``viewer.edition_password``, which is precisely the open install this branch
     exists to refuse.
 
+    The defaults are read BEFORE the try, so their own ``FileNotFoundError``
+    can never be mistaken for the operator's config being absent. It was: the
+    merge evaluated them first, so a shadowed or partial install reported
+    "$FACET_CONFIG names <path>, which does not exist" about a file that was
+    present and healthy — sending the operator to edit the one file holding
+    every password hash. A broken install now raises from here, naming the
+    defaults, which is what an install with no baseline to resolve against is.
+
     That distinction is the whole point. An unnamed missing config is a
     never-configured install, which is legitimately open — fail-open there is
     what makes a zero-config first run work at all. A missing config at a path
@@ -280,8 +288,9 @@ def _read_config():
     invisible — the operator got no signal whatsoever.
     """
     global _config_load_failed
+    defaults = load_defaults()
     try:
-        config = deep_merge(load_defaults(), _read_overrides())
+        config = deep_merge(defaults, _read_overrides())
     except FileNotFoundError:
         if _CONFIG_PATH_IS_EXPLICIT:
             _config_load_failed = True
@@ -294,7 +303,7 @@ def _read_config():
             )
             return {}, False
         logger.debug("No %s — running on the shipped defaults, never configured", _CONFIG_PATH)
-        return load_defaults(), False
+        return defaults, False
     except Exception:
         _config_load_failed = True
         logger.error(

@@ -36,10 +36,10 @@ def get_pragma_values():
     mmap_size_mb = 256
     cache_size_mb = 64
     try:
-        perf = load_resolved(_CONFIG_PATH).get('performance', {})
+        perf = load_resolved(_CONFIG_PATH).get('performance') or {}
         mmap_size_mb = perf.get('mmap_size_mb', mmap_size_mb)
         cache_size_mb = perf.get('cache_size_mb', cache_size_mb)
-    except (OSError, ValueError, KeyError):
+    except (OSError, ValueError, KeyError, AttributeError, TypeError):
         pass
     return {
         'mmap_size': mmap_size_mb * 1024 * 1024,

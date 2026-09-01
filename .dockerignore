@@ -87,6 +87,13 @@ scoring_config.discovered.json
 facet-config/
 .env
 .facet_secret*
+# The runtime cache the library lock and the cull previews live in, written
+# beside the database — which DEFAULT_DB_PATH puts in the repo root on a native
+# dev run, i.e. inside this build context. It holds a nested copy of the JWT
+# signing key that .facet_secret* above does NOT match: that pattern is
+# root-anchored, and .facet_cache/.facet_secret is not at the root. It also
+# holds JPEG renders of the operator's photos.
+.facet_cache/
 
 # The live root-level config of a NATIVE install, which holds the same
 # plaintext secrets as the seeded one above. It is untracked and no COPY names

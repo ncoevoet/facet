@@ -11,9 +11,8 @@ import hashlib
 
 logger = logging.getLogger("facet.config")
 
-from config_resolve import (  # noqa: F401 - re-exported for callers that import them from here
-    default_config_path, defaults_path, load_defaults, deep_merge,
-    subtract_defaults, delta_for_write, load_resolved,
+from config_resolve import (  # noqa: F401 - default_config_path is re-exported via config/__init__.py
+    default_config_path, delta_for_write, load_resolved, path_is_named,
 )
 from config.category_filter import (
     VALID_NUMERIC_FILTERS, VALID_BOOLEAN_FILTERS, VALID_TAG_FILTERS,
@@ -175,30 +174,6 @@ def _unusable_cuda_status():
         return None
 
 
-def _path_was_named(config_path):
-    """Whether a HUMAN chose ``config_path``, rather than inheriting the default.
-
-    That decides what an absent file means: a named one that is missing is a
-    typo or a broken mount and must raise, while the inherited default simply
-    being absent is an install running on the shipped defaults.
-
-    Passing a path is NOT the same as naming one. WeightOptimizer, calibrate,
-    the personal ranker and keeper_head all resolve the default themselves and
-    hand it over, so ``config_path is not None`` would make every one of them
-    fail on a zero-config install. They also disagree on spelling -- some pass
-    the relative ``'scoring_config.json'`` that ``resolve_scoring_config_path``
-    returns, keeper_head the absolute one from ``default_config_path`` -- so the
-    comparison is made on real paths, not on strings.
-    """
-    if os.environ.get('FACET_CONFIG', '').strip():
-        return True
-    if not config_path:
-        return False
-    inherited = {os.path.abspath(resolve_scoring_config_path(None)),
-                 os.path.abspath(default_config_path())}
-    return os.path.abspath(config_path) not in inherited
-
-
 class ScoringConfig:
     """Loads and manages scoring configuration from JSON file.
 
@@ -216,7 +191,7 @@ class ScoringConfig:
         # ranker all resolve the default themselves and hand it over, so
         # `config_path is not None` would make every one of them fail on a
         # zero-config install.
-        self._config_path_is_named = _path_was_named(config_path)
+        self._config_path_is_named = path_is_named(config_path)
         self.config = self._load_config()
         self._context_order_cache = {}
         self.version_hash = self._compute_version_hash()
@@ -471,9 +446,17 @@ class ScoringConfig:
         ``self.config`` is the resolved config -- the shipped defaults with the
         file laid over them -- so writing it verbatim would copy every shipped
         default into a file that is meant to record only what differs.
+
+        The delta is computed BEFORE the file is opened. ``open(path, 'w')``
+        truncates immediately, and subtracting the defaults reads them off
+        disk -- so computing it inside the ``with`` put a file read between the
+        truncation and the write. This is the one config writer that takes no
+        backup first, so a raise in that window left the operator's only copy
+        of their overrides at zero bytes.
         """
+        payload = delta_for_write(self.config)
         with open(self.config_path, 'w') as f:
-            json.dump(delta_for_write(self.config), f, indent=2)
+            json.dump(payload, f, indent=2)
             f.write('\n')  # Trailing newline
 
     def get_weights(self, category):

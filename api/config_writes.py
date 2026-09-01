@@ -53,7 +53,16 @@ def write_owner_only_backup(source_path, backup_path):
     looser mode is tightened before it holds anything — and only then does the
     content go in. There is no instant at which this file both exists with
     content and is readable beyond its owner.
+
+    An absent source returns None and writes nothing. A config file that does
+    not exist is now the ordinary state of an install that overrides nothing,
+    so "back it up before writing" has to mean "if there is anything to back
+    up" — otherwise the first write to a zero-config install dies here rather
+    than creating the file. Every caller already treats the return as
+    best-effort and reports it, so None reads as "no backup was needed".
     """
+    if not os.path.exists(source_path):
+        return None
     with open(source_path, 'rb') as source:
         fd = os.open(backup_path, _BACKUP_OPEN_FLAGS, BACKUP_FILE_MODE)
         with os.fdopen(fd, 'wb') as destination:
@@ -99,9 +108,13 @@ def _backup_config(config_path, *, prune=True):
     The copy goes through :func:`write_owner_only_backup` rather than
     ``shutil.copy2``: these files carry every secret scoring_config.json does,
     for as long as the operator keeps them.
+
+    Returns None when there was nothing to copy — an install that overrides
+    nothing has no config file yet, and the first write is what creates it.
     """
     backup_path = f"{config_path}.backup.{datetime.now().strftime(BACKUP_TIMESTAMP_FORMAT)}"
-    write_owner_only_backup(config_path, backup_path)
+    if write_owner_only_backup(config_path, backup_path) is None:
+        return None
     if prune:
         _prune_config_backups(config_path)
     return backup_path

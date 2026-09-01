@@ -4,7 +4,7 @@ import sqlite3
 import numpy as np
 import pytest
 
-from config_resolve import load_defaults
+from config_resolve import default_config_path, load_defaults
 
 from calibrate import (
     METRIC_COLUMNS,
@@ -51,23 +51,37 @@ class TestLoadCurrentCategoryWeights:
         w = load_current_category_weights(cfg_path, "nonexistent", ["aesthetic", "comp_score"])
         assert w == pytest.approx([0.5, 0.5])
 
-    def test_missing_config_file_reads_the_shipped_defaults(self, tmp_path):
-        """An absent config is an install with no overrides, not a broken one.
+    def test_a_named_missing_config_falls_back_to_uniform(self, tmp_path):
+        """A path someone NAMED and that is not there must not resolve to defaults.
 
-        It used to fall back to a uniform vector, because there was nothing else
-        to read. There is now: the file is only the operator's override, so its
-        absence resolves to the shipped defaults and calibration starts from the
-        weights the project actually ships rather than from a flat guess.
-        Expected values are read from the defaults, not hard-coded, so tuning a
-        shipped weight cannot turn this red.
+        An absent config is only an install-with-no-overrides when nobody chose
+        the path. A `--config` pointing somewhere else that does not exist is a
+        typo or a moved file, so it raises rather than silently scoring on the
+        shipped weights -- and calibration falls back to a uniform vector, as it
+        always did, rather than calibrating against a config the operator never
+        asked for.
         """
+        w = load_current_category_weights(
+            str(tmp_path / "does_not_exist.json"), "portrait", ["aesthetic", "comp_score"],
+        )
+        assert w == pytest.approx([0.5, 0.5])
+
+    def test_the_inherited_default_being_absent_reads_the_shipped_defaults(self, monkeypatch):
+        """The other half of the same fork: an absent config nobody named.
+
+        This is the ordinary zero-override install, so calibration starts from
+        the weights the project ships rather than from a flat guess. Expected
+        values come from the defaults, not hard-coded, so tuning a shipped
+        weight cannot turn this red.
+        """
+        monkeypatch.delenv("FACET_CONFIG", raising=False)
         shipped = next(c for c in load_defaults()["categories"] if c["name"] == "portrait")
         aesthetic = shipped["weights"]["aesthetic_percent"]
         composition = shipped["weights"]["composition_percent"]
         total = aesthetic + composition
 
         w = load_current_category_weights(
-            str(tmp_path / "does_not_exist.json"), "portrait", ["aesthetic", "comp_score"],
+            default_config_path(), "portrait", ["aesthetic", "comp_score"],
         )
 
         assert w == pytest.approx([aesthetic / total, composition / total])

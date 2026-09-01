@@ -11,6 +11,7 @@ COPIED merge is how ``scoring_config.default.json`` drifted fourteen keys away
 from the config it was supposed to seed.
 """
 
+import copy
 import json
 import os
 
@@ -36,14 +37,36 @@ def default_config_path():
     return env_path or os.path.join(_REPO_ROOT, CONFIG_FILENAME)
 
 
-def config_path_is_named():
-    """Whether an operator NAMED the config path rather than inheriting the default.
+def path_is_named(config_path=None):
+    """Whether a HUMAN chose ``config_path``, rather than inheriting the default.
 
     The two differ only when the file is absent, and there they differ
     completely: an unnamed absent config is an install running purely on
-    defaults, while a named one is a typo, a bad mount or a moved file.
+    defaults, while a named one is a typo, a bad mount or a moved file, and
+    reading it as "no overrides" would silently score with defaults the
+    operator never chose.
+
+    $FACET_CONFIG set means named, whatever the argument: the whole point of
+    that variable is that the operator aimed it, so a missing target must fail
+    closed rather than resolve to defaults carrying an empty
+    ``viewer.edition_password``.
+
+    Otherwise the ARGUMENT decides, compared as a real path against the
+    install-root default. Passing a path is not the same as naming one --
+    WeightOptimizer, calibrate, the personal ranker and keeper_head all resolve
+    the default themselves and hand it over, so `config_path is not None` would
+    make every one of them fail on a zero-config install. The comparison is
+    deliberately NOT made against the cwd-relative ``'scoring_config.json'``:
+    that binds to the process working directory, so `python /opt/facet/facet.py`
+    run from elsewhere would read its own directory's absent file as the
+    inherited default and silently score on shipped defaults while the
+    operator's real config sat unread in the install root.
     """
-    return bool(os.environ.get(CONFIG_PATH_ENV_VAR, '').strip())
+    if os.environ.get(CONFIG_PATH_ENV_VAR, '').strip():
+        return True
+    if not config_path:
+        return False
+    return os.path.abspath(config_path) != os.path.abspath(default_config_path())
 
 
 def load_defaults():
@@ -53,6 +76,15 @@ def load_defaults():
     so an unreadable one is not a degraded install but one whose every unset
     key would silently take a value hardcoded somewhere else — which is exactly
     the failure this file exists to end.
+
+    Returns a FRESH parse on every call, and callers rely on that: the
+    zero-override path in :func:`load_resolved` hands this dict straight back,
+    and ``ScoringConfig`` then writes $FACET_VRAM_PROFILE into it in place.
+    Caching this (an lru_cache is the obvious optimisation — it is ~0.5 ms and
+    ~98 KB) would make that mutation leak into every later reader, so a cache
+    here MUST hand out a deep copy. Measure first: the viewer already resolves
+    once at boot into ``api.config._FULL_CONFIG``, so this is not on a request
+    path.
     """
     path = defaults_path()
     try:
@@ -76,13 +108,21 @@ def deep_merge(base, override):
     the order given, ``categories`` breaks priority ties on array position — and
     because element-wise merging would resurrect a category the operator
     deliberately deleted.
+
+    The result shares no mutable object with ``base``: it is deep-copied, so a
+    caller that edits one corner of the resolved config -- which every writer
+    does -- cannot reach back into the defaults it was resolved from. With a
+    shallow copy the untouched branches were the SAME list and dict objects,
+    so appending to the resolved ``categories`` appended to the defaults too.
+    That is inert only while ``load_defaults`` re-reads the file on every call;
+    it becomes a cross-request bug the moment anything caches it.
     """
-    result = base.copy()
+    result = copy.deepcopy(base)
     for key, value in override.items():
         if key in result and isinstance(result[key], dict) and isinstance(value, dict):
             result[key] = deep_merge(result[key], value)
         else:
-            result[key] = value
+            result[key] = copy.deepcopy(value)
     return result
 
 
@@ -142,7 +182,7 @@ def load_resolved(path=None, named=None):
     which is a supported, zero-config state.
     """
     path = path or default_config_path()
-    named = config_path_is_named() if named is None else named
+    named = path_is_named(path) if named is None else named
     defaults = load_defaults()
     if not os.path.exists(path):
         if named:
@@ -153,4 +193,10 @@ def load_resolved(path=None, named=None):
                 f"the shipped defaults.")
         return defaults
     with open(path) as f:
-        return deep_merge(defaults, json.load(f))
+        override = json.load(f)
+    if not isinstance(override, dict):
+        raise ValueError(
+            f"{path} must hold a JSON object of overrides, not "
+            f"{type(override).__name__}. It records the settings you changed; "
+            f"an install that changes nothing holds {{}}.")
+    return deep_merge(defaults, override)

@@ -341,6 +341,26 @@ class TestScoringContexts:
         assert not any(issue.startswith("scoring_contexts.") for issue in issues)
 
 
+def _only_these_contexts(scoring_contexts):
+    """``scoring_contexts`` with every SHIPPED context neutralised around it.
+
+    ``ScoringConfig`` resolves a config over the shipped defaults, and
+    ``scoring_contexts`` is a dict, so the shipped presets merge into any
+    fixture that does not mention them -- and are then validated against the
+    fixture's handful of categories, which they legitimately fail, since they
+    promote fourteen the fixture does not define. Each shipped name is
+    overridden with an empty context so only what a test declares is under
+    test. Derived from the defaults rather than hard-coded, so a new shipped
+    preset cannot silently reintroduce the leak.
+    """
+    neutralised = {
+        name: {"label_key": name, "promote": [], "excluded": [],
+               "suggest_from_moments": []}
+        for name in load_defaults().get("scoring_contexts", {})
+    }
+    return {**neutralised, **scoring_contexts}
+
+
 class TestValidateCategoriesScoringContexts:
     """validate_categories() reports config mistakes in scoring_contexts rather
     than silently dropping them (typo'd names, promote/excluded overlaps, and
@@ -366,14 +386,9 @@ class TestValidateCategoriesScoringContexts:
         reintroduce the leak.
         """
         config_path = tmp_path / "scoring_config.json"
-        neutralised = {
-            name: {"label_key": name, "promote": [], "excluded": [],
-                   "suggest_from_moments": []}
-            for name in load_defaults().get("scoring_contexts", {})
-        }
         config = {
             "categories": self._CATEGORIES,
-            "scoring_contexts": {**neutralised, **scoring_contexts},
+            "scoring_contexts": _only_these_contexts(scoring_contexts),
             "narrative_moments": narrative_moments or {
                 "default_event_type": "general",
                 "event_types": {"general": {"sports": [], "nature_wildlife": []}},
@@ -462,7 +477,7 @@ class TestValidateCategoriesMalformedScoringContexts:
         config_path = tmp_path / "scoring_config.json"
         config_path.write_text(json.dumps({
             "categories": self._CATEGORIES,
-            "scoring_contexts": scoring_contexts,
+            "scoring_contexts": _only_these_contexts(scoring_contexts),
         }))
         return ScoringConfig(config_path=str(config_path), validate=False)
 
@@ -516,7 +531,7 @@ class TestResolveContextOrderEdgeCases:
         config_path = tmp_path / "scoring_config.json"
         config_path.write_text(json.dumps({
             "categories": self._CATEGORIES,
-            "scoring_contexts": scoring_contexts,
+            "scoring_contexts": _only_these_contexts(scoring_contexts),
         }))
         return ScoringConfig(config_path=str(config_path), validate=False)
 
@@ -586,7 +601,7 @@ class TestResolveContextOrderMalformedShapes:
         config_path = tmp_path / "scoring_config.json"
         config_path.write_text(json.dumps({
             "categories": self._CATEGORIES,
-            "scoring_contexts": scoring_contexts,
+            "scoring_contexts": _only_these_contexts(scoring_contexts),
         }))
         return ScoringConfig(config_path=str(config_path), validate=False)
 

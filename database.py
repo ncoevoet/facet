@@ -139,13 +139,12 @@ def _compact_config():
     which is what :func:`config_resolve.delta_for_write` guarantees. A backup is
     taken first anyway, at 0600, because the file holds plaintext credentials.
     """
-    from api.config_writes import write_owner_only_backup
+    from api.config_writes import _backup_config
 
     before = os.path.getsize(CONFIG_PATH) if os.path.exists(CONFIG_PATH) else 0
     config = _load_config()
-    if os.path.exists(CONFIG_PATH):
-        backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        write_owner_only_backup(CONFIG_PATH, backup_path)
+    backup_path = _backup_config(CONFIG_PATH, prune=False)
+    if backup_path:
         logger.info("Backup saved to %s", backup_path)
     with open(CONFIG_PATH, 'w') as f:
         json.dump(delta_for_write(config), f, indent=2)
