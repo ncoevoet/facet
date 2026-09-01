@@ -186,6 +186,101 @@ def _make_mps_torch():
     return mock_torch
 
 
+def _make_blackwell_torch():
+    """torch stand-in for a CUDA build that ships no kernels for the local GPU.
+
+    ``is_available()`` is True and the VRAM reads back fine -- exactly what an
+    RTX 50-series card (``sm_120``) on a CUDA 12.6 wheel reports right up to
+    the first real tensor op, which dies with "no kernel image is available
+    for execution on the device" (issue #119).
+    """
+    mock_torch = _make_mock_torch_module()
+    mock_torch.__version__ = "2.6.0+cu126"
+    mock_torch.version = types.SimpleNamespace(cuda="12.6")
+    mock_torch.backends = types.SimpleNamespace(
+        cudnn=types.SimpleNamespace(version=lambda: 90100)
+    )
+    mock_torch.cuda = types.SimpleNamespace(
+        is_available=lambda: True,
+        get_device_name=lambda idx: "NVIDIA GeForce RTX 5070 Ti",
+        get_device_properties=lambda idx: types.SimpleNamespace(
+            total_memory=16 * 1024**3, major=12, minor=0,
+        ),
+        get_device_capability=lambda idx=0: (12, 0),
+        get_arch_list=lambda: [
+            "sm_50", "sm_60", "sm_70", "sm_75", "sm_80", "sm_86", "sm_90",
+        ],
+    )
+    return mock_torch
+
+
+def _make_busy_gpu_torch():
+    """torch stand-in for a supported card that is momentarily unusable.
+
+    The arch list covers the device, so nothing is wrong with the build --
+    another process simply holds the card. Reading that as "no kernels for
+    this device" would demote a whole scan to CPU and blame the install.
+    """
+    mock_torch = _make_cuda_torch()
+    mock_torch.cuda.get_device_capability = lambda idx=0: (8, 6)
+    mock_torch.cuda.get_arch_list = lambda: [
+        "sm_50", "sm_60", "sm_70", "sm_75", "sm_80", "sm_86", "sm_90",
+    ]
+
+    def _busy(*args, **kwargs):
+        raise RuntimeError("CUDA error: all CUDA-capable devices are busy or unavailable")
+
+    mock_torch.zeros = _busy
+    return mock_torch
+
+
+class TestDoctorBlackwellArchMismatch:
+    """--doctor must not read all-green on a GPU no kernel can launch on.
+
+    Before issue #119 every check here passed -- CUDA compiled, cuDNN found,
+    is_available() True, VRAM and compute capability printed -- and the scan
+    then crashed on its first batch.
+    """
+
+    def _run(self, capsys, tmp_path, monkeypatch):
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        _fake_effective_memory(monkeypatch, 31)
+        with mock.patch.dict("sys.modules", {"torch": _make_blackwell_torch()}), \
+             mock.patch("diagnostics.subprocess.run"):
+            run_doctor(
+                config_path=str(tmp_path / "no.json"),
+                db_path=str(tmp_path / "no.db"),
+            )
+        return capsys.readouterr().out
+
+    def test_reports_the_mismatch_instead_of_an_ok_gpu(self, capsys, tmp_path, monkeypatch):
+        out = self._run(capsys, tmp_path, monkeypatch)
+        assert "GPU Troubleshooting" in out
+        assert "[!!] GPU unusable by this PyTorch build" in out
+        assert "sm_120" in out
+        assert "[OK] torch.cuda.is_available(): True" not in out
+        assert "[OK] VRAM" not in out
+
+    def test_names_the_image_tag_to_switch_to(self, capsys, tmp_path, monkeypatch):
+        out = self._run(capsys, tmp_path, monkeypatch)
+        assert "ghcr.io/ncoevoet/facet:latest-cuda-legacy" in out
+        assert "cu126" in out
+
+    def test_runtime_device_falls_back_to_cpu(self, capsys, tmp_path, monkeypatch):
+        out = self._run(capsys, tmp_path, monkeypatch)
+        assert "[OK] Facet runtime device: cpu" in out
+
+    def test_does_not_blame_a_cpu_only_pytorch_build(self, capsys, tmp_path, monkeypatch):
+        out = self._run(capsys, tmp_path, monkeypatch)
+        assert "PyTorch was built without CUDA support" not in out
+
+    def test_the_profile_section_agrees_with_the_diagnosis(self, capsys, tmp_path, monkeypatch):
+        """One --doctor run must not both explain the card and deny it exists."""
+        out = self._run(capsys, tmp_path, monkeypatch)
+        assert "[OK] Recommended: GPU unusable by this PyTorch build" in out
+        assert "No GPU detected" not in out
+
+
 class TestDoctorMPS:
     def test_reports_mps_as_active_without_nvidia_warning(self, capsys, tmp_path, monkeypatch):
         monkeypatch.delenv("FACET_DEVICE", raising=False)
@@ -344,6 +439,24 @@ class TestDetectGpuVramGb:
             result = ScoringConfig.detect_gpu_vram_gb()
         assert result is None
 
+    def test_unusable_gpu(self):
+        """A card this build ships no kernels for must not size a profile.
+
+        This is the line that decides whether a GPU profile gets committed,
+        and it reports VRAM perfectly happily on an RTX 50-series card that
+        cannot launch a kernel (issue #119). Asserted directly here because
+        every other suite mocks this method out.
+        """
+        with mock.patch.dict("sys.modules", {"torch": _make_blackwell_torch()}):
+            result = ScoringConfig.detect_gpu_vram_gb()
+        assert result is None
+
+    def test_busy_gpu_still_reports_its_vram(self):
+        """A transient failure must not look like an unusable card."""
+        with mock.patch.dict("sys.modules", {"torch": _make_busy_gpu_torch()}):
+            result = ScoringConfig.detect_gpu_vram_gb()
+        assert result == 24.0
+
 
 class TestSuggestVramProfile:
     """Test ScoringConfig.suggest_vram_profile() with explicit vram_gb."""
@@ -400,6 +513,58 @@ class TestSuggestVramProfile:
         assert profile == 'legacy'
         assert vram is None
         assert 'No GPU detected' in msg
+
+    def test_unusable_gpu_is_not_reported_as_an_absent_one(self, monkeypatch):
+        """A present-but-unusable card must not read as "No GPU detected".
+
+        --doctor prints this line one section below the arch-mismatch
+        diagnosis, so the old wording made one run contradict itself: the
+        troubleshooting block explains the card while the profile block
+        denies it exists (issue #119).
+        """
+        _fake_effective_memory(monkeypatch, 31)
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        with mock.patch.dict("sys.modules", {"torch": _make_blackwell_torch()}), \
+             mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None):
+            profile, vram, msg = ScoringConfig.suggest_vram_profile()
+        assert profile == 'legacy'
+        assert vram is None
+        assert 'No GPU detected' not in msg
+        assert 'GPU unusable by this PyTorch build' in msg
+        assert 'sm_120' in msg
+        assert '31GB RAM' in msg
+
+    def test_a_busy_gpu_is_not_reported_as_an_unusable_build(self, monkeypatch):
+        """A momentarily busy card must not read as a wrong PyTorch build.
+
+        detect_gpu_vram_gb sees the card, so this never reaches the no-VRAM
+        branch at all -- which is the point: the scan keeps its GPU profile
+        instead of silently falling to a CPU run of the whole library.
+        """
+        _fake_effective_memory(monkeypatch, 31)
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        with mock.patch.dict("sys.modules", {"torch": _make_busy_gpu_torch()}):
+            profile, vram, msg = ScoringConfig.suggest_vram_profile()
+        assert profile == '24gb'
+        assert vram == 24.0
+        assert 'unusable' not in msg
+        assert 'No GPU detected' not in msg
+
+    def test_absent_gpu_keeps_the_no_gpu_wording(self, monkeypatch):
+        """The genuinely absent case is untouched -- only the present one moves."""
+        _fake_effective_memory(monkeypatch, 31)
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        no_cuda = _make_mock_torch_module()
+        no_cuda.cuda = types.SimpleNamespace(is_available=lambda: False)
+        no_cuda.backends = types.SimpleNamespace(
+            cudnn=types.SimpleNamespace(version=lambda: None)
+        )
+        with mock.patch.dict("sys.modules", {"torch": no_cuda}), \
+             mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None):
+            profile, _, msg = ScoringConfig.suggest_vram_profile()
+        assert profile == 'legacy'
+        assert 'No GPU detected' in msg
+        assert 'unusable' not in msg
 
     def test_no_gpu_low_ram(self, monkeypatch):
         """No GPU, low RAM → legacy with limited CPU mode."""
@@ -548,6 +713,22 @@ class TestCheckVramProfileCompatibility:
             ok, profile, msg = config.check_vram_profile_compatibility(verbose=False)
         assert ok is True
         assert profile == 'legacy'
+
+    def test_unusable_gpu_is_not_reported_as_an_absent_one(self, config_file, monkeypatch):
+        """An explicit 16gb profile on a card the wheel cannot run must say so.
+
+        The card is physically present and the driver sees it, so "No GPU
+        detected" sends the user hunting for the wrong problem (issue #119).
+        """
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        config = config_file('16gb')
+        with mock.patch.dict("sys.modules", {"torch": _make_blackwell_torch()}), \
+             mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None):
+            ok, profile, msg = config.check_vram_profile_compatibility(verbose=False)
+        assert ok is False
+        assert profile == 'legacy'
+        assert "No GPU detected" not in msg
+        assert "sm_120" in msg
 
 
 # --- End-to-End Simulation Tests ---
