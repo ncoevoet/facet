@@ -9,10 +9,15 @@ other removes the whole class: there is nothing left to keep in step.
 """
 
 import json
+import os
+import stat
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
-from config import ScoringConfig
+from config import ScoringConfig, default_config_path
 from config_resolve import (
     deep_merge, defaults_path, delta_for_write, load_defaults, load_resolved,
     subtract_defaults,
@@ -179,3 +184,71 @@ class TestScoringConfigResolvesTheSameWay:
     def test_a_named_missing_config_still_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
             ScoringConfig(config_path=str(tmp_path / "nope.json"), validate=False)
+
+    @pytest.mark.parametrize("spelling", ["relative", "absolute"])
+    def test_the_inherited_default_is_unnamed_however_it_is_spelled(self, spelling):
+        """Passing a path is not the same as a human naming one.
+
+        WeightOptimizer, calibrate and the personal ranker resolve the default
+        themselves and hand it over as the relative ``'scoring_config.json'``;
+        keeper_head hands over the absolute one from ``default_config_path``.
+        Comparing strings rather than paths made the absolute spelling look
+        named, so every keeper-head run raised FileNotFoundError on an install
+        with no override file -- which is now the ordinary zero-config install.
+        """
+        path = ("scoring_config.json" if spelling == "relative"
+                else default_config_path())
+
+        assert ScoringConfig(config_path=path, validate=False).config["categories"]
+
+
+class TestCompactConfig:
+    """``python database.py --compact-config`` shrinks a pre-split config in place."""
+
+    def _run(self, config_path):
+        return subprocess.run(
+            [sys.executable, "database.py", "--compact-config"],
+            cwd=Path(__file__).resolve().parent.parent,
+            env={**os.environ, "FACET_CONFIG": str(config_path)},
+            capture_output=True, text=True,
+        )
+
+    def test_a_full_config_compacts_to_nothing_and_resolves_the_same(self, tmp_path):
+        """The shipped config IS the defaults, so an operator who never changed
+        anything ends up with an empty override -- and loses nothing by it."""
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps(load_defaults(), indent=2))
+        before = load_resolved(str(config_path), named=True)
+
+        result = self._run(config_path)
+
+        assert result.returncode == 0, result.stderr
+        assert json.loads(config_path.read_text()) == {}
+        assert load_resolved(str(config_path), named=True) == before
+
+    def test_it_keeps_every_edit_and_drops_only_the_defaults(self, tmp_path):
+        config_path = tmp_path / "scoring_config.json"
+        full = load_defaults()
+        full["performance"]["mmap_size_mb"] = 99
+        full["viewer"]["edition_password"] = "kept"
+        config_path.write_text(json.dumps(full, indent=2))
+
+        result = self._run(config_path)
+
+        assert result.returncode == 0, result.stderr
+        delta = json.loads(config_path.read_text())
+        assert delta["performance"] == {"mmap_size_mb": 99}
+        assert delta["viewer"] == {"edition_password": "kept"}
+        assert load_resolved(str(config_path), named=True) == full
+
+    def test_it_leaves_an_owner_only_backup(self, tmp_path):
+        """The file holds plaintext credentials, so the safety copy must not be
+        readable by group or other."""
+        config_path = tmp_path / "scoring_config.json"
+        config_path.write_text(json.dumps(load_defaults(), indent=2))
+
+        assert self._run(config_path).returncode == 0
+
+        backups = list(tmp_path.glob("scoring_config.json.backup.*"))
+        assert len(backups) == 1
+        assert stat.S_IMODE(backups[0].stat().st_mode) == 0o600

@@ -297,7 +297,14 @@ Solo lectura: decodifica una muestra aleatoria directamente desde el disco e imp
 
 ## Configuración
 
-La variable de entorno `FACET_CONFIG`, cuando está definida, proporciona la ruta predeterminada de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` y `calibrate.py` cuando se ejecutan sin un `--config` explícito; `--config` siempre la anula. Si la variable nombra un archivo que no existe, el visor rechaza la ruta de autenticación de instalación abierta en lugar de concluir que la instalación no tiene contraseñas, y registra un error que nombra la ruta que falta.
+`scoring_config.json` es una **anulación**: contiene solo los ajustes que has
+cambiado, y se resuelve por encima de los valores predeterminados distribuidos en
+`config/scoring_config.default.json`. La ausencia del archivo de configuración es,
+por tanto, una instalación que funciona enteramente con esos valores
+predeterminados, no una instalación rota — consulta
+[Configuración](CONFIGURATION.md#valores-predeterminados-y-tu-anulación).
+
+La variable de entorno `FACET_CONFIG`, cuando está definida, proporciona la ruta predeterminada de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` y `calibrate.py` cuando se ejecutan sin un `--config` explícito; `--config` siempre la anula. Si la variable — o `--config` — nombra un archivo que no existe, eso es un error y no una anulación vacía: una ruta que alguien NOMBRÓ y que falta delata una errata o un montaje roto, así que el visor rechaza la ruta de autenticación de instalación abierta en lugar de concluir que la instalación no tiene contraseñas, y registra un error que nombra la ruta que falta. Solo la ruta predeterminada *heredada* puede estar ausente.
 
 | Comando | Descripción |
 |---------|-------------|
@@ -336,6 +343,7 @@ Comprueba: rangos de puntuación, métricas faciales, corrupción de BLOB, tama�
 | `python database.py --rebuild-fts` | Reconstruye el índice de búsqueda de texto completo FTS5 a partir de leyendas/etiquetas |
 | `python database.py --populate-vec` | Puebla la tabla de búsqueda vectorial sqlite-vec a partir de los embeddings |
 | `python database.py --refresh-stats` | Actualiza la caché de estadísticas |
+| `python database.py --compact-config` | Reescribe `scoring_config.json` como la anulación que realmente es, descartando todo valor igual al predeterminado distribuido (sin pérdida de información; toma primero una copia de seguridad en `0600`) |
 | `python database.py --stats-info` | Muestra el estado y la antigüedad de la caché |
 | `python database.py --vacuum` | Recupera espacio y desfragmenta |
 | `python database.py --analyze` | Actualiza las estadísticas del planificador de consultas |

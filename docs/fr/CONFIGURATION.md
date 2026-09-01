@@ -6,6 +6,7 @@ Tous les réglages se trouvent dans `scoring_config.json`. Après modification, 
 
 ## Table des matières
 
+- [Valeurs par défaut et votre surcharge](#valeurs-par-défaut-et-votre-surcharge)
 - [Utilisateurs](#users)
 - [Analyse](#scanning)
 - [Catégories](#categories)
@@ -44,6 +45,69 @@ Tous les réglages se trouvent dans `scoring_config.json`. Après modification, 
 - [Traduction](#translation)
 
 ---
+
+## Valeurs par défaut et votre surcharge
+
+`scoring_config.json` ne contient **que ce que vous avez modifié**. Tout ce que Facet
+fournit vit dans `config/scoring_config.default.json`, et votre fichier est résolu
+par-dessus celui-ci : tout ce que vous omettez conserve la valeur livrée. Une toute
+nouvelle installation n'a aucun `scoring_config.json` et fonctionne entièrement sur les
+valeurs par défaut.
+
+Ainsi, pour augmenter le poids esthétique des portraits et définir un mot de passe
+d'édition, le fichier complet est :
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Deux règles régissent la manière dont les deux sont combinés :
+
+- **Les objets fusionnent clé par clé.** `{"performance": {"mmap_size_mb": 4096}}`
+  change ce seul réglage et laisse `cache_size_mb`, ainsi que toute autre clé de
+  `performance`, à sa valeur livrée.
+- **Les tableaux remplacent en bloc.** Si votre fichier comporte un tableau
+  `categories`, il remplace entièrement celui livré — il n'est pas fusionné catégorie
+  par catégorie. C'est délibéré : `categories` est évalué au premier qui correspond
+  dans l'ordre de priorité, et `scoring_contexts.*.promote` est lu dans l'ordre où vous
+  l'écrivez, si bien que fusionner les tableaux élément par élément réordonnerait
+  silencieusement la notation. C'est aussi le seul moyen de **supprimer** quelque
+  chose : une catégorie que vous omettez de votre tableau disparaît, alors qu'un
+  tableau fusionné continuerait à la renvoyer.
+
+  Conséquence pratique : changer un seul poids dans une seule catégorie signifie que
+  votre fichier les porte toutes. Copiez le tableau `categories` depuis
+  `config/scoring_config.default.json`, modifiez-le et conservez-le — les quelque 1500
+  autres lignes de la configuration livrée restent hors de votre fichier.
+
+### Mettre à niveau une installation existante
+
+Rien à faire : un `scoring_config.json` complet issu d'une version antérieure se
+résout sur lui-même et continue de fonctionner. Mais vos propres modifications sont
+invisibles au milieu de 3700 lignes de valeurs livrées, et les réglages que vous n'avez
+jamais choisis restent figés à la valeur qu'ils avaient au moment où vous avez copié le
+fichier.
+
+```bash
+python database.py --compact-config
+```
+
+le réécrit comme la surcharge qu'il est réellement, en supprimant chaque valeur
+identique à celle livrée par défaut. Il prend d'abord une sauvegarde en `0600`, et
+l'opération est sans perte — le fichier se résout ensuite sur exactement la même
+configuration.
+
+> **Le compromis, dit franchement.** Une fois qu'une valeur est supprimée parce
+> qu'elle correspondait au défaut, une future version de Facet qui change ce défaut
+> change aussi votre comportement. C'est précisément le but — c'est ainsi que les
+> nouveaux réglages vous parviennent sans que vous ayez à éditer votre fichier — mais
+> si vous voulez qu'une valeur reste fixée quoi qu'il arrive, définissez-la
+> explicitement, ou conservez-la dans votre surcharge même là où elle correspond au
+> défaut actuel.
+
 
 ## Utilisateurs
 

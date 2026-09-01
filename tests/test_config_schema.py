@@ -28,7 +28,7 @@ def _minimal_valid():
 
 class TestSchemaValidation:
     def test_shipped_config_is_valid(self):
-        cfg = ScoringConfig("scoring_config.json", validate=False)
+        cfg = ScoringConfig("config/scoring_config.default.json", validate=False)
         assert cfg.validate_schema() == []
 
     def test_minimal_valid_config_passes(self, tmp_path):

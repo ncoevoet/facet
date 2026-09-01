@@ -37,7 +37,7 @@ class _StubModelManager:
 
 class _StubScorer:
     def __init__(self, db_path):
-        self.config = ScoringConfig("scoring_config.json")
+        self.config = ScoringConfig("config/scoring_config.default.json")
         self.face_analyzer = object()
         self.saved = []
         self.db_path = db_path

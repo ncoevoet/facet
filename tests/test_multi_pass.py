@@ -153,7 +153,7 @@ class TestTaggingModelRouting:
         assert proc._pass_vlm_tagger.called
 
 
-SHIPPED_CONFIGS = ("scoring_config.json", "config/scoring_config.default.json")
+SHIPPED_CONFIGS = ("config/scoring_config.default.json",)
 
 # Composition model string in a profile -> the model name the multi-pass path
 # selects and dispatches for it. A profile configured with anything else gets no
@@ -216,7 +216,7 @@ class TestShippedProfileCompositionRouting:
 
     @pytest.mark.parametrize("profile_name", ["legacy", "8gb", "16gb", "24gb"])
     def test_selected_composition_model_survives_pass_grouping(self, profile_name):
-        proc = _processor_for_shipped_profile("scoring_config.json", profile_name)
+        proc = _processor_for_shipped_profile("config/scoring_config.default.json", profile_name)
         models = proc._select_models()
         groups = proc.model_manager.group_passes_by_vram(models, proc.available_vram)
         assert any("samp_net" in group for group in groups)
@@ -375,7 +375,7 @@ def _cpu_manager():
     from config import ScoringConfig
     from models.model_manager import ModelManager
 
-    config = ScoringConfig(str(_shipped_config_path("scoring_config.json")))
+    config = ScoringConfig(str(_shipped_config_path("config/scoring_config.default.json")))
     config.config["models"]["vram_profile"] = "8gb"
     return ModelManager(config)
 

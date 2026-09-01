@@ -6,6 +6,7 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 
 ## Table of Contents
 
+- [Defaults and your override](#defaults-and-your-override)
 - [Users](#users)
 - [Scanning](#scanning)
 - [Categories](#categories)
@@ -44,6 +45,62 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Translation](#translation)
 
 ---
+
+## Defaults and your override
+
+`scoring_config.json` holds **only what you changed**. Everything Facet ships lives in
+`config/scoring_config.default.json`, and your file is resolved on top of it: anything
+you leave out keeps the shipped value. A brand-new install has no `scoring_config.json`
+at all, and runs entirely on the defaults.
+
+So to raise the aesthetic weight for portraits and set an edition password, the whole
+file is:
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Two rules govern how the two are combined:
+
+- **Objects merge key by key.** `{"performance": {"mmap_size_mb": 4096}}` changes that
+  one setting and leaves `cache_size_mb` and every other `performance` key at its
+  shipped value.
+- **Arrays replace wholesale.** If your file has a `categories` array, it replaces the
+  shipped one entirely — it is not merged category by category. That is deliberate:
+  `categories` is evaluated first-match-wins in priority order and
+  `scoring_contexts.*.promote` is read in the order you write it, so merging arrays
+  element by element would silently reorder scoring. It is also the only way to
+  **delete** something: a category you leave out of your array is gone, whereas a
+  merged array would keep handing it back.
+
+  The practical consequence: changing one weight in one category means your file
+  carries all of them. Copy the `categories` array out of
+  `config/scoring_config.default.json`, edit it, and keep it — the other ~1500 lines of
+  the shipped config still stay out of your file.
+
+### Upgrading an existing install
+
+Nothing to do: a full `scoring_config.json` from an earlier release resolves to itself
+and keeps working. But your own edits are invisible in 3700 lines of shipped values, and
+settings you never chose are frozen at the values they had when you copied the file.
+
+```bash
+python database.py --compact-config
+```
+
+rewrites it as the override it is, dropping every value that equals the shipped default.
+It takes a `0600` backup first, and it is lossless — the file resolves to exactly the
+same configuration afterwards.
+
+> **The trade-off, stated plainly.** Once a value is dropped because it matched the
+> default, a later Facet release that changes that default changes your behaviour too.
+> That is the point — it is how new tuning reaches you without editing your file — but
+> if you want a value pinned regardless of what ships, set it explicitly to something,
+> or keep it in your override even where it happens to match today.
+
 
 ## Users
 

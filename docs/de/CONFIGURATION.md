@@ -6,6 +6,7 @@ Alle Einstellungen befinden sich in `scoring_config.json`. Führen Sie nach eine
 
 ## Inhaltsverzeichnis
 
+- [Standardwerte und Ihre Überschreibung](#standardwerte-und-ihre-überschreibung)
 - [Benutzer](#users)
 - [Scannen](#scanning)
 - [Kategorien](#categories)
@@ -44,6 +45,72 @@ Alle Einstellungen befinden sich in `scoring_config.json`. Führen Sie nach eine
 - [Übersetzung](#translation)
 
 ---
+
+## Standardwerte und Ihre Überschreibung
+
+`scoring_config.json` enthält **nur das, was Sie geändert haben**. Alles, was Facet
+ausliefert, lebt in `config/scoring_config.default.json`, und Ihre Datei wird darüber
+aufgelöst: Alles, was Sie weglassen, behält den ausgelieferten Wert. Eine brandneue
+Installation hat überhaupt keine `scoring_config.json` und läuft vollständig auf den
+Standardwerten.
+
+Um also das ästhetische Gewicht für Porträts zu erhöhen und ein Edition-Passwort zu
+setzen, sieht die gesamte Datei so aus:
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Zwei Regeln bestimmen, wie beide zusammengeführt werden:
+
+- **Objekte werden Schlüssel für Schlüssel zusammengeführt.**
+  `{"performance": {"mmap_size_mb": 4096}}` ändert nur diese eine Einstellung und
+  belässt `cache_size_mb` sowie jeden anderen `performance`-Schlüssel bei seinem
+  ausgelieferten Wert.
+- **Arrays werden vollständig ersetzt.** Enthält Ihre Datei ein `categories`-Array,
+  ersetzt es das ausgelieferte vollständig – es wird nicht Kategorie für Kategorie
+  zusammengeführt. Das ist beabsichtigt: `categories` wird nach dem Prinzip
+  „erster Treffer gewinnt“ in Prioritätsreihenfolge ausgewertet, und
+  `scoring_contexts.*.promote` wird in der von Ihnen geschriebenen Reihenfolge
+  gelesen, sodass ein elementweises Zusammenführen der Arrays die Bewertung
+  stillschweigend umsortieren würde. Es ist auch der einzige Weg, etwas zu
+  **löschen**: Eine Kategorie, die Sie aus Ihrem Array weglassen, ist verschwunden,
+  während ein zusammengeführtes Array sie weiterhin zurückliefern würde.
+
+  Die praktische Konsequenz: Ändern Sie ein einziges Gewicht in einer einzigen
+  Kategorie, muss Ihre Datei alle davon enthalten. Kopieren Sie das `categories`-Array
+  aus `config/scoring_config.default.json`, bearbeiten Sie es und behalten Sie es –
+  die übrigen ~1500 Zeilen der ausgelieferten Konfiguration bleiben trotzdem außerhalb
+  Ihrer Datei.
+
+### Ein bestehendes Setup aktualisieren
+
+Nichts zu tun: Eine vollständige `scoring_config.json` aus einer früheren Version löst
+sich auf sich selbst auf und funktioniert weiterhin. Aber Ihre eigenen Anpassungen
+sind in 3700 Zeilen ausgelieferter Werte unsichtbar, und Einstellungen, die Sie nie
+selbst gewählt haben, sind auf die Werte eingefroren, die sie hatten, als Sie die
+Datei kopiert haben.
+
+```bash
+python database.py --compact-config
+```
+
+schreibt sie als die Überschreibung um, die sie tatsächlich ist, und verwirft dabei
+jeden Wert, der dem ausgelieferten Standard entspricht. Es wird zuerst eine Sicherung
+mit `0600` angelegt, und der Vorgang ist verlustfrei – die Datei löst sich danach auf
+exakt dieselbe Konfiguration auf.
+
+> **Der Kompromiss, unverblümt gesagt.** Sobald ein Wert verworfen wurde, weil er dem
+> Standard entsprach, ändert eine spätere Facet-Version, die diesen Standard ändert,
+> auch Ihr Verhalten. Das ist der Sinn der Sache – so erreichen Sie neue
+> Feinabstimmungen, ohne Ihre Datei zu bearbeiten –, aber wenn Sie einen Wert
+> unabhängig davon, was ausgeliefert wird, festnageln wollen, setzen Sie ihn explizit
+> auf einen Wert, oder behalten Sie ihn in Ihrer Überschreibung, auch dort, wo er
+> zufällig heute übereinstimmt.
+
 
 ## Users
 

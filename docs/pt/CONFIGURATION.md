@@ -6,6 +6,7 @@ Todas as configurações ficam em `scoring_config.json`. Após modificar, execut
 
 ## Sumário
 
+- [Padrões e Seu Override](#padrões-e-seu-override)
 - [Usuários](#users)
 - [Escaneamento](#scanning)
 - [Categorias](#categories)
@@ -44,6 +45,66 @@ Todas as configurações ficam em `scoring_config.json`. Após modificar, execut
 - [Tradução](#translation)
 
 ---
+
+## Padrões e Seu Override
+
+`scoring_config.json` guarda **apenas o que você mudou**. Tudo o que o Facet
+distribui vive em `config/scoring_config.default.json`, e seu arquivo é resolvido por
+cima dele: tudo o que você deixar de fora mantém o valor distribuído. Uma instalação
+novinha em folha não tem nenhum `scoring_config.json` e roda inteiramente com os
+padrões.
+
+Assim, para aumentar o peso estético dos retratos e definir uma senha de edição, o
+arquivo inteiro fica:
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Duas regras determinam como os dois são combinados:
+
+- **Objetos são mesclados chave por chave.** `{"performance": {"mmap_size_mb": 4096}}`
+  muda apenas essa configuração e deixa `cache_size_mb`, e qualquer outra chave de
+  `performance`, no valor distribuído.
+- **Arrays são substituídos por completo.** Se seu arquivo tiver um array
+  `categories`, ele substitui completamente o distribuído — não é mesclado categoria
+  por categoria. Isso é proposital: `categories` é avaliado em ordem de prioridade
+  pela lógica de que a primeira correspondência vence, e `scoring_contexts.*.promote`
+  é lido na ordem em que você o escreve, então mesclar os arrays elemento por elemento
+  reordenaria a pontuação silenciosamente. É também a única forma de **excluir**
+  algo: uma categoria que você deixa de fora do seu array desaparece, enquanto um
+  array mesclado continuaria devolvendo-a.
+
+  A consequência prática: mudar um único peso em uma única categoria significa que
+  seu arquivo precisa carregar todas elas. Copie o array `categories` de
+  `config/scoring_config.default.json`, edite-o e mantenha-o — as outras ~1500 linhas
+  da configuração distribuída continuam fora do seu arquivo.
+
+### Atualizando uma instalação existente
+
+Não há nada a fazer: um `scoring_config.json` completo de uma versão anterior se
+resolve sobre si mesmo e continua funcionando. Mas suas próprias edições ficam
+invisíveis em meio a 3700 linhas de valores distribuídos, e configurações que você
+nunca escolheu ficam congeladas no valor que tinham quando você copiou o arquivo.
+
+```bash
+python database.py --compact-config
+```
+
+o reescreve como o override que ele realmente é, descartando todo valor igual ao
+padrão distribuído. Ele faz um backup em `0600` primeiro, e não há perda de dados — o
+arquivo se resolve depois exatamente na mesma configuração.
+
+> **A contrapartida, dita sem rodeios.** Assim que um valor é descartado por
+> corresponder ao padrão, uma versão futura do Facet que muda esse padrão também muda
+> seu comportamento. Esse é justamente o ponto — é assim que os novos ajustes chegam
+> até você sem precisar editar seu arquivo —, mas se você quiser que um valor fique
+> fixo independentemente do que for distribuído, defina-o explicitamente, ou
+> mantenha-o no seu override mesmo onde ele hoje coincide com o padrão.
+
 
 ## Users
 

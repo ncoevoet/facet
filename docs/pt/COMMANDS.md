@@ -297,7 +297,14 @@ Somente leitura: decodifica uma amostra aleatória diretamente do disco e imprim
 
 ## Configuration
 
-A variável de ambiente `FACET_CONFIG`, quando definida, fornece o caminho padrão de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando são executados sem um `--config` explícito; `--config` sempre a sobrepõe. Se a variável nomear um ficheiro inexistente, o visualizador recusa o caminho de autenticação de instalação aberta em vez de concluir que a instalação não tem palavras-passe, e regista um erro que nomeia o caminho em falta.
+`scoring_config.json` é um **override**: contém apenas as configurações que você
+mudou, e é resolvido por cima dos padrões distribuídos em
+`config/scoring_config.default.json`. A ausência do arquivo de configuração é,
+portanto, uma instalação rodando inteiramente com esses padrões, não uma
+instalação quebrada — veja
+[Configuração](CONFIGURATION.md#padrões-e-seu-override).
+
+A variável de ambiente `FACET_CONFIG`, quando definida, fornece o caminho padrão de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando são executados sem um `--config` explícito; `--config` sempre a sobrepõe. Se a variável — ou `--config` — nomear um ficheiro inexistente, isso é um erro e não um override vazio: um caminho que alguém NOMEOU e que está faltando denuncia um erro de digitação ou uma montagem quebrada, então o visualizador recusa o caminho de autenticação de instalação aberta em vez de concluir que a instalação não tem palavras-passe, e regista um erro que nomeia o caminho em falta. Só o caminho padrão *herdado* pode estar ausente.
 
 | Comando | Descrição |
 |---------|-------------|
@@ -336,6 +343,7 @@ Verifica: faixas de pontuação, métricas faciais, corrupção de BLOB, tamanho
 | `python database.py --rebuild-fts` | Reconstrói o índice de busca textual completa FTS5 a partir de legendas/tags |
 | `python database.py --populate-vec` | Popula a tabela de busca vetorial sqlite-vec a partir dos embeddings |
 | `python database.py --refresh-stats` | Atualiza o cache de estatísticas |
+| `python database.py --compact-config` | Reescreve `scoring_config.json` como o override que ele é, descartando todo valor igual ao padrão distribuído (sem perda de dados; faz um backup em `0600` primeiro) |
 | `python database.py --stats-info` | Mostra o status e a idade do cache |
 | `python database.py --vacuum` | Recupera espaço, desfragmenta |
 | `python database.py --analyze` | Atualiza as estatísticas do planejador de consultas |

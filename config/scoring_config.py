@@ -175,6 +175,30 @@ def _unusable_cuda_status():
         return None
 
 
+def _path_was_named(config_path):
+    """Whether a HUMAN chose ``config_path``, rather than inheriting the default.
+
+    That decides what an absent file means: a named one that is missing is a
+    typo or a broken mount and must raise, while the inherited default simply
+    being absent is an install running on the shipped defaults.
+
+    Passing a path is NOT the same as naming one. WeightOptimizer, calibrate,
+    the personal ranker and keeper_head all resolve the default themselves and
+    hand it over, so ``config_path is not None`` would make every one of them
+    fail on a zero-config install. They also disagree on spelling -- some pass
+    the relative ``'scoring_config.json'`` that ``resolve_scoring_config_path``
+    returns, keeper_head the absolute one from ``default_config_path`` -- so the
+    comparison is made on real paths, not on strings.
+    """
+    if os.environ.get('FACET_CONFIG', '').strip():
+        return True
+    if not config_path:
+        return False
+    inherited = {os.path.abspath(resolve_scoring_config_path(None)),
+                 os.path.abspath(default_config_path())}
+    return os.path.abspath(config_path) not in inherited
+
+
 class ScoringConfig:
     """Loads and manages scoring configuration from JSON file.
 
@@ -184,8 +208,15 @@ class ScoringConfig:
 
     def __init__(self, config_path=None, validate=True):
         self.config_path = resolve_scoring_config_path(config_path)
-        self._config_path_is_named = bool(
-            config_path or os.environ.get('FACET_CONFIG', '').strip())
+        # Whether a HUMAN chose this path, which decides what an absent file
+        # means: a named one that is missing is a typo or a broken mount and
+        # must raise, while the inherited default simply being absent is an
+        # install running on the shipped defaults. Passing a path is not the
+        # same as naming one -- WeightOptimizer, calibrate and the personal
+        # ranker all resolve the default themselves and hand it over, so
+        # `config_path is not None` would make every one of them fail on a
+        # zero-config install.
+        self._config_path_is_named = _path_was_named(config_path)
         self.config = self._load_config()
         self._context_order_cache = {}
         self.version_hash = self._compute_version_hash()

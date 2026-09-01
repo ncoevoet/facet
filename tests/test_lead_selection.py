@@ -105,7 +105,7 @@ def test_process_bursts_uses_composite_tiebreak(tmp_path):
     conn.commit()
     conn.close()
 
-    config_path = os.path.join(os.path.dirname(__file__), "..", "scoring_config.json")
+    config_path = os.path.join(os.path.dirname(__file__), "..", "config/scoring_config.default.json")
     process_bursts(db_path, config_path=config_path)
 
     conn = sqlite3.connect(db_path)

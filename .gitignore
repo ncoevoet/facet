@@ -44,6 +44,20 @@ facet-config/
 # values (PHOTOS_DIR, DB_PATH, and whatever else a site adds).
 .env
 
+# The live config of a native install. It is the operator's OVERRIDE over the
+# defaults shipped in config/scoring_config.default.json — per-install by
+# definition, rewritten in place by the viewer's own weights, priorities,
+# password and share-secret writers, and holding viewer.password,
+# users.*.password_hash, upload.password, frame.tokens and immich.api_key in
+# plaintext. It was tracked, which is how a developer's local edits became the
+# project's shipped config and how that config drifted fourteen keys away from
+# the defaults every fresh install actually starts from.
+scoring_config.json
+
+# The library lock and the cull-preview cache, written beside the database at
+# runtime. Never part of a checkout.
+.facet_cache/
+
 # Config backups — both the bare name the secret migration and the password
 # upgrade write, and the timestamped ones from the config writers. The bare
 # name is NOT covered by the `.backup.*` pattern: it has no suffix.

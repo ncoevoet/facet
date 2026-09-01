@@ -576,7 +576,7 @@ class TestUnparseableConfigFailsClosed:
 # ---------------------------------------------------------------------------
 
 
-_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "scoring_config.json"
+_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "scoring_config.default.json"
 
 _VIEWER_PASSWORD = "viewer-pw"
 _EDITION_PASSWORD = "ed-pw"
@@ -596,7 +596,7 @@ class TestPasswordRotationRevokesTokens:
 
     @pytest.fixture()
     def locked_install(self, tmp_path):
-        """A real, locked scoring_config.json this process reads and reloads.
+        """A real, locked config (seeded from the shipped defaults) this process reads and reloads.
 
         Passwords are stored pre-hashed so ``upgrade_legacy_password`` stays
         inert and the file changes only when a test rotates it.

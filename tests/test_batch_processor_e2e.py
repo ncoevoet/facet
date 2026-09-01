@@ -80,7 +80,7 @@ class FakeScorer:
         self.uses_transformers_backend = True  # skip CLIP preprocess
         self.device = "cpu"
         self.tagger = None
-        self.config = ScoringConfig("scoring_config.json", validate=False)
+        self.config = ScoringConfig("config/scoring_config.default.json", validate=False)
         self.tech_analyzer = _FakeTechAnalyzer()
         self.face_analyzer = _FakeFaceAnalyzer()
         self._fail_inference = fail_inference

@@ -297,7 +297,13 @@ Nur lesend: Es dekodiert eine Zufallsstichprobe direkt von der Festplatte und gi
 
 ## Konfiguration
 
-Die Umgebungsvariable `FACET_CONFIG` liefert, wenn gesetzt, den Standardpfad zu `scoring_config.json` für `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` und `calibrate.py`, sofern diese ohne explizites `--config` ausgeführt werden; `--config` überschreibt sie immer. Benennt die Variable eine nicht vorhandene Datei, verweigert der Viewer den Auth-Pfad für eine offene Installation, statt zu schließen, dass die Installation keine Passwörter hat, und protokolliert einen Fehler mit dem fehlenden Pfad.
+`scoring_config.json` ist eine **Überschreibung**: Sie enthält nur die von Ihnen
+geänderten Einstellungen und wird über die in `config/scoring_config.default.json`
+ausgelieferten Standardwerte aufgelöst. Eine fehlende Konfigurationsdatei bedeutet
+daher eine Installation, die vollständig auf diesen Standardwerten läuft, nicht eine
+defekte — siehe [Konfiguration](CONFIGURATION.md#standardwerte-und-ihre-überschreibung).
+
+Die Umgebungsvariable `FACET_CONFIG` liefert, wenn gesetzt, den Standardpfad zu `scoring_config.json` für `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` und `calibrate.py`, sofern diese ohne explizites `--config` ausgeführt werden; `--config` überschreibt sie immer. Benennt die Variable — oder `--config` — eine nicht vorhandene Datei, ist das ein Fehler und keine leere Überschreibung: Ein Pfad, den jemand BENANNT hat und der fehlt, verrät einen Tippfehler oder einen defekten Mount, daher verweigert der Viewer den Auth-Pfad für eine offene Installation, statt zu schließen, dass die Installation keine Passwörter hat, und protokolliert einen Fehler mit dem fehlenden Pfad. Nur der *geerbte* Standardpfad darf fehlen.
 
 | Befehl | Beschreibung |
 |---------|-------------|
@@ -336,6 +342,7 @@ Prüft: Score-Bereiche, Gesichtsmetriken, BLOB-Beschädigung, Embedding-Größen
 | `python database.py --rebuild-fts` | FTS5-Volltextsuchindex aus Bildunterschriften/Tags neu aufbauen |
 | `python database.py --populate-vec` | sqlite-vec-Vektorsuchtabelle aus Embeddings befüllen |
 | `python database.py --refresh-stats` | Statistik-Cache aktualisieren |
+| `python database.py --compact-config` | `scoring_config.json` als die Überschreibung umschreiben, die sie ist, und dabei jeden Wert verwerfen, der dem ausgelieferten Standard entspricht (verlustfrei; legt zuerst eine Sicherung mit `0600` an) |
 | `python database.py --stats-info` | Cache-Status und -Alter anzeigen |
 | `python database.py --vacuum` | Speicher zurückgewinnen, defragmentieren |
 | `python database.py --analyze` | Statistiken des Query-Planers aktualisieren |

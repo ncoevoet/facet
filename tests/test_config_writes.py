@@ -27,7 +27,7 @@ from api.config_writes import (
 )
 from config.scoring_config import ScoringConfig
 
-REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "scoring_config.json"
+REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config/scoring_config.default.json"
 
 
 @pytest.fixture

@@ -4,15 +4,17 @@ set -e
 SEEDED_CONFIG=/config/scoring_config.json
 IMAGE_CONFIG=/app/scoring_config.json
 
-# Point FACET_CONFIG at the baked config when it names a seed that is not there.
-# An unset variable already resolves to $IMAGE_CONFIG on its own, and one aimed
-# anywhere else is the operator's choice and none of this seed's business.
-# ScoringConfig raises FileNotFoundError on a missing path rather than falling
-# back, so a FACET_CONFIG left naming the gap would abort the container.
-fall_back_to_image_config() {
+# Unset FACET_CONFIG when it names a seed that could not be created. A path the
+# operator NAMED and that is not there aborts the container rather than being
+# read as an install with no overrides -- deliberately, because that distinction
+# is what stops a typo'd mount from presenting as a passwordless install. An
+# UNSET variable is the supported zero-override state: it resolves to a
+# repo-root path that is equally absent, and an absent path nobody named
+# resolves to the defaults packaged in the image. One aimed anywhere else is the
+# operator's choice and none of this seed's business.
+fall_back_to_packaged_defaults() {
     if [ "${FACET_CONFIG:-}" = "$SEEDED_CONFIG" ]; then
-        FACET_CONFIG="$IMAGE_CONFIG"
-        export FACET_CONFIG
+        unset FACET_CONFIG
     fi
 }
 
@@ -24,15 +26,28 @@ fall_back_to_image_config() {
 # Best-effort, like the chown below: a `:ro` mount or an NFS root_squash export
 # makes the copy fail, and aborting on it (set -e) would refuse to start a
 # container whose own image already carries a working config. `|| true` would
-# not be enough, so fall_back_to_image_config names the alternative.
+# not be enough, so fall_back_to_packaged_defaults names the alternative.
 #
-# The seed source is $IMAGE_CONFIG, not the baked scoring_config.default.json,
-# and the two are the same file unless something replaced the first: an operator
-# upgrading from a compose that mounted
-# `./scoring_config.json:/app/scoring_config.json` has their OWN customized
-# config there, and seeding the sanitized default over it would silently reset
+# The seed is EMPTY, because the config file is now the operator's override and a
+# fresh install overrides nothing: every value comes from the defaults packaged in
+# the image. That is the whole point -- what lands in /config is the handful of
+# lines someone actually changed, not a 3700-line copy of the shipped config in
+# which their own three edits are invisible.
+#
+# $IMAGE_CONFIG is not baked into the image any more, so it exists only when an
+# operator mounted their own file there -- the upgrade path from a compose that
+# mounted `./scoring_config.json:/app/scoring_config.json`. That file is copied
+# across verbatim, because seeding an empty override over it would silently reset
 # their weights, categories and viewer password -- the last of which disables
-# edition gating entirely when empty.
+# edition gating entirely when empty. A full config still resolves to itself, so
+# nothing about carrying it across is lossy.
+write_seed() {
+    if [ -e "$IMAGE_CONFIG" ]; then
+        cp "$IMAGE_CONFIG" "$SEEDED_CONFIG" 2>/dev/null
+    else
+        printf '{}\n' > "$SEEDED_CONFIG" 2>/dev/null
+    fi
+}
 #
 # `-e` not `-f`, plus an explicit symlink refusal: under the root branch this
 # runs over a directory chowned to the unprivileged `facet` user, so anyone with
@@ -48,16 +63,15 @@ fall_back_to_image_config() {
 seed_config() {
     if [ -L "$SEEDED_CONFIG" ]; then
         echo "facet: $SEEDED_CONFIG is a symlink — refusing to write through it;" \
-            "falling back to the image's $IMAGE_CONFIG" >&2
-        fall_back_to_image_config
+            "falling back to the defaults packaged in the image" >&2
+        fall_back_to_packaged_defaults
         return
     fi
-    if [ ! -e "$SEEDED_CONFIG" ] \
-        && ! cp "$IMAGE_CONFIG" "$SEEDED_CONFIG" 2>/dev/null; then
+    if [ ! -e "$SEEDED_CONFIG" ] && ! write_seed; then
         echo "facet: cannot seed $SEEDED_CONFIG (read-only or root_squash mount) —" \
-            "falling back to the image's $IMAGE_CONFIG, whose edits are lost when" \
-            "the container is removed" >&2
-        fall_back_to_image_config
+            "falling back to the defaults packaged in the image, whose edits are" \
+            "lost when the container is removed" >&2
+        fall_back_to_packaged_defaults
         return
     fi
     chmod 600 "$SEEDED_CONFIG" 2>/dev/null || true

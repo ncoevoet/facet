@@ -21,7 +21,7 @@ import pytest
 from db.schema import init_database
 from optimization.weight_optimizer import WeightOptimizer, run_weight_optimization
 
-REPO_CONFIG = Path(__file__).resolve().parent.parent / 'scoring_config.json'
+REPO_CONFIG = Path(__file__).resolve().parent.parent / 'config' / 'scoring_config.default.json'
 
 
 def _seed(db_path, n_photos=40, seed=3):

@@ -260,7 +260,7 @@ class TestCli:
         init_database(db)
         result = subprocess.run(
             [sys.executable, "facet.py", "--recompute-category", "portrait",
-             "--db", db, "--config", "scoring_config.json"],
+             "--db", db, "--config", "config/scoring_config.default.json"],
             capture_output=True, text=True, cwd=_ROOT,
         )
         assert result.returncode == 0, result.stderr

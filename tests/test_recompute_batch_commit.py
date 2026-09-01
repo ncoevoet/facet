@@ -58,7 +58,7 @@ def test_samp_recompute_commits_per_batch(tmp_path, monkeypatch):
     monkeypatch.setattr("models.samp_net.SAMPNetScorer", _RaisingSampScorer)
     _load_image_modules()  # the real --recompute-composition-gpu path does this first
 
-    facet = Facet(db_path=db_path, config_path="scoring_config.json", lightweight=True)
+    facet = Facet(db_path=db_path, config_path=None, lightweight=True)
 
     with pytest.raises(KeyboardInterrupt):
         facet.rescan_samp_composition(batch_size=2)

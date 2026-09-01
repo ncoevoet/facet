@@ -21,7 +21,7 @@ from optimization.weight_optimizer import WeightOptimizer
 from tests.test_personal_ranker import _add_comparisons, _seed_photos
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_REAL_CONFIG = os.path.join(_REPO_ROOT, "scoring_config.json")
+_REAL_CONFIG = os.path.join(_REPO_ROOT, "config/scoring_config.default.json")
 
 _EMB_DIM = 16  # matches tests.test_personal_ranker._emb_bytes default
 

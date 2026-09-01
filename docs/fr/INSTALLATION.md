@@ -233,20 +233,28 @@ Les réglages de déploiement se trouvent dans `.env` (copiez `.env.example`) :
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Chemin de la base de données à l'intérieur du conteneur, conservé sur le montage `./data` |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` de la config | Déclencheur de réentraînement du classeur personnel, pour les utilisateurs qui notent beaucoup |
 
-Une version assainie de `scoring_config.default.json` est intégrée à l'image comme
-configuration de départ. `docker-entrypoint.sh` la copie, au premier démarrage
-uniquement, dans le fichier persistant `./facet-config/scoring_config.json` que
-`docker-compose.yml` monte déjà (sous la forme `FACET_CONFIG=/config/scoring_config.json`
-dans le conteneur) — le conteneur tourne donc sans aucune configuration côté hôte, et
-chaque écriture de configuration à l'exécution (mise à niveau du mot de passe d'édition,
-poids, priorités, contextes de notation) survit désormais à un `docker compose down &&
-up`. Éditez directement `./facet-config/scoring_config.json` pour personnaliser à la main
-les poids, le mot de passe d'édition ou les catégories ; un fichier déjà présent n'est
-jamais écrasé.
+`scoring_config.json` est votre **surcharge**, pas la configuration complète. Chaque
+valeur que Facet fournit vit dans `config/scoring_config.default.json` à l'intérieur
+de l'image, et votre fichier est résolu par-dessus celui-ci — il n'a donc besoin de
+contenir que la poignée de réglages que vous avez réellement modifiés, et tout ce que
+vous omettez conserve la valeur livrée (et bénéficie de ses améliorations lors d'une
+mise à niveau).
+
+`docker-entrypoint.sh` initialise donc le fichier persistant
+`./facet-config/scoring_config.json` avec un `{}` vide au premier démarrage. Ce
+fichier est monté par `docker-compose.yml` (sous la forme
+`FACET_CONFIG=/config/scoring_config.json` dans le conteneur), si bien que le
+conteneur tourne sans aucune configuration côté hôte et que chaque écriture de
+configuration à l'exécution (mise à niveau du mot de passe d'édition, poids,
+priorités, contextes de notation) survit à un `docker compose down && up`. Éditez-le
+directement pour personnaliser à la main les poids, le mot de passe d'édition ou les
+catégories — voir [Configuration](CONFIGURATION.md#valeurs-par-défaut-et-votre-surcharge)
+pour savoir quoi y mettre et [la référence complète des clés](CONFIGURATION.md) pour ce
+qui est disponible. Un fichier déjà présent n'est jamais écrasé.
 
 > **Vous migrez depuis une version antérieure à ce changement ?** Les versions
-> précédentes indiquaient de faire `cp scoring_config.default.json scoring_config.json`
-> puis de décommenter une ligne `- ./scoring_config.json:/app/scoring_config.json`
+> précédentes indiquaient de copier le fichier des valeurs par défaut vers
+> `scoring_config.json`, puis de décommenter une ligne `- ./scoring_config.json:/app/scoring_config.json`
 > dans `docker-compose.yml`. Ce montage a disparu du fichier compose livré. Si vous
 > adoptez le nouveau, **déplacez d'abord votre configuration existante** :
 >
@@ -254,11 +262,19 @@ jamais écrasé.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Sinon l'entrypoint installe une configuration par défaut neuve et vos poids, vos
+> Sinon l'entrypoint initialise une surcharge vide et vos poids, vos
 > catégories et **votre mot de passe d'édition ne sont plus lus** — or un
 > `viewer.edition_password` vide désactive entièrement le contrôle d'édition. Si vous
 > conservez votre propre `docker-compose.yml` avec l'ancien montage en place,
 > l'entrypoint initialise `./facet-config` à partir de *ce* fichier : rien n'est perdu.
+>
+> Une configuration reportée telle quelle est une copie complète de l'ancien fichier
+> livré. Elle continue de fonctionner sans changement — une configuration complète se
+> résout sur elle-même — mais vos propres modifications y sont invisibles. Exécutez
+> `python database.py --compact-config` (ou, sous Docker,
+> `docker compose exec facet python database.py --compact-config`) pour la réduire à
+> ce que vous avez réellement changé. Il prend d'abord une sauvegarde en `0600` et est
+> sans perte : le fichier se résout ensuite sur exactement la même configuration.
 
 Les caches de modèles vivent dans des volumes nommés gérés par Docker
 (`facet-hf-cache`, `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), si

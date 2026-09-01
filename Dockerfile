@@ -151,20 +151,18 @@ COPY plugins/ plugins/
 COPY storage/ storage/
 COPY sync/ sync/
 COPY validation/ validation/
-COPY facet.py cli_args.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
-# The sanitized defaults now ride along inside the `config` PYTHON PACKAGE that
-# COPY config/ config/ above already bakes, so they need no COPY of their own —
-# the application reads them from there. They are baked a second time as the
-# active /app/scoring_config.json because FACET_CONFIG falls back to that path
-# when unset, so `docker run` without compose (or any other use of this image
-# that skips the mount) still gets a working, preconfigured install.
+COPY facet.py cli_args.py config_resolve.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
+# No scoring_config.json is baked. The sanitized defaults ride along inside the
+# `config` PYTHON PACKAGE that COPY config/ config/ above already brings, and an
+# absent config file that nobody NAMED resolves to exactly those — so `docker run`
+# without compose (or any other use of this image that skips the mount) still gets
+# a working, preconfigured install, with no file to go stale against the package.
 # docker-entrypoint.sh seeds the /config bind mount docker-compose.yml points
-# FACET_CONFIG at from the ACTIVE one, not the packaged defaults — they are the
-# same content unless the operator mounted their own over it, which is exactly
-# the upgrade path that must not be reset. That mount lands at /config, not
+# FACET_CONFIG at with an empty override; /app/scoring_config.json exists only if
+# an operator mounted their own there, which is the upgrade path the entrypoint
+# carries across rather than resetting. That mount lands at /config, not
 # /app/config: the latter is the package directory, and a mount there would
 # shadow it — the defaults included.
-COPY config/scoring_config.default.json /app/scoring_config.json
 COPY pyproject.toml ./
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

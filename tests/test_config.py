@@ -11,12 +11,16 @@ from config.scoring_config import ScoringConfig
 from config_resolve import load_defaults
 
 # Resolve the real scoring_config.json path (repo root)
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "scoring_config.json")
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config/scoring_config.default.json")
 
 
 @pytest.fixture(scope="module")
 def scoring_config():
-    """Load the real scoring_config.json once for the whole module."""
+    """Load the real shipped config once for the whole module.
+
+    The shipped config IS the defaults file: the repo-root scoring_config.json
+    is a per-install override, untracked, and absent from a clean clone.
+    """
     return ScoringConfig(config_path=CONFIG_PATH)
 
 

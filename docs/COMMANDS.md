@@ -297,7 +297,9 @@ Read-only: it decodes a random sample straight from disk and prints the mean lum
 
 ## Configuration
 
-`FACET_CONFIG`, when set, supplies the default `scoring_config.json` path for `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` and `calibrate.py` whenever they run without an explicit `--config`; `--config` always overrides it. If the variable names a file that does not exist, the viewer refuses to start the open-install auth path rather than concluding the install has no passwords, and logs an error naming the missing path.
+`scoring_config.json` is an **override**: it holds only the settings you changed, and is resolved over the defaults shipped in `config/scoring_config.default.json`. An absent config file is therefore an install running entirely on those defaults, not a broken one — see [Configuration](CONFIGURATION.md#defaults-and-your-override).
+
+`FACET_CONFIG`, when set, supplies the default `scoring_config.json` path for `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` and `calibrate.py` whenever they run without an explicit `--config`; `--config` always overrides it. If the variable — or `--config` — names a file that does not exist, that is an error rather than an empty override: a path someone NAMED and that is missing is a typo or a broken mount, so the viewer refuses to start the open-install auth path rather than concluding the install has no passwords, and logs an error naming the missing path. Only the *inherited* default path may be absent.
 
 | Command | Description |
 |---------|-------------|
@@ -336,6 +338,7 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python database.py --rebuild-fts` | Rebuild FTS5 full-text search index from captions/tags |
 | `python database.py --populate-vec` | Populate sqlite-vec vector search table from embeddings |
 | `python database.py --refresh-stats` | Refresh statistics cache |
+| `python database.py --compact-config` | Rewrite `scoring_config.json` as the override it is, dropping every value equal to the shipped default (lossless; takes a `0600` backup first) |
 | `python database.py --stats-info` | Show cache status and age |
 | `python database.py --vacuum` | Reclaim space, defragment |
 | `python database.py --analyze` | Update query planner statistics |

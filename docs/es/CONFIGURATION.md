@@ -6,6 +6,7 @@ Todos los ajustes están en `scoring_config.json`. Tras modificarlos, ejecuta `p
 
 ## Tabla de contenidos
 
+- [Valores predeterminados y tu anulación](#valores-predeterminados-y-tu-anulación)
 - [Usuarios](#usuarios)
 - [Escaneo](#escaneo)
 - [Categorías](#categorías)
@@ -44,6 +45,68 @@ Todos los ajustes están en `scoring_config.json`. Tras modificarlos, ejecuta `p
 - [Traducción](#traducción)
 
 ---
+
+## Valores predeterminados y tu anulación
+
+`scoring_config.json` guarda **solo lo que has cambiado**. Todo lo que Facet
+distribuye vive en `config/scoring_config.default.json`, y tu archivo se resuelve por
+encima de él: cualquier cosa que omitas conserva el valor distribuido. Una instalación
+completamente nueva no tiene ningún `scoring_config.json` y funciona enteramente con
+los valores predeterminados.
+
+Así, para subir el peso estético de los retratos y establecer una contraseña de
+edición, el archivo completo es:
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Dos reglas rigen cómo se combinan ambos:
+
+- **Los objetos se combinan clave por clave.** `{"performance": {"mmap_size_mb": 4096}}`
+  cambia solo ese ajuste y deja `cache_size_mb`, y el resto de claves de `performance`,
+  en su valor distribuido.
+- **Los arrays se sustituyen por completo.** Si tu archivo tiene un array
+  `categories`, sustituye por completo al distribuido — no se combina categoría por
+  categoría. Eso es deliberado: `categories` se evalúa en orden de prioridad con la
+  lógica de que gana la primera coincidencia, y `scoring_contexts.*.promote` se lee en
+  el orden en que lo escribes, así que combinar los arrays elemento por elemento
+  reordenaría la puntuación en silencio. También es la única forma de **eliminar**
+  algo: una categoría que omites de tu array desaparece, mientras que un array
+  combinado seguiría devolviéndola.
+
+  La consecuencia práctica: cambiar un solo peso en una sola categoría significa que
+  tu archivo tiene que llevarlas todas. Copia el array `categories` de
+  `config/scoring_config.default.json`, edítalo y consérvalo — las otras ~1500 líneas
+  de la configuración distribuida siguen quedando fuera de tu archivo.
+
+### Actualizar una instalación existente
+
+No hay que hacer nada: un `scoring_config.json` completo de una versión anterior se
+resuelve sobre sí mismo y sigue funcionando. Pero tus propias ediciones son invisibles
+entre 3700 líneas de valores distribuidos, y los ajustes que nunca elegiste quedan
+congelados en el valor que tenían cuando copiaste el archivo.
+
+```bash
+python database.py --compact-config
+```
+
+lo reescribe como la anulación que realmente es, descartando todo valor que coincida
+con el predeterminado distribuido. Primero toma una copia de seguridad en `0600`, y no
+pierde información — el archivo se resuelve después exactamente en la misma
+configuración.
+
+> **La contrapartida, dicho claramente.** Una vez que un valor se descarta porque
+> coincidía con el predeterminado, una versión futura de Facet que cambie ese
+> predeterminado cambia también tu comportamiento. Ese es precisamente el objetivo —
+> así te llegan los nuevos ajustes sin tener que editar tu archivo —, pero si quieres
+> que un valor quede fijado sin importar lo que se distribuya, establécelo
+> explícitamente, o consérvalo en tu anulación aunque hoy coincida con el
+> predeterminado.
+
 
 ## Usuarios
 

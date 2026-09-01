@@ -1195,7 +1195,7 @@ class TestNoSecretInTrackedFiles:
     """F1 regression guard: the shipped files must carry no secret at all."""
 
     @pytest.mark.parametrize("revision", ["HEAD", ""])
-    @pytest.mark.parametrize("name", ["scoring_config.json", "config/scoring_config.default.json"])
+    @pytest.mark.parametrize("name", ["config/scoring_config.default.json"])
     def test_shipped_config_has_no_share_secret_key(self, name, revision):
         """Asserts on what git HOLDS, never on the working-tree file.
 

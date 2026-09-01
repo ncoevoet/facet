@@ -297,7 +297,9 @@ Lecture seule : elle décode un échantillon aléatoire directement depuis le d
 
 ## Configuration
 
-La variable d'environnement `FACET_CONFIG`, si elle est définie, fournit le chemin par défaut de `scoring_config.json` pour `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` et `calibrate.py` lorsqu'ils s'exécutent sans `--config` explicite ; `--config` la remplace toujours. Si la variable désigne un fichier inexistant, la galerie web refuse d'emprunter le chemin d'authentification « installation ouverte » plutôt que d'en conclure que l'installation n'a aucun mot de passe, et journalise une erreur nommant le chemin manquant.
+`scoring_config.json` est une **surcharge** : il ne contient que les réglages que vous avez modifiés, et il est résolu par-dessus les valeurs par défaut livrées dans `config/scoring_config.default.json`. L'absence de fichier de configuration signifie donc une installation qui tourne entièrement sur ces valeurs par défaut, pas une installation cassée — voir [Configuration](CONFIGURATION.md#valeurs-par-défaut-et-votre-surcharge).
+
+La variable d'environnement `FACET_CONFIG`, si elle est définie, fournit le chemin par défaut de `scoring_config.json` pour `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` et `calibrate.py` lorsqu'ils s'exécutent sans `--config` explicite ; `--config` la remplace toujours. Si la variable — ou `--config` — désigne un fichier inexistant, c'est une erreur et non une surcharge vide : un chemin que quelqu'un a NOMMÉ et qui est manquant trahit une faute de frappe ou un point de montage cassé, si bien que la galerie web refuse d'emprunter le chemin d'authentification « installation ouverte » plutôt que d'en conclure que l'installation n'a aucun mot de passe, et journalise une erreur nommant le chemin manquant. Seul le chemin par défaut *hérité* peut être absent.
 
 | Commande | Description |
 |---------|-------------|
@@ -336,6 +338,7 @@ Vérifications : plages de scores, métriques de visages, corruption de BLOB, ta
 | `python database.py --rebuild-fts` | Reconstruit l'index de recherche plein texte FTS5 à partir des légendes/étiquettes |
 | `python database.py --populate-vec` | Remplit la table de recherche vectorielle sqlite-vec à partir des embeddings |
 | `python database.py --refresh-stats` | Rafraîchit le cache de statistiques |
+| `python database.py --compact-config` | Réécrit `scoring_config.json` comme la surcharge qu'il est, en supprimant chaque valeur identique à celle livrée par défaut (sans perte ; prend d'abord une sauvegarde en `0600`) |
 | `python database.py --stats-info` | Affiche l'état et l'ancienneté du cache |
 | `python database.py --vacuum` | Récupère de l'espace, défragmente |
 | `python database.py --analyze` | Met à jour les statistiques du planificateur de requêtes |
