@@ -241,8 +241,9 @@ class ResourceMonitor:
         except Exception:
             metrics['process_memory_gb'] = 0.0
 
-        # GPU memory (if CUDA available)
-        if torch.cuda.is_available():
+        # GPU memory (only for a card Facet can actually run on)
+        from utils.device import is_device_available
+        if is_device_available("cuda", torch_module=torch):
             metrics['gpu_memory_allocated_gb'] = torch.cuda.memory_allocated() / (1024**3)
             try:
                 total = torch.cuda.get_device_properties(0).total_memory

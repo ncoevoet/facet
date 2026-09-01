@@ -220,7 +220,9 @@ def metrics(request: Request):
     # GPU VRAM (best-effort, requires torch with CUDA)
     try:
         import torch
-        if torch.cuda.is_available():
+
+        from utils.device import is_device_available
+        if is_device_available("cuda", torch_module=torch):
             allocated = torch.cuda.memory_allocated(0)
             reserved = torch.cuda.memory_reserved(0)
             total = torch.cuda.get_device_properties(0).total_memory
