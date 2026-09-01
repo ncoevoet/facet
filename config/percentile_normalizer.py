@@ -8,7 +8,7 @@ import json
 import logging
 import sqlite3
 from db import get_connection
-from config_resolve import delta_for_write, load_resolved
+from config_resolve import load_resolved, write_user_config
 
 logger = logging.getLogger("facet.normalizer")
 
@@ -2214,8 +2214,7 @@ class PercentileNormalizer:
                     logger.warning("Category '%s' not found in config, skipping %s=%s", section, key, value)
 
         # Save updated config
-        with open(config_path, 'w') as f:
-            json.dump(delta_for_write(config_data), f, indent=2)
+        write_user_config(config_path, config_data)
 
         # Record applied recommendations to history table
         if applied_count > 0:

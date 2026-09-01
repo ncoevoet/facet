@@ -828,7 +828,10 @@ class TestLegacySecretMigration:
         """
         _write_config(isolated_config, {_LEGACY_KEY: "a" * 64})
 
-        with mock.patch(f"{_MOD}.atomic_write_json", side_effect=OSError("read-only")):
+        # Patched where it is LOOKED UP, not where it is re-exported: the
+        # eviction reaches it through config_resolve.write_user_config, so a
+        # patch on api.config's own binding is inert and the write succeeds.
+        with mock.patch("config_resolve.atomic_write_json", side_effect=OSError("read-only")):
             with caplog.at_level("ERROR"):
                 _, secret = _load_and_ensure_secret()
 

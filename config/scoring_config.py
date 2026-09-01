@@ -12,7 +12,7 @@ import hashlib
 logger = logging.getLogger("facet.config")
 
 from config_resolve import (  # noqa: F401 - default_config_path is re-exported via config/__init__.py
-    default_config_path, delta_for_write, load_resolved, path_is_named,
+    default_config_path, load_resolved, path_is_named, write_user_config,
 )
 from config.category_filter import (
     VALID_NUMERIC_FILTERS, VALID_BOOLEAN_FILTERS, VALID_TAG_FILTERS,
@@ -454,10 +454,7 @@ class ScoringConfig:
         backup first, so a raise in that window left the operator's only copy
         of their overrides at zero bytes.
         """
-        payload = delta_for_write(self.config)
-        with open(self.config_path, 'w') as f:
-            json.dump(payload, f, indent=2)
-            f.write('\n')  # Trailing newline
+        write_user_config(self.config_path, self.config)
 
     def get_weights(self, category):
         """Get weights for a scoring category (portrait, human_others, others).

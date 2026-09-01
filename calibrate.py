@@ -38,7 +38,7 @@ from scipy.optimize import differential_evolution, minimize
 from scipy.stats import pearsonr, spearmanr
 
 from config import default_config_path
-from config_resolve import delta_for_write, load_resolved
+from config_resolve import load_resolved, write_user_config
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -1126,9 +1126,7 @@ def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None
             break
 
     if applied:
-        with open(config_path, 'w') as f:
-            json.dump(delta_for_write(config), f, indent=2)
-            f.write('\n')
+        write_user_config(config_path, config)
         logger.info("  Applied %d filter changes to %s", applied, config_path)
         logger.info("  Run: python facet.py --recompute-average")
     else:
@@ -1161,9 +1159,7 @@ def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> N
             break
 
     if applied:
-        with open(config_path, 'w') as f:
-            json.dump(delta_for_write(config), f, indent=2)
-            f.write('\n')
+        write_user_config(config_path, config)
         logger.info("  Applied modifiers for %d categories to %s", applied, config_path)
     else:
         logger.info("  No modifier changes applied.")
@@ -1286,9 +1282,7 @@ def apply_weights_to_config(
         logger.warning("  Category '%s' not found in scoring_config.json -- skipping apply.", category)
         return
 
-    with open(config_path, 'w') as f:
-        json.dump(delta_for_write(config), f, indent=2)
-        f.write('\n')
+    write_user_config(config_path, config)
 
     logger.info("  Updated weights for category '%s' in %s", category, config_path)
 

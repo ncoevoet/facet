@@ -20,7 +20,6 @@ Usage:
     python database.py --migrate-storage-db   # Migrate filesystem back to DB
 """
 
-import json
 import logging
 import os
 import sys
@@ -49,7 +48,7 @@ from db import (
     backup_database,
 )
 from config import default_config_path
-from config_resolve import delta_for_write, load_resolved
+from config_resolve import load_resolved, write_user_config
 
 CONFIG_PATH = default_config_path()
 
@@ -120,8 +119,7 @@ def _save_config(config):
     backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
     write_owner_only_backup(CONFIG_PATH, backup_path)
     logger.info("Backup saved to %s", backup_path)
-    with open(CONFIG_PATH, 'w') as f:
-        json.dump(delta_for_write(config), f, indent=2)
+    write_user_config(CONFIG_PATH, config)
     logger.info("Config saved to %s", CONFIG_PATH)
 
 
@@ -146,9 +144,7 @@ def _compact_config():
     backup_path = _backup_config(CONFIG_PATH, prune=False)
     if backup_path:
         logger.info("Backup saved to %s", backup_path)
-    with open(CONFIG_PATH, 'w') as f:
-        json.dump(delta_for_write(config), f, indent=2)
-        f.write('\n')
+    write_user_config(CONFIG_PATH, config)
     after = os.path.getsize(CONFIG_PATH)
     logger.info("Compacted %s: %d -> %d bytes", CONFIG_PATH, before, after)
 

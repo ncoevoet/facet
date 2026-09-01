@@ -15,8 +15,10 @@ import threading
 import time
 import secrets
 
-from config_resolve import (
-    default_config_path, deep_merge, delta_for_write, load_defaults,
+from config_resolve import (  # noqa: F401 - atomic_write_json is patched as api.config.atomic_write_json by tests
+    _fsync_directory, _replacement_mode, _umask_default_mode, _unlink_quietly,
+    atomic_write_json, default_config_path, deep_merge, delta_for_write,
+    load_defaults, write_user_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,17 +52,6 @@ _CONFIG_PATH_IS_EXPLICIT = bool(os.environ.get(_CONFIG_PATH_ENV_VAR, '').strip()
 CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
-_TEMP_CONFIG_SUFFIX = '.json'
-
-# Scratch name every config replacement stages under. Dotted and gitignored
-# for the same reason :data:`_OWNER_ONLY_TMP_PREFIX` is: mkstemp's default
-# `tmpXXXXXXXX` matched no ignore rule, and this staging copy is a COMPLETE
-# scoring_config.json — every ``users.*.password_hash``, ``viewer.password``
-# and, on a not-yet-migrated install, ``share_secret``. A SIGKILL between the
-# write and the rename left all of it in the repository root under a stageable
-# name.
-_TEMP_CONFIG_PREFIX = '.scoring_config.tmp'
-_WORLD_READ_WRITE_MODE = 0o666
 _config_load_failed = False
 
 # The server secret signs every login JWT (api/auth.py) and every opaque frame
@@ -117,111 +108,6 @@ _BURNED_SECRET_DIGESTS = frozenset({
     '78adcb9c3bd32b4cfb61828bf272ce355a531673ab0646ad02fcb1ae96d0cab9',
     '8a549d288ad8b4e4e0dd4ff038fa480ff5d3aa7ceeab73198792e9f95f7ae51b',
 })
-
-
-def _umask_default_mode():
-    """Return the permission bits a plain ``open(path, 'w')`` would have created.
-
-    ``os.umask`` is both the setter and the only getter, so the current value
-    is read by setting it and immediately restoring it. Only reached when the
-    destination does not exist yet and there is no mode to preserve.
-    """
-    umask = os.umask(0)
-    os.umask(umask)
-    return _WORLD_READ_WRITE_MODE & ~umask
-
-
-def _replacement_mode(path):
-    """Permission bits an atomic replacement of ``path`` must end up with."""
-    try:
-        return stat.S_IMODE(os.stat(path).st_mode)
-    except FileNotFoundError:
-        return _umask_default_mode()
-
-
-def _fsync_directory(directory):
-    """Flush a rename in ``directory`` so the replacement survives a crash.
-
-    The replacement's own bytes are already fsynced and not every platform
-    allows opening a directory for reading, so a failure here is logged rather
-    than raised.
-    """
-    try:
-        fd = os.open(directory, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    except OSError:
-        logger.debug("Could not fsync directory %s", directory, exc_info=True)
-
-
-def _unlink_quietly(path):
-    """Remove a temp file whose write failed, without masking the real error."""
-    try:
-        os.unlink(path)
-    except OSError:
-        logger.debug("Could not remove temp file %s", path, exc_info=True)
-
-
-def atomic_write_json(path, data):
-    """Replace ``path`` with ``data`` atomically, durably, and at its current mode.
-
-    ``tempfile.mkstemp`` creates the replacement 0600, so the destination's own
-    permissions are copied onto it before the rename — otherwise every config
-    write would silently strip the group/other read access a co-deployed CLI
-    needs. The payload is fsynced before the rename and the containing
-    directory after it, so a crash leaves either the old file or the new one,
-    never a truncated mix.
-
-    Atomicity is per write, not per read-modify-write: every caller that reads
-    scoring_config.json, edits part of it and writes it back MUST hold
-    :data:`CONFIG_WRITE_LOCK` across the whole sequence, or one caller's update
-    is lost wholesale under another's. That lock is the only one taken while a
-    config write is in flight; ``reload_config`` may acquire it (through
-    :func:`_load_config`) while holding ``_config_lock``, so no writer may
-    call ``reload_config`` without first releasing it.
-
-    Note the mode preservation makes this the WRONG primitive for a secret —
-    see :func:`_atomic_write_owner_only`, which forces 0600 instead.
-
-    The scratch file is named after :data:`_TEMP_CONFIG_PREFIX` rather than
-    left to mkstemp's default, so a crash before the rename leaves an IGNORED
-    name behind: the staging copy is the whole config, password hashes
-    included.
-    """
-    directory = os.path.dirname(path) or '.'
-    mode = _replacement_mode(path)
-    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=_TEMP_CONFIG_PREFIX,
-                                    suffix=_TEMP_CONFIG_SUFFIX)
-    try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(data, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp_path, mode)
-        os.replace(tmp_path, path)
-    except Exception:
-        _unlink_quietly(tmp_path)
-        raise
-    _fsync_directory(directory)
-
-
-def write_user_config(path, config):
-    """Persist ``config`` as the OVERRIDE it is, not as the resolved config.
-
-    Every writer goes through here. They each read the resolved config — the
-    shipped defaults with the operator's file laid over them — mutate one
-    corner of it and write the result back, so writing what they hold would
-    copy all 3700 resolved lines into a file that is supposed to say only what
-    the operator changed. :func:`config_resolve.delta_for_write` subtracts the
-    defaults again; the file resolves identically either way.
-
-    Uses :func:`atomic_write_json`, which preserves the destination's mode —
-    the seeded container config is 0600 because it legitimately holds
-    ``viewer.password`` and ``immich.api_key`` in plaintext.
-    """
-    atomic_write_json(path, delta_for_write(config))
 
 
 def config_load_failed():
