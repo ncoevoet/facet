@@ -36,18 +36,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -115,18 +115,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.5,
@@ -187,18 +187,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.1,
@@ -252,25 +252,27 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
         "street": [
           "street",
           "urban",
-          "city life"
+          "city life",
+          "street scene",
+          "city street"
         ],
         "candid": [
           "candid",
@@ -326,18 +328,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -373,18 +375,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -422,18 +424,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.419,
@@ -473,18 +475,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.901,
@@ -520,18 +522,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -574,18 +576,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.171,
@@ -677,18 +679,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -734,18 +736,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.328,
@@ -870,18 +872,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.417,
@@ -905,7 +907,8 @@
           "motion",
           "athlete",
           "competition",
-          "action_sport"
+          "action_sport",
+          "dance"
         ],
         "tag_match_mode": "any",
         "shutter_speed_max": 0.02
@@ -930,18 +933,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.93,
@@ -1003,6 +1006,19 @@
           "parkour",
           "gymnastics",
           "martial arts"
+        ],
+        "dance": [
+          "dance performance",
+          "dancer on stage",
+          "ballet dancer",
+          "contemporary dance",
+          "ballroom dancing",
+          "latin dance",
+          "hip hop dance",
+          "dance competition",
+          "dance troupe performing",
+          "dancer mid leap",
+          "dancer in motion"
         ]
       }
     },
@@ -1035,18 +1051,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -1094,18 +1110,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {
@@ -1151,18 +1167,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.512,
@@ -1215,18 +1231,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "tags": {
         "architecture": [
@@ -1316,18 +1332,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.922,
@@ -1335,10 +1351,6 @@
         "_clipping_multiplier": 0.501
       },
       "tags": {
-        "street": [
-          "street scene",
-          "city street"
-        ],
         "city": [
           "city",
           "cityscape",
@@ -1373,18 +1385,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -1418,18 +1430,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1475,18 +1487,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 0.3,
@@ -1536,18 +1548,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.72,
@@ -1597,18 +1609,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "noise_tolerance_multiplier": 1.5,
@@ -1674,18 +1686,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1728,18 +1740,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -1782,18 +1794,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.216,
@@ -1841,18 +1853,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3,
@@ -1931,18 +1943,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.463,
@@ -2051,18 +2063,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {},
       "tags": {}
@@ -2098,18 +2110,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.3
@@ -2146,18 +2158,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {
         "bonus": 0.2
@@ -2194,18 +2206,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {}
     },
@@ -2240,18 +2252,18 @@
         "subject_prominence_percent": 0,
         "subject_placement_percent": 0,
         "bg_separation_percent": 0,
+        "symmetry_percent": 0,
+        "balance_percent": 0,
+        "edge_entropy_percent": 0,
+        "fractal_percent": 0,
+        "color_harmony_percent": 0,
         "face_sharpness_percent": 0,
         "power_point_percent": 0,
         "saturation_percent": 0,
         "noise_percent": 0,
         "qrealign_percent": 0,
         "aesthetic_v25_percent": 0,
-        "deqa_percent": 0,
-        "symmetry_percent": 0,
-        "balance_percent": 0,
-        "edge_entropy_percent": 0,
-        "fractal_percent": 0,
-        "color_harmony_percent": 0
+        "deqa_percent": 0
       },
       "modifiers": {}
     }
@@ -2523,6 +2535,10 @@
     "weight_aesthetic": 0.25,
     "weight_sharpness": 0.2,
     "weight_blink": 0.15
+  },
+  "auto_cull": {
+    "default_strictness": 50,
+    "highlights_min": 8.0
   },
   "portfolio": {
     "max_photos": 500,
@@ -3139,10 +3155,32 @@
       "a close-up photo of a product package"
     ]
   },
+  "distortion_attributes": {
+    "enabled": true,
+    "top_n": 5,
+    "thresholds": {
+      "open_clip": {
+        "temperature": 0.02,
+        "min_confidence": 0.6
+      },
+      "transformers": {
+        "temperature": 0.05,
+        "min_confidence": 0.6
+      }
+    },
+    "vocabulary": {}
+  },
+  "skin_tone": {
+    "cast_delta_threshold": 12.0
+  },
   "piaa_prior": {
     "enabled": false,
     "shrinkage_k": 10,
     "models_dir": "pretrained_models"
+  },
+  "auto_retrain": {
+    "threshold": 25,
+    "idle_seconds": 60
   },
   "capsules": {
     "min_aggregate": 6.0,
@@ -3339,6 +3377,8 @@
     "min_face_size": 20,
     "blink_ear_threshold": 0.28,
     "min_faces_for_group": 4,
+    "eyes_closed_max": 4.0,
+    "poor_expression_min": 4.0,
     "blendshapes": {
       "enabled": true,
       "min_crop_size": 192
@@ -3359,8 +3399,7 @@
     "clustering_algorithm": "best",
     "leaf_size": 40,
     "use_gpu": "auto",
-    "merge_threshold": 0.6,
-    "chunk_size": 10000
+    "merge_threshold": 0.6
   },
   "face_processing": {
     "crop_padding": 0.3,
@@ -3632,8 +3671,11 @@
       "show_folders": true,
       "show_my_taste": true,
       "show_scenes": true,
+      "show_junk_sweep": true,
       "show_scan_button": false,
-      "show_saliency_overlay": true
+      "show_saliency_overlay": true,
+      "show_social_export": true,
+      "show_portfolio_export": true
     },
     "allowed_origins": [
       "http://localhost:4200",
@@ -3642,16 +3684,19 @@
     "cache_ttl_seconds": 3600,
     "notification_duration_ms": 2000,
     "path_mapping": {},
+    "scan_directories": [],
+    "cull": {
+      "allow_trash": false
+    },
     "raw_processor": {
       "backend": "rawpy",
       "darktable": {
         "executable": "darktable-cli",
-        "profiles": []
+        "profiles": [],
+        "cull_styles": [],
+        "preview_max_edge": 1440,
+        "preview_timeout_seconds": 60
       }
-    },
-    "scan_directories": [],
-    "cull": {
-      "allow_trash": false
     }
   },
   "iqa_extended": {
@@ -3664,6 +3709,29 @@
     "high_score_threshold": 8.0,
     "webhooks": [],
     "actions": {}
+  },
+  "immich": {
+    "url": "",
+    "api_key": "",
+    "path_map": [
+      {
+        "facet_prefix": "",
+        "immich_prefix": ""
+      }
+    ],
+    "push": {
+      "ratings": true,
+      "favorites": true,
+      "rejected": false,
+      "top_picks_album": "",
+      "top_picks_min_rating": 4
+    },
+    "webhook": {
+      "token_env": "",
+      "header": "x-facet-token",
+      "max_pending": 500
+    },
+    "timeout_seconds": 30
   },
   "storage": {
     "mode": "database",
@@ -3685,6 +3753,11 @@
   },
   "translation": {
     "target_language": "fr"
+  },
+  "critique": {
+    "vlm": {
+      "max_new_tokens": 320
+    }
   },
   "vlm_backend": {
     "type": "local",

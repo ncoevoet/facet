@@ -153,7 +153,7 @@ class TestTaggingModelRouting:
         assert proc._pass_vlm_tagger.called
 
 
-SHIPPED_CONFIGS = ("scoring_config.json", "scoring_config.default.json")
+SHIPPED_CONFIGS = ("scoring_config.json", "config/scoring_config.default.json")
 
 # Composition model string in a profile -> the model name the multi-pass path
 # selects and dispatches for it. A profile configured with anything else gets no
