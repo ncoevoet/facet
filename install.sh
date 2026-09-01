@@ -145,6 +145,10 @@ if [[ -n "$CUDA_VERSION" ]]; then
         TORCH_INDEX="https://download.pytorch.org/whl/cu128"
         ONNX_PACKAGE="onnxruntime-gpu>=1.17.0"
         ok "PyTorch variant: cu128"
+    elif [[ "$cuda_major" -eq 12 && "$cuda_minor" -ge 6 ]]; then
+        TORCH_INDEX="https://download.pytorch.org/whl/cu126"
+        ONNX_PACKAGE="onnxruntime-gpu>=1.17.0"
+        ok "PyTorch variant: cu126"
     elif [[ "$cuda_major" -eq 12 && "$cuda_minor" -ge 4 ]]; then
         TORCH_INDEX="https://download.pytorch.org/whl/cu124"
         ONNX_PACKAGE="onnxruntime-gpu>=1.17.0"
