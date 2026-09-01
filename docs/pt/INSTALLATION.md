@@ -91,6 +91,24 @@ docker compose -f docker-compose.yml -f docker-compose.24gb.yml up -d
 
 Abra <http://localhost:5000>.
 
+### Placa NVIDIA mais antiga (Maxwell, Pascal, Volta)
+
+Os blocos de 8 GB, 16 GB e 24 GB acima, e o overlay genérico
+`docker-compose.gpu.yml`, todos baixam `ghcr.io/ncoevoet/facet:latest-cuda`, cuja
+build do PyTorch cobre `sm_75`-`sm_120` — de Turing a Blackwell. Uma placa
+Maxwell, Pascal (série GTX 900/10) ou Volta (por exemplo, uma Titan V) precisa
+da outra imagem CUDA: edite a linha `image:` no arquivo compose que você usou
+acima (`docker-compose.8gb.yml`, `.16gb.yml`, `.24gb.yml` ou `.gpu.yml`),
+trocando `ghcr.io/ncoevoet/facet:latest-cuda` por
+`ghcr.io/ncoevoet/facet:latest-cuda-legacy` (`sm_50`-`sm_90`, de Maxwell a Hopper)
+antes de executar `docker compose up -d`. Não confunda essa tag de imagem com
+`docker-compose.legacy.yml`: esse arquivo seleciona o **perfil de VRAM**
+`legacy` (somente CPU) e não tem relação com a tag de **arquitetura**
+`-cuda-legacy` acima. Uma placa mais antiga que Maxwell (Kepler, Fermi —
+`sm_50` é o piso da própria imagem legacy) não tem imagem CUDA compatível;
+use em vez disso o perfil de VRAM `legacy` na CPU — o bloco
+["Sem placa de vídeo"](#sem-placa-de-vídeo) acima.
+
 ### Comandos do dia a dia
 
 A galeria fica vazia até você pontuar suas fotos. Dentro do Docker, a sua pasta de fotos
@@ -257,15 +275,20 @@ Os arquivos por perfil (`docker-compose.legacy.yml`, `docker-compose.8gb.yml`,
 `docker-compose.gpu.yml` é a alternativa genérica: ele reserva a GPU, mas deixa o perfil
 por conta do próprio `vram_profile` da configuração (padrão `auto`).
 
-Duas imagens são publicadas a partir de um único `Dockerfile`: `ghcr.io/ncoevoet/facet:latest`
-é uma build enxuta somente CPU (~3,3 GB descompactados em disco, valor aproximado — o
-download em si transfere menos, 4,18 GB compactados; veja
-[Tamanhos de download](#tamanhos-de-download)), e `ghcr.io/ncoevoet/facet:latest-cuda`
-traz CUDA e RAPIDS cuML (~21 GB descompactados em disco, aproximado; 7,33 GB compactados
-para baixar) e é o que os perfis de GPU baixam. Ambas são apenas `linux/amd64` — em
-uma máquina ARM, compile localmente com `docker compose build` em vez de baixar. O
-`docker compose build` (ou `up --build`) sempre compila a partir deste repositório; veja os
-build args `BASE_IMAGE`, `STRIP_TORCH` e `INSTALL_CUML` no `Dockerfile`.
+Três imagens são publicadas a partir de um único `Dockerfile`:
+`ghcr.io/ncoevoet/facet:latest` é uma build enxuta somente CPU (3,34 GB
+descompactados em disco; veja [Tamanhos de download](#tamanhos-de-download)).
+`ghcr.io/ncoevoet/facet:latest-cuda` traz CUDA 12.8, RAPIDS cuML e a build do
+PyTorch `sm_75`-`sm_120` — de Turing a Blackwell, incluindo a série RTX 50
+(13,1 GB descompactados) — e é o que os arquivos compose `8gb`/`16gb`/`24gb`
+baixam por padrão. `ghcr.io/ncoevoet/facet:latest-cuda-legacy` traz CUDA 12.6 e a
+build do PyTorch `sm_50`-`sm_90` — de Maxwell, Pascal (série GTX 900/10) e Volta a
+Hopper (13,8 GB descompactados) — para placas que `latest-cuda` não cobre mais;
+veja [Placa NVIDIA mais antiga](#placa-nvidia-mais-antiga-maxwell-pascal-volta)
+acima. As três são apenas `linux/amd64` — em uma máquina ARM, compile localmente
+com `docker compose build` em vez de baixar. O `docker compose build`
+(ou `up --build`) sempre compila a partir deste repositório; veja os build args
+`BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML` e `REQUIREMENTS_LOCK` no `Dockerfile`.
 
 Sem o Docker, a mesma escolha é uma variável de ambiente ou uma chave de configuração:
 
@@ -286,7 +309,8 @@ python3 -m venv venv
 source venv/bin/activate
 
 # 2. Instale o PyTorch primeiro, com a index URL correspondente à sua versão de CUDA.
-#    cu128 é para CUDA 12.8+/13.x; use cu118 para CUDA 11.8, cu124 para CUDA 12.4.
+#    cu128 é para CUDA 12.8+/13.x; use cu126 para CUDA 12.6-12.7, cu124 para CUDA
+#    12.4-12.5, ou cu118 para CUDA 11.8-12.3.
 #    Na dúvida, copie o comando de https://pytorch.org/get-started/locally/
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 
@@ -458,9 +482,13 @@ Totais por perfil (download): `legacy` 4,69 GB · `8gb` 6,93 GB · `16gb` 14,55 
 `processing.mode: "single-pass"` 23,56 GB (a substituição manual troca SAMP-Net/U2-Net-P
 em vez de somar-se a eles).
 
-Como referência, baixar a própria imagem Docker (antes de qualquer download de modelo)
-transfere `ghcr.io/ncoevoet/facet:latest` com 4,18 GB comprimidos e `:latest-cuda` com
-7,33 GB comprimidos, de acordo com os manifestos atuais do registro.
+Como referência, a própria imagem Docker (antes de qualquer download de modelo)
+pesa, descompactada, 3,34 GB em `latest`, 13,1 GB em `latest-cuda` e 13,8 GB em
+`latest-cuda-legacy` — veja [Deployment › Tamanho da imagem](DEPLOYMENT.md#tamanho-da-imagem)
+para saber como esses números foram medidos. As três imagens mudaram de base
+nesta versão (issue #119); os tamanhos de download comprimidos correspondentes
+serão adicionados assim que essas bases forem publicadas e houver um manifesto
+para medi-los.
 
 Modelos opcionais não contabilizados nos totais acima:
 
@@ -591,7 +619,18 @@ python facet.py --doctor
 ```
 
 Isso verifica o suporte a CUDA do PyTorch e a compatibilidade do driver, e sugere o
-comando pip correto. Você também pode simular hardware para testes:
+comando pip correto. Também detecta um caso que o `torch.cuda.is_available()` não
+consegue: uma GPU que o driver enxerga, mas para a qual a build do PyTorch instalada
+não traz kernels — a série RTX 50 (Blackwell, `sm_120`) em uma build anterior à CUDA
+12.8 era exatamente esse caso. O Facet compara a compute capability do dispositivo
+com a lista de arquiteturas da build e executa um kernel de teste antes de definir
+um perfil de VRAM; em caso de incompatibilidade, ele recorre à CPU em vez de travar
+na primeira operação real, e o `--doctor` indica a incompatibilidade e a correção —
+a tag de imagem correspondente no Docker (`ghcr.io/ncoevoet/facet:latest-cuda-legacy`
+para placas Maxwell/Pascal/Volta), ou a `--index-url` correta em uma instalação
+nativa.
+
+Você também pode simular hardware para testes:
 
 ```bash
 python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16
