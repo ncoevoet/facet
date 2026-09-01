@@ -2,6 +2,7 @@
 
 import importlib.util
 import json
+import logging
 import sqlite3
 import sys
 import types
@@ -256,15 +257,36 @@ class TestDoctorBlackwellArchMismatch:
     def test_reports_the_mismatch_instead_of_an_ok_gpu(self, capsys, tmp_path, monkeypatch):
         out = self._run(capsys, tmp_path, monkeypatch)
         assert "GPU Troubleshooting" in out
-        assert "[!!] GPU unusable by this PyTorch build" in out
         assert "sm_120" in out
         assert "[OK] torch.cuda.is_available(): True" not in out
         assert "[OK] VRAM" not in out
 
-    def test_names_the_image_tag_to_switch_to(self, capsys, tmp_path, monkeypatch):
+    def test_the_rendered_diagnosis_reaches_the_user(self, capsys, tmp_path, monkeypatch):
+        """The label alone renders identically whatever the diagnosis says.
+
+        ``[!!] GPU unusable by this PyTorch build`` prints even when the
+        status carries an empty reason, and ``sm_120`` is already satisfied
+        by the separate compute-capability line -- so neither pins the one
+        thing this block exists to tell the user, which architectures the
+        installed wheel actually ships.
+        """
         out = self._run(capsys, tmp_path, monkeypatch)
+        assert "[!!] GPU unusable by this PyTorch build: device sm_120" in out
+        assert "is not covered by this PyTorch build's architectures" in out
+        assert "sm_90" in out
+
+    def test_names_the_image_tag_to_switch_to(self, capsys, tmp_path, monkeypatch):
+        """The card here is sm_120, so latest-cuda and cu128 are the FIX.
+
+        latest-cuda-legacy (sm_50-sm_90) and cu126 are the fallback lines for
+        older cards; asserting only those let the two recommendations that
+        actually resolve issue #119 be deleted with the suite green.
+        """
+        out = self._run(capsys, tmp_path, monkeypatch)
+        assert "ghcr.io/ncoevoet/facet:latest-cuda " in out
+        assert "whl/cu128" in out
         assert "ghcr.io/ncoevoet/facet:latest-cuda-legacy" in out
-        assert "cu126" in out
+        assert "whl/cu126" in out
 
     def test_runtime_device_falls_back_to_cpu(self, capsys, tmp_path, monkeypatch):
         out = self._run(capsys, tmp_path, monkeypatch)
@@ -729,6 +751,24 @@ class TestCheckVramProfileCompatibility:
         assert profile == 'legacy'
         assert "No GPU detected" not in msg
         assert "sm_120" in msg
+
+    def test_verbose_mismatch_warning_names_the_reason(self, config_file, monkeypatch, caplog):
+        """verbose=True is the branch a real ``python facet.py`` run takes.
+
+        Every other test here passes verbose=False and asserts the returned
+        string, so the logger.warning block could be broken, deleted, or made
+        to raise -- which would abort startup -- with the suite green.
+        """
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        config = config_file('16gb')
+        with caplog.at_level(logging.WARNING), \
+             mock.patch.dict("sys.modules", {"torch": _make_blackwell_torch()}), \
+             mock.patch.object(ScoringConfig, 'detect_gpu_vram_gb', return_value=None):
+            ok, profile, msg = config.check_vram_profile_compatibility(verbose=True)
+        assert ok is False
+        assert "GPU present but unusable by this PyTorch build" in caplog.text
+        assert "sm_120" in caplog.text
+        assert "No GPU does not support" not in caplog.text
 
 
 # --- End-to-End Simulation Tests ---

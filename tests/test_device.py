@@ -127,15 +127,25 @@ MISSING_KERNEL_ERROR = (
 )
 
 
-def _cuda_torch(capability=None, arch_list=None, *, kernel=None, allocation=None):
+def _cuda_torch(capability=None, arch_list=None, *, kernel=None, allocation=None,
+                sync=None):
     """A CUDA-reporting torch double, optionally exposing the arch APIs.
 
-    The probe's two phases are separately controllable. ``allocation`` makes
+    The probe's three phases are separately controllable. ``allocation`` makes
     ``torch.zeros`` itself raise (out of memory, busy device); ``kernel``
-    makes the launch on the allocated tensor raise. Leaving both ``None``
-    models a build with no allocator to probe at all.
+    makes the launch on the allocated tensor raise; ``sync`` makes
+    ``torch.cuda.synchronize`` raise, which is where a real card reports an
+    asynchronous launch. Leaving them all ``None`` models a build with no
+    allocator to probe at all.
     """
     fake, _ = _torch(cuda=True)
+    if sync is not None:
+        def _failing_sync():
+            raise RuntimeError(sync)
+        fake.cuda.synchronize = _failing_sync
+        # A synchronize can only be reached through a probe that got that far,
+        # so this double needs an allocation and a launch that both succeed.
+        fake.zeros = lambda *args, **kwargs: types.SimpleNamespace(add_=lambda value: None)
     if capability is not None:
         fake.cuda.get_device_capability = lambda index=0: capability
     if arch_list is not None:
@@ -298,6 +308,61 @@ class TestCudaArchGate:
         for _ in range(3):
             device.is_device_available("cuda", torch_module=fake)
         assert len(probes) == 1
+
+        other = _cuda_torch((12, 0), PRE_BLACKWELL_ARCHS)
+        assert device.is_device_available("cuda", torch_module=other) is False
+
+    def test_blackwell_on_its_own_wheel_is_available(self):
+        """The three-digit arch the whole fix exists for.
+
+        ``sm_120`` must split into major 12, minor 0 -- not 1 and 20. Getting
+        that backwards makes the CORRECT Blackwell image report its own GPU
+        unusable and silently demote every scan to CPU, which is the fix
+        running in reverse (issue #119).
+        """
+        fake = _cuda_torch((12, 0), ["sm_75", "sm_90", "sm_100", "sm_120"])
+        assert device.is_device_available("cuda", torch_module=fake) is True
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
+
+    def test_a_three_digit_datacentre_arch_is_matched_too(self):
+        """``sm_100`` is compute capability 10.0, not 1.0 and not 100."""
+        assert device._parse_arch_entry("sm_100") == ("sm", 10, 0)
+        fake = _cuda_torch((10, 0), ["sm_90", "sm_100"])
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_a_higher_minor_cubin_does_not_cover_a_lower_device(self):
+        """Binary compatibility runs upwards only, within one major.
+
+        The mirror of test_binary_compatibility_within_a_major_is_honoured:
+        an sm_86-only wheel has nothing an sm_80 card can execute. Without
+        this, dropping the minor comparison entirely reads as green.
+        """
+        fake = _cuda_torch((8, 0), ["sm_86"])
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert "sm_80" in device.cuda_arch_status(torch_module=fake).reason
+
+    def test_ptx_does_not_cover_an_older_device(self):
+        """PTX JITs forward, never backward."""
+        fake = _cuda_torch((7, 0), ["compute_80"])
+        assert device.is_device_available("cuda", torch_module=fake) is False
+
+    def test_an_async_launch_failure_surfaces_at_synchronize(self):
+        """On real hardware the launch is where a missing cubin is reported.
+
+        ``probe.add_(1)`` returns immediately -- CUDA kernel launches are
+        asynchronous -- so the error only lands when the queue is drained.
+        The synchronize IS the detector for a build whose arch list is
+        absent or inconclusive; without this, deleting it reads as green.
+        """
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, sync=MISSING_KERNEL_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert "kernel launch failed" in device.cuda_arch_status(torch_module=fake).reason
+
+    def test_a_transient_failure_at_synchronize_still_fails_open(self):
+        """The fail-open rule is pinned on the synchronize phase too."""
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, sync=OOM_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is True
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
 
 
 def _use_fake_torch(monkeypatch, *, cuda=False, mps=False):
