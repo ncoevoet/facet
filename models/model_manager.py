@@ -13,6 +13,7 @@ from utils.system_memory import BYTES_PER_GB
 logger = logging.getLogger("facet.models")
 
 CPU_DEVICE = 'cpu'
+CUDA_DEVICE = 'cuda'
 UNIFIED_MEMORY_ACCELERATOR = 'mps'
 
 # What ``detect_system_ram_gb`` answers when no reading could be taken at all.
@@ -893,7 +894,7 @@ class ModelManager:
                 driver = driver_allocated() / 1024**3
                 return f"Allocated: {allocated:.2f}GB, Driver: {driver:.2f}GB"
             return "N/A (MPS memory metrics unavailable)"
-        if not _torch.cuda.is_available():
+        if self.device != CUDA_DEVICE:
             return "N/A (CPU mode)"
 
         allocated = _torch.cuda.memory_allocated() / 1024**3
@@ -910,11 +911,18 @@ class ModelManager:
         means "no VRAM budget to spend", never "no accelerator" — ask
         :meth:`detect_accelerator` for the latter.
 
+        A card this PyTorch build ships no kernels for also reports 0.0: it
+        holds VRAM no model can reach, and budgeting a run against it would
+        put the CPU fallback on a GPU-sized memory plan (issue #119). This
+        goes through the same gate as :meth:`ScoringConfig.detect_gpu_vram_gb`
+        so the two cannot disagree about the same machine.
+
         Returns:
-            Dedicated VRAM in GB, or 0.0 when there is no CUDA device
+            Dedicated VRAM in GB, or 0.0 when there is no usable CUDA device
         """
         _torch = _ensure_torch()
-        if not _torch.cuda.is_available():
+        from utils.device import is_device_available
+        if not is_device_available(CUDA_DEVICE, torch_module=_torch):
             return 0.0
 
         props = _torch.cuda.get_device_properties(0)

@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
-from typing import Any
+from typing import Any, NamedTuple
 
 # Let PyTorch execute individual unsupported MPS operators on CPU.  This must be
 # set before torch initialises its MPS backend, so keep it in this lightweight
@@ -43,6 +44,241 @@ def torch_compile_status() -> tuple[bool, str]:
     if not detect_c_compiler():
         return False, "no C compiler (gcc/g++) found"
     return True, "C compiler available"
+
+
+GPU_UNUSABLE_LABEL = "GPU unusable by this PyTorch build"
+
+
+class CudaArchStatus(NamedTuple):
+    """Whether this PyTorch build can actually run kernels on the local GPU.
+
+    ``capability`` and ``arch_list`` are carried so callers can render an
+    actionable message; both are empty when the installed torch does not
+    expose them. ``reason`` is empty when ``usable`` is True.
+    """
+
+    usable: bool
+    capability: tuple[int, int] | None
+    arch_list: tuple[str, ...]
+    reason: str
+
+
+_ARCH_ENTRY = re.compile(r"^(sm|compute)_(\d+)")
+
+
+def sm_name(capability: tuple[int, int]) -> str:
+    """Render a compute capability the way CUDA names its cubins: ``sm_120``."""
+    return f"sm_{capability[0]}{capability[1]}"
+
+
+def _parse_arch_entry(entry: str) -> tuple[str, int, int] | None:
+    """Split an arch-list entry such as ``sm_86`` into (kind, major, minor)."""
+    match = _ARCH_ENTRY.match(str(entry).strip())
+    if match is None:
+        return None
+    digits = match.group(2)
+    return match.group(1), int(digits[:-1] or 0), int(digits[-1])
+
+
+def _arch_entry_covers(entry: str, capability: tuple[int, int]) -> bool:
+    """Apply CUDA's own compatibility rules to one arch-list entry.
+
+    A cubin (``sm_XY``) runs on any device of the same major revision whose
+    minor is at or above it; PTX (``compute_XY``) is JIT-compiled for any
+    device at or above it, across majors.
+    """
+    parsed = _parse_arch_entry(entry)
+    if parsed is None:
+        return False
+    kind, major, minor = parsed
+    if kind == "compute":
+        return capability >= (major, minor)
+    return capability[0] == major and capability[1] >= minor
+
+
+def _read_cuda_capability(cuda: Any) -> tuple[int, int] | None:
+    """Read the first CUDA device's compute capability, or None if unknowable."""
+    get_capability = getattr(cuda, "get_device_capability", None)
+    if not callable(get_capability):
+        return None
+    try:
+        major, minor = get_capability(0)
+        return int(major), int(minor)
+    except Exception:
+        return None
+
+
+def _read_cuda_arch_list(cuda: Any) -> tuple[str, ...]:
+    """Read the architectures this torch build ships kernels for, or ()."""
+    get_arch_list = getattr(cuda, "get_arch_list", None)
+    if not callable(get_arch_list):
+        return ()
+    try:
+        return tuple(str(entry) for entry in get_arch_list())
+    except Exception:
+        return ()
+
+
+_PROBE_UNAVAILABLE = "unavailable"
+_PROBE_OK = "ok"
+_PROBE_ALLOCATION_FAILED = "allocation_failed"
+_PROBE_LAUNCH_FAILED = "launch_failed"
+
+_MISSING_KERNEL_SIGNATURES = ("no kernel image", "invalid device function")
+
+
+def _is_missing_kernel_failure(message: str) -> bool:
+    """True for the CUDA runtime errors that a missing cubin produces.
+
+    ``cudaErrorNoKernelImageForDevice`` and ``cudaErrorInvalidDeviceFunction``
+    are the only two ways an architecture this build ships no kernels for can
+    surface, and both strings come from CUDA's own error table rather than
+    from torch. The error class decides, not the phase it surfaced in: a
+    missing cubin should only ever reach the launch, but a torch that fills a
+    tensor with a kernel would raise it from the allocation instead, and that
+    is still an unusable build.
+
+    This allow-lists instead of deny-listing so that an unrecognised failure
+    fails open: out of memory, a busy or exclusive-mode device and a driver
+    that failed to initialise are all transient or unrelated, and must never
+    brand the installed build as wrong.
+    """
+    lowered = message.lower()
+    return any(signature in lowered for signature in _MISSING_KERNEL_SIGNATURES)
+
+
+def _exception_text(ex: Exception) -> str:
+    """The message to report for a probe failure, never an empty string."""
+    return str(ex) or ex.__class__.__name__
+
+
+def _probe_failure_reason(outcome: str, failure: str) -> str:
+    """Name the phase that failed, so the diagnosis is not guesswork."""
+    phase = "allocation" if outcome == _PROBE_ALLOCATION_FAILED else "kernel launch"
+    return f"CUDA {phase} failed: {failure}"
+
+
+def _probe_cuda_kernel(torch_module: Any) -> tuple[str, str]:
+    """Allocate on the GPU, then launch one throwaway kernel on it.
+
+    The two phases are reported separately on purpose. A missing cubin can
+    only surface at the launch; an allocation that fails means the card is
+    out of memory, busy, in exclusive-compute mode, or driven by a torch
+    with no CUDA at all — none of which says anything about the
+    architectures this build was compiled for.
+
+    ``_PROBE_UNAVAILABLE`` means the probe could not be attempted, which is
+    not evidence of anything and must be treated as unknown.
+    """
+    zeros = getattr(torch_module, "zeros", None)
+    if not callable(zeros):
+        return _PROBE_UNAVAILABLE, ""
+    try:
+        probe = zeros(1, device="cuda")
+    except Exception as ex:
+        return _PROBE_ALLOCATION_FAILED, _exception_text(ex)
+    try:
+        probe.add_(1)
+        synchronize = getattr(getattr(torch_module, "cuda", None), "synchronize", None)
+        if callable(synchronize):
+            synchronize()
+    except Exception as ex:
+        return _PROBE_LAUNCH_FAILED, _exception_text(ex)
+    return _PROBE_OK, ""
+
+
+def _compute_cuda_arch_status(torch_module: Any) -> CudaArchStatus:
+    """Combine the static arch comparison with an executed kernel."""
+    if not _cuda_is_available(torch_module):
+        return CudaArchStatus(False, None, (), "no CUDA device is available")
+    cuda = getattr(torch_module, "cuda", None)
+    capability = _read_cuda_capability(cuda)
+    arch_list = _read_cuda_arch_list(cuda)
+    unsupported_reason = ""
+    if capability is not None and arch_list and not any(
+            _arch_entry_covers(entry, capability) for entry in arch_list):
+        unsupported_reason = (
+            f"device {sm_name(capability)} is not covered by this PyTorch "
+            f"build's architectures ({', '.join(arch_list)})"
+        )
+    outcome, failure = _probe_cuda_kernel(torch_module)
+    if outcome == _PROBE_OK:
+        return CudaArchStatus(True, capability, arch_list, "")
+    if unsupported_reason:
+        return CudaArchStatus(False, capability, arch_list, unsupported_reason)
+    if _is_missing_kernel_failure(failure):
+        return CudaArchStatus(
+            False, capability, arch_list, _probe_failure_reason(outcome, failure)
+        )
+    return CudaArchStatus(True, capability, arch_list, "")
+
+
+_cuda_arch_cache: tuple[Any, CudaArchStatus] | None = None
+
+
+def cuda_arch_status(*, torch_module: Any | None = None) -> CudaArchStatus:
+    """Report whether this PyTorch build can run kernels on the local GPU.
+
+    ``torch.cuda.is_available()`` answers "is there a driver and a device",
+    never "does this wheel ship kernels for it" — a CUDA 12.6 build on an
+    RTX 50-series card (``sm_120``) reports True and then dies on the first
+    real op with "no kernel image is available for execution on the device"
+    (issue #119). Reading the arch list proves something about the wheel;
+    only an executed kernel proves CUDA works on this box, so both run and
+    a kernel that runs wins.
+
+    Unknowns fail open: a torch build exposing neither ``get_arch_list`` nor
+    a usable allocator is reported usable rather than vetoed, because the
+    alternative is disabling GPUs that work. ``usable=False`` needs either a
+    definite arch mismatch or a probe that failed with a missing-kernel
+    error. A probe that fails any other way — out of memory, a busy or
+    exclusive-mode device — is transient and says nothing about the build,
+    so it must not demote a whole scan to CPU; the real error is left to
+    surface where it always did, at model load.
+
+    Memoised on the torch module because ``is_device_available`` runs from
+    hot paths (``clear_device_cache``, ``synchronize_device``).
+    """
+    global _cuda_arch_cache
+    if torch_module is None:
+        try:
+            torch_module = __import__("torch")
+        except ImportError:
+            return CudaArchStatus(False, None, (), "PyTorch is not installed")
+    cached = _cuda_arch_cache
+    if cached is not None and cached[0] is torch_module:
+        return cached[1]
+    status = _compute_cuda_arch_status(torch_module)
+    _cuda_arch_cache = (torch_module, status)
+    return status
+
+
+def cuda_arch_mismatch(*, torch_module: Any | None = None) -> CudaArchStatus | None:
+    """Return the status when torch reports a CUDA device it cannot use.
+
+    ``None`` both when there is no CUDA device at all and when the device
+    works, so callers can tell "no GPU" apart from "GPU present but this
+    build cannot launch a kernel on it".
+    """
+    if torch_module is None:
+        try:
+            torch_module = __import__("torch")
+        except ImportError:
+            return None
+    if not _cuda_is_available(torch_module):
+        return None
+    status = cuda_arch_status(torch_module=torch_module)
+    return None if status.usable else status
+
+
+def _cuda_is_available(torch_module: Any) -> bool:
+    """True when torch's own probe reports a device, ignoring arch support."""
+    cuda = getattr(torch_module, "cuda", None)
+    available = getattr(cuda, "is_available", None)
+    try:
+        return bool(available()) if callable(available) else False
+    except Exception:
+        return False
 
 
 def get_device() -> str:
@@ -91,12 +327,9 @@ def is_device_available(device: str, *, torch_module: Any | None = None) -> bool
     except ImportError:
         return False
     if device_type == "cuda":
-        cuda = getattr(torch_module, "cuda", None)
-        available = getattr(cuda, "is_available", None)
-        try:
-            return bool(available()) if callable(available) else False
-        except Exception:
+        if not _cuda_is_available(torch_module):
             return False
+        return cuda_arch_status(torch_module=torch_module).usable
     if device_type == "mps":
         backends = getattr(torch_module, "backends", None)
         mps = getattr(backends, "mps", None) if backends is not None else None

@@ -23,6 +23,14 @@ updates:
       - dependency-name: "pydantic-core"
       - dependency-name: "mpmath"
       - dependency-name: "tokenizers"
+      # sympy is dictated by the Docker BASE IMAGE's torch, not by this repo, and
+      # the two locks disagree deliberately: 1.13.1 for the torch 2.6.0 legacy CUDA
+      # image (which requires it exactly) and 1.14.0 for the torch 2.11.0 CUDA and
+      # CPU images (which require >=1.13.3). Bumping either makes pip settle the
+      # conflict by REPLACING the base image's torch with a PyPI build — a dry-run
+      # of the 1.13.1 lock against the 2.11.0 base plans torch 2.6.0 plus 13 CUDA
+      # 12.4 wheels. This pin moves only when the base image does (issue #119).
+      - dependency-name: "sympy"
       # Majors are a deliberate, verified upgrade — never auto-propose them.
       - dependency-name: "*"
         update-types:

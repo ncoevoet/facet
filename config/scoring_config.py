@@ -160,6 +160,32 @@ def _readable_system_ram_gb():
         return None
 
 
+def _gpu_absence_label(mismatch):
+    """Name the reason there is no usable GPU, shared by the two profile checks.
+
+    A card the build ships no kernels for is present and reports its VRAM, so
+    "No GPU detected" is simply wrong there (issue #119). Both the profile
+    suggestion and the compatibility check reach this fork and must word it
+    the same way.
+    """
+    from utils.device import GPU_UNUSABLE_LABEL
+    return GPU_UNUSABLE_LABEL if mismatch is not None else "No GPU detected"
+
+
+def _unusable_cuda_status():
+    """The arch-mismatch status when a present GPU cannot run kernels, else None.
+
+    Lets the profile check say "your card is there but this PyTorch build has
+    no kernels for it" instead of "No GPU detected", which is simply wrong on
+    an RTX 50-series box (issue #119).
+    """
+    try:
+        from utils.device import cuda_arch_mismatch
+        return cuda_arch_mismatch()
+    except Exception:
+        return None
+
+
 class ScoringConfig:
     """Loads and manages scoring configuration from JSON file.
 
@@ -824,14 +850,21 @@ class ScoringConfig:
 
     @staticmethod
     def detect_gpu_vram_gb():
-        """Detect available GPU VRAM in gigabytes.
+        """Detect usable GPU VRAM in gigabytes.
+
+        A card whose compute capability this PyTorch build ships no kernels
+        for reports its VRAM happily and then dies on the first real op, so
+        the sizing goes through utils.device.is_device_available rather than
+        torch.cuda.is_available (issue #119).
 
         Returns:
-            Float representing VRAM in GB, or None if no GPU detected
+            Float representing VRAM in GB, or None if no usable GPU
         """
         try:
             import torch
-            if not torch.cuda.is_available():
+
+            from utils.device import is_device_available
+            if not is_device_available("cuda", torch_module=torch):
                 return None
             # Get VRAM of the first GPU (index 0)
             vram_bytes = torch.cuda.get_device_properties(0).total_memory
@@ -874,6 +907,10 @@ class ScoringConfig:
         suggest_profile_for_unified_memory) and the returned VRAM stays None
         rather than borrowing a number that does not exist there.
 
+        A card this PyTorch build ships no kernels for yields no VRAM either,
+        but it is present: the message says so instead of "No GPU detected",
+        which would contradict --doctor's own arch diagnosis (issue #119).
+
         Args:
             vram_gb: VRAM in GB (if None, will auto-detect)
 
@@ -890,13 +927,15 @@ class ScoringConfig:
             except Exception:
                 has_mps = False
             force_cpu = os.environ.get('FACET_DEVICE', 'auto').strip().lower() == 'cpu'
+            mismatch = None if has_mps else _unusable_cuda_status()
+            no_gpu = _gpu_absence_label(mismatch)
             profile = UNIFIED_MEMORY_MINIMUM_PROFILE
             ram_gb = _readable_system_ram_gb()
             if ram_gb is None:
                 msg = (
                     "Apple Metal (MPS) detected, using legacy profile"
                     if has_mps and not force_cpu else
-                    "No GPU detected, using legacy (CPU-only) profile"
+                    f"{no_gpu}, using legacy (CPU-only) profile"
                 )
             elif has_mps and not force_cpu:
                 profile = ScoringConfig.suggest_profile_for_unified_memory(ram_gb)
@@ -911,9 +950,11 @@ class ScoringConfig:
                     "legacy profile (FACET_DEVICE=cpu)"
                 )
             elif ram_gb >= 8:
-                msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (TOPIQ + SAMP-Net on CPU)"
+                msg = f"{no_gpu}, {ram_gb:.0f}GB RAM - legacy profile (TOPIQ + SAMP-Net on CPU)"
             else:
-                msg = f"No GPU detected, {ram_gb:.0f}GB RAM - legacy profile (limited CPU mode)"
+                msg = f"{no_gpu}, {ram_gb:.0f}GB RAM - legacy profile (limited CPU mode)"
+            if mismatch is not None:
+                msg += f"\n  {mismatch.reason}"
             msg += "\n  Tip: run 'python facet.py --doctor' for GPU setup diagnostics"
             return profile, None, msg
 
@@ -978,11 +1019,19 @@ class ScoringConfig:
                             current_profile)
                         logger.info("  Set vram_profile to 'auto' to size it from total unified memory instead")
                     return True, current_profile, "OK (MPS mode, profile as configured)"
+                mismatch = _unusable_cuda_status()
                 if verbose:
-                    logger.warning("No GPU does not support VRAM profile '%s'", current_profile)
+                    if mismatch is not None:
+                        logger.warning(
+                            "GPU present but unusable by this PyTorch build, so profile '%s' "
+                            "cannot run: %s", current_profile, mismatch.reason)
+                    else:
+                        logger.warning("No GPU does not support VRAM profile '%s'", current_profile)
                     logger.warning("  Consider setting vram_profile to 'legacy' or 'auto' in scoring_config.json")
                     logger.warning("  Tip: run 'python facet.py --doctor' for GPU setup diagnostics")
-                return False, 'legacy', "No GPU detected"
+                if mismatch is not None:
+                    return False, 'legacy', f"{_gpu_absence_label(mismatch)}: {mismatch.reason}"
+                return False, 'legacy', _gpu_absence_label(mismatch)
             return True, current_profile, "OK (MPS mode)" if has_mps else "OK (CPU mode)"
 
         # Define VRAM requirements for each profile

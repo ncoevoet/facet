@@ -243,22 +243,24 @@ card. The `.env` knobs and the config mount are documented in
 [Installation › Docker settings you can change](INSTALLATION.md#docker-settings-you-can-change).
 What follows is only what differs on a NAS.
 
-**Both published images are `linux/amd64` (x86_64) only.** That covers x86 NAS hardware (Synology Plus/x86, UGREEN, UnifyDrive, and anything running Coolify, Portainer or plain Docker on an Intel/AMD CPU). There is no `arm64` image: cross-building a multi-gigabyte ML stack under QEMU costs hours per tag, and the CUDA variant is x86-only regardless. On an ARM NAS or a Raspberry Pi, build locally with `docker compose build` instead of pulling — `docker compose up` keeps `build: .` underneath the `image:` key for exactly this case.
+**All three published images are `linux/amd64` (x86_64) only.** That covers x86 NAS hardware (Synology Plus/x86, UGREEN, UnifyDrive, and anything running Coolify, Portainer or plain Docker on an Intel/AMD CPU). There is no `arm64` image: cross-building a multi-gigabyte ML stack under QEMU costs hours per tag, and the CUDA variants are x86-only regardless. On an ARM NAS or a Raspberry Pi, build locally with `docker compose build` instead of pulling — `docker compose up` keeps `build: .` underneath the `image:` key for exactly this case.
 
-**Budget the disk.** Unpacked, the CPU image is approximately 3.3 GB on disk and the
-CUDA image approximately 21 GB (approximate, not reverified against the current build;
-pulling either transfers less, compressed — see [Image size](#image-size) below), plus
-the model weights each profile downloads at first run (`legacy` 4.69 GB, `8gb` 6.93 GB,
-`16gb` 14.55 GB, `24gb` 19.13 GB — full table in
+**Budget the disk.** Unpacked, the CPU image is approximately 3.34 GB on disk, the CUDA
+image (`latest-cuda`, `sm_75`-`sm_120`) approximately 13.1 GB, and the legacy CUDA image
+(`latest-cuda-legacy`, `sm_50`-`sm_90`) approximately 13.8 GB — see [Image size](#image-size)
+below for how these were measured; `docker pull` transfers less than that, compressed.
+Budget disk for the image **plus** the model weights each profile downloads at first run
+(`legacy` 4.69 GB, `8gb` 6.93 GB, `16gb` 14.55 GB, `24gb` 19.13 GB — full table in
 [Installation › Download sizes](INSTALLATION.md#download-sizes)). `docker compose down -v`
 deletes the model volumes and forces a re-download.
 
-**Versioned tags.** `:latest` and `:latest-cuda` move on every release; pin a version
-(`:1.7.2`, `:1.7`, `:1.7.2-cuda`, …) on a NAS you do not want changing under you. Both
-variants build from the same `Dockerfile` via the `BASE_IMAGE`, `STRIP_TORCH` and
-`INSTALL_CUML` build args, set per variant in `.github/workflows/docker-publish.yml`. That
-workflow also accepts a manual `workflow_dispatch` run, which republishes `latest` /
-`latest-cuda` off `master` without cutting a release or minting a versioned tag.
+**Versioned tags.** `:latest`, `:latest-cuda` and `:latest-cuda-legacy` move on every
+release; pin a version (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, `:1.7.2-cuda-legacy`, …) on a NAS
+you do not want changing under you. All three variants build from the same `Dockerfile`
+via the `BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML` and `REQUIREMENTS_LOCK` build args,
+set per variant in `.github/workflows/docker-publish.yml`. That workflow also accepts a
+manual `workflow_dispatch` run, which republishes `latest` / `latest-cuda` /
+`latest-cuda-legacy` off `master` without cutting a release or minting a versioned tag.
 
 For a viewer-only NAS where the image must stay small (no CUDA), build a slim image instead. Note the CI guard requires every `COPY` source to be git-tracked, so the build context must include the listed files:
 
@@ -517,25 +519,22 @@ named volumes; reset them with `docker compose down -v`.
 
 ### Image size
 
-Neither published image contains model weights — those download at first run into the
-named volumes ([per-profile totals](INSTALLATION.md#download-sizes)). Budget disk for the
-image **plus** those volumes.
+None of the three published images contains model weights — those download at first run
+into the named volumes ([per-profile totals](INSTALLATION.md#download-sizes)). Budget
+disk for the image **plus** those volumes.
 
-| Image | Compressed download | On disk (approx.) | Base |
-|-------|------|------|------|
-| `ghcr.io/ncoevoet/facet:latest` (CPU) | 4.18 GB | ~3.3 GB | `python:3.12-slim` + CPU-wheel PyTorch |
-| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 7.33 GB | ~21 GB | CUDA PyTorch + RAPIDS cuML |
+| Image | On disk (measured) | Base |
+|-------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | 3.34 GB | `python:3.12-slim` + CPU-wheel PyTorch |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 13.1 GB | CUDA 12.8 PyTorch (`sm_75`-`sm_120`, Turing through Blackwell) + RAPIDS cuML |
+| `ghcr.io/ncoevoet/facet:latest-cuda-legacy` (GPU) | 13.8 GB | CUDA 12.6 PyTorch (`sm_50`-`sm_90`, Maxwell through Hopper) + RAPIDS cuML |
 
-"Compressed download" is what `docker pull` transfers, measured from the current
-`ghcr.io/ncoevoet/facet` registry manifests. "On disk" is the unpacked image footprint
-after decompression; those figures were not reverified against the current `:latest`
-digest for this pass, so treat them as an approximate planning number rather than a
-precise current measurement.
-
-The CPU image is dominated by the ML dependency stack (~1.9 GB) rather than PyTorch
-itself (~960 MB), plus system libs (~288 MB) and the base OS (~150 MB). In the CUDA image
-the GPU stack dominates: RAPIDS cuML ~5.75 GB, CUDA runtime libs ~3.7 GB, PyTorch and
-Triton ~1.9 GB, the ML deps ~1.9 GB, base OS and conda ~2-3 GB.
+All three bases changed in this release (issue #119). "On disk" is the unpacked image
+footprint after decompression, measured locally (`docker images`) against images built
+from this branch — a component-level breakdown (RAPIDS cuML vs. CUDA runtime vs. PyTorch
+vs. base OS) was not re-measured for this pass. `docker pull` transfers a compressed
+download smaller than these figures; a "compressed download" column returns here once
+these images are published and there is a real registry manifest to measure it from.
 
 ## Generic Linux Server
 

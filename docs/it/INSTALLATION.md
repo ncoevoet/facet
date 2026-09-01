@@ -91,6 +91,23 @@ docker compose -f docker-compose.yml -f docker-compose.24gb.yml up -d
 
 Apri <http://localhost:5000>.
 
+### Scheda NVIDIA meno recente (Maxwell, Pascal, Volta)
+
+I blocchi da 8 GB, 16 GB e 24 GB sopra, e l'overlay generico
+`docker-compose.gpu.yml`, scaricano tutti `ghcr.io/ncoevoet/facet:latest-cuda`, la
+cui build PyTorch copre `sm_75`-`sm_120` — da Turing a Blackwell. Una scheda
+Maxwell, Pascal (serie GTX 900/10) o Volta (es. una Titan V) ha bisogno invece
+dell'altra immagine CUDA: modifica la riga `image:` nel file compose usato sopra
+(`docker-compose.8gb.yml`, `.16gb.yml`, `.24gb.yml` o `.gpu.yml`) sostituendo
+`ghcr.io/ncoevoet/facet:latest-cuda` con `ghcr.io/ncoevoet/facet:latest-cuda-legacy`
+(`sm_50`-`sm_90`, da Maxwell a Hopper) prima di eseguire `docker compose up -d`.
+Non confondere questo tag immagine con `docker-compose.legacy.yml`: quel file
+seleziona il **profilo VRAM** `legacy` (solo CPU) e non ha nulla a che fare con
+il tag di **architettura** `-cuda-legacy` sopra. Una scheda precedente a Maxwell
+(Kepler, Fermi — `sm_50` è il limite minimo della stessa immagine legacy) non ha
+un'immagine CUDA supportata; usa invece il profilo VRAM `legacy` su CPU — il
+blocco ["Nessuna scheda grafica"](#nessuna-scheda-grafica) sopra.
+
 ### Comandi di uso quotidiano
 
 La galleria è vuota finché non valuti le tue foto. Dentro Docker la tua cartella foto si
@@ -255,16 +272,21 @@ I file per profilo (`docker-compose.legacy.yml`, `docker-compose.8gb.yml`,
 `docker-compose.gpu.yml` è l'alternativa generica: riserva la GPU ma lascia il profilo
 alla `vram_profile` propria della configurazione (predefinito `auto`).
 
-Due immagini vengono pubblicate a partire da un solo `Dockerfile`:
-`ghcr.io/ncoevoet/facet:latest` è una build snella solo CPU (~3,3 GB decompressa su
-disco, valore approssimativo — scaricarla trasferisce meno, 4,18 GB compressi; vedi
-[Dimensioni dei download](#dimensioni-dei-download)), `ghcr.io/ncoevoet/facet:latest-cuda`
-include CUDA e RAPIDS cuML (~21 GB decompressa su disco, approssimativo; 7,33 GB
-compressi da scaricare) ed è quella scaricata dai profili GPU. Entrambe sono solo
-`linux/amd64` — su una macchina ARM,
+Tre immagini vengono pubblicate a partire da un solo `Dockerfile`:
+`ghcr.io/ncoevoet/facet:latest` è una build snella solo CPU (3,34 GB decompressa su
+disco; vedi [Dimensioni dei download](#dimensioni-dei-download)).
+`ghcr.io/ncoevoet/facet:latest-cuda` include CUDA 12.8, RAPIDS cuML e la build
+PyTorch `sm_75`-`sm_120` — da Turing a Blackwell, RTX serie 50 inclusa
+(13,1 GB decompressa) — ed è quella scaricata per impostazione predefinita dai file
+compose `8gb`/`16gb`/`24gb`. `ghcr.io/ncoevoet/facet:latest-cuda-legacy` include
+CUDA 12.6 e la build PyTorch `sm_50`-`sm_90` — da Maxwell, Pascal (serie GTX 900/10)
+e Volta a Hopper (13,8 GB decompressa) — per le schede che `latest-cuda` non copre
+più; vedi [Scheda NVIDIA meno recente](#scheda-nvidia-meno-recente-maxwell-pascal-volta)
+più sopra. Tutte e tre sono solo `linux/amd64` — su una macchina ARM,
 compila in locale con `docker compose build` invece di scaricare l'immagine.
 `docker compose build` (o `up --build`) compila sempre a partire da questo repository;
-vedi gli argomenti di build `BASE_IMAGE`, `STRIP_TORCH` e `INSTALL_CUML` nel `Dockerfile`.
+vedi gli argomenti di build `BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML` e
+`REQUIREMENTS_LOCK` nel `Dockerfile`.
 
 Senza Docker, la stessa scelta è una variabile d'ambiente o una chiave di configurazione:
 
@@ -285,7 +307,13 @@ python3 -m venv venv
 source venv/bin/activate
 
 # 2. Installa prima PyTorch, con l'URL dell'indice corrispondente alla tua versione CUDA.
-#    cu128 è per CUDA 12.8+/13.x; usa cu118 per CUDA 11.8, cu124 per CUDA 12.4.
+#    cu128 è per CUDA 12.8+/13.x; usa cu126 per CUDA 12.6-12.7, cu124 per CUDA
+#    12.4-12.5, oppure cu118 per CUDA 11.8-12.3.
+#    Conta anche la tua SCHEDA, non solo il driver: cu128 non fornisce kernel
+#    sotto sm_75, quindi una scheda Maxwell, Pascal o Volta (GTX 900/serie 10,
+#    Titan V) richiede cu126 anche con un driver CUDA 12.8. install.sh applica
+#    automaticamente questo limite; verifica la tua con
+#    `nvidia-smi --query-gpu=compute_cap --format=csv`.
 #    In caso di dubbio, copia il comando da https://pytorch.org/get-started/locally/
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 
@@ -457,9 +485,13 @@ Totali per profilo (download): `legacy` 4,69 GB · `8gb` 6,93 GB · `16gb` 14,55
 `processing.mode: "single-pass"` 23,56 GB (la sostituzione manuale rimpiazza
 SAMP-Net/U2-Net-P invece di sommarsi ad essi).
 
-Per riferimento, scaricare l'immagine Docker stessa (prima di qualsiasi download di
-modelli) trasferisce `ghcr.io/ncoevoet/facet:latest` a 4,18 GB compressi e
-`:latest-cuda` a 7,33 GB compressi, secondo gli attuali manifest del registro.
+Per riferimento, l'immagine Docker stessa (prima di qualsiasi download di modelli)
+pesa, decompressa, 3,34 GB per `latest`, 13,1 GB per `latest-cuda` e 13,8 GB per
+`latest-cuda-legacy` — vedi [Deployment › Dimensione dell'immagine](DEPLOYMENT.md#dimensione-dellimmagine)
+per come sono state misurate. Tutte e tre le immagini hanno cambiato base in
+questa release (issue #119); le rispettive dimensioni di download compresse
+verranno aggiunte una volta pubblicate queste basi e disponibile un manifest da
+cui misurarle.
 
 Modelli opzionali non conteggiati nei totali sopra:
 
@@ -606,7 +638,18 @@ python facet.py --doctor
 ```
 
 Verifica il supporto CUDA di PyTorch e la compatibilità del driver, e suggerisce il
-comando pip corretto. Puoi anche simulare l'hardware per i test:
+comando pip corretto. Rileva anche un caso che `torch.cuda.is_available()` non può
+vedere: una GPU che il driver vede ma per cui la build PyTorch installata non include
+kernel — è esattamente il caso delle RTX serie 50 (Blackwell, `sm_120`) su una build
+CUDA precedente alla 12.8. Facet confronta la compute capability del dispositivo con
+l'elenco di architetture della build e lancia un kernel di prova prima di impostare
+un profilo VRAM; in caso di incompatibilità, ripiega sulla CPU invece di andare in
+crash alla prima operazione reale, e `--doctor` indica l'incompatibilità e la
+correzione — il tag immagine corrispondente su Docker
+(`ghcr.io/ncoevoet/facet:latest-cuda-legacy` per schede Maxwell/Pascal/Volta), oppure
+l'`--index-url` corretto in installazione bare metal.
+
+Puoi anche simulare l'hardware per i test:
 
 ```bash
 python facet.py --doctor --simulate-gpu "RTX 5070 Ti" --simulate-vram 16

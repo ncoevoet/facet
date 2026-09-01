@@ -126,8 +126,16 @@ else
     # Auto-detect via nvidia-smi
     if command -v nvidia-smi &>/dev/null; then
         CUDA_VERSION=$(nvidia-smi 2>/dev/null | grep -oP 'CUDA Version: \K[0-9.]+' || true)
+        # The wheel has to cover the WEAKEST installed card, and the driver's
+        # CUDA version says nothing about it: a GTX 1080 (sm_61) behind driver
+        # 570 reports "CUDA Version: 12.8" just like an RTX 5090 does. Empty
+        # when nvidia-smi predates --query-gpu=compute_cap, in which case the
+        # ladder below falls back to the driver version alone.
+        GPU_MIN_ARCH=$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null \
+            | tr -d '[:blank:]' | grep -E '^[0-9]+\.[0-9]+$' | sort -V | head -1)
         if [[ -n "$CUDA_VERSION" ]]; then
             ok "CUDA detected: $CUDA_VERSION"
+            [[ -n "$GPU_MIN_ARCH" ]] && info "Lowest GPU compute capability: $GPU_MIN_ARCH"
         else
             warn "nvidia-smi found but could not parse CUDA version — using CPU"
         fi
@@ -141,10 +149,34 @@ if [[ -n "$CUDA_VERSION" ]]; then
     cuda_major=$(echo "$CUDA_VERSION" | cut -d. -f1)
     cuda_minor=$(echo "$CUDA_VERSION" | cut -d. -f2)
 
-    if [[ "$cuda_major" -ge 13 ]] || [[ "$cuda_major" -eq 12 && "$cuda_minor" -ge 8 ]]; then
+    # cu128 wheels ship sm_75 upwards and DROP sm_50/sm_60/sm_70, so a Maxwell,
+    # Pascal or Volta card on a modern driver would install a build with no
+    # kernels for it and die with "no kernel image is available for execution on
+    # the device" -- issue #119 all over again, from the other direction. cu126
+    # still carries sm_50...sm_90. This is the bare-metal twin of the
+    # latest-cuda / latest-cuda-legacy image split.
+    arch_needs_legacy_wheel=0
+    if [[ -n "$GPU_MIN_ARCH" ]]; then
+        arch_major=$(echo "$GPU_MIN_ARCH" | cut -d. -f1)
+        arch_minor=$(echo "$GPU_MIN_ARCH" | cut -d. -f2)
+        if [[ "$arch_major" -lt 7 ]] || [[ "$arch_major" -eq 7 && "$arch_minor" -lt 5 ]]; then
+            arch_needs_legacy_wheel=1
+        fi
+    fi
+
+    if [[ "$arch_needs_legacy_wheel" -eq 1 ]]; then
+        TORCH_INDEX="https://download.pytorch.org/whl/cu126"
+        ONNX_PACKAGE="onnxruntime-gpu>=1.17.0"
+        ok "PyTorch variant: cu126 (pre-Turing GPU, compute capability $GPU_MIN_ARCH)"
+        info "cu128 ships no kernels below sm_75 — pinned to cu126 despite CUDA $CUDA_VERSION"
+    elif [[ "$cuda_major" -ge 13 ]] || [[ "$cuda_major" -eq 12 && "$cuda_minor" -ge 8 ]]; then
         TORCH_INDEX="https://download.pytorch.org/whl/cu128"
         ONNX_PACKAGE="onnxruntime-gpu>=1.17.0"
         ok "PyTorch variant: cu128"
+    elif [[ "$cuda_major" -eq 12 && "$cuda_minor" -ge 6 ]]; then
+        TORCH_INDEX="https://download.pytorch.org/whl/cu126"
+        ONNX_PACKAGE="onnxruntime-gpu>=1.17.0"
+        ok "PyTorch variant: cu126"
     elif [[ "$cuda_major" -eq 12 && "$cuda_minor" -ge 4 ]]; then
         TORCH_INDEX="https://download.pytorch.org/whl/cu124"
         ONNX_PACKAGE="onnxruntime-gpu>=1.17.0"

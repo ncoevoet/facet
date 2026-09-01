@@ -79,8 +79,14 @@ def get_settings():
 def _build_easyocr_engine():
     """Return an easyocr callable, or None if unusable.
 
-    Runs on GPU when torch reports one, matching every other model pass; on CPU
-    the CRAFT+CRNN pair still handles a 640px thumbnail in well under a second.
+    Runs on GPU when Facet has one it can actually use, matching every other
+    model pass; on CPU the CRAFT+CRNN pair still handles a 640px thumbnail in
+    well under a second. The device question goes through utils.device rather
+    than torch.cuda.is_available(): a card this build ships no kernels for
+    answers True there, builds a Reader without complaint (moving weights is a
+    memcpy, not a kernel), and then fails inside every readtext -- which
+    extract_text swallows, so OCR would return nothing at all for the whole
+    library instead of falling back to the CPU that works (issue #119).
     """
     try:
         import easyocr
@@ -89,7 +95,9 @@ def _build_easyocr_engine():
         return None
     try:
         import torch
-        use_gpu = torch.cuda.is_available()
+
+        from utils.device import is_device_available
+        use_gpu = is_device_available("cuda", torch_module=torch)
     except Exception:
         use_gpu = False
     try:

@@ -247,19 +247,21 @@ carte NVIDIA. Les réglages `.env` et le montage de la configuration sont docume
 [Installation › Réglages Docker modifiables](INSTALLATION.md#réglages-docker-modifiables).
 Ce qui suit ne couvre que ce qui diffère sur un NAS.
 
-**Les deux images publiées sont uniquement en `linux/amd64` (x86_64).** Cela couvre le matériel NAS x86 (Synology Plus/x86, UGREEN, UnifyDrive, et tout ce qui fait tourner Coolify, Portainer ou un Docker classique sur un CPU Intel/AMD). Il n'existe pas d'image `arm64` : la compilation croisée d'une pile ML de plusieurs gigaoctets sous QEMU coûte des heures par tag, et la variante CUDA est de toute façon réservée à x86. Sur un NAS ARM ou un Raspberry Pi, compilez localement avec `docker compose build` plutôt que de récupérer l'image — `docker compose up` conserve `build: .` sous la clé `image:` précisément pour ce cas.
+**Les trois images publiées sont uniquement en `linux/amd64` (x86_64).** Cela couvre le matériel NAS x86 (Synology Plus/x86, UGREEN, UnifyDrive, et tout ce qui fait tourner Coolify, Portainer ou un Docker classique sur un CPU Intel/AMD). Il n'existe pas d'image `arm64` : la compilation croisée d'une pile ML de plusieurs gigaoctets sous QEMU coûte des heures par tag, et les variantes CUDA sont de toute façon réservées à x86. Sur un NAS ARM ou un Raspberry Pi, compilez localement avec `docker compose build` plutôt que de récupérer l'image — `docker compose up` conserve `build: .` sous la clé `image:` précisément pour ce cas.
 
-**Prévoyez l'espace disque.** Une fois décompressée, l'image CPU pèse environ 3,3 Go
-sur disque et l'image CUDA environ 21 Go (valeurs approximatives, non revérifiées par
-rapport à la build actuelle : le téléchargement lui-même transfère moins,
-compressé — voir [Taille de l'image](#taille-de-limage) plus bas), plus les poids des
-modèles que chaque profil télécharge au premier lancement (`legacy` 4,69 Go, `8gb`
-6,93 Go, `16gb` 14,55 Go, `24gb` 19,13 Go — tableau complet dans
-[Installation › Tailles de téléchargement](INSTALLATION.md#tailles-de-téléchargement)).
+**Prévoyez l'espace disque.** Une fois décompressée, l'image CPU pèse environ 3,34 Go
+sur disque, l'image CUDA (`latest-cuda`, `sm_75`-`sm_120`) environ 13,1 Go, et l'image
+CUDA legacy (`latest-cuda-legacy`, `sm_50`-`sm_90`) environ 13,8 Go — voir
+[Taille de l'image](#taille-de-limage) plus bas pour savoir comment ces chiffres ont
+été mesurés ; `docker pull` transfère moins que cela, compressé. Prévoyez
+l'espace disque pour l'image **plus** les poids des modèles que chaque profil
+télécharge au premier lancement
+(`legacy` 4,69 Go, `8gb` 6,93 Go, `16gb` 14,55 Go, `24gb` 19,13 Go — tableau complet
+dans [Installation › Tailles de téléchargement](INSTALLATION.md#tailles-de-téléchargement)).
 `docker compose down -v` supprime les volumes de modèles et force un nouveau
 téléchargement.
 
-**Tags versionnés.** `:latest` et `:latest-cuda` évoluent à chaque release ; épinglez une version (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, …) sur un NAS que vous ne voulez pas voir changer sans prévenir. Les deux variantes se compilent depuis le même `Dockerfile` via les arguments de compilation `BASE_IMAGE`, `STRIP_TORCH` et `INSTALL_CUML`, définis par variante dans `.github/workflows/docker-publish.yml`. Ce workflow accepte aussi un déclenchement manuel `workflow_dispatch`, qui republie `latest`/`latest-cuda` depuis `master` sans avoir à couper de release ni à créer de tag versionné.
+**Tags versionnés.** `:latest`, `:latest-cuda` et `:latest-cuda-legacy` évoluent à chaque release ; épinglez une version (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, `:1.7.2-cuda-legacy`, …) sur un NAS que vous ne voulez pas voir changer sans prévenir. Les trois variantes se compilent depuis le même `Dockerfile` via les arguments de compilation `BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML` et `REQUIREMENTS_LOCK`, définis par variante dans `.github/workflows/docker-publish.yml`. Ce workflow accepte aussi un déclenchement manuel `workflow_dispatch`, qui republie `latest` / `latest-cuda` / `latest-cuda-legacy` depuis `master` sans avoir à couper de release ni à créer de tag versionné.
 
 Pour un NAS dédié à la galerie web où l'image doit rester légère (sans CUDA), compilez plutôt une image allégée. Notez que le garde-fou de la CI exige que chaque source `COPY` soit suivie par git, donc le contexte de compilation doit inclure les fichiers listés :
 
@@ -412,25 +414,24 @@ volumes nommés ; réinitialisez-les avec `docker compose down -v`.
 
 ### Taille de l'image
 
-Aucune des deux images publiées ne contient les poids des modèles — ils se téléchargent au premier
-lancement dans les volumes nommés ([totaux par profil](INSTALLATION.md#tailles-de-téléchargement)). Prévoyez de l'espace disque pour
-l'image **plus** ces volumes.
+Aucune des trois images publiées ne contient les poids des modèles — ils se téléchargent
+au premier lancement dans les volumes nommés ([totaux par profil](INSTALLATION.md#tailles-de-téléchargement)).
+Prévoyez de l'espace disque pour l'image **plus** ces volumes.
 
-| Image | Téléchargement compressé | Sur disque (approx.) | Base |
-|-------|------|------|------|
-| `ghcr.io/ncoevoet/facet:latest` (CPU) | 4,18 Go | ~3,3 Go | `python:3.12-slim` + PyTorch en wheels CPU |
-| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 7,33 Go | ~21 Go | PyTorch CUDA + RAPIDS cuML |
+| Image | Sur disque (mesuré) | Base |
+|-------|------|------|
+| `ghcr.io/ncoevoet/facet:latest` (CPU) | 3,34 Go | `python:3.12-slim` + PyTorch en wheels CPU |
+| `ghcr.io/ncoevoet/facet:latest-cuda` (GPU) | 13,1 Go | PyTorch CUDA 12.8 (`sm_75`-`sm_120`, de Turing à Blackwell) + RAPIDS cuML |
+| `ghcr.io/ncoevoet/facet:latest-cuda-legacy` (GPU) | 13,8 Go | PyTorch CUDA 12.6 (`sm_50`-`sm_90`, de Maxwell à Hopper) + RAPIDS cuML |
 
-Le « téléchargement compressé » est ce que transfère `docker pull`, mesuré à partir des
-manifestes actuels du registre `ghcr.io/ncoevoet/facet`. La valeur « sur disque » est
-l'empreinte de l'image une fois décompressée ; ces chiffres n'ont pas été revérifiés par
-rapport au digest `:latest` actuel pour cette passe — traitez-les comme un ordre de
-grandeur pour la planification plutôt qu'une mesure précise et actuelle.
-
-L'image CPU est dominée par la pile de dépendances ML (~1,9 Go) plutôt que par PyTorch
-lui-même (~960 Mo), plus les bibliothèques système (~288 Mo) et l'OS de base (~150 Mo). Dans l'image CUDA,
-c'est la pile GPU qui domine : RAPIDS cuML ~5,75 Go, bibliothèques runtime CUDA ~3,7 Go, PyTorch et
-Triton ~1,9 Go, dépendances ML ~1,9 Go, OS de base et conda ~2-3 Go.
+Les trois images de base ont changé dans cette version (issue #119). « Sur disque »
+est l'empreinte de l'image une fois décompressée, mesurée localement (`docker
+images`) sur des images compilées depuis cette branche — une répartition par
+composant (RAPIDS cuML, runtime CUDA, PyTorch, OS de base) n'a pas été remesurée
+pour cette passe. `docker pull` transfère un téléchargement compressé plus petit
+que ces chiffres ; une colonne « téléchargement compressé » reviendra ici une
+fois ces images publiées et un manifeste de registre réel disponible pour la
+mesurer.
 
 ## Serveur Linux générique
 

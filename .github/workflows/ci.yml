@@ -161,6 +161,93 @@ jobs:
         # py-modules / packages.find.include -- how sync/ shipped 2026-07-01
         # and was absent from both until this gate existed.
         run: python scripts/check_packaging.py
+      - name: The two dependency locks differ only in the sympy pin
+        # requirements.lock.txt (CUDA + CPU images, torch 2.11.0, needs
+        # sympy>=1.13.3) and requirements.legacy.lock.txt (cuda-legacy image,
+        # torch 2.6.0, needs sympy==1.13.1 exactly) must be identical apart
+        # from that one pin -- any other drift (a Dependabot bump landing in
+        # one file only, a hand edit, a package added to one but not the
+        # other) makes `pip install` settle the mismatch by silently
+        # REPLACING the base image's torch with a PyPI build (an 8.75 GB
+        # regression that shipped once already, issue #119). Diffs with
+        # comments and blank lines stripped so header-comment edits (dates,
+        # container-validation notes) don't trip this gate.
+        run: |
+          strip() { grep -vE '^[[:space:]]*(#|$)' "$1"; }
+          if diff -q <(strip requirements.lock.txt) <(strip requirements.legacy.lock.txt) > /dev/null; then
+            echo "::error::requirements.lock.txt and requirements.legacy.lock.txt are identical once comments are stripped -- the sympy pins must differ (issue #119); if they don't, the split has no purpose."
+            exit 1
+          fi
+          bad=$(diff <(strip requirements.lock.txt) <(strip requirements.legacy.lock.txt) | grep -E '^[<>]' | grep -vE '^[<>] sympy==[0-9]+(\.[0-9]+)*$' || true)
+          if [ -n "$bad" ]; then
+            echo "::error::requirements.lock.txt and requirements.legacy.lock.txt must be identical outside the sympy pin. These lines differ -- apply the same change to both files (or revert whichever one drifted):"
+            echo "$bad"
+            exit 1
+          fi
+          base_sympy=$(grep -oE '^sympy==[0-9]+(\.[0-9]+)*$' requirements.lock.txt | cut -d= -f3)
+          legacy_sympy=$(grep -oE '^sympy==[0-9]+(\.[0-9]+)*$' requirements.legacy.lock.txt | cut -d= -f3)
+          # A pin that is missing, or written in a form this pattern does not
+          # match (a .post/.dev suffix, an environment marker), makes grep emit
+          # nothing while the pipeline still exits 0 -- both variables come out
+          # empty and EQUAL, so the next check would report "pinned to the same
+          # version ()" and send the reader after a pin that is not there.
+          if [ -z "$base_sympy" ] || [ -z "$legacy_sympy" ]; then
+            echo "::error::no plain '^sympy==<version>' pin found in requirements.lock.txt (got '$base_sympy') or requirements.legacy.lock.txt (got '$legacy_sympy'). Each lock must carry one, because the base image's torch dictates it (issue #119)."
+            exit 1
+          fi
+          if [ "$base_sympy" = "$legacy_sympy" ]; then
+            echo "::error::sympy is pinned to the same version ($base_sympy) in both locks. torch 2.6.0 (legacy) needs sympy==1.13.1 exactly and torch 2.11.0 (base/cpu) needs sympy>=1.13.3 -- they cannot share one pin. Re-derive requirements.lock.txt's sympy pin from its own base image's torch, per issue #119."
+            exit 1
+          fi
+          if [ "$(printf '%s\n%s\n' "$base_sympy" "$legacy_sympy" | sort -V | tail -1)" != "$base_sympy" ]; then
+            echo "::error::requirements.lock.txt's sympy ($base_sympy) is not newer than requirements.legacy.lock.txt's ($legacy_sympy). The CUDA/CPU lock (newer torch, sympy>=1.13.3) is expected to carry the newer pin and the legacy CUDA lock (torch 2.6.0, sympy==1.13.1 exactly) the older one -- check which file's pin actually moved and why."
+            exit 1
+          fi
+          echo "requirements.lock.txt (sympy==$base_sympy) and requirements.legacy.lock.txt (sympy==$legacy_sympy) differ only in the sympy pin, as expected."
+      - name: dependabot.yml ignore lists are intact
+        # yaml.safe_load is not a sufficient check here: a dropped '-' before
+        # a "dependency-name:" line indents that entry into its predecessor,
+        # YAML merges it as a duplicate key of the SAME mapping, safe_load
+        # returns success, and the earlier entry is silently gone -- exactly
+        # how a "tokenizers" ignore once vanished past every naive check.
+        # Assert each load-bearing ecosystem's ignore: list by exact name and
+        # count instead of trusting a parsed structure a merge could have
+        # shrunk, and confirm no ecosystem block itself was lost the same way.
+        # docker is asserted as well as pip because its single
+        # "pytorch/pytorch" entry is what pins ARG BASE_IMAGE, and the base
+        # image decides which sm_ architectures each published tag covers
+        # (issue #119). Nothing else would notice it going: docker-publish.yml
+        # runs on v* tags only, so its expect_arch smoke test never sees a
+        # Dependabot bump until release, long after the PR merged.
+        # npm and github-actions are deliberately left unasserted -- neither
+        # pins anything a build decision rests on, and gating lists that
+        # legitimately churn is how a gate turns into noise.
+        run: |
+          assert_ignore_list() {
+            eco="$1"
+            expected="$2"
+            block=$(awk -v e="  - package-ecosystem: \"$eco\"" '$0==e{f=1; next} /^  - package-ecosystem: /{f=0} f' .github/dependabot.yml)
+            actual=$(echo "$block" | grep -E '^      - dependency-name: "' | sed -E 's/^      - dependency-name: "([^"]*)".*/\1/' | sort | tr '\n' ' ' | sed 's/ $//')
+            if [ "$actual" != "$expected" ]; then
+              echo "::error file=.github/dependabot.yml::$eco ecosystem ignore: list is {$actual}, expected {$expected}."
+              echo "::error file=.github/dependabot.yml::Check for a dropped '-' before a dependency-name: line -- it merges silently into the previous entry instead of raising a YAML error."
+              exit 1
+            fi
+          }
+          for eco in pip npm github-actions docker; do
+            # `|| true` because grep -c exits 1 on zero matches, and the step
+            # runs under GitHub's default `bash -e {0}` -- so a MISSING block,
+            # the very case this loop exists to catch, would abort here with a
+            # bare red X and none of the message below ever printed.
+            count=$(grep -cE "^  - package-ecosystem: \"$eco\"\$" .github/dependabot.yml || true)
+            if [ "$count" != "1" ]; then
+              echo "::error file=.github/dependabot.yml::expected exactly one \"$eco\" package-ecosystem entry, found $count."
+              exit 1
+            fi
+          done
+          assert_ignore_list pip "* mpmath pydantic-core sympy tokenizers"
+          assert_ignore_list docker "* pytorch/pytorch"
+          echo "dependabot.yml: pip and docker ignore lists and all four ecosystems intact."
       - name: Translation bundles agree with en.json
         # Stdlib-only and self-locating, so it needs no pip install and no venv.
         # tests/test_audit_i18n.py already exercises this script's logic against

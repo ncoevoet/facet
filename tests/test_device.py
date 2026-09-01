@@ -117,6 +117,254 @@ def test_mps_operator_fallback_respects_explicit_override(monkeypatch):
     assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "0"
 
 
+PRE_BLACKWELL_ARCHS = ["sm_50", "sm_60", "sm_70", "sm_75", "sm_80", "sm_86", "sm_90"]
+
+
+OOM_ERROR = "CUDA out of memory. Tried to allocate 2.00 MiB"
+BUSY_ERROR = "CUDA error: all CUDA-capable devices are busy or unavailable"
+MISSING_KERNEL_ERROR = (
+    "CUDA error: no kernel image is available for execution on the device"
+)
+
+
+def _cuda_torch(capability=None, arch_list=None, *, kernel=None, allocation=None,
+                sync=None):
+    """A CUDA-reporting torch double, optionally exposing the arch APIs.
+
+    The probe's three phases are separately controllable. ``allocation`` makes
+    ``torch.zeros`` itself raise (out of memory, busy device); ``kernel``
+    makes the launch on the allocated tensor raise; ``sync`` makes
+    ``torch.cuda.synchronize`` raise, which is where a real card reports an
+    asynchronous launch. Leaving them all ``None`` models a build with no
+    allocator to probe at all.
+    """
+    fake, _ = _torch(cuda=True)
+    if sync is not None:
+        def _failing_sync():
+            raise RuntimeError(sync)
+        fake.cuda.synchronize = _failing_sync
+        # A synchronize can only be reached through a probe that got that far,
+        # so this double needs an allocation and a launch that both succeed.
+        fake.zeros = lambda *args, **kwargs: types.SimpleNamespace(add_=lambda value: None)
+    if capability is not None:
+        fake.cuda.get_device_capability = lambda index=0: capability
+    if arch_list is not None:
+        fake.cuda.get_arch_list = lambda: list(arch_list)
+    if allocation is not None:
+        def _failing_allocation(*args, **kwargs):
+            raise RuntimeError(allocation)
+        fake.zeros = _failing_allocation
+    elif kernel == "ok":
+        fake.zeros = lambda *args, **kwargs: types.SimpleNamespace(add_=lambda value: None)
+    elif kernel is not None:
+        def _failing_kernel(value):
+            raise RuntimeError(kernel)
+        fake.zeros = lambda *args, **kwargs: types.SimpleNamespace(add_=_failing_kernel)
+    return fake
+
+
+class TestCudaArchGate:
+    """A wheel shipping no kernels for the local GPU is not a usable CUDA device.
+
+    ``torch.cuda.is_available()`` answers "driver and device present", never
+    "this build ships kernels for it". That gap let an RTX 50-series card
+    (``sm_120``) on a CUDA 12.6 wheel commit the 16gb profile and then die on
+    the first real tensor op (issue #119).
+    """
+
+    def test_blackwell_on_a_pre_blackwell_wheel_is_unavailable(self, monkeypatch):
+        fake = _cuda_torch((12, 0), PRE_BLACKWELL_ARCHS)
+        monkeypatch.setitem(sys.modules, "torch", fake)
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert device.get_device() == "cpu"
+
+    def test_ampere_on_the_same_wheel_is_available(self, monkeypatch):
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS)
+        monkeypatch.setitem(sys.modules, "torch", fake)
+        monkeypatch.delenv("FACET_DEVICE", raising=False)
+        assert device.is_device_available("cuda", torch_module=fake) is True
+        assert device.get_device() == "cuda"
+
+    def test_binary_compatibility_within_a_major_is_honoured(self):
+        fake = _cuda_torch((6, 1), ["sm_60", "sm_70"])
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_a_wheel_without_an_arch_list_fails_open(self):
+        fake, _ = _torch(cuda=True)
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_a_capability_without_an_arch_list_fails_open(self):
+        fake = _cuda_torch((12, 0))
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_ptx_covers_a_newer_device(self):
+        fake = _cuda_torch((12, 0), ["sm_80", "compute_80"])
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_a_missing_kernel_image_overrules_a_matching_arch_list(self):
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, kernel=MISSING_KERNEL_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert "no kernel image" in device.cuda_arch_status(torch_module=fake).reason
+
+    def test_a_missing_kernel_image_at_allocation_also_disqualifies(self):
+        """The error class decides, not the phase it surfaced in.
+
+        A torch that fills the probe tensor with a kernel would raise this
+        from the allocation, and the arch list cannot always corroborate --
+        a build need not expose one at all.
+        """
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, allocation=MISSING_KERNEL_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert "allocation failed" in device.cuda_arch_status(torch_module=fake).reason
+
+    def test_an_invalid_device_function_also_disqualifies(self):
+        fake = _cuda_torch(
+            (8, 6), PRE_BLACKWELL_ARCHS, kernel="CUDA error: invalid device function")
+        assert device.is_device_available("cuda", torch_module=fake) is False
+
+    def test_an_executed_kernel_keeps_a_matching_wheel_usable(self):
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, kernel="ok")
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_out_of_memory_does_not_disqualify_the_build(self):
+        """A full card is a transient condition, not a wrong PyTorch build.
+
+        Reading an allocation failure as "no kernels for this device" would
+        demote a whole scan to CPU -- hours instead of minutes -- memoise
+        that for the process lifetime, and blame the install for it. The
+        real error must surface where it always did, at model load.
+        """
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, allocation=OOM_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is True
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
+
+    def test_a_busy_device_does_not_disqualify_the_build(self):
+        """Another process holding the card, or exclusive-compute mode."""
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, allocation=BUSY_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is True
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
+
+    def test_out_of_memory_at_launch_does_not_disqualify_the_build(self):
+        """The failure phase alone is not enough; the error class decides too."""
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, kernel=OOM_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_a_transient_failure_cannot_mask_a_real_arch_mismatch(self):
+        """An unusable card that is also busy is still an unusable card."""
+        fake = _cuda_torch((12, 0), PRE_BLACKWELL_ARCHS, allocation=BUSY_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert "sm_120" in device.cuda_arch_status(torch_module=fake).reason
+
+    def test_status_without_a_cuda_device_says_so(self):
+        """The public helper must be honest when called on its own.
+
+        Every current caller gates on availability first, but a "launch
+        failed" story for a machine that simply has no GPU would mislead the
+        next one.
+        """
+        fake, _ = _torch()
+        status = device.cuda_arch_status(torch_module=fake)
+        assert status.usable is False
+        assert "no CUDA device" in status.reason
+        assert "launch failed" not in status.reason
+
+    def test_forced_cuda_on_a_mismatched_build_fails_clearly(self, monkeypatch):
+        fake = _cuda_torch((12, 0), PRE_BLACKWELL_ARCHS)
+        monkeypatch.setitem(sys.modules, "torch", fake)
+        monkeypatch.setenv("FACET_DEVICE", "cuda")
+        with pytest.raises(RuntimeError, match="not available"):
+            device.get_device()
+
+    def test_status_carries_the_detail_a_diagnosis_needs(self):
+        status = device.cuda_arch_status(
+            torch_module=_cuda_torch((12, 0), PRE_BLACKWELL_ARCHS))
+        assert status.usable is False
+        assert status.capability == (12, 0)
+        assert status.arch_list == tuple(PRE_BLACKWELL_ARCHS)
+        assert "sm_120" in status.reason
+
+    def test_mismatch_is_none_when_torch_sees_no_device(self):
+        fake, _ = _torch()
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
+
+    def test_mismatch_is_none_when_the_device_works(self):
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS)
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
+
+    def test_mismatch_names_the_unusable_device(self):
+        fake = _cuda_torch((12, 0), PRE_BLACKWELL_ARCHS)
+        assert device.cuda_arch_mismatch(torch_module=fake).capability == (12, 0)
+
+    def test_the_gate_is_memoised_per_torch_module(self):
+        probes = []
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS)
+
+        def _counted_zeros(*args, **kwargs):
+            probes.append(1)
+            return types.SimpleNamespace(add_=lambda value: None)
+
+        fake.zeros = _counted_zeros
+        for _ in range(3):
+            device.is_device_available("cuda", torch_module=fake)
+        assert len(probes) == 1
+
+        other = _cuda_torch((12, 0), PRE_BLACKWELL_ARCHS)
+        assert device.is_device_available("cuda", torch_module=other) is False
+
+    def test_blackwell_on_its_own_wheel_is_available(self):
+        """The three-digit arch the whole fix exists for.
+
+        ``sm_120`` must split into major 12, minor 0 -- not 1 and 20. Getting
+        that backwards makes the CORRECT Blackwell image report its own GPU
+        unusable and silently demote every scan to CPU, which is the fix
+        running in reverse (issue #119).
+        """
+        fake = _cuda_torch((12, 0), ["sm_75", "sm_90", "sm_100", "sm_120"])
+        assert device.is_device_available("cuda", torch_module=fake) is True
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
+
+    def test_a_three_digit_datacentre_arch_is_matched_too(self):
+        """``sm_100`` is compute capability 10.0, not 1.0 and not 100."""
+        assert device._parse_arch_entry("sm_100") == ("sm", 10, 0)
+        fake = _cuda_torch((10, 0), ["sm_90", "sm_100"])
+        assert device.is_device_available("cuda", torch_module=fake) is True
+
+    def test_a_higher_minor_cubin_does_not_cover_a_lower_device(self):
+        """Binary compatibility runs upwards only, within one major.
+
+        The mirror of test_binary_compatibility_within_a_major_is_honoured:
+        an sm_86-only wheel has nothing an sm_80 card can execute. Without
+        this, dropping the minor comparison entirely reads as green.
+        """
+        fake = _cuda_torch((8, 0), ["sm_86"])
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert "sm_80" in device.cuda_arch_status(torch_module=fake).reason
+
+    def test_ptx_does_not_cover_an_older_device(self):
+        """PTX JITs forward, never backward."""
+        fake = _cuda_torch((7, 0), ["compute_80"])
+        assert device.is_device_available("cuda", torch_module=fake) is False
+
+    def test_an_async_launch_failure_surfaces_at_synchronize(self):
+        """On real hardware the launch is where a missing cubin is reported.
+
+        ``probe.add_(1)`` returns immediately -- CUDA kernel launches are
+        asynchronous -- so the error only lands when the queue is drained.
+        The synchronize IS the detector for a build whose arch list is
+        absent or inconclusive; without this, deleting it reads as green.
+        """
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, sync=MISSING_KERNEL_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is False
+        assert "kernel launch failed" in device.cuda_arch_status(torch_module=fake).reason
+
+    def test_a_transient_failure_at_synchronize_still_fails_open(self):
+        """The fail-open rule is pinned on the synchronize phase too."""
+        fake = _cuda_torch((8, 6), PRE_BLACKWELL_ARCHS, sync=OOM_ERROR)
+        assert device.is_device_available("cuda", torch_module=fake) is True
+        assert device.cuda_arch_mismatch(torch_module=fake) is None
+
+
 def _use_fake_torch(monkeypatch, *, cuda=False, mps=False):
     fake, _ = _torch(cuda=cuda, mps=mps)
     monkeypatch.setitem(sys.modules, "torch", fake)

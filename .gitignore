@@ -82,6 +82,10 @@ model-cache/
 
 # Misc
 output.log
+# Written by docker-publish.yml's smoke test, which runs `facet.py --doctor`
+# inside the built image and tails this on failure. Also lands here whenever the
+# same command is run by hand from the repo root.
+doctor.log
 *.db.shrink
 sample.*
 test-screenshots/
