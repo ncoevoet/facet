@@ -30,6 +30,23 @@ def _info(label, value):
     logger.info("  [--] %s: %s", label, value)
 
 
+_CUDA_INDEX_URL = "https://download.pytorch.org/whl/"
+
+
+def _log_pytorch_reinstall_hint(lead):
+    """Print the wheel-index advice, from the one place that knows the indexes.
+
+    Three call sites reach the same dead end by different routes -- a CPU-only
+    build, a driver torch cannot use, and a build with no kernels for this card
+    -- and all three end with the same two pip commands. They were copies until
+    a cu124 -> cu126 bump had to touch each of them separately.
+    """
+    logger.warning(lead)
+    logger.warning("    pip install torch torchvision --index-url %scu128", _CUDA_INDEX_URL)
+    logger.warning("  For older GPUs (pre-Blackwell), cu126 may also work:")
+    logger.warning("    pip install torch torchvision --index-url %scu126", _CUDA_INDEX_URL)
+
+
 def _cuda_is_usable(torch_module):
     """True when torch reports CUDA *and* a kernel really runs on this GPU."""
     from utils.device import is_device_available
@@ -43,22 +60,19 @@ def _report_cuda_arch_mismatch(status):
     read green while the first real tensor op dies with "no kernel image is
     available for execution on the device".
     """
+    from utils.device import GPU_UNUSABLE_LABEL, sm_name
     capability = (
-        f"{status.capability[0]}.{status.capability[1]} "
-        f"(sm_{status.capability[0]}{status.capability[1]})"
+        f"{status.capability[0]}.{status.capability[1]} ({sm_name(status.capability)})"
         if status.capability else "unknown"
     )
-    _warn("GPU unusable by this PyTorch build", status.reason)
+    _warn(GPU_UNUSABLE_LABEL, status.reason)
     _warn("Device compute capability", capability)
     _warn("PyTorch architectures", ", ".join(status.arch_list) or "unknown")
     logger.warning("  This PyTorch build ships no kernels for your GPU architecture.")
     logger.warning("  Docker — switch to the image built for your card:")
     logger.warning("    ghcr.io/ncoevoet/facet:latest-cuda         Turing through Blackwell, incl. RTX 50-series (sm_75-sm_120)")
     logger.warning("    ghcr.io/ncoevoet/facet:latest-cuda-legacy  Maxwell through Hopper (sm_50-sm_90)")
-    logger.warning("  Bare metal — reinstall PyTorch from the matching CUDA index:")
-    logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
-    logger.warning("  For older GPUs (pre-Blackwell), cu126 may also work:")
-    logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126")
+    _log_pytorch_reinstall_hint("  Bare metal — reinstall PyTorch from the matching CUDA index:")
 
 
 def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=None):
@@ -162,10 +176,7 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
             _warn("GPU found by driver", f"{simulate_gpu} (simulated)")
             logger.warning("  PyTorch was built without CUDA support for your GPU.")
             logger.warning("  Your PyTorch CUDA version: None (CPU-only)")
-            logger.warning("  Reinstall with the correct CUDA version:")
-            logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
-            logger.warning("  For older GPUs (pre-Blackwell), cu126 may also work:")
-            logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126")
+            _log_pytorch_reinstall_hint("  Reinstall with the correct CUDA version:")
     elif torch is not None and selected_device == 'mps':
         _section("GPU")
         _ok("Device", "Apple Metal Performance Shaders (MPS)")
@@ -219,10 +230,7 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
                 _warn("GPU found by driver", gpu_info)
                 logger.warning("  PyTorch was built without CUDA support for your GPU.")
                 logger.warning("  Your PyTorch CUDA version: %s", torch.version.cuda or "None (CPU-only)")
-                logger.warning("  Reinstall with the correct CUDA version:")
-                logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128")
-                logger.warning("  For older GPUs (pre-Blackwell), cu126 may also work:")
-                logger.warning("    pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126")
+                _log_pytorch_reinstall_hint("  Reinstall with the correct CUDA version:")
             else:
                 _info("nvidia-smi", "no GPU found — is a GPU installed?")
         except FileNotFoundError:

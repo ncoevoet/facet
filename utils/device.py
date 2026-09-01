@@ -46,6 +46,9 @@ def torch_compile_status() -> tuple[bool, str]:
     return True, "C compiler available"
 
 
+GPU_UNUSABLE_LABEL = "GPU unusable by this PyTorch build"
+
+
 class CudaArchStatus(NamedTuple):
     """Whether this PyTorch build can actually run kernels on the local GPU.
 
@@ -61,6 +64,11 @@ class CudaArchStatus(NamedTuple):
 
 
 _ARCH_ENTRY = re.compile(r"^(sm|compute)_(\d+)")
+
+
+def sm_name(capability: tuple[int, int]) -> str:
+    """Render a compute capability the way CUDA names its cubins: ``sm_120``."""
+    return f"sm_{capability[0]}{capability[1]}"
 
 
 def _parse_arch_entry(entry: str) -> tuple[str, int, int] | None:
@@ -186,20 +194,18 @@ def _compute_cuda_arch_status(torch_module: Any) -> CudaArchStatus:
     cuda = getattr(torch_module, "cuda", None)
     capability = _read_cuda_capability(cuda)
     arch_list = _read_cuda_arch_list(cuda)
-    unsupported = (
-        capability is not None
-        and bool(arch_list)
-        and not any(_arch_entry_covers(entry, capability) for entry in arch_list)
-    )
+    unsupported_reason = ""
+    if capability is not None and arch_list and not any(
+            _arch_entry_covers(entry, capability) for entry in arch_list):
+        unsupported_reason = (
+            f"device {sm_name(capability)} is not covered by this PyTorch "
+            f"build's architectures ({', '.join(arch_list)})"
+        )
     outcome, failure = _probe_cuda_kernel(torch_module)
     if outcome == _PROBE_OK:
         return CudaArchStatus(True, capability, arch_list, "")
-    if unsupported:
-        return CudaArchStatus(
-            False, capability, arch_list,
-            f"device sm_{capability[0]}{capability[1]} is not covered by this PyTorch "
-            f"build's architectures ({', '.join(arch_list)})",
-        )
+    if unsupported_reason:
+        return CudaArchStatus(False, capability, arch_list, unsupported_reason)
     if _is_missing_kernel_failure(failure):
         return CudaArchStatus(
             False, capability, arch_list, _probe_failure_reason(outcome, failure)

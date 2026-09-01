@@ -160,6 +160,18 @@ def _readable_system_ram_gb():
         return None
 
 
+def _gpu_absence_label(mismatch):
+    """Name the reason there is no usable GPU, shared by the two profile checks.
+
+    A card the build ships no kernels for is present and reports its VRAM, so
+    "No GPU detected" is simply wrong there (issue #119). Both the profile
+    suggestion and the compatibility check reach this fork and must word it
+    the same way.
+    """
+    from utils.device import GPU_UNUSABLE_LABEL
+    return GPU_UNUSABLE_LABEL if mismatch is not None else "No GPU detected"
+
+
 def _unusable_cuda_status():
     """The arch-mismatch status when a present GPU cannot run kernels, else None.
 
@@ -916,10 +928,7 @@ class ScoringConfig:
                 has_mps = False
             force_cpu = os.environ.get('FACET_DEVICE', 'auto').strip().lower() == 'cpu'
             mismatch = None if has_mps else _unusable_cuda_status()
-            no_gpu = (
-                "GPU unusable by this PyTorch build"
-                if mismatch is not None else "No GPU detected"
-            )
+            no_gpu = _gpu_absence_label(mismatch)
             profile = UNIFIED_MEMORY_MINIMUM_PROFILE
             ram_gb = _readable_system_ram_gb()
             if ram_gb is None:
@@ -1021,8 +1030,8 @@ class ScoringConfig:
                     logger.warning("  Consider setting vram_profile to 'legacy' or 'auto' in scoring_config.json")
                     logger.warning("  Tip: run 'python facet.py --doctor' for GPU setup diagnostics")
                 if mismatch is not None:
-                    return False, 'legacy', f"GPU unusable by this PyTorch build: {mismatch.reason}"
-                return False, 'legacy', "No GPU detected"
+                    return False, 'legacy', f"{_gpu_absence_label(mismatch)}: {mismatch.reason}"
+                return False, 'legacy', _gpu_absence_label(mismatch)
             return True, current_profile, "OK (MPS mode)" if has_mps else "OK (CPU mode)"
 
         # Define VRAM requirements for each profile
