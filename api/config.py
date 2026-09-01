@@ -15,7 +15,9 @@ import threading
 import time
 import secrets
 
-from config import default_config_path
+from config_resolve import (
+    default_config_path, deep_merge, delta_for_write, load_defaults,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -205,6 +207,23 @@ def atomic_write_json(path, data):
     _fsync_directory(directory)
 
 
+def write_user_config(path, config):
+    """Persist ``config`` as the OVERRIDE it is, not as the resolved config.
+
+    Every writer goes through here. They each read the resolved config — the
+    shipped defaults with the operator's file laid over them — mutate one
+    corner of it and write the result back, so writing what they hold would
+    copy all 3700 resolved lines into a file that is supposed to say only what
+    the operator changed. :func:`config_resolve.delta_for_write` subtracts the
+    defaults again; the file resolves identically either way.
+
+    Uses :func:`atomic_write_json`, which preserves the destination's mode —
+    the seeded container config is 0600 because it legitimately holds
+    ``viewer.password`` and ``immich.api_key`` in plaintext.
+    """
+    atomic_write_json(path, delta_for_write(config))
+
+
 def config_load_failed():
     """True when scoring_config.json exists but could not be parsed.
 
@@ -218,11 +237,32 @@ def config_load_failed():
     return _config_load_failed
 
 
+def _read_overrides():
+    """The operator's config file as a dict, raising FileNotFoundError if absent.
+
+    Split out so :func:`_read_config` can tell "the file is not there" from
+    "the file is there and does not parse" while still merging the shipped
+    defaults under whatever it did read.
+    """
+    with open(_CONFIG_PATH) as f:
+        return json.load(f)
+
+
 def _read_config():
     """Parse scoring_config.json, tracking whether an existing file failed to parse.
 
-    Returns ``(config, parsed_ok)``. A missing file yields ``({}, False)``, and
-    arms :func:`config_load_failed` only when something NAMED that file.
+    Returns ``(config, parsed_ok)``. What is parsed is the operator's OVERRIDE;
+    it is resolved on top of the shipped defaults, so a file holding three keys
+    still yields a whole config. A missing file yields the shipped defaults with
+    ``parsed_ok`` False — defaults carry an empty ``viewer.edition_password`` and
+    no users, so defaults-only IS a never-configured install and the auth
+    semantics below are unchanged by the merge.
+
+    A missing file at a NAMED path is the exception and gets no defaults at all:
+    it returns ``({}, False)`` and arms :func:`config_load_failed`. Handing that
+    caller the shipped defaults would be handing it an empty
+    ``viewer.edition_password``, which is precisely the open install this branch
+    exists to refuse.
 
     That distinction is the whole point. An unnamed missing config is a
     never-configured install, which is legitimately open — fail-open there is
@@ -241,8 +281,7 @@ def _read_config():
     """
     global _config_load_failed
     try:
-        with open(_CONFIG_PATH) as f:
-            config = json.load(f)
+        config = deep_merge(load_defaults(), _read_overrides())
     except FileNotFoundError:
         if _CONFIG_PATH_IS_EXPLICIT:
             _config_load_failed = True
@@ -254,8 +293,8 @@ def _read_config():
                 _CONFIG_PATH_ENV_VAR, _CONFIG_PATH,
             )
             return {}, False
-        logger.debug("No %s — running as a never-configured install", _CONFIG_PATH)
-        return {}, False
+        logger.debug("No %s — running on the shipped defaults, never configured", _CONFIG_PATH)
+        return load_defaults(), False
     except Exception:
         _config_load_failed = True
         logger.error(
@@ -596,7 +635,7 @@ def _read_config_evicting_legacy_share_key():
             return config, parsed_ok, legacy.strip() if isinstance(legacy, str) else ''
         try:
             _write_config_backup(config)
-            atomic_write_json(_CONFIG_PATH, config)
+            write_user_config(_CONFIG_PATH, config)
         except OSError:
             logger.error(
                 "Could not remove `%s` from %s — the file is not writable here "
@@ -640,8 +679,13 @@ def _write_config_backup(config):
     cannot share one primitive: this one must write the EVICTED dict rather
     than copy the file, or the backup would keep the secret it exists to
     remove.
+
+    Snapshots the OVERRIDE, like every other writer, so restoring the backup
+    over the config restores the same install rather than freezing today's
+    defaults into the operator's file.
     """
-    _atomic_write_owner_only(f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}", json.dumps(config, indent=2))
+    _atomic_write_owner_only(f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}",
+                             json.dumps(delta_for_write(config), indent=2))
 
 
 def _config_backup_paths():

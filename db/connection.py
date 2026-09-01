@@ -4,30 +4,23 @@ Database connection utilities for Facet.
 Provides connection creation, PRAGMA configuration, and context manager.
 """
 
-import json
 import logging
 import os
 import sqlite3
 from contextlib import contextmanager
 
+from config_resolve import default_config_path, load_resolved
+
 DEFAULT_DB_PATH = os.environ.get('DB_PATH', 'photo_scores_pro.db')
 
 
-def _resolve_config_path():
-    """Path to scoring_config.json — $FACET_CONFIG when set, else the repo-root
-    file. Mirrors ``config.default_config_path`` byte-for-byte rather than
-    importing it: ``config``'s own ``__init__`` imports
-    ``config.percentile_normalizer``, which imports ``db`` — and this module is
-    the first thing ``db/__init__.py`` imports, so that import would recurse
-    back into a ``db`` package that has not finished initializing yet.
-    """
-    env_path = os.environ.get('FACET_CONFIG', '').strip()
-    if env_path:
-        return env_path
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scoring_config.json')
-
-
-_CONFIG_PATH = _resolve_config_path()
+# ``config_resolve`` rather than ``config``: the latter's ``__init__`` imports
+# ``config.percentile_normalizer``, which imports ``db`` — and this module is the
+# first thing ``db/__init__.py`` imports, so that import would recurse back into
+# a ``db`` package that has not finished initializing yet. ``config_resolve``
+# is stdlib-only and exists precisely so this module needs no private copy of
+# the path resolution and defaults merge.
+_CONFIG_PATH = default_config_path()
 
 logger = logging.getLogger("facet.db_connection")
 
@@ -43,12 +36,10 @@ def get_pragma_values():
     mmap_size_mb = 256
     cache_size_mb = 64
     try:
-        with open(_CONFIG_PATH, 'r') as f:
-            config = json.load(f)
-        perf = config.get('performance', {})
+        perf = load_resolved(_CONFIG_PATH).get('performance', {})
         mmap_size_mb = perf.get('mmap_size_mb', mmap_size_mb)
         cache_size_mb = perf.get('cache_size_mb', cache_size_mb)
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
+    except (OSError, ValueError, KeyError):
         pass
     return {
         'mmap_size': mmap_size_mb * 1024 * 1024,

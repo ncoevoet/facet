@@ -1845,9 +1845,8 @@ def main():
     level_name = os.environ.get("FACET_LOG_LEVEL")
     if not level_name:
         try:
-            with open(resolve_scoring_config_path(None)) as f:
-                cfg = json.load(f)
-            level_name = cfg.get("log_level")
+            from config_resolve import load_resolved
+            level_name = load_resolved(resolve_scoring_config_path(None)).get("log_level")
         except Exception:
             pass
     level_name = (level_name or "INFO").upper()

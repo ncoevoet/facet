@@ -38,6 +38,7 @@ from scipy.optimize import differential_evolution, minimize
 from scipy.stats import pearsonr, spearmanr
 
 from config import default_config_path
+from config_resolve import delta_for_write, load_resolved
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -430,8 +431,7 @@ def load_current_category_weights(config_path: str, category: str, col_names: li
     """
     n = len(col_names)
     try:
-        with open(config_path) as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
     except (OSError, json.JSONDecodeError):
         return np.ones(n) / n
 
@@ -691,8 +691,7 @@ def analyze_filter_boundaries(matched: list[dict], config_path: str) -> list[dic
 
     # Load current config for filter thresholds
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logger.warning("  Could not load config: %s", e)
         return []
@@ -881,8 +880,7 @@ def optimize_modifiers(
 
     # Load config for current weights and penalty settings
     try:
-        with open(config_path, 'r') as f:
-            config_data = json.load(f)
+        config_data = load_resolved(config_path)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
 
@@ -1106,8 +1104,7 @@ def run_ava_tag_analysis(
 def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None:
     """Write filter threshold suggestions to scoring_config.json."""
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logger.error("  Could not load config: %s", e)
         return
@@ -1130,7 +1127,7 @@ def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None
 
     if applied:
         with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+            json.dump(delta_for_write(config), f, indent=2)
             f.write('\n')
         logger.info("  Applied %d filter changes to %s", applied, config_path)
         logger.info("  Run: python facet.py --recompute-average")
@@ -1141,8 +1138,7 @@ def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None
 def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> None:
     """Write optimized modifier values to scoring_config.json."""
     try:
-        with open(config_path, 'r') as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         logger.error("  Could not load config: %s", e)
         return
@@ -1166,7 +1162,7 @@ def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> N
 
     if applied:
         with open(config_path, 'w') as f:
-            json.dump(config, f, indent=2)
+            json.dump(delta_for_write(config), f, indent=2)
             f.write('\n')
         logger.info("  Applied modifiers for %d categories to %s", applied, config_path)
     else:
@@ -1245,8 +1241,7 @@ def apply_weights_to_config(
     # Column → config key mapping (inverse of METRIC_COLUMNS)
     col_to_config_key = {col: key for col, key in METRIC_COLUMNS.items()}
 
-    with open(config_path, 'r') as f:
-        config = json.load(f)
+    config = load_resolved(config_path)
 
     for cat in config.get('categories', []):
         if cat.get('name') != category:
@@ -1292,7 +1287,7 @@ def apply_weights_to_config(
         return
 
     with open(config_path, 'w') as f:
-        json.dump(config, f, indent=2)
+        json.dump(delta_for_write(config), f, indent=2)
         f.write('\n')
 
     logger.info("  Updated weights for category '%s' in %s", category, config_path)
@@ -1444,8 +1439,7 @@ def main():
             for cat_key, info, col_to_weight in optimization_results:
                 # Snapshot existing weights first
                 try:
-                    with open(args.config, 'r') as f:
-                        config = json.load(f)
+                    config = load_resolved(args.config)
                     for cat in config.get('categories', []):
                         if cat.get('name') == cat_key:
                             snapshot_config_to_db(args.db, cat_key, cat.get('weights', {}), info['srcc_before'])

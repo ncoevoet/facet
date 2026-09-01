@@ -49,6 +49,7 @@ from db import (
     backup_database,
 )
 from config import default_config_path
+from config_resolve import delta_for_write, load_resolved
 
 CONFIG_PATH = default_config_path()
 
@@ -88,9 +89,7 @@ def _load_config():
     that forwarded the dict it was handed would republish the secret into a
     git-tracked file.
     """
-    with open(CONFIG_PATH) as f:
-        config = json.load(f)
-    return _drop_legacy_secret(config)
+    return _drop_legacy_secret(load_resolved(CONFIG_PATH))
 
 
 def _save_config(config):
@@ -122,7 +121,7 @@ def _save_config(config):
     write_owner_only_backup(CONFIG_PATH, backup_path)
     logger.info("Backup saved to %s", backup_path)
     with open(CONFIG_PATH, 'w') as f:
-        json.dump(config, f, indent=2)
+        json.dump(delta_for_write(config), f, indent=2)
     logger.info("Config saved to %s", CONFIG_PATH)
 
 

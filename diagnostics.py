@@ -288,10 +288,8 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
 
     # darktable-cli (only checked when configured as RAW processor)
     try:
-        import json as _json
-        with open(config_path) as _f:
-            _cfg = _json.load(_f)
-        raw_proc = _cfg.get('viewer', {}).get('raw_processor', {})
+        from config_resolve import load_resolved
+        raw_proc = load_resolved(config_path).get('viewer', {}).get('raw_processor', {})
     except Exception:
         raw_proc = {}
 

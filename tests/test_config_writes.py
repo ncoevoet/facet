@@ -16,7 +16,7 @@ from fastapi import HTTPException
 
 from api import config as api_config
 from api.auth import _is_hashed, upgrade_legacy_password
-from api.config import CONFIG_WRITE_LOCK, atomic_write_json
+from api.config import CONFIG_WRITE_LOCK, write_user_config
 from api.config_writes import (
     BACKUP_FILE_MODE,
     MAX_CONFIG_BACKUPS,
@@ -469,14 +469,24 @@ class TestUpdateScoringContext:
     def test_malformed_context_entry_is_healed_instead_of_crashing(self, config_copy):
         """A hand-edited config can leave a context as a list or string;
         ``resolve_context_order`` tolerates that, so the writer must too rather
-        than 500ing on item assignment."""
+        than 500ing on item assignment.
+
+        Only promote/excluded are asserted. The healed entry resolves over the
+        shipped context, so it keeps that context's ``label_key`` and
+        ``suggest_from_moments`` rather than losing them to the repair — which
+        is the point of resolving over defaults, and better than the bare
+        two-key dict a hand-healed file used to be left with.
+        """
         data = json.loads(config_copy.read_text())
         data["scoring_contexts"][self.CONTEXT] = ["broken"]
         config_copy.write_text(json.dumps(data))
 
         update_scoring_context(config_copy, self.CONTEXT, ["wildlife"], [])
 
-        assert _context(config_copy, self.CONTEXT) == {"promote": ["wildlife"], "excluded": []}
+        healed = _context(config_copy, self.CONTEXT)
+        assert isinstance(healed, dict)
+        assert healed["promote"] == ["wildlife"]
+        assert healed["excluded"] == []
 
     def test_concurrent_context_writes_never_corrupt_the_file(self, config_copy):
         deltas = [(["wildlife"], ["macro"]), (["sports"], [])]
@@ -605,7 +615,7 @@ class TestWritersOfDifferentPartsShareOneLock:
         """Widen one writer's read-modify-write window so the other lands inside it."""
         def _write(path, data):
             time.sleep(delay)
-            atomic_write_json(path, data)
+            write_user_config(path, data)
         return _write
 
     def test_neither_update_is_lost(self, config_copy):
@@ -622,7 +632,7 @@ class TestWritersOfDifferentPartsShareOneLock:
             upgrade_legacy_password("password", _PLAINTEXT_PASSWORD)
 
         with (
-            mock.patch("api.config_writes.atomic_write_json", self._delayed_write(_WRITE_WINDOW_SECONDS)),
+            mock.patch("api.config_writes.write_user_config", self._delayed_write(_WRITE_WINDOW_SECONDS)),
             mock.patch.object(api_config, "_CONFIG_PATH", str(config_copy)),
             mock.patch.object(api_config, "reload_config", lambda: None),
         ):

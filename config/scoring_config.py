@@ -11,6 +11,10 @@ import hashlib
 
 logger = logging.getLogger("facet.config")
 
+from config_resolve import (  # noqa: F401 - re-exported for callers that import them from here
+    default_config_path, defaults_path, load_defaults, deep_merge,
+    subtract_defaults, delta_for_write, load_resolved,
+)
 from config.category_filter import (
     VALID_NUMERIC_FILTERS, VALID_BOOLEAN_FILTERS, VALID_TAG_FILTERS,
     VALID_WEIGHT_COLUMNS,
@@ -49,21 +53,6 @@ RAW_DECODE_DEFAULTS = {
 }
 
 
-def default_config_path():
-    """Absolute path to the repo-root scoring_config.json, or $FACET_CONFIG.
-
-    Resolves what api.config._CONFIG_PATH resolves, but lives here so modules
-    outside the api package can reach it without inverting the
-    api -> optimization import direction. Duplicated rather than imported for
-    the same reason: this one line of env-var handling is cheaper to keep in
-    sync than a new cross-package dependency.
-    """
-    env_path = os.environ.get('FACET_CONFIG', '').strip()
-    if env_path:
-        return env_path
-    return os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'scoring_config.json')
 
 
 def _calc_stats(values):
@@ -195,6 +184,8 @@ class ScoringConfig:
 
     def __init__(self, config_path=None, validate=True):
         self.config_path = resolve_scoring_config_path(config_path)
+        self._config_path_is_named = bool(
+            config_path or os.environ.get('FACET_CONFIG', '').strip())
         self.config = self._load_config()
         self._context_order_cache = {}
         self.version_hash = self._compute_version_hash()
@@ -206,19 +197,25 @@ class ScoringConfig:
     def _load_config(self):
         """Load config from file.
 
-        Raises:
-            FileNotFoundError: If config file doesn't exist
-            ValueError: If config is not v4.0 format (no 'categories' array)
-        """
-        if not os.path.exists(self.config_path):
-            raise FileNotFoundError(
-                f"Config file not found: {self.config_path}\n"
-                f"Please ensure scoring_config.json exists with v4.0 format."
-            )
+        The file is the operator's OVERRIDE, resolved on top of the defaults
+        this package ships — so it may hold three keys, or none, and every
+        section it does not mention still has the shipped value. An absent
+        file is therefore an empty override rather than an error, but only
+        when nobody NAMED it: a path passed as ``config_path`` or through
+        $FACET_CONFIG that is not there is a typo or a broken mount, and
+        reading that as "no overrides" would silently score with defaults the
+        operator never chose.
 
+        Raises:
+            FileNotFoundError: If a NAMED config path doesn't exist
+            ValueError: If the resolved config is not v4.0 format (no
+                'categories' array), which now means the shipped defaults
+                themselves are broken
+        """
         try:
-            with open(self.config_path, 'r') as f:
-                config = json.load(f)
+            config = load_resolved(self.config_path, named=self._config_path_is_named)
+        except FileNotFoundError:
+            raise
         except Exception as e:
             raise ValueError(f"Could not load config from {self.config_path}: {e}")
 
@@ -438,9 +435,14 @@ class ScoringConfig:
         return is_valid, corrected_categories
 
     def save_config(self):
-        """Save the current config to the config file."""
+        """Save the operator's OVERRIDE back to the config file.
+
+        ``self.config`` is the resolved config -- the shipped defaults with the
+        file laid over them -- so writing it verbatim would copy every shipped
+        default into a file that is meant to record only what differs.
+        """
         with open(self.config_path, 'w') as f:
-            json.dump(self.config, f, indent=2)
+            json.dump(delta_for_write(self.config), f, indent=2)
             f.write('\n')  # Trailing newline
 
     def get_weights(self, category):

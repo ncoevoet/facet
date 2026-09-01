@@ -12,7 +12,6 @@ and the plaintext-password upgrade in ``api.auth``, which rewrite other parts of
 the very same file.
 """
 
-import json
 import logging
 import os
 import shutil
@@ -21,7 +20,8 @@ from datetime import datetime
 
 from fastapi import HTTPException
 
-from api.config import CONFIG_WRITE_LOCK, atomic_write_json
+from api.config import CONFIG_WRITE_LOCK, write_user_config
+from config_resolve import load_resolved
 from config.scoring_config import DEFAULT_CATEGORY_NAME
 from db import record_weight_snapshot
 from utils.panorama import SETTING_BOUNDS
@@ -173,8 +173,7 @@ def update_category_priorities(config_path, order):
     """
     config_path = str(config_path)
     with CONFIG_WRITE_LOCK:
-        with open(config_path) as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
 
         categories = config.get('categories', [])
         by_name = {c.get('name'): c for c in categories}
@@ -190,7 +189,7 @@ def update_category_priorities(config_path, order):
 
         backup_path = _backup_config(config_path)
 
-        atomic_write_json(config_path, config)
+        write_user_config(config_path, config)
 
     return backup_path
 
@@ -238,8 +237,7 @@ def update_scoring_context(config_path, context, promote, excluded):
     """
     config_path = str(config_path)
     with CONFIG_WRITE_LOCK:
-        with open(config_path) as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
 
         contexts = config.get('scoring_contexts', {})
         if not isinstance(contexts, dict) or context not in contexts:
@@ -262,7 +260,7 @@ def update_scoring_context(config_path, context, promote, excluded):
 
         backup_path = _backup_config(config_path)
 
-        atomic_write_json(config_path, config)
+        write_user_config(config_path, config)
 
     return backup_path
 
@@ -280,8 +278,7 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
     """
     config_path = str(config_path)
     with CONFIG_WRITE_LOCK:
-        with open(config_path) as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
 
         target = next((c for c in config.get('categories', []) if c.get('name') == category), None)
         if target is None:
@@ -303,7 +300,7 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
         if filters is not None:
             target['filters'] = filters
 
-        atomic_write_json(config_path, config)
+        write_user_config(config_path, config)
 
     return backup_path
 
@@ -344,14 +341,13 @@ def update_panorama_detection(config_path, settings):
 
     config_path = str(config_path)
     with CONFIG_WRITE_LOCK:
-        with open(config_path) as f:
-            config = json.load(f)
+        config = load_resolved(config_path)
         backup_path = _backup_config(config_path)
         stored = dict(settings)
         stored['enabled'] = bool(stored['enabled'])
         for key in ('min_frames', 'min_inliers', 'sift_features', 'probe_stride', 'workers'):
             stored[key] = int(stored[key])
         config['panorama_detection'] = stored
-        atomic_write_json(config_path, config)
+        write_user_config(config_path, config)
 
     return backup_path

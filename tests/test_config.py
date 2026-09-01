@@ -8,6 +8,7 @@ import pytest
 
 from config.category_filter import CategoryFilter, VALID_WEIGHT_COLUMNS
 from config.scoring_config import ScoringConfig
+from config_resolve import load_defaults
 
 # Resolve the real scoring_config.json path (repo root)
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "scoring_config.json")
@@ -349,10 +350,26 @@ class TestValidateCategoriesScoringContexts:
     ]
 
     def _config_with(self, tmp_path, scoring_contexts, narrative_moments=None):
+        """A config carrying ONLY the contexts a test declares.
+
+        ``ScoringConfig`` resolves the file over the shipped defaults, and
+        ``scoring_contexts`` is a dict, so the shipped presets would otherwise
+        merge in and be validated against this fixture's five categories --
+        which they legitimately fail, since they promote fourteen the fixture
+        does not define. Each shipped name is overridden with an empty context
+        so only what the test declares is under test. Derived from the defaults
+        rather than hard-coded, so a new shipped preset cannot silently
+        reintroduce the leak.
+        """
         config_path = tmp_path / "scoring_config.json"
+        neutralised = {
+            name: {"label_key": name, "promote": [], "excluded": [],
+                   "suggest_from_moments": []}
+            for name in load_defaults().get("scoring_contexts", {})
+        }
         config = {
             "categories": self._CATEGORIES,
-            "scoring_contexts": scoring_contexts,
+            "scoring_contexts": {**neutralised, **scoring_contexts},
             "narrative_moments": narrative_moments or {
                 "default_event_type": "general",
                 "event_types": {"general": {"sports": [], "nature_wildlife": []}},
@@ -1002,14 +1019,24 @@ class TestTagVocabularyCollisionWarning:
 
     def test_identical_synonyms_across_categories_do_not_warn(self, tmp_path, caplog):
         """Two categories legitimately sharing the exact same synonym list
-        for a tag is not a collision."""
+        for a tag is not a collision.
+
+        The tag is one the shipped vocabulary cannot define. ``categories`` is
+        replaced wholesale when a config overrides it, but ``standalone_tags``
+        is a dict and merges, so a real tag name here would collide with the
+        shipped synonyms and warn for a reason that has nothing to do with what
+        this test asserts. The guard below fails loudly if the name ever stops
+        being fictional.
+        """
+        tag = "fixture_only_tag"
+        assert tag not in load_defaults().get("standalone_tags", {})
         config_path = tmp_path / "scoring_config.json"
         config_path.write_text(json.dumps({
             "categories": [
                 {"name": "cat_a", "priority": 1, "filters": {},
-                 "tags": {"bokeh": ["bokeh", "blurred background"]}},
+                 "tags": {tag: ["one synonym", "another synonym"]}},
                 {"name": "cat_b", "priority": 2, "filters": {},
-                 "tags": {"bokeh": ["bokeh", "blurred background"]}},
+                 "tags": {tag: ["one synonym", "another synonym"]}},
             ],
         }))
         cfg = ScoringConfig(config_path=str(config_path), validate=False)

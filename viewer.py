@@ -9,7 +9,6 @@ Or directly with uvicorn:
     uvicorn api:create_app --factory --reload --port 5000
 """
 
-import json
 import logging
 import os
 import sys
@@ -20,6 +19,8 @@ _script_dir = os.path.dirname(os.path.abspath(__file__))
 if _script_dir not in sys.path:
     sys.path.insert(0, _script_dir)
 
+from config_resolve import load_resolved  # noqa: E402 - needs _script_dir on sys.path
+
 
 def _configure_logging():
     """Set up structured logging. Level comes from (in priority order):
@@ -27,21 +28,17 @@ def _configure_logging():
     2. scoring_config.json log_level field
     3. Default: INFO
 
-    The $FACET_CONFIG lookup is spelled out here rather than taken from
-    :func:`config.default_config_path`, for the same reason this function reads
-    the JSON by hand instead of building a ``ScoringConfig``: it runs before
-    ``logging.basicConfig``, and ``config/__init__.py`` imports
-    ``config.percentile_normalizer``, which imports ``db`` -- the whole
-    database layer, pulled in to read one string. The duplication is three
-    lines; the import is not.
+    The config comes from ``config_resolve`` rather than a ``ScoringConfig``:
+    this runs before ``logging.basicConfig``, and ``config/__init__.py`` imports
+    ``config.percentile_normalizer``, which imports ``db`` -- the whole database
+    layer, pulled in to read one string. ``config_resolve`` is stdlib-only and
+    reads the shipped defaults too, so a log level left at its default is still
+    found in an install whose own config file only overrides three keys.
     """
     level_name = os.environ.get("FACET_LOG_LEVEL")
     if not level_name:
-        config_path = os.environ.get("FACET_CONFIG", "").strip() or os.path.join(_script_dir, "scoring_config.json")
         try:
-            with open(config_path) as f:
-                cfg = json.load(f)
-            level_name = cfg.get("log_level")
+            level_name = load_resolved().get("log_level")
         except Exception:
             pass
     level_name = (level_name or "INFO").upper()

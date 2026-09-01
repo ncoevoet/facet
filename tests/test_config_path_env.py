@@ -29,6 +29,7 @@ import pytest
 import api.config as api_config
 import db.connection as db_connection
 from config import default_config_path
+from config_resolve import load_defaults
 from config.scoring_config import resolve_scoring_config_path
 
 _ENV_VAR = "FACET_CONFIG"
@@ -169,38 +170,42 @@ class TestTheModuleConstantsHonourTheVariable:
         assert resolved == _todays_api_config_path()
 
 
-class TestDbConnectionResolvePath:
-    """``db.connection`` resolves the path a fourth time, on its own.
+class TestDbConnectionReusesTheSharedResolver:
+    """``db.connection`` resolves the path through ``config_resolve`` too.
 
     It cannot import ``config``: ``config/__init__.py`` imports
     ``config.percentile_normalizer``, which imports ``db`` -- and this module is
-    the first thing ``db/__init__.py`` imports. The copy is deliberate, so it
-    needs the same tests as the original rather than none.
+    the first thing ``db/__init__.py`` imports, so the import recurses into a
+    half-built ``db``. That is why it used to carry ``_resolve_config_path``, a
+    byte-for-byte copy. ``config_resolve`` is stdlib-only and imports nothing
+    from this project, so the copy is gone and the reuse is what needs pinning.
     """
 
-    def test_unset_resolves_to_the_repo_root_file(self, monkeypatch):
+    def test_it_no_longer_carries_its_own_copy(self):
+        assert not hasattr(db_connection, "_resolve_config_path")
+
+    def test_it_imports_the_shared_resolver(self):
+        assert db_connection.default_config_path is default_config_path
+
+    def test_the_constant_is_what_the_shared_resolver_returns(self, monkeypatch):
         monkeypatch.delenv(_ENV_VAR, raising=False)
-        assert db_connection._resolve_config_path() == _todays_api_config_path()
+        assert db_connection._CONFIG_PATH == _todays_api_config_path()
 
-    def test_set_overrides_with_the_exact_value(self, monkeypatch, tmp_path):
-        custom = tmp_path / "custom.json"
-        monkeypatch.setenv(_ENV_VAR, str(custom))
-        assert db_connection._resolve_config_path() == str(custom)
+    def test_importing_it_first_does_not_recurse(self):
+        """The reason for the copy, asserted rather than assumed.
 
-    def test_set_value_is_stripped(self, monkeypatch, tmp_path):
-        custom = tmp_path / "custom.json"
-        monkeypatch.setenv(_ENV_VAR, f"  {custom}  ")
-        assert db_connection._resolve_config_path() == str(custom)
-
-    def test_empty_env_falls_back(self, monkeypatch):
-        monkeypatch.setenv(_ENV_VAR, "")
-        assert db_connection._resolve_config_path() == _todays_api_config_path()
-
-    def test_it_agrees_with_the_other_sites(self, monkeypatch, tmp_path):
-        custom = tmp_path / "custom.json"
-        monkeypatch.setenv(_ENV_VAR, str(custom))
-        assert db_connection._resolve_config_path() == default_config_path()
-        assert db_connection._resolve_config_path() == resolve_scoring_config_path(None)
+        Run in a fresh interpreter: importing ``db`` pulls ``db.connection``
+        before ``db`` is bound, so a resolver that reached the ``config``
+        PACKAGE from here would raise ImportError on a partially initialised
+        module. In-process this would pass on a warm ``sys.modules`` no matter
+        what, which is exactly how such a regression would slip through.
+        """
+        result = subprocess.run(
+            [sys.executable, "-c", "import db; print(db.connection._CONFIG_PATH)"],
+            cwd=_repo_root(), capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip().endswith("scoring_config.json")
 
 
 class TestAMissingConfigOnlyReadsAsAFreshInstallWhenNobodyNamedIt:
@@ -222,15 +227,36 @@ class TestAMissingConfigOnlyReadsAsAFreshInstallWhenNobodyNamedIt:
         return api_config._read_config()
 
     def test_an_unnamed_absent_config_is_still_a_fresh_install(self, monkeypatch, tmp_path):
-        """The zero-config first run must keep working exactly as it did."""
+        """The zero-config first run must keep working exactly as it did.
+
+        The config is no longer empty -- an absent override file resolves to the
+        shipped defaults, which is what makes a container with no config file at
+        all a working install rather than a broken one. What must NOT move is
+        the auth side: ``parsed_ok`` stays False and the defaults must carry no
+        password, or this branch would start granting rights off a file the
+        operator never wrote.
+        """
         assert not os.environ.get(_ENV_VAR, "").strip(), "conftest clears it before import"
 
         config, parsed_ok = self._read_an_absent_config(monkeypatch, tmp_path, None)
 
-        assert (config, parsed_ok) == ({}, False)
+        assert parsed_ok is False
         assert api_config.config_load_failed() is False
+        assert config == load_defaults()
+        viewer = config.get("viewer", {})
+        assert not viewer.get("password")
+        assert not viewer.get("edition_password")
+        assert not config.get("users")
 
     def test_an_explicitly_named_absent_config_fails_closed(self, monkeypatch, tmp_path):
+        """A NAMED path that is absent gets no defaults either.
+
+        The unnamed branch above hands back the shipped defaults; this one must
+        not. Those defaults carry an empty ``viewer.edition_password``, and an
+        empty edition password disables edition gating outright -- so returning
+        them here would rebuild, through the merge, the exact open install this
+        branch exists to refuse.
+        """
         config, parsed_ok = self._read_an_absent_config(monkeypatch, tmp_path, True)
 
         assert (config, parsed_ok) == ({}, False)

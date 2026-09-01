@@ -387,18 +387,17 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
         _CONFIG_BACKUP_SUFFIX,
         _CONFIG_PATH,
         CONFIG_WRITE_LOCK,
-        atomic_write_json,
         reload_config,
+        write_user_config,
     )
     from api.config_writes import write_owner_only_backup
-    import json
+    from config_resolve import load_resolved
 
     hashed = hash_password(plaintext)
     upgraded = False
     with CONFIG_WRITE_LOCK:
         try:
-            with open(_CONFIG_PATH) as f:
-                config = json.load(f)
+            config = load_resolved(_CONFIG_PATH)
         except Exception:
             logger.warning("Cannot upgrade password: failed to read config")
             return
@@ -408,7 +407,7 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
             config['viewer'] = viewer
             write_owner_only_backup(_CONFIG_PATH, f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}")
             try:
-                atomic_write_json(_CONFIG_PATH, config)
+                write_user_config(_CONFIG_PATH, config)
                 upgraded = True
             except Exception:
                 logger.exception("Failed to upgrade password hash for %s", config_key)
