@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.14.2] "Halide" — 2026-09-01
+
 ### Added
 
 - **A third CUDA image, `ghcr.io/ncoevoet/facet:latest-cuda-legacy`, is published for GPUs the default CUDA image no longer supports.** Fixing Blackwell (see Fixed, below) meant bumping `latest-cuda`'s base to `pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime`, whose torch build ships `sm_75`-`sm_120` cubins — Turing through Blackwell — and drops `sm_50`/`sm_60`/`sm_70`, the architectures Maxwell, Pascal (GTX 900/10-series) and Volta cards use. `latest-cuda-legacy` keeps today's base, `pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime` (`sm_50`-`sm_90`), so those cards keep working — an owner on one of them switches the `image:` line in their compose file, or the tag on a bare `docker pull`. The four GPU compose files (`docker-compose.{8gb,16gb,24gb,gpu}.yml`) still pull `latest-cuda` unchanged, so current-generation hardware needs no action. A second lock file, `requirements.legacy.lock.txt`, keeps the two CUDA bases from fighting over one pinned dependency graph — see Fixed, below.
