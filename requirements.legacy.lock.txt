@@ -1,27 +1,23 @@
-# Sticky, tested-working dependency lock for the DEFAULT Docker images: the CUDA
-# one (pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime, torch 2.11.0+cu128, cubins
-# sm_75...sm_120) and the slim CPU one, which share this file. The legacy CUDA
-# image (torch 2.6.0 / CUDA 12.6, sm_50...sm_90) installs
-# requirements.legacy.lock.txt instead; the Dockerfile picks with
-# REQUIREMENTS_LOCK, set per variant in docker-publish.yml. See issue #119.
-# Container-validated at transformers 5.15.0 on 2026-08-13 against the torch
-# 2.6.0 base: a 16gb-profile GPU container built from this lock scanned 63 photos
-# with 0 errors and build-tools/verify_scan_db.py passed (embeddings, VLM tags,
-# aesthetic, saliency, faces, moments all populated and in range). Re-validated
-# 2026-09-01 against the 2.11.0-cuda12.8 base: every pin below installs at
-# exactly this version and pip's plan touches no torch/torchvision/nvidia-*/triton
-# wheel. That container had no GPU, so the scan run above still dates from 2.6.0.
-# Pin discipline learned the hard way: a sympy that does not satisfy the BASE
-# IMAGE's torch makes pip resolve the conflict by replacing that torch with a
-# PyPI build — the sympy==1.13.1 this file used to carry plans torch 2.6.0 plus
-# the CUDA 12.4 nvidia-* wheels over the 2.11.0 base, silently undoing the point
-# of using a CUDA base image at all.
+# Sticky, tested-working dependency lock for the LEGACY CUDA Docker image
+# (the `-cuda-legacy` tag), built on pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime.
+# That base's torch ships sm_50...sm_90 cubins, so this is the variant for
+# Maxwell, Pascal and Volta cards; Blackwell (sm_120) needs the CUDA 12.8 base
+# and requirements.lock.txt instead (issue #119). The Dockerfile picks between
+# the two locks with REQUIREMENTS_LOCK, set per variant in docker-publish.yml.
+# Container-validated at transformers 5.15.0 on 2026-08-13: a 16gb-profile GPU
+# container built from this exact lock scanned 63 photos with 0 errors, and
+# build-tools/verify_scan_db.py passed (embeddings, VLM tags, aesthetic,
+# saliency, faces, moments all populated and in range).
+# Pin discipline learned the hard way: torch 2.6.0 pins sympy==1.13.1 exactly;
+# any drift here makes pip swap the base image's torch/CUDA stack (a stray
+# sympy==1.14.0 pulled in torch 2.13 + CUDA 13 before it was caught). It is also
+# why the two CUDA bases cannot share one lock file: torch 2.11.0 requires
+# sympy>=1.13.3, which the pin below violates.
 # The cuML layer installed AFTER this lock intentionally downgrades
 # numba/llvmlite/pandas/pyarrow — the container's final versions for those four
 # differ from these pins by design; do not "fix" them from a container freeze.
-# torch/torchvision + nvidia-*/triton are intentionally omitted — the CUDA base
-# image already provides them, and the CPU image installs torch from the CPU
-# wheel index before this lock (see the Dockerfile).
+# torch/torchvision + nvidia-*/triton are intentionally omitted — the CUDA base image
+# (pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime) already provides them.
 # Regenerate: docker compose ... exec facet pip freeze --all | (filter base-image pkgs)
 absl-py==2.5.0
 accelerate==1.14.0
@@ -133,11 +129,9 @@ six==1.17.0
 sortedcontainers==2.4.0
 sqlite-vec==0.1.9
 starlette==1.4.1
-# The base image's torch decides this pin: torch 2.11.0 requires sympy>=1.13.3
-# and the 2.11.0-cuda12.8 image ships 1.14.0. Pinning what torch 2.6.0 required
-# (==1.13.1) makes pip swap that base's torch/CUDA stack for a PyPI torch 2.6.0
-# + CUDA 12.4 build instead — which is why the 2.6.0 base has a lock of its own.
-sympy==1.14.0
+# torch 2.6.0 pins sympy==1.13.1 exactly; 1.14.0 forces pip to swap the base
+# image's torch/CUDA stack for torch 2.13 + CUDA 13 to satisfy the resolver.
+sympy==1.13.1
 tensorboard-data-server==0.7.2
 tensorboard==2.21.0
 threadpoolctl==3.6.0

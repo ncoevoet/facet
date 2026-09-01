@@ -19,18 +19,54 @@ jobs:
       matrix:
         include:
           # Slim CPU image — the default `docker compose up` pull target.
+          # Shares requirements.lock.txt with the cuda entry: STRIP_TORCH=0
+          # installs torch from the CPU wheel index first (2.13.0+cpu today),
+          # which requires sympy>=1.13.3 — so the old sympy==1.13.1 pin made pip
+          # replace it with torch 2.6.0 plus 13 CUDA 12.4 nvidia-* wheels. That
+          # is what the published `latest` shipped: 8.81 GB of torch 2.6.0+cu124
+          # in the image whose entire point is having no CUDA in it.
           - name: cpu
             suffix: ""
             base_image: python:3.12-slim
             strip_torch: "0"
             install_cuml: "0"
-          # Full CUDA + RAPIDS cuML image, unchanged behaviour from a local
-          # `docker build` with the Dockerfile's own defaults.
+            requirements_lock: requirements.lock.txt
+            # Smoke-test expectations. torch here is installed UNPINNED from the
+            # CPU wheel index, so its version floats and only its CUDA-lessness
+            # is asserted; expect_arch is empty because a CPU build has no cubins.
+            expect_torch: ""
+            expect_cuda: ""
+            expect_arch: ""
+          # Full CUDA + RAPIDS cuML image, same as a local `docker build` with
+          # the Dockerfile's own defaults. CUDA 12.8 / torch 2.11.0 ships
+          # sm_75...sm_120, so this is the Blackwell-capable tag (issue #119) and
+          # the one the GPU compose overlays point at.
           - name: cuda
             suffix: "-cuda"
+            base_image: pytorch/pytorch:2.11.0-cuda12.8-cudnn9-runtime
+            strip_torch: "1"
+            install_cuml: "1"
+            requirements_lock: requirements.lock.txt
+            # Pinned to what the base image tag ships, so bumping that tag fails
+            # the smoke test until these move with it — deliberately.
+            expect_torch: "2.11.0+cu128"
+            expect_cuda: "12.8"
+            expect_arch: "sm_120"
+          # Previous CUDA image, kept as its own tag because the 12.8 wheel above
+          # DROPS sm_50/sm_60/sm_70: CUDA 12.6 / torch 2.6.0 ships sm_50...sm_90,
+          # which is the only build Maxwell, Pascal and Volta cards can run. It
+          # needs its own lock — torch 2.6.0 requires sympy==1.13.1 exactly and
+          # torch 2.11.0 requires >=1.13.3, so one lock cannot serve both and the
+          # wrong one makes pip replace the base image's whole CUDA stack.
+          - name: cuda-legacy
+            suffix: "-cuda-legacy"
             base_image: pytorch/pytorch:2.6.0-cuda12.6-cudnn9-runtime
             strip_torch: "1"
             install_cuml: "1"
+            requirements_lock: requirements.legacy.lock.txt
+            expect_torch: "2.6.0+cu126"
+            expect_cuda: "12.6"
+            expect_arch: "sm_50"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -47,8 +83,8 @@ jobs:
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
-          # Disable metadata-action's own auto-latest heuristic — with two
-          # variants pushing to the same image name, it would tag the CUDA
+          # Disable metadata-action's own auto-latest heuristic — with three
+          # variants pushing to the same image name, it would tag every CUDA
           # build "latest" (no suffix) too and clobber the CPU image's tag.
           flavor: |
             latest=false
@@ -60,11 +96,29 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      - name: Build and push
+      - name: Reclaim runner disk before a multi-GB build
+        # The CUDA variants are ~13 GB each, and the smoke test below needs the
+        # finished image in the local daemon on top of the build cache. A stock
+        # ubuntu-latest runner has no room for both, so drop the preinstalled
+        # toolchains this workflow never touches.
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "${AGENT_TOOLSDIRECTORY:-/opt/hostedtoolcache}"
+          df -h /
+
+      - name: Build
+        # load, not push. setup-buildx-action installs the docker-container
+        # driver, and a build on that driver leaves NOTHING on the local daemon
+        # unless it is loaded (verified: `docker image inspect` finds no such
+        # image afterwards), so `docker run` could not reach it. Pushing first
+        # and testing after would make the smoke test a post-mortem on an image
+        # users are already pulling; building once here and pushing the loaded
+        # tags further down keeps it a GATE. One build either way.
         uses: docker/build-push-action@v7
         with:
           context: .
-          push: true
+          load: true
+          push: false
           # x86_64 only, stated explicitly rather than inherited from the runner.
           # arm64 would have to cross-build under QEMU, which for a multi-GB ML
           # image costs hours per tag, and the CUDA variant is amd64-only anyway.
@@ -75,5 +129,80 @@ jobs:
             BASE_IMAGE=${{ matrix.base_image }}
             STRIP_TORCH=${{ matrix.strip_torch }}
             INSTALL_CUML=${{ matrix.install_cuml }}
+            REQUIREMENTS_LOCK=${{ matrix.requirements_lock }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+      - name: Smoke-test the built image
+        # The Dockerfile's own build-time assertion cannot cover any of this: it
+        # runs mid-build, as root, before the runtime user exists. That is how a
+        # UID flip from 1000 to 1001 went unnoticed — the CUDA 12.8 base ships
+        # its own `ubuntu` at 1000, so a bare useradd lands on 1001 — which would
+        # have made an existing install's SQLite database read-only on the next
+        # `docker compose pull`. Only running the finished image sees it.
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+          VARIANT: ${{ matrix.name }}
+          EXPECT_TORCH: ${{ matrix.expect_torch }}
+          EXPECT_CUDA: ${{ matrix.expect_cuda }}
+          EXPECT_ARCH: ${{ matrix.expect_arch }}
+        run: |
+          set -euo pipefail
+          image="${IMAGE_TAGS%%$'\n'*}"
+          echo "Smoke-testing $VARIANT: $image"
+          fail=0
+
+          uid=$(docker run --rm --entrypoint id "$image" -u facet)
+          gid=$(docker run --rm --entrypoint id "$image" -g facet)
+          echo "runtime user facet = $uid:$gid"
+          if [ "$uid:$gid" != "1000:1000" ]; then
+            echo "::error::runtime user facet is $uid:$gid, expected 1000:1000. The entrypoint's chown is deliberately NOT recursive, so every file an existing install already wrote stays 1000 and a different UID cannot write it — the database opens read-only."
+            fail=1
+          fi
+
+          torch_version=$(docker run --rm --entrypoint python "$image" -c 'import torch; print(torch.__version__)')
+          torch_cuda=$(docker run --rm --entrypoint python "$image" -c 'import torch; print(torch.version.cuda or "")')
+          # torch.cuda.get_arch_list() short-circuits to [] when no CUDA device
+          # is present and these runners have no GPU, so read the flags the
+          # extension was compiled with instead. Absent entirely on a CPU build.
+          torch_arch=$(docker run --rm --entrypoint python "$image" -c 'import torch; f = getattr(torch._C, "_cuda_getArchFlags", None); print(f() if f else "")')
+          echo "torch $torch_version | cuda ${torch_cuda:-none} | arch ${torch_arch:-none}"
+
+          if [ -n "$EXPECT_TORCH" ] && [ "$torch_version" != "$EXPECT_TORCH" ]; then
+            echo "::error::torch is $torch_version, expected $EXPECT_TORCH. Either BASE_IMAGE and REQUIREMENTS_LOCK drifted apart, or the base image tag moved under us."
+            fail=1
+          fi
+          if [ "$torch_cuda" != "$EXPECT_CUDA" ]; then
+            echo "::error::torch reports CUDA '${torch_cuda}', expected '${EXPECT_CUDA}' for the $VARIANT variant."
+            fail=1
+          fi
+          if [ -n "$EXPECT_ARCH" ] && ! printf '%s\n' $torch_arch | grep -qx "$EXPECT_ARCH"; then
+            echo "::error::compiled arch flags '$torch_arch' do not include $EXPECT_ARCH. This is issue #119 exactly: the image starts, reports a GPU, and then dies on the first kernel with 'no kernel image is available for execution on the device'."
+            fail=1
+          fi
+
+          if docker run --rm "$image" python facet.py --doctor > doctor.log 2>&1; then
+            echo "facet.py --doctor exited 0 through the real entrypoint"
+          else
+            echo "::error::facet.py --doctor failed inside the image — the entrypoint, the privilege drop, or the app itself is broken."
+            tail -40 doctor.log
+            fail=1
+          fi
+
+          exit $fail
+
+      - name: Push
+        # Only reached when the smoke test passed. These tags are already in the
+        # local daemon from the Build step, so this uploads them rather than
+        # building a second time. Trade-off accepted: build-push-action would
+        # have attached a provenance attestation on its own push and a plain
+        # `docker push` does not, which is worth less than never publishing an
+        # image nobody ran.
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$IMAGE_TAGS" | while read -r tag; do
+            [ -n "$tag" ] || continue
+            docker push "$tag"
+          done
