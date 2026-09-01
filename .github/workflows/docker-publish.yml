@@ -112,8 +112,9 @@ jobs:
         # unless it is loaded (verified: `docker image inspect` finds no such
         # image afterwards), so `docker run` could not reach it. Pushing first
         # and testing after would make the smoke test a post-mortem on an image
-        # users are already pulling; building once here and pushing the loaded
-        # tags further down keeps it a GATE. One build either way.
+        # users are already pulling; loading here and pushing only after the
+        # test keeps it a GATE. The Push step below re-uses this step's GHA
+        # cache, so nothing is compiled twice.
         uses: docker/build-push-action@v7
         with:
           context: .
@@ -192,17 +193,30 @@ jobs:
           exit $fail
 
       - name: Push
-        # Only reached when the smoke test passed. These tags are already in the
-        # local daemon from the Build step, so this uploads them rather than
-        # building a second time. Trade-off accepted: build-push-action would
-        # have attached a provenance attestation on its own push and a plain
-        # `docker push` does not, which is worth less than never publishing an
-        # image nobody ran.
-        env:
-          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
-        run: |
-          set -euo pipefail
-          printf '%s\n' "$IMAGE_TAGS" | while read -r tag; do
-            [ -n "$tag" ] || continue
-            docker push "$tag"
-          done
+        # Only reached when the smoke test passed, so publishing stays gated on
+        # an image that actually ran. This is build-push-action again rather
+        # than a plain `docker push` of the loaded tags, because the two do not
+        # publish the same thing: buildx attaches an in-toto SLSA provenance
+        # attestation (and here an SBOM) and pushes an OCI index, while the
+        # daemon pushes a bare Docker v2 manifest with neither. Every Facet
+        # image published so far carries that attestation, and dropping it
+        # would leave `cosign verify-attestation` / `gh attestation verify`
+        # with no subject -- i.e. no way to tell a release build from an image
+        # someone pushed by hand with a leaked packages:write token.
+        # This does NOT build a second time: every layer is already in the GHA
+        # cache from the Build step, so the step re-exports and uploads.
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          push: true
+          provenance: mode=max
+          sbom: true
+          platforms: linux/amd64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BASE_IMAGE=${{ matrix.base_image }}
+            STRIP_TORCH=${{ matrix.strip_torch }}
+            INSTALL_CUML=${{ matrix.install_cuml }}
+            REQUIREMENTS_LOCK=${{ matrix.requirements_lock }}
+          cache-from: type=gha,scope=${{ matrix.name }}
