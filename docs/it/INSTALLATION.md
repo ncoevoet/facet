@@ -309,6 +309,11 @@ source venv/bin/activate
 # 2. Installa prima PyTorch, con l'URL dell'indice corrispondente alla tua versione CUDA.
 #    cu128 è per CUDA 12.8+/13.x; usa cu126 per CUDA 12.6-12.7, cu124 per CUDA
 #    12.4-12.5, oppure cu118 per CUDA 11.8-12.3.
+#    Conta anche la tua SCHEDA, non solo il driver: cu128 non fornisce kernel
+#    sotto sm_75, quindi una scheda Maxwell, Pascal o Volta (GTX 900/serie 10,
+#    Titan V) richiede cu126 anche con un driver CUDA 12.8. install.sh applica
+#    automaticamente questo limite; verifica la tua con
+#    `nvidia-smi --query-gpu=compute_cap --format=csv`.
 #    In caso di dubbio, copia il comando da https://pytorch.org/get-started/locally/
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 
