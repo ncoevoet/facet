@@ -965,6 +965,7 @@
     "login": "Anmelden",
     "invalid_credentials": "Ungültige Anmeldedaten",
     "error": "Anmeldung fehlgeschlagen",
+    "config_unreadable": "Serverkonfiguration konnte nicht gelesen werden — prüfen Sie das Serverprotokoll",
     "user_menu": "Benutzermenü"
   },
   "gallery": {

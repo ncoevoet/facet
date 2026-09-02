@@ -965,6 +965,7 @@
     "login": "Iniciar sesión",
     "invalid_credentials": "Credenciales incorrectas",
     "error": "Error de inicio de sesión",
+    "config_unreadable": "No se pudo leer la configuración del servidor — consulte el registro del servidor",
     "user_menu": "Menú de usuario"
   },
   "gallery": {

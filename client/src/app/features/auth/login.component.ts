@@ -71,12 +71,17 @@ export class LoginComponent {
     this.error.set('');
 
     try {
-      const success = this.auth.isMultiUser()
+      const outcome = this.auth.isMultiUser()
         ? await this.auth.login(this.password, this.username)
         : await this.auth.login(this.password);
 
-      if (success) {
+      if (outcome === 'ok') {
         this.router.navigate(['/']);
+      } else if (outcome === 'unavailable') {
+        // The server refused to authenticate anyone because it could not read
+        // its own config. Telling this operator their credentials are invalid
+        // sends them to retype a password that was never the problem.
+        this.error.set(this.i18n.t(I18N.auth.config_unreadable));
       } else {
         this.error.set(this.i18n.t(I18N.auth.invalid_credentials));
       }

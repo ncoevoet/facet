@@ -24,7 +24,19 @@ from api.models.auth import (
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=LoginResponse)
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    responses={
+        # Declared so the generated client types carry it. FastAPI documents
+        # only 200 and 422 for a route whose failures are all raised
+        # HTTPExceptions, so this status was invisible to `npm run gen:api` --
+        # and the client cannot type a status the schema does not mention.
+        503: {"description": "Configuration could not be read; refusing to authenticate."},
+        401: {"description": "Invalid credentials."},
+        429: {"description": "Too many login attempts."},
+    },
+)
 def login(body: LoginRequest, request: Request, response: Response):
     """Authenticate and receive a JWT token.
 

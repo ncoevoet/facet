@@ -228,7 +228,7 @@ describe('AuthService', () => {
       statusReq.flush(mockStatus);
 
       const result = await loginPromise;
-      expect(result).toBe(true);
+      expect(result).toBe('ok');
       expect(setItemSpy).toHaveBeenCalledWith('facet_token', 'jwt-token-123');
     });
 
@@ -247,25 +247,42 @@ describe('AuthService', () => {
       await loginPromise;
     });
 
-    it('should return false when login response has no access_token', async () => {
+    it("should report 'invalid' when login response has no access_token", async () => {
       const loginPromise = service.login('wrong');
 
       const loginReq = httpTesting.expectOne('/api/auth/login');
       loginReq.flush({});
 
       const result = await loginPromise;
-      expect(result).toBe(false);
+      expect(result).toBe('invalid');
       expect(setItemSpy).not.toHaveBeenCalledWith('facet_token', expect.anything());
     });
 
-    it('should return false when login request fails', async () => {
+    it("should report 'invalid' on a 401", async () => {
       const loginPromise = service.login('wrong');
 
       const loginReq = httpTesting.expectOne('/api/auth/login');
       loginReq.flush('Unauthorized', { status: 401, statusText: 'Unauthorized' });
 
       const result = await loginPromise;
-      expect(result).toBe(false);
+      expect(result).toBe('invalid');
+    });
+
+    it("should report 'unavailable' on a 503, not a wrong password", async () => {
+      // The server answers 503 when it could not read its own config and is
+      // refusing to authenticate anyone. Collapsing that into 'invalid' told
+      // the operator their password was wrong -- the one thing it was not.
+      const loginPromise = service.login('correct-password');
+
+      const loginReq = httpTesting.expectOne('/api/auth/login');
+      loginReq.flush('Configuration could not be read; refusing to authenticate.', {
+        status: 503,
+        statusText: 'Service Unavailable',
+      });
+
+      const result = await loginPromise;
+      expect(result).toBe('unavailable');
+      expect(setItemSpy).not.toHaveBeenCalledWith('facet_token', expect.anything());
     });
   });
 
@@ -284,18 +301,28 @@ describe('AuthService', () => {
       statusReq.flush(mockStatus);
 
       const result = await loginPromise;
-      expect(result).toBe(true);
+      expect(result).toBe('ok');
       expect(setItemSpy).toHaveBeenCalledWith('facet_token', 'edition-token');
     });
 
-    it('should return false when edition login fails', async () => {
+    it("should report 'invalid' when edition login fails", async () => {
       const loginPromise = service.editionLogin('wrong');
 
       const loginReq = httpTesting.expectOne('/api/auth/edition/login');
       loginReq.flush('Forbidden', { status: 403, statusText: 'Forbidden' });
 
       const result = await loginPromise;
-      expect(result).toBe(false);
+      expect(result).toBe('invalid');
+    });
+
+    it("should report 'unavailable' when the server cannot read its config", async () => {
+      const loginPromise = service.editionLogin('edition-pass');
+
+      const loginReq = httpTesting.expectOne('/api/auth/edition/login');
+      loginReq.flush('Server error', { status: 500, statusText: 'Internal Server Error' });
+
+      const result = await loginPromise;
+      expect(result).toBe('unavailable');
     });
   });
 

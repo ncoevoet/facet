@@ -18,7 +18,7 @@ describe('LoginComponent', () => {
     mockRouter = { navigate: vi.fn() };
     mockAuth = {
       isMultiUser: vi.fn(() => false),
-      login: vi.fn(() => Promise.resolve(true)),
+      login: vi.fn(() => Promise.resolve('ok')),
     };
     mockI18n = { t: vi.fn((key: string) => key) };
 
@@ -71,20 +71,33 @@ describe('LoginComponent', () => {
     });
 
     it('should navigate to / on successful login', async () => {
-      mockAuth.login.mockResolvedValue(true);
+      mockAuth.login.mockResolvedValue('ok');
 
       await component.login();
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
     });
 
-    it('should set error message when login returns false', async () => {
-      mockAuth.login.mockResolvedValue(false);
+    it("should set the invalid-credentials message when login reports 'invalid'", async () => {
+      mockAuth.login.mockResolvedValue('invalid');
 
       await component.login();
 
       expect(component.error()).toBe('auth.invalid_credentials');
       expect(mockI18n.t).toHaveBeenCalledWith('auth.invalid_credentials');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
+    it("should say the config is unreadable when login reports 'unavailable'", async () => {
+      // The server produced a 503 and a log line naming the real problem.
+      // Telling this operator their credentials are invalid sends them to
+      // retype a password that was never wrong.
+      mockAuth.login.mockResolvedValue('unavailable');
+
+      await component.login();
+
+      expect(component.error()).toBe('auth.config_unreadable');
+      expect(mockI18n.t).toHaveBeenCalledWith('auth.config_unreadable');
       expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
@@ -110,7 +123,7 @@ describe('LoginComponent', () => {
     });
 
     it('should set loading to false after successful login', async () => {
-      mockAuth.login.mockResolvedValue(true);
+      mockAuth.login.mockResolvedValue('ok');
 
       await component.login();
 
@@ -118,7 +131,7 @@ describe('LoginComponent', () => {
     });
 
     it('should set loading to false after failed login', async () => {
-      mockAuth.login.mockResolvedValue(false);
+      mockAuth.login.mockResolvedValue('invalid');
 
       await component.login();
 
@@ -134,14 +147,14 @@ describe('LoginComponent', () => {
     });
 
     it('should clear previous error before attempting login', async () => {
-      mockAuth.login.mockResolvedValue(false);
+      mockAuth.login.mockResolvedValue('invalid');
       await component.login();
       expect(component.error()).not.toBe('');
 
       let errorClearedDuringCall = false;
       mockAuth.login.mockImplementation(() => {
         errorClearedDuringCall = component.error() === '';
-        return Promise.resolve(true);
+        return Promise.resolve('ok');
       });
 
       await component.login();

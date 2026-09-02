@@ -981,6 +981,7 @@ export const I18N = {
     login: "auth.login",
     invalid_credentials: "auth.invalid_credentials",
     error: "auth.error",
+    config_unreadable: "auth.config_unreadable",
     user_menu: "auth.user_menu",
   },
   gallery: {

@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, inject, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -22,6 +22,17 @@ interface LoginResponse {
   token_type: string;
   user?: { user_id: string; role: string; display_name: string };
 }
+
+/**
+ * How a login attempt ended, from the caller's point of view.
+ *
+ * `'unavailable'` exists because the server answers 503 when it could not read
+ * its own configuration and is refusing to authenticate anyone. Returning a
+ * bare `false` for that made the login form say "Invalid credentials" to an
+ * operator whose password was fine, and threw away the one diagnostic the
+ * server had produced.
+ */
+export type LoginOutcome = 'ok' | 'invalid' | 'unavailable';
 
 /** Slack allowed on the client's own clock before it judges a token dead. The
  *  verdict that matters is the server's; a browser clock running ahead would
@@ -100,38 +111,52 @@ export class AuthService {
     return this.pendingRevalidation;
   }
 
+  /**
+   * Store a minted token and refresh status. Shared by both login flows so
+   * they cannot drift on what "success" writes.
+   */
+  private async acceptToken(res: LoginResponse | undefined): Promise<LoginOutcome> {
+    if (!res?.access_token) return 'invalid';
+    localStorage.setItem(this.TOKEN_KEY, res.access_token);
+    await this.checkStatus();
+    return 'ok';
+  }
+
+  /**
+   * Classify a failed login. Both endpoints answer 503 when the server could
+   * not read its own configuration and is refusing to authenticate at all --
+   * a state the operator fixes on the server, not by retyping a password.
+   * Collapsing it into 'invalid' told them their password was wrong, which is
+   * the one thing it was not, and hid the only diagnostic the server produced.
+   */
+  private classifyLoginError(err: unknown): LoginOutcome {
+    return err instanceof HttpErrorResponse && err.status >= 500 ? 'unavailable' : 'invalid';
+  }
+
   /** Login with credentials */
-  async login(password: string, username?: string): Promise<boolean> {
+  async login(password: string, username?: string): Promise<LoginOutcome> {
     try {
       const body: Record<string, string> = { password };
       if (username) body['username'] = username;
 
-      const res = await firstValueFrom(this.http.post<LoginResponse>('/api/auth/login', body));
-      if (res?.access_token) {
-        localStorage.setItem(this.TOKEN_KEY, res.access_token);
-        await this.checkStatus();
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
+      return await this.acceptToken(
+        await firstValueFrom(this.http.post<LoginResponse>('/api/auth/login', body)),
+      );
+    } catch (err) {
+      return this.classifyLoginError(err);
     }
   }
 
   /** Login for edition mode (legacy single-user) */
-  async editionLogin(password: string): Promise<boolean> {
+  async editionLogin(password: string): Promise<LoginOutcome> {
     try {
-      const res = await firstValueFrom(
-        this.http.post<LoginResponse>('/api/auth/edition/login', { password }),
+      return await this.acceptToken(
+        await firstValueFrom(
+          this.http.post<LoginResponse>('/api/auth/edition/login', { password }),
+        ),
       );
-      if (res?.access_token) {
-        localStorage.setItem(this.TOKEN_KEY, res.access_token);
-        await this.checkStatus();
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
+    } catch (err) {
+      return this.classifyLoginError(err);
     }
   }
 
