@@ -1095,3 +1095,71 @@ class TestFallbackDefaultsMatchDocumentedDefaults:
         assert settings["similarity_threshold_percent"] == 70
         assert settings["time_window_minutes"] == 0.8
         assert settings["rapid_burst_seconds"] == 0.4
+
+
+class TestSaveConfigDoesNotBakeTheEnvironmentVramProfile:
+    """$FACET_VRAM_PROFILE is a per-container knob, not a stored setting.
+
+    ``_load_config`` folds the variable into ``self.config`` in place, and
+    ``save_config`` writes the resolved dict minus the shipped defaults -- so
+    the env value landed in the operator's override file. Any write reaches it:
+    ``validate_weights`` calls ``save_config`` whenever it corrects a category's
+    percentages, so simply scanning with the variable set was enough.
+
+    What that costs is the documented purpose of the variable. It exists so one
+    mounted config can serve every Docker profile; once 8gb is written INTO
+    that config, the 24gb container reading the same mount starts from 8gb.
+    """
+
+    _PROFILE_ENV = "FACET_VRAM_PROFILE"
+
+    def _config(self, tmp_path, name, override):
+        path = tmp_path / name
+        path.write_text(json.dumps(override))
+        return path
+
+    def test_the_env_value_is_not_written_to_the_override(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self._PROFILE_ENV, "8gb")
+        path = self._config(tmp_path, "a.json", {"viewer": {"password": "secret"}})
+
+        config = ScoringConfig(str(path), validate=False)
+        assert config.config["models"]["vram_profile"] == "8gb"
+        config.save_config()
+
+        assert json.loads(path.read_text()) == {"viewer": {"password": "secret"}}
+
+    def test_a_profile_the_file_chose_survives_the_write(self, tmp_path, monkeypatch):
+        """The other half: restoring must not mean deleting.
+
+        An operator who wrote ``vram_profile`` into their config and then ran a
+        container with the variable set must get their own value back in the
+        file, not the env one and not an absent key.
+        """
+        monkeypatch.setenv(self._PROFILE_ENV, "8gb")
+        path = self._config(
+            tmp_path, "b.json", {"models": {"vram_profile": "24gb"}, "viewer": {"password": "s"}},
+        )
+
+        config = ScoringConfig(str(path), validate=False)
+        config.save_config()
+
+        assert json.loads(path.read_text())["models"]["vram_profile"] == "24gb"
+
+    def test_the_running_process_keeps_the_env_profile_after_saving(self, tmp_path, monkeypatch):
+        monkeypatch.setenv(self._PROFILE_ENV, "8gb")
+        path = self._config(tmp_path, "c.json", {"viewer": {"password": "s"}})
+
+        config = ScoringConfig(str(path), validate=False)
+        config.save_config()
+
+        assert config.config["models"]["vram_profile"] == "8gb"
+
+    def test_without_the_variable_a_deliberate_profile_still_saves(self, tmp_path, monkeypatch):
+        monkeypatch.delenv(self._PROFILE_ENV, raising=False)
+        path = self._config(tmp_path, "d.json", {"viewer": {"password": "s"}})
+
+        config = ScoringConfig(str(path), validate=False)
+        config.config["models"]["vram_profile"] = "16gb"
+        config.save_config()
+
+        assert json.loads(path.read_text())["models"]["vram_profile"] == "16gb"

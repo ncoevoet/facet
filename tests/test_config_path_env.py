@@ -471,3 +471,91 @@ class TestTheServerScoresAndAuthenticatesFromOneFile:
         if seen["scoring_password"] == "librarysecret":
             assert seen["open_viewer"] is False
             assert seen["open_edition"] is False
+
+
+class TestAMalformedViewerSubBlockFailsClosedInsteadOfCrashing:
+    """A `viewer` sub-block written as a scalar must fail the way its parent does.
+
+    ``load_viewer_config`` backfills each shipped sub-block key by key, so a
+    config holding ``"viewer": {"features": true}`` reached
+    ``if k not in viewer[key]`` with a bool and raised
+    ``TypeError: argument of type 'bool' is not iterable`` at IMPORT of
+    ``api.config`` — naming neither the file nor the key. The operator got a
+    traceback out of a module they never edited.
+
+    The sibling case one level up (``viewer`` itself not a dict) already raised
+    a precise ``ValueError`` naming the file, which ``_read_config``'s handler
+    turns into ``({}, False)`` plus an armed ``config_load_failed``. These
+    tests pin that the level below now behaves identically — same message
+    shape, same fail-closed state, no ``TypeError``.
+
+    A secret file is seeded because otherwise a DIFFERENT, deliberate guard
+    fires first: an unparseable config with no stored secret refuses to mint an
+    in-memory-only one. That guard is pre-existing and fires for the parent
+    case too, so seeding around it is what isolates the behaviour under test.
+    """
+
+    _PROBE = (
+        "import json, api.config as c, api.auth as a; "
+        "print(json.dumps({"
+        "'load_failed': c.config_load_failed(), "
+        "'open_viewer': a._is_open_install(a.VIEWER_PASSWORD_KEY), "
+        "'open_edition': a._is_open_install(a.EDITION_PASSWORD_KEY), "
+        "'any_feature_on': any(c.VIEWER_CONFIG.get('features', {}).values())}))"
+    )
+
+    _MALFORMED = '{"viewer": {"features": true, "password": "x"}}'
+
+    def _probe(self, tmp_path, body):
+        config = tmp_path / "scoring_config.json"
+        config.write_text(body)
+        secret = tmp_path / ".facet_secret"
+        secret.write_text("a" * 40 + "\n")
+        secret.chmod(0o600)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = _repo_root()
+        env[_ENV_VAR] = str(config)
+        return subprocess.run(
+            [sys.executable, "-c", self._PROBE],
+            cwd=tmp_path, capture_output=True, text=True, env=env,
+        )
+
+    def test_it_no_longer_raises_a_typeerror_from_the_backfill(self, tmp_path):
+        probe = self._probe(tmp_path, self._MALFORMED)
+
+        assert probe.returncode == 0, probe.stderr
+        assert "TypeError" not in probe.stderr
+
+    def test_the_error_names_the_file_and_the_offending_key(self, tmp_path):
+        probe = self._probe(tmp_path, self._MALFORMED)
+
+        assert "viewer.features" in probe.stderr
+        assert "scoring_config.json" in probe.stderr
+        assert "not bool" in probe.stderr
+
+    def test_it_fails_closed_with_every_feature_off(self, tmp_path):
+        probe = self._probe(tmp_path, self._MALFORMED)
+        seen = json.loads(probe.stdout.strip().splitlines()[-1])
+
+        assert seen["load_failed"] is True
+        assert seen["open_viewer"] is False
+        assert seen["open_edition"] is False
+        assert seen["any_feature_on"] is False
+
+    def test_a_well_formed_sub_block_is_untouched(self, tmp_path):
+        probe = self._probe(
+            tmp_path, '{"viewer": {"features": {"show_map": false}, "password": "x"}}',
+        )
+        seen = json.loads(probe.stdout.strip().splitlines()[-1])
+
+        assert seen["load_failed"] is False
+        assert seen["open_viewer"] is False
+
+    def test_a_string_valued_key_is_not_treated_as_a_sub_block(self, tmp_path):
+        """``viewer.password`` is a string in the shipped defaults and must stay
+        one — the check only covers keys the defaults ship as objects."""
+        probe = self._probe(tmp_path, '{"viewer": {"password": "hunter2"}}')
+        seen = json.loads(probe.stdout.strip().splitlines()[-1])
+
+        assert seen["load_failed"] is False
+        assert seen["open_viewer"] is False

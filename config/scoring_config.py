@@ -257,6 +257,17 @@ class ScoringConfig:
         if env_profile:
             valid_profiles = {'auto', 'legacy', '8gb', '16gb', '24gb'}
             if env_profile in valid_profiles:
+                # Remember what the FILE said, so :meth:`save_config` can put it
+                # back before writing. Without that, any write -- and
+                # ``validate_weights`` triggers one whenever it corrects a
+                # category -- persists this process's env value into the
+                # operator's override, turning a per-container knob into a
+                # permanent setting that every other container sharing the
+                # mount then inherits. Recorded even when it is absent (None),
+                # because "the file did not set this" is exactly what has to be
+                # restored for the key to stay out of the delta.
+                self._vram_profile_from_file = config.get('models', {}).get('vram_profile')
+                self._vram_profile_from_env = env_profile
                 config.setdefault('models', {})['vram_profile'] = env_profile
                 logger.info("VRAM profile overridden by FACET_VRAM_PROFILE=%s", env_profile)
             else:
@@ -470,8 +481,39 @@ class ScoringConfig:
         truncation and the write. This is the one config writer that takes no
         backup first, so a raise in that window left the operator's only copy
         of their overrides at zero bytes.
+
+        $FACET_VRAM_PROFILE is put back to whatever the FILE said before the
+        delta is computed. ``_load_config`` folds that variable into
+        ``self.config`` in place, so writing the resolved dict persisted this
+        process's env value: with ``FACET_VRAM_PROFILE=8gb`` set, a single
+        ``validate_weights`` correction was enough to leave
+        ``{"models": {"vram_profile": "8gb"}}`` in the override. That is the
+        opposite of what the variable is documented to do -- let one mounted
+        config serve every Docker profile -- because the next container reading
+        that mount then inherits 8gb whatever its own variable says.
         """
-        write_user_config(self.config_path, self.config)
+        env_profile = getattr(self, '_vram_profile_from_env', None)
+        models = self.config.get('models')
+        restore = (
+            env_profile is not None
+            and isinstance(models, dict)
+            and models.get('vram_profile') == env_profile
+        )
+        if not restore:
+            write_user_config(self.config_path, self.config)
+            return
+        if self._vram_profile_from_file is None:
+            del models['vram_profile']
+        else:
+            models['vram_profile'] = self._vram_profile_from_file
+        try:
+            write_user_config(self.config_path, self.config)
+        finally:
+            # This process keeps running on the profile it loaded with, so the
+            # override goes back the moment the file is written -- and on a
+            # raise too, or a failed save would silently move the running
+            # scorer onto a different profile mid-scan.
+            models['vram_profile'] = env_profile
 
     def get_weights(self, category):
         """Get weights for a scoring category (portrait, human_others, others).

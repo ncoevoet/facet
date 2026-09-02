@@ -251,6 +251,28 @@ def _read_config():
                 f"{type(overrides['viewer']).__name__}. It holds the viewer and "
                 f"edition passwords, so it cannot be read as absent."
             )
+        if isinstance(overrides, dict):
+            # And the same check one level down. `load_viewer_config` backfills
+            # each shipped sub-block key by key, so a `viewer` whose `features`
+            # or `cull` is a scalar made `k not in viewer[key]` raise TypeError
+            # -- "argument of type 'bool' is not iterable", naming neither the
+            # file nor the key -- at IMPORT of this module, taking the server
+            # down with a traceback the operator cannot act on. Rejecting it
+            # here instead routes it through the handler below, which names the
+            # file, logs the traceback once, and leaves the install locked with
+            # every feature off. Only keys the defaults ship as objects are
+            # checked: `viewer.password` is a string and must stay one.
+            viewer_overrides = overrides.get('viewer') or {}
+            viewer_defaults = defaults.get('viewer') or {}
+            for key, shipped in viewer_defaults.items():
+                given = viewer_overrides.get(key, {})
+                if isinstance(shipped, dict) and not isinstance(given, dict):
+                    raise ValueError(
+                        f"{_CONFIG_PATH}: 'viewer.{key}' must be a JSON object, "
+                        f"not {type(given).__name__}. It is one of the blocks "
+                        f"backfilled from the shipped defaults, which needs keys "
+                        f"to merge into."
+                    )
         if not isinstance(overrides, dict):
             # Valid JSON of the wrong SHAPE. deep_merge would die on
             # ``.items()`` with an AttributeError that names neither the file
@@ -983,6 +1005,17 @@ def load_viewer_config(config=None):
         if key not in viewer:
             viewer[key] = value
         elif isinstance(value, dict):
+            if not isinstance(viewer[key], dict):
+                # A sub-block the operator wrote as a scalar or a list.
+                # `_read_config` rejects this before it gets here, so on the
+                # server path it cannot happen -- but this function is public
+                # and takes any dict, and iterating `k not in <bool>` raises
+                # TypeError rather than degrading. Take the shipped block: the
+                # operator's value carries no keys to keep, and every caller
+                # that could reach it with an untrusted config has already been
+                # marked failed, which forces the features off below.
+                viewer[key] = value
+                continue
             for k, v in value.items():
                 if k not in viewer[key]:
                     viewer[key][k] = v
