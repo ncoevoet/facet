@@ -2093,8 +2093,10 @@ class PercentileNormalizer:
 
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_path = f"{config_path}.backup.{timestamp}"
-        write_owner_only_backup(config_path, backup_path)
-        logger.info("  Backup created: %s", backup_path)
+        if write_owner_only_backup(config_path, backup_path):
+            logger.info("  Backup created: %s", backup_path)
+        else:
+            logger.info("  No existing config to back up — writing a new override")
 
         # Load current config
         config_data = load_resolved(config_path)

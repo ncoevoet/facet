@@ -304,7 +304,7 @@ portanto, uma instalação rodando inteiramente com esses padrões, não uma
 instalação quebrada — veja
 [Configuração](CONFIGURATION.md#padrões-e-seu-override).
 
-A variável de ambiente `FACET_CONFIG`, quando definida, fornece o caminho padrão de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando são executados sem um `--config` explícito; `--config` sempre a sobrepõe. Se a variável — ou `--config` — nomear um ficheiro inexistente, isso é um erro e não um override vazio: um caminho que alguém NOMEOU e que está faltando denuncia um erro de digitação ou uma montagem quebrada, então o visualizador recusa o caminho de autenticação de instalação aberta em vez de concluir que a instalação não tem palavras-passe, e regista um erro que nomeia o caminho em falta. Só o caminho padrão *herdado* pode estar ausente.
+A variável de ambiente `FACET_CONFIG`, quando definida, fornece o caminho padrão de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando são executados sem um `--config` explícito; `--config` sempre a sobrepõe. Se a variável — ou `--config` — nomear um arquivo inexistente, isso é um erro e não um override vazio: um caminho que alguém NOMEOU e que está faltando denuncia um erro de digitação ou uma montagem quebrada, então o visualizador recusa o caminho de autenticação de instalação aberta em vez de concluir que a instalação não tem senhas, e registra um erro que nomeia o caminho em falta. Só o caminho padrão *herdado* pode estar ausente.
 
 | Comando | Descrição |
 |---------|-------------|

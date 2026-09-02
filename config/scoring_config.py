@@ -52,8 +52,6 @@ RAW_DECODE_DEFAULTS = {
 }
 
 
-
-
 def _calc_stats(values):
     """Calculate statistical summary for a list of values.
 
@@ -120,14 +118,24 @@ def _usable_category_name(category):
 
 def resolve_scoring_config_path(explicit):
     """Path a caller-less ``ScoringConfig()`` loads: the argument, then
-    $FACET_CONFIG, then the relative ``'scoring_config.json'`` every CLI entry
-    point already resolves against its own working directory. Not
-    :func:`default_config_path`: that one is always absolute, while callers
-    here (``facet.py``'s ``--config``, and every bare ``ScoringConfig()`` in
-    ``api/``) have always resolved the plain string against process cwd, and
-    changing that silently would move which file a running install reads.
+    $FACET_CONFIG, then the install-root default.
+
+    The last step is :func:`default_config_path`, which is ABSOLUTE, and not
+    the bare relative ``'scoring_config.json'`` it used to be. A relative name
+    binds to the process working directory, and since an absent config became
+    a supported state -- an install running purely on the shipped defaults --
+    that made the two indistinguishable: ``python /opt/facet/facet.py`` run
+    from anywhere else resolved its own cwd's absent file as the inherited
+    default and scored silently on defaults while the operator's real config
+    sat unread in the install root. :func:`config_resolve.path_is_named`
+    already refuses to compare against the relative name for exactly that
+    reason; resolving against it here reopened the same hole one layer down.
+
+    The two spellings only ever differ where the old one was wrong: when cwd
+    IS the install root they name the same file, and when it is not, the
+    absolute path is the one the operator configured.
     """
-    return explicit or os.environ.get('FACET_CONFIG', '').strip() or 'scoring_config.json'
+    return explicit or os.environ.get('FACET_CONFIG', '').strip() or default_config_path()
 
 
 def _readable_system_ram_gb():

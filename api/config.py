@@ -16,9 +16,8 @@ import time
 import secrets
 
 from config_resolve import (  # noqa: F401 - atomic_write_json is patched as api.config.atomic_write_json by tests
-    _fsync_directory, _replacement_mode, _umask_default_mode, _unlink_quietly,
-    atomic_write_json, default_config_path, deep_merge, delta_for_write,
-    load_defaults, write_user_config,
+    _fsync_directory, _unlink_quietly, atomic_write_json, default_config_path,
+    deep_merge, delta_for_write, load_defaults, write_user_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -176,7 +175,19 @@ def _read_config():
     global _config_load_failed
     defaults = load_defaults()
     try:
-        config = deep_merge(defaults, _read_overrides())
+        overrides = _read_overrides()
+        if not isinstance(overrides, dict):
+            # Valid JSON of the wrong SHAPE. deep_merge would die on
+            # ``.items()`` with an AttributeError that names neither the file
+            # nor the mistake, and the handler below would then report "could
+            # not parse" a file that parsed perfectly -- sending the operator
+            # after a syntax error that is not there. config_resolve.load_resolved
+            # rejects the same input by name; this reader must not be laxer.
+            raise ValueError(
+                f"{_CONFIG_PATH} must hold a JSON object of overrides, not "
+                f"{type(overrides).__name__}. An install that changes nothing holds {{}}."
+            )
+        config = deep_merge(defaults, overrides)
     except FileNotFoundError:
         if _CONFIG_PATH_IS_EXPLICIT:
             _config_load_failed = True
@@ -193,7 +204,8 @@ def _read_config():
     except Exception:
         _config_load_failed = True
         logger.error(
-            "Could not parse %s — refusing the open-install auth path until it parses",
+            "Could not read %s as a JSON object of overrides — refusing the "
+            "open-install auth path until it does",
             _CONFIG_PATH, exc_info=True,
         )
         return {}, False

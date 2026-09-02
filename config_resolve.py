@@ -273,14 +273,18 @@ def atomic_write_json(path, data):
 
     Atomicity is per write, not per read-modify-write: every caller that reads
     scoring_config.json, edits part of it and writes it back MUST hold
-    :data:`CONFIG_WRITE_LOCK` across the whole sequence, or one caller's update
+    ``api.config.CONFIG_WRITE_LOCK`` -- which is NOT defined here, and cannot
+    be: this module is stdlib-only so that ``db.connection`` and ``viewer`` can
+    import it -- across the whole sequence, or one caller's update
     is lost wholesale under another's. That lock is the only one taken while a
-    config write is in flight; ``reload_config`` may acquire it (through
-    :func:`_load_config`) while holding ``_config_lock``, so no writer may
-    call ``reload_config`` without first releasing it.
+    config write is in flight; ``api.config.reload_config`` may acquire it
+    while holding that module's ``_config_lock``, so no writer may call
+    ``reload_config`` without first releasing it. All three names live in
+    ``api/config.py``; the ordering is stated here because this is the
+    primitive they all end up calling.
 
     Note the mode preservation makes this the WRONG primitive for a secret —
-    see :func:`_atomic_write_owner_only`, which forces 0600 instead.
+    see ``api.config._atomic_write_owner_only``, which forces 0600 instead.
 
     The scratch file is named after :data:`_TEMP_CONFIG_PREFIX` rather than
     left to mkstemp's default, so a crash before the rename leaves an IGNORED

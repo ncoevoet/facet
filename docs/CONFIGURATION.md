@@ -2,7 +2,7 @@
 
 > 🌐 **English** · [Français](fr/CONFIGURATION.md) · [Deutsch](de/CONFIGURATION.md) · [Italiano](it/CONFIGURATION.md) · [Español](es/CONFIGURATION.md) · [Português](pt/CONFIGURATION.md)
 
-All settings are in `scoring_config.json`. After modifying, run `python facet.py --recompute-average` to update scores (no GPU needed).
+Every setting is shipped in `config/scoring_config.default.json` and overridden, key by key, from your own `scoring_config.json` — see [Defaults and your override](#defaults-and-your-override). After modifying, run `python facet.py --recompute-average` to update scores (no GPU needed).
 
 ## Table of Contents
 

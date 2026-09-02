@@ -79,29 +79,47 @@ class TestDefaultConfigPath:
 
 
 class TestScoringConfigInitDefault:
-    """``ScoringConfig.__init__``'s bare default is the RELATIVE literal
-    ``'scoring_config.json'`` (resolved against process cwd, like every
-    ``facet.py --config``-less invocation), not the absolute
-    ``default_config_path()`` — so its unset case is a different "today's
-    path" than the other two sites.
+    """``ScoringConfig.__init__``'s bare default is ``default_config_path()``,
+    the same ABSOLUTE install-root path the other two sites resolve.
+
+    It used to be the relative literal ``'scoring_config.json'``, which was
+    harmless only while an absent config still raised: the failure was loud
+    wherever you ran from. Once an absent config became a supported state —
+    an install running purely on the shipped defaults — the relative name made
+    the two indistinguishable, so ``python /opt/facet/facet.py`` run from any
+    other directory read its own cwd's absent file as the inherited default
+    and scored silently on shipped defaults while the operator's real config
+    sat unread in the install root. ``config_resolve.path_is_named`` already
+    refuses to compare against the relative name for that exact reason.
+
+    The two spellings only ever differed where the relative one was wrong:
+    when cwd IS the install root they name the same file.
     """
 
     def test_explicit_argument_wins_over_env(self, monkeypatch, tmp_path):
         monkeypatch.setenv(_ENV_VAR, str(tmp_path / "env.json"))
         assert resolve_scoring_config_path(str(tmp_path / "explicit.json")) == str(tmp_path / "explicit.json")
 
-    def test_unset_env_and_no_argument_keeps_the_relative_default(self, monkeypatch):
+    def test_unset_env_and_no_argument_resolves_the_install_root(self, monkeypatch):
         monkeypatch.delenv(_ENV_VAR, raising=False)
-        assert resolve_scoring_config_path(None) == "scoring_config.json"
+        resolved = resolve_scoring_config_path(None)
+        assert resolved == default_config_path()
+        assert os.path.isabs(resolved), "a cwd-relative default reads the wrong file from any other directory"
 
     def test_env_overrides_the_relative_default(self, monkeypatch, tmp_path):
         custom = tmp_path / "custom.json"
         monkeypatch.setenv(_ENV_VAR, str(custom))
         assert resolve_scoring_config_path(None) == str(custom)
 
-    def test_empty_env_falls_back_to_the_relative_default(self, monkeypatch):
+    def test_empty_env_falls_back_to_the_install_root(self, monkeypatch):
         monkeypatch.setenv(_ENV_VAR, "")
-        assert resolve_scoring_config_path(None) == "scoring_config.json"
+        assert resolve_scoring_config_path(None) == default_config_path()
+
+    def test_the_default_is_read_from_any_working_directory(self, monkeypatch, tmp_path):
+        """The regression the absolute default exists to prevent."""
+        monkeypatch.delenv(_ENV_VAR, raising=False)
+        monkeypatch.chdir(tmp_path)
+        assert resolve_scoring_config_path(None) == default_config_path()
 
 
 class TestScoringConfigEndToEnd:

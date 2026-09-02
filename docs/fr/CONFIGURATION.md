@@ -2,7 +2,7 @@
 
 > 🌐 [English](../CONFIGURATION.md) · **Français** · [Deutsch](../de/CONFIGURATION.md) · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md) · [Português](../pt/CONFIGURATION.md)
 
-Tous les réglages se trouvent dans `scoring_config.json`. Après modification, exécutez `python facet.py --recompute-average` pour mettre à jour les scores (aucun GPU requis).
+Chaque réglage est fourni dans `config/scoring_config.default.json` puis surchargé, clé par clé, depuis votre propre `scoring_config.json` — voir [Valeurs par défaut et votre surcharge](#valeurs-par-défaut-et-votre-surcharge). Après modification, exécutez `python facet.py --recompute-average` pour mettre à jour les scores (aucun GPU requis).
 
 ## Table des matières
 

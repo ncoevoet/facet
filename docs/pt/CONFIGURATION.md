@@ -2,7 +2,7 @@
 
 > 🌐 [English](../CONFIGURATION.md) · [Français](../fr/CONFIGURATION.md) · [Deutsch](../de/CONFIGURATION.md) · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md) · **Português**
 
-Todas as configurações ficam em `scoring_config.json`. Após modificar, execute `python facet.py --recompute-average` para atualizar as pontuações (não é necessário GPU).
+Cada configuração é distribuída em `config/scoring_config.default.json` e sobrescrita, chave por chave, a partir do seu próprio `scoring_config.json` — veja [Padrões e Seu Override](#padrões-e-seu-override). Após modificar, execute `python facet.py --recompute-average` para atualizar as pontuações (não é necessário GPU).
 
 ## Sumário
 

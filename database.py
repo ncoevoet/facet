@@ -117,8 +117,8 @@ def _save_config(config):
     from api.config_writes import write_owner_only_backup
     _drop_legacy_secret(config)
     backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    write_owner_only_backup(CONFIG_PATH, backup_path)
-    logger.info("Backup saved to %s", backup_path)
+    if write_owner_only_backup(CONFIG_PATH, backup_path):
+        logger.info("Backup saved to %s", backup_path)
     write_user_config(CONFIG_PATH, config)
     logger.info("Config saved to %s", CONFIG_PATH)
 

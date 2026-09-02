@@ -38,7 +38,7 @@ from scipy.optimize import differential_evolution, minimize
 from scipy.stats import pearsonr, spearmanr
 
 from config import default_config_path
-from config_resolve import load_resolved, write_user_config
+from config_resolve import load_resolved, path_is_named, write_user_config
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -428,11 +428,19 @@ def load_current_category_weights(config_path: str, category: str, col_names: li
     back with. Normalized to sum to 1.0. Falls back to a uniform vector when
     the config/category/weights can't be read, so a missing category degrades
     gracefully rather than raising.
+
+    The fallback is LOGGED, not silent. ``load_resolved`` raises only for a
+    path a human named, never for the inherited default, so reaching the
+    fallback that way means a typo or a moved file -- and the whole run's
+    "before" SRCC would otherwise be baselined against a uniform vector nobody
+    runs, with nothing on screen to say so.
     """
     n = len(col_names)
     try:
         config = load_resolved(config_path)
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError) as e:
+        logger.warning("  Could not read %s (%s) — baselining against uniform weights",
+                       config_path, e)
         return np.ones(n) / n
 
     weights_block = {}
@@ -692,7 +700,7 @@ def analyze_filter_boundaries(matched: list[dict], config_path: str) -> list[dic
     # Load current config for filter thresholds
     try:
         config = load_resolved(config_path)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         logger.warning("  Could not load config: %s", e)
         return []
 
@@ -881,7 +889,7 @@ def optimize_modifiers(
     # Load config for current weights and penalty settings
     try:
         config_data = load_resolved(config_path)
-    except (FileNotFoundError, json.JSONDecodeError):
+    except (OSError, ValueError):
         return None
 
     # Find category config
@@ -1105,7 +1113,7 @@ def _apply_filter_suggestions(config_path: str, suggestions: list[dict]) -> None
     """Write filter threshold suggestions to scoring_config.json."""
     try:
         config = load_resolved(config_path)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         logger.error("  Could not load config: %s", e)
         return
 
@@ -1137,7 +1145,7 @@ def _apply_modifier_results(config_path: str, modifier_results: list[dict]) -> N
     """Write optimized modifier values to scoring_config.json."""
     try:
         config = load_resolved(config_path)
-    except (FileNotFoundError, json.JSONDecodeError) as e:
+    except (OSError, ValueError) as e:
         logger.error("  Could not load config: %s", e)
         return
 
@@ -1426,8 +1434,12 @@ def main():
             logger.info("APPLYING OPTIMIZED WEIGHTS")
             logger.info("=" * 60)
 
-            if not os.path.exists(args.config):
-                logger.error("  scoring_config.json not found at %s", args.config)
+            # An absent override is an install running on the shipped
+            # defaults, not a broken one: apply_weights_to_config resolves
+            # through load_resolved and creates the file on its first write.
+            # Only a path a HUMAN named can be missing by mistake.
+            if path_is_named(args.config) and not os.path.exists(args.config):
+                logger.error("  %s was named explicitly but does not exist", args.config)
                 sys.exit(1)
 
             for cat_key, info, col_to_weight in optimization_results:

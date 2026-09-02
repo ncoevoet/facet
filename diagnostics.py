@@ -247,14 +247,18 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
         suggested, vram_gb, msg = ScoringConfig.suggest_vram_profile(vram_gb=profile_vram)
         _ok("Recommended", msg)
 
-        if os.path.exists(config_path):
-            config = ScoringConfig(config_path, validate=False)
-            current = config.get_model_config().get('vram_profile', 'legacy')
-            _ok("Configured", current)
-            if current == 'auto':
-                _info("Note", "auto mode will select the recommended profile at runtime")
-            elif current != suggested:
-                _warn("Mismatch", f"configured '{current}' but recommended '{suggested}'")
+        # No os.path.exists guard: an absent override is an install running on
+        # the shipped defaults, and ScoringConfig resolves that fine. Guarding
+        # on the file dropped the configured profile, the auto note and the
+        # mismatch warning on exactly the install whose profile nobody has
+        # inspected yet.
+        config = ScoringConfig(config_path, validate=False)
+        current = config.get_model_config().get('vram_profile', 'legacy')
+        _ok("Configured", current)
+        if current == 'auto':
+            _info("Note", "auto mode will select the recommended profile at runtime")
+        elif current != suggested:
+            _warn("Mismatch", f"configured '{current}' but recommended '{suggested}'")
     except Exception as e:
         _warn("Profile detection", str(e))
 
@@ -310,21 +314,26 @@ def run_doctor(config_path=None, db_path=None, simulate_gpu=None, simulate_vram=
 
     # --- Config & Database ---
     _section("Config / Database")
+    from config_resolve import path_is_named
     if os.path.exists(config_path):
         size_kb = os.path.getsize(config_path) / 1024
         _ok("Config", f"{config_path} ({size_kb:.1f} KB)")
-        try:
-            from config.scoring_config import ScoringConfig
-            schema_errors = ScoringConfig(config_path, validate=False).validate_schema()
-            if not schema_errors:
-                _ok("Config schema", "valid")
-            else:
-                for err in schema_errors[:5]:
-                    _warn("Config schema", err)
-        except Exception as e:
-            _warn("Config schema", str(e))
+    elif path_is_named(config_path):
+        # A path a human named cannot be missing by accident, and reading it as
+        # "no overrides" is what the rest of the toolchain refuses to do.
+        _warn("Config", f"{config_path} was named explicitly but does not exist")
     else:
-        _warn("Config", f"{config_path} not found")
+        _ok("Config", f"no override at {config_path} — running on the shipped defaults")
+    try:
+        from config.scoring_config import ScoringConfig
+        schema_errors = ScoringConfig(config_path, validate=False).validate_schema()
+        if not schema_errors:
+            _ok("Config schema", "valid")
+        else:
+            for err in schema_errors[:5]:
+                _warn("Config schema", err)
+    except Exception as e:
+        _warn("Config schema", str(e))
 
     if os.path.exists(db_path):
         size_mb = os.path.getsize(db_path) / (1024 * 1024)

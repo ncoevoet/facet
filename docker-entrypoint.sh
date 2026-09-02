@@ -87,14 +87,14 @@ if [ "$(id -u)" = '0' ]; then
         /home/facet/.cache/huggingface /home/facet/.insightface
     seed_config
     # The `cp` above runs as root, so a freshly seeded file is root:root even
-    # though /config itself is chowned below. The viewer's own config writes
-    # (weights, priorities, the password/share-secret migrations) would not
-    # need it — they go through api.config.atomic_write_json, which is mkstemp
-    # + os.replace and needs the DIRECTORY, chowned below anyway — but
-    # ScoringConfig.save_config, which rewrites the file in place when weight
-    # validation auto-corrects a category, is a plain open(path, 'w') on the
-    # FILE. Skipped for a symlink, which seed_config already refused to touch:
-    # chown without -h would follow it to whatever it names.
+    # though /config itself is chowned below — and seed_config just chmod'd it
+    # 0600, which leaves it unreadable by `facet`. Every config WRITER now goes
+    # through atomic_write_json (mkstemp + os.replace) and needs only the
+    # DIRECTORY, chowned below anyway: ScoringConfig.save_config was the last
+    # in-place `open(path, 'w')` and became atomic too. So this chown is about
+    # the READ, not the write — without it the first `load_resolved` of the
+    # seed fails with EACCES. Skipped for a symlink, which seed_config already
+    # refused to touch: chown without -h would follow it to whatever it names.
     if [ ! -L "$SEEDED_CONFIG" ]; then
         chown facet:facet "$SEEDED_CONFIG" 2>/dev/null || true
     fi
