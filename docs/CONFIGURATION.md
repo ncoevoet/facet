@@ -593,6 +593,8 @@ When `vram_profile` is `"auto"` (default), the system detects available GPU VRAM
 
 The `FACET_VRAM_PROFILE` environment variable overrides `models.vram_profile` at load time (honored by `config/scoring_config.py`), so a single mounted config can serve every Docker profile without editing the JSON. Accepted values are `auto`, `legacy`, `8gb`, `16gb`, and `24gb`; any other value is ignored with a warning (so a typo can't silently mis-scan). The per-profile Docker Compose overlays (`docker-compose.{legacy,8gb,16gb,24gb}.yml`) set this variable for you.
 
+The override is **runtime-only and is never written back into `scoring_config.json`**, even when some other edit triggers a save — an automatic weight correction, for instance. That guarantee is what makes one mounted config usable by several containers at once: without it, the first container to save would pin `models.vram_profile` to its own value and every other container reading the same file would inherit it, whatever their own variable said. A `vram_profile` you set in the file yourself is untouched and still wins when the variable is unset.
+
 ```bash
 FACET_VRAM_PROFILE=8gb python facet.py /path/to/photos
 ```

@@ -1100,8 +1100,8 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 
 | Endpoint | Description |
 |----------|-------------|
-| `POST /api/auth/login` | Authenticate and receive token |
-| `POST /api/auth/edition/login` | Unlock edition mode |
+| `POST /api/auth/login` | Authenticate and receive token; 503 when the server's own configuration could not be read, which is refused rather than treated as an install with no password |
+| `POST /api/auth/edition/login` | Unlock edition mode; 503 on the same unreadable-configuration state, so it is not reported as a wrong password |
 | `POST /api/auth/edition/logout` | Lock edition mode (drop privileges, stay authenticated) |
 | `GET /api/auth/status` | Check authentication status |
 

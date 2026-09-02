@@ -365,6 +365,16 @@ only what reading those two will NOT tell you.
 - **Every writer of `scoring_config.json` shares `api.config.CONFIG_WRITE_LOCK`** — priorities,
   weights, contexts, panorama thresholds, the share-secret eviction and the plaintext-password
   upgrade. They rewrite different parts of one file, and two locks lost whole updates.
+- **Every `ScoringConfig` built inside `api/` goes through `api.config.server_scoring_config()`**,
+  never a bare `ScoringConfig()`. The bare form resolves through
+  `config.scoring_config.resolve_scoring_config_path`, which prefers a `scoring_config.json` in
+  the process WORKING DIRECTORY — a real CLI workflow, and a divergence in the server, which
+  reads `default_config_path()` for auth. Start the viewer from a library carrying its own
+  config and the bare form scored with that file while `VIEWER_CONFIG` came from the absent
+  install-root path, resolved to the shipped defaults, and reported empty passwords — so
+  `_is_open_install` said yes and every route went anonymous. A bare call that also omits
+  `validate=False` is worse: it can WRITE that file from a request handler, outside
+  `CONFIG_WRITE_LOCK`.
 - **`scoring_config.json` is an OVERRIDE, resolved over `config/scoring_config.default.json`.**
   Never read it with a bare `json.load` — use `config_resolve.load_resolved`, or you get the
   operator's three keys instead of the config. Never write it with the resolved dict either:
