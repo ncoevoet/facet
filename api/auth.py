@@ -450,6 +450,16 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
     from config_resolve import load_resolved
 
     hashed = hash_password(plaintext)
+    # What the operator reads, rather than the raw key. `config_key` is a key
+    # NAME, never a secret, but it is also the lookup key into a dict whose
+    # values are passwords -- which is enough for CodeQL's
+    # py/clear-text-logging-sensitive-data to follow the taint to the key and
+    # report all three log calls below as leaking a password (it started once
+    # the callers passed VIEWER_PASSWORD_KEY / EDITION_PASSWORD_KEY instead of
+    # the bare strings). A label chosen by comparison is a literal, so the
+    # question does not arise -- and "viewer password" says more to whoever is
+    # reading the log than "password" did.
+    label = 'viewer password' if config_key == VIEWER_PASSWORD_KEY else 'edition password'
     upgraded = False
     with CONFIG_WRITE_LOCK:
         try:
@@ -465,17 +475,17 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
                 write_owner_only_backup(_CONFIG_PATH, f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}")
             except OSError:
                 logger.exception(
-                    "Could not back up %s before upgrading %s; upgrading anyway",
-                    _CONFIG_PATH, config_key,
+                    "Could not back up %s before upgrading the %s; upgrading anyway",
+                    _CONFIG_PATH, label,
                 )
             try:
                 write_user_config(_CONFIG_PATH, config)
                 upgraded = True
             except Exception:
-                logger.exception("Failed to upgrade password hash for %s", config_key)
+                logger.exception("Failed to upgrade the %s hash", label)
     if upgraded:
         reload_config()
-        logger.info("Upgraded plaintext %s to PBKDF2 hash", config_key)
+        logger.info("Upgraded the plaintext %s to a PBKDF2 hash", label)
 
 
 def check_legacy_password_warnings():
