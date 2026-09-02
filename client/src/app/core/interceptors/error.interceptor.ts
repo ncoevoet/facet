@@ -33,7 +33,12 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
     catchError(error => {
       if (error.status === 401 && !isAuthUrl(req.url)) {
         auth.logout();
-      } else if (error.status === 429) {
+      } else if (error.status === 429 && !isAuthUrl(req.url)) {
+        // Excluded on the auth routes for the same reason 401 and 403 are: the
+        // login form and the edition dialog render the outcome inline, right
+        // where the operator is looking and next to the field they would
+        // retype. A global toast saying the same thing is the second copy, and
+        // it outlives the dialog that explains it.
         snackBar.open(i18n.t(I18N.errors.rate_limited), '', { duration: 5000 });
       } else if (error.status === 403 && !isAuthUrl(req.url)) {
         // The server refused rights the cached status still advertises. Either
