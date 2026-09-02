@@ -301,6 +301,30 @@ Lecture seule : elle décode un échantillon aléatoire directement depuis le d
 
 La variable d'environnement `FACET_CONFIG`, si elle est définie, fournit le chemin par défaut de `scoring_config.json` pour `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` et `calibrate.py` lorsqu'ils s'exécutent sans `--config` explicite ; `--config` la remplace toujours. Si la variable — ou `--config` — désigne un fichier inexistant, c'est une erreur et non une surcharge vide : un chemin que quelqu'un a NOMMÉ et qui est manquant trahit une faute de frappe ou un point de montage cassé, si bien que la galerie web refuse d'emprunter le chemin d'authentification « installation ouverte » plutôt que d'en conclure que l'installation n'a aucun mot de passe, et journalise une erreur nommant le chemin manquant. Seul le chemin par défaut *hérité* peut être absent.
 
+Si aucune des deux n'est définie, chaque commande lit un `scoring_config.json` présent dans le **répertoire de travail** — une photothèque qui embarque sa propre configuration est donc notée avec celle-ci — et sinon celui situé à côté de l'installation. Seul ce repli hérité peut être absent : cela signifie une installation qui tourne sur les valeurs par défaut fournies.
+
+```bash
+# 1. --config prime sur tout. Un fichier manquant ici est une ERREUR, pas une surcharge vide.
+python facet.py --config /srv/facet/mariage.json /photos/mariage
+
+# 2. $FACET_CONFIG fournit le chemin par défaut si --config est omis (Docker le définit).
+export FACET_CONFIG=/config/scoring_config.json
+python facet.py /photos            # lit /config/scoring_config.json
+python facet.py --config autre.json /photos   # --config prime toujours
+
+# 3. Ni l'un ni l'autre : un config du RÉPERTOIRE DE TRAVAIL prime, une photothèque
+#    peut donc embarquer le sien.
+cd /photos/seance-client         # contient son propre scoring_config.json
+python /opt/facet/facet.py .     # noté avec /photos/seance-client/scoring_config.json
+
+# 4. Ni l'un ni l'autre, et rien ici : repli sur le config situé à côté de l'installation.
+cd /tmp
+python /opt/facet/facet.py /photos   # lit /opt/facet/scoring_config.json
+                                     # absent = tourne sur les valeurs par défaut fournies
+```
+
+Seul le cas 4 peut ne rien trouver. Les cas 1 et 2 nomment un chemin : un fichier manquant arrête donc la commande au lieu de noter silencieusement avec des valeurs que personne n'a choisies.
+
 | Commande | Description |
 |---------|-------------|
 | `python facet.py --validate-categories` | Valide les configurations de catégorie |

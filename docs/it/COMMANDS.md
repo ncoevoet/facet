@@ -306,6 +306,30 @@ un'installazione rotta — vedi
 
 La variabile d'ambiente `FACET_CONFIG`, se impostata, fornisce il percorso predefinito di `scoring_config.json` per `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando vengono eseguiti senza un `--config` esplicito; `--config` la sovrascrive sempre. Se la variabile — o `--config` — indica un file inesistente, questo è un errore e non un override vuoto: un percorso che qualcuno ha NOMINATO e che manca tradisce un refuso o un mount rotto, quindi il viewer rifiuta il percorso di autenticazione da installazione aperta invece di concludere che l'installazione non ha password, e registra un errore che nomina il percorso mancante. Solo il percorso predefinito *ereditato* può essere assente.
 
+Se nessuna delle due è impostata, ogni comando legge un `scoring_config.json` nella **directory di lavoro**, se presente — così una libreria fotografica che porta con sé la propria configurazione viene valutata con quella — e altrimenti quello accanto all'installazione. Solo questo ripiego ereditato può mancare: significa un'installazione che gira sui valori predefiniti distribuiti.
+
+```bash
+# 1. --config prevale su tutto. Un file mancante qui è un ERRORE, non un override vuoto.
+python facet.py --config /srv/facet/matrimonio.json /photos/matrimonio
+
+# 2. $FACET_CONFIG fornisce il percorso predefinito se --config è omesso (Docker lo imposta).
+export FACET_CONFIG=/config/scoring_config.json
+python facet.py /photos            # legge /config/scoring_config.json
+python facet.py --config altro.json /photos   # --config prevale comunque
+
+# 3. Nessuno dei due: vince una configurazione nella DIRECTORY DI LAVORO, così una
+#    libreria fotografica può portarsi la propria.
+cd /photos/servizio-cliente      # contiene il proprio scoring_config.json
+python /opt/facet/facet.py .     # valutato con /photos/servizio-cliente/scoring_config.json
+
+# 4. Nessuno dei due e qui non c'è nulla: ripiego sul file accanto all'installazione.
+cd /tmp
+python /opt/facet/facet.py /photos   # legge /opt/facet/scoring_config.json
+                                     # se manca, gira sui valori predefiniti distribuiti
+```
+
+Solo il caso 4 può non trovare nulla. I casi 1 e 2 nominano un percorso, quindi un file mancante ferma il comando invece di valutare in silenzio con valori che nessuno ha scelto.
+
 | Comando | Descrizione |
 |---------|-------------|
 | `python facet.py --validate-categories` | Valida le configurazioni delle categorie |

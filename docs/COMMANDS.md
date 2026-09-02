@@ -301,6 +301,29 @@ Read-only: it decodes a random sample straight from disk and prints the mean lum
 
 `FACET_CONFIG`, when set, supplies the default `scoring_config.json` path for `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` and `calibrate.py` whenever they run without an explicit `--config`; `--config` always overrides it. If the variable — or `--config` — names a file that does not exist, that is an error rather than an empty override: a path someone NAMED and that is missing is a typo or a broken mount, so the viewer refuses to start the open-install auth path rather than concluding the install has no passwords, and logs an error naming the missing path. Only the *inherited* default path may be absent.
 
+With neither set, each command reads a `scoring_config.json` in the **working directory** if there is one — so a photo library that carries its own config is scored by it — and otherwise the one beside the install. Only that inherited fallback may be absent; it means an install running on the shipped defaults.
+
+```bash
+# 1. --config wins over everything. Missing here is an ERROR, not an empty override.
+python facet.py --config /srv/facet/wedding.json /photos/wedding
+
+# 2. $FACET_CONFIG supplies the default when --config is omitted (Docker sets this).
+export FACET_CONFIG=/config/scoring_config.json
+python facet.py /photos            # reads /config/scoring_config.json
+python facet.py --config other.json /photos   # --config still overrides it
+
+# 3. Neither set: a config in the WORKING DIRECTORY wins, so a library can carry its own.
+cd /photos/client-shoot          # holds its own scoring_config.json
+python /opt/facet/facet.py .     # scored by /photos/client-shoot/scoring_config.json
+
+# 4. Neither set and nothing here: falls back to the config beside the install.
+cd /tmp
+python /opt/facet/facet.py /photos   # reads /opt/facet/scoring_config.json
+                                     # absent there = running on the shipped defaults
+```
+
+Only case 4 may find nothing. Cases 1 and 2 name a path, so a missing file stops the command instead of silently scoring with defaults nobody chose.
+
 | Command | Description |
 |---------|-------------|
 | `python facet.py --validate-categories` | Validate category configurations |

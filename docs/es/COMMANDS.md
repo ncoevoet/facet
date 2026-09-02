@@ -306,6 +306,31 @@ predeterminados, no una instalación rota — consulta
 
 La variable de entorno `FACET_CONFIG`, cuando está definida, proporciona la ruta predeterminada de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` y `calibrate.py` cuando se ejecutan sin un `--config` explícito; `--config` siempre la anula. Si la variable — o `--config` — nombra un archivo que no existe, eso es un error y no una anulación vacía: una ruta que alguien NOMBRÓ y que falta delata una errata o un montaje roto, así que el visor rechaza la ruta de autenticación de instalación abierta en lugar de concluir que la instalación no tiene contraseñas, y registra un error que nombra la ruta que falta. Solo la ruta predeterminada *heredada* puede estar ausente.
 
+Si no se define ninguna, cada comando lee un `scoring_config.json` del **directorio de trabajo** si lo hay — de modo que una fototeca que lleva su propia configuración se puntúa con ella — y en caso contrario el que está junto a la instalación. Solo esa alternativa heredada puede faltar: significa una instalación que funciona con los valores predeterminados distribuidos.
+
+```bash
+# 1. --config manda sobre todo lo demás. Un archivo que falte aquí es un ERROR,
+#    no una anulación vacía.
+python facet.py --config /srv/facet/boda.json /photos/boda
+
+# 2. $FACET_CONFIG aporta la ruta predeterminada si se omite --config (Docker lo define).
+export FACET_CONFIG=/config/scoring_config.json
+python facet.py /photos            # lee /config/scoring_config.json
+python facet.py --config otro.json /photos   # --config sigue mandando
+
+# 3. Ninguna de las dos: gana una configuración del DIRECTORIO DE TRABAJO, así una
+#    fototeca puede llevar la suya.
+cd /photos/sesion-cliente        # contiene su propio scoring_config.json
+python /opt/facet/facet.py .     # puntuado con /photos/sesion-cliente/scoring_config.json
+
+# 4. Ninguna de las dos y aquí no hay nada: recurre al archivo junto a la instalación.
+cd /tmp
+python /opt/facet/facet.py /photos   # lee /opt/facet/scoring_config.json
+                                     # si falta allí, funciona con los valores por defecto
+```
+
+Solo el caso 4 puede no encontrar nada. Los casos 1 y 2 nombran una ruta, así que un archivo que falte detiene el comando en vez de puntuar en silencio con valores que nadie eligió.
+
 | Comando | Descripción |
 |---------|-------------|
 | `python facet.py --validate-categories` | Valida las configuraciones de categorías |

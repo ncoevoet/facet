@@ -305,6 +305,31 @@ defekte — siehe [Konfiguration](CONFIGURATION.md#standardwerte-und-ihre-übers
 
 Die Umgebungsvariable `FACET_CONFIG` liefert, wenn gesetzt, den Standardpfad zu `scoring_config.json` für `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` und `calibrate.py`, sofern diese ohne explizites `--config` ausgeführt werden; `--config` überschreibt sie immer. Benennt die Variable — oder `--config` — eine nicht vorhandene Datei, ist das ein Fehler und keine leere Überschreibung: Ein Pfad, den jemand BENANNT hat und der fehlt, verrät einen Tippfehler oder einen defekten Mount, daher verweigert der Viewer den Auth-Pfad für eine offene Installation, statt zu schließen, dass die Installation keine Passwörter hat, und protokolliert einen Fehler mit dem fehlenden Pfad. Nur der *geerbte* Standardpfad darf fehlen.
 
+Ist keine von beiden gesetzt, liest jeder Befehl eine `scoring_config.json` im **Arbeitsverzeichnis**, sofern vorhanden — eine Fotosammlung mit eigener Konfiguration wird also mit dieser bewertet — und andernfalls die neben der Installation. Nur dieser geerbte Rückfall darf fehlen: Er bedeutet eine Installation, die mit den ausgelieferten Standardwerten läuft.
+
+```bash
+# 1. --config hat Vorrang vor allem. Eine fehlende Datei ist hier ein FEHLER,
+#    keine leere Überschreibung.
+python facet.py --config /srv/facet/hochzeit.json /photos/hochzeit
+
+# 2. $FACET_CONFIG liefert den Standardpfad, wenn --config fehlt (Docker setzt das).
+export FACET_CONFIG=/config/scoring_config.json
+python facet.py /photos            # liest /config/scoring_config.json
+python facet.py --config andere.json /photos   # --config hat weiterhin Vorrang
+
+# 3. Keines von beiden: eine Konfiguration im ARBEITSVERZEICHNIS gewinnt — eine
+#    Fotosammlung kann also ihre eigene mitbringen.
+cd /photos/kunden-shooting       # enthält eine eigene scoring_config.json
+python /opt/facet/facet.py .     # bewertet mit /photos/kunden-shooting/scoring_config.json
+
+# 4. Keines von beiden und hier nichts: Rückfall auf die Datei neben der Installation.
+cd /tmp
+python /opt/facet/facet.py /photos   # liest /opt/facet/scoring_config.json
+                                     # fehlt sie dort, laufen die Standardwerte
+```
+
+Nur Fall 4 darf nichts finden. Fall 1 und 2 nennen einen Pfad, daher bricht eine fehlende Datei den Befehl ab, statt still mit Werten zu bewerten, die niemand gewählt hat.
+
 | Befehl | Beschreibung |
 |---------|-------------|
 | `python facet.py --validate-categories` | Kategoriekonfigurationen validieren |
