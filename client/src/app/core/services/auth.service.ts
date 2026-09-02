@@ -31,8 +31,13 @@ interface LoginResponse {
  * bare `false` for that made the login form say "Invalid credentials" to an
  * operator whose password was fine, and threw away the one diagnostic the
  * server had produced.
+ *
+ * `'rate_limited'` exists for the same reason, one status code down: both login
+ * routes answer 429 from `_login_limiter.is_allowed()` before the password is
+ * ever checked, so it is never a wrong password either -- and retyping one
+ * only extends the lockout window.
  */
-export type LoginOutcome = 'ok' | 'invalid' | 'unavailable';
+export type LoginOutcome = 'ok' | 'invalid' | 'unavailable' | 'rate_limited';
 
 /** Slack allowed on the client's own clock before it judges a token dead. The
  *  verdict that matters is the server's; a browser clock running ahead would
@@ -134,10 +139,15 @@ export class AuthService {
    * bad credentials repeats the same conflation one layer down. The predicate
    * is the one `retry.interceptor.ts` already uses for "the server, not the
    * request, is the problem".
+   *
+   * Status 429 is the same conflation one layer further down: both routes'
+   * rate limiter rejects the request before any password check runs, so it is
+   * never bad credentials either.
    */
   private classifyLoginError(err: unknown): LoginOutcome {
     if (!(err instanceof HttpErrorResponse)) return 'invalid';
-    return err.status === 0 || err.status >= 500 ? 'unavailable' : 'invalid';
+    if (err.status === 0 || err.status >= 500) return 'unavailable';
+    return err.status === 429 ? 'rate_limited' : 'invalid';
   }
 
   /** Login with credentials */

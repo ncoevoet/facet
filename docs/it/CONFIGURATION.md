@@ -90,21 +90,36 @@ risolve su se stesso e continua a funzionare. Ma le tue modifiche sono invisibil
 mezzo a 3700 righe di valori forniti, e le impostazioni che non hai mai scelto restano
 congelate al valore che avevano quando hai copiato il file.
 
+Non devi fare nulla perché questo accada, comunque: qualunque scrittura su
+`scoring_config.json` riscrive già l'intero file come l'override che è, eliminando ogni
+chiave ancora uguale al predefinito fornito, non solo quella che si intendeva
+modificare. Salvare i pesi o una priorità di categoria dal visore lo fa. Lo fa anche un
+cambio di soglia panorama, il primo login riuscito con una password in chiaro (che
+viene aggiornata a un hash nella stessa scrittura), e persino una scansione ordinaria,
+se `validate_weights` corregge i pesi di una categoria lungo il percorso.
+
 ```bash
 python database.py --compact-config
 ```
 
-lo riscrive come l'override che effettivamente è, eliminando ogni valore uguale al
-predefinito fornito. Prende prima un backup in `0600`, ed è senza perdita di dati — il
-file si risolve poi esattamente sulla stessa configurazione.
+fa la stessa compattazione su richiesta, invece di aspettare che sia la prossima
+scrittura a innescarla. È senza perdita di dati — il file si risolve poi esattamente
+sulla stessa configurazione — e il suo vero vantaggio residuo è il backup: prende una
+copia in `0600` del file prima di scrivere. Non tutte le scritture lo fanno; il
+percorso di scansione (`ScoringConfig.save_config`) non ne prende nessuno, di proposito
+(vedi il suo docstring in `config/scoring_config.py:481`), quindi usa
+`--compact-config` quando vuoi un backup registrato invece di affidarti a qualunque
+scrittura avvenga per prima.
 
 > **Il compromesso, detto chiaramente.** Una volta che un valore viene eliminato
 > perché corrispondeva al predefinito, una futura versione di Facet che cambia quel
-> predefinito cambia anche il tuo comportamento. Questo è proprio il punto — è così
-> che le nuove regolazioni ti raggiungono senza dover modificare il tuo file — ma se
-> vuoi che un valore resti fisso indipendentemente da ciò che viene fornito,
-> impostalo esplicitamente a un valore, oppure mantienilo nel tuo override anche dove
-> oggi corrisponde per caso.
+> predefinito cambia anche il tuo comportamento — ed è qualunque scrittura, non solo
+> `--compact-config`, a eliminarlo. Questo è proprio il punto — è così che le nuove
+> regolazioni ti raggiungono senza dover modificare il tuo file. L'unica cosa che fissa
+> davvero un valore contro un futuro cambio del predefinito è impostarlo su qualcosa di
+> *diverso* dal predefinito fornito: un valore che coincide semplicemente con il
+> predefinito non può sopravvivere nel file — la scrittura successiva lo elimina, che
+> sia una compattazione intenzionale o no.
 
 
 ## Users

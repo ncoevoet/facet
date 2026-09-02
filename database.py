@@ -129,9 +129,12 @@ def _compact_config():
     An install that predates the split, or one that was seeded from a full
     template, carries every shipped value as though it were a choice: 3700 lines
     in which the operator's own three edits are invisible, and which a later
-    release cannot update. Nothing else compacts it automatically -- a read must
-    not rewrite the operator's file, and a config edited only by hand may never
-    see a write at all -- so this is the explicit way to do it.
+    release cannot update. Every writer already compacts as a side effect of
+    writing -- ``config_resolve.write_user_config`` subtracts the defaults again
+    before any save, whether that save came from the viewer UI or a scan -- but a
+    read must not rewrite the operator's file, and a config edited only by hand
+    may never see a write at all. This is the explicit way to do it on demand,
+    and the only one that takes a backup first.
 
     Lossless by construction: the file resolves to the same config afterwards,
     which is what :func:`config_resolve.delta_for_write` guarantees. A backup is

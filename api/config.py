@@ -16,8 +16,9 @@ import time
 import secrets
 
 from config_resolve import (  # noqa: F401 - atomic_write_json is re-exported for tests that call it here
-    _fsync_directory, _unlink_quietly, atomic_write_json, default_config_path,
-    deep_merge, defaults_path, delta_for_write, load_defaults, write_user_config,
+    _fsync_directory, _merge_into, _unlink_quietly, atomic_write_json,
+    default_config_path, defaults_path, delta_for_write, load_defaults,
+    require_override_mapping, write_user_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -207,10 +208,14 @@ _BURNED_PASSWORD_DIGESTS = frozenset({
 def is_burned_password(value):
     """True when ``value`` is a plaintext password this project published.
 
-    Only ever asked of a STORED value, never of what a caller typed: the
-    question is whether the install is still protected by a shipped default,
-    not whether someone guessed one. Hashed values are not published and cannot
-    match — they never reach here, since the callers check the plaintext branch.
+    Asked of a STORED plaintext, and — since the store may be a HASH of a
+    published value, which is what an earlier release's login-time upgrade left
+    behind — of a CANDIDATE that has already verified against such a hash. Both
+    ask the same question, "is this install still protected by a value we
+    published", because a candidate that verifies IS the stored password. It is
+    never asked of a candidate that has not verified: that would answer "did
+    someone guess a shipped default", which is not this function's business and
+    would leak the two values by timing.
     """
     if not isinstance(value, str) or not value:
         return False
@@ -341,18 +346,20 @@ def _read_config():
                         f"{type(given).__name__}. It is compared as one during "
                         f"login, so it cannot be read as absent."
                     )
-        if not isinstance(overrides, dict):
-            # Valid JSON of the wrong SHAPE. deep_merge would die on
-            # ``.items()`` with an AttributeError that names neither the file
-            # nor the mistake, and the handler below would then report "could
-            # not parse" a file that parsed perfectly -- sending the operator
-            # after a syntax error that is not there. config_resolve.load_resolved
-            # rejects the same input by name; this reader must not be laxer.
-            raise ValueError(
-                f"{_CONFIG_PATH} must hold a JSON object of overrides, not "
-                f"{type(overrides).__name__}. An install that changes nothing holds {{}}."
-            )
-        config = deep_merge(defaults, overrides)
+        # Valid JSON of the wrong SHAPE. deep_merge would die on ``.items()``
+        # with an AttributeError that names neither the file nor the mistake,
+        # and the handler below would then report "could not parse" a file that
+        # parsed perfectly -- sending the operator after a syntax error that is
+        # not there. Shared with config_resolve.load_resolved rather than
+        # restated here: this reader must not be laxer than that one, and two
+        # copies of the rule is how they drift apart.
+        require_override_mapping(overrides, _CONFIG_PATH)
+        # ``defaults`` is this call's own fresh parse (load_defaults re-reads
+        # every time, and viewer_defaults above is consumed before this point),
+        # so merge into it rather than paying deep_merge's copy of the whole
+        # shipped tree on a path the server takes at boot and on every reload.
+        _merge_into(defaults, overrides)
+        config = defaults
     except FileNotFoundError:
         if _CONFIG_PATH_IS_EXPLICIT:
             _config_load_failed = True
@@ -1215,26 +1222,45 @@ _config_lock = threading.Lock()
 def reload_config():
     """Reload scoring_config.json from disk.
 
-    ``VIEWER_CONFIG`` is refilled in place rather than rebound: every consumer
-    does ``from api.config import VIEWER_CONFIG`` at import time and holds that
-    dict forever, so rebinding this module's name would leave them all reading
-    the pre-reload values. ``api.auth`` derives each token's password generation
-    from it, which makes a stale copy a security question and not just a
-    freshness one.
+    ``VIEWER_CONFIG`` and ``_FULL_CONFIG`` are both refilled in place rather
+    than rebound: every consumer does ``from api.config import VIEWER_CONFIG``
+    (or ``_FULL_CONFIG``) at import time and holds that dict forever, so
+    rebinding this module's name would leave them all reading the pre-reload
+    values. ``api.auth`` derives each token's password generation from
+    ``VIEWER_CONFIG``, which makes a stale copy a security question and not
+    just a freshness one; ``_FULL_CONFIG`` is held that way by ten modules
+    (``api.db_helpers``, ``api.updates``, ``api.model_cache``,
+    ``api.similarity_groups`` and the caption/portfolio/immich/frame/scan/
+    gallery routers), and rebinding it froze their translation target, caption
+    gate, capsule TTL and export settings at process start while
+    ``VIEWER_CONFIG`` went on tracking the file — so one request could read two
+    generations of one config.
+
+    Neither dict is ever observably EMPTY. Update-then-prune, not
+    clear-then-update: the two are separate statements and readers hold no
+    lock, so clearing first exposed a window in which ``VIEWER_CONFIG`` has no
+    password at all, and ``api.auth._is_open_install`` reads a missing password
+    as "this install has no lock" while ``config_load_failed()`` is still False
+    because ``_bootstrap`` succeeded. Inside it an anonymous caller got a
+    ``CurrentUser``, ``is_edition`` answered True, and
+    ``is_access_controlled_install`` degraded the visibility clause to ``1=1``.
+    ``load_viewer_config`` backfills every shipped key, so the auth-relevant
+    values are correct from the update onward and the prune only drops keys the
+    new config no longer has.
     """
-    global _FULL_CONFIG, _server_secret, JWT_SECRET
+    global _server_secret, JWT_SECRET
     with _config_lock:
-        _FULL_CONFIG, _server_secret = _bootstrap()
-        # Build BEFORE clearing. The refill has to happen in place (see above),
-        # but doing it as clear-then-update leaves VIEWER_CONFIG empty for as
-        # long as the rebuild takes -- and permanently if it raises. An empty
-        # VIEWER_CONFIG is not a neutral state: ``api.auth._is_open_install``
-        # reads a missing password as "this install has no lock", so a raising
-        # reload turned a password-protected install into an open one, with
-        # ``config_load_failed()`` still False because _bootstrap had succeeded.
-        fresh_viewer = load_viewer_config(_FULL_CONFIG)
-        VIEWER_CONFIG.clear()
+        # Build BEFORE touching either dict, so a raising bootstrap leaves the
+        # previous config in place instead of a half-applied one.
+        fresh_full, fresh_secret = _bootstrap()
+        fresh_viewer = load_viewer_config(fresh_full)
+        _FULL_CONFIG.update(fresh_full)
+        for key in set(_FULL_CONFIG) - set(fresh_full):
+            del _FULL_CONFIG[key]
         VIEWER_CONFIG.update(fresh_viewer)
+        for key in set(VIEWER_CONFIG) - set(fresh_viewer):
+            del VIEWER_CONFIG[key]
+        _server_secret = fresh_secret
         JWT_SECRET = _server_secret
 
 

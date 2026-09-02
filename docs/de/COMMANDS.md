@@ -303,9 +303,11 @@ ausgelieferten Standardwerte aufgelöst. Eine fehlende Konfigurationsdatei bedeu
 daher eine Installation, die vollständig auf diesen Standardwerten läuft, nicht eine
 defekte — siehe [Konfiguration](CONFIGURATION.md#standardwerte-und-ihre-überschreibung).
 
-Die Umgebungsvariable `FACET_CONFIG` liefert, wenn gesetzt, den Standardpfad zu `scoring_config.json` für `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` und `calibrate.py`, sofern diese ohne explizites `--config` ausgeführt werden; `--config` überschreibt sie immer. Benennt die Variable — oder `--config` — eine nicht vorhandene Datei, ist das ein Fehler und keine leere Überschreibung: Ein Pfad, den jemand BENANNT hat und der fehlt, verrät einen Tippfehler oder einen defekten Mount, daher verweigert der Viewer den Auth-Pfad für eine offene Installation, statt zu schließen, dass die Installation keine Passwörter hat, und protokolliert einen Fehler mit dem fehlenden Pfad. Nur der *geerbte* Standardpfad darf fehlen.
+Die Umgebungsvariable `FACET_CONFIG` liefert, wenn gesetzt, den Standardpfad zu `scoring_config.json` für `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py`, `calibrate.py` und `viewer.py`, sofern diese ohne explizites `--config` ausgeführt werden; `--config` überschreibt sie immer. `viewer.py` (und der von ihm gestartete `api/`-Server) hat keine eigene `--config`-Option — `FACET_CONFIG` ist daher der einzige Weg, ihn umzulenken. Benennt die Variable — oder `--config` — eine nicht vorhandene Datei, ist das ein Fehler und keine leere Überschreibung: Ein Pfad, den jemand BENANNT hat und der fehlt, verrät einen Tippfehler oder einen defekten Mount, daher verweigert der Viewer den Auth-Pfad für eine offene Installation, statt zu schließen, dass die Installation keine Passwörter hat, und protokolliert einen Fehler mit dem fehlenden Pfad. Nur der *geerbte* Standardpfad darf fehlen.
 
-Ist keine von beiden gesetzt, liest jeder Befehl eine `scoring_config.json` im **Arbeitsverzeichnis**, sofern vorhanden — eine Fotosammlung mit eigener Konfiguration wird also mit dieser bewertet — und andernfalls die neben der Installation. Nur dieser geerbte Rückfall darf fehlen: Er bedeutet eine Installation, die mit den ausgelieferten Standardwerten läuft.
+Ist keine von beiden gesetzt, lesen `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` und `calibrate.py` eine `scoring_config.json` im **Arbeitsverzeichnis**, sofern vorhanden — eine Fotosammlung mit eigener Konfiguration wird also mit dieser bewertet — und andernfalls die neben der Installation. Nur dieser geerbte Rückfall darf fehlen: Er bedeutet eine Installation, die mit den ausgelieferten Standardwerten läuft.
+
+Der Viewer `viewer.py` und der von ihm gestartete `api/`-Server machen diesen Umweg über das Arbeitsverzeichnis nie mit: Sie lösen nur `FACET_CONFIG` auf, sonst die Datei neben der Installation — niemals eine `scoring_config.json`, die zufällig in dem Verzeichnis liegt, aus dem heraus sie gestartet wurden. Das ist wichtig, weil die Konfiguration des Viewers diejenige ist, die die Passwörter des Betreibers trägt: Wer ihn aus einer Fotosammlung heraus startet, bekommt nicht deren Konfiguration, und fehlt auch neben der Installation eine, fällt er still auf die ausgelieferten Standardwerte zurück — ein leeres `viewer.edition_password`, das dann jede Route anonym bedient.
 
 ```bash
 # 1. --config hat Vorrang vor allem. Eine fehlende Datei ist hier ein FEHLER,
@@ -317,8 +319,9 @@ export FACET_CONFIG=/config/scoring_config.json
 python facet.py /photos            # liest /config/scoring_config.json
 python facet.py --config andere.json /photos   # --config hat weiterhin Vorrang
 
-# 3. Keines von beiden: eine Konfiguration im ARBEITSVERZEICHNIS gewinnt — eine
-#    Fotosammlung kann also ihre eigene mitbringen.
+# 3. Keines von beiden: eine Konfiguration im ARBEITSVERZEICHNIS gewinnt — bei den
+#    Kommandozeilenwerkzeugen, eine Fotosammlung kann also ihre eigene mitbringen.
+#    viewer.py kennt diesen Schritt nicht, siehe unten.
 cd /photos/kunden-shooting       # enthält eine eigene scoring_config.json
 python /opt/facet/facet.py .     # bewertet mit /photos/kunden-shooting/scoring_config.json
 
@@ -326,9 +329,13 @@ python /opt/facet/facet.py .     # bewertet mit /photos/kunden-shooting/scoring_
 cd /tmp
 python /opt/facet/facet.py /photos   # liest /opt/facet/scoring_config.json
                                      # fehlt sie dort, laufen die Standardwerte
+
+# 5. viewer.py macht diesen Umweg über das Arbeitsverzeichnis nie mit, anders als Fall 1 bis 4.
+cd /photos/kunden-shooting       # enthält eine eigene scoring_config.json -- hier wirkungslos
+python /opt/facet/viewer.py      # liest weiterhin /opt/facet/scoring_config.json (oder $FACET_CONFIG)
 ```
 
-Nur Fall 4 darf nichts finden. Fall 1 und 2 nennen einen Pfad, daher bricht eine fehlende Datei den Befehl ab, statt still mit Werten zu bewerten, die niemand gewählt hat.
+Nur Fall 4 und 5 dürfen nichts finden. Fall 1 und 2 nennen einen Pfad, daher bricht eine fehlende Datei den Befehl ab, statt still mit Werten zu bewerten, die niemand gewählt hat.
 
 | Befehl | Beschreibung |
 |---------|-------------|

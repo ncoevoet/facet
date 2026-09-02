@@ -304,9 +304,11 @@ por tanto, una instalación que funciona enteramente con esos valores
 predeterminados, no una instalación rota — consulta
 [Configuración](CONFIGURATION.md#valores-predeterminados-y-tu-anulación).
 
-La variable de entorno `FACET_CONFIG`, cuando está definida, proporciona la ruta predeterminada de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` y `calibrate.py` cuando se ejecutan sin un `--config` explícito; `--config` siempre la anula. Si la variable — o `--config` — nombra un archivo que no existe, eso es un error y no una anulación vacía: una ruta que alguien NOMBRÓ y que falta delata una errata o un montaje roto, así que el visor rechaza la ruta de autenticación de instalación abierta en lugar de concluir que la instalación no tiene contraseñas, y registra un error que nombra la ruta que falta. Solo la ruta predeterminada *heredada* puede estar ausente.
+La variable de entorno `FACET_CONFIG`, cuando está definida, proporciona la ruta predeterminada de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py`, `calibrate.py` y `viewer.py` cuando se ejecutan sin un `--config` explícito; `--config` siempre la anula. `viewer.py` (y el servidor `api/` que arranca) no tiene una opción `--config` propia — `FACET_CONFIG` es por tanto la única forma de redirigirlo. Si la variable — o `--config` — nombra un archivo que no existe, eso es un error y no una anulación vacía: una ruta que alguien NOMBRÓ y que falta delata una errata o un montaje roto, así que el visor rechaza la ruta de autenticación de instalación abierta en lugar de concluir que la instalación no tiene contraseñas, y registra un error que nombra la ruta que falta. Solo la ruta predeterminada *heredada* puede estar ausente.
 
-Si no se define ninguna, cada comando lee un `scoring_config.json` del **directorio de trabajo** si lo hay — de modo que una fototeca que lleva su propia configuración se puntúa con ella — y en caso contrario el que está junto a la instalación. Solo esa alternativa heredada puede faltar: significa una instalación que funciona con los valores predeterminados distribuidos.
+Si no se define ninguna, `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` y `calibrate.py` leen un `scoring_config.json` del **directorio de trabajo** si lo hay — de modo que una fototeca que lleva su propia configuración se puntúa con ella — y en caso contrario el que está junto a la instalación. Solo esa alternativa heredada puede faltar: significa una instalación que funciona con los valores predeterminados distribuidos.
+
+El visor `viewer.py` y el servidor `api/` que arranca nunca dan ese rodeo por el directorio de trabajo: solo resuelven `FACET_CONFIG` y, si no está, el archivo junto a la instalación — nunca un `scoring_config.json` que ande suelto en el directorio desde el que se lanzan. Esto importa porque la configuración del visor es la que lleva las contraseñas del operador: arrancarlo desde dentro de una fototeca no recoge la configuración de esta, y si tampoco hay ninguna junto a la instalación, cae en silencio en los valores predeterminados distribuidos — un `viewer.edition_password` vacío que deja entonces cada ruta servida de forma anónima.
 
 ```bash
 # 1. --config manda sobre todo lo demás. Un archivo que falte aquí es un ERROR,
@@ -318,8 +320,9 @@ export FACET_CONFIG=/config/scoring_config.json
 python facet.py /photos            # lee /config/scoring_config.json
 python facet.py --config otro.json /photos   # --config sigue mandando
 
-# 3. Ninguna de las dos: gana una configuración del DIRECTORIO DE TRABAJO, así una
-#    fototeca puede llevar la suya.
+# 3. Ninguna de las dos: gana una configuración del DIRECTORIO DE TRABAJO para las
+#    herramientas de línea de comandos, así una fototeca puede llevar la suya.
+#    viewer.py no tiene este paso, ver más abajo.
 cd /photos/sesion-cliente        # contiene su propio scoring_config.json
 python /opt/facet/facet.py .     # puntuado con /photos/sesion-cliente/scoring_config.json
 
@@ -327,9 +330,13 @@ python /opt/facet/facet.py .     # puntuado con /photos/sesion-cliente/scoring_c
 cd /tmp
 python /opt/facet/facet.py /photos   # lee /opt/facet/scoring_config.json
                                      # si falta allí, funciona con los valores por defecto
+
+# 5. viewer.py nunca da ese rodeo por el directorio de trabajo, a diferencia de los casos 1 a 4.
+cd /photos/sesion-cliente        # contiene su propio scoring_config.json -- irrelevante aquí
+python /opt/facet/viewer.py      # sigue leyendo /opt/facet/scoring_config.json (o $FACET_CONFIG)
 ```
 
-Solo el caso 4 puede no encontrar nada. Los casos 1 y 2 nombran una ruta, así que un archivo que falte detiene el comando en vez de puntuar en silencio con valores que nadie eligió.
+Solo los casos 4 y 5 pueden no encontrar nada. Los casos 1 y 2 nombran una ruta, así que un archivo que falte detiene el comando en vez de puntuar en silencio con valores que nadie eligió.
 
 | Comando | Descripción |
 |---------|-------------|

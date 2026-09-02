@@ -82,6 +82,10 @@ export class LoginComponent {
         // its own config. Telling this operator their credentials are invalid
         // sends them to retype a password that was never the problem.
         this.error.set(this.i18n.t(I18N.auth.config_unreadable));
+      } else if (outcome === 'rate_limited') {
+        // The rate limiter rejected the request before any password check ran.
+        // Retyping "invalid" credentials here would only extend the lockout.
+        this.error.set(this.i18n.t(I18N.errors.rate_limited));
       } else {
         this.error.set(this.i18n.t(I18N.auth.invalid_credentials));
       }

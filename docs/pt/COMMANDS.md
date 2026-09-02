@@ -304,9 +304,11 @@ portanto, uma instalação rodando inteiramente com esses padrões, não uma
 instalação quebrada — veja
 [Configuração](CONFIGURATION.md#padrões-e-seu-override).
 
-A variável de ambiente `FACET_CONFIG`, quando definida, fornece o caminho padrão de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando são executados sem um `--config` explícito; `--config` sempre a sobrepõe. Se a variável — ou `--config` — nomear um arquivo inexistente, isso é um erro e não um override vazio: um caminho que alguém NOMEOU e que está faltando denuncia um erro de digitação ou uma montagem quebrada, então o visualizador recusa o caminho de autenticação de instalação aberta em vez de concluir que a instalação não tem senhas, e registra um erro que nomeia o caminho em falta. Só o caminho padrão *herdado* pode estar ausente.
+A variável de ambiente `FACET_CONFIG`, quando definida, fornece o caminho padrão de `scoring_config.json` para `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py`, `calibrate.py` e `viewer.py` quando são executados sem um `--config` explícito; `--config` sempre a sobrepõe. O `viewer.py` (e o servidor `api/` que ele inicia) não tem uma opção `--config` própria — `FACET_CONFIG` é, portanto, a única forma de redirecioná-lo. Se a variável — ou `--config` — nomear um arquivo inexistente, isso é um erro e não um override vazio: um caminho que alguém NOMEOU e que está faltando denuncia um erro de digitação ou uma montagem quebrada, então o visualizador recusa o caminho de autenticação de instalação aberta em vez de concluir que a instalação não tem senhas, e registra um erro que nomeia o caminho em falta. Só o caminho padrão *herdado* pode estar ausente.
 
-Se nenhuma das duas estiver definida, cada comando lê um `scoring_config.json` no **diretório de trabalho**, se houver — assim uma fototeca que carrega sua própria configuração é pontuada por ela — e caso contrário o que fica ao lado da instalação. Só esse recuo herdado pode estar ausente: significa uma instalação rodando com os padrões distribuídos.
+Se nenhuma das duas estiver definida, `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` leem um `scoring_config.json` no **diretório de trabalho**, se houver — assim uma fototeca que carrega sua própria configuração é pontuada por ela — e caso contrário o que fica ao lado da instalação. Só esse recuo herdado pode estar ausente: significa uma instalação rodando com os padrões distribuídos.
+
+O visualizador `viewer.py` e o servidor `api/` que ele inicia nunca fazem esse desvio pelo diretório de trabalho: eles resolvem apenas `FACET_CONFIG`, senão o arquivo ao lado da instalação — nunca um `scoring_config.json` que esteja por acaso no diretório de onde são iniciados. Isso importa porque a configuração do visualizador é a que carrega as senhas do operador: iniciá-lo de dentro de uma fototeca não pega a configuração dela, e se também não houver nenhuma ao lado da instalação, ele recai silenciosamente nos padrões distribuídos — um `viewer.edition_password` vazio que passa então a servir toda rota de forma anônima.
 
 ```bash
 # 1. --config vence tudo. Um arquivo ausente aqui é um ERRO, não um override vazio.
@@ -317,8 +319,9 @@ export FACET_CONFIG=/config/scoring_config.json
 python facet.py /photos            # lê /config/scoring_config.json
 python facet.py --config outro.json /photos   # --config ainda prevalece
 
-# 3. Nenhum dos dois: uma configuração no DIRETÓRIO DE TRABALHO vence, então uma
-#    fototeca pode carregar a sua própria.
+# 3. Nenhum dos dois: uma configuração no DIRETÓRIO DE TRABALHO vence para as
+#    ferramentas de linha de comando, então uma fototeca pode carregar a sua própria.
+#    O viewer.py não tem essa etapa, veja abaixo.
 cd /photos/ensaio-cliente        # contém seu próprio scoring_config.json
 python /opt/facet/facet.py .     # pontuado por /photos/ensaio-cliente/scoring_config.json
 
@@ -326,9 +329,13 @@ python /opt/facet/facet.py .     # pontuado por /photos/ensaio-cliente/scoring_c
 cd /tmp
 python /opt/facet/facet.py /photos   # lê /opt/facet/scoring_config.json
                                      # ausente ali = rodando com os padrões distribuídos
+
+# 5. O viewer.py nunca faz esse desvio pelo diretório de trabalho, diferente dos casos 1 a 4.
+cd /photos/ensaio-cliente        # contém seu próprio scoring_config.json -- irrelevante aqui
+python /opt/facet/viewer.py      # continua lendo /opt/facet/scoring_config.json (ou $FACET_CONFIG)
 ```
 
-Só o caso 4 pode não encontrar nada. Os casos 1 e 2 nomeiam um caminho, então um arquivo ausente interrompe o comando em vez de pontuar silenciosamente com valores que ninguém escolheu.
+Só os casos 4 e 5 podem não encontrar nada. Os casos 1 e 2 nomeiam um caminho, então um arquivo ausente interrompe o comando em vez de pontuar silenciosamente com valores que ninguém escolheu.
 
 | Comando | Descrição |
 |---------|-------------|

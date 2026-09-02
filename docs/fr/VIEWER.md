@@ -1055,8 +1055,8 @@ Les types TypeScript du client sont générés à partir de ce schéma dans `cli
 
 | Point d'accès | Description |
 |----------|-------------|
-| `POST /api/auth/login` | S'authentifier et recevoir un jeton |
-| `POST /api/auth/edition/login` | Déverrouiller le mode édition |
+| `POST /api/auth/login` | S'authentifier et recevoir un jeton ; 503 quand le serveur ne peut pas lire sa propre configuration, cet état étant refusé plutôt que traité comme une installation sans mot de passe |
+| `POST /api/auth/edition/login` | Déverrouiller le mode édition ; 503 dans ce même état de configuration illisible, pour ne pas être signalé comme un mot de passe erroné |
 | `POST /api/auth/edition/logout` | Verrouiller le mode édition (retirer les privilèges, rester authentifié) |
 | `GET /api/auth/status` | Vérifier l'état de l'authentification |
 

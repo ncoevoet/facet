@@ -24,6 +24,25 @@ from api.models.auth import (
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
+_CONFIG_UNREADABLE_DETAIL = "Configuration could not be read; refusing to authenticate."
+
+
+def _refuse_if_config_unreadable(password_key):
+    """503 when an EMPTY stored password means "unreadable", not "no lock".
+
+    The one place that decision is made. An empty password means two different
+    things: an install that deliberately runs without a gate, and one whose
+    config could not be read, where VIEWER_CONFIG is the shipped defaults and
+    every password in it is empty. Minting a session in the second case hands a
+    full library to an anonymous caller on a deployment the operator locked.
+    :func:`api.auth._is_open_install` is the predicate that separates them — it
+    short-circuits on ``config_load_failed()`` — and both login endpoints ask it
+    the same way, so a third auth surface cannot reintroduce the value check by
+    copying whichever of the two it happened to read first.
+    """
+    if not _is_open_install(password_key):
+        raise HTTPException(status_code=503, detail=_CONFIG_UNREADABLE_DETAIL)
+
 
 @router.post(
     "/login",
@@ -75,14 +94,8 @@ def login(body: LoginRequest, request: Request, response: Response):
         # Legacy single-password mode.
         #
         # Ask :func:`_is_open_install` rather than reading the password out of
-        # VIEWER_CONFIG, because an EMPTY password means two different things and
-        # only that predicate separates them. A deliberately passwordless install
-        # is open; an install whose config could not be read also presents as
-        # having no password, and minting a session there hands a full library to
-        # an anonymous caller on a deployment the operator locked. The predicate
-        # already refuses the second case (it short-circuits on
-        # ``config_load_failed()``); this endpoint used to bypass it by looking at
-        # the value instead of asking the question.
+        # VIEWER_CONFIG — see :func:`_refuse_if_config_unreadable` for why the
+        # value cannot answer the question.
         password = VIEWER_CONFIG.get(VIEWER_PASSWORD_KEY, '')
         if _is_open_install(VIEWER_PASSWORD_KEY):
             # No password required — return a token for no-auth mode
@@ -90,17 +103,14 @@ def login(body: LoginRequest, request: Request, response: Response):
             set_auth_cookie(response, token)
             return LoginResponse(access_token=token)
         if not password:
-            raise HTTPException(
-                status_code=503,
-                detail="Configuration could not be read; refusing to authenticate.",
-            )
+            _refuse_if_config_unreadable(VIEWER_PASSWORD_KEY)
 
         if not verify_legacy_password(body.password, password):
             raise HTTPException(status_code=401, detail="Invalid password")
 
         # Upgrade plaintext password to PBKDF2 hash on first successful login
         # (idempotent — checks on-disk value, not stale in-memory VIEWER_CONFIG)
-        upgrade_legacy_password('password', body.password)
+        upgrade_legacy_password(VIEWER_PASSWORD_KEY, body.password)
 
         token = create_access_token({'sub': '_legacy', 'role': 'user'})
         set_auth_cookie(response, token)
@@ -124,28 +134,20 @@ def edition_login(body: EditionLoginRequest, request: Request, response: Respons
 
     if is_multi_user_enabled():
         raise HTTPException(status_code=400, detail="Use /api/auth/login for multi-user auth")
-    edition_password = VIEWER_CONFIG.get('edition_password', '')
+    edition_password = VIEWER_CONFIG.get(EDITION_PASSWORD_KEY, '')
     if not edition_password:
-        # Empty means two different things, exactly as it does on /login: an
-        # install that deliberately runs without an edition gate, and one whose
-        # config could not be read, where VIEWER_CONFIG is the shipped defaults
-        # and every password in it is empty. `_is_open_install` is the predicate
-        # that already separates them — it short-circuits on
-        # `config_load_failed()` — so the second case answers 503 rather than
-        # "Invalid password", which sent the operator to retype a password that
-        # was never the problem.
-        if not _is_open_install(EDITION_PASSWORD_KEY):
-            raise HTTPException(
-                status_code=503,
-                detail="Configuration could not be read; refusing to authenticate.",
-            )
+        # Empty means two different things, exactly as it does on /login — the
+        # shared predicate makes the call. A genuinely open install falls
+        # through to the 401 below: there is no edition gate to unlock, so the
+        # request is answered rather than reported as a server fault.
+        _refuse_if_config_unreadable(EDITION_PASSWORD_KEY)
         raise HTTPException(status_code=401, detail="Invalid password")
     if not verify_legacy_password(body.password, edition_password):
         raise HTTPException(status_code=401, detail="Invalid password")
 
     # Upgrade plaintext edition password to PBKDF2 hash
     # (idempotent — checks on-disk value, not stale in-memory VIEWER_CONFIG)
-    upgrade_legacy_password('edition_password', body.password)
+    upgrade_legacy_password(EDITION_PASSWORD_KEY, body.password)
 
     token = create_access_token({
         'sub': '_legacy',
@@ -202,8 +204,15 @@ def auth_status(user: Optional[CurrentUser] = Depends(get_optional_user)):
         multi_user=multi_user,
         edition_enabled=is_edition_enabled(),
         edition_authenticated=edition_auth,
-        edition_password_required=(not multi_user) and bool(VIEWER_CONFIG.get('edition_password', '')),
-        login_password_required=(not multi_user) and bool(VIEWER_CONFIG.get('password', '')),
+        # Through the predicate, not the raw value, for the reason spelled out
+        # in :func:`_refuse_if_config_unreadable`. On an install whose config
+        # could not be read, VIEWER_CONFIG is the shipped defaults and both
+        # passwords are empty, so reading the value answered "no password is
+        # required" — the precise wire-level claim the two login endpoints in
+        # this file were changed to stop making, while they answer 503 to
+        # everyone. One question, one predicate, three consistent answers.
+        edition_password_required=(not multi_user) and not _is_open_install(EDITION_PASSWORD_KEY),
+        login_password_required=(not multi_user) and not _is_open_install(VIEWER_PASSWORD_KEY),
         user_id=user.user_id if user else None,
         user_role=user.role if user else None,
         display_name=user.display_name if user else None,

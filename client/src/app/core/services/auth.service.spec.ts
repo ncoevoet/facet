@@ -284,6 +284,23 @@ describe('AuthService', () => {
       expect(result).toBe('unavailable');
       expect(setItemSpy).not.toHaveBeenCalledWith('facet_token', expect.anything());
     });
+
+    it("should report 'rate_limited' on a 429, not a wrong password", async () => {
+      // The rate limiter rejects the request before any password check runs,
+      // so it is never bad credentials -- and retyping one only extends the
+      // lockout window.
+      const loginPromise = service.login('correct-password');
+
+      const loginReq = httpTesting.expectOne('/api/auth/login');
+      loginReq.flush('Too many login attempts. Try again later.', {
+        status: 429,
+        statusText: 'Too Many Requests',
+      });
+
+      const result = await loginPromise;
+      expect(result).toBe('rate_limited');
+      expect(setItemSpy).not.toHaveBeenCalledWith('facet_token', expect.anything());
+    });
   });
 
   describe('editionLogin()', () => {
@@ -336,6 +353,19 @@ describe('AuthService', () => {
 
       const result = await loginPromise;
       expect(result).toBe('unavailable');
+    });
+
+    it("should report 'rate_limited' on a 429, not a wrong password", async () => {
+      const loginPromise = service.editionLogin('edition-pass');
+
+      const loginReq = httpTesting.expectOne('/api/auth/edition/login');
+      loginReq.flush('Too many login attempts. Try again later.', {
+        status: 429,
+        statusText: 'Too Many Requests',
+      });
+
+      const result = await loginPromise;
+      expect(result).toBe('rate_limited');
     });
   });
 

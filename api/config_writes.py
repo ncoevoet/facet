@@ -109,7 +109,19 @@ def write_owner_only_backup(source_path, backup_path):
             # chmod. Re-moding by name is exactly the redirection O_NOFOLLOW was
             # added to stop, so doing it two lines later would have left the
             # same race open against a fixed, predictable destination.
-            os.fchmod(destination.fileno(), BACKUP_FILE_MODE)
+            #
+            # Guarded because os.fchmod is Availability: Unix -- the attribute
+            # is simply absent on Windows, where an unguarded call raises
+            # AttributeError and takes down every writer that backs up first
+            # (weights, priorities, scoring contexts, panorama settings,
+            # --add-user, the password upgrade). The same getattr idiom guards
+            # O_NOFOLLOW in _BACKUP_OPEN_FLAGS above, for the same platform.
+            # Skipping it there is not a weakening: the POSIX mode bits are
+            # what api/config.py's _POSIX_FILE_MODES already records as
+            # meaningless on Windows, and the descriptor was created with
+            # BACKUP_FILE_MODE either way.
+            if hasattr(os, 'fchmod'):
+                os.fchmod(destination.fileno(), BACKUP_FILE_MODE)
             shutil.copyfileobj(source, destination)
     return backup_path
 

@@ -41,11 +41,23 @@ fall_back_to_packaged_defaults() {
 # their weights, categories and viewer password -- the last of which disables
 # edition gating entirely when empty. A full config still resolves to itself, so
 # nothing about carrying it across is lossy.
+# Owner-only from the moment the file exists, not owner-only afterwards. The
+# `chmod 600` further down is 55 lines late: on the supported upgrade path the
+# operator still mounts their own full config at $IMAGE_CONFIG, so `cp` creates
+# /config/scoring_config.json at that mode masked by the umask -- 0644 -- and it
+# holds viewer.password, every users.*.password_hash, upload.password,
+# frame.tokens and immich.api_key in plaintext, on a HOST bind mount, until the
+# chmod lands. api/config_writes.py:write_owner_only_backup was rewritten to
+# close exactly this window ("the bytes are on disk at the loose mode first, and
+# any local account only has to read them inside that window"); the two writers
+# of these same secrets must not disagree. The subshell keeps the tightened
+# umask off the rest of the entrypoint, and the later chmod stays as the
+# belt-and-braces it already was.
 write_seed() {
     if [ -e "$IMAGE_CONFIG" ]; then
-        cp "$IMAGE_CONFIG" "$SEEDED_CONFIG" 2>/dev/null
+        ( umask 077; cp "$IMAGE_CONFIG" "$SEEDED_CONFIG" 2>/dev/null )
     else
-        printf '{}\n' > "$SEEDED_CONFIG" 2>/dev/null
+        ( umask 077; printf '{}\n' > "$SEEDED_CONFIG" 2>/dev/null )
     fi
 }
 

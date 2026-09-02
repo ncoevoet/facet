@@ -1054,8 +1054,8 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `POST /api/auth/login` | Authentifizieren und Token erhalten |
-| `POST /api/auth/edition/login` | Bearbeitungsmodus entsperren |
+| `POST /api/auth/login` | Authentifizieren und Token erhalten; 503, wenn die eigene Konfiguration des Servers nicht gelesen werden konnte, was abgelehnt wird, statt als Installation ohne Passwort behandelt zu werden |
+| `POST /api/auth/edition/login` | Bearbeitungsmodus entsperren; 503 im selben Zustand einer unlesbaren Konfiguration, damit er nicht als falsches Passwort gemeldet wird |
 | `POST /api/auth/edition/logout` | Bearbeitungsmodus sperren (Rechte ablegen, angemeldet bleiben) |
 | `GET /api/auth/status` | Authentifizierungsstatus prüfen |
 

@@ -101,6 +101,18 @@ describe('LoginComponent', () => {
       expect(mockRouter.navigate).not.toHaveBeenCalled();
     });
 
+    it("should say too many requests when login reports 'rate_limited'", async () => {
+      // The rate limiter rejected the request before any password check ran,
+      // so it is never bad credentials -- retyping one only extends the lockout.
+      mockAuth.login.mockResolvedValue('rate_limited');
+
+      await component.login();
+
+      expect(component.error()).toBe('errors.rate_limited');
+      expect(mockI18n.t).toHaveBeenCalledWith('errors.rate_limited');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
     it('should set error message when login throws an exception', async () => {
       mockAuth.login.mockRejectedValue(new Error('Network error'));
 

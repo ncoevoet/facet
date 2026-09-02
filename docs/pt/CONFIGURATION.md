@@ -90,20 +90,35 @@ resolve sobre si mesmo e continua funcionando. Mas suas próprias edições fica
 invisíveis em meio a 3700 linhas de valores distribuídos, e configurações que você
 nunca escolheu ficam congeladas no valor que tinham quando você copiou o arquivo.
 
+Você também não precisa fazer nada para que isso aconteça: qualquer escrita em
+`scoring_config.json` já reescreve o arquivo inteiro como o override que ele é,
+descartando qualquer chave que ainda coincida com o padrão distribuído, não só a que
+se pretendia mudar. Salvar pesos ou uma prioridade de categoria pela UI do
+visualizador faz isso. Também faz uma mudança de limiar de panorama, o primeiro login
+bem-sucedido com uma senha em texto simples (que é promovida a hash nessa mesma
+escrita), e até uma varredura comum, se `validate_weights` corrigir os pesos de uma
+categoria pelo caminho.
+
 ```bash
 python database.py --compact-config
 ```
 
-o reescreve como o override que ele realmente é, descartando todo valor igual ao
-padrão distribuído. Ele faz um backup em `0600` primeiro, e não há perda de dados — o
-arquivo se resolve depois exatamente na mesma configuração.
+faz a mesma compactação sob demanda, em vez de esperar a próxima escrita disparar isso.
+Não há perda de dados — o arquivo se resolve depois exatamente na mesma configuração —
+e sua vantagem real remanescente é o backup: ele faz uma cópia em `0600` do arquivo
+antes de escrever. Nem toda escrita faz isso; o caminho de varredura
+(`ScoringConfig.save_config`) não faz nenhum, de propósito (veja seu docstring em
+`config/scoring_config.py:481`), então recorra a `--compact-config` quando quiser um
+backup registrado em vez de confiar em qual escrita rodar em seguida.
 
 > **A contrapartida, dita sem rodeios.** Assim que um valor é descartado por
 > corresponder ao padrão, uma versão futura do Facet que muda esse padrão também muda
-> seu comportamento. Esse é justamente o ponto — é assim que os novos ajustes chegam
-> até você sem precisar editar seu arquivo —, mas se você quiser que um valor fique
-> fixo independentemente do que for distribuído, defina-o explicitamente, ou
-> mantenha-o no seu override mesmo onde ele hoje coincide com o padrão.
+> seu comportamento — e é qualquer escrita, não só `--compact-config`, que o descarta.
+> Esse é justamente o ponto — é assim que os novos ajustes chegam até você sem precisar
+> editar seu arquivo. A única coisa que realmente fixa um valor contra uma futura
+> mudança de padrão é defini-lo como algo *diferente* do padrão distribuído: um valor
+> que apenas coincide com o padrão não sobrevive no arquivo — a próxima escrita o
+> descarta, seja uma compactação intencional ou não.
 
 
 ## Users

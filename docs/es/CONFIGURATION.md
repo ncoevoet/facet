@@ -90,22 +90,37 @@ resuelve sobre sí mismo y sigue funcionando. Pero tus propias ediciones son inv
 entre 3700 líneas de valores distribuidos, y los ajustes que nunca elegiste quedan
 congelados en el valor que tenían cuando copiaste el archivo.
 
+Tampoco tienes que hacer nada para que esto ocurra: cualquier escritura en
+`scoring_config.json` ya reescribe el archivo entero como la anulación que es,
+descartando cualquier clave que siga coincidiendo con el valor predeterminado
+distribuido, no solo la que se quería cambiar. Guardar pesos o una prioridad de
+categoría desde la interfaz del visor lo hace. También lo hace un cambio de umbral de
+panorama, el primer inicio de sesión correcto con una contraseña en texto plano (que
+se actualiza a un hash en esa misma escritura), e incluso un escaneo normal, si
+`validate_weights` corrige los pesos de una categoría por el camino.
+
 ```bash
 python database.py --compact-config
 ```
 
-lo reescribe como la anulación que realmente es, descartando todo valor que coincida
-con el predeterminado distribuido. Primero toma una copia de seguridad en `0600`, y no
-pierde información — el archivo se resuelve después exactamente en la misma
-configuración.
+hace la misma compactación bajo demanda, en lugar de esperar a que la próxima escritura
+la dispare. No pierde información — el archivo se resuelve después exactamente en la
+misma configuración — y su verdadera ventaja restante es la copia de seguridad: toma
+una copia en `0600` del archivo antes de escribir. No todas las escrituras lo hacen; la
+ruta de escaneo (`ScoringConfig.save_config`) no toma ninguna, a propósito (ver su
+docstring en `config/scoring_config.py:481`), así que recurre a `--compact-config`
+cuando quieras una copia de seguridad registrada en lugar de confiar en la escritura
+que se ejecute a continuación.
 
 > **La contrapartida, dicho claramente.** Una vez que un valor se descarta porque
 > coincidía con el predeterminado, una versión futura de Facet que cambie ese
-> predeterminado cambia también tu comportamiento. Ese es precisamente el objetivo —
-> así te llegan los nuevos ajustes sin tener que editar tu archivo —, pero si quieres
-> que un valor quede fijado sin importar lo que se distribuya, establécelo
-> explícitamente, o consérvalo en tu anulación aunque hoy coincida con el
-> predeterminado.
+> predeterminado cambia también tu comportamiento — y cualquier escritura, no solo
+> `--compact-config`, es la que lo descarta. Ese es precisamente el objetivo — así te
+> llegan los nuevos ajustes sin tener que editar tu archivo. Lo único que realmente fija
+> un valor frente a un futuro cambio del predeterminado es establecerlo en algo
+> *distinto* del predeterminado distribuido: un valor que simplemente coincide con el
+> predeterminado no puede sobrevivir en el archivo — la próxima escritura lo descarta,
+> sea o no una compactación intencionada.
 
 
 ## Usuarios

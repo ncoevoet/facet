@@ -299,9 +299,11 @@ Read-only: it decodes a random sample straight from disk and prints the mean lum
 
 `scoring_config.json` is an **override**: it holds only the settings you changed, and is resolved over the defaults shipped in `config/scoring_config.default.json`. An absent config file is therefore an install running entirely on those defaults, not a broken one — see [Configuration](CONFIGURATION.md#defaults-and-your-override).
 
-`FACET_CONFIG`, when set, supplies the default `scoring_config.json` path for `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` and `calibrate.py` whenever they run without an explicit `--config`; `--config` always overrides it. If the variable — or `--config` — names a file that does not exist, that is an error rather than an empty override: a path someone NAMED and that is missing is a typo or a broken mount, so the viewer refuses to start the open-install auth path rather than concluding the install has no passwords, and logs an error naming the missing path. Only the *inherited* default path may be absent.
+`FACET_CONFIG`, when set, supplies the default `scoring_config.json` path for `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py`, `calibrate.py` and `viewer.py` whenever they run without an explicit `--config`; `--config` always overrides it. `viewer.py` (and the `api/` server it starts) has no `--config` flag of its own, so `FACET_CONFIG` is the only way to redirect it. If the variable — or `--config` — names a file that does not exist, that is an error rather than an empty override: a path someone NAMED and that is missing is a typo or a broken mount, so the viewer refuses to start the open-install auth path rather than concluding the install has no passwords, and logs an error naming the missing path. Only the *inherited* default path may be absent.
 
-With neither set, each command reads a `scoring_config.json` in the **working directory** if there is one — so a photo library that carries its own config is scored by it — and otherwise the one beside the install. Only that inherited fallback may be absent; it means an install running on the shipped defaults.
+With neither set, `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` and `calibrate.py` read a `scoring_config.json` in the **working directory** if there is one — so a photo library that carries its own config is scored by it — and otherwise the one beside the install. Only that inherited fallback may be absent; it means an install running on the shipped defaults.
+
+`viewer.py` and the `api/` server it starts do NOT take that working-directory step — they resolve only `FACET_CONFIG`, else the file beside the install, never a `scoring_config.json` sitting in whatever directory you launched them from. That matters because the viewer's config is the one that carries the operator's passwords: starting it from inside a photo library does not pick up that library's config, and if the install root has none either, it silently falls back to the shipped defaults — an empty `viewer.edition_password` that serves every route anonymously.
 
 ```bash
 # 1. --config wins over everything. Missing here is an ERROR, not an empty override.
@@ -312,7 +314,8 @@ export FACET_CONFIG=/config/scoring_config.json
 python facet.py /photos            # reads /config/scoring_config.json
 python facet.py --config other.json /photos   # --config still overrides it
 
-# 3. Neither set: a config in the WORKING DIRECTORY wins, so a library can carry its own.
+# 3. Neither set: a config in the WORKING DIRECTORY wins for the CLI tools, so a library
+#    can carry its own. viewer.py has no such step -- see below.
 cd /photos/client-shoot          # holds its own scoring_config.json
 python /opt/facet/facet.py .     # scored by /photos/client-shoot/scoring_config.json
 
@@ -320,9 +323,13 @@ python /opt/facet/facet.py .     # scored by /photos/client-shoot/scoring_config
 cd /tmp
 python /opt/facet/facet.py /photos   # reads /opt/facet/scoring_config.json
                                      # absent there = running on the shipped defaults
+
+# 5. viewer.py never takes the working-directory step, unlike cases 1-4 above.
+cd /photos/client-shoot          # holds its own scoring_config.json -- irrelevant here
+python /opt/facet/viewer.py      # still reads /opt/facet/scoring_config.json (or $FACET_CONFIG)
 ```
 
-Only case 4 may find nothing. Cases 1 and 2 name a path, so a missing file stops the command instead of silently scoring with defaults nobody chose.
+Only cases 4 and 5 may find nothing. Cases 1 and 2 name a path, so a missing file stops the command instead of silently scoring with defaults nobody chose.
 
 | Command | Description |
 |---------|-------------|

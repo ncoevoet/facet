@@ -1112,11 +1112,27 @@ class TestAPublishedPasswordNeverAuthenticates:
 
         assert verify_legacy_password("admin", "hunter2") is False
 
-    def test_a_hashed_password_is_never_treated_as_published(self):
+    def test_a_published_password_is_refused_even_once_it_has_been_hashed(self):
+        """The population this refusal exists for is the HASHED one.
+
+        Releases before the refusal accepted `user`/`admin` and hashed them on
+        the first successful login, so an install that used the viewer at all
+        stores a hash of a published value. Checking only the plaintext branch
+        missed every one of them.
+        """
         from api.auth import hash_password, verify_legacy_password
 
-        stored = hash_password("admin")
-        assert verify_legacy_password("admin", stored) is True
+        for published in ("admin", "user"):
+            stored = hash_password(published)
+            assert verify_legacy_password(published, stored) is False
+
+    def test_a_hashed_password_of_a_private_value_still_verifies(self):
+        """The refusal keys on the CANDIDATE, so ordinary hashed logins work."""
+        from api.auth import hash_password, verify_legacy_password
+
+        stored = hash_password("hunter2")
+        assert verify_legacy_password("hunter2", stored) is True
+        assert verify_legacy_password("admin", stored) is False
 
     def test_the_startup_check_reports_it_as_an_error_not_a_reassurance(self, caplog):
         """"will be hashed on next successful login" is wrong twice over here:

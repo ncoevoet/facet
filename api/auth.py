@@ -373,14 +373,35 @@ def verify_legacy_password(candidate: str, stored: str) -> bool:
     rather than raising a distinct status the client cannot tell apart from a
     wrong password.
 
-    Only the STORED side is checked. Someone typing "admin" against a password
-    that genuinely is something else must still just fail, and a hashed stored
-    value cannot match a published plaintext.
+    A HASHED store is checked the same way, against the candidate. Refusing
+    only the plaintext branch missed the entire population this exists for:
+    on releases before the refusal, `verify_legacy_password` accepted `user`
+    and `admin` and :func:`upgrade_legacy_password` rewrote them as `salt:dk`
+    on the very first successful login — so an install that used the viewer at
+    all now stores a HASH of a published password, and every later login sailed
+    past a check that only ever looked at the plaintext branch. Asking the
+    question of the candidate after a successful verify is exact: a candidate
+    that verifies against the stored hash IS the stored password.
+
+    Someone typing "admin" against a password that genuinely is something else
+    must still just fail the ordinary way — which it does, because the burned
+    check is reached only once the candidate has already verified.
     """
     if not stored:
         return False
     if _is_hashed(stored):
-        return verify_password(candidate, stored)
+        if not verify_password(candidate, stored):
+            return False
+        if is_burned_password(candidate):
+            logger.error(
+                "Refusing a login against a password this project published in "
+                "its own git history. It is stored here as a hash because an "
+                "earlier release accepted it and hashed it on login, which "
+                "protected nothing — the value is still readable in the public "
+                "history. Set a new one in %s and restart.", _CONFIG_PATH,
+            )
+            return False
+        return True
     if is_burned_password(stored):
         logger.error(
             "Refusing a login against a password this project published in its "
@@ -406,6 +427,17 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
     primitive instead of ``shutil.copy2`` plus a ``chmod``, which put those
     bytes on disk at the config's own (0664 under a default umask) mode first
     and only tightened them afterwards.
+
+    That backup is BEST-EFFORT, like every other caller's — which is what the
+    primitive's own docstring promises, and what this caller alone used not to
+    honour. It re-raises any OSError that is not ELOOP, and an unwritable
+    config directory is an ordinary supported state: a `:ro` /config mount, an
+    NFS root_squash export, a full disk, a stray leftover at the backup name.
+    Letting that escape turned a CORRECT password into a 500 while a wrong one
+    still answered 401 — a status-code oracle an unauthenticated caller could
+    use to confirm the password of a server that would not let them in — and
+    locked the operator out of an install whose password was fine. Failing the
+    upgrade is the right outcome; failing the LOGIN is not.
     """
     from api.config import (
         _CONFIG_BACKUP_SUFFIX,
@@ -429,7 +461,13 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
         if viewer.get(config_key, '') and not _is_hashed(viewer[config_key]):
             viewer[config_key] = hashed
             config['viewer'] = viewer
-            write_owner_only_backup(_CONFIG_PATH, f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}")
+            try:
+                write_owner_only_backup(_CONFIG_PATH, f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}")
+            except OSError:
+                logger.exception(
+                    "Could not back up %s before upgrading %s; upgrading anyway",
+                    _CONFIG_PATH, config_key,
+                )
             try:
                 write_user_config(_CONFIG_PATH, config)
                 upgraded = True
@@ -448,8 +486,17 @@ def check_legacy_password_warnings():
     reassuring and, for `user` or `admin`, wrong twice over: there will be no
     successful login (:func:`verify_legacy_password` refuses them), and hashing
     a value out of the public git history would not have protected anything
-    anyway. This is the only place the operator is told why their password
-    stopped working, so it names the key and the file.
+    anyway. For a STILL-PLAINTEXT store this is the only place the operator is
+    told why their password stopped working, so it names the key and the file.
+
+    A store that is already a HASH of a published password gets no line here,
+    and deliberately so: proving it would mean holding `user` and `admin` as
+    literals to PBKDF2 the stored value against, and not re-committing those
+    plaintexts is the whole reason :data:`api.config._BURNED_PASSWORD_DIGESTS`
+    keeps digests instead of values. That install is still refused —
+    :func:`verify_legacy_password` asks the question of the CANDIDATE once it
+    has verified — and the refusal logs an error naming the file at the moment
+    the operator actually hits it, which is when they are looking.
     """
     for key in (VIEWER_PASSWORD_KEY, EDITION_PASSWORD_KEY):
         value = VIEWER_CONFIG.get(key, '')

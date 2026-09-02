@@ -88,9 +88,10 @@ export class EditionDialogComponent {
   private auth = inject(AuthService);
   protected password = '';
   /** The translation key to show, or null while there is nothing to report.
-   *  A key rather than a boolean because the two failures differ: a wrong
-   *  password, and a server that could not read its own config and is refusing
-   *  to authenticate anyone. */
+   *  A key rather than a boolean because the failures differ: a wrong
+   *  password, a server that could not read its own config and is refusing
+   *  to authenticate anyone, and a rate limit rejected before any password
+   *  check ran. */
   protected readonly error = signal<string | null>(null);
 
   async submit(): Promise<void> {
@@ -101,7 +102,9 @@ export class EditionDialogComponent {
       return;
     }
     this.error.set(
-      outcome === 'unavailable' ? I18N_KEYS.auth.config_unreadable : I18N_KEYS.edition.invalid_password,
+      outcome === 'unavailable' ? I18N_KEYS.auth.config_unreadable
+        : outcome === 'rate_limited' ? I18N_KEYS.errors.rate_limited
+          : I18N_KEYS.edition.invalid_password,
     );
   }
 }

@@ -87,19 +87,32 @@ Nothing to do: a full `scoring_config.json` from an earlier release resolves to 
 and keeps working. But your own edits are invisible in 3700 lines of shipped values, and
 settings you never chose are frozen at the values they had when you copied the file.
 
+You don't have to do anything to make that happen, either — every writer of
+`scoring_config.json` rewrites the whole file as the override it is, dropping any key
+that still matches the shipped default, not just the one it meant to change. Saving
+weights or a category priority from the viewer UI does it. So does a panorama-threshold
+change, the first successful login against a plaintext password (which upgrades it to a
+hash in the same write), and even an ordinary scan, if `validate_weights` corrects a
+category's weights along the way.
+
 ```bash
 python database.py --compact-config
 ```
 
-rewrites it as the override it is, dropping every value that equals the shipped default.
-It takes a `0600` backup first, and it is lossless — the file resolves to exactly the
-same configuration afterwards.
+does the same compaction on demand, rather than waiting for the next write to trigger it.
+It is lossless — the file resolves to exactly the same configuration afterwards — and its
+real remaining advantage is the backup: it takes a `0600` copy of the file before writing.
+Not every writer does; the scan path (`ScoringConfig.save_config`) takes none, by design
+(see its docstring at `config/scoring_config.py:481`), so reach for `--compact-config`
+when you want a backup on record rather than trusting whichever writer runs next.
 
 > **The trade-off, stated plainly.** Once a value is dropped because it matched the
-> default, a later Facet release that changes that default changes your behaviour too.
-> That is the point — it is how new tuning reaches you without editing your file — but
-> if you want a value pinned regardless of what ships, set it explicitly to something,
-> or keep it in your override even where it happens to match today.
+> default, a later Facet release that changes that default changes your behaviour too —
+> and any write, not just `--compact-config`, is what drops it. That is the point — it is
+> how new tuning reaches you without editing your file. The only thing that actually pins
+> a value against a future default change is setting it to something *different* from the
+> shipped default: a value that merely equals the default cannot survive in the file —
+> the next write drops it, whether that write was compacting on purpose or not.
 
 
 ## Users
