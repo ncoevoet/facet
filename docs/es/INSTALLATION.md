@@ -231,20 +231,28 @@ Los controles de despliegue viven en `.env` (copia `.env.example`):
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Ruta de la base de datos dentro del contenedor, ubicada en el bind mount `./data` |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` de la configuración | Disparador del reentrenamiento del clasificador personal, para quienes valoran mucho |
 
-Un `scoring_config.default.json` depurado viene integrado en la imagen como
-configuración inicial. `docker-entrypoint.sh` lo copia, solo en el primer arranque, al
-archivo persistente `./facet-config/scoring_config.json`, que `docker-compose.yml` ya
-monta (como `FACET_CONFIG=/config/scoring_config.json` dentro del contenedor) — así que
-el contenedor funciona sin ninguna configuración en el host, y cada escritura de
-configuración en tiempo de ejecución (la migración de la contraseña del visor, los pesos,
-las prioridades, los contextos de puntuación) ahora sobrevive a un `docker compose down
-&& up`. Edita `./facet-config/scoring_config.json` directamente para personalizar a mano
-los pesos, la contraseña del visor o las categorías; un archivo ya existente nunca se
-sobrescribe.
+`scoring_config.json` es tu **anulación**, no la configuración completa. Cada valor
+que Facet distribuye vive en `config/scoring_config.default.json` dentro de la
+imagen, y tu archivo se resuelve por encima de él — así que solo necesita contener el
+puñado de ajustes que realmente cambiaste, y cualquier cosa que omitas conserva el
+valor distribuido (y recibe sus mejoras cuando actualizas).
+
+`docker-entrypoint.sh` por tanto siembra el archivo persistente
+`./facet-config/scoring_config.json` con un `{}` vacío en el primer arranque. Ese
+archivo lo monta `docker-compose.yml` (como `FACET_CONFIG=/config/scoring_config.json`
+dentro del contenedor), así que el contenedor funciona sin ninguna configuración en el
+host y cada escritura de configuración en tiempo de ejecución (la migración de la
+contraseña del visor, los pesos, las prioridades, los contextos de puntuación)
+sobrevive a un `docker compose down && up`. Edítalo directamente para personalizar a
+mano los pesos, la contraseña del visor o las categorías — consulta
+[Configuración](CONFIGURATION.md#valores-predeterminados-y-tu-anulación) para saber
+qué poner en él y [la referencia completa de claves](CONFIGURATION.md) para lo que
+hay disponible. Un archivo ya existente nunca se sobrescribe.
 
 > **¿Actualizas desde una versión anterior a este cambio?** Las versiones anteriores
-> indicaban hacer `cp scoring_config.default.json scoring_config.json` y descomentar una
-> línea `- ./scoring_config.json:/app/scoring_config.json` en `docker-compose.yml`. Ese
+> indicaban copiar el archivo de valores predeterminados a `scoring_config.json` y
+> descomentar una línea `- ./scoring_config.json:/app/scoring_config.json` en
+> `docker-compose.yml`. Ese
 > montaje ya no está en el fichero compose que se distribuye. Si adoptas el nuevo,
 > **mueve antes tu configuración existente**:
 >
@@ -252,11 +260,19 @@ sobrescribe.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> De lo contrario el entrypoint crea una configuración por defecto nueva y tus pesos, tus
+> De lo contrario el entrypoint siembra una anulación vacía y tus pesos, tus
 > categorías y **tu contraseña del visor dejan de leerse** — y un
 > `viewer.edition_password` vacío desactiva por completo el control de edición. Si
 > conservas tu propio `docker-compose.yml` con el montaje antiguo, el entrypoint
 > inicializa `./facet-config` a partir de *ese* fichero y no se pierde nada.
+>
+> Una configuración trasladada de una versión anterior es una copia completa del
+> antiguo archivo distribuido. Sigue funcionando sin cambios — una configuración
+> completa se resuelve sobre sí misma —, pero tus propias ediciones son invisibles en
+> ella. Ejecuta `python database.py --compact-config` (o, en Docker,
+> `docker compose exec facet python database.py --compact-config`) para reducirla a
+> solo lo que cambiaste. Primero toma una copia de seguridad en `0600` y no pierde
+> información: el archivo se resuelve después exactamente en la misma configuración.
 
 Las cachés de modelos viven en volúmenes con nombre gestionados por Docker
 (`facet-hf-cache`, `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), así que

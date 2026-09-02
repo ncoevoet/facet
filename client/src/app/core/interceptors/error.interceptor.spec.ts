@@ -129,6 +129,20 @@ describe('errorInterceptor', () => {
       });
     }));
 
+  it('stays silent on 429 for auth URLs, which report inline', () =>
+    new Promise<void>((resolve) => {
+      const req = new HttpRequest('POST', '/api/auth/edition/login', {});
+      const error = new HttpErrorResponse({ status: 429, url: '/api/auth/edition/login' });
+      next.mockReturnValue(throwError(() => error));
+
+      runInterceptor(req).subscribe({
+        error: () => {
+          expect(snackBarMock.open).not.toHaveBeenCalled();
+          resolve();
+        },
+      });
+    }));
+
   const raise403 = (url = '/api/photos', error: unknown = null) =>
     new Promise<void>((resolve) => {
       const req = new HttpRequest('GET', url);

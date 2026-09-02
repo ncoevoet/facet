@@ -2,10 +2,11 @@
 
 > 🌐 [English](../CONFIGURATION.md) · [Français](../fr/CONFIGURATION.md) · **Deutsch** · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md) · [Português](../pt/CONFIGURATION.md)
 
-Alle Einstellungen befinden sich in `scoring_config.json`. Führen Sie nach einer Änderung `python facet.py --recompute-average` aus, um die Bewertungen zu aktualisieren (keine GPU erforderlich).
+Jede Einstellung wird in `config/scoring_config.default.json` ausgeliefert und Schlüssel für Schlüssel aus Ihrer eigenen `scoring_config.json` überschrieben — siehe [Standardwerte und Ihre Überschreibung](#standardwerte-und-ihre-überschreibung). Führen Sie nach einer Änderung `python facet.py --recompute-average` aus, um die Bewertungen zu aktualisieren (keine GPU erforderlich).
 
 ## Inhaltsverzeichnis
 
+- [Standardwerte und Ihre Überschreibung](#standardwerte-und-ihre-überschreibung)
 - [Benutzer](#users)
 - [Scannen](#scanning)
 - [Kategorien](#categories)
@@ -44,6 +45,87 @@ Alle Einstellungen befinden sich in `scoring_config.json`. Führen Sie nach eine
 - [Übersetzung](#translation)
 
 ---
+
+## Standardwerte und Ihre Überschreibung
+
+`scoring_config.json` enthält **nur das, was Sie geändert haben**. Alles, was Facet
+ausliefert, lebt in `config/scoring_config.default.json`, und Ihre Datei wird darüber
+aufgelöst: Alles, was Sie weglassen, behält den ausgelieferten Wert. Eine brandneue
+Installation hat überhaupt keine `scoring_config.json` und läuft vollständig auf den
+Standardwerten.
+
+Um also das ästhetische Gewicht für Porträts zu erhöhen und ein Edition-Passwort zu
+setzen, sieht die gesamte Datei so aus:
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Zwei Regeln bestimmen, wie beide zusammengeführt werden:
+
+- **Objekte werden Schlüssel für Schlüssel zusammengeführt.**
+  `{"performance": {"mmap_size_mb": 4096}}` ändert nur diese eine Einstellung und
+  belässt `cache_size_mb` sowie jeden anderen `performance`-Schlüssel bei seinem
+  ausgelieferten Wert.
+- **Arrays werden vollständig ersetzt.** Enthält Ihre Datei ein `categories`-Array,
+  ersetzt es das ausgelieferte vollständig – es wird nicht Kategorie für Kategorie
+  zusammengeführt. Das ist beabsichtigt: `categories` wird nach dem Prinzip
+  „erster Treffer gewinnt“ in Prioritätsreihenfolge ausgewertet, und
+  `scoring_contexts.*.promote` wird in der von Ihnen geschriebenen Reihenfolge
+  gelesen, sodass ein elementweises Zusammenführen der Arrays die Bewertung
+  stillschweigend umsortieren würde. Es ist auch der einzige Weg, etwas zu
+  **löschen**: Eine Kategorie, die Sie aus Ihrem Array weglassen, ist verschwunden,
+  während ein zusammengeführtes Array sie weiterhin zurückliefern würde.
+
+  Die praktische Konsequenz: Ändern Sie ein einziges Gewicht in einer einzigen
+  Kategorie, muss Ihre Datei alle davon enthalten. Kopieren Sie das `categories`-Array
+  aus `config/scoring_config.default.json`, bearbeiten Sie es und behalten Sie es –
+  die übrigen ~1500 Zeilen der ausgelieferten Konfiguration bleiben trotzdem außerhalb
+  Ihrer Datei.
+
+### Ein bestehendes Setup aktualisieren
+
+Nichts zu tun: Eine vollständige `scoring_config.json` aus einer früheren Version löst
+sich auf sich selbst auf und funktioniert weiterhin. Aber Ihre eigenen Anpassungen
+sind in 3700 Zeilen ausgelieferter Werte unsichtbar, und Einstellungen, die Sie nie
+selbst gewählt haben, sind auf die Werte eingefroren, die sie hatten, als Sie die
+Datei kopiert haben.
+
+Dafür müssen Sie nichts extra tun – jeder Schreibvorgang auf `scoring_config.json`
+schreibt die gesamte Datei ohnehin als die Überschreibung um, die sie ist, und verwirft
+dabei jeden Schlüssel, der noch dem ausgelieferten Standard entspricht, nicht nur den,
+den er eigentlich ändern wollte. Das Speichern von Gewichten oder einer
+Kategorie-Priorität aus der Viewer-UI tut das. Genauso eine Änderung an einer
+Panorama-Schwelle, der erste erfolgreiche Login mit einem Klartext-Passwort (das dabei
+im selben Schreibvorgang zu einem Hash aufgewertet wird), und sogar ein gewöhnlicher
+Scan, wenn `validate_weights` unterwegs die Gewichte einer Kategorie korrigiert.
+
+```bash
+python database.py --compact-config
+```
+
+macht dieselbe Verdichtung auf Abruf, statt auf den nächsten Schreibvorgang zu warten,
+der sie auslöst. Der Vorgang ist verlustfrei – die Datei löst sich danach auf exakt
+dieselbe Konfiguration auf – und sein eigentlicher verbleibender Vorteil ist die
+Sicherung: Es wird zuerst eine `0600`-Kopie der Datei angelegt. Das tut nicht jeder
+Schreibvorgang; der Scan-Pfad (`ScoringConfig.save_config`) legt bewusst keine an
+(siehe dessen Docstring in `config/scoring_config.py:481`) – greifen Sie also zu
+`--compact-config`, wenn Sie eine dokumentierte Sicherung wollen, statt sich darauf zu
+verlassen, welcher Schreibvorgang als Nächstes läuft.
+
+> **Der Kompromiss, unverblümt gesagt.** Sobald ein Wert verworfen wurde, weil er dem
+> Standard entsprach, ändert eine spätere Facet-Version, die diesen Standard ändert,
+> auch Ihr Verhalten – und jeder Schreibvorgang, nicht nur `--compact-config`, löst das
+> aus. Das ist der Sinn der Sache – so erreichen Sie neue Feinabstimmungen, ohne Ihre
+> Datei zu bearbeiten. Das Einzige, was einen Wert tatsächlich gegen eine künftige
+> Standardänderung festnagelt, ist, ihn auf etwas *anderes* als den ausgelieferten
+> Standard zu setzen: Ein Wert, der bloß mit dem Standard übereinstimmt, kann in der
+> Datei nicht überleben – der nächste Schreibvorgang verwirft ihn, ob absichtlich
+> verdichtet oder nicht.
+
 
 ## Users
 

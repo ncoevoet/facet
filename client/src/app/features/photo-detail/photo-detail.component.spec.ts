@@ -107,76 +107,49 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('ngOnInit', () => {
+    // The Angular Vitest builder runs with isolate: false, so this jsdom
+    // `history` is the SAME object every later spec file in the worker sees.
+    // Drive it only through the real replaceState API: shadowing the getter with
+    // Object.defineProperty(history, 'state', { value }) outlives this file and
+    // freezes history.state for whichever spec runs next (the gallery set-scope
+    // tests failed that way, on the runs where the scheduler put them after
+    // this file). src/test-setup.ts now fails the offending test outright.
+    afterEach(() => {
+      history.replaceState(null, '', location.href);
+    });
+
     it('should load photo from history state when available', async () => {
-      const originalState = history.state;
-      Object.defineProperty(history, 'state', {
-        value: { photo: samplePhoto },
-        writable: true,
-        configurable: true,
-      });
+      history.replaceState({ photo: samplePhoto }, '', location.href);
 
       createComponent();
       await component.ngOnInit();
 
       expect(component.photo()).toEqual(samplePhoto);
       expect(mockApi.get).not.toHaveBeenCalled();
-
-      Object.defineProperty(history, 'state', {
-        value: originalState,
-        writable: true,
-        configurable: true,
-      });
     });
 
     it('should load photo from API when no history state', async () => {
-      const originalState = history.state;
-      Object.defineProperty(history, 'state', {
-        value: {},
-        writable: true,
-        configurable: true,
-      });
+      history.replaceState({}, '', location.href);
 
       createComponent();
       await component.ngOnInit();
 
       expect(mockApi.get).toHaveBeenCalledWith('/photo', { path: '/photos/test.jpg' });
       expect(component.photo()).toBeTruthy();
-
-      Object.defineProperty(history, 'state', {
-        value: originalState,
-        writable: true,
-        configurable: true,
-      });
     });
 
     it('should navigate to root when no path query param', async () => {
-      const originalState = history.state;
-      Object.defineProperty(history, 'state', {
-        value: {},
-        writable: true,
-        configurable: true,
-      });
+      history.replaceState({}, '', location.href);
       mockRoute.snapshot.queryParamMap.get = vi.fn(() => null);
 
       createComponent();
       await component.ngOnInit();
 
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/']);
-
-      Object.defineProperty(history, 'state', {
-        value: originalState,
-        writable: true,
-        configurable: true,
-      });
     });
 
     it('should populate tags_list from tags when missing', async () => {
-      const originalState = history.state;
-      Object.defineProperty(history, 'state', {
-        value: {},
-        writable: true,
-        configurable: true,
-      });
+      history.replaceState({}, '', location.href);
       mockApi.get.mockReturnValue(of({ ...samplePhoto, tags_list: undefined, tags: 'a, b', persons: undefined }));
 
       createComponent();
@@ -185,12 +158,6 @@ describe('PhotoDetailComponent', () => {
       const photo = component.photo();
       expect(photo.tags_list).toEqual(['a', 'b']);
       expect(photo.persons).toEqual([]);
-
-      Object.defineProperty(history, 'state', {
-        value: originalState,
-        writable: true,
-        configurable: true,
-      });
     });
   });
 
@@ -268,6 +235,10 @@ describe('PhotoDetailComponent', () => {
       URL.revokeObjectURL = vi.fn();
       const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((el) => el);
       const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((el) => el);
+      // jsdom treats the click on a blob: href as a cross-document navigation
+      // and logs "Not implemented: navigation to another Document". Stub it,
+      // and restore it: the prototype is shared with every later spec file.
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
       expect(component.downloading()).toBe(false);
 
@@ -280,6 +251,7 @@ describe('PhotoDetailComponent', () => {
 
       appendSpy.mockRestore();
       removeSpy.mockRestore();
+      clickSpy.mockRestore();
     });
   });
 
@@ -290,6 +262,10 @@ describe('PhotoDetailComponent', () => {
       URL.revokeObjectURL = vi.fn();
       const appendSpy = vi.spyOn(document.body, 'appendChild').mockImplementation((el) => el);
       const removeSpy = vi.spyOn(document.body, 'removeChild').mockImplementation((el) => el);
+      // jsdom treats the click on a blob: href as a cross-document navigation
+      // and logs "Not implemented: navigation to another Document". Stub it,
+      // and restore it: the prototype is shared with every later spec file.
+      const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
 
       const promise = component.downloadSocialCrop('/photos/test.jpg', 'square');
       expect(component.downloading()).toBe(true);
@@ -302,6 +278,7 @@ describe('PhotoDetailComponent', () => {
 
       appendSpy.mockRestore();
       removeSpy.mockRestore();
+      clickSpy.mockRestore();
     });
   });
 

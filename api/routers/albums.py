@@ -16,7 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from api.auth import CurrentUser, get_optional_user, require_edition
-from api.config import VIEWER_CONFIG
+from api.config import VIEWER_CONFIG, server_scoring_config
 from api.database import get_async_db, get_db
 from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
@@ -917,10 +917,9 @@ def set_album_scoring_context(
     the time the caller sees the count, since this endpoint has no separate
     commit step.
     """
-    from config import ScoringConfig
     from db.scoring_overrides import get_photo_scoring_overrides, set_photo_scoring_override
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
     if body.scoring_context not in config.get_scoring_contexts():
         raise HTTPException(status_code=400, detail=f'Unknown scoring context: {body.scoring_context}')
 
@@ -1000,7 +999,6 @@ def get_album_suggested_context(
     Suggestion only — writes nothing; the caller confirms via
     ``PUT .../scoring_context``.
     """
-    from config import ScoringConfig
     from api.db_helpers import select_in_chunks
 
     with get_db() as conn:
@@ -1028,7 +1026,7 @@ def get_album_suggested_context(
     dominant_moment, dominant_count = max(counts.items(), key=lambda kv: kv[1])
     share = dominant_count / total
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
     suggested = next(
         (
             name for name, context_cfg in config.get_scoring_contexts().items()

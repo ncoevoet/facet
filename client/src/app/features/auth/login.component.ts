@@ -71,12 +71,21 @@ export class LoginComponent {
     this.error.set('');
 
     try {
-      const success = this.auth.isMultiUser()
+      const outcome = this.auth.isMultiUser()
         ? await this.auth.login(this.password, this.username)
         : await this.auth.login(this.password);
 
-      if (success) {
+      if (outcome === 'ok') {
         this.router.navigate(['/']);
+      } else if (outcome === 'unavailable') {
+        // The server refused to authenticate anyone because it could not read
+        // its own config. Telling this operator their credentials are invalid
+        // sends them to retype a password that was never the problem.
+        this.error.set(this.i18n.t(I18N.auth.config_unreadable));
+      } else if (outcome === 'rate_limited') {
+        // The rate limiter rejected the request before any password check ran.
+        // Retyping "invalid" credentials here would only extend the lockout.
+        this.error.set(this.i18n.t(I18N.errors.rate_limited));
       } else {
         this.error.set(this.i18n.t(I18N.auth.invalid_credentials));
       }

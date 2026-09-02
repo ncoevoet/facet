@@ -31,6 +31,7 @@ from scipy.optimize import minimize
 from db import DEFAULT_DB_PATH, get_connection
 from config import ScoringConfig
 from config.scoring_config import resolve_scoring_config_path
+from config_resolve import load_resolved
 from processing.scorer import build_metric_vector, SCORING_METRIC_KEYS
 
 logger = logging.getLogger("facet.optimizer")
@@ -743,8 +744,7 @@ class WeightOptimizer:
         '<key>_percent' lookup is direct - no DB-column translation.
         """
         try:
-            with open(self.config_path) as f:
-                config = json.load(f)
+            config = load_resolved(self.config_path)
 
             cat = category or 'others'
 
@@ -814,9 +814,8 @@ class WeightOptimizer:
         ``reload_config``, which reaches the same lock through ``_load_config``
         and would deadlock against the frame above.
         """
-        # Load current config
-        with open(self.config_path) as f:
-            config = json.load(f)
+        # Load the resolved config: the file is only the operator's override
+        config = load_resolved(self.config_path)
 
         # Update weights for the category — v4 categories array first, v3 fallback
         cat_weights = None
@@ -892,8 +891,8 @@ class WeightOptimizer:
         # stageable one. Imported lazily because api.config mints the server
         # secret at import — the same lazy-import shape facet.py already uses
         # for map_disk_path.
-        from api.config import atomic_write_json
-        atomic_write_json(self.config_path, config)
+        from api.config import write_user_config
+        write_user_config(self.config_path, config)
 
         return snapshot_id
 
@@ -990,8 +989,7 @@ def run_weight_optimization(
             "--optimize-category <name> to actually change scoring."
         )
     else:
-        with open(config_path) as f:
-            valid_categories = [c.get('name') for c in json.load(f).get('categories', [])]
+        valid_categories = [c.get('name') for c in load_resolved(config_path).get('categories', [])]
         if category not in valid_categories:
             logger.error(
                 "Unknown --optimize-category '%s': not a v4 category. Optimized weights "

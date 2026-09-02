@@ -23,7 +23,7 @@ from db.schema import init_database  # noqa: E402
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _FACET_SCRIPT = str(_REPO_ROOT / "facet.py")
-_REPO_CONFIG = _REPO_ROOT / "scoring_config.json"
+_REPO_CONFIG = _REPO_ROOT / "config" / "scoring_config.default.json"
 
 # The scope='text' MATCH expression api/routers/search.py builds; pinned here so
 # the OCR pass is proven searchable through the same expression the API uses.
@@ -95,7 +95,7 @@ def _seed_db(db_path, rows):
 
 
 def _write_config(tmp_path, **overrides):
-    """The repo config with the ``ocr`` block enabled (plus any overrides)."""
+    """The shipped default config with the ``ocr`` block enabled (plus any overrides)."""
     config = json.loads(_REPO_CONFIG.read_text(encoding="utf-8"))
     config["ocr"] = {**config.get("ocr", {}), "enabled": True, **overrides}
     config_path = tmp_path / "config.json"

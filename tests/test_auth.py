@@ -1,6 +1,7 @@
 """Tests for authentication: JWT tokens, password hashing, rate limiting, and login endpoints."""
 
 import json
+import logging
 import os
 import shutil
 import stat
@@ -576,7 +577,7 @@ class TestUnparseableConfigFailsClosed:
 # ---------------------------------------------------------------------------
 
 
-_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "scoring_config.json"
+_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "scoring_config.default.json"
 
 _VIEWER_PASSWORD = "viewer-pw"
 _EDITION_PASSWORD = "ed-pw"
@@ -596,7 +597,7 @@ class TestPasswordRotationRevokesTokens:
 
     @pytest.fixture()
     def locked_install(self, tmp_path):
-        """A real, locked scoring_config.json this process reads and reloads.
+        """A real, locked config (seeded from the shipped defaults) this process reads and reloads.
 
         Passwords are stored pre-hashed so ``upgrade_legacy_password`` stays
         inert and the file changes only when a test rotates it.
@@ -853,3 +854,295 @@ class TestPasswordUpgradeBackupIsOwnerOnly:
 
         assert modes_while_writing == [_BACKUP_OWNER_ONLY_MODE]
         assert _PLAINTEXT_PASSWORD in backup_path.read_text()
+
+
+class TestUnparseableConfigStaysLocked:
+    """An unparseable config must not become an open install via the viewer defaults.
+
+    ``_read_config`` returns ``{}`` for a config that exists but cannot be
+    parsed, and ``load_viewer_config`` backfills that from the SHIPPED defaults
+    -- which carry an empty ``viewer.edition_password``, the value that means
+    "no lock". The gate that keeps this safe is ``config_load_failed()``, which
+    ``_is_open_install`` short-circuits on, so it is the thing to pin: while the
+    backfill was a stale hardcoded dict this happened to be belt-and-braces, and
+    it stopped being so the moment the defaults became the real ones.
+    """
+
+    def _run(self, tmp_path, config_text):
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(config_text)
+        code = (
+            "import api.config as ac, api.auth as auth;"
+            "print(ac.config_load_failed(),"
+            " repr(ac.VIEWER_CONFIG.get('edition_password', '<missing>')),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY),"
+            " auth.CurrentUser().is_edition)"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "x" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", code], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        return res.stdout.split()
+
+    def test_an_unparseable_config_grants_no_edition_rights(self, tmp_path):
+        failed, password, open_install, is_edition = self._run(tmp_path, "{ not json")
+        assert failed == "True", "an unparseable config must be recorded as failed"
+        # The backfill legitimately supplies the shipped empty password...
+        assert password == "''"
+        # ...and it must NOT be read as "this install has no lock".
+        assert open_install == "False"
+        assert is_edition == "False"
+
+    def test_a_valid_empty_override_still_reads_the_shipped_defaults(self, tmp_path):
+        """The contrast case: {} is a healthy install, not a failed one."""
+        failed, _password, _open_install, _is_edition = self._run(tmp_path, "{}")
+        assert failed == "False"
+
+
+class TestConfigFailureStaysLocked:
+    """A config Facet cannot read must not present as an install with no lock.
+
+    Three ways this went wrong, each reproduced before it was fixed:
+    the login endpoint read the password VALUE instead of asking
+    ``_is_open_install``; ``reload_config`` cleared ``VIEWER_CONFIG`` before
+    rebuilding it, so a raising rebuild left an empty dict that reads as "no
+    password"; and a ``viewer`` block of the wrong TYPE degraded to "no viewer
+    settings", which backfills the shipped defaults and their empty passwords.
+    """
+
+    def _probe(self, tmp_path, corrupt_to, script):
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps(
+            {"viewer": {"password": "PW", "edition_password": "EDITION-PW"}}))
+        preamble = (
+            "import json, api.config as ac, api.auth as auth\n"
+            f"open(ac._CONFIG_PATH, 'w').write({corrupt_to!r})\n"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "q" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", preamble + script], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        return res.stdout.split()
+
+    def test_a_reload_onto_a_broken_config_does_not_open_the_install(self, tmp_path):
+        out = self._probe(tmp_path, "[1, 2, 3]", (
+            "ac.reload_config()\n"
+            "print(auth._is_open_install(auth.VIEWER_PASSWORD_KEY),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY),"
+            " auth.CurrentUser().is_edition, bool(ac.VIEWER_CONFIG))\n"
+        ))
+        assert out[:3] == ["False", "False", "False"], out
+        # and the dict is never left empty, which is what read as "no password"
+        assert out[3] == "True"
+
+    def test_a_viewer_block_of_the_wrong_type_is_a_load_failure(self, tmp_path):
+        """It carries the passwords, so it cannot degrade to "no settings"."""
+        out = self._probe(tmp_path, '{"viewer": []}', (
+            "ac.reload_config()\n"
+            "print(ac.config_load_failed(),"
+            " auth._is_open_install(auth.VIEWER_PASSWORD_KEY),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY))\n"
+        ))
+        assert out == ["True", "False", "False"], out
+
+    def test_login_with_an_empty_password_is_refused_when_the_config_failed(self, tmp_path):
+        """The app boots healthy and the config breaks under it — the reachable
+        shape, since a config already broken at boot stops import instead."""
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps({"viewer": {"password": "PW"}}))
+        script = (
+            "import json, api.config as ac\n"
+            "from fastapi.testclient import TestClient\n"
+            "from api import create_app\n"
+            "c = TestClient(create_app())\n"
+            "before = c.post('/api/auth/login', json={'password': ''}).status_code\n"
+            "json.dump([1, 2, 3], open(ac._CONFIG_PATH, 'w'))\n"
+            "ac.reload_config()\n"
+            "after = c.post('/api/auth/login', json={'password': ''}).status_code\n"
+            "print(before, after)\n"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "q" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", script], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        before, after = res.stdout.split()
+        assert before == "401", "a locked install must reject an empty password"
+        # It used to mint a session here (200 + a usable JWT for sub=_anonymous).
+        assert after == "503", f"empty password must not mint a session, got {after}"
+
+    def test_features_fail_closed_when_the_config_could_not_be_read(self, tmp_path):
+        """Auth is not the only gate VIEWER_CONFIG feeds."""
+        out = self._probe(tmp_path, "[1, 2, 3]", (
+            "ac.reload_config()\n"
+            "f = ac.VIEWER_CONFIG.get('features', {})\n"
+            "print(bool(f), any(f.values()))\n"
+        ))
+        assert out == ["True", "False"], f"no feature may be enabled, got {out}"
+
+    def test_a_raising_rebuild_never_leaves_viewer_config_empty(self, tmp_path):
+        """Directly exercises the build-before-swap in ``reload_config``.
+
+        The other tests here cover the OUTCOME (the install stays locked) but no
+        longer reach this mechanism: the ``viewer``-block validation means
+        ``load_viewer_config`` cannot raise on a malformed config any more. So
+        force it to raise, which is what the ordering has to survive — an empty
+        ``VIEWER_CONFIG`` reads as "no password" to ``_is_open_install``.
+        """
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps({"viewer": {"password": "PW",
+                                              "edition_password": "EDITION-PW"}}))
+        script = (
+            "import api.config as ac, api.auth as auth\n"
+            "def boom(*a, **k):\n"
+            "    raise RuntimeError('rebuild failed')\n"
+            "ac.load_viewer_config = boom\n"
+            "try:\n"
+            "    ac.reload_config()\n"
+            "except RuntimeError:\n"
+            "    pass\n"
+            "print(bool(ac.VIEWER_CONFIG),"
+            " auth._is_open_install(auth.VIEWER_PASSWORD_KEY),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY))\n"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "q" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", script], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        populated, open_pw, open_edition = res.stdout.split()
+        assert populated == "True", "a raising rebuild must not empty VIEWER_CONFIG"
+        assert open_pw == "False" and open_edition == "False"
+
+
+class TestEditionLoginReportsAnUnreadableConfig:
+    """An empty ``edition_password`` means two different things here too.
+
+    ``/api/auth/login`` was taught to answer 503 rather than "invalid password"
+    when the config could not be read; ``/api/auth/edition/login`` was not, so
+    it answered 401 in the same state — and the client maps only 5xx to
+    'unavailable', leaving the edition dialog saying the password was wrong.
+    """
+
+    def test_an_unreadable_config_answers_503(self):
+        import api.auth as api_auth
+
+        with mock.patch.object(api_auth, "config_load_failed", lambda: True), \
+             mock.patch.dict(api_auth.VIEWER_CONFIG, {"edition_password": ""}), \
+             mock.patch.object(api_auth, "is_multi_user_enabled", lambda: False):
+            client = TestClient(create_app())
+            res = client.post("/api/auth/edition/login", json={"password": "anything"})
+
+        assert res.status_code == 503
+        assert "Configuration could not be read" in res.json()["detail"]
+
+    def test_a_deliberately_open_install_still_answers_401(self):
+        """The other half: no edition gate configured is not a server fault."""
+        import api.auth as api_auth
+
+        with mock.patch.object(api_auth, "config_load_failed", lambda: False), \
+             mock.patch.dict(api_auth.VIEWER_CONFIG, {"edition_password": ""}), \
+             mock.patch.object(api_auth, "is_multi_user_enabled", lambda: False):
+            client = TestClient(create_app())
+            res = client.post("/api/auth/edition/login", json={"password": "anything"})
+
+        assert res.status_code == 401
+
+
+class TestAPublishedPasswordNeverAuthenticates:
+    """`user` and `admin` shipped in this project's own tracked config.
+
+    scoring_config.json carried ``viewer.password`` = ``user`` and
+    ``viewer.edition_password`` = ``admin`` in 24 commits between 2026-02-14
+    and 2026-03-16. Every clone taken in that window got them, and an install
+    that never changed them is guarded by a value anyone can read out of the
+    public history -- so accepting it authenticates the whole internet.
+
+    The share secrets of that same era are already refused by
+    ``_BURNED_SECRET_DIGESTS``; the passwords sitting beside them in the same
+    file had no equivalent check. They stay a SEPARATE list because the two are
+    handled oppositely: a burned secret is silently regenerated, which a
+    password cannot be.
+    """
+
+    def test_the_published_viewer_password_is_refused(self):
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("user", "user") is False
+
+    def test_the_published_edition_password_is_refused(self):
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("admin", "admin") is False
+
+    def test_an_ordinary_plaintext_password_still_works(self):
+        """The refusal must be the two published values, not plaintext at all --
+        hashing on first login is the documented upgrade path."""
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("hunter2", "hunter2") is True
+        assert verify_legacy_password("wrong", "hunter2") is False
+
+    def test_typing_a_published_value_against_another_password_just_fails(self):
+        """Only the STORED side is checked. Someone typing "admin" at an install
+        whose password is something else must fail the ordinary way."""
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("admin", "hunter2") is False
+
+    def test_a_published_password_is_refused_even_once_it_has_been_hashed(self):
+        """The population this refusal exists for is the HASHED one.
+
+        Releases before the refusal accepted `user`/`admin` and hashed them on
+        the first successful login, so an install that used the viewer at all
+        stores a hash of a published value. Checking only the plaintext branch
+        missed every one of them.
+        """
+        from api.auth import hash_password, verify_legacy_password
+
+        for published in ("admin", "user"):
+            stored = hash_password(published)
+            assert verify_legacy_password(published, stored) is False
+
+    def test_a_hashed_password_of_a_private_value_still_verifies(self):
+        """The refusal keys on the CANDIDATE, so ordinary hashed logins work."""
+        from api.auth import hash_password, verify_legacy_password
+
+        stored = hash_password("hunter2")
+        assert verify_legacy_password("hunter2", stored) is True
+        assert verify_legacy_password("admin", stored) is False
+
+    def test_the_startup_check_reports_it_as_an_error_not_a_reassurance(self, caplog):
+        """"will be hashed on next successful login" is wrong twice over here:
+        there will be no successful login, and hashing a published value would
+        not have protected anything."""
+        from api.auth import check_legacy_password_warnings
+
+        with mock.patch.dict("api.auth.VIEWER_CONFIG", {"password": "user", "edition_password": ""}):
+            with caplog.at_level(logging.ERROR, logger="api.auth"):
+                check_legacy_password_warnings()
+
+        assert any("public git history" in r.getMessage() for r in caplog.records)
+        assert not any("will be hashed" in r.getMessage() for r in caplog.records)

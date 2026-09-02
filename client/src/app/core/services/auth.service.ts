@@ -1,5 +1,5 @@
 import { DestroyRef, Injectable, inject, signal, computed } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 
@@ -22,6 +22,22 @@ interface LoginResponse {
   token_type: string;
   user?: { user_id: string; role: string; display_name: string };
 }
+
+/**
+ * How a login attempt ended, from the caller's point of view.
+ *
+ * `'unavailable'` exists because the server answers 503 when it could not read
+ * its own configuration and is refusing to authenticate anyone. Returning a
+ * bare `false` for that made the login form say "Invalid credentials" to an
+ * operator whose password was fine, and threw away the one diagnostic the
+ * server had produced.
+ *
+ * `'rate_limited'` exists for the same reason, one status code down: both login
+ * routes answer 429 from `_login_limiter.is_allowed()` before the password is
+ * ever checked, so it is never a wrong password either -- and retyping one
+ * only extends the lockout window.
+ */
+export type LoginOutcome = 'ok' | 'invalid' | 'unavailable' | 'rate_limited';
 
 /** Slack allowed on the client's own clock before it judges a token dead. The
  *  verdict that matters is the server's; a browser clock running ahead would
@@ -100,38 +116,64 @@ export class AuthService {
     return this.pendingRevalidation;
   }
 
+  /**
+   * Store a minted token and refresh status. Shared by both login flows so
+   * they cannot drift on what "success" writes.
+   */
+  private async acceptToken(res: LoginResponse | undefined): Promise<LoginOutcome> {
+    if (!res?.access_token) return 'invalid';
+    localStorage.setItem(this.TOKEN_KEY, res.access_token);
+    await this.checkStatus();
+    return 'ok';
+  }
+
+  /**
+   * Classify a failed login. Both endpoints answer 503 when the server could
+   * not read its own configuration and is refusing to authenticate at all --
+   * a state the operator fixes on the server, not by retyping a password.
+   * Collapsing it into 'invalid' told them their password was wrong, which is
+   * the one thing it was not, and hid the only diagnostic the server produced.
+   *
+   * Status 0 counts too — an unreachable server, a dropped connection or a
+   * CORS failure never reached the password check either, so reporting it as
+   * bad credentials repeats the same conflation one layer down. The predicate
+   * is the one `retry.interceptor.ts` already uses for "the server, not the
+   * request, is the problem".
+   *
+   * Status 429 is the same conflation one layer further down: both routes'
+   * rate limiter rejects the request before any password check runs, so it is
+   * never bad credentials either.
+   */
+  private classifyLoginError(err: unknown): LoginOutcome {
+    if (!(err instanceof HttpErrorResponse)) return 'invalid';
+    if (err.status === 0 || err.status >= 500) return 'unavailable';
+    return err.status === 429 ? 'rate_limited' : 'invalid';
+  }
+
   /** Login with credentials */
-  async login(password: string, username?: string): Promise<boolean> {
+  async login(password: string, username?: string): Promise<LoginOutcome> {
     try {
       const body: Record<string, string> = { password };
       if (username) body['username'] = username;
 
-      const res = await firstValueFrom(this.http.post<LoginResponse>('/api/auth/login', body));
-      if (res?.access_token) {
-        localStorage.setItem(this.TOKEN_KEY, res.access_token);
-        await this.checkStatus();
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
+      return await this.acceptToken(
+        await firstValueFrom(this.http.post<LoginResponse>('/api/auth/login', body)),
+      );
+    } catch (err) {
+      return this.classifyLoginError(err);
     }
   }
 
   /** Login for edition mode (legacy single-user) */
-  async editionLogin(password: string): Promise<boolean> {
+  async editionLogin(password: string): Promise<LoginOutcome> {
     try {
-      const res = await firstValueFrom(
-        this.http.post<LoginResponse>('/api/auth/edition/login', { password }),
+      return await this.acceptToken(
+        await firstValueFrom(
+          this.http.post<LoginResponse>('/api/auth/edition/login', { password }),
+        ),
       );
-      if (res?.access_token) {
-        localStorage.setItem(this.TOKEN_KEY, res.access_token);
-        await this.checkStatus();
-        return true;
-      }
-      return false;
-    } catch {
-      return false;
+    } catch (err) {
+      return this.classifyLoginError(err);
     }
   }
 

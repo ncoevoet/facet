@@ -15,7 +15,11 @@ import threading
 import time
 import secrets
 
-from config import default_config_path
+from config_resolve import (  # noqa: F401 - atomic_write_json is re-exported for tests that call it here
+    _fsync_directory, _merge_into, _unlink_quietly, atomic_write_json,
+    default_config_path, defaults_path, delta_for_write, load_defaults,
+    require_override_mapping, write_user_config,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -26,18 +30,19 @@ logger = logging.getLogger(__name__)
 # entrypoint unable to reclaim its own mount point. Naming the file via an env var
 # instead lets the compose file mount a directory (which the daemon can create
 # safely) and point here without either program changing when the variable is
-# unset. Resolved by :func:`config.default_config_path` rather than re-derived:
-# this module used to carry a byte-for-byte copy of that function's body, which
-# nothing but a cross-package consistency test kept aligned. The import is not
-# free in the abstract — `config` pulls `config.percentile_normalizer`, which
-# pulls `db`, which pulls numpy: ~50 ms in an interpreter holding none of them.
-# It is free where it actually happens: `api.types` and `api.db_helpers` import
-# `config` at module scope themselves, and so do `facet.py` and `database.py`,
-# so every server and CLI process that reaches this module has already paid for
-# numpy — measured against an interpreter that already holds `db`, the addition
-# is under 1 ms.
+# unset. Resolved by :func:`config_resolve.default_config_path` rather than
+# re-derived: this module used to carry a byte-for-byte copy of that function's
+# body, which nothing but a cross-package consistency test kept aligned. The
+# import costs nothing at all now — `config_resolve` is a stdlib-only top-level
+# module, which is the whole reason it is not inside the `config` package.
+# Importing `config` instead would pull `config.percentile_normalizer`, and so
+# `db` and numpy, into every process that touches this module.
 _CONFIG_PATH_ENV_VAR = 'FACET_CONFIG'
 _CONFIG_PATH = default_config_path()
+
+# The two `viewer` keys that are compared as strings during login. Named here
+# rather than imported from api.auth, which imports THIS module.
+_VIEWER_PASSWORD_KEYS = ('password', 'edition_password')
 
 # Whether an operator NAMED that path or merely inherited the default. The two
 # differ only when the file is absent, and there they differ completely: an
@@ -45,20 +50,86 @@ _CONFIG_PATH = default_config_path()
 # one is a typo, a bad mount or a moved file — see :func:`_read_config`.
 _CONFIG_PATH_IS_EXPLICIT = bool(os.environ.get(_CONFIG_PATH_ENV_VAR, '').strip())
 
+
+def server_config_path():
+    """The one config file the SERVER reads — for scoring and for auth alike.
+
+    Every ``ScoringConfig`` built inside ``api/`` must name this, because a
+    bare ``ScoringConfig()`` resolves through
+    :func:`config.scoring_config.resolve_scoring_config_path`, which prefers a
+    ``scoring_config.json`` in the process WORKING DIRECTORY. That preference
+    is a real CLI workflow -- run ``facet.py`` from a photo library that
+    carries its own config and that config scores it -- but this module has no
+    such step, so the two disagreed exactly when the install root held no
+    config, which is now the ordinary state.
+
+    What that disagreement bought: start the viewer from a library directory
+    holding a config, and ``ScoringConfig`` honoured its weights while
+    ``VIEWER_CONFIG`` came from the absent install-root path, resolved to the
+    shipped defaults, and reported an empty ``viewer.password`` and an empty
+    ``viewer.edition_password``. ``api.auth._is_open_install`` then answered
+    True for both, so the operator's passwords were ignored and every route,
+    edition writes included, was anonymous. The scoring config and the auth
+    config have to be the same file for that question to be answerable at all.
+    """
+    return _CONFIG_PATH
+
+
+def server_scoring_config(validate=False):
+    """A ``ScoringConfig`` over :func:`server_config_path` — the server's only one.
+
+    The import is deferred because ``config`` reaches
+    ``config.percentile_normalizer`` and therefore ``db`` and numpy, and this
+    module is imported by ``viewer.py`` before logging is even configured. The
+    callers are all inside ``api/``, which has already paid for that import.
+    It goes through the PACKAGE rather than ``config.scoring_config`` because
+    that is the name every other ``api/`` caller binds, and the name the router
+    tests intercept.
+
+    An unreadable config here is NAMED -- :func:`config_resolve.path_is_named`
+    says so for any path that is not the install-root default, which is exactly
+    when $FACET_CONFIG or a relocated deployment is in play -- so
+    ``ScoringConfig`` raises rather than scoring on defaults the operator never
+    chose. That is the right answer for a CLI and the wrong one here: this runs
+    at import of ``api.types``, so it would take the whole server down with a
+    traceback, and ``_read_config`` has ALREADY made the safe decision for the
+    same file -- it armed :func:`config_load_failed`, so every route is locked
+    and the login endpoint answers 503. Crashing on top of that replaces an
+    actionable error with a stack trace and loses the 503 the operator needs.
+
+    :func:`config_load_failed` is therefore the condition, not the exception
+    type. Catching only ``FileNotFoundError`` covered an absent file and left
+    every other way the same file is unreadable -- a mode of 000, a malformed
+    body, an EIO on a network mount -- still killing ``create_app`` with a
+    ``ValueError``, in precisely the state this fallback exists to survive.
+    The predicate is the one ``_read_config`` already computed, so the two
+    cannot disagree about what "cannot read this config" means.
+
+    The fallback is the shipped defaults, read as an override over themselves:
+    the same values, and no claim that the operator's file was found. It runs
+    only where auth has already refused the install.
+    """
+    from config import ScoringConfig
+    try:
+        return ScoringConfig(server_config_path(), validate=validate)
+    except (OSError, ValueError):
+        if not config_load_failed():
+            # Something is wrong with the SHIPPED defaults, or with a config
+            # `_read_config` read successfully moments ago. Neither is the
+            # locked-install state this fallback covers, and scoring on
+            # defaults would hide it, so let it out.
+            raise
+        logger.error(
+            "%s could not be read, so scoring falls back to the shipped "
+            "defaults. Authentication is already refusing this install — fix "
+            "the file or the mount, then restart.", server_config_path(),
+        )
+        return ScoringConfig(defaults_path(), validate=validate)
+
+
 CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')
 
-_TEMP_CONFIG_SUFFIX = '.json'
-
-# Scratch name every config replacement stages under. Dotted and gitignored
-# for the same reason :data:`_OWNER_ONLY_TMP_PREFIX` is: mkstemp's default
-# `tmpXXXXXXXX` matched no ignore rule, and this staging copy is a COMPLETE
-# scoring_config.json — every ``users.*.password_hash``, ``viewer.password``
-# and, on a not-yet-migrated install, ``share_secret``. A SIGKILL between the
-# write and the rename left all of it in the repository root under a stageable
-# name.
-_TEMP_CONFIG_PREFIX = '.scoring_config.tmp'
-_WORLD_READ_WRITE_MODE = 0o666
 _config_load_failed = False
 
 # The server secret signs every login JWT (api/auth.py) and every opaque frame
@@ -116,93 +187,50 @@ _BURNED_SECRET_DIGESTS = frozenset({
     '8a549d288ad8b4e4e0dd4ff038fa480ff5d3aa7ceeab73198792e9f95f7ae51b',
 })
 
+# SHA-256 of every viewer PASSWORD this project shipped in the tracked config:
+# `user` and `admin`, carried by scoring_config.json in 24 commits between
+# 2026-02-14 and 2026-03-16 as viewer.password and viewer.edition_password.
+# Anyone who cloned in that window and never changed them is protected by a
+# value readable straight out of the public history — the same exposure
+# _BURNED_SECRET_DIGESTS already refuses for the share secrets of that era,
+# which had no equivalent check for the passwords beside them.
+#
+# Digests rather than the values, for the same reason as above: re-committing
+# the plaintext is the bug this list exists to close. They are NOT merged into
+# _BURNED_SECRET_DIGESTS because the two are handled oppositely — a burned
+# secret is silently regenerated, which a password cannot be.
+_BURNED_PASSWORD_DIGESTS = frozenset({
+    '04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb',  # user
+    '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',  # admin
+})
 
-def _umask_default_mode():
-    """Return the permission bits a plain ``open(path, 'w')`` would have created.
 
-    ``os.umask`` is both the setter and the only getter, so the current value
-    is read by setting it and immediately restoring it. Only reached when the
-    destination does not exist yet and there is no mode to preserve.
+def is_burned_password(value):
+    """True when ``value`` is a plaintext password this project published.
+
+    Asked of a STORED plaintext, and — since the store may be a HASH of a
+    published value, which is what an earlier release's login-time upgrade left
+    behind — of a CANDIDATE that has already verified against such a hash. Both
+    ask the same question, "is this install still protected by a value we
+    published", because a candidate that verifies IS the stored password. It is
+    never asked of a candidate that has not verified: that would answer "did
+    someone guess a shipped default", which is not this function's business and
+    would leak the two values by timing.
+
+    SHA-256 is the right primitive here and this is NOT password hashing, which
+    CodeQL's ``py/weak-sensitive-data-hashing`` reads it as (alert 123). Nothing
+    is stored: the digest is computed and discarded, and the only question asked
+    of it is membership in a two-element set. Storage goes through
+    :func:`api.auth.hash_password`, which is PBKDF2. A computationally expensive
+    hash would buy nothing anyway — it exists to make a stolen digest expensive
+    to reverse, and both values behind these digests are already published in
+    this repository's git history, which is the entire reason the check exists.
+    Salting, which is what makes PBKDF2 worth its cost, would defeat the
+    membership test outright.
     """
-    umask = os.umask(0)
-    os.umask(umask)
-    return _WORLD_READ_WRITE_MODE & ~umask
-
-
-def _replacement_mode(path):
-    """Permission bits an atomic replacement of ``path`` must end up with."""
-    try:
-        return stat.S_IMODE(os.stat(path).st_mode)
-    except FileNotFoundError:
-        return _umask_default_mode()
-
-
-def _fsync_directory(directory):
-    """Flush a rename in ``directory`` so the replacement survives a crash.
-
-    The replacement's own bytes are already fsynced and not every platform
-    allows opening a directory for reading, so a failure here is logged rather
-    than raised.
-    """
-    try:
-        fd = os.open(directory, os.O_RDONLY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
-    except OSError:
-        logger.debug("Could not fsync directory %s", directory, exc_info=True)
-
-
-def _unlink_quietly(path):
-    """Remove a temp file whose write failed, without masking the real error."""
-    try:
-        os.unlink(path)
-    except OSError:
-        logger.debug("Could not remove temp file %s", path, exc_info=True)
-
-
-def atomic_write_json(path, data):
-    """Replace ``path`` with ``data`` atomically, durably, and at its current mode.
-
-    ``tempfile.mkstemp`` creates the replacement 0600, so the destination's own
-    permissions are copied onto it before the rename — otherwise every config
-    write would silently strip the group/other read access a co-deployed CLI
-    needs. The payload is fsynced before the rename and the containing
-    directory after it, so a crash leaves either the old file or the new one,
-    never a truncated mix.
-
-    Atomicity is per write, not per read-modify-write: every caller that reads
-    scoring_config.json, edits part of it and writes it back MUST hold
-    :data:`CONFIG_WRITE_LOCK` across the whole sequence, or one caller's update
-    is lost wholesale under another's. That lock is the only one taken while a
-    config write is in flight; ``reload_config`` may acquire it (through
-    :func:`_load_config`) while holding ``_config_lock``, so no writer may
-    call ``reload_config`` without first releasing it.
-
-    Note the mode preservation makes this the WRONG primitive for a secret —
-    see :func:`_atomic_write_owner_only`, which forces 0600 instead.
-
-    The scratch file is named after :data:`_TEMP_CONFIG_PREFIX` rather than
-    left to mkstemp's default, so a crash before the rename leaves an IGNORED
-    name behind: the staging copy is the whole config, password hashes
-    included.
-    """
-    directory = os.path.dirname(path) or '.'
-    mode = _replacement_mode(path)
-    fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=_TEMP_CONFIG_PREFIX,
-                                    suffix=_TEMP_CONFIG_SUFFIX)
-    try:
-        with os.fdopen(fd, 'w') as f:
-            json.dump(data, f, indent=2)
-            f.flush()
-            os.fsync(f.fileno())
-        os.chmod(tmp_path, mode)
-        os.replace(tmp_path, path)
-    except Exception:
-        _unlink_quietly(tmp_path)
-        raise
-    _fsync_directory(directory)
+    if not isinstance(value, str) or not value:
+        return False
+    return hashlib.sha256(value.encode('utf-8')).hexdigest() in _BURNED_PASSWORD_DIGESTS
 
 
 def config_load_failed():
@@ -218,11 +246,40 @@ def config_load_failed():
     return _config_load_failed
 
 
+def _read_overrides():
+    """The operator's config file as a dict, raising FileNotFoundError if absent.
+
+    Split out so :func:`_read_config` can tell "the file is not there" from
+    "the file is there and does not parse" while still merging the shipped
+    defaults under whatever it did read.
+    """
+    with open(_CONFIG_PATH) as f:
+        return json.load(f)
+
+
 def _read_config():
     """Parse scoring_config.json, tracking whether an existing file failed to parse.
 
-    Returns ``(config, parsed_ok)``. A missing file yields ``({}, False)``, and
-    arms :func:`config_load_failed` only when something NAMED that file.
+    Returns ``(config, parsed_ok)``. What is parsed is the operator's OVERRIDE;
+    it is resolved on top of the shipped defaults, so a file holding three keys
+    still yields a whole config. A missing file yields the shipped defaults with
+    ``parsed_ok`` False — defaults carry an empty ``viewer.edition_password`` and
+    no users, so defaults-only IS a never-configured install and the auth
+    semantics below are unchanged by the merge.
+
+    A missing file at a NAMED path is the exception and gets no defaults at all:
+    it returns ``({}, False)`` and arms :func:`config_load_failed`. Handing that
+    caller the shipped defaults would be handing it an empty
+    ``viewer.edition_password``, which is precisely the open install this branch
+    exists to refuse.
+
+    The defaults are read BEFORE the try, so their own ``FileNotFoundError``
+    can never be mistaken for the operator's config being absent. It was: the
+    merge evaluated them first, so a shadowed or partial install reported
+    "$FACET_CONFIG names <path>, which does not exist" about a file that was
+    present and healthy — sending the operator to edit the one file holding
+    every password hash. A broken install now raises from here, naming the
+    defaults, which is what an install with no baseline to resolve against is.
 
     That distinction is the whole point. An unnamed missing config is a
     never-configured install, which is legitimately open — fail-open there is
@@ -240,9 +297,80 @@ def _read_config():
     invisible — the operator got no signal whatsoever.
     """
     global _config_load_failed
+    defaults = load_defaults()
     try:
-        with open(_CONFIG_PATH) as f:
-            config = json.load(f)
+        overrides = _read_overrides()
+        if isinstance(overrides, dict) and not isinstance(overrides.get('viewer', {}), dict):
+            # The operator's `viewer` block is a list or a scalar. It carries
+            # viewer.password and viewer.edition_password, so "unreadable" here
+            # cannot degrade to "no settings": the backfill would supply the
+            # shipped empty passwords and _is_open_install would read the result
+            # as a deliberately open install. Fail the load instead, which is
+            # what keeps it locked.
+            raise ValueError(
+                f"{_CONFIG_PATH}: 'viewer' must be a JSON object, not "
+                f"{type(overrides['viewer']).__name__}. It holds the viewer and "
+                f"edition passwords, so it cannot be read as absent."
+            )
+        if isinstance(overrides, dict):
+            # And the same check one level down, against the type the DEFAULTS
+            # ship for each key. `load_viewer_config` backfills each sub-block
+            # key by key, so a `viewer` whose `features` or `cull` is a scalar
+            # made `k not in viewer[key]` raise TypeError -- "argument of type
+            # 'bool' is not iterable", naming neither the file nor the key --
+            # at IMPORT of this module, taking the server down with a traceback
+            # the operator cannot act on. Rejecting it here routes it through
+            # the handler below, which names the file, logs the traceback once,
+            # and leaves the install locked with every feature off.
+            #
+            # Two exceptions, both learned by breaking a working install:
+            #
+            # A shipped block that is EMPTY is degraded, not refused. The only
+            # one is `viewer.path_mapping` ({} in the defaults), and the old
+            # backfill loop was a no-op on it -- nothing to merge -- so a config
+            # carrying `"path_mapping": []` booted and authenticated for years.
+            # Refusing it turned a harmless typo into a locked-out install with
+            # no in-UI way back. `load_viewer_config` substitutes the shipped
+            # block instead, which is lossless when that block is empty.
+            #
+            # The two PASSWORD keys are checked the other way round, for a
+            # string. They are not backfilled into, so the loop above never
+            # touched them -- but `api.auth._is_hashed` calls `value.split(':')`
+            # on whatever is there, from `check_legacy_password_warnings` during
+            # `create_app`. A `"password": {...}` therefore died with
+            # `AttributeError: 'dict' object has no attribute 'split'` and no
+            # server at all, which is the same failure this check exists to end.
+            viewer_overrides = overrides.get('viewer') or {}
+            viewer_defaults = defaults.get('viewer') or {}
+            for key, shipped in viewer_defaults.items():
+                given = viewer_overrides.get(key, shipped)
+                if isinstance(shipped, dict) and shipped and not isinstance(given, dict):
+                    raise ValueError(
+                        f"{_CONFIG_PATH}: 'viewer.{key}' must be a JSON object, "
+                        f"not {type(given).__name__}. It is one of the blocks "
+                        f"backfilled from the shipped defaults, which needs keys "
+                        f"to merge into."
+                    )
+                if key in _VIEWER_PASSWORD_KEYS and not isinstance(given, str):
+                    raise ValueError(
+                        f"{_CONFIG_PATH}: 'viewer.{key}' must be a string, not "
+                        f"{type(given).__name__}. It is compared as one during "
+                        f"login, so it cannot be read as absent."
+                    )
+        # Valid JSON of the wrong SHAPE. deep_merge would die on ``.items()``
+        # with an AttributeError that names neither the file nor the mistake,
+        # and the handler below would then report "could not parse" a file that
+        # parsed perfectly -- sending the operator after a syntax error that is
+        # not there. Shared with config_resolve.load_resolved rather than
+        # restated here: this reader must not be laxer than that one, and two
+        # copies of the rule is how they drift apart.
+        require_override_mapping(overrides, _CONFIG_PATH)
+        # ``defaults`` is this call's own fresh parse (load_defaults re-reads
+        # every time, and viewer_defaults above is consumed before this point),
+        # so merge into it rather than paying deep_merge's copy of the whole
+        # shipped tree on a path the server takes at boot and on every reload.
+        _merge_into(defaults, overrides)
+        config = defaults
     except FileNotFoundError:
         if _CONFIG_PATH_IS_EXPLICIT:
             _config_load_failed = True
@@ -254,12 +382,13 @@ def _read_config():
                 _CONFIG_PATH_ENV_VAR, _CONFIG_PATH,
             )
             return {}, False
-        logger.debug("No %s — running as a never-configured install", _CONFIG_PATH)
-        return {}, False
+        logger.debug("No %s — running on the shipped defaults, never configured", _CONFIG_PATH)
+        return defaults, False
     except Exception:
         _config_load_failed = True
         logger.error(
-            "Could not parse %s — refusing the open-install auth path until it parses",
+            "Could not read %s as a JSON object of overrides — refusing the "
+            "open-install auth path until it does",
             _CONFIG_PATH, exc_info=True,
         )
         return {}, False
@@ -301,15 +430,8 @@ def _tighten_if_group_or_other_readable(path):
     site: in both cases the file is known loose and stayed loose, and neither
     caller may treat that as fatal (this runs on the boot path).
     """
-    if not _POSIX_FILE_MODES:
-        return 0
-    try:
-        if not stat.S_ISREG(os.lstat(path).st_mode):
-            return 0
-        mode = stat.S_IMODE(os.stat(path).st_mode)
-    except OSError:
-        return 0
-    if not mode & _GROUP_OTHER_MODE:
+    mode = _group_or_other_readable_mode(path)
+    if not mode:
         return 0
     try:
         os.chmod(path, _SECRET_FILE_MODE)
@@ -317,6 +439,44 @@ def _tighten_if_group_or_other_readable(path):
         logger.warning("Could not tighten permissions on %s", path, exc_info=True)
         return 0
     return mode
+
+
+def _group_or_other_readable_mode(path, follow_symlinks=False):
+    """``path``'s mode if anyone but its owner can read it, else 0.
+
+    Detection WITHOUT the fix, split out because the live config needs one and
+    not the other. Its mode is the operator's to choose -- a co-deployed CLI
+    may legitimately need to read it, and ``config_resolve._replacement_mode``
+    deliberately preserves whatever an existing file carries -- but an install
+    that predates the untracking got its ``scoring_config.json`` from a
+    ``git clone`` at the umask default, so it holds ``viewer.password``,
+    ``users.*.password_hash``, ``upload.password``, ``frame.tokens`` and
+    ``immich.api_key`` at 0644 forever, and nothing said so. Warning is what
+    that file needs; chmod is what the secret store and the backups need.
+
+    ``lstat`` decides whether to look at all, because ``os.chmod`` — the fix
+    this feeds — follows symlinks while it runs over names anyone with write
+    access to the install directory can plant.
+
+    ``follow_symlinks=True`` is for the callers that only REPORT. Reading a
+    mode through a link is harmless, and refusing to is a real blind spot: the
+    Docker entrypoint deliberately leaves a symlinked ``/config/scoring_config.json``
+    unseeded and un-chmod'ed, so a link pointing at a 0644 secrets store got
+    neither the entrypoint's tightening nor this warning — the exact gap the
+    warning exists to cover.
+    """
+    if not _POSIX_FILE_MODES:
+        return 0
+    try:
+        if not follow_symlinks and not stat.S_ISREG(os.lstat(path).st_mode):
+            return 0
+        target = os.stat(path)
+        if not stat.S_ISREG(target.st_mode):
+            return 0
+        mode = stat.S_IMODE(target.st_mode)
+    except OSError:
+        return 0
+    return mode if mode & _GROUP_OTHER_MODE else 0
 
 
 def _warn_if_readable_by_others(path):
@@ -596,7 +756,7 @@ def _read_config_evicting_legacy_share_key():
             return config, parsed_ok, legacy.strip() if isinstance(legacy, str) else ''
         try:
             _write_config_backup(config)
-            atomic_write_json(_CONFIG_PATH, config)
+            write_user_config(_CONFIG_PATH, config)
         except OSError:
             logger.error(
                 "Could not remove `%s` from %s — the file is not writable here "
@@ -640,8 +800,13 @@ def _write_config_backup(config):
     cannot share one primitive: this one must write the EVICTED dict rather
     than copy the file, or the backup would keep the secret it exists to
     remove.
+
+    Snapshots the OVERRIDE, like every other writer, so restoring the backup
+    over the config restores the same install rather than freezing today's
+    defaults into the operator's file.
     """
-    _atomic_write_owner_only(f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}", json.dumps(config, indent=2))
+    _atomic_write_owner_only(f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}",
+                             json.dumps(delta_for_write(config), indent=2))
 
 
 def _config_backup_paths():
@@ -810,7 +975,41 @@ def _load_config():
     """
     config, parsed_ok, legacy = _read_config_evicting_legacy_share_key()
     _tighten_existing_config_backups()
+    _warn_if_config_readable_by_others()
     return config, parsed_ok, legacy
+
+
+def _warn_if_config_readable_by_others():
+    """Report — but do not change — a live config anyone can read.
+
+    The boot path already sweeps the two OTHER files holding these secrets: the
+    secret store (:func:`_warn_if_readable_by_others`) and every config backup
+    (:func:`_tighten_existing_config_backups`), both on the stated grounds that
+    "the ones already on disk keep the old mode forever, which is exactly the
+    window an attacker uses". The config itself was excluded by accident, not
+    by design: :func:`_config_backup_paths` filters on the backup suffix, and
+    ``'scoring_config.json'.startswith('scoring_config.json.backup')`` is
+    False. It is the only one of the three that ALWAYS exists.
+
+    Warn rather than tighten, because unlike those two this file's mode is a
+    real choice — a co-deployed CLI running as another account may need to read
+    it, and ``config_resolve._replacement_mode`` preserves an existing mode on
+    every write precisely so Facet does not overrule that. But an install
+    upgrading from the tracked-config era never made the choice: ``git clone``
+    created the file at the umask default, so it sits at 0644 holding plaintext
+    credentials, and silence is what makes that permanent.
+    """
+    mode = _group_or_other_readable_mode(_CONFIG_PATH, follow_symlinks=True)
+    if not mode:
+        return
+    logger.warning(
+        "%s is readable beyond its owner (mode %o) and holds plaintext "
+        "credentials — viewer.password, users.*.password_hash, "
+        "upload.password, frame.tokens, immich.api_key. Facet leaves the mode "
+        "you chose alone; if you did not choose it, `chmod 600 %s` and treat "
+        "anything in it as exposed.",
+        _CONFIG_PATH, mode, _CONFIG_PATH,
+    )
 
 
 def _ensure_secret(env_secret, stored, parsed_ok, legacy):
@@ -909,104 +1108,65 @@ JWT_EXPIRY_HOURS = 48  # 2 days
 
 # --- VIEWER CONFIG ---
 def load_viewer_config(config=None):
-    """Load viewer settings, merging defaults with config."""
-    defaults = {
-        'sort_options': {
-            'General': [
-                {'column': 'aggregate', 'label': 'Aggregate Score'},
-                {'column': 'aesthetic', 'label': 'Aesthetic'},
-                {'column': 'topiq_score', 'label': 'TOPIQ Score'},
-                {'column': 'date_taken', 'label': 'Date Taken'},
-                {'column': 'is_favorite', 'label': 'Favorites'},
-                {'column': 'is_rejected', 'label': 'Rejected'}
-            ],
-            'Face Metrics': [
-                {'column': 'face_quality', 'label': 'Face Quality'},
-                {'column': 'eye_sharpness', 'label': 'Eye Sharpness'},
-                {'column': 'face_sharpness', 'label': 'Face Sharpness'},
-                {'column': 'face_ratio', 'label': 'Face Ratio'},
-                {'column': 'face_count', 'label': 'Face Count'},
-                {'column': 'face_confidence', 'label': 'Face Confidence'}
-            ],
-            'Technical': [
-                {'column': 'tech_sharpness', 'label': 'Tech Sharpness'},
-                {'column': 'contrast_score', 'label': 'Contrast'},
-                {'column': 'noise_sigma', 'label': 'Noise Level'}
-            ],
-            'Color': [
-                {'column': 'color_score', 'label': 'Color Score'},
-                {'column': 'mean_saturation', 'label': 'Saturation'}
-            ],
-            'Exposure': [
-                {'column': 'exposure_score', 'label': 'Exposure Score'},
-                {'column': 'mean_luminance', 'label': 'Mean Luminance'},
-                {'column': 'histogram_spread', 'label': 'Histogram Spread'},
-                {'column': 'dynamic_range_stops', 'label': 'Dynamic Range'}
-            ],
-            'Composition': [
-                {'column': 'comp_score', 'label': 'Composition Score'},
-                {'column': 'power_point_score', 'label': 'Power Point Score'},
-                {'column': 'leading_lines_score', 'label': 'Leading Lines'},
-                {'column': 'isolation_bonus', 'label': 'Isolation Bonus'}
-            ],
-            'Camera': [
-                {'column': 'f_stop', 'label': 'F-Stop'},
-                {'column': 'focal_length', 'label': 'Focal Length'},
-                {'column': 'shutter_speed', 'label': 'Shutter Speed'}
-            ]
-        },
-        'pagination': {'default_per_page': 50},
-        'dropdowns': {'max_cameras': 50, 'max_lenses': 50, 'max_persons': 50, 'max_tags': 20},
-        'raw_processor': {
-            'darktable': {
-                'executable': 'darktable-cli',
-                'profiles': [],
-                'cull_styles': [],
-                'preview_max_edge': 1440,
-                'preview_timeout_seconds': 60,
-            },
-        },
-        'display': {'tags_per_photo': 3, 'card_width_px': 168, 'image_width_px': 160, 'image_jpeg_quality': 96},
-        # Per-badge opt-out for the gallery card. Every badge that predates this
-        # block defaults to True, so an install that says nothing is unchanged.
-        # Shadow clipping is the one default-off badge: crushed blacks are
-        # routinely deliberate (silhouettes, night, low-key).
-        'badges': {
-            'favorite': True, 'star_rating': True, 'rejected': True,
-            'sequence_kind': True, 'sequence_override_pending': True,
-            'keeper_hint': True, 'best_of_burst': True,
-            'clipping_highlight': True, 'clipping_shadow': False,
-        },
-        # One definition of "clipped" for all three surfaces. The percentages are
-        # measured: over 28 sampled photos, worst-channel highlight clipping had a
-        # median of 0.31% and a p90 of 2.35%, so 5% badges roughly 1 in 25 photos
-        # and stays a signal. The histogram indicator is finer because the user is
-        # already looking at a single photo and wants the detail.
-        # histogram_mode / tooltip_histogram_mode are independent defaults: the
-        # detail panel is for studying one photo (RGB detail earns its space),
-        # the hover/pinned tooltip is for scanning many quickly (a plain
-        # luminance curve usually reads faster). Each surface persists its own
-        # user override, so tuning one default here never retunes the other.
-        'clipping': {
-            'badge_percent': 5, 'indicator_percent': 1,
-            'histogram_mode': 'rgb', 'tooltip_histogram_mode': 'luma',
-        },
-        'face_thumbnails': {'output_size_px': 64, 'jpeg_quality': 80, 'crop_padding_ratio': 0.2, 'min_crop_size_px': 20},
-        'quality_thresholds': {'good': 6, 'great': 7, 'excellent': 8, 'best': 9},
-        'photo_types': {'top_picks_min_score': 7, 'low_light_max_luminance': 0.2},
-        'defaults': {'hide_blinks': True, 'hide_bursts': True, 'hide_duplicates': True, 'hide_brackets': True, 'hide_panoramas': True, 'hide_details': True, 'hide_rejected': True, 'sort': 'aggregate', 'sort_direction': 'DESC', 'panel_activation': 'both'},
-        'features': {'show_similar_button': True, 'show_merge_suggestions': True, 'show_rating_controls': True, 'show_semantic_search': True, 'show_albums': True, 'show_critique': True, 'show_vlm_critique': False, 'show_embed_metadata': True, 'show_memories': True, 'show_captions': True, 'show_timeline': True, 'show_map': False, 'show_capsules': True, 'show_my_taste': True, 'show_scenes': True, 'show_junk_sweep': True, 'show_proofing': False, 'show_portfolio_export': True},
-        'proofing': {'pin': '', 'session_minutes': 1440},
-        'cache_ttl_seconds': 3600,
-        'notification_duration_ms': 2000
-    }
+    """Load viewer settings, backfilled from the SHIPPED defaults.
+
+    The fallback is ``config/scoring_config.default.json``'s own ``viewer``
+    block, not a second copy of it kept here. It used to be a literal dict, and
+    it had drifted from the file it was shadowing: seven values disagreed
+    outright -- including ``features.show_map`` and ``features.show_vlm_critique``,
+    False here and True as shipped -- and thirty-two keys were missing from it
+    altogether, among them ``allowed_origins``, ``cull.allow_trash`` and four
+    ``features`` flags. That is the same defaults-drift this release removed
+    everywhere else, and it was reachable: ``_read_config`` returns ``{}`` for a
+    named-absent or unparseable config, and the whole viewer surface then came
+    from the stale literal.
+
+    Backfilling is still needed even though the resolved config already carries
+    these keys, because of that ``{}`` case. Nothing here can loosen auth:
+    ``api.auth._is_open_install`` short-circuits on ``config_load_failed()``, so
+    an install that reached ``{}`` by failing to parse stays locked whatever
+    ``viewer.edition_password`` resolves to.
+
+    The rationale for individual values -- the measured clipping percentages,
+    why shadow clipping is the one default-off badge, why the panel and tooltip
+    histograms default differently -- lives in docs/CONFIGURATION.md, which a
+    JSON file cannot carry.
+    """
+    defaults = load_defaults().get('viewer', {})
+    if config_load_failed():
+        # A config Facet has decided it cannot trust must not switch FEATURES on.
+        # The backfill is the shipped defaults now, and several of those are True
+        # where the fallback this replaced was False -- show_vlm_critique gates
+        # loading a multi-GB model. Auth is already safe here
+        # (``_is_open_install`` short-circuits on this same predicate), but auth
+        # is not the only gate VIEWER_CONFIG feeds, so fail every feature closed.
+        defaults = dict(defaults)
+        defaults['features'] = dict.fromkeys(defaults.get('features', {}), False)
     if config is None:
         config, _ = _read_config()
-    viewer = config.get('viewer', {})
+    viewer = config.get('viewer')
+    if not isinstance(viewer, dict):
+        # A hand-edited config whose `viewer` is a list or a scalar. Merging into
+        # it raises TypeError, which used to escape reload_config -- see the
+        # build-before-clear note there for why that was an auth problem and not
+        # just a crash. Treat it as "no viewer settings"; _read_config has
+        # already recorded the load as failed, so the backfill is fail-closed.
+        viewer = {}
     for key, value in defaults.items():
         if key not in viewer:
             viewer[key] = value
         elif isinstance(value, dict):
+            if not isinstance(viewer[key], dict):
+                # A sub-block the operator wrote as a scalar or a list.
+                # `_read_config` rejects this before it gets here, so on the
+                # server path it cannot happen -- but this function is public
+                # and takes any dict, and iterating `k not in <bool>` raises
+                # TypeError rather than degrading. Take the shipped block: the
+                # operator's value carries no keys to keep, and every caller
+                # that could reach it with an untrusted config has already been
+                # marked failed, which forces the features off below.
+                viewer[key] = value
+                continue
             for k, v in value.items():
                 if k not in viewer[key]:
                     viewer[key][k] = v
@@ -1073,18 +1233,45 @@ _config_lock = threading.Lock()
 def reload_config():
     """Reload scoring_config.json from disk.
 
-    ``VIEWER_CONFIG`` is refilled in place rather than rebound: every consumer
-    does ``from api.config import VIEWER_CONFIG`` at import time and holds that
-    dict forever, so rebinding this module's name would leave them all reading
-    the pre-reload values. ``api.auth`` derives each token's password generation
-    from it, which makes a stale copy a security question and not just a
-    freshness one.
+    ``VIEWER_CONFIG`` and ``_FULL_CONFIG`` are both refilled in place rather
+    than rebound: every consumer does ``from api.config import VIEWER_CONFIG``
+    (or ``_FULL_CONFIG``) at import time and holds that dict forever, so
+    rebinding this module's name would leave them all reading the pre-reload
+    values. ``api.auth`` derives each token's password generation from
+    ``VIEWER_CONFIG``, which makes a stale copy a security question and not
+    just a freshness one; ``_FULL_CONFIG`` is held that way by ten modules
+    (``api.db_helpers``, ``api.updates``, ``api.model_cache``,
+    ``api.similarity_groups`` and the caption/portfolio/immich/frame/scan/
+    gallery routers), and rebinding it froze their translation target, caption
+    gate, capsule TTL and export settings at process start while
+    ``VIEWER_CONFIG`` went on tracking the file — so one request could read two
+    generations of one config.
+
+    Neither dict is ever observably EMPTY. Update-then-prune, not
+    clear-then-update: the two are separate statements and readers hold no
+    lock, so clearing first exposed a window in which ``VIEWER_CONFIG`` has no
+    password at all, and ``api.auth._is_open_install`` reads a missing password
+    as "this install has no lock" while ``config_load_failed()`` is still False
+    because ``_bootstrap`` succeeded. Inside it an anonymous caller got a
+    ``CurrentUser``, ``is_edition`` answered True, and
+    ``is_access_controlled_install`` degraded the visibility clause to ``1=1``.
+    ``load_viewer_config`` backfills every shipped key, so the auth-relevant
+    values are correct from the update onward and the prune only drops keys the
+    new config no longer has.
     """
-    global _FULL_CONFIG, _server_secret, JWT_SECRET
+    global _server_secret, JWT_SECRET
     with _config_lock:
-        _FULL_CONFIG, _server_secret = _bootstrap()
-        VIEWER_CONFIG.clear()
-        VIEWER_CONFIG.update(load_viewer_config(_FULL_CONFIG))
+        # Build BEFORE touching either dict, so a raising bootstrap leaves the
+        # previous config in place instead of a half-applied one.
+        fresh_full, fresh_secret = _bootstrap()
+        fresh_viewer = load_viewer_config(fresh_full)
+        _FULL_CONFIG.update(fresh_full)
+        for key in set(_FULL_CONFIG) - set(fresh_full):
+            del _FULL_CONFIG[key]
+        VIEWER_CONFIG.update(fresh_viewer)
+        for key in set(VIEWER_CONFIG) - set(fresh_viewer):
+            del VIEWER_CONFIG[key]
+        _server_secret = fresh_secret
         JWT_SECRET = _server_secret
 
 

@@ -18,7 +18,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
     CORRELATION_X_AXES, CORRELATION_Y_METRICS, FACET_SCRIPT,
     _get_stats_cached_async, _stats_cache,
-    _CONFIG_PATH, reload_config,
+    _CONFIG_PATH, reload_config, server_scoring_config,
 )
 from api.database import get_async_db, get_db
 from api.db_helpers import get_visibility_clause, to_exif_date, to_iso_date
@@ -835,9 +835,8 @@ async def api_stats_categories_breakdown(user: Optional[CurrentUser] = Depends(g
 
 @router.get('/api/stats/categories/weights')
 def api_stats_categories_weights(user: Optional[CurrentUser] = Depends(get_optional_user)):
-    from config import ScoringConfig
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
     categories = []
     for cat in config.get_categories():
         categories.append({
@@ -893,8 +892,7 @@ async def api_stats_categories_correlations(user: Optional[CurrentUser] = Depend
                     results[cat][weight_key] = round(pearson_r, 3)
 
         # Also include configured weight percentages for comparison
-        from config import ScoringConfig
-        config = ScoringConfig(validate=False)
+        config = server_scoring_config()
         configured = {}
         for cat_cfg in config.get_categories():
             name = cat_cfg['name']
@@ -962,10 +960,9 @@ async def api_stats_categories_overlap(user: Optional[CurrentUser] = Depends(get
     vis, vp = _vis_where(user)
 
     async def compute():
-        from config import ScoringConfig
         from config.category_filter import CategoryFilter
 
-        config = ScoringConfig(validate=False)
+        config = server_scoring_config()
         cat_configs = config.get_categories()
 
         # Build filters for each category

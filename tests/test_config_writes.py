@@ -3,6 +3,7 @@
 import json
 import os
 import shutil
+import logging
 import stat
 import sys
 import threading
@@ -14,9 +15,11 @@ from unittest import mock
 import pytest
 from fastapi import HTTPException
 
+import config_resolve
+
 from api import config as api_config
 from api.auth import _is_hashed, upgrade_legacy_password
-from api.config import CONFIG_WRITE_LOCK, atomic_write_json
+from api.config import CONFIG_WRITE_LOCK, write_user_config
 from api.config_writes import (
     BACKUP_FILE_MODE,
     MAX_CONFIG_BACKUPS,
@@ -27,7 +30,7 @@ from api.config_writes import (
 )
 from config.scoring_config import ScoringConfig
 
-REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "scoring_config.json"
+REPO_CONFIG_PATH = Path(config_resolve.defaults_path())
 
 
 @pytest.fixture
@@ -302,7 +305,7 @@ def _raising_get_db():
 
 class TestUpdateCategoryWeightsBackupPruning:
     """DEBT A5#3: update_category_weights(backup=True) was the only writer
-    passing prune=False to _backup_config, so modifier/filter edits
+    passing prune=False to backup_config, so modifier/filter edits
     accumulated ~88KB backups unbounded. It must prune like every other
     config-backup writer (update_category_priorities, update_scoring_context)."""
 
@@ -469,14 +472,24 @@ class TestUpdateScoringContext:
     def test_malformed_context_entry_is_healed_instead_of_crashing(self, config_copy):
         """A hand-edited config can leave a context as a list or string;
         ``resolve_context_order`` tolerates that, so the writer must too rather
-        than 500ing on item assignment."""
+        than 500ing on item assignment.
+
+        Only promote/excluded are asserted. The healed entry resolves over the
+        shipped context, so it keeps that context's ``label_key`` and
+        ``suggest_from_moments`` rather than losing them to the repair — which
+        is the point of resolving over defaults, and better than the bare
+        two-key dict a hand-healed file used to be left with.
+        """
         data = json.loads(config_copy.read_text())
         data["scoring_contexts"][self.CONTEXT] = ["broken"]
         config_copy.write_text(json.dumps(data))
 
         update_scoring_context(config_copy, self.CONTEXT, ["wildlife"], [])
 
-        assert _context(config_copy, self.CONTEXT) == {"promote": ["wildlife"], "excluded": []}
+        healed = _context(config_copy, self.CONTEXT)
+        assert isinstance(healed, dict)
+        assert healed["promote"] == ["wildlife"]
+        assert healed["excluded"] == []
 
     def test_concurrent_context_writes_never_corrupt_the_file(self, config_copy):
         deltas = [(["wildlife"], ["macro"]), (["sports"], [])]
@@ -605,7 +618,7 @@ class TestWritersOfDifferentPartsShareOneLock:
         """Widen one writer's read-modify-write window so the other lands inside it."""
         def _write(path, data):
             time.sleep(delay)
-            atomic_write_json(path, data)
+            write_user_config(path, data)
         return _write
 
     def test_neither_update_is_lost(self, config_copy):
@@ -622,7 +635,7 @@ class TestWritersOfDifferentPartsShareOneLock:
             upgrade_legacy_password("password", _PLAINTEXT_PASSWORD)
 
         with (
-            mock.patch("api.config_writes.atomic_write_json", self._delayed_write(_WRITE_WINDOW_SECONDS)),
+            mock.patch("api.config_writes.write_user_config", self._delayed_write(_WRITE_WINDOW_SECONDS)),
             mock.patch.object(api_config, "_CONFIG_PATH", str(config_copy)),
             mock.patch.object(api_config, "reload_config", lambda: None),
         ):
@@ -703,3 +716,153 @@ class TestConfigMigrationSuppression:
             self._read(config_copy, suppressed=suppressed)
             assert config_copy.read_text() == before
             assert not list(config_copy.parent.glob("*.backup"))
+
+
+class TestTheBackupWriterRefusesASymlink:
+    """`scoring_config.json.backup` is a FIXED name beside a guessable one.
+
+    Anyone able to create a name in the config directory plants a symlink
+    there, and the next password upgrade or weights save opened it with
+    O_TRUNC and wrote the complete config through it -- every
+    users.*.password_hash, viewer.password, upload.password, frame.token and
+    immich.api_key -- into whatever it pointed at. The `chmod` that follows
+    goes by NAME, so it re-moded the target too.
+
+    api/config.py's boot sweep already lstats files matching this same prefix
+    for exactly this reason. The two writers of that one path must not
+    disagree, which is what O_NOFOLLOW fixes here.
+    """
+
+    def _config(self, tmp_path):
+        source = tmp_path / "scoring_config.json"
+        source.write_text('{"viewer": {"password": "topsecret"}}')
+        return source
+
+    def test_it_writes_nothing_through_the_link(self, tmp_path):
+        from api.config_writes import write_owner_only_backup
+
+        source = self._config(tmp_path)
+        victim = tmp_path / "victim.txt"
+        victim.write_text("ORIGINAL\n")
+        backup = tmp_path / "scoring_config.json.backup"
+        backup.symlink_to(victim)
+
+        assert write_owner_only_backup(str(source), str(backup)) is None
+        assert victim.read_text() == "ORIGINAL\n"
+        assert backup.is_symlink()
+
+    def test_it_does_not_re_mode_the_target(self, tmp_path):
+        """The chmod goes by name, so following the link would tighten -- or on
+        another path loosen -- a file the attacker chose."""
+        from api.config_writes import write_owner_only_backup
+
+        source = self._config(tmp_path)
+        victim = tmp_path / "victim.txt"
+        victim.write_text("ORIGINAL\n")
+        victim.chmod(0o644)
+        backup = tmp_path / "scoring_config.json.backup"
+        backup.symlink_to(victim)
+
+        write_owner_only_backup(str(source), str(backup))
+
+        assert stat.S_IMODE(victim.stat().st_mode) == 0o644
+
+    def test_it_says_why_rather_than_failing_silently(self, tmp_path, caplog):
+        from api.config_writes import write_owner_only_backup
+
+        source = self._config(tmp_path)
+        victim = tmp_path / "victim.txt"
+        victim.write_text("ORIGINAL\n")
+        backup = tmp_path / "scoring_config.json.backup"
+        backup.symlink_to(victim)
+
+        with caplog.at_level(logging.ERROR, logger="api.config_writes"):
+            write_owner_only_backup(str(source), str(backup))
+
+        assert any("symlink" in r.getMessage() for r in caplog.records)
+
+    def test_an_ordinary_backup_is_unaffected(self, tmp_path):
+        from api.config_writes import write_owner_only_backup
+
+        source = self._config(tmp_path)
+        backup = tmp_path / "scoring_config.json.backup"
+
+        assert write_owner_only_backup(str(source), str(backup)) == str(backup)
+        assert backup.read_text() == '{"viewer": {"password": "topsecret"}}'
+        assert stat.S_IMODE(backup.stat().st_mode) == 0o600
+
+    def test_an_absent_source_still_returns_none_without_writing(self, tmp_path):
+        """The zero-config first write: an install that overrides nothing has no
+        config to back up, and the write that follows must still create one."""
+        from api.config_writes import write_owner_only_backup
+
+        backup = tmp_path / "scoring_config.json.backup"
+
+        assert write_owner_only_backup(str(tmp_path / "absent.json"), str(backup)) is None
+        assert not backup.exists()
+
+
+class TestTheFirstWriteToAZeroConfigInstall:
+    """An install that overrides nothing has no file to back up.
+
+    This is the state this release makes ordinary -- scoring_config.json is now
+    an override and a fresh install has none -- and every API config writer
+    calls ``backup_config`` before it writes. Without the absent-source guard
+    in ``write_owner_only_backup`` the first weights, priority, scoring-context
+    or panorama edit on a fresh install died in the BACKUP step with
+    FileNotFoundError, before it ever created the file.
+
+    ``default_config_path`` is patched rather than ``$FACET_CONFIG`` set,
+    because the two absences are deliberately different: a NAMED path that is
+    missing raises in ``load_resolved`` long before the backup step, so the
+    guard is only ever reached at the INHERITED default. Setting the variable
+    would test the raising branch instead and never exercise this one.
+    """
+
+    @pytest.fixture
+    def inherited_config_path(self, tmp_path, monkeypatch):
+        path = tmp_path / "scoring_config.json"
+        monkeypatch.delenv("FACET_CONFIG", raising=False)
+        monkeypatch.setattr(config_resolve, "default_config_path", lambda: str(path))
+        return path
+
+    def test_a_priority_write_creates_the_config_it_could_not_back_up(self, inherited_config_path):
+        from api.config_writes import update_category_priorities
+        from config_resolve import load_defaults
+
+        assert not inherited_config_path.exists()
+        names = [c["name"] for c in load_defaults()["categories"] if c.get("name") != "default"]
+
+        backup = update_category_priorities(str(inherited_config_path), list(reversed(names)))
+
+        assert backup is None, "there was nothing to back up, and that is not an error"
+        assert inherited_config_path.exists(), "the write itself must still land"
+
+    def test_the_write_is_the_delta_and_not_a_copy_of_the_defaults(self, inherited_config_path):
+        from api.config_writes import update_category_priorities
+        from config_resolve import load_defaults, load_resolved
+
+        names = [c["name"] for c in load_defaults()["categories"] if c.get("name") != "default"]
+        reordered = list(reversed(names))
+
+        update_category_priorities(str(inherited_config_path), reordered)
+
+        written = json.loads(inherited_config_path.read_text())
+        assert set(written) == {"categories"}, "only what differs from the defaults"
+        resolved = load_resolved(str(inherited_config_path))
+        ordered = [c["name"] for c in sorted(resolved["categories"], key=lambda c: c["priority"])
+                   if c.get("name") != "default"]
+        assert ordered == reordered
+
+    def test_the_second_write_does_take_a_backup(self, inherited_config_path):
+        """The guard is "if there is anything to back up", not "never back up"."""
+        from api.config_writes import update_category_priorities
+        from config_resolve import load_defaults
+
+        names = [c["name"] for c in load_defaults()["categories"] if c.get("name") != "default"]
+        update_category_priorities(str(inherited_config_path), list(reversed(names)))
+
+        backup = update_category_priorities(str(inherited_config_path), names)
+
+        assert backup is not None
+        assert os.path.exists(backup)

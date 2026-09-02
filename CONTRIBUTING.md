@@ -48,7 +48,7 @@ Follow the checklist at [`.claude/patterns/new-metric-checklist.md`](.claude/pat
 
 1. **Schema** -- Add column in `db/schema.py`
 2. **Scorer** -- Wire into `processing/scorer.py` aggregate calculation
-3. **Config** -- Add to `VALID_WEIGHT_COLUMNS` in `config/scoring_config.py` and set weights in `scoring_config.json`
+3. **Config** -- Add to `VALID_WEIGHT_COLUMNS` in `config/scoring_config.py` and set weights in `config/scoring_config.default.json` (the tracked defaults; `scoring_config.json` is the operator's untracked override)
 4. **Model** -- Add loader in `models/model_manager.py`, register pass in `processing/multi_pass.py`
 5. **API** -- Add range filter in `api/routers/gallery.py`
 6. **Client** -- Add to photo model, tooltip, gallery store, filter sidebar, and sort options

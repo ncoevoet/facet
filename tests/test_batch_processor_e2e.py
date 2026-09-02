@@ -18,6 +18,7 @@ torch = pytest.importorskip("torch")
 pytest.importorskip("cv2")
 
 from config.scoring_config import ScoringConfig  # noqa: E402
+from config_resolve import defaults_path  # noqa: E402
 from db.schema import init_database  # noqa: E402
 from processing.batch_processor import BatchProcessor  # noqa: E402
 
@@ -80,7 +81,7 @@ class FakeScorer:
         self.uses_transformers_backend = True  # skip CLIP preprocess
         self.device = "cpu"
         self.tagger = None
-        self.config = ScoringConfig("scoring_config.json", validate=False)
+        self.config = ScoringConfig(defaults_path(), validate=False)
         self.tech_analyzer = _FakeTechAnalyzer()
         self.face_analyzer = _FakeFaceAnalyzer()
         self._fail_inference = fail_inference

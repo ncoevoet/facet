@@ -20,7 +20,6 @@ Usage:
     python database.py --migrate-storage-db   # Migrate filesystem back to DB
 """
 
-import json
 import logging
 import os
 import sys
@@ -49,6 +48,7 @@ from db import (
     backup_database,
 )
 from config import default_config_path
+from config_resolve import load_resolved, write_user_config
 
 CONFIG_PATH = default_config_path()
 
@@ -88,9 +88,7 @@ def _load_config():
     that forwarded the dict it was handed would republish the secret into a
     git-tracked file.
     """
-    with open(CONFIG_PATH) as f:
-        config = json.load(f)
-    return _drop_legacy_secret(config)
+    return _drop_legacy_secret(load_resolved(CONFIG_PATH))
 
 
 def _save_config(config):
@@ -119,11 +117,39 @@ def _save_config(config):
     from api.config_writes import write_owner_only_backup
     _drop_legacy_secret(config)
     backup_path = f"{CONFIG_PATH}.backup.{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    write_owner_only_backup(CONFIG_PATH, backup_path)
-    logger.info("Backup saved to %s", backup_path)
-    with open(CONFIG_PATH, 'w') as f:
-        json.dump(config, f, indent=2)
+    if write_owner_only_backup(CONFIG_PATH, backup_path):
+        logger.info("Backup saved to %s", backup_path)
+    write_user_config(CONFIG_PATH, config)
     logger.info("Config saved to %s", CONFIG_PATH)
+
+
+def _compact_config():
+    """Rewrite the config as the override it is, dropping the shipped defaults.
+
+    An install that predates the split, or one that was seeded from a full
+    template, carries every shipped value as though it were a choice: 3700 lines
+    in which the operator's own three edits are invisible, and which a later
+    release cannot update. Every writer already compacts as a side effect of
+    writing -- ``config_resolve.write_user_config`` subtracts the defaults again
+    before any save, whether that save came from the viewer UI or a scan -- but a
+    read must not rewrite the operator's file, and a config edited only by hand
+    may never see a write at all. This is the explicit way to do it on demand,
+    and the only one that takes a backup first.
+
+    Lossless by construction: the file resolves to the same config afterwards,
+    which is what :func:`config_resolve.delta_for_write` guarantees. A backup is
+    taken first anyway, at 0600, because the file holds plaintext credentials.
+    """
+    from api.config_writes import backup_config
+
+    before = os.path.getsize(CONFIG_PATH) if os.path.exists(CONFIG_PATH) else 0
+    config = _load_config()
+    backup_path = backup_config(CONFIG_PATH, prune=False)
+    if backup_path:
+        logger.info("Backup saved to %s", backup_path)
+    write_user_config(CONFIG_PATH, config)
+    after = os.path.getsize(CONFIG_PATH)
+    logger.info("Compacted %s: %d -> %d bytes", CONFIG_PATH, before, after)
 
 
 def add_user(username, role, display_name=None):
@@ -317,6 +343,12 @@ def main():
         help='Show statistics cache info (age, freshness)'
     )
     parser.add_argument(
+        '--compact-config',
+        action='store_true',
+        help='Rewrite scoring_config.json as the override it is, dropping every '
+             'value equal to the shipped default'
+    )
+    parser.add_argument(
         '--vacuum',
         action='store_true',
         help='Reclaim space and defragment the database'
@@ -444,6 +476,8 @@ def main():
             for key, info in cache_info.items():
                 fresh_mark = "[fresh]" if info['fresh'] else "[stale]"
                 logger.info("  %s: %s old %s", key, info['age_human'], fresh_mark)
+    elif args.compact_config:
+        _compact_config()
     elif args.refresh_stats:
         # Refresh the stats cache
         refresh_stats_cache(args.db, verbose=True)

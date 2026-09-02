@@ -2,10 +2,11 @@
 
 > 🌐 **English** · [Français](fr/CONFIGURATION.md) · [Deutsch](de/CONFIGURATION.md) · [Italiano](it/CONFIGURATION.md) · [Español](es/CONFIGURATION.md) · [Português](pt/CONFIGURATION.md)
 
-All settings are in `scoring_config.json`. After modifying, run `python facet.py --recompute-average` to update scores (no GPU needed).
+Every setting is shipped in `config/scoring_config.default.json` and overridden, key by key, from your own `scoring_config.json` — see [Defaults and your override](#defaults-and-your-override). After modifying, run `python facet.py --recompute-average` to update scores (no GPU needed).
 
 ## Table of Contents
 
+- [Defaults and your override](#defaults-and-your-override)
 - [Users](#users)
 - [Scanning](#scanning)
 - [Categories](#categories)
@@ -44,6 +45,75 @@ All settings are in `scoring_config.json`. After modifying, run `python facet.py
 - [Translation](#translation)
 
 ---
+
+## Defaults and your override
+
+`scoring_config.json` holds **only what you changed**. Everything Facet ships lives in
+`config/scoring_config.default.json`, and your file is resolved on top of it: anything
+you leave out keeps the shipped value. A brand-new install has no `scoring_config.json`
+at all, and runs entirely on the defaults.
+
+So to raise the aesthetic weight for portraits and set an edition password, the whole
+file is:
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Two rules govern how the two are combined:
+
+- **Objects merge key by key.** `{"performance": {"mmap_size_mb": 4096}}` changes that
+  one setting and leaves `cache_size_mb` and every other `performance` key at its
+  shipped value.
+- **Arrays replace wholesale.** If your file has a `categories` array, it replaces the
+  shipped one entirely — it is not merged category by category. That is deliberate:
+  `categories` is evaluated first-match-wins in priority order and
+  `scoring_contexts.*.promote` is read in the order you write it, so merging arrays
+  element by element would silently reorder scoring. It is also the only way to
+  **delete** something: a category you leave out of your array is gone, whereas a
+  merged array would keep handing it back.
+
+  The practical consequence: changing one weight in one category means your file
+  carries all of them. Copy the `categories` array out of
+  `config/scoring_config.default.json`, edit it, and keep it — the other ~1500 lines of
+  the shipped config still stay out of your file.
+
+### Upgrading an existing install
+
+Nothing to do: a full `scoring_config.json` from an earlier release resolves to itself
+and keeps working. But your own edits are invisible in 3700 lines of shipped values, and
+settings you never chose are frozen at the values they had when you copied the file.
+
+You don't have to do anything to make that happen, either — every writer of
+`scoring_config.json` rewrites the whole file as the override it is, dropping any key
+that still matches the shipped default, not just the one it meant to change. Saving
+weights or a category priority from the viewer UI does it. So does a panorama-threshold
+change, the first successful login against a plaintext password (which upgrades it to a
+hash in the same write), and even an ordinary scan, if `validate_weights` corrects a
+category's weights along the way.
+
+```bash
+python database.py --compact-config
+```
+
+does the same compaction on demand, rather than waiting for the next write to trigger it.
+It is lossless — the file resolves to exactly the same configuration afterwards — and its
+real remaining advantage is the backup: it takes a `0600` copy of the file before writing.
+Not every writer does; the scan path (`ScoringConfig.save_config`) takes none, by design
+(see its docstring at `config/scoring_config.py:481`), so reach for `--compact-config`
+when you want a backup on record rather than trusting whichever writer runs next.
+
+> **The trade-off, stated plainly.** Once a value is dropped because it matched the
+> default, a later Facet release that changes that default changes your behaviour too —
+> and any write, not just `--compact-config`, is what drops it. That is the point — it is
+> how new tuning reaches you without editing your file. The only thing that actually pins
+> a value against a future default change is setting it to something *different* from the
+> shipped default: a value that merely equals the default cannot survive in the file —
+> the next write drops it, whether that write was compacting on purpose or not.
+
 
 ## Users
 
@@ -535,6 +605,8 @@ When `vram_profile` is `"auto"` (default), the system detects available GPU VRAM
 ### `FACET_VRAM_PROFILE` environment override
 
 The `FACET_VRAM_PROFILE` environment variable overrides `models.vram_profile` at load time (honored by `config/scoring_config.py`), so a single mounted config can serve every Docker profile without editing the JSON. Accepted values are `auto`, `legacy`, `8gb`, `16gb`, and `24gb`; any other value is ignored with a warning (so a typo can't silently mis-scan). The per-profile Docker Compose overlays (`docker-compose.{legacy,8gb,16gb,24gb}.yml`) set this variable for you.
+
+The override is **runtime-only and is never written back into `scoring_config.json`**, even when some other edit triggers a save — an automatic weight correction, for instance. That guarantee is what makes one mounted config usable by several containers at once: without it, the first container to save would pin `models.vram_profile` to its own value and every other container reading the same file would inherit it, whatever their own variable said. A `vram_profile` you set in the file yourself is untouched and still wins when the variable is unset.
 
 ```bash
 FACET_VRAM_PROFILE=8gb python facet.py /path/to/photos

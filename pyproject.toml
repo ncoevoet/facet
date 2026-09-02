@@ -1,5 +1,18 @@
 [build-system]
-requires = ["setuptools>=70.0", "wheel"]
+# >=83.0.0 for CVE-2026-59890: below it, `MANIFEST.in` exclusion directives are
+# matched byte-for-byte against on-disk names with no Unicode normalization, so
+# on macOS APFS/HFS+ a rule saved NFC silently fails to exclude a file written
+# NFD and the file lands in the sdist. Facet is not affected today — this
+# MANIFEST.in carries no exclusion directives at all, and the repo has no
+# non-ASCII filenames — so this floor keeps the build path patched rather than
+# incidentally safe, in case an `exclude` is ever added.
+#
+# This is deliberately NOT the same pin as the RUNTIME one. `requirements.txt`
+# caps setuptools <81 because pyiqa's LIQE/CLIPIQA reach PyPI `openai-clip`,
+# whose `clip/clip.py` still does `from pkg_resources import packaging`, and
+# setuptools 81 removed pkg_resources. PEP 517 build isolation resolves this
+# list separately from the installed environment, so the two do not conflict.
+requires = ["setuptools>=83.0.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -143,7 +156,7 @@ ignore_missing_imports = true
 warn_unused_ignores = false
 
 [tool.setuptools]
-py-modules = ["facet", "cli_args", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics"]
+py-modules = ["facet", "cli_args", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics", "config_resolve"]
 
 [tool.setuptools.packages.find]
 include = [

@@ -1053,8 +1053,8 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `POST /api/auth/login` | Autentica e recebe um token |
-| `POST /api/auth/edition/login` | Desbloqueia o modo de edição |
+| `POST /api/auth/login` | Autentica e recebe um token; 503 quando a própria configuração do servidor não pôde ser lida, estado que é recusado em vez de tratado como uma instalação sem senha |
+| `POST /api/auth/edition/login` | Desbloqueia o modo de edição; 503 nesse mesmo estado de configuração ilegível, para que não seja relatado como uma senha incorreta |
 | `POST /api/auth/edition/logout` | Bloqueia o modo de edição (abandona privilégios, permanece autenticado) |
 | `GET /api/auth/status` | Verifica o status de autenticação |
 

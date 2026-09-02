@@ -163,11 +163,17 @@ Poi sincronizza il viewer e il database esportato sul NAS:
 
 ```bash
 rsync -avz \
-  viewer.py config.py database.py tagger.py \
-  scoring_config.json photo_scores_viewer.db \
-  api/ client/dist/ db/ i18n/ \
+  viewer.py config_resolve.py database.py tagger.py \
+  photo_scores_viewer.db \
+  api/ client/dist/ config/ db/ i18n/ \
   admin@your-synology-ip:/volume1/facet/
 ```
+
+`config/` porta i valori predefiniti forniti, quindi nessun `scoring_config.json`
+viene sincronizzato: il NAS funziona con quei valori a meno che tu non metta il tuo
+override accanto al viewer. Se ne hai uno sulla macchina di scoring, aggiungilo
+all'elenco `rsync` — è un file specifico dell'installazione, quindi controllalo
+prima (contiene la password del viewer ed eventuali chiavi API in chiaro).
 
 Il viewer apre `photo_scores_pro.db` per impostazione predefinita (sovrascrivibile con la variabile d'ambiente `DB_PATH`). Sul NAS, imposta `DB_PATH=/volume1/facet/photo_scores_viewer.db` oppure crea un collegamento simbolico:
 ```bash
@@ -261,14 +267,15 @@ completa in [Installazione › Dimensioni dei download](INSTALLATION.md#dimensio
 
 **Tag versionati.** `:latest`, `:latest-cuda` e `:latest-cuda-legacy` si spostano a ogni release; fissa una versione (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, `:1.7.2-cuda-legacy`, …) su un NAS che non vuoi veder cambiare sotto di te. Tutte e tre le varianti si compilano dallo stesso `Dockerfile` tramite gli argomenti di build `BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML` e `REQUIREMENTS_LOCK`, impostati per variante in `.github/workflows/docker-publish.yml`. Quel workflow accetta anche un'esecuzione manuale `workflow_dispatch`, che ripubblica `latest` / `latest-cuda` / `latest-cuda-legacy` a partire da `master` senza tagliare una release né generare un tag versionato.
 
-Per un NAS solo viewer in cui l'immagine deve restare piccola (senza CUDA), compila invece un'immagine snella. Nota che la protezione CI richiede che ogni sorgente `COPY` sia tracciata da git, quindi il contesto di build deve includere i file elencati:
+Per un NAS solo viewer in cui l'immagine deve restare piccola (senza CUDA), compila invece un'immagine snella. Nota che la protezione CI richiede che ogni sorgente `COPY` sia tracciata da git, quindi il contesto di build deve includere i file elencati — motivo per cui nessun `scoring_config.json` viene copiato: quel file è un override specifico dell'installazione, non tracciato da git, e la sua assenza significa semplicemente che il container funziona con i valori predefiniti dentro `config/`.
 
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
 RUN pip install fastapi uvicorn pyjwt pillow
-COPY viewer.py config.py database.py tagger.py scoring_config.json ./
+COPY viewer.py config_resolve.py database.py tagger.py ./
 COPY api/ api/
+COPY config/ config/
 COPY client/dist/ client/dist/
 COPY db/ db/
 COPY i18n/ i18n/

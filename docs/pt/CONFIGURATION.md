@@ -2,10 +2,11 @@
 
 > 🌐 [English](../CONFIGURATION.md) · [Français](../fr/CONFIGURATION.md) · [Deutsch](../de/CONFIGURATION.md) · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md) · **Português**
 
-Todas as configurações ficam em `scoring_config.json`. Após modificar, execute `python facet.py --recompute-average` para atualizar as pontuações (não é necessário GPU).
+Cada configuração é distribuída em `config/scoring_config.default.json` e sobrescrita, chave por chave, a partir do seu próprio `scoring_config.json` — veja [Padrões e Seu Override](#padrões-e-seu-override). Após modificar, execute `python facet.py --recompute-average` para atualizar as pontuações (não é necessário GPU).
 
 ## Sumário
 
+- [Padrões e Seu Override](#padrões-e-seu-override)
 - [Usuários](#users)
 - [Escaneamento](#scanning)
 - [Categorias](#categories)
@@ -44,6 +45,81 @@ Todas as configurações ficam em `scoring_config.json`. Após modificar, execut
 - [Tradução](#translation)
 
 ---
+
+## Padrões e Seu Override
+
+`scoring_config.json` guarda **apenas o que você mudou**. Tudo o que o Facet
+distribui vive em `config/scoring_config.default.json`, e seu arquivo é resolvido por
+cima dele: tudo o que você deixar de fora mantém o valor distribuído. Uma instalação
+novinha em folha não tem nenhum `scoring_config.json` e roda inteiramente com os
+padrões.
+
+Assim, para aumentar o peso estético dos retratos e definir uma senha de edição, o
+arquivo inteiro fica:
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Duas regras determinam como os dois são combinados:
+
+- **Objetos são mesclados chave por chave.** `{"performance": {"mmap_size_mb": 4096}}`
+  muda apenas essa configuração e deixa `cache_size_mb`, e qualquer outra chave de
+  `performance`, no valor distribuído.
+- **Arrays são substituídos por completo.** Se seu arquivo tiver um array
+  `categories`, ele substitui completamente o distribuído — não é mesclado categoria
+  por categoria. Isso é proposital: `categories` é avaliado em ordem de prioridade
+  pela lógica de que a primeira correspondência vence, e `scoring_contexts.*.promote`
+  é lido na ordem em que você o escreve, então mesclar os arrays elemento por elemento
+  reordenaria a pontuação silenciosamente. É também a única forma de **excluir**
+  algo: uma categoria que você deixa de fora do seu array desaparece, enquanto um
+  array mesclado continuaria devolvendo-a.
+
+  A consequência prática: mudar um único peso em uma única categoria significa que
+  seu arquivo precisa carregar todas elas. Copie o array `categories` de
+  `config/scoring_config.default.json`, edite-o e mantenha-o — as outras ~1500 linhas
+  da configuração distribuída continuam fora do seu arquivo.
+
+### Atualizando uma instalação existente
+
+Não há nada a fazer: um `scoring_config.json` completo de uma versão anterior se
+resolve sobre si mesmo e continua funcionando. Mas suas próprias edições ficam
+invisíveis em meio a 3700 linhas de valores distribuídos, e configurações que você
+nunca escolheu ficam congeladas no valor que tinham quando você copiou o arquivo.
+
+Você também não precisa fazer nada para que isso aconteça: qualquer escrita em
+`scoring_config.json` já reescreve o arquivo inteiro como o override que ele é,
+descartando qualquer chave que ainda coincida com o padrão distribuído, não só a que
+se pretendia mudar. Salvar pesos ou uma prioridade de categoria pela UI do
+visualizador faz isso. Também faz uma mudança de limiar de panorama, o primeiro login
+bem-sucedido com uma senha em texto simples (que é promovida a hash nessa mesma
+escrita), e até uma varredura comum, se `validate_weights` corrigir os pesos de uma
+categoria pelo caminho.
+
+```bash
+python database.py --compact-config
+```
+
+faz a mesma compactação sob demanda, em vez de esperar a próxima escrita disparar isso.
+Não há perda de dados — o arquivo se resolve depois exatamente na mesma configuração —
+e sua vantagem real remanescente é o backup: ele faz uma cópia em `0600` do arquivo
+antes de escrever. Nem toda escrita faz isso; o caminho de varredura
+(`ScoringConfig.save_config`) não faz nenhum, de propósito (veja seu docstring em
+`config/scoring_config.py:481`), então recorra a `--compact-config` quando quiser um
+backup registrado em vez de confiar em qual escrita rodar em seguida.
+
+> **A contrapartida, dita sem rodeios.** Assim que um valor é descartado por
+> corresponder ao padrão, uma versão futura do Facet que muda esse padrão também muda
+> seu comportamento — e é qualquer escrita, não só `--compact-config`, que o descarta.
+> Esse é justamente o ponto — é assim que os novos ajustes chegam até você sem precisar
+> editar seu arquivo. A única coisa que realmente fixa um valor contra uma futura
+> mudança de padrão é defini-lo como algo *diferente* do padrão distribuído: um valor
+> que apenas coincide com o padrão não sobrevive no arquivo — a próxima escrita o
+> descarta, seja uma compactação intencional ou não.
+
 
 ## Users
 

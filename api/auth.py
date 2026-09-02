@@ -22,7 +22,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.config import (
     JWT_ALGORITHM, JWT_EXPIRY_HOURS,
     VIEWER_CONFIG,
+    _CONFIG_PATH,
     config_load_failed,
+    is_burned_password,
     is_multi_user_enabled
 )
 
@@ -358,11 +360,54 @@ def _is_hashed(value: str) -> bool:
 
 
 def verify_legacy_password(candidate: str, stored: str) -> bool:
-    """Verify a password against either a PBKDF2 hash or plaintext value."""
+    """Verify a password against either a PBKDF2 hash or plaintext value.
+
+    A stored plaintext this project PUBLISHED never verifies, whatever was
+    typed. `user` and `admin` shipped as viewer.password and
+    viewer.edition_password in the tracked scoring_config.json for a month, so
+    an install that never changed them is guarded by a value anyone can read
+    out of the public git history — accepting it would authenticate the whole
+    internet. Refusing costs the operator a config edit they have to make
+    anyway; the boot log names the key and the fix (see
+    :func:`check_legacy_password_warnings`), which is why this returns False
+    rather than raising a distinct status the client cannot tell apart from a
+    wrong password.
+
+    A HASHED store is checked the same way, against the candidate. Refusing
+    only the plaintext branch missed the entire population this exists for:
+    on releases before the refusal, `verify_legacy_password` accepted `user`
+    and `admin` and :func:`upgrade_legacy_password` rewrote them as `salt:dk`
+    on the very first successful login — so an install that used the viewer at
+    all now stores a HASH of a published password, and every later login sailed
+    past a check that only ever looked at the plaintext branch. Asking the
+    question of the candidate after a successful verify is exact: a candidate
+    that verifies against the stored hash IS the stored password.
+
+    Someone typing "admin" against a password that genuinely is something else
+    must still just fail the ordinary way — which it does, because the burned
+    check is reached only once the candidate has already verified.
+    """
     if not stored:
         return False
     if _is_hashed(stored):
-        return verify_password(candidate, stored)
+        if not verify_password(candidate, stored):
+            return False
+        if is_burned_password(candidate):
+            logger.error(
+                "Refusing a login against a password this project published in "
+                "its own git history. It is stored here as a hash because an "
+                "earlier release accepted it and hashed it on login, which "
+                "protected nothing — the value is still readable in the public "
+                "history. Set a new one in %s and restart.", _CONFIG_PATH,
+            )
+            return False
+        return True
+    if is_burned_password(stored):
+        logger.error(
+            "Refusing a login against a password this project published in its "
+            "own git history. Set a new one in %s and restart.", _CONFIG_PATH,
+        )
+        return False
     return hmac.compare_digest(candidate.encode('utf-8'), stored.encode('utf-8'))
 
 
@@ -382,23 +427,43 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
     primitive instead of ``shutil.copy2`` plus a ``chmod``, which put those
     bytes on disk at the config's own (0664 under a default umask) mode first
     and only tightened them afterwards.
+
+    That backup is BEST-EFFORT, like every other caller's — which is what the
+    primitive's own docstring promises, and what this caller alone used not to
+    honour. It re-raises any OSError that is not ELOOP, and an unwritable
+    config directory is an ordinary supported state: a `:ro` /config mount, an
+    NFS root_squash export, a full disk, a stray leftover at the backup name.
+    Letting that escape turned a CORRECT password into a 500 while a wrong one
+    still answered 401 — a status-code oracle an unauthenticated caller could
+    use to confirm the password of a server that would not let them in — and
+    locked the operator out of an install whose password was fine. Failing the
+    upgrade is the right outcome; failing the LOGIN is not.
     """
     from api.config import (
         _CONFIG_BACKUP_SUFFIX,
         _CONFIG_PATH,
         CONFIG_WRITE_LOCK,
-        atomic_write_json,
         reload_config,
+        write_user_config,
     )
     from api.config_writes import write_owner_only_backup
-    import json
+    from config_resolve import load_resolved
 
     hashed = hash_password(plaintext)
+    # What the operator reads, rather than the raw key. `config_key` is a key
+    # NAME, never a secret, but it is also the lookup key into a dict whose
+    # values are passwords -- which is enough for CodeQL's
+    # py/clear-text-logging-sensitive-data to follow the taint to the key and
+    # report all three log calls below as leaking a password (it started once
+    # the callers passed VIEWER_PASSWORD_KEY / EDITION_PASSWORD_KEY instead of
+    # the bare strings). A label chosen by comparison is a literal, so the
+    # question does not arise -- and "viewer password" says more to whoever is
+    # reading the log than "password" did.
+    label = 'viewer password' if config_key == VIEWER_PASSWORD_KEY else 'edition password'
     upgraded = False
     with CONFIG_WRITE_LOCK:
         try:
-            with open(_CONFIG_PATH) as f:
-                config = json.load(f)
+            config = load_resolved(_CONFIG_PATH)
         except Exception:
             logger.warning("Cannot upgrade password: failed to read config")
             return
@@ -406,26 +471,67 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
         if viewer.get(config_key, '') and not _is_hashed(viewer[config_key]):
             viewer[config_key] = hashed
             config['viewer'] = viewer
-            write_owner_only_backup(_CONFIG_PATH, f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}")
             try:
-                atomic_write_json(_CONFIG_PATH, config)
+                write_owner_only_backup(_CONFIG_PATH, f"{_CONFIG_PATH}{_CONFIG_BACKUP_SUFFIX}")
+            except OSError:
+                logger.exception(
+                    "Could not back up %s before upgrading the %s; upgrading anyway",
+                    _CONFIG_PATH, label,
+                )
+            try:
+                write_user_config(_CONFIG_PATH, config)
                 upgraded = True
             except Exception:
-                logger.exception("Failed to upgrade password hash for %s", config_key)
+                logger.exception("Failed to upgrade the %s hash", label)
     if upgraded:
         reload_config()
-        logger.info("Upgraded plaintext %s to PBKDF2 hash", config_key)
+        logger.info("Upgraded the plaintext %s to a PBKDF2 hash", label)
 
 
 def check_legacy_password_warnings():
-    """Log warnings at startup if plaintext passwords are detected."""
+    """Log warnings at startup if plaintext passwords are detected.
+
+    A PUBLISHED plaintext is reported separately and as an ERROR, because the
+    two say opposite things. "Will be hashed on next successful login" is
+    reassuring and, for `user` or `admin`, wrong twice over: there will be no
+    successful login (:func:`verify_legacy_password` refuses them), and hashing
+    a value out of the public git history would not have protected anything
+    anyway. For a STILL-PLAINTEXT store this is the only place the operator is
+    told why their password stopped working, so it names the key and the file.
+
+    A store that is already a HASH of a published password gets no line here,
+    and deliberately so: proving it would mean holding `user` and `admin` as
+    literals to PBKDF2 the stored value against, and not re-committing those
+    plaintexts is the whole reason :data:`api.config._BURNED_PASSWORD_DIGESTS`
+    keeps digests instead of values. That install is still refused —
+    :func:`verify_legacy_password` asks the question of the CANDIDATE once it
+    has verified — and the refusal logs an error naming the file at the moment
+    the operator actually hits it, which is when they are looking.
+    """
+    # ``key`` is a config KEY NAME -- the literal 'password' or
+    # 'edition_password' -- and it is the only thing these two log lines
+    # interpolate from this loop. The password itself is ``value``, which is
+    # never logged, in either branch. CodeQL reports both lines as clear-text
+    # logging of a secret (alerts 121 and 122) because ``key`` is the lookup key
+    # into a dict whose VALUES are passwords, so its taint follows the key
+    # rather than the value. Naming the key is the point: it is what tells the
+    # operator which of the two settings to change.
     for key in (VIEWER_PASSWORD_KEY, EDITION_PASSWORD_KEY):
         value = VIEWER_CONFIG.get(key, '')
-        if value and not _is_hashed(value):
-            logger.warning(
-                "Plaintext %s detected in scoring_config.json — "
-                "will be hashed on next successful login", key
+        if not value or _is_hashed(value):
+            continue
+        if is_burned_password(value):
+            logger.error(
+                "%s in %s is a password this project shipped in its own tracked "
+                "config, so it is readable in the public git history and every "
+                "login against it is refused. Set a new one and restart.",
+                key, _CONFIG_PATH,
             )
+            continue
+        logger.warning(
+            "Plaintext %s detected in scoring_config.json — "
+            "will be hashed on next successful login", key
+        )
 
 
 # --- RATE LIMITING ---

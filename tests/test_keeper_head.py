@@ -175,7 +175,7 @@ def test_keeper_baseline_accuracy():
 def test_with_heuristic_dataset_shapes(keeper_db):
     signals = _seed_photos(keeper_db, n=40)
     _add_culling(keeper_db, signals, count=80)
-    opt = WeightOptimizer(keeper_db, 'scoring_config.json')
+    opt = WeightOptimizer(keeper_db)
     conn = sqlite3.connect(keeper_db)
     conn.row_factory = sqlite3.Row
     data = pr.build_ranker_dataset(conn, opt, sources=['culling'], with_heuristic=True)
@@ -187,7 +187,7 @@ def test_with_heuristic_dataset_shapes(keeper_db):
 def test_default_dataset_unchanged(keeper_db):
     signals = _seed_photos(keeper_db, n=40)
     _add_culling(keeper_db, signals, count=80)
-    opt = WeightOptimizer(keeper_db, 'scoring_config.json')
+    opt = WeightOptimizer(keeper_db)
     conn = sqlite3.connect(keeper_db)
     conn.row_factory = sqlite3.Row
     data = pr.build_ranker_dataset(conn, opt, sources=['culling'])
@@ -242,7 +242,7 @@ def test_group_probs_sum_to_one_and_order_by_signal(keeper_db):
     _add_culling(keeper_db, signals, count=80)
     kh.train_keeper_head(keeper_db, min_improvement_pp=2.0, force=True)
     head = _load_head(keeper_db)
-    opt = WeightOptimizer(keeper_db, 'scoring_config.json')
+    opt = WeightOptimizer(keeper_db)
     ordered = sorted(signals, key=lambda p: signals[p])
     pick = [ordered[0], ordered[len(ordered) // 2], ordered[-1]]
     probs = kh.keeper_probs_for_group(head, opt, _rows(keeper_db, pick))
@@ -256,7 +256,7 @@ def test_group_probs_none_when_fewer_than_two(keeper_db):
     _add_culling(keeper_db, signals, count=80)
     kh.train_keeper_head(keeper_db, force=True)
     head = _load_head(keeper_db)
-    opt = WeightOptimizer(keeper_db, 'scoring_config.json')
+    opt = WeightOptimizer(keeper_db)
     one = _rows(keeper_db, [next(iter(signals))])
     assert kh.keeper_probs_for_group(head, opt, one) is None
     assert kh.keeper_probs_for_group(None, opt, one) is None
@@ -399,7 +399,7 @@ def test_attach_keeper_probs_trained(trained_keeper_db):
 def test_keeper_probs_skips_none_and_wrong_dim_embeddings(trained_keeper_db):
     db_path, signals, ordered = trained_keeper_db
     head = _load_head(db_path)
-    opt = WeightOptimizer(db_path, 'scoring_config.json')
+    opt = WeightOptimizer(db_path)
     picks = ordered[-4:]
     by_path = {r['path']: r for r in _rows(db_path, picks)}
     none_row = dict(by_path[picks[0]])
@@ -428,7 +428,7 @@ def test_burst_weights_defaults_and_partial_override():
 def test_build_ranker_dataset_heuristic_reflects_custom_weights(keeper_db):
     signals = _seed_photos(keeper_db, n=6)
     _add_culling(keeper_db, signals, count=2)
-    opt = WeightOptimizer(keeper_db, 'scoring_config.json')
+    opt = WeightOptimizer(keeper_db)
     conn = sqlite3.connect(keeper_db)
     conn.row_factory = sqlite3.Row
     data = pr.build_ranker_dataset(

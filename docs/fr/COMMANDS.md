@@ -297,7 +297,40 @@ Lecture seule : elle décode un échantillon aléatoire directement depuis le d
 
 ## Configuration
 
-La variable d'environnement `FACET_CONFIG`, si elle est définie, fournit le chemin par défaut de `scoring_config.json` pour `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` et `calibrate.py` lorsqu'ils s'exécutent sans `--config` explicite ; `--config` la remplace toujours. Si la variable désigne un fichier inexistant, la galerie web refuse d'emprunter le chemin d'authentification « installation ouverte » plutôt que d'en conclure que l'installation n'a aucun mot de passe, et journalise une erreur nommant le chemin manquant.
+`scoring_config.json` est une **surcharge** : il ne contient que les réglages que vous avez modifiés, et il est résolu par-dessus les valeurs par défaut livrées dans `config/scoring_config.default.json`. L'absence de fichier de configuration signifie donc une installation qui tourne entièrement sur ces valeurs par défaut, pas une installation cassée — voir [Configuration](CONFIGURATION.md#valeurs-par-défaut-et-votre-surcharge).
+
+La variable d'environnement `FACET_CONFIG`, si elle est définie, fournit le chemin par défaut de `scoring_config.json` pour `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py`, `calibrate.py` et `viewer.py` lorsqu'ils s'exécutent sans `--config` explicite ; `--config` la remplace toujours. `viewer.py` (et le serveur `api/` qu'il démarre) n'a pas d'option `--config` à lui — `FACET_CONFIG` est donc son seul moyen d'être redirigé. Si la variable — ou `--config` — désigne un fichier inexistant, c'est une erreur et non une surcharge vide : un chemin que quelqu'un a NOMMÉ et qui est manquant trahit une faute de frappe ou un point de montage cassé, si bien que la galerie web refuse d'emprunter le chemin d'authentification « installation ouverte » plutôt que d'en conclure que l'installation n'a aucun mot de passe, et journalise une erreur nommant le chemin manquant. Seul le chemin par défaut *hérité* peut être absent.
+
+Si aucune des deux n'est définie, `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` et `calibrate.py` lisent un `scoring_config.json` présent dans le **répertoire de travail** — une photothèque qui embarque sa propre configuration est donc notée avec celle-ci — et sinon celui situé à côté de l'installation. Seul ce repli hérité peut être absent : cela signifie une installation qui tourne sur les valeurs par défaut fournies.
+
+La galerie web `viewer.py` et le serveur `api/` qu'elle démarre ne font jamais ce détour par le répertoire de travail : ils ne résolvent que `FACET_CONFIG`, sinon le fichier situé à côté de l'installation — jamais un `scoring_config.json` qui traînerait dans le répertoire depuis lequel on les lance. Cela compte, car c'est la configuration de la galerie web qui porte les mots de passe de l'opérateur : la démarrer depuis une photothèque ne récupère pas la configuration de celle-ci, et si l'installation n'en a pas non plus, elle retombe silencieusement sur les valeurs par défaut fournies — un `viewer.edition_password` vide qui sert alors toutes les routes de façon anonyme.
+
+```bash
+# 1. --config prime sur tout. Un fichier manquant ici est une ERREUR, pas une surcharge vide.
+python facet.py --config /srv/facet/mariage.json /photos/mariage
+
+# 2. $FACET_CONFIG fournit le chemin par défaut si --config est omis (Docker le définit).
+export FACET_CONFIG=/config/scoring_config.json
+python facet.py /photos            # lit /config/scoring_config.json
+python facet.py --config autre.json /photos   # --config prime toujours
+
+# 3. Ni l'un ni l'autre : un config du RÉPERTOIRE DE TRAVAIL prime pour les outils en
+#    ligne de commande, une photothèque peut donc embarquer le sien. viewer.py n'a pas
+#    ce comportement -- voir plus bas.
+cd /photos/seance-client         # contient son propre scoring_config.json
+python /opt/facet/facet.py .     # noté avec /photos/seance-client/scoring_config.json
+
+# 4. Ni l'un ni l'autre, et rien ici : repli sur le config situé à côté de l'installation.
+cd /tmp
+python /opt/facet/facet.py /photos   # lit /opt/facet/scoring_config.json
+                                     # absent = tourne sur les valeurs par défaut fournies
+
+# 5. viewer.py ne fait jamais ce détour par le répertoire de travail, contrairement aux cas 1 à 4.
+cd /photos/seance-client         # contient son propre scoring_config.json -- sans effet ici
+python /opt/facet/viewer.py      # lit toujours /opt/facet/scoring_config.json (ou $FACET_CONFIG)
+```
+
+Seuls les cas 4 et 5 peuvent ne rien trouver. Les cas 1 et 2 nomment un chemin : un fichier manquant arrête donc la commande au lieu de noter silencieusement avec des valeurs que personne n'a choisies.
 
 | Commande | Description |
 |---------|-------------|
@@ -336,6 +369,7 @@ Vérifications : plages de scores, métriques de visages, corruption de BLOB, ta
 | `python database.py --rebuild-fts` | Reconstruit l'index de recherche plein texte FTS5 à partir des légendes/étiquettes |
 | `python database.py --populate-vec` | Remplit la table de recherche vectorielle sqlite-vec à partir des embeddings |
 | `python database.py --refresh-stats` | Rafraîchit le cache de statistiques |
+| `python database.py --compact-config` | Réécrit `scoring_config.json` comme la surcharge qu'il est, en supprimant chaque valeur identique à celle livrée par défaut (sans perte ; prend d'abord une sauvegarde en `0600`) |
 | `python database.py --stats-info` | Affiche l'état et l'ancienneté du cache |
 | `python database.py --vacuum` | Récupère de l'espace, défragmente |
 | `python database.py --analyze` | Met à jour les statistiques du planificateur de requêtes |

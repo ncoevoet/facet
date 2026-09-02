@@ -115,8 +115,8 @@ def _keeper_baseline_accuracy(heur_a, heur_b, y):
 def _burst_weights_for(config_path):
     """The burst_scoring weights, read from the config file (defaults if absent)."""
     try:
-        with open(config_path) as f:
-            block = json.load(f).get('burst_scoring', {})
+        from config_resolve import load_resolved
+        block = load_resolved(config_path).get('burst_scoring', {})
     except (OSError, ValueError):
         block = {}
     return burst_weights_from_config(block)

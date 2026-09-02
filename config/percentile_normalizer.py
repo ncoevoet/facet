@@ -8,6 +8,7 @@ import json
 import logging
 import sqlite3
 from db import get_connection
+from config_resolve import load_resolved, write_user_config
 
 logger = logging.getLogger("facet.normalizer")
 
@@ -2092,12 +2093,15 @@ class PercentileNormalizer:
 
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         backup_path = f"{config_path}.backup.{timestamp}"
-        write_owner_only_backup(config_path, backup_path)
-        logger.info("  Backup created: %s", backup_path)
+        if not write_owner_only_backup(config_path, backup_path):
+            # Nothing was copied, so there is no rollback point to hand back.
+            logger.info("  No existing config to back up — writing a new override")
+            backup_path = None
+        else:
+            logger.info("  Backup created: %s", backup_path)
 
         # Load current config
-        with open(config_path, 'r') as f:
-            config_data = json.load(f)
+        config_data = load_resolved(config_path)
 
         # Phase 1: Collect all proposed changes into a dedup map
         # Key: (category, weight_key) -> lowest proposed value (most aggressive reduction)
@@ -2214,8 +2218,7 @@ class PercentileNormalizer:
                     logger.warning("Category '%s' not found in config, skipping %s=%s", section, key, value)
 
         # Save updated config
-        with open(config_path, 'w') as f:
-            json.dump(config_data, f, indent=2)
+        write_user_config(config_path, config_data)
 
         # Record applied recommendations to history table
         if applied_count > 0:

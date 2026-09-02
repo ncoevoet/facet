@@ -17,7 +17,7 @@ from api.auth import CurrentUser, require_authenticated
 
 _AUTH_MODULE = "api.auth"
 _ROUTER_MODULE = "api.routers.comparison"
-_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "scoring_config.json"
+_REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config" / "scoring_config.default.json"
 
 # edition_password must be set so require_edition rejects non-admin users
 _VIEWER_CONFIG = {

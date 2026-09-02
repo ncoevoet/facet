@@ -11,6 +11,9 @@ import hashlib
 
 logger = logging.getLogger("facet.config")
 
+from config_resolve import (  # noqa: F401 - default_config_path is re-exported via config/__init__.py
+    default_config_path, load_resolved, path_is_named, write_user_config,
+)
 from config.category_filter import (
     VALID_NUMERIC_FILTERS, VALID_BOOLEAN_FILTERS, VALID_TAG_FILTERS,
     VALID_WEIGHT_COLUMNS,
@@ -47,23 +50,6 @@ RAW_DECODE_DEFAULTS = {
     'viewer_concurrency': 3,
     'faithful_bracket_render': True,
 }
-
-
-def default_config_path():
-    """Absolute path to the repo-root scoring_config.json, or $FACET_CONFIG.
-
-    Resolves what api.config._CONFIG_PATH resolves, but lives here so modules
-    outside the api package can reach it without inverting the
-    api -> optimization import direction. Duplicated rather than imported for
-    the same reason: this one line of env-var handling is cheaper to keep in
-    sync than a new cross-package dependency.
-    """
-    env_path = os.environ.get('FACET_CONFIG', '').strip()
-    if env_path:
-        return env_path
-    return os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        'scoring_config.json')
 
 
 def _calc_stats(values):
@@ -130,16 +116,35 @@ def _usable_category_name(category):
     return name if isinstance(name, str) and name.strip() else None
 
 
+_CWD_CONFIG_FILENAME = 'scoring_config.json'
+
+
 def resolve_scoring_config_path(explicit):
     """Path a caller-less ``ScoringConfig()`` loads: the argument, then
-    $FACET_CONFIG, then the relative ``'scoring_config.json'`` every CLI entry
-    point already resolves against its own working directory. Not
-    :func:`default_config_path`: that one is always absolute, while callers
-    here (``facet.py``'s ``--config``, and every bare ``ScoringConfig()`` in
-    ``api/``) have always resolved the plain string against process cwd, and
-    changing that silently would move which file a running install reads.
+    $FACET_CONFIG, then a config in the working directory, then the install root.
+
+    The working-directory step is a real workflow -- run Facet from a photo
+    library that carries its own ``scoring_config.json`` and that config is what
+    scores it -- so it is tried FIRST, and only its ABSENCE falls through to
+    ``default_config_path()``.
+
+    That fall-through is the fix. This used to return the relative name
+    unconditionally, which was harmless while an absent config raised: the
+    failure was loud wherever you ran from. Once an absent config became a
+    supported state -- an install running purely on the shipped defaults -- the
+    unconditional relative name made "no config here" indistinguishable from
+    "no config anywhere", so ``python /opt/facet/facet.py`` run from any
+    directory without one scored silently on defaults while the operator's real
+    config sat unread in the install root. Existence is what separates the two,
+    and it is checked here rather than in ``path_is_named``, whose own docstring
+    refuses to compare against a cwd-relative name for the same reason.
     """
-    return explicit or os.environ.get('FACET_CONFIG', '').strip() or 'scoring_config.json'
+    named = explicit or os.environ.get('FACET_CONFIG', '').strip()
+    if named:
+        return named
+    if os.path.exists(_CWD_CONFIG_FILENAME):
+        return _CWD_CONFIG_FILENAME
+    return default_config_path()
 
 
 def _readable_system_ram_gb():
@@ -195,6 +200,15 @@ class ScoringConfig:
 
     def __init__(self, config_path=None, validate=True):
         self.config_path = resolve_scoring_config_path(config_path)
+        # Whether a HUMAN chose this path, which decides what an absent file
+        # means: a named one that is missing is a typo or a broken mount and
+        # must raise, while the inherited default simply being absent is an
+        # install running on the shipped defaults. Passing a path is not the
+        # same as naming one -- WeightOptimizer, calibrate and the personal
+        # ranker all resolve the default themselves and hand it over, so
+        # `config_path is not None` would make every one of them fail on a
+        # zero-config install.
+        self._config_path_is_named = path_is_named(config_path)
         self.config = self._load_config()
         self._context_order_cache = {}
         self.version_hash = self._compute_version_hash()
@@ -206,19 +220,25 @@ class ScoringConfig:
     def _load_config(self):
         """Load config from file.
 
-        Raises:
-            FileNotFoundError: If config file doesn't exist
-            ValueError: If config is not v4.0 format (no 'categories' array)
-        """
-        if not os.path.exists(self.config_path):
-            raise FileNotFoundError(
-                f"Config file not found: {self.config_path}\n"
-                f"Please ensure scoring_config.json exists with v4.0 format."
-            )
+        The file is the operator's OVERRIDE, resolved on top of the defaults
+        this package ships — so it may hold three keys, or none, and every
+        section it does not mention still has the shipped value. An absent
+        file is therefore an empty override rather than an error, but only
+        when nobody NAMED it: a path passed as ``config_path`` or through
+        $FACET_CONFIG that is not there is a typo or a broken mount, and
+        reading that as "no overrides" would silently score with defaults the
+        operator never chose.
 
+        Raises:
+            FileNotFoundError: If a NAMED config path doesn't exist
+            ValueError: If the resolved config is not v4.0 format (no
+                'categories' array), which now means the shipped defaults
+                themselves are broken
+        """
         try:
-            with open(self.config_path, 'r') as f:
-                config = json.load(f)
+            config = load_resolved(self.config_path, named=self._config_path_is_named)
+        except FileNotFoundError:
+            raise
         except Exception as e:
             raise ValueError(f"Could not load config from {self.config_path}: {e}")
 
@@ -237,6 +257,17 @@ class ScoringConfig:
         if env_profile:
             valid_profiles = {'auto', 'legacy', '8gb', '16gb', '24gb'}
             if env_profile in valid_profiles:
+                # Remember what the FILE said, so :meth:`save_config` can put it
+                # back before writing. Without that, any write -- and
+                # ``validate_weights`` triggers one whenever it corrects a
+                # category -- persists this process's env value into the
+                # operator's override, turning a per-container knob into a
+                # permanent setting that every other container sharing the
+                # mount then inherits. Recorded even when it is absent (None),
+                # because "the file did not set this" is exactly what has to be
+                # restored for the key to stay out of the delta.
+                self._vram_profile_from_file = config.get('models', {}).get('vram_profile')
+                self._vram_profile_from_env = env_profile
                 config.setdefault('models', {})['vram_profile'] = env_profile
                 logger.info("VRAM profile overridden by FACET_VRAM_PROFILE=%s", env_profile)
             else:
@@ -438,10 +469,51 @@ class ScoringConfig:
         return is_valid, corrected_categories
 
     def save_config(self):
-        """Save the current config to the config file."""
-        with open(self.config_path, 'w') as f:
-            json.dump(self.config, f, indent=2)
-            f.write('\n')  # Trailing newline
+        """Save the operator's OVERRIDE back to the config file.
+
+        ``self.config`` is the resolved config -- the shipped defaults with the
+        file laid over them -- so writing it verbatim would copy every shipped
+        default into a file that is meant to record only what differs.
+
+        The delta is computed BEFORE the file is opened. ``open(path, 'w')``
+        truncates immediately, and subtracting the defaults reads them off
+        disk -- so computing it inside the ``with`` put a file read between the
+        truncation and the write. This is the one config writer that takes no
+        backup first, so a raise in that window left the operator's only copy
+        of their overrides at zero bytes.
+
+        $FACET_VRAM_PROFILE is put back to whatever the FILE said before the
+        delta is computed. ``_load_config`` folds that variable into
+        ``self.config`` in place, so writing the resolved dict persisted this
+        process's env value: with ``FACET_VRAM_PROFILE=8gb`` set, a single
+        ``validate_weights`` correction was enough to leave
+        ``{"models": {"vram_profile": "8gb"}}`` in the override. That is the
+        opposite of what the variable is documented to do -- let one mounted
+        config serve every Docker profile -- because the next container reading
+        that mount then inherits 8gb whatever its own variable says.
+        """
+        env_profile = getattr(self, '_vram_profile_from_env', None)
+        models = self.config.get('models')
+        restore = (
+            env_profile is not None
+            and isinstance(models, dict)
+            and models.get('vram_profile') == env_profile
+        )
+        if not restore:
+            write_user_config(self.config_path, self.config)
+            return
+        if self._vram_profile_from_file is None:
+            del models['vram_profile']
+        else:
+            models['vram_profile'] = self._vram_profile_from_file
+        try:
+            write_user_config(self.config_path, self.config)
+        finally:
+            # This process keeps running on the profile it loaded with, so the
+            # override goes back the moment the file is written -- and on a
+            # raise too, or a failed save would silently move the running
+            # scorer onto a different profile mid-scan.
+            models['vram_profile'] = env_profile
 
     def get_weights(self, category):
         """Get weights for a scoring category (portrait, human_others, others).

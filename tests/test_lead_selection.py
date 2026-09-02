@@ -4,6 +4,7 @@ Tests for composite best-of lead selection (utils/selection.py), Topic 4 step 6.
 aggregate dominates; eyes-open / expression / sharpness only break near-ties.
 """
 
+from config_resolve import defaults_path
 from utils.selection import composite_lead_score, pick_lead
 
 
@@ -79,7 +80,6 @@ def test_process_bursts_uses_composite_tiebreak(tmp_path):
     blink frame with a *slightly higher* aggregate in the same burst as an open-eyes
     frame and asserts the open-eyes frame wins — it FAILS on the old max(aggregate).
     """
-    import os
     import sqlite3
     from db.schema import init_database
     from processing.scorer import process_bursts
@@ -105,7 +105,7 @@ def test_process_bursts_uses_composite_tiebreak(tmp_path):
     conn.commit()
     conn.close()
 
-    config_path = os.path.join(os.path.dirname(__file__), "..", "scoring_config.json")
+    config_path = defaults_path()
     process_bursts(db_path, config_path=config_path)
 
     conn = sqlite3.connect(db_path)

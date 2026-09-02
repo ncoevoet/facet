@@ -16,6 +16,7 @@ torch = pytest.importorskip("torch")
 pytest.importorskip("cv2")
 
 from config import ScoringConfig  # noqa: E402
+from config_resolve import defaults_path  # noqa: E402
 from db.schema import init_database  # noqa: E402
 from processing.multi_pass import ChunkedMultiPassProcessor  # noqa: E402
 from processing.scan_state import ScanRun, get_failed_paths  # noqa: E402
@@ -37,7 +38,7 @@ class _StubModelManager:
 
 class _StubScorer:
     def __init__(self, db_path):
-        self.config = ScoringConfig("scoring_config.json")
+        self.config = ScoringConfig(defaults_path())
         self.face_analyzer = object()
         self.saved = []
         self.db_path = db_path

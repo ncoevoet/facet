@@ -965,6 +965,7 @@
     "login": "Log in",
     "invalid_credentials": "Invalid credentials",
     "error": "Login failed",
+    "config_unreadable": "Server configuration could not be read — check the server log",
     "user_menu": "User menu"
   },
   "gallery": {

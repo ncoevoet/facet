@@ -231,19 +231,29 @@ Bereitstellungs-Einstellungen liegen in `.env` (kopieren Sie `.env.example`):
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Datenbankpfad im Container, gehalten auf dem `./data`-Bind-Mount |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` der Konfiguration | Auslöser für das Neutrainieren des persönlichen Rankers, für Nutzer mit vielen Bewertungen |
 
-Eine bereinigte `scoring_config.default.json` ist als Ausgangskonfiguration ins Image
-eingebacken. `docker-entrypoint.sh` kopiert sie nur beim ersten Start in die
-persistente Datei `./facet-config/scoring_config.json`, die `docker-compose.yml` bereits
-einhängt (als `FACET_CONFIG=/config/scoring_config.json` im Container) — der Container
-läuft also ohne jede Host-Einrichtung, und jede Konfigurationsänderung zur Laufzeit (die
-Migration des Viewer-Passworts, Gewichte, Prioritäten, Scoring-Kontexte) übersteht jetzt
-ein `docker compose down && up`. Bearbeiten Sie `./facet-config/scoring_config.json`
-direkt, um Gewichte, das Viewer-Passwort oder Kategorien von Hand anzupassen; eine
-bestehende Datei wird nie überschrieben.
+`scoring_config.json` ist Ihre **Überschreibung**, nicht die gesamte Konfiguration.
+Jeder Wert, den Facet ausliefert, lebt in `config/scoring_config.default.json`
+innerhalb des Images, und Ihre Datei wird darüber aufgelöst — sie muss also nur die
+Handvoll Einstellungen enthalten, die Sie tatsächlich geändert haben, und alles, was
+Sie weglassen, behält den ausgelieferten Wert (und übernimmt dessen Verbesserungen bei
+einem Upgrade).
 
-> **Sie steigen von einer Version vor dieser Änderung um?** Frühere Versionen rieten zu
-> `cp scoring_config.default.json scoring_config.json` und dem Auskommentieren einer
-> Zeile `- ./scoring_config.json:/app/scoring_config.json` in `docker-compose.yml`.
+`docker-entrypoint.sh` befüllt daher die persistente Datei
+`./facet-config/scoring_config.json` beim ersten Start mit einem leeren `{}`. Diese
+Datei wird von `docker-compose.yml` eingehängt (als
+`FACET_CONFIG=/config/scoring_config.json` im Container), sodass der Container ohne
+jede Host-Einrichtung läuft und jede Konfigurationsänderung zur Laufzeit (die
+Migration des Viewer-Passworts, Gewichte, Prioritäten, Scoring-Kontexte) einen
+`docker compose down && up` übersteht. Bearbeiten Sie sie direkt, um Gewichte, das
+Viewer-Passwort oder Kategorien von Hand anzupassen — siehe
+[Konfiguration](CONFIGURATION.md#standardwerte-und-ihre-überschreibung) dafür, was
+hineingehört, und [die vollständige Schlüsselreferenz](CONFIGURATION.md) dafür, was
+verfügbar ist. Eine bestehende Datei wird nie überschrieben.
+
+> **Sie steigen von einer Version vor dieser Änderung um?** Frühere Versionen rieten
+> dazu, die Standarddatei nach `scoring_config.json` zu kopieren und eine Zeile
+> `- ./scoring_config.json:/app/scoring_config.json` in `docker-compose.yml`
+> auszukommentieren.
 > Dieser Mount ist aus der ausgelieferten Compose-Datei verschwunden. Wenn Sie die neue
 > übernehmen, **verschieben Sie Ihre bestehende Konfiguration zuerst**:
 >
@@ -251,11 +261,20 @@ bestehende Datei wird nie überschrieben.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Andernfalls legt der Entrypoint eine frische Standardkonfiguration an, und Ihre
+> Andernfalls befüllt der Entrypoint eine leere Überschreibung, und Ihre
 > Gewichte, Kategorien und **Ihr Viewer-Passwort werden nicht mehr gelesen** — ein leeres
 > `viewer.edition_password` deaktiviert die Bearbeitungssperre vollständig. Behalten Sie
 > Ihre eigene `docker-compose.yml` mit dem alten Mount, initialisiert der Entrypoint
 > `./facet-config` aus *dieser* Datei, und es geht nichts verloren.
+>
+> Eine mitgenommene Konfiguration ist eine vollständige Kopie der alten ausgelieferten
+> Datei. Sie funktioniert unverändert weiter — eine vollständige Konfiguration löst
+> sich auf sich selbst auf —, aber Ihre eigenen Anpassungen sind darin unsichtbar.
+> Führen Sie `python database.py --compact-config` aus (oder, unter Docker,
+> `docker compose exec facet python database.py --compact-config`), um sie auf das zu
+> reduzieren, was Sie tatsächlich geändert haben. Es wird zuerst eine Sicherung mit
+> `0600` angelegt, und der Vorgang ist verlustfrei: Die Datei löst sich danach auf
+> exakt dieselbe Konfiguration auf.
 
 Modell-Caches liegen in von Docker verwalteten benannten Volumes (`facet-hf-cache`,
 `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), sodass das Image nie die

@@ -21,7 +21,7 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.config import (
     VIEWER_CONFIG, _CONFIG_PATH, FACET_SCRIPT,
     get_comparison_mode_settings,
-    reload_config, invalidate_stats_cache,
+    reload_config, invalidate_stats_cache, server_scoring_config,
 )
 from api.database import get_db
 from api.path_validation import resolve_photo_disk_path
@@ -509,9 +509,8 @@ def api_get_category_priorities(
     user: CurrentUser = Depends(require_edition),
 ):
     """List categories in current evaluation (priority) order."""
-    from config import ScoringConfig
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
     return {
         'categories': [
             {
@@ -560,9 +559,8 @@ def api_get_scoring_contexts(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """List configured scoring contexts with each one's effective category order."""
-    from config import ScoringConfig
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
     contexts = config.get_scoring_contexts()
 
     return {
@@ -695,9 +693,8 @@ def api_comparison_category_weights(
     its write counterpart (``POST /api/config/update_weights``); the public
     stats page reads weights through ``/api/stats/categories/weights`` instead.
     """
-    from config import ScoringConfig
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
 
     # All possible weight keys from the optimizer's scoring components
     all_weight_keys = [f'{v}_percent' for v in METRIC_NAME_MAPPING.values()]
@@ -847,7 +844,6 @@ def api_comparison_preview_score(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Preview score with custom weights."""
-    from config import ScoringConfig
 
     if not body.path:
         raise HTTPException(status_code=400, detail='Missing path parameter')
@@ -867,7 +863,7 @@ def api_comparison_preview_score(
     category = metrics.get('category', 'others')
 
     # Create scorer with custom weights for preview
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
 
     # Calculate preview score using simplified weighted sum
     weights = config.get_weights(category)
@@ -937,7 +933,6 @@ def api_comparison_suggest_filters(
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
     """Suggest filter changes when moving a photo to another category."""
-    from config import ScoringConfig
 
     if not body.path or not body.target_category:
         raise HTTPException(status_code=400, detail='Missing path or target_category')
@@ -964,7 +959,7 @@ def api_comparison_suggest_filters(
             'message': 'Photo is already in the target category',
         }
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
 
     # Build photo_data dict for filter evaluation
     photo_data = {
@@ -1214,13 +1209,12 @@ def api_comparison_override_category(
     written immediately (via ``_recompute_category_and_aggregate``) so the
     lightbox never shows the new category next to the old score.
     """
-    from config import ScoringConfig
     from db.scoring_overrides import set_photo_scoring_override
 
     if not body.path or not body.category:
         raise HTTPException(status_code=400, detail='Missing path or category')
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
     valid_names = {cat['name'] for cat in config.get_categories()}
     if body.category not in valid_names:
         raise HTTPException(status_code=400, detail=f'Unknown category: {body.category}')
@@ -1514,11 +1508,10 @@ def api_save_weight_snapshot(
     user: CurrentUser = Depends(require_edition),
 ):
     """Save current weights as a snapshot."""
-    from config import ScoringConfig
 
     try:
         # Get current weights
-        config = ScoringConfig(validate=False)
+        config = server_scoring_config()
         weights = config.get_weights(body.category)
 
         with get_db() as conn:
@@ -1616,12 +1609,10 @@ def api_get_panorama_detection():
     library was labelled, which the gallery already shows. Writing is
     edition-gated.
     """
-    from config import ScoringConfig
     from utils.panorama import DEFAULTS
 
     settings = dict(DEFAULTS)
-    settings.update(ScoringConfig(str(_CONFIG_PATH), validate=False)
-                    .get_panorama_detection_settings())
+    settings.update(server_scoring_config().get_panorama_detection_settings())
     return {'settings': settings, 'defaults': dict(DEFAULTS)}
 
 

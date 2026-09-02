@@ -151,21 +151,18 @@ COPY plugins/ plugins/
 COPY storage/ storage/
 COPY sync/ sync/
 COPY validation/ validation/
-COPY facet.py cli_args.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
-# Ship a sanitized default config so the image runs preconfigured with zero host
-# setup (empty secrets, darktable-cli on PATH, vram_profile=auto, all profiles at
-# full feature set). Kept at /app/scoring_config.default.json as the pristine
-# copy, and baked again as the active /app/scoring_config.json: FACET_CONFIG
-# falls back to that path when unset, so `docker run` without compose (or any
-# other use of this image that skips the mount) still gets a working,
-# preconfigured install. docker-entrypoint.sh seeds the /config bind mount
-# docker-compose.yml points FACET_CONFIG at from the ACTIVE one, not the
-# pristine one — they are the same file unless the operator mounted their own
-# over it, which is exactly the upgrade path that must not be reset. That mount
-# lands at /config, not /app/config: the latter is where COPY config/ config/
-# above bakes the `config` PYTHON PACKAGE, and a mount there would shadow it.
-COPY scoring_config.default.json /app/scoring_config.default.json
-COPY scoring_config.default.json /app/scoring_config.json
+COPY facet.py cli_args.py config_resolve.py database.py viewer.py tag_existing.py validate_db.py calibrate.py diagnostics.py ./
+# No scoring_config.json is baked. The sanitized defaults ride along inside the
+# `config` PYTHON PACKAGE that COPY config/ config/ above already brings, and an
+# absent config file that nobody NAMED resolves to exactly those — so `docker run`
+# without compose (or any other use of this image that skips the mount) still gets
+# a working, preconfigured install, with no file to go stale against the package.
+# docker-entrypoint.sh seeds the /config bind mount docker-compose.yml points
+# FACET_CONFIG at with an empty override; /app/scoring_config.json exists only if
+# an operator mounted their own there, which is the upgrade path the entrypoint
+# carries across rather than resetting. That mount lands at /config, not
+# /app/config: the latter is the package directory, and a mount there would
+# shadow it — the defaults included.
 COPY pyproject.toml ./
 
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh

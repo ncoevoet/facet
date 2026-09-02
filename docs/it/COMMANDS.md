@@ -297,7 +297,45 @@ Sola lettura: decodifica un campione casuale direttamente dal disco e stampa la 
 
 ## Configurazione
 
-La variabile d'ambiente `FACET_CONFIG`, se impostata, fornisce il percorso predefinito di `scoring_config.json` per `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` quando vengono eseguiti senza un `--config` esplicito; `--config` la sovrascrive sempre. Se la variabile indica un file inesistente, il viewer rifiuta il percorso di autenticazione da installazione aperta invece di concludere che l'installazione non ha password, e registra un errore che nomina il percorso mancante.
+`scoring_config.json` è un **override**: contiene solo le impostazioni che hai
+cambiato, e viene risolto sopra i valori predefiniti forniti in
+`config/scoring_config.default.json`. L'assenza del file di configurazione è quindi
+un'installazione che funziona interamente su quei valori predefiniti, non
+un'installazione rotta — vedi
+[Configurazione](CONFIGURATION.md#valori-predefiniti-e-il-tuo-override).
+
+La variabile d'ambiente `FACET_CONFIG`, se impostata, fornisce il percorso predefinito di `scoring_config.json` per `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py`, `calibrate.py` e `viewer.py` quando vengono eseguiti senza un `--config` esplicito; `--config` la sovrascrive sempre. `viewer.py` (e il server `api/` che avvia) non ha un'opzione `--config` propria — `FACET_CONFIG` è quindi l'unico modo per reindirizzarlo. Se la variabile — o `--config` — indica un file inesistente, questo è un errore e non un override vuoto: un percorso che qualcuno ha NOMINATO e che manca tradisce un refuso o un mount rotto, quindi il viewer rifiuta il percorso di autenticazione da installazione aperta invece di concludere che l'installazione non ha password, e registra un errore che nomina il percorso mancante. Solo il percorso predefinito *ereditato* può essere assente.
+
+Se nessuna delle due è impostata, `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` e `calibrate.py` leggono un `scoring_config.json` nella **directory di lavoro**, se presente — così una libreria fotografica che porta con sé la propria configurazione viene valutata con quella — e altrimenti quello accanto all'installazione. Solo questo ripiego ereditato può mancare: significa un'installazione che gira sui valori predefiniti distribuiti.
+
+Il viewer `viewer.py` e il server `api/` che avvia non fanno mai questa deviazione per la directory di lavoro: risolvono solo `FACET_CONFIG`, altrimenti il file accanto all'installazione — mai uno `scoring_config.json` che si trovi per caso nella directory da cui vengono lanciati. Questo conta perché la configurazione del viewer è quella che porta le password dell'operatore: avviarlo da dentro una libreria fotografica non ne recupera la configurazione, e se anche accanto all'installazione non ce n'è una, ripiega in silenzio sui valori predefiniti distribuiti — un `viewer.edition_password` vuoto che serve allora ogni rotta in modo anonimo.
+
+```bash
+# 1. --config prevale su tutto. Un file mancante qui è un ERRORE, non un override vuoto.
+python facet.py --config /srv/facet/matrimonio.json /photos/matrimonio
+
+# 2. $FACET_CONFIG fornisce il percorso predefinito se --config è omesso (Docker lo imposta).
+export FACET_CONFIG=/config/scoring_config.json
+python facet.py /photos            # legge /config/scoring_config.json
+python facet.py --config altro.json /photos   # --config prevale comunque
+
+# 3. Nessuno dei due: vince una configurazione nella DIRECTORY DI LAVORO per gli
+#    strumenti a riga di comando, così una libreria fotografica può portarsi la propria.
+#    viewer.py non ha questo passaggio, vedi sotto.
+cd /photos/servizio-cliente      # contiene il proprio scoring_config.json
+python /opt/facet/facet.py .     # valutato con /photos/servizio-cliente/scoring_config.json
+
+# 4. Nessuno dei due e qui non c'è nulla: ripiego sul file accanto all'installazione.
+cd /tmp
+python /opt/facet/facet.py /photos   # legge /opt/facet/scoring_config.json
+                                     # se manca, gira sui valori predefiniti distribuiti
+
+# 5. viewer.py non fa mai questa deviazione per la directory di lavoro, a differenza dei casi 1-4.
+cd /photos/servizio-cliente      # contiene il proprio scoring_config.json -- qui irrilevante
+python /opt/facet/viewer.py      # legge comunque /opt/facet/scoring_config.json (o $FACET_CONFIG)
+```
+
+Solo i casi 4 e 5 possono non trovare nulla. I casi 1 e 2 nominano un percorso, quindi un file mancante ferma il comando invece di valutare in silenzio con valori che nessuno ha scelto.
 
 | Comando | Descrizione |
 |---------|-------------|
@@ -336,6 +374,7 @@ Controlli: intervalli dei punteggi, metriche dei volti, corruzione dei BLOB, dim
 | `python database.py --rebuild-fts` | Ricostruisce l'indice di ricerca full-text FTS5 da didascalie/tag |
 | `python database.py --populate-vec` | Popola la tabella di ricerca vettoriale sqlite-vec dagli embedding |
 | `python database.py --refresh-stats` | Aggiorna la cache delle statistiche |
+| `python database.py --compact-config` | Riscrive `scoring_config.json` come l'override che è, eliminando ogni valore uguale al predefinito fornito (senza perdita di dati; prende prima un backup in `0600`) |
 | `python database.py --stats-info` | Mostra lo stato e l'età della cache |
 | `python database.py --vacuum` | Recupera spazio, deframmenta |
 | `python database.py --analyze` | Aggiorna le statistiche del pianificatore di query |

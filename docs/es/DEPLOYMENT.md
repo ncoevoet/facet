@@ -163,11 +163,17 @@ Luego sincroniza la galería web y la base de datos exportada con el NAS:
 
 ```bash
 rsync -avz \
-  viewer.py config.py database.py tagger.py \
-  scoring_config.json photo_scores_viewer.db \
-  api/ client/dist/ db/ i18n/ \
+  viewer.py config_resolve.py database.py tagger.py \
+  photo_scores_viewer.db \
+  api/ client/dist/ config/ db/ i18n/ \
   admin@your-synology-ip:/volume1/facet/
 ```
+
+`config/` lleva los valores predeterminados distribuidos, así que no se sincroniza
+ningún `scoring_config.json`: el NAS funciona con esos valores a menos que pongas tu
+propia anulación junto al visor. Si tienes una en la máquina de puntuación, añádela
+a la lista de `rsync` — es un archivo específico de la instalación, así que revísalo
+primero (contiene la contraseña del visor y cualquier clave de API en texto plano).
 
 La galería web abre `photo_scores_pro.db` de forma predeterminada (se puede anular con la variable de entorno `DB_PATH`). En el NAS, establece `DB_PATH=/volume1/facet/photo_scores_viewer.db` o crea un enlace simbólico:
 ```bash
@@ -271,14 +277,15 @@ compose down -v` elimina los volúmenes de modelos y fuerza una nueva descarga.
 
 **Etiquetas con versión.** `:latest`, `:latest-cuda` y `:latest-cuda-legacy` se mueven en cada release; fija una versión (`:1.7.2`, `:1.7`, `:1.7.2-cuda`, `:1.7.2-cuda-legacy`, …) en un NAS que no quieras que cambie bajo tus pies. Las tres variantes se compilan desde el mismo `Dockerfile` mediante los argumentos de compilación `BASE_IMAGE`, `STRIP_TORCH`, `INSTALL_CUML` y `REQUIREMENTS_LOCK`, fijados por variante en `.github/workflows/docker-publish.yml`. Ese flujo de trabajo también acepta una ejecución manual `workflow_dispatch`, que vuelve a publicar `latest` / `latest-cuda` / `latest-cuda-legacy` a partir de `master` sin cortar una release ni acuñar una etiqueta con versión.
 
-Para un NAS de solo galería web donde la imagen debe permanecer pequeña (sin CUDA), compila una imagen ligera en su lugar. Ten en cuenta que la protección de CI exige que cada fuente de `COPY` esté bajo control de git, por lo que el contexto de compilación debe incluir los archivos listados:
+Para un NAS de solo galería web donde la imagen debe permanecer pequeña (sin CUDA), compila una imagen ligera en su lugar. Ten en cuenta que la protección de CI exige que cada fuente de `COPY` esté bajo control de git, por lo que el contexto de compilación debe incluir los archivos listados — por lo que no se copia ningún `scoring_config.json`: ese archivo es una anulación específica de la instalación, sin control de versiones, y su ausencia solo significa que el contenedor funciona con los valores predeterminados dentro de `config/`.
 
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
 RUN pip install fastapi uvicorn pyjwt pillow
-COPY viewer.py config.py database.py tagger.py scoring_config.json ./
+COPY viewer.py config_resolve.py database.py tagger.py ./
 COPY api/ api/
+COPY config/ config/
 COPY client/dist/ client/dist/
 COPY db/ db/
 COPY i18n/ i18n/

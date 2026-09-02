@@ -74,7 +74,16 @@ verify-*.log
 *_scores.json
 export_test.json
 scoring_config.local-backup.json
+# Both spellings, matching .gitignore: the bare name has no suffix, and every
+# backup an actual write leaves behind is `.backup.<timestamp>`. A pattern with
+# no metacharacter is a literal path match here, so the bare rule alone let a
+# complete config -- viewer.password, users.*.password_hash, upload.password,
+# frame.tokens, immich.api_key -- into the build context and BuildKit's cache.
 scoring_config.json.backup
+scoring_config.json.backup.*
+# Staging copies of the same file, left by a write that crashed before its
+# rename. `.gitignore` globs this prefix for the identical reason.
+.scoring_config.tmp*
 scoring_config.discovered.json
 
 # Live install secrets. docker-compose.yml builds from `.` and mounts
@@ -87,10 +96,18 @@ scoring_config.discovered.json
 facet-config/
 .env
 .facet_secret*
+# The runtime cache the library lock and the cull previews live in, written
+# beside the database — which DEFAULT_DB_PATH puts in the repo root on a native
+# dev run, i.e. inside this build context. It holds a nested copy of the JWT
+# signing key that .facet_secret* above does NOT match: that pattern is
+# root-anchored, and .facet_cache/.facet_secret is not at the root. It also
+# holds JPEG renders of the operator's photos.
+.facet_cache/
 
 # The live root-level config of a NATIVE install, which holds the same
-# plaintext secrets as the seeded one above. Only scoring_config.default.json
-# is ever a COPY source; the Dockerfile copies THAT to /app/scoring_config.json
-# inside the image, and .dockerignore filters context sources, not destinations.
+# plaintext secrets as the seeded one above. It is untracked and no COPY names
+# it: the image carries only config/scoring_config.default.json, the shipped
+# defaults that this file is an override over. The rule stays because the file
+# still exists in a developer's working tree, which IS the build context.
 scoring_config.json
 PRESERVED_LOCAL_CONFIG.md

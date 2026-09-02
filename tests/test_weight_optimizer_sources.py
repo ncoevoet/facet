@@ -21,7 +21,7 @@ import pytest
 from db.schema import init_database
 from optimization.weight_optimizer import WeightOptimizer, run_weight_optimization
 
-REPO_CONFIG = Path(__file__).resolve().parent.parent / 'scoring_config.json'
+REPO_CONFIG = Path(__file__).resolve().parent.parent / 'config' / 'scoring_config.default.json'
 
 
 def _seed(db_path, n_photos=40, seed=3):
@@ -437,22 +437,32 @@ class TestApplyHoldsTheConfigWriteLock:
 
     def test_the_lock_is_held_when_the_replacement_is_written(self, tmp_path):
         from api.config import CONFIG_WRITE_LOCK
-        import api.config as api_config
+        import config_resolve
 
         held = []
-        real_write = api_config.atomic_write_json
+        real_write = config_resolve.atomic_write_json
 
-        def watching_write(path, data):
+        def watching_write(path, data, **kwargs):
             held.append(CONFIG_WRITE_LOCK.locked())
-            return real_write(path, data)
+            return real_write(path, data, **kwargs)
 
         cfg = self._config(tmp_path)
-        with mock.patch.object(api_config, "atomic_write_json", watching_write):
+        # config_resolve, not api_config: write_user_config resolves the name in
+        # the module that defines it, so patching the re-export never fires and
+        # this test would record nothing while still passing.
+        #
+        # EVERY write is asserted, not exactly one. This fixture's weights do
+        # not sum to 100, so building the ScoringConfig auto-corrects them and
+        # saves — a second rewrite of the same file, which used to bypass the
+        # atomic writer and was therefore invisible here. It is the write most
+        # worth pinning: it happens during the read half of a read-modify-write.
+        with mock.patch.object(config_resolve, "atomic_write_json", watching_write):
             WeightOptimizer("unused.db", str(cfg)).apply_optimized_weights(
                 {"aesthetic": 0.5, "liqe": 0.5}, category="portrait", backup=False
             )
 
-        assert held == [True], "config was rewritten without CONFIG_WRITE_LOCK held"
+        assert held, "the config was never rewritten — the patch did not fire"
+        assert all(held), "config was rewritten without CONFIG_WRITE_LOCK held"
 
     def test_the_lock_spans_the_read_not_only_the_write(self, tmp_path):
         """A lock taken just before the write would still lose an update made

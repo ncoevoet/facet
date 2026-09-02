@@ -965,6 +965,7 @@
     "login": "Accedi",
     "invalid_credentials": "Credenziali non valide",
     "error": "Accesso non riuscito",
+    "config_unreadable": "Impossibile leggere la configurazione del server — controlla il log del server",
     "user_menu": "Menu utente"
   },
   "gallery": {

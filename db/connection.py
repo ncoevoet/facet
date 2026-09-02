@@ -4,30 +4,23 @@ Database connection utilities for Facet.
 Provides connection creation, PRAGMA configuration, and context manager.
 """
 
-import json
 import logging
 import os
 import sqlite3
 from contextlib import contextmanager
 
+from config_resolve import default_config_path, load_resolved
+
 DEFAULT_DB_PATH = os.environ.get('DB_PATH', 'photo_scores_pro.db')
 
 
-def _resolve_config_path():
-    """Path to scoring_config.json — $FACET_CONFIG when set, else the repo-root
-    file. Mirrors ``config.default_config_path`` byte-for-byte rather than
-    importing it: ``config``'s own ``__init__`` imports
-    ``config.percentile_normalizer``, which imports ``db`` — and this module is
-    the first thing ``db/__init__.py`` imports, so that import would recurse
-    back into a ``db`` package that has not finished initializing yet.
-    """
-    env_path = os.environ.get('FACET_CONFIG', '').strip()
-    if env_path:
-        return env_path
-    return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'scoring_config.json')
-
-
-_CONFIG_PATH = _resolve_config_path()
+# ``config_resolve`` rather than ``config``: the latter's ``__init__`` imports
+# ``config.percentile_normalizer``, which imports ``db`` — and this module is the
+# first thing ``db/__init__.py`` imports, so that import would recurse back into
+# a ``db`` package that has not finished initializing yet. ``config_resolve``
+# is stdlib-only and exists precisely so this module needs no private copy of
+# the path resolution and defaults merge.
+_CONFIG_PATH = default_config_path()
 
 logger = logging.getLogger("facet.db_connection")
 
@@ -38,22 +31,63 @@ except ImportError:
     HAS_SQLITE_VEC = False
 
 
+_pragma_cache = None
+
+
+def _config_stamp():
+    """Cheap identity of the override file: (mtime_ns, size), or None if absent.
+
+    Absent is a real state to cache, not an error -- an install with no
+    override resolves to the shipped defaults on every call and the answer
+    never changes -- so None is a legitimate stamp value that compares equal
+    to itself.
+    """
+    try:
+        st = os.stat(_CONFIG_PATH)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
 def get_pragma_values():
-    """Read mmap_size and cache_size from scoring_config.json performance section."""
+    """Read mmap_size and cache_size from scoring_config.json performance section.
+
+    Memoized against the config file's (mtime, size), because this runs once
+    per DB connection -- so at least once per API request -- and the two
+    integers it returns cost a full resolve to obtain: a ~97 KB parse of the
+    shipped defaults plus a deep_merge that deep-copies ~2600 leaves, measured
+    at ~1.2 ms per connection once an override file exists. The stamp is what
+    keeps this honest as a cache rather than a freeze: an operator editing
+    ``performance`` sees it on the next connection, exactly as before, without
+    a restart.
+    """
+    global _pragma_cache
+    stamp = _config_stamp()
+    if _pragma_cache is not None and _pragma_cache[0] == stamp:
+        return _pragma_cache[1]
+
     mmap_size_mb = 256
     cache_size_mb = 64
+    resolved = False
     try:
-        with open(_CONFIG_PATH, 'r') as f:
-            config = json.load(f)
-        perf = config.get('performance', {})
+        perf = load_resolved(_CONFIG_PATH).get('performance') or {}
         mmap_size_mb = perf.get('mmap_size_mb', mmap_size_mb)
         cache_size_mb = perf.get('cache_size_mb', cache_size_mb)
-    except (FileNotFoundError, json.JSONDecodeError, KeyError):
-        pass
-    return {
+        resolved = True
+    except (OSError, ValueError, KeyError, AttributeError, TypeError):
+        logger.debug("Could not resolve pragma values from %s", _CONFIG_PATH, exc_info=True)
+    values = {
         'mmap_size': mmap_size_mb * 1024 * 1024,
         'cache_size_kb': cache_size_mb * 1000,  # negative KB for PRAGMA cache_size
     }
+    if resolved:
+        # Only a SUCCESSFUL read is memoized. A transient failure -- EACCES while
+        # a chmod is in flight, EMFILE under load, EIO on a network mount -- does
+        # not move the file's mtime or size, so caching the fallback under that
+        # same stamp would pin every later connection in this process to 256/64
+        # with no way back short of a restart.
+        _pragma_cache = (stamp, values)
+    return values
 
 
 def load_sqlite_vec(conn):
@@ -75,7 +109,8 @@ def apply_pragmas(conn, mmap_size_mb=None, cache_size_mb=None):
         mmap_size_mb: Override mmap_size (MB). None = use config default.
         cache_size_mb: Override cache_size (MB). None = use config default.
     """
-    pv = get_pragma_values()
+    # Only reach for the config when a caller left something for it to supply.
+    pv = get_pragma_values() if mmap_size_mb is None or cache_size_mb is None else None
     mmap_bytes = mmap_size_mb * 1024 * 1024 if mmap_size_mb is not None else pv['mmap_size']
     cache_kb = cache_size_mb * 1000 if cache_size_mb is not None else pv['cache_size_kb']
     conn.execute("PRAGMA journal_mode = WAL")

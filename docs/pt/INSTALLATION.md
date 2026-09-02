@@ -232,18 +232,26 @@ Os ajustes de implantação ficam em `.env` (copie o `.env.example`):
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Caminho do banco de dados dentro do container, mantido no bind mount `./data` |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | `auto_retrain` da configuração | Gatilho de retreinamento do ranqueador pessoal, para quem avalia muitas fotos |
 
-Uma versão sanitizada de `scoring_config.default.json` já vem embutida na imagem como a
-configuração inicial. O `docker-entrypoint.sh` a copia, apenas na primeira execução,
-para o arquivo persistente `./facet-config/scoring_config.json`, que o `docker-compose.yml`
-já monta (como `FACET_CONFIG=/config/scoring_config.json` dentro do container) — assim o
-container roda sem nenhuma configuração no host, e toda escrita de configuração em tempo
-de execução (a migração da senha do visualizador, pesos, prioridades, contextos de
-pontuação) agora sobrevive a um `docker compose down && up`. Edite
-`./facet-config/scoring_config.json` diretamente para personalizar pesos, a senha do
-visualizador ou categorias à mão; um arquivo já existente nunca é sobrescrito.
+`scoring_config.json` é o seu **override**, não a configuração inteira. Todo valor que
+o Facet distribui vive em `config/scoring_config.default.json` dentro da imagem, e
+seu arquivo é resolvido por cima dele — então ele só precisa conter o punhado de
+ajustes que você realmente mudou, e tudo o que você deixar de fora mantém o valor
+distribuído (e recebe as melhorias feitas nele quando você atualiza).
+
+O `docker-entrypoint.sh` portanto semeia o arquivo persistente
+`./facet-config/scoring_config.json` com um `{}` vazio na primeira execução. Esse
+arquivo é montado pelo `docker-compose.yml` (como
+`FACET_CONFIG=/config/scoring_config.json` dentro do container), então o container
+roda sem nenhuma configuração no host e toda escrita de configuração em tempo de
+execução (a migração da senha do visualizador, pesos, prioridades, contextos de
+pontuação) sobrevive a um `docker compose down && up`. Edite-o diretamente para
+personalizar pesos, a senha do visualizador ou categorias à mão — veja
+[Configuração](CONFIGURATION.md#padrões-e-seu-override) para o que colocar nele e
+[a referência completa das chaves](CONFIGURATION.md) para o que está disponível. Um
+arquivo já existente nunca é sobrescrito.
 
 > **Está atualizando de uma versão anterior a esta mudança?** As versões anteriores
-> mandavam fazer `cp scoring_config.default.json scoring_config.json` e descomentar uma
+> mandavam copiar o arquivo de padrões para `scoring_config.json` e descomentar uma
 > linha `- ./scoring_config.json:/app/scoring_config.json` no `docker-compose.yml`. Esse
 > mount saiu do arquivo compose distribuído. Se você adotar o novo, **mova antes a sua
 > configuração existente**:
@@ -252,11 +260,19 @@ visualizador ou categorias à mão; um arquivo já existente nunca é sobrescrit
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Caso contrário o entrypoint cria uma configuração padrão nova e seus pesos, suas
+> Caso contrário o entrypoint semeia um override vazio e seus pesos, suas
 > categorias e **sua senha do visualizador deixam de ser lidos** — e um
 > `viewer.edition_password` vazio desativa por completo o controle de edição. Se você
 > mantiver seu próprio `docker-compose.yml` com o mount antigo, o entrypoint inicializa
 > `./facet-config` a partir *desse* arquivo e nada se perde.
+>
+> Uma configuração trazida de uma versão anterior é uma cópia completa do antigo
+> arquivo distribuído. Ela continua funcionando sem mudanças — uma configuração
+> completa se resolve sobre si mesma —, mas suas próprias edições ficam invisíveis
+> nela. Execute `python database.py --compact-config` (ou, no Docker,
+> `docker compose exec facet python database.py --compact-config`) para reduzi-la ao
+> que você realmente mudou. Ele faz um backup em `0600` primeiro e não há perda de
+> dados: o arquivo se resolve depois exatamente na mesma configuração.
 
 Os caches de modelos ficam em volumes nomeados gerenciados pelo Docker (`facet-hf-cache`,
 `facet-torch-cache`, `facet-insightface`, `facet-pretrained`), então a imagem nunca lê os

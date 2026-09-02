@@ -73,7 +73,7 @@ interface ReleaseCheck {
         <input matInput type="password" [(ngModel)]="password" (keyup.enter)="submit()" />
       </mat-form-field>
       @if (error()) {
-        <p class="text-red-400 text-sm">{{ I18N.edition.invalid_password | translate }}</p>
+        <p class="text-red-400 text-sm">{{ error()! | translate }}</p>
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
@@ -87,16 +87,25 @@ export class EditionDialogComponent {
   private dialogRef = inject(MatDialogRef<EditionDialogComponent>);
   private auth = inject(AuthService);
   protected password = '';
-  protected readonly error = signal(false);
+  /** The translation key to show, or null while there is nothing to report.
+   *  A key rather than a boolean because the failures differ: a wrong
+   *  password, a server that could not read its own config and is refusing
+   *  to authenticate anyone, and a rate limit rejected before any password
+   *  check ran. */
+  protected readonly error = signal<string | null>(null);
 
   async submit(): Promise<void> {
-    this.error.set(false);
-    const ok = await this.auth.editionLogin(this.password);
-    if (ok) {
+    this.error.set(null);
+    const outcome = await this.auth.editionLogin(this.password);
+    if (outcome === 'ok') {
       this.dialogRef.close(true);
-    } else {
-      this.error.set(true);
+      return;
     }
+    this.error.set(
+      outcome === 'unavailable' ? I18N_KEYS.auth.config_unreadable
+        : outcome === 'rate_limited' ? I18N_KEYS.errors.rate_limited
+          : I18N_KEYS.edition.invalid_password,
+    );
   }
 }
 

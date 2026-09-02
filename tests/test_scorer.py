@@ -12,12 +12,13 @@ The Facet class is huge and most of it loads ML models. Tests here:
   ``lightweight=True`` skips every model load — only ScoringConfig is
   pulled in.
 
-The tests assume the project's scoring_config.json is present (it is —
-it's a tracked file in the repo) and use it as the configuration fixture.
+The tests assume the shipped defaults config (``config/scoring_config.default.json``,
+a tracked file in the repo) is present and use it as the configuration fixture.
 """
 
 from __future__ import annotations
 
+from config_resolve import defaults_path
 import pytest
 
 
@@ -167,7 +168,7 @@ class TestParseShutterSpeed:
 class TestAggregateLogic:
     """Each test fixes the photo metrics, asks Facet for the aggregate, and
     asserts a numeric range. The tests intentionally use loose ranges where
-    the exact weight depends on the project's scoring_config.json — they
+    the exact weight depends on the shipped defaults config — they
     catch behavioural drift, not config drift.
     """
 
@@ -490,7 +491,7 @@ class TestUpdateAllAggregatesCarriesFocalLength:
     def config_with_focal_length_category(self, tmp_path):
         import json
 
-        with open('scoring_config.json') as f:
+        with open(defaults_path()) as f:
             config = json.load(f)
         base_category = next(c for c in config['categories'] if c['name'] == 'macro')
         telephoto_category = dict(base_category, name='telephoto', priority=0,

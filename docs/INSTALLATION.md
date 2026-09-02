@@ -225,17 +225,25 @@ Deploy knobs live in `.env` (copy `.env.example`):
 | `DB_PATH` | `/app/data/photo_scores_pro.db` | Database path inside the container, kept on the `./data` bind mount |
 | `FACET_RETRAIN_THRESHOLD` / `FACET_RETRAIN_IDLE_S` | config's `auto_retrain` | Personal-ranker retrain trigger, for heavy raters |
 
-A sanitized `scoring_config.default.json` is baked into the image as the seed config.
-`docker-entrypoint.sh` copies it, on first run only, into the persistent
-`./facet-config/scoring_config.json` that `docker-compose.yml` already bind-mounts (as
-`FACET_CONFIG=/config/scoring_config.json` inside the container) — so the container runs
-with zero host setup, and every runtime config write (the viewer password upgrade,
-weights, priorities, scoring contexts) survives `docker compose down && up`. Edit
-`./facet-config/scoring_config.json` directly to customize weights, the viewer password
-or categories by hand; an existing file is never overwritten.
+`scoring_config.json` is your **override**, not the whole configuration. Every value
+Facet ships lives in `config/scoring_config.default.json` inside the image, and your
+file is resolved on top of it — so it only needs to hold the handful of settings you
+actually changed, and anything you leave out keeps the shipped value (and picks up
+improvements to it when you upgrade).
+
+`docker-entrypoint.sh` therefore seeds the persistent
+`./facet-config/scoring_config.json` with an empty `{}` on first run. That file is
+bind-mounted by `docker-compose.yml` (as `FACET_CONFIG=/config/scoring_config.json`
+inside the container), so the container runs with zero host setup and every runtime
+config write (the viewer password upgrade, weights, priorities, scoring contexts)
+survives `docker compose down && up`. Edit it directly to customize weights, the
+viewer password or categories by hand — see
+[Configuration](CONFIGURATION.md#defaults-and-your-override) for what to put in it and
+[the full key reference](CONFIGURATION.md) for what is available. An existing file is
+never overwritten.
 
 > **Upgrading from a release before this change?** Earlier versions told you to
-> `cp scoring_config.default.json scoring_config.json` and uncomment a
+> copy the defaults file to `scoring_config.json` and uncomment a
 > `- ./scoring_config.json:/app/scoring_config.json` line in `docker-compose.yml`.
 > That mount is gone from the shipped compose file. If you adopt the new one,
 > **move your existing config across first**:
@@ -244,11 +252,18 @@ or categories by hand; an existing file is never overwritten.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Otherwise the entrypoint seeds a fresh default and your weights, categories and
+> Otherwise the entrypoint seeds an empty override and your weights, categories and
 > **viewer password are silently no longer read** — and an empty
 > `viewer.edition_password` disables edition gating entirely. If you keep your own
 > edited `docker-compose.yml` with the old mount still in place, the entrypoint
 > seeds `./facet-config` from *that* file, so nothing is lost.
+>
+> A carried-across config is a full copy of the old shipped file. It keeps working
+> unchanged — a full config resolves to itself — but your own edits are invisible in
+> it. Run `python database.py --compact-config` (or, in Docker,
+> `docker compose exec facet python database.py --compact-config`) to reduce it to
+> just what you changed. It takes a `0600` backup first and is lossless: the file
+> resolves to exactly the same configuration afterwards.
 
 Model caches live in Docker-managed named volumes (`facet-hf-cache`, `facet-torch-cache`,
 `facet-insightface`, `facet-pretrained`), so the image never reads your machine's own

@@ -965,6 +965,7 @@
     "login": "Se connecter",
     "invalid_credentials": "Identifiants invalides",
     "error": "Échec de la connexion",
+    "config_unreadable": "La configuration du serveur n'a pas pu être lue — consultez le journal du serveur",
     "user_menu": "Menu utilisateur"
   },
   "gallery": {

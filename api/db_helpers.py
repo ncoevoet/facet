@@ -15,14 +15,12 @@ from typing import Optional
 
 from fastapi import HTTPException, Query
 
-from config import ScoringConfig
-
 from api.config import (
     _existing_columns_cache, _existing_columns_lock,
     _photo_tags_available, _photo_tags_lock, PHOTO_TAGS_CACHE_TTL,
     _count_cache, _count_cache_lock, COUNT_CACHE_TTL,
     is_multi_user_enabled, get_user_directories, _FULL_CONFIG, VIEWER_CONFIG,
-    config_load_failed,
+    config_load_failed, server_scoring_config,
 )
 from api.database import get_db_connection
 from comparison.comparison_manager import record_culling_pairs
@@ -591,7 +589,7 @@ def get_art_tags_from_config():
     if _art_tags_cache is not None:
         return _art_tags_cache
 
-    config = ScoringConfig()
+    config = server_scoring_config()
     art_config = config.get_category_config('art')
     if art_config:
         filters = art_config.get('filters', {})

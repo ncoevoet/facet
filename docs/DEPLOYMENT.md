@@ -159,11 +159,16 @@ Then sync the viewer and exported database to the NAS:
 
 ```bash
 rsync -avz \
-  viewer.py config.py database.py tagger.py \
-  scoring_config.json photo_scores_viewer.db \
-  api/ client/dist/ db/ i18n/ \
+  viewer.py config_resolve.py database.py tagger.py \
+  photo_scores_viewer.db \
+  api/ client/dist/ config/ db/ i18n/ \
   admin@your-synology-ip:/volume1/facet/
 ```
+
+`config/` carries the shipped defaults, so no `scoring_config.json` is synced: the NAS
+runs on those unless you put your own override beside the viewer. If you have one on the
+scoring machine, add it to the `rsync` list — it is a per-install file, so review it
+first (it holds the viewer password and any API keys in plaintext).
 
 The viewer opens `photo_scores_pro.db` by default (overridable with the `DB_PATH` env var). On the NAS, either set `DB_PATH=/volume1/facet/photo_scores_viewer.db` or symlink it:
 ```bash
@@ -262,14 +267,15 @@ set per variant in `.github/workflows/docker-publish.yml`. That workflow also ac
 manual `workflow_dispatch` run, which republishes `latest` / `latest-cuda` /
 `latest-cuda-legacy` off `master` without cutting a release or minting a versioned tag.
 
-For a viewer-only NAS where the image must stay small (no CUDA), build a slim image instead. Note the CI guard requires every `COPY` source to be git-tracked, so the build context must include the listed files:
+For a viewer-only NAS where the image must stay small (no CUDA), build a slim image instead. Note the CI guard requires every `COPY` source to be git-tracked, so the build context must include the listed files — which is why no `scoring_config.json` is copied: that file is a per-install override, untracked, and its absence simply means the container runs on the defaults inside `config/`.
 
 ```dockerfile
 FROM python:3.11-slim
 WORKDIR /app
 RUN pip install fastapi uvicorn pyjwt pillow aiosqlite
-COPY viewer.py config.py database.py tagger.py scoring_config.json ./
+COPY viewer.py config_resolve.py database.py tagger.py ./
 COPY api/ api/
+COPY config/ config/
 COPY client/dist/ client/dist/
 COPY db/ db/
 COPY i18n/ i18n/

@@ -2,10 +2,11 @@
 
 > 🌐 [English](../CONFIGURATION.md) · **Français** · [Deutsch](../de/CONFIGURATION.md) · [Italiano](../it/CONFIGURATION.md) · [Español](../es/CONFIGURATION.md) · [Português](../pt/CONFIGURATION.md)
 
-Tous les réglages se trouvent dans `scoring_config.json`. Après modification, exécutez `python facet.py --recompute-average` pour mettre à jour les scores (aucun GPU requis).
+Chaque réglage est fourni dans `config/scoring_config.default.json` puis surchargé, clé par clé, depuis votre propre `scoring_config.json` — voir [Valeurs par défaut et votre surcharge](#valeurs-par-défaut-et-votre-surcharge). Après modification, exécutez `python facet.py --recompute-average` pour mettre à jour les scores (aucun GPU requis).
 
 ## Table des matières
 
+- [Valeurs par défaut et votre surcharge](#valeurs-par-défaut-et-votre-surcharge)
 - [Utilisateurs](#users)
 - [Analyse](#scanning)
 - [Catégories](#categories)
@@ -44,6 +45,84 @@ Tous les réglages se trouvent dans `scoring_config.json`. Après modification, 
 - [Traduction](#translation)
 
 ---
+
+## Valeurs par défaut et votre surcharge
+
+`scoring_config.json` ne contient **que ce que vous avez modifié**. Tout ce que Facet
+fournit vit dans `config/scoring_config.default.json`, et votre fichier est résolu
+par-dessus celui-ci : tout ce que vous omettez conserve la valeur livrée. Une toute
+nouvelle installation n'a aucun `scoring_config.json` et fonctionne entièrement sur les
+valeurs par défaut.
+
+Ainsi, pour augmenter le poids esthétique des portraits et définir un mot de passe
+d'édition, le fichier complet est :
+
+```json
+{
+  "viewer": { "edition_password": "your-password" },
+  "categories": [ ... ]
+}
+```
+
+Deux règles régissent la manière dont les deux sont combinés :
+
+- **Les objets fusionnent clé par clé.** `{"performance": {"mmap_size_mb": 4096}}`
+  change ce seul réglage et laisse `cache_size_mb`, ainsi que toute autre clé de
+  `performance`, à sa valeur livrée.
+- **Les tableaux remplacent en bloc.** Si votre fichier comporte un tableau
+  `categories`, il remplace entièrement celui livré — il n'est pas fusionné catégorie
+  par catégorie. C'est délibéré : `categories` est évalué au premier qui correspond
+  dans l'ordre de priorité, et `scoring_contexts.*.promote` est lu dans l'ordre où vous
+  l'écrivez, si bien que fusionner les tableaux élément par élément réordonnerait
+  silencieusement la notation. C'est aussi le seul moyen de **supprimer** quelque
+  chose : une catégorie que vous omettez de votre tableau disparaît, alors qu'un
+  tableau fusionné continuerait à la renvoyer.
+
+  Conséquence pratique : changer un seul poids dans une seule catégorie signifie que
+  votre fichier les porte toutes. Copiez le tableau `categories` depuis
+  `config/scoring_config.default.json`, modifiez-le et conservez-le — les quelque 1500
+  autres lignes de la configuration livrée restent hors de votre fichier.
+
+### Mettre à niveau une installation existante
+
+Rien à faire : un `scoring_config.json` complet issu d'une version antérieure se
+résout sur lui-même et continue de fonctionner. Mais vos propres modifications sont
+invisibles au milieu de 3700 lignes de valeurs livrées, et les réglages que vous n'avez
+jamais choisis restent figés à la valeur qu'ils avaient au moment où vous avez copié le
+fichier.
+
+Vous n'avez rien à faire non plus pour que cela arrive : toute écriture dans
+`scoring_config.json` réécrit déjà le fichier entier comme la surcharge qu'il est, en
+supprimant toute clé encore identique au défaut livré, pas seulement celle qu'elle
+visait à changer. Enregistrer des poids ou une priorité de catégorie depuis
+l'interface du viewer le fait. Un changement de seuil panoramique aussi, la première
+connexion réussie avec un mot de passe en clair (qui est promu en hash dans cette même
+écriture), et même un scan ordinaire, si `validate_weights` corrige les poids d'une
+catégorie au passage.
+
+```bash
+python database.py --compact-config
+```
+
+fait la même compaction à la demande, plutôt que d'attendre que la prochaine écriture
+la déclenche. L'opération est sans perte — le fichier se résout ensuite sur exactement
+la même configuration — et son véritable avantage restant est la sauvegarde : il prend
+une copie en `0600` du fichier avant d'écrire. Toutes les écritures ne le font pas ;
+le chemin de scan (`ScoringConfig.save_config`) n'en prend aucune, volontairement (voir
+sa docstring dans `config/scoring_config.py:481`), donc préférez `--compact-config`
+quand vous voulez une sauvegarde enregistrée plutôt que de compter sur l'écriture qui
+s'exécutera ensuite.
+
+> **Le compromis, dit franchement.** Une fois qu'une valeur est supprimée parce
+> qu'elle correspondait au défaut, une future version de Facet qui change ce défaut
+> change aussi votre comportement — et c'est n'importe quelle écriture, pas seulement
+> `--compact-config`, qui la supprime. C'est précisément le but — c'est ainsi que les
+> nouveaux réglages vous parviennent sans que vous ayez à éditer votre fichier. La
+> seule chose qui fixe réellement une valeur contre un futur changement de défaut est
+> de la définir à quelque chose de *différent* du défaut livré : une valeur qui
+> correspond simplement au défaut ne peut pas survivre dans le fichier — la prochaine
+> écriture la supprime, qu'il s'agisse d'une compaction volontaire ou non.
+
 
 ## Utilisateurs
 

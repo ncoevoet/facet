@@ -34,7 +34,6 @@ Design notes / safety:
   nothing. All DB / thread work is best-effort and never raises into the caller.
 """
 
-import json
 import logging
 import os
 import threading
@@ -79,9 +78,8 @@ def load_settings(config_path=None):
     """
     block = {}
     try:
-        from config import default_config_path
-        with open(config_path or default_config_path()) as f:
-            loaded = json.load(f).get('auto_retrain', {})
+        from config_resolve import load_resolved
+        loaded = load_resolved(config_path).get('auto_retrain', {})
         if isinstance(loaded, dict):
             block = loaded
     except Exception:  # noqa: BLE001 — config is advisory here, never fatal

@@ -72,8 +72,8 @@ _GLOBAL_LEARNED_SCORE = (
 def _load_piaa_config(config_path):
     """Read the ``piaa_prior`` block. Missing file/block -> disabled (flag off)."""
     try:
-        with open(config_path) as f:
-            block = json.load(f).get('piaa_prior', {})
+        from config_resolve import load_resolved
+        block = load_resolved(config_path).get('piaa_prior', {})
     except Exception:
         return {'enabled': False}
     return block if isinstance(block, dict) else {'enabled': False}
