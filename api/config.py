@@ -860,97 +860,31 @@ JWT_EXPIRY_HOURS = 48  # 2 days
 
 # --- VIEWER CONFIG ---
 def load_viewer_config(config=None):
-    """Load viewer settings, merging defaults with config."""
-    defaults = {
-        'sort_options': {
-            'General': [
-                {'column': 'aggregate', 'label': 'Aggregate Score'},
-                {'column': 'aesthetic', 'label': 'Aesthetic'},
-                {'column': 'topiq_score', 'label': 'TOPIQ Score'},
-                {'column': 'date_taken', 'label': 'Date Taken'},
-                {'column': 'is_favorite', 'label': 'Favorites'},
-                {'column': 'is_rejected', 'label': 'Rejected'}
-            ],
-            'Face Metrics': [
-                {'column': 'face_quality', 'label': 'Face Quality'},
-                {'column': 'eye_sharpness', 'label': 'Eye Sharpness'},
-                {'column': 'face_sharpness', 'label': 'Face Sharpness'},
-                {'column': 'face_ratio', 'label': 'Face Ratio'},
-                {'column': 'face_count', 'label': 'Face Count'},
-                {'column': 'face_confidence', 'label': 'Face Confidence'}
-            ],
-            'Technical': [
-                {'column': 'tech_sharpness', 'label': 'Tech Sharpness'},
-                {'column': 'contrast_score', 'label': 'Contrast'},
-                {'column': 'noise_sigma', 'label': 'Noise Level'}
-            ],
-            'Color': [
-                {'column': 'color_score', 'label': 'Color Score'},
-                {'column': 'mean_saturation', 'label': 'Saturation'}
-            ],
-            'Exposure': [
-                {'column': 'exposure_score', 'label': 'Exposure Score'},
-                {'column': 'mean_luminance', 'label': 'Mean Luminance'},
-                {'column': 'histogram_spread', 'label': 'Histogram Spread'},
-                {'column': 'dynamic_range_stops', 'label': 'Dynamic Range'}
-            ],
-            'Composition': [
-                {'column': 'comp_score', 'label': 'Composition Score'},
-                {'column': 'power_point_score', 'label': 'Power Point Score'},
-                {'column': 'leading_lines_score', 'label': 'Leading Lines'},
-                {'column': 'isolation_bonus', 'label': 'Isolation Bonus'}
-            ],
-            'Camera': [
-                {'column': 'f_stop', 'label': 'F-Stop'},
-                {'column': 'focal_length', 'label': 'Focal Length'},
-                {'column': 'shutter_speed', 'label': 'Shutter Speed'}
-            ]
-        },
-        'pagination': {'default_per_page': 50},
-        'dropdowns': {'max_cameras': 50, 'max_lenses': 50, 'max_persons': 50, 'max_tags': 20},
-        'raw_processor': {
-            'darktable': {
-                'executable': 'darktable-cli',
-                'profiles': [],
-                'cull_styles': [],
-                'preview_max_edge': 1440,
-                'preview_timeout_seconds': 60,
-            },
-        },
-        'display': {'tags_per_photo': 3, 'card_width_px': 168, 'image_width_px': 160, 'image_jpeg_quality': 96},
-        # Per-badge opt-out for the gallery card. Every badge that predates this
-        # block defaults to True, so an install that says nothing is unchanged.
-        # Shadow clipping is the one default-off badge: crushed blacks are
-        # routinely deliberate (silhouettes, night, low-key).
-        'badges': {
-            'favorite': True, 'star_rating': True, 'rejected': True,
-            'sequence_kind': True, 'sequence_override_pending': True,
-            'keeper_hint': True, 'best_of_burst': True,
-            'clipping_highlight': True, 'clipping_shadow': False,
-        },
-        # One definition of "clipped" for all three surfaces. The percentages are
-        # measured: over 28 sampled photos, worst-channel highlight clipping had a
-        # median of 0.31% and a p90 of 2.35%, so 5% badges roughly 1 in 25 photos
-        # and stays a signal. The histogram indicator is finer because the user is
-        # already looking at a single photo and wants the detail.
-        # histogram_mode / tooltip_histogram_mode are independent defaults: the
-        # detail panel is for studying one photo (RGB detail earns its space),
-        # the hover/pinned tooltip is for scanning many quickly (a plain
-        # luminance curve usually reads faster). Each surface persists its own
-        # user override, so tuning one default here never retunes the other.
-        'clipping': {
-            'badge_percent': 5, 'indicator_percent': 1,
-            'histogram_mode': 'rgb', 'tooltip_histogram_mode': 'luma',
-        },
-        'face_thumbnails': {'output_size_px': 64, 'jpeg_quality': 80, 'crop_padding_ratio': 0.2, 'min_crop_size_px': 20},
-        'quality_thresholds': {'good': 6, 'great': 7, 'excellent': 8, 'best': 9},
-        'photo_types': {'top_picks_min_score': 7, 'low_light_max_luminance': 0.2},
-        'defaults': {'hide_blinks': True, 'hide_bursts': True, 'hide_duplicates': True, 'hide_brackets': True, 'hide_panoramas': True, 'hide_details': True, 'hide_rejected': True, 'sort': 'aggregate', 'sort_direction': 'DESC', 'panel_activation': 'both'},
-        'features': {'show_similar_button': True, 'show_merge_suggestions': True, 'show_rating_controls': True, 'show_semantic_search': True, 'show_albums': True, 'show_critique': True, 'show_vlm_critique': False, 'show_embed_metadata': True, 'show_memories': True, 'show_captions': True, 'show_timeline': True, 'show_map': False, 'show_capsules': True, 'show_my_taste': True, 'show_scenes': True, 'show_junk_sweep': True, 'show_proofing': False, 'show_portfolio_export': True},
-        'proofing': {'pin': '', 'session_minutes': 1440},
-        'cache_ttl_seconds': 3600,
-        'notification_duration_ms': 2000
-    }
+    """Load viewer settings, backfilled from the SHIPPED defaults.
+
+    The fallback is ``config/scoring_config.default.json``'s own ``viewer``
+    block, not a second copy of it kept here. It used to be a literal dict, and
+    it had drifted from the file it was shadowing: seven values disagreed
+    outright -- including ``features.show_map`` and ``features.show_vlm_critique``,
+    False here and True as shipped -- and thirty-two keys were missing from it
+    altogether, among them ``allowed_origins``, ``cull.allow_trash`` and four
+    ``features`` flags. That is the same defaults-drift this release removed
+    everywhere else, and it was reachable: ``_read_config`` returns ``{}`` for a
+    named-absent or unparseable config, and the whole viewer surface then came
+    from the stale literal.
+
+    Backfilling is still needed even though the resolved config already carries
+    these keys, because of that ``{}`` case. Nothing here can loosen auth:
+    ``api.auth._is_open_install`` short-circuits on ``config_load_failed()``, so
+    an install that reached ``{}`` by failing to parse stays locked whatever
+    ``viewer.edition_password`` resolves to.
+
+    The rationale for individual values -- the measured clipping percentages,
+    why shadow clipping is the one default-off badge, why the panel and tooltip
+    histograms default differently -- lives in docs/CONFIGURATION.md, which a
+    JSON file cannot carry.
+    """
+    defaults = load_defaults().get('viewer', {})
     if config is None:
         config, _ = _read_config()
     viewer = config.get('viewer', {})

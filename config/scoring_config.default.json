@@ -3571,6 +3571,20 @@
           "column": "narrative_moment_confidence",
           "label": "Moment Confidence"
         }
+      ],
+      "Camera": [
+        {
+          "column": "f_stop",
+          "label": "F-Stop"
+        },
+        {
+          "column": "focal_length",
+          "label": "Focal Length"
+        },
+        {
+          "column": "shutter_speed",
+          "label": "Shutter Speed"
+        }
       ]
     },
     "pagination": {
@@ -3675,7 +3689,8 @@
       "show_scan_button": false,
       "show_saliency_overlay": true,
       "show_social_export": true,
-      "show_portfolio_export": true
+      "show_portfolio_export": true,
+      "show_proofing": false
     },
     "allowed_origins": [
       "http://localhost:4200",
@@ -3697,6 +3712,10 @@
         "preview_max_edge": 1440,
         "preview_timeout_seconds": 60
       }
+    },
+    "proofing": {
+      "pin": "",
+      "session_minutes": 1440
     }
   },
   "iqa_extended": {

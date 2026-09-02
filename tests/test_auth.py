@@ -853,3 +853,52 @@ class TestPasswordUpgradeBackupIsOwnerOnly:
 
         assert modes_while_writing == [_BACKUP_OWNER_ONLY_MODE]
         assert _PLAINTEXT_PASSWORD in backup_path.read_text()
+
+
+class TestUnparseableConfigStaysLocked:
+    """An unparseable config must not become an open install via the viewer defaults.
+
+    ``_read_config`` returns ``{}`` for a config that exists but cannot be
+    parsed, and ``load_viewer_config`` backfills that from the SHIPPED defaults
+    -- which carry an empty ``viewer.edition_password``, the value that means
+    "no lock". The gate that keeps this safe is ``config_load_failed()``, which
+    ``_is_open_install`` short-circuits on, so it is the thing to pin: while the
+    backfill was a stale hardcoded dict this happened to be belt-and-braces, and
+    it stopped being so the moment the defaults became the real ones.
+    """
+
+    def _run(self, tmp_path, config_text):
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(config_text)
+        code = (
+            "import api.config as ac, api.auth as auth;"
+            "print(ac.config_load_failed(),"
+            " repr(ac.VIEWER_CONFIG.get('edition_password', '<missing>')),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY),"
+            " auth.CurrentUser().is_edition)"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "x" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", code], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        return res.stdout.split()
+
+    def test_an_unparseable_config_grants_no_edition_rights(self, tmp_path):
+        failed, password, open_install, is_edition = self._run(tmp_path, "{ not json")
+        assert failed == "True", "an unparseable config must be recorded as failed"
+        # The backfill legitimately supplies the shipped empty password...
+        assert password == "''"
+        # ...and it must NOT be read as "this install has no lock".
+        assert open_install == "False"
+        assert is_edition == "False"
+
+    def test_a_valid_empty_override_still_reads_the_shipped_defaults(self, tmp_path):
+        """The contrast case: {} is a healthy install, not a failed one."""
+        failed, _password, _open_install, _is_edition = self._run(tmp_path, "{}")
+        assert failed == "False"
