@@ -93,7 +93,7 @@ def write_owner_only_backup(source_path, backup_path):
         try:
             fd = os.open(backup_path, _BACKUP_OPEN_FLAGS, BACKUP_FILE_MODE)
         except OSError as ex:
-            if ex.errno not in (errno.ELOOP, errno.EMLINK):
+            if ex.errno != errno.ELOOP:
                 raise
             logger.error(
                 "Refusing to write %s: it is a symlink, and this file holds "
@@ -104,7 +104,12 @@ def write_owner_only_backup(source_path, backup_path):
             )
             return None
         with os.fdopen(fd, 'wb') as destination:
-            os.chmod(backup_path, BACKUP_FILE_MODE)
+            # fchmod, not chmod: the descriptor is the file O_NOFOLLOW just
+            # verified, while the NAME can be swapped between the open and the
+            # chmod. Re-moding by name is exactly the redirection O_NOFOLLOW was
+            # added to stop, so doing it two lines later would have left the
+            # same race open against a fixed, predictable destination.
+            os.fchmod(destination.fileno(), BACKUP_FILE_MODE)
             shutil.copyfileobj(source, destination)
     return backup_path
 

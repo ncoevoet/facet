@@ -39,6 +39,10 @@ logger = logging.getLogger(__name__)
 _CONFIG_PATH_ENV_VAR = 'FACET_CONFIG'
 _CONFIG_PATH = default_config_path()
 
+# The two `viewer` keys that are compared as strings during login. Named here
+# rather than imported from api.auth, which imports THIS module.
+_VIEWER_PASSWORD_KEYS = ('password', 'edition_password')
+
 # Whether an operator NAMED that path or merely inherited the default. The two
 # differ only when the file is absent, and there they differ completely: an
 # unnamed absent config is a fresh install and legitimately open, while a named
@@ -81,29 +85,43 @@ def server_scoring_config(validate=False):
     that is the name every other ``api/`` caller binds, and the name the router
     tests intercept.
 
-    An absent config here is NAMED -- :func:`config_resolve.path_is_named` says
-    so for any path that is not the install-root default, which is exactly when
-    $FACET_CONFIG or a relocated deployment is in play -- so ``ScoringConfig``
-    raises rather than scoring on defaults the operator never chose. That is the
-    right answer for a CLI and the wrong one here: this runs at import of
-    ``api.types``, so it would take the whole server down with a traceback, and
-    ``_read_config`` has ALREADY made the safe decision for the same file --
-    it armed :func:`config_load_failed`, so every route is locked and the login
-    endpoint answers 503. Crashing on top of that replaces an actionable error
-    with a stack trace and loses the 503 the operator needs to see.
+    An unreadable config here is NAMED -- :func:`config_resolve.path_is_named`
+    says so for any path that is not the install-root default, which is exactly
+    when $FACET_CONFIG or a relocated deployment is in play -- so
+    ``ScoringConfig`` raises rather than scoring on defaults the operator never
+    chose. That is the right answer for a CLI and the wrong one here: this runs
+    at import of ``api.types``, so it would take the whole server down with a
+    traceback, and ``_read_config`` has ALREADY made the safe decision for the
+    same file -- it armed :func:`config_load_failed`, so every route is locked
+    and the login endpoint answers 503. Crashing on top of that replaces an
+    actionable error with a stack trace and loses the 503 the operator needs.
 
-    So the fallback is the shipped defaults, read as an override over
-    themselves: the same values, and no claim that the operator's file was
-    found. It only ever runs in the state auth has already refused.
+    :func:`config_load_failed` is therefore the condition, not the exception
+    type. Catching only ``FileNotFoundError`` covered an absent file and left
+    every other way the same file is unreadable -- a mode of 000, a malformed
+    body, an EIO on a network mount -- still killing ``create_app`` with a
+    ``ValueError``, in precisely the state this fallback exists to survive.
+    The predicate is the one ``_read_config`` already computed, so the two
+    cannot disagree about what "cannot read this config" means.
+
+    The fallback is the shipped defaults, read as an override over themselves:
+    the same values, and no claim that the operator's file was found. It runs
+    only where auth has already refused the install.
     """
     from config import ScoringConfig
     try:
         return ScoringConfig(server_config_path(), validate=validate)
-    except FileNotFoundError:
+    except (OSError, ValueError):
+        if not config_load_failed():
+            # Something is wrong with the SHIPPED defaults, or with a config
+            # `_read_config` read successfully moments ago. Neither is the
+            # locked-install state this fallback covers, and scoring on
+            # defaults would hide it, so let it out.
+            raise
         logger.error(
-            "%s does not exist, so scoring falls back to the shipped defaults. "
-            "Authentication is already refusing this install — fix the path or "
-            "the mount, then restart.", server_config_path(),
+            "%s could not be read, so scoring falls back to the shipped "
+            "defaults. Authentication is already refusing this install — fix "
+            "the file or the mount, then restart.", server_config_path(),
         )
         return ScoringConfig(defaults_path(), validate=validate)
 
@@ -279,26 +297,49 @@ def _read_config():
                 f"edition passwords, so it cannot be read as absent."
             )
         if isinstance(overrides, dict):
-            # And the same check one level down. `load_viewer_config` backfills
-            # each shipped sub-block key by key, so a `viewer` whose `features`
-            # or `cull` is a scalar made `k not in viewer[key]` raise TypeError
-            # -- "argument of type 'bool' is not iterable", naming neither the
-            # file nor the key -- at IMPORT of this module, taking the server
-            # down with a traceback the operator cannot act on. Rejecting it
-            # here instead routes it through the handler below, which names the
-            # file, logs the traceback once, and leaves the install locked with
-            # every feature off. Only keys the defaults ship as objects are
-            # checked: `viewer.password` is a string and must stay one.
+            # And the same check one level down, against the type the DEFAULTS
+            # ship for each key. `load_viewer_config` backfills each sub-block
+            # key by key, so a `viewer` whose `features` or `cull` is a scalar
+            # made `k not in viewer[key]` raise TypeError -- "argument of type
+            # 'bool' is not iterable", naming neither the file nor the key --
+            # at IMPORT of this module, taking the server down with a traceback
+            # the operator cannot act on. Rejecting it here routes it through
+            # the handler below, which names the file, logs the traceback once,
+            # and leaves the install locked with every feature off.
+            #
+            # Two exceptions, both learned by breaking a working install:
+            #
+            # A shipped block that is EMPTY is degraded, not refused. The only
+            # one is `viewer.path_mapping` ({} in the defaults), and the old
+            # backfill loop was a no-op on it -- nothing to merge -- so a config
+            # carrying `"path_mapping": []` booted and authenticated for years.
+            # Refusing it turned a harmless typo into a locked-out install with
+            # no in-UI way back. `load_viewer_config` substitutes the shipped
+            # block instead, which is lossless when that block is empty.
+            #
+            # The two PASSWORD keys are checked the other way round, for a
+            # string. They are not backfilled into, so the loop above never
+            # touched them -- but `api.auth._is_hashed` calls `value.split(':')`
+            # on whatever is there, from `check_legacy_password_warnings` during
+            # `create_app`. A `"password": {...}` therefore died with
+            # `AttributeError: 'dict' object has no attribute 'split'` and no
+            # server at all, which is the same failure this check exists to end.
             viewer_overrides = overrides.get('viewer') or {}
             viewer_defaults = defaults.get('viewer') or {}
             for key, shipped in viewer_defaults.items():
-                given = viewer_overrides.get(key, {})
-                if isinstance(shipped, dict) and not isinstance(given, dict):
+                given = viewer_overrides.get(key, shipped)
+                if isinstance(shipped, dict) and shipped and not isinstance(given, dict):
                     raise ValueError(
                         f"{_CONFIG_PATH}: 'viewer.{key}' must be a JSON object, "
                         f"not {type(given).__name__}. It is one of the blocks "
                         f"backfilled from the shipped defaults, which needs keys "
                         f"to merge into."
+                    )
+                if key in _VIEWER_PASSWORD_KEYS and not isinstance(given, str):
+                    raise ValueError(
+                        f"{_CONFIG_PATH}: 'viewer.{key}' must be a string, not "
+                        f"{type(given).__name__}. It is compared as one during "
+                        f"login, so it cannot be read as absent."
                     )
         if not isinstance(overrides, dict):
             # Valid JSON of the wrong SHAPE. deep_merge would die on
@@ -382,7 +423,7 @@ def _tighten_if_group_or_other_readable(path):
     return mode
 
 
-def _group_or_other_readable_mode(path):
+def _group_or_other_readable_mode(path, follow_symlinks=False):
     """``path``'s mode if anyone but its owner can read it, else 0.
 
     Detection WITHOUT the fix, split out because the live config needs one and
@@ -395,16 +436,26 @@ def _group_or_other_readable_mode(path):
     ``immich.api_key`` at 0644 forever, and nothing said so. Warning is what
     that file needs; chmod is what the secret store and the backups need.
 
-    ``lstat`` decides whether to look at all, because ``os.stat`` follows
-    symlinks while this runs over names anyone with write access to the install
-    directory can plant.
+    ``lstat`` decides whether to look at all, because ``os.chmod`` — the fix
+    this feeds — follows symlinks while it runs over names anyone with write
+    access to the install directory can plant.
+
+    ``follow_symlinks=True`` is for the callers that only REPORT. Reading a
+    mode through a link is harmless, and refusing to is a real blind spot: the
+    Docker entrypoint deliberately leaves a symlinked ``/config/scoring_config.json``
+    unseeded and un-chmod'ed, so a link pointing at a 0644 secrets store got
+    neither the entrypoint's tightening nor this warning — the exact gap the
+    warning exists to cover.
     """
     if not _POSIX_FILE_MODES:
         return 0
     try:
-        if not stat.S_ISREG(os.lstat(path).st_mode):
+        if not follow_symlinks and not stat.S_ISREG(os.lstat(path).st_mode):
             return 0
-        mode = stat.S_IMODE(os.stat(path).st_mode)
+        target = os.stat(path)
+        if not stat.S_ISREG(target.st_mode):
+            return 0
+        mode = stat.S_IMODE(target.st_mode)
     except OSError:
         return 0
     return mode if mode & _GROUP_OTHER_MODE else 0
@@ -930,7 +981,7 @@ def _warn_if_config_readable_by_others():
     created the file at the umask default, so it sits at 0644 holding plaintext
     credentials, and silence is what makes that permanent.
     """
-    mode = _group_or_other_readable_mode(_CONFIG_PATH)
+    mode = _group_or_other_readable_mode(_CONFIG_PATH, follow_symlinks=True)
     if not mode:
         return
     logger.warning(

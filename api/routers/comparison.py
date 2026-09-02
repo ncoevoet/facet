@@ -1609,12 +1609,10 @@ def api_get_panorama_detection():
     library was labelled, which the gallery already shows. Writing is
     edition-gated.
     """
-    from config import ScoringConfig
     from utils.panorama import DEFAULTS
 
     settings = dict(DEFAULTS)
-    settings.update(ScoringConfig(str(_CONFIG_PATH), validate=False)
-                    .get_panorama_detection_settings())
+    settings.update(server_scoring_config().get_panorama_detection_settings())
     return {'settings': settings, 'defaults': dict(DEFAULTS)}
 
 

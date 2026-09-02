@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from api.auth import (
     create_access_token, verify_password, verify_legacy_password,
     upgrade_legacy_password, _login_limiter, _is_open_install, VIEWER_PASSWORD_KEY,
+    EDITION_PASSWORD_KEY,
     CurrentUser, get_optional_user, require_authenticated,
     is_edition_enabled, is_edition_authenticated,
     set_auth_cookie, clear_auth_cookie,
@@ -106,7 +107,15 @@ def login(body: LoginRequest, request: Request, response: Response):
         return LoginResponse(access_token=token)
 
 
-@router.post("/edition/login", response_model=LoginResponse)
+@router.post(
+    "/edition/login",
+    response_model=LoginResponse,
+    responses={
+        503: {"description": "Configuration could not be read; refusing to authenticate."},
+        401: {"description": "Invalid password."},
+        429: {"description": "Too many login attempts."},
+    },
+)
 def edition_login(body: EditionLoginRequest, request: Request, response: Response):
     """Authenticate for edition mode (legacy single-user only)."""
     client_ip = request.client.host if request.client else "unknown"
@@ -116,7 +125,22 @@ def edition_login(body: EditionLoginRequest, request: Request, response: Respons
     if is_multi_user_enabled():
         raise HTTPException(status_code=400, detail="Use /api/auth/login for multi-user auth")
     edition_password = VIEWER_CONFIG.get('edition_password', '')
-    if not edition_password or not verify_legacy_password(body.password, edition_password):
+    if not edition_password:
+        # Empty means two different things, exactly as it does on /login: an
+        # install that deliberately runs without an edition gate, and one whose
+        # config could not be read, where VIEWER_CONFIG is the shipped defaults
+        # and every password in it is empty. `_is_open_install` is the predicate
+        # that already separates them — it short-circuits on
+        # `config_load_failed()` — so the second case answers 503 rather than
+        # "Invalid password", which sent the operator to retype a password that
+        # was never the problem.
+        if not _is_open_install(EDITION_PASSWORD_KEY):
+            raise HTTPException(
+                status_code=503,
+                detail="Configuration could not be read; refusing to authenticate.",
+            )
+        raise HTTPException(status_code=401, detail="Invalid password")
+    if not verify_legacy_password(body.password, edition_password):
         raise HTTPException(status_code=401, detail="Invalid password")
 
     # Upgrade plaintext edition password to PBKDF2 hash

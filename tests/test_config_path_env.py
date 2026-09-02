@@ -461,17 +461,49 @@ class TestTheServerScoresAndAuthenticatesFromOneFile:
         )
         assert seen["scoring_password"] == seen["auth_password"]
 
-    def test_a_cwd_config_never_leaves_the_install_open_on_its_own(self, tmp_path):
+    def test_the_cwd_config_is_not_the_one_the_server_scores_with(self, tmp_path):
+        """Stated as an unconditional assertion, because the conditional form
+        this replaced could never run: ``default_config_path`` has no cwd step,
+        so ``scoring_password`` is always '' and a guarded assertion silently
+        tested nothing."""
         (tmp_path / "scoring_config.json").write_text(self._CONFIG)
 
         seen = self._probe(tmp_path)
 
-        # Either the server reads that config -- and is then gated by the
-        # passwords in it -- or it does not read it at all. What it must never
-        # do is score with it while reporting no passwords.
-        if seen["scoring_password"] == "librarysecret":
-            assert seen["open_viewer"] is False
-            assert seen["open_edition"] is False
+        assert seen["scoring_password"] == ""
+        assert seen["scoring_path"] != str(tmp_path / "scoring_config.json")
+
+    def test_every_api_handler_resolves_the_same_file(self, tmp_path):
+        """The 17 converted call sites, not just the helper they call.
+
+        The two tests above exercise ``server_scoring_config()`` directly, which
+        passes an explicit path by construction — so reverting any single router
+        back to a bare ``ScoringConfig()`` would leave them both green. This
+        imports the real modules from a cwd holding a decoy config and asserts
+        none of them picked it up.
+        """
+        (tmp_path / "scoring_config.json").write_text(
+            '{"categories": [{"name": "art", "priority": 1, '
+            '"filters": {"required_tags": ["CWD-DECOY-TAG"]}}]}'
+        )
+        probe = (
+            "import json; "
+            "from api.db_helpers import get_art_tags_from_config as art; "
+            "import api.types as t; "
+            "print(json.dumps({'art_tags': art(), 'types': [d[0] for d in t.TYPE_DEFINITIONS]}))"
+        )
+        env = dict(os.environ)
+        env["PYTHONPATH"] = _repo_root()
+        env.pop(_ENV_VAR, None)
+        run = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=tmp_path, capture_output=True, text=True, env=env,
+        )
+        assert run.returncode == 0, run.stderr
+        seen = json.loads(run.stdout.strip().splitlines()[-1])
+
+        assert "CWD-DECOY-TAG" not in seen["art_tags"]
+        assert "art" in seen["types"]
 
 
 class TestAMalformedViewerSubBlockFailsClosedInsteadOfCrashing:
@@ -543,6 +575,38 @@ class TestAMalformedViewerSubBlockFailsClosedInsteadOfCrashing:
         assert seen["open_edition"] is False
         assert seen["any_feature_on"] is False
 
+    def test_a_shipped_block_that_is_EMPTY_degrades_instead_of_locking_out(self, tmp_path):
+        """The regression this check caused, and the reason it has an exception.
+
+        ``viewer.path_mapping`` is the only shipped viewer block that defaults
+        to ``{}``, so the old backfill loop was a no-op on it and a config
+        carrying ``"path_mapping": []`` booted and authenticated for years.
+        Refusing it turned a harmless typo into a locked-out install with no
+        in-UI way back, so an empty shipped block degrades instead.
+        """
+        probe = self._probe(tmp_path, '{"viewer": {"password": "PW", "path_mapping": []}}')
+        seen = json.loads(probe.stdout.strip().splitlines()[-1])
+
+        assert seen["load_failed"] is False
+        assert seen["any_feature_on"] is True
+
+    def test_a_password_that_is_not_a_string_is_refused_by_name(self, tmp_path):
+        """``api.auth._is_hashed`` calls ``value.split(':')`` on whatever is
+        there, from ``check_legacy_password_warnings`` during ``create_app`` --
+        so a dict password died with ``AttributeError: 'dict' object has no
+        attribute 'split'`` and no server at all."""
+        probe = self._probe(tmp_path, '{"viewer": {"password": {"nested": "oops"}}}')
+
+        assert probe.returncode == 0, probe.stderr
+        assert "AttributeError" not in probe.stderr
+        assert "viewer.password" in probe.stderr
+        assert "must be a string" in probe.stderr
+
+        seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        assert seen["load_failed"] is True
+        assert seen["open_viewer"] is False
+        assert seen["any_feature_on"] is False
+
     def test_a_well_formed_sub_block_is_untouched(self, tmp_path):
         probe = self._probe(
             tmp_path, '{"viewer": {"features": {"show_map": false}, "password": "x"}}',
@@ -559,6 +623,55 @@ class TestAMalformedViewerSubBlockFailsClosedInsteadOfCrashing:
         seen = json.loads(probe.stdout.strip().splitlines()[-1])
 
         assert seen["load_failed"] is False
+        assert seen["open_viewer"] is False
+
+
+class TestAnUnreadableConfigStillStartsTheServer:
+    """`server_scoring_config` must survive every state auth already refused.
+
+    It caught only ``FileNotFoundError``, which covered an absent file and left
+    every other way the same file is unreadable — a mode of 000, a malformed
+    body — still killing ``create_app`` with a ``ValueError``, in precisely the
+    state the fallback exists to survive. The condition is now
+    ``config_load_failed()``, the predicate ``_read_config`` already computed,
+    so the two cannot disagree about what "cannot read this config" means.
+    """
+
+    def _start(self, tmp_path, body, mode=0o600):
+        config = tmp_path / "scoring_config.json"
+        config.write_text(body)
+        config.chmod(mode)
+        secret = tmp_path / ".facet_secret"
+        secret.write_text("a" * 40 + "\n")
+        secret.chmod(0o600)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = _repo_root()
+        env[_ENV_VAR] = str(config)
+        return subprocess.run(
+            [sys.executable, "-c",
+             "import json, api.config as c, api.auth as a; from api import create_app; "
+             "create_app(); "
+             "print(json.dumps({'load_failed': c.config_load_failed(), "
+             "'open_viewer': a._is_open_install(a.VIEWER_PASSWORD_KEY), "
+             "'any_feature_on': any(c.VIEWER_CONFIG.get('features', {}).values())}))"],
+            cwd=tmp_path, capture_output=True, text=True, env=env,
+        )
+
+    def test_a_config_it_cannot_open_boots_locked_rather_than_crashing(self, tmp_path):
+        probe = self._start(tmp_path, '{"viewer": {"password": "PW"}}', mode=0o000)
+
+        assert probe.returncode == 0, probe.stderr
+        seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        assert seen["load_failed"] is True
+        assert seen["open_viewer"] is False
+        assert seen["any_feature_on"] is False
+
+    def test_a_malformed_config_boots_locked_rather_than_crashing(self, tmp_path):
+        probe = self._start(tmp_path, '{"viewer": {"password": "PW"')
+
+        assert probe.returncode == 0, probe.stderr
+        seen = json.loads(probe.stdout.strip().splitlines()[-1])
+        assert seen["load_failed"] is True
         assert seen["open_viewer"] is False
 
 
@@ -610,3 +723,33 @@ class TestALooseConfigModeIsReported:
         stderr, _ = self._probe(tmp_path, 0o600)
 
         assert "readable beyond its owner" not in stderr
+
+    def test_a_symlinked_config_is_reported_through_the_link(self, tmp_path):
+        """The gap the Docker entrypoint deliberately leaves.
+
+        A symlinked ``/config/scoring_config.json`` is not seeded and not
+        chmod'ed, so if the warning also refused to look through the link a
+        0644 target got neither — silence about exactly the shape this warning
+        exists to cover.
+        """
+        target = tmp_path / "real.json"
+        target.write_text('{"viewer": {"password": "topsecret"}}')
+        target.chmod(0o644)
+        link = tmp_path / "scoring_config.json"
+        link.symlink_to(target)
+        secret = tmp_path / ".facet_secret"
+        secret.write_text("a" * 40 + "\n")
+        secret.chmod(0o600)
+
+        env = dict(os.environ)
+        env["PYTHONPATH"] = _repo_root()
+        env[_ENV_VAR] = str(link)
+        probe = subprocess.run(
+            [sys.executable, "-c",
+             "import logging; logging.basicConfig(level=logging.WARNING); import api.config"],
+            cwd=tmp_path, capture_output=True, text=True, env=env,
+        )
+
+        assert probe.returncode == 0, probe.stderr
+        assert "readable beyond its owner" in probe.stderr
+        assert stat.S_IMODE(target.stat().st_mode) == 0o644, "reported, never re-moded"

@@ -333,9 +333,9 @@ def _parse_distortions(raw):
 
 def _build_rule_critique(photo):
     """Build a rule-based critique from stored metrics."""
-    from config import ScoringConfig
+    from api.config import server_scoring_config
 
-    sc = ScoringConfig()
+    sc = server_scoring_config()
     category = photo.get('category', '')
 
     breakdown = _calculate_breakdown(photo, sc, category)

@@ -315,6 +315,19 @@ describe('AuthService', () => {
       expect(result).toBe('invalid');
     });
 
+    it("should report 'unavailable' when the server is unreachable (status 0)", async () => {
+      // A dropped connection, a stopped server or a CORS failure never reached
+      // the password check either, so calling it invalid credentials repeats
+      // the same conflation one layer down.
+      const loginPromise = service.editionLogin('edition-pass');
+
+      const loginReq = httpTesting.expectOne('/api/auth/edition/login');
+      loginReq.error(new ProgressEvent('error'), { status: 0, statusText: 'Unknown Error' });
+
+      const result = await loginPromise;
+      expect(result).toBe('unavailable');
+    });
+
     it("should report 'unavailable' when the server cannot read its config", async () => {
       const loginPromise = service.editionLogin('edition-pass');
 

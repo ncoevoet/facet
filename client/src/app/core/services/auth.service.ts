@@ -128,9 +128,16 @@ export class AuthService {
    * a state the operator fixes on the server, not by retyping a password.
    * Collapsing it into 'invalid' told them their password was wrong, which is
    * the one thing it was not, and hid the only diagnostic the server produced.
+   *
+   * Status 0 counts too — an unreachable server, a dropped connection or a
+   * CORS failure never reached the password check either, so reporting it as
+   * bad credentials repeats the same conflation one layer down. The predicate
+   * is the one `retry.interceptor.ts` already uses for "the server, not the
+   * request, is the problem".
    */
   private classifyLoginError(err: unknown): LoginOutcome {
-    return err instanceof HttpErrorResponse && err.status >= 500 ? 'unavailable' : 'invalid';
+    if (!(err instanceof HttpErrorResponse)) return 'invalid';
+    return err.status === 0 || err.status >= 500 ? 'unavailable' : 'invalid';
   }
 
   /** Login with credentials */

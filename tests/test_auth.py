@@ -1037,6 +1037,40 @@ class TestConfigFailureStaysLocked:
         assert open_pw == "False" and open_edition == "False"
 
 
+class TestEditionLoginReportsAnUnreadableConfig:
+    """An empty ``edition_password`` means two different things here too.
+
+    ``/api/auth/login`` was taught to answer 503 rather than "invalid password"
+    when the config could not be read; ``/api/auth/edition/login`` was not, so
+    it answered 401 in the same state — and the client maps only 5xx to
+    'unavailable', leaving the edition dialog saying the password was wrong.
+    """
+
+    def test_an_unreadable_config_answers_503(self):
+        import api.auth as api_auth
+
+        with mock.patch.object(api_auth, "config_load_failed", lambda: True), \
+             mock.patch.dict(api_auth.VIEWER_CONFIG, {"edition_password": ""}), \
+             mock.patch.object(api_auth, "is_multi_user_enabled", lambda: False):
+            client = TestClient(create_app())
+            res = client.post("/api/auth/edition/login", json={"password": "anything"})
+
+        assert res.status_code == 503
+        assert "Configuration could not be read" in res.json()["detail"]
+
+    def test_a_deliberately_open_install_still_answers_401(self):
+        """The other half: no edition gate configured is not a server fault."""
+        import api.auth as api_auth
+
+        with mock.patch.object(api_auth, "config_load_failed", lambda: False), \
+             mock.patch.dict(api_auth.VIEWER_CONFIG, {"edition_password": ""}), \
+             mock.patch.object(api_auth, "is_multi_user_enabled", lambda: False):
+            client = TestClient(create_app())
+            res = client.post("/api/auth/edition/login", json={"password": "anything"})
+
+        assert res.status_code == 401
+
+
 class TestAPublishedPasswordNeverAuthenticates:
     """`user` and `admin` shipped in this project's own tracked config.
 
