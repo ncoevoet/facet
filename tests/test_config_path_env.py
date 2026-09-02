@@ -21,6 +21,7 @@ not, and must fail closed — see
 import json
 import logging
 import os
+import stat
 import subprocess
 import sys
 
@@ -559,3 +560,53 @@ class TestAMalformedViewerSubBlockFailsClosedInsteadOfCrashing:
 
         assert seen["load_failed"] is False
         assert seen["open_viewer"] is False
+
+
+class TestALooseConfigModeIsReported:
+    """The boot path sweeps the secret store and every backup — but not the one
+    file that always exists.
+
+    ``_config_backup_paths`` filters on the backup suffix, and
+    ``'scoring_config.json'.startswith('scoring_config.json.backup')`` is
+    False, so the live config was excluded by accident. It holds the same
+    secrets as the two files that ARE checked, and an install upgrading from
+    the tracked-config era got it from a ``git clone`` at the umask default.
+
+    Reported, not tightened: ``config_resolve._replacement_mode`` preserves an
+    existing mode on every write precisely so Facet does not overrule an
+    operator who chose one. Silence is what made a mode nobody chose permanent.
+    """
+
+    def _probe(self, tmp_path, mode):
+        config = tmp_path / "scoring_config.json"
+        config.write_text('{"viewer": {"password": "topsecret"}}')
+        config.chmod(mode)
+        secret = tmp_path / ".facet_secret"
+        secret.write_text("a" * 40 + "\n")
+        secret.chmod(0o600)
+        env = dict(os.environ)
+        env["PYTHONPATH"] = _repo_root()
+        env[_ENV_VAR] = str(config)
+        probe = subprocess.run(
+            [sys.executable, "-c",
+             "import logging; logging.basicConfig(level=logging.WARNING); import api.config"],
+            cwd=tmp_path, capture_output=True, text=True, env=env,
+        )
+        assert probe.returncode == 0, probe.stderr
+        return probe.stderr, config
+
+    def test_a_world_readable_config_is_reported(self, tmp_path):
+        stderr, _ = self._probe(tmp_path, 0o644)
+
+        assert "readable beyond its owner" in stderr
+        assert "scoring_config.json" in stderr
+
+    def test_the_mode_is_left_exactly_as_the_operator_set_it(self, tmp_path):
+        _, config = self._probe(tmp_path, 0o644)
+
+        assert stat.S_IMODE(config.stat().st_mode) == 0o644
+
+    def test_an_owner_only_config_says_nothing(self, tmp_path):
+        stderr, _ = self._probe(tmp_path, 0o600)
+
+        assert "readable beyond its owner" not in stderr

@@ -1,6 +1,7 @@
 """Tests for authentication: JWT tokens, password hashing, rate limiting, and login endpoints."""
 
 import json
+import logging
 import os
 import shutil
 import stat
@@ -1034,3 +1035,64 @@ class TestConfigFailureStaysLocked:
         populated, open_pw, open_edition = res.stdout.split()
         assert populated == "True", "a raising rebuild must not empty VIEWER_CONFIG"
         assert open_pw == "False" and open_edition == "False"
+
+
+class TestAPublishedPasswordNeverAuthenticates:
+    """`user` and `admin` shipped in this project's own tracked config.
+
+    scoring_config.json carried ``viewer.password`` = ``user`` and
+    ``viewer.edition_password`` = ``admin`` in 24 commits between 2026-02-14
+    and 2026-03-16. Every clone taken in that window got them, and an install
+    that never changed them is guarded by a value anyone can read out of the
+    public history -- so accepting it authenticates the whole internet.
+
+    The share secrets of that same era are already refused by
+    ``_BURNED_SECRET_DIGESTS``; the passwords sitting beside them in the same
+    file had no equivalent check. They stay a SEPARATE list because the two are
+    handled oppositely: a burned secret is silently regenerated, which a
+    password cannot be.
+    """
+
+    def test_the_published_viewer_password_is_refused(self):
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("user", "user") is False
+
+    def test_the_published_edition_password_is_refused(self):
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("admin", "admin") is False
+
+    def test_an_ordinary_plaintext_password_still_works(self):
+        """The refusal must be the two published values, not plaintext at all --
+        hashing on first login is the documented upgrade path."""
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("hunter2", "hunter2") is True
+        assert verify_legacy_password("wrong", "hunter2") is False
+
+    def test_typing_a_published_value_against_another_password_just_fails(self):
+        """Only the STORED side is checked. Someone typing "admin" at an install
+        whose password is something else must fail the ordinary way."""
+        from api.auth import verify_legacy_password
+
+        assert verify_legacy_password("admin", "hunter2") is False
+
+    def test_a_hashed_password_is_never_treated_as_published(self):
+        from api.auth import hash_password, verify_legacy_password
+
+        stored = hash_password("admin")
+        assert verify_legacy_password("admin", stored) is True
+
+    def test_the_startup_check_reports_it_as_an_error_not_a_reassurance(self, caplog):
+        """"will be hashed on next successful login" is wrong twice over here:
+        there will be no successful login, and hashing a published value would
+        not have protected anything."""
+        from api.auth import check_legacy_password_warnings
+
+        with mock.patch.dict("api.auth.VIEWER_CONFIG", {"password": "user", "edition_password": ""}):
+            with caplog.at_level(logging.ERROR, logger="api.auth"):
+                check_legacy_password_warnings()
+
+        assert any("public git history" in r.getMessage() for r in caplog.records)
+        assert not any("will be hashed" in r.getMessage() for r in caplog.records)

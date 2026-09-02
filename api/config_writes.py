@@ -12,6 +12,7 @@ and the plaintext-password upgrade in ``api.auth``, which rewrite other parts of
 the very same file.
 """
 
+import errno
 import logging
 import os
 import shutil
@@ -31,7 +32,22 @@ logger = logging.getLogger(__name__)
 MAX_CONFIG_BACKUPS = 20
 BACKUP_TIMESTAMP_FORMAT = '%Y%m%d_%H%M%S_%f'
 BACKUP_FILE_MODE = 0o600
-_BACKUP_OPEN_FLAGS = os.O_WRONLY | os.O_CREAT | os.O_TRUNC
+# O_NOFOLLOW because the destination is a FIXED, predictable name beside a
+# world-guessable one -- `scoring_config.json.backup`, plus the timestamped
+# variants. Without it, anyone able to create a name in the config directory
+# plants a symlink there, and the next password upgrade or weights save
+# truncates whatever it points at and writes the complete config through it:
+# every users.*.password_hash, viewer.password, upload.password, frame.tokens
+# and immich.api_key. The chmod that follows would re-mode the target too,
+# since it goes by name. api/config.py's boot sweep already lstats files
+# matching this same prefix for exactly this reason ("a link wearing a
+# scoring_config.json.backup name must not get the boot path to re-mode
+# whatever it points at"); the two writers of that path must not disagree.
+# O_NOFOLLOW is a no-op on Windows, where the same getattr idiom as
+# _SECRET_CLAIM_FLAGS keeps the constant importable.
+_BACKUP_OPEN_FLAGS = (
+    os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, 'O_NOFOLLOW', 0)
+)
 
 
 def write_owner_only_backup(source_path, backup_path):
@@ -60,11 +76,33 @@ def write_owner_only_backup(source_path, backup_path):
     up" — otherwise the first write to a zero-config install dies here rather
     than creating the file. Every caller already treats the return as
     best-effort and reports it, so None reads as "no backup was needed".
+
+    A backup path that is a SYMLINK returns None too, and loudly. O_NOFOLLOW
+    makes the open fail with ELOOP rather than writing the config through the
+    link; refusing is the whole point, so the failure must not be retried
+    without the flag or downgraded to a plain copy. It is reported rather than
+    raised because every caller treats a backup as best-effort — taking the
+    server down would hand a denial of service to whoever planted the link,
+    while the write it guards is still safe: the config writers go through
+    ``atomic_write_json``, which replaces the link itself instead of following
+    it.
     """
     if not os.path.exists(source_path):
         return None
     with open(source_path, 'rb') as source:
-        fd = os.open(backup_path, _BACKUP_OPEN_FLAGS, BACKUP_FILE_MODE)
+        try:
+            fd = os.open(backup_path, _BACKUP_OPEN_FLAGS, BACKUP_FILE_MODE)
+        except OSError as ex:
+            if ex.errno not in (errno.ELOOP, errno.EMLINK):
+                raise
+            logger.error(
+                "Refusing to write %s: it is a symlink, and this file holds "
+                "the complete config — every password hash, token and API key. "
+                "Writing through it would truncate whatever it points at. "
+                "Remove it; the config write itself is unaffected.",
+                backup_path,
+            )
+            return None
         with os.fdopen(fd, 'wb') as destination:
             os.chmod(backup_path, BACKUP_FILE_MODE)
             shutil.copyfileobj(source, destination)

@@ -22,7 +22,9 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from api.config import (
     JWT_ALGORITHM, JWT_EXPIRY_HOURS,
     VIEWER_CONFIG,
+    _CONFIG_PATH,
     config_load_failed,
+    is_burned_password,
     is_multi_user_enabled
 )
 
@@ -358,11 +360,33 @@ def _is_hashed(value: str) -> bool:
 
 
 def verify_legacy_password(candidate: str, stored: str) -> bool:
-    """Verify a password against either a PBKDF2 hash or plaintext value."""
+    """Verify a password against either a PBKDF2 hash or plaintext value.
+
+    A stored plaintext this project PUBLISHED never verifies, whatever was
+    typed. `user` and `admin` shipped as viewer.password and
+    viewer.edition_password in the tracked scoring_config.json for a month, so
+    an install that never changed them is guarded by a value anyone can read
+    out of the public git history — accepting it would authenticate the whole
+    internet. Refusing costs the operator a config edit they have to make
+    anyway; the boot log names the key and the fix (see
+    :func:`check_legacy_password_warnings`), which is why this returns False
+    rather than raising a distinct status the client cannot tell apart from a
+    wrong password.
+
+    Only the STORED side is checked. Someone typing "admin" against a password
+    that genuinely is something else must still just fail, and a hashed stored
+    value cannot match a published plaintext.
+    """
     if not stored:
         return False
     if _is_hashed(stored):
         return verify_password(candidate, stored)
+    if is_burned_password(stored):
+        logger.error(
+            "Refusing a login against a password this project published in its "
+            "own git history. Set a new one in %s and restart.", _CONFIG_PATH,
+        )
+        return False
     return hmac.compare_digest(candidate.encode('utf-8'), stored.encode('utf-8'))
 
 
@@ -417,14 +441,32 @@ def upgrade_legacy_password(config_key: str, plaintext: str):
 
 
 def check_legacy_password_warnings():
-    """Log warnings at startup if plaintext passwords are detected."""
+    """Log warnings at startup if plaintext passwords are detected.
+
+    A PUBLISHED plaintext is reported separately and as an ERROR, because the
+    two say opposite things. "Will be hashed on next successful login" is
+    reassuring and, for `user` or `admin`, wrong twice over: there will be no
+    successful login (:func:`verify_legacy_password` refuses them), and hashing
+    a value out of the public git history would not have protected anything
+    anyway. This is the only place the operator is told why their password
+    stopped working, so it names the key and the file.
+    """
     for key in (VIEWER_PASSWORD_KEY, EDITION_PASSWORD_KEY):
         value = VIEWER_CONFIG.get(key, '')
-        if value and not _is_hashed(value):
-            logger.warning(
-                "Plaintext %s detected in scoring_config.json — "
-                "will be hashed on next successful login", key
+        if not value or _is_hashed(value):
+            continue
+        if is_burned_password(value):
+            logger.error(
+                "%s in %s is a password this project shipped in its own tracked "
+                "config, so it is readable in the public git history and every "
+                "login against it is refused. Set a new one and restart.",
+                key, _CONFIG_PATH,
             )
+            continue
+        logger.warning(
+            "Plaintext %s detected in scoring_config.json — "
+            "will be hashed on next successful login", key
+        )
 
 
 # --- RATE LIMITING ---

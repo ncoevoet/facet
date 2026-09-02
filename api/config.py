@@ -171,6 +171,36 @@ _BURNED_SECRET_DIGESTS = frozenset({
     '8a549d288ad8b4e4e0dd4ff038fa480ff5d3aa7ceeab73198792e9f95f7ae51b',
 })
 
+# SHA-256 of every viewer PASSWORD this project shipped in the tracked config:
+# `user` and `admin`, carried by scoring_config.json in 24 commits between
+# 2026-02-14 and 2026-03-16 as viewer.password and viewer.edition_password.
+# Anyone who cloned in that window and never changed them is protected by a
+# value readable straight out of the public history — the same exposure
+# _BURNED_SECRET_DIGESTS already refuses for the share secrets of that era,
+# which had no equivalent check for the passwords beside them.
+#
+# Digests rather than the values, for the same reason as above: re-committing
+# the plaintext is the bug this list exists to close. They are NOT merged into
+# _BURNED_SECRET_DIGESTS because the two are handled oppositely — a burned
+# secret is silently regenerated, which a password cannot be.
+_BURNED_PASSWORD_DIGESTS = frozenset({
+    '04f8996da763b7a969b1028ee3007569eaf3a635486ddab211d512c85b9df8fb',  # user
+    '8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918',  # admin
+})
+
+
+def is_burned_password(value):
+    """True when ``value`` is a plaintext password this project published.
+
+    Only ever asked of a STORED value, never of what a caller typed: the
+    question is whether the install is still protected by a shipped default,
+    not whether someone guessed one. Hashed values are not published and cannot
+    match — they never reach here, since the callers check the plaintext branch.
+    """
+    if not isinstance(value, str) or not value:
+        return False
+    return hashlib.sha256(value.encode('utf-8')).hexdigest() in _BURNED_PASSWORD_DIGESTS
+
 
 def config_load_failed():
     """True when scoring_config.json exists but could not be parsed.
@@ -344,6 +374,34 @@ def _tighten_if_group_or_other_readable(path):
     site: in both cases the file is known loose and stayed loose, and neither
     caller may treat that as fatal (this runs on the boot path).
     """
+    mode = _group_or_other_readable_mode(path)
+    if not mode:
+        return 0
+    try:
+        os.chmod(path, _SECRET_FILE_MODE)
+    except OSError:
+        logger.warning("Could not tighten permissions on %s", path, exc_info=True)
+        return 0
+    return mode
+
+
+def _group_or_other_readable_mode(path):
+    """``path``'s mode if anyone but its owner can read it, else 0.
+
+    Detection WITHOUT the fix, split out because the live config needs one and
+    not the other. Its mode is the operator's to choose -- a co-deployed CLI
+    may legitimately need to read it, and ``config_resolve._replacement_mode``
+    deliberately preserves whatever an existing file carries -- but an install
+    that predates the untracking got its ``scoring_config.json`` from a
+    ``git clone`` at the umask default, so it holds ``viewer.password``,
+    ``users.*.password_hash``, ``upload.password``, ``frame.tokens`` and
+    ``immich.api_key`` at 0644 forever, and nothing said so. Warning is what
+    that file needs; chmod is what the secret store and the backups need.
+
+    ``lstat`` decides whether to look at all, because ``os.stat`` follows
+    symlinks while this runs over names anyone with write access to the install
+    directory can plant.
+    """
     if not _POSIX_FILE_MODES:
         return 0
     try:
@@ -352,14 +410,7 @@ def _tighten_if_group_or_other_readable(path):
         mode = stat.S_IMODE(os.stat(path).st_mode)
     except OSError:
         return 0
-    if not mode & _GROUP_OTHER_MODE:
-        return 0
-    try:
-        os.chmod(path, _SECRET_FILE_MODE)
-    except OSError:
-        logger.warning("Could not tighten permissions on %s", path, exc_info=True)
-        return 0
-    return mode
+    return mode if mode & _GROUP_OTHER_MODE else 0
 
 
 def _warn_if_readable_by_others(path):
@@ -858,7 +909,41 @@ def _load_config():
     """
     config, parsed_ok, legacy = _read_config_evicting_legacy_share_key()
     _tighten_existing_config_backups()
+    _warn_if_config_readable_by_others()
     return config, parsed_ok, legacy
+
+
+def _warn_if_config_readable_by_others():
+    """Report — but do not change — a live config anyone can read.
+
+    The boot path already sweeps the two OTHER files holding these secrets: the
+    secret store (:func:`_warn_if_readable_by_others`) and every config backup
+    (:func:`_tighten_existing_config_backups`), both on the stated grounds that
+    "the ones already on disk keep the old mode forever, which is exactly the
+    window an attacker uses". The config itself was excluded by accident, not
+    by design: :func:`_config_backup_paths` filters on the backup suffix, and
+    ``'scoring_config.json'.startswith('scoring_config.json.backup')`` is
+    False. It is the only one of the three that ALWAYS exists.
+
+    Warn rather than tighten, because unlike those two this file's mode is a
+    real choice — a co-deployed CLI running as another account may need to read
+    it, and ``config_resolve._replacement_mode`` preserves an existing mode on
+    every write precisely so Facet does not overrule that. But an install
+    upgrading from the tracked-config era never made the choice: ``git clone``
+    created the file at the umask default, so it sits at 0644 holding plaintext
+    credentials, and silence is what makes that permanent.
+    """
+    mode = _group_or_other_readable_mode(_CONFIG_PATH)
+    if not mode:
+        return
+    logger.warning(
+        "%s is readable beyond its owner (mode %o) and holds plaintext "
+        "credentials — viewer.password, users.*.password_hash, "
+        "upload.password, frame.tokens, immich.api_key. Facet leaves the mode "
+        "you chose alone; if you did not choose it, `chmod 600 %s` and treat "
+        "anything in it as exposed.",
+        _CONFIG_PATH, mode, _CONFIG_PATH,
+    )
 
 
 def _ensure_secret(env_secret, stored, parsed_ok, legacy):
