@@ -98,11 +98,16 @@ def load_defaults():
     Returns a FRESH parse on every call, and callers rely on that: the
     zero-override path in :func:`load_resolved` hands this dict straight back,
     and ``ScoringConfig`` then writes $FACET_VRAM_PROFILE into it in place.
-    Caching this (an lru_cache is the obvious optimisation — it is ~0.5 ms and
-    ~98 KB) would make that mutation leak into every later reader, so a cache
-    here MUST hand out a deep copy. Measure first: the viewer already resolves
-    once at boot into ``api.config._FULL_CONFIG``, so this is not on a request
-    path.
+    Caching it MUST therefore hand out a deep copy, and that is exactly why
+    there is no cache: measured on the shipped file, ``json.load`` is 0.635 ms
+    and ``copy.deepcopy`` of the result is 1.15 ms, so a memo makes every call
+    slower than the parse it avoids. A cache here only becomes worthwhile if
+    the copy goes away, which means the mutation going away first.
+
+    This IS on a request path, contrary to what this docstring used to assert:
+    ``api/`` builds a ``ScoringConfig`` inside fourteen handlers, so a gallery,
+    stats, search or comparison request pays a resolve. What that bought was
+    the :func:`_merge_into` split below, which is where the cost actually was.
     """
     path = defaults_path()
     try:
@@ -133,15 +138,37 @@ def deep_merge(base, override):
     shallow copy the untouched branches were the SAME list and dict objects,
     so appending to the resolved ``categories`` appended to the defaults too.
     That is inert only while ``load_defaults`` re-reads the file on every call;
-    it becomes a cross-request bug the moment anything caches it.
+    it becomes a cross-request bug the moment anything caches it -- and one now
+    does, so the guarantee is load-bearing rather than theoretical.
+
+    Copying each node ONCE is the whole reason for the ``_merge_into`` split.
+    Recursing into ``deep_merge`` re-deep-copied every OVERLAPPING subtree once
+    per level of nesting, on top of the whole-tree copy the call had already
+    made. Measured against the shipped defaults: a full pre-split config laid
+    over them took 727 ``deepcopy`` invocations and 3.25 ms, against 574 and
+    2.18 ms here (1.49x); a three-key override, 1.16x. ``_merge_into`` mutates
+    the already-private destination instead of re-copying it.
     """
     result = copy.deepcopy(base)
-    for key, value in override.items():
-        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
-            result[key] = deep_merge(result[key], value)
-        else:
-            result[key] = copy.deepcopy(value)
+    _merge_into(result, override)
     return result
+
+
+def _merge_into(destination, override):
+    """Lay ``override`` over ``destination`` IN PLACE, with the same semantics.
+
+    Private because it is only safe on a dict the caller already owns
+    outright -- :func:`deep_merge` deep-copies ``base`` before calling this.
+    Values taken FROM ``override`` are still deep-copied, so the result shares
+    no mutable object with either argument, which is the guarantee callers
+    depend on.
+    """
+    for key, value in override.items():
+        current = destination.get(key)
+        if isinstance(current, dict) and isinstance(value, dict):
+            _merge_into(current, value)
+        else:
+            destination[key] = copy.deepcopy(value)
 
 
 def subtract_defaults(merged, defaults):

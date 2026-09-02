@@ -56,6 +56,56 @@ class TestDeepMerge:
         assert base == {"x": {"a": 1}}
         assert override == {"x": {"b": 2}}
 
+    def test_the_result_shares_no_mutable_object_with_either_argument(self):
+        """The guarantee every caller depends on, stated as an identity check.
+
+        ``==`` cannot see this: a result that SHARES ``base``'s inner list
+        compares equal to a result that copied it, right up until a caller
+        appends to the resolved ``categories`` and appends to the shipped
+        defaults too. Editing the result and re-reading the inputs is the only
+        assertion that fails on a shallow copy.
+        """
+        base = {"kept": {"deep": [1]}, "overridden": {"a": 1}}
+        override = {"overridden": {"b": [2]}}
+
+        merged = deep_merge(base, override)
+        merged["kept"]["deep"].append(99)
+        merged["overridden"]["b"].append(99)
+
+        assert base == {"kept": {"deep": [1]}, "overridden": {"a": 1}}
+        assert override == {"overridden": {"b": [2]}}
+
+    def test_it_copies_each_node_once(self):
+        """``_merge_into`` exists for this, and only an accounting test sees it.
+
+        Recursing into ``deep_merge`` re-deep-copied every OVERLAPPING subtree
+        once per level of nesting, on top of the whole-tree copy the call had
+        already made. The output was correct either way, so nothing else here
+        can fail when it comes back.
+        """
+        import config_resolve
+
+        base = {"a": {"b": {"c": {"d": 1}}}}
+        override = {"a": {"b": {"c": {"e": 2}}}}
+
+        calls = []
+        real_deepcopy = config_resolve.copy.deepcopy
+
+        def counting_deepcopy(value, *args):
+            calls.append(value)
+            return real_deepcopy(value, *args)
+
+        config_resolve.copy.deepcopy = counting_deepcopy
+        try:
+            merged = deep_merge(base, override)
+        finally:
+            config_resolve.copy.deepcopy = real_deepcopy
+
+        assert merged == {"a": {"b": {"c": {"d": 1, "e": 2}}}}
+        # One whole-tree copy of `base`, plus one copy of the single leaf the
+        # override contributes. Four levels of overlap used to cost four more.
+        assert len(calls) == 2
+
 
 class TestSubtractDefaults:
     """The inverse, as far as a merge can be inverted."""
