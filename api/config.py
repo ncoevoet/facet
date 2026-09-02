@@ -216,6 +216,17 @@ def is_burned_password(value):
     never asked of a candidate that has not verified: that would answer "did
     someone guess a shipped default", which is not this function's business and
     would leak the two values by timing.
+
+    SHA-256 is the right primitive here and this is NOT password hashing, which
+    CodeQL's ``py/weak-sensitive-data-hashing`` reads it as (alert 123). Nothing
+    is stored: the digest is computed and discarded, and the only question asked
+    of it is membership in a two-element set. Storage goes through
+    :func:`api.auth.hash_password`, which is PBKDF2. A computationally expensive
+    hash would buy nothing anyway — it exists to make a stolen digest expensive
+    to reverse, and both values behind these digests are already published in
+    this repository's git history, which is the entire reason the check exists.
+    Salting, which is what makes PBKDF2 worth its cost, would defeat the
+    membership test outright.
     """
     if not isinstance(value, str) or not value:
         return False

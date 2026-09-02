@@ -498,6 +498,14 @@ def check_legacy_password_warnings():
     has verified — and the refusal logs an error naming the file at the moment
     the operator actually hits it, which is when they are looking.
     """
+    # ``key`` is a config KEY NAME -- the literal 'password' or
+    # 'edition_password' -- and it is the only thing these two log lines
+    # interpolate from this loop. The password itself is ``value``, which is
+    # never logged, in either branch. CodeQL reports both lines as clear-text
+    # logging of a secret (alerts 121 and 122) because ``key`` is the lookup key
+    # into a dict whose VALUES are passwords, so its taint follows the key
+    # rather than the value. Naming the key is the point: it is what tells the
+    # operator which of the two settings to change.
     for key in (VIEWER_PASSWORD_KEY, EDITION_PASSWORD_KEY):
         value = VIEWER_CONFIG.get(key, '')
         if not value or _is_hashed(value):
