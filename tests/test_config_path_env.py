@@ -79,45 +79,55 @@ class TestDefaultConfigPath:
 
 
 class TestScoringConfigInitDefault:
-    """``ScoringConfig.__init__``'s bare default is ``default_config_path()``,
-    the same ABSOLUTE install-root path the other two sites resolve.
+    """``ScoringConfig.__init__``'s bare default: a config in the WORKING
+    DIRECTORY if there is one, else the absolute install-root path.
 
-    It used to be the relative literal ``'scoring_config.json'``, which was
-    harmless only while an absent config still raised: the failure was loud
-    wherever you ran from. Once an absent config became a supported state —
-    an install running purely on the shipped defaults — the relative name made
-    the two indistinguishable, so ``python /opt/facet/facet.py`` run from any
-    other directory read its own cwd's absent file as the inherited default
-    and scored silently on shipped defaults while the operator's real config
-    sat unread in the install root. ``config_resolve.path_is_named`` already
-    refuses to compare against the relative name for that exact reason.
-
-    The two spellings only ever differed where the relative one was wrong:
-    when cwd IS the install root they name the same file.
+    Both halves are load-bearing and were each broken at some point. Reading
+    the working directory is a real workflow -- run Facet from a photo library
+    carrying its own ``scoring_config.json`` and that config scores it -- so an
+    unconditional absolute default silently ignores the operator's file.
+    Falling through to the install root when there is NO local file is the
+    other half: while an absent config still raised, an unconditional relative
+    name was harmless because the failure was loud wherever you ran from, but
+    once "absent" became a supported state it made "no config here"
+    indistinguishable from "no config anywhere" -- so running the install's
+    facet.py from elsewhere scored silently on shipped defaults while the
+    operator's real config sat unread.
     """
 
     def test_explicit_argument_wins_over_env(self, monkeypatch, tmp_path):
         monkeypatch.setenv(_ENV_VAR, str(tmp_path / "env.json"))
         assert resolve_scoring_config_path(str(tmp_path / "explicit.json")) == str(tmp_path / "explicit.json")
 
-    def test_unset_env_and_no_argument_resolves_the_install_root(self, monkeypatch):
-        monkeypatch.delenv(_ENV_VAR, raising=False)
-        resolved = resolve_scoring_config_path(None)
-        assert resolved == default_config_path()
-        assert os.path.isabs(resolved), "a cwd-relative default reads the wrong file from any other directory"
-
-    def test_env_overrides_the_relative_default(self, monkeypatch, tmp_path):
+    def test_env_overrides_the_default(self, monkeypatch, tmp_path):
         custom = tmp_path / "custom.json"
         monkeypatch.setenv(_ENV_VAR, str(custom))
         assert resolve_scoring_config_path(None) == str(custom)
 
-    def test_empty_env_falls_back_to_the_install_root(self, monkeypatch):
-        monkeypatch.setenv(_ENV_VAR, "")
-        assert resolve_scoring_config_path(None) == default_config_path()
-
-    def test_the_default_is_read_from_any_working_directory(self, monkeypatch, tmp_path):
-        """The regression the absolute default exists to prevent."""
+    def test_a_config_in_the_working_directory_is_used(self, monkeypatch, tmp_path):
+        """Run Facet from a library that carries its own config and it wins."""
         monkeypatch.delenv(_ENV_VAR, raising=False)
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "scoring_config.json").write_text("{}")
+        assert resolve_scoring_config_path(None) == "scoring_config.json"
+
+    def test_no_config_in_the_working_directory_falls_through_to_the_install_root(
+        self, monkeypatch, tmp_path,
+    ):
+        """The regression the fall-through exists to prevent.
+
+        A bare relative name here reads *this* directory's absent file as the
+        inherited default, which resolves to the shipped defaults -- silently
+        discarding the operator's real config in the install root.
+        """
+        monkeypatch.delenv(_ENV_VAR, raising=False)
+        monkeypatch.chdir(tmp_path)
+        resolved = resolve_scoring_config_path(None)
+        assert resolved == default_config_path()
+        assert os.path.isabs(resolved)
+
+    def test_empty_env_falls_back_the_same_way(self, monkeypatch, tmp_path):
+        monkeypatch.setenv(_ENV_VAR, "")
         monkeypatch.chdir(tmp_path)
         assert resolve_scoring_config_path(None) == default_config_path()
 

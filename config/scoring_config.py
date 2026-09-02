@@ -116,26 +116,35 @@ def _usable_category_name(category):
     return name if isinstance(name, str) and name.strip() else None
 
 
+_CWD_CONFIG_FILENAME = 'scoring_config.json'
+
+
 def resolve_scoring_config_path(explicit):
     """Path a caller-less ``ScoringConfig()`` loads: the argument, then
-    $FACET_CONFIG, then the install-root default.
+    $FACET_CONFIG, then a config in the working directory, then the install root.
 
-    The last step is :func:`default_config_path`, which is ABSOLUTE, and not
-    the bare relative ``'scoring_config.json'`` it used to be. A relative name
-    binds to the process working directory, and since an absent config became
-    a supported state -- an install running purely on the shipped defaults --
-    that made the two indistinguishable: ``python /opt/facet/facet.py`` run
-    from anywhere else resolved its own cwd's absent file as the inherited
-    default and scored silently on defaults while the operator's real config
-    sat unread in the install root. :func:`config_resolve.path_is_named`
-    already refuses to compare against the relative name for exactly that
-    reason; resolving against it here reopened the same hole one layer down.
+    The working-directory step is a real workflow -- run Facet from a photo
+    library that carries its own ``scoring_config.json`` and that config is what
+    scores it -- so it is tried FIRST, and only its ABSENCE falls through to
+    ``default_config_path()``.
 
-    The two spellings only ever differ where the old one was wrong: when cwd
-    IS the install root they name the same file, and when it is not, the
-    absolute path is the one the operator configured.
+    That fall-through is the fix. This used to return the relative name
+    unconditionally, which was harmless while an absent config raised: the
+    failure was loud wherever you ran from. Once an absent config became a
+    supported state -- an install running purely on the shipped defaults -- the
+    unconditional relative name made "no config here" indistinguishable from
+    "no config anywhere", so ``python /opt/facet/facet.py`` run from any
+    directory without one scored silently on defaults while the operator's real
+    config sat unread in the install root. Existence is what separates the two,
+    and it is checked here rather than in ``path_is_named``, whose own docstring
+    refuses to compare against a cwd-relative name for the same reason.
     """
-    return explicit or os.environ.get('FACET_CONFIG', '').strip() or default_config_path()
+    named = explicit or os.environ.get('FACET_CONFIG', '').strip()
+    if named:
+        return named
+    if os.path.exists(_CWD_CONFIG_FILENAME):
+        return _CWD_CONFIG_FILENAME
+    return default_config_path()
 
 
 def _readable_system_ram_gb():
