@@ -16,7 +16,7 @@ open-clip-torch>=2.20.0
 # _batch_qwen3 now left-pads like input_ids instead of raw-concatenating.
 # Upper-bounded at the newest validated release rather than left open, so a future
 # processor-output change cannot break batched tagging silently.
-transformers>=5.3.0,<5.16
+transformers>=5.3.0,<5.17
 # accelerate is required for VLM taggers (device_map="auto") and SigLIP 2.
 # install.sh installs it unconditionally — keep it here for direct pip users too.
 accelerate>=0.25.0
