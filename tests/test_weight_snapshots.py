@@ -16,6 +16,7 @@ from unittest import mock
 
 import pytest
 
+from config_resolve import defaults_path
 from db import init_database, record_weight_snapshot, get_connection
 
 _AUTH_MODULE = "api.auth"
@@ -260,7 +261,7 @@ class TestCli:
         init_database(db)
         result = subprocess.run(
             [sys.executable, "facet.py", "--recompute-category", "portrait",
-             "--db", db, "--config", "config/scoring_config.default.json"],
+             "--db", db, "--config", defaults_path()],
             capture_output=True, text=True, cwd=_ROOT,
         )
         assert result.returncode == 0, result.stderr

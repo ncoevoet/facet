@@ -137,11 +137,11 @@ def _compact_config():
     which is what :func:`config_resolve.delta_for_write` guarantees. A backup is
     taken first anyway, at 0600, because the file holds plaintext credentials.
     """
-    from api.config_writes import _backup_config
+    from api.config_writes import backup_config
 
     before = os.path.getsize(CONFIG_PATH) if os.path.exists(CONFIG_PATH) else 0
     config = _load_config()
-    backup_path = _backup_config(CONFIG_PATH, prune=False)
+    backup_path = backup_config(CONFIG_PATH, prune=False)
     if backup_path:
         logger.info("Backup saved to %s", backup_path)
     write_user_config(CONFIG_PATH, config)

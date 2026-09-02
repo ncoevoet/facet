@@ -136,8 +136,13 @@ def _prune_config_backups(config_path, keep=MAX_CONFIG_BACKUPS):
             logger.warning("Could not prune config backup %s", stale, exc_info=True)
 
 
-def _backup_config(config_path, *, prune=True):
+def backup_config(config_path, *, prune=True):
     """Copy ``config_path`` aside under a timestamped name and return that path.
+
+    Public, because ``database.py --compact-config`` is a caller: it used to
+    import this under its old leading-underscore name, which made it a de-facto
+    public API without saying so, and left a rename here free to break that
+    module with no signal from the name.
 
     The stamp carries microseconds: at second granularity two saves inside the
     same second collapsed into one file, so the ``backup`` path handed back to
@@ -218,9 +223,12 @@ def update_category_priorities(config_path, order):
     maximum, and the resulting pool is sorted ascending and reassigned
     positionally onto ``order`` — so a hand-edited config with broken
     priorities is fixed by the write instead of being permanently stuck.
-    ``default`` keeps its own priority untouched. Always takes a timestamped
-    loose backup before writing (priorities aren't covered by the weights
-    snapshot table) and returns its path.
+    ``default`` keeps its own priority untouched. Takes a timestamped loose
+    backup before writing (priorities aren't covered by the weights snapshot
+    table) and returns its path — or ``None`` when there was nothing to back
+    up, which is the ordinary first write to an install that overrides nothing.
+    The endpoint puts that value straight into its ``backup`` response field,
+    so that field is nullable.
     """
     config_path = str(config_path)
     with CONFIG_WRITE_LOCK:
@@ -238,7 +246,7 @@ def update_category_priorities(config_path, order):
         for name, priority in zip(order, priorities):
             by_name[name]['priority'] = priority
 
-        backup_path = _backup_config(config_path)
+        backup_path = backup_config(config_path)
 
         write_user_config(config_path, config)
 
@@ -283,8 +291,11 @@ def update_scoring_context(config_path, context, promote, excluded):
     Duplicates in ``excluded`` are collapsed rather than rejected, since it is
     a set and a repeat changes nothing.
 
-    Always takes a timestamped loose backup before writing (contexts aren't
-    covered by the weights snapshot table) and returns its path.
+    Takes a timestamped loose backup before writing (contexts aren't covered by
+    the weights snapshot table) and returns its path — or ``None`` when there
+    was nothing to back up, which is the ordinary first write to an install
+    that overrides nothing. The endpoint puts that value straight into its
+    ``backup`` response field, so that field is nullable.
     """
     config_path = str(config_path)
     with CONFIG_WRITE_LOCK:
@@ -309,7 +320,7 @@ def update_scoring_context(config_path, context, promote, excluded):
         target['promote'] = list(promote)
         target['excluded'] = list(dict.fromkeys(excluded))
 
-        backup_path = _backup_config(config_path)
+        backup_path = backup_config(config_path)
 
         write_user_config(config_path, config)
 
@@ -339,7 +350,7 @@ def update_category_weights(config_path, category, snapshot_tag, get_db, *,
 
         backup_path = None
         if backup:
-            backup_path = _backup_config(config_path)
+            backup_path = backup_config(config_path)
 
         if weights is not None:
             if replace_weights:
@@ -393,7 +404,7 @@ def update_panorama_detection(config_path, settings):
     config_path = str(config_path)
     with CONFIG_WRITE_LOCK:
         config = load_resolved(config_path)
-        backup_path = _backup_config(config_path)
+        backup_path = backup_config(config_path)
         stored = dict(settings)
         stored['enabled'] = bool(stored['enabled'])
         for key in ('min_frames', 'min_inliers', 'sift_features', 'probe_stride', 'workers'):

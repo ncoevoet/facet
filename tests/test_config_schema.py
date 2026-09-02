@@ -5,6 +5,7 @@ import json
 import pytest
 
 from config.scoring_config import ScoringConfig
+from config_resolve import defaults_path
 
 pytest.importorskip("jsonschema")
 
@@ -28,7 +29,7 @@ def _minimal_valid():
 
 class TestSchemaValidation:
     def test_shipped_config_is_valid(self):
-        cfg = ScoringConfig("config/scoring_config.default.json", validate=False)
+        cfg = ScoringConfig(defaults_path(), validate=False)
         assert cfg.validate_schema() == []
 
     def test_minimal_valid_config_passes(self, tmp_path):

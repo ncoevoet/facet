@@ -29,16 +29,13 @@ logger = logging.getLogger(__name__)
 # entrypoint unable to reclaim its own mount point. Naming the file via an env var
 # instead lets the compose file mount a directory (which the daemon can create
 # safely) and point here without either program changing when the variable is
-# unset. Resolved by :func:`config.default_config_path` rather than re-derived:
-# this module used to carry a byte-for-byte copy of that function's body, which
-# nothing but a cross-package consistency test kept aligned. The import is not
-# free in the abstract — `config` pulls `config.percentile_normalizer`, which
-# pulls `db`, which pulls numpy: ~50 ms in an interpreter holding none of them.
-# It is free where it actually happens: `api.types` and `api.db_helpers` import
-# `config` at module scope themselves, and so do `facet.py` and `database.py`,
-# so every server and CLI process that reaches this module has already paid for
-# numpy — measured against an interpreter that already holds `db`, the addition
-# is under 1 ms.
+# unset. Resolved by :func:`config_resolve.default_config_path` rather than
+# re-derived: this module used to carry a byte-for-byte copy of that function's
+# body, which nothing but a cross-package consistency test kept aligned. The
+# import costs nothing at all now — `config_resolve` is a stdlib-only top-level
+# module, which is the whole reason it is not inside the `config` package.
+# Importing `config` instead would pull `config.percentile_normalizer`, and so
+# `db` and numpy, into every process that touches this module.
 _CONFIG_PATH_ENV_VAR = 'FACET_CONFIG'
 _CONFIG_PATH = default_config_path()
 

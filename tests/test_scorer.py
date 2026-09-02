@@ -18,6 +18,7 @@ a tracked file in the repo) is present and use it as the configuration fixture.
 
 from __future__ import annotations
 
+from config_resolve import defaults_path
 import pytest
 
 
@@ -490,7 +491,7 @@ class TestUpdateAllAggregatesCarriesFocalLength:
     def config_with_focal_length_category(self, tmp_path):
         import json
 
-        with open('config/scoring_config.default.json') as f:
+        with open(defaults_path()) as f:
             config = json.load(f)
         base_category = next(c for c in config['categories'] if c['name'] == 'macro')
         telephoto_category = dict(base_category, name='telephoto', priority=0,

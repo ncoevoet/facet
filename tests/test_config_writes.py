@@ -30,7 +30,7 @@ from api.config_writes import (
 )
 from config.scoring_config import ScoringConfig
 
-REPO_CONFIG_PATH = Path(__file__).resolve().parent.parent / "config/scoring_config.default.json"
+REPO_CONFIG_PATH = Path(config_resolve.defaults_path())
 
 
 @pytest.fixture
@@ -305,7 +305,7 @@ def _raising_get_db():
 
 class TestUpdateCategoryWeightsBackupPruning:
     """DEBT A5#3: update_category_weights(backup=True) was the only writer
-    passing prune=False to _backup_config, so modifier/filter edits
+    passing prune=False to backup_config, so modifier/filter edits
     accumulated ~88KB backups unbounded. It must prune like every other
     config-backup writer (update_category_priorities, update_scoring_context)."""
 
@@ -807,7 +807,7 @@ class TestTheFirstWriteToAZeroConfigInstall:
 
     This is the state this release makes ordinary -- scoring_config.json is now
     an override and a fresh install has none -- and every API config writer
-    calls ``_backup_config`` before it writes. Without the absent-source guard
+    calls ``backup_config`` before it writes. Without the absent-source guard
     in ``write_owner_only_backup`` the first weights, priority, scoring-context
     or panorama edit on a fresh install died in the BACKUP step with
     FileNotFoundError, before it ever created the file.

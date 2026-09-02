@@ -2,16 +2,15 @@
 
 import json
 import logging
-import os
 
 import pytest
 
 from config.category_filter import CategoryFilter, VALID_WEIGHT_COLUMNS
 from config.scoring_config import ScoringConfig
-from config_resolve import load_defaults
+from config_resolve import defaults_path, load_defaults
 
 # Resolve the real scoring_config.json path (repo root)
-CONFIG_PATH = os.path.join(os.path.dirname(__file__), "..", "config/scoring_config.default.json")
+CONFIG_PATH = defaults_path()
 
 
 @pytest.fixture(scope="module")
