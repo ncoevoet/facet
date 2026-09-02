@@ -22,6 +22,11 @@ logger = logging.getLogger("facet.config_resolve")
 
 CONFIG_PATH_ENV_VAR = 'FACET_CONFIG'
 _WORLD_READ_WRITE_MODE = 0o666
+# Owner-only, for a config file that does not exist yet. Deliberately a
+# separate constant from api.config._SECRET_FILE_MODE rather than an import:
+# this module is stdlib-only so db.connection and viewer can import it, and
+# reaching into api/ would recreate the circular import it exists to avoid.
+_SECRET_FILE_MODE = 0o600
 
 # Scratch name every config replacement stages under. Dotted and gitignored
 # because this staging copy is a COMPLETE config -- every
@@ -228,12 +233,29 @@ def _umask_default_mode():
     return _WORLD_READ_WRITE_MODE & ~umask
 
 
-def _replacement_mode(path):
-    """Permission bits an atomic replacement of ``path`` must end up with."""
+def _replacement_mode(path, new_file_mode=None):
+    """Permission bits an atomic replacement of ``path`` must end up with.
+
+    An EXISTING destination keeps its own mode: stripping the group/other read
+    access a co-deployed CLI needs would be a regression, and the operator's
+    choice of bits is not this function's to overrule.
+
+    ``new_file_mode`` is what to use when the destination does not exist yet,
+    and it exists because that branch stopped being rare. While
+    scoring_config.json was tracked, the file was always there and the umask
+    default was reached only in tests; now that it ships as an absent override,
+    the FIRST write of every native install lands here -- and that file holds
+    ``viewer.password``, ``users.*.password_hash``, ``upload.password``,
+    ``frame.tokens`` and ``immich.api_key`` in plaintext. Creating it 0664 and
+    then preserving those bits forever is not a default worth inheriting from
+    the umask, so :func:`write_user_config` names 0600 instead -- the same bits
+    docker-entrypoint.sh forces on the seeded config and the backup writers
+    force on every copy of it.
+    """
     try:
         return stat.S_IMODE(os.stat(path).st_mode)
     except FileNotFoundError:
-        return _umask_default_mode()
+        return _umask_default_mode() if new_file_mode is None else new_file_mode
 
 
 def _fsync_directory(directory):
@@ -261,7 +283,7 @@ def _unlink_quietly(path):
         logger.debug("Could not remove temp file %s", path, exc_info=True)
 
 
-def atomic_write_json(path, data):
+def atomic_write_json(path, data, new_file_mode=None):
     """Replace ``path`` with ``data`` atomically, durably, and at its current mode.
 
     ``tempfile.mkstemp`` creates the replacement 0600, so the destination's own
@@ -285,6 +307,8 @@ def atomic_write_json(path, data):
 
     Note the mode preservation makes this the WRONG primitive for a secret —
     see ``api.config._atomic_write_owner_only``, which forces 0600 instead.
+    ``new_file_mode`` only narrows the case where there is no mode to preserve
+    because the destination does not exist; it never touches an existing file.
 
     The scratch file is named after :data:`_TEMP_CONFIG_PREFIX` rather than
     left to mkstemp's default, so a crash before the rename leaves an IGNORED
@@ -292,7 +316,7 @@ def atomic_write_json(path, data):
     included.
     """
     directory = os.path.dirname(path) or '.'
-    mode = _replacement_mode(path)
+    mode = _replacement_mode(path, new_file_mode)
     fd, tmp_path = tempfile.mkstemp(dir=directory, prefix=_TEMP_CONFIG_PREFIX,
                                     suffix=_TEMP_CONFIG_SUFFIX)
     try:
@@ -320,6 +344,11 @@ def write_user_config(path, config):
 
     Uses :func:`atomic_write_json`, which preserves the destination's mode —
     the seeded container config is 0600 because it legitimately holds
-    ``viewer.password`` and ``immich.api_key`` in plaintext.
+    ``viewer.password`` and ``immich.api_key`` in plaintext. When there is no
+    destination yet to take a mode from, this writer names 0600 rather than
+    letting the umask pick: since the config ships as an absent override, the
+    first write of a native install creates the file, and 0664 there would put
+    every one of those plaintext credentials in reach of any local account —
+    permanently, because later writes preserve whatever the first one set.
     """
-    atomic_write_json(path, delta_for_write(config))
+    atomic_write_json(path, delta_for_write(config), new_file_mode=_SECRET_FILE_MODE)

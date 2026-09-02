@@ -442,9 +442,9 @@ class TestApplyHoldsTheConfigWriteLock:
         held = []
         real_write = config_resolve.atomic_write_json
 
-        def watching_write(path, data):
+        def watching_write(path, data, **kwargs):
             held.append(CONFIG_WRITE_LOCK.locked())
-            return real_write(path, data)
+            return real_write(path, data, **kwargs)
 
         cfg = self._config(tmp_path)
         # config_resolve, not api_config: write_user_config resolves the name in

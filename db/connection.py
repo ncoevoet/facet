@@ -31,8 +31,41 @@ except ImportError:
     HAS_SQLITE_VEC = False
 
 
+_pragma_cache = None
+
+
+def _config_stamp():
+    """Cheap identity of the override file: (mtime_ns, size), or None if absent.
+
+    Absent is a real state to cache, not an error -- an install with no
+    override resolves to the shipped defaults on every call and the answer
+    never changes -- so None is a legitimate stamp value that compares equal
+    to itself.
+    """
+    try:
+        st = os.stat(_CONFIG_PATH)
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
 def get_pragma_values():
-    """Read mmap_size and cache_size from scoring_config.json performance section."""
+    """Read mmap_size and cache_size from scoring_config.json performance section.
+
+    Memoized against the config file's (mtime, size), because this runs once
+    per DB connection -- so at least once per API request -- and the two
+    integers it returns cost a full resolve to obtain: a ~97 KB parse of the
+    shipped defaults plus a deep_merge that deep-copies ~2600 leaves, measured
+    at ~1.2 ms per connection once an override file exists. The stamp is what
+    keeps this honest as a cache rather than a freeze: an operator editing
+    ``performance`` sees it on the next connection, exactly as before, without
+    a restart.
+    """
+    global _pragma_cache
+    stamp = _config_stamp()
+    if _pragma_cache is not None and _pragma_cache[0] == stamp:
+        return _pragma_cache[1]
+
     mmap_size_mb = 256
     cache_size_mb = 64
     try:
@@ -41,10 +74,12 @@ def get_pragma_values():
         cache_size_mb = perf.get('cache_size_mb', cache_size_mb)
     except (OSError, ValueError, KeyError, AttributeError, TypeError):
         pass
-    return {
+    values = {
         'mmap_size': mmap_size_mb * 1024 * 1024,
         'cache_size_kb': cache_size_mb * 1000,  # negative KB for PRAGMA cache_size
     }
+    _pragma_cache = (stamp, values)
+    return values
 
 
 def load_sqlite_vec(conn):
@@ -66,7 +101,8 @@ def apply_pragmas(conn, mmap_size_mb=None, cache_size_mb=None):
         mmap_size_mb: Override mmap_size (MB). None = use config default.
         cache_size_mb: Override cache_size (MB). None = use config default.
     """
-    pv = get_pragma_values()
+    # Only reach for the config when a caller left something for it to supply.
+    pv = get_pragma_values() if mmap_size_mb is None or cache_size_mb is None else None
     mmap_bytes = mmap_size_mb * 1024 * 1024 if mmap_size_mb is not None else pv['mmap_size']
     cache_kb = cache_size_mb * 1000 if cache_size_mb is not None else pv['cache_size_kb']
     conn.execute("PRAGMA journal_mode = WAL")

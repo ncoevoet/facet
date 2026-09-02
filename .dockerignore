@@ -74,7 +74,16 @@ verify-*.log
 *_scores.json
 export_test.json
 scoring_config.local-backup.json
+# Both spellings, matching .gitignore: the bare name has no suffix, and every
+# backup an actual write leaves behind is `.backup.<timestamp>`. A pattern with
+# no metacharacter is a literal path match here, so the bare rule alone let a
+# complete config -- viewer.password, users.*.password_hash, upload.password,
+# frame.tokens, immich.api_key -- into the build context and BuildKit's cache.
 scoring_config.json.backup
+scoring_config.json.backup.*
+# Staging copies of the same file, left by a write that crashed before its
+# rename. `.gitignore` globs this prefix for the identical reason.
+.scoring_config.tmp*
 scoring_config.discovered.json
 
 # Live install secrets. docker-compose.yml builds from `.` and mounts
