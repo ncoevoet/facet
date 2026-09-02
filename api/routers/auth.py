@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response
 
 from api.auth import (
     create_access_token, verify_password, verify_legacy_password,
-    upgrade_legacy_password, _login_limiter,
+    upgrade_legacy_password, _login_limiter, _is_open_install, VIEWER_PASSWORD_KEY,
     CurrentUser, get_optional_user, require_authenticated,
     is_edition_enabled, is_edition_authenticated,
     set_auth_cookie, clear_auth_cookie,
@@ -59,13 +59,28 @@ def login(body: LoginRequest, request: Request, response: Response):
             }
         )
     else:
-        # Legacy single-password mode
-        password = VIEWER_CONFIG.get('password', '')
-        if not password:
+        # Legacy single-password mode.
+        #
+        # Ask :func:`_is_open_install` rather than reading the password out of
+        # VIEWER_CONFIG, because an EMPTY password means two different things and
+        # only that predicate separates them. A deliberately passwordless install
+        # is open; an install whose config could not be read also presents as
+        # having no password, and minting a session there hands a full library to
+        # an anonymous caller on a deployment the operator locked. The predicate
+        # already refuses the second case (it short-circuits on
+        # ``config_load_failed()``); this endpoint used to bypass it by looking at
+        # the value instead of asking the question.
+        password = VIEWER_CONFIG.get(VIEWER_PASSWORD_KEY, '')
+        if _is_open_install(VIEWER_PASSWORD_KEY):
             # No password required — return a token for no-auth mode
             token = create_access_token({'sub': '_anonymous', 'role': 'user'})
             set_auth_cookie(response, token)
             return LoginResponse(access_token=token)
+        if not password:
+            raise HTTPException(
+                status_code=503,
+                detail="Configuration could not be read; refusing to authenticate.",
+            )
 
         if not verify_legacy_password(body.password, password):
             raise HTTPException(status_code=401, detail="Invalid password")

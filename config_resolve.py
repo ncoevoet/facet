@@ -21,7 +21,6 @@ import tempfile
 logger = logging.getLogger("facet.config_resolve")
 
 CONFIG_PATH_ENV_VAR = 'FACET_CONFIG'
-_WORLD_READ_WRITE_MODE = 0o666
 # Owner-only, for a config file that does not exist yet. Deliberately a
 # separate constant from api.config._SECRET_FILE_MODE rather than an import:
 # this module is stdlib-only so db.connection and viewer can import it, and
@@ -221,19 +220,7 @@ def load_resolved(path=None, named=None):
     return deep_merge(defaults, override)
 
 
-def _umask_default_mode():
-    """Return the permission bits a plain ``open(path, 'w')`` would have created.
-
-    ``os.umask`` is both the setter and the only getter, so the current value
-    is read by setting it and immediately restoring it. Only reached when the
-    destination does not exist yet and there is no mode to preserve.
-    """
-    umask = os.umask(0)
-    os.umask(umask)
-    return _WORLD_READ_WRITE_MODE & ~umask
-
-
-def _replacement_mode(path, new_file_mode=None):
+def _replacement_mode(path, new_file_mode):
     """Permission bits an atomic replacement of ``path`` must end up with.
 
     An EXISTING destination keeps its own mode: stripping the group/other read
@@ -248,14 +235,20 @@ def _replacement_mode(path, new_file_mode=None):
     ``viewer.password``, ``users.*.password_hash``, ``upload.password``,
     ``frame.tokens`` and ``immich.api_key`` in plaintext. Creating it 0664 and
     then preserving those bits forever is not a default worth inheriting from
-    the umask, so :func:`write_user_config` names 0600 instead -- the same bits
+    the umask, so the create mode is named 0600 -- the same bits
     docker-entrypoint.sh forces on the seeded config and the backup writers
     force on every copy of it.
+
+    It is REQUIRED rather than defaulted, and there is no umask branch left to
+    fall through to. Reading the umask meant ``os.umask(0)`` followed by a
+    restore, which is process-wide: any file another thread created inside that
+    window was born world-writable. That was tolerable while the branch was
+    near-unreachable and is not now that every first write reaches it.
     """
     try:
         return stat.S_IMODE(os.stat(path).st_mode)
     except FileNotFoundError:
-        return _umask_default_mode() if new_file_mode is None else new_file_mode
+        return new_file_mode
 
 
 def _fsync_directory(directory):
@@ -283,13 +276,15 @@ def _unlink_quietly(path):
         logger.debug("Could not remove temp file %s", path, exc_info=True)
 
 
-def atomic_write_json(path, data, new_file_mode=None):
+def atomic_write_json(path, data, new_file_mode=_SECRET_FILE_MODE):
     """Replace ``path`` with ``data`` atomically, durably, and at its current mode.
 
     ``tempfile.mkstemp`` creates the replacement 0600, so the destination's own
     permissions are copied onto it before the rename — otherwise every config
     write would silently strip the group/other read access a co-deployed CLI
-    needs. The payload is fsynced before the rename and the containing
+    needs. A destination that does NOT exist is created ``new_file_mode``, which
+    defaults to owner-only: this primitive writes the config, and that file holds
+    plaintext credentials, so there is no mode worth inheriting from the umask. The payload is fsynced before the rename and the containing
     directory after it, so a crash leaves either the old file or the new one,
     never a truncated mix.
 
@@ -305,9 +300,10 @@ def atomic_write_json(path, data, new_file_mode=None):
     ``api/config.py``; the ordering is stated here because this is the
     primitive they all end up calling.
 
-    Note the mode preservation makes this the WRONG primitive for a secret —
-    see ``api.config._atomic_write_owner_only``, which forces 0600 instead.
-    ``new_file_mode`` only narrows the case where there is no mode to preserve
+    Note the mode PRESERVATION still makes this the wrong primitive for a secret
+    whose file may already exist too loosely — see
+    ``api.config._atomic_write_owner_only``, which forces 0600 unconditionally.
+    ``new_file_mode`` only covers the case where there is no mode to preserve
     because the destination does not exist; it never touches an existing file.
 
     The scratch file is named after :data:`_TEMP_CONFIG_PREFIX` rather than

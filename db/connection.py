@@ -68,17 +68,25 @@ def get_pragma_values():
 
     mmap_size_mb = 256
     cache_size_mb = 64
+    resolved = False
     try:
         perf = load_resolved(_CONFIG_PATH).get('performance') or {}
         mmap_size_mb = perf.get('mmap_size_mb', mmap_size_mb)
         cache_size_mb = perf.get('cache_size_mb', cache_size_mb)
+        resolved = True
     except (OSError, ValueError, KeyError, AttributeError, TypeError):
-        pass
+        logger.debug("Could not resolve pragma values from %s", _CONFIG_PATH, exc_info=True)
     values = {
         'mmap_size': mmap_size_mb * 1024 * 1024,
         'cache_size_kb': cache_size_mb * 1000,  # negative KB for PRAGMA cache_size
     }
-    _pragma_cache = (stamp, values)
+    if resolved:
+        # Only a SUCCESSFUL read is memoized. A transient failure -- EACCES while
+        # a chmod is in flight, EMFILE under load, EIO on a network mount -- does
+        # not move the file's mtime or size, so caching the fallback under that
+        # same stamp would pin every later connection in this process to 256/64
+        # with no way back short of a restart.
+        _pragma_cache = (stamp, values)
     return values
 
 

@@ -902,3 +902,135 @@ class TestUnparseableConfigStaysLocked:
         """The contrast case: {} is a healthy install, not a failed one."""
         failed, _password, _open_install, _is_edition = self._run(tmp_path, "{}")
         assert failed == "False"
+
+
+class TestConfigFailureStaysLocked:
+    """A config Facet cannot read must not present as an install with no lock.
+
+    Three ways this went wrong, each reproduced before it was fixed:
+    the login endpoint read the password VALUE instead of asking
+    ``_is_open_install``; ``reload_config`` cleared ``VIEWER_CONFIG`` before
+    rebuilding it, so a raising rebuild left an empty dict that reads as "no
+    password"; and a ``viewer`` block of the wrong TYPE degraded to "no viewer
+    settings", which backfills the shipped defaults and their empty passwords.
+    """
+
+    def _probe(self, tmp_path, corrupt_to, script):
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps(
+            {"viewer": {"password": "PW", "edition_password": "EDITION-PW"}}))
+        preamble = (
+            "import json, api.config as ac, api.auth as auth\n"
+            f"open(ac._CONFIG_PATH, 'w').write({corrupt_to!r})\n"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "q" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", preamble + script], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        return res.stdout.split()
+
+    def test_a_reload_onto_a_broken_config_does_not_open_the_install(self, tmp_path):
+        out = self._probe(tmp_path, "[1, 2, 3]", (
+            "ac.reload_config()\n"
+            "print(auth._is_open_install(auth.VIEWER_PASSWORD_KEY),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY),"
+            " auth.CurrentUser().is_edition, bool(ac.VIEWER_CONFIG))\n"
+        ))
+        assert out[:3] == ["False", "False", "False"], out
+        # and the dict is never left empty, which is what read as "no password"
+        assert out[3] == "True"
+
+    def test_a_viewer_block_of_the_wrong_type_is_a_load_failure(self, tmp_path):
+        """It carries the passwords, so it cannot degrade to "no settings"."""
+        out = self._probe(tmp_path, '{"viewer": []}', (
+            "ac.reload_config()\n"
+            "print(ac.config_load_failed(),"
+            " auth._is_open_install(auth.VIEWER_PASSWORD_KEY),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY))\n"
+        ))
+        assert out == ["True", "False", "False"], out
+
+    def test_login_with_an_empty_password_is_refused_when_the_config_failed(self, tmp_path):
+        """The app boots healthy and the config breaks under it — the reachable
+        shape, since a config already broken at boot stops import instead."""
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps({"viewer": {"password": "PW"}}))
+        script = (
+            "import json, api.config as ac\n"
+            "from fastapi.testclient import TestClient\n"
+            "from api import create_app\n"
+            "c = TestClient(create_app())\n"
+            "before = c.post('/api/auth/login', json={'password': ''}).status_code\n"
+            "json.dump([1, 2, 3], open(ac._CONFIG_PATH, 'w'))\n"
+            "ac.reload_config()\n"
+            "after = c.post('/api/auth/login', json={'password': ''}).status_code\n"
+            "print(before, after)\n"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "q" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", script], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        before, after = res.stdout.split()
+        assert before == "401", "a locked install must reject an empty password"
+        # It used to mint a session here (200 + a usable JWT for sub=_anonymous).
+        assert after == "503", f"empty password must not mint a session, got {after}"
+
+    def test_features_fail_closed_when_the_config_could_not_be_read(self, tmp_path):
+        """Auth is not the only gate VIEWER_CONFIG feeds."""
+        out = self._probe(tmp_path, "[1, 2, 3]", (
+            "ac.reload_config()\n"
+            "f = ac.VIEWER_CONFIG.get('features', {})\n"
+            "print(bool(f), any(f.values()))\n"
+        ))
+        assert out == ["True", "False"], f"no feature may be enabled, got {out}"
+
+    def test_a_raising_rebuild_never_leaves_viewer_config_empty(self, tmp_path):
+        """Directly exercises the build-before-swap in ``reload_config``.
+
+        The other tests here cover the OUTCOME (the install stays locked) but no
+        longer reach this mechanism: the ``viewer``-block validation means
+        ``load_viewer_config`` cannot raise on a malformed config any more. So
+        force it to raise, which is what the ordering has to survive — an empty
+        ``VIEWER_CONFIG`` reads as "no password" to ``_is_open_install``.
+        """
+        import subprocess
+        cfg = tmp_path / "scoring_config.json"
+        cfg.write_text(json.dumps({"viewer": {"password": "PW",
+                                              "edition_password": "EDITION-PW"}}))
+        script = (
+            "import api.config as ac, api.auth as auth\n"
+            "def boom(*a, **k):\n"
+            "    raise RuntimeError('rebuild failed')\n"
+            "ac.load_viewer_config = boom\n"
+            "try:\n"
+            "    ac.reload_config()\n"
+            "except RuntimeError:\n"
+            "    pass\n"
+            "print(bool(ac.VIEWER_CONFIG),"
+            " auth._is_open_install(auth.VIEWER_PASSWORD_KEY),"
+            " auth._is_open_install(auth.EDITION_PASSWORD_KEY))\n"
+        )
+        env = {
+            **os.environ,
+            "FACET_CONFIG": str(cfg),
+            "PYTHONPATH": str(Path(__file__).resolve().parent.parent),
+            "FACET_JWT_SECRET": "q" * 40,
+        }
+        res = subprocess.run([sys.executable, "-c", script], env=env,
+                             capture_output=True, text=True)
+        assert res.returncode == 0, res.stderr[-2000:]
+        populated, open_pw, open_edition = res.stdout.split()
+        assert populated == "True", "a raising rebuild must not empty VIEWER_CONFIG"
+        assert open_pw == "False" and open_edition == "False"

@@ -176,6 +176,18 @@ def _read_config():
     defaults = load_defaults()
     try:
         overrides = _read_overrides()
+        if isinstance(overrides, dict) and not isinstance(overrides.get('viewer', {}), dict):
+            # The operator's `viewer` block is a list or a scalar. It carries
+            # viewer.password and viewer.edition_password, so "unreadable" here
+            # cannot degrade to "no settings": the backfill would supply the
+            # shipped empty passwords and _is_open_install would read the result
+            # as a deliberately open install. Fail the load instead, which is
+            # what keeps it locked.
+            raise ValueError(
+                f"{_CONFIG_PATH}: 'viewer' must be a JSON object, not "
+                f"{type(overrides['viewer']).__name__}. It holds the viewer and "
+                f"edition passwords, so it cannot be read as absent."
+            )
         if not isinstance(overrides, dict):
             # Valid JSON of the wrong SHAPE. deep_merge would die on
             # ``.items()`` with an AttributeError that names neither the file
@@ -885,9 +897,25 @@ def load_viewer_config(config=None):
     JSON file cannot carry.
     """
     defaults = load_defaults().get('viewer', {})
+    if config_load_failed():
+        # A config Facet has decided it cannot trust must not switch FEATURES on.
+        # The backfill is the shipped defaults now, and several of those are True
+        # where the fallback this replaced was False -- show_vlm_critique gates
+        # loading a multi-GB model. Auth is already safe here
+        # (``_is_open_install`` short-circuits on this same predicate), but auth
+        # is not the only gate VIEWER_CONFIG feeds, so fail every feature closed.
+        defaults = dict(defaults)
+        defaults['features'] = dict.fromkeys(defaults.get('features', {}), False)
     if config is None:
         config, _ = _read_config()
-    viewer = config.get('viewer', {})
+    viewer = config.get('viewer')
+    if not isinstance(viewer, dict):
+        # A hand-edited config whose `viewer` is a list or a scalar. Merging into
+        # it raises TypeError, which used to escape reload_config -- see the
+        # build-before-clear note there for why that was an auth problem and not
+        # just a crash. Treat it as "no viewer settings"; _read_config has
+        # already recorded the load as failed, so the backfill is fail-closed.
+        viewer = {}
     for key, value in defaults.items():
         if key not in viewer:
             viewer[key] = value
@@ -968,8 +996,16 @@ def reload_config():
     global _FULL_CONFIG, _server_secret, JWT_SECRET
     with _config_lock:
         _FULL_CONFIG, _server_secret = _bootstrap()
+        # Build BEFORE clearing. The refill has to happen in place (see above),
+        # but doing it as clear-then-update leaves VIEWER_CONFIG empty for as
+        # long as the rebuild takes -- and permanently if it raises. An empty
+        # VIEWER_CONFIG is not a neutral state: ``api.auth._is_open_install``
+        # reads a missing password as "this install has no lock", so a raising
+        # reload turned a password-protected install into an open one, with
+        # ``config_load_failed()`` still False because _bootstrap had succeeded.
+        fresh_viewer = load_viewer_config(_FULL_CONFIG)
         VIEWER_CONFIG.clear()
-        VIEWER_CONFIG.update(load_viewer_config(_FULL_CONFIG))
+        VIEWER_CONFIG.update(fresh_viewer)
         JWT_SECRET = _server_secret
 
 
