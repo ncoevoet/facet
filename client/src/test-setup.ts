@@ -1,4 +1,4 @@
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import { I18N } from './app/core/i18n/keys';
 
 // Force the leaf i18n keys module to initialize before any component module
@@ -35,6 +35,26 @@ for (const name of ['ResizeObserver', 'IntersectionObserver'] as const) {
     });
   }
 }
+
+// The Angular Vitest builder runs with isolate: false, so every spec file a
+// worker executes shares ONE jsdom window. A global one file leaves shadowed is
+// silently inherited by whichever file the scheduler runs next, and the failure
+// surfaces there, in an unrelated spec, on some runs only. Fail at the offending
+// test instead. history.state is the one that bit: an
+// Object.defineProperty(history, 'state', { value }) freezes it for good,
+// because jsdom's replaceState() only updates the field behind the prototype
+// getter -- drive it through history.replaceState() instead.
+afterEach(() => {
+  if (Object.prototype.hasOwnProperty.call(history, 'state')) {
+    // Drop the shadow before failing, so the blame stays on this test instead
+    // of cascading onto every later test the worker runs.
+    Reflect.deleteProperty(history, 'state');
+    throw new Error(
+      'history.state was shadowed with Object.defineProperty and left behind; ' +
+        'use history.replaceState(...) -- the jsdom window is shared across spec files',
+    );
+  }
+});
 
 // jsdom does not implement window.matchMedia
 Object.defineProperty(window, 'matchMedia', {
