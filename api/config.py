@@ -15,9 +15,9 @@ import threading
 import time
 import secrets
 
-from config_resolve import (  # noqa: F401 - atomic_write_json is patched as api.config.atomic_write_json by tests
+from config_resolve import (  # noqa: F401 - atomic_write_json is re-exported for tests that call it here
     _fsync_directory, _unlink_quietly, atomic_write_json, default_config_path,
-    deep_merge, delta_for_write, load_defaults, write_user_config,
+    deep_merge, defaults_path, delta_for_write, load_defaults, write_user_config,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,6 +47,69 @@ _CONFIG_PATH = default_config_path()
 # unnamed absent config is a fresh install and legitimately open, while a named
 # one is a typo, a bad mount or a moved file — see :func:`_read_config`.
 _CONFIG_PATH_IS_EXPLICIT = bool(os.environ.get(_CONFIG_PATH_ENV_VAR, '').strip())
+
+
+def server_config_path():
+    """The one config file the SERVER reads — for scoring and for auth alike.
+
+    Every ``ScoringConfig`` built inside ``api/`` must name this, because a
+    bare ``ScoringConfig()`` resolves through
+    :func:`config.scoring_config.resolve_scoring_config_path`, which prefers a
+    ``scoring_config.json`` in the process WORKING DIRECTORY. That preference
+    is a real CLI workflow -- run ``facet.py`` from a photo library that
+    carries its own config and that config scores it -- but this module has no
+    such step, so the two disagreed exactly when the install root held no
+    config, which is now the ordinary state.
+
+    What that disagreement bought: start the viewer from a library directory
+    holding a config, and ``ScoringConfig`` honoured its weights while
+    ``VIEWER_CONFIG`` came from the absent install-root path, resolved to the
+    shipped defaults, and reported an empty ``viewer.password`` and an empty
+    ``viewer.edition_password``. ``api.auth._is_open_install`` then answered
+    True for both, so the operator's passwords were ignored and every route,
+    edition writes included, was anonymous. The scoring config and the auth
+    config have to be the same file for that question to be answerable at all.
+    """
+    return _CONFIG_PATH
+
+
+def server_scoring_config(validate=False):
+    """A ``ScoringConfig`` over :func:`server_config_path` — the server's only one.
+
+    The import is deferred because ``config`` reaches
+    ``config.percentile_normalizer`` and therefore ``db`` and numpy, and this
+    module is imported by ``viewer.py`` before logging is even configured. The
+    callers are all inside ``api/``, which has already paid for that import.
+    It goes through the PACKAGE rather than ``config.scoring_config`` because
+    that is the name every other ``api/`` caller binds, and the name the router
+    tests intercept.
+
+    An absent config here is NAMED -- :func:`config_resolve.path_is_named` says
+    so for any path that is not the install-root default, which is exactly when
+    $FACET_CONFIG or a relocated deployment is in play -- so ``ScoringConfig``
+    raises rather than scoring on defaults the operator never chose. That is the
+    right answer for a CLI and the wrong one here: this runs at import of
+    ``api.types``, so it would take the whole server down with a traceback, and
+    ``_read_config`` has ALREADY made the safe decision for the same file --
+    it armed :func:`config_load_failed`, so every route is locked and the login
+    endpoint answers 503. Crashing on top of that replaces an actionable error
+    with a stack trace and loses the 503 the operator needs to see.
+
+    So the fallback is the shipped defaults, read as an override over
+    themselves: the same values, and no claim that the operator's file was
+    found. It only ever runs in the state auth has already refused.
+    """
+    from config import ScoringConfig
+    try:
+        return ScoringConfig(server_config_path(), validate=validate)
+    except FileNotFoundError:
+        logger.error(
+            "%s does not exist, so scoring falls back to the shipped defaults. "
+            "Authentication is already refusing this install — fix the path or "
+            "the mount, then restart.", server_config_path(),
+        )
+        return ScoringConfig(defaults_path(), validate=validate)
+
 
 CONFIG_WRITE_LOCK = threading.Lock()
 FACET_SCRIPT = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'facet.py')

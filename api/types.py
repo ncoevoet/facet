@@ -7,8 +7,7 @@ import logging
 import sqlite3
 import time
 
-from config import ScoringConfig
-from api.config import VIEWER_CONFIG, _photo_types_cache, _photo_types_lock
+from api.config import VIEWER_CONFIG, _photo_types_cache, _photo_types_lock, server_scoring_config
 from api.top_picks import get_top_picks_score_sql
 from api.db_helpers import build_hide_clauses
 
@@ -71,7 +70,7 @@ def _build_quality_levels():
 QUALITY_LEVELS = _build_quality_levels()
 
 # Build type definitions and filters from scoring_config.json categories
-_scoring_config = ScoringConfig(validate=False)
+_scoring_config = server_scoring_config()
 _config_categories = _scoring_config.get_categories()
 
 

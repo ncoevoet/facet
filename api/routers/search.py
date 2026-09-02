@@ -14,7 +14,7 @@ import numpy as np
 from fastapi import APIRouter, Depends, Query, Request
 
 from api.auth import CurrentUser, get_optional_user
-from api.config import VIEWER_CONFIG
+from api.config import VIEWER_CONFIG, server_scoring_config
 from api.database import get_async_db
 from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
@@ -146,9 +146,8 @@ def _load_text_encoder():
         return _text_encoder
 
     import torch
-    from config.scoring_config import ScoringConfig
 
-    config = ScoringConfig(validate=False)
+    config = server_scoring_config()
     config.check_vram_profile_compatibility(verbose=False)
     clip_config = config.get_clip_config()
 

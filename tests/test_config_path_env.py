@@ -342,11 +342,12 @@ class TestTheAuthSurfaceSeesAMisaimedConfigPath:
     ``api.config`` alone because the flag is only interesting where it lands: an
     anonymous caller's edition rights.
 
-    Startup is NOT expected to abort here. ``create_app`` separately builds a
-    ``ScoringConfig`` that raises ``FileNotFoundError`` on the same path, but
-    that is an unrelated component's accident, not a decision the auth layer
-    makes — these probes import the auth layer on its own precisely so that
-    accident cannot stand in for the fix.
+    Startup is NOT expected to abort here, and no longer can:
+    ``api.config.server_scoring_config`` catches the ``FileNotFoundError`` the
+    same path raises and falls back to the shipped defaults, so the traceback
+    that used to come out of ``create_app`` cannot replace the 503 and the
+    logged error an operator needs. These probes still import the auth layer on
+    its own, so that no other component's behaviour can stand in for the fix.
     """
 
     _PROBE = (
@@ -398,3 +399,75 @@ class TestTheAuthSurfaceSeesAMisaimedConfigPath:
         assert seen["load_failed"] is False
         assert seen["open_edition"] is True
         assert seen["anon_edition"] is True
+
+
+class TestTheServerScoresAndAuthenticatesFromOneFile:
+    """A config in the WORKING DIRECTORY must not score a library the auth layer
+    cannot see.
+
+    ``config.scoring_config.resolve_scoring_config_path`` prefers a
+    ``scoring_config.json`` in the process working directory, which is a real
+    CLI workflow: run ``facet.py`` from a photo library that carries its own
+    config and that config scores it. ``api.config`` has no such step — it
+    resolves ``default_config_path()`` once at import — so the two disagreed
+    exactly when the install root held no config, which is the ordinary state
+    of an install running on the shipped defaults.
+
+    What the disagreement bought: start the viewer from a library holding a
+    password-protected config and ``ScoringConfig`` honoured its weights while
+    ``VIEWER_CONFIG`` came from the absent install-root path, resolved to the
+    shipped defaults, and reported an empty ``viewer.password`` AND an empty
+    ``viewer.edition_password``. ``_is_open_install`` then answered True for
+    both, so the operator's passwords were ignored and every route, edition
+    writes included, was anonymous.
+
+    A subprocess because both resolutions happen at import, and ``cwd`` is what
+    the whole defect turns on.
+    """
+
+    _CONFIG = '{"viewer": {"password": "librarysecret", "edition_password": "editsecret"}}'
+
+    _PROBE = (
+        "import json, api.config as c, api.auth as a; "
+        "s = c.server_scoring_config(); "
+        "print(json.dumps({"
+        "'scoring_path': s.config_path, "
+        "'auth_path': c.server_config_path(), "
+        "'scoring_password': s.config.get('viewer', {}).get('password', ''), "
+        "'auth_password': c.VIEWER_CONFIG.get('password', ''), "
+        "'open_viewer': a._is_open_install(a.VIEWER_PASSWORD_KEY), "
+        "'open_edition': a._is_open_install(a.EDITION_PASSWORD_KEY)}))"
+    )
+
+    def _probe(self, cwd):
+        env = dict(os.environ)
+        env["PYTHONPATH"] = _repo_root()
+        env.pop(_ENV_VAR, None)
+        probe = subprocess.run(
+            [sys.executable, "-c", self._PROBE],
+            cwd=cwd, capture_output=True, text=True, env=env,
+        )
+        assert probe.returncode == 0, probe.stderr
+        return json.loads(probe.stdout.strip().splitlines()[-1])
+
+    def test_a_cwd_config_does_not_score_a_library_auth_cannot_see(self, tmp_path):
+        (tmp_path / "scoring_config.json").write_text(self._CONFIG)
+
+        seen = self._probe(tmp_path)
+
+        assert seen["scoring_path"] == seen["auth_path"], (
+            "the server scored from a different file than it authenticated from"
+        )
+        assert seen["scoring_password"] == seen["auth_password"]
+
+    def test_a_cwd_config_never_leaves_the_install_open_on_its_own(self, tmp_path):
+        (tmp_path / "scoring_config.json").write_text(self._CONFIG)
+
+        seen = self._probe(tmp_path)
+
+        # Either the server reads that config -- and is then gated by the
+        # passwords in it -- or it does not read it at all. What it must never
+        # do is score with it while reporting no passwords.
+        if seen["scoring_password"] == "librarysecret":
+            assert seen["open_viewer"] is False
+            assert seen["open_edition"] is False
