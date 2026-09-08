@@ -1104,6 +1104,7 @@ export const I18N = {
       view_scope_confirm_title: "gallery.selection.view_scope_confirm_title",
       view_scope_confirm_message: "gallery.selection.view_scope_confirm_message",
       view_scope_copy_message: "gallery.selection.view_scope_copy_message",
+      view_scope_album_message: "gallery.selection.view_scope_album_message",
       view_scope_mismatch: "gallery.selection.view_scope_mismatch",
       view_scope_empty: "gallery.selection.view_scope_empty",
       paths_too_many: "gallery.selection.paths_too_many",

@@ -1566,8 +1566,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   async addToAlbum(albumId: number): Promise<void> {
     // No filter-scoped form server-side, so a whole-view selection resolves to
-    // paths here rather than adding nothing at all.
-    const paths = await this.resolveSelectionPaths();
+    // paths here rather than adding nothing at all. Filing photos into an album
+    // writes album_photos rows and leaves the photos themselves untouched, so
+    // it must not confirm in the wording of a mutation.
+    const paths = await this.resolveSelectionPaths(I18N.gallery.selection.view_scope_album_message);
     if (!paths?.length) return;
     await firstValueFrom(this.albumService.addPhotos(albumId, paths));
     this.snackBar.open(this.i18n.t(I18N.albums.photos_added), '', { duration: 2000 });

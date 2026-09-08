@@ -1088,6 +1088,7 @@
       "view_scope_confirm_title": "Auf die gesamte Ansicht anwenden?",
       "view_scope_confirm_message": "Dies ändert {count} Fotos, die den aktuellen Filtern entsprechen, einschließlich solcher, die nicht auf dem Bildschirm geladen sind. Fortfahren?",
       "view_scope_copy_message": "Damit werden die Dateinamen von {count} Fotos kopiert, die den aktuellen Filtern entsprechen — auch die, die nicht auf dem Bildschirm geladen sind. Fortfahren?",
+      "view_scope_album_message": "Damit werden {count} Fotos, die den aktuellen Filtern entsprechen, zum Album hinzugefügt — auch die, die nicht auf dem Bildschirm geladen sind. Fortfahren?",
       "view_scope_mismatch": "{count} Fotos geändert, nicht die angekündigten {announced} — die Ansicht hat sich während der Aktion verändert",
       "view_scope_empty": "Nichts entspricht mehr den aktuellen Filtern",
       "paths_too_many": "Zu viele Fotos für diese Aktion — grenzen Sie die Filter ein und versuchen Sie es erneut",

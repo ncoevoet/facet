@@ -1866,6 +1866,15 @@ describe('GalleryComponent', () => {
         expect(mockStore.clearSelection).not.toHaveBeenCalled();
       });
 
+      // Filing photos into an album writes album_photos rows and modifies no
+      // photo, so it must not borrow the mutation's wording either.
+      it('confirms in the words of filing, not of changing the photos', async () => {
+        await addToAlbum();
+
+        expect((dialog.open as Mock).mock.calls[0][1].data.message)
+          .toBe('gallery.selection.view_scope_album_message');
+      });
+
       // One album_photos row per photo in the view, with no undo: the least it
       // can do is ask.
       it('adds nothing when the confirmation is declined', async () => {

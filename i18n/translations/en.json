@@ -1088,6 +1088,7 @@
       "view_scope_confirm_title": "Apply to the whole view?",
       "view_scope_confirm_message": "This will change {count} photos matching the current filters, including ones not loaded on screen. Continue?",
       "view_scope_copy_message": "This will copy the filenames of {count} photos matching the current filters, including ones not loaded on screen. Continue?",
+      "view_scope_album_message": "This will add {count} photos matching the current filters to the album, including ones not loaded on screen. Continue?",
       "view_scope_mismatch": "Changed {count} photos, not the {announced} announced — the view moved while the action ran",
       "view_scope_empty": "Nothing matches the current filters any more",
       "paths_too_many": "Too many photos for this action — narrow the filters and try again",

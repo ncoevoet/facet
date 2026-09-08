@@ -1088,6 +1088,7 @@
       "view_scope_confirm_title": "¿Aplicar a toda la vista?",
       "view_scope_confirm_message": "Esto modificará {count} fotos que coinciden con los filtros actuales, incluidas las que no están cargadas en pantalla. ¿Continuar?",
       "view_scope_copy_message": "Se copiarán los nombres de archivo de {count} fotos que coinciden con los filtros actuales, incluidas las que no están cargadas en pantalla. ¿Continuar?",
+      "view_scope_album_message": "Se añadirán al álbum {count} fotos que coinciden con los filtros actuales, incluidas las que no están cargadas en pantalla. ¿Continuar?",
       "view_scope_mismatch": "Se modificaron {count} fotos, no las {announced} anunciadas — la vista cambió mientras se ejecutaba la acción",
       "view_scope_empty": "Ya no hay nada que coincida con los filtros actuales",
       "paths_too_many": "Demasiadas fotos para esta acción — restringe los filtros e inténtalo de nuevo",

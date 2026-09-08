@@ -1088,6 +1088,7 @@
       "view_scope_confirm_title": "应用于整个视图？",
       "view_scope_confirm_message": "此操作将修改符合当前筛选条件的 {count} 张照片，包括尚未在屏幕上加载的照片。是否继续？",
       "view_scope_copy_message": "这将复制符合当前筛选条件的 {count} 张照片的文件名，包括尚未在屏幕上加载的照片。是否继续？",
+      "view_scope_album_message": "这将把符合当前筛选条件的 {count} 张照片添加到相册，包括尚未在屏幕上加载的照片。是否继续？",
       "view_scope_mismatch": "实际修改了 {count} 张照片，而非预告的 {announced} 张，操作执行期间视图发生了变化",
       "view_scope_empty": "已没有符合当前筛选条件的照片",
       "paths_too_many": "此操作涉及的照片过多，请缩小筛选范围后重试",
