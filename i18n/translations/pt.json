@@ -1087,8 +1087,10 @@
       "view_scope_select_all": "Selecionar todas as {total} fotos desta visualização",
       "view_scope_confirm_title": "Aplicar a toda a visualização?",
       "view_scope_confirm_message": "Isso vai alterar {count} fotos que correspondem aos filtros atuais, incluindo as que não estão carregadas na tela. Continuar?",
+      "view_scope_copy_message": "Isso vai copiar os nomes de arquivo de {count} fotos que correspondem aos filtros atuais, incluindo as que não estão carregadas na tela. Continuar?",
       "view_scope_mismatch": "{count} fotos alteradas, não as {announced} anunciadas — a visualização mudou enquanto a ação era executada",
       "view_scope_empty": "Nada mais corresponde aos filtros atuais",
+      "paths_too_many": "Fotos demais para esta ação — restrinja os filtros e tente novamente",
       "download_confirm_title": "Baixar {count} fotos?",
       "download_confirm_message": "Cada foto é baixada como um arquivo separado. {count} delas vão demorar um pouco e podem sobrecarregar o navegador."
     },

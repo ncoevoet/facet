@@ -1293,14 +1293,30 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * Only for the handful of actions that genuinely need filenames on the client
    * (copy, download, add-to-album): everything else sends the filter and lets
    * the server derive the rows, which is the point of the view scope.
+   *
+   * Under view scope that fetch materialises the entire filtered set — a
+   * multi-megabyte response the user never explicitly asked for, and for
+   * add-to-album a write of one row per photo — so it is confirmed against the
+   * server's own count first, in whichever words fit the action. A null
+   * `confirmMessageKey` is for the caller that already asks in its own words
+   * (`downloadSelected`, past DOWNLOAD_CONFIRM_PHOTOS): two dialogs for one
+   * click is worse than one. The size bound itself lives one level down, in
+   * `pathsInView`, so all three consumers inherit it.
    */
-  private async resolveSelectionPaths(): Promise<string[] | null> {
+  private async resolveSelectionPaths(
+    confirmMessageKey: string | null = I18N.gallery.selection.view_scope_confirm_message,
+  ): Promise<string[] | null> {
     if (!this.viewScoped()) return [...this.selectedPaths()];
+    if (confirmMessageKey !== null && await this.confirmWholeView(confirmMessageKey) === null) {
+      return null;
+    }
     return this.store.pathsInView();
   }
 
   protected async copyPaths(): Promise<void> {
-    const paths = await this.resolveSelectionPaths();
+    // Copying changes nothing, so it says so rather than borrowing the
+    // mutation wording every other whole-view action confirms with.
+    const paths = await this.resolveSelectionPaths(I18N.gallery.selection.view_scope_copy_message);
     if (!paths?.length) return;
     await copyLines(paths.map(basename));
     this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
@@ -1325,8 +1341,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * ever whichever page response landed last. Returns the number shown to the
    * user, or null if they declined (or it could not be fetched) — the caller
    * checks the server's own count against it afterwards.
+   *
+   * `messageKey` names what the action will actually do to those photos; the
+   * default states a mutation, which is what every batch write is.
    */
-  private async confirmWholeView(): Promise<number | null> {
+  private async confirmWholeView(
+    messageKey: string = I18N.gallery.selection.view_scope_confirm_message,
+  ): Promise<number | null> {
     const total = await this.store.countInView();
     if (total === null) return null;
     const count = Math.max(0, total - this.excludedPaths().size);
@@ -1337,7 +1358,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const ref = this.dialog.open(ConfirmDialogComponent, {
       data: {
         title: this.i18n.t(I18N.gallery.selection.view_scope_confirm_title),
-        message: this.i18n.t(I18N.gallery.selection.view_scope_confirm_message, { count }),
+        message: this.i18n.t(messageKey, { count }),
       },
     });
     const confirmed = await firstValueFrom(ref.afterClosed());
@@ -1508,7 +1529,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected async downloadSelected(type = 'original', profile?: string): Promise<void> {
-    const paths = await this.resolveSelectionPaths();
+    // Confirms below in its own words, against the count it actually resolved.
+    const paths = await this.resolveSelectionPaths(null);
     if (!paths?.length) return;
     // One blob fetch and one synthetic anchor click per photo, serially: past a
     // few dozen that is a browser-melting amount of work to start by accident,

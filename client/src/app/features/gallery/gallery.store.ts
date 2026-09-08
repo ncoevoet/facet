@@ -1,4 +1,5 @@
 import { Injectable, inject, signal, computed, effect, untracked } from '@angular/core';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { firstValueFrom, timeout } from 'rxjs';
@@ -488,10 +489,16 @@ export class GalleryStore {
   /**
    * Every path the current filters match, minus the excluded ones.
    *
-   * The on-demand escape hatch for the two actions that genuinely need strings
-   * client-side (copy filenames, download) — never for selection, which is the
-   * whole point of the 'view' scope: this costs one uncapped response covering
-   * the entire filtered set.
+   * The on-demand escape hatch for the handful of actions that genuinely need
+   * strings client-side (copy filenames, download, add to album) — never for
+   * selection, which is the whole point of the 'view' scope: this costs one
+   * response covering the entire filtered set.
+   *
+   * The server refuses rather than truncates past its own cap (412, the shape
+   * `/api/cull/apply` and `/api/export/sidecars` already use), because half a
+   * view silently copied or added to an album is worse than none. Say so in
+   * those words: "action failed" reads as a bug the user cannot act on, while
+   * "too many photos" names the filter as the way out.
    */
   async pathsInView(): Promise<string[] | null> {
     const params = this.filterPayload();
@@ -502,8 +509,14 @@ export class GalleryStore {
       );
       const excluded = this.excludedPaths();
       return res.paths.filter(p => !excluded.has(p));
-    } catch {
-      this.notifyActionFailed();
+    } catch (err) {
+      if (err instanceof HttpErrorResponse && err.status === 412) {
+        this.snackBar.open(
+          this.i18n.t(I18N.gallery.selection.paths_too_many), '', { duration: 5000 },
+        );
+      } else {
+        this.notifyActionFailed();
+      }
       return null;
     }
   }

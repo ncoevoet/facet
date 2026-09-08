@@ -141,7 +141,14 @@ describe('GalleryComponent', () => {
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
         { provide: I18nService, useValue: mockI18n },
-        { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), get: vi.fn(() => of({})) } },
+        {
+          provide: AlbumService,
+          useValue: {
+            list: vi.fn(() => of({ albums: [] })),
+            get: vi.fn(() => of({})),
+            addPhotos: vi.fn(() => of({ added: 0 })),
+          },
+        },
         { provide: ActivatedRoute, useValue: routeMock },
         { provide: MatDialog, useValue: { open: vi.fn() } },
         { provide: LiveAnnouncer, useValue: { announce: vi.fn(() => Promise.resolve()) } },
@@ -1735,6 +1742,140 @@ describe('GalleryComponent', () => {
 
       expect(dialog.open).not.toHaveBeenCalled();
       expect(mockApi.getRaw).toHaveBeenCalled();
+    });
+  });
+
+  // Under a whole-view selection these three actions read no local selection at
+  // all: they ask the server for the paths, which can resolve to null — a
+  // refusal past the endpoint's cap, a failed request, or a declined
+  // confirmation. A swapped condition or a dropped null check would turn all
+  // three into silent no-ops with the rest of the suite still green.
+  describe('actions that resolve a whole-view selection to paths', () => {
+    let dialog: MatDialog;
+    let addPhotos: Mock;
+    let writeText: Mock;
+
+    beforeEach(() => {
+      mockStore.viewScopeSelected.set(true);
+      mockStore.selectionScope.set('view');
+      mockStore.selectionCount.set(650);
+      mockStore.total.set(650);
+      mockStore.pathsInView.mockResolvedValue(['/x.jpg', '/y.jpg']);
+      dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
+      addPhotos = TestBed.inject(AlbumService).addPhotos as unknown as Mock;
+      writeText = vi.fn(() => Promise.resolve());
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    });
+
+    const copy = () => (component as unknown as { copyPaths: () => Promise<void> }).copyPaths();
+    const download = () =>
+      (component as unknown as { downloadSelected: () => Promise<void> }).downloadSelected();
+    const addToAlbum = () => component.addToAlbum(3);
+
+    describe('copy filenames', () => {
+      it('copies the paths the server resolved, not the empty local selection', async () => {
+        await copy();
+
+        expect(mockStore.pathsInView).toHaveBeenCalled();
+        expect(writeText).toHaveBeenCalledWith('x.jpg\ny.jpg');
+      });
+
+      it('copies nothing when the view cannot be resolved to paths', async () => {
+        mockStore.pathsInView.mockResolvedValue(null);
+
+        await copy();
+
+        expect(writeText).not.toHaveBeenCalled();
+      });
+
+      // Copying changes nothing, so it must not borrow the wording that tells
+      // the user their photos are about to be modified.
+      it('confirms against the server count, in words that match a copy', async () => {
+        await copy();
+
+        expect(mockStore.countInView).toHaveBeenCalled();
+        expect((dialog.open as Mock).mock.calls[0][1].data.message)
+          .toBe('gallery.selection.view_scope_copy_message');
+      });
+
+      it('does not even fetch the paths when the confirmation is declined', async () => {
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(false) });
+
+        await copy();
+
+        expect(mockStore.pathsInView).not.toHaveBeenCalled();
+        expect(writeText).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('download', () => {
+      const fiftyOne = Array.from({ length: 51 }, (_, i) => `/p${i}.jpg`);
+
+      it('downloads the paths the server resolved', async () => {
+        await download();
+
+        expect(mockStore.pathsInView).toHaveBeenCalled();
+        expect(mockApi.getRaw).toHaveBeenCalled();
+      });
+
+      it('downloads nothing when the view cannot be resolved to paths', async () => {
+        mockStore.pathsInView.mockResolvedValue(null);
+
+        await download();
+
+        expect(mockApi.getRaw).not.toHaveBeenCalled();
+      });
+
+      // The download already confirms in its own words, against the count it
+      // actually resolved: two dialogs for one click would be worse than one.
+      it('confirms exactly once, with the download wording', async () => {
+        mockStore.pathsInView.mockResolvedValue(fiftyOne);
+
+        await download();
+
+        expect((dialog.open as Mock).mock.calls.length).toBe(1);
+        expect((dialog.open as Mock).mock.calls[0][1].data.message)
+          .toBe('gallery.selection.download_confirm_message');
+      });
+
+      it('downloads nothing when that confirmation is declined', async () => {
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(false) });
+        mockStore.pathsInView.mockResolvedValue(fiftyOne);
+
+        await download();
+
+        expect(mockApi.getRaw).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('add to album', () => {
+      it('adds the paths the server resolved', async () => {
+        await addToAlbum();
+
+        expect(addPhotos).toHaveBeenCalledWith(3, ['/x.jpg', '/y.jpg']);
+        expect(mockStore.clearSelection).toHaveBeenCalled();
+      });
+
+      it('adds nothing when the view cannot be resolved to paths', async () => {
+        mockStore.pathsInView.mockResolvedValue(null);
+
+        await addToAlbum();
+
+        expect(addPhotos).not.toHaveBeenCalled();
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+      });
+
+      // One album_photos row per photo in the view, with no undo: the least it
+      // can do is ask.
+      it('adds nothing when the confirmation is declined', async () => {
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(false) });
+
+        await addToAlbum();
+
+        expect(mockStore.pathsInView).not.toHaveBeenCalled();
+        expect(addPhotos).not.toHaveBeenCalled();
+      });
     });
   });
 });

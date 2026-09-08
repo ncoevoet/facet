@@ -1,5 +1,6 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router, ActivatedRoute } from '@angular/router';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { NEVER, Subject, of, throwError } from 'rxjs';
@@ -1299,6 +1300,22 @@ describe('GalleryStore selection', () => {
 
       expect(apiGet).toHaveBeenCalledWith('/photos/paths', expect.any(Object));
       expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+    });
+
+    // The server refuses past its own cap rather than truncating, so the
+    // caller gets none of the paths — "action failed" would read as a bug,
+    // where the filter is the thing the user can actually change.
+    it('pathsInView names the size, not a generic failure, on the 412', async () => {
+      apiGet.mockReturnValue(throwError(() => new HttpErrorResponse({
+        status: 412,
+        error: { detail: 'Too many photos for this action (10000 max). Narrow the filters.' },
+      })));
+      const snackOpen = TestBed.inject(MatSnackBar).open as Mock;
+
+      expect(await store.pathsInView()).toBeNull();
+
+      expect(snackOpen).toHaveBeenCalledWith('gallery.selection.paths_too_many', '', expect.anything());
+      expect(snackOpen.mock.calls.some(c => c[0] === 'errors.action_failed')).toBe(false);
     });
   });
 });
