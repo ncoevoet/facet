@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
@@ -22,7 +23,9 @@ describe('ExportEditorDialogComponent', () => {
       providers: [
         { provide: ExportService, useValue: { exportAlbum, exportSidecars, exportSidecarsForView } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
-        { provide: I18nService, useValue: { t: (k: string) => k } },
+        // `translations` is only read once the real template renders: the
+        // translate pipe subscribes to the bundle even when `t` is stubbed.
+        { provide: I18nService, useValue: { t: (k: string) => k, translations: signal({}) } },
         { provide: MatDialogRef, useValue: { close: dialogClose } },
         { provide: MAT_DIALOG_DATA, useValue: data },
       ],
@@ -85,5 +88,39 @@ describe('ExportEditorDialogComponent', () => {
     })));
     await component.run();
     expect(component.errorDetail()).toBeNull();
+  });
+
+  // A view-scoped export sends a filter, so the dialog is the only place the
+  // user can learn how many photos it is about to write sidecars for — the
+  // cull dialog, which the same selection opens, has always said so.
+  describe('how many photos the run will touch', () => {
+    function render(data: ExportEditorDialogData): HTMLElement {
+      build(data);
+      const fixture = TestBed.createComponent(ExportEditorDialogComponent);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    it('states the count a view-scoped selection stands for', () => {
+      const el = render({ filters: { type: 'aerial' }, exclude: [], count: 129 });
+
+      expect(el.textContent).toContain('129');
+      expect(el.textContent).toContain('cull.selected');
+    });
+
+    it('falls back to the length of an explicit path selection', () => {
+      const el = render({ paths: ['/a.jpg', '/b.jpg', '/c.jpg'] });
+
+      expect(el.textContent).toContain('3');
+      expect(el.textContent).toContain('cull.selected');
+    });
+
+    // An album export's rows are the album's, whatever they are: no count
+    // reaches the client, so it states none rather than a wrong one.
+    it('states nothing when neither a count nor a path list is given', () => {
+      const el = render({ albumId: 7 });
+
+      expect(el.textContent).not.toContain('cull.selected');
+    });
   });
 });

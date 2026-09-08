@@ -46,6 +46,10 @@ export interface ExportEditorDialogData {
     <mat-dialog-content class="flex flex-col gap-3">
       <p class="text-sm opacity-80">{{ I18N.export.description | translate }}</p>
 
+      @if (count) {
+        <p class="text-sm opacity-70">{{ count }} {{ I18N.cull.selected | translate }}</p>
+      }
+
       <mat-radio-group [ngModel]="mode()" (ngModelChange)="mode.set($event)" class="flex flex-col gap-2">
         <mat-radio-button value="sidecars">{{ I18N.export.mode_sidecars | translate }}</mat-radio-button>
         @if (data.albumId) {
@@ -85,6 +89,17 @@ export class ExportEditorDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<ExportEditorDialogComponent>);
   private readonly snackBar = inject(MatSnackBar);
   private readonly i18n = inject(I18nService);
+
+  /**
+   * How many photos the run will touch, or 0 when only the server knows.
+   *
+   * A view-scoped selection sends a filter rather than a path list, so its size
+   * arrives as `count` — same as the cull dialog, which is the other dialog a
+   * whole-view selection opens, and which states the same number in the same
+   * words. An album export has no client-side count at all: the rows are the
+   * album's, whatever they are, so it states none rather than a wrong one.
+   */
+  protected readonly count = this.data.count ?? this.data.paths?.length ?? 0;
 
   readonly mode = signal<AlbumExportMode>('sidecars');
   readonly overwrite = signal(false);
