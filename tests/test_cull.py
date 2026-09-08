@@ -638,6 +638,64 @@ class TestCullApplyExcludeNarrowsEitherTarget:
         assert body["matched"] == 0
         assert os.path.isfile(doomed) and os.path.isfile(spared)
 
+    def _rejected_bracket(self, tmp_path):
+        """Two rejected frames of one bracket group, both on disk."""
+        a = _make_file(tmp_path, "frame_a.jpg")
+        b = _make_file(tmp_path, "frame_b.jpg")
+        db = _db(tmp_path, [
+            (a, 1, {"sequence_kind": _BRACKET, "sequence_group_id": 7,
+                    "is_sequence_lead": 1, "sequence_ev_offset": 0.0}),
+            (b, 1, {"sequence_kind": _BRACKET, "sequence_group_id": 7,
+                    "sequence_ev_offset": 2.0}),
+        ])
+        return a, b, db
+
+    def test_an_excluded_frame_is_not_re_added_as_a_sequence_sibling(self, client, tmp_path):
+        """``exclude`` narrowed the target set and the sibling pass then
+        widened it straight back: ``_sequence_siblings`` re-derived every frame
+        sharing ``(sequence_kind, sequence_group_id)`` with a matching frame and
+        subtracted only ``matching``, so an excluded frame of the same bracket
+        returned as a sibling, passed the reject-state check and was moved --
+        while the response counted it as a sibling rather than as excluded.
+        "Only ever narrows" has to hold through the sibling pass too."""
+        a, b, db = self._rejected_bracket(tmp_path)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [a, b], "exclude": [b],
+                "action": "move_rejects", "target_dir": str(tmp_path / "out"),
+                "dry_run": True, "include_sequence_siblings": True,
+            })
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["would_move"] == [a], "the excluded frame came back as a sibling"
+        # An excluded frame is not a sibling for this request at all, so it is
+        # counted nowhere rather than double-counted as excluded_by_state.
+        assert body["sequence_siblings"] == 0
+        assert body["excluded_by_state"] == 0
+
+    def test_an_excluded_frame_is_not_a_sibling_on_the_filter_branch_either(self, client, tmp_path):
+        """Same widening through the branch the client actually sends: the cull
+        dialog pairs ``exclude`` with ``filters``, and the sibling checkbox is
+        only reachable once the user turns off hide_brackets/hide_panoramas."""
+        a, b, db = self._rejected_bracket(tmp_path)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "filters": {"hide_brackets": "0", "hide_panoramas": "0"},
+                "exclude": [b],
+                "action": "move_rejects", "target_dir": str(tmp_path / "out"),
+                "dry_run": True, "include_sequence_siblings": True,
+            })
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["would_move"] == [a], "the excluded frame came back as a sibling"
+        assert body["sequence_siblings"] == 0
+
 
 class TestCullApplySequences:
     def test_copy_keeps_bracket_siblings_reported_and_included_when_flag_on(self, client, tmp_path):

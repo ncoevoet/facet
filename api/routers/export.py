@@ -535,8 +535,15 @@ def _sequence_group_keys(conn, paths, user_id):
 
 def _sequence_siblings(conn, group_keys, exclude_paths, user_id):
     """Every visible sibling sharing a ``(sequence_kind, sequence_group_id)``
-    found in ``group_keys``, excluding ``exclude_paths`` (the already-matched
-    set) and de-duplicated across groups.
+    found in ``group_keys``, excluding ``exclude_paths`` and de-duplicated
+    across groups.
+
+    ``exclude_paths`` is the already-matched set PLUS the request's own
+    ``exclude``: this pass re-derives a group's frames from the database rather
+    than from the caller's target set, so subtracting only the matched frames
+    handed an excluded frame straight back as a sibling of one that did match
+    -- and the caller moved or OS-trashed it. ``exclude`` "only ever narrows"
+    has to hold here too, or it holds nowhere.
 
     A set's identity is the PAIR ``(sequence_kind, sequence_group_id)``: the
     bracket and panorama passes share ``sequence_group_id`` and each renumber
@@ -825,7 +832,10 @@ def api_cull_apply(
     exactly like a path the caller named directly: a kept sibling of a
     rejected lead is never moved/trashed just because the flag is on, and a
     rejected sibling of a kept lead is never copied as a keep. A sibling whose
-    own state doesn't match folds into ``excluded_by_state`` too. ``matched``
+    own state doesn't match folds into ``excluded_by_state`` too. A frame named
+    in ``exclude`` is not a sibling of this request at all: it is left out of
+    ``sequence_siblings`` and out of the acted-on files, so expanding a set can
+    never re-add a frame the caller excluded. ``matched``
     is how many of the request's own paths matched this action's
     reject-state, so a response with ``matched == 0`` reads as "nothing here
     qualified" rather than a silent no-op. Moving/trashing a panorama's lead
@@ -850,7 +860,12 @@ def api_cull_apply(
         state = _reject_state_map(conn, paths, user_id)
         matching = [p for p in paths if state.get(p) == want_rejected]
         group_keys = _sequence_group_keys(conn, matching, user_id)
-        sibling_paths = _sequence_siblings(conn, group_keys, matching, user_id)
+        # The request's own `exclude` is subtracted here too, not just the
+        # matched set: the sibling pass reads the group back out of the
+        # database, so an excluded frame sharing a bracket/panorama group with
+        # a matching one returned as a sibling and was acted on.
+        sibling_paths = _sequence_siblings(
+            conn, group_keys, set(matching) | set(body.exclude or ()), user_id)
         # Siblings are auto-added, not requested directly -- bound them to the
         # SAME reject-state check as `matching` (Finding 1, 2026-08-17 review)
         # rather than acting on a whole group regardless of each frame's own

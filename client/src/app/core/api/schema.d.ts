@@ -1193,7 +1193,10 @@ export interface paths {
          *     exactly like a path the caller named directly: a kept sibling of a
          *     rejected lead is never moved/trashed just because the flag is on, and a
          *     rejected sibling of a kept lead is never copied as a keep. A sibling whose
-         *     own state doesn't match folds into ``excluded_by_state`` too. ``matched``
+         *     own state doesn't match folds into ``excluded_by_state`` too. A frame named
+         *     in ``exclude`` is not a sibling of this request at all: it is left out of
+         *     ``sequence_siblings`` and out of the acted-on files, so expanding a set can
+         *     never re-add a frame the caller excluded. ``matched``
          *     is how many of the request's own paths matched this action's
          *     reject-state, so a response with ``matched == 0`` reads as "nothing here
          *     qualified" rather than a silent no-op. Moving/trashing a panorama's lead
