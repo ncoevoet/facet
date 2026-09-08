@@ -353,8 +353,9 @@ class TestExportSidecarsTargetIsExactlyOne:
     """``paths`` and ``filters`` name the same set two ways; never both.
 
     Sending both silently won for ``paths``: ``_selected_paths`` returns the
-    path list before ``filters`` or ``exclude`` are read, so the whole-view
-    scope and its exclusions were dropped without a word.
+    path list before ``filters`` is read, so the whole-view scope was dropped
+    without a word. ``exclude`` is no longer part of that failure -- it narrows
+    whichever target is sent (see ``TestExportSidecarsExcludeNarrowsEitherTarget``).
     """
 
     def test_both_targets_is_422(self, client, tmp_path):
@@ -375,6 +376,54 @@ class TestExportSidecarsTargetIsExactlyOne:
         with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
             resp = client.post("/api/export/sidecars", json={})
         assert resp.status_code == 400, resp.text
+
+
+class TestExportSidecarsExcludeNarrowsEitherTarget:
+    """``exclude`` narrows a named path list too, not only a filter set.
+
+    ``_selected_paths`` returned ``body.paths`` before ``body.exclude`` was
+    read, so a caller naming paths plus exceptions had its exceptions dropped
+    and got a sidecar written next to every one of them. Shared helper with
+    ``POST /api/cull/apply``, so the two endpoints cannot disagree about what
+    ``exclude`` means.
+    """
+
+    def _two_photos(self, tmp_path):
+        p1, r1 = _make_photo(tmp_path, "a.jpg", star_rating=4)
+        p2, r2 = _make_photo(tmp_path, "b.jpg", star_rating=5)
+        db = str(tmp_path / "t.db")
+        _seed_db(db, [r1, r2])
+        return p1, p2, db
+
+    def test_an_excluded_path_gets_no_sidecar(self, client, tmp_path):
+        p1, p2, db = self._two_photos(tmp_path)
+        with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
+            resp = client.post("/api/export/sidecars",
+                               json={"paths": [p1, p2], "exclude": [p2]})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["written"] == 1
+        assert os.path.isfile(p1 + ".xmp")
+        assert not os.path.exists(p2 + ".xmp"), "the excluded path was exported anyway"
+
+    def test_an_empty_exclude_is_a_no_op(self, client, tmp_path):
+        p1, p2, db = self._two_photos(tmp_path)
+        with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
+            resp = client.post("/api/export/sidecars",
+                               json={"paths": [p1, p2], "exclude": []})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["written"] == 2
+        assert os.path.isfile(p1 + ".xmp") and os.path.isfile(p2 + ".xmp")
+
+    def test_excluding_every_named_path_writes_nothing(self, client, tmp_path):
+        """Still a target set, simply an empty one — not the no-target 400."""
+        p1, p2, db = self._two_photos(tmp_path)
+        with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
+            resp = client.post("/api/export/sidecars",
+                               json={"paths": [p1, p2], "exclude": [p1, p2]})
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["written"] == 0
+        assert not os.path.exists(p1 + ".xmp")
+        assert not os.path.exists(p2 + ".xmp")
 
 
 # ---------------------------------------------------------------------------

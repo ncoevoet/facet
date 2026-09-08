@@ -362,6 +362,62 @@ class TestBatchTargetIsExactlyOne:
         assert resp.json()["count"] == 0, resp.json()
 
 
+@pytest.mark.parametrize(("endpoint", "extra"), ENDPOINTS, ids=ENDPOINT_IDS)
+class TestExcludeNarrowsEitherTarget:
+    """``exclude`` narrows a named path list too, not only a filter set.
+
+    It was read on the ``filters`` branch only (``_batch_scope_sql`` binds it
+    into the scope), while the ``photo_paths`` branch went straight to
+    ``_writable_photo_paths`` and never looked at it -- so
+    ``{photo_paths, exclude}`` wrote the excluded rows anyway, clearing
+    ``star_rating`` and setting ``is_rejected`` on the very photos the caller
+    asked to skip. The filter-branch twins are
+    ``TestFilterScoped*.test_exclude_is_honoured``; the same fix landed on
+    ``POST /api/cull/apply`` (tests/test_cull.py), which shares the shape.
+    """
+
+    def test_a_named_path_that_is_also_excluded_is_not_written(
+        self, single_user_client, seeded, endpoint, extra
+    ):
+        resp = single_user_client.post(endpoint, json={
+            "photo_paths": [ALICE_ONE, ALICE_TWO], "exclude": [ALICE_TWO], **extra,
+        })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["count"] == 1, resp.json()
+        assert _touched(_photo_flags(SEEDED)) == {ALICE_ONE}, (
+            f"{endpoint} wrote a row the caller excluded"
+        )
+
+    def test_an_empty_exclude_is_a_no_op(self, single_user_client, seeded, endpoint, extra):
+        resp = single_user_client.post(endpoint, json={
+            "photo_paths": [ALICE_ONE, ALICE_TWO], "exclude": [], **extra,
+        })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["count"] == 2, resp.json()
+        assert _touched(_photo_flags(SEEDED)) == {ALICE_ONE, ALICE_TWO}
+
+    def test_excluding_every_named_path_writes_nothing(
+        self, single_user_client, seeded, endpoint, extra
+    ):
+        """Still a target set, simply an empty one — not the no-target 422."""
+        resp = single_user_client.post(endpoint, json={
+            "photo_paths": [ALICE_ONE, ALICE_TWO], "exclude": [ALICE_ONE, ALICE_TWO], **extra,
+        })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["count"] == 0, resp.json()
+        assert _touched(_photo_flags(SEEDED)) == set()
+
+    def test_multi_user_named_paths_are_narrowed_too(self, alice_client, seeded,
+                                                     endpoint, extra):
+        """The other write target: ``user_preferences``, not ``photos``."""
+        resp = alice_client.post(endpoint, json={
+            "photo_paths": [ALICE_ONE, ALICE_TWO], "exclude": [ALICE_TWO], **extra,
+        })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["count"] == 1, resp.json()
+        assert _written_prefs(SEEDED) == {ALICE_ONE}
+
+
 ALICE_ALBUM = 88801
 BOB_ALBUM = 88802
 UNKNOWN_ALBUM = 88899

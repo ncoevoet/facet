@@ -100,24 +100,31 @@ class EmbedMetadataRequest(BaseModel):
 class _PathsOrFiltersRequest(BaseModel):
     paths: Optional[list[str]] = Field(default=None, max_length=10000)
     filters: Optional[dict] = None
-    # Paths to drop from the filter set. The client's "whole view selected,
-    # minus these few" state, sent as the exceptions rather than as the whole
-    # selection. Capped well below SQLITE_MAX_VARIABLE_NUMBER because it binds
-    # one placeholder each into a single NOT IN (...). Only ever narrows the
-    # filter set, so it can never widen a destructive action.
-    exclude: Optional[list[str]] = Field(default=None, max_length=1000)
+    # Paths to drop from whichever target is sent. The client's "whole view
+    # selected, minus these few" state, sent as the exceptions rather than as
+    # the whole selection. Capped well below SQLITE_MAX_VARIABLE_NUMBER because
+    # on the filter branch it binds one placeholder each into a single
+    # NOT IN (...). Only ever narrows, so it can never widen a destructive
+    # action.
+    exclude: Optional[list[str]] = Field(
+        default=None, max_length=1000,
+        description="Paths to drop from whichever target is sent: subtracted from "
+                    "`paths`, or bound out of the `filters` scope. Only ever narrows.",
+    )
 
     @model_validator(mode='after')
     def _reject_both_targets(self):
         """``paths`` and ``filters`` name the same set two ways; never both.
 
         Sending both was silently resolved in ``paths``' favour:
-        :func:`_selected_paths` returns the path list before ``filters`` or
-        ``exclude`` are ever read, so a client that sent a whole-view filter
-        set alongside a stale path list had its scope AND its exclusions
-        dropped without a word -- on endpoints that move and trash files. 422
-        like ``BatchPhotoRequest._exactly_one_target``, its twin in
-        ``api/routers/faces.py``.
+        :func:`_selected_paths` returns the path list before ``filters`` is
+        ever read, so a client that sent a whole-view filter set alongside a
+        stale path list had its scope dropped without a word -- on endpoints
+        that move and trash files. 422 like
+        ``BatchPhotoRequest._exactly_one_target``, its twin in
+        ``api/routers/faces.py``. (``exclude`` is no longer part of that
+        failure: it narrows whichever target is sent, so it survives either
+        branch.)
 
         The "neither" case stays a 400 in the handlers rather than joining this
         validator: that is the status this pair of endpoints has always
@@ -237,9 +244,22 @@ def _selected_paths(conn, body, user_id, max_filter_paths=None, filter_label="th
     ``max_filter_paths`` bounds the FILTER branch only; the ``paths`` branch is
     already bounded by the field's own ``max_length``. ``filter_label`` is
     forwarded to :func:`_resolve_filter_paths` for its 412 message.
+
+    ``exclude`` narrows WHICHEVER target is sent. On the filter branch the
+    scope builder binds it into the query; on the paths branch it is subtracted
+    here. It used to be read only on the filter branch, so a request naming
+    ``paths`` alongside ``exclude`` moved or OS-trashed the very files it had
+    listed as exceptions, without a word -- the same silent-drop failure
+    ``_PathsOrFiltersRequest._reject_both_targets`` was written to close for the
+    sibling pair. Subtraction preserves the caller's order and leaves an empty
+    ``exclude`` a no-op; excluding every named path resolves to an empty set,
+    which the handlers already treat as "nothing qualified" rather than as a
+    missing target (the no-target 400 is decided on ``body.paths`` before this
+    runs).
     """
     if body.paths:
-        return body.paths
+        excluded = set(body.exclude or ())
+        return [p for p in body.paths if p not in excluded]
     try:
         return _resolve_filter_paths(conn, body.filters, user_id, body.exclude,
                                      max_paths=max_filter_paths, filter_label=filter_label)

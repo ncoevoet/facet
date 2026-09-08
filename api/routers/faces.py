@@ -74,9 +74,14 @@ class BatchPhotoRequest(BaseModel):
 
     photo_paths: Optional[list[str]] = Field(default=None, max_length=1000)
     filters: Optional[dict] = None
-    # Bounded well below SQLITE_MAX_VARIABLE_NUMBER: each exclusion binds one
+    # Narrows whichever target is sent. Bounded well below
+    # SQLITE_MAX_VARIABLE_NUMBER: on the filter branch each exclusion binds one
     # placeholder into a single NOT IN (...) alongside the filter's own binds.
-    exclude: Optional[list[str]] = Field(default=None, max_length=1000)
+    exclude: Optional[list[str]] = Field(
+        default=None, max_length=1000,
+        description="Paths to drop from whichever target is sent: subtracted from "
+                    "`photo_paths`, or bound out of the `filters` scope. Only ever narrows.",
+    )
 
     @model_validator(mode='after')
     def _exactly_one_target(self):
@@ -717,7 +722,16 @@ def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql
             if body.filters is not None:
                 count = _write_filter_scope(conn, body, user, sql)
             else:
-                paths = _writable_photo_paths(conn, user, body.photo_paths)
+                # `exclude` narrows WHICHEVER target is sent. On the filter
+                # branch `_batch_scope_sql` binds it into the query; here it is
+                # subtracted before the writability pass, so the excluded rows
+                # are never written and never counted. It used to be read only
+                # on the filter branch, so `{photo_paths, exclude}` cleared
+                # star_rating and is_favorite on the very rows the caller asked
+                # to skip. Order-preserving; an empty `exclude` is a no-op.
+                excluded = set(body.exclude or ())
+                named = [p for p in body.photo_paths if p not in excluded]
+                paths = _writable_photo_paths(conn, user, named)
                 if not paths:
                     return {'success': True, 'count': 0}
                 count = _write_paths(conn, paths, user, sql)

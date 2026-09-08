@@ -4431,7 +4431,10 @@ export interface components {
          *     so, and both would leave which one wins undefined.
          */
         BatchPhotoRequest: {
-            /** Exclude */
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `photo_paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
             exclude?: string[] | null;
             /** Filters */
             filters?: {
@@ -4442,7 +4445,10 @@ export interface components {
         };
         /** BatchRatingRequest */
         BatchRatingRequest: {
-            /** Exclude */
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `photo_paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
             exclude?: string[] | null;
             /** Filters */
             filters?: {
@@ -4806,7 +4812,10 @@ export interface components {
              * @default true
              */
             dry_run?: boolean;
-            /** Exclude */
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
             exclude?: string[] | null;
             /** Filters */
             filters?: {
@@ -5030,7 +5039,10 @@ export interface components {
         };
         /** ExportSidecarsRequest */
         ExportSidecarsRequest: {
-            /** Exclude */
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
             exclude?: string[] | null;
             /** Filters */
             filters?: {

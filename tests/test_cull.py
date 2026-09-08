@@ -515,10 +515,12 @@ class TestCullApplyTargetIsExactlyOne:
     """``paths`` and ``filters`` name the same set two ways; never both.
 
     Both-are-set used to resolve silently in ``paths``' favour --
-    ``_selected_paths`` returns before ``filters`` or ``exclude`` are read --
-    so a stale path list alongside a whole-view filter set dropped the scope
-    AND the exclusions on an endpoint that moves and trashes files. The twin of
-    ``TestBatchTargetIsExactlyOne`` in tests/test_batch_photo_writes.py.
+    ``_selected_paths`` returns before ``filters`` is read -- so a stale path
+    list alongside a whole-view filter set dropped the scope on an endpoint
+    that moves and trashes files. The twin of ``TestBatchTargetIsExactlyOne``
+    in tests/test_batch_photo_writes.py. ``exclude`` is no longer part of this
+    pair: it narrows whichever target is sent (see
+    ``TestCullApplyExcludeNarrowsEitherTarget``).
     """
 
     def test_both_targets_is_422(self, client, tmp_path):
@@ -545,6 +547,96 @@ class TestCullApplyTargetIsExactlyOne:
         with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
             resp = client.post("/api/cull/apply", json={"action": "copy_keeps"})
         assert resp.status_code == 400, resp.text
+
+
+class TestCullApplyExcludeNarrowsEitherTarget:
+    """``exclude`` narrows a named path list too, not only a filter set.
+
+    ``_selected_paths`` returned ``body.paths`` before ``body.exclude`` was
+    ever read, so a ``{paths, exclude}`` request moved or OS-trashed the very
+    files the caller had listed as exceptions -- silently, on the project's
+    most destructive endpoint, and the only thing bounding it was the client
+    (cull-dialog.component.ts sends ``exclude`` only alongside ``filters``).
+    The bound belongs server-side: "destructive endpoints are bounded
+    server-side, not by the client."
+    """
+
+    def _rejected_pair(self, tmp_path):
+        doomed = _make_file(tmp_path, "doomed.jpg")
+        spared = _make_file(tmp_path, "spared.jpg")
+        return doomed, spared, _db(tmp_path, [(doomed, 1), (spared, 1)])
+
+    def test_an_excluded_path_is_not_moved(self, client, tmp_path):
+        """The real, destructive run — not a dry run: the files must survive."""
+        doomed, spared, db = self._rejected_pair(tmp_path)
+        target = str(tmp_path / "out")
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [doomed, spared], "exclude": [spared],
+                "action": "move_rejects", "target_dir": target, "dry_run": False,
+            })
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["moved"] == 1
+        # The counts have to reflect the narrowing too, or the response says a
+        # photo was considered when it never was.
+        assert body["matched"] == 1
+        assert body["excluded_by_state"] == 0
+        assert os.path.isfile(spared), "the excluded file was moved anyway"
+        assert not os.path.exists(doomed)
+        assert os.path.isfile(os.path.join(target, "doomed.jpg"))
+        assert not os.path.exists(os.path.join(target, "spared.jpg"))
+
+    def test_an_excluded_path_is_not_previewed_either(self, client, tmp_path):
+        """A preview that lists a spared file is a preview the user cannot trust."""
+        doomed, spared, db = self._rejected_pair(tmp_path)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [doomed, spared], "exclude": [spared],
+                "action": "move_rejects", "target_dir": str(tmp_path / "out"),
+                "dry_run": True,
+            })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["would_move"] == [doomed]
+
+    def test_an_empty_exclude_is_a_no_op(self, client, tmp_path):
+        """The client sends ``exclude: []`` freely; it must not narrow anything."""
+        doomed, spared, db = self._rejected_pair(tmp_path)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [doomed, spared], "exclude": [],
+                "action": "move_rejects", "target_dir": str(tmp_path / "out"),
+                "dry_run": True,
+            })
+        assert resp.status_code == 200, resp.text
+        assert sorted(resp.json()["would_move"]) == sorted([doomed, spared])
+
+    def test_excluding_every_named_path_acts_on_nothing(self, client, tmp_path):
+        """Still a target set, simply an empty one — not the no-target 400."""
+        doomed, spared, db = self._rejected_pair(tmp_path)
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}._allowed_export_roots", return_value=[str(tmp_path)]),
+        ):
+            resp = client.post("/api/cull/apply", json={
+                "paths": [doomed, spared], "exclude": [doomed, spared],
+                "action": "move_rejects", "target_dir": str(tmp_path / "out"),
+                "dry_run": False,
+            })
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["moved"] == 0
+        assert body["matched"] == 0
+        assert os.path.isfile(doomed) and os.path.isfile(spared)
 
 
 class TestCullApplySequences:
