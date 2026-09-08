@@ -730,7 +730,7 @@ def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql
                 # star_rating and is_favorite on the very rows the caller asked
                 # to skip. Order-preserving; an empty `exclude` is a no-op.
                 excluded = set(body.exclude or ())
-                named = [p for p in body.photo_paths if p not in excluded]
+                named = [p for p in (body.photo_paths or ()) if p not in excluded]
                 paths = _writable_photo_paths(conn, user, named)
                 if not paths:
                     return {'success': True, 'count': 0}
