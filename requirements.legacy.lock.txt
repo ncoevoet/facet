@@ -102,7 +102,7 @@ propcache==0.5.2
 protobuf==7.36.0
 pyarrow==24.0.0
 pydantic==2.13.5
-pydantic_core==2.46.4
+pydantic_core==2.46.5
 pyiqa==0.1.16
 PyJWT==2.13.0
 pyparsing==3.3.2
