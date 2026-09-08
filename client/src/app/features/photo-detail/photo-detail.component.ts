@@ -972,9 +972,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     try {
       const res = await firstValueFrom(this.api.get<{ caption: string }>('/caption', { path }));
       const p = this.photo();
-      if (p) {
+      // Generation is slow enough to outlive the photo that started it, and the
+      // store write now carries a mis-targeted apply out to the grid as well --
+      // so confirm the open photo is still the one this call asked about.
+      if (p?.path === path) {
         this.translatedCaption.set(null);
-        this.photo.set({ ...p, caption: res.caption, caption_translated: undefined });
+        this.applyConfirmed(p, { caption: res.caption, caption_translated: undefined });
       }
     } catch {
       this.snackBar.open(this.i18n.t(I18N.photo_detail.caption_error), '', { duration: 3000 });
@@ -997,7 +1000,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       ref.afterClosed().subscribe(result => {
         if (result !== undefined) {
           this.translatedCaption.set(null);
-          this.photo.set({ ...p, caption: result || null, caption_translated: undefined });
+          this.applyConfirmed(p, { caption: result || null, caption_translated: undefined });
         }
       });
     });

@@ -609,6 +609,55 @@ describe('PhotoDetailComponent', () => {
       expect(stored().aggregate).toBe(6.8);
     });
 
+    // Captions had the same split brain the flags did: both writers set only
+    // this component's signal, so a caption edited in the lightbox was shown
+    // back at its pre-edit value in the grid tooltip that carries it.
+    it('generateCaption puts the generated caption in the store', async () => {
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/caption' ? of({ caption: 'a generated caption' }) : of(samplePhoto));
+      createComponent();
+      seedGrid({ caption: 'stale' });
+
+      await component.generateCaption(edited.path);
+
+      expect(stored().caption).toBe('a generated caption');
+      expect(stored(neighbour.path).caption).toBeUndefined();
+    });
+
+    // Generation is slow enough to outlive the photo that started it, and the
+    // store write is what makes that reachable: applying it blind would put one
+    // photo's caption on whichever tile the user had moved on to.
+    it('generateCaption drops a response that arrives after the user moved on', async () => {
+      const captions = new Subject<{ caption: string }>();
+      mockApi.get.mockImplementation((url: string) =>
+        url === '/caption' ? captions.asObservable() : of(samplePhoto));
+      createComponent();
+      seedGrid({ caption: 'stale' });
+
+      const pending = component.generateCaption(edited.path);
+      component.photo.set({ ...neighbour });
+      captions.next({ caption: 'belongs to a.jpg' });
+      captions.complete();
+      await pending;
+
+      expect(stored().caption).toBe('stale');
+      expect(stored(neighbour.path).caption).toBeUndefined();
+    });
+
+    it('the caption edit dialog result reaches the store', async () => {
+      createComponent();
+      seedGrid({ caption: 'stale' });
+      mockDialog.open.mockReturnValue({ afterClosed: () => of('an edited caption') });
+      // Same loader warm-up the category override test needs: editCaption is
+      // void and resolves its dynamic import on its own.
+      await import('./caption-edit-dialog.component');
+
+      component.editCaption({ ...edited });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+      expect(stored().caption).toBe('an edited caption');
+    });
+
     it('leaves the store untouched when the server refuses the change', async () => {
       mockApi.post.mockReturnValue(throwError(() => new Error('boom')));
       createComponent();
