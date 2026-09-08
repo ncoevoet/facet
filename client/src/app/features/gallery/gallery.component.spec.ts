@@ -1754,6 +1754,7 @@ describe('GalleryComponent', () => {
     let dialog: MatDialog;
     let addPhotos: Mock;
     let writeText: Mock;
+    let clipboardDescriptor: PropertyDescriptor | undefined;
 
     beforeEach(() => {
       mockStore.viewScopeSelected.set(true);
@@ -1765,7 +1766,15 @@ describe('GalleryComponent', () => {
       (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
       addPhotos = TestBed.inject(AlbumService).addPhotos as unknown as Mock;
       writeText = vi.fn(() => Promise.resolve());
+      clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
       Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    });
+
+    // The stub is a global: left in place it outlives this describe and hands a
+    // fake clipboard to every test appended after it.
+    afterEach(() => {
+      if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      else delete (navigator as unknown as { clipboard?: unknown }).clipboard;
     });
 
     const copy = () => (component as unknown as { copyPaths: () => Promise<void> }).copyPaths();
