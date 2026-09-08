@@ -2,6 +2,7 @@ import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Location } from '@angular/common';
+import { MatDialog } from '@angular/material/dialog';
 import { of, Subject, throwError } from 'rxjs';
 import { signal } from '@angular/core';
 import { ApiService } from '../../core/services/api.service';
@@ -28,6 +29,7 @@ describe('PhotoDetailComponent', () => {
   let mockLocation: { back: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } } };
   let mockAuth: { isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
+  let mockDialog: { open: Mock };
 
   const samplePhoto = {
     path: '/photos/test.jpg',
@@ -69,6 +71,7 @@ describe('PhotoDetailComponent', () => {
         { provide: Location, useValue: mockLocation },
         { provide: ActivatedRoute, useValue: mockRoute },
         { provide: AuthService, useValue: mockAuth },
+        { provide: MatDialog, useValue: mockDialog },
         { provide: I18nService, useValue: { t: (k: string) => k, locale: () => 'en' } },
       ],
     });
@@ -99,6 +102,7 @@ describe('PhotoDetailComponent', () => {
       },
     };
     mockAuth = { isEdition: signal(true), downloadProfiles: signal([]) };
+    mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(undefined) })) };
   });
 
   it('should create', () => {
@@ -317,7 +321,7 @@ describe('PhotoDetailComponent', () => {
 
   describe('toggleFavorite', () => {
     it('should toggle favorite status via API', async () => {
-      mockApi.post.mockReturnValue(of({ is_favorite: true, is_rejected: null }));
+      mockApi.post.mockReturnValue(of({ is_favorite: true, is_rejected: false }));
       createComponent();
       component.photo.set({ ...samplePhoto, is_favorite: false, is_rejected: false });
 
@@ -482,6 +486,137 @@ describe('PhotoDetailComponent', () => {
       component.photo.set(samplePhoto);
 
       await expect(component.clearCategoryOverride(samplePhoto)).resolves.toBeUndefined();
+    });
+  });
+
+  describe('gallery store write-back', () => {
+    // The grid renders from GalleryStore.photos(), not from this component's
+    // signal, so an edit that only reached the signal was shown back at its
+    // pre-edit value the moment the lightbox closed. Every handler here has to
+    // put the server-confirmed fields into the store as well (#132).
+    const edited = { ...samplePhoto, path: '/photos/a.jpg', filename: 'a.jpg' };
+    const neighbour = { ...samplePhoto, path: '/photos/b.jpg', filename: 'b.jpg' };
+
+    /** Put the edited photo (with `overrides` applied) and one bystander in the grid. */
+    function seedGrid(overrides: Record<string, unknown> = {}) {
+      component.store.photos.set([{ ...edited, ...overrides }, neighbour]);
+      component.photo.set({ ...edited, ...overrides });
+    }
+
+    const stored = (path = edited.path) =>
+      component.store.photos().find((p: { path: string }) => p.path === path);
+
+    it('setRating puts the new rating in the store, and only on that photo', async () => {
+      mockApi.post.mockReturnValue(of({}));
+      createComponent();
+      seedGrid({ star_rating: 0 });
+
+      await component.setRating(edited.path, 4);
+
+      expect(stored().star_rating).toBe(4);
+      expect(stored(neighbour.path).star_rating).toBe(samplePhoto.star_rating);
+    });
+
+    it('setRating puts the cleared rating in the store when the same star is clicked again', async () => {
+      mockApi.post.mockReturnValue(of({}));
+      createComponent();
+      seedGrid({ star_rating: 3 });
+
+      await component.setRating(edited.path, 3);
+
+      expect(stored().star_rating).toBe(0);
+    });
+
+    it('toggleFavorite puts both confirmed flags in the store', async () => {
+      mockApi.post.mockReturnValue(of({ is_favorite: true, is_rejected: false }));
+      createComponent();
+      seedGrid({ is_favorite: false, is_rejected: true });
+
+      await component.toggleFavorite(edited.path);
+
+      expect(stored().is_favorite).toBe(true);
+      expect(stored().is_rejected).toBe(false);
+    });
+
+    // `is_rejected: null` is the un-favouriting branch and only that one: the
+    // endpoint answers from a single expression keyed on the new value, so it
+    // pairs the null with `is_favorite: false` and never with `true`. Seeding a
+    // favourited photo and clearing it is the only way to reach the guard.
+    it('toggleFavorite leaves the stored reject flag alone when the server sends null', async () => {
+      mockApi.post.mockReturnValue(of({ is_favorite: false, is_rejected: null }));
+      createComponent();
+      seedGrid({ is_favorite: true, is_rejected: true });
+
+      await component.toggleFavorite(edited.path);
+
+      expect(stored().is_favorite).toBe(false);
+      expect(stored().is_rejected).toBe(true);
+    });
+
+    // The coupled case, and the one most likely to regress: the server clears
+    // the stars and the favorite flag as part of rejecting, so patching
+    // is_rejected alone would leave the tile wearing a rating the photo no
+    // longer has.
+    it('a reject that clears the stars propagates the cleared rating to the store', async () => {
+      mockApi.post.mockReturnValue(of({ is_rejected: true, is_favorite: false, star_rating: 0 }));
+      createComponent();
+      seedGrid({ is_rejected: false, is_favorite: true, star_rating: 3 });
+
+      await component.toggleRejected(edited.path);
+
+      expect(stored().is_rejected).toBe(true);
+      expect(stored().is_favorite).toBe(false);
+      expect(stored().star_rating).toBe(0);
+    });
+
+    it('un-rejecting keeps the stored rating the server did not touch', async () => {
+      mockApi.post.mockReturnValue(of({ is_rejected: false, is_favorite: null, star_rating: null }));
+      createComponent();
+      seedGrid({ is_rejected: true, star_rating: 4 });
+
+      await component.toggleRejected(edited.path);
+
+      expect(stored().is_rejected).toBe(false);
+      expect(stored().star_rating).toBe(4);
+    });
+
+    it('the category override dialog result reaches the store', async () => {
+      createComponent();
+      seedGrid();
+      mockDialog.open.mockReturnValue({ afterClosed: () => of({ category: 'sports', aggregate: 7.9 }) });
+      // Warm the loader cache: openCategoryOverride is void and resolves its
+      // dynamic import on its own, so the assertions need the module already
+      // in hand for a single tick to be enough to see the result applied.
+      await import('./category-override-dialog.component');
+
+      component.openCategoryOverride({ ...edited });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+
+      expect(stored().category).toBe('sports');
+      expect(stored().aggregate).toBe(7.9);
+    });
+
+    it('clearCategoryOverride puts the recomputed category and aggregate in the store', async () => {
+      mockApi.post.mockReturnValue(of({
+        success: true, path: edited.path, old_category: 'portrait', new_category: 'landscape', aggregate: 6.8,
+      }));
+      createComponent();
+      seedGrid();
+
+      await component.clearCategoryOverride(component.photo());
+
+      expect(stored().category).toBe('landscape');
+      expect(stored().aggregate).toBe(6.8);
+    });
+
+    it('leaves the store untouched when the server refuses the change', async () => {
+      mockApi.post.mockReturnValue(throwError(() => new Error('boom')));
+      createComponent();
+      seedGrid({ star_rating: 3 });
+
+      await component.setRating(edited.path, 5);
+
+      expect(stored().star_rating).toBe(3);
     });
   });
 

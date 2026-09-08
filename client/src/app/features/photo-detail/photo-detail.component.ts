@@ -900,13 +900,38 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
   }
 
+  /**
+   * Apply the fields the server has confirmed to the open photo and to the
+   * gallery's copy of it.
+   *
+   * The store write is what makes an edit outlive the lightbox: the grid
+   * renders from `GalleryStore.photos()`, so a mutation that only reached
+   * this component's own signal was shown back at its pre-edit value the
+   * moment the user returned, and looked discarded even though the server
+   * had accepted it.
+   *
+   * One partial feeds both, so the two views cannot be given different
+   * fields — which matters most where the server couples them: a reject that
+   * also clears the stars and the favorite flag has to carry all three, and
+   * the store used to receive none of them.
+   *
+   * Only ever called with state the server has already acknowledged, so a
+   * failed call leaves both the signal and the store untouched — the same
+   * pessimistic shape every handler here already had, and one that needs no
+   * revert path.
+   */
+  private applyConfirmed(p: Photo, confirmed: Partial<Photo>): void {
+    this.photo.set({ ...p, ...confirmed });
+    this.store.patchPhoto(p.path, confirmed);
+  }
+
   protected async setRating(path: string, rating: number): Promise<void> {
     const p = this.photo();
     if (!p) return;
     const newRating = p.star_rating === rating ? 0 : rating;
     try {
       await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: path, rating: newRating }));
-      this.photo.set({ ...p, star_rating: newRating });
+      this.applyConfirmed(p, { star_rating: newRating });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
@@ -917,7 +942,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p) return;
     try {
       const res = await firstValueFrom(this.api.post<{ is_favorite: boolean; is_rejected: boolean | null }>('/photo/toggle_favorite', { photo_path: path }));
-      this.photo.set({ ...p, is_favorite: res.is_favorite, is_rejected: res.is_rejected === null ? p.is_rejected : res.is_rejected });
+      const confirmed: Partial<Photo> = { is_favorite: res.is_favorite };
+      // null means "the server did not touch this one": leave both readers on
+      // the value they hold rather than writing this view's belief over the
+      // store's, which may be the fresher of the two.
+      if (res.is_rejected !== null) confirmed.is_rejected = res.is_rejected;
+      this.applyConfirmed(p, confirmed);
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
@@ -928,12 +958,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!p) return;
     try {
       const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null; star_rating: number | null }>('/photo/toggle_rejected', { photo_path: path }));
-      this.photo.set({
-        ...p,
-        is_rejected: res.is_rejected,
-        is_favorite: res.is_favorite === null ? p.is_favorite : res.is_favorite,
-        star_rating: res.star_rating === null ? p.star_rating : res.star_rating,
-      });
+      const confirmed: Partial<Photo> = { is_rejected: res.is_rejected };
+      if (res.is_favorite !== null) confirmed.is_favorite = res.is_favorite;
+      if (res.star_rating !== null) confirmed.star_rating = res.star_rating;
+      this.applyConfirmed(p, confirmed);
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
@@ -993,7 +1021,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         data: { path: p.path, currentCategory: p.category },
       });
       ref.afterClosed().subscribe((result: CategoryOverrideResult | undefined) => {
-        if (result) this.photo.set({ ...p, category: result.category, aggregate: result.aggregate });
+        if (result) this.applyConfirmed(p, { category: result.category, aggregate: result.aggregate });
       });
     });
   }
@@ -1003,7 +1031,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       const res = await firstValueFrom(
         this.api.post<{ new_category: string; aggregate: number }>('/comparison/clear_category_override', { path: p.path }),
       );
-      this.photo.set({ ...p, category: res.new_category, aggregate: res.aggregate });
+      this.applyConfirmed(p, { category: res.new_category, aggregate: res.aggregate });
       this.snackBar.open(this.i18n.t(I18N.photo.category_override.cleared), '', { duration: 3000 });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
