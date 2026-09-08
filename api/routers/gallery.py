@@ -986,6 +986,24 @@ async def api_photos_count(
     return {"total": total}
 
 
+# Cap on the paths one whole-view listing may return. Same value as
+# api/routers/export.py's _SIDECAR_FILTER_MAX / _CULL_FILTER_MAX, so every
+# surface that resolves "the current view" to a path list is bounded
+# identically -- this one was the last that was not, and it is reachable
+# anonymously on the shipped open install (viewer.password is ''), where one
+# request against a 100k-photo library dumps every absolute path in it and
+# holds the single event loop for the whole materialise + validate +
+# serialise. Kept as its OWN constant rather than reusing _SELECT_BOTTOM_MAX
+# (5000): that one truncates a RANKED selection, so its ceiling trades off
+# against how much of a cut the UI can usefully show, while this one refuses
+# an unranked set outright.
+#
+# Refused (412) rather than truncated: a silently partial path set is a
+# selection the user believes is whole, and the client already has a
+# count-only virtual selection to fall back on.
+_VIEW_PATHS_MAX = 10000
+
+
 @router.get("/api/photos/paths", response_model=PhotoPathsResponse,
             response_model_exclude_unset=True)
 async def api_photos_paths(
@@ -994,22 +1012,42 @@ async def api_photos_paths(
 ):
     """Every path in the current gallery view, for a whole-view selection.
 
-    Uncapped and unordered: the client builds a Set from these, so an ORDER BY
-    would sort the entire view for nothing (and would drag in the
-    ``top_picks_score`` SELECT alias that the ranked percentile selection
-    needs). ``total`` is ``len(paths)``, never a cached count, so the two
-    halves of the payload cannot disagree.
+    Unordered: the client builds a Set from these, so an ORDER BY would sort
+    the entire view for nothing (and would drag in the ``top_picks_score``
+    SELECT alias that the ranked percentile selection needs). ``total`` is
+    ``len(paths)``, never a cached count, so the two halves of the payload
+    cannot disagree.
+
+    Bounded at ``_VIEW_PATHS_MAX``: a larger view is refused with a 412 naming
+    the count and the cap, never truncated. The client falls back to the
+    count-only virtual selection (``/api/photos/count``), which needs no path
+    list at all.
     """
     qp = dict(request.query_params)
     try:
         async with get_async_db() as conn:
             user_id = user.user_id if user else None
             from_clause, where_str, all_params = await gallery_scope_sql_async(conn, qp, user_id)
+            # LIMIT one past the cap: enough to KNOW the view is oversized
+            # without ever materialising the list it would have returned. The
+            # exact count for the message is only paid for on the refusal path.
             cur = await conn.execute(
-                f"SELECT photos.path FROM {from_clause}{where_str}", all_params
+                f"SELECT photos.path FROM {from_clause}{where_str} LIMIT ?",
+                all_params + [_VIEW_PATHS_MAX + 1],
             )
             rows = await cur.fetchall()
             await cur.close()
+            if len(rows) > _VIEW_PATHS_MAX:
+                total = await get_cached_count_async(
+                    conn, where_str, all_params, from_clause=from_clause
+                )
+                raise HTTPException(
+                    status_code=412,
+                    detail=(
+                        f"This view holds {total} photos and the whole-view path list is "
+                        f"capped at {_VIEW_PATHS_MAX}. Narrow the filters and try again."
+                    ),
+                )
             paths = [r['path'] for r in rows]
     except ValidationError as e:
         _raise_422_for_invalid_gallery_params(e, logger, "Gallery paths parameter validation failed: %s")

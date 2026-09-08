@@ -164,10 +164,15 @@ class PhotoCountResponse(BaseModel):
 class PhotoPathsResponse(BaseModel):
     """Every path in the current gallery view, in no particular order.
 
-    Uncapped and unsorted on purpose: the client turns it into a Set, so the
-    order carries no information and an ORDER BY would only cost a sort over
-    the whole view. ``total`` is ``len(paths)`` rather than a cached count, so
-    the two can never disagree.
+    Unsorted on purpose: the client turns it into a Set, so the order carries
+    no information and an ORDER BY would only cost a sort over the whole view.
+    ``total`` is ``len(paths)`` rather than a cached count, so the two can
+    never disagree.
+
+    Bounded, not truncated: a view over the endpoint's ``_VIEW_PATHS_MAX`` cap
+    is refused with a 412 instead of returning a partial list, so ``paths``
+    here is always the WHOLE view. The count-only ``PhotoCountResponse`` is
+    what answers for a larger one.
     """
 
     total: int

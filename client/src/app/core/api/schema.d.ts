@@ -2993,11 +2993,16 @@ export interface paths {
          * Api Photos Paths
          * @description Every path in the current gallery view, for a whole-view selection.
          *
-         *     Uncapped and unordered: the client builds a Set from these, so an ORDER BY
-         *     would sort the entire view for nothing (and would drag in the
-         *     ``top_picks_score`` SELECT alias that the ranked percentile selection
-         *     needs). ``total`` is ``len(paths)``, never a cached count, so the two
-         *     halves of the payload cannot disagree.
+         *     Unordered: the client builds a Set from these, so an ORDER BY would sort
+         *     the entire view for nothing (and would drag in the ``top_picks_score``
+         *     SELECT alias that the ranked percentile selection needs). ``total`` is
+         *     ``len(paths)``, never a cached count, so the two halves of the payload
+         *     cannot disagree.
+         *
+         *     Bounded at ``_VIEW_PATHS_MAX``: a larger view is refused with a 412 naming
+         *     the count and the cap, never truncated. The client falls back to the
+         *     count-only virtual selection (``/api/photos/count``), which needs no path
+         *     list at all.
          */
         get: operations["api_photos_paths_api_photos_paths_get"];
         put?: never;
@@ -5986,10 +5991,15 @@ export interface components {
          * PhotoPathsResponse
          * @description Every path in the current gallery view, in no particular order.
          *
-         *     Uncapped and unsorted on purpose: the client turns it into a Set, so the
-         *     order carries no information and an ORDER BY would only cost a sort over
-         *     the whole view. ``total`` is ``len(paths)`` rather than a cached count, so
-         *     the two can never disagree.
+         *     Unsorted on purpose: the client turns it into a Set, so the order carries
+         *     no information and an ORDER BY would only cost a sort over the whole view.
+         *     ``total`` is ``len(paths)`` rather than a cached count, so the two can
+         *     never disagree.
+         *
+         *     Bounded, not truncated: a view over the endpoint's ``_VIEW_PATHS_MAX`` cap
+         *     is refused with a 412 instead of returning a partial list, so ``paths``
+         *     here is always the WHOLE view. The count-only ``PhotoCountResponse`` is
+         *     what answers for a larger one.
          */
         PhotoPathsResponse: {
             /** Paths */

@@ -842,7 +842,7 @@ class TestPhotoCount(_WholeViewEndpoint):
 
 
 class TestPhotoPaths(_WholeViewEndpoint):
-    """GET /api/photos/paths — every path in the current view, uncapped."""
+    """GET /api/photos/paths — every path in the current view, up to the cap."""
 
     endpoint = "/api/photos/paths"
 
@@ -910,6 +910,82 @@ class TestPhotoPaths(_WholeViewEndpoint):
         db_path = str(tmp_path / "test.db")
         _make_db(db_path, [_photo("/a.jpg", "2024:01:01 10:00:00")])
         assert self._get(db_path, "per_page=99999").status_code == 422
+
+
+class TestPhotoPathsIsBounded(_WholeViewEndpoint):
+    """The whole-view path list must be bounded, like every sibling that
+    resolves "the current view" to a list of filesystem paths.
+
+    This was the last one that was not, and it takes ``get_optional_user``: on
+    the shipped open install (``viewer.password`` is ``''``,
+    ``get_visibility_clause(None)`` is ``1=1``) one unauthenticated request
+    against a 100k-photo library returned every absolute path in it and held
+    the single event loop for the whole materialise + Pydantic-validate +
+    serialise. The bound mirrors ``TestExportSidecarsFilterScopeIsBounded`` and
+    ``TestCullApplyFilterScopeIsBounded``: refused with a 412 naming the count
+    and the cap, never truncated — a silently partial path set is a selection
+    the user believes is whole.
+    """
+
+    endpoint = "/api/photos/paths"
+
+    def _db_of(self, tmp_path, count):
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo(f"/p{i}.jpg", "2024:01:01 10:00:00", camera_model="Canon R6")
+            for i in range(count)
+        ])
+        return db_path
+
+    def test_the_cap_matches_the_destructive_filter_caps(self):
+        """One ceiling for every surface that resolves a view to paths."""
+        from api.routers.export import _CULL_FILTER_MAX, _SIDECAR_FILTER_MAX
+        from api.routers.gallery import _VIEW_PATHS_MAX
+
+        assert _VIEW_PATHS_MAX == _SIDECAR_FILTER_MAX == _CULL_FILTER_MAX == 10000
+
+    def test_a_view_at_the_cap_passes_through_unchanged(self, tmp_path):
+        """The bound must not cost the endpoint its actual job."""
+        db_path = self._db_of(tmp_path, 3)
+        with mock.patch("api.routers.gallery._VIEW_PATHS_MAX", 3):
+            resp = self._get(db_path, "")
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert data["total"] == 3
+        assert set(data["paths"]) == {f"/p{i}.jpg" for i in range(3)}
+
+    def test_one_photo_over_the_cap_is_refused(self, tmp_path):
+        db_path = self._db_of(tmp_path, 4)
+        with mock.patch("api.routers.gallery._VIEW_PATHS_MAX", 3):
+            resp = self._get(db_path, "")
+        assert resp.status_code == 412, resp.text
+        body = resp.json()
+        detail = body["detail"]
+        # Names the count AND the limit: "too many" alone leaves the user with
+        # no idea how far to narrow.
+        assert "4" in detail and "3" in detail
+        # Refused, never truncated -- no partial list rides along.
+        assert "paths" not in body
+
+    def test_the_cap_applies_to_the_view_not_the_library(self, tmp_path):
+        """A filter that narrows under the cap still answers in full.
+
+        The refusal has to be about the row set the request actually asks for,
+        or every view in an over-cap library would be unusable.
+        """
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, [
+            _photo("/c1.jpg", "2024:01:01 10:00:00", camera_model="Canon R6"),
+            _photo("/c2.jpg", "2024:01:01 10:00:00", camera_model="Canon R6"),
+            _photo("/n1.jpg", "2024:01:01 10:00:00", camera_model="Nikon Z6"),
+            _photo("/n2.jpg", "2024:01:01 10:00:00", camera_model="Nikon Z6"),
+        ])
+        with mock.patch("api.routers.gallery._VIEW_PATHS_MAX", 2):
+            refused = self._get(db_path, "")
+            scoped = self._get(db_path, "camera=Canon+R6")
+        assert refused.status_code == 412, refused.text
+        assert scoped.status_code == 200, scoped.text
+        assert set(scoped.json()["paths"]) == {"/c1.jpg", "/c2.jpg"}
 
 
 class TestGalleryHidePanoramas:

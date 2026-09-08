@@ -1092,7 +1092,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 |----------|-------------|
 | `GET /api/photos` | Paginated photo list with filters |
 | `GET /api/photos/count` | `{ total }` — how many photos match the current gallery filters |
-| `GET /api/photos/paths` | `{ total, paths }` — every matching path, uncapped and unordered; used on demand by actions that need filenames (download, copy), never by select-all |
+| `GET /api/photos/paths` | `{ total, paths }` — every matching path, unordered; used on demand by actions that need filenames (download, copy), never by select-all. Capped at 10000: a view holding more is refused with a `412` naming the count and the cap rather than truncated — a partial path list would be a selection the user believes is whole — so a larger view falls back to the count-only `GET /api/photos/count` |
 | `GET /api/photo` | Single photo details |
 | `GET /api/photo/set?path=` | The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to (sequence takes precedence over burst, burst over duplicate), keyed on `path` — never a group id, which the bracket and panorama passes each renumber from 1 on every run |
 | `GET /api/photo/histogram?path=&bins=` | Draw-ready luminance + R/G/B bins (`bins` ∈ 32/64/128/256, default 64) measured at scan time on the full-resolution image. Every channel is scaled by one global max, never its own. `r`/`g`/`b` are `null` for a row stored before the per-channel format; 404 when the row has no histogram at all, which is the widget's signal to fall back to sampling the thumbnail |
