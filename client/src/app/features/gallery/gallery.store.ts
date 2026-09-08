@@ -28,6 +28,15 @@ export type HiddenFilterFlags = Pick<GalleryFilters,
 
 export const FILTER_OPTIONS_TIMEOUT_MS = 20000;
 
+/**
+ * How many photo paths one batch-mutation request may name.
+ *
+ * The server's own bound on the field — api/routers/faces.py:75,
+ * `photo_paths: Optional[list[str]] = Field(default=None, max_length=1000)` —
+ * not a client-side preference: a longer list is a 422, not a slow request.
+ */
+export const BATCH_PATHS_PER_REQUEST = 1000;
+
 // --- API response types ---
 
 export interface HiddenSummary {
@@ -1102,17 +1111,30 @@ export class GalleryStore {
   }
 
   /**
-   * The wire shape naming the photos a batch mutation acts on.
+   * The wire shapes naming the photos a batch mutation acts on — one per
+   * request, in the order they must be sent.
    *
-   * Exactly one of the two forms, which is also what the server enforces:
-   * `photo_paths` for a path selection (capped at 1000 there), or the filter
-   * the grid itself was fetched with plus the unticked photos, from which the
-   * server derives the rows — no path list on the wire, and no cap.
+   * Exactly one of the two forms per request, which is also what the server
+   * enforces: `photo_paths` for a path selection, or the filter the grid itself
+   * was fetched with plus the unticked photos, from which the server derives
+   * the rows — no path list on the wire, and no cap.
+   *
+   * A path selection is split across as many requests as it takes, because the
+   * two caps do not meet: the server binds `photo_paths` to
+   * BATCH_PATHS_PER_REQUEST entries (api/routers/faces.py:75,
+   * `Field(default=None, max_length=1000)`) while "Keep top N%" hands the
+   * client up to `_SELECT_BOTTOM_MAX` = 5000 of them to act on
+   * (api/routers/gallery.py:882). One POST of the whole list simply 422s.
    */
-  private batchTarget(paths: string[]): Record<string, unknown> {
+  private batchBodies(paths: string[]): Record<string, unknown>[] {
     const filters = this.viewScopeSelected() ? this.filterPayload() : null;
-    if (!filters) return { photo_paths: paths };
-    return { filters, exclude: [...this.excludedPaths()] };
+    if (filters) return [{ filters, exclude: [...this.excludedPaths()] }];
+    if (paths.length <= BATCH_PATHS_PER_REQUEST) return [{ photo_paths: paths }];
+    const bodies: Record<string, unknown>[] = [];
+    for (let i = 0; i < paths.length; i += BATCH_PATHS_PER_REQUEST) {
+      bodies.push({ photo_paths: paths.slice(i, i + BATCH_PATHS_PER_REQUEST) });
+    }
+    return bodies;
   }
 
   /**
@@ -1123,6 +1145,13 @@ export class GalleryStore {
    * others are not on screen to patch and have no state to remember. That gap
    * is why `BatchResult` carries `targeted` as well: a caller offering undo has
    * to know the snapshot is partial, rather than infer coverage from its size.
+   *
+   * A path selection larger than the server's cap goes out as several requests
+   * (see `batchBodies`), so a failure can land with earlier chunks already
+   * written. Those rows are the server's truth now: only the photos whose own
+   * request never landed are reverted, and the user is told how many did
+   * change rather than shown a blanket "action failed" over a half-applied
+   * write.
    */
   private async runBatch(
     paths: string[],
@@ -1134,16 +1163,29 @@ export class GalleryStore {
     const loaded = this.viewScopeSelected() ? this.selectedLoadedPaths() : paths;
     const snapshot = this.snapshotFlags(loaded);
     this.patchPhotos(new Set(loaded), patch);
-    try {
-      const res = await firstValueFrom(
-        this.api.post<{ count?: number }>(endpoint, { ...this.batchTarget(paths), ...extraBody }),
-      );
-      return { snapshot, targeted, count: res?.count ?? targeted };
-    } catch {
-      this.revertSnapshot(snapshot);
-      this.notifyActionFailed();
-      return null;
+    const persisted = new Set<string>();
+    let count = 0;
+    for (const body of this.batchBodies(paths)) {
+      const chunk = body['photo_paths'] as string[] | undefined;
+      try {
+        const res = await firstValueFrom(
+          this.api.post<{ count?: number }>(endpoint, { ...body, ...extraBody }),
+        );
+        count += res?.count ?? chunk?.length ?? targeted;
+        chunk?.forEach(p => persisted.add(p));
+      } catch {
+        this.revertSnapshot(new Map([...snapshot].filter(([p]) => !persisted.has(p))));
+        if (count > 0) {
+          this.snackBar.open(
+            this.i18n.t(I18N.gallery.selection.batch_partial, { count }), '', { duration: 5000 },
+          );
+        } else {
+          this.notifyActionFailed();
+        }
+        return null;
+      }
     }
+    return { snapshot, targeted, count };
   }
 
   /**

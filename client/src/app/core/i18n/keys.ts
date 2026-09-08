@@ -1086,6 +1086,7 @@ export const I18N = {
       batch_favorited: "gallery.selection.batch_favorited",
       batch_rejected: "gallery.selection.batch_rejected",
       batch_rated: "gallery.selection.batch_rated",
+      batch_partial: "gallery.selection.batch_partial",
       select_all: "gallery.selection.select_all",
       invert: "gallery.selection.invert",
       compare: "gallery.selection.compare",

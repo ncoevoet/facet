@@ -1382,14 +1382,16 @@ describe('GalleryStore batch mutations by selection scope', () => {
   });
 
   it('reports how far the action reached versus how much the snapshot covers', async () => {
-    // A "Keep top N%" selection: 5,000 paths, two of them on screen.
+    // A "Keep top N%" selection: 5,000 paths, two of them on screen. Five
+    // requests of BATCH_PATHS_PER_REQUEST, so five times whatever the server
+    // says each one changed.
     const paths = ['/a.jpg', ...Array.from({ length: 4999 }, (_, i) => `/p${i}.jpg`)];
 
     const res = await store.batchReject(paths);
 
     expect(res!.targeted).toBe(5000);
     expect(res!.snapshot.size).toBe(1);
-    expect(res!.count).toBe(2); // whatever the server says it changed
+    expect(res!.count).toBe(10); // whatever the server says it changed
   });
 
   it('reports the whole view as targeted under view scope', async () => {
@@ -1400,6 +1402,82 @@ describe('GalleryStore batch mutations by selection scope', () => {
 
     expect(res!.targeted).toBe(649);
     expect(res!.snapshot.size).toBe(1);
+  });
+
+  // "Keep top N%" restores up to _SELECT_BOTTOM_MAX (5,000) paths, and the
+  // server binds photo_paths to BATCH_PATHS_PER_REQUEST (1,000): one POST of
+  // the whole selection is a 422, so the documented workflow breaks on exactly
+  // the large library it exists for.
+  describe('a path selection larger than the server cap', () => {
+    const paths = Array.from({ length: 2500 }, (_, i) => `/p${i}.jpg`);
+
+    const sentChunks = () => apiPost.mock.calls.map(c => (c[1] as { photo_paths: string[] }).photo_paths);
+
+    it('splits it into one request per chunk, none over the cap', async () => {
+      await store.batchReject(paths);
+
+      const chunks = sentChunks();
+      expect(chunks.map(c => c.length)).toEqual([1000, 1000, 500]);
+      expect(chunks.flat()).toEqual(paths);
+      expect(apiPost.mock.calls.every(c => c[0] === '/photos/batch_reject')).toBe(true);
+    });
+
+    it('sums what every chunk changed into one count', async () => {
+      apiPost
+        .mockReturnValueOnce(of({ count: 1000 }))
+        .mockReturnValueOnce(of({ count: 1000 }))
+        .mockReturnValueOnce(of({ count: 500 }));
+
+      const res = await store.batchRating(paths, 4);
+
+      expect(res!.count).toBe(2500);
+      expect(res!.targeted).toBe(2500);
+      // The rating rides along on every chunk, not just the first.
+      expect(apiPost.mock.calls.every(c => (c[1] as { rating: number }).rating === 4)).toBe(true);
+    });
+
+    // The chunks that landed are the server's truth now: reverting them would
+    // put the UI back to a state the database no longer holds.
+    it('keeps the chunks that landed and reverts only the ones that did not', async () => {
+      store.photos.set([
+        makePhoto({ path: '/p0.jpg' }),     // first chunk — written
+        makePhoto({ path: '/p1500.jpg' }),  // second chunk — the one that fails
+        makePhoto({ path: '/p2400.jpg' }),  // third chunk — never sent
+      ]);
+      apiPost
+        .mockReturnValueOnce(of({ count: 1000 }))
+        .mockReturnValueOnce(throwError(() => new Error('Network error')));
+
+      const res = await store.batchReject(paths);
+
+      expect(res).toBeNull();
+      expect(apiPost).toHaveBeenCalledTimes(2); // stops at the failure
+      expect(store.photos()[0].is_rejected).toBe(true);
+      expect(store.photos()[1].is_rejected).toBeFalsy();
+      expect(store.photos()[2].is_rejected).toBeFalsy();
+    });
+
+    it('names how many photos did change instead of a blanket failure', async () => {
+      apiPost
+        .mockReturnValueOnce(of({ count: 1000 }))
+        .mockReturnValueOnce(throwError(() => new Error('Network error')));
+      const snackOpen = TestBed.inject(MatSnackBar).open as Mock;
+
+      await store.batchReject(paths);
+
+      expect(snackOpen).toHaveBeenCalledWith('gallery.selection.batch_partial', '', expect.anything());
+      expect(snackOpen.mock.calls.some(c => c[0] === 'errors.action_failed')).toBe(false);
+    });
+
+    it('falls back to the plain failure when the very first chunk fails', async () => {
+      apiPost.mockReturnValueOnce(throwError(() => new Error('Network error')));
+      const snackOpen = TestBed.inject(MatSnackBar).open as Mock;
+
+      await store.batchReject(paths);
+
+      expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+      expect(snackOpen.mock.calls.some(c => c[0] === 'gallery.selection.batch_partial')).toBe(false);
+    });
   });
 });
 

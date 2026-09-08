@@ -1070,6 +1070,7 @@
       "batch_favorited": "已收藏 {count} 张照片",
       "batch_rejected": "已淘汰 {count} 张照片",
       "batch_rated": "已将 {count} 张照片评为 {rating} 星",
+      "batch_partial": "操作失败前已修改 {count} 张照片",
       "select_all": "全选",
       "invert": "反选",
       "compare": "比较",

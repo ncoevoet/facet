@@ -1070,6 +1070,7 @@
       "batch_favorited": "{count} Fotos als Favorit markiert",
       "batch_rejected": "{count} Fotos abgelehnt",
       "batch_rated": "{count} Fotos mit {rating} Sternen bewertet",
+      "batch_partial": "{count} Fotos geändert, bevor die Aktion fehlschlug",
       "select_all": "Alle auswählen",
       "invert": "Umkehren",
       "compare": "Vergleichen",
