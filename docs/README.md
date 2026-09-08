@@ -1,6 +1,6 @@
 # Facet documentation
 
-> 🌐 **English** · [Français](fr/README.md) · [Deutsch](de/README.md) · [Italiano](it/README.md) · [Español](es/README.md) · [Português](pt/README.md)
+> 🌐 **English** · [Français](fr/README.md) · [Deutsch](de/README.md) · [Italiano](it/README.md) · [Español](es/README.md) · [Português](pt/README.md) · [简体中文](zh/README.md)
 
 Facet is a multi-dimensional photo analysis engine: it scores, ranks and culls a local
 photo library, then serves a gallery to browse it. Start with

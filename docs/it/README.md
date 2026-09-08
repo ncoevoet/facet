@@ -1,6 +1,6 @@
 # Documentazione di Facet
 
-> 🌐 [English](../README.md) · [Français](../fr/README.md) · [Deutsch](../de/README.md) · **Italiano** · [Español](../es/README.md) · [Português](../pt/README.md)
+> 🌐 [English](../README.md) · [Français](../fr/README.md) · [Deutsch](../de/README.md) · **Italiano** · [Español](../es/README.md) · [Português](../pt/README.md) · [简体中文](../zh/README.md)
 
 Facet è un motore di analisi fotografica multidimensionale: valuta, classifica e seleziona
 una libreria fotografica locale, poi serve una galleria per sfogliarla. Inizia da

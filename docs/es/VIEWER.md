@@ -1,6 +1,6 @@
 # Visor web
 
-> 🌐 [English](../VIEWER.md) · [Français](../fr/VIEWER.md) · [Deutsch](../de/VIEWER.md) · [Italiano](../it/VIEWER.md) · **Español** · [Português](../pt/VIEWER.md)
+> 🌐 [English](../VIEWER.md) · [Français](../fr/VIEWER.md) · [Deutsch](../de/VIEWER.md) · [Italiano](../it/VIEWER.md) · **Español** · [Português](../pt/VIEWER.md) · [简体中文](../zh/VIEWER.md)
 
 Aplicación de página única (SPA) basada en FastAPI + Angular para explorar, filtrar y gestionar fotos.
 

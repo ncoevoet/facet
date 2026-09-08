@@ -1,6 +1,6 @@
 # Instalación
 
-> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · **Español** · [Português](../pt/INSTALLATION.md)
+> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · **Español** · [Português](../pt/INSTALLATION.md) · [简体中文](../zh/INSTALLATION.md)
 
 Facet se ejecuta en tu propia máquina. Elige la sección que coincide con tu configuración,
 copia el bloque, y ya está. La mitad [Avanzado](#avanzado) del final solo está ahí para

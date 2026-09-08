@@ -1,6 +1,6 @@
 # Editor Interop Recipes
 
-> 🌐 **English** · [Français](fr/INTEROP.md) · [Deutsch](de/INTEROP.md) · [Italiano](it/INTEROP.md) · [Español](es/INTEROP.md) · [Português](pt/INTEROP.md)
+> 🌐 **English** · [Français](fr/INTEROP.md) · [Deutsch](de/INTEROP.md) · [Italiano](it/INTEROP.md) · [Español](es/INTEROP.md) · [Português](pt/INTEROP.md) · [简体中文](zh/INTEROP.md)
 
 Practical, step-by-step recipes for round-tripping Facet's ratings, labels, and tags with the external editors and DAM tools people actually use. This page assumes you already know *that* Facet writes XMP — see [Commands — Preview & Export](COMMANDS.md#preview--export) for the full `--export-sidecars` / `--import-sidecars` flag reference and the field mapping (`xmp:Rating`, `xmp:Label`, `dc:subject`).
 

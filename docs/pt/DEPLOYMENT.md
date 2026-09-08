@@ -1,6 +1,6 @@
 # Guia de Implantação
 
-> 🌐 [English](../DEPLOYMENT.md) · [Français](../fr/DEPLOYMENT.md) · [Deutsch](../de/DEPLOYMENT.md) · [Italiano](../it/DEPLOYMENT.md) · [Español](../es/DEPLOYMENT.md) · **Português**
+> 🌐 [English](../DEPLOYMENT.md) · [Français](../fr/DEPLOYMENT.md) · [Deutsch](../de/DEPLOYMENT.md) · [Italiano](../it/DEPLOYMENT.md) · [Español](../es/DEPLOYMENT.md) · **Português** · [简体中文](../zh/DEPLOYMENT.md)
 
 Execute o visualizador do Facet em um servidor remoto ou NAS.
 

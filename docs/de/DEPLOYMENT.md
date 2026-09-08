@@ -1,6 +1,6 @@
 # Bereitstellungsleitfaden
 
-> 🌐 [English](../DEPLOYMENT.md) · [Français](../fr/DEPLOYMENT.md) · **Deutsch** · [Italiano](../it/DEPLOYMENT.md) · [Español](../es/DEPLOYMENT.md) · [Português](../pt/DEPLOYMENT.md)
+> 🌐 [English](../DEPLOYMENT.md) · [Français](../fr/DEPLOYMENT.md) · **Deutsch** · [Italiano](../it/DEPLOYMENT.md) · [Español](../es/DEPLOYMENT.md) · [Português](../pt/DEPLOYMENT.md) · [简体中文](../zh/DEPLOYMENT.md)
 
 Betreiben Sie den Facet-Viewer auf einem entfernten Server oder NAS.
 

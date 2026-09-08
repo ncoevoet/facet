@@ -1,6 +1,6 @@
 # Riferimento di configurazione
 
-> 🌐 [English](../CONFIGURATION.md) · [Français](../fr/CONFIGURATION.md) · [Deutsch](../de/CONFIGURATION.md) · **Italiano** · [Español](../es/CONFIGURATION.md) · [Português](../pt/CONFIGURATION.md)
+> 🌐 [English](../CONFIGURATION.md) · [Français](../fr/CONFIGURATION.md) · [Deutsch](../de/CONFIGURATION.md) · **Italiano** · [Español](../es/CONFIGURATION.md) · [Português](../pt/CONFIGURATION.md) · [简体中文](../zh/CONFIGURATION.md)
 
 Ogni impostazione è distribuita in `config/scoring_config.default.json` e sovrascritta, chiave per chiave, dal tuo `scoring_config.json` — vedi [Valori predefiniti e il tuo override](#valori-predefiniti-e-il-tuo-override). Dopo averle modificate, esegui `python facet.py --recompute-average` per aggiornare i punteggi (non serve la GPU).
 

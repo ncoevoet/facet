@@ -1,6 +1,6 @@
 # Referência de Comandos
 
-> 🌐 [English](../COMMANDS.md) · [Français](../fr/COMMANDS.md) · [Deutsch](../de/COMMANDS.md) · [Italiano](../it/COMMANDS.md) · [Español](../es/COMMANDS.md) · **Português**
+> 🌐 [English](../COMMANDS.md) · [Français](../fr/COMMANDS.md) · [Deutsch](../de/COMMANDS.md) · [Italiano](../it/COMMANDS.md) · [Español](../es/COMMANDS.md) · **Português** · [简体中文](../zh/COMMANDS.md)
 
 [Escaneamento](#scanning) · [Pré-visualização e Exportação](#preview--export) · [Operações de Recálculo](#recompute-operations) · [Reconhecimento Facial](#face-recognition) · [Gerenciamento de Miniaturas](#thumbnail-management) · [Diagnóstico](#diagnostics) · [Informações de Modelos](#model-information) · [Otimização de Pesos](#weight-optimization-pairwise-comparison) · [Configuração](#configuration) · [Marcação](#tagging) · [Validação do Banco de Dados](#database-validation) · [Manutenção do Banco de Dados](#database-maintenance) · [Visualizador Web](#web-viewer) · [Fluxos de Trabalho Comuns](#common-workflows)
 

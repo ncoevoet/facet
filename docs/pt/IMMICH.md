@@ -1,6 +1,6 @@
 # Integração com o Immich
 
-> 🌐 [English](../IMMICH.md) · [Français](../fr/IMMICH.md) · [Deutsch](../de/IMMICH.md) · [Italiano](../it/IMMICH.md) · [Español](../es/IMMICH.md) · **Português**
+> 🌐 [English](../IMMICH.md) · [Français](../fr/IMMICH.md) · [Deutsch](../de/IMMICH.md) · [Italiano](../it/IMMICH.md) · [Español](../es/IMMICH.md) · **Português** · [简体中文](../zh/IMMICH.md)
 
 Facet e [Immich](https://immich.app/) fazem trabalhos diferentes sobre as mesmas fotos. O Immich é a biblioteca: ele importa as fotos, faz backup delas e as entrega para o seu telefone. O Facet é o julgamento: ele pontua, classifica e faz a triagem delas. Esta página conecta os dois de forma que os veredictos a que o Facet chega apareçam como avaliações e favoritos no Immich, e que um upload para o Immich avise o Facet de que há trabalho novo esperando.
 

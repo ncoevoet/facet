@@ -1,6 +1,6 @@
 # Installazione
 
-> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · [Deutsch](../de/INSTALLATION.md) · **Italiano** · [Español](../es/INSTALLATION.md) · [Português](../pt/INSTALLATION.md)
+> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · [Deutsch](../de/INSTALLATION.md) · **Italiano** · [Español](../es/INSTALLATION.md) · [Português](../pt/INSTALLATION.md) · [简体中文](../zh/INSTALLATION.md)
 
 Facet funziona sulla tua macchina. Scegli la sezione che corrisponde alla tua
 configurazione, copia il blocco e hai finito. La metà [Avanzate](#avanzate) in fondo

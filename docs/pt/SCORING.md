@@ -1,6 +1,6 @@
 # Sistema de Pontuação
 
-> 🌐 [English](../SCORING.md) · [Français](../fr/SCORING.md) · [Deutsch](../de/SCORING.md) · [Italiano](../it/SCORING.md) · [Español](../es/SCORING.md) · **Português**
+> 🌐 [English](../SCORING.md) · [Français](../fr/SCORING.md) · [Deutsch](../de/SCORING.md) · [Italiano](../it/SCORING.md) · [Español](../es/SCORING.md) · **Português** · [简体中文](../zh/SCORING.md)
 
 As fotos são classificadas em uma categoria e, em seguida, pontuadas com os pesos dessa categoria.
 

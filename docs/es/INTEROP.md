@@ -1,6 +1,6 @@
 # Recetas de interoperabilidad con editores
 
-> 🌐 [English](../INTEROP.md) · [Français](../fr/INTEROP.md) · [Deutsch](../de/INTEROP.md) · [Italiano](../it/INTEROP.md) · **Español** · [Português](../pt/INTEROP.md)
+> 🌐 [English](../INTEROP.md) · [Français](../fr/INTEROP.md) · [Deutsch](../de/INTEROP.md) · [Italiano](../it/INTEROP.md) · **Español** · [Português](../pt/INTEROP.md) · [简体中文](../zh/INTEROP.md)
 
 Recetas prácticas, paso a paso, para hacer circular en ambos sentidos las valoraciones, etiquetas de color y tags de Facet con los editores externos y las herramientas de gestión de fototeca (DAM) que los fotógrafos usan de verdad. Esta página asume que ya sabes *que* Facet escribe XMP — consulta [Comandos — Vista previa y exportación](COMMANDS.md#vista-previa-y-exportación) para la referencia completa de las opciones `--export-sidecars` / `--import-sidecars` y la correspondencia de campos (`xmp:Rating`, `xmp:Label`, `dc:subject`).
 

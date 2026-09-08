@@ -1,6 +1,6 @@
 # Facet
 
-> 🌐 [English](README.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [Español](README.es.md) · **Português**
+> 🌐 [English](README.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [Español](README.es.md) · **Português** · [简体中文](README.zh.md)
 
 O Facet é um mecanismo local de análise e seleção de fotos. Ele pontua cada imagem em 9 dimensões — da qualidade estética à nitidez dos rostos — e então permite que você navegue, selecione e organize por meio de uma galeria web. Tudo roda na sua máquina; sem nuvem, contas ou chaves de API.
 
@@ -135,7 +135,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 - **PWA instalável** — manifesto de web app + service worker: instale na tela inicial, shell de app offline e miniaturas em cache
 - **Galeria virtualizada** — renderiza um punhado de nós DOM independentemente do tamanho da biblioteca, mantendo a rolagem rápida com mais de 100 mil fotos
 - **Escaneamentos retomáveis** — escaneamentos interrompidos são retomados (`--resume`), os arquivos com falha são rastreados e podem ser reprocessados (`--retry-failed`), e o progresso é transmitido para a interface web
-- **7 idiomas na interface** — a interface está disponível em inglês, francês, alemão, espanhol, italiano, português do Brasil e chinês simplificado (简体中文); a documentação está disponível em seis idiomas (todos exceto o chinês)
+- **7 idiomas na interface** — a interface está disponível em inglês, francês, alemão, espanhol, italiano, português do Brasil e chinês simplificado (简体中文); a documentação está disponível em todos os sete idiomas
 - **Multiusuário** — diretórios, classificações e acesso por função, por usuário
 - **Plugins e webhooks** — ações personalizadas acionadas em eventos de pontuação
 - **Escaneamento pela interface web** — acione escaneamentos pelo navegador (função superadmin)

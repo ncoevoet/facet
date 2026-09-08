@@ -1,6 +1,6 @@
 # Installation
 
-> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · **Deutsch** · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md) · [Português](../pt/INSTALLATION.md)
+> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · **Deutsch** · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md) · [Português](../pt/INSTALLATION.md) · [简体中文](../zh/INSTALLATION.md)
 
 Facet läuft auf Ihrem eigenen Rechner. Wählen Sie den Abschnitt, der zu Ihrer Einrichtung
 passt, kopieren Sie den Block, und Sie sind fertig. Die Hälfte [Fortgeschritten](#fortgeschritten)

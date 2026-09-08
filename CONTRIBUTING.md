@@ -52,14 +52,14 @@ Follow the checklist at [`.claude/patterns/new-metric-checklist.md`](.claude/pat
 4. **Model** -- Add loader in `models/model_manager.py`, register pass in `processing/multi_pass.py`
 5. **API** -- Add range filter in `api/routers/gallery.py`
 6. **Client** -- Add to photo model, tooltip, gallery store, filter sidebar, and sort options
-7. **i18n** -- Add keys in all 5 translation files
+7. **i18n** -- Add keys in all 6 translation files
 
 ## Adding a New API Endpoint
 
 1. Create a router file in `api/routers/` (follow existing patterns, e.g., `api/routers/albums.py`)
 2. Register the router in `api/__init__.py`
 3. Define request/response models in `api/types.py` or `api/models/`
-4. Add any user-facing strings to all 5 files in `i18n/translations/` using full dot-path keys (e.g., `ui.buttons.export`, not `buttons.export`)
+4. Add any user-facing strings to all 6 files in `i18n/translations/` using full dot-path keys (e.g., `ui.buttons.export`, not `buttons.export`)
 
 ## Code Style
 
@@ -80,7 +80,7 @@ Follow the checklist at [`.claude/patterns/new-metric-checklist.md`](.claude/pat
 ### i18n
 
 - Translation keys use the full dot-path from the JSON root: `ui.buttons.remove`, not `buttons.remove`.
-- When adding or renaming strings, update all 5 language files. See [`.claude/patterns/i18n-sync.md`](.claude/patterns/i18n-sync.md).
+- When adding or renaming strings, update all 6 language files. See [`.claude/patterns/i18n-sync.md`](.claude/patterns/i18n-sync.md).
 
 ## Testing
 

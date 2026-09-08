@@ -1,6 +1,6 @@
 # Reconhecimento facial
 
-> 🌐 [English](../FACE_RECOGNITION.md) · [Français](../fr/FACE_RECOGNITION.md) · [Deutsch](../de/FACE_RECOGNITION.md) · [Italiano](../it/FACE_RECOGNITION.md) · [Español](../es/FACE_RECOGNITION.md) · **Português**
+> 🌐 [English](../FACE_RECOGNITION.md) · [Français](../fr/FACE_RECOGNITION.md) · [Deutsch](../de/FACE_RECOGNITION.md) · [Italiano](../it/FACE_RECOGNITION.md) · [Español](../es/FACE_RECOGNITION.md) · **Português** · [简体中文](../zh/FACE_RECOGNITION.md)
 
 O Facet usa o InsightFace para detecção de rostos e o HDBSCAN para agrupar rostos em pessoas.
 

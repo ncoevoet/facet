@@ -1,6 +1,6 @@
 # Facet
 
-> 🌐 **English** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [Español](README.es.md) · [Português](README.pt.md)
+> 🌐 **English** · [Français](README.fr.md) · [Deutsch](README.de.md) · [Italiano](README.it.md) · [Español](README.es.md) · [Português](README.pt.md) · [简体中文](README.zh.md)
 
 Facet is a local photo-analysis and culling engine. It scores each image across 9 dimensions — from aesthetic quality to face sharpness — then lets you browse, cull, and organize through a web gallery. Everything runs on your machine; no cloud, accounts, or API keys.
 
@@ -145,7 +145,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Installable PWA** — web app manifest + service worker: install to home screen, offline app shell, cached thumbnails
 - **Virtualized gallery** — renders a handful of DOM nodes regardless of library size, so scrolling stays fast at 100k+ photos
 - **Resumable scans** — interrupted scans resume (`--resume`), failed files are tracked and retryable (`--retry-failed`), progress streams to the web UI
-- **7 UI languages** — the viewer ships in English, French, German, Spanish, Italian, Brazilian Portuguese, and Simplified Chinese (简体中文); documentation is available in six (all but Chinese)
+- **7 UI languages** — the viewer ships in English, French, German, Spanish, Italian, Brazilian Portuguese, and Simplified Chinese (简体中文); documentation is available in all seven
 - **Multi-user** — per-user directories, ratings, and role-based access
 - **Plugins & webhooks** — custom actions triggered on scoring events
 - **Scan from web UI** — trigger scans from the browser (superadmin role)

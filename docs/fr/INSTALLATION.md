@@ -1,6 +1,6 @@
 # Installation
 
-> 🌐 [English](../INSTALLATION.md) · **Français** · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md) · [Português](../pt/INSTALLATION.md)
+> 🌐 [English](../INSTALLATION.md) · **Français** · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md) · [Português](../pt/INSTALLATION.md) · [简体中文](../zh/INSTALLATION.md)
 
 Facet s'exécute sur votre propre machine. Choisissez la section qui correspond à votre
 situation, copiez le bloc, et c'est terminé. La moitié [Avancé](#avancé) tout en bas n'est

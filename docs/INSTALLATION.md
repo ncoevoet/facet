@@ -1,6 +1,6 @@
 # Installation
 
-> 🌐 **English** · [Français](fr/INSTALLATION.md) · [Deutsch](de/INSTALLATION.md) · [Italiano](it/INSTALLATION.md) · [Español](es/INSTALLATION.md) · [Português](pt/INSTALLATION.md)
+> 🌐 **English** · [Français](fr/INSTALLATION.md) · [Deutsch](de/INSTALLATION.md) · [Italiano](it/INSTALLATION.md) · [Español](es/INSTALLATION.md) · [Português](pt/INSTALLATION.md) · [简体中文](zh/INSTALLATION.md)
 
 Facet runs on your own machine. Pick the section that matches your setup, copy the
 block, and you are done. The [Advanced](#advanced) half at the bottom is only there

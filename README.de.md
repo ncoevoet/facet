@@ -1,6 +1,6 @@
 # Facet
 
-> 🌐 [English](README.md) · [Français](README.fr.md) · **Deutsch** · [Italiano](README.it.md) · [Español](README.es.md) · [Português](README.pt.md)
+> 🌐 [English](README.md) · [Français](README.fr.md) · **Deutsch** · [Italiano](README.it.md) · [Español](README.es.md) · [Português](README.pt.md) · [简体中文](README.zh.md)
 
 Facet ist eine lokale Engine zur Fotoanalyse und Bildauswahl. Sie bewertet jedes Bild anhand von 9 Dimensionen — von der ästhetischen Qualität bis zur Gesichtsschärfe — und ermöglicht anschließend das Durchstöbern, Aussortieren und Organisieren über eine Web-Galerie. Alles läuft auf Ihrem Rechner; keine Cloud, keine Konten, keine API-Schlüssel.
 
@@ -135,7 +135,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 - **Installierbare PWA** — Web-App-Manifest + Service Worker: Installation auf dem Startbildschirm, Offline-App-Shell, zwischengespeicherte Vorschaubilder
 - **Virtualisierte Galerie** — rendert unabhängig von der Bibliotheksgröße nur eine Handvoll DOM-Knoten, sodass das Scrollen auch bei mehr als 100.000 Fotos schnell bleibt
 - **Fortsetzbare Scans** — unterbrochene Scans werden fortgesetzt (`--resume`), fehlgeschlagene Dateien werden erfasst und können erneut versucht werden (`--retry-failed`), der Fortschritt wird live an die Web-Oberfläche gestreamt
-- **7 UI-Sprachen** — die Oberfläche ist auf Englisch, Französisch, Deutsch, Spanisch, Italienisch, brasilianischem Portugiesisch und vereinfachtem Chinesisch (简体中文) verfügbar; die Dokumentation gibt es in sechs Sprachen (alle außer Chinesisch)
+- **7 UI-Sprachen** — die Oberfläche ist auf Englisch, Französisch, Deutsch, Spanisch, Italienisch, brasilianischem Portugiesisch und vereinfachtem Chinesisch (简体中文) verfügbar; die Dokumentation gibt es in allen sieben Sprachen
 - **Mehrbenutzerbetrieb** — benutzerspezifische Verzeichnisse, Bewertungen und rollenbasierter Zugriff
 - **Plugins & Webhooks** — benutzerdefinierte Aktionen, die bei Bewertungsereignissen ausgelöst werden
 - **Scannen über die Web-Oberfläche** — lösen Sie Scans über den Browser aus (Superadmin-Rolle)

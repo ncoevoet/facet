@@ -94,7 +94,7 @@ use `${PIPESTATUS[0]}` or redirect to a file before calling a suite green.
 gate: the description of `include_sequence_siblings` was accurate when it was committed
 and false three hours later, when a review found the endpoint was destroying frames the
 user had kept and the fix narrowed it. Nothing in CI can catch that, and the docs are
-translated into five languages, so the drift multiplies by six.
+translated into six languages, so the drift multiplies by seven.
 
 **When you inject a fault to prove a test can fail, confirm the restore.** Retype the
 original by hand — never `git checkout`, which would discard concurrent work — and then

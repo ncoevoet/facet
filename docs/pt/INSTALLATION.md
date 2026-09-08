@@ -1,6 +1,6 @@
 # Instalação
 
-> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md) · **Português**
+> 🌐 [English](../INSTALLATION.md) · [Français](../fr/INSTALLATION.md) · [Deutsch](../de/INSTALLATION.md) · [Italiano](../it/INSTALLATION.md) · [Español](../es/INSTALLATION.md) · **Português** · [简体中文](../zh/INSTALLATION.md)
 
 O Facet roda na sua própria máquina. Escolha a seção que combina com a sua configuração,
 copie o bloco e pronto. A metade [Avançado](#avançado), no final, só é necessária quando
