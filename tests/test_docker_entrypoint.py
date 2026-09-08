@@ -7,13 +7,15 @@ directory instead of ``/config`` and ``/app``, with the container command
 replaced by ``true`` so nothing besides the seeding logic actually runs.
 
 Only the NON-ROOT tail (``mkdir -p /config; seed_config; exec "$@"``) is
-covered here. Every test process here runs as a real, unprivileged user, so
-`id -u` is never 0 and the script always falls through to that tail — which
-calls the exact same ``seed_config()`` the root branch calls first. What the
-root branch adds on top (chowning a freshly seeded file unconditionally,
-chowning a pre-existing one only as a last resort behind a readability
-probe) needs uid 0 to exercise for real and is covered instead by the image
-smoke test in .github/workflows/docker-publish.yml.
+covered here; the module is skipped outright under uid 0 (see ``_IS_ROOT``
+below) precisely so that `id -u` is always non-zero and the script always
+falls through to that tail — which calls the exact same ``seed_config()``
+the root branch calls first. What the root branch adds on top (chowning a
+freshly seeded file unconditionally, chowning a pre-existing one only as a
+last resort behind a readability probe) needs uid 0 to exercise for real and
+is NOT currently exercised by any automated test; the intended home for such
+a test is a uid-0 container smoke step in .github/workflows/docker-publish.yml
+that bind-mounts a config unreadable by the ``facet`` uid.
 
 This is the regression suite for issue #127: under rootless Podman, an
 operator's pre-existing ``/config/scoring_config.json`` was re-chmod'd 0600
@@ -50,9 +52,17 @@ def _run_entrypoint(seeded_config, image_config):
     )
 
 
+# os.geteuid does not exist on Windows and skipif decorators evaluate at
+# import time, so it is read the same guarded way the sibling suites read it
+# (tests/test_config_writes.py, tests/test_api_config.py).
+_IS_ROOT = os.geteuid() == 0 if hasattr(os, "geteuid") else False
+
 pytestmark = pytest.mark.skipif(
-    sys.platform == "win32",
-    reason="POSIX permission bits, symlinks and sh do not apply on Windows",
+    sys.platform == "win32" or _IS_ROOT,
+    reason="POSIX permission bits, symlinks and sh do not apply on Windows; "
+    "and under uid 0 the script's root branch touches absolute host paths "
+    "(/app/data, /app/storage, /config, /home/facet/*) and requires gosu, "
+    "which is only present inside the image",
 )
 
 

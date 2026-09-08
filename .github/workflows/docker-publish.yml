@@ -200,7 +200,11 @@ jobs:
           # branch (a config the runtime user genuinely cannot read) needs a
           # file the "facet" uid cannot read even via its world bits, which a
           # host-side bind mount can't easily stage from this workflow — that
-          # path is exercised by tests/test_docker_entrypoint.py instead.
+          # path is NOT currently exercised by any automated test (it is not
+          # covered by tests/test_docker_entrypoint.py either, which skips
+          # outright under uid 0). Its intended home is a dedicated uid-0
+          # smoke step here that bind-mounts a config unreadable by the
+          # "facet" uid and asserts the ownership-takeover + warning fire.
           cfg_dir=$(mktemp -d)
           # 0755, not mktemp's 0700: the entrypoint chowns /config itself to
           # the container's "facet" uid, and this directory IS that mount. At
