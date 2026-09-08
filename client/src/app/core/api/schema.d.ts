@@ -3003,9 +3003,15 @@ export interface paths {
          *     cannot disagree.
          *
          *     Bounded at ``_VIEW_PATHS_MAX``: a larger view is refused with a 412 naming
-         *     the count and the cap, never truncated. The client falls back to the
-         *     count-only virtual selection (``/api/photos/count``), which needs no path
-         *     list at all.
+         *     the count and the cap, never truncated. There is no fallback and no partial
+         *     result: the client abandons the action and says so
+         *     (``gallery.selection.paths_too_many``), leaving the user to narrow the
+         *     filters. Only the three actions that need a literal path list -- copy
+         *     filenames, download, add to album -- go through here. The whole-view
+         *     SELECTION itself is count-only (``/api/photos/count``) and never needed a
+         *     path list, so the filter-scoped actions built on it (batch rating/reject
+         *     writes, cull, sidecar export) never touch this endpoint or this cap; they
+         *     carry their own.
          */
         get: operations["api_photos_paths_api_photos_paths_get"];
         put?: never;
