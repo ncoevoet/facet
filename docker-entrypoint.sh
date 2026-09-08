@@ -100,9 +100,9 @@ write_seed() {
 # an EXISTING file on every restart is not a no-op on the host -- it strips
 # the mode and ownership the operator chose, one restart after they chose it,
 # and locks them out of editing their own config without sudo. That is
-# exactly the policy `api/config.py:994-1012` already promises for the live
-# file ("Facet leaves the mode you chose alone"); this entrypoint was the one
-# caller that still broke it.
+# exactly the policy `api/config.py`'s `_warn_if_config_readable_by_others`
+# already promises for the live file ("Facet leaves the mode you chose
+# alone"); this entrypoint was the one caller that still broke it.
 #
 # 0600, not the 0644 `cp` leaves under the default umask -- for a file THIS
 # SEED creates. This file legitimately holds viewer.password,
@@ -162,20 +162,21 @@ if [ "$(id -u)" = '0' ]; then
     # range, so a chown that looks like a no-op in here reassigns the file to
     # a subuid ON THE HOST, one restart after the operator last touched it —
     # they can no longer edit their own config without sudo. `api/config.py`
-    # already documents the policy this chown must not override (:994-1012:
-    # "Facet leaves the mode you chose alone").
+    # already documents the policy this chown must not override, in
+    # `_warn_if_config_readable_by_others` ("Facet leaves the mode you chose
+    # alone").
     #
     # So it only fires as a LAST RESORT, gated on whether `facet` can actually
     # read the file — probed as that real user (`gosu facet sh -c '[ -r ... ]'`)
-    # rather than approximated from uid/gid numbers, which permission bits,
-    # ACLs and group membership can all override. An unreadable pre-existing
-    # config is not a theoretical risk: `api/config.py:260-310` treats it as a
-    # load failure and `config_load_failed()` locks every route, with no UI
-    # left to fix it from — so taking ownership here is the difference between
-    # a locked-out install and a working one. The stderr line says what
-    # happened and how to avoid it next time (make the file group/other
-    # readable, e.g. `chmod o+r`), so the operator keeps their own uid on the
-    # next restart instead of losing it to root's.
+    # rather than approximated from uid/gid numbers, which permission bits, ACLs
+    # and group membership can all override. An unreadable pre-existing config
+    # is not a theoretical risk: `api/config.py`'s `_read_config` treats it as a
+    # load failure and `config_load_failed()` locks every route, with no UI left
+    # to fix it from — so taking ownership here is the difference between a
+    # locked-out install and a working one. The stderr line says what happened
+    # and how to avoid it next time (make the file group/other readable, e.g.
+    # `chmod o+r`), so the operator keeps their own uid on the next restart
+    # instead of losing it to root's.
     #
     # The probe runs AFTER the directory chown below, and the order is not
     # cosmetic: a `facet` that cannot yet SEARCH /config cannot read anything
