@@ -135,7 +135,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 - **PWA installable** — manifeste d'application web + service worker : installation sur l'écran d'accueil, coque d'application hors ligne, miniatures en cache
 - **Galerie virtualisée** — n'affiche qu'une poignée de nœuds DOM quelle que soit la taille de la bibliothèque, pour un défilement rapide même au-delà de 100 000 photos
 - **Analyses reprenables** — les analyses interrompues reprennent (`--resume`), les fichiers en échec sont suivis et réessayables (`--retry-failed`), la progression est diffusée vers l'interface web
-- **6 langues** — anglais, français, allemand, espagnol, italien, portugais brésilien
+- **7 langues dans l'interface** — l'interface est disponible en anglais, français, allemand, espagnol, italien, portugais brésilien et chinois simplifié (简体中文) ; la documentation est disponible en six langues (toutes sauf le chinois)
 - **Multi-utilisateur** — répertoires, notes et accès par rôle propres à chaque utilisateur
 - **Plugins et webhooks** — actions personnalisées déclenchées sur les événements d'évaluation
 - **Analyse depuis l'interface web** — déclenchez des analyses depuis le navigateur (rôle superadmin)

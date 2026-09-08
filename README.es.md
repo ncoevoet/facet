@@ -135,7 +135,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **PWA instalable** — manifiesto de aplicación web + service worker: instálala en la pantalla de inicio, shell de la aplicación sin conexión, miniaturas en caché
 - **Galería virtualizada** — renderiza un puñado de nodos del DOM independientemente del tamaño de la biblioteca, de modo que el desplazamiento sigue siendo rápido con más de 100.000 fotos
 - **Escaneos reanudables** — los escaneos interrumpidos se reanudan (`--resume`), los archivos fallidos se registran y se pueden reintentar (`--retry-failed`), y el progreso se transmite a la interfaz web
-- **6 idiomas** — inglés, francés, alemán, español, italiano, portugués brasileño
+- **7 idiomas en la interfaz** — la interfaz está disponible en inglés, francés, alemán, español, italiano, portugués brasileño y chino simplificado (简体中文); la documentación está disponible en seis idiomas (todos menos el chino)
 - **Multiusuario** — directorios, valoraciones y acceso por roles para cada usuario
 - **Plugins y webhooks** — acciones personalizadas activadas por eventos de puntuación
 - **Escaneo desde la interfaz web** — inicia escaneos desde el navegador (rol de superadministrador)
