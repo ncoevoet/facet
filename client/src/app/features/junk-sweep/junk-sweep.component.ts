@@ -20,7 +20,7 @@ import { createLoupeState } from '../../shared/utils/loupe-state';
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { JunkKindLabelPipe, JunkKindIconPipe } from './junk-sweep.pipes';
 import { I18N, I18N_KEYS } from '../../core/i18n/keys';
-import type { PhotosResponse } from '../gallery/gallery.store';
+import { chunkPhotoPaths, type PhotosResponse } from '../gallery/gallery.store';
 import { normalisePhotoFlagsAll, type Photo } from '../../shared/models/photo.model';
 
 const ANY_KIND = 'any';
@@ -285,9 +285,16 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
     const confirmed = await firstValueFrom(ref.afterClosed());
     if (!confirmed) return;
 
+    // `shown` is everything paged in so far, and loadMore has no ceiling: past
+    // the server's photo_paths cap one POST of the lot is a 422, so it goes out
+    // in request-sized chunks like every other batch write.
     const paths = shown.map(p => p.path);
+    let sent = 0;
     try {
-      await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: paths }));
+      for (const chunk of chunkPhotoPaths(paths)) {
+        await firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: chunk }));
+        sent += chunk.length;
+      }
       this.notify(I18N.junk.rejected_bulk, 2000, { count: paths.length });
       const removedByKind = new Map<string, number>();
       for (const p of shown) {
@@ -300,6 +307,13 @@ export class JunkSweepComponent implements OnInit, OnDestroy {
       await this.load();
     } catch {
       this.notifyError();
+      // Earlier chunks already landed server-side, so the list on screen no
+      // longer matches it — re-read rather than leave rejected rows shown.
+      if (sent > 0) {
+        this.page = 1;
+        this.photos.set([]);
+        await this.load();
+      }
     }
   }
 

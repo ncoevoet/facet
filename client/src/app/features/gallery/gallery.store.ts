@@ -38,6 +38,27 @@ export const FILTER_OPTIONS_TIMEOUT_MS = 20000;
  */
 export const BATCH_PATHS_PER_REQUEST = 1000;
 
+/**
+ * Split a path list into request-sized chunks for any `photo_paths` endpoint.
+ *
+ * A list at or under the cap yields one chunk holding it unchanged, so the
+ * common case is the single request it always was — including the empty list,
+ * which yields one empty chunk: callers that must not post an empty target
+ * (undo's replay, junk sweep's reject-all) check for it before calling.
+ *
+ * Undo cannot reach the cap today — `GalleryComponent.UNDO_MAX_PHOTOS` = 500
+ * gates its only caller — but `restoreSnapshot` is a public store method, so it
+ * chunks rather than relying on a bound held one file away.
+ */
+export function chunkPhotoPaths(paths: string[]): string[][] {
+  if (paths.length <= BATCH_PATHS_PER_REQUEST) return [paths];
+  const chunks: string[][] = [];
+  for (let i = 0; i < paths.length; i += BATCH_PATHS_PER_REQUEST) {
+    chunks.push(paths.slice(i, i + BATCH_PATHS_PER_REQUEST));
+  }
+  return chunks;
+}
+
 // --- API response types ---
 
 export interface HiddenSummary {
@@ -1142,12 +1163,7 @@ export class GalleryStore {
   private batchBodies(paths: string[]): Record<string, unknown>[] {
     const filters = this.viewScopeSelected() ? this.filterPayload() : null;
     if (filters) return [{ filters, exclude: [...this.excludedPaths()] }];
-    if (paths.length <= BATCH_PATHS_PER_REQUEST) return [{ photo_paths: paths }];
-    const bodies: Record<string, unknown>[] = [];
-    for (let i = 0; i < paths.length; i += BATCH_PATHS_PER_REQUEST) {
-      bodies.push({ photo_paths: paths.slice(i, i + BATCH_PATHS_PER_REQUEST) });
-    }
-    return bodies;
+    return chunkPhotoPaths(paths).map(chunk => ({ photo_paths: chunk }));
   }
 
   /**
@@ -1306,12 +1322,19 @@ export class GalleryStore {
     }
 
     const failed = new Set<string>();
-    const runBatch = async (paths: string[], post: () => Promise<unknown>): Promise<void> => {
+    // Chunked to the server's `photo_paths` cap like every other batch write:
+    // a chunk that fails marks only its own paths failed, so the rest of the
+    // restore still lands and only what genuinely did not revert is reported.
+    const runBatch = async (
+      endpoint: string, paths: string[], extra: Record<string, unknown> = {},
+    ): Promise<void> => {
       if (!paths.length) return;
-      try {
-        await post();
-      } catch {
-        paths.forEach(p => failed.add(p));
+      for (const chunk of chunkPhotoPaths(paths)) {
+        try {
+          await firstValueFrom(this.api.post(endpoint, { photo_paths: chunk, ...extra }));
+        } catch {
+          chunk.forEach(p => failed.add(p));
+        }
       }
     };
 
@@ -1321,14 +1344,14 @@ export class GalleryStore {
       path,
       run: () => firstValueFrom(this.api.post('/photo/toggle_rejected', { photo_path: path })),
     })))).forEach(p => failed.add(p));
-    await runBatch(toReject, () => firstValueFrom(this.api.post('/photos/batch_reject', { photo_paths: toReject })));
-    await runBatch(toFavorite, () => firstValueFrom(this.api.post('/photos/batch_favorite', { photo_paths: toFavorite })));
+    await runBatch('/photos/batch_reject', toReject);
+    await runBatch('/photos/batch_favorite', toFavorite);
     (await this.runChunked(toUnfavorite.map(path => ({
       path,
       run: () => firstValueFrom(this.api.post('/photo/toggle_favorite', { photo_path: path })),
     })))).forEach(p => failed.add(p));
     for (const [rating, paths] of ratingGroups) {
-      await runBatch(paths, () => firstValueFrom(this.api.post('/photos/batch_rating', { photo_paths: paths, rating })));
+      await runBatch('/photos/batch_rating', paths, { rating });
     }
 
     const succeeded = new Map([...snap].filter(([path]) => !failed.has(path)));

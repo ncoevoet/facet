@@ -90,6 +90,25 @@ describe('JunkSweepComponent', () => {
     expect(counts.get('screenshot')).toBe(0);
   });
 
+  // `loadMore` has no ceiling, so 21 clicks at 48/page puts `shown` past the
+  // server's 1,000-entry photo_paths cap: one POST of the lot is a 422 behind a
+  // generic error toast, which is the whole action failing.
+  it('splits reject-all past the server cap into request-sized chunks', async () => {
+    const many = Array.from({ length: 1500 }, (_, i) => ({
+      path: `/p/j${i}.jpg`, filename: `j${i}.jpg`, junk_kind: 'meme', aggregate: 1.0,
+    }));
+    createComponent({ photos: many, total: 1500, total_pages: 32, page: 1, has_more: true });
+    await component.ngOnInit();
+
+    await component.rejectAllShown();
+
+    const chunks = mockApi.post.mock.calls
+      .filter(c => c[0] === '/photos/batch_reject')
+      .map(c => (c[1] as { photo_paths: string[] }).photo_paths);
+    expect(chunks.map(c => c.length)).toEqual([1000, 500]);
+    expect(chunks.flat()).toEqual(many.map(p => p.path));
+  });
+
   it('feeds the count of *shown* candidates (not the API total) into the reject-all tooltip', async () => {
     // Only 2 of 10 candidates are loaded on the first page; the reject-all button
     // binds junk.reject_all with { count: photos().length }, so the tooltip must

@@ -1717,6 +1717,46 @@ describe('GalleryStore restoreSnapshot', () => {
     expect(apiPost).not.toHaveBeenCalled();
   });
 
+  // Undo replays the same `photo_paths` endpoints the batch writes use, and the
+  // server caps that field at BATCH_PATHS_PER_REQUEST: an unchunked replay of a
+  // large snapshot 422s and the whole undo reports as failed. The gallery's own
+  // caller stays under the cap (UNDO_MAX_PHOTOS = 500), but the store is public.
+  describe('a snapshot larger than the server cap', () => {
+    const paths = Array.from({ length: 1500 }, (_, i) => `/p${i}.jpg`);
+
+    const sentTo = (endpoint: string) =>
+      apiPost.mock.calls
+        .filter(c => c[0] === endpoint)
+        .map(c => (c[1] as { photo_paths: string[] }).photo_paths);
+
+    it('splits a re-reject into one request per chunk, none over the cap', async () => {
+      store.photos.set(paths.map(path => makePhoto({ path, is_rejected: false })));
+
+      await store.restoreSnapshot(new Map(
+        paths.map(path => [path, { is_favorite: false, is_rejected: true, star_rating: null }]),
+      ));
+
+      const chunks = sentTo('/photos/batch_reject');
+      expect(chunks.map(c => c.length)).toEqual([1000, 500]);
+      expect(chunks.flat()).toEqual(paths);
+    });
+
+    it('splits the favorite and rating replays too, carrying the rating on each', async () => {
+      store.photos.set(paths.map(path =>
+        makePhoto({ path, is_rejected: false, is_favorite: false, star_rating: null })));
+
+      await store.restoreSnapshot(new Map(
+        paths.map(path => [path, { is_favorite: true, is_rejected: false, star_rating: 4 }]),
+      ));
+
+      expect(sentTo('/photos/batch_favorite').map(c => c.length)).toEqual([1000, 500]);
+      expect(sentTo('/photos/batch_rating').map(c => c.length)).toEqual([1000, 500]);
+      expect(apiPost.mock.calls
+        .filter(c => c[0] === '/photos/batch_rating')
+        .every(c => (c[1] as { rating: number }).rating === 4)).toBe(true);
+    });
+  });
+
   it('reverts only the photos whose restore call succeeded, and notifies on partial failure', async () => {
     store.photos.set([
       makePhoto({ path: '/a.jpg', is_rejected: true, is_favorite: false, star_rating: null }),
