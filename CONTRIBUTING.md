@@ -37,7 +37,7 @@ Prefer to set the environment up yourself? See
 | `faces/` | Face detection (`processor`), HDBSCAN clustering (`clusterer`), merge analysis |
 | `db/` | SQLite schema, connection pool, stats cache, maintenance utilities |
 | `utils/` | Image loading, burst detection, duplicate detection, embedding helpers |
-| `i18n/` | Translations for 6 languages (`en`, `fr`, `de`, `es`, `it`, `pt`) |
+| `i18n/` | Translations for 7 languages (`en`, `fr`, `de`, `es`, `it`, `pt`, `zh`) |
 | `client/` | Angular 21 SPA with standalone components and signal-based state management |
 
 Other entry points: `viewer.py` (FastAPI server), `database.py` (schema migrations, stats, optimization).

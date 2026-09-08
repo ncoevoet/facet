@@ -33,7 +33,7 @@ Checklists for recurring multi-file changes — consult before starting:
 | Pattern | When to use |
 |---------|-------------|
 | [`new-metric-checklist.md`](.claude/patterns/new-metric-checklist.md) | Adding a new scoring metric (schema, scorer, config validator, API, client) |
-| [`i18n-sync.md`](.claude/patterns/i18n-sync.md) | Adding or renaming user-facing strings across all 6 languages |
+| [`i18n-sync.md`](.claude/patterns/i18n-sync.md) | Adding or renaming user-facing strings across all 7 languages |
 | [`vlm-model-change-checklist.md`](.claude/patterns/vlm-model-change-checklist.md) | Adding/upgrading/renaming/removing a VLM tagging or caption model (config, loaders, all routing sites, docs) |
 | [`panorama-detection.md`](.claude/patterns/panorama-detection.md) | Touching panorama detection, the sequence override table, or any "pending correction" surface |
 | [`test-fixtures.md`](.claude/patterns/test-fixtures.md) | Writing a test that needs photo rows — schema, the shared seeder, wire types, BLOBs, sequence sets |
