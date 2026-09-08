@@ -1600,8 +1600,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.dialog.open(ExportEditorDialogComponent, { width: '420px', data: { albumId: +albumId } });
       return;
     }
-    // Under view scope the dialog gets the filter, not a path list, so the
-    // export is not bounded by the endpoint's 10,000-path cap.
+    // Under view scope the dialog gets the filter, not a path list. The 10,000
+    // ceiling (and its 412) applies either way: what this avoids is putting the
+    // paths on the wire, not the cap.
     this.dialog.open(ExportEditorDialogComponent, {
       width: '420px',
       data: this.viewScoped()
@@ -1619,8 +1620,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       width: '32rem',
       data: {
         paths,
-        // Same trade as the export: the filter travels instead of the paths, so
-        // a whole-view cull is not bounded by the endpoint's 10,000-path cap.
+        // Same trade as the export: the filter travels instead of the paths,
+        // and the server's 10,000 ceiling (412) applies to it just the same.
         filters: viewScoped ? this.store.filterPayload() : null,
         exclude: viewScoped ? [...this.excludedPaths()] : [],
         count: this.selectionCount(),

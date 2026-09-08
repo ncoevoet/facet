@@ -19,7 +19,8 @@ interface CullRequest {
    *  the server takes exactly one of the two. */
   paths?: string[];
   /** The whole current gallery view, from which the server derives the rows.
-   *  Uncapped, where a path list is bounded at 10,000. */
+   *  Bounded at 10,000 server-side (412) — the same ceiling a path list carries;
+   *  what it avoids is putting the paths on the wire, not the cap. */
   filters?: Record<string, string> | null;
   /** Photos unticked out of a filter-scoped selection. */
   exclude?: string[];

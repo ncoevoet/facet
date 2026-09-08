@@ -32,9 +32,9 @@ export const FILTER_OPTIONS_TIMEOUT_MS = 20000;
 /**
  * How many photo paths one batch-mutation request may name.
  *
- * The server's own bound on the field — api/routers/faces.py:75,
- * `photo_paths: Optional[list[str]] = Field(default=None, max_length=1000)` —
- * not a client-side preference: a longer list is a 422, not a slow request.
+ * The server's own bound on the field — `BatchPhotoRequest.photo_paths`,
+ * `Field(default=None, max_length=1000)` — not a client-side preference: a
+ * longer list is a 422, not a slow request.
  */
 export const BATCH_PATHS_PER_REQUEST = 1000;
 
@@ -85,7 +85,8 @@ export interface PhotoCountResponse {
   total: number;
 }
 
-/** Every path the current filters match — uncapped and unordered. */
+/** Every path the current filters match — unordered, and bounded server-side:
+ *  a view past the cap is refused with a 412, never truncated. */
 export interface PhotoPathsResponse {
   total: number;
   paths: string[];
@@ -1154,11 +1155,10 @@ export class GalleryStore {
    * the rows — no path list on the wire, and no cap.
    *
    * A path selection is split across as many requests as it takes, because the
-   * two caps do not meet: the server binds `photo_paths` to
-   * BATCH_PATHS_PER_REQUEST entries (api/routers/faces.py:75,
-   * `Field(default=None, max_length=1000)`) while "Keep top N%" hands the
-   * client up to `_SELECT_BOTTOM_MAX` = 5000 of them to act on
-   * (api/routers/gallery.py:882). One POST of the whole list simply 422s.
+   * two caps do not meet: the server binds `BatchPhotoRequest.photo_paths` to
+   * BATCH_PATHS_PER_REQUEST entries (`Field(default=None, max_length=1000)`)
+   * while "Keep top N%" hands the client up to `_SELECT_BOTTOM_MAX` = 5000 of
+   * them to act on. One POST of the whole list simply 422s.
    */
   private batchBodies(paths: string[]): Record<string, unknown>[] {
     const filters = this.viewScopeSelected() ? this.filterPayload() : null;
