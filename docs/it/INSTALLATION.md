@@ -498,6 +498,53 @@ altra applicazione in esecuzione — un Mac che ricorre allo swap è più lento 
 profilo più piccolo. Un profilo configurato esplicitamente viene sempre rispettato così
 com'è, quindi impostane uno per scavalcare queste soglie in entrambe le direzioni.
 
+### Memoria su un Mac
+
+Se il Monitoraggio Attività mostra Facet usare più memoria di quella disponibile sul
+Mac, o lo swap continua a crescere durante una scansione, prova quanto segue, in
+ordine.
+
+**Limita il pool di memoria di PyTorch.** PyTorch lascia altrimenti crescere il proprio
+pool Metal (MPS) ben oltre la quantità di lavoro consigliata dal Mac:
+
+```bash
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0 python facet.py /path/to/photos
+```
+
+`1.0` significa "la quantità di lavoro consigliata dal Mac, non di più" — Facet imposta
+automaticamente la soglia bassa corrispondente. Un passaggio può quindi interrompersi
+con un errore di memoria insufficiente invece di ricorrere allo swap, il che è
+preferibile a un Mac che si blocca.
+
+**Disattiva i due modelli opzionali più pesanti.** Aggiungi a `scoring_config.json`
+solo le chiavi che stai modificando — il resto mantiene il valore predefinito
+fornito:
+
+```json
+{
+  "models": { "profiles": { "16gb": { "saliency_enabled": false } } },
+  "iqa_extended": { "qrealign": false }
+}
+```
+
+`saliency_enabled` disattiva il rilevamento del soggetto (il modello che individua il
+soggetto principale e ne valuta nitidezza e posizione); `qrealign` disattiva un modello
+di qualità dell'immagine aggiuntivo. Estetica, composizione, volti e qualità tecnica
+restano comunque valutati. Fai corrispondere la chiave del profilo a quello
+effettivamente in uso sul tuo Mac — `"16gb"` su un Mac da 32-47GB, `"24gb"` da 48GB in
+su.
+
+**Elabora meno foto alla volta:**
+
+```json
+{ "processing": { "ram_chunk_size": 4,
+                  "auto_tuning": { "min_ram_chunk_size": 4, "max_ram_chunk_size": 4 } } }
+```
+
+Imposta tutte e tre le chiavi — altrimenti l'auto-tuning modifica da solo la
+dimensione del blocco, verso il basso fino a `min_ram_chunk_size` o verso l'alto fino
+a `max_ram_chunk_size`.
+
 ## Dimensioni dei download
 
 I modelli si scaricano al primo utilizzo in `~/.cache/huggingface/` (modelli Hugging

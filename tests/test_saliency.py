@@ -289,6 +289,47 @@ class TestBatchSizing:
         scorer.get_saliency_masks(_images(5))
         assert scorer.model.batch_sizes == [4, 1]
 
+    def test_mps_batch_is_capped_regardless_of_available_memory(self, monkeypatch):
+        """Discussion #159: psutil's "available" reading cannot see the MPS
+        allocator pool, so a Mac reporting plenty of free RAM must not be
+        trusted the way a CPU container is -- the ceiling is a small fixed
+        constant instead of a memory-derived one.
+
+        Asserted on the sizing decision rather than through a forward pass:
+        this CPU-only torch build cannot allocate a real 'mps' tensor, which
+        is exactly the environment this regression must not depend on.
+        """
+        scorer = _stub_scorer(device="mps")
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(1000.0, total_gb=1024.0))
+        assert scorer._affordable_batch_size(None) == SaliencyScorer.UNIFIED_MEMORY_MAX_BATCH
+
+    def test_mps_explicit_request_is_still_capped(self, monkeypatch):
+        """An explicit batch_size may only narrow, never widen, the MPS ceiling."""
+        scorer = _stub_scorer(device="mps")
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(1000.0, total_gb=1024.0))
+        assert scorer._affordable_batch_size(8) == SaliencyScorer.UNIFIED_MEMORY_MAX_BATCH
+
+    def test_mps_cap_never_widens_a_tight_memory_budget(self, monkeypatch):
+        """The MPS ceiling narrows the RAM-derived size; it never replaces it."""
+        scorer = _stub_scorer(device="mps")
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(2.0, total_gb=8.0))
+        assert scorer._affordable_batch_size(None) == SaliencyScorer.MIN_BATCH_SIZE
+
+    def test_cpu_and_cuda_batch_sizing_unaffected_by_mps_cap(self, monkeypatch):
+        """The MPS cap must not leak into CPU or CUDA sizing."""
+        cpu_scorer = _stub_scorer(device="cpu")
+        monkeypatch.setattr(system_memory, "effective_memory",
+                            lambda: _memory(32.0, total_gb=48.0))
+        cpu_scorer.get_saliency_masks(_images(10))
+        assert cpu_scorer.model.batch_sizes == [8, 2]
+
+        cuda_scorer = _stub_scorer(device="cuda")
+        monkeypatch.setattr(system_memory, "effective_memory", lambda: _memory(0.1))
+        assert cuda_scorer._affordable_batch_size(None) == SaliencyScorer.DEFAULT_BATCH_SIZE
+
 
 class TestLoadPrecision:
     """Commit 4ef53d3: the published checkpoint is stored fp16, and CPU/MPS

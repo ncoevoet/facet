@@ -4,6 +4,11 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A scan on Apple Silicon could grow to ~50 GB resident with 25 GB of swap on a 36 GB Mac.** The MPS memory pool was only emptied between pass groups, never after each individual model, so a group running several MPS models piled up one model's freed activations on top of the next's live ones instead of releasing them back to the shared unified-memory pool. BiRefNet subject saliency batched up to 8 images at once (~2.5 GB each, fp32 on MPS) and the pyiqa scorers stacked a whole chunk (up to 128 images) into a single forward pass — both sized against dedicated VRAM or host RAM headroom, neither of which describes the MPS allocator's own pool. The MPS cache is now cleared after every model, not just once per pass group; saliency batches cap at 2 images on MPS; and pyiqa forwards are sliced to at most 4 images regardless of chunk size. The VLM tagger's OOM fallback also now clears the model's actual device cache (it unconditionally called `torch.cuda.empty_cache()`, a no-op on MPS) and catches MPS's `RuntimeError`-based out-of-memory signal instead of only `torch.cuda.OutOfMemoryError`. ([discussion #159](https://github.com/ncoevoet/facet/discussions/159))
+- **Setting `PYTORCH_MPS_HIGH_WATERMARK_RATIO` alone to cap PyTorch's MPS memory pool crashed at the first allocation.** PyTorch refuses to initialise MPS when the low watermark ratio exceeds the high one, and its default low ratio is 1.4 — so `PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0`, the documented way to bound the pool below PyTorch's own default of 1.7× a Mac's recommended working set, raised `invalid low watermark ratio 1.4` before a single tensor was allocated. Facet now derives a matching low ratio (`min(1.4, 0.8 × high)`) whenever only the high ratio is set in the environment, so the cap works as documented; an explicit low ratio, an unparseable high one, or a high ratio of 0 (which lifts the cap) is left untouched. ([discussion #159](https://github.com/ncoevoet/facet/discussions/159))
+
 ## [1.16.0] "Collodion" — 2026-09-22
 
 ### Added

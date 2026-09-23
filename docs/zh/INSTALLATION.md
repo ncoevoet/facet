@@ -466,6 +466,46 @@ Metal 没有专用显存，所以 `vram_profile: "auto"` 是按统一内存总�
 Mac 更慢。显式配置的配置档始终按你写的执行，所以设定一个即可在任一方向上覆盖
 这些阈值。
 
+### Mac 上的内存
+
+如果活动监视器显示 Facet 占用的内存超过了 Mac 本身的内存，或者扫描过程中交换内存
+持续增长，请按顺序尝试以下方法。
+
+**限制 PyTorch 的内存池。** 否则 PyTorch 会让其 Metal（MPS）内存池远远超出 Mac 推荐
+的工作集大小：
+
+```bash
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0 python facet.py /path/to/photos
+```
+
+`1.0` 表示"Mac 推荐的工作集大小，不多不少"——Facet 会自动设置相匹配的低水位比例。
+这样一来，某个处理阶段可能会以"内存不足"报错停止，而不是继续交换内存，这比让 Mac
+陷入卡顿要好。
+
+**关闭两个最耗资源的可选模型。** 只需在 `scoring_config.json` 中添加你要修改的键——
+其余部分沿用随附的默认值：
+
+```json
+{
+  "models": { "profiles": { "16gb": { "saliency_enabled": false } } },
+  "iqa_extended": { "qrealign": false }
+}
+```
+
+`saliency_enabled` 用于关闭主体检测（该模型用于找出画面主体并评估其清晰度与位置）；
+`qrealign` 用于关闭一个额外的图像质量模型。无论是否关闭，美感、构图、人脸和技术质量
+仍会照常评分。配置档键名要与你的 Mac 实际使用的配置档一致——32-47GB 的 Mac 用
+`"16gb"`，48GB 及以上用 `"24gb"`。
+
+**每次处理更少的照片：**
+
+```json
+{ "processing": { "ram_chunk_size": 4,
+                  "auto_tuning": { "min_ram_chunk_size": 4, "max_ram_chunk_size": 4 } } }
+```
+
+三个键都要设置——否则自动调优会自行调整该值，向下可到 `min_ram_chunk_size`，向上可到 `max_ram_chunk_size`。
+
 ## 下载体积
 
 模型在首次使用时下载到 `~/.cache/huggingface/`（Hugging Face 模型）、

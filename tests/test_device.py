@@ -117,6 +117,32 @@ def test_mps_operator_fallback_respects_explicit_override(monkeypatch):
     assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "0"
 
 
+@pytest.mark.parametrize("high, expected_low", [("1.0", "0.8"), ("2.0", "1.4")])
+def test_lone_mps_high_watermark_gets_a_compatible_low_ratio(monkeypatch, high, expected_low):
+    monkeypatch.setenv(device.MPS_HIGH_WATERMARK_ENV, high)
+    monkeypatch.delenv(device.MPS_LOW_WATERMARK_ENV, raising=False)
+    device.pair_mps_watermark_ratios()
+    assert os.environ[device.MPS_LOW_WATERMARK_ENV] == expected_low
+
+
+def test_explicit_mps_low_watermark_is_left_alone(monkeypatch):
+    monkeypatch.setenv(device.MPS_HIGH_WATERMARK_ENV, "1.0")
+    monkeypatch.setenv(device.MPS_LOW_WATERMARK_ENV, "0.5")
+    device.pair_mps_watermark_ratios()
+    assert os.environ[device.MPS_LOW_WATERMARK_ENV] == "0.5"
+
+
+@pytest.mark.parametrize("high", [None, "not-a-number", "0", "0.0"])
+def test_mps_low_watermark_not_added_without_a_usable_high_ratio(monkeypatch, high):
+    if high is None:
+        monkeypatch.delenv(device.MPS_HIGH_WATERMARK_ENV, raising=False)
+    else:
+        monkeypatch.setenv(device.MPS_HIGH_WATERMARK_ENV, high)
+    monkeypatch.delenv(device.MPS_LOW_WATERMARK_ENV, raising=False)
+    device.pair_mps_watermark_ratios()
+    assert device.MPS_LOW_WATERMARK_ENV not in os.environ
+
+
 PRE_BLACKWELL_ARCHS = ["sm_50", "sm_60", "sm_70", "sm_75", "sm_80", "sm_86", "sm_90"]
 
 
@@ -570,3 +596,21 @@ class TestScoringDeviceLabel:
 
     def test_no_accelerator_is_still_labelled_cpu(self):
         assert describe_scoring_device(None, 0.0, 64.0) == "CPU"
+
+
+class TestIsOutOfMemoryError:
+    def test_cuda_out_of_memory_error_is_oom(self):
+        import torch
+
+        assert device.is_out_of_memory_error(torch.cuda.OutOfMemoryError("CUDA out of memory")) is True
+
+    def test_mps_runtime_error_is_oom(self):
+        assert device.is_out_of_memory_error(
+            RuntimeError("MPS backend out of memory (MPS allocated: 4.50 GB)")
+        ) is True
+
+    def test_unrelated_runtime_error_is_not_oom(self):
+        assert device.is_out_of_memory_error(RuntimeError("shape mismatch")) is False
+
+    def test_unrelated_exception_type_is_not_oom(self):
+        assert device.is_out_of_memory_error(ValueError("bad value")) is False

@@ -45,7 +45,8 @@ def _img(seed, size=(64, 64)):
 
 
 def test_batchable_single_forward_matches_serial():
-    images = [_img(i) for i in range(5)]
+    # Below MAX_FORWARD_BATCH, the whole same-shape group is one forward.
+    images = [_img(i) for i in range(3)]
     batched = _scorer('topiq')          # topiq is in _BATCHABLE_MODELS
     serial = _scorer('topiq')
 
@@ -54,8 +55,30 @@ def test_batchable_single_forward_matches_serial():
 
     assert batched.supports_batching is True
     assert batched.model.calls == 1                 # one stacked forward
-    assert batched.model.batch_sizes == [5]
-    assert serial.model.calls == 5                  # per-image
+    assert batched.model.batch_sizes == [3]
+    assert serial.model.calls == 3                  # per-image
+    for b, s in zip(batched_scores, serial_scores):
+        assert abs(b - s) < 1e-4
+
+
+def test_large_group_is_capped_at_max_forward_batch():
+    """A same-shape group larger than MAX_FORWARD_BATCH splits into several
+    forwards instead of stacking the whole chunk into one — bounds peak
+    activation memory on unified-memory (MPS) devices where the allocator
+    has no separate VRAM ceiling to OOM against.
+    """
+    images = [_img(i) for i in range(10)]
+    batched = _scorer('topiq')
+    serial = _scorer('topiq')
+
+    assert PyIQAScorer.MAX_FORWARD_BATCH == 4
+
+    batched_scores = batched.score_batch(images)
+    serial_scores = [serial.score_image(im) for im in images]
+
+    assert batched.model.calls == 3
+    assert batched.model.batch_sizes == [4, 4, 2]
+    # Order and values identical to unbatched per-image scoring.
     for b, s in zip(batched_scores, serial_scores):
         assert abs(b - s) < 1e-4
 

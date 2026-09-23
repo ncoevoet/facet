@@ -482,6 +482,47 @@ Mac that swaps is slower than one on a smaller profile. An explicitly configured
 is always honoured as written, so set one to override these thresholds in either
 direction.
 
+### Memory on a Mac
+
+If Activity Monitor shows Facet using more memory than the Mac has, or swap keeps
+growing during a scan, try these in order.
+
+**Cap PyTorch's memory pool.** PyTorch otherwise lets its Metal (MPS) pool grow well
+past the Mac's own recommended working set:
+
+```bash
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0 python facet.py /path/to/photos
+```
+
+`1.0` means "the Mac's recommended working set, no more" — Facet sets the matching low
+watermark automatically. A pass may then stop with "out of memory" instead of swapping,
+which is preferable to the Mac grinding to a halt.
+
+**Turn off the two heaviest optional models.** Add only the keys you are changing to
+`scoring_config.json` — the rest keeps the shipped default:
+
+```json
+{
+  "models": { "profiles": { "16gb": { "saliency_enabled": false } } },
+  "iqa_extended": { "qrealign": false }
+}
+```
+
+`saliency_enabled` turns off subject detection (finding the main subject and judging its
+sharpness and placement); `qrealign` turns off an extra image-quality model. Aesthetics,
+composition, faces and technical quality are still scored either way. Match the profile
+key to the one your Mac runs — `"16gb"` on a 32-47GB Mac, `"24gb"` on 48GB and up.
+
+**Process fewer photos at a time:**
+
+```json
+{ "processing": { "ram_chunk_size": 4,
+                  "auto_tuning": { "min_ram_chunk_size": 4, "max_ram_chunk_size": 4 } } }
+```
+
+Set all three — auto-tuning otherwise moves the chunk size on its own, down to
+`min_ram_chunk_size` or up to `max_ram_chunk_size`.
+
 ## Download sizes
 
 Models download on first use into `~/.cache/huggingface/` (Hugging Face models),

@@ -12,6 +12,39 @@ from typing import Any, NamedTuple
 # module and import this module before torch in Facet's lazy loaders.
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
 
+MPS_HIGH_WATERMARK_ENV = "PYTORCH_MPS_HIGH_WATERMARK_RATIO"
+MPS_LOW_WATERMARK_ENV = "PYTORCH_MPS_LOW_WATERMARK_RATIO"
+TORCH_DEFAULT_MPS_LOW_WATERMARK = 1.4
+DERIVED_LOW_WATERMARK_FRACTION = 0.8
+
+
+def pair_mps_watermark_ratios() -> None:
+    """Give a lone MPS high-watermark ratio a low ratio it can live with.
+
+    PyTorch refuses to initialise MPS when the low ratio exceeds the high one,
+    and its default low ratio is 1.4, so exporting only
+    ``PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0`` -- the documented way to cap the
+    pool -- crashed at the first allocation. An explicit low ratio, or an
+    unparseable high one, is left for PyTorch to judge. So is a high ratio of
+    0, which lifts the cap rather than setting one: PyTorch accepts the
+    default low ratio beside it, and a derived low of 0 would switch off the
+    allocator's garbage collection.
+    """
+    high = os.environ.get(MPS_HIGH_WATERMARK_ENV)
+    if high is None or MPS_LOW_WATERMARK_ENV in os.environ:
+        return
+    try:
+        high_ratio = float(high)
+    except ValueError:
+        return
+    if high_ratio <= 0:
+        return
+    low_ratio = min(TORCH_DEFAULT_MPS_LOW_WATERMARK, high_ratio * DERIVED_LOW_WATERMARK_FRACTION)
+    os.environ[MPS_LOW_WATERMARK_ENV] = f"{low_ratio:g}"
+
+
+pair_mps_watermark_ratios()
+
 _DEVICE_ENV = "FACET_DEVICE"
 _VALID_DEVICES = {"auto", "cpu", "cuda", "mps"}
 
@@ -378,3 +411,25 @@ def synchronize_device(device: str | None = None) -> None:
         synchronize = None
     if callable(synchronize):
         synchronize()
+
+
+def is_out_of_memory_error(ex: BaseException) -> bool:
+    """True iff ``ex`` is a CUDA/MPS out-of-memory error.
+
+    Covers ``torch.cuda.OutOfMemoryError``, ``torch.OutOfMemoryError`` (when the
+    installed torch exposes it), and the ``RuntimeError`` MPS raises instead of a
+    dedicated exception type ("MPS backend out of memory ...").
+    """
+    try:
+        import torch
+    except ImportError:
+        return False
+    oom_types = tuple(
+        t for t in (
+            getattr(torch.cuda, "OutOfMemoryError", None),
+            getattr(torch, "OutOfMemoryError", None),
+        ) if t is not None
+    )
+    if oom_types and isinstance(ex, oom_types):
+        return True
+    return isinstance(ex, RuntimeError) and "out of memory" in str(ex).lower()

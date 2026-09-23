@@ -22,6 +22,8 @@ os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 # Allow unsupported PyTorch MPS operators to run on CPU.  Set this before any
 # dependency has a chance to import torch.
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+from utils.device import pair_mps_watermark_ratios  # noqa: E402
+pair_mps_watermark_ratios()
 import warnings
 warnings.filterwarnings("ignore", message=".*unauthenticated requests.*")
 # scikit-image 0.26 deprecated SimilarityTransform.estimate() but InsightFace
