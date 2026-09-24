@@ -16,7 +16,7 @@ Facet 是一款本地的照片分析与选片引擎。它从美观度到人脸�
 
 ## 工作原理
 
-1. **扫描**——把 Facet 指向一个照片文件夹。每张照片都会针对画质、构图和人脸进行分析。支持 JPG、HEIF/HEIC/HIF（佳能 HDR PQ `.HIF` 照片会以 SMPTE ST 2084 PQ 传递函数解码，并自动 tone map 到 SDR sRGB）、10 种 RAW 格式（CR2、CR3、NEF、ARW、RAF、RW2、DNG、ORF、SRW、PEF），以及 PNG、GIF、WebP、BMP、TIFF 和 AVIF 静态图像（AVIF 需要编译了 AVIF 支持的 Pillow，11.3 起原生支持）。
+1. **扫描**——把 Facet 指向一个照片文件夹。每张照片都会针对画质、构图和人脸进行分析。支持 JPG、HEIF/HEIC/HIF（佳能 HDR PQ `.HIF` 照片会以 SMPTE ST 2084 PQ 传递函数解码，并自动 tone map 到 SDR sRGB）、10 种 RAW 格式（CR2、CR3、NEF、ARW、RAF、RW2、DNG、ORF、SRW、PEF），以及 PNG、GIF、WebP、BMP、TIFF 和 AVIF 静态图像（AVIF 需要编译了 AVIF 支持的 Pillow，11.3 起原生支持）。对于 LibRaw 无法解码的 RAW 文件——例如 Lightroom“合并为 HDR/全景图”生成的 DNG（`-HDR.dng`、`-Pano.dng`）或比已安装 LibRaw 版本更新的相机型号——Facet 会通过 `exiftool` 回退到其内嵌的最大预览图（需要长边至少 1024 px 的预览图；此时的评分来自该预览图，而非完整的 RAW 解码）。
 2. **浏览**——打开网页照片库，用筛选、搜索和多种视图模式探索你的照片库。
 3. **选片**——Facet 会检测连拍、标记闭眼照片、把相似照片分组，并把精选照片推到前面。包围曝光和全景／HDR 组会被识别出来并整组保留，而不会在选片时被拆散。
 
