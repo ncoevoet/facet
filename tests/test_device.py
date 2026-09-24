@@ -143,6 +143,33 @@ def test_mps_low_watermark_not_added_without_a_usable_high_ratio(monkeypatch, hi
     assert device.MPS_LOW_WATERMARK_ENV not in os.environ
 
 
+def test_macos_serialises_transformers_weight_loading():
+    environ = {}
+    device.serialise_hf_weight_loading("darwin", environ)
+    assert environ == {device.HF_ASYNC_LOAD_ENV: "1"}
+
+
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_other_platforms_keep_parallel_weight_loading(platform):
+    environ = {}
+    device.serialise_hf_weight_loading(platform, environ)
+    assert environ == {}
+
+
+def test_explicit_async_load_setting_is_left_alone_on_macos():
+    environ = {device.HF_ASYNC_LOAD_ENV: "0"}
+    device.serialise_hf_weight_loading("darwin", environ)
+    assert environ == {device.HF_ASYNC_LOAD_ENV: "0"}
+
+
+def test_transformers_still_reads_the_async_load_switch():
+    """Fails loudly if transformers renames the switch the macOS guard sets."""
+    import inspect
+
+    core_model_loading = pytest.importorskip("transformers.core_model_loading")
+    assert device.HF_ASYNC_LOAD_ENV in inspect.getsource(core_model_loading)
+
+
 PRE_BLACKWELL_ARCHS = ["sm_50", "sm_60", "sm_70", "sm_75", "sm_80", "sm_86", "sm_90"]
 
 

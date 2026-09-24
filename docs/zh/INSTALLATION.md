@@ -482,6 +482,11 @@ PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0 python facet.py /path/to/photos
 这样一来，某个处理阶段可能会以"内存不足"报错停止，而不是继续交换内存，这比让 Mac
 陷入卡顿要好。
 
+**模型权重逐个加载。** 在 macOS 上，Facet 默认设置 `HF_DEACTIVATE_ASYNC_LOAD=1`，因为
+transformers 的多线程权重加载在 MPS 上会出现竞争，可能导致扫描崩溃。无需任何配置；
+如果想恢复更快的并发加载，请在 Facet 的默认值生效前自行设置
+`HF_DEACTIVATE_ASYNC_LOAD=0`。
+
 **关闭两个最耗资源的可选模型。** 只需在 `scoring_config.json` 中添加你要修改的键——
 其余部分沿用随附的默认值：
 

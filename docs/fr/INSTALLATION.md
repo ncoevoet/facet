@@ -522,6 +522,12 @@ automatiquement le seuil bas correspondant. Une passe peut alors s'arrêter avec
 erreur de mémoire insuffisante plutôt que de recourir au swap, ce qui vaut mieux que de
 voir le Mac s'enliser.
 
+**Les poids des modèles se chargent un par un.** Sur macOS, Facet définit par défaut
+`HF_DEACTIVATE_ASYNC_LOAD=1`, car le chargement multithread des poids par transformers
+entre en conflit sur MPS et peut faire planter un scan. Il n'y a rien à configurer ; si
+vous voulez retrouver le chargement concurrent plus rapide, définissez vous-même
+`HF_DEACTIVATE_ASYNC_LOAD=0` avant que la valeur par défaut de Facet ne s'applique.
+
 **Désactivez les deux modèles optionnels les plus lourds.** N'ajoutez à
 `scoring_config.json` que les clés que vous modifiez — le reste conserve la valeur par
 défaut fournie :

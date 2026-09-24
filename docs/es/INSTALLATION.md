@@ -518,6 +518,12 @@ establece automáticamente el umbral bajo correspondiente. Una pasada puede ento
 detenerse con un error de memoria insuficiente en lugar de recurrir al swap, lo cual es
 preferible a que el Mac se atasque.
 
+**Los pesos de los modelos se cargan de uno en uno.** En macOS, Facet establece por
+defecto `HF_DEACTIVATE_ASYNC_LOAD=1`, porque la carga multihilo de pesos de transformers
+entra en carrera en MPS y puede provocar que un escaneo falle. No hay nada que
+configurar; si quieres recuperar la carga concurrente más rápida, define tú mismo
+`HF_DEACTIVATE_ASYNC_LOAD=0` antes de que se aplique el valor por defecto de Facet.
+
 **Desactiva los dos modelos opcionales más pesados.** Añade a `scoring_config.json`
 solo las claves que cambies — el resto conserva el valor predeterminado incluido:
 

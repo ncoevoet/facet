@@ -522,6 +522,12 @@ den passenden unteren Schwellenwert automatisch. Ein Durchlauf kann dann mit ein
 Speicherfehler abbrechen, statt in den Swap zu geraten — was besser ist, als den Mac
 lahmzulegen.
 
+**Modellgewichte werden einzeln nacheinander geladen.** Unter macOS setzt Facet standardmäßig
+`HF_DEACTIVATE_ASYNC_LOAD=1`, weil das mehrfädige Laden der Gewichte durch transformers auf
+MPS zu Race Conditions führen und einen Scan zum Absturz bringen kann. Es gibt nichts zu
+konfigurieren; wenn Sie das schnellere, gleichzeitige Laden zurückhaben möchten, setzen Sie
+selbst `HF_DEACTIVATE_ASYNC_LOAD=0`, bevor Facets Standardwert angewendet wird.
+
 **Deaktivieren Sie die beiden aufwendigsten optionalen Modelle.** Fügen Sie
 `scoring_config.json` nur die Schlüssel hinzu, die Sie ändern — der Rest behält den
 mitgelieferten Standardwert:

@@ -498,6 +498,11 @@ PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0 python facet.py /path/to/photos
 watermark automatically. A pass may then stop with "out of memory" instead of swapping,
 which is preferable to the Mac grinding to a halt.
 
+**Model weights load one at a time.** On macOS, Facet sets `HF_DEACTIVATE_ASYNC_LOAD=1`
+by default, because transformers' multi-threaded weight loading races on MPS and can
+crash a scan. There is nothing to configure; if you need the faster, concurrent loading
+back, set `HF_DEACTIVATE_ASYNC_LOAD=0` yourself before Facet's default is applied.
+
 **Turn off the two heaviest optional models.** Add only the keys you are changing to
 `scoring_config.json` — the rest keeps the shipped default:
 

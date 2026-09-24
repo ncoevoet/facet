@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import sys
+from collections.abc import MutableMapping
 from typing import Any, NamedTuple
 
 # Let PyTorch execute individual unsupported MPS operators on CPU.  This must be
@@ -44,6 +46,27 @@ def pair_mps_watermark_ratios() -> None:
 
 
 pair_mps_watermark_ratios()
+
+HF_ASYNC_LOAD_ENV = "HF_DEACTIVATE_ASYNC_LOAD"
+_SERIAL_WEIGHT_LOADING_PLATFORM = "darwin"
+
+
+def serialise_hf_weight_loading(platform: str, environ: MutableMapping[str, str]) -> None:
+    """Make transformers load checkpoint weights on one thread on macOS.
+
+    transformers 5.x materialises weights on a four-worker thread pool, and
+    concurrent dtype-converting copies onto MPS race inside that pool: loading
+    Qwen3.5 (``device_map="auto"``, a BF16 checkpoint carrying F32 tensors)
+    segfaulted in a ``ThreadPoolExecutor`` worker, erratically on one launch
+    and not the next (huggingface/transformers#48029). The serial path costs a
+    few seconds per load. An explicit setting is left alone, and other
+    platforms keep the parallel loader.
+    """
+    if platform == _SERIAL_WEIGHT_LOADING_PLATFORM:
+        environ.setdefault(HF_ASYNC_LOAD_ENV, "1")
+
+
+serialise_hf_weight_loading(sys.platform, os.environ)
 
 _DEVICE_ENV = "FACET_DEVICE"
 _VALID_DEVICES = {"auto", "cpu", "cuda", "mps"}
