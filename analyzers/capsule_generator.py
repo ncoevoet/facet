@@ -17,6 +17,7 @@ Generates capsule types:
 14. Rare Pairs — infrequent person pairs in high-scoring photos
 """
 
+import re
 import hashlib
 import json
 import logging
@@ -1758,6 +1759,31 @@ def _generate_score_per_dim(conn, capsules, capsule_config, min_aggregate,
 # Defines groupable dimensions and auto-generates capsules
 # from single dimensions and cross-dimensional combinations.
 
+
+_WEEK_GROUP_RE = re.compile(r"(\d{4})-W(\d{1,2})")
+
+
+def _week_title_params(display: str) -> dict:
+    """Split the SQL group value ``"2026-W32"`` into the two named
+    placeholders (``year`` and ``week``) that every localised
+    ``capsules.week_title`` template expects.
+
+    The ``week`` dimension groups on ``strftime('%Y-W%W', ...)`` so the raw
+    group value already contains both pieces of information; without this
+    split the i18n templates would receive ``{"week": "2026-W32"}`` and the
+    missing ``{year}`` placeholder would be rendered verbatim (e.g.
+    ``"{year} 年第 2026-W32 周"``).
+
+    The week number is normalised with ``str(int(...))`` so the ``%W``
+    two-digit padding (e.g. ``2024-W05``) renders as "Week 5" / "第 5 周"
+    rather than "Week 05" / "第 05 周".
+    """
+    m = _WEEK_GROUP_RE.fullmatch(str(display))
+    if not m:
+        return {}
+    return {"year": m.group(1), "week": str(int(m.group(2)))}
+
+
 _DIMENSIONS = {
     "year": {
         "sql_expr": f"strftime('%Y', {_ISO_DATE})",
@@ -1782,6 +1808,7 @@ _DIMENSIONS = {
         "title_tpl": "{value}",
         "title_key": "capsules.week_title",
         "param_name": "week",
+        "title_params_fn": _week_title_params,
     },
     "season": {
         # Handled by _generate_seasonal (special month→season mapping)
@@ -2194,10 +2221,14 @@ def _generate_dimension_capsules(conn, capsule_config, min_aggregate, vis, user_
 
             cid = _stable_id(dim_name, str(val))
             full_id = f"{dim_name}_{cid}"
+            title_params = {dim["param_name"]: display}
+            extra_params = dim.get("title_params_fn")
+            if extra_params:
+                title_params.update(extra_params(display))
             capsules.append({
                 "type": dim_name, "id": full_id,
                 "title_key": dim["title_key"],
-                "title_params": {dim["param_name"]: display},
+                "title_params": title_params,
                 "title": dim["title_tpl"].format(value=display),
                 "subtitle": f"{len(paths)} photos",
                 "cover_photo_path": _pick_cover_photo(paths, full_id, capsule_config=capsule_config),

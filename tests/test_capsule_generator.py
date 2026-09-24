@@ -17,6 +17,7 @@ from analyzers.capsule_generator import (
     _pick_cover_photo,
     _sort_capsules,
     _stable_id,
+    _week_title_params,
 )
 
 
@@ -233,3 +234,67 @@ class TestGroupedCapsuleTitleTemplate:
         dow = [c for c in capsules if c["type"] == "day_of_week"]
         assert dow, "real strftime date expr must produce a day_of_week capsule"
         assert dow[0]["title"] == "Best of Mondays"
+
+
+class TestWeekTitleParams:
+    """Regression: the week capsule must supply both {year} and {week} i18n
+    placeholders, because every translation of ``capsules.week_title`` uses
+    both (e.g. en "Week {week}, {year}", zh "{year} 年第 {week} 周").
+
+    The SQL group value from ``strftime('%Y-W%W', ...)`` is a single string
+    like ``"2026-W32"``; without splitting it, the templates received only
+    ``{"week": "2026-W32"}`` and the missing ``{year}`` was interpolated
+    verbatim as a literal ``{year}`` in the UI.
+    """
+
+    @pytest.mark.parametrize(
+        "raw, expected",
+        [
+            ("2026-W32", {"year": "2026", "week": "32"}),
+            ("2025-W00", {"year": "2025", "week": "0"}),
+            ("2024-W53", {"year": "2024", "week": "53"}),
+            # %W zero-pads to two digits; normalise to "5" not "05"
+            ("2024-W05", {"year": "2024", "week": "5"}),
+        ],
+    )
+    def test_splits_standard_week_group_value(self, raw, expected):
+        assert _week_title_params(raw) == expected
+
+    @pytest.mark.parametrize("raw", ["junk", "", "2026", "W32", "2026-W"])
+    def test_unknown_format_degrades_safely(self, raw):
+        # Must never raise; falling back to {} means the template just
+        # interpolates whatever params the caller already had.
+        assert _week_title_params(raw) == {}
+
+    def test_generated_week_capsule_has_both_params(self, tmp_path, monkeypatch):
+        """End-to-end: a real week group must emit title_params with both
+        ``year`` and ``week`` populated."""
+        import sqlite3
+
+        import analyzers.capsule_generator as cg
+        from db.schema import init_database
+
+        monkeypatch.setattr("api.db_helpers.is_photo_tags_available", lambda *a, **k: False)
+
+        db_path = str(tmp_path / "cap.db")
+        init_database(db_path)
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        # 20 photos all in week 10 of 2024 (2024-03-04 is a Monday, %W = 10).
+        conn.executemany(
+            "INSERT INTO photos (path, filename, aggregate, date_taken) VALUES (?, ?, ?, ?)",
+            [(f"/p/{i}.jpg", f"{i}.jpg", 8.0, "2024:03:04 10:00:00") for i in range(20)],
+        )
+        conn.commit()
+
+        capsule_config = {"week": {"min_photos": 8}}
+        capsules = cg._generate_dimension_capsules(
+            conn, capsule_config, min_aggregate=6.0, vis=("1=1", []), user_id=None,
+        )
+        conn.close()
+
+        week_caps = [c for c in capsules if c["type"] == "week"]
+        assert week_caps, "expected a week capsule for 20 photos in week 10"
+        params = week_caps[0]["title_params"]
+        assert params.get("year") == "2024", f"year missing: {params}"
+        assert params.get("week") == "10", f"week should be just the number, got: {params}"
