@@ -137,14 +137,33 @@ const CULL_SORT_DIR_KEY = 'facet_culling_sort_direction';
 const CULL_CATEGORY_KEY = 'facet_culling_category';
 const CULL_FACE_EYES_KEY = 'facet_culling_face_eyes_min';
 const CULL_FACE_SMILE_KEY = 'facet_culling_face_smile_min';
+const CULL_FACE_SIZE_KEY = 'facet_culling_face_size';
 const CULL_PROFILE_KEY = 'facet_culling_profile';
 const CULL_LEGEND_KEY = 'facet_culling_legend';
+const CULL_DARKROOM_LOUPE_KEY = 'facet_culling_darkroom_loupe';
 const CULL_SWIPE_HINT_KEY = 'facet_culling_swipe_hint';
 
 /** Stored face-panel slider value (0-10); 0 = highlight filter off. */
 function readStoredFaceMin(key: string): number {
   const v = Number(localStorage.getItem(key));
   return Number.isFinite(v) && v >= 0 && v <= 10 ? v : 0;
+}
+
+/** Face close-up thumbnail display size, in CSS px. Stored thumbnails are
+ *  640px, so the top of the range stays sharp when upscaled. */
+const FACE_SIZE_MIN_PX = 64;
+const FACE_SIZE_MAX_PX = 256;
+const FACE_SIZE_STEP_PX = 16;
+const FACE_SIZE_DEFAULT_PX = 112;
+
+/** Stored face close-up size (px); falls back to the default on anything
+ *  not on the slider's step grid within [min, max]. */
+function readStoredFaceSize(): number {
+  const v = Number(localStorage.getItem(CULL_FACE_SIZE_KEY));
+  const onStep = (v - FACE_SIZE_MIN_PX) % FACE_SIZE_STEP_PX === 0;
+  return Number.isFinite(v) && v >= FACE_SIZE_MIN_PX && v <= FACE_SIZE_MAX_PX && onStep
+    ? v
+    : FACE_SIZE_DEFAULT_PX;
 }
 const GROUP_BY_VALUES = ['all', 'burst', 'similar', 'scene', 'bracket',
                          'panorama', 'hdr_panorama'] as const;
@@ -885,6 +904,14 @@ class RunGeneration {
                     [matTooltip]="I18N.culling.grid.tooltip | translate"
                     [attr.aria-label]="gridModeLabel() | translate"
                     (click)="cycleGrid()"><mat-icon>grid_3x3</mat-icon></button>
+            <button mat-icon-button [class.!text-white]="!darkroomLoupeActive()"
+                    [class.!text-[var(--mat-sys-primary)]]="darkroomLoupeActive()"
+                    [attr.aria-pressed]="darkroomLoupeActive()"
+                    [matTooltip]="I18N.culling.darkroom_loupe_hint | translate"
+                    [attr.aria-label]="I18N.culling.darkroom_loupe | translate"
+                    (click)="toggleDarkroomLoupe()">
+              <mat-icon>{{ darkroomLoupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
+            </button>
             @if (cullStyleCapable() && compareMode() === 'single') {
               <button mat-icon-button [matMenuTriggerFor]="cullStyleMenu"
                       [class.!text-white]="activeStyle() === ''"
@@ -977,6 +1004,9 @@ class RunGeneration {
                                [zoom]="zoom()"
                                [focusPoint]="(lbPhoto.path | keySubjectForPath:keySubjectMap())?.center ?? null"
                                (zoomChange)="zoom.set($event)"
+                               [loupeSrc]="lbPhoto.path | imageUrl:true"
+                               [loupeActive]="darkroomLoupeEffective()"
+                               [loupeZoom]="darkroomLoupeZoom()"
                                [alt]="lbPhoto.filename" />
               <ng-container [ngTemplateOutlet]="frameOverlays"
                             [ngTemplateOutletContext]="{ path: lbPhoto.path }" />
@@ -1035,6 +1065,9 @@ class RunGeneration {
                                    [zoom]="zoom()"
                                    [focusPoint]="(photo.path | keySubjectForPath:keySubjectMap())?.center ?? null"
                                    (zoomChange)="zoom.set($event)"
+                                   [loupeSrc]="photo.path | imageUrl:true"
+                                   [loupeActive]="darkroomLoupeEffective()"
+                                   [loupeZoom]="darkroomLoupeZoom()"
                                    [alt]="photo.filename" />
                   <ng-container [ngTemplateOutlet]="frameOverlays"
                                 [ngTemplateOutletContext]="{ path: photo.path }" />
@@ -1130,6 +1163,7 @@ class RunGeneration {
                 <span class="text-white/50 text-xs">{{ 'culling.face_eyes_min' | translate }}</span>
                 <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="10" [step]="1" [discrete]="true">
                   <input matSliderThumb [value]="faceEyesMin()" (valueChange)="onFaceEyesMinChange($event)"
+                         (dragEnd)="releaseSliderFocus()"
                          [attr.aria-label]="'culling.face_eyes_min' | translate" />
                 </mat-slider>
                 <span class="text-white/70 text-xs font-medium w-4">{{ faceEyesMin() }}</span>
@@ -1139,9 +1173,21 @@ class RunGeneration {
                 <span class="text-white/50 text-xs">{{ 'culling.face_smile_min' | translate }}</span>
                 <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="10" [step]="1" [discrete]="true">
                   <input matSliderThumb [value]="faceSmileMin()" (valueChange)="onFaceSmileMinChange($event)"
+                         (dragEnd)="releaseSliderFocus()"
                          [attr.aria-label]="'culling.face_smile_min' | translate" />
                 </mat-slider>
                 <span class="text-white/70 text-xs font-medium w-4">{{ faceSmileMin() }}</span>
+              </div>
+              <div class="flex items-center gap-2"
+                   [matTooltip]="'culling.face_size_tooltip' | translate">
+                <span class="text-white/50 text-xs">{{ 'culling.face_size' | translate }}</span>
+                <mat-slider class="!w-24 !min-w-0" [min]="faceSizeMinPx" [max]="faceSizeMaxPx"
+                            [step]="faceSizeStepPx" [discrete]="true">
+                  <input matSliderThumb [value]="faceSize()" (valueChange)="onFaceSizeChange($event)"
+                         (dragEnd)="releaseSliderFocus()"
+                         [attr.aria-label]="'culling.face_size' | translate" />
+                </mat-slider>
+                <span class="text-white/70 text-xs font-medium w-8">{{ faceSize() }}</span>
               </div>
             </div>
             <div class="flex gap-3 items-start">
@@ -1152,9 +1198,14 @@ class RunGeneration {
                       @for (face of photo.path | facesForPath:faceMap(); track face.id) {
                         <div class="relative">
                           <img [src]="face.id | faceThumbnailUrl"
-                               class="w-16 h-16 rounded object-cover ring-2 ring-inset transition-opacity"
+                               class="rounded object-cover ring-2 ring-inset transition-opacity"
+                               [style.width.px]="faceSize()" [style.height.px]="faceSize()"
                                [ngClass]="face | faceRingClass:faceThresholds()"
                                [class.opacity-40]="face | faceDimmed:faceEyesMin():faceSmileMin()"
+                               [appLoupe]="face.id | faceThumbnailUrl"
+                               [loupeActive]="darkroomLoupeActive()"
+                               [loupeZoom]="darkroomLoupeZoom()"
+                               loupeFit="cover"
                                [alt]="photo.filename" loading="lazy" />
                           @if (face.confidence !== null && face.confidence !== undefined) {
                             <div class="absolute top-0 right-0 bg-black/60 text-white/80 text-[9px] leading-none px-1 py-0.5 rounded-bl">
@@ -1195,7 +1246,7 @@ class RunGeneration {
                     @if (photo.path === lbGroup.best_path) {
                       <span class="text-green-400 text-[10px] font-bold">{{ I18N.culling.auto_best | translate }}</span>
                     } @else if (photo.cull_reason; as reason) {
-                      <span class="text-white/60 text-[10px] max-w-[80px] truncate">{{ reason | cullReason }}</span>
+                      <span class="text-white/60 text-[10px] truncate" [style.max-width.px]="faceSize()">{{ reason | cullReason }}</span>
                     }
                   </div>
                 }
@@ -1551,6 +1602,26 @@ export class BurstCullingComponent implements OnDestroy {
   /** Focus peaking over the darkroom frames (P). Session-only, like the compare
    *  mode and the style preview — none of the darkroom's view toggles persist. */
   protected readonly peakingActive = signal(false);
+  /** Hover loupe over the darkroom's single/compare panes and face strip. ON
+   *  by default (unlike the grid's own loupe toggle, which defaults off) and
+   *  persisted, unlike the rest of the darkroom's session-only view toggles —
+   *  it's a pixel-peeking aid a culler wants to keep set the way they left it. */
+  protected readonly darkroomLoupeActive = signal(localStorage.getItem(CULL_DARKROOM_LOUPE_KEY) !== 'false');
+  /** Shared zoom level for every darkroom loupe instance (single pane, compare
+   *  panes, face strip) — same signal the spec calls for, from the same
+   *  createLoupeState() the grid uses. */
+  private readonly darkroomLoupe = createLoupeState();
+  protected readonly darkroomLoupeZoom = this.darkroomLoupe.loupeZoom;
+  /** The loupe must never show while the frame is zoomed past fit: dragging
+   *  to pan a magnified image and a lens fighting for the same cursor makes
+   *  neither usable. */
+  protected readonly darkroomLoupeEffective = computed(() =>
+    this.darkroomLoupeActive() && this.zoom().scale <= SyncedZoomComponent.MIN_SCALE);
+  protected toggleDarkroomLoupe(): void {
+    const next = !this.darkroomLoupeActive();
+    this.darkroomLoupeActive.set(next);
+    localStorage.setItem(CULL_DARKROOM_LOUPE_KEY, String(next));
+  }
   /** Composition grid: off → rule of thirds → golden ratio (G). Session-only. */
   protected readonly gridMode = signal<GridMode>('');
   /** Frame path → generated edge-map PNG, for the frames currently on screen. */
@@ -1784,6 +1855,27 @@ export class BurstCullingComponent implements OnDestroy {
   protected onFaceSmileMinChange(value: number): void {
     this.faceSmileMin.set(value);
     localStorage.setItem(CULL_FACE_SMILE_KEY, String(value));
+  }
+
+  /** Face close-up display size (px), persisted browser preference. */
+  protected readonly faceSize = signal(readStoredFaceSize());
+  protected readonly faceSizeMinPx = FACE_SIZE_MIN_PX;
+  protected readonly faceSizeMaxPx = FACE_SIZE_MAX_PX;
+  protected readonly faceSizeStepPx = FACE_SIZE_STEP_PX;
+
+  protected onFaceSizeChange(value: number): void {
+    this.faceSize.set(value);
+    localStorage.setItem(CULL_FACE_SIZE_KEY, String(value));
+  }
+
+  /** A pointer drag (or a plain click) on a face-strip slider leaves the thumb
+   *  focused, so the next arrow key adjusts the slider instead of reaching the
+   *  darkroom's document-level nav/keep/reject handlers. Return focus to the
+   *  dialog so keyboard navigation resumes. Keyboard-only interaction (Tab then
+   *  arrow keys) never fires `dragEnd`, so that a11y path keeps native
+   *  slider focus untouched. */
+  protected releaseSliderFocus(): void {
+    this.lightboxDialog()?.nativeElement.focus();
   }
 
   /** True when at least one photo in the focused group has loaded faces. */
