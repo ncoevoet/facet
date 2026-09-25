@@ -1148,6 +1148,13 @@ l'écrêtage : une série symétrique `(-2, 0, +2)` n'est donc pas affectée.
 Lancé par `--detect-sequences` ; s'exécute aussi à la fin de chaque scan, après le
 regroupement des rafales.
 
+**Les corrections manuelles couvrent aussi les bracketings.** Un bracketing manqué par la
+détection peut être nommé à la main depuis la galerie ou le tri (« Marquer comme bracketing »)
+— le même mécanisme persistant `photo_sequence_overrides` que les corrections de panorama,
+soumis à la même règle d'échelle d'exposition (≥ 2 images, chacune avec des métadonnées
+d'exposition utilisables, jamais deux à la même exposition). Voir
+[docs/VIEWER.md — Panoramas et bracketings d'exposition](VIEWER.md#panoramas-et-bracketings-dexposition).
+
 ```json
 {
   "sequence_detection": {

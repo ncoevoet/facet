@@ -70,6 +70,7 @@ API 会将其呈现在 `/api/scan/status` 的 `progress` 字段以及 SSE 数据
 | `python facet.py --export-json` | 把全部评分导出为带时间戳的 JSON |
 | `python facet.py --export-json output.json` | 导出到指定的 JSON 文件 |
 | `python facet.py --export-manifest` | 导出紧凑的 JSON 清单（路径、类别、评分、标签、星级评分、收藏／淘汰、连拍代表帧）到 `facet_manifest.json`，供 Lightroom Classic 插件等外部工具使用 |
+| _清单版本 2_ | 为每张照片新增 `burst_group_id`、`sequence_kind`、`sequence_group_id` 和 `score_stars`（综合评分经 `xmp_export.score_to_rating` 换算得到），供 Facet 增效工具新增的连拍留用／淘汰与星级兜底选项使用——见 [docs/INTEROP.md](INTEROP.md#facet-增效工具星级与留用旗标)。为此版本构建的增效工具会拒绝更早版本的清单，并要求重新导出 |
 | `python facet.py --export-manifest /path` | 把清单限定为某个路径子树下的照片 |
 | `python facet.py --export-manifest --user alice` | 多用户模式：把 Alice 的 `user_preferences` 评分导出到清单，而不是全局列（标签和评分仍为全局） |
 | `python facet.py --import-sidecars` | 把 `<image>.xmp` 附属文件中的评分／标记／标签导回数据库（全部照片） |

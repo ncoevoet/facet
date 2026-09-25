@@ -310,6 +310,30 @@ HDR 之间重新标注。**漏检**则从照片库修正，因为未被检测到
 *标记为照片组* → *标记为同一组全景照片*。两者都可以从提示条撤销，
 且都至少需要两帧。
 
+**标记一组漏检的曝光包围。** 一段连拍检测无法与普通连拍区分开来的
+曝光阶梯，可以用和漏检全景完全一样的方式从两个入口修正：在选片
+页面，一个普通连拍分组——其中没有任何一帧已经属于某个曝光包围
+或全景——会带有自己的菜单（仅编辑模式），提供*标记为曝光包围*；
+在照片库选择栏中，*标记为一组* → *标记为一组曝光包围*对任意选择
+做同样的事。两者都要求这些帧构成一段真正的曝光阶梯——至少 2 帧，
+每一帧都要有可用的曝光元数据*并且*要有可解析的拍摄日期，且没有
+两帧曝光值相同——不满足时两者都会用一条屏幕提示拒绝这次修正，
+绝不会保存一半。对一组已经标记过的曝光包围再标记与之重叠的帧，
+会把它们并入那一组，而不是另起一组——校验规则会用于合并后的
+整组（你刚选中的帧加上那一组里原有的每一帧），因此一次会破坏
+现有阶梯的合并会被同样的提示拒绝，之前那组曝光包围保持原样不变。
+选片页面的取景流默认隐藏已淘汰的帧，所以从选片页面标记曝光包围
+时，永远不会包含一个已经被淘汰的档位——它本来就不在可供选择的
+取景流里。一个已经是 `bracket` 类型的分组（无论是检测出来的还是
+之前修正得到的）会改为出现一个*取消修正*入口，与全景的做法一致。
+如果某个已标记的帧之后消失，或者丢失了阶梯规则所需的曝光或日期
+数据（被删除，或以不同的 EXIF 重新扫描），整组已标记的帧会在下
+一次检测运行时被整体跳过，而不是被部分应用——它会保持待应用状态，
+直到每个成员都重新满足条件。**标记会压制全景检测的
+结果**：如果被标记的这些帧本来已经属于一个被几何检测识别出的
+全景，那个全景会在下一次运行时被丢弃——同一组照片不能同时是
+两者。
+
 没有任何标注会立即生效。修正会立刻保存并标为待应用——
 照片库图块上会出现一个时钟徽章，选片分组上会出现*修正待应用*标签
 ——因为检测是一次覆盖整个照片库的批处理，代价远高到无法每点击
@@ -1277,7 +1301,7 @@ python database.py --stats-info
 | `POST /api/culling-groups/confirm` | 确认选片结果。请求体 `{group_id, type, paths, keep_paths}`；`type` 为 `burst \| similar \| scene \| bracket \| panorama \| hdr_panorama`。`type:'scene'` 会记录场景选片的比较行；三种序列类型会像其他类型一样执行淘汰，但不记录任何比较对，因为在一组阶梯中偏好某一档、或在一次扫拍中偏好某一帧，说明不了任何审美偏好 |
 | `POST /api/culling/auto` | `[Edition]` 针对整个作用域的一键自动选片。请求体 `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run, profile?, trim_brackets}`；`group_by` 为 `all \| burst \| similar \| scene`（序列类型在这里不是合法的作用域——参见 `trim_brackets`）。`profile` 指定一个 `cull_profiles` 预设，在省略 `strictness`／`min_keep_per_group` 时从中取值。`dry_run`（默认 `true`）返回每组的保留／淘汰预览，实际执行则会淘汰其余照片并记录选片比较对。`trim_brackets`（默认 `false`）会额外把基准曝光既无暗部裁切也无高光裁切的包围曝光组修剪到只剩基准帧——这是自动选片中唯一会缩减序列照片组的路径 |
 | `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | 根据作用域内已存储的类别、叙事时刻、人脸数量和拍摄时段推断其占主导的拍摄类型，并指出与之匹配的 `cull_profiles` 预设，附带置信度及其所依据的证据数量；按作用域缓存。当低于主导度下限、或匹配的预设未配置时，`profile` 为 `null` |
-| `POST /api/culling-groups/override_sequence` | `[Edition]` 记录一条关于一组帧究竟是什么的持久修正。请求体 `{paths, kind?}`；`kind` 为 `panorama \| hdr_panorama`，省略则表示把这些帧标记为根本不是全景。它落在 `photo_sequence_overrides` 中（能挺过检测器每次运行时对 `photos.sequence_*` 的清除与重写）；在下一次 `POST /api/scan/detect_panoramas` 时生效 |
+| `POST /api/culling-groups/override_sequence` | `[Edition]` 记录一条关于一组帧究竟是什么的持久修正。请求体 `{paths, kind?}`；`kind` 为 `panorama \| hdr_panorama \| bracket`，省略则表示把这些帧标记为都不是。`bracket` 标记要满足曝光阶梯规则（至少 2 帧，每一帧都要有可用的曝光元数据，且没有两帧曝光值相同），不满足时返回 400 及具体原因。它落在 `photo_sequence_overrides` 中（能挺过检测器每次运行时对 `photos.sequence_*` 的清除与重写）；在下一次 `POST /api/scan/detect_panoramas` 时生效 |
 | `POST /api/culling-groups/clear_sequence_override` | `[Edition]` 撤销指定帧的手动序列修正，把它们交还给检测器。请求体 `{paths}` |
 | `POST /api/culling-group/faces` | 一次批量获取某个分组的每张人脸标记（睁眼／闭眼、表情、置信度） |
 | `POST /api/culling-group/subjects` | 一次批量获取无人脸分组的主体特写裁切（来自已保存的 BiRefNet 主体框）+ 按组归一化的清晰度。当照片没有主体框／主体框几乎占满整幅画面时返回 `has_subject:false`（不运行任何模型） |

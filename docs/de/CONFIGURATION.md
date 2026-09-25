@@ -1158,6 +1158,13 @@ eine symmetrische `(-2, 0, +2)`-Reihe bleibt also unverändert.
 Aufruf über `--detect-sequences`; läuft außerdem am Ende jedes Scans, nach der
 Serienbildung.
 
+**Manuelle Korrekturen decken jetzt auch Belichtungsreihen ab.** Eine von der Erkennung
+übersehene Belichtungsreihe kann von Hand aus der Galerie oder beim Aussortieren benannt
+werden („Als Belichtungsreihe markieren“) — derselbe dauerhafte `photo_sequence_overrides`-
+Mechanismus wie bei Panorama-Korrekturen, geprüft gegen dieselbe Belichtungsleiter-Regel
+(≥ 2 Aufnahmen, jede mit verwertbaren Belichtungsdaten, nie zwei mit derselben Belichtung).
+Siehe [docs/VIEWER.md — Panoramen und Belichtungsreihen](VIEWER.md#panoramen-und-belichtungsreihen).
+
 ```json
 {
   "sequence_detection": {

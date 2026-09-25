@@ -71,6 +71,7 @@ campo `progress` di `/api/scan/status` e nel flusso SSE.
 | `python facet.py --export-json` | Esporta tutti i punteggi in un JSON con data e ora |
 | `python facet.py --export-json output.json` | Esporta in un file JSON specifico |
 | `python facet.py --export-manifest` | Esporta un manifesto JSON compatto (percorso, categoria, punteggi, tag, valutazione a stelle, preferito/rifiutato, capofila di raffica) in `facet_manifest.json`, per strumenti esterni come un plugin di Lightroom Classic |
+| _manifest versione 2_ | Aggiunge a ogni foto `burst_group_id`, `sequence_kind`, `sequence_group_id` e `score_stars` (il punteggio aggregato convertito tramite `xmp_export.score_to_rating`), per le nuove opzioni di selezione/rifiuto delle raffiche e di ripiego sulle stelle del plug-in Facet — vedi [docs/INTEROP.md](INTEROP.md#il-plug-in-facet-valutazioni-a-stelle-e-flag-pick). Un plug-in compilato per questa versione rifiuta un manifest più vecchio e chiede di riesportarlo |
 | `python facet.py --export-manifest /path` | Limita il manifesto alle foto sotto un sottoalbero di percorso |
 | `python facet.py --export-manifest --user alice` | Modalità multiutente: esporta nel manifesto le valutazioni di `user_preferences` di Alice anziché le colonne globali (tag e punteggi restano globali) |
 | `python facet.py --import-sidecars` | Importa valutazioni/etichette/tag dai sidecar `<image>.xmp` nel DB (tutte le foto) |

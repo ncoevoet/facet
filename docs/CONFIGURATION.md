@@ -1126,6 +1126,12 @@ frame regardless of clipping, so a symmetric `(-2, 0, +2)` set is unaffected.
 
 Run via `--detect-sequences`; it also runs at the end of every scan, after burst grouping.
 
+**Manual corrections cover brackets too.** A ladder detection misses can be named by hand
+from the gallery or the culling darkroom (*Mark as bracket*) — the same sticky
+`photo_sequence_overrides` mechanism panorama corrections use, gated on the same ladder rule
+(≥2 frames, every one with usable exposure metadata, no two at the same exposure). See
+[docs/VIEWER.md — Panoramas and exposure brackets](VIEWER.md#panoramas-and-exposure-brackets).
+
 ```json
 {
   "sequence_detection": {

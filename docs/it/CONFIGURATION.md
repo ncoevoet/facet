@@ -1152,6 +1152,13 @@ centra sempre sullo scatto mediano a prescindere dal taglio, quindi una serie si
 Si avvia con `--detect-sequences`; viene eseguito anche al termine di ogni scansione, dopo il
 raggruppamento delle raffiche.
 
+**Le correzioni manuali coprono anche i bracket.** Un bracket sfuggito al rilevamento può
+essere segnalato a mano dalla galleria o dalla selezione (« Segna come bracket ») — lo stesso
+meccanismo persistente `photo_sequence_overrides` usato per le correzioni panorama, soggetto
+alla stessa regola della scala di esposizione (≥2 fotogrammi, ognuno con metadati di
+esposizione utilizzabili, mai due alla stessa esposizione). Vedi
+[docs/VIEWER.md — Panorami e bracket di esposizione](VIEWER.md#panorami-e-bracket-di-esposizione).
+
 ```json
 {
   "sequence_detection": {

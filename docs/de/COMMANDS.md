@@ -71,6 +71,7 @@ Viewers im `progress`-Feld von `/api/scan/status` und im SSE-Stream bereitstellt
 | `python facet.py --export-json` | Alle Scores in eine JSON mit Zeitstempel exportieren |
 | `python facet.py --export-json output.json` | In eine bestimmte JSON-Datei exportieren |
 | `python facet.py --export-manifest` | Ein kompaktes JSON-Manifest (Pfad, Kategorie, Scores, Tags, Sternebewertung, Favorit/Abgelehnt, Serien-Leitbild) nach `facet_manifest.json` exportieren — für externe Werkzeuge wie ein Lightroom-Classic-Plugin |
+| _Manifest Version 2_ | Fügt jedem Foto `burst_group_id`, `sequence_kind`, `sequence_group_id` und `score_stars` (der Gesamt-Score, umgerechnet über `xmp_export.score_to_rating`) hinzu, für die neuen Serien-Auswahl/Ablehnungs- und Sterne-Ersatz-Optionen des Facet-Zusatzmoduls — siehe [docs/INTEROP.md](INTEROP.md#das-facet-zusatzmodul-sternebewertungen-und-pick-flags). Ein für diese Version gebautes Zusatzmodul weist ein älteres Manifest zurück und bittet um erneuten Export |
 | `python facet.py --export-manifest /path` | Manifest auf Fotos unterhalb eines Pfad-Teilbaums beschränken |
 | `python facet.py --export-manifest --user alice` | Mehrbenutzermodus: exportiert Alices `user_preferences`-Bewertungen in das Manifest statt der globalen Spalten (Tags und Scores bleiben global) |
 | `python facet.py --import-sidecars` | Bewertungen/Labels/Tags aus `<image>.xmp`-Sidecars zurück in die DB importieren (alle Fotos) |

@@ -71,6 +71,7 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 | `python facet.py --export-json` | Export all scores to timestamped JSON |
 | `python facet.py --export-json output.json` | Export to specific JSON file |
 | `python facet.py --export-manifest` | Export a compact JSON manifest (path, category, scores, tags, star rating, favorite/reject, burst-lead) to `facet_manifest.json` for external tools such as a Lightroom Classic plugin |
+| _manifest version 2_ | Adds `burst_group_id`, `sequence_kind`, `sequence_group_id` and `score_stars` (the aggregate score mapped through `xmp_export.score_to_rating`) to each photo, for the Facet plug-in's burst pick/reject and star-fallback options — see [docs/INTEROP.md](INTEROP.md#the-facet-plug-in-star-ratings-and-pick-flags). A plug-in built for this version refuses an older manifest and asks you to re-export |
 | `python facet.py --export-manifest /path` | Limit the manifest to photos under a path subtree |
 | `python facet.py --export-manifest --user alice` | Multi-user mode: export Alice's `user_preferences` ratings into the manifest instead of the global columns (tags and scores stay global) |
 | `python facet.py --import-sidecars` | Import ratings/labels/tags from `<image>.xmp` sidecars back into the DB (all photos) |

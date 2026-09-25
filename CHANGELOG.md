@@ -4,6 +4,16 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **A missed exposure bracket can now be marked by hand.** Burst detection cannot always tell a deliberate exposure ladder apart from an ordinary burst on geometry alone, so a *Mark as bracket* correction is now available wherever a missed panorama already was: a plain burst group's own menu in the culling darkroom (*Not a panorama*'s sibling), and *Mark as a set* → *Mark as one bracket* in the gallery selection bar. Both are gated on the same exposure-ladder rule the API enforces — at least 2 frames, every one carrying usable exposure metadata, no two at the same exposure value — and reject the correction outright with a specific message when the frames don't qualify, rather than saving a partial set. The correction is sticky and applies at the next detection run like a panorama correction; marking a bracket on the frames of an already-detected panorama drops that panorama, since a set cannot be both.
+- **The Lightroom plug-in can now pick, reject, star-rate, and file into collections from a burst's own verdict, not just star ratings and flags.** Three new opt-in dialog options: **Pick the recommended frame of each burst** sets every `is_burst_lead` member of a manifest burst group (≥2 members) to Picked, with **Reject the other frames** (nested, only with picking on) rejecting the rest — never a bracket/panorama/HDR-panorama member, and never touching a leadless group or a lone frame. **Fill in star ratings from Facet scores for photos you have not rated** derives a star count from the Facet score for a photo with no rating in the manifest, and never overwrites a rating Lightroom already has, even with Overwrite ticked. **Create Facet collections for bursts, brackets, panoramas and HDR panoramas** files each set (≥2 matched members) into `Facet › Bursts/Brackets/Panoramas/HDR panoramas`, named `<yyyy-mm-dd HH:MM:SS> – <filename>` from its earliest member; re-running only adds photos to a collection it finds again, it never removes any. A manual Pick/Reject or Facet favorite/reject always wins over the derived pick.
+
+### Changed
+
+- **The Lightroom plug-in's manifest moves to version 2** (`burst_group_id`, `sequence_kind`, `sequence_group_id`, `score_stars`), needed for the new pick/reject/collection options above. This is a breaking change for the manifest format: the plug-in refuses a version-1 manifest outright rather than degrading — re-run `python facet.py --export-manifest` before using the updated plug-in.
+- **The plug-in's Lua test suite now actually runs in CI**, via `lupa`, instead of being skipped for its whole existence.
+
 ## [1.17.0] "Fusion" — 2026-09-25
 
 ### Added

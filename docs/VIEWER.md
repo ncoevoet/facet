@@ -313,6 +313,34 @@ group at all: select its frames and use *Mark as a set* → *Mark as one panoram
 in the selection bar. Both are undoable from the snackbar, and both take at least
 two frames.
 
+**Marking a missed bracket.** An exposure ladder that burst detection never
+told apart from an ordinary burst is corrected the same way a missed panorama
+is, from either surface: from the darkroom, a plain burst group — one where no
+frame already belongs to a bracket or a panorama — carries its own
+edition-only menu offering *Mark as bracket*; from the gallery selection bar,
+*Mark as a set* → *Mark as one bracket* does the same for any selection. Both
+require the frames to form a real exposure ladder — at least 2 frames, every
+one carrying usable exposure metadata (f-stop, shutter speed, ISO) *and* a
+parseable capture date, and no two of them at the same exposure value — and
+both reject the correction outright with an on-screen message when they
+don't; nothing partial is ever saved. Marking frames that overlap a bracket
+you already marked extends that set rather than starting a second one — the
+rule is checked against the whole combined set (the frames you just selected
+plus every frame already in that set), so a mark that would break the
+existing ladder is refused with the same message and the earlier bracket is
+left exactly as it was. The darkroom's group feed hides rejected frames by
+default, so marking a bracket from the darkroom can never include a rung you
+had already rejected — it simply is not in the feed to select. A bracket-kind
+group (already labelled `bracket`, whether detected or from an earlier
+correction) gets a *Drop the correction* entry instead, mirroring panorama's
+own. If a marked frame later disappears or loses the exposure or date data
+the ladder rule needs (deleted, or rescanned with different EXIF), the whole
+marked set is skipped at the next detection run rather than partially applied
+— it stays pending until every member qualifies again. **Marking wins over
+panorama detection**: if the
+frames you mark already belong to a panorama the geometry pass detected, that
+panorama is dropped on the next run — a set cannot be both.
+
 Nothing relabels immediately. A correction is saved at once and marked pending —
 a clock badge on the gallery tile, a *Correction pending* chip on the culling
 group — because detection is a whole-library batch pass, far too expensive to run
@@ -320,8 +348,9 @@ once per click. The culling page shows a banner counting what is waiting, with a
 **Re-run detection** button beside it; the sidebar's *Panorama corrections* filter
 (edition only, under Refine) lists them library-wide, as either direction or
 both. Until that run, a suppressed set is still grouped as a panorama and a
-forced one is still ungrouped — the correction is a note to the detector, not a
-label of its own.
+forced one (panorama or bracket alike) is still ungrouped — the correction is a
+note to the detector, not a label of its own. Undo is available from the
+snackbar right after marking, and *Drop the correction* removes it afterwards.
 
 **Tuning it.** The Panoramas tab under Compare exposes the thresholds that were
 actually calibrated against labelled sets — minimum frames, minimum sweep,
@@ -1280,7 +1309,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `POST /api/culling-groups/confirm` | Confirm culling selections. Body `{group_id, type, paths, keep_paths}`; `type` is `burst \| similar \| scene \| bracket \| panorama \| hdr_panorama`. `type:'scene'` records the scene-cull comparison rows; the three sequence kinds reject like the others but record no comparison pairs, since preferring one rung of a ladder or one frame of a pan says nothing about taste |
 | `POST /api/culling/auto` | `[Edition]` One-button auto-cull for a whole scope. Body `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run, profile?, trim_brackets}`; `group_by` is `all \| burst \| similar \| scene` (sequence kinds are not a valid scope here — see `trim_brackets`). `profile` names a `cull_profiles` preset to source `strictness`/`min_keep_per_group` from when they are omitted. `dry_run` (default `true`) returns the per-group keep/reject preview, an apply rejects the rest and records culling pairs. `trim_brackets` (default `false`) additionally trims brackets whose base exposure clips neither shadows nor highlights down to that base frame — the only auto-cull path that ever reduces a sequence set |
 | `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | Infer the scope's dominant shoot type from its stored categories, narrative moments, face counts and capture hours, and name the `cull_profiles` preset that fits it, with a confidence and the evidence counts it was based on; cached per scope. `profile` is `null` below the dominance floor or when the matching preset isn't configured |
-| `POST /api/culling-groups/override_sequence` | `[Edition]` Record a sticky correction to what a set of frames is. Body `{paths, kind?}`; `kind` is `panorama \| hdr_panorama` or omitted to mark the frames as not a panorama at all. Lands in `photo_sequence_overrides` (survives the detector clearing and rewriting `photos.sequence_*` on every run); takes effect on the next `POST /api/scan/detect_panoramas` |
+| `POST /api/culling-groups/override_sequence` | `[Edition]` Record a sticky correction to what a set of frames is. Body `{paths, kind?}`; `kind` is `panorama \| hdr_panorama \| bracket` or omitted to mark the frames as not one of these. A `bracket` mark is gated on the exposure-ladder rule (≥2 frames, every one with usable exposure metadata, no two at the same exposure value) and 400s with a specific message when the frames don't qualify. Lands in `photo_sequence_overrides` (survives the detector clearing and rewriting `photos.sequence_*` on every run); takes effect on the next `POST /api/scan/detect_panoramas` |
 | `POST /api/culling-groups/clear_sequence_override` | `[Edition]` Drop a manual sequence correction for the named frames, handing them back to the detector. Body `{paths}` |
 | `POST /api/culling-group/faces` | Per-face badges (eyes open/closed, expression, confidence) for a group, in one batch |
 | `POST /api/culling-group/subjects` | Subject close-up crops (from the persisted BiRefNet subject box) + group-normalized sharpness for a non-face group, in one batch. `has_subject:false` when a photo has no box / a near-full-frame box (no model runs) |

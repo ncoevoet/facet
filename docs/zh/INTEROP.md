@@ -28,6 +28,8 @@ Facet 的淘汰标记（`xmp:Rating = -1`）会被读回为 Lightroom 的排除�
 
 现在还有 `python facet.py --export-manifest` 这条数据源（路径、类别、全部评分、标签，以及与 `--export-sidecars` 相同的星级列 —— 在多用户安装上还可通过 `--export-manifest --user alice` 导出按用户区分的星级），供那些希望拿到 Facet 数据又不想解析 XMP 的工具使用 —— 见[命令 — 预览与导出](COMMANDS.md#预览与导出)。下文的 Facet 增效工具消费的正是这份数据。
 
+**清单版本 2。** 清单现在还携带 `burst_group_id`、`sequence_kind`、`sequence_group_id` 和 `score_stars`，下面的连拍留用／淘汰与星级兜底新选项要用到它们。这里没有向后兼容的读取路径：为版本 2 构建的增效工具会直接拒绝版本 1 的清单，弹出对话框要求你重新导出；旧版增效工具也无法读取版本 2 的清单。如果看到那个对话框，重新运行 `--export-manifest` 即可。
+
 ### Facet 增效工具（星级与留用旗标）
 
 Facet 仓库里的 `facet.lrplugin/` 是一个 Lightroom Classic 增效工具，它把 Facet 的星级和收藏／淘汰状态**直接写进目录**。它之所以存在，是因为上文提到的两件事无法从 XMP 一侧解决：Lightroom 永远找不到专有 RAW 文件对应的 Facet 附属文件，而 XMP 根本没有承载 Lightroom 留用旗标的通道。该增效工具读取的是一个清单文件，因此它从不与 Facet 服务器通信，不需要密码，即使 Facet 没有运行也能工作 —— 而且因为它按路径而不是按附属文件匹配照片，**纯 RAW 照片库的表现与 JPEG 照片库完全一样**。
@@ -58,6 +60,15 @@ Facet 仓库里的 `facet.lrplugin/` 是一个 Lightroom Classic 增效工具，
 Facet 的星级为 0 表示“没有意见”（见 `xmp_export.score_to_rating`），永远不会被写出。
 
 **覆盖语义** —— 默认情况下，增效工具绝不与你争辩：只有当照片在 Lightroom 中*没有星级*时它才设置星级，只有当照片*没有旗标*时它才设置留用／排除旗标。你手动评过星或打过旗标的内容一律原样保留，并在预览中计入“kept as they are”（保持原样）。勾选 **Overwrite ratings and flags that are already set in Lightroom** 才会改为覆盖它们。这与 `xmp_export.score_to_rating` 中的 `only_when_unrated` 一致，因此增效工具和附属文件这两条路径对待你的手动修改的方式完全相同。
+
+**新的对话框选项**（均为可选，各自会记住到下次）：
+
+- **Fill in star ratings from Facet scores for photos you have not rated** —— 当一张照片在清单里没有 `star_rating`（或为 0），但 Facet 的 `aggregate` 分数能映射出一个星级时，用这个推算出的星级补上空缺。因为这只是给*未评级*照片的兜底，不是清单里真正的星级，所以它**永远不会覆盖 Lightroom 里已有的星级 —— 即便勾选了 Overwrite 也不会。** 清单里真正的 `star_rating` 仍然遵循上面那条正常的覆盖规则，不受影响。
+- **Pick the recommended frame of each burst** —— 对清单中至少有 2 个成员的每个连拍组，把清单标记为 `is_burst_lead` 的每一个成员（一组连拍可以保留不止一张）都设为留用（Pick）。清单从未把它和其他照片分到一组的孤立帧永远不会被这个选项动到，而整个清单中都没有任何 `is_burst_lead` 成员的连拍组会被完全跳过（没有可依据的信息）。手动设置的留用／淘汰旗标 —— 或清单里的 Facet 收藏／淘汰 —— 永远优先于这个推算出的留用。
+- **Reject the other frames**（嵌套在上一个选项之下，只有连同它一起勾选才会启用）—— 把连拍中*不是*首选帧的每个成员设为淘汰（Reject），但有两个例外：曝光包围、全景或 HDR 全景的成员永远不会被这条规则淘汰，即便它的 `burst_group_id` 也把它和其他照片分到了一组 —— 这些集合要整套保留；而整个清单里都没有首选帧的组（见上文）同样不会得到任何淘汰。
+- **Create Facet collections for bursts, brackets, panoramas and HDR panoramas** —— 对当前范围内至少匹配到 2 张照片的每个组，创建或复用一个名为 `<yyyy-mm-dd HH:MM:SS> – <filename>` 的收藏集（取最早那个成员的拍摄时间和文件名；该成员没有拍摄时间时用 `~ (no date) – <filename>`），嵌套在 `Facet › Bursts`、`Facet › Brackets`、`Facet › Panoramas` 或 `Facet › HDR panoramas` 之下。如果一个普通连拍组的成员*全部*已经完整属于某个曝光包围／全景／HDR 全景集合，就不会再为它单独建一个 Bursts 收藏集，因为那只会和 Brackets/Panoramas/HDR panoramas 下已有的那个重复。**重新运行只会新增**——把照片补进重新找到的收藏集，绝不会移除，所以一个收藏集可能会与之后被重新分组或重新检测的集合脱节（某张照片在之后的扫描里被移出某个曝光包围组，并不会把它从收藏集里移除）。如果两个不同组的最早成员在拍摄时间上精确到秒完全相同，且文件名也相同，收藏集的名字也会发生冲突——两台相机都在同一时刻写出了 `IMG_0001`，最终会共用一个收藏集，而不是各自得到一个。这是一个已知的局限，不是需要上报的缺陷。
+
+**为什么是收藏集，不是堆叠。** Lightroom 的 SDK 没有任何调用可以创建或管理堆叠（Stack）——`stackInFolder`／`stackPositionInFolder` 在 `LrPhoto` 上都是只读的。收藏集是最接近的可写替代方案，而 `canReturnPrior` 让重新运行增效工具时能找回同一个收藏集，而不是重复创建。如果你想要真正的 Lightroom 堆叠，请自己选中某个收藏集里的照片，使用**照片 → 堆叠 → 编为堆叠**（Ctrl/Cmd+G）——这一步增效工具无法替你完成。
 
 **局限**，实话实说：
 

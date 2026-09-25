@@ -1155,6 +1155,13 @@ simétrica `(-2, 0, +2)` no cambia.
 Se ejecuta con `--detect-sequences`; también corre al final de cada escaneo, después de
 agrupar las ráfagas.
 
+**Las correcciones manuales ahora también cubren los horquillados.** Un horquillado que la
+detección pasó por alto puede nombrarse a mano desde la galería o al descartar («Marcar como
+bracketing») — el mismo mecanismo persistente `photo_sequence_overrides` que las correcciones
+de panorámica, sujeto a la misma regla de la escala de exposición (≥2 fotogramas, cada uno con
+metadatos de exposición utilizables, nunca dos con la misma exposición). Véase
+[docs/VIEWER.md — Panorámicas y bracketing de exposición](VIEWER.md#panorámicas-y-bracketing-de-exposición).
+
 ```json
 {
   "sequence_detection": {

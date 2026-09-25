@@ -1150,6 +1150,13 @@ centra-se sempre na foto do meio, com corte ou sem ele, pelo que uma série sim�
 Executa-se com `--detect-sequences`; corre também no fim de cada análise, depois do
 agrupamento das rajadas.
 
+**As correções manuais agora também cobrem brackets.** Um bracket que a deteção falhou pode
+ser nomeado à mão a partir da galeria ou da seleção («Marcar como série de exposição») — o mesmo
+mecanismo persistente `photo_sequence_overrides` das correções de panorama, sujeito à mesma
+regra da escada de exposição (≥2 fotogramas, cada um com metadados de exposição utilizáveis,
+nunca dois com a mesma exposição). Ver
+[docs/VIEWER.md — Panorâmicas e brackets de exposição](VIEWER.md#panorâmicas-e-brackets-de-exposição).
+
 ```json
 {
   "sequence_detection": {

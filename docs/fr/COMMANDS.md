@@ -71,6 +71,7 @@ visionneuse expose dans le champ `progress` de `/api/scan/status` et du flux SSE
 | `python facet.py --export-json` | Exporte tous les scores vers un JSON horodaté |
 | `python facet.py --export-json output.json` | Exporte vers un fichier JSON spécifique |
 | `python facet.py --export-manifest` | Exporte un manifeste JSON compact (chemin, catégorie, scores, étiquettes, note en étoiles, favori/rejeté, tête de rafale) vers `facet_manifest.json`, pour des outils externes comme un plugin Lightroom Classic |
+| _manifeste version 2_ | Ajoute `burst_group_id`, `sequence_kind`, `sequence_group_id` et `score_stars` (le score global converti via `xmp_export.score_to_rating`) à chaque photo, pour les nouvelles options de sélection/rejet de rafale et de secours des étoiles du module externe Facet — voir [docs/INTEROP.md](INTEROP.md#le-module-externe-facet-notes-et-drapeaux-pick). Un module compilé pour cette version refuse un manifeste plus ancien et demande de le réexporter |
 | `python facet.py --export-manifest /path` | Limite le manifeste aux photos sous un sous-arbre de chemin |
 | `python facet.py --export-manifest --user alice` | Mode multi-utilisateurs : exporte les notes `user_preferences` d'Alice dans le manifeste au lieu des colonnes globales (les étiquettes et les scores restent globaux) |
 | `python facet.py --import-sidecars` | Importe les notes/libellés/étiquettes depuis les sidecars `<image>.xmp` vers la base de données (toutes les photos) |
