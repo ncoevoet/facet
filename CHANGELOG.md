@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.17.0] "Fusion" — 2026-09-25
+
 ### Added
 
 - **A Size slider in the culling darkroom's face panel.** Alongside the existing eyes and smile threshold sliders, a new **Size** slider (64–256 px, in steps of 16, default `112px`) resizes the face close-up crops — previously fixed at 64px. The value is remembered per browser via `localStorage`, not per user account. ([discussion #159](https://github.com/ncoevoet/facet/discussions/159))
