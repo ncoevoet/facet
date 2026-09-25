@@ -1,10 +1,7 @@
 import { Observable, firstValueFrom } from 'rxjs';
 
-async function triggerBlobDownload(
-  fetchBlob: () => Observable<Blob>,
-  filename: string,
-): Promise<void> {
-  const blob = await firstValueFrom(fetchBlob());
+/** Save an in-memory `Blob` as a client-side file download. */
+export function downloadBlob(blob: Blob, filename: string): void {
   const blobUrl = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = blobUrl;
@@ -13,6 +10,13 @@ async function triggerBlobDownload(
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(blobUrl);
+}
+
+async function triggerBlobDownload(
+  fetchBlob: () => Observable<Blob>,
+  filename: string,
+): Promise<void> {
+  downloadBlob(await firstValueFrom(fetchBlob()), filename);
 }
 
 export async function downloadAll(

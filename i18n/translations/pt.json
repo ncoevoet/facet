@@ -2339,7 +2339,20 @@
     "run": "Exportar",
     "running": "Exportando…",
     "done": "{count} foto(s) exportada(s)",
-    "failed": "Falha na exportação"
+    "failed": "Falha na exportação",
+    "lightroom": {
+      "title": "Lightroom",
+      "description": "Sincronize avaliações, seleções e o estado das séries com o plug-in facet.lrplugin do Lightroom Classic.",
+      "download": "Baixar manifesto do Lightroom",
+      "downloading": "Gerando manifesto…",
+      "pending_corrections": "{count} correção(ões) de série ainda pendente(s) — execute a deteção novamente (Comparar › Panorâmicas › Executar deteção novamente) antes de importar para o Lightroom",
+      "download_failed": "Não foi possível gerar o manifesto do Lightroom",
+      "import": "Importar estado do Lightroom…",
+      "importing": "Importando…",
+      "invalid_json": "Este ficheiro não é um JSON válido",
+      "imported": "Estado do Lightroom importado: {matched} correspondida(s), {unmatched} não encontrada(s), {changed} alterada(s)",
+      "import_failed": "Não foi possível importar o ficheiro de estado do Lightroom"
+    }
   },
   "undo": {
     "action": "Desfazer",

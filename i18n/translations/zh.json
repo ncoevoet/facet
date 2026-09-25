@@ -2339,7 +2339,20 @@
     "run": "导出",
     "running": "正在导出…",
     "done": "已导出 {count} 张照片",
-    "failed": "导出失败"
+    "failed": "导出失败",
+    "lightroom": {
+      "title": "Lightroom",
+      "description": "通过 facet.lrplugin 插件与 Lightroom Classic 双向同步星级、选片和照片组状态。",
+      "download": "下载 Lightroom 清单",
+      "downloading": "正在生成清单…",
+      "pending_corrections": "还有 {count} 项照片组修正待处理 — 请先重新运行检测（比较 › 全景照片组 › 重新运行检测），再导入到 Lightroom",
+      "download_failed": "无法生成 Lightroom 清单",
+      "import": "导入 Lightroom 状态…",
+      "importing": "正在导入…",
+      "invalid_json": "该文件不是有效的 JSON",
+      "imported": "Lightroom 状态已导入：匹配 {matched} 张，未找到 {unmatched} 张，已更改 {changed} 张",
+      "import_failed": "无法导入 Lightroom 状态文件"
+    }
   },
   "undo": {
     "action": "撤销",

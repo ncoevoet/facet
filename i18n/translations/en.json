@@ -2339,7 +2339,20 @@
     "run": "Export",
     "running": "Exporting…",
     "done": "Exported {count} photo(s)",
-    "failed": "Export failed"
+    "failed": "Export failed",
+    "lightroom": {
+      "title": "Lightroom",
+      "description": "Round-trip ratings, picks and set state with the facet.lrplugin Lightroom Classic plug-in.",
+      "download": "Download Lightroom manifest",
+      "downloading": "Building manifest…",
+      "pending_corrections": "{count} set corrections are still pending — re-run detection (Compare › Panoramas › Re-run detection) before importing into Lightroom",
+      "download_failed": "Could not build the Lightroom manifest",
+      "import": "Import Lightroom state…",
+      "importing": "Importing…",
+      "invalid_json": "This file is not valid JSON",
+      "imported": "Lightroom state imported: {matched} matched, {unmatched} not found, {changed} changed",
+      "import_failed": "Could not import the Lightroom state file"
+    }
   },
   "undo": {
     "action": "Undo",

@@ -2339,7 +2339,20 @@
     "run": "Exportieren",
     "running": "Exportiere…",
     "done": "{count} Foto(s) exportiert",
-    "failed": "Export fehlgeschlagen"
+    "failed": "Export fehlgeschlagen",
+    "lightroom": {
+      "title": "Lightroom",
+      "description": "Bewertungen, Auswahl und Serienstatus mit dem facet.lrplugin-Plug-in für Lightroom Classic abgleichen.",
+      "download": "Lightroom-Manifest herunterladen",
+      "downloading": "Manifest wird erstellt…",
+      "pending_corrections": "{count} Serienkorrektur(en) stehen noch aus — Erkennung erneut ausführen (Vergleichen › Panoramen › Erkennung erneut ausführen), bevor du nach Lightroom importierst",
+      "download_failed": "Lightroom-Manifest konnte nicht erstellt werden",
+      "import": "Lightroom-Status importieren…",
+      "importing": "Importiere…",
+      "invalid_json": "Diese Datei ist kein gültiges JSON",
+      "imported": "Lightroom-Status importiert: {matched} zugeordnet, {unmatched} nicht gefunden, {changed} geändert",
+      "import_failed": "Lightroom-Statusdatei konnte nicht importiert werden"
+    }
   },
   "undo": {
     "action": "Rückgängig",
