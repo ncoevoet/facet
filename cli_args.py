@@ -337,6 +337,10 @@ Configuration:
     export_group.add_argument('--import-sidecars', type=str, nargs='?', const='all', metavar='PATH',
                         help='Import ratings/labels/tags from <image>.xmp sidecars back into the DB '
                              '(optional: limit to a path subtree; default: all photos)')
+    export_group.add_argument('--import-lightroom', type=str, default=None, metavar='FILE',
+                        help='Import Lightroom\'s own rating/pick/reject state from a file '
+                             'exported by the facet.lrplugin plug-in (Lightroom wins). Requires '
+                             '--user in multi-user mode. Reports matched/unmatched/changed counts')
     export_group.add_argument('--export-sidecars', type=str, nargs='?', const='all', metavar='PATH',
                         help='Write/merge <image>.xmp sidecars from the DB ratings/labels/tags/caption '
                              '(optional: limit to a path subtree; default: all photos). Defaults to the '
@@ -348,7 +352,8 @@ Configuration:
                         help='With --export-sidecars: derive xmp:Rating from the aggregate score for '
                              'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
-                        help='With --import-sidecars/--export-sidecars/--export-manifest/--immich-sync in '
+                        help='With --import-sidecars/--export-sidecars/--export-manifest/'
+                             '--import-lightroom/--immich-sync in '
                              'multi-user mode: '
                              "read/write that user's ratings (user_preferences) instead of the global columns. "
                              'With --train-ranker: scope the personal ranker to that user (own + legacy '

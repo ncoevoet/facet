@@ -126,6 +126,75 @@ def clear_sequence_overrides(db, paths):
             conn.close()
 
 
+def count_pending_groups(root=None, conn=None, paths=None):
+    """Count unapplied correction GROUPS, not rows.
+
+    Distinct ``override_group_key`` among ``photo_sequence_overrides`` rows
+    with ``applied_at IS NULL``, optionally scoped to ``root`` (reusing
+    :func:`processing.xmp_export.build_root_filter` -- the same subtree filter
+    the manifest export uses, so the two stay in lockstep) or to an explicit
+    ``paths`` list (the viewer's already-resolved selection -- ``photo_path IN
+    (...)``, chunked to respect SQLite's variable limit). ``root`` and
+    ``paths`` are mutually exclusive; passing both is a caller bug. A row with
+    a NULL ``override_group_key`` counts once per row (it has no group to
+    dedupe against). This matches the viewer banner's own group semantics
+    (``burst-culling.component.ts``'s ``pendingCorrections`` count) rather than
+    a plain row count, which would overcount a multi-frame bracket/panorama.
+
+    The scope predicate is always parenthesized before being ANDed onto the
+    ``applied_at IS NULL AND override_group_key IS (NOT) NULL`` predicates --
+    a bare ``AND ... OR ...`` splice would let the ``OR`` branch of a
+    multi-clause scope (e.g. ``build_root_filter``'s ``path = ? OR path LIKE
+    ?``) drop both surrounding predicates and count applied/grouped rows too.
+    """
+    if root and paths is not None:
+        raise ValueError("count_pending_groups: root and paths are mutually exclusive")
+
+    owned_conn, owned = _connection_for(conn)
+    try:
+        where, params = "", []
+        if root:
+            from processing.xmp_export import build_root_filter
+            root_where, root_params = build_root_filter(root)
+            scope_predicate = (root_where.removeprefix("WHERE ")
+                                .replace("path =", "photo_path =")
+                                .replace("path LIKE", "photo_path LIKE"))
+            where = f"AND ({scope_predicate})"
+            params = root_params
+        elif paths is not None:
+            if not paths:
+                return 0
+            from api.db_helpers import select_in_chunks
+            grouped_keys: set = set()
+            ungrouped = 0
+            for (key,) in select_in_chunks(
+                owned_conn,
+                "SELECT override_group_key FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL AND photo_path IN ({placeholders})",
+                paths,
+            ):
+                if key is None:
+                    ungrouped += 1
+                else:
+                    grouped_keys.add(key)
+            return len(grouped_keys) + ungrouped
+
+        grouped = owned_conn.execute(
+            "SELECT COUNT(DISTINCT override_group_key) FROM photo_sequence_overrides "
+            f"WHERE applied_at IS NULL AND override_group_key IS NOT NULL {where}",
+            params,
+        ).fetchone()[0]
+        ungrouped = owned_conn.execute(
+            "SELECT COUNT(*) FROM photo_sequence_overrides "
+            f"WHERE applied_at IS NULL AND override_group_key IS NULL {where}",
+            params,
+        ).fetchone()[0]
+        return grouped + ungrouped
+    finally:
+        if owned:
+            owned_conn.close()
+
+
 def existing_group_key(db, paths, kinds=None):
     """The group key already attached to any of ``paths``, if there is one.
 
