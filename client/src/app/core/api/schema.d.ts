@@ -2000,6 +2000,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/lightroom/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Lightroom Import
+         * @description Import the plug-in's exported Lightroom-state JSON (Lightroom wins).
+         *
+         *     Plain JSON body, no multipart (B6): the client reads the file itself and
+         *     POSTs its parsed contents. Validated (format/version discriminator, then
+         *     per-record shape) BEFORE any DB write; an oversized body or photo count is
+         *     refused (413/400) before parsing/validating the records at all.
+         *
+         *     The body is read from ``request.stream()`` with a running byte count
+         *     rather than ``request.body()`` (which buffers the ENTIRE stream before any
+         *     length check runs, per Starlette's own source) -- a chunked upload with no
+         *     ``Content-Length`` header is refused as soon as it crosses the cap instead
+         *     of being held fully in memory first, mirroring ``api/routers/webdav.py``'s
+         *     ``dav_put``.
+         */
+        post: operations["api_lightroom_import_api_lightroom_import_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/lightroom/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Lightroom Manifest
+         * @description Build the Lightroom manifest for the dialog's resolved scope.
+         *
+         *     Scope resolution is the SAME SHAPE as ``POST /api/export/sidecars``:
+         *     explicit ``paths``, or a ``filters`` + ``exclude`` gallery view. The
+         *     pre-expansion selection is capped at ``_MANIFEST_FILTER_MAX``; the cap is
+         *     its OWN constant, not shared with the sidecar/cull endpoints' caps, since
+         *     a manifest row costs one SQL SELECT rather than a subprocess or a file
+         *     move (see that constant's own comment). Ratings in the returned manifest
+         *     are the caller's own (multi-user resolved via ``rating_columns``, exactly
+         *     like the CLI's ``--user``).
+         *
+         *     The explicit-``paths`` branch of ``_selected_paths`` is NOT itself
+         *     visibility-scoped (it returns the caller's list verbatim), so the
+         *     resolved selection is re-intersected with the caller's visible paths
+         *     before expansion; the expansion queries are themselves visibility-scoped
+         *     too, so a burst/sequence sibling outside scope can never be pulled in
+         *     either. ``exclude`` is re-applied AFTER expansion (and the selection is
+         *     re-checked after expansion against ``_MANIFEST_EXPANDED_MAX`` -- the
+         *     round trip's other half of ``_IMPORT_MAX_PHOTOS``) since expanding to
+         *     full sets can otherwise re-add a path the caller explicitly excluded, or
+         *     grow the selection past what a later import of this same manifest could
+         *     accept back.
+         */
+        post: operations["api_lightroom_manifest_api_lightroom_manifest_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/memories": {
         parameters: {
             query?: never;
@@ -4605,6 +4678,10 @@ export interface components {
             sequence_ev_offset?: number | null;
             /** Sequence Kind */
             sequence_kind?: string | null;
+            /** Sequence Override */
+            sequence_override?: string | null;
+            /** Sequence Override Pending */
+            sequence_override_pending?: number | null;
             /** Tech Sharpness */
             tech_sharpness?: number | null;
         };
@@ -5321,6 +5398,61 @@ export interface components {
             pid: number;
             /** Success */
             success: boolean;
+        };
+        /** LightroomImportResponse */
+        LightroomImportResponse: {
+            /** Changed */
+            changed: number;
+            /** Matched */
+            matched: number;
+            /** Unmatched */
+            unmatched: number;
+        };
+        /**
+         * LightroomManifest
+         * @description The v2 manifest shape ``build_manifest`` returns -- see its docstring.
+         *
+         *     ``photos`` entries carry a large, growing set of per-photo fields (path,
+         *     scores, tags, sequence columns, ...); typing that fully here would just
+         *     duplicate ``build_manifest``'s own dict-building code with no extra
+         *     safety, so entries stay ``dict`` while the top-level contract (what the
+         *     export-editor dialog actually branches on: ``version``,
+         *     ``pending_corrections``) is declared.
+         */
+        LightroomManifest: {
+            /** Generated At */
+            generated_at: string;
+            /** Pending Corrections */
+            pending_corrections: number;
+            /** Photos */
+            photos: {
+                [key: string]: unknown;
+            }[];
+            /** Version */
+            version: number;
+        };
+        /**
+         * LightroomManifestRequest
+         * @description Same scope shape as the sidecar export's request -- ``paths`` /
+         *     ``filters`` + ``exclude`` -- reused rather than redefined so the two
+         *     endpoints cannot silently drift apart on what a "selection" means.
+         *     Subclasses ``_PathsOrFiltersRequest`` directly rather than
+         *     ``ExportSidecarsRequest``: the manifest download has no "overwrite
+         *     existing files" concept, so inheriting that field would put a meaningless
+         *     ``overwrite`` in the OpenAPI schema and ``schema.d.ts`` (M7).
+         */
+        LightroomManifestRequest: {
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
+            exclude?: string[] | null;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Paths */
+            paths?: string[] | null;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -10145,6 +10277,88 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    api_lightroom_import_api_lightroom_import_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @constant */
+                    format: "facet-lightroom-state";
+                    photos: {
+                        path: string;
+                        /** @enum {integer} */
+                        pick?: -1 | 0 | 1;
+                        rating?: number;
+                    }[];
+                    /** @constant */
+                    version: 1;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightroomImportResponse"];
+                };
+            };
+            /** @description Body is not valid JSON, or fails the state-file shape */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Body or photo count exceeds the import cap */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    api_lightroom_manifest_api_lightroom_manifest_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LightroomManifestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LightroomManifest"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

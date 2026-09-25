@@ -391,6 +391,7 @@ def create_app() -> FastAPI:
     from api.routers.capsules import router as capsules_router
     from api.routers.folders import router as folders_router
     from api.routers.export import router as export_router
+    from api.routers.lightroom import router as lightroom_router
     from api.routers.ranker import router as ranker_router
     from api.routers.scenes import router as scenes_router
     from api.routers.saliency import router as saliency_router
@@ -428,6 +429,7 @@ def create_app() -> FastAPI:
     app.include_router(capsules_router)
     app.include_router(folders_router)
     app.include_router(export_router)
+    app.include_router(lightroom_router)
     app.include_router(ranker_router)
     app.include_router(updates_router)
     app.include_router(scenes_router)
