@@ -39,11 +39,12 @@ MANIFEST_VERSION_PATTERN = re.compile(r"^local MANIFEST_VERSION = (\d+)$", re.MU
 METADATA_CONSTANT_PATTERN = re.compile(r"^local (METADATA_[A-Z_]+) = '(\w+)'$", re.MULTILINE)
 PICK_STATUS_PATTERN = re.compile(r"^local (PICK_STATUS_[A-Z_]+) = (-?\d+)$", re.MULTILINE)
 MENU_FILE_PATTERN = re.compile(r"file = '([\w.]+)'")
+METADATA_PROVIDER_PATTERN = re.compile(r"LrMetadataProvider = '([\w.]+)'")
 
 # What the Lua reader expects, and where. ``type(...) is`` is deliberate:
 # ``isinstance(True, int)`` is True in Python, but a JSON ``true`` where the
 # Lua side does ``type(stars) ~= 'number'`` would silently skip every rating.
-TOP_LEVEL_FIELDS = {'version': int, 'generated_at': str, 'photos': list}
+TOP_LEVEL_FIELDS = {'version': int, 'generated_at': str, 'photos': list, 'pending_corrections': int}
 PHOTO_FIELDS = {'path': str, 'star_rating': int, 'is_favorite': bool, 'is_rejected': bool}
 # Nullable fields added in manifest v2: presence and type are asserted
 # separately (a value or None), never folded into PHOTO_FIELDS' strict
@@ -53,7 +54,16 @@ NULLABLE_PHOTO_FIELDS = {'burst_group_id': int, 'sequence_kind': str, 'sequence_
 # does not type-check the way PHOTO_FIELDS/NULLABLE_PHOTO_FIELDS do (either
 # read straight off the record with its own ad hoc check, like
 # is_burst_lead/score_stars/date_taken, or a plain field like filename).
-OTHER_FIELD_NAMES = {'is_burst_lead', 'score_stars', 'date_taken', 'filename'}
+# `category`/`tags`/`scores` are Step 6a/7's plug-in metadata/keyword
+# fields; `aggregate` DOES have its own `local FIELD_AGGREGATE = 'aggregate'`
+# line like every other FIELD_* constant, but it is read through the nested
+# `scores` table via FacetApply's recordAggregate helper rather than
+# straight off the top-level record, so it is named here rather than folded
+# into PHOTO_FIELDS/NULLABLE_PHOTO_FIELDS.
+OTHER_FIELD_NAMES = {
+    'is_burst_lead', 'score_stars', 'date_taken', 'filename',
+    'category', 'tags', 'scores', 'aggregate',
+}
 
 # Lightroom's own raw-metadata keys, per the LrPhoto SDK reference. A typo
 # here is unobservable without Lightroom: setRawMetadata would simply not
@@ -62,6 +72,7 @@ LIGHTROOM_METADATA_KEYS = {
     'METADATA_PATH': 'path',
     'METADATA_RATING': 'rating',
     'METADATA_PICK_STATUS': 'pickStatus',
+    'METADATA_KEYWORDS': 'keywords',
 }
 LIGHTROOM_PICK_STATUS = {
     'PICK_STATUS_PICKED': 1,
@@ -120,11 +131,22 @@ class TestLuaConstants:
         assert APPLY_LUA.exists()
         assert INFO_LUA.exists()
         assert (PLUGIN_DIR / 'FacetJson.lua').exists()
+        assert (PLUGIN_DIR / 'FacetCommon.lua').exists()
+        assert (PLUGIN_DIR / 'FacetExportState.lua').exists()
+        assert (PLUGIN_DIR / 'FacetMetadata.lua').exists()
 
     def test_info_menu_entry_points_at_a_real_file(self):
         # Lightroom reports a broken menu entry only when the user clicks it.
         referenced = MENU_FILE_PATTERN.findall(INFO_LUA.read_text(encoding='utf-8'))
         assert referenced, 'Info.lua declares no menu file'
+        for name in referenced:
+            assert (PLUGIN_DIR / name).exists(), f'Info.lua points at a missing {name}'
+
+    def test_info_metadata_provider_points_at_a_real_file(self):
+        # A typo here (e.g. in the `LrMetadataProvider = '...'` key) is only
+        # ever surfaced inside Lightroom itself -- catch it here instead.
+        referenced = METADATA_PROVIDER_PATTERN.findall(INFO_LUA.read_text(encoding='utf-8'))
+        assert referenced, 'Info.lua declares no LrMetadataProvider'
         for name in referenced:
             assert (PLUGIN_DIR / name).exists(), f'Info.lua points at a missing {name}'
 
