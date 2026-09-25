@@ -2500,7 +2500,7 @@ export interface paths {
          *     Bounded server-side to paths this caller may actually see -- a path not
          *     in ``photos``, or in it but not visible to this user, is reported
          *     (``not_found`` / ``not_visible``) and never resolved to a disk file. A
-         *     frame carrying ``is_sequence_lead = 1`` in a BRACKET-kind group is refused
+         *     frame carrying ``sequence_ev_offset = 0`` in a BRACKET-kind group is refused
          *     (``refused_bracket_lead``) unless ``include_sequence_siblings`` is set, in
          *     which case its whole bracket group is deleted together (as a consequence
          *     of the general widening above) with no re-pick attempted -- a bracket's

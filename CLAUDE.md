@@ -233,9 +233,12 @@ than a copy. The semantics you cannot read off a column name:
   difference.
 - **`sequence_*` columns are shared by two passes** — always filter by `sequence_kind`
   before grouping by `sequence_group_id`.
-- **`is_sequence_lead`** marks the frame that stands for a set (the middle frame of a
-  panorama, the base exposure of a bracket) so the gallery's hide clause is an indexed
-  equality rather than a window function per query.
+- **`is_sequence_lead`** marks the frame that stands for a **panorama** set (its middle
+  frame) so the gallery's hide clause is an indexed equality rather than a window
+  function per query. A bracket is never flagged — the bracket pass writes `0` on every
+  row — and is represented by its `sequence_ev_offset = 0` frame instead. Reading the
+  flag for a bracket silently matches nothing; that once left the photo-delete guard
+  for a bracket's base exposure dead.
 - **`sequence_ev_offset`** is signed the way a camera labels an AEB set: `-2` dark, `+2`
   bright. NULL for panoramas, which have no base exposure.
 - **`render_version`** marks WHICH RAW display render baked a row's stored thumbnail,
