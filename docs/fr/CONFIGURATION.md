@@ -1123,10 +1123,13 @@ d'exposition est déduite des `f_stop` / `shutter_speed` / `ISO` déjà stockés
 simple calcul, sans nouveau scan, sans décodage d'image et sans modèle.
 
 Une série est retenue si les vues partagent le même boîtier, se suivent dans
-`max_gap_seconds`, gardent le même cadrage (`max_hamming` sur le pHash) et si leurs IL
-forment une échelle régulière et unidirectionnelle d'au moins `min_frames` vues couvrant
-`min_span_stops`. C'est la régularité des pas qui distingue un bracketing d'une série à main
-levée dans une lumière changeante.
+`max_gap_seconds`, gardent le même cadrage (`max_hamming` sur le pHash) et si leurs IL, triés
+plutôt que dans l'ordre de prise de vue, forment une échelle régulière d'expositions
+distinctes couvrant `min_span_stops` sur au moins `min_frames` vues. Trier d'abord rend
+l'ordre de prise de vue indifférent : une série débutant par la vue de base (`0, -, +`, un
+ordre proposé par Sony, Canon comme Nikon) est retenue au même titre qu'une série prise du
+plus sombre au plus clair. C'est la régularité des pas qui distingue un bracketing d'une série
+à main levée dans une lumière changeante.
 
 Chaque vue reçoit `sequence_ev_offset`, sa correction d'exposition par rapport à la vue de
 référence, signée comme sur le boîtier : `-2` est la vue sombre, `+2` la vue claire. Quand
@@ -1174,11 +1177,10 @@ l'échelle ne veulent plus rien dire : un pas unique est trivialement unidirecti
 trivialement régulier. Il ne reste que « deux vues prises à quelques instants d'intervalle,
 au même cadrage, séparées d'au moins un IL » — ce qui décrit tout aussi bien un photographe
 qui corrige son exposition et redéclenche qu'un vrai bracketing à deux vues. Mesuré sur une
-bibliothèque de 124 886 photos, `2` ajoute 381 séries aux 226 trouvées par défaut, et les
-indices disent que la plupart n'en sont pas : 56 % couvrent moins de deux IL là où 99,6 % des
-séries confirmées en couvrent deux ou plus, et leur profil d'écrêtage le plus fréquent est
-« les deux vues sombres » plutôt que l'encadrement ombres/hautes lumières des séries
-confirmées.
+bibliothèque de 124 886 photos, `2` ajoute 381 séries aux 657 trouvées par défaut, et les
+indices disent toujours que la plupart n'en sont pas : 62 % couvrent moins de deux IL là où
+91 % des séries confirmées en couvrent deux ou plus, et quand une paire supplémentaire
+présente de l'écrêtage, « les deux vues sombres » en est le profil le plus fréquent.
 
 Pire, une paire qui est *réellement* ce qui reste d'une série de trois vues se compose de
 deux barreaux voisins qui encadrent la référence, et rien de stocké ne dit de quel côté

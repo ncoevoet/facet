@@ -403,25 +403,58 @@ def split_runs(runs, watermark):
     return fresh, settled
 
 
-def stored_segments(conn, runs):
+def snapshot_panorama_labels(db_path):
+    """Every panorama-kind label as it stands right now: path -> (kind, group_id).
+
+    `detect_all_sequences` runs the bracket pass before this one, and that pass
+    rewrites `sequence_kind`/`sequence_group_id` by path on every run it finds --
+    including rows currently labelled a panorama kind, when a settled HDR
+    panorama's every position also reads as a bracket (it always does: an HDR
+    panorama's frames ARE a bracket at each position). `stored_segments` used to
+    read that live column back for a "settled" run it is not re-measuring, so
+    the bracket pass's rewrite made the settled panorama vanish before this pass
+    ever looked. Taking this snapshot before the bracket pass runs, and reading
+    it here instead of the live columns, is what lets the reuse survive.
+    """
+    with sqlite3.connect(db_path) as conn:
+        apply_pragmas(conn)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT path, sequence_kind, sequence_group_id FROM photos "
+            "WHERE sequence_kind IN (?, ?) AND sequence_group_id IS NOT NULL",
+            KINDS).fetchall()
+    return {row['path']: (row['sequence_kind'], row['sequence_group_id']) for row in rows}
+
+
+def stored_segments(conn, runs, label_snapshot=None):
     """The sets already labelled on runs this pass is not re-measuring.
 
     Read back rather than recomputed, so reusing a run costs one indexed lookup
     instead of its geometry. Only `paths` and `kind` are persisted; the geometry
     fields are reporting-only and are not reconstructed.
+
+    `label_snapshot`, when given, is read instead of the live `photos` columns
+    -- see `snapshot_panorama_labels` for why the live columns cannot be trusted
+    once the bracket pass has run.
     """
     segments = []
     for run in runs:
         paths = [photo['path'] for photo in run]
-        placeholders = ','.join('?' * len(paths))
-        rows = conn.execute(
-            "SELECT path, sequence_group_id, sequence_kind FROM photos "
-            f"WHERE path IN ({placeholders}) AND sequence_kind IN (?, ?) "
-            "AND sequence_group_id IS NOT NULL",
-            (*paths, *KINDS)).fetchall()
         groups = defaultdict(list)
-        for row in rows:
-            groups[(row['sequence_kind'], row['sequence_group_id'])].append(row['path'])
+        if label_snapshot is not None:
+            for path in paths:
+                label = label_snapshot.get(path)
+                if label is not None:
+                    groups[label].append(path)
+        else:
+            placeholders = ','.join('?' * len(paths))
+            rows = conn.execute(
+                "SELECT path, sequence_group_id, sequence_kind FROM photos "
+                f"WHERE path IN ({placeholders}) AND sequence_kind IN (?, ?) "
+                "AND sequence_group_id IS NOT NULL",
+                (*paths, *KINDS)).fetchall()
+            for row in rows:
+                groups[(row['sequence_kind'], row['sequence_group_id'])].append(row['path'])
         order = {path: position for position, path in enumerate(paths)}
         for (kind, _), members in sorted(groups.items()):
             segments.append({'paths': sorted(members, key=order.__getitem__),
@@ -568,7 +601,7 @@ def _analyse_runs(db_path, runs, sift, matcher, settings):
     return found
 
 
-def detect_panoramas(db_path, config_path=None, incremental=False):
+def detect_panoramas(db_path, config_path=None, incremental=False, label_snapshot=None):
     """Label panorama sets across the library.
 
     Whole-library by nature: a set is defined by its chronological neighbours, so
@@ -583,6 +616,13 @@ def detect_panoramas(db_path, config_path=None, incremental=False):
         db_path: Path to the SQLite database
         config_path: Path to scoring_config.json (optional)
         incremental: Reuse stored labels for runs no photo has touched
+        label_snapshot: Pre-bracket-pass panorama labels from
+            `snapshot_panorama_labels`, read by `stored_segments` instead of the
+            live columns. `detect_all_sequences` is the only caller that can
+            supply one -- it is the only caller that runs the bracket pass
+            first. Callers that reach this directly (the CLI's explicit re-run,
+            the API's `/detect_panoramas` job) pass `incremental=False`, which
+            never consults it.
     """
     from config import ScoringConfig
 
@@ -615,7 +655,7 @@ def detect_panoramas(db_path, config_path=None, incremental=False):
             settings['min_frames'], settings['min_drift'])
 
         found = _analyse_runs(db_path, fresh, sift, matcher, settings)
-        found.extend(stored_segments(conn, settled))
+        found.extend(stored_segments(conn, settled, label_snapshot=label_snapshot))
 
         suppressed, forced = load_overrides(conn)
         found = resolve_segments(found, suppressed, forced)

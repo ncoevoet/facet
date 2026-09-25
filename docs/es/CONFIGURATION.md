@@ -1132,9 +1132,12 @@ se deduce de `f_stop` / `shutter_speed` / `ISO`, ya almacenados
 solo con aritmética: sin volver a escanear, sin decodificar imágenes y sin modelo.
 
 Una serie se acepta si sus fotos comparten cámara, se suceden dentro de `max_gap_seconds`,
-mantienen el encuadre (`max_hamming` sobre el pHash) y sus EV forman una escala regular y
-unidireccional de al menos `min_frames` fotos que abarca `min_span_stops`. La regularidad de
-los pasos es lo que distingue un horquillado de una serie a pulso con luz cambiante.
+mantienen el encuadre (`max_hamming` sobre el pHash) y sus EV, ordenados en lugar de en el
+orden de captura, forman una escala regular de exposiciones distintas que abarca
+`min_span_stops` en al menos `min_frames` fotos. Ordenar antes hace que el orden de captura no
+importe: una serie que empieza por la foto base (`0, -, +`, un orden que ofrecen Sony, Canon y
+Nikon) se acepta igual que una tomada de oscura a clara. La regularidad de los pasos es lo que
+distingue un horquillado de una serie a pulso con luz cambiante.
 
 Cada foto recibe `sequence_ev_offset`, su compensación de exposición respecto a la foto base,
 con el signo que usa la cámara: `-2` es la oscura y `+2` la clara. Cuando una ráfaga resulta
@@ -1181,10 +1184,10 @@ escalera se quedan vacías: un solo paso es trivialmente unidireccional y trivia
 regular. Solo queda «dos tomas separadas por instantes, mismo encuadre, a un paso o más» —
 que describe igual de bien a un fotógrafo que corrige la exposición y vuelve a disparar que a
 un horquillado real de dos tomas. Medido sobre una biblioteca de 124 886 fotos, `2` añade 381
-series a las 226 que encuentra el valor por defecto, y los indicios dicen que la mayoría no
-lo son: el 56 % abarca menos de dos pasos, mientras que el 99,6 % de las series confirmadas
-abarca dos o más, y su patrón de recorte más frecuente es «ambas tomas oscuras» en lugar de
-la horquilla sombras/altas luces de las series confirmadas.
+series a las 657 que encuentra el valor por defecto, y los indicios siguen diciendo que la
+mayoría no lo son: el 62 % abarca menos de dos pasos, mientras que el 91 % de las series
+confirmadas abarca dos o más, y donde una pareja adicional muestra algún recorte, «ambas
+tomas oscuras» es el patrón más frecuente.
 
 Peor aún, una pareja que *sí* es lo que queda de una serie de tres tomas está formada por dos
 peldaños laterales contiguos, y nada de lo almacenado dice de qué lado faltaba el tercero: el
