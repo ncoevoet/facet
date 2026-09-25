@@ -66,6 +66,12 @@ dependencies = [
     "aiosqlite>=0.20.0",
     "imagehash>=4.3.0",
     "rawpy>=0.18.0",
+    # Lightroom Classic 13+ merged DNGs (HDR/Panorama/Enhance) are DNG 1.7 with
+    # every image, previews included, JPEG XL compressed: LibRaw rejects them
+    # and Pillow cannot decode JPEG XL, so utils.image_loading reads the
+    # preview through tifffile, which decodes JPEG XL tiles via imagecodecs.
+    "tifffile>=2024.1.1",
+    "imagecodecs>=2024.1.1",
     "insightface>=0.7.0",
     "pyiqa>=0.1.16",
     "numpy>=1.24.0",

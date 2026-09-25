@@ -639,6 +639,7 @@ manualmente y colócalo en `pretrained_models/samp_net.pth`.
 | `psutil` | Autoajuste del procesamiento por lotes (supervisión del sistema) |
 | `aiosqlite` | SQLite asíncrono para los endpoints de lectura de FastAPI |
 | `sqlite-vec` | KNN en disco para búsqueda semántica y similitud (recurre a la caché en memoria con NumPy si falta o si el SQLite de este Python no puede cargar extensiones); `pip install -e .[vec]` |
+| `tifffile`, `imagecodecs` | DNG combinados por Lightroom Classic 13+ (HDR/Panorama/Mejorar), cuyas vistas previas son JPEG XL |
 
 Todos estos están en `requirements.txt`; ningún perfil necesita paquetes base
 adicionales.

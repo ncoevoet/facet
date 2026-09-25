@@ -1014,6 +1014,14 @@ def extract_exiftool_preview(photo_path):
     the container, so this is the fallback ``_decode_raw`` reaches for after
     rawpy has already failed outright.
 
+    Lightroom Classic 13+ additionally compresses every preview in a DNG 1.7
+    merge (HDR/Panorama/Enhance) with JPEG XL, which Pillow cannot
+    decode — this function then falls through smaller candidates
+    until only the tiny IFD0 thumbnail is left, which usually fails the
+    caller's size floor. ``extract_dng_jxl_preview`` is the further fallback
+    for that case: it decodes the JPEG XL SubIFD preview directly via
+    tifffile/imagecodecs instead of shelling out to exiftool for the bytes.
+
     This function must never raise: a RuntimeError in particular is the
     signal load_image_from_path/load_display_image use to abort on a hung RAW
     decode slot, and an accidental one here would be mistaken for that.
@@ -1073,6 +1081,69 @@ def extract_exiftool_preview(photo_path):
         return None
     except Exception as ex:
         logger.debug("exiftool preview fallback failed for %s: %s",
+                     os.path.basename(str(photo_path)), ex)
+        return None
+
+
+def extract_dng_jxl_preview(photo_path):
+    """Decode a Lightroom-merged DNG's JPEG XL SubIFD preview, or None.
+
+    Lightroom Classic 13+ writes "Merge to HDR/Panorama" (and Enhance) output
+    as DNG 1.7 with every image — the main raster AND every embedded preview
+    — compressed as JPEG XL (TIFF compression 52546). LibRaw rejects the
+    container outright (see ``extract_exiftool_preview``), and Pillow cannot
+    decode JPEG XL either, so ``extract_exiftool_preview`` falls
+    through every real-size candidate down to the tiny IFD0 thumbnail. This
+    function reads the same SubIFD preview tifffile/imagecodecs can actually
+    decode: it walks IFD0 and its SubIFDs for the largest RGB uint8 page at
+    or above ``EXIFTOOL_PREVIEW_MIN_LONG_EDGE`` and decodes it directly,
+    bypassing exiftool's ``-b`` extraction (which only hands back bytes
+    Pillow must still decode).
+
+    DNG tag 50970 (PreviewColorSpace) on a real Lightroom Classic 13.1
+    HDR-merge sample reads 2 (sRGB), so the decoded pixels are treated as
+    sRGB without further conversion; this is an assumption, not something
+    this function verifies per file.
+
+    This function must never raise, for the same reason as
+    ``extract_exiftool_preview``: a RuntimeError here would be mistaken for
+    the hung-decode-timeout signal load_image_from_path/load_display_image
+    use to abort a RAW decode slot.
+
+    Args:
+        photo_path: Path to a DNG file (str or Path)
+
+    Returns:
+        PIL Image in RGB, or None if the preview cannot be decoded, the file
+        has no eligible SubIFD preview, or nothing clears
+        EXIFTOOL_PREVIEW_MIN_LONG_EDGE.
+    """
+    try:
+        import tifffile  # decodes JPEG XL tiles through imagecodecs
+
+        Image, _ = _ensure_pil()
+        with tifffile.TiffFile(str(photo_path)) as tif:
+            candidates = []
+            for page in [tif.pages[0], *(tif.pages[0].pages or [])]:
+                if (page.photometric == 2 and page.samplesperpixel == 3
+                        and page.dtype == np.uint8):
+                    candidates.append(page)
+            if not candidates:
+                return None
+            best = max(candidates, key=lambda p: max(p.shape[0], p.shape[1]))
+            if max(best.shape[0], best.shape[1]) < EXIFTOOL_PREVIEW_MIN_LONG_EDGE:
+                return None
+            preview = Image.fromarray(best.asarray())
+
+            orientation = None
+            for tag in tif.pages[0].tags:
+                if tag.name == 'Orientation':
+                    orientation = tag.value
+                    break
+        preview = _upright_exiftool_preview(preview, orientation)
+        return preview if preview.mode == 'RGB' else preview.convert('RGB')
+    except Exception as ex:
+        logger.debug("DNG JPEG XL preview fallback failed for %s: %s",
                      os.path.basename(str(photo_path)), ex)
         return None
 
@@ -1201,9 +1272,11 @@ def _decode_raw(photo, use_thumbnail, started_event=None, decode_budget='library
                 # LibRaw refuses to open at all. exiftool can still pull the
                 # camera-embedded preview those files carry.
                 fallback = extract_exiftool_preview(photo)
+                if fallback is None and str(photo).lower().endswith('.dng'):
+                    fallback = extract_dng_jxl_preview(photo)
                 if fallback is None:
                     raise
-                logger.info("Used exiftool preview fallback for %s (%dx%d): %s",
+                logger.info("Used embedded preview fallback for %s (%dx%d): %s",
                            os.path.basename(str(photo)), fallback.size[0], fallback.size[1], ex)
                 pil_img = fallback
     return pil_img

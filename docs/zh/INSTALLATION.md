@@ -597,6 +597,7 @@ SAMP-Net 权重来自本项目的
 | `psutil` | 批处理自动调优（系统监控） |
 | `aiosqlite` | 供 FastAPI 读取端点使用的异步 SQLite |
 | `sqlite-vec` | 用于语义搜索与相似照片的磁盘 KNN（缺失时、或当前 Python 的 SQLite 无法加载扩展时，回退到内存中的 NumPy 缓存）；`pip install -e .[vec]` |
+| `tifffile`、`imagecodecs` | Lightroom Classic 13+ 合并生成的 DNG（HDR/全景/增强），其预览为 JPEG XL |
 
 以上全部都在 `requirements.txt` 里；没有哪个配置档需要额外的基础软件包。
 

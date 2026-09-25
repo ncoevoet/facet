@@ -1065,3 +1065,94 @@ class TestExiftoolPreviewFallbackWithRealBinaries:
         # listing call succeeds and this small no-preview JPEG returns None
         # rather than raising.
         assert image_loading.extract_exiftool_preview("-ver.jpg") is None
+
+
+class TestDngJxlPreviewFallback:
+    """Lightroom Classic 13+ compresses every image in a DNG 1.7 HDR/Panorama
+    (and Enhance) merge with JPEG XL, including every embedded preview -- so
+    Pillow cannot decode what extract_exiftool_preview pulls out, and it
+    falls through to the tiny IFD0 thumbnail, which fails the size floor.
+    extract_dng_jxl_preview decodes the SubIFD preview directly via
+    tifffile + imagecodecs instead."""
+
+    @staticmethod
+    def _write_synthetic_dng(path, preview_size=(683, 1024), orientation=1,
+                              marker=True):
+        import tifffile
+        np_ = np
+        thumb = np_.zeros((32, 48, 3), np_.uint8)
+        h, w = preview_size
+        preview = np_.full((h, w, 3), 40, np_.uint8)
+        if marker:
+            preview[:40, :40] = (255, 0, 0)  # top-left marker
+        tags = [(274, 'H', 1, orientation, True)]
+        with tifffile.TiffWriter(str(path)) as tw:
+            tw.write(thumb, photometric='rgb', compression='jpeg',
+                      subfiletype=1, extratags=tags, subifds=1, metadata=None)
+            tw.write(preview, photometric='rgb', compression='jpegxl',
+                      subfiletype=1, metadata=None)
+
+    def test_decodes_the_subifd_preview(self, tmp_path):
+        path = tmp_path / "shot-HDR.dng"
+        self._write_synthetic_dng(path)
+
+        img = image_loading.extract_dng_jxl_preview(str(path))
+
+        assert img is not None
+        assert img.mode == 'RGB'
+        assert img.size == (1024, 683)
+
+    def test_orientation_is_applied(self, tmp_path):
+        path = tmp_path / "shot-HDR.dng"
+        # orientation 6 == PIL ROTATE_270; the top-left marker lands top-right.
+        self._write_synthetic_dng(path, orientation=6)
+
+        img = image_loading.extract_dng_jxl_preview(str(path))
+
+        assert img is not None
+        assert img.size == (683, 1024)
+        corner = np.array(img)[:40, -40:]
+        assert corner[:, :, 0].mean() > 200
+
+    def test_preview_under_the_size_floor_returns_none(self, tmp_path):
+        path = tmp_path / "shot-HDR.dng"
+        self._write_synthetic_dng(path, preview_size=(500, 800))
+
+        assert image_loading.extract_dng_jxl_preview(str(path)) is None
+
+    def test_garbage_file_returns_none_without_raising(self, tmp_path):
+        path = tmp_path / "garbage-HDR.dng"
+        path.write_bytes(b"not a tiff at all")
+
+        assert image_loading.extract_dng_jxl_preview(str(path)) is None
+
+    def test_decode_raw_reaches_the_dng_jxl_fallback_when_exiftool_yields_nothing(
+            self, monkeypatch, tmp_path):
+
+        stub = types.ModuleType("rawpy")
+
+        def _raise(path):
+            raise LibRawFileUnsupportedError("Unsupported file format or not RAW file")
+
+        stub.imread = _raise
+        stub.ThumbFormat = types.SimpleNamespace(JPEG="jpeg", BITMAP="bitmap")
+        stub.ColorSpace = types.SimpleNamespace(sRGB="srgb")
+        stub.LibRawError = LibRawError
+        stub.LibRawFileUnsupportedError = LibRawFileUnsupportedError
+        stub.LibRawIOError = LibRawIOError
+        monkeypatch.setitem(sys.modules, "rawpy", stub)
+        monkeypatch.setattr(image_loading, "_decode_timeout", 0.0)
+        # exiftool is unresolved -- extract_exiftool_preview returns None,
+        # exactly the "only the tiny IFD0 thumb decoded" outcome this
+        # fallback exists for.
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: None)
+
+        path = _raw_file(tmp_path, "merged-HDR.dng")
+        self._write_synthetic_dng(path)
+
+        pil_img, img_cv = load_image_from_path(str(path))
+
+        assert pil_img is not None
+        assert pil_img.size == (1024, 683)
+        assert img_cv is not None
