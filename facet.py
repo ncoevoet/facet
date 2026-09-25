@@ -3536,7 +3536,7 @@ def main():
     # re-generated in place, so it always writes facet_manifest.json in the
     # working directory.
     if args.export_manifest:
-        from processing.xmp_export import build_root_filter, rating_columns
+        from processing.xmp_export import build_root_filter, rating_columns, score_to_stars
 
         root = None if args.export_manifest == 'all' else args.export_manifest
         # Ratings come from the same helper --export-sidecars uses, so --user
@@ -3549,12 +3549,19 @@ def main():
         where, params = build_root_filter(root) if root else ("", [])
         output_file = "facet_manifest.json"
 
+        # score_stars mirrors export_sidecars's derive_stars idiom: a copy of
+        # the configured score_to_rating block with `enabled` forced True for
+        # this computation only, never mutating the live config.
+        _sr_cfg = dict(ScoringConfig(args.config, validate=False).config.get('xmp_export', {}).get('score_to_rating', {}))
+        _sr_cfg['enabled'] = True
+
         with get_connection(args.db) as conn:
             cursor = conn.execute(f"""
                 SELECT photos.path AS path, filename, date_taken, category,
                        aggregate, aesthetic, comp_score, face_quality,
                        tech_sharpness, exposure_score, color_score, tags,
-                       camera_model, lens_model, {ratings.columns}, is_burst_lead
+                       camera_model, lens_model, {ratings.columns}, is_burst_lead,
+                       burst_group_id, sequence_kind, sequence_group_id
                 FROM photos
                 {ratings.join}
                 {where}
@@ -3584,10 +3591,17 @@ def main():
                     'is_favorite': bool(row['is_favorite']),
                     'is_rejected': bool(row['is_rejected']),
                     'is_burst_lead': bool(row['is_burst_lead']),
+                    # burst_group_id may legitimately be 0 (a row id / group
+                    # counter, not a boolean) - keep it as-is, never coerce
+                    # through bool()/truthiness.
+                    'burst_group_id': row['burst_group_id'],
+                    'sequence_kind': row['sequence_kind'],
+                    'sequence_group_id': row['sequence_group_id'],
+                    'score_stars': score_to_stars(row['aggregate'], _sr_cfg)[0],
                 })
 
         manifest = {
-            'version': 1,
+            'version': 2,
             'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             'photos': photos,
         }

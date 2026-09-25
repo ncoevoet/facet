@@ -570,7 +570,7 @@ class TestExportManifestCli:
         assert b'\n' not in raw  # compact: no pretty-printed indentation
 
         data = json.loads(raw)
-        assert data['version'] == 1
+        assert data['version'] == 2
         assert data['generated_at']
         photos = {p['path']: p for p in data['photos']}
         # other.jpg (library/b) is out of the library/a scope.
