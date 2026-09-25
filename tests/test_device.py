@@ -627,7 +627,7 @@ class TestScoringDeviceLabel:
 
 class TestIsOutOfMemoryError:
     def test_cuda_out_of_memory_error_is_oom(self):
-        import torch
+        torch = pytest.importorskip("torch")
 
         assert device.is_out_of_memory_error(torch.cuda.OutOfMemoryError("CUDA out of memory")) is True
 

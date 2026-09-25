@@ -443,6 +443,10 @@ def is_out_of_memory_error(ex: BaseException) -> bool:
     installed torch exposes it), and the ``RuntimeError`` MPS raises instead of a
     dedicated exception type ("MPS backend out of memory ...").
     """
+    # Matched on the message first: MPS raises a plain RuntimeError, which needs
+    # no torch import to recognise.
+    if isinstance(ex, RuntimeError) and "out of memory" in str(ex).lower():
+        return True
     try:
         import torch
     except ImportError:
@@ -453,6 +457,4 @@ def is_out_of_memory_error(ex: BaseException) -> bool:
             getattr(torch, "OutOfMemoryError", None),
         ) if t is not None
     )
-    if oom_types and isinstance(ex, oom_types):
-        return True
-    return isinstance(ex, RuntimeError) and "out of memory" in str(ex).lower()
+    return bool(oom_types) and isinstance(ex, oom_types)

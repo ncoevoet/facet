@@ -11,7 +11,7 @@ All notable changes to Facet are documented in this file.
 
 ### Changed
 
-- **`tifffile` and `imagecodecs` are now required dependencies.** They decode the JPEG XL previews of Lightroom Classic 13+ merged DNGs. Both are pinned in the Docker locks; the legacy CUDA image, on Python 3.11, uses `imagecodecs` 2026.3.6, the last release with a Python 3.11 wheel. A source install needs `pip install -r requirements.txt` (or `pip install -e .`) after upgrading.
+- **`tifffile` and `imagecodecs` are now required dependencies.** They decode the JPEG XL previews of Lightroom Classic 13+ merged DNGs. Both locks pin `imagecodecs` 2026.3.6, the last release with a wheel for the legacy CUDA image's Python 3.11; that wheel is abi3, so the Python 3.12 images install it too. A source install needs `pip install -r requirements.txt` (or `pip install -e .`) after upgrading.
 
 ### Fixed
 

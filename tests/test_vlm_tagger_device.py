@@ -51,6 +51,11 @@ class TestUnload:
 
 
 class TestTagBatchOomFallback:
+    @pytest.fixture(autouse=True)
+    def _torch(self):
+        # tag_batch imports torch before it reaches the fallback under test.
+        pytest.importorskip("torch")
+
     def test_mps_oom_falls_back_to_per_image_tagging(self):
         tagger = VLMTagger({"family": "qwen2_5"}, None)
         tagger.model = _FakeModel(device="mps")
