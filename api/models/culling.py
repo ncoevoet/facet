@@ -4,6 +4,8 @@ from typing import Any, Optional, Union
 
 from pydantic import BaseModel
 
+from api.models.common import CoercedInt
+
 
 class CullReason(BaseModel):
     """Why a burst-group photo lost to the group's best, keyed for i18n
@@ -34,6 +36,8 @@ class BurstGroupPhoto(BaseModel):
     burst_score: float
     sequence_kind: Optional[str] = None
     sequence_ev_offset: Optional[float] = None
+    sequence_override: Optional[str] = None
+    sequence_override_pending: CoercedInt = None
     cull_reason: CullReason
 
 

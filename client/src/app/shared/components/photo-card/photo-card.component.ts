@@ -6,7 +6,9 @@ import { MatMenuModule } from '@angular/material/menu';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
-import { SequenceKindIconPipe, SequenceKindLabelPipe } from '../../pipes/sequence-kind.pipe';
+import {
+  SequenceKindIconPipe, SequenceKindLabelPipe, SequenceOverrideBadgeKeyPipe,
+} from '../../pipes/sequence-kind.pipe';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { ScoreClassPipe, SortScorePipe } from '../../pipes/score.pipes';
@@ -121,6 +123,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     ThumbnailUrlPipe,
     SequenceKindIconPipe,
     SequenceKindLabelPipe,
+    SequenceOverrideBadgeKeyPipe,
     PersonThumbnailUrlPipe,
     FixedPipe,
     ShutterSpeedPipe,
@@ -216,8 +219,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
              collapsed behind anything, so a hide toggle says nothing about it. -->
         @if (badges().sequence_override_pending && photo().sequence_override_pending && photo().sequence_override; as pending) {
           <div class="absolute bottom-1 left-[4.5rem] w-7 h-7 z-30 inline-flex items-center justify-center"
-               [matTooltip]="(pending === 'suppressed' ? 'gallery.sequence_override.badge_suppressed' : 'gallery.sequence_override.badge') | translate"
-               [attr.aria-label]="(pending === 'suppressed' ? 'gallery.sequence_override.badge_suppressed' : 'gallery.sequence_override.badge') | translate">
+               [matTooltip]="(pending | sequenceOverrideBadgeKey) | translate"
+               [attr.aria-label]="(pending | sequenceOverrideBadgeKey) | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-amber-300 drop-shadow-md"
                       aria-hidden="true">schedule</mat-icon>
           </div>

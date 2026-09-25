@@ -1051,7 +1051,8 @@
       "suppressed": "Marcadas como «no es un panorama»",
       "forced": "Marcadas como panorama",
       "badge": "Marcada como panorama: se aplica en la próxima detección",
-      "badge_suppressed": "Marcada como «no es un panorama»: se aplica en la próxima detección"
+      "badge_suppressed": "Marcada como «no es un panorama»: se aplica en la próxima detección",
+      "badge_bracket": "Marcada como serie de exposición — se aplicará en la próxima detección"
     },
     "reset_filters": "Restablecer filtros",
     "scroll_to_top": "Volver arriba",
@@ -1093,7 +1094,9 @@
       "view_scope_empty": "Ya no hay nada que coincida con los filtros actuales",
       "paths_too_many": "Demasiadas fotos para esta acción — restringe los filtros e inténtalo de nuevo",
       "download_confirm_title": "¿Descargar {count} fotos?",
-      "download_confirm_message": "Cada foto se descarga como un archivo independiente. {count} de ellas tardarán un tiempo y podrían saturar el navegador."
+      "download_confirm_message": "Cada foto se descarga como un archivo independiente. {count} de ellas tardarán un tiempo y podrían saturar el navegador.",
+      "mark_bracket": "Marcar como una sola serie de exposición",
+      "marked_bracket": "{count} fotos marcadas como una sola serie de exposición"
     },
     "keep_top": {
       "label": "Conservar % superior",
@@ -2025,7 +2028,10 @@
     },
     "bracket": {
       "label": "Horquillado de exposición",
-      "hint": "Un mismo sujeto con varias exposiciones: conserva la serie, no elijas una"
+      "hint": "Un mismo sujeto con varias exposiciones: conserva la serie, no elijas una",
+      "correct_tooltip": "Una ráfaga y una serie de exposición se ven iguales solo por geometría — indique que esta es una escalera de exposición",
+      "mark_action": "Marcar como serie de exposición",
+      "not_a_ladder": "Estas imágenes no forman una escalera de exposición válida — revise los metadatos de exposición e inténtelo de nuevo"
     },
     "panorama": {
       "label": "Panorama",

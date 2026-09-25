@@ -4,7 +4,7 @@ import {
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
   CullPreviewUrlPipe, SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe,
   GroupOverridePipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
-  KeySubjectForPathPipe, IsKeyFacePipe, peakingEdgeOverlay,
+  KeySubjectForPathPipe, IsKeyFacePipe, CanMarkBracketPipe, peakingEdgeOverlay,
   peakingGradientField, peakingThreshold, paintPeakingField,
   loadFrameImage, computePeakingOverlay, computePooledPeakingOverlays,
   KEY_SUBJECT_COORDINATE_SPACE,
@@ -426,6 +426,34 @@ describe('GroupOverridePipe', () => {
   // the user has said something about this set, and the chip must show it.
   it('reports a correction carried by only some frames', () => {
     expect(pipe.transform(group([null, 'hdr_panorama', null]))).toBe('hdr_panorama');
+  });
+});
+
+describe('CanMarkBracketPipe', () => {
+  const pipe = new CanMarkBracketPipe();
+  const group = (kinds: (string | null)[], groupKind: string | null = null): CullingGroup => ({
+    group_id: 1, type: 'burst', reason: '3 frames', best_path: '/p0.jpg', count: kinds.length,
+    sequence_kind: groupKind,
+    photos: kinds.map((sequence_kind, i) => ({
+      path: `/p${i}.jpg`, filename: `p${i}.jpg`, aggregate: 5, aesthetic: 5,
+      tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: null,
+      burst_score: 5, sequence_kind,
+    })),
+  });
+
+  it('shows the trigger for a plain group with no sequence membership', () => {
+    expect(pipe.transform(group([null, null, null]))).toBe(true);
+  });
+
+  // A mixed group -- part of it already named by the detector as a
+  // bracket/panorama -- must NOT offer "mark as bracket", or the user could
+  // fold an already-classified frame into a second, competing set.
+  it('hides the trigger for a group mixing bracket and unclaimed frames', () => {
+    expect(pipe.transform(group(['bracket', null, null]))).toBe(false);
+  });
+
+  it('hides the trigger for a group the detector already named whole', () => {
+    expect(pipe.transform(group(['panorama', 'panorama', 'panorama'], 'panorama'))).toBe(false);
   });
 });
 

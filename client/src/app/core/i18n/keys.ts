@@ -1068,6 +1068,7 @@ export const I18N = {
       forced: "gallery.sequence_override.forced",
       badge: "gallery.sequence_override.badge",
       badge_suppressed: "gallery.sequence_override.badge_suppressed",
+      badge_bracket: "gallery.sequence_override.badge_bracket",
     },
     reset_filters: "gallery.reset_filters",
     scroll_to_top: "gallery.scroll_to_top",
@@ -1110,6 +1111,8 @@ export const I18N = {
       paths_too_many: "gallery.selection.paths_too_many",
       download_confirm_title: "gallery.selection.download_confirm_title",
       download_confirm_message: "gallery.selection.download_confirm_message",
+      mark_bracket: "gallery.selection.mark_bracket",
+      marked_bracket: "gallery.selection.marked_bracket",
     },
     keep_top: {
       label: "gallery.keep_top.label",
@@ -2042,6 +2045,9 @@ export const I18N = {
     bracket: {
       label: "culling.bracket.label",
       hint: "culling.bracket.hint",
+      correct_tooltip: "culling.bracket.correct_tooltip",
+      mark_action: "culling.bracket.mark_action",
+      not_a_ladder: "culling.bracket.not_a_ladder",
     },
     panorama: {
       label: "culling.panorama.label",

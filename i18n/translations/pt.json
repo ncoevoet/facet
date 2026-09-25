@@ -1051,7 +1051,8 @@
       "suppressed": "Marcadas como «não é um panorama»",
       "forced": "Marcadas como panorama",
       "badge": "Marcada como panorama: aplica-se na próxima deteção",
-      "badge_suppressed": "Marcada como «não é um panorama»: aplica-se na próxima deteção"
+      "badge_suppressed": "Marcada como «não é um panorama»: aplica-se na próxima deteção",
+      "badge_bracket": "Marcada como série de exposição — será aplicada na próxima detecção"
     },
     "reset_filters": "Redefinir filtros",
     "scroll_to_top": "Voltar ao topo",
@@ -1093,7 +1094,9 @@
       "view_scope_empty": "Nada mais corresponde aos filtros atuais",
       "paths_too_many": "Fotos demais para esta ação — restrinja os filtros e tente novamente",
       "download_confirm_title": "Baixar {count} fotos?",
-      "download_confirm_message": "Cada foto é baixada como um arquivo separado. {count} delas vão demorar um pouco e podem sobrecarregar o navegador."
+      "download_confirm_message": "Cada foto é baixada como um arquivo separado. {count} delas vão demorar um pouco e podem sobrecarregar o navegador.",
+      "mark_bracket": "Marcar como uma única série de exposição",
+      "marked_bracket": "{count} fotos marcadas como uma única série de exposição"
     },
     "keep_top": {
       "label": "Manter top %",
@@ -2025,7 +2028,10 @@
     },
     "bracket": {
       "label": "Bracketing de exposição",
-      "hint": "Um mesmo motivo com várias exposições — guarde a série, não escolha uma"
+      "hint": "Um mesmo motivo com várias exposições — guarde a série, não escolha uma",
+      "correct_tooltip": "Uma sequência em rajada e uma série de exposição parecem iguais apenas pela geometria — indique que esta é uma escada de exposição",
+      "mark_action": "Marcar como série de exposição",
+      "not_a_ladder": "Estes quadros não formam uma escada de exposição válida — verifique os metadados de exposição e tente novamente"
     },
     "panorama": {
       "label": "Panorama",

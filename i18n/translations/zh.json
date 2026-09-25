@@ -1051,7 +1051,8 @@
       "suppressed": "已标记为非全景",
       "forced": "已标记为全景",
       "badge": "已标记为全景，将在下次检测时生效",
-      "badge_suppressed": "已标记为非全景，将在下次检测时生效"
+      "badge_suppressed": "已标记为非全景，将在下次检测时生效",
+      "badge_bracket": "已标记为曝光包围——将在下次检测时生效"
     },
     "reset_filters": "重置筛选",
     "scroll_to_top": "返回顶部",
@@ -1093,7 +1094,9 @@
       "view_scope_empty": "已没有符合当前筛选条件的照片",
       "paths_too_many": "此操作涉及的照片过多，请缩小筛选范围后重试",
       "download_confirm_title": "下载 {count} 张照片？",
-      "download_confirm_message": "每张照片都会单独下载为一个文件。{count} 张需要较长时间，并可能导致浏览器不堪重负。"
+      "download_confirm_message": "每张照片都会单独下载为一个文件。{count} 张需要较长时间，并可能导致浏览器不堪重负。",
+      "mark_bracket": "标记为一组曝光包围",
+      "marked_bracket": "{count} 张照片已标记为一组曝光包围"
     },
     "keep_top": {
       "label": "保留前若干 %",
@@ -2025,7 +2028,10 @@
     },
     "bracket": {
       "label": "包围曝光",
-      "hint": "同一主体的多档曝光照片，请整组保留，无需只选一张"
+      "hint": "同一主体的多档曝光照片，请整组保留，无需只选一张",
+      "correct_tooltip": "仅从几何形状上看，连拍和曝光包围看起来一样——请说明这是一组曝光阶梯",
+      "mark_action": "标记为曝光包围",
+      "not_a_ladder": "这些照片不构成有效的曝光阶梯——请检查曝光元数据后重试"
     },
     "panorama": {
       "label": "全景",

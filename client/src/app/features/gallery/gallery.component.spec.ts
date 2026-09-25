@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { computed, signal, WritableSignal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { By } from '@angular/platform-browser';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
@@ -22,6 +23,7 @@ import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
 import { gridColumnCount } from './gallery-rows.util';
 import { UndoService } from '../../core/services/undo.service';
+import { SequenceKind } from '../../core/services/sequence-override.service';
 
 describe('GalleryComponent', () => {
   let component: GalleryComponent;
@@ -1932,8 +1934,8 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(paths.length);
     }
 
-    const mark = (kind: 'panorama' | 'hdr_panorama' = 'panorama') =>
-      (component as unknown as { markAsPanorama: (k: string) => Promise<void> }).markAsPanorama(kind);
+    const mark = (kind: SequenceKind = 'panorama') =>
+      (component as unknown as { markAsPanorama: (k: SequenceKind) => Promise<void> }).markAsPanorama(kind);
 
     // The gallery is the only surface that can correct a MISS: an undetected
     // sweep is in no culling group, so it can only be named where its frames
@@ -1990,6 +1992,42 @@ describe('GalleryComponent', () => {
 
       expect(mockStore.patchSequenceOverride).not.toHaveBeenCalled();
       expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    });
+
+    it('sends kind: bracket and uses the bracket-worded undo label', async () => {
+      const undoRegister = vi.fn();
+      vi.spyOn(TestBed.inject(UndoService), 'register').mockImplementation(undoRegister);
+      select(['/a.jpg', '/b.jpg']);
+
+      await mark('bracket');
+
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/override_sequence', {
+        paths: ['/a.jpg', '/b.jpg'],
+        kind: 'bracket',
+      });
+      expect(undoRegister).toHaveBeenCalledWith(
+        expect.objectContaining({ labelKey: 'gallery.selection.marked_bracket' }));
+    });
+
+    it('shows the ladder-specific message when a bracket mark 400s', async () => {
+      select(['/a.jpg', '/b.jpg']);
+      mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 })));
+      const snackOpen = TestBed.inject(MatSnackBar).open as Mock;
+
+      await mark('bracket');
+
+      expect(snackOpen.mock.calls.some(c => c[0] === 'culling.bracket.not_a_ladder')).toBe(true);
+    });
+
+    it('keeps the generic error for a non-bracket 400', async () => {
+      select(['/a.jpg', '/b.jpg']);
+      mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 })));
+      const snackOpen = TestBed.inject(MatSnackBar).open as Mock;
+
+      await mark('panorama');
+
+      expect(snackOpen.mock.calls.some(c => c[0] === 'errors.action_failed')).toBe(true);
+      expect(snackOpen.mock.calls.some(c => c[0] === 'culling.bracket.not_a_ladder')).toBe(false);
     });
   });
 

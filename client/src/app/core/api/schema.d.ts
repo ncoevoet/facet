@@ -1369,6 +1369,13 @@ export interface paths {
          *     clears and rewrites ``photos.sequence_*`` at the start of every run and
          *     would erase it.
          *
+         *     A forced ``bracket`` is gated here on the same ladder rule the detection
+         *     pass itself enforces (>=2 frames, every one carrying a usable EV, all EVs
+         *     pairwise distinct at 2dp) -- there is no honest "bracket" with a member
+         *     that has no exposure to offset from, so a set that cannot form a ladder is
+         *     rejected outright rather than admitted and left to the next detection run
+         *     to silently drop.
+         *
          *     Takes effect on the next detection run, which
          *     ``POST /api/scan/detect_panoramas`` triggers.
          */
@@ -6624,15 +6631,17 @@ export interface components {
         };
         /**
          * SequenceOverrideBody
-         * @description A manual correction to one panorama set.
+         * @description A manual correction to one set: a panorama/HDR panorama the geometry pass
+         *     missed or mislabelled, or a bracket the exposure-ladder pass missed (#162
+         *     "mark as bracket").
          *
          *     ``kind`` names what the frames really are; omitting it suppresses the set
-         *     ("this is not a panorama"). Keyed on the member paths the caller names,
+         *     ("this is not one of these"). Keyed on the member paths the caller names,
          *     never on a group id -- ids are renumbered from 1 on every detection run.
          */
         SequenceOverrideBody: {
             /** Kind */
-            kind?: ("panorama" | "hdr_panorama") | null;
+            kind?: ("panorama" | "hdr_panorama" | "bracket") | null;
             /** Paths */
             paths: string[];
         };

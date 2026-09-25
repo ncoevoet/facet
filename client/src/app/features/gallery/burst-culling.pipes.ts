@@ -430,6 +430,23 @@ export class GroupOverridePendingPipe implements PipeTransform {
   }
 }
 
+/**
+ * Whether the "Mark as bracket" trigger belongs on a group.
+ *
+ * `!group.sequence_kind` alone is also true for a MIXED group -- one that
+ * contains some, but not all, frames of a bracket/panorama the detector
+ * already named (`group.sequence_kind` is only set when EVERY frame shares
+ * one sequence). Offering "mark as bracket" there would let the user fold an
+ * already-classified frame into a second, competing set. Gate on no photo in
+ * the group carrying a `sequence_kind` at all.
+ */
+@Pipe({ name: 'canMarkBracket' })
+export class CanMarkBracketPipe implements PipeTransform {
+  transform(group: CullingGroup): boolean {
+    return !group.sequence_kind && group.photos.every(p => !p.sequence_kind);
+  }
+}
+
 /** A configured darktable style for the edited-look cull preview. */
 export interface CullStyle {
   name: string;

@@ -1051,7 +1051,8 @@
       "suppressed": "Marquées « pas un panorama »",
       "forced": "Marquées comme panorama",
       "badge": "Marquée comme panorama — s’applique à la prochaine détection",
-      "badge_suppressed": "Marquée « pas un panorama » — s’applique à la prochaine détection"
+      "badge_suppressed": "Marquée « pas un panorama » — s’applique à la prochaine détection",
+      "badge_bracket": "Marqué comme bracket — s'appliquera à la prochaine détection"
     },
     "reset_filters": "Réinitialiser",
     "scroll_to_top": "Remonter en haut",
@@ -1093,7 +1094,9 @@
       "view_scope_empty": "Plus rien ne correspond aux filtres actuels",
       "paths_too_many": "Trop de photos pour cette action — affinez les filtres et réessayez",
       "download_confirm_title": "Télécharger {count} photos ?",
-      "download_confirm_message": "Chaque photo est téléchargée sous forme de fichier séparé. {count} d'entre elles prendront du temps et pourraient surcharger le navigateur."
+      "download_confirm_message": "Chaque photo est téléchargée sous forme de fichier séparé. {count} d'entre elles prendront du temps et pourraient surcharger le navigateur.",
+      "mark_bracket": "Marquer comme un seul bracket",
+      "marked_bracket": "{count} photos marquées comme un seul bracket"
     },
     "keep_top": {
       "label": "Garder le top %",
@@ -2025,7 +2028,10 @@
     },
     "bracket": {
       "label": "Bracketing d'exposition",
-      "hint": "Un même sujet à plusieurs expositions : gardez la série, ne choisissez pas"
+      "hint": "Un même sujet à plusieurs expositions : gardez la série, ne choisissez pas",
+      "correct_tooltip": "Un burst et un bracket se ressemblent en géométrie seule — indiquez qu'il s'agit d'une échelle d'exposition",
+      "mark_action": "Marquer comme bracket",
+      "not_a_ladder": "Ces images ne forment pas une échelle d'exposition valide — vérifiez les métadonnées d'exposition et réessayez"
     },
     "panorama": {
       "label": "Panorama",

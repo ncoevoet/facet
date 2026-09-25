@@ -4,7 +4,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 
 /** Kinds a set can be forced to; omitting one suppresses the set instead. */
-export type SequenceKind = 'panorama' | 'hdr_panorama';
+export type SequenceKind = 'panorama' | 'hdr_panorama' | 'bracket';
 
 export interface SequenceOverrideResult {
   success: boolean;

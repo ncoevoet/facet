@@ -35,7 +35,10 @@ import { Photo } from '../../shared/models/photo.model';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
-import { SequenceKindIconPipe, SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
+import {
+  SequenceKindIconPipe, SEQUENCE_KINDS_KEPT_WHOLE,
+} from '../../shared/pipes/sequence-kind.pipe';
+import { isBracketLadderRejection } from '../../shared/utils/sequence-ladder';
 import { IsSelectedPipe } from '../../shared/pipes/selection.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
 import { AuthService } from '../../core/services/auth.service';
@@ -599,6 +602,10 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
               <button mat-menu-item (click)="markAsPanorama('hdr_panorama')">
                 <mat-icon>{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon>
                 {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
+              </button>
+              <button mat-menu-item (click)="markAsPanorama('bracket')">
+                <mat-icon>{{ 'bracket' | sequenceKindIcon }}</mat-icon>
+                {{ I18N.gallery.selection.mark_bracket | translate }}
               </button>
             </mat-menu>
           }
@@ -1464,14 +1471,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
     try {
       await this.sequenceOverrides.setAsync(paths, kind);
-    } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    } catch (error) {
+      const notALadder = isBracketLadderRejection(kind, error);
+      this.snackBar.open(
+        this.i18n.t(notALadder ? I18N.culling.bracket.not_a_ladder : I18N.errors.action_failed),
+        '', { duration: 3000 },
+      );
       return;
     }
     this.store.patchSequenceOverride(paths, kind);
     this.clearSelection();
     this.undoService.register({
-      labelKey: I18N.gallery.selection.marked_panorama,
+      labelKey: kind === 'bracket' ? I18N.gallery.selection.marked_bracket : I18N.gallery.selection.marked_panorama,
       labelParams: { count: paths.length },
       undo: async () => {
         await this.sequenceOverrides.clearAsync(paths);

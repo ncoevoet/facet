@@ -1,17 +1,19 @@
-"""Sticky per-set panorama overrides.
+"""Sticky per-set sequence overrides (panorama, HDR panorama, and bracket).
 
 Stored in the `photo_sequence_overrides` side table rather than as columns on
 `photos`, for the same reason as `photo_scoring_overrides` and one more:
-`utils.panorama.detect_panoramas` clears and rewrites `photos.sequence_*` at the
-start of every pass, so a correction stored there would not survive its next
-run. `utils.panorama.resolve_segments` is the single choke point that applies
+`utils.panorama.detect_panoramas` and `utils.sequence.detect_sequences` each
+clear and rewrite `photos.sequence_*` for their own kind at the start of every
+pass, so a correction stored there would not survive its next run.
+`utils.panorama.resolve_segments` (panorama/HDR panorama) and
+`utils.sequence.resolve_runs` (bracket) are the two choke points that apply
 them.
 
-`sequence_kind` NULL suppresses a detected set ("this is not a panorama"); a
-kind forces one ("these frames are one"). Forced members are tied together by
-`override_group_key` rather than by `sequence_group_id`, which is renumbered
-from 1 on every pass and would otherwise re-attach an override to an unrelated
-set.
+`sequence_kind` NULL suppresses a detected set ("this is not one of these");
+a kind forces one ("these frames are one"). Forced members are tied together
+by `override_group_key` rather than by `sequence_group_id`, which is
+renumbered from 1 on every pass and would otherwise re-attach an override to
+an unrelated set.
 """
 
 import sqlite3
@@ -124,22 +126,33 @@ def clear_sequence_overrides(db, paths):
             conn.close()
 
 
-def existing_group_key(db, paths):
+def existing_group_key(db, paths, kinds=None):
     """The group key already attached to any of ``paths``, if there is one.
 
     Lets a caller extend or re-label an existing forced set instead of minting a
     fresh key from whatever subset it happened to submit -- recomputing the key
     per call let two overlapping calls write two kinds under one key.
+
+    ``kinds``, when given, restricts the lookup to override rows whose
+    ``sequence_kind`` is one of them -- e.g. a caller marking ``bracket`` must
+    never reuse a key currently held by a ``panorama``/``hdr_panorama`` row for
+    the same paths (and vice versa), or a bracket mark could silently relabel
+    someone else's panorama set. Panorama and HDR panorama still share one
+    lookup, since relabelling plain <-> HDR on the same key is intentional.
     """
     if not paths:
         return None
     conn, owned = _connection_for(db)
     try:
-        row = conn.execute(
-            f"SELECT override_group_key FROM photo_sequence_overrides "
-            f"WHERE photo_path IN ({','.join('?' * len(paths))}) "
-            f"AND override_group_key IS NOT NULL ORDER BY photo_path LIMIT 1",
-            list(paths)).fetchone()
+        sql = (f"SELECT override_group_key FROM photo_sequence_overrides "
+               f"WHERE photo_path IN ({','.join('?' * len(paths))}) "
+               f"AND override_group_key IS NOT NULL")
+        params = list(paths)
+        if kinds:
+            sql += f" AND sequence_kind IN ({','.join('?' * len(kinds))})"
+            params += list(kinds)
+        sql += " ORDER BY photo_path LIMIT 1"
+        row = conn.execute(sql, params).fetchone()
         return row[0] if row else None
     finally:
         if owned:

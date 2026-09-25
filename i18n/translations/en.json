@@ -1051,7 +1051,8 @@
       "suppressed": "Marked not a panorama",
       "forced": "Marked as a panorama",
       "badge": "Marked as a panorama — applies at the next detection run",
-      "badge_suppressed": "Marked not a panorama — applies at the next detection run"
+      "badge_suppressed": "Marked not a panorama — applies at the next detection run",
+      "badge_bracket": "Marked as a bracket — applies at the next detection run"
     },
     "reset_filters": "Reset Filters",
     "scroll_to_top": "Scroll to top",
@@ -1093,7 +1094,9 @@
       "view_scope_empty": "Nothing matches the current filters any more",
       "paths_too_many": "Too many photos for this action — narrow the filters and try again",
       "download_confirm_title": "Download {count} photos?",
-      "download_confirm_message": "Each photo is downloaded as a separate file. {count} of them will take a while and may overwhelm the browser."
+      "download_confirm_message": "Each photo is downloaded as a separate file. {count} of them will take a while and may overwhelm the browser.",
+      "mark_bracket": "Mark as one bracket",
+      "marked_bracket": "{count} photos marked as one bracket"
     },
     "keep_top": {
       "label": "Keep top %",
@@ -2025,7 +2028,10 @@
     },
     "bracket": {
       "label": "Exposure bracket",
-      "hint": "One subject at several exposures — keep the set, don't pick a winner"
+      "hint": "One subject at several exposures — keep the set, don't pick a winner",
+      "correct_tooltip": "Bursts and brackets look alike from geometry alone — say this one is an exposure ladder",
+      "mark_action": "Mark as bracket",
+      "not_a_ladder": "These frames don't form a valid exposure ladder — check exposure metadata and try again"
     },
     "panorama": {
       "label": "Panorama",

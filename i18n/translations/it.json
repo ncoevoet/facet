@@ -1051,7 +1051,8 @@
       "suppressed": "Segnate come «non è un panorama»",
       "forced": "Segnate come panorama",
       "badge": "Segnata come panorama: si applica alla prossima rilevazione",
-      "badge_suppressed": "Segnata come «non è un panorama»: si applica alla prossima rilevazione"
+      "badge_suppressed": "Segnata come «non è un panorama»: si applica alla prossima rilevazione",
+      "badge_bracket": "Segnata come serie di esposizione — verrà applicata al prossimo rilevamento"
     },
     "reset_filters": "Ripristina filtri",
     "scroll_to_top": "Torna su",
@@ -1093,7 +1094,9 @@
       "view_scope_empty": "Nulla corrisponde più ai filtri attuali",
       "paths_too_many": "Troppe foto per questa azione — restringi i filtri e riprova",
       "download_confirm_title": "Scaricare {count} foto?",
-      "download_confirm_message": "Ogni foto viene scaricata come file separato. {count} di esse richiederanno tempo e potrebbero sovraccaricare il browser."
+      "download_confirm_message": "Ogni foto viene scaricata come file separato. {count} di esse richiederanno tempo e potrebbero sovraccaricare il browser.",
+      "mark_bracket": "Segna come un'unica serie di esposizione",
+      "marked_bracket": "{count} foto segnate come un'unica serie di esposizione"
     },
     "keep_top": {
       "label": "Tieni top %",
@@ -2025,7 +2028,10 @@
     },
     "bracket": {
       "label": "Bracketing di esposizione",
-      "hint": "Uno stesso soggetto a più esposizioni: conserva la serie, non scegliere"
+      "hint": "Uno stesso soggetto a più esposizioni: conserva la serie, non scegliere",
+      "correct_tooltip": "Una sequenza burst e una serie di esposizione si somigliano solo dal punto di vista geometrico — indica che questa è una scala di esposizione",
+      "mark_action": "Segna come serie di esposizione",
+      "not_a_ladder": "Questi fotogrammi non formano una scala di esposizione valida — controlla i metadati di esposizione e riprova"
     },
     "panorama": {
       "label": "Panorama",

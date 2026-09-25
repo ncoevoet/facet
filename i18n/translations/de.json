@@ -1051,7 +1051,8 @@
       "suppressed": "Als „kein Panorama“ markiert",
       "forced": "Als Panorama markiert",
       "badge": "Als Panorama markiert — greift beim nächsten Erkennungslauf",
-      "badge_suppressed": "Als „kein Panorama“ markiert — greift beim nächsten Erkennungslauf"
+      "badge_suppressed": "Als „kein Panorama“ markiert — greift beim nächsten Erkennungslauf",
+      "badge_bracket": "Als Belichtungsreihe markiert — wird beim nächsten Erkennungslauf angewendet"
     },
     "reset_filters": "Filter zurücksetzen",
     "scroll_to_top": "Nach oben scrollen",
@@ -1093,7 +1094,9 @@
       "view_scope_empty": "Nichts entspricht mehr den aktuellen Filtern",
       "paths_too_many": "Zu viele Fotos für diese Aktion — grenzen Sie die Filter ein und versuchen Sie es erneut",
       "download_confirm_title": "{count} Fotos herunterladen?",
-      "download_confirm_message": "Jedes Foto wird als separate Datei heruntergeladen. {count} davon werden eine Weile dauern und können den Browser überlasten."
+      "download_confirm_message": "Jedes Foto wird als separate Datei heruntergeladen. {count} davon werden eine Weile dauern und können den Browser überlasten.",
+      "mark_bracket": "Als eine Belichtungsreihe markieren",
+      "marked_bracket": "{count} Fotos als eine Belichtungsreihe markiert"
     },
     "keep_top": {
       "label": "Top % behalten",
@@ -2025,7 +2028,10 @@
     },
     "bracket": {
       "label": "Belichtungsreihe",
-      "hint": "Ein Motiv in mehreren Belichtungen – behalte die Reihe, wähle keinen Sieger"
+      "hint": "Ein Motiv in mehreren Belichtungen – behalte die Reihe, wähle keinen Sieger",
+      "correct_tooltip": "Ein Burst und ein Bracket sehen aus der Geometrie allein gleich aus — legen Sie fest, dass dies eine Belichtungsreihe ist",
+      "mark_action": "Als Bracket markieren",
+      "not_a_ladder": "Diese Bilder bilden keine gültige Belichtungsreihe — Belichtungsmetadaten prüfen und erneut versuchen"
     },
     "panorama": {
       "label": "Panorama",
