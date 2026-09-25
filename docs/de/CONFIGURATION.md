@@ -1133,9 +1133,13 @@ Rechnen ausgezeichnet: kein erneuter Scan, kein Bilddekodieren, kein Modell.
 
 Eine Folge zählt, wenn ihre Aufnahmen dieselbe Kamera teilen, innerhalb von
 `max_gap_seconds` aufeinanderfolgen, den Bildausschnitt beibehalten (`max_hamming` auf dem
-pHash) und ihre LW eine gleichmäßige, gerichtete Leiter aus mindestens `min_frames`
-Aufnahmen über `min_span_stops` bilden. Die Gleichmäßigkeit unterscheidet eine
-Belichtungsreihe von einer freihändigen Folge in wechselndem Licht.
+pHash) und ihre LW, sortiert statt in Aufnahmereihenfolge, eine gleichmäßige Leiter
+unterschiedlicher Belichtungen über `min_span_stops` aus mindestens `min_frames` Aufnahmen
+bilden. Durch das vorherige Sortieren spielt die Aufnahmereihenfolge keine Rolle: eine Folge,
+die mit der Basisbelichtung beginnt (`0, -, +`, eine Reihenfolge, die Sony, Canon und Nikon
+alle anbieten), zählt genauso wie eine von dunkel nach hell aufgenommene Folge. Die
+Gleichmäßigkeit unterscheidet eine Belichtungsreihe von einer freihändigen Folge in
+wechselndem Licht.
 
 Jede Aufnahme erhält `sequence_ev_offset`, ihre Belichtungskorrektur gegenüber der
 Basisaufnahme — vorzeichenrichtig wie auf der Kamera: `-2` ist die dunkle, `+2` die helle
@@ -1183,11 +1187,10 @@ Leitertests ins Leere: eine einzelne Stufe ist trivialerweise gerichtet und triv
 gleichmäßig. Übrig bleibt nur „zwei Aufnahmen, Augenblicke auseinander, gleicher
 Bildausschnitt, mindestens eine Blende Unterschied" — und das beschreibt eine nachkorrigierte
 Wiederholungsaufnahme genauso gut wie eine echte Zwei-Bild-Belichtungsreihe. Gemessen an
-einer Bibliothek mit 124.886 Fotos nimmt `2` weitere 381 Serien zu den 226 des Standards
-hinzu, und deren Indizien sprechen mehrheitlich dagegen: 56 % spannen weniger als zwei
-Blenden, während 99,6 % der bestätigten Serien zwei oder mehr spannen, und ihr häufigstes
-Clipping-Muster ist „beide Aufnahmen dunkel" statt der Tiefen/Lichter-Klammer der bestätigten
-Serien.
+einer Bibliothek mit 124.886 Fotos nimmt `2` weitere 381 Serien zu den 657 des Standards
+hinzu, und deren Indizien sprechen weiterhin mehrheitlich dagegen: 62 % spannen weniger als
+zwei Blenden, während 91 % der bestätigten Serien zwei oder mehr spannen, und wo ein
+weiteres Paar überhaupt beschneidet, ist „beide Aufnahmen dunkel" das häufigste Muster.
 
 Schlimmer noch: ein Paar, das *tatsächlich* der Rest einer Dreier-Reihe ist, besteht aus zwei
 benachbarten Randsprossen, und nichts Gespeichertes sagt, auf welcher Seite die fehlende

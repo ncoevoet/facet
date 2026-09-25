@@ -67,6 +67,15 @@ class SaliencyScorer:
     ACTIVATION_GB_PER_IMAGE = 2.4
     USABLE_MEMORY_FRACTION = 0.8
     DEDICATED_VRAM_DEVICE = 'cuda'
+    # Apple Silicon's unified memory: psutil's "available" reading cannot see
+    # what the MPS allocator pool itself holds, so the RAM-derived headroom
+    # calculation below is not trustworthy there the way it is on CPU. The
+    # model also runs fp32 on this device (see load()), at ~2.4-2.6 GB of
+    # activations per image at the default resolution -- the same figure
+    # measured for CPU fp32 above. A small fixed ceiling is used instead of
+    # a memory-derived one.
+    UNIFIED_MEMORY_ACCELERATOR = 'mps'
+    UNIFIED_MEMORY_MAX_BATCH = 2
 
     def __init__(self, device: Optional[str] = None, model_name: Optional[str] = None,
                  resolution: Optional[int] = None, mask_threshold: Optional[float] = None,
@@ -176,8 +185,12 @@ class SaliencyScorer:
         Only a dedicated-VRAM device escapes the bound. On CUDA the
         activations are allocated in VRAM, which no cgroup limit governs, so
         sizing that batch against host RAM would throttle a GPU run for
-        memory it never touches. CPU and Apple's unified memory both spend
-        the very RAM ``effective_memory`` reports, container limit included.
+        memory it never touches. CPU spends the very RAM ``effective_memory``
+        reports, container limit included. Apple's unified memory (MPS) is
+        sized from that reading too, but under a small fixed ceiling,
+        ``UNIFIED_MEMORY_MAX_BATCH``: the MPS allocator keeps its own pool
+        that psutil's "available" figure cannot see, so a scan can read
+        plenty of headroom while the pool itself is already large.
 
         The fifth of the reading left unclaimed is not a round number picked
         for comfort. What this call adds beyond the activations is one mask
@@ -201,6 +214,8 @@ class SaliencyScorer:
         ceiling = self.DEFAULT_BATCH_SIZE if requested is None else max(self.MIN_BATCH_SIZE, requested)
         if self.device.startswith(self.DEDICATED_VRAM_DEVICE):
             return ceiling
+        if self.device.startswith(self.UNIFIED_MEMORY_ACCELERATOR):
+            ceiling = min(ceiling, self.UNIFIED_MEMORY_MAX_BATCH)
         from utils.system_memory import effective_memory
         spare_gb = effective_memory().available * self.USABLE_MEMORY_FRACTION / BYTES_PER_GB
         affordable = int(spare_gb // self.ACTIVATION_GB_PER_IMAGE)

@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import { LoupeDirective } from '../../shared/directives/loupe.directive';
 
 export interface ZoomState {
   scale: number;
@@ -34,6 +35,7 @@ export const MAX_COMPARE_PANES = 4;
 @Component({
   selector: 'app-synced-zoom',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LoupeDirective],
   host: {
     class: 'block relative overflow-hidden bg-black',
     '(wheel)': 'onWheel($event)',
@@ -48,7 +50,9 @@ export const MAX_COMPARE_PANES = 4;
   template: `
     <img #frame [src]="effectiveSrc()" [alt]="alt()"
          class="absolute inset-0 w-full h-full object-contain origin-center will-change-transform select-none"
-         [style.transform]="transform()" draggable="false" (load)="onFrameLoad()" />
+         [style.transform]="transform()" draggable="false" (load)="onFrameLoad()"
+         [appLoupe]="loupeSrc() ?? effectiveSrc()" [loupeActive]="loupeActive()"
+         [loupeZoom]="loupeZoom()" loupeFit="contain" />
   `,
 })
 export class SyncedZoomComponent {
@@ -60,6 +64,16 @@ export class SyncedZoomComponent {
    *  in past fit; null keeps the frame's own centre. */
   readonly focusPoint = input<[number, number] | null>(null);
   readonly zoomChange = output<ZoomState>();
+
+  /** Hover loupe over this pane. `loupeSrc` defaults to the pane's own
+   *  effective source (so a caller need not track full-res separately);
+   *  the darkroom passes the full-resolution URL explicitly per the spec —
+   *  magnify from full-res even while the pane itself is still showing the
+   *  thumbnail. `loupeActive` is the caller's combined "toggle on AND not
+   *  zoomed past fit" boolean — this component has no opinion on either. */
+  readonly loupeSrc = input<string | null>(null);
+  readonly loupeActive = input(false);
+  readonly loupeZoom = input(3);
 
   static readonly MIN_SCALE = 1;
   static readonly MAX_SCALE = 8;

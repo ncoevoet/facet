@@ -89,8 +89,20 @@ class TestIsBracket:
     def test_two_frames_is_not_enough(self):
         assert _is_bracket(_ladder([8.0, 10.0]), DEFAULTS) is False
 
-    def test_non_monotonic_run_is_not_a_ladder(self):
-        assert _is_bracket(_ladder([8.0, 10.0, 9.0]), DEFAULTS) is False
+    def test_a_repeated_rung_is_not_a_ladder(self):
+        # Two frames at the same exposure plus one distinct rung: not a ladder,
+        # whatever order they were shot in.
+        assert _is_bracket(_ladder([8.0, 9.0, 8.0]), DEFAULTS) is False
+
+    def test_base_first_capture_order_is_still_a_ladder(self):
+        # Sony/Canon/Nikon "0, -, +" bracket order: the base exposure fires
+        # first, so capture order is 0, -1, +1 -- non-monotonic in EV, but the
+        # sorted rungs are an evenly spaced ladder, which is what matters.
+        assert _is_bracket(_ladder([9.0, 10.0, 8.0]), DEFAULTS) is True
+
+    def test_base_first_five_frame_ladder(self):
+        # Capture order 0, -1, +1, -2, +2 as EVs [10, 11, 9, 12, 8].
+        assert _is_bracket(_ladder([10.0, 11.0, 9.0, 12.0, 8.0]), DEFAULTS) is True
 
     def test_uneven_steps_are_drifting_light_not_a_bracket(self):
         assert _is_bracket(_ladder([8.0, 9.0, 12.5]), DEFAULTS) is False
@@ -129,6 +141,14 @@ class TestFindBracketRuns:
         # Same EV throughout: competing takes, which is burst detection's job.
         assert _find_bracket_runs(_ladder([9.0, 9.0, 9.0, 9.0]), DEFAULTS) == []
 
+    def test_a_base_first_capture_order_is_found_as_one_run(self):
+        # Base exposure fires first (0, -1, +1): non-monotonic in EV, still one
+        # deliberate ladder.
+        photos = _ladder([9.0, 10.0, 8.0])
+        runs = _find_bracket_runs(photos, DEFAULTS)
+        assert len(runs) == 1
+        assert [p['ev'] for p in runs[0]] == [9.0, 10.0, 8.0]
+
     def test_two_brackets_back_to_back_are_separate_runs(self):
         photos = (
             [_frame(0, 8.0), _frame(1, 10.0), _frame(2, 12.0)]
@@ -159,6 +179,9 @@ class TestBaseFrame:
 
     def test_order_of_capture_does_not_matter(self):
         assert _base_frame(_ladder([12.0, 10.0, 8.0]))['ev'] == 10.0
+
+    def test_base_first_capture_order_bases_on_the_middle_ev(self):
+        assert _base_frame(_ladder([9.0, 10.0, 8.0]))['ev'] == 9.0
 
     def test_clipping_never_moves_an_odd_ladder_off_its_middle_rung(self):
         """The even-ladder tie-break must be a strict generalisation.

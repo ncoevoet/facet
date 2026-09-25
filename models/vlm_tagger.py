@@ -12,6 +12,8 @@ from typing import List, Dict, Any
 import math
 import PIL.Image
 
+from utils.device import clear_device_cache, is_out_of_memory_error
+
 logger = logging.getLogger("facet.vlm_tagger")
 
 # Every tag in the config vocabulary is one or two words. A candidate longer than
@@ -231,16 +233,15 @@ Tags:"""
         """Free VRAM by unloading the model."""
         if self.backend is not None:
             return
+        model_device = str(self.model.device) if self.model is not None else None
         if self.model is not None:
-            self.model.cpu()
             del self.model
             self.model = None
         if self.processor is not None:
             del self.processor
             self.processor = None
 
-        _ensure_imports()
-        torch.cuda.empty_cache()
+        clear_device_cache(model_device)
         family_labels = {'qwen3_5': 'Qwen3.5', 'qwen3': 'Qwen3-VL', 'qwen2_5': 'Qwen2.5-VL'}
         logger.info("%s tagger unloaded", family_labels[self.family])
 
@@ -401,21 +402,26 @@ Tags:"""
 
         _ensure_imports()
 
+        device = str(self.model.device)
         results = []
         for i in range(0, len(images), self.batch_size):
             sub_batch = images[i:i + self.batch_size]
             try:
                 batch_results = self._tag_sub_batch(sub_batch, max_tags)
                 results.extend(batch_results)
-            except torch.cuda.OutOfMemoryError:
+            except RuntimeError as ex:
+                if not is_out_of_memory_error(ex):
+                    raise
                 logger.warning("OOM on batch of %d, falling back to sequential...", len(sub_batch))
-                torch.cuda.empty_cache()
+                clear_device_cache(device)
                 for img in sub_batch:
                     try:
                         results.append(self.tag_image(img, max_tags))
-                    except torch.cuda.OutOfMemoryError:
+                    except RuntimeError as img_ex:
+                        if not is_out_of_memory_error(img_ex):
+                            raise
                         logger.warning("OOM on single image, skipping...")
-                        torch.cuda.empty_cache()
+                        clear_device_cache(device)
                         results.append([])
 
         return results

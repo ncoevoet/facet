@@ -117,6 +117,59 @@ def test_mps_operator_fallback_respects_explicit_override(monkeypatch):
     assert os.environ["PYTORCH_ENABLE_MPS_FALLBACK"] == "0"
 
 
+@pytest.mark.parametrize("high, expected_low", [("1.0", "0.8"), ("2.0", "1.4")])
+def test_lone_mps_high_watermark_gets_a_compatible_low_ratio(monkeypatch, high, expected_low):
+    monkeypatch.setenv(device.MPS_HIGH_WATERMARK_ENV, high)
+    monkeypatch.delenv(device.MPS_LOW_WATERMARK_ENV, raising=False)
+    device.pair_mps_watermark_ratios()
+    assert os.environ[device.MPS_LOW_WATERMARK_ENV] == expected_low
+
+
+def test_explicit_mps_low_watermark_is_left_alone(monkeypatch):
+    monkeypatch.setenv(device.MPS_HIGH_WATERMARK_ENV, "1.0")
+    monkeypatch.setenv(device.MPS_LOW_WATERMARK_ENV, "0.5")
+    device.pair_mps_watermark_ratios()
+    assert os.environ[device.MPS_LOW_WATERMARK_ENV] == "0.5"
+
+
+@pytest.mark.parametrize("high", [None, "not-a-number", "0", "0.0"])
+def test_mps_low_watermark_not_added_without_a_usable_high_ratio(monkeypatch, high):
+    if high is None:
+        monkeypatch.delenv(device.MPS_HIGH_WATERMARK_ENV, raising=False)
+    else:
+        monkeypatch.setenv(device.MPS_HIGH_WATERMARK_ENV, high)
+    monkeypatch.delenv(device.MPS_LOW_WATERMARK_ENV, raising=False)
+    device.pair_mps_watermark_ratios()
+    assert device.MPS_LOW_WATERMARK_ENV not in os.environ
+
+
+def test_macos_serialises_transformers_weight_loading():
+    environ = {}
+    device.serialise_hf_weight_loading("darwin", environ)
+    assert environ == {device.HF_ASYNC_LOAD_ENV: "1"}
+
+
+@pytest.mark.parametrize("platform", ["linux", "win32"])
+def test_other_platforms_keep_parallel_weight_loading(platform):
+    environ = {}
+    device.serialise_hf_weight_loading(platform, environ)
+    assert environ == {}
+
+
+def test_explicit_async_load_setting_is_left_alone_on_macos():
+    environ = {device.HF_ASYNC_LOAD_ENV: "0"}
+    device.serialise_hf_weight_loading("darwin", environ)
+    assert environ == {device.HF_ASYNC_LOAD_ENV: "0"}
+
+
+def test_transformers_still_reads_the_async_load_switch():
+    """Fails loudly if transformers renames the switch the macOS guard sets."""
+    import inspect
+
+    core_model_loading = pytest.importorskip("transformers.core_model_loading")
+    assert device.HF_ASYNC_LOAD_ENV in inspect.getsource(core_model_loading)
+
+
 PRE_BLACKWELL_ARCHS = ["sm_50", "sm_60", "sm_70", "sm_75", "sm_80", "sm_86", "sm_90"]
 
 
@@ -570,3 +623,21 @@ class TestScoringDeviceLabel:
 
     def test_no_accelerator_is_still_labelled_cpu(self):
         assert describe_scoring_device(None, 0.0, 64.0) == "CPU"
+
+
+class TestIsOutOfMemoryError:
+    def test_cuda_out_of_memory_error_is_oom(self):
+        torch = pytest.importorskip("torch")
+
+        assert device.is_out_of_memory_error(torch.cuda.OutOfMemoryError("CUDA out of memory")) is True
+
+    def test_mps_runtime_error_is_oom(self):
+        assert device.is_out_of_memory_error(
+            RuntimeError("MPS backend out of memory (MPS allocated: 4.50 GB)")
+        ) is True
+
+    def test_unrelated_runtime_error_is_not_oom(self):
+        assert device.is_out_of_memory_error(RuntimeError("shape mismatch")) is False
+
+    def test_unrelated_exception_type_is_not_oom(self):
+        assert device.is_out_of_memory_error(ValueError("bad value")) is False

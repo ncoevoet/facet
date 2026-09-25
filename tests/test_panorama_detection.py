@@ -612,6 +612,80 @@ class TestIncrementalPass:
             assert read_watermark(conn, _settings(min_drift=0.9)) is None
 
 
+class TestIncrementalRunnerVsBracketPass:
+    """The bracket pass runs first and rewrites `sequence_kind` by path, including
+    rows currently labelled a panorama kind -- so an incremental panorama pass
+    that reuses "settled" runs off the live columns (`stored_segments`) loses a
+    settled HDR panorama the moment its positions also read as brackets.
+    """
+
+    def _seed_hdr_panorama(self, db_path):
+        """9 frames, 3 positions of 3 brackets each (base-first: 0/-2/+2).
+
+        No thumbnails needed: the run under test is "settled", so it is reused
+        from stored labels rather than re-measured by the CV pipeline. Distinct
+        `phash` per position keeps the bracket pass from stitching all three
+        positions into one run, matching what three real camera positions would
+        do -- and each position's own three frames share a `phash`, keeping them
+        inside one bracket run.
+        """
+        from db.schema import init_database
+        init_database(str(db_path))
+        rows = []
+        second = 0
+        position_phashes = ['0' * 16, 'f' * 16, 'a' * 16]
+        for position in range(3):
+            phash = position_phashes[position]
+            # Base-first order (0, -2, +2), the common Canon/Sony/Nikon default.
+            for shutter in ('0.005', '0.02', '0.00125'):  # EV 0, -2, +2
+                rows.append((
+                    f'/pos{position}_f{second}.jpg', f'pos{position}_f{second}.jpg',
+                    f'2025:04:15 12:00:{second:02d}', 'Canon EOS R6', 24.0,
+                    8.0, shutter, 100, phash, '2025-01-01T00:00:00',
+                ))
+                second += 1
+        with sqlite3.connect(db_path) as conn:
+            conn.executemany(
+                "INSERT INTO photos (path, filename, date_taken, camera_model, "
+                "focal_length, f_stop, shutter_speed, iso, phash, scanned_at) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?)", rows)
+            conn.commit()
+        return [row[0] for row in rows]
+
+    def _mark_settled_hdr_panorama(self, db_path, paths):
+        """Label the set as an already-settled HDR panorama from a prior run."""
+        from utils.panorama import DEFAULTS, write_watermark
+        from config import ScoringConfig
+
+        settings = dict(DEFAULTS)
+        settings.update(ScoringConfig(None, validate=False).get_panorama_detection_settings())
+        with sqlite3.connect(db_path) as conn:
+            conn.executemany(
+                "UPDATE photos SET sequence_kind = 'hdr_panorama', sequence_group_id = 1 "
+                "WHERE path = ?", [(p,) for p in paths])
+            conn.execute("UPDATE photos SET is_sequence_lead = 1 WHERE path = ?",
+                         (paths[len(paths) // 2],))
+            write_watermark(conn, settings, '2025-01-01T00:00:00')
+            conn.commit()
+
+    def test_an_incremental_rerun_does_not_lose_a_settled_hdr_panorama(self, tmp_path):
+        from facet import detect_all_sequences
+
+        db = tmp_path / 'pano.db'
+        paths = self._seed_hdr_panorama(db)
+        self._mark_settled_hdr_panorama(db, paths)
+
+        detect_all_sequences(str(db), None, incremental=True, contain_failure=False)
+
+        with sqlite3.connect(db) as conn:
+            conn.row_factory = sqlite3.Row
+            kinds = {row['path']: row['sequence_kind'] for row in conn.execute(
+                "SELECT path, sequence_kind FROM photos WHERE path IN ({})".format(
+                    ','.join('?' * len(paths))), paths)}
+        assert set(kinds.values()) == {'hdr_panorama'}, (
+            f"the settled HDR panorama must survive the bracket pass, got {kinds}")
+
+
 class TestOverrideApplied:
     """`sequence_override` says a correction exists; `applied_at` says it landed."""
 

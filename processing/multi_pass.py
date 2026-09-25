@@ -25,6 +25,7 @@ from tqdm import tqdm
 from db.scoring_overrides import get_photo_scoring_overrides
 from models.model_manager import UNIFIED_MEMORY_ACCELERATOR, ModelManager
 from processing.scorer import build_scoring_metrics
+from utils.device import clear_device_cache
 
 logger = logging.getLogger("facet.multi_pass")
 
@@ -468,6 +469,7 @@ class ChunkedMultiPassProcessor:
 
             # Run inference for each model in this pass
             infer_start = time.time()
+            device = getattr(self.model_manager, 'device', 'cpu')
             for model_name in list(loaded_models):
                 try:
                     self._run_model_pass(model_name, loaded_models[model_name], images, results)
@@ -478,6 +480,16 @@ class ChunkedMultiPassProcessor:
                         logger.error("Required %s inference failed for chunk, marking retryable: %s",
                                      model_name, ex)
                         failed_stages.append(model_name)
+                finally:
+                    # On unified memory (MPS), a model's activation buffers sit in
+                    # the SAME pool the next model allocates from — there is no
+                    # separate VRAM to leave them stranded in until the group-level
+                    # reclaim below, so a chunk with several MPS models can pile up
+                    # each one's freed activations on top of the next's live ones.
+                    # CUDA/CPU have no such shared-pool pressure between models in
+                    # a group, so they keep the single per-group reclaim.
+                    if device == UNIFIED_MEMORY_ACCELERATOR:
+                        clear_device_cache(device)
 
             self.metrics['inference_time'] += time.time() - infer_start
             self.metrics['passes_executed'] += 1
@@ -511,11 +523,17 @@ class ChunkedMultiPassProcessor:
 
         Called once per pass group rather than once per model: the group's
         models are unloaded back to back with nothing allocated between them,
-        so one pass reclaims exactly what a call per model would, and a full
-        collection costs about 88 ms once torch is loaded.
+        so for CUDA/CPU one pass reclaims exactly what a call per model would,
+        and a full collection costs about 88 ms once torch is loaded. That
+        equivalence does NOT hold for activations on MPS unified memory —
+        there is no separate VRAM, so each model's freed activation buffers
+        must leave the shared pool before the NEXT model allocates into it,
+        not just before the group finishes. The per-model
+        ``clear_device_cache`` call in :meth:`_process_chunk`'s inference loop
+        covers that gap; this group-level call remains the catch-all for the
+        weights freed by ``unload_model`` below.
         """
         gc.collect()
-        from utils.device import clear_device_cache
         clear_device_cache(getattr(self.model_manager, 'device', 'cpu'))
         from utils.system_memory import release_freed_heap
         release_freed_heap()

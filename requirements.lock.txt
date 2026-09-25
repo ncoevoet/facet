@@ -66,6 +66,7 @@ httpx==0.28.1
 huggingface_hub==1.29.0
 hypothesis==6.167.1
 identify==2.6.19
+imagecodecs==2026.3.6
 ImageHash==4.3.2
 ImageIO==2.37.4
 iniconfig==2.3.0

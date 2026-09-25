@@ -1104,9 +1104,12 @@ already stored per photo (`EV = log2(N^2 / t) - log2(ISO / 100)`), so an existin
 labelled by arithmetic alone: no rescan, no image decode, no model.
 
 A run qualifies when its frames share a camera, follow each other inside `max_gap_seconds`,
-keep the same framing (`max_hamming` on the pHash), and their EV forms a one-directional,
-evenly spaced ladder of at least `min_frames` frames spanning `min_span_stops`. Even spacing
-is what separates a bracket from a hand-held run drifting through changing light.
+keep the same framing (`max_hamming` on the pHash), and their EVs, sorted rather than in
+capture order, form an evenly spaced ladder of distinct exposures spanning `min_span_stops`
+across at least `min_frames` frames. Sorting first means capture order doesn't matter — a
+base-first set (`0, -, +`, the order Sony, Canon and Nikon all offer) qualifies exactly like
+one shot dark-to-bright. Even spacing is what separates a bracket from a hand-held run
+drifting through changing light.
 
 Each frame is stamped with `sequence_ev_offset`, its exposure compensation relative to the
 set's base frame — signed the way a camera labels an AEB set, so `-2` is the dark frame and
@@ -1147,14 +1150,14 @@ Run via `--detect-sequences`; it also runs at the end of every scan, after burst
 | `min_span_stops` | `1.0` | Smallest total spread from darkest to brightest frame |
 | `step_tolerance_stops` | `0.34` | How uneven the steps may be (a third of a stop) |
 
-**Why `min_frames` ships at `3`.** Two of the four ladder tests are vacuous on a pair: one
-step is trivially one-directional and trivially even, leaving only "two frames, moments
-apart, framed alike, a stop or more apart" — which describes a photographer dialling in a
-correction and shooting again exactly as well as it describes a two-frame AEB set. Measured
-on a 124,886-photo library, `2` admits 381 further sets against the 226 the default finds,
-and their evidence says most are not brackets: 56% span under two stops where 99.6% of the
-confirmed sets span two or more, and their commonest clipping pattern is both frames dark
-rather than the confirmed sets' dark-end/bright-end straddle.
+**Why `min_frames` ships at `3`.** Two of the four ladder tests are vacuous on a pair: sorted,
+a single step is trivially one-directional and trivially even, leaving only "two frames,
+moments apart, framed alike, a stop or more apart" — which describes a photographer dialling
+in a correction and shooting again exactly as well as it describes a two-frame AEB set.
+Measured on a 124,886-photo library, `2` admits 381 further sets against the 657 the default
+finds, and their evidence still says most are not brackets: 62% span under two stops where
+91% of the confirmed sets span two or more, and where a further pair clips at all, both frames
+dark is the commonest pattern.
 
 Worse, a pair that genuinely *is* what remains of a 3-shot set is two adjacent flanking
 rungs, and nothing stored says which side the missing rung was on — so `sequence_ev_offset`

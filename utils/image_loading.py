@@ -4,9 +4,12 @@ Image loading utilities for Facet.
 Handles RAW (via rawpy/libraw) and JPEG loading with EXIF transpose.
 """
 
+import json
 import logging
 import os
+import re
 import struct
+import subprocess
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FuturesTimeoutError
@@ -119,6 +122,31 @@ _EXIF_ORIENTATION_TAG = 274
 
 # LibRaw sizes.flip -> counter-clockwise degrees that make the frame upright.
 _LIBRAW_FLIP_ROTATIONS = {3: 180, 5: 90, 6: 270}
+
+# EXIF Orientation -> PIL Transpose op(s) that make the frame upright. Mirrors
+# PIL.ImageOps.exif_transpose's own table; used for the exiftool preview
+# fallback, whose bytes carry no EXIF of their own to hand to that helper.
+_EXIF_ORIENTATION_TRANSPOSES = {
+    2: ('FLIP_LEFT_RIGHT',),
+    3: ('ROTATE_180',),
+    4: ('FLIP_TOP_BOTTOM',),
+    5: ('FLIP_LEFT_RIGHT', 'ROTATE_90'),
+    6: ('ROTATE_270',),
+    7: ('FLIP_LEFT_RIGHT', 'ROTATE_270'),
+    8: ('ROTATE_90',),
+}
+
+# LibRaw rejects some Lightroom-merged DNGs (floating-point HDR/panorama
+# merges) outright, raising rawpy.LibRawFileUnsupportedError. exiftool can
+# still pull the camera-embedded preview those files carry, so the timeout
+# and size floor below bound that fallback.
+EXIFTOOL_PREVIEW_TIMEOUT_SECONDS = 20
+EXIFTOOL_PREVIEW_MIN_LONG_EDGE = 1024
+
+# exiftool -n renders a binary tag as this placeholder; group is captured to
+# resolve which group-qualified tag name to pass back to -b.
+_EXIFTOOL_BINARY_SIZE_RE = re.compile(r'Binary data (\d+) bytes')
+_EXIFTOOL_PREVIEW_TAG_NAMES = ('PreviewImage', 'JpgFromRaw', 'OtherImage')
 
 # --- HDR PQ HEIF -> SDR sRGB tone mapping ---------------------------------
 # Canon HDR PQ HEIF (.HIF) stores 10-bit pixels encoded with the SMPTE ST 2084
@@ -912,6 +940,214 @@ def extract_raw_preview(photo_path, min_long_edge=0, min_sensor_ratio=0.0):
     return preview if preview.mode == 'RGB' else preview.convert('RGB')
 
 
+def _exiftool_preview_candidates(exe, photo_path):
+    """List the file's embedded previews as (byte_size, group_tag) descending.
+
+    Uses -a -G1 -n so duplicate tags across groups (e.g. SubIFD1:PreviewImage
+    and IFD0:JpgFromRaw) all surface, group-qualified, with binary values
+    rendered as a parseable "(Binary data N bytes, ...)" placeholder rather
+    than actually extracted.
+    """
+    try:
+        result = subprocess.run(
+            [exe, '-j', '-a', '-G1', '-n', '-Orientation',
+             '-PreviewImage', '-JpgFromRaw', '-OtherImage', '--', str(photo_path)],
+            capture_output=True, timeout=EXIFTOOL_PREVIEW_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired:
+        logger.debug("exiftool preview listing timed out for %s", os.path.basename(photo_path))
+        return [], None
+    except OSError as ex:
+        logger.debug("exiftool preview listing failed for %s: %s", os.path.basename(photo_path), ex)
+        return [], None
+
+    stdout = result.stdout.decode('utf-8', errors='replace')
+    try:
+        records = json.loads(stdout)
+    except json.JSONDecodeError:
+        logger.debug("exiftool returned unparseable JSON for %s", os.path.basename(photo_path))
+        return [], None
+    if not records:
+        return [], None
+    tags = records[0]
+
+    orientation = None
+    for key, value in tags.items():
+        if key.split(':')[-1] != 'Orientation':
+            continue
+        if key.startswith('IFD0:') or orientation is None:
+            orientation = value
+
+    candidates = []
+    for key, value in tags.items():
+        tag_name = key.split(':')[-1]
+        if tag_name not in _EXIFTOOL_PREVIEW_TAG_NAMES or not isinstance(value, str):
+            continue
+        match = _EXIFTOOL_BINARY_SIZE_RE.search(value)
+        if not match:
+            continue
+        candidates.append((int(match.group(1)), key))
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    return candidates, orientation
+
+
+def _upright_exiftool_preview(pil_img, orientation):
+    """Rotate/flip an exiftool-extracted preview using the host RAW's EXIF
+    Orientation, since the extracted preview bytes carry none of their own."""
+    Image, _ = _ensure_pil()
+    ops = _EXIF_ORIENTATION_TRANSPOSES.get(int(orientation)) if orientation else None
+    if not ops:
+        return pil_img
+    for op_name in ops:
+        pil_img = pil_img.transpose(getattr(Image, op_name))
+    return pil_img
+
+
+def extract_exiftool_preview(photo_path):
+    """Extract the largest usable embedded preview via exiftool, or None.
+
+    LibRaw outright rejects some Lightroom-merged DNGs — floating-point
+    HDR/panorama merges (``*-HDR.dng``, ``*-Pano.dng``) — raising
+    ``rawpy.LibRawFileUnsupportedError`` rather than the "no preview" outcomes
+    ``extract_raw_preview`` handles. exiftool can still read the
+    camera-embedded preview those files carry even though LibRaw cannot open
+    the container, so this is the fallback ``_decode_raw`` reaches for after
+    rawpy has already failed outright.
+
+    Lightroom Classic 13+ additionally compresses every preview in a DNG 1.7
+    merge (HDR/Panorama/Enhance) with JPEG XL, which Pillow cannot
+    decode — this function then falls through smaller candidates
+    until only the tiny IFD0 thumbnail is left, which usually fails the
+    caller's size floor. ``extract_dng_jxl_preview`` is the further fallback
+    for that case: it decodes the JPEG XL SubIFD preview directly via
+    tifffile/imagecodecs instead of shelling out to exiftool for the bytes.
+
+    This function must never raise: a RuntimeError in particular is the
+    signal load_image_from_path/load_display_image use to abort on a hung RAW
+    decode slot, and an accidental one here would be mistaken for that.
+
+    Args:
+        photo_path: Path to a RAW file (str or Path)
+
+    Returns:
+        PIL Image in RGB, or None if no candidate preview decodes and clears
+        EXIFTOOL_PREVIEW_MIN_LONG_EDGE.
+    """
+    try:
+        from processing.xmp_export import _resolve_exiftool
+        exe = _resolve_exiftool()
+        if exe is None:
+            logger.debug("exiftool not found; no preview fallback for %s",
+                         os.path.basename(str(photo_path)))
+            return None
+
+        candidates, orientation = _exiftool_preview_candidates(exe, photo_path)
+        if not candidates:
+            return None
+
+        Image, _ = _ensure_pil()
+        for _size, group_tag in candidates:
+            try:
+                result = subprocess.run(
+                    [exe, '-b', f'-{group_tag}', '--', str(photo_path)],
+                    capture_output=True, timeout=EXIFTOOL_PREVIEW_TIMEOUT_SECONDS,
+                )
+            except subprocess.TimeoutExpired:
+                logger.debug("exiftool -b timed out extracting %s from %s",
+                             group_tag, os.path.basename(str(photo_path)))
+                continue
+            except OSError as ex:
+                logger.debug("exiftool -b failed extracting %s from %s: %s",
+                             group_tag, os.path.basename(str(photo_path)), ex)
+                continue
+            if not result.stdout:
+                continue
+            try:
+                preview = Image.open(BytesIO(result.stdout))
+                preview.load()
+            except Exception as ex:
+                # Includes PIL.UnidentifiedImageError / DecompressionBombError:
+                # Pillow in this venv cannot decode JPEG XL previews, which
+                # some cameras embed, so falling through to a smaller
+                # candidate matters.
+                logger.debug("exiftool preview %s for %s did not decode: %s",
+                             group_tag, os.path.basename(str(photo_path)), ex)
+                continue
+
+            preview = _upright_exiftool_preview(preview, orientation)
+            if max(preview.size) < EXIFTOOL_PREVIEW_MIN_LONG_EDGE:
+                continue
+            return preview if preview.mode == 'RGB' else preview.convert('RGB')
+        return None
+    except Exception as ex:
+        logger.debug("exiftool preview fallback failed for %s: %s",
+                     os.path.basename(str(photo_path)), ex)
+        return None
+
+
+def extract_dng_jxl_preview(photo_path):
+    """Decode a Lightroom-merged DNG's JPEG XL SubIFD preview, or None.
+
+    Lightroom Classic 13+ writes "Merge to HDR/Panorama" (and Enhance) output
+    as DNG 1.7 with every image — the main raster AND every embedded preview
+    — compressed as JPEG XL (TIFF compression 52546). LibRaw rejects the
+    container outright (see ``extract_exiftool_preview``), and Pillow cannot
+    decode JPEG XL either, so ``extract_exiftool_preview`` falls
+    through every real-size candidate down to the tiny IFD0 thumbnail. This
+    function reads the same SubIFD preview tifffile/imagecodecs can actually
+    decode: it walks IFD0 and its SubIFDs for the largest RGB uint8 page at
+    or above ``EXIFTOOL_PREVIEW_MIN_LONG_EDGE`` and decodes it directly,
+    bypassing exiftool's ``-b`` extraction (which only hands back bytes
+    Pillow must still decode).
+
+    DNG tag 50970 (PreviewColorSpace) on a real Lightroom Classic 13.1
+    HDR-merge sample reads 2 (sRGB), so the decoded pixels are treated as
+    sRGB without further conversion; this is an assumption, not something
+    this function verifies per file.
+
+    This function must never raise, for the same reason as
+    ``extract_exiftool_preview``: a RuntimeError here would be mistaken for
+    the hung-decode-timeout signal load_image_from_path/load_display_image
+    use to abort a RAW decode slot.
+
+    Args:
+        photo_path: Path to a DNG file (str or Path)
+
+    Returns:
+        PIL Image in RGB, or None if the preview cannot be decoded, the file
+        has no eligible SubIFD preview, or nothing clears
+        EXIFTOOL_PREVIEW_MIN_LONG_EDGE.
+    """
+    try:
+        import tifffile  # decodes JPEG XL tiles through imagecodecs
+
+        Image, _ = _ensure_pil()
+        with tifffile.TiffFile(str(photo_path)) as tif:
+            candidates = []
+            for page in [tif.pages[0], *(tif.pages[0].pages or [])]:
+                if (page.photometric == 2 and page.samplesperpixel == 3
+                        and page.dtype == np.uint8):
+                    candidates.append(page)
+            if not candidates:
+                return None
+            best = max(candidates, key=lambda p: max(p.shape[0], p.shape[1]))
+            if max(best.shape[0], best.shape[1]) < EXIFTOOL_PREVIEW_MIN_LONG_EDGE:
+                return None
+            preview = Image.fromarray(best.asarray())
+
+            orientation = None
+            for tag in tif.pages[0].tags:
+                if tag.name == 'Orientation':
+                    orientation = tag.value
+                    break
+        preview = _upright_exiftool_preview(preview, orientation)
+        return preview if preview.mode == 'RGB' else preview.convert('RGB')
+    except Exception as ex:
+        logger.debug("DNG JPEG XL preview fallback failed for %s: %s",
+                     os.path.basename(str(photo_path)), ex)
+        return None
+
+
 def _display_preview(photo_path, min_sensor_ratio):
     if not get_raw_decode_settings()['prefer_embedded_preview']:
         return None
@@ -1028,8 +1264,21 @@ def _decode_raw(photo, use_thumbnail, started_event=None, decode_budget='library
             pil_img = extract_raw_preview(photo)
 
         if pil_img is None:
-            with rawpy.imread(str(photo)) as raw:
-                pil_img = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs(bright=bright)))
+            try:
+                with rawpy.imread(str(photo)) as raw:
+                    pil_img = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs(bright=bright)))
+            except rawpy.LibRawFileUnsupportedError as ex:
+                # Lightroom-merged floating-point DNGs (*-HDR.dng, *-Pano.dng)
+                # LibRaw refuses to open at all. exiftool can still pull the
+                # camera-embedded preview those files carry.
+                fallback = extract_exiftool_preview(photo)
+                if fallback is None and str(photo).lower().endswith('.dng'):
+                    fallback = extract_dng_jxl_preview(photo)
+                if fallback is None:
+                    raise
+                logger.info("Used embedded preview fallback for %s (%dx%d): %s",
+                           os.path.basename(str(photo)), fallback.size[0], fallback.size[1], ex)
+                pil_img = fallback
     return pil_img
 
 

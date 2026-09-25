@@ -22,6 +22,8 @@ os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 # Allow unsupported PyTorch MPS operators to run on CPU.  Set this before any
 # dependency has a chance to import torch.
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+from utils.device import pair_mps_watermark_ratios  # noqa: E402
+pair_mps_watermark_ratios()
 import warnings
 warnings.filterwarnings("ignore", message=".*unauthenticated requests.*")
 # scikit-image 0.26 deprecated SimilarityTransform.estimate() but InsightFace
@@ -704,15 +706,25 @@ def detect_all_sequences(db_path, config_path, incremental=False, contain_failur
             report it failed.
     """
     from utils.sequence import detect_sequences
-    from utils.panorama import detect_panoramas
+    from utils.panorama import detect_panoramas, snapshot_panorama_labels
 
+    # Taken before the bracket pass, which rewrites `sequence_kind` by path on
+    # every run it finds -- including rows currently labelled a panorama kind.
+    # An HDR panorama's frames are bracketed at every position, so that
+    # rewrite always fires on one; the panorama pass's incremental reuse
+    # (`stored_segments`) would otherwise read that overwritten column back
+    # and find a settled panorama gone. Only worth taking when the panorama
+    # pass will actually consult it.
+    label_snapshot = snapshot_panorama_labels(db_path) if incremental else None
     brackets = detect_sequences(db_path, config_path=config_path)
     if not contain_failure:
         return brackets, detect_panoramas(db_path, config_path=config_path,
-                                          incremental=incremental)
+                                          incremental=incremental,
+                                          label_snapshot=label_snapshot)
     try:
         panoramas = detect_panoramas(db_path, config_path=config_path,
-                                     incremental=incremental)
+                                     incremental=incremental,
+                                     label_snapshot=label_snapshot)
     except Exception:
         # Contained here rather than at each caller. The bracket pass is
         # arithmetic over stored columns and keeps failing loudly as it always

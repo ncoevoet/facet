@@ -104,7 +104,7 @@ destructive endpoint's guard removed.
 
 ## Dependencies
 
-Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `pillow-heif`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=5.3.0,<5.16`, `accelerate>=0.25.0`, `reverse_geocoder`
+Python packages: `torch`, `torchvision`, `open-clip-torch`, `opencv-python`, `pillow`, `pillow-heif`, `imagehash`, `rawpy`, `fastapi`, `uvicorn`, `pyjwt`, `numpy`, `tqdm`, `exifread`, `insightface`, `scipy`, `scikit-learn`, `hdbscan`, `pyiqa`, `psutil`, `transformers>=5.3.0,<5.16`, `accelerate>=0.25.0`, `reverse_geocoder`, `tifffile`, `imagecodecs` (JPEG XL previews of Lightroom Classic 13+ merged DNGs)
 
 For GPU face clustering (optional): `cuml`, `cupy` (requires conda + CUDA)
 

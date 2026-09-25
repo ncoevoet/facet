@@ -98,6 +98,14 @@ send2trash>=1.8.0
 # Vector search (sqlite-vec for CLIP/SigLIP embedding KNN queries)
 sqlite-vec>=0.1.6
 
+# Lightroom Classic 13+ "Merge to HDR/Panorama"/Enhance DNGs are JPEG XL
+# compressed (DNG 1.7, TIFF compression 52546) end to end, previews included,
+# so LibRaw rejects them and Pillow cannot decode the preview either.
+# utils.image_loading.extract_dng_jxl_preview decodes it with tifffile, which
+# reads JPEG XL tiles through imagecodecs.
+tifffile>=2024.1.1
+imagecodecs>=2024.1.1
+
 # Async SQLite for FastAPI read endpoints (see api/database.py get_async_db)
 aiosqlite>=0.20.0
 

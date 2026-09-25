@@ -16,25 +16,19 @@ from values already stored per photo:
     EV = log2(N^2 / t) - log2(ISO / 100)
 
 so no EXIF re-read and no rescan is needed -- an existing library is labelled by
-arithmetic over columns it already has. A run qualifies as a bracket when it is
-long enough, its EV steps all point the same way, they span a real difference,
-and they are evenly sized: a hand-held sequence through changing light drifts,
-it does not step by a clean 1 or 2 stops each time.
+arithmetic over columns it already has. A run qualifies as a bracket when it
+is long enough and its EVs -- sorted ascending, not taken in capture order,
+since cameras commonly shoot the base exposure first -- form a ladder of
+distinct exposures that spans a real difference and is evenly sized: a hand-held sequence through
+changing light drifts, it does not step by a clean 1 or 2 stops each time.
 
-`min_frames` defaults to 3 because two of those four tests are vacuous on a
-pair: one step is trivially monotonic and trivially even, leaving only "two
-frames, moments apart, framed alike, a stop or more apart" -- which is equally
-the description of a photographer dialling in a correction and shooting again.
-Measured on a 124,886-photo library, dropping it to 2 admits 381 further sets
-against 226 existing ones, and their evidence says most are not brackets: 56%
-span under two stops where 99.6% of the confirmed sets span two or more, and
-the commonest clipping pattern is both frames dark rather than the confirmed
-sets' dark-end/bright-end straddle. On the one body contributing 156 of them
-the pair spans reproduce that body's own *step* sizes, so each is either
-exposure drift or two adjacent rungs of a 3-shot set whose third frame is
-missing -- and a pair of adjacent rungs cannot say which side the missing rung
-was on, so its base is undeterminable from anything stored. The setting is left
-configurable for libraries shot on 2-frame AEB; see docs/CONFIGURATION.md.
+`min_frames` defaults to 3 because two of those tests are vacuous on a pair:
+sorted, a single step is trivially "one direction" and trivially even,
+leaving only "two frames, moments apart, framed alike, a stop or more apart"
+-- which is equally the description of a photographer dialling in a
+correction and shooting again. See docs/CONFIGURATION.md for the current
+measurements behind that default and the setting is left configurable for
+libraries shot on 2-frame AEB.
 
 Panoramas are detected separately, in `utils.panorama`, on geometric evidence
 rather than on exposure. Both passes share the `sequence_*` columns but own
@@ -127,16 +121,25 @@ def _extends_run(previous, candidate, settings):
 
 
 def _is_bracket(run, settings):
-    """Whether a run's exposure ladder looks deliberate rather than incidental."""
+    """Whether a run's exposure ladder looks deliberate rather than incidental.
+
+    Judged on the EVs sorted ascending, not on capture order: cameras commonly
+    shoot the base exposure first (Sony's "Bracket order 0->-->+", also offered
+    by Canon and Nikon), so a 0/-1/+1 set arrives as steps [-1, +2] in capture
+    order and would be rejected as non-monotonic even though it is a clean
+    ladder. Sorting first makes the test order-independent; a repeated EV (two
+    frames at one exposure plus a distinct rung) still fails it, because a
+    sorted step of zero is neither a positive step nor a distinct rung.
+    """
     if len(run) < settings['min_frames']:
         return False
-    steps = [b['ev'] - a['ev'] for a, b in zip(run, run[1:])]
-    if not (all(s > 0 for s in steps) or all(s < 0 for s in steps)):
+    evs = sorted(p['ev'] for p in run)
+    steps = [b - a for a, b in zip(evs, evs[1:])]
+    if not all(s >= settings['min_step_stops'] for s in steps):
         return False
-    if abs(run[-1]['ev'] - run[0]['ev']) < settings['min_span_stops']:
+    if evs[-1] - evs[0] < settings['min_span_stops']:
         return False
-    sizes = [abs(s) for s in steps]
-    return max(sizes) - min(sizes) <= settings['step_tolerance_stops']
+    return max(steps) - min(steps) <= settings['step_tolerance_stops']
 
 
 def _find_bracket_runs(photos, settings):

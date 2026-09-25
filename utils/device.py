@@ -5,12 +5,68 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import sys
+from collections.abc import MutableMapping
 from typing import Any, NamedTuple
 
 # Let PyTorch execute individual unsupported MPS operators on CPU.  This must be
 # set before torch initialises its MPS backend, so keep it in this lightweight
 # module and import this module before torch in Facet's lazy loaders.
 os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+
+MPS_HIGH_WATERMARK_ENV = "PYTORCH_MPS_HIGH_WATERMARK_RATIO"
+MPS_LOW_WATERMARK_ENV = "PYTORCH_MPS_LOW_WATERMARK_RATIO"
+TORCH_DEFAULT_MPS_LOW_WATERMARK = 1.4
+DERIVED_LOW_WATERMARK_FRACTION = 0.8
+
+
+def pair_mps_watermark_ratios() -> None:
+    """Give a lone MPS high-watermark ratio a low ratio it can live with.
+
+    PyTorch refuses to initialise MPS when the low ratio exceeds the high one,
+    and its default low ratio is 1.4, so exporting only
+    ``PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0`` -- the documented way to cap the
+    pool -- crashed at the first allocation. An explicit low ratio, or an
+    unparseable high one, is left for PyTorch to judge. So is a high ratio of
+    0, which lifts the cap rather than setting one: PyTorch accepts the
+    default low ratio beside it, and a derived low of 0 would switch off the
+    allocator's garbage collection.
+    """
+    high = os.environ.get(MPS_HIGH_WATERMARK_ENV)
+    if high is None or MPS_LOW_WATERMARK_ENV in os.environ:
+        return
+    try:
+        high_ratio = float(high)
+    except ValueError:
+        return
+    if high_ratio <= 0:
+        return
+    low_ratio = min(TORCH_DEFAULT_MPS_LOW_WATERMARK, high_ratio * DERIVED_LOW_WATERMARK_FRACTION)
+    os.environ[MPS_LOW_WATERMARK_ENV] = f"{low_ratio:g}"
+
+
+pair_mps_watermark_ratios()
+
+HF_ASYNC_LOAD_ENV = "HF_DEACTIVATE_ASYNC_LOAD"
+_SERIAL_WEIGHT_LOADING_PLATFORM = "darwin"
+
+
+def serialise_hf_weight_loading(platform: str, environ: MutableMapping[str, str]) -> None:
+    """Make transformers load checkpoint weights on one thread on macOS.
+
+    transformers 5.x materialises weights on a four-worker thread pool, and
+    concurrent dtype-converting copies onto MPS race inside that pool: loading
+    Qwen3.5 (``device_map="auto"``, a BF16 checkpoint carrying F32 tensors)
+    segfaulted in a ``ThreadPoolExecutor`` worker, erratically on one launch
+    and not the next (huggingface/transformers#48029). The serial path costs a
+    few seconds per load. An explicit setting is left alone, and other
+    platforms keep the parallel loader.
+    """
+    if platform == _SERIAL_WEIGHT_LOADING_PLATFORM:
+        environ.setdefault(HF_ASYNC_LOAD_ENV, "1")
+
+
+serialise_hf_weight_loading(sys.platform, os.environ)
 
 _DEVICE_ENV = "FACET_DEVICE"
 _VALID_DEVICES = {"auto", "cpu", "cuda", "mps"}
@@ -378,3 +434,27 @@ def synchronize_device(device: str | None = None) -> None:
         synchronize = None
     if callable(synchronize):
         synchronize()
+
+
+def is_out_of_memory_error(ex: BaseException) -> bool:
+    """True iff ``ex`` is a CUDA/MPS out-of-memory error.
+
+    Covers ``torch.cuda.OutOfMemoryError``, ``torch.OutOfMemoryError`` (when the
+    installed torch exposes it), and the ``RuntimeError`` MPS raises instead of a
+    dedicated exception type ("MPS backend out of memory ...").
+    """
+    # Matched on the message first: MPS raises a plain RuntimeError, which needs
+    # no torch import to recognise.
+    if isinstance(ex, RuntimeError) and "out of memory" in str(ex).lower():
+        return True
+    try:
+        import torch
+    except ImportError:
+        return False
+    oom_types = tuple(
+        t for t in (
+            getattr(torch.cuda, "OutOfMemoryError", None),
+            getattr(torch, "OutOfMemoryError", None),
+        ) if t is not None
+    )
+    return bool(oom_types) and isinstance(ex, oom_types)

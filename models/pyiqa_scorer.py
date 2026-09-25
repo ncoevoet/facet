@@ -224,6 +224,17 @@ class PyIQAScorer:
     # uses ~10GB per image in FP32).
     _MAX_INFERENCE_SIZE = 1024
 
+    # Max images stacked into a single forward pass, even when a same-shape
+    # group spans the whole chunk (up to ram_chunk_size, commonly 128). A
+    # single-forward group's activation memory scales with the WHOLE group,
+    # not just the model's per-image footprint — on a unified-memory device
+    # (MPS) that has no separate VRAM ceiling to hit an OOM against, the
+    # allocator just grows the process's resident set instead of failing.
+    # Slicing each shape group into forwards of this size bounds peak
+    # activation memory to a small, constant multiple of one image's cost,
+    # independent of chunk size.
+    MAX_FORWARD_BATCH = 4
+
     def _preprocess_image(self, image: Image.Image) -> torch.Tensor:
         """Convert PIL image to tensor for pyiqa.
 
@@ -385,25 +396,30 @@ class PyIQAScorer:
         scores: list = [None] * len(images)
         skipped: dict[str, int] = {}
         for _shape, idxs in groups.items():
-            try:
-                with torch.no_grad():
-                    out = self.model(
-                        torch.cat([tensors[i] for i in idxs], dim=0),
-                        **self._forward_kwargs,
-                    )
-                raws = self._extract_batch_raw(out, len(idxs))
-                for k, i in enumerate(idxs):
-                    scores[i] = self._finalize_raw(raws[k])
-            except Exception as e:
-                # Per-group serial fallback keeps a single bad shape from failing all.
-                msg = str(e)
-                for i in idxs:
-                    try:
-                        scores[i] = float(self.score_image(images[i]))
-                    except Exception as e2:
-                        skipped[str(e2)] = skipped.get(str(e2), 0) + 1
-                        scores[i] = 5.0
-                logger.debug("  %s batch group fell back to serial: %s", self.model_name, msg)
+            # Slice each same-shape group into forwards of at most
+            # MAX_FORWARD_BATCH so a chunk-sized group cannot stack the
+            # whole chunk into one forward's activation memory.
+            for start in range(0, len(idxs), self.MAX_FORWARD_BATCH):
+                sub_idxs = idxs[start:start + self.MAX_FORWARD_BATCH]
+                try:
+                    with torch.no_grad():
+                        out = self.model(
+                            torch.cat([tensors[i] for i in sub_idxs], dim=0),
+                            **self._forward_kwargs,
+                        )
+                    raws = self._extract_batch_raw(out, len(sub_idxs))
+                    for k, i in enumerate(sub_idxs):
+                        scores[i] = self._finalize_raw(raws[k])
+                except Exception as e:
+                    # Per-group serial fallback keeps a single bad shape from failing all.
+                    msg = str(e)
+                    for i in sub_idxs:
+                        try:
+                            scores[i] = float(self.score_image(images[i]))
+                        except Exception as e2:
+                            skipped[str(e2)] = skipped.get(str(e2), 0) + 1
+                            scores[i] = 5.0
+                    logger.debug("  %s batch group fell back to serial: %s", self.model_name, msg)
 
         self._record_skips(skipped)
         return [float(s) for s in scores]

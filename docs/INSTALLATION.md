@@ -482,6 +482,52 @@ Mac that swaps is slower than one on a smaller profile. An explicitly configured
 is always honoured as written, so set one to override these thresholds in either
 direction.
 
+### Memory on a Mac
+
+If Activity Monitor shows Facet using more memory than the Mac has, or swap keeps
+growing during a scan, try these in order.
+
+**Cap PyTorch's memory pool.** PyTorch otherwise lets its Metal (MPS) pool grow well
+past the Mac's own recommended working set:
+
+```bash
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0 python facet.py /path/to/photos
+```
+
+`1.0` means "the Mac's recommended working set, no more" — Facet sets the matching low
+watermark automatically. A pass may then stop with "out of memory" instead of swapping,
+which is preferable to the Mac grinding to a halt.
+
+**Model weights load one at a time.** On macOS, Facet sets `HF_DEACTIVATE_ASYNC_LOAD=1`
+by default, because transformers' multi-threaded weight loading races on MPS and can
+crash a scan. There is nothing to configure; if you need the faster, concurrent loading
+back, set `HF_DEACTIVATE_ASYNC_LOAD=0` yourself before Facet's default is applied.
+
+**Turn off the two heaviest optional models.** Add only the keys you are changing to
+`scoring_config.json` — the rest keeps the shipped default:
+
+```json
+{
+  "models": { "profiles": { "16gb": { "saliency_enabled": false } } },
+  "iqa_extended": { "qrealign": false }
+}
+```
+
+`saliency_enabled` turns off subject detection (finding the main subject and judging its
+sharpness and placement); `qrealign` turns off an extra image-quality model. Aesthetics,
+composition, faces and technical quality are still scored either way. Match the profile
+key to the one your Mac runs — `"16gb"` on a 32-47GB Mac, `"24gb"` on 48GB and up.
+
+**Process fewer photos at a time:**
+
+```json
+{ "processing": { "ram_chunk_size": 4,
+                  "auto_tuning": { "min_ram_chunk_size": 4, "max_ram_chunk_size": 4 } } }
+```
+
+Set all three — auto-tuning otherwise moves the chunk size on its own, down to
+`min_ram_chunk_size` or up to `max_ram_chunk_size`.
+
 ## Download sizes
 
 Models download on first use into `~/.cache/huggingface/` (Hugging Face models),
@@ -569,6 +615,7 @@ manually and place it at `pretrained_models/samp_net.pth`.
 | `psutil` | Batch-processing auto-tuning (system monitoring) |
 | `aiosqlite` | Async SQLite for FastAPI read endpoints |
 | `sqlite-vec` | On-disk KNN for semantic search & similarity (falls back to in-memory NumPy cache if missing, or if this Python's SQLite cannot load extensions); `pip install -e .[vec]` |
+| `tifffile`, `imagecodecs` | Lightroom Classic 13+ merged DNGs (HDR/Panorama/Enhance), whose previews are JPEG XL |
 
 All of these are in `requirements.txt`; no profile needs extra base packages.
 

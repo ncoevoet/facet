@@ -504,6 +504,59 @@ kleineren Profil. Ein ausdrücklich konfiguriertes Profil wird immer so übernom
 es konfiguriert ist — setzen Sie eines, um diese Schwellen in beide Richtungen zu
 übersteuern.
 
+### Speicher auf einem Mac
+
+Wenn der Aktivitätsanzeige zufolge Facet mehr Speicher nutzt, als der Mac besitzt, oder
+der Swap-Speicher während eines Scans immer weiter wächst, versuchen Sie es in dieser
+Reihenfolge.
+
+**Begrenzen Sie den Speicherpool von PyTorch.** PyTorch lässt seinen Metal-(MPS-)Pool
+sonst weit über die vom Mac empfohlene Arbeitsspeichergröße hinauswachsen:
+
+```bash
+PYTORCH_MPS_HIGH_WATERMARK_RATIO=1.0 python facet.py /path/to/photos
+```
+
+`1.0` bedeutet „die vom Mac empfohlene Arbeitsspeichergröße, nicht mehr" — Facet setzt
+den passenden unteren Schwellenwert automatisch. Ein Durchlauf kann dann mit einem
+Speicherfehler abbrechen, statt in den Swap zu geraten — was besser ist, als den Mac
+lahmzulegen.
+
+**Modellgewichte werden einzeln nacheinander geladen.** Unter macOS setzt Facet standardmäßig
+`HF_DEACTIVATE_ASYNC_LOAD=1`, weil das mehrfädige Laden der Gewichte durch transformers auf
+MPS zu Race Conditions führen und einen Scan zum Absturz bringen kann. Es gibt nichts zu
+konfigurieren; wenn Sie das schnellere, gleichzeitige Laden zurückhaben möchten, setzen Sie
+selbst `HF_DEACTIVATE_ASYNC_LOAD=0`, bevor Facets Standardwert angewendet wird.
+
+**Deaktivieren Sie die beiden aufwendigsten optionalen Modelle.** Fügen Sie
+`scoring_config.json` nur die Schlüssel hinzu, die Sie ändern — der Rest behält den
+mitgelieferten Standardwert:
+
+```json
+{
+  "models": { "profiles": { "16gb": { "saliency_enabled": false } } },
+  "iqa_extended": { "qrealign": false }
+}
+```
+
+`saliency_enabled` schaltet die Motiverkennung ab (das Modell, das das Hauptmotiv
+findet und dessen Schärfe und Platzierung beurteilt); `qrealign` schaltet ein
+zusätzliches Bildqualitätsmodell ab. Ästhetik, Komposition, Gesichter und technische
+Qualität werden in beiden Fällen weiterhin bewertet. Der Profil-Schlüssel muss zu dem
+passen, den Ihr Mac tatsächlich nutzt — `"16gb"` auf einem Mac mit 32-47 GB, `"24gb"`
+ab 48 GB.
+
+**Verarbeiten Sie weniger Fotos auf einmal:**
+
+```json
+{ "processing": { "ram_chunk_size": 4,
+                  "auto_tuning": { "min_ram_chunk_size": 4, "max_ram_chunk_size": 4 } } }
+```
+
+Setzen Sie alle drei Schlüssel — sonst ändert die automatische Abstimmung die
+Chunk-Größe von selbst, nach unten bis `min_ram_chunk_size` oder nach oben bis
+`max_ram_chunk_size`.
+
 ## Downloadgrößen
 
 Modelle werden bei der ersten Verwendung nach `~/.cache/huggingface/` (Hugging-Face-Modelle),
@@ -593,6 +646,7 @@ Netzwerk), sehen Sie `Failed to download SAMP-Net weights: HTTP Error 404: Not F
 | `psutil` | Auto-Tuning der Stapelverarbeitung (Systemüberwachung) |
 | `aiosqlite` | Asynchrones SQLite für die FastAPI-Lese-Endpunkte |
 | `sqlite-vec` | KNN auf Festplatte für Semantische Suche & Ähnlichkeit (greift auf den In-Memory-NumPy-Cache zurück, falls nicht vorhanden oder falls das SQLite dieses Pythons keine Erweiterungen laden kann); `pip install -e .[vec]` |
+| `tifffile`, `imagecodecs` | Von Lightroom Classic 13+ zusammengefügte DNGs (HDR/Panorama/Verbessern), deren Vorschauen JPEG XL sind |
 
 Alle diese sind in `requirements.txt` enthalten; kein Profil benötigt zusätzliche
 Basis-Pakete.

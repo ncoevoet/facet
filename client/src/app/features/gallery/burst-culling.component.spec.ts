@@ -538,6 +538,52 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('darkroom hover loupe toggle', () => {
+    it('defaults to on when nothing is in localStorage', () => {
+      expect(component['darkroomLoupeActive']()).toBe(true);
+    });
+
+    it('toggleDarkroomLoupe() flips the setting and persists the choice', () => {
+      component['toggleDarkroomLoupe']();
+      expect(component['darkroomLoupeActive']()).toBe(false);
+      expect(localStorage.getItem('facet_culling_darkroom_loupe')).toBe('false');
+
+      component['toggleDarkroomLoupe']();
+      expect(component['darkroomLoupeActive']()).toBe(true);
+      expect(localStorage.getItem('facet_culling_darkroom_loupe')).toBe('true');
+    });
+
+    it('restores a persisted "off" value from localStorage on a fresh construction', () => {
+      localStorage.setItem('facet_culling_darkroom_loupe', 'false');
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          BurstCullingComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: GalleryStore, useValue: { config: () => null } },
+          { provide: AuthService, useValue: { isEdition: () => true } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        ],
+      });
+      component = TestBed.runInInjectionContext(() => new BurstCullingComponent());
+
+      expect(component['darkroomLoupeActive']()).toBe(false);
+    });
+
+    it('is inactive while the darkroom frame is zoomed beyond fit, even when the toggle is on', () => {
+      expect(component['darkroomLoupeActive']()).toBe(true);
+      expect(component['darkroomLoupeEffective']()).toBe(true);
+
+      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      expect(component['darkroomLoupeEffective']()).toBe(false);
+
+      component['zoom'].set({ scale: 1, tx: 0, ty: 0 });
+      expect(component['darkroomLoupeEffective']()).toBe(true);
+    });
+  });
+
   describe('category filter', () => {
     beforeEach(async () => {
       mockApi.get.mockReturnValue(of({
@@ -1540,6 +1586,88 @@ describe('BurstCullingComponent', () => {
       component['focusPhotoInLightbox'](1);
 
       expect(component['lightboxIndex']()).toBe(1);
+    });
+  });
+
+  describe('face close-up size slider (persisted browser preference)', () => {
+    const freshComponent = (): BurstCullingComponent => {
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          BurstCullingComponent,
+          { provide: ApiService, useValue: mockApi },
+          { provide: MatSnackBar, useValue: mockSnackBar },
+          { provide: I18nService, useValue: mockI18n },
+          { provide: GalleryStore, useValue: { config: () => null } },
+          { provide: AuthService, useValue: { isEdition: () => true } },
+          { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
+        ],
+      });
+      return TestBed.runInInjectionContext(() => new BurstCullingComponent());
+    };
+
+    it('defaults to 112 when nothing is stored', () => {
+      expect(component['faceSize']()).toBe(112);
+    });
+
+    it('restores a valid stored value', () => {
+      localStorage.setItem('facet_culling_face_size', '192');
+
+      expect(freshComponent()['faceSize']()).toBe(192);
+    });
+
+    it.each(['abc', '9999', '70'])('falls back to the default for an invalid stored value (%s)', (stored) => {
+      localStorage.setItem('facet_culling_face_size', stored);
+
+      expect(freshComponent()['faceSize']()).toBe(112);
+    });
+
+    it('onFaceSizeChange updates the signal and writes localStorage', () => {
+      component['onFaceSizeChange'](160);
+
+      expect(component['faceSize']()).toBe(160);
+      expect(localStorage.getItem('facet_culling_face_size')).toBe('160');
+    });
+  });
+
+  describe('face-strip slider focus release (pointer drag/click must not eat arrow-key nav)', () => {
+    beforeEach(async () => {
+      await (component as any).loadGroups();
+    });
+
+    it('releaseSliderFocus() (bound to a slider thumb\'s dragEnd) refocuses the darkroom dialog', () => {
+      const mockEl = { focus: vi.fn() };
+      Object.defineProperty(component, 'lightboxDialog', { value: () => ({ nativeElement: mockEl }), writable: true, configurable: true });
+
+      component['releaseSliderFocus']();
+
+      expect(mockEl.focus).toHaveBeenCalledTimes(1);
+    });
+
+    it('after a pointer interaction releases focus, ArrowRight advances lightboxIndex again', () => {
+      const mockEl = { focus: vi.fn() };
+      Object.defineProperty(component, 'lightboxDialog', { value: () => ({ nativeElement: mockEl }), writable: true, configurable: true });
+      component['openLightbox'](component['groups']()[0], 0);
+      expect(component['lightboxIndex']()).toBe(0);
+
+      // Simulate the slider's dragEnd firing after a mouse drag/click.
+      component['releaseSliderFocus']();
+      component['onArrowRight'](new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+
+      expect(mockEl.focus).toHaveBeenCalled();
+      expect(component['lightboxIndex']()).toBe(1);
+    });
+
+    it('a keyboard-only interaction (no pointer event, no dragEnd) never touches focus', () => {
+      const mockEl = { focus: vi.fn() };
+      Object.defineProperty(component, 'lightboxDialog', { value: () => ({ nativeElement: mockEl }), writable: true, configurable: true });
+      component['openLightbox'](component['groups']()[0], 0);
+
+      // Tab onto the slider, then adjust it with the keyboard: valueChange fires,
+      // but releaseSliderFocus() is only wired to dragEnd, so it must stay uncalled.
+      component['onFaceSizeChange'](component['faceSize']() + component['faceSizeStepPx']);
+
+      expect(mockEl.focus).not.toHaveBeenCalled();
     });
   });
 
@@ -2668,6 +2796,31 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
     expect(darkroom.query(By.css('kbd'))).toBeTruthy();
     expect(legendButton.nativeElement.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  // Rendered, not called directly: openDarkroom + a populated faceMap put the
+  // real face-strip sliders on screen, so this exercises the template's own
+  // (dragEnd) bindings rather than the handler in isolation. A dropped binding
+  // on any one thumb (the eyes slider lost it once) passes every unit test in
+  // the 'face-strip slider focus release' describe block above, because those
+  // never render the template — only this test can catch that.
+  it('face-strip slider focus release: every face-strip slider thumb refocuses the dialog on dragEnd', () => {
+    openDarkroom();
+    component['faceMap'].set(new Map([
+      ['/p1.jpg', [{ id: 1, face_index: 0, eyes_open_score: 5, smile_score: 5 }]],
+    ]));
+    fixture.detectChanges();
+
+    const dialog = fixture.debugElement.query(By.css('[role="dialog"][aria-modal="true"]')).nativeElement;
+    const focusSpy = vi.spyOn(dialog, 'focus');
+    const thumbs = fixture.debugElement.queryAll(By.css('[matSliderThumb]'));
+    expect(thumbs.length).toBe(3);
+
+    for (const thumb of thumbs) {
+      focusSpy.mockClear();
+      thumb.triggerEventHandler('dragEnd', {});
+      expect(focusSpy).toHaveBeenCalledTimes(1);
+    }
   });
 });
 

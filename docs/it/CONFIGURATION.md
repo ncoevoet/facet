@@ -1128,8 +1128,11 @@ si ricava da `f_stop` / `shutter_speed` / `ISO`, già memorizzati
 la sola aritmetica, senza nuova scansione, senza decodifica delle immagini e senza modello.
 
 Una serie è accettata se gli scatti condividono la fotocamera, si susseguono entro
-`max_gap_seconds`, mantengono l'inquadratura (`max_hamming` sul pHash) e i loro EV formano
-una scala regolare e a senso unico di almeno `min_frames` scatti su `min_span_stops`. È la
+`max_gap_seconds`, mantengono l'inquadratura (`max_hamming` sul pHash) e i loro EV, ordinati
+anziché nell'ordine di scatto, formano una scala regolare di esposizioni distinte su
+`min_span_stops` con almeno `min_frames` scatti. Ordinare prima rende l'ordine di scatto
+irrilevante: una serie che inizia con lo scatto base (`0, -, +`, un ordine offerto da Sony,
+Canon e Nikon) è accettata esattamente come una scattata dallo scuro al chiaro. È la
 regolarità dei passi a distinguere un bracketing da una serie a mano libera in luce variabile.
 
 Ogni scatto riceve `sequence_ev_offset`, la sua compensazione dell'esposizione rispetto allo
@@ -1178,10 +1181,10 @@ test della scala si svuotano di senso: un solo passo è banalmente unidirezional
 regolare. Resta soltanto «due scatti a pochi istanti l'uno dall'altro, stessa inquadratura,
 distanti almeno uno stop» — che descrive un fotografo che corregge l'esposizione e riscatta
 esattamente quanto un vero bracketing a due scatti. Misurato su una libreria di 124.886 foto,
-`2` aggiunge 381 serie alle 226 trovate per impostazione predefinita, e gli indizi dicono che
-la maggior parte non lo è: il 56 % copre meno di due stop, mentre il 99,6 % delle serie
-confermate ne copre due o più, e il loro profilo di taglio più frequente è «entrambi gli
-scatti scuri» invece della morsa ombre/alte luci delle serie confermate.
+`2` aggiunge 381 serie alle 657 trovate per impostazione predefinita, e gli indizi continuano
+a dire che la maggior parte non lo è: il 62 % copre meno di due stop, mentre il 91 % delle
+serie confermate ne copre due o più, e dove una coppia aggiuntiva mostra un qualche taglio,
+«entrambi gli scatti scuri» è il profilo più frequente.
 
 Peggio ancora, una coppia che è *davvero* ciò che resta di una serie da tre scatti è fatta di
 due pioli laterali adiacenti, e nulla di memorizzato dice da che parte mancasse il terzo: il

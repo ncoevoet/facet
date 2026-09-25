@@ -10,6 +10,9 @@ space stored face boxes live in.
 """
 
 import io
+import json
+import shutil
+import subprocess
 import sys
 import threading
 import types
@@ -76,6 +79,18 @@ class _StubRaw:
         return np.zeros((DEMOSAIC_SIZE[1], DEMOSAIC_SIZE[0], 3), dtype=np.uint8)
 
 
+class LibRawError(Exception):
+    pass
+
+
+class LibRawFileUnsupportedError(LibRawError):
+    pass
+
+
+class LibRawIOError(LibRawError):
+    pass
+
+
 def _install_stub_rawpy(monkeypatch, thumb, flip=0):
     """Register a rawpy stand-in and return the raw object every imread yields."""
     raw = _StubRaw(thumb, flip=flip)
@@ -83,6 +98,9 @@ def _install_stub_rawpy(monkeypatch, thumb, flip=0):
     stub.imread = lambda path: raw
     stub.ThumbFormat = types.SimpleNamespace(JPEG="jpeg", BITMAP="bitmap")
     stub.ColorSpace = types.SimpleNamespace(sRGB="srgb")
+    stub.LibRawError = LibRawError
+    stub.LibRawFileUnsupportedError = LibRawFileUnsupportedError
+    stub.LibRawIOError = LibRawIOError
     monkeypatch.setitem(sys.modules, "rawpy", stub)
     monkeypatch.setattr(image_loading, "_decode_timeout", 0.0)
     return raw
@@ -678,3 +696,463 @@ class TestRefreshThumbnailsPool:
             "refresh_thumbnails never returned: its tasks are waiting on futures "
             "from the pool they are running in")
         assert outcome['result'] == (12, 0, False)
+
+
+class TestExiftoolPreviewFallback:
+    """Lightroom-merged floating-point DNGs (*-HDR.dng, *-Pano.dng) make LibRaw
+    raise LibRawFileUnsupportedError outright rather than returning "no
+    preview" -- extract_raw_preview's own failure mode. exiftool can still
+    pull the camera-embedded preview those files carry."""
+
+    def _listing_result(self, tags):
+        payload = json.dumps([tags]).encode('utf-8')
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout=payload, stderr=b'')
+
+    def _binary_result(self, data):
+        return subprocess.CompletedProcess(args=[], returncode=0, stdout=data, stderr=b'')
+
+    def _install_unsupported_rawpy(self, monkeypatch):
+        stub = types.ModuleType("rawpy")
+
+        def _raise(path):
+            raise LibRawFileUnsupportedError("Unsupported file format or not RAW file")
+
+        stub.imread = _raise
+        stub.ThumbFormat = types.SimpleNamespace(JPEG="jpeg", BITMAP="bitmap")
+        stub.ColorSpace = types.SimpleNamespace(sRGB="srgb")
+        stub.LibRawError = LibRawError
+        stub.LibRawFileUnsupportedError = LibRawFileUnsupportedError
+        stub.LibRawIOError = LibRawIOError
+        monkeypatch.setitem(sys.modules, "rawpy", stub)
+        monkeypatch.setattr(image_loading, "_decode_timeout", 0.0)
+
+    def _install_io_error_rawpy(self, monkeypatch):
+        stub = types.ModuleType("rawpy")
+
+        def _raise(path):
+            raise LibRawIOError("No such file or directory")
+
+        stub.imread = _raise
+        stub.ThumbFormat = types.SimpleNamespace(JPEG="jpeg", BITMAP="bitmap")
+        stub.ColorSpace = types.SimpleNamespace(sRGB="srgb")
+        stub.LibRawError = LibRawError
+        stub.LibRawFileUnsupportedError = LibRawFileUnsupportedError
+        stub.LibRawIOError = LibRawIOError
+        monkeypatch.setitem(sys.modules, "rawpy", stub)
+        monkeypatch.setattr(image_loading, "_decode_timeout", 0.0)
+
+    def test_unsupported_dng_falls_back_to_the_largest_preview(self, monkeypatch, tmp_path):
+        self._install_unsupported_rawpy(monkeypatch)
+
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": 1,
+            "SubIFD1:PreviewImage": "(Binary data 90751 bytes, use -b option to extract)",
+        })
+        preview_bytes = _jpeg_bytes((2000, 1500))
+        calls = {"n": 0}
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            calls["n"] += 1
+            if '-j' in cmd:
+                return listing
+            return self._binary_result(preview_bytes)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        path = _raw_file(tmp_path, "DSC03469-Pano.dng")
+        pil_img, img_cv = load_image_from_path(path)
+
+        assert pil_img.size == (2000, 1500)
+        assert img_cv is not None
+        assert calls["n"] == 2
+
+    def test_orientation_6_rotates_the_preview(self, monkeypatch, tmp_path):
+        self._install_unsupported_rawpy(monkeypatch)
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": 6,
+            "SubIFD1:PreviewImage": "(Binary data 90751 bytes, use -b option to extract)",
+        })
+        # A marker in the top-left corner of the pre-rotation buffer ends up
+        # top-right after orientation-6's correction (PIL ROTATE_270).
+        buf = np.full((1500, 2000, 3), 40, dtype=np.uint8)
+        buf[:50, :50] = (255, 0, 0)
+        img_bytes = io.BytesIO()
+        Image.fromarray(buf).save(img_bytes, format='JPEG', quality=100)
+        preview_bytes = img_bytes.getvalue()
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            if '-j' in cmd:
+                return listing
+            return self._binary_result(preview_bytes)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        pil_img, _ = load_image_from_path(_raw_file(tmp_path, "shot-HDR.dng"))
+
+        assert pil_img.size == (1500, 2000)
+        corner = np.array(pil_img)[:50, -50:]
+        assert corner[:, :, 0].mean() > 200  # red marker landed top-right
+
+    def test_preview_under_the_size_floor_returns_none(self, monkeypatch, tmp_path):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": 1,
+            "SubIFD1:PreviewImage": "(Binary data 500 bytes, use -b option to extract)",
+        })
+        preview_bytes = _jpeg_bytes((320, 240))
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            if '-j' in cmd:
+                return listing
+            return self._binary_result(preview_bytes)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        assert image_loading.extract_exiftool_preview(
+            _raw_file(tmp_path, "small-Pano.dng")) is None
+
+    def test_exiftool_not_found_returns_none(self, monkeypatch, tmp_path):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: None)
+
+        calls = []
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            calls.append(cmd)
+            raise AssertionError("exiftool should never be invoked when unresolved")
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        assert image_loading.extract_exiftool_preview(
+            _raw_file(tmp_path, "no-tool-Pano.dng")) is None
+        assert calls == []
+
+    def test_libraw_io_error_never_invokes_exiftool(self, monkeypatch, tmp_path):
+        self._install_io_error_rawpy(monkeypatch)
+
+        calls = []
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            calls.append(cmd)
+            raise AssertionError("exiftool must not run for a LibRawIOError")
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        pil_img, img_cv = load_image_from_path(_raw_file(tmp_path, "missing.dng"))
+
+        assert pil_img is None and img_cv is None
+        assert calls == []
+
+    def test_undecodable_largest_candidate_falls_through_to_the_next(self, monkeypatch, tmp_path):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": 1,
+            "SubIFD1:PreviewImage": "(Binary data 999999 bytes, use -b option to extract)",
+            "IFD0:JpgFromRaw": "(Binary data 90751 bytes, use -b option to extract)",
+        })
+        good_bytes = _jpeg_bytes((1200, 900))
+        calls = []
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            if '-j' in cmd:
+                return listing
+            calls.append(cmd)
+            if 'SubIFD1:PreviewImage' in cmd[2]:
+                return self._binary_result(b"not a real jpeg, jpeg-xl or otherwise")
+            return self._binary_result(good_bytes)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        img = image_loading.extract_exiftool_preview(_raw_file(tmp_path, "fallthrough-HDR.dng"))
+
+        assert img is not None and img.size == (1200, 900)
+        assert len(calls) == 2
+
+    def test_listing_timeout_returns_none_without_raising(self, monkeypatch, tmp_path):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        assert image_loading.extract_exiftool_preview(
+            _raw_file(tmp_path, "slow-Pano.dng")) is None
+
+    def test_listing_picks_the_largest_across_group_prefixed_duplicates(self, monkeypatch, tmp_path):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": 1,
+            "IFD0:PreviewImage": "(Binary data 100 bytes, use -b option to extract)",
+            "SubIFD1:PreviewImage": "(Binary data 90751 bytes, use -b option to extract)",
+            "SubIFD2:JpgFromRaw": "(Binary data 50000 bytes, use -b option to extract)",
+        })
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            if '-j' in cmd:
+                return listing
+            raise AssertionError("test only inspects the listing parse")
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        candidates, orientation = image_loading._exiftool_preview_candidates(
+            "/usr/bin/exiftool", _raw_file(tmp_path, "dup-HDR.dng"))
+
+        assert orientation == 1
+        assert [size for size, _tag in candidates] == [90751, 50000, 100]
+        assert candidates[0][1] == "SubIFD1:PreviewImage"
+
+    @pytest.mark.parametrize("long_edge,expect_none", [(1023, True), (1024, False)])
+    def test_min_long_edge_boundary(self, monkeypatch, tmp_path, long_edge, expect_none):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": 1,
+            "SubIFD1:PreviewImage": "(Binary data 90751 bytes, use -b option to extract)",
+        })
+        preview_bytes = _jpeg_bytes((long_edge, long_edge - 200))
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            if '-j' in cmd:
+                return listing
+            return self._binary_result(preview_bytes)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        result = image_loading.extract_exiftool_preview(
+            _raw_file(tmp_path, "boundary-Pano.dng"))
+
+        assert (result is None) == expect_none
+
+    @pytest.mark.parametrize("orientation", [1, 2, 3, 4, 5, 6, 7, 8])
+    def test_all_exif_orientations_match_pil_exif_transpose(self, monkeypatch, tmp_path, orientation):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        # Asymmetric 1200x1030 base with distinct coloured corner markers so
+        # every orientation's transform is distinguishable from every other.
+        buf = np.full((1030, 1200, 3), 40, dtype=np.uint8)
+        buf[:40, :40] = (255, 0, 0)      # top-left
+        buf[:40, -40:] = (0, 255, 0)     # top-right
+        buf[-40:, :40] = (0, 0, 255)     # bottom-left
+        buf[-40:, -40:] = (255, 255, 0)  # bottom-right
+        base = Image.fromarray(buf)
+
+        img_bytes = io.BytesIO()
+        base.save(img_bytes, format='JPEG', quality=100)
+        preview_bytes = img_bytes.getvalue()
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": orientation,
+            "SubIFD1:PreviewImage": "(Binary data 90751 bytes, use -b option to extract)",
+        })
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            if '-j' in cmd:
+                return listing
+            return self._binary_result(preview_bytes)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        result = image_loading.extract_exiftool_preview(
+            _raw_file(tmp_path, "orient-HDR.dng"))
+
+        exif = base.getexif()
+        exif[image_loading._EXIF_ORIENTATION_TAG] = orientation
+        tagged_bytes = io.BytesIO()
+        base.save(tagged_bytes, format='JPEG', quality=100, exif=exif.tobytes())
+        tagged_bytes.seek(0)
+        expected = ImageOps.exif_transpose(Image.open(tagged_bytes)).convert('RGB')
+
+        from PIL import ImageChops
+        assert result.size == expected.size
+        assert ImageChops.difference(result, expected).getbbox() is None
+
+    def test_listing_and_extraction_pass_double_dash_before_the_path(self, monkeypatch, tmp_path):
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: "/usr/bin/exiftool")
+
+        listing = self._listing_result({
+            "SourceFile": "x",
+            "IFD0:Orientation": 1,
+            "SubIFD1:PreviewImage": "(Binary data 90751 bytes, use -b option to extract)",
+        })
+        preview_bytes = _jpeg_bytes((2000, 1500))
+        calls = []
+
+        def _fake_run(cmd, capture_output=True, timeout=None):
+            calls.append(cmd)
+            if '-j' in cmd:
+                return listing
+            return self._binary_result(preview_bytes)
+
+        monkeypatch.setattr(image_loading.subprocess, "run", _fake_run)
+
+        path = _raw_file(tmp_path, "-ver-HDR.dng")
+        result = image_loading.extract_exiftool_preview(path)
+
+        assert result is not None
+        assert len(calls) == 2
+        for cmd in calls:
+            assert cmd[-2] == '--'
+            assert cmd[-1] == str(path)
+
+
+@pytest.mark.skipif(shutil.which("exiftool") is None, reason="exiftool not installed")
+class TestExiftoolPreviewFallbackWithRealBinaries:
+    """rawpy and exiftool are both real here -- pins the actual exception
+    class name and confirms the fallback wiring against a real exiftool."""
+
+    def test_a_libraw_rejected_file_yields_the_pinned_exception(self, tmp_path):
+        rawpy = pytest.importorskip("rawpy")
+
+        # A minimal TIFF, which real LibRaw refuses as an unsupported RAW.
+        path = tmp_path / "fake-HDR.dng"
+        Image.new('RGB', (32, 32), (10, 20, 30)).save(str(path), format='TIFF')
+
+        with pytest.raises(rawpy.LibRawFileUnsupportedError):
+            rawpy.imread(str(path))
+
+    def test_decode_raw_uses_the_fallback_when_rawpy_rejects_the_file(self, monkeypatch, tmp_path):
+        pytest.importorskip("rawpy")
+
+        path = tmp_path / "fake-HDR.dng"
+        Image.new('RGB', (32, 32), (10, 20, 30)).save(str(path), format='TIFF')
+        sentinel = Image.new('RGB', (2000, 1500), (5, 6, 7))
+
+        monkeypatch.setattr(image_loading, "extract_exiftool_preview", lambda p: sentinel)
+        monkeypatch.setattr(image_loading, "_decode_timeout", 0.0)
+
+        pil_img, img_cv = load_image_from_path(str(path))
+
+        assert pil_img is sentinel
+        assert img_cv is not None
+
+    def test_real_exiftool_on_a_jpeg_with_no_embedded_preview_returns_none(self, tmp_path):
+        path = tmp_path / "plain.jpg"
+        Image.new('RGB', (64, 48), (1, 2, 3)).save(str(path))
+
+        assert image_loading.extract_exiftool_preview(str(path)) is None
+
+    def test_real_exiftool_handles_a_dash_prefixed_relative_filename(self, monkeypatch, tmp_path):
+        path = tmp_path / "-ver.jpg"
+        Image.new('RGB', (64, 48), (1, 2, 3)).save(str(path))
+        monkeypatch.chdir(tmp_path)
+
+        # Without "--" before the path, exiftool would try to parse "-ver.jpg"
+        # as an option and either error out or misbehave; with it, the
+        # listing call succeeds and this small no-preview JPEG returns None
+        # rather than raising.
+        assert image_loading.extract_exiftool_preview("-ver.jpg") is None
+
+
+class TestDngJxlPreviewFallback:
+    """Lightroom Classic 13+ compresses every image in a DNG 1.7 HDR/Panorama
+    (and Enhance) merge with JPEG XL, including every embedded preview -- so
+    Pillow cannot decode what extract_exiftool_preview pulls out, and it
+    falls through to the tiny IFD0 thumbnail, which fails the size floor.
+    extract_dng_jxl_preview decodes the SubIFD preview directly via
+    tifffile + imagecodecs instead."""
+
+    @staticmethod
+    def _write_synthetic_dng(path, preview_size=(683, 1024), orientation=1,
+                              marker=True):
+        import tifffile
+        np_ = np
+        thumb = np_.zeros((32, 48, 3), np_.uint8)
+        h, w = preview_size
+        preview = np_.full((h, w, 3), 40, np_.uint8)
+        if marker:
+            preview[:40, :40] = (255, 0, 0)  # top-left marker
+        tags = [(274, 'H', 1, orientation, True)]
+        with tifffile.TiffWriter(str(path)) as tw:
+            tw.write(thumb, photometric='rgb', compression='jpeg',
+                      subfiletype=1, extratags=tags, subifds=1, metadata=None)
+            tw.write(preview, photometric='rgb', compression='jpegxl',
+                      subfiletype=1, metadata=None)
+
+    def test_decodes_the_subifd_preview(self, tmp_path):
+        path = tmp_path / "shot-HDR.dng"
+        self._write_synthetic_dng(path)
+
+        img = image_loading.extract_dng_jxl_preview(str(path))
+
+        assert img is not None
+        assert img.mode == 'RGB'
+        assert img.size == (1024, 683)
+
+    def test_orientation_is_applied(self, tmp_path):
+        path = tmp_path / "shot-HDR.dng"
+        # orientation 6 == PIL ROTATE_270; the top-left marker lands top-right.
+        self._write_synthetic_dng(path, orientation=6)
+
+        img = image_loading.extract_dng_jxl_preview(str(path))
+
+        assert img is not None
+        assert img.size == (683, 1024)
+        corner = np.array(img)[:40, -40:]
+        assert corner[:, :, 0].mean() > 200
+
+    def test_preview_under_the_size_floor_returns_none(self, tmp_path):
+        path = tmp_path / "shot-HDR.dng"
+        self._write_synthetic_dng(path, preview_size=(500, 800))
+
+        assert image_loading.extract_dng_jxl_preview(str(path)) is None
+
+    def test_garbage_file_returns_none_without_raising(self, tmp_path):
+        path = tmp_path / "garbage-HDR.dng"
+        path.write_bytes(b"not a tiff at all")
+
+        assert image_loading.extract_dng_jxl_preview(str(path)) is None
+
+    def test_decode_raw_reaches_the_dng_jxl_fallback_when_exiftool_yields_nothing(
+            self, monkeypatch, tmp_path):
+
+        stub = types.ModuleType("rawpy")
+
+        def _raise(path):
+            raise LibRawFileUnsupportedError("Unsupported file format or not RAW file")
+
+        stub.imread = _raise
+        stub.ThumbFormat = types.SimpleNamespace(JPEG="jpeg", BITMAP="bitmap")
+        stub.ColorSpace = types.SimpleNamespace(sRGB="srgb")
+        stub.LibRawError = LibRawError
+        stub.LibRawFileUnsupportedError = LibRawFileUnsupportedError
+        stub.LibRawIOError = LibRawIOError
+        monkeypatch.setitem(sys.modules, "rawpy", stub)
+        monkeypatch.setattr(image_loading, "_decode_timeout", 0.0)
+        # exiftool is unresolved -- extract_exiftool_preview returns None,
+        # exactly the "only the tiny IFD0 thumb decoded" outcome this
+        # fallback exists for.
+        import processing.xmp_export as xmp_export
+        monkeypatch.setattr(xmp_export, "_resolve_exiftool", lambda: None)
+
+        path = _raw_file(tmp_path, "merged-HDR.dng")
+        self._write_synthetic_dng(path)
+
+        pil_img, img_cv = load_image_from_path(str(path))
+
+        assert pil_img is not None
+        assert pil_img.size == (1024, 683)
+        assert img_cv is not None

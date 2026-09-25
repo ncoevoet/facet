@@ -1127,10 +1127,12 @@ deduzida de `f_stop` / `shutter_speed` / `ISO`, já armazenados
 com aritmética: sem nova análise, sem descodificar imagens e sem modelo.
 
 Uma série é aceite se as fotos partilharem a câmara, se seguirem dentro de
-`max_gap_seconds`, mantiverem o enquadramento (`max_hamming` sobre o pHash) e os seus EV
-formarem uma escala regular e num só sentido de pelo menos `min_frames` fotos abrangendo
-`min_span_stops`. É a regularidade dos passos que distingue um bracketing de uma série à mão
-com luz a mudar.
+`max_gap_seconds`, mantiverem o enquadramento (`max_hamming` sobre o pHash) e os seus EV,
+ordenados em vez de pela ordem de captura, formarem uma escala regular de exposições
+distintas abrangendo `min_span_stops` em pelo menos `min_frames` fotos. Ordenar primeiro faz
+com que a ordem de captura não importe: uma série que começa pela foto base (`0, -, +`, uma
+ordem oferecida pela Sony, Canon e Nikon) é aceite tal como uma tirada do escuro para o claro.
+É a regularidade dos passos que distingue um bracketing de uma série à mão com luz a mudar.
 
 Cada foto recebe `sequence_ev_offset`, a sua compensação de exposição face à foto base, com o
 sinal que a câmara usa: `-2` é a escura e `+2` a clara. Quando uma rajada corresponde
@@ -1177,10 +1179,10 @@ ficam vazios: um único passo é trivialmente unidirecional e trivialmente regul
 apenas «duas fotos separadas por instantes, mesmo enquadramento, a um passo ou mais» — o que
 descreve tão bem um fotógrafo que corrige a exposição e volta a disparar como um verdadeiro
 bracketing de duas fotos. Medido numa biblioteca de 124 886 fotos, `2` acrescenta 381 séries
-às 226 encontradas por omissão, e os indícios dizem que a maioria não o é: 56 % abrangem
-menos de dois passos, ao passo que 99,6 % das séries confirmadas abrangem dois ou mais, e o
-seu padrão de corte mais frequente é «ambas as fotos escuras» em vez do enquadramento
-sombras/altas luzes das séries confirmadas.
+às 657 encontradas por omissão, e os indícios continuam a dizer que a maioria não o é: 62 %
+abrangem menos de dois passos, ao passo que 91 % das séries confirmadas abrangem dois ou
+mais, e onde um par adicional mostra algum corte, «ambas as fotos escuras» é o padrão mais
+frequente.
 
 Pior ainda, um par que *é* de facto o que resta de uma série de três fotos é feito de dois
 degraus laterais contíguos, e nada do que está guardado diz de que lado faltava o terceiro: o
