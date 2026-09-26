@@ -971,6 +971,22 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('collapsedSetKinds', () => {
+    it('lists nothing when every hide toggle is off', () => {
+      mockStore.filters.set({
+        ...DEFAULT_FILTERS, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false,
+      });
+      expect(component.collapsedSetKinds()).toEqual([]);
+    });
+
+    it('lists a kind per toggle that is on', () => {
+      mockStore.filters.set({
+        ...DEFAULT_FILTERS, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
+      });
+      expect(component.collapsedSetKinds()).toEqual(['burst', 'duplicate', 'bracket', 'panorama', 'hdr_panorama']);
+    });
+  });
+
   describe('thumbnail-migration banner', () => {
     const RENDER_MIGRATION_KEY = 'facet_render_migration_dismissed';
 

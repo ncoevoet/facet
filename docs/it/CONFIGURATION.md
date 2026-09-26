@@ -1789,7 +1789,7 @@ predefinita, quindi ometterlo non cambia nulla.
 | `badges.favorite` | `true` | Badge a cuore su una foto preferita (modalità edizione) |
 | `badges.star_rating` | `true` | Badge stella e contatore su una foto valutata (modalità edizione) |
 | `badges.rejected` | `true` | Badge pollice verso su una foto rifiutata (modalità edizione) |
-| `badges.sequence_kind` | `true` | Badge bracketing/panorama, mostrato solo finché l'opzione di nascondimento comprime la serie |
+| `badges.sequence_kind` | `true` | Badge della serie (sequenza/bracketing/panorama/duplicato), disegnato a sinistra del badge di rifiuto, mostrato solo finché l'opzione di nascondimento comprime la serie |
 | `badges.sequence_override_pending` | `true` | Badge orologio per una correzione panorama in attesa del prossimo rilevamento |
 | `badges.keeper_hint` | `true` | Freccia «esiste uno scatto migliore in questo gruppo» dal modello di selezione appreso |
 | `badges.best_of_burst` | `true` | Badge «Migliore» sullo scatto guida di una raffica. Mostrato solo con `hide_bursts` disattivato: altrimenti ogni foto di raffica a schermo è già la guida |

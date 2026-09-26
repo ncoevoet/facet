@@ -59,6 +59,11 @@
     },
     "badges": {
       "best": "BESTE",
+      "best_of_burst": "Beste aus Serie",
+      "best_of_bracket": "Beste aus Belichtungsreihe",
+      "best_of_panorama": "Bestes Bild des Panoramas",
+      "best_of_hdr_panorama": "Bestes Bild des HDR-Panoramas",
+      "best_of_duplicate": "Bestes Bild der Duplikate",
       "blink": "BLINZ",
       "bw": "S&W",
       "dup": "DUP",

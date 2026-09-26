@@ -1767,7 +1767,7 @@ nothing.
 | `badges.favorite` | `true` | Heart badge on a favourited photo (edition mode) |
 | `badges.star_rating` | `true` | Star + count badge on a rated photo (edition mode) |
 | `badges.rejected` | `true` | Thumb-down badge on a rejected photo (edition mode) |
-| `badges.sequence_kind` | `true` | Bracket/panorama badge, shown only while the matching hide toggle collapses the set |
+| `badges.sequence_kind` | `true` | Set badge (burst/bracket/panorama/duplicate), drawn left of the rejected badge, shown only while the matching hide toggle collapses the set |
 | `badges.sequence_override_pending` | `true` | Clock badge for a panorama correction awaiting the next detection run |
 | `badges.keeper_hint` | `true` | "A better shot exists in this group" arrow from the learned keeper head |
 | `badges.best_of_burst` | `true` | "Best" badge on a burst lead. Shown only when `hide_bursts` is off — with it on, every burst photo on screen is already its group's lead |

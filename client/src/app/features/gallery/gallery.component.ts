@@ -298,7 +298,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                 <div class="flex gap-2 mb-2" [style.height.px]="row.height">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
-                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
@@ -349,7 +349,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             >
               @for (photo of store.photos(); track photo.path; let i = $index) {
                 <app-photo-card
-                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
                   [photo]="photo"
                   [attr.data-pidx]="i"
@@ -402,7 +402,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                 <div class="flex gap-2">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
-                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
@@ -803,15 +803,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     () => this.panelMode() && !this.store.filterDrawerOpen(),
   );
 
-  /** Sequence kinds whose sets are currently collapsed behind one frame.
+  /** Set kinds whose sets are currently collapsed behind one frame.
    *
    *  A tile only earns its set badge while the matching toggle is hiding the
    *  rest of the set. With the toggle off every frame is on screen in its own
    *  right, and badging all of them would say nothing.
    */
-  readonly collapsedSequenceKinds = computed(() => {
+  readonly collapsedSetKinds = computed(() => {
     const f = this.store.filters();
     const kinds: string[] = [];
+    if (f.hide_bursts) kinds.push('burst');
+    if (f.hide_duplicates) kinds.push('duplicate');
     if (f.hide_brackets) kinds.push('bracket');
     if (f.hide_panoramas) kinds.push('panorama', 'hdr_panorama');
     return kinds;

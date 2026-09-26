@@ -39,3 +39,26 @@ export class PhotoSetKindLabelPipe implements PipeTransform {
     return (kind && PHOTO_SET_KIND_LABELS[kind]) || '';
   }
 }
+
+/**
+ * Translation key for the "Best of <kind>" tile badge -- distinct from
+ * PHOTO_SET_KIND_LABELS, which the tooltip and photo-detail panel use to say
+ * "Burst"/"Duplicate" on their own (correct there, but not what the tile
+ * badge means: this tile is the representative frame picked over the rest of
+ * the set).
+ */
+export const PHOTO_SET_KIND_BEST_LABELS: Record<string, string> = {
+  bracket: I18N.ui.badges.best_of_bracket,
+  panorama: I18N.ui.badges.best_of_panorama,
+  hdr_panorama: I18N.ui.badges.best_of_hdr_panorama,
+  burst: I18N.ui.badges.best_of_burst,
+  duplicate: I18N.ui.badges.best_of_duplicate,
+};
+
+/** Translation key for the "Best of <kind>" badge, or '' when it names no known kind. */
+@Pipe({ name: 'photoSetKindBestLabel', standalone: true })
+export class PhotoSetKindBestLabelPipe implements PipeTransform {
+  transform(kind: string | null | undefined): string {
+    return (kind && PHOTO_SET_KIND_BEST_LABELS[kind]) || '';
+  }
+}

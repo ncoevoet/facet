@@ -59,6 +59,11 @@
     },
     "badges": {
       "best": "MELHOR",
+      "best_of_burst": "Melhor da rajada",
+      "best_of_bracket": "Melhor do bracketing",
+      "best_of_panorama": "Melhor do panorama",
+      "best_of_hdr_panorama": "Melhor do panorama HDR",
+      "best_of_duplicate": "Melhor dos duplicados",
       "blink": "PISCOU",
       "bw": "P&B",
       "dup": "DUP",

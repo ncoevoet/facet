@@ -59,6 +59,11 @@
     },
     "badges": {
       "best": "TOP",
+      "best_of_burst": "Meilleure de la rafale",
+      "best_of_bracket": "Meilleure du bracketing",
+      "best_of_panorama": "Meilleure du panorama",
+      "best_of_hdr_panorama": "Meilleure du panorama HDR",
+      "best_of_duplicate": "Meilleure des doublons",
       "blink": "CLIN",
       "bw": "N&B",
       "dup": "DUP",

@@ -59,6 +59,11 @@
     },
     "badges": {
       "best": "最佳",
+      "best_of_burst": "连拍最佳照片",
+      "best_of_bracket": "包围曝光最佳照片",
+      "best_of_panorama": "全景组最佳照片",
+      "best_of_hdr_panorama": "HDR全景组最佳照片",
+      "best_of_duplicate": "重复照片中最佳",
       "blink": "闭眼",
       "bw": "黑白",
       "dup": "重复",

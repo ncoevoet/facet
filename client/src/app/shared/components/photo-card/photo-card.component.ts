@@ -6,9 +6,8 @@ import { MatMenuModule } from '@angular/material/menu';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
-import {
-  SequenceKindIconPipe, SequenceKindLabelPipe, SequenceOverrideBadgeKeyPipe,
-} from '../../pipes/sequence-kind.pipe';
+import { SequenceOverrideBadgeKeyPipe } from '../../pipes/sequence-kind.pipe';
+import { PhotoSetKindIconPipe, PhotoSetKindBestLabelPipe } from '../../pipes/photo-set-kind.pipe';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { ScoreClassPipe, SortScorePipe } from '../../pipes/score.pipes';
@@ -121,9 +120,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     MatMenuModule,
     TranslatePipe,
     ThumbnailUrlPipe,
-    SequenceKindIconPipe,
-    SequenceKindLabelPipe,
     SequenceOverrideBadgeKeyPipe,
+    PhotoSetKindIconPipe,
+    PhotoSetKindBestLabelPipe,
     PersonThumbnailUrlPipe,
     FixedPipe,
     ShutterSpeedPipe,
@@ -174,7 +173,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
              right-9 the bar's own px-1.5 py-1 and gap-0.5 produce. They were
              6px off before, which read as the icons jumping every time the
              pointer entered or left the tile. -->
-        @if (badges().favorite && isEditionMode() && photo().is_favorite) {
+        @if (showsFavoriteBadge()) {
           <div class="absolute bottom-1 right-1.5 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md">favorite</mat-icon>
           </div>
@@ -192,23 +191,26 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           </div>
         }
 
-        <!-- This tile stands for a whole set, not one photo. With the hide
+        <!-- This tile stands for a whole set, not one photo. With a hide
              toggle on, the other frames are collapsed behind it and nothing
-             else on the tile would say so. Bottom row, just past the star's
-             slot: every persistent badge keeps a fixed position so they never
-             trade places as a photo is favourited or rated. Shown only while the
-             matching hide toggle is on: with it off every frame is on screen in
-             its own right, and badging all of them says nothing. It does NOT fade
-             under the hover bar the way the rating badges do -- those fade
-             because the bar replaces them with their own controls, whereas this
-             one states a fact the bar never repeats, so hiding it on hover just
-             loses information. Sits above the bar's gradient. -->
-        @if (badges().sequence_kind && collapsedSequenceKinds().includes(photo().sequence_kind ?? '')) {
-          <div class="absolute bottom-1 left-10 w-7 h-7 z-30 inline-flex items-center justify-center"
-               [matTooltip]="photo().sequence_kind | sequenceKindLabel | translate"
-               [attr.aria-label]="photo().sequence_kind | sequenceKindLabel | translate">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-sky-300 drop-shadow-md"
-                      aria-hidden="true">{{ photo().sequence_kind | sequenceKindIcon }}</mat-icon>
+             else on the tile would say so. Shown only while the matching hide
+             toggle collapses this photo's set: with it off every frame is on
+             screen in its own right, and badging all of them says nothing. It
+             does NOT fade under the hover bar the way the rating badges do --
+             those fade because the bar replaces them with their own controls,
+             whereas this one states a fact the bar never repeats, so hiding it
+             on hover just loses information. Sits above the bar's gradient.
+             Position is packed against whichever of favorite/rejected is
+             showing (setKindBadgePosition()): flush right when neither is up,
+             next-slot-in when one is, and clear of both when rejected is up --
+             and in edition mode it also steps clear on hover, since that is
+             when the bar's own heart/reject buttons occupy those slots. -->
+        @if (badges().sequence_kind && collapsedSetKind(); as kind) {
+          <div [class]="'absolute bottom-1 w-7 h-7 z-30 inline-flex items-center justify-center ' + setKindBadgePosition()"
+               [matTooltip]="kind | photoSetKindBestLabel | translate"
+               [attr.aria-label]="kind | photoSetKindBestLabel | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white drop-shadow-md"
+                      aria-hidden="true">{{ kind | photoSetKindIcon }}</mat-icon>
           </div>
         }
 
@@ -232,7 +234,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
              corners so they never collided, and hiding it left desaturation as
              the only signal -- which conveys nothing to a screen reader and
              nothing at all on an already-monochrome photo. -->
-        @if (badges().rejected && isEditionMode() && photo().is_rejected) {
+        @if (showsRejectedBadge()) {
           <div class="absolute bottom-1 right-9 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0"
                [attr.aria-label]="'rating.rejected_badge' | translate">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-red-400 drop-shadow-md" aria-hidden="true">thumb_down</mat-icon>
@@ -456,6 +458,34 @@ export class PhotoCardComponent {
   protected readonly badges = computed<BadgeVisibility>(
     () => ({ ...DEFAULT_BADGE_VISIBILITY, ...(this.config()?.badges ?? {}) }));
 
+  /** Single source of truth for the favorite badge's @if -- also drives
+   *  setKindBadgePosition() so the set-kind badge packs against it rather
+   *  than the two conditions drifting apart. */
+  protected readonly showsFavoriteBadge = computed(() =>
+    this.badges().favorite && this.isEditionMode() && !!this.photo().is_favorite);
+
+  /** Single source of truth for the rejected badge's @if -- see
+   *  showsFavoriteBadge(). */
+  protected readonly showsRejectedBadge = computed(() =>
+    this.badges().rejected && this.isEditionMode() && !!this.photo().is_rejected);
+
+  /**
+   * Tailwind position classes for the set-kind "Best of ..." badge, packed
+   * against whichever of favorite/rejected is showing so it never overlaps
+   * them: flush right (favorite's own slot) when neither is up, the
+   * rejected slot when only favorite is up, and clear of both -- the
+   * pre-existing right-[4.125rem] -- whenever rejected is up (with or
+   * without favorite). In edition mode the hover bar redraws its own
+   * heart/reject buttons in those same slots, so this also steps clear on
+   * hover; outside edition mode there is no bar to clear, so no hover class.
+   */
+  protected readonly setKindBadgePosition = computed(() => {
+    const hoverClear = this.isEditionMode() ? ' md:group-hover/img:right-[4.125rem]' : '';
+    if (this.showsRejectedBadge()) return 'right-[4.125rem]' + hoverClear;
+    if (this.showsFavoriteBadge()) return 'right-9' + hoverClear;
+    return 'right-1.5' + hoverClear;
+  });
+
   /**
    * The clipping badge for this photo, or null when it has not earned one.
    *
@@ -501,6 +531,31 @@ export class PhotoCardComponent {
     && this.burstFramesVisible()
     && !!this.photo().is_burst_lead
     && this.photo().burst_group_id != null);
+
+  /**
+   * The set kind to badge for this tile, or null when nothing is collapsed
+   * behind it.
+   *
+   * `sequence_kind` (bracket/panorama/hdr_panorama) wins when present -- it is
+   * the deliberate, detector-assigned kind. Burst and duplicate have no
+   * `sequence_kind` counterpart, so they fall back to the same lead+group-id
+   * check `showsBestBadge` uses; `burst_group_id`/`duplicate_group_id` count
+   * from 0, so only a null group id means "not in this kind of set".
+   */
+  protected readonly collapsedSetKind = computed<string | null>(() => {
+    const collapsed = this.collapsedSetKinds();
+    const photo = this.photo();
+    if (photo.sequence_kind && collapsed.includes(photo.sequence_kind)) {
+      return photo.sequence_kind;
+    }
+    if (collapsed.includes('burst') && !!photo.is_burst_lead && photo.burst_group_id != null) {
+      return 'burst';
+    }
+    if (collapsed.includes('duplicate') && !!photo.is_duplicate_lead && photo.duplicate_group_id != null) {
+      return 'duplicate';
+    }
+    return null;
+  });
 
   // Progressive loading
   readonly imageLoaded = signal(false);
@@ -548,16 +603,16 @@ export class PhotoCardComponent {
 
   // Edition mode
   readonly isEditionMode = input(false);
-  /** Sequence kinds currently collapsed behind a representative frame.
+  /** Set kinds currently collapsed behind a representative frame.
    *
    *  Passed in rather than read from the gallery's filter state, so this shared
    *  component keeps knowing nothing about a feature store. Empty means no hide
    *  toggle is on, and the badge would then be claiming a set is collapsed when
    *  every one of its frames is on screen. */
-  readonly collapsedSequenceKinds = input<readonly string[]>([]);
+  readonly collapsedSetKinds = input<readonly string[]>([]);
   /** Whether a burst's non-lead frames are on screen.
    *
-   *  The mirror image of `collapsedSequenceKinds`: with `hide_bursts` on --
+   *  The mirror image of `collapsedSetKinds`: with `hide_bursts` on --
    *  the default -- every burst photo in the grid IS its group's lead, so a
    *  "best" badge on each would be decoration. It only carries information
    *  once the siblings it was picked over are visible beside it. */

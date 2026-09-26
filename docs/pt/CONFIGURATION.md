@@ -1786,7 +1786,7 @@ nada.
 | `badges.favorite` | `true` | Selo de coração numa foto favorita (modo de edição) |
 | `badges.star_rating` | `true` | Selo de estrela e contador numa foto classificada (modo de edição) |
 | `badges.rejected` | `true` | Selo de polegar para baixo numa foto rejeitada (modo de edição) |
-| `badges.sequence_kind` | `true` | Selo de bracketing/panorama, visível apenas enquanto a opção de ocultar recolhe a série |
+| `badges.sequence_kind` | `true` | Selo do conjunto (sequência/bracketing/panorama/duplicado), desenhado à esquerda do selo de rejeição, visível apenas enquanto a opção de ocultar recolhe a série |
 | `badges.sequence_override_pending` | `true` | Selo de relógio para uma correção de panorama à espera da próxima deteção |
 | `badges.keeper_hint` | `true` | Seta «existe uma foto melhor neste grupo» do modelo de seleção aprendido |
 | `badges.best_of_burst` | `true` | Selo «Melhor» na foto principal de uma rajada. Só aparece com `hide_bursts` desativado: caso contrário, todas as fotos de rajada no ecrã já são a principal |

@@ -1795,7 +1795,7 @@ also weggelassen werden, ohne dass sich etwas ändert.
 | `badges.favorite` | `true` | Herz-Badge auf einem Favoriten (Bearbeitungsmodus) |
 | `badges.star_rating` | `true` | Stern- und Zähler-Badge auf einem bewerteten Foto (Bearbeitungsmodus) |
 | `badges.rejected` | `true` | Daumen-runter-Badge auf einem abgelehnten Foto (Bearbeitungsmodus) |
-| `badges.sequence_kind` | `true` | Belichtungsreihen-/Panorama-Badge, nur sichtbar solange die Ausblendoption die Serie zusammenklappt |
+| `badges.sequence_kind` | `true` | Serien-Badge (Serienaufnahme/Belichtungsreihe/Panorama/Duplikat), links vom Ablehnen-Badge, nur sichtbar solange die Ausblendoption die Serie zusammenklappt |
 | `badges.sequence_override_pending` | `true` | Uhr-Badge für eine Panorama-Korrektur, die auf den nächsten Erkennungslauf wartet |
 | `badges.keeper_hint` | `true` | Pfeil „in dieser Gruppe gibt es eine bessere Aufnahme" aus dem gelernten Keeper-Modell |
 | `badges.best_of_burst` | `true` | „Beste"-Badge auf dem Leitbild einer Serie. Nur sichtbar, wenn `hide_bursts` aus ist — sonst ist jedes sichtbare Serienfoto ohnehin schon das Leitbild |

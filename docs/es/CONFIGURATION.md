@@ -1791,7 +1791,7 @@ no cambia nada.
 | `badges.favorite` | `true` | Insignia de corazón en una foto favorita (modo edición) |
 | `badges.star_rating` | `true` | Insignia de estrella y contador en una foto valorada (modo edición) |
 | `badges.rejected` | `true` | Insignia de pulgar abajo en una foto rechazada (modo edición) |
-| `badges.sequence_kind` | `true` | Insignia de horquillado/panorama, visible solo mientras la opción de ocultar contrae la serie |
+| `badges.sequence_kind` | `true` | Insignia del conjunto (ráfaga/horquillado/panorama/duplicado), dibujada a la izquierda de la insignia de rechazo, visible solo mientras la opción de ocultar contrae la serie |
 | `badges.sequence_override_pending` | `true` | Insignia de reloj para una corrección de panorama pendiente de la próxima detección |
 | `badges.keeper_hint` | `true` | Flecha «existe una toma mejor en este grupo» del modelo de selección aprendido |
 | `badges.best_of_burst` | `true` | Insignia «Mejor» en la foto principal de una ráfaga. Solo se muestra con `hide_bursts` desactivado: de lo contrario toda foto de ráfaga en pantalla ya es la principal |

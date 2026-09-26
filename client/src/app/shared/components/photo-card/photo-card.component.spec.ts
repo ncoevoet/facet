@@ -11,12 +11,16 @@ import { makePhoto } from '../../../../testing/photo.fixture';
   standalone: true,
   imports: [PhotoCardComponent],
   template: `<app-photo-card [photo]="photo()" [config]="config()"
-                             [burstFramesVisible]="burstFramesVisible()" />`,
+                             [burstFramesVisible]="burstFramesVisible()"
+                             [collapsedSetKinds]="collapsedSetKinds()"
+                             [isEditionMode]="isEditionMode()" />`,
 })
 class TestHostComponent {
   photo = signal<Photo>(makePhoto());
   config = signal<Record<string, unknown> | null>(null);
   burstFramesVisible = signal(false);
+  collapsedSetKinds = signal<readonly string[]>([]);
+  isEditionMode = signal(false);
 }
 
 describe('PhotoCardComponent', () => {
@@ -344,6 +348,170 @@ describe('PhotoCardComponent', () => {
       fixture.detectChanges();
 
       expect(clipIcon()).toBeNull();
+    });
+  });
+
+  describe('set kind badge', () => {
+    function setIcon(): string | null {
+      const icons = Array.from(fixture.nativeElement.querySelectorAll('mat-icon')) as HTMLElement[];
+      const found = icons.find(icon => ['hdr_on', 'panorama_photosphere', 'vrpano', 'burst_mode', 'content_copy']
+        .includes(icon.textContent?.trim() ?? ''));
+      return found ? found.textContent!.trim() : null;
+    }
+
+    it('badges a collapsed bracket by sequence_kind', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket' }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBe('hdr_on');
+    });
+
+    it('badges a collapsed panorama by sequence_kind', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['panorama', 'hdr_panorama']);
+      fixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'panorama' }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBe('panorama_photosphere');
+    });
+
+    it('badges a burst lead when bursts are collapsed', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['burst']);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 1 }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBe('burst_mode');
+    });
+
+    it('badges a burst lead whose group id is the falsy 0', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['burst']);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: 0 }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBe('burst_mode');
+    });
+
+    it('stays hidden for a burst lead when burst_group_id is null', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['burst']);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: true, burst_group_id: null }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBeNull();
+    });
+
+    it('stays hidden for a burst photo that does not lead its group', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['burst']);
+      fixture.componentInstance.photo.set(makePhoto({ is_burst_lead: false, burst_group_id: 1 }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBeNull();
+    });
+
+    it('badges a duplicate lead when duplicates are collapsed', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['duplicate']);
+      fixture.componentInstance.photo.set(makePhoto({ is_duplicate_lead: true, duplicate_group_id: 1 }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBe('content_copy');
+    });
+
+    it('stays hidden when the kind is not in collapsedSetKinds', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['panorama', 'hdr_panorama']);
+      fixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket' }));
+      fixture.detectChanges();
+
+      expect(setIcon()).toBeNull();
+    });
+
+    it('prefers sequence_kind over a burst lead when both are collapsed', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['bracket', 'burst']);
+      fixture.componentInstance.photo.set(
+        makePhoto({ sequence_kind: 'bracket', is_burst_lead: true, burst_group_id: 1 }),
+      );
+      fixture.detectChanges();
+
+      expect(setIcon()).toBe('hdr_on');
+    });
+
+    it('uses the best_of_* key, not the plain set-kind label, for tooltip and aria-label', () => {
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket' }));
+      fixture.detectChanges();
+
+      const icon = Array.from(fixture.nativeElement.querySelectorAll('mat-icon') as HTMLElement[])
+        .find(el => el.textContent?.trim() === 'hdr_on');
+      const badge = icon!.parentElement as HTMLElement;
+      expect(badge.getAttribute('aria-label')).toBe('ui.badges.best_of_bracket');
+    });
+
+    function badgeElement(): HTMLElement {
+      const icon = Array.from(fixture.nativeElement.querySelectorAll('mat-icon') as HTMLElement[])
+        .find(el => ['hdr_on', 'panorama_photosphere', 'vrpano', 'burst_mode', 'content_copy']
+          .includes(el.textContent?.trim() ?? ''));
+      return icon!.parentElement as HTMLElement;
+    }
+
+    it('packs the badge flush right when neither favorite nor rejected shows', () => {
+      fixture.componentInstance.isEditionMode.set(true);
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(
+        makePhoto({ sequence_kind: 'bracket', is_favorite: false, is_rejected: false }),
+      );
+      fixture.detectChanges();
+
+      expect(badgeElement().className).toContain('right-1.5');
+      expect(badgeElement().className).not.toContain('right-9');
+    });
+
+    it('packs the badge into the rejected slot when only favorite shows', () => {
+      fixture.componentInstance.isEditionMode.set(true);
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(
+        makePhoto({ sequence_kind: 'bracket', is_favorite: true, is_rejected: false }),
+      );
+      fixture.detectChanges();
+
+      expect(badgeElement().className).toContain('right-9');
+    });
+
+    it('packs the badge clear of both slots when rejected shows', () => {
+      fixture.componentInstance.isEditionMode.set(true);
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(
+        makePhoto({ sequence_kind: 'bracket', is_favorite: false, is_rejected: true }),
+      );
+      fixture.detectChanges();
+
+      expect(badgeElement().className).toContain('right-[4.125rem]');
+    });
+
+    it('packs the badge clear of both slots when favorite and rejected both show', () => {
+      fixture.componentInstance.isEditionMode.set(true);
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(
+        makePhoto({ sequence_kind: 'bracket', is_favorite: true, is_rejected: true }),
+      );
+      fixture.detectChanges();
+
+      expect(badgeElement().className).toContain('right-[4.125rem]');
+    });
+
+    it('adds the hover-clear class in edition mode', () => {
+      fixture.componentInstance.isEditionMode.set(true);
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket' }));
+      fixture.detectChanges();
+
+      expect(badgeElement().className).toContain('md:group-hover/img:right-[4.125rem]');
+    });
+
+    it('omits the hover-clear class outside edition mode', () => {
+      fixture.componentInstance.isEditionMode.set(false);
+      fixture.componentInstance.collapsedSetKinds.set(['bracket']);
+      fixture.componentInstance.photo.set(makePhoto({ sequence_kind: 'bracket' }));
+      fixture.detectChanges();
+
+      expect(badgeElement().className).not.toContain('md:group-hover/img:right-[4.125rem]');
     });
   });
 });

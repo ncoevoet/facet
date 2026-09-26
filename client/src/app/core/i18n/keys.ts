@@ -75,6 +75,11 @@ export const I18N = {
     },
     badges: {
       best: "ui.badges.best",
+      best_of_burst: "ui.badges.best_of_burst",
+      best_of_bracket: "ui.badges.best_of_bracket",
+      best_of_panorama: "ui.badges.best_of_panorama",
+      best_of_hdr_panorama: "ui.badges.best_of_hdr_panorama",
+      best_of_duplicate: "ui.badges.best_of_duplicate",
       blink: "ui.badges.blink",
       bw: "ui.badges.bw",
       dup: "ui.badges.dup",
