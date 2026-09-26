@@ -176,8 +176,13 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
       <mat-sidenav #filterDrawer disableClose="false" [mode]="isDesktop() ? 'side' : 'over'" position="end" class="w-[min(320px,100vw)] p-0"
         (openedChange)="onFilterDrawerChange($event)">
         @if (detailsRailVisible()) {
-          <div class="p-2">
-            @if (tooltipPhoto(); as p) {
+          <div class="p-2" data-details-rail>
+            @if (hasActivePhoto()) {
+              <button mat-button class="!min-w-0 mb-2" (click)="releasePanel()">
+                <mat-icon>arrow_back</mat-icon> {{ I18N.gallery.tooltip_mode.panel_deselect | translate }}
+              </button>
+            }
+            @if (panelPhoto(); as p) {
               <app-photo-tooltip [photo]="p" [docked]="true" [pinned]="true"
                                  [histogramDefaultMode]="tooltipHistogramDefaultMode()"
                                  [indicatorPercent]="clippingIndicatorPercent()"
@@ -1935,7 +1940,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  focus dropped to the body, or out to the browser chrome -- does count. */
   protected onGridFocusOut(event: FocusEvent): void {
     const next = event.relatedTarget as HTMLElement | null;
-    if (next?.closest('[role="grid"], [data-selection-bar]')) return;
+    if (next?.closest('[role="grid"], [data-selection-bar], [data-details-rail]')) return;
     this.setCursor(-1);
   }
 
@@ -1952,6 +1957,28 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  it also covers the frame in between. */
   protected readonly hasActivePhoto = computed(() =>
     this.activeIndex() >= 0 && this.activeIndex() < this.store.photos().length);
+
+  /** What the docked rail shows: the current photo while there is one, so
+   *  crossing other cards on the way to the rail cannot retarget it, and the
+   *  last hovered/clicked photo otherwise. */
+  protected readonly panelPhoto = computed(() =>
+    this.hasActivePhoto() ? this.store.photos()[this.activeIndex()] : this.tooltipPhoto());
+
+  /** The rail's Deselect: drop the current photo, and with it the lock and the
+   *  dimming, and take it out of the batch selection its click put it in.
+   *  The rail keeps showing it until the next hover rather than jumping to
+   *  whichever card the pointer crossed last. */
+  protected releasePanel(): void {
+    const photo = this.panelPhoto();
+    if (!this.hasActivePhoto() || !photo) return;
+    this.tooltipPhoto.set(photo);
+    // Same rule as IsSelectedPipe: a view-scoped selection is "all but excluded".
+    const selected = this.viewScoped()
+      ? !this.excludedPaths().has(photo.path)
+      : this.selectedPaths().has(photo.path);
+    if (selected) this.store.toggleSelection(photo);
+    this.setCursor(-1);
+  }
 
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */
   private gridColumns(): number {

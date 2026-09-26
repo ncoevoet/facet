@@ -1031,7 +1031,8 @@
       "click": "点击",
       "panel": "侧边面板",
       "off": "关闭",
-      "panel_empty": "将鼠标悬停在照片上或点击照片，即可在此查看详情"
+      "panel_empty": "将鼠标悬停在照片上或点击照片，即可在此查看详情",
+      "panel_deselect": "取消选择"
     },
     "panel_activation": {
       "label": "面板触发方式",

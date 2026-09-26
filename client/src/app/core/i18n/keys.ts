@@ -1048,6 +1048,7 @@ export const I18N = {
       panel: "gallery.tooltip_mode.panel",
       off: "gallery.tooltip_mode.off",
       panel_empty: "gallery.tooltip_mode.panel_empty",
+      panel_deselect: "gallery.tooltip_mode.panel_deselect",
     },
     panel_activation: {
       label: "gallery.panel_activation.label",

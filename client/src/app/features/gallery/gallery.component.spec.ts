@@ -1059,6 +1059,53 @@ describe('GalleryComponent', () => {
         expect(component['tooltipPhoto']()).toBe(photo);
       });
 
+      describe('while a photo is current', () => {
+        const a = { path: '/a.jpg' };
+        const b = { path: '/b.jpg' };
+        const panelPhoto = () => (component as unknown as { panelPhoto(): unknown }).panelPhoto();
+        const release = () => (component as unknown as { releasePanel(): void }).releasePanel();
+
+        beforeEach(() => {
+          mockStore.photos.set([a, b]);
+          click(a, 0);
+          component.showTooltip(hoverEvent, a as never);
+        });
+
+        it('hovering another photo does not retarget the rail', () => {
+          component.showTooltip(hoverEvent, b as never);
+          expect(panelPhoto()).toBe(a);
+        });
+
+        it('Deselect drops the cursor and the selection, keeps the photo until the next hover', () => {
+          mockStore.selectedPaths.set(new Set([a.path]));
+          component.showTooltip(hoverEvent, b as never);
+          release();
+          expect(hasActivePhoto()).toBe(false);
+          expect(mockStore.toggleSelection).toHaveBeenLastCalledWith(a);
+          expect(panelPhoto()).toBe(a);
+          component.showTooltip(hoverEvent, b as never);
+          expect(panelPhoto()).toBe(b);
+        });
+
+        it('Deselect leaves an already-unselected photo unselected', () => {
+          mockStore.toggleSelection.mockClear();
+          release();
+          expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+        });
+
+        it('focus moving into the rail keeps the cursor', () => {
+          const rail = document.createElement('div');
+          rail.setAttribute('data-details-rail', '');
+          const button = document.createElement('button');
+          rail.appendChild(button);
+          document.body.appendChild(rail);
+          (component as unknown as { onGridFocusOut(e: FocusEvent): void })
+            .onGridFocusOut({ relatedTarget: button } as unknown as FocusEvent);
+          expect(activeIndex()).toBe(0);
+          rail.remove();
+        });
+      });
+
       it('yields the shared drawer to the filters while they are open', () => {
         mockStore.filterDrawerOpen.set(true);
         expect(component.detailsRailVisible()).toBe(false);

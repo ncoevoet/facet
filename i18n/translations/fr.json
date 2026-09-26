@@ -1031,7 +1031,8 @@
       "click": "Clic",
       "panel": "Panneau latéral",
       "off": "Désactivée",
-      "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici"
+      "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici",
+      "panel_deselect": "Désélectionner"
     },
     "panel_activation": {
       "label": "Activation du panneau",

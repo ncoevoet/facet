@@ -1031,7 +1031,8 @@
       "click": "Click",
       "panel": "Side panel",
       "off": "Off",
-      "panel_empty": "Hover or click a photo to see its details here"
+      "panel_empty": "Hover or click a photo to see its details here",
+      "panel_deselect": "Deselect"
     },
     "panel_activation": {
       "label": "Panel activation",

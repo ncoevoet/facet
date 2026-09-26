@@ -1031,7 +1031,8 @@
       "click": "Clicar",
       "panel": "Painel lateral",
       "off": "Desligado",
-      "panel_empty": "Passe o cursor sobre uma foto ou clique nela para ver aqui os seus detalhes"
+      "panel_empty": "Passe o cursor sobre uma foto ou clique nela para ver aqui os seus detalhes",
+      "panel_deselect": "Desmarcar"
     },
     "panel_activation": {
       "label": "Ativação do painel",
