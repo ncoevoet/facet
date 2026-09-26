@@ -1126,6 +1126,12 @@ frame regardless of clipping, so a symmetric `(-2, 0, +2)` set is unaffected.
 
 Run via `--detect-sequences`; it also runs at the end of every scan, after burst grouping.
 
+**Manual corrections cover brackets too.** A ladder detection misses can be named by hand
+from the gallery or the culling darkroom (*Mark as bracket*) — the same sticky
+`photo_sequence_overrides` mechanism panorama corrections use, gated on the same ladder rule
+(≥2 frames, every one with usable exposure metadata, no two at the same exposure). See
+[docs/VIEWER.md — Panoramas and exposure brackets](VIEWER.md#panoramas-and-exposure-brackets).
+
 ```json
 {
   "sequence_detection": {
@@ -1761,7 +1767,7 @@ nothing.
 | `badges.favorite` | `true` | Heart badge on a favourited photo (edition mode) |
 | `badges.star_rating` | `true` | Star + count badge on a rated photo (edition mode) |
 | `badges.rejected` | `true` | Thumb-down badge on a rejected photo (edition mode) |
-| `badges.sequence_kind` | `true` | Bracket/panorama badge, shown only while the matching hide toggle collapses the set |
+| `badges.sequence_kind` | `true` | Set badge (burst/bracket/panorama/duplicate), drawn left of the rejected badge, shown only while the matching hide toggle collapses the set |
 | `badges.sequence_override_pending` | `true` | Clock badge for a panorama correction awaiting the next detection run |
 | `badges.keeper_hint` | `true` | "A better shot exists in this group" arrow from the learned keeper head |
 | `badges.best_of_burst` | `true` | "Best" badge on a burst lead. Shown only when `hide_bursts` is off — with it on, every burst photo on screen is already its group's lead |

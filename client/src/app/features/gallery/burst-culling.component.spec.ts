@@ -1,6 +1,7 @@
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { HttpErrorResponse } from '@angular/common/http';
 import { CdkTrapFocus } from '@angular/cdk/a11y';
 import { Subject, of, throwError } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -1884,7 +1885,7 @@ describe('BurstCullingComponent', () => {
 
       expect(component['groups']()[0].photos.map(p => p.sequence_override))
         .toEqual(['suppressed', 'suppressed', 'suppressed']);
-      expect(component['pendingCorrections']()).toBe(1);
+      expect(component['pendingCorrectionKeys']().size).toBe(1);
     });
 
     it('a relabel records the forced kind', async () => {
@@ -1918,7 +1919,7 @@ describe('BurstCullingComponent', () => {
         .correctSequence(component['groups']()[0]);
 
       expect(component['groups']()[0].photos[0].sequence_override).toBeUndefined();
-      expect(component['pendingCorrections']()).toBe(0);
+      expect(component['pendingCorrectionKeys']().size).toBe(0);
       expect(mockSnackBar.open).toHaveBeenCalled();
     });
 
@@ -1933,13 +1934,258 @@ describe('BurstCullingComponent', () => {
       expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/clear_sequence_override', {
         paths: ['/p0.jpg', '/p1.jpg', '/p2.jpg'],
       });
-      expect(component['pendingCorrections']()).toBe(0);
+      expect(component['pendingCorrectionKeys']().size).toBe(0);
     });
 
     it('an uncorrected feed offers no re-run', () => {
       seed();
 
-      expect(component['pendingCorrections']()).toBe(0);
+      expect(component['pendingCorrectionKeys']().size).toBe(0);
+    });
+
+    it('dropping an already-applied correction still asks for a re-run', async () => {
+      seed();
+      // Simulate a completed detection run: the override is no longer pending.
+      component['groups']()[0].photos.forEach(p => {
+        (p as { sequence_override?: string; sequence_override_pending?: number })
+          .sequence_override = 'suppressed';
+        (p as { sequence_override_pending?: number }).sequence_override_pending = 0;
+      });
+
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+
+      expect(component['pendingCorrectionKeys']().size).toBe(0);
+      expect(component['rerunNeeded']()).toBe(1);
+    });
+
+    it('dropping a still-pending correction needs no re-run', async () => {
+      seed();
+      await (component as never as { correctSequence: (g: unknown) => Promise<void> })
+        .correctSequence(component['groups']()[0]);
+      expect(component['pendingCorrectionKeys']().size).toBe(1);
+
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+
+      expect(component['rerunNeeded']()).toBe(0);
+    });
+
+    it('a successful re-run clears the applied-drop counter', async () => {
+      seed();
+      component['groups']()[0].photos.forEach(p => {
+        (p as { sequence_override?: string; sequence_override_pending?: number })
+          .sequence_override = 'suppressed';
+        (p as { sequence_override_pending?: number }).sequence_override_pending = 0;
+      });
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+      expect(component['rerunNeeded']()).toBe(1);
+
+      mockApi.post.mockReturnValueOnce(of({}));
+      mockApi.get.mockReturnValueOnce(of({ running: false, kind: null, exit_code: 0 }));
+      await (component as never as { rerunDetection: () => Promise<void> }).rerunDetection();
+      await (component as never as { ['pollDetection']: () => Promise<void> })['pollDetection']();
+
+      expect(component['rerunNeeded']()).toBe(0);
+      (component as never as { stopDetectionPolling: () => void }).stopDetectionPolling();
+    });
+
+    it('re-correcting a group after dropping its applied override counts it once', async () => {
+      seed();
+      component['groups']()[0].photos.forEach(p => {
+        (p as { sequence_override?: string; sequence_override_pending?: number })
+          .sequence_override = 'suppressed';
+        (p as { sequence_override_pending?: number }).sequence_override_pending = 0;
+      });
+
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+      expect(component['rerunNeeded']()).toBe(1);
+
+      await (component as never as { correctSequence: (g: unknown, k?: string) => Promise<void> })
+        .correctSequence(component['groups']()[0], 'hdr_panorama');
+
+      expect(component['rerunNeeded']()).toBe(1);
+    });
+
+    it('dropping an applied override, re-marking, then dropping again still needs one re-run', async () => {
+      seed();
+      component['groups']()[0].photos.forEach(p => {
+        (p as { sequence_override?: string; sequence_override_pending?: number })
+          .sequence_override = 'suppressed';
+        (p as { sequence_override_pending?: number }).sequence_override_pending = 0;
+      });
+
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+      expect(component['rerunNeeded']()).toBe(1);
+
+      await (component as never as { correctSequence: (g: unknown, k?: string) => Promise<void> })
+        .correctSequence(component['groups']()[0], 'hdr_panorama');
+      expect(component['rerunNeeded']()).toBe(1);
+
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+
+      expect(component['rerunNeeded']()).toBe(1);
+    });
+
+    it('dropping an applied override, re-marking, then undoing the re-mark still needs one re-run', async () => {
+      seed();
+      component['groups']()[0].photos.forEach(p => {
+        (p as { sequence_override?: string; sequence_override_pending?: number })
+          .sequence_override = 'suppressed';
+        (p as { sequence_override_pending?: number }).sequence_override_pending = 0;
+      });
+
+      await (component as never as { clearCorrection: (g: unknown) => Promise<void> })
+        .clearCorrection(component['groups']()[0]);
+      expect(component['rerunNeeded']()).toBe(1);
+
+      const undoAction = new Subject<void>();
+      mockSnackBar.open.mockReturnValueOnce({
+        onAction: () => undoAction, afterDismissed: () => new Subject<void>(),
+      });
+      await (component as never as { correctSequence: (g: unknown, k?: string) => Promise<void> })
+        .correctSequence(component['groups']()[0], 'hdr_panorama');
+      expect(component['rerunNeeded']()).toBe(1);
+
+      undoAction.next();
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(component['rerunNeeded']()).toBe(1);
+    });
+
+    it('a bracket correction failing with a 400 shows the ladder-specific message', async () => {
+      seed();
+      mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 })));
+
+      await (component as never as { correctSequence: (g: unknown, k?: string) => Promise<void> })
+        .correctSequence(component['groups']()[0], 'bracket');
+
+      expect(mockSnackBar.open).toHaveBeenCalledWith(
+        'culling.bracket.not_a_ladder', '', expect.anything());
+    });
+
+    it('a panorama correction failing with the same 400 keeps the generic message', async () => {
+      seed();
+      mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 })));
+
+      await (component as never as { correctSequence: (g: unknown, k?: string) => Promise<void> })
+        .correctSequence(component['groups']()[0], 'panorama');
+
+      expect(mockSnackBar.open).toHaveBeenCalledWith(
+        'culling.panorama.correction_failed', '', expect.anything());
+    });
+  });
+
+  describe('bracket correction — darkroom list surfaces', () => {
+    const burstGroup = {
+      group_id: 11,
+      type: 'burst' as const,
+      reason: '2 frames',
+      best_path: '/b0.jpg',
+      count: 2,
+      photos: [0, 1].map(i => ({
+        path: `/b${i}.jpg`, filename: `b${i}.jpg`, aggregate: 5, aesthetic: 5,
+        tech_sharpness: 5, is_blink: 0, is_burst_lead: i === 0 ? 1 : 0, date_taken: '2025-04-15',
+        burst_score: 5,
+      })),
+    };
+    const bracketGroup = {
+      group_id: 12,
+      type: 'bracket' as const,
+      reason: '2 frames',
+      sequence_kind: 'bracket',
+      best_path: '/k0.jpg',
+      count: 2,
+      photos: [0, 1].map(i => ({
+        path: `/k${i}.jpg`, filename: `k${i}.jpg`, aggregate: 5, aesthetic: 5,
+        tech_sharpness: 5, is_blink: 0, is_burst_lead: 0, date_taken: '2025-04-15',
+        burst_score: 5, sequence_kind: 'bracket',
+        sequence_override: 'bracket', sequence_override_pending: 0,
+      })),
+    };
+
+    const renderList = async (groups: unknown[]) => {
+      const scrollIntoView = Element.prototype.scrollIntoView;
+      Element.prototype.scrollIntoView = vi.fn();
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      const rendered = fixture.componentInstance as any;
+      await new Promise(resolve => setTimeout(resolve, 0));
+      rendered['groups'].set(groups);
+      rendered['loading'].set(false);
+      fixture.detectChanges();
+      return {
+        fixture,
+        teardown: () => { fixture.destroy(); Element.prototype.scrollIntoView = scrollIntoView; },
+      };
+    };
+
+    const byAriaLabel = (fixture: ComponentFixture<BurstCullingComponent>, label: string) =>
+      [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]
+        .find(el => el.getAttribute('aria-label') === label);
+
+    it('offers "Mark as bracket" for a plain burst group, with the panorama-trigger accessible name', async () => {
+      const { fixture, teardown } = await renderList([structuredClone(burstGroup)]);
+
+      // The bracket-only trigger's tooltip stays a whole sentence, but its
+      // aria-label mirrors the panorama and bracket-clear triggers' short name.
+      expect(byAriaLabel(fixture, 'culling.panorama.correct')).toBeTruthy();
+      teardown();
+    });
+
+    it('offers no bracket-only trigger for an already-panorama group', async () => {
+      const panoramaGroup = {
+        ...structuredClone(burstGroup), group_id: 13, sequence_kind: 'panorama',
+        photos: structuredClone(burstGroup).photos.map(p => ({ ...p, sequence_kind: 'panorama' })),
+      };
+      const { fixture, teardown } = await renderList([panoramaGroup]);
+
+      // Only the panorama-kind trigger renders here (same aria-label), so this
+      // group must show exactly one such button, not two.
+      const matches = [...(fixture.nativeElement as HTMLElement).querySelectorAll('button')]
+        .filter(el => el.getAttribute('aria-label') === 'culling.panorama.correct');
+      expect(matches).toHaveLength(1);
+      teardown();
+    });
+
+    // group.sequence_kind is only set when EVERY frame shares one sequence, so
+    // a group mixing a bracket frame with unclaimed frames has no sequence_kind
+    // of its own -- `!group.sequence_kind` alone would wrongly offer "mark as
+    // bracket" here and let the user fold the already-classified frame into a
+    // second, competing set.
+    it('offers no bracket-only trigger for a mixed group with a partial bracket frame', async () => {
+      const mixedGroup = {
+        ...structuredClone(burstGroup), group_id: 14, sequence_kind: null,
+        photos: [
+          { ...structuredClone(burstGroup).photos[0], sequence_kind: 'bracket' },
+          structuredClone(burstGroup).photos[1],
+        ],
+      };
+      const { fixture, teardown } = await renderList([mixedGroup]);
+
+      expect(byAriaLabel(fixture, 'culling.panorama.correct')).toBeFalsy();
+      teardown();
+    });
+
+    it('offers "Clear correction" for a bracket-forced group carrying an override', async () => {
+      const { fixture, teardown } = await renderList([structuredClone(bracketGroup)]);
+
+      expect(byAriaLabel(fixture, 'culling.panorama.correct')).toBeTruthy();
+      teardown();
+    });
+
+    it('renders the pending/corrected chip for a plain burst group with a pending bracket override', async () => {
+      const pendingBurst = structuredClone(burstGroup);
+      pendingBurst.photos[0] = {
+        ...pendingBurst.photos[0], sequence_override: 'bracket', sequence_override_pending: 1,
+      } as never;
+      const { fixture, teardown } = await renderList([pendingBurst]);
+
+      expect((fixture.nativeElement as HTMLElement).textContent).toContain('culling.panorama.pending');
+      teardown();
     });
   });
 

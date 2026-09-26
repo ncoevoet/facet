@@ -25,6 +25,7 @@ import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { isTypingContext } from '../../shared/utils/keyboard';
+import { isBracketLadderRejection } from '../../shared/utils/sequence-ladder';
 import { createLoupeState } from '../../shared/utils/loupe-state';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
 import { SyncedZoomComponent, ZoomState, FIT_ZOOM } from './synced-zoom.component';
@@ -42,7 +43,7 @@ import {
   SortIconPipe, CategoryIconPipe, CullProfileIconPipe, CullPreviewUrlPipe,
   SubjectForPathPipe, SubjectRingClassPipe, EvOffsetPipe, GroupOverridePipe,
   GroupOverridePendingPipe, PeakingOverlayPipe, FrameViewBoxPipe, GridLinesPipe,
-  KeySubjectForPathPipe, IsKeyFacePipe,
+  KeySubjectForPathPipe, IsKeyFacePipe, CanMarkBracketPipe,
   cullPreviewUrl, computePeakingOverlay, computePooledPeakingOverlays, loadFrameImage, GRID_MODES,
   KEY_SUBJECT_COORDINATE_SPACE,
   CullingGroup, CullingPhoto, CullingFace, CullingSubject, FaceThresholds, CullStyle,
@@ -286,6 +287,7 @@ class RunGeneration {
     GridLinesPipe,
     KeySubjectForPathPipe,
     IsKeyFacePipe,
+    CanMarkBracketPipe,
     SequenceKindLabelPipe,
     InfiniteScrollDirective,
     NgTemplateOutlet,
@@ -564,10 +566,10 @@ class RunGeneration {
       <!-- Corrections change nothing until the detector runs again, and that run
            is a whole-library batch pass -- far too expensive to fire once per
            click. So they accumulate and the run is offered here, once. -->
-      @if (pendingCorrections() > 0) {
+      @if (rerunNeeded() > 0) {
         <div class="shrink-0 flex flex-wrap items-center gap-3 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)]" role="status">
           <mat-icon class="!text-base !w-5 !h-5 !leading-5 text-amber-500" aria-hidden="true">schedule</mat-icon>
-          <span class="text-sm">{{ I18N.culling.panorama.rerun_banner | translate:{ count: pendingCorrections() } }}</span>
+          <span class="text-sm">{{ I18N.culling.panorama.rerun_banner | translate:{ count: rerunNeeded() } }}</span>
           <button mat-stroked-button class="!h-8 !text-sm !rounded-md" [disabled]="detecting()"
                   (click)="rerunDetection()"
                   [matTooltip]="I18N.panorama.settings.redetect_tooltip | translate">
@@ -626,19 +628,25 @@ class RunGeneration {
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sky-500/20 text-sky-600 dark:text-sky-400">
                     <mat-icon class="!text-sm !w-4 !h-4 !leading-4">{{ group.sequence_kind | cullGroupIcon }}</mat-icon>{{ group.sequence_kind | sequenceKindLabel | translate }}
                   </span>
-                  <!-- The detector still owns the label above until it runs
-                       again, so a saved correction can only ever read as
-                       pending here -- saying otherwise would claim a set had
-                       changed while the feed still groups it the old way. -->
-                  @if (group | groupOverridePending; as pending) {
-                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300"
-                          [matTooltip]="I18N.culling.panorama.pending_tooltip | translate">
-                      <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">schedule</mat-icon>{{ I18N.culling.panorama.pending | translate }}
-                      <span class="opacity-80">({{ (pending === 'suppressed' ? I18N.culling.panorama.not_a_panorama : (pending | sequenceKindLabel)) | translate }})</span>
-                    </span>
-                  } @else {
-                    <span class="opacity-70">{{ I18N.culling.panorama.hint | translate }}</span>
-                  }
+                  <span class="opacity-70">{{ I18N.culling.panorama.hint | translate }}</span>
+                </div>
+              }
+              <!-- The pending/corrected chip renders for ANY group carrying a
+                   sequence_override, not only a panorama-kind one: a plain
+                   burst group with a pending bracket correction has no
+                   sequence_kind yet (the correction has not applied), which is
+                   exactly when the chip matters most. The detector still owns
+                   the label above until it runs again, so a saved correction
+                   can only ever read as pending here -- saying otherwise would
+                   claim a set had changed while the feed still groups it the
+                   old way. -->
+              @if (group | groupOverridePending; as pending) {
+                <div class="flex flex-wrap items-center gap-2 px-4 pt-2 text-xs">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300"
+                        [matTooltip]="I18N.culling.panorama.pending_tooltip | translate">
+                    <mat-icon class="!text-sm !w-4 !h-4 !leading-4" aria-hidden="true">schedule</mat-icon>{{ I18N.culling.panorama.pending | translate }}
+                    <span class="opacity-80">({{ (pending === 'suppressed' ? I18N.culling.panorama.not_a_panorama : (pending | sequenceKindLabel)) | translate }})</span>
+                  </span>
                 </div>
               }
               <!-- Photos -->
@@ -786,6 +794,39 @@ class RunGeneration {
                             <mat-icon>undo</mat-icon>{{ I18N.culling.panorama.clear_correction | translate }}
                           </button>
                         }
+                      </mat-menu>
+                    }
+                    <!-- A plain burst group has no set of its own to relabel or
+                         suppress -- the only correction that applies to it is
+                         naming a missed bracket, so this trigger offers just
+                         that one action rather than reusing the panorama
+                         menu's shape. -->
+                    @if (auth.isEdition() && (group | canMarkBracket)) {
+                      <button mat-icon-button [matMenuTriggerFor]="bracketMenu"
+                              [matTooltip]="I18N.culling.bracket.correct_tooltip | translate"
+                              [attr.aria-label]="I18N.culling.panorama.correct | translate">
+                        <mat-icon>edit_note</mat-icon>
+                      </button>
+                      <mat-menu #bracketMenu="matMenu">
+                        <button mat-menu-item (click)="correctSequence(group, 'bracket')">
+                          <mat-icon>{{ 'bracket' | cullGroupIcon }}</mat-icon>{{ I18N.culling.bracket.mark_action | translate }}
+                        </button>
+                      </mat-menu>
+                    }
+                    <!-- A bracket-kind group's own membership was named by this
+                         correction (detected or forced alike) -- offer to drop
+                         it back to the detector, mirroring the panorama menu's
+                         own "Clear correction" entry. -->
+                    @if (auth.isEdition() && group.sequence_kind === 'bracket' && (group | groupOverride)) {
+                      <button mat-icon-button [matMenuTriggerFor]="bracketClearMenu"
+                              [matTooltip]="I18N.culling.panorama.correct | translate"
+                              [attr.aria-label]="I18N.culling.panorama.correct | translate">
+                        <mat-icon>edit_note</mat-icon>
+                      </button>
+                      <mat-menu #bracketClearMenu="matMenu">
+                        <button mat-menu-item (click)="clearCorrection(group)">
+                          <mat-icon>undo</mat-icon>{{ I18N.culling.panorama.clear_correction | translate }}
+                        </button>
                       </mat-menu>
                     }
                     <button mat-icon-button (click)="openLightbox(group, 0)"
@@ -1504,11 +1545,36 @@ export class BurstCullingComponent implements OnDestroy {
   /** Set of group keys hidden after pass timeout */
   private readonly hiddenGroups = signal<Set<string>>(new Set());
 
-  /** Groups in the feed carrying a correction the detector has not applied yet. */
-  protected readonly pendingCorrections = computed(
-    () => this.groups().filter(
-      g => g.photos.some(p => p.sequence_override && p.sequence_override_pending)).length,
+  /** Group keys in the feed carrying a correction the detector has not applied yet. */
+  private readonly pendingCorrectionKeys = computed(
+    () => new Set(this.groups()
+      .filter(g => g.photos.some(p => p.sequence_override && p.sequence_override_pending))
+      .map(g => this.groupKey(g))),
   );
+
+  /**
+   * Corrections dropped this session that the detector had already applied.
+   *
+   * Dropping a still-pending correction needs no re-run: the detector never
+   * touched `photos` for it. But dropping an APPLIED one (`sequence_override`
+   * set, not pending) leaves the forced set sitting in `photos` until the
+   * detector runs again -- and by then `pendingCorrectionKeys` sees nothing, so
+   * the re-run banner would never appear without this counter.
+   *
+   * A key is only ever removed here by a successful re-run (see
+   * `pollDetection`): the group may still be pending again in the meantime
+   * (re-marked) or no longer pending (undone), but in either case `photos`
+   * still holds the stale applied set until the detector runs, so the key
+   * must stay recorded regardless of what happens to the pending correction.
+   */
+  private readonly droppedApplied = signal<Set<string>>(new Set());
+
+  /** Groups needing a re-run: the union of still-pending corrections and applied
+   *  ones dropped this session. A group that is both pending and dropped counts
+   *  once, and keeps counting even after its pending correction is cleared or
+   *  re-marked away, because `droppedApplied` is never trimmed by that. */
+  protected readonly rerunNeeded = computed(
+    () => new Set([...this.pendingCorrectionKeys(), ...this.droppedApplied()]).size);
 
   /**
    * True in a granularity whose sets are kept whole.
@@ -3273,9 +3339,12 @@ export class BurstCullingComponent implements OnDestroy {
     const previous = new Map(group.photos.map(p => [p.path, p.sequence_override ?? null]));
     try {
       await this.sequenceOverrides.setAsync(paths, kind);
-    } catch {
-      this.snackBar.open(this.i18n.t(I18N.culling.panorama.correction_failed), '',
-                         { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' });
+    } catch (error) {
+      const notALadder = isBracketLadderRejection(kind, error);
+      this.snackBar.open(
+        this.i18n.t(notALadder ? I18N.culling.bracket.not_a_ladder : I18N.culling.panorama.correction_failed),
+        '', { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' },
+      );
       return;
     }
     this.patchOverrides(paths, kind ?? 'suppressed');
@@ -3313,6 +3382,10 @@ export class BurstCullingComponent implements OnDestroy {
   /** Hand this set back to the detector, dropping the pending correction. */
   protected async clearCorrection(group: CullingGroup): Promise<void> {
     const paths = group.photos.map(p => p.path);
+    // An already-applied correction left the forced set in `photos`; dropping
+    // it here only clears the override row, so the re-run banner must be told
+    // by hand -- `pendingCorrectionKeys` sees no pending row left to count.
+    const hadApplied = group.photos.some(p => p.sequence_override && !p.sequence_override_pending);
     try {
       await this.sequenceOverrides.clearAsync(paths);
     } catch {
@@ -3321,6 +3394,10 @@ export class BurstCullingComponent implements OnDestroy {
       return;
     }
     this.patchOverrides(paths, null);
+    if (hadApplied) {
+      const key = this.groupKey(group);
+      this.droppedApplied.update(keys => new Set(keys).add(key));
+    }
   }
 
   /** Set one override value on the named frames, wherever they sit in the feed. */
@@ -3330,6 +3407,10 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Write back per-path override values (the undo path restores the old ones). */
   private restoreOverrides(values: Map<string, string | null>): void {
+    // `droppedApplied` is deliberately left untouched here: `rerunNeeded` unions it
+    // with the pending-correction keys, so re-marking (or undoing the re-mark) a
+    // group whose applied override was already dropped this session must not stop
+    // it counting -- `photos` still holds the stale applied set either way.
     this.groups.update(groups => groups.map(group => (
       group.photos.some(p => values.has(p.path))
         ? {
@@ -3385,6 +3466,9 @@ export class BurstCullingComponent implements OnDestroy {
       const failed = status.exit_code !== 0 && status.exit_code !== null;
       this.detectFailed.set(failed);
       this.detectMessage.set(failed ? I18N.culling.panorama.rerun_failed : I18N.culling.panorama.rerun_done);
+      // A completed run has re-applied or dropped every correction the feed
+      // held, so the applied-drops this session no longer need a re-run.
+      if (!failed) this.droppedApplied.set(new Set());
     } catch {
       this.stopDetectionPolling();
       this.detectFailed.set(true);

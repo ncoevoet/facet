@@ -1158,6 +1158,13 @@ eine symmetrische `(-2, 0, +2)`-Reihe bleibt also unverändert.
 Aufruf über `--detect-sequences`; läuft außerdem am Ende jedes Scans, nach der
 Serienbildung.
 
+**Manuelle Korrekturen decken jetzt auch Belichtungsreihen ab.** Eine von der Erkennung
+übersehene Belichtungsreihe kann von Hand aus der Galerie oder beim Aussortieren benannt
+werden („Als Belichtungsreihe markieren“) — derselbe dauerhafte `photo_sequence_overrides`-
+Mechanismus wie bei Panorama-Korrekturen, geprüft gegen dieselbe Belichtungsleiter-Regel
+(≥ 2 Aufnahmen, jede mit verwertbaren Belichtungsdaten, nie zwei mit derselben Belichtung).
+Siehe [docs/VIEWER.md — Panoramen und Belichtungsreihen](VIEWER.md#panoramen-und-belichtungsreihen).
+
 ```json
 {
   "sequence_detection": {
@@ -1788,7 +1795,7 @@ also weggelassen werden, ohne dass sich etwas ändert.
 | `badges.favorite` | `true` | Herz-Badge auf einem Favoriten (Bearbeitungsmodus) |
 | `badges.star_rating` | `true` | Stern- und Zähler-Badge auf einem bewerteten Foto (Bearbeitungsmodus) |
 | `badges.rejected` | `true` | Daumen-runter-Badge auf einem abgelehnten Foto (Bearbeitungsmodus) |
-| `badges.sequence_kind` | `true` | Belichtungsreihen-/Panorama-Badge, nur sichtbar solange die Ausblendoption die Serie zusammenklappt |
+| `badges.sequence_kind` | `true` | Serien-Badge (Serienaufnahme/Belichtungsreihe/Panorama/Duplikat), links vom Ablehnen-Badge, nur sichtbar solange die Ausblendoption die Serie zusammenklappt |
 | `badges.sequence_override_pending` | `true` | Uhr-Badge für eine Panorama-Korrektur, die auf den nächsten Erkennungslauf wartet |
 | `badges.keeper_hint` | `true` | Pfeil „in dieser Gruppe gibt es eine bessere Aufnahme" aus dem gelernten Keeper-Modell |
 | `badges.best_of_burst` | `true` | „Beste"-Badge auf dem Leitbild einer Serie. Nur sichtbar, wenn `hide_bursts` aus ist — sonst ist jedes sichtbare Serienfoto ohnehin schon das Leitbild |

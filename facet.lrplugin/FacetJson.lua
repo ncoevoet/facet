@@ -203,6 +203,116 @@ decodeValue = function(text, position)
     decodeError(text, cursor, 'unexpected character')
 end
 
+local ENCODE_ESCAPES = {
+    ['"'] = '\\"',
+    ['\\'] = '\\\\',
+    ['\b'] = '\\b',
+    ['\f'] = '\\f',
+    ['\n'] = '\\n',
+    ['\r'] = '\\r',
+    ['\t'] = '\\t',
+}
+
+local function encodeString(value)
+    local parts = { '"' }
+    local count = 1
+    for index = 1, #value do
+        local byte = string.byte(value, index)
+        local ch = string.char(byte)
+        local escape = ENCODE_ESCAPES[ch]
+        count = count + 1
+        if escape then
+            parts[count] = escape
+        elseif byte < 0x20 then
+            parts[count] = string.format('\\u%04x', byte)
+        else
+            -- Raw UTF-8 passthrough: multi-byte sequences are copied
+            -- byte-for-byte, never escaped.
+            parts[count] = ch
+        end
+    end
+    count = count + 1
+    parts[count] = '"'
+    return table.concat(parts)
+end
+
+local encodeValue
+
+-- `isArray` and `length` are explicit hints from the caller -- an empty Lua
+-- table has no type information distinguishing "empty array" from "empty
+-- object", so the encoder never infers this from the value itself.
+local function encodeArray(value, length)
+    if length == 0 then
+        return '[]'
+    end
+    local parts = {}
+    for index = 1, length do
+        parts[index] = encodeValue(value[index])
+    end
+    return '[' .. table.concat(parts, ',') .. ']'
+end
+
+local function encodeObject(value, keys)
+    local parts = {}
+    local count = 0
+    for _, key in ipairs(keys) do
+        local fieldValue = value[key]
+        -- Lua drops a `nil` table value silently; this is the point where an
+        -- omitted key becomes an omitted key in the JSON, never a written
+        -- `null`. Callers that DO want an explicit value must pass one that
+        -- is not `nil` (e.g. 0), never rely on this function to invent one.
+        if fieldValue ~= nil then
+            count = count + 1
+            parts[count] = encodeString(key) .. ':' .. encodeValue(fieldValue)
+        end
+    end
+    return '{' .. table.concat(parts, ',') .. '}'
+end
+
+encodeValue = function(value)
+    local valueType = type(value)
+    if valueType == 'string' then
+        return encodeString(value)
+    end
+    if valueType == 'number' then
+        return string.format('%g', value)
+    end
+    if valueType == 'boolean' then
+        return value and 'true' or 'false'
+    end
+    if value == FacetJson.null then
+        return 'null'
+    end
+    if valueType == 'table' then
+        if value.isArray then
+            return encodeArray(value, value.length or #value)
+        end
+        if value.keys then
+            return encodeObject(value, value.keys)
+        end
+        -- Bare array-style table (no hint table wrapper): encode positionally.
+        return encodeArray(value, #value)
+    end
+    error('FacetJson.encode: unsupported value type ' .. valueType, 0)
+end
+
+-- FacetJson.encode(value) -- `value` for the top-level object form is a
+-- plain table plus an explicit `keys` list giving both the field order and
+-- which optional keys to consider (nil-valued keys in that list are
+-- omitted, per encodeObject above). Array fields must be wrapped as
+-- `{isArray = true, length = N, [1] = ..., [2] = ...}` so an empty array
+-- encodes as `[]` rather than being mistaken for an empty object.
+function FacetJson.encode(value, keys)
+    if keys then
+        return encodeObject(value, keys)
+    end
+    return encodeValue(value)
+end
+
+function FacetJson.encodeArray(items, length)
+    return encodeArray(items, length == nil and #items or length)
+end
+
 function FacetJson.decode(text)
     if type(text) ~= 'string' then
         error('FacetJson.decode expects a string', 0)

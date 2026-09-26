@@ -59,6 +59,11 @@
     },
     "badges": {
       "best": "MIGLIORE",
+      "best_of_burst": "Migliore della raffica",
+      "best_of_bracket": "Migliore del bracketing",
+      "best_of_panorama": "Migliore del panorama",
+      "best_of_hdr_panorama": "Migliore del panorama HDR",
+      "best_of_duplicate": "Migliore dei duplicati",
       "blink": "OCCHI CHIUSI",
       "bw": "B/N",
       "dup": "DUP",
@@ -1031,7 +1036,8 @@
       "click": "Clic",
       "panel": "Pannello laterale",
       "off": "Disattivato",
-      "panel_empty": "Passa il cursore su una foto o fai clic per vederne qui i dettagli"
+      "panel_empty": "Passa il cursore su una foto o fai clic per vederne qui i dettagli",
+      "panel_deselect": "Deseleziona"
     },
     "panel_activation": {
       "label": "Attivazione pannello",
@@ -1051,7 +1057,8 @@
       "suppressed": "Segnate come «non è un panorama»",
       "forced": "Segnate come panorama",
       "badge": "Segnata come panorama: si applica alla prossima rilevazione",
-      "badge_suppressed": "Segnata come «non è un panorama»: si applica alla prossima rilevazione"
+      "badge_suppressed": "Segnata come «non è un panorama»: si applica alla prossima rilevazione",
+      "badge_bracket": "Segnata come serie di esposizione — verrà applicata al prossimo rilevamento"
     },
     "reset_filters": "Ripristina filtri",
     "scroll_to_top": "Torna su",
@@ -1093,7 +1100,9 @@
       "view_scope_empty": "Nulla corrisponde più ai filtri attuali",
       "paths_too_many": "Troppe foto per questa azione — restringi i filtri e riprova",
       "download_confirm_title": "Scaricare {count} foto?",
-      "download_confirm_message": "Ogni foto viene scaricata come file separato. {count} di esse richiederanno tempo e potrebbero sovraccaricare il browser."
+      "download_confirm_message": "Ogni foto viene scaricata come file separato. {count} di esse richiederanno tempo e potrebbero sovraccaricare il browser.",
+      "mark_bracket": "Segna come un'unica serie di esposizione",
+      "marked_bracket": "{count} foto segnate come un'unica serie di esposizione"
     },
     "keep_top": {
       "label": "Tieni top %",
@@ -2025,7 +2034,10 @@
     },
     "bracket": {
       "label": "Bracketing di esposizione",
-      "hint": "Uno stesso soggetto a più esposizioni: conserva la serie, non scegliere"
+      "hint": "Uno stesso soggetto a più esposizioni: conserva la serie, non scegliere",
+      "correct_tooltip": "Una sequenza burst e una serie di esposizione si somigliano solo dal punto di vista geometrico — indica che questa è una scala di esposizione",
+      "mark_action": "Segna come serie di esposizione",
+      "not_a_ladder": "Questi fotogrammi non formano una scala di esposizione valida — controlla i metadati di esposizione e riprova"
     },
     "panorama": {
       "label": "Panorama",
@@ -2333,7 +2345,20 @@
     "run": "Esporta",
     "running": "Esportazione…",
     "done": "{count} foto esportate",
-    "failed": "Esportazione non riuscita"
+    "failed": "Esportazione non riuscita",
+    "lightroom": {
+      "title": "Lightroom",
+      "description": "Sincronizza valutazioni, selezioni e stato delle serie con il plug-in facet.lrplugin per Lightroom Classic.",
+      "download": "Scarica manifesto Lightroom",
+      "downloading": "Generazione manifesto…",
+      "pending_corrections": "{count} correzione/i di serie ancora in sospeso — esegui di nuovo il rilevamento (Confronta › Panorami › Esegui di nuovo il rilevamento) prima di importare in Lightroom",
+      "download_failed": "Impossibile generare il manifesto Lightroom",
+      "import": "Importa stato Lightroom…",
+      "importing": "Importazione…",
+      "invalid_json": "Questo file non è un JSON valido",
+      "imported": "Stato Lightroom importato: {matched} corrispondenza/e, {unmatched} non trovata/e, {changed} modificata/e",
+      "import_failed": "Impossibile importare il file di stato Lightroom"
+    }
   },
   "undo": {
     "action": "Annulla",

@@ -161,7 +161,7 @@ O Facet pontua, classifica e seleciona uma biblioteca local de fotos e serve uma
 - tem uma biblioteca local grande e quer encontrar suas melhores fotos e selecionar rajadas e quase duplicatas;
 - quer pontuação de qualidade, composição e rostos que você possa ajustar ao seu próprio gosto (ele aprende com suas comparações A/B);
 - prefere ser auto-hospedado e privado — sem upload para a nuvem, sem conta, sem assinatura;
-- já edita no Lightroom, darktable, digiKam ou immich — o Facet grava classificações, rótulos, palavras-chave, legendas e regiões de rostos nomeados em arquivos auxiliares `.xmp` (originais intocados por padrão) e pode opcionalmente embuti-los no arquivo para JPEG/HEIC/TIFF/PNG/DNG (a ação "Gravar metadados no arquivo" da galeria ou `--export-sidecars --embed-originals`), e relê edições externas com `--import-sidecars`.
+- já edita no Lightroom, darktable, digiKam ou immich — o Facet grava classificações, rótulos, palavras-chave, legendas e regiões de rostos nomeados em arquivos auxiliares `.xmp` (originais intocados por padrão) e pode opcionalmente embuti-los no arquivo para JPEG/HEIC/TIFF/PNG/DNG (a ação "Gravar metadados no arquivo" da galeria ou `--export-sidecars --embed-originals`), e relê edições externas com `--import-sidecars`. Especificamente para o Lightroom, o plug-in `facet.lrplugin` adiciona um fluxo bidirecional: pode preencher estrelas a partir das pontuações do Facet, selecionar/rejeitar quadros de sequências, agrupar sequências/brackets/panoramas em coleções e palavras-chave a partir de um manifesto baixado, e exportar seus próprios sinalizadores/classificações/rótulos do Lightroom de volta para o Facet.
 
 **Provavelmente não é para você se você quer:**
 

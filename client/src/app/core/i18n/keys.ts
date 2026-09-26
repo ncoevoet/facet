@@ -75,6 +75,11 @@ export const I18N = {
     },
     badges: {
       best: "ui.badges.best",
+      best_of_burst: "ui.badges.best_of_burst",
+      best_of_bracket: "ui.badges.best_of_bracket",
+      best_of_panorama: "ui.badges.best_of_panorama",
+      best_of_hdr_panorama: "ui.badges.best_of_hdr_panorama",
+      best_of_duplicate: "ui.badges.best_of_duplicate",
       blink: "ui.badges.blink",
       bw: "ui.badges.bw",
       dup: "ui.badges.dup",
@@ -1048,6 +1053,7 @@ export const I18N = {
       panel: "gallery.tooltip_mode.panel",
       off: "gallery.tooltip_mode.off",
       panel_empty: "gallery.tooltip_mode.panel_empty",
+      panel_deselect: "gallery.tooltip_mode.panel_deselect",
     },
     panel_activation: {
       label: "gallery.panel_activation.label",
@@ -1068,6 +1074,7 @@ export const I18N = {
       forced: "gallery.sequence_override.forced",
       badge: "gallery.sequence_override.badge",
       badge_suppressed: "gallery.sequence_override.badge_suppressed",
+      badge_bracket: "gallery.sequence_override.badge_bracket",
     },
     reset_filters: "gallery.reset_filters",
     scroll_to_top: "gallery.scroll_to_top",
@@ -1110,6 +1117,8 @@ export const I18N = {
       paths_too_many: "gallery.selection.paths_too_many",
       download_confirm_title: "gallery.selection.download_confirm_title",
       download_confirm_message: "gallery.selection.download_confirm_message",
+      mark_bracket: "gallery.selection.mark_bracket",
+      marked_bracket: "gallery.selection.marked_bracket",
     },
     keep_top: {
       label: "gallery.keep_top.label",
@@ -2042,6 +2051,9 @@ export const I18N = {
     bracket: {
       label: "culling.bracket.label",
       hint: "culling.bracket.hint",
+      correct_tooltip: "culling.bracket.correct_tooltip",
+      mark_action: "culling.bracket.mark_action",
+      not_a_ladder: "culling.bracket.not_a_ladder",
     },
     panorama: {
       label: "culling.panorama.label",
@@ -2350,6 +2362,19 @@ export const I18N = {
     running: "export.running",
     done: "export.done",
     failed: "export.failed",
+    lightroom: {
+      title: "export.lightroom.title",
+      description: "export.lightroom.description",
+      download: "export.lightroom.download",
+      downloading: "export.lightroom.downloading",
+      pending_corrections: "export.lightroom.pending_corrections",
+      download_failed: "export.lightroom.download_failed",
+      import: "export.lightroom.import",
+      importing: "export.lightroom.importing",
+      invalid_json: "export.lightroom.invalid_json",
+      imported: "export.lightroom.imported",
+      import_failed: "export.lightroom.import_failed",
+    },
   },
   undo: {
     action: "undo.action",

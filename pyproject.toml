@@ -136,6 +136,9 @@ dev = [
     "pytest-asyncio>=0.23.0",
     # tests/test_batch_processor_e2e.py uses @pytest.mark.timeout
     "pytest-timeout>=2.3.0",
+    # tests/test_lrplugin_apply.py runs the Lightroom plug-in's Lua under a
+    # real interpreter (bundles Lua 5.4; production Lightroom runs Lua 5.1).
+    "lupa",
 ]
 all = [
     "facet-photo[vlm,saliency,watch,vec]",

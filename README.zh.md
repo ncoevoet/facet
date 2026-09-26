@@ -171,7 +171,7 @@ Facet 会为本地照片库评分、排序和选片，并提供一个照片库�
 - 拥有庞大的本地照片库，想找出自己最好的照片，并清理连拍和近似重复的照片；
 - 希望画质、构图和人脸评分能按自己的口味调节（它会从你的 A/B 比较中学习）；
 - 偏好自托管和隐私——不上传云端、无需账号、无需订阅；
-- 已经在用 Lightroom、darktable、digiKam 或 immich 修图——Facet 会把星级、色标、关键词、照片描述和带人名的人脸区域写入 `.xmp` 附属文件（默认不改动原片），也可以选择为 JPEG/HEIC/TIFF/PNG/DNG 把它们直接嵌入文件（照片库中的“将元数据写入文件”操作，或 `--export-sidecars --embed-originals`），并可用 `--import-sidecars` 把外部的修改读回来。
+- 已经在用 Lightroom、darktable、digiKam 或 immich 修图——Facet 会把星级、色标、关键词、照片描述和带人名的人脸区域写入 `.xmp` 附属文件（默认不改动原片），也可以选择为 JPEG/HEIC/TIFF/PNG/DNG 把它们直接嵌入文件（照片库中的“将元数据写入文件”操作，或 `--export-sidecars --embed-originals`），并可用 `--import-sidecars` 把外部的修改读回来。专门针对 Lightroom，增效工具 `facet.lrplugin` 还提供了双向流程：可根据 Facet 的评分填入星级、留用/淘汰连拍帧，根据下载的清单把连拍/曝光包围/全景组归入收藏集和关键词，并把你在 Lightroom 里自己设置的旗标/星级/色标导出回 Facet。
 
 **如果你想要下面这些，它多半不适合你：**
 
