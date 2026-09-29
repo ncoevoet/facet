@@ -11,7 +11,13 @@ return {
             title = 'Facet: Apply ratings and flags...',
             file = 'FacetApply.lua',
         },
+        {
+            title = 'Facet: Export Lightroom State to Facet...',
+            file = 'FacetExportState.lua',
+        },
     },
+
+    LrMetadataProvider = 'FacetMetadata.lua',
 
     VERSION = { major = 1, minor = 0, revision = 0, build = 0 },
 }

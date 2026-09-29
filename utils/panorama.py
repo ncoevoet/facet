@@ -50,8 +50,9 @@ from datetime import datetime
 import numpy as np
 
 from db.connection import apply_pragmas
+from db.sequence_overrides import get_sequence_overrides
 from utils.date_utils import parse_date
-from utils.sequence import exposure_value
+from utils.sequence import BRACKET, exposure_value
 
 logger = logging.getLogger("facet.panorama")
 
@@ -500,22 +501,31 @@ def _analyse(conn, run, sift, matcher, settings):
 def load_overrides(conn):
     """Sticky per-set overrides: the suppressed paths, and the forced sets by key.
 
+    Reads the one shared reader, `db.sequence_overrides.get_sequence_overrides`,
+    and derives this pass's own suppressed/forced sets from it rather than
+    running its own SQL, so the panorama and bracket passes cannot disagree
+    about what a correction row means.
+
     Keyed on member paths rather than on `sequence_group_id`, because group ids
     are renumbered from 1 on every pass -- an override keyed on one would attach
     itself to an unrelated set the next time this runs. They live in their own
     table for the same reason the category overrides do: this pass clears and
     rewrites `photos.sequence_*`, so a correction stored there would not survive
     its next run.
+
+    A path the user marked `bracket` folds into `suppressed` here alongside a
+    genuine NULL-kind suppression (#162 finding), never into `forced`, which
+    stays scoped to this pass's own two kinds -- so a bracket-forced path can
+    never become a panorama candidate, while a panorama mark can never
+    resurrect frames the user separately marked as a bracket.
     """
-    rows = conn.execute(
-        "SELECT photo_path, sequence_kind, override_group_key "
-        "FROM photo_sequence_overrides ORDER BY photo_path"
-    ).fetchall()
-    suppressed = {row['photo_path'] for row in rows if row['sequence_kind'] is None}
+    overrides = get_sequence_overrides(conn)
+    suppressed = {path for path, row in overrides.items()
+                  if row['sequence_kind'] is None or row['sequence_kind'] == BRACKET}
     forced = defaultdict(list)
-    for row in rows:
+    for path, row in overrides.items():
         if row['sequence_kind'] in KINDS:
-            forced[row['override_group_key']].append((row['sequence_kind'], row['photo_path']))
+            forced[row['override_group_key']].append((row['sequence_kind'], path))
     return suppressed, forced
 
 
@@ -681,12 +691,19 @@ def detect_panoramas(db_path, config_path=None, incremental=False, label_snapsho
             # window function run over every row of every query.
             conn.execute("UPDATE photos SET is_sequence_lead = 1 WHERE path = ?",
                          (paths[len(paths) // 2],))
-        # The labels now reflect every stored correction, so none of them is
-        # waiting on a run any more. Stamped rather than deleted: the row is what
-        # keeps the correction applied on later passes, and it is only its
-        # *pending* status that ends here.
-        conn.execute("UPDATE photo_sequence_overrides SET applied_at = ? "
-                     "WHERE applied_at IS NULL", (datetime.now().isoformat(),))
+        # The labels now reflect every stored correction *of this pass's own
+        # kinds*, so none of those is waiting on a run any more. Scoped to
+        # `KINDS OR NULL` (this pass's own forced/suppressed rows) rather than
+        # every unstamped row: an unscoped stamp here would incidentally mark a
+        # pending bracket override as applied whenever this pass runs after the
+        # bracket one in the same call, even though the bracket pass has not
+        # touched it. Stamped rather than deleted: the row is what keeps the
+        # correction applied on later passes, and it is only its *pending*
+        # status that ends here.
+        conn.execute(
+            "UPDATE photo_sequence_overrides SET applied_at = ? "
+            "WHERE applied_at IS NULL AND (sequence_kind IN (?, ?) OR sequence_kind IS NULL)",
+            (datetime.now().isoformat(),) + KINDS)
         # Written only once the labels are committed alongside it, so a pass that
         # dies part-way leaves the previous watermark and the next one re-measures.
         write_watermark(conn, settings, scanned_through)

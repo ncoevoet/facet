@@ -219,6 +219,20 @@ class TestPostRoutesAcceptValidShape:
         )
         assert _is_acceptable(resp.status_code)
 
+    def test_lightroom_manifest_validates_payload(self, edition_client):
+        resp = edition_client.post(
+            '/api/lightroom/manifest',
+            json={'paths': ['/nonexistent.jpg']},
+        )
+        assert _is_acceptable(resp.status_code)
+
+    def test_lightroom_import_validates_payload(self, edition_client):
+        resp = edition_client.post(
+            '/api/lightroom/import',
+            json={'format': 'facet-lightroom-state', 'version': 1, 'photos': []},
+        )
+        assert _is_acceptable(resp.status_code)
+
     def test_immich_webhook_disabled_returns_404(self, client):
         # immich.webhook.token_env is unset in the test config, so the
         # endpoint must 404 rather than 401/403/5xx — the same "empty means

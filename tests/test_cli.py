@@ -570,7 +570,7 @@ class TestExportManifestCli:
         assert b'\n' not in raw  # compact: no pretty-printed indentation
 
         data = json.loads(raw)
-        assert data['version'] == 1
+        assert data['version'] == 2
         assert data['generated_at']
         photos = {p['path']: p for p in data['photos']}
         # other.jpg (library/b) is out of the library/a scope.
@@ -671,6 +671,133 @@ class TestExportManifestCli:
         assert photos[keep]['is_favorite'] is True
         assert photos[keep]['is_rejected'] is False
         assert photos[other]['star_rating'] == 3
+
+
+class TestImportLightroomCli:
+    """``--import-lightroom`` — the Lightroom-wins reverse-sync importer."""
+
+    def _seed_db(self, tmp_path):
+        db_path = tmp_path / 'lr.db'
+        result = _run(DATABASE, '--db', str(db_path))
+        assert result.returncode == 0, result.stderr
+        matched_path = str(tmp_path / 'matched.jpg')
+        conn = sqlite3.connect(db_path)
+        conn.execute(
+            "INSERT INTO photos(path, filename, aggregate, category) VALUES (?, 'matched.jpg', 5.0, 'default')",
+            (matched_path,),
+        )
+        conn.commit()
+        conn.close()
+        return str(db_path), matched_path
+
+    def _write_state_file(self, tmp_path, matched_path, name='lr_state.json'):
+        state = {
+            'format': 'facet-lightroom-state',
+            'version': 1,
+            'photos': [
+                {'path': matched_path, 'rating': 4, 'pick': 1},
+                {'path': str(tmp_path / 'unknown.jpg'), 'rating': 2},
+            ],
+        }
+        state_path = tmp_path / name
+        state_path.write_text(json.dumps(state))
+        return str(state_path)
+
+    def _multi_user_config(self, tmp_path, users=('alice',)):
+        config = {'users': {u: {'role': 'user'} for u in users}}
+        config['users']['shared_directories'] = []
+        config_path = tmp_path / 'scoring_config.json'
+        config_path.write_text(json.dumps(config))
+        return str(config_path)
+
+    def test_reports_matched_unmatched_changed_on_stdout(self, tmp_path):
+        db, matched_path = self._seed_db(tmp_path)
+        state_file = self._write_state_file(tmp_path, matched_path)
+
+        result = _run(FACET, '--db', db, '--import-lightroom', state_file)
+
+        assert result.returncode == 0, result.stderr
+        assert 'matched=1 unmatched=1 changed=1' in result.stdout
+        conn = sqlite3.connect(db)
+        row = conn.execute(
+            "SELECT star_rating, is_favorite FROM photos WHERE path = ?", (matched_path,)
+        ).fetchone()
+        conn.close()
+        assert row == (4, 1)
+
+    def test_multi_user_without_user_flag_exits_1(self, tmp_path):
+        db, matched_path = self._seed_db(tmp_path)
+        state_file = self._write_state_file(tmp_path, matched_path)
+        config_path = self._multi_user_config(tmp_path)
+
+        result = _run(FACET, '--db', db, '--config', config_path, '--import-lightroom', state_file)
+
+        assert result.returncode == 1
+        assert 'user' in result.stderr.lower()
+
+    def test_unknown_user_exits_1(self, tmp_path):
+        db, matched_path = self._seed_db(tmp_path)
+        state_file = self._write_state_file(tmp_path, matched_path)
+        config_path = self._multi_user_config(tmp_path)
+
+        result = _run(FACET, '--db', db, '--config', config_path,
+                      '--import-lightroom', state_file, '--user', 'bob')
+
+        assert result.returncode == 1
+
+    def test_known_multi_user_writes_user_preferences(self, tmp_path):
+        """I4: --config X --user alice must resolve multi-user from X (the
+        SAME config that validated 'alice') and write alice's row in
+        user_preferences -- never re-derive it from
+        api.config.is_multi_user_enabled(), which reads
+        default_config_path()/$FACET_CONFIG, a DIFFERENT file that is absent
+        in this subprocess and so would (before the fix) report single-user
+        and silently write the GLOBAL photos columns instead."""
+        db, matched_path = self._seed_db(tmp_path)
+        state_file = self._write_state_file(tmp_path, matched_path)
+        config_path = self._multi_user_config(tmp_path)
+
+        result = _run(FACET, '--db', db, '--config', config_path,
+                      '--import-lightroom', state_file, '--user', 'alice')
+
+        assert result.returncode == 0, result.stderr
+        assert 'matched=1' in result.stdout
+
+        conn = sqlite3.connect(db)
+        conn.row_factory = sqlite3.Row
+        global_row = conn.execute(
+            "SELECT star_rating, is_favorite FROM photos WHERE path = ?", (matched_path,)
+        ).fetchone()
+        user_row = conn.execute(
+            "SELECT star_rating, is_favorite FROM user_preferences "
+            "WHERE user_id = 'alice' AND photo_path = ?", (matched_path,)
+        ).fetchone()
+        conn.close()
+
+        # The global photos row is UNCHANGED (still the seeded 0/0) ...
+        assert tuple(global_row) == (0, 0)
+        # ... and alice's own row in user_preferences carries the import.
+        assert user_row is not None
+        assert tuple(user_row) == (4, 1)
+
+    def test_rejects_a_manifest_file_before_any_write(self, tmp_path):
+        db, matched_path = self._seed_db(tmp_path)
+        manifest = {
+            'version': 2, 'generated_at': '2026-01-01T00:00:00Z',
+            'photos': [{'path': matched_path, 'star_rating': 5}],
+        }
+        manifest_path = tmp_path / 'facet_manifest.json'
+        manifest_path.write_text(json.dumps(manifest))
+
+        result = _run(FACET, '--db', db, '--import-lightroom', str(manifest_path))
+
+        assert result.returncode == 1
+        conn = sqlite3.connect(db)
+        star = conn.execute(
+            "SELECT star_rating FROM photos WHERE path = ?", (matched_path,)
+        ).fetchone()[0]
+        conn.close()
+        assert star == 0
 
 
 # ---------------------------------------------------------------------------

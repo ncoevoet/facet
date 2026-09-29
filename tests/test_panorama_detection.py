@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from db.sequence_overrides import set_sequence_overrides
+from utils.sequence import BRACKET
 from utils.panorama import (
     DEFAULTS,
     HDR_PANORAMA,
@@ -377,6 +378,47 @@ class TestLoadOverrides:
         assert suppressed == {'/a.jpg'}
         assert sorted(path for _, path in forced['g1']) == ['/b.jpg', '/c.jpg']
 
+    def test_a_bracket_forced_path_joins_this_passs_suppression_set(self, tmp_path):
+        """A path the user marked `bracket` must never become a panorama
+        candidate -- it folds into `suppressed`, never into `forced`, which
+        stays scoped to this pass's own two kinds (#162 finding, A3)."""
+        from db.schema import init_database
+        db = tmp_path / 'o2.db'
+        init_database(str(db))
+        with sqlite3.connect(db) as conn:
+            conn.execute(
+                "INSERT INTO photo_sequence_overrides "
+                "(photo_path, sequence_kind, override_group_key, source) "
+                "VALUES ('/br.jpg', ?, 'gbr', 'user')", (BRACKET,))
+            conn.commit()
+            conn.row_factory = sqlite3.Row
+            suppressed, forced = load_overrides(conn)
+
+        assert '/br.jpg' in suppressed
+        assert forced == {}
+
+
+class TestBracketOverridesSuppressPanorama:
+    """Manual wins symmetrically: a bracket mark on a settled panorama's own
+    members must drop that panorama -- the direction #162 adds on top of the
+    reverse (a panorama mark can never resurrect bracket-marked frames)."""
+
+    def test_a_bracket_mark_on_a_settled_panoramas_members_removes_it(self, tmp_path):
+        db = tmp_path / 'pano.db'
+        paths = _seed_sweep(db)
+        detect_panoramas(str(db))
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths[:3], BRACKET)
+            conn.commit()
+
+        detect_panoramas(str(db))
+
+        with sqlite3.connect(db) as conn:
+            labelled = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE sequence_kind IN (?, ?)",
+                (PANORAMA, HDR_PANORAMA)).fetchone()[0]
+        assert labelled == 0
+
 
 class TestParallelAnalysis:
     """The pool path is a different code path from the serial one.
@@ -721,3 +763,21 @@ class TestOverrideApplied:
             pending = conn.execute("SELECT count(*) FROM photo_sequence_overrides "
                                    "WHERE applied_at IS NULL").fetchone()[0]
         assert pending == 3
+
+    def test_the_panorama_pass_leaves_a_pending_bracket_override_pending(self, tmp_path):
+        """The panorama pass owns only `KINDS` (panorama/hdr_panorama). A pending
+        `bracket` override belongs to the bracket pass, which has not run --
+        `detect_panoramas` alone must not stamp it as applied."""
+        db = tmp_path / 'pano.db'
+        paths = _seed_sweep(db)
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths[:3], BRACKET)
+            conn.commit()
+
+        detect_panoramas(str(db))
+
+        with sqlite3.connect(db) as conn:
+            pending = conn.execute(
+                "SELECT count(*) FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL AND sequence_kind = ?", (BRACKET,)).fetchone()[0]
+        assert pending == 3, "the bracket pass owns this override -- the panorama pass must not touch it"

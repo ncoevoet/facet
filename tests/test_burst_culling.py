@@ -6,6 +6,7 @@ from unittest import mock
 
 import pytest
 
+from api.models.culling import BurstGroupsResponse
 from api.routers.burst_culling import (
     _CULLING_GROUP_BY,
     _CULLING_SORT_DESC,
@@ -134,6 +135,21 @@ class TestFormatGroup:
         # The weaker photo gets a non-'best' reason.
         assert result['photos'][1]['path'] == '/low.jpg'
         assert result['photos'][1]['cull_reason']['key'] != 'best'
+
+    def test_sequence_override_survives_the_burst_groups_response_model(self):
+        """GET /api/burst-groups validates through BurstGroupsResponse, which
+        silently drops any key its model does not declare."""
+        photos = [
+            {'path': '/a.jpg', 'filename': 'a.jpg', 'aggregate': 5, 'aesthetic': 5,
+             'tech_sharpness': 5, 'is_blink': 0, 'is_burst_lead': 1, 'date_taken': '2024:01:01',
+             'sequence_override': 'bracket', 'sequence_override_pending': 1},
+        ]
+        group = _format_group(photos, 3)
+        response = BurstGroupsResponse(groups=[group], total_groups=1, page=1, per_page=1,
+                                       total_pages=1).model_dump()
+        photo = response['groups'][0]['photos'][0]
+        assert photo['sequence_override'] == 'bracket'
+        assert photo['sequence_override_pending'] == 1
 
 
 class TestComputeCullReason:
@@ -1259,6 +1275,23 @@ class TestQueryBurstGroupsScope:
         )
         assert {g["burst_id"] for g in groups} == {1}
         assert total == 1
+
+    def test_a_pending_bracket_mark_is_served_on_every_frame(self):
+        """Marking a burst as a bracket changes nothing in `photos` until the
+        next detection run, so the burst feed must carry the correction or a
+        reload shows the group exactly as it was before the click."""
+        from api.routers.burst_culling import _query_burst_groups
+        conn = self._db()
+        conn.executemany(
+            "INSERT INTO photo_sequence_overrides "
+            "(photo_path, sequence_kind, override_group_key, source) "
+            "VALUES (?, 'bracket', 'KEY', 'user')",
+            [("/g1a.jpg",), ("/g1b.jpg",)],
+        )
+        groups, _, _ = _query_burst_groups(conn, "1=1", [], exclude_rejected=False)
+        g1 = next(g for g in groups if g["burst_id"] == 1)
+        assert {p["sequence_override"] for p in g1["photos"]} == {"bracket"}
+        assert {p["sequence_override_pending"] for p in g1["photos"]} == {1}
 
 
 

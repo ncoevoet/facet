@@ -237,7 +237,7 @@ python database.py --migrate-user-preferences --user alice
 
 **范围。** 请求只接受显式的 `paths`（上限 10000）——不存在按 `filters` 驱动的变体，因为按筛选条件驱动的删除是唯一可能在单次请求中删除无限多张照片的形式。在照片库“选中整个视图”的范围下，删除操作会被禁用，并显示提示要求进行显式选择，而不是悄悄地只删除视图的一部分。默认范围仅为指定的文件。两个可选复选框可以扩大范围，名称和默认值都与 `/api/cull/apply` 相同：**包含配套 RAW／XMP**（`include_companions`，默认关闭）会加上同一帧的同名配套 RAW 和 `.xmp`；**包含同组照片**（`include_sequence_siblings`，默认关闭）会把任何请求路径扩大到与其共享 `(sequence_kind, sequence_group_id)` 的所有其他帧。
 
-**包围曝光头帧。** 带有 `is_sequence_lead = 1` 且属于 bracket 类型组的帧会被拒绝而不是删除——按路径记录在 `refused_bracket_lead` 中——除非设置了 `include_sequence_siblings`，此时整组 bracket 会一起被删除。bracket 的头帧是其 `sequence_ev_offset = 0` 的那一帧，这是曝光本身的物理事实，而不是可移动的标记，因此与全景照片不同，没有幸存的帧可以被提升；而且由于删除会立即移除该行，部分删除的 bracket 组会从照片库中消失，且除非重新扫描否则无法恢复。未设置该开关时被删除的全景组头帧会改为重新指定一张幸存的同组照片作为新的 `is_sequence_lead`，与“选片后导出／清理”的做法完全一致，因此该组照片在默认的 `hide_panoramas` 下仍保持可见。
+**包围曝光头帧。** bracket 组的基准曝光帧——即其 `sequence_ev_offset = 0` 的那一帧——会被拒绝而不是删除——按路径记录在 `refused_bracket_lead` 中——除非设置了 `include_sequence_siblings`，此时整组 bracket 会一起被删除。这个基准曝光帧是曝光本身的物理事实，而不是可移动的标记，因此与全景照片不同，没有幸存的帧可以被提升；而且由于删除会立即移除该行，部分删除的 bracket 组会从照片库中消失，且除非重新扫描否则无法恢复。未设置该开关时被删除的全景组头帧会改为重新指定一张幸存的同组照片作为新的 `is_sequence_lead`，与“选片后导出／清理”的做法完全一致，因此该组照片在默认的 `hide_panoramas` 下仍保持可见。
 
 **部分结果。** 响应按路径给出，从不是全有或全无：`dry_run`、`would_trash`（试运行预览）、`deleted`、`not_found`（从未存在于数据库中）、`not_visible`（存在于数据库中但对该用户隐藏）、`refused_bracket_lead`、`sequence_siblings`（同组开关带入的帧）、`skipped`（对该用户可见且存在于 `photos` 中，但文件在磁盘上已经缺失——未送入回收站，行未删除）、`trashed`（一个计数）以及 `errors`（每个删除失败路径对应的系统错误——未送入回收站，行未删除）。即使批量删除中包含一个被拒绝的 bracket 头帧，其余的仍会被删除并报告该拒绝，而不会导致整个请求失败。`dry_run` 默认值为 `true`。
 
@@ -246,7 +246,7 @@ python database.py --migrate-user-preferences --user alice
 - **布局模式** - 在**网格**（大小一致的卡片）和**拼贴**（保留原始宽高比的对齐行）之间切换。拼贴仅限桌面端；移动端始终使用网格。
 - **缩略图大小** - 调整卡片／行高的滑块（120–400px，保存在 localStorage 中）
 - **隐藏照片详情** - 隐藏卡片上的照片元数据（仅网格模式）
-- **提示信息** - 照片详情的显示方式：**悬停**（默认）、**点击**、**关闭**或**侧边面板**。侧边面板把同样的详情停靠在右侧抽屉中，而不是跟随光标，因此同一个字段在不同照片之间始终位于同一位置。它同时响应悬停**和**点击，因此在悬停永远不会触发的触摸屏上也能使用；光标离开网格时它会保留最后一次悬停的照片，而不是清空。它与筛选侧边栏共用同一个抽屉——打开筛选条件会把它隐藏，直到你重新关闭筛选，而网格宽度始终与打开筛选时完全一致。需要至少 1280px 的视口宽度。
+- **提示信息** - 照片详情的显示方式：**悬停**（默认）、**点击**、**关闭**或**侧边面板**。侧边面板把同样的详情停靠在右侧抽屉中，而不是跟随光标，因此同一个字段在不同照片之间始终位于同一位置。它同时响应悬停**和**点击，因此在悬停永远不会触发的触摸屏上也能使用；光标离开网格时它会保留最后一次悬停的照片，而不是清空。点击一张照片会把面板锁定在该照片上——此时悬停其他照片不会再切换面板——直到你点击面板顶部的**取消选择**，这也会把该照片移出选择。它与筛选侧边栏共用同一个抽屉——打开筛选条件会把它隐藏，直到你重新关闭筛选，而网格宽度始终与打开筛选时完全一致。需要至少 1280px 的视口宽度。
 - **隐藏闭眼照片** - 过滤掉检测到闭眼的照片
 - **连拍最佳照片** - 每组连拍只显示评分最高的一张
 - **包围曝光最佳照片** - 每组检测到的包围曝光只显示基准曝光帧，隐藏两侧的帧。**默认开启。**它与“连拍最佳照片”相互独立：约四分之一的包围曝光组与无关帧共处同一个连拍分组，而该连拍的代表帧并不是基准曝光帧，因此仅靠连拍隐藏会让多余的曝光帧留在画面上。
@@ -309,6 +309,30 @@ HDR 之间重新标注。**漏检**则从照片库修正，因为未被检测到
 根本不会出现在任何选片分组里：选中这些帧，在选择栏中使用
 *标记为照片组* → *标记为同一组全景照片*。两者都可以从提示条撤销，
 且都至少需要两帧。
+
+**标记一组漏检的曝光包围。** 一段连拍检测无法与普通连拍区分开来的
+曝光阶梯，可以用和漏检全景完全一样的方式从两个入口修正：在选片
+页面，一个普通连拍分组——其中没有任何一帧已经属于某个曝光包围
+或全景——会带有自己的菜单（仅编辑模式），提供*标记为曝光包围*；
+在照片库选择栏中，*标记为一组* → *标记为一组曝光包围*对任意选择
+做同样的事。两者都要求这些帧构成一段真正的曝光阶梯——至少 2 帧，
+每一帧都要有可用的曝光元数据*并且*要有可解析的拍摄日期，且没有
+两帧曝光值相同——不满足时两者都会用一条屏幕提示拒绝这次修正，
+绝不会保存一半。对一组已经标记过的曝光包围再标记与之重叠的帧，
+会把它们并入那一组，而不是另起一组——校验规则会用于合并后的
+整组（你刚选中的帧加上那一组里原有的每一帧），因此一次会破坏
+现有阶梯的合并会被同样的提示拒绝，之前那组曝光包围保持原样不变。
+选片页面的取景流默认隐藏已淘汰的帧，所以从选片页面标记曝光包围
+时，永远不会包含一个已经被淘汰的档位——它本来就不在可供选择的
+取景流里。一个已经是 `bracket` 类型的分组（无论是检测出来的还是
+之前修正得到的）会改为出现一个*取消修正*入口，与全景的做法一致。
+如果某个已标记的帧之后消失，或者丢失了阶梯规则所需的曝光或日期
+数据（被删除，或以不同的 EXIF 重新扫描），整组已标记的帧会在下
+一次检测运行时被整体跳过，而不是被部分应用——它会保持待应用状态，
+直到每个成员都重新满足条件。**标记会压制全景检测的
+结果**：如果被标记的这些帧本来已经属于一个被几何检测识别出的
+全景，那个全景会在下一次运行时被丢弃——同一组照片不能同时是
+两者。
 
 没有任何标注会立即生效。修正会立刻保存并标为待应用——
 照片库图块上会出现一个时钟徽章，选片分组上会出现*修正待应用*标签
@@ -596,6 +620,7 @@ API：参见下文的 [API 端点](#api-端点)一节。
 - **从照片库**——选中照片，然后 **操作 → 导出** 会在每个文件旁写入一个附属文件。导出整个筛选后的视图（而非手工挑选的照片集）上限为 10 000 张：更大的视图会被直接拒绝，提示信息会给出该视图的照片数量和上限，且不写入任何内容。它绝不会被截断——把你以为是完整的选择只导出了一半，比一次明确的拒绝更糟糕——因此请缩小筛选范围后重新导出。
 - **从相册**（“选片篮”）——把整个相册导出为附属文件，或把文件复制／符号链接到目标目录（与[选片后导出／清理](#选片后导出清理)使用同一份目标目录白名单）。
 - **把元数据写入文件**——照片详情中的“把元数据写入文件”操作会在写入附属文件之外，把星级／关键词直接嵌入原始文件（JPEG/HEIC/TIFF/PNG/DNG，通过 exiftool），这样整个照片生态都能看到它们。专有 RAW 原始文件永远不会被修改。由 `viewer.features.show_embed_metadata` 控制（默认：`true`）。
+- **Lightroom 区块**（编辑模式）——同一个对话框新增了一个 **Download Lightroom manifest**（下载 Lightroom 清单）按钮，会按对话框自身的选择／筛选范围（与旁边附属文件导出相同的 `{paths?, filters?, exclude?}` 形态）获取并下载 `facet_manifest.json`，供 `facet.lrplugin` 增效工具的 **Facet: Apply ratings and flags...** 步骤使用。它的 **Import Lightroom state…**（导入 Lightroom 状态）按钮会读取增效工具菜单项 **Facet: Export Lightroom State to Facet...** 生成的 `facet_lightroom_state.json` 文件（Lightroom 说了算：星级和留用／淘汰，取决于文件携带的字段），直接把内容发给服务器，并报告 matched/unmatched/changed 计数——通过查看器操作的流程不再需要手动运行 `--import-lightroom`。见[Lightroom Classic](INTEROP.md#lightroom-classic)。
 
 API：参见下文的 [API 端点](#api-端点)一节。
 
@@ -1277,7 +1302,7 @@ python database.py --stats-info
 | `POST /api/culling-groups/confirm` | 确认选片结果。请求体 `{group_id, type, paths, keep_paths}`；`type` 为 `burst \| similar \| scene \| bracket \| panorama \| hdr_panorama`。`type:'scene'` 会记录场景选片的比较行；三种序列类型会像其他类型一样执行淘汰，但不记录任何比较对，因为在一组阶梯中偏好某一档、或在一次扫拍中偏好某一帧，说明不了任何审美偏好 |
 | `POST /api/culling/auto` | `[Edition]` 针对整个作用域的一键自动选片。请求体 `{group_by, album_id?, date_from?, date_to?, strictness?, min_keep_per_group, highlights_album, dry_run, profile?, trim_brackets}`；`group_by` 为 `all \| burst \| similar \| scene`（序列类型在这里不是合法的作用域——参见 `trim_brackets`）。`profile` 指定一个 `cull_profiles` 预设，在省略 `strictness`／`min_keep_per_group` 时从中取值。`dry_run`（默认 `true`）返回每组的保留／淘汰预览，实际执行则会淘汰其余照片并记录选片比较对。`trim_brackets`（默认 `false`）会额外把基准曝光既无暗部裁切也无高光裁切的包围曝光组修剪到只剩基准帧——这是自动选片中唯一会缩减序列照片组的路径 |
 | `GET /api/culling/suggest_profile?album_id=&date_from=&date_to=` | 根据作用域内已存储的类别、叙事时刻、人脸数量和拍摄时段推断其占主导的拍摄类型，并指出与之匹配的 `cull_profiles` 预设，附带置信度及其所依据的证据数量；按作用域缓存。当低于主导度下限、或匹配的预设未配置时，`profile` 为 `null` |
-| `POST /api/culling-groups/override_sequence` | `[Edition]` 记录一条关于一组帧究竟是什么的持久修正。请求体 `{paths, kind?}`；`kind` 为 `panorama \| hdr_panorama`，省略则表示把这些帧标记为根本不是全景。它落在 `photo_sequence_overrides` 中（能挺过检测器每次运行时对 `photos.sequence_*` 的清除与重写）；在下一次 `POST /api/scan/detect_panoramas` 时生效 |
+| `POST /api/culling-groups/override_sequence` | `[Edition]` 记录一条关于一组帧究竟是什么的持久修正。请求体 `{paths, kind?}`；`kind` 为 `panorama \| hdr_panorama \| bracket`，省略则表示把这些帧标记为都不是。`bracket` 标记要满足曝光阶梯规则（至少 2 帧，每一帧都要有可用的曝光元数据，且没有两帧曝光值相同），不满足时返回 400 及具体原因。它落在 `photo_sequence_overrides` 中（能挺过检测器每次运行时对 `photos.sequence_*` 的清除与重写）；在下一次 `POST /api/scan/detect_panoramas` 时生效 |
 | `POST /api/culling-groups/clear_sequence_override` | `[Edition]` 撤销指定帧的手动序列修正，把它们交还给检测器。请求体 `{paths}` |
 | `POST /api/culling-group/faces` | 一次批量获取某个分组的每张人脸标记（睁眼／闭眼、表情、置信度） |
 | `POST /api/culling-group/subjects` | 一次批量获取无人脸分组的主体特写裁切（来自已保存的 BiRefNet 主体框）+ 按组归一化的清晰度。当照片没有主体框／主体框几乎占满整幅画面时返回 `has_subject:false`（不运行任何模型） |
@@ -1372,9 +1397,11 @@ python database.py --stats-info
 | `POST /api/photo/export_xmp` | `[Edition]` 写入一个 XMP 附属文件 |
 | `POST /api/export/sidecars` | `[Edition]` 为显式给出的路径或一组筛选条件写入附属文件。请求体 `{paths?, filters?, exclude?, overwrite}`——必须恰好是 `paths`（最多 10000）或一组照片库 `filters` 之一：两者都给返回 `422`，都不给返回 `400`。`exclude`（可选，最多 1000）会从所发送的目标中剔除指定路径——从 `paths` 中减去，或从 `filters` 范围中排除；`filters` 会走与 `GET /api/photos` 相同的归一化流程，与下面的 `POST /api/cull/apply` 完全一致，而指定了相册的 `filters` 会像该相册自身的 GET 一样做访问检查——相册不存在返回 `404`，在受访问控制的安装上访问他人的相册返回 `403`。匹配超过 10000 张照片的 `filters` 会以 `412` 拒绝并给出数量和上限，该计数在构建任何路径列表之前完成，且绝不截断 |
 | `POST /api/photo/embed_metadata` | `[Edition]` 把元数据嵌入原始文件（JPEG/HEIC/TIFF/PNG/DNG；RAW 绝不修改）并写入附属文件 |
+| `POST /api/lightroom/manifest` | `[Edition]` 构建并返回与 `--export-manifest` 写出的相同 `facet_manifest.json`，由 `{paths?, filters?, exclude?}` 限定范围——形态、解析方式和选择上限（10000）都与上面的 `POST /api/export/sidecars` 相同。在多用户模式下，调用者可见目录之外的照片会从 `paths` 及任何连拍/序列集扩展中被剔除，两条路径都不会出现；`exclude` 在该扩展之后才生效（被排除的画面永远不会作为集合成员被重新加入）。选择范围受两道上限约束：`paths`/`filters` 在扩展前上限为 10000；扩展为完整的连拍/序列集之后的选择范围，会再对照一个独立且更高的 50000 上限重新校验（与 `POST /api/lightroom/import` 自身的照片上限一致，因为这里构建的清单必须足够小，才能被该接口重新接受），超过时返回 `412` 并说明数量及所超出的具体上限。以附件形式返回（`facet_manifest.json`）；评分为调用者自己的评分（按多用户解析） |
+| `POST /api/lightroom/import` | `[Edition]` 通过 `processing.lightroom_sync.import_lightroom_state` 导入增效工具导出的 Lightroom 状态（原始 JSON 正文，非 multipart）——`rating`／`pick` 由 Lightroom 说了算，取决于每条记录携带的字段。在多用户模式下，记录中指向调用者可见目录之外照片的条目计为 `unmatched`，且永不写入。上限为 20 MB／50000 张照片（`413`，照片数量检查在 `json.loads` 之后运行）；未带 `Content-Length` 的分块（chunked）正文，一旦已流式接收的大小超过 20 MB 上限即被拒绝并返回 `413`，而不是先完整缓冲。不符合 `{"format":"facet-lightroom-state","version":1,...}` 形态检查的正文，会在任何写入之前收到 `400`。响应为 `{matched, unmatched, changed}` |
 | `POST /api/albums/{id}/export` | `[Edition]` 以附属文件、复制或符号链接的方式导出相册 |
 | `POST /api/cull/apply` | `[Edition]` 把保留照片复制、或把淘汰照片移动／移入回收站到某个文件夹（参见[选片后导出／清理](#选片后导出清理)）。请求体 `{paths?, filters?, exclude?, action, target_dir?, include_companions, include_sequence_siblings, dry_run}`——必须恰好是 `paths`（最多 10000）或一组照片库 `filters` 之一，两者都给返回 `422`，都不给返回 `400`；`exclude`（可选，最多 1000）会从所发送的目标中剔除指定路径——从 `paths` 中减去，或从 `filters` 范围中排除——因此它只能收窄目标，绝不会扩大，而且被排除的路径也绝不会作为同组照片被重新加回来（它同样不计入 `sequence_siblings`）；指定了相册的 `filters` 会像该相册自身的 GET 一样做访问检查——相册不存在返回 `404`，在受访问控制的安装上访问他人的相册返回 `403`；`filters` 会走与 `GET /api/photos` 相同的归一化流程（查看器默认值加上 `type` 预设展开），因此它始终与它所来源的照片库视图一致。匹配超过 10000 张照片的 `filters` 会以 `412` 拒绝并给出数量和上限，该计数在构建任何路径列表之前完成，绝不截断，并且对试运行与真实执行同样强制——预览不能被拿来完成执行本身被拒绝去做的无界工作；`action` 为 `copy_keeps \| trash_rejects \| move_rejects`；`include_companions`（默认 `false`）会加上每个文件的同名配套 RAW 和 `.xmp`；`include_sequence_siblings`（默认 `false`）会加上与匹配照片共享 `(sequence_kind, sequence_group_id)` 的所有其他帧，**前提是它自身的淘汰状态与本次操作相符**，因此绝不会因为某个同组照片被淘汰就毁掉一张被保留的帧；`dry_run` 默认为 `true`。响应在 `skipped` / `excluded_by_state` / `not_visible` 之外还会加上 `matched`（符合本次操作条件的路径）和 `sequence_siblings`（同组照片帧数，即使该开关关闭也会报告） |
-| `POST /api/photo/delete` | `[Edition]` 把一张或多张照片送入系统回收站——可恢复，绝不是永久删除（参见[删除](#删除)）。受与 `/api/cull/apply` 相同的 `viewer.cull.allow_trash` 开关控制：关闭时返回 `403`，`send2trash` 包未安装时返回 `400`。请求体 `{paths, include_companions, include_sequence_siblings, dry_run}`——只接受 `paths`（最多 10000），刻意不提供 `filters`/`exclude` 分支：按筛选条件驱动的删除是唯一可能删除无限多张照片的形式，因此照片库的“选中整个筛选视图”范围无法使用此端点。默认范围仅为指定的文件；`include_companions`（默认 `false`）会加上每个文件的同名配套 RAW 和 `.xmp`；`include_sequence_siblings`（默认 `false`）会把任何请求路径扩大到与其共享 `(sequence_kind, sequence_group_id)` 的所有其他帧，与 `/api/cull/apply` 上的行为完全一致；由 `include_companions` 带入的配套 RAW／XMP，如果自身在 `photos` 中也有独立一行，一旦其文件被送入回收站，该行也会一并删除。带有 `is_sequence_lead = 1` 且属于 bracket 类型组的帧会被拒绝（`refused_bracket_lead`），除非设置了 `include_sequence_siblings`，此时整组 bracket 会一起被删除；未设置该开关时被删除的全景组头帧会改为重新指定一张幸存的同组照片作为新的头帧。某路径对应的照片行会在其文件真正被送入回收站后立即删除——对该路径不需要 `--cleanup-missing-photos`。落入 `skipped` 的路径（文件在磁盘上已经缺失）会保留其行，因为没有为它执行任何回收站操作——这正是 `--cleanup-missing-photos` 要协调的情况。落入 `errors` 的路径（送入回收站的尝试失败）同样会保留其行，因为其文件仍然在磁盘上。`dry_run` 默认值为 `true`。响应按路径给出：`{dry_run, would_trash, deleted, not_found, not_visible, refused_bracket_lead, sequence_siblings, skipped, trashed, errors}` |
+| `POST /api/photo/delete` | `[Edition]` 把一张或多张照片送入系统回收站——可恢复，绝不是永久删除（参见[删除](#删除)）。受与 `/api/cull/apply` 相同的 `viewer.cull.allow_trash` 开关控制：关闭时返回 `403`，`send2trash` 包未安装时返回 `400`。请求体 `{paths, include_companions, include_sequence_siblings, dry_run}`——只接受 `paths`（最多 10000），刻意不提供 `filters`/`exclude` 分支：按筛选条件驱动的删除是唯一可能删除无限多张照片的形式，因此照片库的“选中整个筛选视图”范围无法使用此端点。默认范围仅为指定的文件；`include_companions`（默认 `false`）会加上每个文件的同名配套 RAW 和 `.xmp`；`include_sequence_siblings`（默认 `false`）会把任何请求路径扩大到与其共享 `(sequence_kind, sequence_group_id)` 的所有其他帧，与 `/api/cull/apply` 上的行为完全一致；由 `include_companions` 带入的配套 RAW／XMP，如果自身在 `photos` 中也有独立一行，一旦其文件被送入回收站，该行也会一并删除。bracket 类型组的基准曝光帧（其 `sequence_ev_offset = 0` 的那一帧）会被拒绝（`refused_bracket_lead`），除非设置了 `include_sequence_siblings`，此时整组 bracket 会一起被删除；未设置该开关时被删除的全景组头帧会改为重新指定一张幸存的同组照片作为新的头帧。某路径对应的照片行会在其文件真正被送入回收站后立即删除——对该路径不需要 `--cleanup-missing-photos`。落入 `skipped` 的路径（文件在磁盘上已经缺失）会保留其行，因为没有为它执行任何回收站操作——这正是 `--cleanup-missing-photos` 要协调的情况。落入 `errors` 的路径（送入回收站的尝试失败）同样会保留其行，因为其文件仍然在磁盘上。`dry_run` 默认值为 `true`。响应按路径给出：`{dry_run, would_trash, deleted, not_found, not_visible, refused_bracket_lead, sequence_siblings, skipped, trashed, errors}` |
 
 ### 插件
 

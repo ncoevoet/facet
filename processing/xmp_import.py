@@ -26,6 +26,7 @@ import os
 from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
 
+from processing.rating_writer import upsert_rating_state
 from processing.xmp_export import (
     LABEL_FAVORITE,
     LABEL_REJECTED,
@@ -207,27 +208,15 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
             unchanged += 1
             continue
 
-        if per_user:
-            if new_tags != (row["tags"] or ""):
-                conn.execute(
-                    "UPDATE photos SET tags = ? WHERE path = ?",
-                    (new_tags, row["path"]),
-                )
+        if new_tags != (row["tags"] or ""):
             conn.execute(
-                "INSERT INTO user_preferences "
-                "(user_id, photo_path, star_rating, is_favorite, is_rejected) "
-                "VALUES (?, ?, ?, ?, ?) "
-                "ON CONFLICT(user_id, photo_path) DO UPDATE SET "
-                "star_rating = excluded.star_rating, is_favorite = excluded.is_favorite, "
-                "is_rejected = excluded.is_rejected",
-                (user_id, row["path"], star, int(favorite), int(rejected)),
+                "UPDATE photos SET tags = ? WHERE path = ?",
+                (new_tags, row["path"]),
             )
-        else:
-            conn.execute(
-                "UPDATE photos SET tags = ?, star_rating = ?, is_favorite = ?, "
-                "is_rejected = ? WHERE path = ?",
-                (new_tags, star, int(favorite), int(rejected), row["path"]),
-            )
+        upsert_rating_state(
+            conn, row["path"], user_id,
+            star_rating=star, is_favorite=favorite, is_rejected=rejected,
+        )
         updated += 1
 
     conn.commit()

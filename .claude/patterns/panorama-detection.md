@@ -66,8 +66,30 @@ caller):
 
 | Field | Means | Drives |
 |---|---|---|
-| `sequence_override` | a correction exists (`'suppressed'`, or the forced kind) | the gallery filter |
+| `sequence_override` | a correction exists (`'suppressed'`, or the forced kind — `panorama`, `hdr_panorama` or, since #162, `bracket`) | the gallery filter |
 | `sequence_override_pending` | `applied_at IS NULL` — not yet applied | every "pending" badge, chip and banner |
+
+**`bracket` is a forced kind now, handled by the bracket pass, not the panorama pass.**
+`utils/sequence.py::detect_sequences` reads `photo_sequence_overrides` through the same
+shared reader (`db.sequence_overrides.get_sequence_overrides`) `utils/panorama.py::load_overrides`
+uses, filtered to `sequence_kind == 'bracket'`. A forced bracket is re-validated against the
+same ladder gate the API enforces (≥2 frames, every one with a usable EV, all EVs pairwise
+distinct at 2dp) before it is written — a set that no longer qualifies (EXIF changed, a
+member deleted) is skipped and logged, never partially written, and stays pending for the
+next run to retry.
+
+**Bracket rows suppress panorama membership, and the reverse.** `utils/panorama.py`'s own
+`suppressed` set is built to include every path the shared reader reports as `sequence_kind
+is None or sequence_kind == 'bracket'` — a path the user marked as a bracket can never be
+folded back into a panorama candidate run, and a panorama mark can never resurrect frames
+separately marked as a bracket. This is "manual wins" in both directions: marking a bracket
+on the frames of an already-detected/settled panorama drops that panorama on the next run.
+
+**`applied_at` stamping is per pass, per kind.** The bracket pass stamps only the forced rows
+it actually wrote (skipped sets stay pending). The panorama pass's own stamp is scoped to
+`sequence_kind IN (panorama-kinds) OR sequence_kind IS NULL` so it no longer incidentally
+absorbs pending bracket rows when it happens to run after the bracket pass in the same
+`detect_all_sequences` call.
 
 **An override row persists for as long as the correction applies**, so its existence can
 never mean "pending". Keying the badge on existence left it, the culling chip and the

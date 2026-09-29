@@ -15,7 +15,7 @@ export type SheetAction =
   | { kind: 'cull' }
   | { kind: 'delete' }
   | { kind: 'rate'; rating: number }
-  | { kind: 'mark-panorama'; sequenceKind: 'panorama' | 'hdr_panorama' }
+  | { kind: 'mark-panorama'; sequenceKind: 'panorama' | 'hdr_panorama' | 'bracket' }
   | { kind: 'album'; albumId: number }
   | { kind: 'create-album' }
   | { kind: 'copy' }
@@ -103,6 +103,10 @@ export interface GalleryActionsSheetData {
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'hdr_panorama' })">
           <mat-icon aria-hidden="true">{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon>
           {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
+        </button>
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'mark-panorama', sequenceKind: 'bracket' })">
+          <mat-icon aria-hidden="true">{{ 'bracket' | sequenceKindIcon }}</mat-icon>
+          {{ I18N.gallery.selection.mark_bracket | translate }}
         </button>
       }
 

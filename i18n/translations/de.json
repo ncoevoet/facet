@@ -59,6 +59,11 @@
     },
     "badges": {
       "best": "BESTE",
+      "best_of_burst": "Beste aus Serie",
+      "best_of_bracket": "Beste aus Belichtungsreihe",
+      "best_of_panorama": "Bestes Bild des Panoramas",
+      "best_of_hdr_panorama": "Bestes Bild des HDR-Panoramas",
+      "best_of_duplicate": "Bestes Bild der Duplikate",
       "blink": "BLINZ",
       "bw": "S&W",
       "dup": "DUP",
@@ -1031,7 +1036,8 @@
       "click": "Klick",
       "panel": "Seitenleiste",
       "off": "Aus",
-      "panel_empty": "Fahre über ein Foto oder klicke es an, um seine Details hier zu sehen"
+      "panel_empty": "Fahre über ein Foto oder klicke es an, um seine Details hier zu sehen",
+      "panel_deselect": "Auswahl aufheben"
     },
     "panel_activation": {
       "label": "Panel-Aktivierung",
@@ -1051,7 +1057,8 @@
       "suppressed": "Als „kein Panorama“ markiert",
       "forced": "Als Panorama markiert",
       "badge": "Als Panorama markiert — greift beim nächsten Erkennungslauf",
-      "badge_suppressed": "Als „kein Panorama“ markiert — greift beim nächsten Erkennungslauf"
+      "badge_suppressed": "Als „kein Panorama“ markiert — greift beim nächsten Erkennungslauf",
+      "badge_bracket": "Als Belichtungsreihe markiert — wird beim nächsten Erkennungslauf angewendet"
     },
     "reset_filters": "Filter zurücksetzen",
     "scroll_to_top": "Nach oben scrollen",
@@ -1093,7 +1100,9 @@
       "view_scope_empty": "Nichts entspricht mehr den aktuellen Filtern",
       "paths_too_many": "Zu viele Fotos für diese Aktion — grenzen Sie die Filter ein und versuchen Sie es erneut",
       "download_confirm_title": "{count} Fotos herunterladen?",
-      "download_confirm_message": "Jedes Foto wird als separate Datei heruntergeladen. {count} davon werden eine Weile dauern und können den Browser überlasten."
+      "download_confirm_message": "Jedes Foto wird als separate Datei heruntergeladen. {count} davon werden eine Weile dauern und können den Browser überlasten.",
+      "mark_bracket": "Als eine Belichtungsreihe markieren",
+      "marked_bracket": "{count} Fotos als eine Belichtungsreihe markiert"
     },
     "keep_top": {
       "label": "Top % behalten",
@@ -2025,7 +2034,10 @@
     },
     "bracket": {
       "label": "Belichtungsreihe",
-      "hint": "Ein Motiv in mehreren Belichtungen – behalte die Reihe, wähle keinen Sieger"
+      "hint": "Ein Motiv in mehreren Belichtungen – behalte die Reihe, wähle keinen Sieger",
+      "correct_tooltip": "Ein Burst und ein Bracket sehen aus der Geometrie allein gleich aus — legen Sie fest, dass dies eine Belichtungsreihe ist",
+      "mark_action": "Als Bracket markieren",
+      "not_a_ladder": "Diese Bilder bilden keine gültige Belichtungsreihe — Belichtungsmetadaten prüfen und erneut versuchen"
     },
     "panorama": {
       "label": "Panorama",
@@ -2333,7 +2345,20 @@
     "run": "Exportieren",
     "running": "Exportiere…",
     "done": "{count} Foto(s) exportiert",
-    "failed": "Export fehlgeschlagen"
+    "failed": "Export fehlgeschlagen",
+    "lightroom": {
+      "title": "Lightroom",
+      "description": "Bewertungen, Auswahl und Serienstatus mit dem facet.lrplugin-Plug-in für Lightroom Classic abgleichen.",
+      "download": "Lightroom-Manifest herunterladen",
+      "downloading": "Manifest wird erstellt…",
+      "pending_corrections": "{count} Serienkorrektur(en) stehen noch aus — Erkennung erneut ausführen (Vergleichen › Panoramen › Erkennung erneut ausführen), bevor du nach Lightroom importierst",
+      "download_failed": "Lightroom-Manifest konnte nicht erstellt werden",
+      "import": "Lightroom-Status importieren…",
+      "importing": "Importiere…",
+      "invalid_json": "Diese Datei ist kein gültiges JSON",
+      "imported": "Lightroom-Status importiert: {matched} zugeordnet, {unmatched} nicht gefunden, {changed} geändert",
+      "import_failed": "Lightroom-Statusdatei konnte nicht importiert werden"
+    }
   },
   "undo": {
     "action": "Rückgängig",

@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { ApiService } from '../../core/services/api.service';
 import { ExportService } from '../../core/services/export.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ExportEditorDialogComponent, ExportEditorDialogData } from './export-editor-dialog.component';
@@ -13,16 +14,21 @@ describe('ExportEditorDialogComponent', () => {
   let exportSidecars: ReturnType<typeof vi.fn>;
   let exportSidecarsForView: ReturnType<typeof vi.fn>;
   let dialogClose: ReturnType<typeof vi.fn>;
+  let apiPost: ReturnType<typeof vi.fn>;
+  let snackBarOpen: ReturnType<typeof vi.fn>;
 
   function build(data: ExportEditorDialogData = { albumId: 7 }) {
     exportAlbum = vi.fn(() => of({ ok: true, mode: 'copy', copied: 1, skipped: 0, errors: 0 }));
     exportSidecars = vi.fn(() => of({ ok: true, written: 0, skipped: 0, errors: 0, sidecars: [] }));
     exportSidecarsForView = vi.fn(() => of({ ok: true, written: 5, skipped: 0, errors: 0, sidecars: [] }));
     dialogClose = vi.fn();
+    apiPost = vi.fn(() => of({}));
+    snackBarOpen = vi.fn();
     TestBed.configureTestingModule({
       providers: [
         { provide: ExportService, useValue: { exportAlbum, exportSidecars, exportSidecarsForView } },
-        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: ApiService, useValue: { post: apiPost } },
+        { provide: MatSnackBar, useValue: { open: snackBarOpen } },
         // `translations` is only read once the real template renders: the
         // translate pipe subscribes to the bundle even when `t` is stubbed.
         { provide: I18nService, useValue: { t: (k: string) => k, translations: signal({}) } },
@@ -121,6 +127,124 @@ describe('ExportEditorDialogComponent', () => {
       const el = render({ albumId: 7 });
 
       expect(el.textContent).not.toContain('cull.selected');
+    });
+  });
+
+  describe('Lightroom manifest download', () => {
+    let createObjectURLSpy: ReturnType<typeof vi.spyOn>;
+    let clickSpy: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      createObjectURLSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:mock');
+      vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined);
+      clickSpy = vi.fn();
+      const realCreateElement = document.createElement.bind(document);
+      vi.spyOn(document, 'createElement').mockImplementation((tag: string) => {
+        const el = realCreateElement(tag);
+        if (tag === 'a') (el as HTMLAnchorElement).click = clickSpy as unknown as () => void;
+        return el;
+      });
+      vi.spyOn(document.body, 'appendChild').mockImplementation(((n: Node) => n) as typeof document.body.appendChild);
+      vi.spyOn(document.body, 'removeChild').mockImplementation(((n: Node) => n) as typeof document.body.removeChild);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('posts the dialog scope (explicit paths) and saves the manifest as a file', async () => {
+      build({ paths: ['/a.jpg', '/b.jpg'] });
+      apiPost.mockReturnValueOnce(of({ version: 2, generated_at: 'x', photos: [], pending_corrections: 0 }));
+
+      await component.downloadManifest();
+
+      expect(apiPost).toHaveBeenCalledWith('/lightroom/manifest', { paths: ['/a.jpg', '/b.jpg'] });
+      expect(createObjectURLSpy).toHaveBeenCalled();
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+      expect(snackBarOpen).not.toHaveBeenCalled();
+    });
+
+    it('posts a view-scoped filter selection', async () => {
+      build({ filters: { type: 'aerial' }, exclude: ['a.jpg'] });
+      apiPost.mockReturnValueOnce(of({ version: 2, generated_at: 'x', photos: [], pending_corrections: 0 }));
+
+      await component.downloadManifest();
+
+      expect(apiPost).toHaveBeenCalledWith('/lightroom/manifest', {
+        filters: { type: 'aerial' }, exclude: ['a.jpg'],
+      });
+    });
+
+    it('maps an album-only scope onto the gallery album_id filter key', async () => {
+      build({ albumId: 7 });
+      apiPost.mockReturnValueOnce(of({ version: 2, generated_at: 'x', photos: [], pending_corrections: 0 }));
+
+      expect(component.canDownloadManifest()).toBe(true);
+      await component.downloadManifest();
+
+      expect(apiPost).toHaveBeenCalledWith('/lightroom/manifest', { filters: { album_id: '7' } });
+    });
+
+    it('warns when pending_corrections is greater than zero', async () => {
+      build({ paths: ['/a.jpg'] });
+      apiPost.mockReturnValueOnce(of({ version: 2, generated_at: 'x', photos: [], pending_corrections: 3 }));
+
+      await component.downloadManifest();
+
+      expect(snackBarOpen).toHaveBeenCalledWith(
+        expect.stringContaining('export.lightroom.pending_corrections'), '', expect.anything(),
+      );
+    });
+
+    it('shows no pending-corrections warning when the count is zero', async () => {
+      build({ paths: ['/a.jpg'] });
+      apiPost.mockReturnValueOnce(of({ version: 2, generated_at: 'x', photos: [], pending_corrections: 0 }));
+
+      await component.downloadManifest();
+
+      expect(snackBarOpen).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Lightroom state import', () => {
+    function fileEvent(text: string): Event {
+      const file = new File([text], 'facet_manifest.json', { type: 'application/json' });
+      const input = document.createElement('input');
+      Object.defineProperty(input, 'files', { value: [file] });
+      return { target: input } as unknown as Event;
+    }
+
+    it('parses the file and POSTs the parsed body', async () => {
+      build();
+      apiPost.mockReturnValueOnce(of({ matched: 3, unmatched: 1, changed: 2 }));
+
+      await component.onImportFileSelected(fileEvent('{"format":"facet-lightroom-state","version":1,"photos":[]}'));
+
+      expect(apiPost).toHaveBeenCalledWith('/lightroom/import', {
+        format: 'facet-lightroom-state', version: 1, photos: [],
+      });
+      expect(snackBarOpen).toHaveBeenCalledWith(
+        expect.stringContaining('export.lightroom.imported'), '', expect.anything(),
+      );
+    });
+
+    it('shows an error and makes no request for invalid JSON', async () => {
+      build();
+
+      await component.onImportFileSelected(fileEvent('not json'));
+
+      expect(apiPost).not.toHaveBeenCalled();
+      expect(snackBarOpen).toHaveBeenCalledWith('export.lightroom.invalid_json', '', expect.anything());
+    });
+
+    it('surfaces the server detail on a 400/413 error', async () => {
+      build();
+      apiPost.mockReturnValueOnce(throwError(() => ({ error: { detail: 'Lightroom state file is too large' } })));
+
+      await component.onImportFileSelected(fileEvent('{"format":"facet-lightroom-state","version":1,"photos":[]}'));
+
+      expect(component.lightroomErrorDetail()).toBe('Lightroom state file is too large');
+      expect(snackBarOpen).toHaveBeenCalledWith('export.lightroom.import_failed', '', expect.anything());
     });
   });
 });

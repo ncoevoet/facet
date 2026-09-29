@@ -21,3 +21,7 @@ import type { components } from './schema';
 export type ComparisonStats = components['schemas']['ComparisonStatsResponse'];
 
 export type DownloadOption = components['schemas']['DownloadOption'];
+
+export type LightroomImportResponse = components['schemas']['LightroomImportResponse'];
+
+export type LightroomManifest = components['schemas']['LightroomManifest'];

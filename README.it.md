@@ -161,7 +161,7 @@ Facet assegna punteggi, classifica e seleziona una libreria fotografica locale e
 - hai una grande libreria locale e vuoi trovare i tuoi scatti migliori e selezionare raffiche e quasi-duplicati;
 - vuoi un punteggio di qualità, composizione e volti che puoi regolare secondo i tuoi gusti (impara dai tuoi confronti A/B);
 - preferisci l'auto-hosting e la privacy — nessun caricamento sul cloud, nessun account, nessun abbonamento;
-- già modifichi in Lightroom, darktable, digiKam o immich — Facet scrive valutazioni, etichette, parole chiave, didascalie e regioni di volti nominati nei sidecar `.xmp` (originali intatti per impostazione predefinita) e può facoltativamente incorporarli nei file per JPEG/HEIC/TIFF/PNG/DNG (azione "Scrivi metadati su file" della galleria o `--export-sidecars --embed-originals`), e rilegge le modifiche esterne con `--import-sidecars`.
+- già modifichi in Lightroom, darktable, digiKam o immich — Facet scrive valutazioni, etichette, parole chiave, didascalie e regioni di volti nominati nei sidecar `.xmp` (originali intatti per impostazione predefinita) e può facoltativamente incorporarli nei file per JPEG/HEIC/TIFF/PNG/DNG (azione "Scrivi metadati su file" della galleria o `--export-sidecars --embed-originals`), e rilegge le modifiche esterne con `--import-sidecars`. Specificamente per Lightroom, il plug-in `facet.lrplugin` aggiunge un flusso bidirezionale: può compilare le stelle a partire dai punteggi di Facet, selezionare/rifiutare i fotogrammi di una raffica, raggruppare raffiche/bracket/panorami in collezioni e parole chiave da un manifest scaricato, ed esportare i tuoi flag/valutazioni/etichette di Lightroom di nuovo in Facet.
 
 **Probabilmente non fa per te se vuoi:**
 

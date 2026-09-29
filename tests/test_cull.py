@@ -1426,7 +1426,7 @@ class TestPhotoDeleteBracketLead:
         sib = _make_file(tmp_path, "sib.jpg")
         db = _db(tmp_path, [
             (lead, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
-                       "sequence_ev_offset": 0.0, "is_sequence_lead": 1}),
+                       "sequence_ev_offset": 0.0}),
             (sib, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
                       "sequence_ev_offset": 2.0}),
         ])
@@ -1451,7 +1451,7 @@ class TestPhotoDeleteBracketLead:
         sib = _make_file(tmp_path, "sib.jpg")
         db = _db(tmp_path, [
             (lead, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
-                       "sequence_ev_offset": 0.0, "is_sequence_lead": 1}),
+                       "sequence_ev_offset": 0.0}),
             (sib, 0, {"sequence_kind": _BRACKET, "sequence_group_id": 1,
                       "sequence_ev_offset": 2.0}),
         ])
@@ -1470,6 +1470,68 @@ class TestPhotoDeleteBracketLead:
         assert set(body["deleted"]) == {lead, sib}
         assert body["refused_bracket_lead"] == []
         assert _remaining_paths(db) == set()
+
+    def test_bracket_lead_written_by_the_real_pass_is_still_refused(self, client, tmp_path):
+        """The bracket pass (``utils.sequence.detect_sequences``) never sets
+        ``is_sequence_lead`` on a bracket row -- it writes ``is_burst_lead``
+        instead (see ``test_sequence_detection.py``). This test seeds a
+        bracket the way a real scan would and runs the real pass, rather than
+        hand-setting ``is_sequence_lead`` in the fixture the way the two tests
+        above used to. If the refusal keys off ``is_sequence_lead = 1`` it
+        never fires on a real DB and the base exposure deletes alone."""
+        from utils.sequence import detect_sequences
+
+        base = _make_file(tmp_path, "base.jpg")
+        dark = _make_file(tmp_path, "dark.jpg")
+        bright = _make_file(tmp_path, "bright.jpg")
+        db = str(tmp_path / "real.db")
+        init_database(db)
+        columns = ("path", "filename", "date_taken", "camera_model", "f_stop",
+                   "shutter_speed", "iso", "phash", "aggregate", "burst_group_id",
+                   "is_burst_lead")
+        rows = [
+            (dark, "dark.jpg", "2025:04:15 19:59:05", "Canon EOS R6", 4.0, "0.005",
+             100, "ff00ff00ff00ff00", 5.0, 1, 0),
+            (base, "base.jpg", "2025:04:15 19:59:06", "Canon EOS R6", 4.0, "0.01",
+             100, "ff00ff00ff00ff00", 6.0, 1, 0),
+            (bright, "bright.jpg", "2025:04:15 19:59:07", "Canon EOS R6", 4.0, "0.02",
+             100, "ff00ff00ff00ff00", 9.0, 1, 1),
+        ]
+        conn = sqlite3.connect(db)
+        conn.executemany(
+            f"INSERT INTO photos ({', '.join(columns)}) "
+            f"VALUES ({', '.join('?' * len(columns))})", rows)
+        conn.commit()
+        conn.close()
+
+        result = detect_sequences(db)
+        assert result == {"sets": 1, "frames": 3, "promoted": 1, "demoted": 0}
+
+        conn = sqlite3.connect(db)
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT sequence_kind, sequence_ev_offset, is_sequence_lead "
+            "FROM photos WHERE path = ?", (base,)).fetchone()
+        conn.close()
+        assert row["sequence_kind"] == _BRACKET
+        assert row["sequence_ev_offset"] == pytest.approx(0.0)
+        # The bracket pass never sets this flag on a bracket row.
+        assert row["is_sequence_lead"] == 0
+
+        with (
+            mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)),
+            mock.patch(f"{_EXPORT_MODULE}.VIEWER_CONFIG", {"cull": {"allow_trash": True}}),
+        ):
+            resp = client.post("/api/photo/delete", json={
+                "paths": [base], "dry_run": False, "include_sequence_siblings": False,
+            })
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["refused_bracket_lead"] == [base]
+        assert body["deleted"] == []
+        assert os.path.isfile(base)
+        assert os.path.isfile(dark)
+        assert os.path.isfile(bright)
 
 
 class TestPhotoDeleteSequenceSiblings:

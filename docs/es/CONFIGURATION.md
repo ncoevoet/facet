@@ -1155,6 +1155,13 @@ simétrica `(-2, 0, +2)` no cambia.
 Se ejecuta con `--detect-sequences`; también corre al final de cada escaneo, después de
 agrupar las ráfagas.
 
+**Las correcciones manuales ahora también cubren los horquillados.** Un horquillado que la
+detección pasó por alto puede nombrarse a mano desde la galería o al descartar («Marcar como
+bracketing») — el mismo mecanismo persistente `photo_sequence_overrides` que las correcciones
+de panorámica, sujeto a la misma regla de la escala de exposición (≥2 fotogramas, cada uno con
+metadatos de exposición utilizables, nunca dos con la misma exposición). Véase
+[docs/VIEWER.md — Panorámicas y bracketing de exposición](VIEWER.md#panorámicas-y-bracketing-de-exposición).
+
 ```json
 {
   "sequence_detection": {
@@ -1784,7 +1791,7 @@ no cambia nada.
 | `badges.favorite` | `true` | Insignia de corazón en una foto favorita (modo edición) |
 | `badges.star_rating` | `true` | Insignia de estrella y contador en una foto valorada (modo edición) |
 | `badges.rejected` | `true` | Insignia de pulgar abajo en una foto rechazada (modo edición) |
-| `badges.sequence_kind` | `true` | Insignia de horquillado/panorama, visible solo mientras la opción de ocultar contrae la serie |
+| `badges.sequence_kind` | `true` | Insignia del conjunto (ráfaga/horquillado/panorama/duplicado), dibujada a la izquierda de la insignia de rechazo, visible solo mientras la opción de ocultar contrae la serie |
 | `badges.sequence_override_pending` | `true` | Insignia de reloj para una corrección de panorama pendiente de la próxima detección |
 | `badges.keeper_hint` | `true` | Flecha «existe una toma mejor en este grupo» del modelo de selección aprendido |
 | `badges.best_of_burst` | `true` | Insignia «Mejor» en la foto principal de una ráfaga. Solo se muestra con `hide_bursts` desactivado: de lo contrario toda foto de ráfaga en pantalla ya es la principal |

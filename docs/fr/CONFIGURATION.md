@@ -1148,6 +1148,13 @@ l'écrêtage : une série symétrique `(-2, 0, +2)` n'est donc pas affectée.
 Lancé par `--detect-sequences` ; s'exécute aussi à la fin de chaque scan, après le
 regroupement des rafales.
 
+**Les corrections manuelles couvrent aussi les bracketings.** Un bracketing manqué par la
+détection peut être nommé à la main depuis la galerie ou le tri (« Marquer comme bracketing »)
+— le même mécanisme persistant `photo_sequence_overrides` que les corrections de panorama,
+soumis à la même règle d'échelle d'exposition (≥ 2 images, chacune avec des métadonnées
+d'exposition utilisables, jamais deux à la même exposition). Voir
+[docs/VIEWER.md — Panoramas et bracketings d'exposition](VIEWER.md#panoramas-et-bracketings-dexposition).
+
 ```json
 {
   "sequence_detection": {
@@ -1778,7 +1785,7 @@ donc rien.
 | `badges.favorite` | `true` | Badge cœur sur une photo favorite (mode édition) |
 | `badges.star_rating` | `true` | Badge étoile + compteur sur une photo notée (mode édition) |
 | `badges.rejected` | `true` | Badge pouce baissé sur une photo rejetée (mode édition) |
-| `badges.sequence_kind` | `true` | Badge bracketing/panorama, affiché seulement quand l'option de masquage replie la série |
+| `badges.sequence_kind` | `true` | Badge de série (rafale/bracketing/panorama/doublon), dessiné à gauche du badge de rejet, affiché seulement quand l'option de masquage replie la série |
 | `badges.sequence_override_pending` | `true` | Badge horloge pour une correction de panorama en attente de la prochaine détection |
 | `badges.keeper_hint` | `true` | Flèche « une meilleure photo existe dans ce groupe » issue du modèle de sélection appris |
 | `badges.best_of_burst` | `true` | Badge « Meilleure » sur la photo de tête d'une rafale. Affiché uniquement quand `hide_bursts` est désactivé : sinon toutes les photos de rafale à l'écran sont déjà des têtes de groupe |

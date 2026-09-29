@@ -1115,6 +1115,11 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 
 通过 `--detect-sequences` 运行；它也会在每次扫描结束、连拍分组之后自动运行。
 
+**手动修正现在也覆盖曝光包围。** 检测漏掉的曝光包围可以从照片库或选片页面手动标记
+（“标记为曝光包围”）——用的是与全景修正相同的持久化 `photo_sequence_overrides` 机制，
+受同一条曝光阶梯规则约束（至少 2 帧，每帧都有可用的曝光元数据，且没有两帧曝光值相同）。
+参见 [docs/VIEWER.md — 全景照片与包围曝光](VIEWER.md#全景照片与包围曝光)。
+
 ```json
 {
   "sequence_detection": {
@@ -1749,7 +1754,7 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 | `badges.favorite` | `true` | 已收藏照片上的心形角标（编辑模式） |
 | `badges.star_rating` | `true` | 已评星照片上的星形 + 数字角标（编辑模式） |
 | `badges.rejected` | `true` | 已淘汰照片上的拇指向下角标（编辑模式） |
-| `badges.sequence_kind` | `true` | 包围曝光/全景角标，仅当对应的隐藏开关把该组折叠起来时才显示 |
+| `badges.sequence_kind` | `true` | 连拍/包围曝光/全景/重复照片角标，绘制在"拒绝"角标的左侧，仅当对应的隐藏开关把该组折叠起来时才显示 |
 | `badges.sequence_override_pending` | `true` | 表示某项全景修正正在等待下一次检测运行的时钟角标 |
 | `badges.keeper_hint` | `true` | 来自习得留存模型的“本组中还有更好的一张”箭头 |
 | `badges.best_of_burst` | `true` | 连拍代表帧上的“最佳”角标。仅在 `hide_bursts` 关闭时显示 — 开启时，屏幕上的每张连拍照片本来就是所在组的代表帧 |

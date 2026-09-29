@@ -3,6 +3,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { computed, signal, WritableSignal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { By } from '@angular/platform-browser';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatBottomSheet } from '@angular/material/bottom-sheet';
@@ -22,6 +23,7 @@ import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
 import { gridColumnCount } from './gallery-rows.util';
 import { UndoService } from '../../core/services/undo.service';
+import { SequenceKind } from '../../core/services/sequence-override.service';
 
 describe('GalleryComponent', () => {
   let component: GalleryComponent;
@@ -969,6 +971,22 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('collapsedSetKinds', () => {
+    it('lists nothing when every hide toggle is off', () => {
+      mockStore.filters.set({
+        ...DEFAULT_FILTERS, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false,
+      });
+      expect(component.collapsedSetKinds()).toEqual([]);
+    });
+
+    it('lists a kind per toggle that is on', () => {
+      mockStore.filters.set({
+        ...DEFAULT_FILTERS, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true,
+      });
+      expect(component.collapsedSetKinds()).toEqual(['burst', 'duplicate', 'bracket', 'panorama', 'hdr_panorama']);
+    });
+  });
+
   describe('thumbnail-migration banner', () => {
     const RENDER_MIGRATION_KEY = 'facet_render_migration_dismissed';
 
@@ -1055,6 +1073,53 @@ describe('GalleryComponent', () => {
         component.showTooltip(hoverEvent, photo);
         component.hideTooltip();
         expect(component['tooltipPhoto']()).toBe(photo);
+      });
+
+      describe('while a photo is current', () => {
+        const a = { path: '/a.jpg' };
+        const b = { path: '/b.jpg' };
+        const panelPhoto = () => (component as unknown as { panelPhoto(): unknown }).panelPhoto();
+        const release = () => (component as unknown as { releasePanel(): void }).releasePanel();
+
+        beforeEach(() => {
+          mockStore.photos.set([a, b]);
+          click(a, 0);
+          component.showTooltip(hoverEvent, a as never);
+        });
+
+        it('hovering another photo does not retarget the rail', () => {
+          component.showTooltip(hoverEvent, b as never);
+          expect(panelPhoto()).toBe(a);
+        });
+
+        it('Deselect drops the cursor and the selection, keeps the photo until the next hover', () => {
+          mockStore.selectedPaths.set(new Set([a.path]));
+          component.showTooltip(hoverEvent, b as never);
+          release();
+          expect(hasActivePhoto()).toBe(false);
+          expect(mockStore.toggleSelection).toHaveBeenLastCalledWith(a);
+          expect(panelPhoto()).toBe(a);
+          component.showTooltip(hoverEvent, b as never);
+          expect(panelPhoto()).toBe(b);
+        });
+
+        it('Deselect leaves an already-unselected photo unselected', () => {
+          mockStore.toggleSelection.mockClear();
+          release();
+          expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+        });
+
+        it('focus moving into the rail keeps the cursor', () => {
+          const rail = document.createElement('div');
+          rail.setAttribute('data-details-rail', '');
+          const button = document.createElement('button');
+          rail.appendChild(button);
+          document.body.appendChild(rail);
+          (component as unknown as { onGridFocusOut(e: FocusEvent): void })
+            .onGridFocusOut({ relatedTarget: button } as unknown as FocusEvent);
+          expect(activeIndex()).toBe(0);
+          rail.remove();
+        });
       });
 
       it('yields the shared drawer to the filters while they are open', () => {
@@ -1932,8 +1997,8 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(paths.length);
     }
 
-    const mark = (kind: 'panorama' | 'hdr_panorama' = 'panorama') =>
-      (component as unknown as { markAsPanorama: (k: string) => Promise<void> }).markAsPanorama(kind);
+    const mark = (kind: SequenceKind = 'panorama') =>
+      (component as unknown as { markAsPanorama: (k: SequenceKind) => Promise<void> }).markAsPanorama(kind);
 
     // The gallery is the only surface that can correct a MISS: an undetected
     // sweep is in no culling group, so it can only be named where its frames
@@ -1990,6 +2055,42 @@ describe('GalleryComponent', () => {
 
       expect(mockStore.patchSequenceOverride).not.toHaveBeenCalled();
       expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    });
+
+    it('sends kind: bracket and uses the bracket-worded undo label', async () => {
+      const undoRegister = vi.fn();
+      vi.spyOn(TestBed.inject(UndoService), 'register').mockImplementation(undoRegister);
+      select(['/a.jpg', '/b.jpg']);
+
+      await mark('bracket');
+
+      expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/override_sequence', {
+        paths: ['/a.jpg', '/b.jpg'],
+        kind: 'bracket',
+      });
+      expect(undoRegister).toHaveBeenCalledWith(
+        expect.objectContaining({ labelKey: 'gallery.selection.marked_bracket' }));
+    });
+
+    it('shows the ladder-specific message when a bracket mark 400s', async () => {
+      select(['/a.jpg', '/b.jpg']);
+      mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 })));
+      const snackOpen = TestBed.inject(MatSnackBar).open as Mock;
+
+      await mark('bracket');
+
+      expect(snackOpen.mock.calls.some(c => c[0] === 'culling.bracket.not_a_ladder')).toBe(true);
+    });
+
+    it('keeps the generic error for a non-bracket 400', async () => {
+      select(['/a.jpg', '/b.jpg']);
+      mockApi.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 400 })));
+      const snackOpen = TestBed.inject(MatSnackBar).open as Mock;
+
+      await mark('panorama');
+
+      expect(snackOpen.mock.calls.some(c => c[0] === 'errors.action_failed')).toBe(true);
+      expect(snackOpen.mock.calls.some(c => c[0] === 'culling.bracket.not_a_ladder')).toBe(false);
     });
   });
 

@@ -750,7 +750,7 @@ def _bracket_lead_paths(conn, paths, user_id):
     rows = _chunked_path_rows(
         conn, paths,
         sql_fn=lambda ph: (
-            f"SELECT path FROM photos WHERE path IN ({ph}) AND is_sequence_lead = 1 "
+            f"SELECT path FROM photos WHERE path IN ({ph}) AND sequence_ev_offset = 0 "
             f"AND sequence_kind = ? AND {vis_sql}"
         ),
         params_fn=lambda chunk: chunk + [BRACKET_KIND] + vis_params,
@@ -1089,7 +1089,7 @@ def api_photo_delete(
     Bounded server-side to paths this caller may actually see -- a path not
     in ``photos``, or in it but not visible to this user, is reported
     (``not_found`` / ``not_visible``) and never resolved to a disk file. A
-    frame carrying ``is_sequence_lead = 1`` in a BRACKET-kind group is refused
+    frame carrying ``sequence_ev_offset = 0`` in a BRACKET-kind group is refused
     (``refused_bracket_lead``) unless ``include_sequence_siblings`` is set, in
     which case its whole bracket group is deleted together (as a consequence
     of the general widening above) with no re-pick attempted -- a bracket's

@@ -59,6 +59,11 @@
     },
     "badges": {
       "best": "BEST",
+      "best_of_burst": "Best of burst",
+      "best_of_bracket": "Best of bracket",
+      "best_of_panorama": "Best of panorama",
+      "best_of_hdr_panorama": "Best of HDR panorama",
+      "best_of_duplicate": "Best of duplicates",
       "blink": "BLINK",
       "bw": "B&W",
       "dup": "DUP",
@@ -1031,7 +1036,8 @@
       "click": "Click",
       "panel": "Side panel",
       "off": "Off",
-      "panel_empty": "Hover or click a photo to see its details here"
+      "panel_empty": "Hover or click a photo to see its details here",
+      "panel_deselect": "Deselect"
     },
     "panel_activation": {
       "label": "Panel activation",
@@ -1051,7 +1057,8 @@
       "suppressed": "Marked not a panorama",
       "forced": "Marked as a panorama",
       "badge": "Marked as a panorama — applies at the next detection run",
-      "badge_suppressed": "Marked not a panorama — applies at the next detection run"
+      "badge_suppressed": "Marked not a panorama — applies at the next detection run",
+      "badge_bracket": "Marked as a bracket — applies at the next detection run"
     },
     "reset_filters": "Reset Filters",
     "scroll_to_top": "Scroll to top",
@@ -1093,7 +1100,9 @@
       "view_scope_empty": "Nothing matches the current filters any more",
       "paths_too_many": "Too many photos for this action — narrow the filters and try again",
       "download_confirm_title": "Download {count} photos?",
-      "download_confirm_message": "Each photo is downloaded as a separate file. {count} of them will take a while and may overwhelm the browser."
+      "download_confirm_message": "Each photo is downloaded as a separate file. {count} of them will take a while and may overwhelm the browser.",
+      "mark_bracket": "Mark as one bracket",
+      "marked_bracket": "{count} photos marked as one bracket"
     },
     "keep_top": {
       "label": "Keep top %",
@@ -2025,7 +2034,10 @@
     },
     "bracket": {
       "label": "Exposure bracket",
-      "hint": "One subject at several exposures — keep the set, don't pick a winner"
+      "hint": "One subject at several exposures — keep the set, don't pick a winner",
+      "correct_tooltip": "Bursts and brackets look alike from geometry alone — say this one is an exposure ladder",
+      "mark_action": "Mark as bracket",
+      "not_a_ladder": "These frames don't form a valid exposure ladder — check exposure metadata and try again"
     },
     "panorama": {
       "label": "Panorama",
@@ -2333,7 +2345,20 @@
     "run": "Export",
     "running": "Exporting…",
     "done": "Exported {count} photo(s)",
-    "failed": "Export failed"
+    "failed": "Export failed",
+    "lightroom": {
+      "title": "Lightroom",
+      "description": "Round-trip ratings, picks and set state with the facet.lrplugin Lightroom Classic plug-in.",
+      "download": "Download Lightroom manifest",
+      "downloading": "Building manifest…",
+      "pending_corrections": "{count} set corrections are still pending — re-run detection (Compare › Panoramas › Re-run detection) before importing into Lightroom",
+      "download_failed": "Could not build the Lightroom manifest",
+      "import": "Import Lightroom state…",
+      "importing": "Importing…",
+      "invalid_json": "This file is not valid JSON",
+      "imported": "Lightroom state imported: {matched} matched, {unmatched} not found, {changed} changed",
+      "import_failed": "Could not import the Lightroom state file"
+    }
   },
   "undo": {
     "action": "Undo",

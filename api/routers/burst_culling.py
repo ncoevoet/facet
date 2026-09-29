@@ -37,7 +37,7 @@ from db.sequence_overrides import (
     clear_sequence_overrides, existing_group_key, set_sequence_overrides,
 )
 from utils.panorama import HDR_PANORAMA, PANORAMA
-from utils.sequence import BRACKET as BRACKET_KIND
+from utils.sequence import BRACKET as BRACKET_KIND, exposure_value, ladder_gate_error
 from api.models.culling import (
     AutoCullResponse, BurstGroupsResponse, CullingGroupsResponse,
     CullProfilesResponse, KeeperHint, SuggestCullProfileResponse,
@@ -426,6 +426,8 @@ def _format_group(photos, burst_group_id):
             'burst_score': round(_compute_burst_score(p), 2),
             'sequence_kind': p.get('sequence_kind'),
             'sequence_ev_offset': p.get('sequence_ev_offset'),
+            'sequence_override': p.get('sequence_override'),
+            'sequence_override_pending': p.get('sequence_override_pending'),
         })
 
     scored.sort(key=lambda x: x['burst_score'], reverse=True)
@@ -2448,14 +2450,16 @@ def _visible_paths_or_404(conn, paths, user_id):
 
 
 class SequenceOverrideBody(BaseModel):
-    """A manual correction to one panorama set.
+    """A manual correction to one set: a panorama/HDR panorama the geometry pass
+    missed or mislabelled, or a bracket the exposure-ladder pass missed (#162
+    "mark as bracket").
 
     ``kind`` names what the frames really are; omitting it suppresses the set
-    ("this is not a panorama"). Keyed on the member paths the caller names,
+    ("this is not one of these"). Keyed on the member paths the caller names,
     never on a group id -- ids are renumbered from 1 on every detection run.
     """
     paths: list[str] = Field(min_length=1, max_length=500)
-    kind: Optional[Literal['panorama', 'hdr_panorama']] = None
+    kind: Optional[Literal['panorama', 'hdr_panorama', 'bracket']] = None
 
 
 @router.post("/api/culling-groups/override_sequence")
@@ -2472,6 +2476,13 @@ def override_sequence_group(
     clears and rewrites ``photos.sequence_*`` at the start of every run and
     would erase it.
 
+    A forced ``bracket`` is gated here on the same ladder rule the detection
+    pass itself enforces (>=2 frames, every one carrying a usable EV, all EVs
+    pairwise distinct at 2dp) -- there is no honest "bracket" with a member
+    that has no exposure to offset from, so a set that cannot form a ladder is
+    rejected outright rather than admitted and left to the next detection run
+    to silently drop.
+
     Takes effect on the next detection run, which
     ``POST /api/scan/detect_panoramas`` triggers.
     """
@@ -2485,8 +2496,51 @@ def override_sequence_group(
         # Reuse the key already on these frames when there is one. Minting a
         # fresh `min(paths)` per call let two overlapping corrections land two
         # kinds under a single key, and the set was then labelled by whichever
-        # row the database happened to return first.
-        group_key = existing_group_key(conn, visible) if body.kind else None
+        # row the database happened to return first. Scoped to this kind's own
+        # family so a bracket mark can never inherit a panorama's key, or the
+        # reverse.
+        kinds: Optional[tuple[str, ...]]
+        if body.kind == BRACKET_KIND:
+            kinds = (BRACKET_KIND,)
+        elif body.kind:
+            kinds = (PANORAMA, HDR_PANORAMA)
+        else:
+            kinds = None
+        group_key = existing_group_key(conn, visible, kinds=kinds) if body.kind else None
+
+        if body.kind == BRACKET_KIND:
+            # Gate the UNION of the submitted paths and whatever this key
+            # already covers, never just the submitted paths: reusing an
+            # existing key merges this mark into that set (below), so a
+            # submitted path that merely duplicates one already-applied
+            # member's EV can push the whole reused set past the ladder gate
+            # without either half looking bad on its own.
+            gate_paths = set(visible)
+            if group_key is not None:
+                gate_paths.update(
+                    row['photo_path'] for row in conn.execute(
+                        "SELECT photo_path FROM photo_sequence_overrides "
+                        "WHERE override_group_key = ? AND sequence_kind = ?",
+                        (group_key, BRACKET_KIND),
+                    ).fetchall()
+                )
+            rows = list(select_in_chunks(
+                conn, "SELECT f_stop, shutter_speed, iso, date_taken FROM photos "
+                "WHERE path IN ({placeholders})", sorted(gate_paths)))
+            evs = [exposure_value(r['f_stop'], r['shutter_speed'], r['iso']) for r in rows]
+            error = ladder_gate_error(evs)
+            if error:
+                raise HTTPException(status_code=400, detail=error)
+            # Mirrors `_load_photos`: the detection pass never admits a photo it
+            # cannot resolve a capture time for, so a forced set must be held to
+            # the same rule here -- otherwise the API accepts a member the next
+            # detection run's ladder re-check (`resolve_runs`) can never load,
+            # which skips the whole forced set and leaves it stuck re-evaluating
+            # the same unloadable member every run.
+            if any(parse_date(r['date_taken']) is None for r in rows):
+                raise HTTPException(
+                    status_code=400,
+                    detail='every frame needs a parseable capture date to form a ladder')
         set_sequence_overrides(conn, visible, body.kind, group_key=group_key,
                                created_by=user_id)
         conn.commit()

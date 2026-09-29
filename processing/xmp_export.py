@@ -695,3 +695,143 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
         except (OSError, RuntimeError):
             errors += 1
     return {"written": written, "embedded": embedded, "missing": missing, "errors": errors}
+
+
+# SQLite variable-limit chunk size passed to select_in_chunks for the
+# ``paths`` IN-query below, matching the caller's own chunking
+# (api.routers.lightroom._SQLITE_VAR_LIMIT). Kept as its own module constant
+# (rather than relying on select_in_chunks's default) so a test can shrink it
+# to force the chunk loop below the SQLite variable limit.
+_MANIFEST_PATH_CHUNK = 900
+
+
+def build_manifest(db_path, root=None, paths=None, score_to_rating=None, user=None) -> dict:
+    """Build the compact JSON manifest fed to an external tool (Lightroom plug-in).
+
+    Used identically by ``facet.py --export-manifest`` and the viewer's
+    ``GET /api/lightroom/manifest`` route, so the two callers cannot drift
+    apart (CLAUDE.md: one writer, one source of truth).
+
+    Scope is either ``root`` (a path-subtree prefix, the CLI's own idiom, via
+    :func:`build_root_filter`) or an already-resolved ``paths`` list (the
+    viewer resolves its own scope -- explicit paths, a filter, an album --
+    server-side and hands this function the final list). Passing both is not
+    supported; ``paths`` takes precedence when both are given by mistake, but
+    callers should only ever pass one.
+
+    ``score_to_rating`` is the ``xmp_export.score_to_rating`` config block
+    (already resolved by the caller -- this function never constructs a
+    ``ScoringConfig`` and never touches ``api.config``, so it cannot become a
+    bare-``ScoringConfig``-inside-``api/`` violation regardless of caller).
+    ``score_stars`` is always computed with ``enabled`` forced True on a COPY
+    of that block (mirrors ``export_sidecars``'s ``derive_stars`` idiom), so
+    the CLI and the viewer route (which never set that flag themselves) agree
+    on a default install rather than the viewer always reporting 0 (I1).
+    ``user`` reaches :func:`rating_columns` exactly like ``--user`` reaches
+    ``--export-sidecars``.
+
+    Returns the same dict shape the CLI has always written (``version``,
+    ``generated_at``, ``photos[...]``) plus ``pending_corrections`` (an int,
+    counting *groups* -- see ``db.sequence_overrides.count_pending_groups``).
+    """
+    from db.connection import get_connection
+    from db.sequence_overrides import count_pending_groups
+
+    ratings = rating_columns(user)
+
+    params: list
+    if paths is not None:
+        # Only read for an empty list: a non-empty one takes the chunked
+        # IN-query below instead.
+        where, params = "WHERE 0", []
+    elif root:
+        where, params = build_root_filter(root)
+    else:
+        where, params = "", []
+
+    sr_cfg = dict(score_to_rating or {})
+    sr_cfg['enabled'] = True
+
+    select = f"""
+        SELECT photos.path AS path, filename, date_taken, category,
+               aggregate, aesthetic, comp_score, face_quality,
+               tech_sharpness, exposure_score, color_score, tags,
+               camera_model, lens_model, {ratings.columns}, is_burst_lead,
+               burst_group_id, sequence_kind, sequence_group_id
+        FROM photos
+        {ratings.join}
+    """
+
+    def row_to_photo(row):
+        return {
+            'path': row['path'],
+            'filename': row['filename'],
+            'date_taken': row['date_taken'],
+            'category': row['category'],
+            'scores': {
+                'aggregate': row['aggregate'],
+                'aesthetic': row['aesthetic'],
+                'comp_score': row['comp_score'],
+                'face_quality': row['face_quality'],
+                'tech_sharpness': row['tech_sharpness'],
+                'exposure_score': row['exposure_score'],
+                'color_score': row['color_score'],
+            },
+            'tags': row['tags'],
+            'camera_model': row['camera_model'],
+            'lens_model': row['lens_model'],
+            'star_rating': int(row['star_rating'] or 0),
+            'is_favorite': bool(row['is_favorite']),
+            'is_rejected': bool(row['is_rejected']),
+            'is_burst_lead': bool(row['is_burst_lead']),
+            # burst_group_id may legitimately be 0 (a row id / group
+            # counter, not a boolean) - keep it as-is, never coerce
+            # through bool()/truthiness.
+            'burst_group_id': row['burst_group_id'],
+            'sequence_kind': row['sequence_kind'],
+            'sequence_group_id': row['sequence_group_id'],
+            'score_stars': score_to_stars(row['aggregate'], sr_cfg)[0],
+        }
+
+    with get_connection(db_path) as conn:
+        photos: list[dict] = []
+        if paths:
+            # Chunked at the same _SQLITE_VAR_LIMIT the caller uses to expand
+            # sets (api.routers.lightroom._expand_to_full_sets) -- an
+            # unchunked IN list here fails with "too many SQL variables" on
+            # any SQLite build with the default variable limit once a
+            # whole-view manifest expands past it. Uses the shared
+            # select_in_chunks helper (db/scoring_overrides.py precedent)
+            # rather than a hand-rolled loop, imported lazily -- db.connection
+            # cannot import the api package at module scope. No ORDER BY per
+            # chunk; sorted once in Python below to match the single-query
+            # ORDER BY aggregate DESC (SQLite sorts NULLs last on DESC).
+            from api.db_helpers import select_in_chunks
+            query = f"{select} WHERE photos.path IN ({{placeholders}})"
+            photos = [
+                row_to_photo(row)
+                for row in select_in_chunks(
+                    conn, query, paths, before=ratings.params, chunk=_MANIFEST_PATH_CHUNK,
+                )
+            ]
+            photos.sort(key=lambda p: (
+                p['scores']['aggregate'] is None,
+                -(p['scores']['aggregate'] or 0),
+            ))
+        else:
+            cursor = conn.execute(
+                f"{select} {where} ORDER BY aggregate DESC", ratings.params + params,
+            )
+            photos = [row_to_photo(row) for row in cursor]
+
+        if paths is not None:
+            pending_corrections = count_pending_groups(paths=paths, conn=conn)
+        else:
+            pending_corrections = count_pending_groups(root=root, conn=conn)
+
+    return {
+        'version': 2,
+        'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'photos': photos,
+        'pending_corrections': pending_corrections,
+    }

@@ -1,17 +1,19 @@
-"""Sticky per-set panorama overrides.
+"""Sticky per-set sequence overrides (panorama, HDR panorama, and bracket).
 
 Stored in the `photo_sequence_overrides` side table rather than as columns on
 `photos`, for the same reason as `photo_scoring_overrides` and one more:
-`utils.panorama.detect_panoramas` clears and rewrites `photos.sequence_*` at the
-start of every pass, so a correction stored there would not survive its next
-run. `utils.panorama.resolve_segments` is the single choke point that applies
+`utils.panorama.detect_panoramas` and `utils.sequence.detect_sequences` each
+clear and rewrite `photos.sequence_*` for their own kind at the start of every
+pass, so a correction stored there would not survive its next run.
+`utils.panorama.resolve_segments` (panorama/HDR panorama) and
+`utils.sequence.resolve_runs` (bracket) are the two choke points that apply
 them.
 
-`sequence_kind` NULL suppresses a detected set ("this is not a panorama"); a
-kind forces one ("these frames are one"). Forced members are tied together by
-`override_group_key` rather than by `sequence_group_id`, which is renumbered
-from 1 on every pass and would otherwise re-attach an override to an unrelated
-set.
+`sequence_kind` NULL suppresses a detected set ("this is not one of these");
+a kind forces one ("these frames are one"). Forced members are tied together
+by `override_group_key` rather than by `sequence_group_id`, which is
+renumbered from 1 on every pass and would otherwise re-attach an override to
+an unrelated set.
 """
 
 import sqlite3
@@ -124,22 +126,102 @@ def clear_sequence_overrides(db, paths):
             conn.close()
 
 
-def existing_group_key(db, paths):
+def count_pending_groups(root=None, conn=None, paths=None):
+    """Count unapplied correction GROUPS, not rows.
+
+    Distinct ``override_group_key`` among ``photo_sequence_overrides`` rows
+    with ``applied_at IS NULL``, optionally scoped to ``root`` (reusing
+    :func:`processing.xmp_export.build_root_filter` -- the same subtree filter
+    the manifest export uses, so the two stay in lockstep) or to an explicit
+    ``paths`` list (the viewer's already-resolved selection -- ``photo_path IN
+    (...)``, chunked to respect SQLite's variable limit). ``root`` and
+    ``paths`` are mutually exclusive; passing both is a caller bug. A row with
+    a NULL ``override_group_key`` counts once per row (it has no group to
+    dedupe against). This matches the viewer banner's own group semantics
+    (``burst-culling.component.ts``'s ``pendingCorrections`` count) rather than
+    a plain row count, which would overcount a multi-frame bracket/panorama.
+
+    The scope predicate is always parenthesized before being ANDed onto the
+    ``applied_at IS NULL AND override_group_key IS (NOT) NULL`` predicates --
+    a bare ``AND ... OR ...`` splice would let the ``OR`` branch of a
+    multi-clause scope (e.g. ``build_root_filter``'s ``path = ? OR path LIKE
+    ?``) drop both surrounding predicates and count applied/grouped rows too.
+    """
+    if root and paths is not None:
+        raise ValueError("count_pending_groups: root and paths are mutually exclusive")
+
+    owned_conn, owned = _connection_for(conn)
+    try:
+        where, params = "", []
+        if root:
+            from processing.xmp_export import build_root_filter
+            root_where, root_params = build_root_filter(root)
+            scope_predicate = (root_where.removeprefix("WHERE ")
+                                .replace("path =", "photo_path =")
+                                .replace("path LIKE", "photo_path LIKE"))
+            where = f"AND ({scope_predicate})"
+            params = root_params
+        elif paths is not None:
+            if not paths:
+                return 0
+            from api.db_helpers import select_in_chunks
+            grouped_keys: set = set()
+            ungrouped = 0
+            for (key,) in select_in_chunks(
+                owned_conn,
+                "SELECT override_group_key FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL AND photo_path IN ({placeholders})",
+                paths,
+            ):
+                if key is None:
+                    ungrouped += 1
+                else:
+                    grouped_keys.add(key)
+            return len(grouped_keys) + ungrouped
+
+        grouped = owned_conn.execute(
+            "SELECT COUNT(DISTINCT override_group_key) FROM photo_sequence_overrides "
+            f"WHERE applied_at IS NULL AND override_group_key IS NOT NULL {where}",
+            params,
+        ).fetchone()[0]
+        ungrouped = owned_conn.execute(
+            "SELECT COUNT(*) FROM photo_sequence_overrides "
+            f"WHERE applied_at IS NULL AND override_group_key IS NULL {where}",
+            params,
+        ).fetchone()[0]
+        return grouped + ungrouped
+    finally:
+        if owned:
+            owned_conn.close()
+
+
+def existing_group_key(db, paths, kinds=None):
     """The group key already attached to any of ``paths``, if there is one.
 
     Lets a caller extend or re-label an existing forced set instead of minting a
     fresh key from whatever subset it happened to submit -- recomputing the key
     per call let two overlapping calls write two kinds under one key.
+
+    ``kinds``, when given, restricts the lookup to override rows whose
+    ``sequence_kind`` is one of them -- e.g. a caller marking ``bracket`` must
+    never reuse a key currently held by a ``panorama``/``hdr_panorama`` row for
+    the same paths (and vice versa), or a bracket mark could silently relabel
+    someone else's panorama set. Panorama and HDR panorama still share one
+    lookup, since relabelling plain <-> HDR on the same key is intentional.
     """
     if not paths:
         return None
     conn, owned = _connection_for(db)
     try:
-        row = conn.execute(
-            f"SELECT override_group_key FROM photo_sequence_overrides "
-            f"WHERE photo_path IN ({','.join('?' * len(paths))}) "
-            f"AND override_group_key IS NOT NULL ORDER BY photo_path LIMIT 1",
-            list(paths)).fetchone()
+        sql = (f"SELECT override_group_key FROM photo_sequence_overrides "
+               f"WHERE photo_path IN ({','.join('?' * len(paths))}) "
+               f"AND override_group_key IS NOT NULL")
+        params = list(paths)
+        if kinds:
+            sql += f" AND sequence_kind IN ({','.join('?' * len(kinds))})"
+            params += list(kinds)
+        sql += " ORDER BY photo_path LIMIT 1"
+        row = conn.execute(sql, params).fetchone()
         return row[0] if row else None
     finally:
         if owned:

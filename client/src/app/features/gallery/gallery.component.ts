@@ -35,7 +35,10 @@ import { Photo } from '../../shared/models/photo.model';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { UndoService } from '../../core/services/undo.service';
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
-import { SequenceKindIconPipe, SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
+import {
+  SequenceKindIconPipe, SEQUENCE_KINDS_KEPT_WHOLE,
+} from '../../shared/pipes/sequence-kind.pipe';
+import { isBracketLadderRejection } from '../../shared/utils/sequence-ladder';
 import { IsSelectedPipe } from '../../shared/pipes/selection.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindLabelPipe } from '../../shared/pipes/photo-set-kind.pipe';
 import { AuthService } from '../../core/services/auth.service';
@@ -173,8 +176,13 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
       <mat-sidenav #filterDrawer disableClose="false" [mode]="isDesktop() ? 'side' : 'over'" position="end" class="w-[min(320px,100vw)] p-0"
         (openedChange)="onFilterDrawerChange($event)">
         @if (detailsRailVisible()) {
-          <div class="p-2">
-            @if (tooltipPhoto(); as p) {
+          <div class="p-2" data-details-rail>
+            @if (hasActivePhoto()) {
+              <button mat-button class="!min-w-0 mb-2" (click)="releasePanel()">
+                <mat-icon>arrow_back</mat-icon> {{ I18N.gallery.tooltip_mode.panel_deselect | translate }}
+              </button>
+            }
+            @if (panelPhoto(); as p) {
               <app-photo-tooltip [photo]="p" [docked]="true" [pinned]="true"
                                  [histogramDefaultMode]="tooltipHistogramDefaultMode()"
                                  [indicatorPercent]="clippingIndicatorPercent()"
@@ -290,7 +298,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                 <div class="flex gap-2 mb-2" [style.height.px]="row.height">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
-                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
@@ -341,7 +349,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             >
               @for (photo of store.photos(); track photo.path; let i = $index) {
                 <app-photo-card
-                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
                   [photo]="photo"
                   [attr.data-pidx]="i"
@@ -394,7 +402,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                 <div class="flex gap-2">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
-                  [collapsedSequenceKinds]="collapsedSequenceKinds()"
+                  [collapsedSetKinds]="collapsedSetKinds()"
                   [burstFramesVisible]="burstFramesVisible()"
                       [photo]="photo"
                       [attr.data-pidx]="row.startIndex + i"
@@ -600,6 +608,10 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                 <mat-icon>{{ 'hdr_panorama' | sequenceKindIcon }}</mat-icon>
                 {{ I18N.gallery.selection.mark_hdr_panorama | translate }}
               </button>
+              <button mat-menu-item (click)="markAsPanorama('bracket')">
+                <mat-icon>{{ 'bracket' | sequenceKindIcon }}</mat-icon>
+                {{ I18N.gallery.selection.mark_bracket | translate }}
+              </button>
             </mat-menu>
           }
           <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ I18N.gallery.selection.copy_filenames | translate }}</button>
@@ -791,15 +803,17 @@ export class GalleryComponent implements OnInit, OnDestroy {
     () => this.panelMode() && !this.store.filterDrawerOpen(),
   );
 
-  /** Sequence kinds whose sets are currently collapsed behind one frame.
+  /** Set kinds whose sets are currently collapsed behind one frame.
    *
    *  A tile only earns its set badge while the matching toggle is hiding the
    *  rest of the set. With the toggle off every frame is on screen in its own
    *  right, and badging all of them would say nothing.
    */
-  readonly collapsedSequenceKinds = computed(() => {
+  readonly collapsedSetKinds = computed(() => {
     const f = this.store.filters();
     const kinds: string[] = [];
+    if (f.hide_bursts) kinds.push('burst');
+    if (f.hide_duplicates) kinds.push('duplicate');
     if (f.hide_brackets) kinds.push('bracket');
     if (f.hide_panoramas) kinds.push('panorama', 'hdr_panorama');
     return kinds;
@@ -1464,14 +1478,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
     try {
       await this.sequenceOverrides.setAsync(paths, kind);
-    } catch {
-      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    } catch (error) {
+      const notALadder = isBracketLadderRejection(kind, error);
+      this.snackBar.open(
+        this.i18n.t(notALadder ? I18N.culling.bracket.not_a_ladder : I18N.errors.action_failed),
+        '', { duration: 3000 },
+      );
       return;
     }
     this.store.patchSequenceOverride(paths, kind);
     this.clearSelection();
     this.undoService.register({
-      labelKey: I18N.gallery.selection.marked_panorama,
+      labelKey: kind === 'bracket' ? I18N.gallery.selection.marked_bracket : I18N.gallery.selection.marked_panorama,
       labelParams: { count: paths.length },
       undo: async () => {
         await this.sequenceOverrides.clearAsync(paths);
@@ -1924,7 +1942,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  focus dropped to the body, or out to the browser chrome -- does count. */
   protected onGridFocusOut(event: FocusEvent): void {
     const next = event.relatedTarget as HTMLElement | null;
-    if (next?.closest('[role="grid"], [data-selection-bar]')) return;
+    if (next?.closest('[role="grid"], [data-selection-bar], [data-details-rail]')) return;
     this.setCursor(-1);
   }
 
@@ -1941,6 +1959,28 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  it also covers the frame in between. */
   protected readonly hasActivePhoto = computed(() =>
     this.activeIndex() >= 0 && this.activeIndex() < this.store.photos().length);
+
+  /** What the docked rail shows: the current photo while there is one, so
+   *  crossing other cards on the way to the rail cannot retarget it, and the
+   *  last hovered/clicked photo otherwise. */
+  protected readonly panelPhoto = computed(() =>
+    this.hasActivePhoto() ? this.store.photos()[this.activeIndex()] : this.tooltipPhoto());
+
+  /** The rail's Deselect: drop the current photo, and with it the lock and the
+   *  dimming, and take it out of the batch selection its click put it in.
+   *  The rail keeps showing it until the next hover rather than jumping to
+   *  whichever card the pointer crossed last. */
+  protected releasePanel(): void {
+    const photo = this.panelPhoto();
+    if (!this.hasActivePhoto() || !photo) return;
+    this.tooltipPhoto.set(photo);
+    // Same rule as IsSelectedPipe: a view-scoped selection is "all but excluded".
+    const selected = this.viewScoped()
+      ? !this.excludedPaths().has(photo.path)
+      : this.selectedPaths().has(photo.path);
+    if (selected) this.store.toggleSelection(photo);
+    this.setCursor(-1);
+  }
 
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */
   private gridColumns(): number {

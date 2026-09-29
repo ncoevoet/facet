@@ -77,7 +77,7 @@ if _script_dir not in sys.path:
 
 import json
 from pathlib import Path
-from datetime import datetime, timezone
+from datetime import datetime
 from db import DEFAULT_DB_PATH, init_database, get_connection, check_disk_space
 from db.render_version import raw_path_predicate
 
@@ -104,6 +104,15 @@ from utils.image_loading import (
 # ============================================
 # EXECUTION
 # ============================================
+def _is_multi_user(config):
+    """Whether ``config`` configures more than the single ``shared_directories``
+    reserved key -- mirrors ``api.config.is_multi_user_enabled``'s body but
+    takes an explicit config dict, for CLI call sites that already loaded one.
+    """
+    users = config.get('users', {})
+    return any(k != 'shared_directories' for k in users)
+
+
 def _autotune_superadmin_allowed(config, username):
     """Whether the operator may run --auto-tune-categories.
 
@@ -112,11 +121,9 @@ def _autotune_superadmin_allowed(config, username):
     (identified by --user). Single-user mode is always allowed — the local
     operator is the admin.
     """
-    users = config.get('users', {})
-    multi_user = any(k != 'shared_directories' for k in users)
-    if not multi_user:
+    if not _is_multi_user(config):
         return True
-    urec = users.get(username) if username else None
+    urec = config.get('users', {}).get(username) if username else None
     return isinstance(urec, dict) and urec.get('role') == 'superadmin'
 
 
@@ -650,6 +657,7 @@ LIBRARY_JOB_ARGS = (
     'extract_gps',
     'fix_thumbnail_rotation',
     'generate_captions',
+    'import_lightroom',
     'import_sidecars',
     'recompute_average',
     'recompute_blinks',
@@ -3536,7 +3544,7 @@ def main():
     # re-generated in place, so it always writes facet_manifest.json in the
     # working directory.
     if args.export_manifest:
-        from processing.xmp_export import build_root_filter, rating_columns
+        from processing.xmp_export import build_manifest
 
         root = None if args.export_manifest == 'all' else args.export_manifest
         # Ratings come from the same helper --export-sidecars uses, so --user
@@ -3545,56 +3553,64 @@ def main():
         # otherwise export an all-zero manifest and make the Lightroom plugin
         # report "Already up to date". No --user (or a single-user install)
         # keeps the global photos columns, unchanged for the plugin contract.
-        ratings = rating_columns(args.user)
-        where, params = build_root_filter(root) if root else ("", [])
         output_file = "facet_manifest.json"
 
-        with get_connection(args.db) as conn:
-            cursor = conn.execute(f"""
-                SELECT photos.path AS path, filename, date_taken, category,
-                       aggregate, aesthetic, comp_score, face_quality,
-                       tech_sharpness, exposure_score, color_score, tags,
-                       camera_model, lens_model, {ratings.columns}, is_burst_lead
-                FROM photos
-                {ratings.join}
-                {where}
-                ORDER BY aggregate DESC
-            """, ratings.params + params)
+        # score_stars forcing (`enabled=True` for this computation only, never
+        # mutating the live config) now lives inside build_manifest itself, so
+        # the viewer's POST /api/lightroom/manifest route agrees with the CLI
+        # without either caller having to remember to force it (I1).
+        _sr_cfg = dict(ScoringConfig(args.config, validate=False).config.get('xmp_export', {}).get('score_to_rating', {}))
 
-            photos = []
-            for row in cursor:
-                photos.append({
-                    'path': row['path'],
-                    'filename': row['filename'],
-                    'date_taken': row['date_taken'],
-                    'category': row['category'],
-                    'scores': {
-                        'aggregate': row['aggregate'],
-                        'aesthetic': row['aesthetic'],
-                        'comp_score': row['comp_score'],
-                        'face_quality': row['face_quality'],
-                        'tech_sharpness': row['tech_sharpness'],
-                        'exposure_score': row['exposure_score'],
-                        'color_score': row['color_score'],
-                    },
-                    'tags': row['tags'],
-                    'camera_model': row['camera_model'],
-                    'lens_model': row['lens_model'],
-                    'star_rating': int(row['star_rating'] or 0),
-                    'is_favorite': bool(row['is_favorite']),
-                    'is_rejected': bool(row['is_rejected']),
-                    'is_burst_lead': bool(row['is_burst_lead']),
-                })
+        manifest = build_manifest(args.db, root=root, score_to_rating=_sr_cfg, user=args.user)
 
-        manifest = {
-            'version': 1,
-            'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
-            'photos': photos,
-        }
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(manifest, f, separators=(',', ':'))
 
-        logger.info("Exported %d photos to manifest %s", len(photos), output_file)
+        logger.info("Exported %d photos to manifest %s", len(manifest['photos']), output_file)
+        pending = manifest.get('pending_corrections', 0)
+        if pending > 0:
+            print(
+                f"{pending} pending sequence correction(s) — run "
+                "`python facet.py --detect-panoramas` or use "
+                "Compare › Panoramas › Re-run detection."
+            )
+        exit()
+
+    # Import Lightroom's own rating/pick/reject state (Lightroom-wins), from
+    # the plug-in's exported JSON (Step 5a's `facet-lightroom-state` format).
+    if args.import_lightroom:
+        from processing.lightroom_sync import (
+            InvalidLightroomStateFile,
+            import_lightroom_state,
+            validate_lightroom_state,
+        )
+
+        cfg = ScoringConfig(args.config, validate=False).config
+        multi_user = _is_multi_user(cfg)
+        if multi_user and not args.user:
+            logger.error(
+                "Multi-user install: --import-lightroom requires --user NAME "
+                "to know whose ratings to write.")
+            exit(1)
+        _config_path, user_id = _resolve_trainer_cli_context(args)
+
+        try:
+            with open(args.import_lightroom, 'r', encoding='utf-8-sig') as f:
+                data = json.load(f)
+            records = validate_lightroom_state(data)
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError, InvalidLightroomStateFile) as e:
+            logger.error("Invalid Lightroom state file: %s", e)
+            exit(1)
+
+        # per_user is resolved HERE, from the config that just validated
+        # `user_id`, and passed explicitly rather than letting
+        # import_lightroom_state re-derive it from api.config.is_multi_user_enabled(),
+        # which reads default_config_path()/$FACET_CONFIG -- a different file
+        # from --config on a library carrying its own scoring_config.json.
+        # That split let a validated multi-user write land in the GLOBAL
+        # photos columns instead of user_preferences (I4).
+        result = import_lightroom_state(args.db, records, user_id=user_id, per_user=multi_user)
+        print(f"matched={result.matched} unmatched={result.unmatched} changed={result.changed}")
         exit()
 
     # --resume reuses the directories recorded by the last interrupted run;

@@ -41,8 +41,11 @@ filter by kind before grouping by id.
 import logging
 import math
 import sqlite3
+from collections import defaultdict
+from datetime import datetime
 
 from db.connection import apply_pragmas
+from db.sequence_overrides import get_sequence_overrides
 from utils.date_utils import parse_date
 from utils.selection import pick_lead
 
@@ -89,6 +92,46 @@ def exposure_value(f_stop, shutter_speed, iso):
     if aperture <= 0 or seconds <= 0 or sensitivity <= 0:
         return None
     return math.log2(aperture * aperture / seconds) - math.log2(sensitivity / 100.0)
+
+
+def ladder_gate_error(evs):
+    """Whether ``evs`` can form a *forced* bracket, or the reason it cannot.
+
+    Shared by the API's mark-as-bracket endpoint and this pass's own defensive
+    re-check of a forced set (#162 finding B4): a forced bracket must never
+    carry an EV-less member, so every candidate member's EV must already be
+    resolved (``None`` filtered out or present as `None` in ``evs``) before this
+    is called -- unlike the detected-run path, which tolerates gaps because
+    `_load_photos` never admits an EV-less photo in the first place. Requiring
+    *every* frame to have a usable, distinct EV keeps "every member of a
+    bracket has an offset" true unconditionally, which the export/culling code
+    already assumes.
+
+    Rounding the raw EVs to 2dp is not enough: `_compensation_offset` rounds
+    the *difference* between a frame and the base, so two EVs that are
+    distinct at 2dp (10.0049, 10.0051) can still round to the same stored
+    offset once the base is subtracted. On an odd ladder `_base_frame` always
+    centres on the single middle rung, but on an even ladder it can pick
+    *either* rung adjacent to the centre (clipping and, failing that, capture
+    order decide) -- so this checks the offsets that would result from both
+    candidates and rejects a collision against either, since either is what
+    the pass might actually write.
+    """
+    if len(evs) < 2:
+        return 'need at least 2 frames'
+    if any(ev is None for ev in evs):
+        return 'every frame needs exposure metadata to form a ladder'
+    if len({round(ev, 2) for ev in evs}) != len(evs):
+        return 'frames share one exposure — not a bracket'
+    ladder = sorted(evs)
+    middle = len(ladder) // 2
+    base_candidates = (ladder[middle],) if len(ladder) % 2 else \
+        (ladder[middle - 1], ladder[middle])
+    for base_ev in base_candidates:
+        offsets = {_compensation_offset(base_ev, ev) for ev in evs}
+        if len(offsets) != len(evs):
+            return 'frames would collide on the same offset once written'
+    return None
 
 
 def _hamming(hash_a, hash_b):
@@ -319,6 +362,72 @@ def _promote_bracket_leads(conn, previously_promoted=frozenset()):
     return promoted, len(lapsed)
 
 
+def load_overrides(conn):
+    """Sticky overrides for this pass: the forced runs by key.
+
+    Reads the one shared reader, `db.sequence_overrides.get_sequence_overrides`,
+    and derives its own forced set scoped to this pass's own kind. Unlike
+    `utils.panorama.load_overrides`, a generic (`sequence_kind IS NULL`)
+    suppression is never read here: that row means "this is not a panorama",
+    not "this is not a bracket", so a false HDR panorama the user suppressed
+    must stay free to be detected as a bracket. Only this pass's own
+    `kind='bracket'` forced rows are read.
+    """
+    overrides = get_sequence_overrides(conn)
+    forced = defaultdict(list)
+    for path, row in overrides.items():
+        if row['sequence_kind'] == BRACKET:
+            forced[row['override_group_key']].append(path)
+    return forced
+
+
+def resolve_runs(runs, photos_by_path, forced):
+    """Detected runs reconciled with sticky bracket overrides.
+
+    The choke point where the two meet, mirroring `utils.panorama.resolve_segments`:
+    a forced set displaces any detected run it overlaps. Unlike that pass,
+    there is no suppression to apply here -- see `load_overrides`.
+
+    A forced set is re-validated here with the same ladder gate the API itself
+    enforces (finding B4) -- EXIF can change or a member can be deleted between
+    the API mark and this pass. `photos_by_path` already excludes any photo
+    `_load_photos` could not resolve an EV or a capture time for, so a member
+    missing from it is detected explicitly: rather than silently drop that one
+    path and gate-check whatever remains (which can still pass the ladder and
+    write a partial set), the whole forced set is skipped and every one of its
+    original paths -- including the unloadable one -- is reported back as
+    evaluated, so the caller stamps `applied_at` on all of them and none stays
+    pending forever waiting for a member that no longer exists.
+    """
+    forced_runs = []
+    applied_paths = set()
+    evaluated_paths = set()
+    for key in sorted(forced):
+        member_paths = forced[key]
+        missing = [p for p in member_paths if p not in photos_by_path]
+        if missing:
+            logger.info(
+                "Forced bracket %s skipped: member(s) not loadable: %s",
+                key, ', '.join(sorted(missing)))
+            evaluated_paths.update(member_paths)
+            continue
+        run = [photos_by_path[p] for p in member_paths]
+        error = ladder_gate_error([p['ev'] for p in run])
+        if error:
+            logger.info("Forced bracket %s skipped: %s", key, error)
+            continue
+        run = sorted(run, key=lambda p: p['path'])
+        forced_runs.append(run)
+        applied_paths.update(p['path'] for p in run)
+
+    resolved = []
+    for run in runs:
+        if any(p['path'] in applied_paths for p in run):
+            continue
+        resolved.append(run)
+    return resolved + forced_runs, applied_paths | evaluated_paths
+
+
 def detect_sequences(db_path, config_path=None):
     """Label exposure brackets across the library and centre each on its base frame.
 
@@ -357,6 +466,14 @@ def detect_sequences(db_path, config_path=None):
 
         runs = _find_bracket_runs(photos, settings)
 
+        # A forced set (#162 "mark as bracket") displaces any detected run it
+        # overlaps, the same "manual wins" rule `utils.panorama.resolve_segments`
+        # applies to its own two kinds. Re-validated here rather than trusted:
+        # see `resolve_runs`.
+        forced = load_overrides(conn)
+        runs, applied_paths = resolve_runs(
+            runs, {p['path']: p for p in photos}, forced)
+
         previously_promoted = _wholly_bracketed_groups(conn)
         # Scoped to this pass's own kind. Clearing every labelled row would wipe
         # the panorama pass's labels on each bracket run, and vice versa: the two
@@ -372,11 +489,23 @@ def detect_sequences(db_path, config_path=None):
             base_ev = _base_frame(run)['ev']
             conn.executemany(
                 "UPDATE photos SET sequence_group_id = ?, sequence_kind = ?, "
-                "sequence_ev_offset = ? WHERE path = ?",
+                "sequence_ev_offset = ?, is_sequence_lead = 0 WHERE path = ?",
                 [(group_id, BRACKET, _compensation_offset(base_ev, p['ev']), p['path']) for p in run],
             )
 
         promoted, demoted = _promote_bracket_leads(conn, previously_promoted)
+        # Only the forced rows this run actually wrote -- a skipped forced set's
+        # override rows stay pending so the next run retries them once the
+        # underlying data is fixed. Stamped rather than deleted: the row is what
+        # keeps the correction applied on later passes, only its *pending*
+        # status ends here (mirrors `utils.panorama.detect_panoramas`).
+        if applied_paths:
+            now = datetime.now().isoformat()
+            conn.executemany(
+                "UPDATE photo_sequence_overrides SET applied_at = ? "
+                "WHERE photo_path = ? AND applied_at IS NULL",
+                [(now, path) for path in applied_paths],
+            )
         conn.commit()
 
     framed = sum(len(r) for r in runs)

@@ -12,6 +12,7 @@ from datetime import datetime, timedelta
 
 import pytest
 
+from db.sequence_overrides import set_sequence_overrides
 from utils.sequence import (
     DEFAULTS,
     _base_frame,
@@ -20,6 +21,7 @@ from utils.sequence import (
     _is_bracket,
     detect_sequences,
     exposure_value,
+    ladder_gate_error,
 )
 
 BASE_TIME = datetime(2025, 4, 15, 19, 59, 5)
@@ -112,6 +114,29 @@ class TestIsBracket:
 
     def test_empty_run(self):
         assert _is_bracket([], DEFAULTS) is False
+
+
+class TestLadderGateError:
+    def test_a_clean_ladder_passes(self):
+        assert ladder_gate_error([8.29, 10.29, 12.29]) is None
+
+    def test_evs_distinct_at_2dp_can_still_collide_once_offsets_are_rounded(self):
+        # #162 review M1: 10.0049 and 10.0051 round to distinct EVs (10.00 and
+        # 10.01) but the pass centres this odd ladder on the middle rung
+        # (10.0051) and rounds the *difference* -- both near-duplicates round
+        # to an offset of 0.0, so this must be rejected, not passed.
+        assert ladder_gate_error([10.0049, 10.0051, 12.0]) == \
+            'frames would collide on the same offset once written'
+
+    def test_even_ladder_collision_against_either_middle_candidate_is_caught(self):
+        # #B32: on an even ladder, `_base_frame` may centre on either
+        # ladder[middle - 1] or ladder[middle] depending on clipping/capture
+        # order, so the gate must reject a collision against EITHER
+        # candidate, not just ladder[middle - 1]. With base=ladder[2]
+        # (8.763606423432902) here, offsets collide at +1.83/-1.17 vs 0.0.
+        evs = [6.93233780103029, 6.938184733362617, 8.763606423432902, 9.93233780103029]
+        assert ladder_gate_error(evs) == \
+            'frames would collide on the same offset once written'
 
 
 class TestFindBracketRuns:
@@ -693,3 +718,251 @@ class TestKindScoping:
             labelled = conn.execute(
                 "SELECT COUNT(*) FROM photos WHERE sequence_kind IS NOT NULL").fetchone()[0]
         assert labelled == 0
+
+
+class TestBracketOverrides:
+    """#162 "mark as bracket": a sticky forced set the detector missed on its own.
+
+    Frames sit 90s+ apart -- past `DEFAULTS['max_gap_seconds']` (3.0) -- so the
+    detector never groups them by itself; only the override does.
+    """
+
+    def _forced_rows(self):
+        return [
+            ('/f0.jpg', 'f0.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 4.0, '0.01', 100,
+             'ff00ff00ff00ff00', 5.0, None, 0),
+            ('/f1.jpg', 'f1.jpg', '2025:04:15 20:00:35', 'Canon EOS R6', 4.0, '0.005', 100,
+             'ff00ff00ff00ff00', 6.0, None, 0),
+            ('/f2.jpg', 'f2.jpg', '2025:04:15 20:02:05', 'Canon EOS R6', 4.0, '0.02', 100,
+             'ff00ff00ff00ff00', 9.0, None, 0),
+        ]
+
+    def test_a_forced_set_the_detector_misses_becomes_one_bracket(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._forced_rows())
+        paths = [r[0] for r in self._forced_rows()]
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths, 'bracket')
+            conn.commit()
+
+        result = detect_sequences(str(db))
+        assert result['sets'] == 1
+        rows = {r['path']: r for r in _labels(db)}
+        assert {r['sequence_kind'] for r in rows.values()} == {'bracket'}
+        assert len({r['sequence_group_id'] for r in rows.values()}) == 1
+        assert rows['/f0.jpg']['sequence_ev_offset'] == pytest.approx(0.0)
+        assert rows['/f1.jpg']['sequence_ev_offset'] == pytest.approx(-1.0)
+        assert rows['/f2.jpg']['sequence_ev_offset'] == pytest.approx(1.0)
+
+    def test_it_is_idempotent(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._forced_rows())
+        paths = [r[0] for r in self._forced_rows()]
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths, 'bracket')
+            conn.commit()
+
+        first = detect_sequences(str(db))
+        first_labels = _labels(db)
+        second = detect_sequences(str(db))
+
+        assert first == second
+        assert _labels(db) == first_labels
+
+    def test_pending_becomes_applied(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._forced_rows())
+        paths = [r[0] for r in self._forced_rows()]
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths, 'bracket')
+            conn.commit()
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL").fetchone()[0]
+        assert pending == 3
+
+        detect_sequences(str(db))
+
+        with sqlite3.connect(db) as conn:
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL").fetchone()[0]
+        assert pending == 0
+
+    def test_a_forced_set_displaces_an_overlapping_detected_run(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        extra = ('/extra.jpg', 'extra.jpg', '2025:04:16 09:00:00', 'Canon EOS R6', 4.0,
+                 '0.0025', 100, 'aa00aa00aa00aa00', 3.0, None, 0)
+        _seed(db, _bracket_rows() + [extra])
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, ['/b0.jpg', '/b1.jpg', '/extra.jpg'], 'bracket')
+            conn.commit()
+
+        result = detect_sequences(str(db))
+        assert result['sets'] == 1
+        rows = {r['path']: r for r in _labels(db)}
+        # The detector's own [b0, b1, b2] run is displaced wholesale -- b2 is
+        # unlabelled, not left behind in a stale bracket of its own.
+        assert rows['/b2.jpg']['sequence_kind'] is None
+        assert {rows['/b0.jpg']['sequence_kind'], rows['/b1.jpg']['sequence_kind'],
+                rows['/extra.jpg']['sequence_kind']} == {'bracket'}
+
+    def test_a_forced_set_that_no_longer_qualifies_is_skipped_and_left_pending(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._forced_rows())
+        paths = [r[0] for r in self._forced_rows()]
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths, 'bracket')
+            # EXIF changes after the mark: two members now share one EV.
+            conn.execute("UPDATE photos SET shutter_speed = '0.01' WHERE path = '/f1.jpg'")
+            conn.commit()
+
+        result = detect_sequences(str(db))
+        assert result['sets'] == 0
+
+        with sqlite3.connect(db) as conn:
+            labelled = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE sequence_kind IS NOT NULL").fetchone()[0]
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL").fetchone()[0]
+        assert labelled == 0
+        # Never partially written, and left pending so a later, fixed run retries it.
+        assert pending == 3
+
+    def test_a_forced_set_deleted_down_to_one_survivor_is_skipped(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        _seed(db, self._forced_rows())
+        paths = [r[0] for r in self._forced_rows()]
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths, 'bracket')
+            conn.execute("DELETE FROM photos WHERE path IN ('/f1.jpg', '/f2.jpg')")
+            conn.commit()
+
+        result = detect_sequences(str(db))
+        assert result['sets'] == 0
+
+        with sqlite3.connect(db) as conn:
+            labelled = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE sequence_kind IS NOT NULL").fetchone()[0]
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL").fetchone()[0]
+        assert labelled == 0
+        # #162 review I2: a member missing from `_load_photos` (deleted here)
+        # is stamped evaluated along with the rest of its set, rather than left
+        # pending forever for a row that will never come back.
+        assert pending == 0
+
+    def test_promote_bracket_leads_recentres_a_forced_bracket_same_as_detected(self, tmp_path):
+        db = tmp_path / 'seq.db'
+        rows = [
+            ('/g0.jpg', 'g0.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 4.0, '0.01', 100,
+             'ff00ff00ff00ff00', 5.0, 7, 0),
+            ('/g1.jpg', 'g1.jpg', '2025:04:15 20:01:00', 'Canon EOS R6', 4.0, '0.005', 100,
+             'ff00ff00ff00ff00', 6.0, 7, 0),
+            ('/g2.jpg', 'g2.jpg', '2025:04:15 20:03:00', 'Canon EOS R6', 4.0, '0.02', 100,
+             'ff00ff00ff00ff00', 9.0, 7, 1),
+        ]
+        _seed(db, rows)
+        paths = [r[0] for r in rows]
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths, 'bracket')
+            conn.commit()
+
+        result = detect_sequences(str(db))
+        assert result['promoted'] == 1
+
+        with sqlite3.connect(db) as conn:
+            leads = {r[0] for r in conn.execute(
+                "SELECT path FROM photos WHERE is_burst_lead = 1")}
+        # The over-exposed frame (/g2.jpg) scored highest and started as the
+        # lead; the base exposure (/g0.jpg) takes it over, exactly as a
+        # detected bracket would.
+        assert leads == {'/g0.jpg'}
+
+    def test_forced_bracket_clears_a_stale_panorama_lead(self, tmp_path):
+        """Five members so "first survivor" and "middle survivor" are distinct
+        (see .claude/patterns/test-fixtures.md): the stale lead sits neither at
+        the ladder's centre nor at its edge."""
+        db = tmp_path / 'seq.db'
+        rows = [
+            ('/h0.jpg', 'h0.jpg', '2025:04:15 19:59:05', 'Canon EOS R6', 4.0, '0.005', 100,
+             'ff00ff00ff00ff00', 5.0, None, 0),
+            ('/h1.jpg', 'h1.jpg', '2025:04:15 20:01:00', 'Canon EOS R6', 4.0, '0.0075', 100,
+             'ff00ff00ff00ff00', 6.0, None, 0),
+            ('/h2.jpg', 'h2.jpg', '2025:04:15 20:03:00', 'Canon EOS R6', 4.0, '0.01', 100,
+             'ff00ff00ff00ff00', 7.0, None, 0),
+            ('/h3.jpg', 'h3.jpg', '2025:04:15 20:05:00', 'Canon EOS R6', 4.0, '0.0133', 100,
+             'ff00ff00ff00ff00', 8.0, None, 0),
+            ('/h4.jpg', 'h4.jpg', '2025:04:15 20:07:00', 'Canon EOS R6', 4.0, '0.02', 100,
+             'ff00ff00ff00ff00', 9.0, None, 0),
+        ]
+        _seed(db, rows)
+        paths = [r[0] for r in rows]
+        with sqlite3.connect(db) as conn:
+            # A stale panorama lead from a prior pass, on a middle-ish member.
+            conn.execute(
+                "UPDATE photos SET sequence_kind = 'panorama', sequence_group_id = 1, "
+                "is_sequence_lead = 1 WHERE path = '/h1.jpg'")
+            set_sequence_overrides(conn, paths, 'bracket')
+            conn.commit()
+
+        detect_sequences(str(db))
+
+        with sqlite3.connect(db) as conn:
+            leads = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE path IN ({}) AND is_sequence_lead = 1".format(
+                    ','.join('?' * len(paths))), paths).fetchone()[0]
+        assert leads == 0
+
+    def test_a_null_kind_suppression_never_blocks_a_detected_bracket(self, tmp_path):
+        """#162 review I1: a NULL-kind override means "this is not a panorama",
+        not "this is not a bracket". A false HDR panorama the user suppressed
+        must still be free to detect as the bracket it actually is."""
+        db = tmp_path / 'seq.db'
+        _seed(db, _bracket_rows())
+        paths = [r[0] for r in _bracket_rows()]
+        with sqlite3.connect(db) as conn:
+            # A pre-existing, applied NULL-kind suppression on the same frames
+            # (e.g. "not a panorama" recorded by the panorama pass's own flow).
+            set_sequence_overrides(conn, paths, None)
+            conn.execute(
+                "UPDATE photo_sequence_overrides SET applied_at = '2025-01-01T00:00:00' "
+                "WHERE photo_path IN ({})".format(','.join('?' * len(paths))), paths)
+            conn.commit()
+
+        result = detect_sequences(str(db))
+
+        assert result['sets'] == 1
+        rows = {r['path']: r for r in _labels(db)}
+        assert {r['sequence_kind'] for r in rows.values()} == {'bracket'}
+        assert rows['/b0.jpg']['sequence_ev_offset'] == pytest.approx(-1.0)
+        assert rows['/b1.jpg']['sequence_ev_offset'] == pytest.approx(0.0)
+        assert rows['/b2.jpg']['sequence_ev_offset'] == pytest.approx(1.0)
+
+    def test_a_forced_member_deleted_skips_the_whole_set_not_partially(self, tmp_path):
+        """#162 review I2: deleting ONE of three forced members still leaves two
+        that, on their own, would pass the ladder gate -- the bug is writing
+        that partial pair as a bracket instead of skipping the whole set."""
+        db = tmp_path / 'seq.db'
+        _seed(db, self._forced_rows())
+        paths = [r[0] for r in self._forced_rows()]
+        with sqlite3.connect(db) as conn:
+            set_sequence_overrides(conn, paths, 'bracket')
+            conn.execute("DELETE FROM photos WHERE path = '/f2.jpg'")
+            conn.commit()
+
+        result = detect_sequences(str(db))
+        assert result['sets'] == 0
+
+        with sqlite3.connect(db) as conn:
+            labelled = conn.execute(
+                "SELECT COUNT(*) FROM photos WHERE sequence_kind IS NOT NULL").fetchone()[0]
+            pending = conn.execute(
+                "SELECT COUNT(*) FROM photo_sequence_overrides "
+                "WHERE applied_at IS NULL").fetchone()[0]
+        # Never partially written as a two-frame bracket...
+        assert labelled == 0
+        # ...and never left pending forever for a row that will never come back.
+        assert pending == 0
