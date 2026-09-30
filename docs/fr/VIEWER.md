@@ -189,6 +189,7 @@ Contrôlé par `viewer.features.show_my_taste` (par défaut : `true`). L'état d
 - Tags cliquables pour un filtrage rapide
 - Avatars de personnes pour les visages reconnus
 - Badge de catégorie
+- Un clic droit (ou Maj+F10) ouvre le [menu contextuel](#sélection-multiple--actions-groupées)
 
 ### Sélection multiple & actions groupées
 
@@ -208,7 +209,9 @@ Contrôlé par `viewer.features.show_my_taste` (par défaut : `true`). L'état d
 - **Télécharger** — Télécharger les photos sélectionnées
 - Effacez la sélection avec Échap ou le bouton Effacer
 
-Les actions groupées nécessitent le mode édition. Double-cliquez sur n'importe quelle photo pour la télécharger directement.
+Les actions groupées nécessitent le mode édition. Double-cliquez sur n'importe quelle photo pour l'ouvrir.
+
+**Menu contextuel** — Faites un clic droit sur une photo (ou donnez-lui le focus et appuyez sur Shift+F10 / la touche Menu) pour ouvrir un menu au niveau du curseur. Sur une photo comprise dans une sélection de plusieurs photos, il agit sur toute la sélection, avec les actions de la barre d'actions sous les mêmes conditions, sauf Inverser et Tout sélectionner, qui restent sur la barre (Supprimer est omis sous la portée « tout sélectionner dans la vue »). Sur toute autre photo, il agit sur cette seule photo et laisse la sélection intacte, et il ajoute Ouvrir la photo ainsi que, seulement si leurs conditions de fonctionnalité ou d'édition le permettent, Similaires, Pourquoi ce score ?, Écrire les métadonnées dans le fichier et Assigner un visage à une personne (ce dernier seulement si la photo a des visages non assignés). Trier une seule photo ainsi ne retire que cette photo de la sélection : une sélection par chemins conserve le reste, et une sélection « tout dans la vue » reste sur toute la vue avec cette photo ajoutée à ses exclusions. Le menu n'est pas proposé sur les appareils tactiles (`hover: none` et `pointer: coarse`), où le comportement natif de l'appui long et la feuille d'actions restent en place.
 
 ### Garder le top N%
 
@@ -774,6 +777,7 @@ Toutes les statistiques tiennent compte de l'utilisateur en mode multi-utilisate
 | `Escape` | Effacer la sélection / fermer le tiroir de filtres |
 | `Shift+Click` | Sélection par plage des photos entre la dernière sélectionnée et celle cliquée |
 | `Double-click` | Ouvrir la photo |
+| `Shift+F10` / `Menu` | Ouvrir le menu contextuel de la carte de photo ayant le focus (le clic droit fait de même) |
 | `?` | Afficher la référence des raccourcis clavier (fonctionne sur chaque page) |
 
 La photo courante — celle sur laquelle agissent les raccourcis de note, de favori et de rejet — est marquée par un contour de 4px autour de sa carte ; toutes les autres cartes passent à 50% d'opacité. Rien n'est marqué tant que le curseur ne s'est pas réellement déplacé sur une photo des résultats, si bien qu'une galerie que vous n'avez pas encore parcourue reste à pleine intensité. Cliquer sur une photo y déplace le marqueur, si bien qu'un raccourci tapé juste après un clic s'applique à la photo cliquée, et non à celle où les flèches l'avaient laissé.

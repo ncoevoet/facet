@@ -189,6 +189,7 @@ Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato d
 - Tag cliccabili per un filtraggio rapido
 - Avatar delle persone per i volti riconosciuti
 - Badge della categoria
+- Il clic destro (o Maiusc+F10) apre il [menu contestuale](#selezione-multipla-e-azioni-di-gruppo)
 
 ### Selezione multipla e azioni di gruppo
 
@@ -208,7 +209,9 @@ Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato d
 - **Scarica** — Scarica le foto selezionate
 - Annulla la selezione con Esc o con il pulsante Cancella
 
-Le azioni di gruppo richiedono la modalità di modifica. Fai doppio clic su una foto qualsiasi per scaricarla direttamente.
+Le azioni di gruppo richiedono la modalità di modifica. Fai doppio clic su una foto qualsiasi per aprirla.
+
+**Menu contestuale** — Fai clic destro su una foto (oppure dai il focus e premi Shift+F10 / il tasto Menu) per aprire un menu in corrispondenza del cursore. Su una foto compresa in una selezione di più foto agisce sull'intera selezione, con le azioni della barra delle azioni alle stesse condizioni, tranne Inverti e Seleziona tutto, che restano sulla barra (Elimina è omesso con l'ambito «seleziona tutto nella vista»). Su qualsiasi altra foto agisce solo su quella foto e lascia intatta la selezione, e aggiunge Apri foto e, solo quando le condizioni di funzionalità o di edizione lo consentono, Trova simili, Perché questo punteggio?, Scrivi i metadati nel file e Assegna volto alla persona (quest'ultima solo se la foto ha volti non assegnati). Scartare così una sola foto toglie dalla selezione solo quella foto: una selezione per percorsi conserva il resto, e una selezione «tutto nella vista» resta sull'intera vista con quella foto aggiunta alle esclusioni. Il menu non viene proposto sui dispositivi touch (`hover: none` e `pointer: coarse`), dove restano il comportamento nativo della pressione prolungata e il foglio delle azioni.
 
 ### Tieni il top N%
 
@@ -773,6 +776,7 @@ Tutte le statistiche sono consapevoli dell'utente in modalità multiutente — o
 | `Escape` | Cancella la selezione / chiudi il pannello dei filtri |
 | `Shift+Click` | Selezione di un intervallo di foto tra l'ultima selezionata e quella cliccata |
 | `Double-click` | Apri la foto |
+| `Shift+F10` / `Menu` | Apri il menu contestuale della scheda foto con il focus (il clic destro fa lo stesso) |
 | `?` | Mostra il riferimento delle scorciatoie da tastiera (funziona su ogni pagina) |
 
 La foto corrente — quella su cui agiscono le scorciatoie di valutazione, preferito e scarto — è contrassegnata da un contorno di 4px attorno alla sua scheda; tutte le altre schede si affievoliscono al 50% di opacità. Nulla è contrassegnato finché il cursore non si è effettivamente spostato su una foto tra i risultati, quindi una galleria che non hai ancora esplorato resta a piena intensità. Cliccare su una foto sposta il marcatore su di essa, così una scorciatoia digitata subito dopo un clic si applica alla foto cliccata, non a quella dove le frecce l'avevano lasciata.

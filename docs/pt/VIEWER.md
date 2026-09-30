@@ -189,6 +189,7 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 - Tags clicáveis para filtragem rápida
 - Avatares de pessoas para rostos reconhecidos
 - Selo de categoria
+- O clique direito (ou Shift+F10) abre o [menu de contexto](#seleção-múltipla-e-ações-em-lote)
 
 ### Seleção Múltipla e Ações em Lote
 
@@ -208,7 +209,9 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 - **Baixar** — Baixa as fotos selecionadas
 - Limpe a seleção com Escape ou o botão Limpar
 
-As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer foto para baixá-la diretamente.
+As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer foto para abri-la.
+
+**Menu de contexto** — Clique com o botão direito numa foto (ou dê foco a ela e pressione Shift+F10 / a tecla Menu) para abrir um menu junto ao cursor. Numa foto que faz parte de uma seleção de várias fotos, atua sobre toda a seleção, com as ações da barra de ações sob as mesmas condições, exceto Inverter e Selecionar tudo, que ficam na barra (Excluir é omitido no escopo «selecionar tudo na visualização»). Em qualquer outra foto, atua apenas sobre essa foto e deixa a seleção intacta, e acrescenta Abrir foto e, só quando as condições de recurso ou de edição permitem, Encontrar semelhantes, Por que esta pontuação?, Gravar metadados no arquivo e Atribuir rosto à pessoa (esta só se a foto tiver rostos sem atribuição). Descartar assim uma única foto retira apenas essa foto da seleção: uma seleção por caminhos mantém o resto, e uma seleção «tudo na visualização» continua sendo de toda a visualização, com essa foto adicionada às exclusões. O menu não é oferecido em dispositivos de toque (`hover: none` e `pointer: coarse`), onde se mantêm o comportamento nativo do toque longo e a folha de ações.
 
 ### Manter Top N%
 
@@ -772,6 +775,7 @@ Todas as estatísticas são sensíveis ao usuário no modo multiusuário — cad
 | `Escape` | Limpa a seleção / fecha a gaveta de filtros |
 | `Shift+Click` | Seleciona em intervalo as fotos entre a última selecionada e a clicada |
 | `Double-click` | Abre a foto |
+| `Shift+F10` / `Menu` | Abre o menu de contexto do cartão de foto com foco (o clique direito faz o mesmo) |
 | `?` | Mostra a referência de atalhos de teclado (funciona em todas as páginas) |
 
 A foto atual — aquela sobre a qual agem os atalhos de avaliação, favorito e rejeição — é marcada com um contorno de 4px em volta do seu cartão; todos os outros cartões passam a 50% de opacidade. Nada fica marcado até o cursor se mover de fato para uma foto dos resultados, por isso uma galeria que você ainda não percorreu permanece em intensidade total. Clicar numa foto move o marcador para ela, de modo que um atalho digitado logo após um clique se aplica à foto clicada, não àquela onde as setas o tinham deixado.

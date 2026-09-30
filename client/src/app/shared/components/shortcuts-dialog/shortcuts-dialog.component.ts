@@ -61,6 +61,7 @@ export class ShortcutsDialogComponent {
         { keys: ['0', 'X'], labelKey: 'shortcuts.reject' },
         { keys: ['F'], labelKey: 'shortcuts.favorite' },
         { keys: ['Esc'], labelKey: 'shortcuts.clear_selection' },
+        { keys: ['Shift', 'F10'], labelKey: 'shortcuts.context_menu' },
       ],
     },
     {

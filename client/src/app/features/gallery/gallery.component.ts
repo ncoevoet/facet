@@ -53,6 +53,8 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { SlideshowComponent } from './slideshow.component';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
+import { GalleryPhotoMenuComponent, PhotoMenuAction, PhotoMenuActionEvent, isSheetAction } from './gallery-photo-menu.component';
+import type { SheetAction } from './gallery-actions-sheet.component';
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
 import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import {
@@ -69,6 +71,10 @@ import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
+
+function assertNever(action: never): never {
+  throw new Error(`Unhandled photo menu action: ${JSON.stringify(action)}`);
+}
 
 const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
 
@@ -98,6 +104,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
     SlideshowComponent,
     GalleryFilterSidebarComponent,
     PhotoCardComponent,
+    GalleryPhotoMenuComponent,
     PhotoSkeletonComponent,
     InfiniteScrollDirective,
   ],
@@ -330,6 +337,11 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                       (favoriteToggled)="store.toggleFavorite($event)"
                       (rejectedToggled)="store.toggleRejected($event)"
                       (starClicked)="store.setRating($event.photo.path, $event.star)"
+                      [matContextMenuTriggerFor]="photoMenu.menu()"
+                      [matContextMenuTriggerData]="{ photo: photo, index: row.startIndex + i, bulk: (photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()) && selectionCount() > 1 }"
+                      [matContextMenuTriggerDisabled]="touchOnly()"
+                      [matContextMenuTriggerRestoreFocus]="false"
+                      (contextmenu)="onCardContextMenu(row.startIndex + i)"
                       (doubleClicked)="downloadPhoto($event)"
                     />
                   }
@@ -379,6 +391,11 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                   (favoriteToggled)="store.toggleFavorite($event)"
                   (rejectedToggled)="store.toggleRejected($event)"
                   (starClicked)="store.setRating($event.photo.path, $event.star)"
+                  [matContextMenuTriggerFor]="photoMenu.menu()"
+                  [matContextMenuTriggerData]="{ photo: photo, index: i, bulk: (photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()) && selectionCount() > 1 }"
+                  [matContextMenuTriggerDisabled]="touchOnly()"
+                  [matContextMenuTriggerRestoreFocus]="false"
+                  (contextmenu)="onCardContextMenu(i)"
                   (doubleClicked)="downloadPhoto($event)"
                 />
               }
@@ -433,6 +450,11 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
                       (favoriteToggled)="store.toggleFavorite($event)"
                       (rejectedToggled)="store.toggleRejected($event)"
                       (starClicked)="store.setRating($event.photo.path, $event.star)"
+                      [matContextMenuTriggerFor]="photoMenu.menu()"
+                      [matContextMenuTriggerData]="{ photo: photo, index: row.startIndex + i, bulk: (photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()) && selectionCount() > 1 }"
+                      [matContextMenuTriggerDisabled]="touchOnly()"
+                      [matContextMenuTriggerRestoreFocus]="false"
+                      (contextmenu)="onCardContextMenu(row.startIndex + i)"
                       (doubleClicked)="downloadPhoto($event)"
                     />
                   }
@@ -535,6 +557,22 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
       />
     }
 
+
+    <!-- Right-click menu, shared by every card. Declared at the template root,
+         outside every conditional block and loop, so the photoMenu reference is
+         in scope of all three grid branches. -->
+    <app-gallery-photo-menu
+      #photoMenu
+      [isEdition]="auth.isEdition()"
+      [config]="store.config()"
+      [albums]="albumOptions()"
+      [downloadProfiles]="auth.downloadProfiles()"
+      [canCompare]="canCompareSelection()"
+      [viewScoped]="viewScoped()"
+      [downloading]="downloading()"
+      (action)="onPhotoMenuAction($event)"
+      (closed)="onPhotoMenuClosed($event)"
+    />
 
     <!-- Selection action bar -->
     @if (selectionCount()) {
@@ -731,6 +769,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** True when the device has no hover capability (touch device) */
   protected readonly isTouchDevice = signal(false);
+  /** Touch-first device: the right-click menu stays off so the native
+   *  long-press behaviour is kept. Read once, unlike the looser `(hover: none)`
+   *  behind `isTouchDevice`, which only steers the tooltip. */
+  protected readonly touchOnly = signal(false);
+  /** Grid index of the card the photo menu was opened on, for focus hand-back. */
+  private photoMenuIndex = -1;
 
   /** Thumbnail request size derived from card width (2x for retina, capped at 640). Returns 640 on mobile (full-width cards). */
   readonly thumbSize = computed(() => {
@@ -995,6 +1039,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   constructor() {
     afterNextRender(() => {
       this.isTouchDevice.set(window.matchMedia('(hover: none)').matches);
+      this.touchOnly.set(window.matchMedia('(hover: none) and (pointer: coarse)').matches);
       this.desktop.setup();
       this.railWide.setup();
       this.setupResizeObserver();
@@ -1337,10 +1382,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
     return this.store.pathsInView();
   }
 
-  protected async copyPaths(): Promise<void> {
+  protected async copyPaths(explicitPaths?: string[]): Promise<void> {
     // Copying changes nothing, so it says so rather than borrowing the
     // mutation wording every other whole-view action confirms with.
-    const paths = await this.resolveSelectionPaths(I18N.gallery.selection.view_scope_copy_message);
+    const paths = explicitPaths
+      ?? await this.resolveSelectionPaths(I18N.gallery.selection.view_scope_copy_message);
     if (!paths?.length) return;
     await copyLines(paths.map(basename));
     this.snackBar.open(this.i18n.t(I18N.gallery.selection.copied), '', { duration: 2000 });
@@ -1518,6 +1564,60 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
   }
 
+  /** Records which card the photo menu opened on, and drops the floating
+   *  tooltip so it does not sit on top of the menu. */
+  protected onCardContextMenu(index: number): void {
+    this.photoMenuIndex = index;
+    this.hideTooltip();
+  }
+
+  /** `'keydown'` is Escape/arrow-out and `'click'` is an item picked: both hand
+   *  focus back to the card. A backdrop click or Tab leaves focus where the
+   *  user put it. */
+  protected onPhotoMenuClosed(reason: 'click' | 'keydown' | 'tab' | void): void {
+    if (reason === 'keydown' || reason === 'click') this.focusCard(this.photoMenuIndex, false, false);
+  }
+
+  protected async onPhotoMenuAction(e: PhotoMenuActionEvent): Promise<void> {
+    if (e.bulk) {
+      if (isSheetAction(e.action)) await this.runSelectionAction(e.action);
+      return;
+    }
+    await this.runSinglePhotoAction(e.action, e.photo);
+  }
+
+  /** The right-click menu's single-photo actions. The favorite, reject and
+   *  rating ones go to the same store calls the card's own buttons make, so
+   *  optimistic update, in-flight de-dup and revert-on-error come with them. */
+  private async runSinglePhotoAction(action: PhotoMenuAction, photo: Photo): Promise<void> {
+    const paths = [photo.path];
+    switch (action.kind) {
+      case 'toggle-favorite': this.store.toggleFavorite(photo.path); break;
+      case 'toggle-reject': this.store.toggleRejected(photo.path); break;
+      case 'rate': this.store.setRating(photo.path, action.rating); break;
+      case 'open': this.downloadPhoto(photo); break;
+      case 'similar': this.openSimilar(photo, action.mode); break;
+      case 'critique': this.openCritique(photo); break;
+      case 'embed': this.embedMetadata(photo); break;
+      case 'assign-face': this.openAddPerson(photo); break;
+      case 'album': await this.addToAlbum(action.albumId, paths); break;
+      case 'create-album': await this.createAlbumAndAdd(paths); break;
+      case 'copy': await this.copyPaths(paths); break;
+      case 'export': this.openExportDialog(paths); break;
+      case 'cull': await this.openCullDialog(paths); break;
+      case 'delete': await this.deleteSelected(paths); break;
+      case 'download': await this.downloadSelected(action.type, action.profile, paths); break;
+      // Selection-wide kinds: the single-photo menu never offers them.
+      case 'favorite':
+      case 'reject':
+      case 'invert':
+      case 'compare':
+      case 'mark-panorama':
+        break;
+      default: return assertNever(action);
+    }
+  }
+
   protected downloadPhoto(photo: Photo): void {
     this.router.navigate(['/photo'], {
       queryParams: { path: photo.path },
@@ -1541,6 +1641,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
     });
     const action = await firstValueFrom(ref.afterDismissed());
     if (!action) return;
+    await this.runSelectionAction(action);
+  }
+
+  /** Runs one bulk action on the current selection. Shared by the mobile
+   *  sheet and the right-click menu's bulk mode so the two cannot drift. */
+  private async runSelectionAction(action: SheetAction): Promise<void> {
     switch (action.kind) {
       case 'favorite': await this.batchFavorite(); break;
       case 'reject': await this.batchReject(); break;
@@ -1558,9 +1664,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
   }
 
-  protected async downloadSelected(type = 'original', profile?: string): Promise<void> {
+  protected async downloadSelected(type = 'original', profile?: string, explicitPaths?: string[]): Promise<void> {
     // Confirms below in its own words, against the count it actually resolved.
-    const paths = await this.resolveSelectionPaths(null);
+    const paths = explicitPaths ?? await this.resolveSelectionPaths(null);
     if (!paths?.length) return;
     // One blob fetch and one synthetic anchor click per photo, serially: past a
     // few dozen that is a browser-melting amount of work to start by accident,
@@ -1594,24 +1700,27 @@ export class GalleryComponent implements OnInit, OnDestroy {
     void this.router.navigate([path], { queryParams: { album: albumId } });
   }
 
-  async addToAlbum(albumId: number): Promise<void> {
+  async addToAlbum(albumId: number, explicitPaths?: string[]): Promise<void> {
     // No filter-scoped form server-side, so a whole-view selection resolves to
     // paths here rather than adding nothing at all. Filing photos into an album
     // writes album_photos rows and leaves the photos themselves untouched, so
     // it must not confirm in the wording of a mutation.
-    const paths = await this.resolveSelectionPaths(I18N.gallery.selection.view_scope_album_message);
+    const paths = explicitPaths
+      ?? await this.resolveSelectionPaths(I18N.gallery.selection.view_scope_album_message);
     if (!paths?.length) return;
     await firstValueFrom(this.albumService.addPhotos(albumId, paths));
     this.snackBar.open(this.i18n.t(I18N.albums.photos_added), '', { duration: 2000 });
-    this.clearSelection();
+    // Explicit paths come from the context menu on one photo: the user's
+    // selection is theirs to keep.
+    if (explicitPaths === undefined) this.clearSelection();
   }
 
-  async createAlbumAndAdd(): Promise<void> {
+  async createAlbumAndAdd(explicitPaths?: string[]): Promise<void> {
     const ref = this.dialog.open(CreateAlbumDialogComponent, { width: '400px' });
     const album = await firstValueFrom(ref.afterClosed());
     if (!album) return;
     this.albumOptions.update(list => [album, ...list]);
-    await this.addToAlbum(album.id);
+    await this.addToAlbum(album.id, explicitPaths);
   }
 
   async openScanLauncher(): Promise<void> {
@@ -1624,7 +1733,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
   }
 
-  openExportDialog(): void {
+  openExportDialog(explicitPaths?: string[]): void {
+    // Explicit paths name what to export, so the album route below -- which
+    // exports the whole album whatever is selected -- must not claim them.
+    if (explicitPaths !== undefined) {
+      this.dialog.open(ExportEditorDialogComponent, { width: '420px', data: { paths: [...explicitPaths] } });
+      return;
+    }
     const albumId = this.route.snapshot.paramMap.get('albumId');
     if (albumId) {
       this.dialog.open(ExportEditorDialogComponent, { width: '420px', data: { albumId: +albumId } });
@@ -1641,10 +1756,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
     });
   }
 
-  async openCullDialog(): Promise<void> {
-    const viewScoped = this.viewScoped();
-    const paths = [...this.selectedPaths()];
+  async openCullDialog(explicitPaths?: string[]): Promise<void> {
+    const explicit = explicitPaths !== undefined;
+    const viewScoped = !explicit && this.viewScoped();
+    const paths = explicit ? [...explicitPaths] : [...this.selectedPaths()];
     if (!viewScoped && !paths.length) return;
+    // Taken before the dialog: the reload after a cull may drop these rows.
+    const culled = explicit ? this.store.photos().filter(p => paths.includes(p.path)) : [];
     const { CullDialogComponent } = await import('./cull-dialog.component');
     const ref = this.dialog.open(CullDialogComponent, {
       width: '32rem',
@@ -1654,7 +1772,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
         // and the server's 10,000 ceiling (412) applies to it just the same.
         filters: viewScoped ? this.store.filterPayload() : null,
         exclude: viewScoped ? [...this.excludedPaths()] : [],
-        count: this.selectionCount(),
+        count: explicit ? paths.length : this.selectionCount(),
         trashAvailable: this.store.config()?.cull?.trash_available ?? false,
         allowTrash: this.store.config()?.cull?.allow_trash ?? false,
       },
@@ -1664,9 +1782,32 @@ export class GalleryComponent implements OnInit, OnDestroy {
       // Reload first: clearing the selection hands focus back to the marked
       // card, and the rows the cull has just moved away are still standing in
       // the list until this returns.
+      if (!explicit) {
+        await this.store.loadPhotos();
+        this.clearSelection();
+        return;
+      }
+      // loadPhotos() drops a whole-view selection (a view selection names the
+      // view, and the reload is what the store reads as "the view changed"),
+      // so what the user built is captured first and put back after it.
+      const wasViewScoped = this.viewScoped();
+      const kept = wasViewScoped ? new Set(this.excludedPaths()) : new Set(this.selectedPaths());
       await this.store.loadPhotos();
-      this.clearSelection();
+      this.restoreSelectionWithout(wasViewScoped, kept, culled);
     }
+  }
+
+  /** After a cull of explicit paths only those photos leave the selection; the
+   *  rest of what the user built stays, in the scope it was built in. Under
+   *  view scope "leaves" means joining the exclusion list. */
+  private restoreSelectionWithout(wasViewScoped: boolean, kept: Set<string>, culled: Photo[]): void {
+    const gone = new Set(culled.map(p => p.path));
+    if (!wasViewScoped) {
+      this.store.restoreSelection([...kept].filter(path => !gone.has(path)));
+      return;
+    }
+    this.store.selectWholeView();
+    for (const path of new Set([...kept, ...gone])) this.store.toggleSelection({ path } as Photo);
   }
 
   /**
@@ -1681,18 +1822,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * rows survive a move/trash, but delete's rows are already gone from
    * `photos` server-side by the time this response returns.
    */
-  async deleteSelected(): Promise<void> {
-    if (this.viewScoped()) return;
-    const paths = [...this.selectedPaths()];
+  async deleteSelected(explicitPaths?: string[]): Promise<void> {
+    const explicit = explicitPaths !== undefined;
+    // Explicit paths name their own targets, so view scope -- which `paths`
+    // cannot express -- is not in play.
+    if (!explicit && this.viewScoped()) return;
+    const paths = explicit ? [...explicitPaths] : [...this.selectedPaths()];
     if (!paths.length) return;
     const selectedSet = new Set(paths);
-    const hasSiblings = this.store.photos().some(p =>
-      selectedSet.has(p.path) && !!p.sequence_kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(p.sequence_kind));
+    const loaded = this.store.photos().filter(p => selectedSet.has(p.path));
+    // One explicit path is the context menu's single-photo delete: it gets the
+    // single-photo wording, and the lead check photo-detail makes.
+    const lone = explicit && paths.length === 1;
+    if (lone && !loaded.length) return;
+    const hasSiblings = loaded.some(p =>
+      !!p.sequence_kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(p.sequence_kind));
     const { PhotoDeleteDialogComponent } = await import('../../shared/components/photo-delete-dialog/photo-delete-dialog.component');
     const ref = this.dialog.open(PhotoDeleteDialogComponent, {
-      width: '32rem',
+      ...(lone ? { width: '95vw', maxWidth: '28rem' } : { width: '32rem' }),
       data: {
-        surface: 'bulk',
+        surface: lone ? 'photo_detail' : 'bulk',
         paths,
         count: paths.length,
         hasCompanion: true,
@@ -1700,7 +1849,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
         // No per-path lead signal client-side for a bulk selection -- the
         // response's own `refused_bracket_lead` is what the partial-result
         // toast below reports instead.
-        hasBracketLead: false,
+        hasBracketLead: lone && loaded[0].sequence_kind === 'bracket' && loaded[0].sequence_ev_offset === 0,
       },
     });
     const result = await firstValueFrom(ref.afterClosed());
@@ -1708,7 +1857,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const res = await this.photoActions.deletePhotos(paths, result);
     if (!res) return;
     this.store.removePhotos(res.deleted);
-    this.clearSelection();
+    // `removePhotos` already prunes the deleted paths out of the selection.
+    if (!explicit) this.clearSelection();
     // Every failure bucket counts as "failed" here, not just
     // `refused_bracket_lead` -- an unwritable trash dir (errors), a path the
     // rescan already dropped (not_found/not_visible) or whose file was
@@ -1938,11 +2088,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  Two destinations do not count as leaving. Another card in the same grid is
    *  the cursor moving, not going away. The selection action bar is where Clear
    *  lives, and `clearSelection` has to be able to hand focus back to the marked
-   *  card afterwards, so the bar is excluded by name. A null relatedTarget --
+   *  card afterwards, so the bar is excluded by name. The overlay container is
+   *  the photo context menu taking focus, which is not leaving either. A null relatedTarget --
    *  focus dropped to the body, or out to the browser chrome -- does count. */
   protected onGridFocusOut(event: FocusEvent): void {
     const next = event.relatedTarget as HTMLElement | null;
-    if (next?.closest('[role="grid"], [data-selection-bar], [data-details-rail]')) return;
+    if (next?.closest('[role="grid"], [data-selection-bar], [data-details-rail], .cdk-overlay-container')) return;
     this.setCursor(-1);
   }
 

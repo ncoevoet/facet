@@ -189,6 +189,7 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 - Anklickbare Tags zum schnellen Filtern
 - Personen-Avatare für erkannte Gesichter
 - Kategorieabzeichen
+- Rechtsklick (oder Shift+F10) öffnet das [Kontextmenü](#mehrfachauswahl--sammelaktionen)
 
 ### Mehrfachauswahl & Sammelaktionen
 
@@ -208,7 +209,9 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 - **Herunterladen** — Ausgewählte Fotos herunterladen
 - Auswahl mit Escape oder der Schaltfläche „Löschen" aufheben
 
-Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges Foto, um es direkt herunterzuladen.
+Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges Foto, um es zu öffnen.
+
+**Kontextmenü** — Klicken Sie mit der rechten Maustaste auf ein Foto (oder fokussieren Sie es und drücken Sie Shift+F10 bzw. die Menütaste), um am Mauszeiger ein Menü zu öffnen. Bei einem Foto innerhalb einer Auswahl mehrerer Fotos wirkt es auf die gesamte Auswahl, mit den Aktionen der Aktionsleiste unter denselben Bedingungen, außer Umkehren und Alles auswählen, die auf der Leiste bleiben (Löschen entfällt im Geltungsbereich „Alles in der Ansicht auswählen“). Bei jedem anderen Foto wirkt es nur auf dieses Foto und lässt die Auswahl unberührt; zusätzlich bietet es Foto öffnen sowie, nur wenn die jeweiligen Funktions- oder Editionsbedingungen es erlauben, Ähnliche finden, Warum diese Bewertung?, Metadaten in Datei schreiben und Gesicht einer Person zuweisen (Letzteres nur bei Fotos mit nicht zugewiesenen Gesichtern). Das Aussortieren eines einzelnen Fotos nimmt nur dieses Foto aus der Auswahl: eine Pfadauswahl behält den Rest, und eine Auswahl „Alles in der Ansicht“ bleibt eine Auswahl der ganzen Ansicht, wobei dieses Foto zu den Ausnahmen hinzukommt. Auf Geräten mit Touch-Bedienung (`hover: none` und `pointer: coarse`) wird das Menü nicht angeboten; dort bleiben das native Langdruckverhalten des Browsers und das Aktionsblatt erhalten.
 
 ### Top N% behalten
 
@@ -773,6 +776,7 @@ Alle Statistiken sind im Mehrbenutzermodus benutzerbewusst — jeder Benutzer si
 | `Escape` | Auswahl aufheben / Filter-Schublade schließen |
 | `Shift+Click` | Bereichsauswahl von Fotos zwischen zuletzt ausgewähltem und angeklicktem |
 | `Double-click` | Foto öffnen |
+| `Shift+F10` / `Menu` | Kontextmenü der fokussierten Fotokarte öffnen (der Rechtsklick tut dasselbe) |
 | `?` | Die Tastenkürzel-Referenz anzeigen (funktioniert auf jeder Seite) |
 
 ## Rückgängig

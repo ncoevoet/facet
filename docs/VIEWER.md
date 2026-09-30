@@ -192,6 +192,7 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - Clickable tags for quick filtering
 - Person avatars for recognized faces
 - Category badge
+- Right-click (or Shift+F10) opens the [context menu](#multi-select--bulk-actions)
 
 ### Multi-Select & Bulk Actions
 
@@ -211,7 +212,9 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - **Download** — Download selected photos
 - Clear selection with Escape or the Clear button
 
-Bulk actions require edition mode. Double-click any photo to download it directly.
+Bulk actions require edition mode. Double-click any photo to open it.
+
+**Context menu** — Right-click a photo (or focus it and press Shift+F10 / the Menu key) to open a menu at the cursor. On a photo inside a multi-photo selection it acts on the whole selection, with the action bar's actions under the same gates, except Invert and Select all, which stay on the bar (Delete is left out under "select all in view" scope). On any other photo it acts on that photo alone and leaves the selection untouched, and it adds Open photo plus, only where their feature or edition gates allow, Find Similar, Why This Score?, Write metadata to file and Assign face to person (the last only when the photo has unassigned faces). Culling a single photo this way takes only that photo out of the selection: a path selection keeps the rest, and a "select all in view" selection stays whole-view with that photo added to its exclusions. The menu is not offered on touch-first devices (`hover: none` and `pointer: coarse`), where the browser's long-press behavior and the Actions sheet remain.
 
 ### Keep Top N%
 
@@ -844,6 +847,7 @@ All stats are user-aware in multi-user mode — each user sees analytics for the
 | `Escape` | Clear selection / close filter drawer |
 | `Shift+Click` | Range-select photos between last selected and clicked |
 | `Double-click` | Open photo |
+| `Shift+F10` / `Menu` | Open the context menu of the focused photo card (right-click does the same) |
 | `?` | Show the keyboard shortcuts reference (works on every page) |
 
 The current photo — the one star-rating, favorite and reject shortcuts act on — is marked with a 4px outline around its card; every other card dims to 50% opacity. Nothing is marked until the cursor has actually moved onto a photo in the results, so a gallery you have not navigated yet stays at full strength. Clicking a photo moves the marker onto it, so a shortcut typed right after a click lands on the photo you clicked, not on wherever the arrow keys last left it.
