@@ -12,7 +12,6 @@ import hashlib
 import json
 import os
 import sqlite3
-import subprocess
 import sys
 from pathlib import Path
 
@@ -27,6 +26,7 @@ from api.routers.burst_culling import (
 from api.routers.export import _copy_files_into
 from api.similarity_groups import compute_similarity_groups
 from db.schema import init_database
+from tests.test_cli import _run
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 FACET = str(REPO_ROOT / 'facet.py')
@@ -425,6 +425,38 @@ class TestRejectStandaloneBelow:
         second, second_standalone = run()
         assert second.reject_paths == [] and second_standalone == []
 
+    @pytest.mark.parametrize('stored_user', [None, '_legacy', '_anonymous'])
+    def test_single_user_shields_a_photo_in_a_culling_pair_whoever_stored_it(self, tmp_path, stored_user):
+        # The viewer stores culling pairs under NULL / '_anonymous' / '_legacy' and the CLI
+        # passes its own sentinel, so a single-user install must not filter the guard by user.
+        db = _new_db(tmp_path)
+        conn = _connect(db)
+        _add(conn, tmp_path / 'low.jpg', aggregate=1.0, date_taken='2024:06:15 10:00:00')
+        _add(conn, tmp_path / 'good.jpg', aggregate=9.0, date_taken='2023:01:01 08:00:00')
+        conn.execute(
+            "INSERT INTO comparisons (photo_a_path, photo_b_path, winner, source, user_id) "
+            "VALUES (?, ?, 'b', 'culling', ?)",
+            (str(tmp_path / 'low.jpg'), str(tmp_path / 'good.jpg'), stored_user))
+        conn.commit()
+        assert reject_standalone_below(conn, '_anonymous', None, 5.0, set(), dry_run=False) == []
+        assert conn.execute("SELECT count(*) FROM photos WHERE is_rejected = 1").fetchone()[0] == 0
+
+    def test_multi_user_only_shields_a_photo_in_the_same_users_culling_pair(self, tmp_path, monkeypatch):
+        monkeypatch.setitem(api.config._FULL_CONFIG, 'users', {
+            'alice': {'role': 'user', 'directories': [str(tmp_path)]},
+            'bob': {'role': 'user', 'directories': [str(tmp_path)]}})
+        db = _new_db(tmp_path)
+        conn = _connect(db)
+        _add(conn, tmp_path / 'low.jpg', aggregate=1.0, date_taken='2024:06:15 10:00:00')
+        _add(conn, tmp_path / 'good.jpg', aggregate=9.0, date_taken='2023:01:01 08:00:00')
+        conn.execute(
+            "INSERT INTO comparisons (photo_a_path, photo_b_path, winner, source, user_id) "
+            "VALUES (?, ?, 'b', 'culling', 'bob')", (str(tmp_path / 'low.jpg'), str(tmp_path / 'good.jpg')))
+        conn.commit()
+        assert reject_standalone_below(conn, 'alice', None, 5.0, set(), dry_run=True) == [
+            str(tmp_path / 'low.jpg')]
+        assert reject_standalone_below(conn, 'bob', None, 5.0, set(), dry_run=True) == []
+
 
 class TestListings:
     def test_keepers_and_rejects_partition_the_scope(self, tmp_path):
@@ -539,21 +571,10 @@ class TestScanThenCull:
 # Step 5: the CLI end to end (subprocess)
 # ---------------------------------------------------------------------------
 
-def _env(config_path):
-    env = {k: v for k, v in os.environ.items()
-           if not any(k.startswith(p) or p in k for p in (
-               'SLACK_', 'GITHUB_', 'GH_', 'AWS_', 'OPENAI_', 'ANTHROPIC_', 'GOOGLE_', 'AZURE_',
-               'HF_', 'HUGGINGFACE_', 'SENTRY_', 'API_KEY', 'TOKEN', 'PASSWORD', 'SECRET',
-               'CREDENTIAL', 'FACET_'))}
-    env.pop('DB_PATH', None)
-    env['FACET_CONFIG'] = str(config_path)
-    return env
-
-
 def _facet(config_path, *argv):
-    return subprocess.run(
-        [sys.executable, FACET, *argv], capture_output=True, text=True, timeout=180,
-        env=_env(config_path), cwd=str(REPO_ROOT))
+    # FACET_* is stripped so a developer's own settings cannot leak into the run.
+    return _run(FACET, *argv, timeout=180, env_extra={'FACET_CONFIG': str(config_path)},
+                drop_env_prefixes=('FACET_',))
 
 
 def _write_config(tmp_path, body=None, name='cfg.json'):
@@ -591,6 +612,14 @@ class _Library:
                 "SELECT path FROM photos WHERE is_rejected = 1"))
         finally:
             conn.close()
+
+
+def _add_low_standalone(lib):
+    """A low-scoring photo in no burst, set or scene, with no companion files."""
+    (lib.root / 'low.jpg').write_bytes(b'x' * 19)
+    conn = _connect(lib.db)
+    _add(conn, lib.real / 'low.jpg', aggregate=2.0, date_taken='2019:03:03 03:00:00')
+    conn.close()
 
 
 class TestCliValidation:
@@ -690,6 +719,60 @@ class TestCliRuns:
         assert proc.returncode == 3, proc.stderr
         assert 'viewer.scan_directories' in proc.stderr
         assert lib.rejected() == ['a.cr2', 'b2.jpg', 'b3.jpg']
+
+    def test_a_dry_run_reports_a_low_standalone_photo_and_leaves_it_out_of_the_copy(self, tmp_path):
+        lib = _Library(tmp_path)
+        _add_low_standalone(lib)
+        target = tmp_path / 'keepers'
+        before = _checksum(lib.db)
+        proc = lib.run('--auto-cull', '--cull-strictness', '100', '--cull-min-score', '5',
+                       '--copy-keepers', str(target))
+        assert proc.returncode == 0, proc.stderr
+        assert 'would_reject_by_score=1' in proc.stdout
+        # a.jpg, a.xmp, b1.jpg, b1.cr2 -- and not low.jpg.
+        assert 'would_copy=4' in proc.stdout
+        assert _checksum(lib.db) == before
+        assert lib.rejected() == ['a.cr2']
+        assert not target.exists()
+
+    def test_apply_rejects_a_low_standalone_photo_and_does_not_copy_it(self, tmp_path):
+        lib = _Library(tmp_path)
+        _add_low_standalone(lib)
+        target = tmp_path / 'keepers'
+        proc = lib.run('--auto-cull', '--apply', '--cull-strictness', '100', '--cull-min-score', '5',
+                       '--copy-keepers', str(target))
+        assert proc.returncode == 0, proc.stderr
+        assert 'rejected_by_score=1' in proc.stdout
+        assert lib.rejected() == ['a.cr2', 'b2.jpg', 'b3.jpg', 'low.jpg']
+        assert sorted(os.listdir(target)) == ['a.jpg', 'a.xmp', 'b1.cr2', 'b1.jpg']
+
+    def test_a_viewer_culled_photo_is_not_score_rejected_by_the_cli(self, tmp_path):
+        lib = _Library(tmp_path)
+        _add_low_standalone(lib)
+        conn = _connect(lib.db)
+        conn.execute(
+            "INSERT INTO comparisons (photo_a_path, photo_b_path, winner, source, user_id) "
+            "VALUES (?, ?, 'b', 'culling', NULL)",
+            (str(lib.real / 'low.jpg'), str(lib.real / 'a.jpg')))
+        conn.commit()
+        conn.close()
+        proc = lib.run('--auto-cull', '--apply', '--cull-strictness', '100', '--cull-min-score', '5')
+        assert proc.returncode == 0, proc.stderr
+        assert 'rejected_by_score=0' in proc.stdout
+        assert 'low.jpg' not in lib.rejected()
+
+    def test_a_scoped_run_refuses_a_target_inside_a_configured_scan_directory(self, tmp_path):
+        lib = _Library(tmp_path)
+        cfg = _write_config(tmp_path, {'viewer': {'scan_directories': [str(tmp_path / 'configured')]}},
+                            name='dirs.json')
+        inside = tmp_path / 'configured' / 'keepers'
+        (tmp_path / 'configured').mkdir()
+        for extra in ([], ['--apply']):
+            proc = lib.run('--auto-cull', str(lib.root), '--copy-keepers', str(inside), *extra, config=cfg)
+            assert proc.returncode == 1, proc.stdout + proc.stderr
+            assert 'overlaps the library path' in proc.stderr
+        assert lib.rejected() == ['a.cr2']
+        assert not inside.exists()
 
     def test_a_single_user_install_behind_a_viewer_password_still_culls(self, tmp_path):
         lib = _Library(tmp_path)

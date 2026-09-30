@@ -2543,9 +2543,11 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
     judged by score), no burst group of two or more (counted regardless of
     rejection or visibility, so the survivor of a culled burst stays protected),
     not the keeper of an earlier similar-group cull (``similarity_reviewed``),
-    not a photo that already sits in one of this user's culling decisions (a
-    ``comparisons`` row with ``source='culling'``, as winner or loser), which is
-    what keeps a scene keeper from being score-rejected on the next run,
+    not a photo that already sits in a culling decision (a ``comparisons`` row
+    with ``source='culling'``, as winner or loser; this user's own in multi-user
+    mode, anyone's on a single-user install, where the viewer stores them under
+    NULL / ``_anonymous`` / ``_legacy`` and the CLI under its own sentinel), which
+    is what keeps a scene keeper from being score-rejected on the next run,
     not favourited or star-rated, and not a member of any group this run
     collected (``exclude_paths``). An unknown ``aggregate`` is never a reason to
     reject. Every preference column is ``COALESCE``d because on a single-user
@@ -2553,12 +2555,13 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
 
     Writes go through ``set_photos_rejected`` (per-user in multi-user mode), with
     no comparison pairs: a score threshold says nothing about which of two
-    photos the user prefers. The caller commits and invalidates caches.
+    photos the user prefers. The caller invalidates caches.
     """
     from_clause, from_params, is_rejected_col = _rejected_clause(user_id)
     prefs = get_preference_columns(user_id)
     vis_sql, vis_params = get_visibility_clause(user_id)
     scope_fragment, scope_params = path_scope_sql(scope, 'photos.path')
+    per_user = bool(user_id and is_multi_user_enabled())
     rows = conn.execute(
         f"""SELECT photos.path
             FROM {from_clause}
@@ -2571,13 +2574,13 @@ def reject_standalone_below(conn, user_id, scope, min_score, exclude_paths, dry_
                        OR COALESCE({prefs['star_rating']}, 0) > 0)
               AND {scope_fragment}
               AND NOT EXISTS (SELECT 1 FROM comparisons c
-                              WHERE c.source = 'culling' AND c.user_id IS ?
+                              WHERE c.source = 'culling'{' AND c.user_id = ?' if per_user else ''}
                                 AND (c.photo_a_path = photos.path OR c.photo_b_path = photos.path))
               AND (photos.burst_group_id IS NULL
                    OR (SELECT COUNT(*) FROM photos g
                        WHERE g.burst_group_id = photos.burst_group_id) < 2)
             ORDER BY photos.path""",
-        from_params + vis_params + [min_score] + scope_params + [user_id],
+        from_params + vis_params + [min_score] + scope_params + ([user_id] if per_user else []),
     ).fetchall()
     excluded = set(exclude_paths)
     paths = [r['path'] for r in rows if r['path'] not in excluded]

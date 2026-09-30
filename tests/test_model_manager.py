@@ -1278,3 +1278,9 @@ class TestBareMetalBudgetUsesAvailableRam:
         )
         expected = (47 - manager._HOST_OS_RESERVE_GB) / manager._RAM_PER_DECLARED_GB
         assert manager._cpu_cache_budget_gb() == pytest.approx(expected)
+
+    def test_an_unreadable_host_never_tightens_the_budget(self, monkeypatch):
+        from models.model_manager import ModelManager
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
+        monkeypatch.setattr(system_memory, 'effective_memory', lambda: UNKNOWN_MEMORY)
+        assert ModelManager.detect_available_ram_gb() == float('inf')

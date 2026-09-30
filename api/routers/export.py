@@ -484,6 +484,20 @@ def _copy_or_link_into(paths, target_dir, mode):
     return copied, skipped, errors
 
 
+def _candidate_dests(target_dir, filename):
+    """Yield the destinations a copy of ``filename`` may take: ``name``, ``name_1``, ...
+
+    Each is confined to ``target_dir``; the sequence never ends, so a caller stops
+    at the first one that suits it.
+    """
+    stem, ext = os.path.splitext(filename)
+    yield _contained_dest(target_dir, filename)
+    i = 1
+    while True:
+        yield _contained_dest(target_dir, f"{stem}_{i}{ext}")
+        i += 1
+
+
 def _already_copied(target_dir, filename, src):
     """True when ``target_dir`` already holds a copy of ``src`` under ``filename``.
 
@@ -492,17 +506,13 @@ def _already_copied(target_dir, filename, src):
     whole-second mtime identifies the file a previous run put there.
     """
     src_stat = os.stat(src)
-    stem, ext = os.path.splitext(filename)
-    i = 0
-    while True:
-        candidate = _contained_dest(target_dir, filename if i == 0 else f"{stem}_{i}{ext}")
+    for candidate in _candidate_dests(target_dir, filename):
         if not os.path.exists(candidate):
             return False
         cand_stat = os.stat(candidate)
         if (cand_stat.st_size == src_stat.st_size
                 and int(cand_stat.st_mtime) == int(src_stat.st_mtime)):
             return True
-        i += 1
 
 
 def _copy_files_into(files, target_dir, *, skip_identical=False):
@@ -849,16 +859,7 @@ def _move_into(files, target_dir):
 
 def _unique_dest(target_dir, filename):
     """Return a non-colliding destination path confined to ``target_dir``."""
-    dest = _contained_dest(target_dir, filename)
-    if not os.path.exists(dest):
-        return dest
-    stem, ext = os.path.splitext(filename)
-    i = 1
-    while True:
-        candidate = _contained_dest(target_dir, f"{stem}_{i}{ext}")
-        if not os.path.exists(candidate):
-            return candidate
-        i += 1
+    return next(c for c in _candidate_dests(target_dir, filename) if not os.path.exists(c))
 
 
 # --- Endpoints ---

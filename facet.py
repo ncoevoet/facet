@@ -1665,7 +1665,7 @@ def _run_scan(args, resumed_run):
                  else 'single-pass' if args.single_pass else 'multi-pass')
     scan_run = ScanRun.start(
         args.db, scan_mode,
-        {'directories': [str(p) for p in args.photo_paths], 'force': args.force},
+        {'directories': [os.path.realpath(str(p)) for p in args.photo_paths], 'force': args.force},
         len(todo_list),
     )
     _scan_t0 = time.time()
@@ -2018,10 +2018,10 @@ def _run_auto_cull_cli(args, scope_paths, lock_held):
                 if args.copy_keepers:
                     target = os.path.realpath(args.copy_keepers)
                     roots = _recorded_scan_roots(conn)
+                    roots += api_config.get_all_scan_directories()
                     if scope is not None:
                         roots += scope.roots
                     else:
-                        roots += api_config.get_all_scan_directories()
                         roots += {os.path.dirname(map_disk_path(p))
                                   for p in list_keeper_paths(conn, user_id, None)}
                     _refuse_overlapping_copy_target(target, roots)
