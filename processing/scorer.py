@@ -1180,8 +1180,8 @@ class Facet:
             is_silhouette = False
 
         if not is_silhouette:
-            shadow_clipped = m.get('shadow_clipped', 0)
-            highlight_clipped = m.get('highlight_clipped', 0)
+            shadow_clipped = m.get('shadow_clipped') or 0
+            highlight_clipped = m.get('highlight_clipped') or 0
             if shadow_clipped or highlight_clipped:
                 clipping_penalty = (shadow_clipped * 0.5) + (highlight_clipped * 1.0)
 
@@ -1634,7 +1634,10 @@ class Facet:
                 recalc_standard += 1
                 categories_updated += 1
 
-                new_exposure = round(row_dict.get('exposure_score', 5.0), 4)
+                # Unknown stays unknown: a NULL exposure_score with no histogram to
+                # derive one from is written back as NULL, never a fabricated 5.0.
+                stored_exposure = row_dict.get('exposure_score')
+                new_exposure = round(stored_exposure, 4) if stored_exposure is not None else None
                 updates.append(
                     (round(new_score, 2), self.config.version_hash, category,
                      new_is_group, new_exposure, row_dict['path'])
