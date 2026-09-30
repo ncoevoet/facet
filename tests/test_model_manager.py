@@ -21,6 +21,19 @@ from utils.system_memory import UNKNOWN_MEMORY, EffectiveMemory
 GIB = 1024 ** 3
 
 
+@pytest.fixture(autouse=True)
+def _unbounded_available_ram(request, monkeypatch):
+    """The bare-metal budget is also capped by the host's live free RAM, which
+    would make every fixed-host-size assertion depend on the machine running
+    the suite. ``TestBareMetalBudgetUsesAvailableRam`` opts out and drives the
+    real reading through ``effective_memory`` instead."""
+    if request.cls is not None and request.cls.__name__ == 'TestBareMetalBudgetUsesAvailableRam':
+        return
+    from models.model_manager import ModelManager
+    monkeypatch.setattr(ModelManager, 'detect_available_ram_gb',
+                        staticmethod(lambda: float('inf')))
+
+
 def _fake_torch_module():
     """Return a minimal ``torch`` stand-in with the attrs ModelManager touches."""
     fake = types.SimpleNamespace()
@@ -1240,3 +1253,28 @@ class TestThePackingCapIsNotAnOomPrediction:
             manager.group_passes_by_vram(self.ROSTER, 0.0)
 
         assert 'it will swap' in caplog.text
+
+
+class TestBareMetalBudgetUsesAvailableRam:
+    """A 47 GB host with ~10 GB free and no swap must not plan the whole
+    7-model CPU roster into one resident pass (~24 GB real)."""
+
+    def test_available_ram_caps_the_pass_plan(self, manager, monkeypatch):
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(47 * GIB, 37 * GIB, 10 * GIB, 78.7),
+        )
+        assert manager._cpu_pass_capacity_gb(None) <= 10.0 / manager._RAM_PER_DECLARED_GB
+        assert len(manager.group_passes_by_vram(CPU_ROSTER, 0.0)) > 1
+
+    def test_cache_budget_ignores_live_available(self, manager, monkeypatch):
+        # At unload time, live `available` already excludes this process's own
+        # models; capping the cache by it would charge them twice.
+        monkeypatch.setattr(system_memory, 'memory_limit_bytes', lambda: None)
+        monkeypatch.setattr(
+            system_memory, 'effective_memory',
+            lambda: EffectiveMemory(47 * GIB, 37 * GIB, 10 * GIB, 78.7),
+        )
+        expected = (47 - manager._HOST_OS_RESERVE_GB) / manager._RAM_PER_DECLARED_GB
+        assert manager._cpu_cache_budget_gb() == pytest.approx(expected)
