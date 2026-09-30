@@ -409,6 +409,33 @@ Comprueba: rangos de puntuación, métricas faciales, corrupción de BLOB, tama�
 | `python viewer.py --production` | Modo de producción (workers de uvicorn) |
 | `python viewer.py --production --workers 4` | Modo de producción con N workers (por defecto 1) |
 
+## Descarte desde la terminal
+
+Descarte automático sin interfaz: la versión de terminal del [descarte automático](VIEWER.md#descarte-automático) de la galería. Los rechazos se escriben en la base de datos; los originales nunca se mueven ni se eliminan, y `--copy-keepers` copia las fotos conservadas a una carpeta.
+
+| Comando | Descripción |
+|---------|-------------|
+| `python facet.py --auto-cull [PATH]` | Descarta lo que ya está en la base de datos, limitado a `PATH` (una carpeta o un archivo); sin argumento o con `all`, toda la biblioteca. **Simulación: muestra el plan y no cambia nada** |
+| `python facet.py /path --auto-cull` | Escanear y luego descartar: escanea `/path` de verdad y después descarta las fotos que contiene. Rechazado junto con `--auto-cull PATH`, `--resume`, `--retry-failed` y `--watch` |
+| `--apply` | Escribe el descarte: rechazos, marcas de grupos revisados y pares de comparación `source='culling'` |
+| `--copy-keepers DIR` | Copia en `DIR` cada foto no rechazada del ámbito, con sus acompañantes RAW / `.xmp` del mismo nombre |
+| `--cull-strictness N` | Presupuesto de fotos conservadas de 0 a 100; más alto conserva menos por grupo (por defecto: `auto_cull.default_strictness`) |
+| `--cull-min-keep N` | Mínimo de fotos conservadas por grupo (por defecto `1`) |
+| `--cull-group-by {all,burst,similar,scene}` | Qué grupos descartar (por defecto `all`) |
+| `--cull-min-score X` | Rechaza también las fotos sueltas cuya puntuación global sea inferior a `X` |
+| `--cull-trim-brackets` | Rechaza también los fotogramas redundantes de los bracketings de exposición (el `trim_brackets` de la galería) |
+| `--user NAME` | De quién se usan las valoraciones y los rechazos; **obligatorio** en una instalación multiusuario |
+
+- **Simulación por defecto.** Sin `--apply` no se escribe nada: ni rechazos, ni pares de comparación, ni filas de caché, y la carpeta de `--copy-keepers` no se crea. El comando imprime un resumen: `groups`, `kept`, `rejected_by_groups`, `rejected_by_score`, `spanning_skipped` y, con `--copy-keepers`, `keepers`, `copied`, `already_present`, `skipped`, `errors` (`would_reject_*` / `would_copy` en simulación). `--apply` solo afecta al descarte: escanear y luego descartar siempre escanea de verdad primero, y el descarte solo se ejecuta si el escaneo terminó. `--dry-run` se rechaza con `--auto-cull`. La única excepción: si existe un modelo de fotos a conservar entrenado, cargarlo puede reescribir `scoring_config.json` si sus pesos necesitan corrección (comportamiento previo, compartido con el descarte automático de la galería).
+- **Reglas.** Los grupos siguen las mismas reglas que el [descarte automático de la galería](VIEWER.md#descarte-automático): cada uno conserva su mejor foto más todo lo que caiga dentro del margen de rigor, con un mínimo de `--cull-min-keep`; los bracketings, panoramas y panoramas HDR se conservan enteros. `--apply` registra rechazos y pares de comparación exactamente como `POST /api/culling/auto`; no se rellena ningún álbum de Destacadas. Los ajustes [`auto_cull`](CONFIGURATION.md#descarte-automático), `burst_scoring` y `similarity_groups` proceden de la configuración del **servidor** (`FACET_CONFIG` o la ruta por defecto), no de `--config`; si ambas discrepan sobre el modo multiusuario, el comando termina con código 1.
+- **Ámbito.** El ámbito compara rutas reales locales, así que las filas guardadas antes de definir un `path_mapping` no se pueden limitar por carpeta: usa `all` o vuelve a escanear. Una ráfaga, un bracketing o un panorama con miembros fuera del ámbito se omite entero y se cuenta en `spanning_skipped`; los grupos de similares y de escenas se calculan solo dentro del ámbito.
+- **`--cull-min-score` solo existe en la línea de comandos** y es prudente: nunca toca fotogramas de bracketing o panorama, fotos sin puntuación, fotos favoritas o con valoración de estrellas, ni una foto ya conservada o rechazada por un descarte anterior (nunca se vuelve a juzgar por puntuación); una segunda ejecución no rechaza, pues, nada nuevo. Los miembros de una ráfaga siempre se salvan; los de un grupo de similares solo si el paso de agrupación encontró el grupo (mejor esfuerzo: lee las `similarity_groups.max_photos` fotos más recientes del ámbito, `10000` por defecto, y descarta los grupos mayores que `similarity_groups.max_group_size`, `50` por defecto); los de un grupo de escena solo con `--cull-group-by scene` — con el valor por defecto `all`, una foto que solo comparte la ventana de tiempo de una escena se sigue juzgando por puntuación.
+- **Copia.** `--copy-keepers` copia cada foto no rechazada del ámbito con sus acompañantes RAW y `.xmp` del mismo nombre, nunca una foto rechazada ni sus acompañantes; los archivos con el mismo nombre de carpetas distintas reciben el sufijo `_1`, y una nueva ejecución hacia la misma carpeta omite los archivos idénticos (mismo tamaño y misma hora, contados en `already_present`). `DIR` no puede ser igual al ámbito o a las carpetas de la biblioteca, estar dentro de ellos ni contenerlos (se comprueba también en simulación, código 1), o el siguiente escaneo ingeriría las copias. Los archivos se resuelven mediante la lista de carpetas de escaneo permitidas (`users.*.directories` / `viewer.scan_directories` en la configuración del servidor): si por ello se omite toda foto, el comando termina con código 3 y nombra esas claves. También rechaza una carpeta que se solape con una raíz ya escaneada y registrada por Facet.
+- **Usuarios.** En una instalación multiusuario `--user` es obligatorio (código 1 sin él o con un usuario desconocido). En una instalación de un solo usuario `--user` se ignora con una advertencia y el comando ve todas las fotos aunque haya una contraseña de la galería. `--apply` toma el bloqueo de la biblioteca; una simulación no toma ninguno.
+- **Errores de uso (código 2).** `--apply`, `--copy-keepers` o cualquier `--cull-*` sin `--auto-cull`; `--dry-run`, `--resume`, `--retry-failed` o `--watch` con `--auto-cull`; `--auto-cull PATH` junto con carpetas posicionales; rigor fuera de 0–100 o `--cull-min-keep` menor que 1. `--apply` es ahora un indicador exacto, así que la abreviatura ya no selecciona `--apply-recommendations`.
+- **Códigos de salida.** `0` éxito (simulación y cero grupos incluidos); `1` fallo de requisito previo, configuración o base de datos (base de datos ausente, falta `--user`, destino de copia que se solapa con la biblioteca); `2` error de uso; `3` el descarte tuvo éxito pero el paso de copia tuvo errores o no copió nada porque se omitieron todas las fotos. Una simulación cuyas fotos conservadas fueran todas omitidas por la lista de carpetas de escaneo permitidas también termina con código `3`. En escanear y luego descartar, un escaneo interrumpido registra que se omitió el descarte.
+- **Reentrenamiento.** El temporizador de reentrenamiento automático no sobrevive al proceso del comando: el contador de comparaciones persiste, y el reentrenamiento se ejecuta en la siguiente acción de la galería o con un comando `--train-*`. La primera ejecución puede crear `.facet_secret` (lo hace la importación de la capa API, como con `--report-unreviewed-bursts`).
+
 ## Flujos de trabajo habituales
 
 ### Configuración inicial
@@ -431,6 +458,14 @@ python facet.py /path               # Extrae rostros durante el escaneo
 python facet.py --cluster-faces-incremental     # Agrupa en personas
 python facet.py --suggest-person-merges         # Encuentra duplicados
 # Usa /persons en el visor para fusionar/renombrar
+```
+
+### Descartar una sesión desde la terminal
+```bash
+python facet.py --auto-cull /photos/wedding                        # Vista previa del plan, no se escribe nada
+python facet.py --auto-cull /photos/wedding --apply \
+    --copy-keepers ~/wedding-keepers                            # Rechaza y luego copia las fotos conservadas
+python facet.py /photos/new-shoot --auto-cull --apply --cull-min-score 5   # Escanea y luego descarta
 ```
 
 ### Configuración multiusuario

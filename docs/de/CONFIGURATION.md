@@ -2269,7 +2269,7 @@ Ein-Knopf-Auto-Cull für die Culling-Dunkelkammer (`POST /api/culling/auto`, edi
 | `default_strictness` | `50` | Behalte-Budget (0–100), das verwendet wird, wenn die Anfrage `strictness` auslässt. Höher = weniger Fotos pro Gruppe behalten (engere Marge um das beste Foto der Gruppe) |
 | `highlights_min` | `8.0` | Minimaler aggregierter Score für das beste Foto einer Gruppe, damit es beim Anwenden eines Auto-Culls in das optionale **Highlights**-Album aufgenommen wird (idempotent) |
 
-`dry_run` ist standardmäßig aktiv und liefert eine Behalte-/Ablehnen-Vorschau pro Gruppe; ein Anwenden zeichnet zusätzlich `source='culling'`-Vergleichszeilen auf und stößt ein automatisches Nachtrainieren an. Siehe [Web-Viewer — Auto-Cull](VIEWER.md#auto-cull).
+`dry_run` ist standardmäßig aktiv und liefert eine Behalte-/Ablehnen-Vorschau pro Gruppe; ein Anwenden zeichnet zusätzlich `source='culling'`-Vergleichszeilen auf und stößt ein automatisches Nachtrainieren an. Siehe [Web-Viewer — Auto-Cull](VIEWER.md#auto-cull). Dieselbe Einstellung speist den Terminal-Befehl `python facet.py --auto-cull` (siehe [Auto-Cull im Terminal](COMMANDS.md#auto-cull-im-terminal)); seine Regeln werden aus der Server-Konfiguration gelesen, nicht aus `--config`.
 
 ## Automatisches Nachtrainieren
 

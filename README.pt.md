@@ -38,6 +38,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 - **Proteção de sequências** — bracketings de exposição, varreduras panorâmicas e panorâmicas HDR (`--detect-sequences` / `--detect-panoramas`) são reconhecidos como séries deliberadas de vários fotogramas e mantidos inteiros: o laboratório de triagem começa com todas as fotos de uma série marcadas para manter e nunca a reduz a uma única "vencedora"
 - **Grupos de similaridade** — encontra fotos visualmente semelhantes em toda a biblioteca, independentemente de quando foram capturadas
 - **Cenas** — agrupa uma sessão em "cenas" cronológicas por intervalos do horário de captura, para que você selecione na ordem da narrativa; toque para marcar e confirme para rejeitar
+- **Triagem automática pelo terminal** — `python facet.py --auto-cull [PATH]` mostra a triagem como simulação, `--apply` a grava e `--copy-keepers DIR` copia as fotos mantidas (veja [docs/pt/COMMANDS.md](docs/pt/COMMANDS.md#triagem-pelo-terminal))
 - **Limpeza de lixo** — detecção zero-shot de arquivos não fotográficos supérfluos (capturas de tela, documentos, recibos, memes, slides) com uma fila de revisão rápida: mantenha ou rejeite cada candidato, ou rejeite todos de uma vez
 - **Selos de seleção por rosto** — o visualizador de seleção exibe selos por rosto indicando olhos abertos/fechados, expressão e confiança da detecção, em vez de apenas um único indicador de piscada no nível da foto
 - **Detecção de piscadas** — sinaliza fotos com olhos fechados para ocultar ou rejeitar com um clique

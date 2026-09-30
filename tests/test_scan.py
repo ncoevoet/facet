@@ -1811,10 +1811,14 @@ _LOCK_EXEMPT_WRITERS = {
                   "would deadlock every one of them",
     "watch": "a supervisor that spawns scans; the scan it spawns takes the lock, and the "
              "daemon itself must not hold it for days",
+    "auto_cull": "takes the library lock itself, only with --apply, and reuses the scan lock "
+                 "in scan-then-cull",
 }
 
 _JOB_MODIFIERS = frozenset({
-    "apply_recommendations", "config", "db", "discover_min_cluster_size", "dry_run",
+    "apply", "apply_recommendations", "config", "copy_keepers", "cull_group_by",
+    "cull_min_keep", "cull_min_score", "cull_strictness", "cull_trim_brackets", "db",
+    "discover_min_cluster_size", "dry_run",
     "dry_run_count", "embed_originals", "force", "force_library_lock", "force_low_space",
     "force_since", "limit", "merge_threshold", "optimize_category", "optimize_force",
     "optimize_sources", "ranker_category", "refresh_thumbnails_workers", "resume",

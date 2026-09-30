@@ -2264,7 +2264,7 @@ Selezione automatica con un solo pulsante per la camera oscura di selezione (`PO
 | `default_strictness` | `50` | Budget di conservazione (0–100) usato quando la richiesta omette `strictness`. Più alto = conserva meno foto per gruppo (margine più stretto attorno alla migliore del gruppo) |
 | `highlights_min` | `8.0` | Punteggio aggregato minimo perché la foto migliore di un gruppo venga raccolta nell'album facoltativo **Highlights** quando viene applicata una selezione automatica (idempotente) |
 
-`dry_run` è attivo per impostazione predefinita e restituisce un'anteprima di conservazione/scarto per gruppo; l'applicazione registra inoltre righe di confronto `source='culling'` e sollecita un riaddestramento automatico. Vedi [Galleria web — Selezione automatica](VIEWER.md#selezione-automatica).
+`dry_run` è attivo per impostazione predefinita e restituisce un'anteprima di conservazione/scarto per gruppo; l'applicazione registra inoltre righe di confronto `source='culling'` e sollecita un riaddestramento automatico. Vedi [Galleria web — Selezione automatica](VIEWER.md#selezione-automatica). La stessa impostazione alimenta il comando `python facet.py --auto-cull` (vedi [Selezione da terminale](COMMANDS.md#selezione-da-terminale)); le sue regole sono lette dalla configurazione del server, non da `--config`.
 
 ## Riaddestramento automatico
 

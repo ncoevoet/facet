@@ -663,3 +663,49 @@ class TestChunkReleasesItsModelsAndItsHeap:
             "expected one trim per pass group plus one at the chunk end, not one "
             "per model and not one for the whole chunk"
         )
+
+
+class _CpuModelManager:
+    def detect_vram(self):
+        return 0.0
+
+
+class TestSinglePassCpuChunkStart:
+    """``--pass X`` sets ``pass_groups`` itself, so ``detect_and_configure``
+    (and its RAM-safe chunk start) never ran: a CPU host decoded a full
+    32-image chunk at full resolution before the first model loaded."""
+
+    def test_cpu_single_pass_starts_at_the_ram_safe_chunk(self):
+        from processing import multi_pass
+        seen = {}
+
+        def spy(self, paths):
+            seen['chunk'] = self.chunk_size
+            seen['min'] = self.min_chunk_size
+            return {'images_processed': 0}
+
+        scorer = mock.MagicMock()
+        scorer.config.config = _config(chunk=32, min_chunk=10)
+        with mock.patch("processing.multi_pass._ensure_imports"), \
+                mock.patch.object(ChunkedMultiPassProcessor, 'process_directory', spy):
+            multi_pass.run_single_pass(['a.jpg'], 'embeddings', scorer, _CpuModelManager())
+        assert seen['chunk'] == seen['min'] == 10
+
+
+class TestLoadImagesFreesHsv:
+    def test_loaded_entries_drop_the_hsv_plane(self, tmp_path):
+        from PIL import Image
+        path = tmp_path / "img.jpg"
+        Image.new("RGB", (64, 48), (200, 40, 40)).save(path)
+        scorer = mock.MagicMock()
+        scorer.config.get_exposure_settings.return_value = {}
+        scorer.config.get_monochrome_settings.return_value = {}
+        scorer.get_exif_data.return_value = {}
+        proc = _make(_config())
+        proc.scorer = scorer
+        with mock.patch("exiftool.get_exif_batch", return_value={}):
+            images = proc._load_images([str(path)])
+        assert images
+        for entry in images.values():
+            assert entry['cache'].hsv is None
+            assert entry['cache'].gray is not None

@@ -31,7 +31,8 @@ def _get_similarity_config():
 
 
 def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=None,
-                              album_id=None, date_from=None, date_to=None):
+                              album_id=None, date_from=None, date_to=None, *,
+                              use_cache=True, path_scope=None):
     """
     Compute groups of visually similar photos using stored CLIP/SigLIP embeddings.
 
@@ -47,12 +48,18 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         album_id: Optional album to scope candidate photos to.
         date_from/date_to: Optional EXIF capture-time window to scope candidates
                    (used by "Cull this scene").
+        use_cache: False skips both the cache read and the cache write, so the
+                   call leaves the database untouched. A scoped call is always
+                   cache-free because the cache key does not carry the scope.
+        path_scope: Optional ``PathScope`` confining the candidates in SQL, so
+                   the ``max_photos`` cap applies inside the scope.
 
     Returns:
         List of groups, each: { paths: [...], best_path: str, count: int }
     """
     from api.db_helpers import (
         get_visibility_clause, album_filter_clause, time_window_clauses, HIDE_BURSTS_SQL,
+        scope_sql,
     )
 
     sg_config = _get_similarity_config()
@@ -62,6 +69,7 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         min_size = sg_config['min_group_size']
     max_photos = sg_config['max_photos']
     max_group_size = sg_config['max_group_size']
+    use_cache = use_cache and path_scope is None
     close_conn = False
     if conn is None:
         conn = get_db_connection()
@@ -72,35 +80,37 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
         album_sql, album_params = album_filter_clause(album_id)
         window_clauses, window_params = time_window_clauses(date_from, date_to)
 
-        # Check cache first
         cache_key = f"similarity_groups_{threshold}_{min_size}_{user_id}_{album_id}_{date_from}_{date_to}_10k"
-        cached = conn.execute(
-            "SELECT value, updated_at FROM stats_cache WHERE key = ?",
-            (cache_key,)
-        ).fetchone()
-        if cached and (time.time() - cached['updated_at']) < 3600:  # 1 hour TTL
-            try:
-                return json.loads(cached['value'])
-            except (json.JSONDecodeError, TypeError):
-                pass  # Cache corrupted, recompute
+        if use_cache:
+            cached = conn.execute(
+                "SELECT value, updated_at FROM stats_cache WHERE key = ?",
+                (cache_key,)
+            ).fetchone()
+            if cached and (time.time() - cached['updated_at']) < 3600:  # 1 hour TTL
+                try:
+                    return json.loads(cached['value'])
+                except (json.JSONDecodeError, TypeError):
+                    pass  # Cache corrupted, recompute
 
         # Load embeddings — cap for performance (O(n²) computation)
         # Exclude burst non-leads to avoid overlap with burst culling. The
         # similarity_reviewed column is guaranteed present by the lifespan
         # init_database() migration (api/__init__.py:lifespan).
+        scope_fragment, scope_params = scope_sql(path_scope, 'path')
         where = [
             "clip_embedding IS NOT NULL",
             HIDE_BURSTS_SQL,
             "(similarity_reviewed IS NULL OR similarity_reviewed = 0)",
             vis_sql,
             album_sql,
+            scope_fragment,
         ] + window_clauses
         rows = conn.execute(
             f"""SELECT path, clip_embedding, aggregate FROM photos
                WHERE {' AND '.join(where)}
                ORDER BY date_taken DESC
                LIMIT ?""",
-            vis_params + album_params + window_params + [max_photos]
+            vis_params + album_params + scope_params + window_params + [max_photos]
         ).fetchall()
 
         if len(rows) < 2:
@@ -163,7 +173,8 @@ def compute_similarity_groups(conn=None, threshold=None, min_size=None, user_id=
 
         groups.sort(key=lambda g: g['count'], reverse=True)
 
-        # Cache results
+        if not use_cache:
+            return groups
         try:
             conn.execute(
                 "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",

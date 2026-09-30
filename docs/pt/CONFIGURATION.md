@@ -2261,7 +2261,7 @@ Triagem automática de um botão só para o laboratório de triagem (`POST /api/
 | `default_strictness` | `50` | Orçamento de fotos mantidas (0–100) usado quando a requisição omite `strictness`. Maior = manter menos fotos por grupo (margem mais estreita em torno da melhor do grupo) |
 | `highlights_min` | `8.0` | Pontuação agregada mínima para que a melhor foto de um grupo seja reunida no álbum opcional **Highlights** quando uma triagem automática é aplicada (idempotente) |
 
-`dry_run` vem ativado por padrão e retorna uma prévia de manter/rejeitar por grupo; uma aplicação também registra linhas de comparação `source='culling'` e dispara um re-treinamento automático. Veja [Visualizador Web — Triagem automática](VIEWER.md#triagem-automática).
+`dry_run` vem ativado por padrão e retorna uma prévia de manter/rejeitar por grupo; uma aplicação também registra linhas de comparação `source='culling'` e dispara um re-treinamento automático. Veja [Visualizador Web — Triagem automática](VIEWER.md#triagem-automática). A mesma configuração alimenta o comando `python facet.py --auto-cull` (veja [Triagem pelo terminal](COMMANDS.md#triagem-pelo-terminal)); suas regras são lidas da configuração do servidor, não de `--config`.
 
 ## Re-treinamento automático
 

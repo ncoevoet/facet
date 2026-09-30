@@ -1030,6 +1030,68 @@ def is_access_controlled_install():
 NO_VISIBILITY_SQL = '0=1'
 
 
+class PathScope:
+    """A set of directories and files a headless run is confined to.
+
+    Matching is plain string comparison on the stored (resolved) path, not
+    ``LIKE``: ``LIKE`` is ASCII case-insensitive and treats ``%``, ``_`` and
+    ``\\`` as wildcards, so ``substr()`` equality is what keeps the SQL filter
+    and ``matches`` in exact agreement. Every directory prefix ends in a
+    separator, so ``/shoot`` never matches ``/shoot2``.
+    """
+
+    def __init__(self, prefixes, files):
+        self.prefixes = tuple(prefixes)
+        self.files = tuple(files)
+
+    @property
+    def roots(self):
+        """Every entry as a directory or file path, without the trailing separator."""
+        return [p.rstrip(os.sep) or os.sep for p in self.prefixes] + list(self.files)
+
+    def matches(self, path):
+        return path in self.files or any(path.startswith(p) for p in self.prefixes)
+
+    def sql(self, column='photos.path'):
+        clauses = []
+        params = []
+        for prefix in self.prefixes:
+            clauses.append(f"substr({column}, 1, ?) = ?")
+            params += [len(prefix), prefix]
+        for file_path in self.files:
+            clauses.append(f"{column} = ?")
+            params.append(file_path)
+        return f"({' OR '.join(clauses)})", params
+
+
+def build_path_scope(paths):
+    """Resolve ``paths`` into a :class:`PathScope`, or ``None`` for "everything".
+
+    Each entry is ``realpath``'d because the scanner stores ``Path(p).resolve()``.
+    A missing entry raises ``ValueError`` rather than silently scoping to nothing.
+    """
+    if not paths:
+        return None
+    prefixes = []
+    files = []
+    for entry in paths:
+        real = os.path.realpath(entry)
+        if os.path.isdir(real):
+            prefixes.append(real.rstrip(os.sep) + os.sep)
+        elif os.path.isfile(real):
+            files.append(real)
+        else:
+            raise ValueError(f"Path does not exist: {entry}")
+    return PathScope(prefixes, files)
+
+
+def scope_sql(scope, column='photos.path'):
+    """``(fragment, params)`` confining ``column`` to ``scope``; a no-op for ``None``."""
+    if scope is None:
+        return '1=1', []
+    return scope.sql(column)
+
+
 def scope_cache_key(prefix, *parts):
     """Fixed-width ``stats_cache`` key for a request scope.
 

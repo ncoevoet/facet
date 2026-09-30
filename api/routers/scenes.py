@@ -21,7 +21,7 @@ from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, record_culling_decision, set_photos_rejected,
     album_filter_clause, time_window_clauses, scope_cache_key, paginate,
-    HIDE_BURSTS_SQL,
+    HIDE_BURSTS_SQL, scope_sql,
 )
 from api.models.albums import ScenesResponse
 from utils.date_utils import parse_date
@@ -167,20 +167,27 @@ def _split_oversized(run, max_scene_size):
             + _split_oversized(run[split_i:], max_scene_size))
 
 
-def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=None):
+def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=None, *,
+                   use_cache=True, path_scope=None):
     """Group chronological burst-leads into scenes by capture-time gaps.
 
     Splits the subject set (burst leads + standalone, minus rejected) on an
     adaptive time gap, then sub-splits any run larger than ``max_scene_size`` so
     a whole wedding never collapses into a single scene. Optionally scoped to an
     album and/or an EXIF capture-time window (used by "Cull this scene"). Results
-    are cached in ``stats_cache`` with a 1h TTL.
+    are cached in ``stats_cache`` with a 1h TTL. ``use_cache=False`` skips both
+    the cache read and write (a call that must leave the database untouched);
+    ``path_scope`` (a ``PathScope``) confines the candidates in SQL so the
+    ``max_photos`` cap applies inside the scope. A scoped call is always
+    cache-free because the cache key does not carry the scope.
 
     Returns a list of scenes: ``{scene_id, start, end, count, best_path, photos}``.
     """
     cfg = _scene_config()
     vis_sql, vis_params = get_visibility_clause(user_id)
     album_sql, album_params = album_filter_clause(album_id)
+    scope_fragment, scope_params = scope_sql(path_scope, 'path')
+    use_cache = use_cache and path_scope is None
     if album_params:
         from api.routers.albums import _check_album_access
         _check_album_access(conn, album_params[0], user_id)
@@ -198,14 +205,15 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
         cfg['adaptive'], cfg['adaptive_k'], cfg['split_on_moment_change'],
         cfg['moment_split_min_run'], album_id, date_from, date_to, user_id,
     )
-    cached = conn.execute(
-        "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)
-    ).fetchone()
-    if cached and (time.time() - cached['updated_at']) < _CACHE_TTL_SECONDS:
-        try:
-            return json.loads(cached['value'])
-        except (json.JSONDecodeError, TypeError):
-            pass
+    if use_cache:
+        cached = conn.execute(
+            "SELECT value, updated_at FROM stats_cache WHERE key = ?", (cache_key,)
+        ).fetchone()
+        if cached and (time.time() - cached['updated_at']) < _CACHE_TTL_SECONDS:
+            try:
+                return json.loads(cached['value'])
+            except (json.JSONDecodeError, TypeError):
+                pass
 
     album_scoped = bool(album_params)
     select_cols = "path, filename, aggregate, date_taken"
@@ -217,9 +225,10 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
         "(is_rejected IS NULL OR is_rejected = 0)",
         vis_sql,
         album_sql,
+        scope_fragment,
     ] + window_clauses
     where_sql = ' AND '.join(where)
-    base_params = vis_params + album_params + window_params
+    base_params = vis_params + album_params + scope_params + window_params
     if album_scoped:
         # No LIMIT: a manual album is user-curated, so its membership is itself
         # the bound — scoping to an album is the explicit way to get the full set
@@ -296,11 +305,12 @@ def compute_scenes(conn, user_id=None, album_id=None, date_from=None, date_to=No
                     scene['moment'], scene['moment_confidence'] = _dominant_moment(chunk_rows)
                 scenes.append(scene)
 
-    conn.execute(
-        "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
-        (cache_key, json.dumps(scenes), time.time()),
-    )
-    conn.commit()
+    if use_cache:
+        conn.execute(
+            "INSERT OR REPLACE INTO stats_cache (key, value, updated_at) VALUES (?, ?, ?)",
+            (cache_key, json.dumps(scenes), time.time()),
+        )
+        conn.commit()
     return scenes
 
 

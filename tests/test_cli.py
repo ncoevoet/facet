@@ -47,10 +47,11 @@ _SENSITIVE_ENV_PREFIXES = (
 )
 
 
-def _sanitized_env(extra=None):
+def _sanitized_env(extra=None, drop_prefixes=()):
     env = {
         k: v for k, v in os.environ.items()
         if not any(k.startswith(p) or p in k for p in _SENSITIVE_ENV_PREFIXES)
+        and not k.startswith(tuple(drop_prefixes))
     }
     # Force the DB path to whatever the test passes via --db.
     env.pop('DB_PATH', None)
@@ -59,13 +60,13 @@ def _sanitized_env(extra=None):
     return env
 
 
-def _run(*args, timeout=60, env_extra=None, cwd=None):
+def _run(*args, timeout=60, env_extra=None, cwd=None, drop_env_prefixes=()):
     return subprocess.run(
         [PY, *args],
         capture_output=True,
         text=True,
         timeout=timeout,
-        env=_sanitized_env(env_extra),
+        env=_sanitized_env(env_extra, drop_env_prefixes),
         cwd=cwd or str(REPO_ROOT),
     )
 

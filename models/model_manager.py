@@ -958,6 +958,17 @@ class ModelManager:
         return UNKNOWN_SYSTEM_RAM_GB if total is None else total
 
     @staticmethod
+    def detect_available_ram_gb() -> float:
+        """RAM the host can hand out right now, in GB (reclaimable cache included).
+
+        ``float('inf')`` where nothing could be read, so the reading never
+        tightens a budget it knows nothing about.
+        """
+        from utils.system_memory import effective_memory
+        reading = effective_memory()
+        return float('inf') if reading.total <= 0 else reading.available / BYTES_PER_GB
+
+    @staticmethod
     def get_recommended_profile(vram_gb: float) -> str:
         """
         Return best VRAM profile for available VRAM.
@@ -1117,8 +1128,14 @@ class ModelManager:
         """The RAM budget one CPU pass may plan for, in GB.
 
         Bare metal (``limit_bytes`` None) spends what the machine has left
-        after the OS, divided by ``_RAM_PER_DECLARED_GB`` -- the RAM a pass
-        needs per GB of the weight its models declare.
+        after the OS, capped by what is actually available right now, divided
+        by ``_RAM_PER_DECLARED_GB`` -- the RAM a pass needs per GB of the
+        weight its models declare. Budgeting from total RAM alone planned
+        24 GB of resident models on a 46 GB host with ~10 GB free and no swap,
+        and the OOM killer ended the scan. The cap is read here, once, before
+        any model loads: :meth:`_cpu_cache_budget_gb` runs at unload time,
+        when live ``available`` already excludes this process's own models,
+        so capping it too would charge them twice and shrink the cache.
 
         That ratio is measured, not chosen: an 8 GiB budget absorbed a 5.0 GB
         pass and OOM-killed a 6.0 GB one twice, so 1.6 GB per declared GB
@@ -1189,7 +1206,7 @@ class ModelManager:
         """
         usable_gb = self._usable_ram_gb(limit_bytes)
         if limit_bytes is None:
-            return usable_gb / self._RAM_PER_DECLARED_GB
+            return min(usable_gb, self.detect_available_ram_gb()) / self._RAM_PER_DECLARED_GB
         return min(usable_gb, self._CGROUP_CAPACITY_CEILING_GB)
 
     def _usable_ram_gb(self, limit_bytes) -> float:
@@ -1233,8 +1250,8 @@ class ModelManager:
         """
         if limit_bytes is None:
             logger.warning(
-                "Pass %s needs %.1fGB, above the %.1fGB this host can hold beside "
-                "its OS: it will swap. Add RAM or drop models from the roster.",
+                "Pass %s needs %.1fGB, above the %.1fGB this host can spare: it will "
+                "swap, or be killed on a host without swap. Free RAM or drop models from the roster.",
                 models, declared_gb, capacity_gb,
             )
             return

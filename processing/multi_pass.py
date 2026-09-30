@@ -656,6 +656,9 @@ class ChunkedMultiPassProcessor:
             dynamic_range_data = tech_analyzer.get_dynamic_range(img_cv, cache=cache)
             noise_data = tech_analyzer.get_noise_estimate(img_cv, cache=cache)
             contrast_data = tech_analyzer.get_contrast_score(img_cv, cache=cache)
+            # Only the technical metrics above read the HSV plane; later stages
+            # use gray and laplacian_variance. Free it: ~60 MB per 20 MP image.
+            cache.hsv = None
 
             # Form facet + Matsuda color harmony (CPU, fixed 512px working size)
             form_data = compute_form_metrics(pil_img)
@@ -1344,6 +1347,8 @@ def run_single_pass(paths: List[str], pass_name: str, scorer, model_manager) -> 
     processor = ChunkedMultiPassProcessor(scorer, model_manager, scorer.config.config)
     processor.pass_groups = [[model_name]]
     processor.restricted = True
+    if processor.available_vram == 0:
+        processor._apply_ram_safe_chunk_start()
 
     logger.info("Running single pass: %s (model: %s)", pass_name, model_name)
     metrics = processor.process_directory(paths)

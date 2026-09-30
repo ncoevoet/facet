@@ -435,6 +435,12 @@ only what reading those two will NOT tell you.
   `/culling` darkroom is set-aware unconditionally: `_KEEP_WHOLE_KINDS` (`bracket` / `panorama` /
   `hdr_panorama`) starts every frame of a set kept and records no comparison pairs on confirm, and
   its feeds ignore the `hide_*` toggles entirely — the opposite of the gallery's default.
+  `facet.py --auto-cull` is the `/culling` side headless: the same set-aware rules (sets kept whole,
+  spanning groups skipped as `spanning_skipped`), dry run unless `--apply`, with the rules read from
+  the SERVER config (`api.config`), not `--config`. Its `--cull-min-score` is CLI-only and skips set
+  frames, burst members (similar / scene members only when grouped, best effort; scene only under
+  `--cull-group-by scene`), earlier-culled and favourited / star-rated photos; `--copy-keepers` copies every
+  non-rejected in-scope frame with its same-stem RAW / `.xmp` companions, never a rejected one's.
 - **`/api/frame/*` ids are signed rowids, never filesystem paths**, and `/dav` authenticates with
   HTTP Basic against `upload.*` — never a user session or JWT — with every path realpath-contained
   to `upload.inbox_dir`.

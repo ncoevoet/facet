@@ -366,6 +366,57 @@ class TestRecomputeReadsBothFormats:
                 < _recomputed_exposure(tmp_path, 'even', pack_histogram(even, even, even, even)))
 
 
+def _recompute_row_with_null_exposure(tmp_path, name, blob):
+    """Run --recompute-average over a row whose exposure_score is NULL."""
+    from db import get_connection, init_database
+    from processing.scorer import Facet
+
+    db_path = str(tmp_path / f'{name}.db')
+    init_database(db_path)
+    row = dict(_RECOMPUTE_ROW, exposure_score=None)
+    columns = ['path', 'histogram_data'] + list(row.keys())
+    values = [f'/{name}.jpg', blob] + list(row.values())
+    with get_connection(db_path, row_factory=False) as conn:
+        conn.execute(
+            f"INSERT INTO photos ({','.join(columns)}) "
+            f"VALUES ({','.join('?' * len(columns))})", values)
+        conn.commit()
+    Facet(db_path=db_path, lightweight=True).update_all_aggregates(use_embeddings=False)
+    with get_connection(db_path, row_factory=False) as conn:
+        return conn.execute(
+            "SELECT exposure_score, aggregate FROM photos WHERE path = ?", (f'/{name}.jpg',)
+        ).fetchone()
+
+
+class TestRecomputeNullExposure:
+    def test_null_exposure_without_histogram_stays_null(self, tmp_path):
+        exposure, aggregate = _recompute_row_with_null_exposure(tmp_path, 'nohist', None)
+        assert exposure is None
+        assert aggregate is not None
+
+    @pytest.mark.parametrize('flag', ['shadow_clipped', 'highlight_clipped'])
+    def test_one_null_clipping_flag_does_not_crash_the_aggregate(self, tmp_path, flag):
+        from db import get_connection, init_database
+        from processing.scorer import Facet
+
+        db_path = str(tmp_path / f'{flag}.db')
+        init_database(db_path)
+        with get_connection(db_path, row_factory=False) as conn:
+            conn.execute(f"INSERT INTO photos (path, {flag}) VALUES ('/a.jpg', 1)")
+            conn.commit()
+        Facet(db_path=db_path, lightweight=True).update_all_aggregates(use_embeddings=False)
+        with get_connection(db_path, row_factory=False) as conn:
+            assert conn.execute("SELECT aggregate FROM photos").fetchone()[0] is not None
+
+    def test_null_exposure_with_histogram_gets_recomputed_value(self, tmp_path):
+        even = np.full(HISTOGRAM_BINS, 100.0)
+        exposure, aggregate = _recompute_row_with_null_exposure(
+            tmp_path, 'hist', pack_histogram(even, even, even, even))
+        assert exposure is not None
+        assert 0.0 <= exposure <= 10.0
+        assert aggregate is not None
+
+
 # ---------------------------------------------------------------------------
 # Per-channel clipping: derivation, the NULL-means-unknown rule, and drawing
 # ---------------------------------------------------------------------------

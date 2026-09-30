@@ -39,6 +39,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Similarity groups** — finds visually similar photos across the library, regardless of when they were taken
 - **Scenes** — groups a shoot into chronological "scenes" by capture-time gaps, so you cull in story order; tap to mark and confirm to reject
 - **Auto-cull** — one button culls a whole scope (all groups, or bursts / similars / scenes only, optionally narrowed to an album or date window) with a dry-run preview, a keeper budget, and an optional Highlights album
+- **Auto-cull from the terminal** — `python facet.py --auto-cull [PATH]` previews the cull as a dry run, `--apply` writes it and `--copy-keepers DIR` copies the survivors (see [docs/COMMANDS.md](docs/COMMANDS.md#culling))
 - **Genre profiles** — sports / wedding / concert / wildlife presets bundle strictness, keeper budget, similarity threshold and face gates in a single pick
 - **Edited-look preview** `[Edition]` — render a photo through a named darktable style inside the culling darkroom, so you cull on the developed look instead of the flat RAW preview
 - **Subject close-ups** — no-face groups (wildlife, macro, product) compare by an auto-cropped subject strip with group-normalized sharpness badges
