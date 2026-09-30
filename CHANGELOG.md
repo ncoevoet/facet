@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.18.0] "Tirage" — 2026-09-30
+
 ### Added
 
 - **Headless auto-cull from the terminal.** `python facet.py --auto-cull [PATH|all]` runs the viewer's auto-cull rules over what is already in the database (`python facet.py /path --auto-cull` scans first, then culls that path). It is a dry run that prints the plan and changes nothing until `--apply`, which writes the rejections and the `source='culling'` comparison pairs like `POST /api/culling/auto`. `--copy-keepers DIR` copies every non-rejected in-scope photo with its same-stem RAW / `.xmp` companions (originals are never moved or deleted; a re-run skips identical files), `--cull-strictness`, `--cull-min-keep`, `--cull-group-by` and `--cull-trim-brackets` mirror the viewer's controls, and `--cull-min-score X` additionally rejects standalone photos below `X` (never set frames, burst members, photos an earlier cull already decided, or favourited / star-rated photos; similar and scene members are spared best effort). Bursts, brackets and panoramas that straddle the scope are skipped whole (`spanning_skipped`); multi-user installs need `--user`. Exit codes: 0 success, 1 precondition failure, 2 usage error, 3 copy step failed. See [docs/COMMANDS.md](docs/COMMANDS.md#culling).
