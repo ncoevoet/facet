@@ -2260,7 +2260,7 @@ Tri automatique en un bouton pour la chambre noire de tri (`POST /api/culling/au
 | `default_strictness` | `50` | Budget de conservation (0–100) utilisé lorsque la requête omet `strictness`. Plus élevé = conserver moins de photos par groupe (marge plus serrée autour de la meilleure du groupe) |
 | `highlights_min` | `8.0` | Score agrégé minimal pour que la meilleure photo d'un groupe soit rassemblée dans l'album **Highlights** facultatif lorsqu'un tri automatique est appliqué (idempotent) |
 
-`dry_run` est activé par défaut et renvoie un aperçu conservation/rejet par groupe ; une application enregistre en plus des lignes de comparaison `source='culling'` et déclenche un ré-entraînement automatique. Voir [Visionneuse web — Tri automatique](VIEWER.md#tri-automatique).
+`dry_run` est activé par défaut et renvoie un aperçu conservation/rejet par groupe ; une application enregistre en plus des lignes de comparaison `source='culling'` et déclenche un ré-entraînement automatique. Voir [Visionneuse web — Tri automatique](VIEWER.md#tri-automatique). Le même réglage alimente la commande `python facet.py --auto-cull` (voir [Tri en ligne de commande](COMMANDS.md#tri-en-ligne-de-commande)) ; ses règles de tri sont lues dans la configuration du serveur, pas dans `--config`.
 
 ## Ré-entraînement automatique
 

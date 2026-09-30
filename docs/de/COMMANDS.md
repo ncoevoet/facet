@@ -408,6 +408,33 @@ Prüft: Score-Bereiche, Gesichtsmetriken, BLOB-Beschädigung, Embedding-Größen
 | `python viewer.py --production` | Produktionsmodus (uvicorn-Worker) |
 | `python viewer.py --production --workers 4` | Produktionsmodus mit N Workern (Standard 1) |
 
+## Auto-Cull im Terminal
+
+Auto-Cull ohne Oberfläche: die Terminal-Variante des [Auto-Culls](VIEWER.md#auto-cull) des Viewers. Ablehnungen werden in die Datenbank geschrieben; Originale werden nie verschoben oder gelöscht, und `--copy-keepers` kopiert die behaltenen Fotos in einen Ordner.
+
+| Befehl | Beschreibung |
+|---------|-------------|
+| `python facet.py --auto-cull [PATH]` | Sortiert aus, was schon in der Datenbank ist, begrenzt auf `PATH` (ein Ordner oder eine Datei); ohne Argument oder mit `all` die ganze Bibliothek. **Probelauf: zeigt den Plan und ändert nichts** |
+| `python facet.py /path --auto-cull` | Scannen, dann aussortieren: scannt `/path` tatsächlich und sortiert dann die Fotos darin aus. Abgelehnt zusammen mit `--auto-cull PATH`, `--resume`, `--retry-failed` und `--watch` |
+| `--apply` | Schreibt das Aussortieren: Ablehnungen, Markierungen geprüfter Gruppen und `source='culling'`-Vergleichspaare |
+| `--copy-keepers DIR` | Kopiert jedes nicht abgelehnte Foto im Geltungsbereich mit seinen gleichnamigen RAW- / `.xmp`-Begleitdateien nach `DIR` |
+| `--cull-strictness N` | Behalte-Budget 0–100, höher behält weniger pro Gruppe (Standard: `auto_cull.default_strictness`) |
+| `--cull-min-keep N` | Mindestanzahl behaltener Fotos pro Gruppe (Standard `1`) |
+| `--cull-group-by {all,burst,similar,scene}` | Welche Gruppen aussortiert werden (Standard `all`) |
+| `--cull-min-score X` | Lehnt zusätzlich Einzelfotos ab, deren Gesamtwertung unter `X` liegt |
+| `--cull-trim-brackets` | Lehnt zusätzlich redundante Aufnahmen von Belichtungsreihen ab (das `trim_brackets` des Viewers) |
+| `--user NAME` | Wessen Bewertungen und Ablehnungen verwendet werden; bei einer Mehrbenutzer-Installation **erforderlich** |
+
+- **Standardmäßig Probelauf.** Ohne `--apply` wird nichts geschrieben: keine Ablehnung, kein Vergleichspaar, keine Cache-Zeile, und der Ordner von `--copy-keepers` wird nicht angelegt. Der Befehl gibt eine Zusammenfassung aus: `groups`, `kept`, `rejected_by_groups`, `rejected_by_score`, `spanning_skipped` und mit `--copy-keepers` zusätzlich `keepers`, `copied`, `already_present`, `skipped`, `errors` (`would_reject_*` / `would_copy` im Probelauf). `--apply` betrifft nur das Aussortieren: Scannen-dann-aussortieren scannt immer zuerst tatsächlich, und das Aussortieren läuft nur, wenn der Scan abgeschlossen wurde. `--dry-run` wird mit `--auto-cull` abgelehnt. Die eine Ausnahme: Existiert ein trainiertes Keeper-Modell, kann sein Laden `scoring_config.json` neu schreiben, wenn seine Gewichte korrigiert werden müssen (bestehendes Verhalten, geteilt mit dem Auto-Cull des Viewers).
+- **Regeln.** Gruppen folgen denselben Regeln wie das [Auto-Cull des Viewers](VIEWER.md#auto-cull): Jede behält ihr bestes Foto plus alles innerhalb der Strenge-Marge, begrenzt durch `--cull-min-keep`; Belichtungsreihen, Panoramen und HDR-Panoramen bleiben vollständig erhalten. `--apply` erfasst Ablehnungen und Vergleichspaare genau wie `POST /api/culling/auto`; ein Highlights-Album wird nicht gefüllt. Die Einstellungen [`auto_cull`](CONFIGURATION.md#auto-cull), `burst_scoring` und `similarity_groups` stammen aus der **Server**-Konfiguration (`FACET_CONFIG` oder der Standardpfad), nicht aus `--config`; weichen beide im Mehrbenutzermodus voneinander ab, endet der Befehl mit Code 1.
+- **Geltungsbereich.** Der Geltungsbereich vergleicht lokale echte Pfade; Zeilen, die vor dem Setzen eines `path_mapping` gespeichert wurden, lassen sich nicht nach Ordner eingrenzen — verwenden Sie `all` oder scannen Sie neu. Ein Serienbild, eine Belichtungsreihe oder ein Panorama mit Mitgliedern außerhalb des Geltungsbereichs wird vollständig übersprungen und in `spanning_skipped` gezählt; Ähnlichkeits- und Szenengruppen werden nur innerhalb des Geltungsbereichs berechnet.
+- **`--cull-min-score` gibt es nur in der Kommandozeile** und ist vorsichtig: Es berührt nie Aufnahmen von Belichtungsreihen oder Panoramen, Fotos ohne Wertung, Favoriten, Fotos mit Sternebewertung oder ein Foto, das ein früheres Aussortieren schon behalten oder abgelehnt hat (wird nie erneut nach Wertung beurteilt); ein zweiter Lauf lehnt daher nichts Neues ab. Mitglieder von Serienbild-Gruppen bleiben immer verschont; Mitglieder von Ähnlichkeitsgruppen nur, wenn der Gruppierungsdurchlauf die Gruppe gefunden hat (nach bestem Bemühen: Er liest die neuesten `similarity_groups.max_photos` Fotos im Geltungsbereich, Standard `10000`, und verwirft Cluster größer als `similarity_groups.max_group_size`, Standard `50`); Mitglieder einer Szenengruppe nur mit `--cull-group-by scene` — mit dem Standard `all` wird ein Foto, das nur das Zeitfenster einer Szene teilt, also weiterhin nach Wertung beurteilt.
+- **Kopieren.** `--copy-keepers` kopiert jedes nicht abgelehnte Foto im Geltungsbereich samt gleichnamigen RAW- und `.xmp`-Begleitdateien, nie ein abgelehntes Foto oder dessen Begleitdateien; gleichnamige Dateien aus verschiedenen Ordnern erhalten das Suffix `_1`, und ein erneuter Lauf in denselben Ordner überspringt identische Dateien (gleiche Größe und Zeit, als `already_present` gezählt). `DIR` darf den Geltungsbereich oder die Bibliotheksordner weder gleichen, noch darin liegen, noch sie enthalten (auch im Probelauf geprüft, Code 1), sonst würde der nächste Scan die Kopien aufnehmen. Dateien werden über die Positivliste der Scan-Verzeichnisse aufgelöst (`users.*.directories` / `viewer.scan_directories` in der Server-Konfiguration): Wird deshalb jedes Foto übersprungen, endet der Befehl mit Code 3 und nennt diese Schlüssel. Außerdem wird ein Ordner abgelehnt, der sich mit einer von Facet gespeicherten, früher gescannten Wurzel überschneidet.
+- **Benutzer.** Bei einer Mehrbenutzer-Installation ist `--user` erforderlich (Code 1 ohne Angabe oder mit unbekanntem Benutzer). Bei einer Einzelbenutzer-Installation wird `--user` mit einer Warnung ignoriert, und der Befehl sieht alle Fotos, auch wenn ein Viewer-Passwort gesetzt ist. `--apply` nimmt die Bibliothekssperre; ein Probelauf nimmt keine.
+- **Aufruffehler (Code 2).** `--apply`, `--copy-keepers` oder ein `--cull-*` ohne `--auto-cull`; `--dry-run`, `--resume`, `--retry-failed` oder `--watch` mit `--auto-cull`; `--auto-cull PATH` zusammen mit Positionsverzeichnissen; Strenge außerhalb von 0–100 oder `--cull-min-keep` unter 1. `--apply` ist jetzt ein exaktes Flag, die Abkürzung wählt also nicht mehr `--apply-recommendations`.
+- **Exit-Codes.** `0` Erfolg (Probelauf und null Gruppen eingeschlossen); `1` Fehler bei Voraussetzung, Konfiguration oder Datenbank (fehlende Datenbank, fehlendes `--user`, Kopierziel überlappt die Bibliothek); `2` Aufruffehler; `3` das Aussortieren war erfolgreich, aber der Kopierschritt hatte Fehler oder kopierte nichts, weil jedes Foto übersprungen wurde. Ein Probelauf, dessen behaltene Fotos alle von der Positivliste der Scan-Verzeichnisse übersprungen würden, endet ebenfalls mit Code `3`. Bei Scannen-dann-aussortieren protokolliert ein unterbrochener Scan, dass das Aussortieren übersprungen wurde.
+- **Nachtrainieren.** Der Timer für das automatische Nachtrainieren überlebt den CLI-Prozess nicht: Der Vergleichszähler bleibt erhalten, und das Nachtrainieren läuft bei der nächsten Viewer-Aktion oder mit einem `--train-*`-Befehl. Der erste Lauf kann `.facet_secret` anlegen (der Import der API-Schicht tut das, wie bei `--report-unreviewed-bursts`).
+
 ## Häufige Arbeitsabläufe
 
 ### Ersteinrichtung
@@ -430,6 +457,14 @@ python facet.py /path               # Gesichter während des Scans extrahieren
 python facet.py --cluster-faces-incremental     # In Personen gruppieren
 python facet.py --suggest-person-merges         # Duplikate finden
 # /persons im Viewer verwenden, um zusammenzuführen/umzubenennen
+```
+
+### Eine Aufnahmesession im Terminal aussortieren
+```bash
+python facet.py --auto-cull /photos/wedding                    # Plan ansehen, nichts wird geschrieben
+python facet.py --auto-cull /photos/wedding --apply \
+    --copy-keepers ~/wedding-keepers                           # Ablehnen, dann die behaltenen Fotos kopieren
+python facet.py /photos/new-shoot --auto-cull --apply --cull-min-score 5   # Scannen, dann aussortieren
 ```
 
 ### Mehrbenutzer-Einrichtung

@@ -404,6 +404,33 @@ Checks: Score ranges, face metrics, BLOB corruption, embedding sizes, orphaned f
 | `python viewer.py --production` | Production mode (uvicorn workers) |
 | `python viewer.py --production --workers 4` | Production mode with N workers (default 1) |
 
+## Culling
+
+Headless auto-cull: the terminal form of the viewer's [Auto-cull](VIEWER.md#auto-cull). Rejects are written to the database; originals are never moved or deleted, and `--copy-keepers` copies the survivors to a folder.
+
+| Command | Description |
+|---------|-------------|
+| `python facet.py --auto-cull [PATH]` | Cull what is already in the database, scoped to `PATH` (a directory or a file); no argument or `all` means the whole library. **Dry run: prints the plan and changes nothing** |
+| `python facet.py /path --auto-cull` | Scan-then-cull: scan `/path` for real, then cull the photos under it. Refused together with `--auto-cull PATH`, `--resume`, `--retry-failed` and `--watch` |
+| `--apply` | Write the cull: rejections, reviewed-group marks and `source='culling'` comparison pairs |
+| `--copy-keepers DIR` | Copy every non-rejected in-scope photo, with its same-stem RAW / `.xmp` companions, into `DIR` |
+| `--cull-strictness N` | Keeper budget 0–100, higher keeps fewer per group (default: `auto_cull.default_strictness`) |
+| `--cull-min-keep N` | Minimum photos kept per group (default `1`) |
+| `--cull-group-by {all,burst,similar,scene}` | Which groups to cull (default `all`) |
+| `--cull-min-score X` | Also reject standalone photos whose aggregate score is below `X` |
+| `--cull-trim-brackets` | Also reject redundant exposure-bracket frames (the viewer's `trim_brackets`) |
+| `--user NAME` | Whose ratings and rejections to use; **required** on a multi-user install |
+
+- **Dry run by default.** Without `--apply` nothing is written: no rejection, no comparison pair, no cache row, and the `--copy-keepers` folder is not created. The command prints a summary: `groups`, `kept`, `rejected_by_groups`, `rejected_by_score`, `spanning_skipped` and, with `--copy-keepers`, `keepers`, `copied`, `already_present`, `skipped`, `errors` (`would_reject_*` / `would_copy` in a dry run). `--apply` governs only the cull: scan-then-cull always scans for real first, and the cull runs only if the scan completed. `--dry-run` is refused with `--auto-cull`. The one exception: when a trained keeper model exists, loading it may rewrite `scoring_config.json` if its weights need correcting (pre-existing behaviour shared with the viewer's auto-cull).
+- **Rules.** Groups follow the same rules as the [viewer's Auto-cull](VIEWER.md#auto-cull): each keeps its best photo plus everything within the strictness margin, floored at `--cull-min-keep`; brackets, panoramas and HDR panoramas are kept whole. `--apply` records rejections and comparison pairs exactly as `POST /api/culling/auto` does; no Highlights album is filled. The [`auto_cull`](CONFIGURATION.md#auto-cull), `burst_scoring` and `similarity_groups` settings come from the **server** config (`FACET_CONFIG` or the default path), not from `--config`; if the two disagree on multi-user mode the command exits 1.
+- **Scope.** The scope matches local real paths, so rows stored before a `path_mapping` was set cannot be scoped by directory: use `all` or re-scan. A burst, bracket or panorama with members outside the scope is skipped whole and counted in `spanning_skipped`; similar and scene groups are computed inside the scope only.
+- **`--cull-min-score` is CLI-only** and cautious: it never touches bracket or panorama frames, unscored photos, photos that are favourited or carry a star rating, or a photo already kept or rejected by an earlier cull (never re-judged by score), so a second run rejects nothing new. Members of burst groups are always spared; members of similar groups only when the grouping pass found the group (best effort: it reads the newest `similarity_groups.max_photos` photos in scope, default `10000`, and drops clusters larger than `similarity_groups.max_group_size`, default `50`); members of a scene group only under `--cull-group-by scene`, so with the default `all` a photo that merely shares a scene time window is still judged by score.
+- **Copy.** `--copy-keepers` copies each non-rejected in-scope photo plus its same-stem RAW and `.xmp` companions, never a rejected photo or a rejected photo's companions; same-named files from different folders get a `_1` suffix, and a re-run into the same folder skips identical files (same size and time, reported as `already_present`). `DIR` must not equal, lie inside or contain the scope or the library folders (checked in a dry run too, exit 1), or the next scan would ingest the copies. Files resolve through the scan-directory allow-list (`users.*.directories` / `viewer.scan_directories` in the server config): if every photo is skipped because of it, the command exits 3 and names those keys. It also refuses a folder that overlaps a previously scanned root recorded by Facet.
+- **Users.** On a multi-user install `--user` is required (exit 1 without it, or with an unknown user). On a single-user install `--user` is ignored with a warning and the command sees every photo even when a viewer password is set. `--apply` takes the library lock; a dry run takes none.
+- **Usage errors (exit 2).** `--apply`, `--copy-keepers` or any `--cull-*` without `--auto-cull`; `--dry-run`, `--resume`, `--retry-failed` or `--watch` with `--auto-cull`; `--auto-cull PATH` together with positional directories; strictness outside 0–100 or `--cull-min-keep` below 1. `--apply` is now an exact flag, so the abbreviation no longer selects `--apply-recommendations`.
+- **Exit codes.** `0` success (a dry run and zero groups included); `1` precondition, config or database failure (missing database, missing `--user`, copy target overlapping the library); `2` usage error; `3` the cull succeeded but the copy step had errors or copied nothing because every photo was skipped. A dry run whose keepers would all be skipped by the scan-directory allow-list also exits `3`. In scan-then-cull, an interrupted scan logs that the cull was skipped.
+- **Retrain nudge.** The auto-retrain timer does not survive the CLI process: the comparison counter persists, and the retrain runs on the next viewer action or a `--train-*` command. The first run may create `.facet_secret` (importing the API layer does, as for `--report-unreviewed-bursts`).
+
 ## Common Workflows
 
 ### Initial Setup
@@ -426,6 +453,14 @@ python facet.py /path               # Extract faces during scan
 python facet.py --cluster-faces-incremental     # Group into persons
 python facet.py --suggest-person-merges         # Find duplicates
 # Use /persons in viewer to merge/rename
+```
+
+### Cull a Shoot from the Terminal
+```bash
+python facet.py --auto-cull /photos/wedding                     # Preview the plan, nothing written
+python facet.py --auto-cull /photos/wedding --apply \
+    --copy-keepers ~/wedding-keepers                             # Reject, then copy the survivors
+python facet.py /photos/new-shoot --auto-cull --apply --cull-min-score 5   # Scan, then cull
 ```
 
 ### Multi-User Setup

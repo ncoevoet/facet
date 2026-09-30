@@ -401,6 +401,33 @@ python /opt/facet/viewer.py      # 仍然读取 /opt/facet/scoring_config.json�
 | `python viewer.py --production` | 生产模式（uvicorn worker） |
 | `python viewer.py --production --workers 4` | 生产模式并使用 N 个 worker（默认 1） |
 
+## 命令行选片
+
+无界面的自动选片：查看器[自动选片](VIEWER.md#自动选片)的终端版本。淘汰结果写入数据库；原始文件绝不会被移动或删除，`--copy-keepers` 会把保留的照片复制到一个文件夹。
+
+| 命令 | 说明 |
+|---------|-------------|
+| `python facet.py --auto-cull [PATH]` | 对数据库中已有的照片选片，范围限定为 `PATH`（目录或文件）；不带参数或使用 `all` 表示整个图库。**试运行：打印方案，不修改任何内容** |
+| `python facet.py /path --auto-cull` | 先扫描再选片：真正扫描 `/path`，然后对其下的照片选片。与 `--auto-cull PATH`、`--resume`、`--retry-failed`、`--watch` 同用会被拒绝 |
+| `--apply` | 写入选片结果：淘汰、已审阅分组标记和 `source='culling'` 比较对 |
+| `--copy-keepers DIR` | 把范围内每张未被淘汰的照片连同同名的 RAW / `.xmp` 附属文件复制到 `DIR` |
+| `--cull-strictness N` | 保留预算 0–100，越高每组保留越少（默认：`auto_cull.default_strictness`） |
+| `--cull-min-keep N` | 每组至少保留的照片数（默认 `1`） |
+| `--cull-group-by {all,burst,similar,scene}` | 对哪些分组选片（默认 `all`） |
+| `--cull-min-score X` | 同时淘汰综合分低于 `X` 的独立照片 |
+| `--cull-trim-brackets` | 同时淘汰多余的曝光包围帧（即查看器的 `trim_brackets`） |
+| `--user NAME` | 使用谁的评分和淘汰状态；多用户安装**必须**提供 |
+
+- **默认试运行。** 不带 `--apply` 时不会写入任何内容：没有淘汰、没有比较对、没有缓存行，`--copy-keepers` 的文件夹也不会被创建。命令会打印摘要：`groups`、`kept`、`rejected_by_groups`、`rejected_by_score`、`spanning_skipped`，使用 `--copy-keepers` 时还有 `keepers`、`copied`、`already_present`、`skipped`、`errors`（试运行时为 `would_reject_*` / `would_copy`）。`--apply` 只控制选片本身：先扫描再选片总是先真正扫描，且只有扫描完成后才会选片。`--dry-run` 与 `--auto-cull` 同用会被拒绝。唯一的例外：存在已训练的保留照片模型时，加载它可能会在其权重需要修正时重写 `scoring_config.json`（既有行为，与查看器自动选片共用）。
+- **规则。** 分组遵循与[查看器自动选片](VIEWER.md#自动选片)相同的规则：每组保留最佳照片以及严格度余量之内的照片，下限为 `--cull-min-keep`；曝光包围、全景和 HDR 全景整组保留。`--apply` 记录淘汰和比较对的方式与 `POST /api/culling/auto` 完全一致，不会填充“精选”相册。[`auto_cull`](CONFIGURATION.md#自动选片)、`burst_scoring` 和 `similarity_groups` 设置取自**服务器**配置（`FACET_CONFIG` 或默认路径），而不是 `--config`；若两者在多用户模式上不一致，命令以退出码 1 结束。
+- **范围。** 范围按本地真实路径匹配，因此在设置 `path_mapping` 之前存入的行无法按目录限定：请使用 `all` 或重新扫描。成员有部分在范围之外的连拍、曝光包围或全景会整组跳过，并计入 `spanning_skipped`；相似组和场景组只在范围内计算。
+- **`--cull-min-score` 仅限命令行**，且很谨慎：它从不触碰曝光包围或全景帧、没有评分的照片、已收藏或带星级的照片，也不会触碰已被先前选片保留或淘汰的照片（绝不再按评分重新判定），因此再次运行不会淘汰任何新照片。连拍组的成员始终受保护；相似组的成员仅在分组环节找到该组时才受保护（尽力而为：它读取范围内最新的 `similarity_groups.max_photos` 张照片，默认 `10000`，并丢弃大于 `similarity_groups.max_group_size`（默认 `50`）的聚类）；场景组的成员仅在 `--cull-group-by scene` 时受保护——默认的 `all` 下，仅仅处于同一场景时间窗内的照片仍会按评分判定。
+- **复制。** `--copy-keepers` 复制范围内每张未被淘汰的照片及其同名 RAW 和 `.xmp` 附属文件，绝不复制被淘汰的照片或其附属文件；来自不同文件夹的同名文件会加上 `_1` 后缀，重新运行到同一文件夹时会跳过相同的文件（大小和时间相同，计入 `already_present`）。`DIR` 不得与范围或图库文件夹相同、位于其内或包含它们（试运行时同样检查，退出码 1），否则下一次扫描会把这些副本收进来。文件通过扫描目录白名单解析（服务器配置中的 `users.*.directories` / `viewer.scan_directories`）：若因此每张照片都被跳过，命令以退出码 3 结束并指出这些键。它还会拒绝与 Facet 已记录的先前扫描根目录重叠的文件夹。
+- **用户。** 多用户安装必须提供 `--user`（缺少或用户未知时退出码为 1）。单用户安装会忽略 `--user` 并给出警告，即使设置了查看器密码，命令也能看到所有照片。`--apply` 会获取图库锁；试运行不获取。
+- **用法错误（退出码 2）。** 没有 `--auto-cull` 却使用 `--apply`、`--copy-keepers` 或任何 `--cull-*`；`--auto-cull` 与 `--dry-run`、`--resume`、`--retry-failed` 或 `--watch` 同用；`--auto-cull PATH` 与位置参数目录同用；严格度超出 0–100 或 `--cull-min-keep` 小于 1。`--apply` 现在是精确匹配的标志，缩写不再选中 `--apply-recommendations`。
+- **退出码。** `0` 成功（包括试运行和零个分组）；`1` 前置条件、配置或数据库失败（缺少数据库、缺少 `--user`、复制目标与图库重叠）；`2` 用法错误；`3` 选片成功，但复制步骤出错，或因所有照片都被跳过而未复制任何内容。若试运行中所有保留照片都会被扫描目录白名单跳过，同样以退出码 `3` 结束。在先扫描再选片中，扫描被中断时会记录选片已被跳过。
+- **再训练提示。** 自动再训练的计时器不会在命令进程结束后存活：比较计数会保留，再训练会在下一次查看器操作或 `--train-*` 命令时运行。首次运行可能会创建 `.facet_secret`（导入 API 层会创建它，`--report-unreviewed-bursts` 也是如此）。
+
 ## 常用工作流
 
 ### 初始设置
@@ -423,6 +450,14 @@ python facet.py /path               # 扫描过程中提取人脸
 python facet.py --cluster-faces-incremental     # 聚合成人物
 python facet.py --suggest-person-merges         # 找出重复人物
 # 在网页图库中使用 /persons 进行合并／重命名
+```
+
+### 在终端中对一次拍摄选片
+```bash
+python facet.py --auto-cull /photos/wedding                     # 预览方案，不写入任何内容
+python facet.py --auto-cull /photos/wedding --apply \
+    --copy-keepers ~/wedding-keepers                             # 淘汰，然后复制保留的照片
+python facet.py /photos/new-shoot --auto-cull --apply --cull-min-score 5   # 先扫描再选片
 ```
 
 ### 多用户设置

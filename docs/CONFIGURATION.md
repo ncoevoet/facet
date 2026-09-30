@@ -2241,7 +2241,7 @@ One-button auto-cull for the culling darkroom (`POST /api/culling/auto`, edition
 | `default_strictness` | `50` | Keeper budget (0–100) used when the request omits `strictness`. Higher = keep fewer photos per group (tighter margin around the group's best) |
 | `highlights_min` | `8.0` | Minimum aggregate score for a group's best photo to be collected into the optional **Highlights** album when an auto-cull is applied (idempotent) |
 
-`dry_run` defaults on and returns a per-group keep/reject preview; an apply additionally records `source='culling'` comparison rows and nudges one auto-retrain. See [Web Viewer — Auto-cull](VIEWER.md#auto-cull).
+`dry_run` defaults on and returns a per-group keep/reject preview; an apply additionally records `source='culling'` comparison rows and nudges one auto-retrain. See [Web Viewer — Auto-cull](VIEWER.md#auto-cull). The same setting feeds the terminal command `python facet.py --auto-cull` (see [Culling](COMMANDS.md#culling)); its cull rules are read from the server config, not `--config`.
 
 ## Auto-Retrain
 

@@ -2266,7 +2266,7 @@ Descarte automático de un botón para el laboratorio de descarte (`POST /api/cu
 | `default_strictness` | `50` | Presupuesto de fotos a conservar (0–100) usado cuando la solicitud omite `strictness`. Más alto = conservar menos fotos por grupo (margen más ajustado en torno a la mejor del grupo) |
 | `highlights_min` | `8.0` | Puntuación agregada mínima para que la mejor foto de un grupo se recopile en el álbum opcional de **Destacados** cuando se aplica un descarte automático (idempotente) |
 
-`dry_run` está activado por defecto y devuelve una vista previa de conservar/descartar por grupo; una aplicación registra además filas de comparación con `source='culling'` e impulsa un reentrenamiento automático. Consulta [Galería web — Descarte automático](VIEWER.md#descarte-automático).
+`dry_run` está activado por defecto y devuelve una vista previa de conservar/descartar por grupo; una aplicación registra además filas de comparación con `source='culling'` e impulsa un reentrenamiento automático. Consulta [Galería web — Descarte automático](VIEWER.md#descarte-automático). El mismo ajuste alimenta el comando `python facet.py --auto-cull` (consulta [Descarte desde la terminal](COMMANDS.md#descarte-desde-la-terminal)); sus reglas se leen de la configuración del servidor, no de `--config`.
 
 ## Reentrenamiento automático
 

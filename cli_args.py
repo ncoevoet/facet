@@ -353,7 +353,7 @@ Configuration:
                              'photos the user has not manually rated (overrides xmp_export config for this run)')
     export_group.add_argument('--user', type=str, default=None, metavar='USERNAME',
                         help='With --import-sidecars/--export-sidecars/--export-manifest/'
-                             '--import-lightroom/--immich-sync in '
+                             '--import-lightroom/--immich-sync/--auto-cull in '
                              'multi-user mode: '
                              "read/write that user's ratings (user_preferences) instead of the global columns. "
                              'With --train-ranker: scope the personal ranker to that user (own + legacy '
@@ -363,6 +363,31 @@ Configuration:
                              '(one-way; needs the "immich" config block; honors --user and --dry-run)')
     export_group.add_argument('--immich-test', action='store_true',
                         help='Test connectivity and authentication against the configured Immich server')
+
+    # Culling
+    cull_group = parser.add_argument_group('Culling')
+    cull_group.add_argument('--auto-cull', type=str, nargs='?', const='all', metavar='PATH',
+                        help='Headless auto-cull: run the /culling auto-cull rules over photos already '
+                             'in the DB (optional: limit to a directory or file; default: all). Dry run '
+                             'unless --apply. With a positional scan path (facet.py /photos --auto-cull) '
+                             'it scans first, then culls that path. Multi-user installs require --user')
+    cull_group.add_argument('--apply', action='store_true',
+                        help='With --auto-cull: write the rejects (default is a dry run that changes nothing)')
+    cull_group.add_argument('--copy-keepers', type=str, default=None, metavar='DIR',
+                        help='With --auto-cull: copy every non-rejected in-scope photo (plus same-stem '
+                             'RAW / .xmp companions) into DIR on --apply; originals are never moved or deleted')
+    cull_group.add_argument('--cull-strictness', type=int, default=None, metavar='0-100',
+                        help='With --auto-cull: keeper budget (100 keeps only the best of a group; '
+                             'default: auto_cull.default_strictness)')
+    cull_group.add_argument('--cull-min-keep', type=int, default=1, metavar='N',
+                        help='With --auto-cull: minimum photos kept per group (default: 1)')
+    cull_group.add_argument('--cull-group-by', choices=['all', 'burst', 'similar', 'scene'], default='all',
+                        help='With --auto-cull: which groups to cull (default: all = bursts + similar)')
+    cull_group.add_argument('--cull-min-score', type=float, default=None, metavar='X',
+                        help='With --auto-cull: also reject standalone photos (in no group, no set, not '
+                             'favourited or star-rated) whose aggregate score is below X')
+    cull_group.add_argument('--cull-trim-brackets', action='store_true',
+                        help='With --auto-cull: also trim exposure brackets whose base frame clips nothing')
 
     # AI features
     ai_group = parser.add_argument_group('AI features')

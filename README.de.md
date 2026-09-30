@@ -38,6 +38,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 - **Sequenzschutz** — Belichtungsreihen, Panorama-Schwenks und HDR-Panoramen (`--detect-sequences` / `--detect-panoramas`) werden als bewusste Mehrbild-Serien erkannt und vollständig erhalten: Die Auswahl-Dunkelkammer markiert jede Aufnahme einer Serie von vornherein als „behalten" und reduziert sie nie auf einen einzigen „Gewinner"
 - **Ähnlichkeitsgruppen** — findet visuell ähnliche Fotos in der gesamten Bibliothek, unabhängig vom Aufnahmezeitpunkt
 - **Szenen** — gruppiert eine Aufnahmesession anhand der zeitlichen Abstände in chronologische „Szenen“, sodass Sie in Erzählreihenfolge aussortieren; antippen zum Markieren, bestätigen zum Ablehnen
+- **Auto-Cull im Terminal** — `python facet.py --auto-cull [PATH]` zeigt das Aussortieren als Probelauf, `--apply` schreibt es und `--copy-keepers DIR` kopiert die behaltenen Fotos (siehe [docs/de/COMMANDS.md](docs/de/COMMANDS.md#auto-cull-im-terminal))
 - **Müll aufräumen** — Zero-Shot-Erkennung von nicht-fotografischem Ballast (Screenshots, Dokumente, Belege, Memes, Folien) mit einer schnellen Review-Warteschlange: jeden Kandidaten behalten oder verwerfen, oder alle auf einmal verwerfen
 - **Auswahl-Badges pro Gesicht** — der Auswahl-Viewer zeigt Badges pro Gesicht (Augen offen/geschlossen, Ausdruck, Erkennungssicherheit) statt einer einzigen fotoweiten Blinzelmarkierung
 - **Blinzelerkennung** — markiert Aufnahmen mit geschlossenen Augen, um sie mit einem Klick auszublenden oder abzulehnen

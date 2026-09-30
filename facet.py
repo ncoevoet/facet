@@ -1423,6 +1423,9 @@ def _run_scan(args, resumed_run):
     enumeration, so a conflict costs nothing on a large library -- except for
     a ``--dry-run`` preview, which saves nothing and is run without it (see
     ``_scan_writes_to_library``).
+
+    Returns True when the scan ran to completion (or found nothing new) and
+    False when it was interrupted, so ``--auto-cull`` culls only a finished scan.
     """
     from processing.scorer import Facet, process_bursts, process_single_photo
     from config import ScoringConfig
@@ -1581,7 +1584,7 @@ def _run_scan(args, resumed_run):
 
     if not todo_list:
         logger.info("No new files to process.")
-        exit()
+        return True
 
     # Dry-run mode - score sample photos without saving to database
     if args.dry_run:
@@ -1799,7 +1802,7 @@ def _run_scan(args, resumed_run):
         logger.info("Interrupted; skipping post-processing. Re-run to finalize.")
         scorer.commit()
         scan_run.finish('interrupted')
-        return
+        return False
     except Exception:
         scan_run.finish('failed')
         raise
@@ -1888,6 +1891,213 @@ def _run_scan(args, resumed_run):
     _log_scan_db_destination(scorer.db_path)
     emit_progress('done', force=True)
     logger.info("All tasks complete.")
+    return True
+
+
+def _paths_overlap(target, root):
+    """True when ``target`` equals, lies inside, or contains ``root`` (both real paths)."""
+    return (target == root
+            or target.startswith(root.rstrip(os.sep) + os.sep)
+            or root.startswith(target.rstrip(os.sep) + os.sep))
+
+
+_NOTHING_COPIED_HINT = (
+    "Nothing could be copied: none of the %d keepers resolved to a file "
+    "inside an allowed scan directory. Add the library directory to "
+    "users.*.directories (multi-user) or viewer.scan_directories.")
+
+
+def _recorded_scan_roots(conn):
+    """Every directory a past scan was pointed at, from ``scan_runs.args_json``.
+
+    A library scanned from ``/lib`` holds photos in ``/lib/2024``, so a scoped
+    run's own scope entries would let a target of ``/lib/keepers`` through.
+    """
+    roots = []
+    for (args_json,) in conn.execute("SELECT args_json FROM scan_runs").fetchall():
+        try:
+            directories = json.loads(args_json or '{}').get('directories', [])
+        except (json.JSONDecodeError, AttributeError):
+            continue
+        roots += [d for d in directories if isinstance(d, str)]
+    return roots
+
+
+def _refuse_overlapping_copy_target(target, roots):
+    """Exit 1 when the keeper folder would sit in, or hold, the library.
+
+    A target inside a scanned directory would be ingested as new photos by the
+    next scan; one containing it would make the copy recurse into itself.
+    """
+    if os.path.exists(target) and not os.path.isdir(target):
+        logger.error("--copy-keepers target exists and is not a directory: %s", target)
+        exit(1)
+    for root in roots:
+        if _paths_overlap(target, os.path.realpath(root)):
+            logger.error(
+                "--copy-keepers target %s overlaps the library path %s; choose a folder "
+                "outside every scanned directory.", target, root)
+            exit(1)
+
+
+def _run_auto_cull_cli(args, scope_paths, lock_held):
+    """Headless auto-cull: ``facet.py --auto-cull`` (dry run unless ``--apply``).
+
+    Rejects go through the same code as ``POST /api/culling/auto``; keepers are
+    then COPIED to ``--copy-keepers`` (originals are never moved or deleted).
+    ``scope_paths`` is the list of directories/files to confine to, or ``None``
+    / empty for the whole library. ``lock_held`` is True in scan-then-cull,
+    where the scan lock already covers this run.
+
+    Exit codes: 0 success, 1 precondition/config/sqlite failure, 3 the cull
+    succeeded but the copy step had errors or copied nothing.
+    """
+    import sqlite3
+    apply = args.apply
+    if not os.path.exists(args.db):
+        logger.error("Database not found: %s", args.db)
+        exit(1)
+    multi_user = _is_multi_user(ScoringConfig(args.config, validate=False).config)
+    if multi_user and not args.user:
+        logger.error("Multi-user install: --auto-cull requires --user NAME to know whose "
+                     "rejections to write.")
+        exit(1)
+    cli_user = None
+    if multi_user:
+        _config_path, cli_user = _resolve_trainer_cli_context(args)
+    elif args.user:
+        logger.warning("--user is ignored on a single-user install.")
+    try:
+        from fastapi import HTTPException
+        from api import config as api_config
+        from api.auth import VIEWER_PASSWORD_KEY, _is_open_install
+        from api.db_helpers import build_path_scope
+        from api.path_validation import map_disk_path
+        from api.routers.burst_culling import (
+            _get_auto_cull_config, list_keeper_paths, list_rejected_paths,
+            reject_standalone_below, run_auto_cull,
+        )
+        from api.routers.export import _copy_files_into, _resolve_cull_files
+        api_multi_user = api_config.is_multi_user_enabled()
+    except (RuntimeError, ImportError) as ex:
+        logger.error("Cannot load the API layer that --auto-cull shares with the viewer: %s", ex)
+        exit(1)
+    if api_multi_user != multi_user:
+        logger.error(
+            "--config and the server config disagree about multi-user mode; --auto-cull "
+            "reads its cull rules and users from the server config (FACET_CONFIG or the "
+            "install-root scoring_config.json). Point both at the same file.")
+        exit(1)
+    # A single-user install has no user ids, so use the viewer's own sentinels for
+    # a logged-in session: with a truthy id the visibility clause is '1=1'. None
+    # would resolve to "see nothing" behind a viewer password.
+    if multi_user:
+        user_id = cli_user
+    else:
+        user_id = '_anonymous' if _is_open_install(VIEWER_PASSWORD_KEY) else '_legacy'
+    try:
+        scope = build_path_scope(scope_paths)
+    except ValueError as ex:
+        logger.error("%s", ex)
+        exit(1)
+    scope_label = 'all' if scope is None else ','.join(scope.roots)
+    strictness = args.cull_strictness
+    if strictness is None:
+        strictness = _get_auto_cull_config()['default_strictness']
+    min_score = args.cull_min_score
+    lock = None
+    if apply and not lock_held:
+        # Lock before the schema step: init_database ALTERs the library.
+        lock = _acquire_library_lock(args, LIBRARY_JOB_MAINTENANCE)
+    try:
+        if apply:
+            init_database(args.db)
+        with get_connection(args.db) as conn:
+            try:
+                target = None
+                if args.copy_keepers:
+                    target = os.path.realpath(args.copy_keepers)
+                    roots = _recorded_scan_roots(conn)
+                    if scope is not None:
+                        roots += scope.roots
+                    else:
+                        roots += api_config.get_all_scan_directories()
+                        roots += {os.path.dirname(map_disk_path(p))
+                                  for p in list_keeper_paths(conn, user_id, None)}
+                    _refuse_overlapping_copy_target(target, roots)
+                result = run_auto_cull(
+                    conn, args.db, user_id, group_by=args.cull_group_by,
+                    strictness=strictness, min_keep=args.cull_min_keep,
+                    trim_brackets=args.cull_trim_brackets, dry_run=not apply,
+                    path_scope=scope, use_cache=False,
+                    membership_groups=min_score is not None,
+                )
+                standalone = []
+                if min_score is not None:
+                    standalone = reject_standalone_below(
+                        conn, user_id, scope, min_score,
+                        result.collected | result.decided, dry_run=not apply)
+                if apply:
+                    conn.execute("DELETE FROM stats_cache WHERE key LIKE 'scenes_%'")
+                    conn.execute("DELETE FROM stats_cache WHERE key LIKE 'similarity_groups_%'")
+                    conn.commit()
+                if not apply:
+                    print("DRY RUN - nothing written. Re-run with --apply to write.")
+                print(f"scope={scope_label}  group_by={args.cull_group_by}  strictness={strictness}  "
+                      f"min_keep={args.cull_min_keep}  "
+                      f"min_score={'off' if min_score is None else min_score}")
+                verb = 'rejected_' if apply else 'would_reject_'
+                print(f"groups={result.processed}  kept={result.kept}  "
+                      f"{verb}by_groups={result.rejected}  {verb}by_score={len(standalone)}  "
+                      f"spanning_skipped={result.spanning_skipped}")
+                if target is None:
+                    return
+                rejected_now = set(result.reject_paths) | set(standalone)
+                keepers = list_keeper_paths(
+                    conn, user_id, scope, exclude_paths=() if apply else rejected_now)
+                items, skipped = _resolve_cull_files(keepers, include_companions=True)
+                # A rejected photo's own files must never ride along as a keeper's
+                # companion (a same-stem RAW that is a row of its own).
+                rejected_disk = {
+                    os.path.realpath(map_disk_path(p))
+                    for p in list_rejected_paths(conn, user_id, None) | rejected_now}
+                files = list(dict.fromkeys(
+                    f for _, fs in items
+                    for i, f in enumerate(fs)
+                    if i == 0 or os.path.realpath(f) not in rejected_disk))
+                if not apply:
+                    print(f"keepers={len(keepers)}  would_copy={len(files)}  skipped={len(skipped)}")
+                    if skipped and not items:
+                        logger.error(_NOTHING_COPIED_HINT, len(skipped))
+                        exit(3)
+                    return
+                copied, errors, already_present = _copy_files_into(
+                    files, target, skip_identical=True)
+                print(f"keepers={len(keepers)}  copied={copied}  "
+                      f"already_present={already_present}  skipped={len(skipped)}  errors={errors}")
+                if copied == 0 and skipped and already_present == 0:
+                    logger.error(_NOTHING_COPIED_HINT, len(skipped))
+                    exit(3)
+                if errors:
+                    exit(3)
+            except sqlite3.OperationalError as ex:
+                conn.rollback()
+                if apply:
+                    logger.error("Auto-cull failed: %s", ex)
+                else:
+                    logger.error("Auto-cull failed: %s (if the schema is out of date, run "
+                                 "'python database.py')", ex)
+                exit(1)
+            except sqlite3.Error as ex:
+                conn.rollback()
+                logger.error("Auto-cull failed: %s", ex)
+                exit(1)
+            except HTTPException as ex:
+                logger.error("Auto-cull failed: %s", ex.detail)
+                exit(1)
+    finally:
+        if lock is not None:
+            lock.release()
 
 
 def main():
@@ -1941,6 +2151,36 @@ def main():
     if (args.refresh_thumbnails_workers != cli_args.DEFAULT_REFRESH_THUMBNAIL_WORKERS
             and not args.refresh_thumbnails):
         parser.error("--refresh-thumbnails-workers requires --refresh-thumbnails")
+
+    cull_modifiers = {
+        '--apply': args.apply,
+        '--copy-keepers': args.copy_keepers is not None,
+        '--cull-strictness': args.cull_strictness is not None,
+        '--cull-min-keep': args.cull_min_keep != 1,
+        '--cull-group-by': args.cull_group_by != 'all',
+        '--cull-min-score': args.cull_min_score is not None,
+        '--cull-trim-brackets': args.cull_trim_brackets,
+    }
+    if not args.auto_cull:
+        for flag, given in cull_modifiers.items():
+            if given:
+                parser.error(f"{flag} requires --auto-cull")
+    else:
+        if args.dry_run:
+            parser.error("--dry-run previews a scan and cannot be combined with --auto-cull "
+                         "(--auto-cull is already a dry run unless --apply is given)")
+        if args.auto_cull != 'all' and args.photo_paths:
+            parser.error("--auto-cull PATH cannot be combined with photo paths to scan: "
+                         "use 'facet.py /photos --auto-cull' to scan then cull that path")
+        for flag, given in (('--resume', args.resume), ('--retry-failed', args.retry_failed),
+                            ('--watch', args.watch)):
+            if given:
+                parser.error(f"--auto-cull cannot be combined with {flag}: only an explicit "
+                             "photo directory list means scan-then-cull")
+        if args.cull_strictness is not None and not 0 <= args.cull_strictness <= 100:
+            parser.error("--cull-strictness must be between 0 and 100")
+        if args.cull_min_keep < 1:
+            parser.error("--cull-min-keep must be at least 1")
 
     # Whole-library rewriters take the cross-process lock before any work, so
     # a conflict costs nothing. --upgrade-db is deliberately absent: it runs
@@ -3413,6 +3653,13 @@ def main():
         )
         exit()
 
+    # Headless auto-cull of photos already in the DB (no GPU needed). With
+    # positional photo paths it is scan-then-cull instead, dispatched below.
+    if args.auto_cull and not args.photo_paths:
+        _run_auto_cull_cli(
+            args, None if args.auto_cull == 'all' else [args.auto_cull], lock_held=False)
+        exit()
+
     # Immich connectivity test (lightweight - no GPU needed)
     if args.immich_test:
         from sync.immich import ImmichClient
@@ -3652,7 +3899,11 @@ def main():
 
     lock = _acquire_library_lock(args, LIBRARY_JOB_SCAN) if _scan_writes_to_library(args) else None
     try:
-        _run_scan(args, resumed_run)
+        ok = _run_scan(args, resumed_run)
+        if ok and args.auto_cull:
+            _run_auto_cull_cli(args, args.photo_paths, lock_held=True)
+        elif args.auto_cull:
+            logger.warning("Scan did not complete; cull skipped.")
     finally:
         if lock is not None:
             lock.release()

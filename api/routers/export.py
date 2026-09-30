@@ -484,6 +484,51 @@ def _copy_or_link_into(paths, target_dir, mode):
     return copied, skipped, errors
 
 
+def _already_copied(target_dir, filename, src):
+    """True when ``target_dir`` already holds a copy of ``src`` under ``filename``.
+
+    Walks the same names ``_unique_dest`` would try (``name``, ``name_1``, ...)
+    while they exist. ``shutil.copy2`` preserves mtime, so an equal size and
+    whole-second mtime identifies the file a previous run put there.
+    """
+    src_stat = os.stat(src)
+    stem, ext = os.path.splitext(filename)
+    i = 0
+    while True:
+        candidate = _contained_dest(target_dir, filename if i == 0 else f"{stem}_{i}{ext}")
+        if not os.path.exists(candidate):
+            return False
+        cand_stat = os.stat(candidate)
+        if (cand_stat.st_size == src_stat.st_size
+                and int(cand_stat.st_mtime) == int(src_stat.st_mtime)):
+            return True
+        i += 1
+
+
+def _copy_files_into(files, target_dir, *, skip_identical=False):
+    """Copy each file into the (already validated) ``target_dir``.
+
+    Colliding names get a numeric suffix. Returns ``(copied, errors,
+    already_present)``. ``skip_identical`` leaves a file alone when a previous
+    copy of it is already there, so re-running a copy into the same folder adds
+    nothing; it is off by default, which keeps the API's behaviour unchanged.
+    """
+    os.makedirs(target_dir, exist_ok=True)
+    copied = errors = already_present = 0
+    for src in files:
+        try:
+            name = os.path.basename(src)
+            if skip_identical and _already_copied(target_dir, name, src):
+                already_present += 1
+                continue
+            shutil.copy2(src, _unique_dest(target_dir, name))
+            copied += 1
+        except OSError:
+            logger.exception("Failed to copy %s into %s", src, target_dir)
+            errors += 1
+    return copied, errors, already_present
+
+
 def _companion_files(disk_path):
     """Sibling files that belong with a shot: its companion RAW and .xmp sidecar.
 
@@ -1028,15 +1073,7 @@ def api_cull_apply(
         safe_target = _validate_target_dir_required(body.target_dir)
         if body.dry_run:
             return respond(True, [], would_copy=files)
-        copied = errors = 0
-        os.makedirs(safe_target, exist_ok=True)
-        for src in files:
-            try:
-                shutil.copy2(src, _unique_dest(safe_target, os.path.basename(src)))
-                copied += 1
-            except OSError:
-                logger.exception("Failed to copy %s into %s", src, safe_target)
-                errors += 1
+        copied, errors, _ = _copy_files_into(files, safe_target)
         return respond(False, errors, copied=copied)
 
     if body.action == "move_rejects":

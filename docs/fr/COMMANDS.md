@@ -403,6 +403,33 @@ Vérifications : plages de scores, métriques de visages, corruption de BLOB, ta
 | `python viewer.py --production` | Mode production (workers uvicorn) |
 | `python viewer.py --production --workers 4` | Mode production avec N workers (par défaut 1) |
 
+## Tri en ligne de commande
+
+Tri automatique sans interface : la version terminal du [tri automatique](VIEWER.md#tri-automatique) de la visionneuse. Les rejets sont écrits dans la base ; les originaux ne sont jamais déplacés ni supprimés, et `--copy-keepers` copie les photos conservées vers un dossier.
+
+| Commande | Description |
+|---------|-------------|
+| `python facet.py --auto-cull [PATH]` | Trie ce qui est déjà dans la base, limité à `PATH` (un dossier ou un fichier) ; sans argument ou avec `all`, toute la bibliothèque. **Simulation : affiche le plan et ne modifie rien** |
+| `python facet.py /path --auto-cull` | Analyse puis tri : analyse réellement `/path`, puis trie les photos qu'il contient. Refusé avec `--auto-cull PATH`, `--resume`, `--retry-failed` et `--watch` |
+| `--apply` | Écrit le tri : rejets, marques de groupes revus et paires de comparaison `source='culling'` |
+| `--copy-keepers DIR` | Copie dans `DIR` chaque photo non rejetée de la portée, avec ses compagnons RAW / `.xmp` de même nom |
+| `--cull-strictness N` | Budget de photos conservées de 0 à 100, plus élevé = moins de photos conservées par groupe (défaut : `auto_cull.default_strictness`) |
+| `--cull-min-keep N` | Nombre minimal de photos conservées par groupe (défaut `1`) |
+| `--cull-group-by {all,burst,similar,scene}` | Groupes à trier (défaut `all`) |
+| `--cull-min-score X` | Rejette aussi les photos isolées dont le score global est inférieur à `X` |
+| `--cull-trim-brackets` | Rejette aussi les prises redondantes des bracketings d'exposition (le `trim_brackets` de la visionneuse) |
+| `--user NAME` | Utilisateur dont les notes et rejets sont utilisés ; **obligatoire** sur une installation multi-utilisateurs |
+
+- **Simulation par défaut.** Sans `--apply`, rien n'est écrit : ni rejet, ni paire de comparaison, ni ligne de cache, et le dossier de `--copy-keepers` n'est pas créé. La commande affiche un récapitulatif : `groups`, `kept`, `rejected_by_groups`, `rejected_by_score`, `spanning_skipped` et, avec `--copy-keepers`, `keepers`, `copied`, `already_present`, `skipped`, `errors` (`would_reject_*` / `would_copy` en simulation). `--apply` ne concerne que le tri : l'analyse suivie du tri analyse toujours réellement d'abord, et le tri ne s'exécute que si l'analyse s'est terminée. `--dry-run` est refusé avec `--auto-cull`. Une seule exception : lorsqu'un modèle de photos à conserver entraîné existe, son chargement peut réécrire `scoring_config.json` si ses poids doivent être corrigés (comportement existant, partagé avec le tri automatique de la visionneuse).
+- **Règles.** Les groupes suivent les mêmes règles que le [tri automatique de la visionneuse](VIEWER.md#tri-automatique) : chacun conserve sa meilleure photo plus tout ce qui se trouve dans la marge de sévérité, avec un plancher de `--cull-min-keep` ; les bracketings, panoramas et panoramas HDR sont conservés entiers. `--apply` enregistre les rejets et les paires de comparaison exactement comme `POST /api/culling/auto` ; aucun album Coups de cœur n'est rempli. Les réglages [`auto_cull`](CONFIGURATION.md#tri-automatique), `burst_scoring` et `similarity_groups` viennent de la configuration du **serveur** (`FACET_CONFIG` ou le chemin par défaut), pas de `--config` ; si les deux divergent sur le mode multi-utilisateurs, la commande se termine avec le code 1.
+- **Portée.** La portée correspond aux chemins réels locaux : les lignes enregistrées avant la définition d'un `path_mapping` ne peuvent pas être limitées par dossier — utilisez `all` ou relancez une analyse. Une rafale, un bracketing ou un panorama dont des membres sont hors portée est ignoré en entier et compté dans `spanning_skipped` ; les groupes de photos similaires et de scènes sont calculés à l'intérieur de la portée uniquement.
+- **`--cull-min-score` n'existe qu'en ligne de commande** et reste prudent : il ne touche jamais les prises de bracketing ou de panorama, les photos sans score, les photos en favori ou notées d'une étoile ou plus, ni une photo déjà conservée ou rejetée par un tri précédent (jamais rejugée par score) ; une deuxième exécution ne rejette donc rien de nouveau. Les membres d'une rafale sont toujours épargnés ; ceux d'un groupe de photos similaires seulement si le calcul des groupes l'a trouvé (au mieux : il lit les `similarity_groups.max_photos` photos les plus récentes de la portée, `10000` par défaut, et écarte les grappes plus grandes que `similarity_groups.max_group_size`, `50` par défaut) ; ceux d'un groupe de scène seulement avec `--cull-group-by scene` — avec `all` par défaut, une photo qui partage simplement la plage horaire d'une scène est donc jugée par son score.
+- **Copie.** `--copy-keepers` copie chaque photo non rejetée de la portée avec ses compagnons RAW et `.xmp` de même nom, jamais une photo rejetée ni ses compagnons ; les fichiers de même nom venant de dossiers différents reçoivent un suffixe `_1`, et une relance vers le même dossier ignore les fichiers identiques (même taille et même date, comptés dans `already_present`). `DIR` ne doit ni égaler, ni se trouver dans, ni contenir la portée ou les dossiers de la bibliothèque (vérifié aussi en simulation, code 1), sinon la prochaine analyse ingérerait les copies. Les fichiers sont résolus via la liste blanche des dossiers analysés (`users.*.directories` / `viewer.scan_directories` dans la configuration du serveur) : si toutes les photos sont ignorées à cause d'elle, la commande se termine avec le code 3 en nommant ces clés. Il refuse aussi un dossier qui chevauche une racine déjà analysée et enregistrée par Facet.
+- **Utilisateurs.** Sur une installation multi-utilisateurs, `--user` est obligatoire (code 1 sans lui, ou avec un utilisateur inconnu). Sur une installation mono-utilisateur, `--user` est ignoré avec un avertissement et la commande voit toutes les photos même si un mot de passe de visionneuse est défini. `--apply` prend le verrou de la bibliothèque ; une simulation n'en prend aucun.
+- **Erreurs d'usage (code 2).** `--apply`, `--copy-keepers` ou un `--cull-*` sans `--auto-cull` ; `--dry-run`, `--resume`, `--retry-failed` ou `--watch` avec `--auto-cull` ; `--auto-cull PATH` avec des dossiers positionnels ; sévérité hors de 0–100 ou `--cull-min-keep` inférieur à 1. `--apply` est désormais un drapeau exact : l'abréviation ne sélectionne plus `--apply-recommendations`.
+- **Codes de sortie.** `0` succès (simulation et zéro groupe compris) ; `1` échec de prérequis, de configuration ou de base (base absente, `--user` manquant, cible de copie chevauchant la bibliothèque) ; `2` erreur d'usage ; `3` le tri a réussi mais l'étape de copie a eu des erreurs ou n'a rien copié car toutes les photos ont été ignorées. Une simulation dont toutes les photos à conserver seraient ignorées par la liste blanche des dossiers analysés se termine aussi avec le code `3`. Pour l'analyse suivie du tri, une analyse interrompue journalise que le tri a été ignoré.
+- **Réentraînement.** Le minuteur de réentraînement automatique ne survit pas au processus de la commande : le compteur de comparaisons persiste, et le réentraînement s'exécute à la prochaine action dans la visionneuse ou avec une commande `--train-*`. La première exécution peut créer `.facet_secret` (l'import de la couche API le fait, comme pour `--report-unreviewed-bursts`).
+
 ## Flux de travail courants
 
 ### Configuration initiale
@@ -425,6 +452,14 @@ python facet.py /path               # Extrait les visages pendant l'analyse
 python facet.py --cluster-faces-incremental     # Regroupe en personnes
 python facet.py --suggest-person-merges         # Trouve les doublons
 # Utilisez /persons dans la visionneuse pour fusionner/renommer
+```
+
+### Trier une séance depuis le terminal
+```bash
+python facet.py --auto-cull /photos/wedding                     # Aperçu du plan, rien n'est écrit
+python facet.py --auto-cull /photos/wedding --apply \
+    --copy-keepers ~/wedding-keepers                          # Rejette, puis copie les photos conservées
+python facet.py /photos/new-shoot --auto-cull --apply --cull-min-score 5   # Analyse, puis tri
 ```
 
 ### Configuration multi-utilisateurs
