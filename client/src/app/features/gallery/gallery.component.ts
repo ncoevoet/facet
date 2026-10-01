@@ -209,6 +209,21 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
+        <!-- Scan entry. Part of the page, not of #galleryToolbar: the shell projects
+             that template on lg+ only (and clips it when the header is full), and the
+             small-screen controls belong to the shell's bottom bar, so this is the one
+             spot that is there at every width. No breakpoint classes on purpose. An
+             empty library keeps the call to action in the empty state below. -->
+        @if (store.total() > 0 && canShowScanButton()) {
+          <div class="flex justify-end px-2 md:px-4 pt-2">
+            <button mat-icon-button (click)="openScanLauncher()"
+                    [matTooltip]="I18N.gallery.scan_action | translate"
+                    [attr.aria-label]="I18N.gallery.scan_action | translate">
+              <mat-icon>add_photo_alternate</mat-icon>
+            </button>
+          </div>
+        }
+
         <!-- Hidden-photos banner -->
         @if (showHiddenBanner()) {
           <div class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex items-center gap-3 text-sm">

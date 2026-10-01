@@ -1063,6 +1063,7 @@
     },
     "reset_filters": "重置筛选",
     "scroll_to_top": "返回顶部",
+    "scan_action": "扫描新照片",
     "photo_grid": "照片网格",
     "active_filters": "{count} 个筛选条件已生效",
     "unknown_person": "未知",

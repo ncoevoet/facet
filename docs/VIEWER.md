@@ -388,14 +388,14 @@ Access via header button or `/persons`:
 
 ## Scan Trigger
 
-When `viewer.features.show_scan_button` is `true` and the caller has scan access — `superadmin` role in multi-user mode, or an edition-authenticated session on a locked single-user install (`viewer.edition_password` set) in single-user mode — a **Scan photos to get started** button appears on the empty-gallery state. It ships set to **`false`** in `scoring_config.json` (opt-in). On an open single-user install (`viewer.edition_password` empty, the shipped default) all four scan routes 403 for every caller, including one holding a valid edition-generation JWT, and the button is never rendered — spawning a scan subprocess must not be reachable anonymously. The button opens the scan launcher dialog (`ScanLauncherComponent`).
+Scan is offered when **both** of these hold: `viewer.features.show_scan_button` is `true` (it ships **`false`** in `scoring_config.json`, opt-in) **and** the caller has scan access — the `superadmin` role in multi-user mode, or an edition-authenticated session on a locked single-user install (a non-empty `viewer.edition_password`) in single-user mode. The gallery then offers it from two places, and both open the scan launcher dialog (`ScanLauncherComponent`): a **Scan photos to get started** button on the empty-gallery state, and — while the gallery has photos to show — a **Scan for new photos** icon button at the top right of the photo grid, at every screen width. On an open single-user install (`viewer.edition_password` empty, the shipped default) all four scan routes 403 for every caller, including one holding a valid edition-generation JWT, and neither entry point is ever rendered — spawning a scan subprocess must not be reachable anonymously.
 
 - Pick a directory from the launcher's list and start the scan in-app
 - The launcher streams live progress (SSE with automatic polling fallback) into a `mat-progress-bar` driven by the structured `progress` field, plus a tail of output lines, and refreshes the gallery when the scan finishes
 - Scan runs as a background subprocess (`facet.py`); only one scan at a time (global lock)
 - Directory choices come from `get_all_scan_directories()`, which unions each user's `directories`, shared directories, `path_mapping` targets, and the standalone `viewer.scan_directories` list — seed the latter (e.g. `/data/photos`) so single-user / Docker installs have a pickable target
 
-This is useful when the viewer runs on the same machine that has GPU access for scoring.
+No GPU is required to scan — see [Which profile fits my hardware?](INSTALLATION.md#which-profile-fits-my-hardware) and [No graphics card](INSTALLATION.md#no-graphics-card) for the CPU-only (`legacy`) path. The scan runs on the machine hosting the viewer, so it is fastest when that machine has GPU access for scoring.
 
 A related but separate trigger, `POST /api/scan/recompute`, reuses the same job lock to rescore existing photos in place (no new files) — see [Category Priority & Scoring Contexts](#category-priority--scoring-contexts). Unlike this scan button's mode-dependent access rule above, it is edition-gated only, with no superadmin/locked-install distinction.
 

@@ -1079,6 +1079,7 @@ export const I18N = {
     },
     reset_filters: "gallery.reset_filters",
     scroll_to_top: "gallery.scroll_to_top",
+    scan_action: "gallery.scan_action",
     photo_grid: "gallery.photo_grid",
     active_filters: "gallery.active_filters",
     unknown_person: "gallery.unknown_person",

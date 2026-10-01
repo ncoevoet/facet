@@ -2340,6 +2340,122 @@ describe('GalleryComponent', () => {
     });
   });
 
+  // The permanent Scan entry. It belongs to the PAGE, not to the header-slot
+  // toolbar (`#galleryToolbar`): the shell projects that template on lg+ only
+  // (app.html wraps it in `!hidden lg:!flex`), so an icon placed there -- or
+  // given the Keep-top button's `!hidden lg:!inline-flex` -- is gone below lg,
+  // which is exactly where nothing else offers a scan. The fixture holds only
+  // the page's own DOM, never the projected header, so finding the entry in it
+  // is what proves it is not header-slot-only.
+  describe('scan entry above the grid (rendered)', () => {
+    interface ScanAccess {
+      hasFeature: boolean;
+      isMultiUser: boolean;
+      isSuperadmin: boolean;
+      editionPasswordRequired: boolean;
+      isEdition: boolean;
+    }
+    // A locked single-user install with an unlocked edition session.
+    const ALLOWED: ScanAccess = {
+      hasFeature: true, isMultiUser: false, isSuperadmin: false,
+      editionPasswordRequired: true, isEdition: true,
+    };
+    const SUPERADMIN: ScanAccess = {
+      hasFeature: true, isMultiUser: true, isSuperadmin: true,
+      editionPasswordRequired: false, isEdition: true,
+    };
+    const photos = Array.from({ length: 3 }, (_, n) => ({
+      path: `/p${n}.jpg`, filename: `p${n}.jpg`, image_width: 4000, image_height: 3000,
+      is_favorite: false, is_rejected: false, unassigned_faces: 0,
+    }));
+    let fixture: ComponentFixture<GalleryComponent> | null = null;
+
+    afterEach(() => {
+      fixture?.destroy();
+      fixture = null;
+    });
+
+    function render(access: ScanAccess, library: typeof photos): ComponentFixture<GalleryComponent> {
+      mockAuth['hasFeature'] = vi.fn(() => access.hasFeature);
+      mockAuth['isMultiUser'] = vi.fn(() => access.isMultiUser);
+      mockAuth['isSuperadmin'] = vi.fn(() => access.isSuperadmin);
+      mockAuth['editionPasswordRequired'] = vi.fn(() => access.editionPasswordRequired);
+      mockAuth['isEdition'] = vi.fn(() => access.isEdition);
+      mockAuth['downloadProfiles'] = vi.fn(() => []);
+      mockStore.photos.set(library);
+      mockStore.total.set(library.length);
+      fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function allButtons(f: ComponentFixture<GalleryComponent>): HTMLButtonElement[] {
+      return Array.from(f.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    }
+
+    function scanEntries(f: ComponentFixture<GalleryComponent>): HTMLButtonElement[] {
+      return allButtons(f).filter(b => b.getAttribute('aria-label') === I18N.gallery.scan_action);
+    }
+
+    it('is offered above a library that already has photos', () => {
+      expect(scanEntries(render(ALLOWED, photos))).toHaveLength(1);
+    });
+
+    it('is offered to a multi-user superadmin too', () => {
+      expect(scanEntries(render(SUPERADMIN, photos))).toHaveLength(1);
+    });
+
+    it('carries the tooltip as well as the accessible name', () => {
+      const f = render(ALLOWED, photos);
+      const [button] = scanEntries(f);
+      expect(button).toBeDefined();
+      const tooltip = f.debugElement.queryAll(By.directive(MatTooltip))
+        .find(de => de.nativeElement === button);
+      expect(tooltip?.injector.get(MatTooltip).message).toBe(I18N.gallery.scan_action);
+    });
+
+    it('opens the scan launcher when clicked', () => {
+      const f = render(ALLOWED, photos);
+      const open = vi.spyOn(f.componentInstance, 'openScanLauncher').mockResolvedValue(undefined);
+      const [button] = scanEntries(f);
+      expect(button).toBeDefined();
+      button.click();
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    // jsdom lays nothing out, so "visible at every width" can only be asserted
+    // as the absence of a class that hides it at some width -- the one thing
+    // copying the Keep-top button's classes would have introduced.
+    it('is not hidden at any width: neither the button nor an ancestor carries a hidden class', () => {
+      const f = render(ALLOWED, photos);
+      const [button] = scanEntries(f);
+      expect(button).toBeDefined();
+      const hiders: string[] = [];
+      for (let el: Element | null = button; el; el = el === f.nativeElement ? null : el.parentElement) {
+        hiders.push(...Array.from(el.classList).filter(c => /(^|:)!?hidden$/.test(c)));
+      }
+      expect(hiders).toEqual([]);
+    });
+
+    for (const [name, access] of [
+      ['the feature flag is off', { ...ALLOWED, hasFeature: false }],
+      ['a multi-user admin is not a superadmin', { ...SUPERADMIN, isSuperadmin: false }],
+      ['a single-user install has no edition password, even if the caller read as edition',
+        { ...ALLOWED, editionPasswordRequired: false }],
+      ['a locked single-user install has no edition session', { ...ALLOWED, isEdition: false }],
+    ] as const) {
+      it(`is withheld when ${name}`, () => {
+        expect(scanEntries(render(access, photos))).toHaveLength(0);
+      });
+    }
+
+    it('leaves an empty library to the empty-state call to action, which already carries Scan', () => {
+      const f = render(ALLOWED, []);
+      expect(scanEntries(f)).toHaveLength(0);
+      expect(allButtons(f).filter(b => b.textContent?.includes(I18N.scan.get_started))).toHaveLength(1);
+    });
+  });
+
   // The gallery's right-click menu acts on explicit paths: the menu's single-photo
   // actions must reach these methods without resolving, confirming over or
   // clearing the selection the user has built (and, under view scope, without

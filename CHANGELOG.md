@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **A permanent Scan action in the gallery.** An icon button at the top right of the photo grid opens the scan launcher whenever the library has photos, at every screen width; until now the only entry was the empty-gallery call to action. It needs both `viewer.features.show_scan_button: true` and a non-empty `viewer.edition_password`. `docs/VIEWER.md` also now says that no GPU is required to scan.
+
 ### Changed
 
 - **BREAKING: an install with no `viewer.edition_password` is now read-only.** Until now an empty edition password meant every anonymous caller held edition rights; it now means none do. Anyone can still browse, but every edit is refused with `403 Set viewer.edition_password to enable editing`. One-line fix: set `viewer.edition_password` in `scoring_config.json` (or `{"viewer": {"edition_password": "..."}}` in your override) and unlock edition from the user menu. The viewer shows a read-only banner explaining this, and pages that only make edit calls (`/compare`, `/culling`, `/junk`) redirect to the gallery. What is refused without an edition password:

@@ -1063,6 +1063,7 @@
     },
     "reset_filters": "Reset Filters",
     "scroll_to_top": "Scroll to top",
+    "scan_action": "Scan for new photos",
     "photo_grid": "Photo grid",
     "active_filters": "{count} active filters",
     "unknown_person": "Unknown",
