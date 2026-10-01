@@ -10,6 +10,7 @@ Copy-and-paste-Blöcken ab.
 | Dokument | Beschreibung |
 |----------|-------------|
 | [Installation](INSTALLATION.md) | Einrichtung pro Hardware, mit oder ohne Docker; Abhängigkeiten |
+| [Erste Schritte](GETTING_STARTED.md) | Walkthrough für den ersten Start: von der Installation bis zu Scan, Sichtung, Training, Aussortieren, Tagging und Export |
 | [Befehle](COMMANDS.md) | Referenz aller CLI-Befehle |
 | [Konfiguration](CONFIGURATION.md) | Vollständige `scoring_config.json`-Referenz |
 | [Bewertung](SCORING.md) | Kategorien, Gewichte, Tuning-Anleitung |

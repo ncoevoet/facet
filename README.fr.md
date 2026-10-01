@@ -208,11 +208,14 @@ Guide complet : **[Installation](docs/fr/INSTALLATION.md)** — configuration p
 au premier lancement, et [dépannage des conflits de dépendances](docs/fr/INSTALLATION.md#résoudre-les-conflits-de-dépendances).
 Lancez `python facet.py --doctor` pour diagnostiquer les problèmes de GPU.
 
+Première fois ? Suivez le parcours **[Prise en main](docs/fr/GETTING_STARTED.md)** : analyser, passer en revue, apprendre, écarter, taguer et exporter.
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
 | [Installation](docs/fr/INSTALLATION.md) | Prérequis, configuration GPU, profils VRAM, dépendances |
+| [Prise en main](docs/fr/GETTING_STARTED.md) | Parcours de premier lancement : de l'installation à l'analyse, au tri, à l'apprentissage, à l'écartement, au tagging et à l'export |
 | [Commandes](docs/fr/COMMANDS.md) | Référence de toutes les commandes CLI |
 | [Configuration](docs/fr/CONFIGURATION.md) | Référence complète de `scoring_config.json` |
 | [Évaluation](docs/fr/SCORING.md) | Catégories, poids, guide de réglage |

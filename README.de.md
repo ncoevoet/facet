@@ -209,11 +209,14 @@ Hardware, Downloads beim ersten Start, und
 [Fehlerbehebung bei Abhängigkeiten](docs/de/INSTALLATION.md#abhängigkeitskonflikte-beheben).
 Führen Sie `python facet.py --doctor` aus, um GPU-Probleme zu diagnostizieren.
 
+Zum ersten Mal hier? Folgen Sie der Anleitung **[Erste Schritte](docs/de/GETTING_STARTED.md)**: scannen, sichten, trainieren, aussortieren, taggen und exportieren.
+
 ## Dokumentation
 
 | Dokument | Beschreibung |
 |----------|-------------|
 | [Installation](docs/de/INSTALLATION.md) | Anforderungen, GPU-Einrichtung, VRAM-Profile, Abhängigkeiten |
+| [Erste Schritte](docs/de/GETTING_STARTED.md) | Walkthrough für den ersten Start: von der Installation bis zu Scan, Sichtung, Training, Aussortieren, Tagging und Export |
 | [Befehle](docs/de/COMMANDS.md) | Referenz aller CLI-Befehle |
 | [Konfiguration](docs/de/CONFIGURATION.md) | Vollständige Referenz zu `scoring_config.json` |
 | [Bewertung](docs/de/SCORING.md) | Kategorien, Gewichte, Leitfaden zur Feinabstimmung |

@@ -208,11 +208,14 @@ Guida completa: **[Installazione](docs/it/INSTALLATION.md)** — configurazione 
 hardware, download del primo avvio e [risoluzione dei conflitti di dipendenze](docs/it/INSTALLATION.md#risoluzione-dei-conflitti-di-dipendenze).
 Esegui `python facet.py --doctor` per diagnosticare i problemi della GPU.
 
+Prima volta? Segui il percorso **[Per iniziare](docs/it/GETTING_STARTED.md)**: scansione, revisione, addestramento, scarto, tag ed esportazione.
+
 ## Documentazione
 
 | Documento | Descrizione |
 |----------|-------------|
 | [Installazione](docs/it/INSTALLATION.md) | Requisiti, configurazione GPU, profili VRAM, dipendenze |
+| [Per iniziare](docs/it/GETTING_STARTED.md) | Percorso del primo avvio: dall'installazione a scansione, revisione, addestramento, scarto, tag ed esportazione |
 | [Comandi](docs/it/COMMANDS.md) | Riferimento di tutti i comandi CLI |
 | [Configurazione](docs/it/CONFIGURATION.md) | Riferimento completo di `scoring_config.json` |
 | [Punteggio](docs/it/SCORING.md) | Categorie, pesi, guida alla regolazione |

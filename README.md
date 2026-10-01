@@ -218,11 +218,14 @@ Full guide: **[Installation](docs/INSTALLATION.md)** — per-hardware setup, fir
 downloads, and [dependency troubleshooting](docs/INSTALLATION.md#troubleshooting-dependency-conflicts).
 Run `python facet.py --doctor` to diagnose GPU issues.
 
+First time here? Follow the **[Getting Started](docs/GETTING_STARTED.md)** walkthrough: scan, review, teach, discard, tag and export.
+
 ## Documentation
 
 | Document | Description |
 |----------|-------------|
 | [Installation](docs/INSTALLATION.md) | Requirements, GPU setup, VRAM profiles, dependencies |
+| [Getting Started](docs/GETTING_STARTED.md) | First-run walkthrough: install to scan, review, teach, discard, tag and export |
 | [Commands](docs/COMMANDS.md) | All CLI commands reference |
 | [Configuration](docs/CONFIGURATION.md) | Full `scoring_config.json` reference |
 | [Scoring](docs/SCORING.md) | Categories, weights, tuning guide |

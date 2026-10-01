@@ -218,11 +218,14 @@ python viewer.py                       # 照片库 → http://localhost:5000
 下载内容，以及[依赖冲突排查](docs/zh/INSTALLATION.md#排查依赖冲突)。
 运行 `python facet.py --doctor` 可以诊断 GPU 问题。
 
+初次使用？请按照**[快速上手](docs/zh/GETTING_STARTED.md)**指南：扫描、审阅、训练、淘汰、打标签并导出。
+
 ## 文档
 
 | 文档 | 说明 |
 |----------|-------------|
 | [安装](docs/zh/INSTALLATION.md) | 系统需求、GPU 配置、显存配置档、依赖 |
+| [快速上手](docs/zh/GETTING_STARTED.md) | 首次运行指南：从安装到扫描、审阅、训练、淘汰、打标签和导出 |
 | [命令](docs/zh/COMMANDS.md) | 全部 CLI 命令参考 |
 | [配置](docs/zh/CONFIGURATION.md) | `scoring_config.json` 完整参考 |
 | [评分](docs/zh/SCORING.md) | 类别、权重、调节指南 |

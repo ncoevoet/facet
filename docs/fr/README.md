@@ -10,6 +10,7 @@ copier-coller.
 | Document | Description |
 |----------|-------------|
 | [Installation](INSTALLATION.md) | Configuration par matériel, avec ou sans Docker ; dépendances |
+| [Prise en main](GETTING_STARTED.md) | Parcours de premier lancement : de l'installation à l'analyse, au tri, à l'apprentissage, à l'écartement, au tagging et à l'export |
 | [Commandes](COMMANDS.md) | Référence de toutes les commandes CLI |
 | [Configuration](CONFIGURATION.md) | Référence complète de `scoring_config.json` |
 | [Évaluation](SCORING.md) | Catégories, poids, guide de réglage |

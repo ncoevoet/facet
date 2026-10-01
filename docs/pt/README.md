@@ -10,6 +10,7 @@ copiar e colar.
 | Documento | Descrição |
 |----------|-------------|
 | [Instalação](INSTALLATION.md) | Configuração por hardware, com ou sem Docker; dependências |
+| [Primeiros passos](GETTING_STARTED.md) | Roteiro da primeira execução: da instalação à varredura, revisão, treinamento, descarte, etiquetagem e exportação |
 | [Comandos](COMMANDS.md) | Referência de todos os comandos da CLI |
 | [Configuração](CONFIGURATION.md) | Referência completa do `scoring_config.json` |
 | [Pontuação](SCORING.md) | Categorias, pesos, guia de ajuste |

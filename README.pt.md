@@ -209,11 +209,14 @@ downloads da primeira execução, e
 [solução de problemas de dependências](docs/pt/INSTALLATION.md#solução-de-conflitos-de-dependência).
 Execute `python facet.py --doctor` para diagnosticar problemas de GPU.
 
+Primeira vez? Siga o roteiro **[Primeiros passos](docs/pt/GETTING_STARTED.md)**: varrer, revisar, treinar, descartar, etiquetar e exportar.
+
 ## Documentação
 
 | Documento | Descrição |
 |----------|-------------|
 | [Instalação](docs/INSTALLATION.md) | Requisitos, configuração de GPU, perfis de VRAM, dependências |
+| [Primeiros passos](docs/pt/GETTING_STARTED.md) | Roteiro da primeira execução: da instalação à varredura, revisão, treinamento, descarte, etiquetagem e exportação |
 | [Comandos](docs/COMMANDS.md) | Referência de todos os comandos da CLI |
 | [Configuração](docs/CONFIGURATION.md) | Referência completa do `scoring_config.json` |
 | [Pontuação](docs/SCORING.md) | Categorias, pesos, guia de ajuste |
