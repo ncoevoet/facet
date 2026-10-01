@@ -947,7 +947,7 @@
     "lock_title": "Modalita di modifica attiva - clicca per bloccare",
     "password_placeholder": "Password di modifica",
     "invalid_password": "Password non valida",
-    "read_only_hint": "Sola lettura: imposta viewer.edition_password in scoring_config.json per abilitare valutazione, selezione e modifica."
+    "read_only_hint": "Sola lettura: imposta viewer.edition_password in scoring_config.json per abilitare valutazione, selezione e modifica, poi riavvia il viewer."
   },
   "nav": {
     "gallery": "Galleria",

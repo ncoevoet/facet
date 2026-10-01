@@ -1,6 +1,16 @@
-import { Routes } from '@angular/router';
+import { Route, Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { editionGuard } from './core/guards/edition.guard';
+
+/**
+ * Pages that only issue edition-gated API calls. One spread carries both the
+ * guard and the `data.edition` flag, so the flag `App.lockEdition` reads to
+ * decide which pages to leave cannot drift from the routes actually guarded.
+ */
+const EDITION_ONLY = {
+  canActivate: [authGuard, editionGuard],
+  data: { edition: true },
+} satisfies Pick<Route, 'canActivate' | 'data'>;
 
 export const routes: Routes = [
   {
@@ -24,19 +34,19 @@ export const routes: Routes = [
     path: 'merge-suggestions',
     loadComponent: () =>
       import('./features/persons/merge-suggestions.component').then(m => m.MergeSuggestionsComponent),
-    canActivate: [authGuard],
+    ...EDITION_ONLY,
   },
   {
     path: 'compare',
     loadComponent: () =>
       import('./features/comparison/comparison.component').then(m => m.ComparisonComponent),
-    canActivate: [authGuard, editionGuard],
+    ...EDITION_ONLY,
   },
   {
     path: 'culling',
     loadComponent: () =>
       import('./features/gallery/burst-culling.component').then(m => m.BurstCullingComponent),
-    canActivate: [authGuard, editionGuard],
+    ...EDITION_ONLY,
   },
   {
     path: 'scenes',
@@ -48,7 +58,7 @@ export const routes: Routes = [
     path: 'junk',
     loadComponent: () =>
       import('./features/junk-sweep/junk-sweep.component').then(m => m.JunkSweepComponent),
-    canActivate: [authGuard, editionGuard],
+    ...EDITION_ONLY,
   },
   {
     path: 'stats',

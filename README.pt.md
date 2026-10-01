@@ -139,7 +139,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 - **7 idiomas na interface** — a interface está disponível em inglês, francês, alemão, espanhol, italiano, português do Brasil e chinês simplificado (简体中文); a documentação está disponível em todos os sete idiomas
 - **Multiusuário** — diretórios, classificações e acesso por função, por usuário
 - **Plugins e webhooks** — ações personalizadas acionadas em eventos de pontuação
-- **Escaneamento pela interface web** — acione escaneamentos pelo navegador (função superadmin)
+- **Escaneamento pela interface web** — acione escaneamentos pelo navegador (superadmin no modo multiusuário; acesso de edição numa instalação de usuário único com senha de edição)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Galeria no celular" width="100%"></td>
@@ -149,7 +149,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 
 ## O que você precisa
 
-A maior parte do Facet roda em **qualquer máquina (CPU)** — pontuação, detecção de rostos, seleção, a galeria, busca, álbuns e exportação de metadados funcionam sem GPU. Uma **GPU** (com o perfil `16gb` ou `24gb`) libera os modelos mais robustos: pontuação estética TOPIQ, embeddings SigLIP 2, marcação por VLM, legendas e crítica por IA, e saliência do sujeito. Sem GPU local? Aponte a marcação/as legendas/a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto via `vlm_backend` no `scoring_config.json` — esses recursos passam a funcionar também nos perfis de CPU `legacy`/`8gb`. No visualizador, as ações de edição (classificações, rostos, seleção) exigem a **senha de edição**, e acionar escaneamentos exige a função **superadmin**.
+A maior parte do Facet roda em **qualquer máquina (CPU)** — pontuação, detecção de rostos, seleção, a galeria, busca, álbuns e exportação de metadados funcionam sem GPU. Uma **GPU** (com o perfil `16gb` ou `24gb`) libera os modelos mais robustos: pontuação estética TOPIQ, embeddings SigLIP 2, marcação por VLM, legendas e crítica por IA, e saliência do sujeito. Sem GPU local? Aponte a marcação/as legendas/a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto via `vlm_backend` no `scoring_config.json` — esses recursos passam a funcionar também nos perfis de CPU `legacy`/`8gb`. No visualizador, as ações de edição (classificações, rostos, seleção) exigem a **senha de edição**, e acionar escaneamentos exige `viewer.features.show_scan_button: true` e, além disso, a função **superadmin** no modo multiusuário, ou acesso de edição numa instalação de usuário único.
 
 → Requisitos completos por recurso (GPU, perfil de VRAM, pacotes opcionais, autenticação): **[Instalação › Requisitos por recurso](docs/pt/INSTALLATION.md#requisitos-por-recurso)**.
 

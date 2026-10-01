@@ -1824,7 +1824,7 @@ Toggle optional features to reduce memory usage or simplify the UI:
 | `show_similar_button` | `true` | Show "Find Similar" button on photo cards (uses numpy for CLIP similarity) |
 | `show_merge_suggestions` | `true` | Enable merge suggestions feature on manage persons page |
 | `show_rating_controls` | `true` | Show star rating and favorite controls |
-| `show_scan_button` | `false` | Show the scan trigger button (superadmin in multi-user mode; a locked edition session in single-user mode) — requires GPU on viewer host |
+| `show_scan_button` | `false` | Show the scan trigger button (superadmin in multi-user mode; a locked edition session in single-user mode) — no GPU required: the scan runs CPU-only on the `legacy` profile |
 | `metrics_enabled` | `false` | Enable the public `GET /metrics` Prometheus endpoint. Off by default — it exposes photo/person/face counts, DB size, and process memory; enable only when the endpoint is reachable from the scraper network, not from the public internet. |
 | `show_semantic_search` | `true` | Show semantic search bar (text-to-image search using CLIP/SigLIP embeddings) |
 | `show_albums` | `true` | Show albums feature (create, manage, and browse photo albums) |

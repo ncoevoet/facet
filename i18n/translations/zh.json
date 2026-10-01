@@ -947,7 +947,7 @@
     "lock_title": "编辑模式已启用，点击锁定",
     "password_placeholder": "编辑密码",
     "invalid_password": "密码错误",
-    "read_only_hint": "只读：请在 scoring_config.json 中设置 viewer.edition_password，以启用评分、筛选和编辑。"
+    "read_only_hint": "只读：请在 scoring_config.json 中设置 viewer.edition_password，以启用评分、筛选和编辑，然后重启查看器。"
   },
   "nav": {
     "gallery": "照片库",

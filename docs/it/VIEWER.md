@@ -60,7 +60,7 @@ Protezione facoltativa con password tramite configurazione:
 }
 ```
 
-Quando impostata, gli utenti devono autenticarsi prima di accedere alla galleria. Per qualsiasi modifica è richiesta una `edition_password`: valutazioni, preferiti e scarti, selezione, album, gestione di persone e volti, modalità di confronto, modifiche a pesi e priorità, esportazioni e generazione IA su richiesta. Senza `edition_password` (il valore predefinito) l'installazione è in **sola lettura**: chiunque può sfogliare e ogni modifica viene rifiutata con un `403` («Set viewer.edition_password to enable editing»).
+Quando impostata, gli utenti devono autenticarsi prima di accedere alla galleria. Per qualsiasi modifica è richiesta una `edition_password`: valutazioni, preferiti e scarti, selezione, album, gestione di persone e volti, modalità di confronto, modifiche a pesi e priorità ed esportazioni. Senza `edition_password` (il valore predefinito) l'installazione è in **sola lettura**: ogni modifica viene rifiutata con un `403` («Set viewer.edition_password to enable editing»). Anche la generazione IA su richiesta (didascalie, critiche VLM) la richiede, ma è un degrado e non un rifiuto: la chiamata risponde `200` con solo ciò che è già in cache (`source: "edition_required"` oppure `vlm_available: false`). Chi può *sfogliare* lo decide `viewer.password`: senza, chiunque può sfogliare l'intera libreria; con essa, solo gli utenti autenticati. Su un'installazione simile la galleria non mostra più nemmeno i badge esistenti di stelle, preferiti e scarti, come per un viewer senza modifica su un'installazione bloccata. Dopo aver impostato `viewer.edition_password`, riavvia il viewer: la configurazione non viene ricaricata a caldo.
 
 ### Modalità multiutente
 
@@ -402,7 +402,7 @@ La scomposizione mostra anche le righe esplicabili di **forma e armonia cromatic
 
 ### Critica VLM `[GPU]` `[16gb/24gb]`
 
-Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica consapevole del contesto. Richiede il profilo VRAM 16gb o 24gb e `viewer.features.show_vlm_critique: true`.
+Usa il VLM configurato (Qwen3.5-2B o Qwen3.5-4B) per una critica consapevole del contesto. Richiede il profilo VRAM 16gb o 24gb e `viewer.features.show_vlm_critique: true`. Generarla richiede anche una sessione di modifica; senza, viene servita solo una critica già in cache e `vlm_available` è `false`.
 
 Il prompt è una scala configurabile (`critique.vlm`) che inserisce la scomposizione completa delle regole, le penalità e l'EXIF, e la risposta viene presentata come **Osservazione / Valutazione / Suggerimenti**. Il risultato viene memorizzato nella cache per foto (`photos.vlm_critique`) e tradotto su richiesta, con un pulsante **Rigenera** per ricalcolarlo. Viene eseguito sulla miniatura memorizzata, così i file RAW vengono criticati correttamente invece di fallire silenziosamente.
 
@@ -1078,7 +1078,7 @@ I tipi TypeScript del client sono generati da questo schema in `client/src/app/c
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Conteggi foto per tipo per i chip della barra laterale. Stessi cinque interruttori della galleria; uno omesso ricade su `viewer.defaults` invece che su "disattivato" — invia `hide_bursts=0`, ecc., esplicitamente per contare tutto |
 | `GET /api/similar_photos/{path}` | Foto simili (modalità: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Ricerca semantica testo-immagine (`scope=text` = solo testo OCR/didascalia). `threshold` è opzionale: se omesso, si risolve al `models.*.search_threshold_percent` dell'encoder attivo (esposto al client come `search_threshold_default` di `/api/config`); un valore esplicito — incluso `0.0` — prevale sempre sul valore predefinito risolto. Valutato solo quando la ricerca esegue effettivamente una ricerca tramite embedding (`scope != 'text'` salta interamente la risoluzione) |
-| `GET /api/critique?path=&mode=&refresh=` | Critica IA (basata su regole o VLM); `refresh=true` rigenera la critica VLM memorizzata nella cache |
+| `GET /api/critique?path=&mode=&refresh=` | Critica IA (basata su regole o VLM); `refresh=true` rigenera la critica VLM memorizzata nella cache (solo sessione di modifica; altrimenti `vlm_available: false`) |
 | `GET /api/ranker/status` | Stato del ranker personale per l'ordinamento "I miei gusti" (% di copertura appresa, accuratezza su dati di validazione) |
 | `GET /api/config` | Configurazione della galleria |
 
@@ -1171,7 +1171,7 @@ I tipi TypeScript del client sono generati da questo schema in `client/src/app/c
 |----------|-------------|
 | `GET /api/memories?date=` | Foto scattate in questa data negli anni precedenti |
 | `GET /api/memories/check` | Controlla se esistono ricordi per una data |
-| `GET /api/caption?path=` | Ottieni o genera una didascalia IA |
+| `GET /api/caption?path=` | Ottieni la didascalia IA; una sessione di modifica la genera alla prima richiesta (altrimenti `source: "edition_required"`) |
 | `PUT /api/caption` | Aggiorna la didascalia della foto (modalità di modifica) |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Foto cronologiche impaginate. I cinque interruttori `hide_*` sono quelli della galleria; uno omesso ricade su `viewer.defaults` invece che su "disattivato" |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Date disponibili per la navigazione (stesso fallback `hide_*`) |
@@ -1385,7 +1385,7 @@ L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e
 | L'utente non vede le foto | Controlla `directories` nella sua configurazione utente e `shared_directories` |
 | Pulsante di scansione mancante | Richiede `viewer.features.show_scan_button: true` più l'accesso alla scansione: ruolo `superadmin` (multiutente), oppure una sessione autenticata in modalità di modifica su un'installazione a utente singolo bloccata (`viewer.edition_password` impostata) — un'installazione a utente singolo aperta non lo mostra mai |
 | La ricerca non restituisce risultati | Assicurati che le foto abbiano i dati `clip_embedding` (esegui prima la valutazione) |
-| Critica VLM non disponibile | Richiede il profilo VRAM 16gb/24gb e `viewer.features.show_vlm_critique: true` |
+| Critica VLM non disponibile | Richiede il profilo VRAM 16gb/24gb e `viewer.features.show_vlm_critique: true`, più una sessione di modifica per generarla (senza, viene servita solo una critica in cache) |
 | La mappa non mostra foto | Esegui `--extract-gps` per popolare le colonne GPS, assicurati che le foto abbiano dati GPS EXIF |
 | Le didascalie non vengono generate | Richiede il profilo VRAM 16gb/24gb per le didascalie VLM |
 | Cronologia vuota | Assicurati che le foto abbiano valori `date_taken` |

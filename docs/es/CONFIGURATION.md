@@ -1849,7 +1849,7 @@ Activa o desactiva funciones opcionales para reducir el uso de memoria o simplif
 | `show_similar_button` | `true` | Mostrar el botón "Buscar similares" en las tarjetas de foto (usa numpy para la similitud CLIP) |
 | `show_merge_suggestions` | `true` | Activar la función de sugerencias de fusión en la página de gestión de personas |
 | `show_rating_controls` | `true` | Mostrar los controles de valoración por estrellas y favoritos |
-| `show_scan_button` | `false` | Mostrar el botón de iniciar escaneo (superadmin en modo multiusuario; sesión de edición bloqueada en modo de un solo usuario) — requiere GPU en el host del visor |
+| `show_scan_button` | `false` | Mostrar el botón de iniciar escaneo (superadmin en modo multiusuario; sesión de edición bloqueada en modo de un solo usuario) — no requiere GPU: el escaneo se ejecuta solo en CPU con el perfil `legacy` |
 | `metrics_enabled` | `false` | Activar el endpoint público de Prometheus `GET /metrics`. Desactivado por defecto: expone recuentos de fotos/personas/rostros, tamaño de la BD y memoria del proceso; actívalo solo cuando el endpoint sea accesible desde la red del scraper, no desde internet público. |
 | `show_semantic_search` | `true` | Mostrar la barra de búsqueda semántica (búsqueda de texto a imagen usando embeddings CLIP/SigLIP) |
 | `show_albums` | `true` | Mostrar la función de álbumes (crear, gestionar y explorar álbumes de fotos) |

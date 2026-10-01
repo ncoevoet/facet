@@ -619,7 +619,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### Scan-Schaltfläche
 
-Um dem Superadmin zu erlauben, Fotoscans über die Viewer-Benutzeroberfläche auszulösen (nur sinnvoll, wenn der Viewer auf der GPU-Maschine läuft):
+Damit Fotoscans über die Viewer-Benutzeroberfläche ausgelöst werden können (Superadmin im Mehrbenutzermodus; eine Edition-Sitzung bei einer Einzelbenutzer-Installation mit gesetztem `viewer.edition_password`): Der Scan läuft auf dem Rechner, der den Viewer hostet, und braucht keine GPU (nur CPU mit dem Profil `legacy`, siehe [Keine Grafikkarte](INSTALLATION.md#keine-grafikkarte)):
 
 ```json
 {

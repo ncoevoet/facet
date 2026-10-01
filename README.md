@@ -149,7 +149,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **7 UI languages** — the viewer ships in English, French, German, Spanish, Italian, Brazilian Portuguese, and Simplified Chinese (简体中文); documentation is available in all seven
 - **Multi-user** — per-user directories, ratings, and role-based access
 - **Plugins & webhooks** — custom actions triggered on scoring events
-- **Scan from web UI** — trigger scans from the browser (superadmin role)
+- **Scan from web UI** — trigger scans from the browser (superadmin in multi-user mode; edition access on a single-user install with an edition password)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Mobile gallery" width="100%"></td>
@@ -159,7 +159,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 
 ## What you need
 
-Most of Facet runs on **any machine (CPU)** — scoring, face detection, culling, the gallery, search, albums and metadata export all work without a GPU. On **Apple Silicon**, Facet automatically uses PyTorch's Metal (`mps`) backend for Torch models, and the `auto` profile is sized from your total unified memory — a 32 GB Mac reaches the `16gb` profile, a 48 GB one the `24gb` profile; InsightFace remains on ONNX Runtime's CPU provider. An **NVIDIA GPU** (with the `16gb` or `24gb` profile) unlocks the strongest models: TOPIQ aesthetic scoring, SigLIP 2 embeddings, VLM tagging, AI captions and critique, and subject saliency. No local GPU? Point the VLM tagging/captions/critique at a remote **Ollama** or **OpenAI-compatible** server via `vlm_backend` in `scoring_config.json` — those features then work on the CPU `legacy`/`8gb` profiles too. In the viewer, editing actions (ratings, faces, culling) need the **edition password**, and triggering scans needs the **superadmin** role.
+Most of Facet runs on **any machine (CPU)** — scoring, face detection, culling, the gallery, search, albums and metadata export all work without a GPU. On **Apple Silicon**, Facet automatically uses PyTorch's Metal (`mps`) backend for Torch models, and the `auto` profile is sized from your total unified memory — a 32 GB Mac reaches the `16gb` profile, a 48 GB one the `24gb` profile; InsightFace remains on ONNX Runtime's CPU provider. An **NVIDIA GPU** (with the `16gb` or `24gb` profile) unlocks the strongest models: TOPIQ aesthetic scoring, SigLIP 2 embeddings, VLM tagging, AI captions and critique, and subject saliency. No local GPU? Point the VLM tagging/captions/critique at a remote **Ollama** or **OpenAI-compatible** server via `vlm_backend` in `scoring_config.json` — those features then work on the CPU `legacy`/`8gb` profiles too. In the viewer, editing actions (ratings, faces, culling) need the **edition password**, and triggering scans needs `viewer.features.show_scan_button: true` plus the **superadmin** role in multi-user mode, or edition access on a single-user install.
 
 → Full per-feature requirements (GPU, VRAM profile, optional packages, auth): **[Installation › Feature requirements](docs/INSTALLATION.md#feature-requirements)**.
 

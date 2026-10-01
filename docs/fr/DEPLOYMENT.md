@@ -611,7 +611,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### Bouton de scan
 
-Pour permettre au superadmin de déclencher des scans de photos depuis l'interface de la galerie web (utile uniquement lorsque la galerie tourne sur la machine GPU) :
+Pour permettre de déclencher des scans de photos depuis l'interface de la galerie (le superadmin en mode multi-utilisateurs ; une session d'édition sur une installation mono-utilisateur dotée d'un `viewer.edition_password`). Le scan s'exécute sur la machine qui héberge la galerie et ne requiert aucun GPU (CPU seul avec le profil `legacy`, voir [Pas de carte graphique](INSTALLATION.md#pas-de-carte-graphique)) :
 
 ```json
 {

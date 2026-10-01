@@ -281,10 +281,10 @@ class TestAMissingConfigOnlyReadsAsAFreshInstallWhenNobodyNamedIt:
         """A NAMED path that is absent gets no defaults either.
 
         The unnamed branch above hands back the shipped defaults; this one must
-        not. Those defaults carry an empty ``viewer.edition_password``, and an
-        empty edition password leaves the install without an edition lock -- so returning
-        them here would rebuild, through the merge, the exact open install this
-        branch exists to refuse.
+        not. Those defaults carry an empty ``viewer.password``, which is what
+        controls read exposure -- so returning them here would rebuild, through
+        the merge, an install anyone can read in full, which this branch exists
+        to refuse.
         """
         config, parsed_ok = self._read_an_absent_config(monkeypatch, tmp_path, True)
 

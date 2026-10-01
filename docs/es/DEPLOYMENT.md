@@ -625,7 +625,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### Botón de escaneo
 
-Para permitir que el superadmin desencadene escaneos de fotos desde la interfaz de la galería web (solo útil cuando la galería web se ejecuta en la máquina con GPU):
+Para permitir iniciar escaneos de fotos desde la interfaz de la galería web (el superadmin en modo multiusuario; una sesión de edición en una instalación de un solo usuario con `viewer.edition_password` definida). El escaneo se ejecuta en la máquina que aloja la galería y no requiere GPU (solo CPU con el perfil `legacy`, véase [Sin tarjeta gráfica](INSTALLATION.md#sin-tarjeta-gráfica)):
 
 ```json
 {

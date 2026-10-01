@@ -728,7 +728,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### Scan button
 
-To allow the superadmin to trigger photo scans from the viewer UI (only useful when the viewer runs on the GPU machine):
+To let the viewer UI trigger photo scans (the superadmin in multi-user mode; an edition session on a single-user install with a non-empty `viewer.edition_password`). The scan runs on the machine hosting the viewer and needs no GPU (CPU-only on the `legacy` profile, see [No graphics card](INSTALLATION.md#no-graphics-card)):
 
 ```json
 {

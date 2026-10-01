@@ -61,7 +61,7 @@ Optional password protection via config:
 }
 ```
 
-When set, users must authenticate before accessing the viewer. An `edition_password` is required for any editing: ratings, favorites and rejects, culling, albums, person and face management, comparison mode, weight and priority changes, exports and on-demand AI generation. With no `edition_password` (the shipped default) the install is **read-only**: anyone can browse, and every edit is refused with a `403` ("Set viewer.edition_password to enable editing").
+When set, users must authenticate before accessing the viewer. An `edition_password` is required for any editing: ratings, favorites and rejects, culling, albums, person and face management, comparison mode, weight and priority changes and exports. With no `edition_password` (the shipped default) the install is **read-only**: every edit is refused with a `403` ("Set viewer.edition_password to enable editing"). On-demand AI generation (captions, VLM critiques) also needs it, but is a degradation rather than a refusal: the call answers `200` with only what is already cached (`source: "edition_required"` or `vlm_available: false`). Who may *browse* is decided by `viewer.password`: with none, anyone can browse the whole library; with one, only authenticated users. On such an install the gallery also no longer shows existing star, favourite and reject badges, as for a non-edition viewer on a locked install. After setting `viewer.edition_password`, restart the viewer: the config is not hot-reloaded.
 
 Login also mirrors the session token in an `HttpOnly` `SameSite=Lax` cookie so browser-native requests that cannot carry an `Authorization` header — `<img>` tags loading thumbnails, the scan progress stream — authenticate on locked deployments. The cookie is honored for read-only requests (GET/HEAD) only; every state-changing call still requires the Bearer token, so it adds no CSRF surface. Logging out calls `POST /api/auth/logout`, which clears the cookie.
 
@@ -472,7 +472,7 @@ The breakdown also surfaces the explainable **form and color-harmony** rows (sym
 
 ### VLM Critique `[GPU]` `[16gb/24gb]`
 
-Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
+Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`. Generating one also requires an edition session; without it only an already cached critique is served and `vlm_available` is `false`.
 
 The prompt is a configurable ladder (`critique.vlm`) that injects the full rule breakdown, penalties and EXIF, and the reply is rendered as **Observation / Assessment / Suggestions**. The result is cached per photo (`photos.vlm_critique`) and translated on demand, with a **Regenerate** button to recompute it. It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently.
 
@@ -1150,7 +1150,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Photo counts per type for the sidebar chips. Same five toggles as the gallery; an omitted one falls back to `viewer.defaults` rather than "off" — send `hide_bursts=0` etc. explicitly to count everything |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantic text-to-image search (`scope=text` = OCR/caption text only). `threshold` is optional: omitted, it resolves to the active encoder's `models.*.search_threshold_percent` (exposed to the client as `/api/config`'s `search_threshold_default`); an explicit value — including `0.0` — always overrides the resolved default. Only evaluated when the search actually runs an embedding search (`scope != 'text'` skips the resolution entirely) |
-| `GET /api/critique?path=&mode=&refresh=` | AI critique (rule-based or VLM); `refresh=true` regenerates the cached VLM critique |
+| `GET /api/critique?path=&mode=&refresh=` | AI critique (rule-based or VLM); `refresh=true` regenerates the cached VLM critique (edition session only; otherwise `vlm_available: false`) |
 | `GET /api/ranker/status` | Personal-ranker status for the "My Taste" sort (learned coverage %, held-out accuracy) |
 | `GET /api/config` | Viewer configuration |
 
@@ -1243,7 +1243,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 |----------|-------------|
 | `GET /api/memories?date=` | Photos taken on this date in previous years |
 | `GET /api/memories/check` | Check if memories exist for a date |
-| `GET /api/caption?path=` | Get or generate AI caption |
+| `GET /api/caption?path=` | Get the AI caption; an edition session generates it on first request (otherwise `source: "edition_required"`) |
 | `PUT /api/caption` | Update photo caption (edition mode) |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Paginated timeline photos. The five `hide_*` toggles are the gallery's; an omitted one falls back to `viewer.defaults` rather than "off" |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available dates for navigation (same `hide_*` fallback) |
@@ -1461,7 +1461,7 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 | User can't see photos | Check `directories` in their user config and `shared_directories` |
 | Scan button missing | Requires `viewer.features.show_scan_button: true` plus scan access: `superadmin` role (multi-user), or an edition-authenticated session on a locked single-user install (`viewer.edition_password` set) — an open single-user install never shows it |
 | Search returns no results | Ensure photos have `clip_embedding` data (run scoring first) |
-| VLM critique unavailable | Requires 16gb/24gb VRAM profile and `viewer.features.show_vlm_critique: true` |
+| VLM critique unavailable | Requires 16gb/24gb VRAM profile and `viewer.features.show_vlm_critique: true`, plus an edition session to generate one (without it only a cached critique is served) |
 | Map shows no photos | Run `--extract-gps` to populate GPS columns, ensure photos have EXIF GPS data |
 | Captions not generating | Requires 16gb/24gb VRAM profile for VLM captioning |
 | Timeline empty | Ensure photos have `date_taken` values |

@@ -3,6 +3,8 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { MatDialog } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
+import { signal } from '@angular/core';
+import { AuthService } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { MergeSuggestionsComponent } from './merge-suggestions.component';
@@ -42,6 +44,7 @@ describe('MergeSuggestionsComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         MergeSuggestionsComponent,
+        { provide: AuthService, useValue: { isEdition: signal(true) } },
         { provide: ApiService, useValue: mockApi },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatDialog, useValue: mockDialog },

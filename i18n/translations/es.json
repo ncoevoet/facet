@@ -947,7 +947,7 @@
     "lock_title": "Modo edición activo - haz clic para bloquear",
     "password_placeholder": "Contraseña de edición",
     "invalid_password": "Contraseña incorrecta",
-    "read_only_hint": "Solo lectura: defina viewer.edition_password en scoring_config.json para activar la valoración, la selección y la edición."
+    "read_only_hint": "Solo lectura: defina viewer.edition_password en scoring_config.json para activar la valoración, la selección y la edición, y reinicie el visor."
   },
   "nav": {
     "gallery": "Galería",

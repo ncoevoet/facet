@@ -571,6 +571,7 @@ class TestUnparseableConfigFailsClosed:
         assert client.get("/api/auth/status").json()["authenticated"] is True
         resp = client.post(_EDITION_ENDPOINT, json=_INCOMPLETE_EDITION_BODY)
         assert resp.status_code == 403
+        assert resp.json()["detail"] == "Set viewer.edition_password to enable editing"
 
 
 # ---------------------------------------------------------------------------

@@ -674,7 +674,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### 扫描按钮
 
-要允许超级管理员从查看器界面触发照片扫描（只有查看器跑在 GPU 机器上时才有意义）：
+要允许从查看器界面触发照片扫描（多用户模式下为超级管理员；已设置 `viewer.edition_password` 的单用户安装则为编辑会话）。扫描在运行查看器的机器上执行，无需 GPU（`legacy` 配置档下仅用 CPU，参见[没有显卡](INSTALLATION.md#没有显卡)）：
 
 ```json
 {

@@ -8,7 +8,7 @@ import { AuthService, AuthStatus } from '../services/auth.service';
 describe('authGuard', () => {
   let authMock: {
     status: ReturnType<typeof signal<AuthStatus | null>>;
-    checkStatus: Mock;
+    loadStatus: Mock;
   };
   let routerMock: { navigate: Mock };
 
@@ -18,7 +18,7 @@ describe('authGuard', () => {
   beforeEach(() => {
     authMock = {
       status: signal<AuthStatus | null>(null),
-      checkStatus: vi.fn(),
+      loadStatus: vi.fn(),
     };
     routerMock = { navigate: vi.fn() };
 
@@ -51,13 +51,13 @@ describe('authGuard', () => {
     const result = await runGuard();
 
     expect(result).toBe(true);
-    expect(authMock.checkStatus).not.toHaveBeenCalled();
+    expect(authMock.loadStatus).not.toHaveBeenCalled();
     expect(routerMock.navigate).not.toHaveBeenCalled();
   });
 
-  it('calls checkStatus when status is null, returns true if authenticated', async () => {
+  it('calls loadStatus when status is null, returns true if authenticated', async () => {
     authMock.status.set(null);
-    authMock.checkStatus.mockImplementation(async () => {
+    authMock.loadStatus.mockImplementation(async () => {
       authMock.status.set({
         authenticated: true,
         multi_user: false,
@@ -75,18 +75,18 @@ describe('authGuard', () => {
 
     const result = await runGuard();
 
-    expect(authMock.checkStatus).toHaveBeenCalled();
+    expect(authMock.loadStatus).toHaveBeenCalled();
     expect(result).toBe(true);
     expect(routerMock.navigate).not.toHaveBeenCalled();
   });
 
-  it('redirects to /login when checkStatus throws', async () => {
+  it('redirects to /login when loadStatus throws', async () => {
     authMock.status.set(null);
-    authMock.checkStatus.mockRejectedValue(new Error('Network error'));
+    authMock.loadStatus.mockRejectedValue(new Error('Network error'));
 
     const result = await runGuard();
 
-    expect(authMock.checkStatus).toHaveBeenCalled();
+    expect(authMock.loadStatus).toHaveBeenCalled();
     expect(result).toBe(false);
     expect(routerMock.navigate).toHaveBeenCalledWith(['/login']);
   });
@@ -112,15 +112,15 @@ describe('authGuard', () => {
     expect(routerMock.navigate).toHaveBeenCalledWith(['/login']);
   });
 
-  it('redirects to /login when status is null after checkStatus', async () => {
+  it('redirects to /login when status is null after loadStatus', async () => {
     authMock.status.set(null);
-    authMock.checkStatus.mockImplementation(async () => {
-      // checkStatus resolves but does not set status
+    authMock.loadStatus.mockImplementation(async () => {
+      // loadStatus resolves but does not set status
     });
 
     const result = await runGuard();
 
-    expect(authMock.checkStatus).toHaveBeenCalled();
+    expect(authMock.loadStatus).toHaveBeenCalled();
     expect(result).toBe(false);
     expect(routerMock.navigate).toHaveBeenCalledWith(['/login']);
   });

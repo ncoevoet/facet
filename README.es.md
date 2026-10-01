@@ -139,7 +139,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **7 idiomas en la interfaz** — la interfaz está disponible en inglés, francés, alemán, español, italiano, portugués brasileño y chino simplificado (简体中文); la documentación está disponible en los siete idiomas
 - **Multiusuario** — directorios, valoraciones y acceso por roles para cada usuario
 - **Plugins y webhooks** — acciones personalizadas activadas por eventos de puntuación
-- **Escaneo desde la interfaz web** — inicia escaneos desde el navegador (rol de superadministrador)
+- **Escaneo desde la interfaz web** — inicia escaneos desde el navegador (superadministrador en modo multiusuario; acceso de edición en una instalación de un solo usuario con contraseña de edición)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Galería en móvil" width="100%"></td>
@@ -149,7 +149,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 
 ## Qué necesitas
 
-La mayor parte de Facet se ejecuta en **cualquier equipo (CPU)** — la puntuación, la detección de rostros, la selección, la galería, la búsqueda, los álbumes y la exportación de metadatos funcionan todos sin una GPU. Una **GPU** (con el perfil `16gb` o `24gb`) desbloquea los modelos más potentes: puntuación estética TOPIQ, embeddings SigLIP 2, etiquetado VLM, leyendas y crítica con IA, y saliencia del sujeto. ¿Sin GPU local? Apunta el etiquetado/las leyendas/la crítica VLM a un servidor **Ollama** o **compatible con OpenAI** remoto mediante `vlm_backend` en `scoring_config.json` — esas funciones entonces también funcionan en los perfiles de CPU `legacy`/`8gb`. En el visor, las acciones de edición (valoraciones, rostros, selección) necesitan la **contraseña de edición**, y el inicio de escaneos necesita el rol de **superadministrador**.
+La mayor parte de Facet se ejecuta en **cualquier equipo (CPU)** — la puntuación, la detección de rostros, la selección, la galería, la búsqueda, los álbumes y la exportación de metadatos funcionan todos sin una GPU. Una **GPU** (con el perfil `16gb` o `24gb`) desbloquea los modelos más potentes: puntuación estética TOPIQ, embeddings SigLIP 2, etiquetado VLM, leyendas y crítica con IA, y saliencia del sujeto. ¿Sin GPU local? Apunta el etiquetado/las leyendas/la crítica VLM a un servidor **Ollama** o **compatible con OpenAI** remoto mediante `vlm_backend` en `scoring_config.json` — esas funciones entonces también funcionan en los perfiles de CPU `legacy`/`8gb`. En el visor, las acciones de edición (valoraciones, rostros, selección) necesitan la **contraseña de edición**, y el inicio de escaneos necesita `viewer.features.show_scan_button: true` y, además, el rol de **superadministrador** en modo multiusuario, o acceso de edición en una instalación de un solo usuario.
 
 → Requisitos completos por función (GPU, perfil de VRAM, paquetes opcionales, autenticación): **[Instalación › Requisitos por función](docs/es/INSTALLATION.md#requisitos-por-función)**.
 

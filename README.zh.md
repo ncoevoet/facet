@@ -149,7 +149,7 @@ GPU 会被自动检测，并非必需。Facet 既能纯 CPU 运行，也能使�
 - **7 种界面语言**——查看器提供英语、法语、德语、西班牙语、意大利语、巴西葡萄牙语和简体中文；这七种语言的文档也都齐备
 - **多用户**——按用户区分的目录、评分和基于角色的访问控制
 - **插件与 webhook**——在评分事件上触发的自定义动作
-- **从网页界面扫描**——直接在浏览器中触发扫描（需要 superadmin 角色）
+- **从网页界面扫描**——直接在浏览器中触发扫描（多用户模式下需要 superadmin；设置了编辑密码的单用户安装需要编辑权限）
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="手机上的照片库" width="100%"></td>
@@ -159,7 +159,7 @@ GPU 会被自动检测，并非必需。Facet 既能纯 CPU 运行，也能使�
 
 ## 你需要什么
 
-Facet 的绝大部分功能在**任何机器（CPU）**上都能运行——评分、人脸检测、选片、照片库、搜索、相册和元数据导出都不需要 GPU。在 **Apple Silicon** 上，Facet 会自动为 Torch 模型启用 PyTorch 的 Metal（`mps`）后端，`auto` 配置档则按统一内存总量来选定——32 GB 的 Mac 能用上 `16gb` 配置档，48 GB 的能用上 `24gb` 配置档；InsightFace 仍然使用 ONNX Runtime 的 CPU provider。**NVIDIA GPU**（配合 `16gb` 或 `24gb` 配置档）可以解锁最强的模型：TOPIQ 美观度评分、SigLIP 2 向量嵌入、VLM 打标签、AI 照片描述与点评，以及主体显著性。没有本地 GPU？把 VLM 打标签／照片描述／点评通过 `scoring_config.json` 中的 `vlm_backend` 指向远程的 **Ollama** 或 **兼容 OpenAI** 的服务器——这样这些功能在 CPU 的 `legacy`/`8gb` 配置档上也能使用。在查看器中，编辑类操作（星级、人脸、选片）需要**编辑密码**，触发扫描则需要 **superadmin** 角色。
+Facet 的绝大部分功能在**任何机器（CPU）**上都能运行——评分、人脸检测、选片、照片库、搜索、相册和元数据导出都不需要 GPU。在 **Apple Silicon** 上，Facet 会自动为 Torch 模型启用 PyTorch 的 Metal（`mps`）后端，`auto` 配置档则按统一内存总量来选定——32 GB 的 Mac 能用上 `16gb` 配置档，48 GB 的能用上 `24gb` 配置档；InsightFace 仍然使用 ONNX Runtime 的 CPU provider。**NVIDIA GPU**（配合 `16gb` 或 `24gb` 配置档）可以解锁最强的模型：TOPIQ 美观度评分、SigLIP 2 向量嵌入、VLM 打标签、AI 照片描述与点评，以及主体显著性。没有本地 GPU？把 VLM 打标签／照片描述／点评通过 `scoring_config.json` 中的 `vlm_backend` 指向远程的 **Ollama** 或 **兼容 OpenAI** 的服务器——这样这些功能在 CPU 的 `legacy`/`8gb` 配置档上也能使用。在查看器中，编辑类操作（星级、人脸、选片）需要**编辑密码**，触发扫描需要 `viewer.features.show_scan_button: true`，并且在多用户模式下需要 **superadmin** 角色，在单用户安装上需要编辑权限。
 
 → 按功能列出的完整要求（GPU、显存配置档、可选依赖包、鉴权）：**[安装 › 各功能的要求](docs/zh/INSTALLATION.md#各功能的要求)**。
 

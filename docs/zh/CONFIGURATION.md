@@ -1810,7 +1810,7 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 | `show_similar_button` | `true` | 在照片卡片上显示“查找相似照片”按钮（CLIP 相似度计算需要 numpy） |
 | `show_merge_suggestions` | `true` | 在管理人物页面启用合并建议功能 |
 | `show_rating_controls` | `true` | 显示星级与收藏控件 |
-| `show_scan_button` | `false` | 显示触发扫描的按钮（多用户模式下为超级管理员；单用户模式下为已锁定的编辑模式会话）——要求查看器所在主机有 GPU |
+| `show_scan_button` | `false` | 显示触发扫描的按钮（多用户模式下为超级管理员；单用户模式下为已锁定的编辑模式会话）——无需 GPU：在 `legacy` 配置档下扫描仅使用 CPU 运行 |
 | `metrics_enabled` | `false` | 启用公开的 `GET /metrics` Prometheus 端点。默认关闭 — 它会暴露照片/人物/人脸数量、数据库大小和进程内存；仅当该端点只能从抓取端网络、而非公网访问时才启用。 |
 | `show_semantic_search` | `true` | 显示语义搜索栏（使用 CLIP/SigLIP 嵌入进行以文搜图） |
 | `show_albums` | `true` | 显示相册功能（创建、管理和浏览照片相册） |

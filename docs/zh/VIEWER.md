@@ -61,7 +61,7 @@ cd client && npx ng serve
 }
 ```
 
-设置之后，用户必须先通过身份验证才能访问查看器。任何编辑操作都需要 `edition_password`：评分、收藏与拒绝、选片、相册、人物与人脸管理、比较模式、权重与优先级修改、导出以及按需 AI 生成。未设置 `edition_password`（出厂默认）时，安装为**只读**：任何人都可浏览，但所有编辑都会被 `403` 拒绝（“Set viewer.edition_password to enable editing”）。
+设置之后，用户必须先通过身份验证才能访问查看器。任何编辑操作都需要 `edition_password`：评分、收藏与拒绝、选片、相册、人物与人脸管理、比较模式、权重与优先级修改以及导出。未设置 `edition_password`（出厂默认）时，安装为**只读**：所有编辑都会被 `403` 拒绝（“Set viewer.edition_password to enable editing”）。按需 AI 生成（描述、VLM 点评）同样需要它，但属于降级而非拒绝：调用返回 `200`，只提供已缓存的内容（`source: "edition_required"` 或 `vlm_available: false`）。谁可以*浏览*由 `viewer.password` 决定：未设置时任何人都可浏览整个照片库；设置后只有已通过身份验证的用户可以。在这样的安装上，图库也不再显示已有的星级、收藏和拒绝徽标，与已锁定安装上没有编辑权限的查看器一致。设置 `viewer.edition_password` 之后请重启查看器：配置不会热重载。
 
 登录时还会把会话令牌镜像写入一个 `HttpOnly`、`SameSite=Lax` 的 Cookie，这样那些无法携带 `Authorization` 请求头的浏览器原生请求（加载缩略图的 `<img>` 标签、扫描进度流）在已加锁的部署上也能通过验证。该 Cookie 仅对只读请求（GET/HEAD）生效；任何会改变状态的调用仍然要求 Bearer 令牌，因此不会增加 CSRF 攻击面。退出登录会调用 `POST /api/auth/logout`，该接口会清除此 Cookie。
 
@@ -464,7 +464,7 @@ API：参见下文的 [API 端点](#api-端点)一节。
 
 ### VLM 点评 `[GPU]` `[16gb/24gb]`
 
-使用已配置的 VLM（Qwen3.5-2B 或 Qwen3.5-4B）给出结合上下文的点评。需要 16gb 或 24gb VRAM 配置档，以及 `viewer.features.show_vlm_critique: true`。
+使用已配置的 VLM（Qwen3.5-2B 或 Qwen3.5-4B）给出结合上下文的点评。需要 16gb 或 24gb VRAM 配置档，以及 `viewer.features.show_vlm_critique: true`。生成点评还需要编辑会话；没有时只提供已缓存的点评，且 `vlm_available` 为 `false`。
 
 提示词是一条可配置的阶梯（`critique.vlm`），会注入完整的规则拆解、扣分项和 EXIF，回复按**观察 / 评价 / 建议**呈现。结果按照片缓存（`photos.vlm_critique`）并按需翻译，另有**重新生成**按钮可重新计算。它基于已存储的缩略图运行，因此 RAW 文件也能正确点评，而不会悄无声息地失败。
 
@@ -1142,7 +1142,7 @@ python database.py --stats-info
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | 侧边栏类型标签所用的各类型照片数量。与照片库使用同样的五个开关；省略某个开关时会回退到 `viewer.defaults` 而不是“关闭”——要统计全部，请显式发送 `hide_bursts=0` 等 |
 | `GET /api/similar_photos/{path}` | 相似照片（模式：`visual`、`color`、`person`） |
 | `GET /api/search?q=&limit=&threshold=&scope=` | 语义化的以文搜图（`scope=text` = 仅 OCR／描述文本）。`threshold` 为可选参数：省略时会解析为当前生效编码器的 `models.*.search_threshold_percent`（以 `/api/config` 的 `search_threshold_default` 暴露给客户端）；显式传入的值——包括 `0.0`——总会覆盖解析出的默认值。只有当搜索确实执行了嵌入向量检索时才会做这次解析（`scope != 'text'` 会完全跳过解析） |
-| `GET /api/critique?path=&mode=&refresh=` | AI 点评（基于规则或 VLM）；`refresh=true` 会重新生成已缓存的 VLM 点评 |
+| `GET /api/critique?path=&mode=&refresh=` | AI 点评（基于规则或 VLM）；`refresh=true` 会重新生成已缓存的 VLM 点评（仅限编辑会话；否则为 `vlm_available: false`） |
 | `GET /api/ranker/status` | “我的偏好”排序所用的个人排序模型状态（已学习覆盖率 %、留出集准确率） |
 | `GET /api/config` | 查看器配置 |
 
@@ -1235,7 +1235,7 @@ python database.py --stats-info
 |----------|-------------|
 | `GET /api/memories?date=` | 往年这一天拍摄的照片 |
 | `GET /api/memories/check` | 检查某个日期是否存在回忆 |
-| `GET /api/caption?path=` | 获取或生成 AI 照片描述 |
+| `GET /api/caption?path=` | 获取 AI 照片描述；编辑会话会在首次请求时生成（否则为 `source: "edition_required"`） |
 | `PUT /api/caption` | 更新照片描述（编辑模式） |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | 分页的时间线照片。这五个 `hide_*` 开关就是照片库的那几个；省略某个时会回退到 `viewer.defaults` 而不是“关闭” |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | 可供导航的日期（`hide_*` 回退规则相同） |
@@ -1453,7 +1453,7 @@ python database.py --stats-info
 | 用户看不到照片 | 检查其用户配置中的 `directories` 以及 `shared_directories` |
 | 没有扫描按钮 | 需要 `viewer.features.show_scan_button: true`，外加扫描权限：多用户模式下的 `superadmin` 角色，或单用户模式下在已锁定安装（`viewer.edition_password` 已设置）上通过编辑模式身份验证的会话——开放的单用户安装永远不会显示该按钮 |
 | 搜索没有结果 | 确认照片已有 `clip_embedding` 数据（请先运行评分） |
-| VLM 点评不可用 | 需要 16gb/24gb VRAM 配置档以及 `viewer.features.show_vlm_critique: true` |
+| VLM 点评不可用 | 需要 16gb/24gb VRAM 配置档以及 `viewer.features.show_vlm_critique: true`，另外生成时还需要编辑会话（没有时只提供已缓存的点评） |
 | 地图上没有照片 | 运行 `--extract-gps` 填充 GPS 列，并确认照片带有 EXIF GPS 数据 |
 | 无法生成照片描述 | 基于 VLM 的照片描述需要 16gb/24gb VRAM 配置档 |
 | 时间线为空 | 确认照片有 `date_taken` 值 |

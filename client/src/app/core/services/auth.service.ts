@@ -70,6 +70,7 @@ export class AuthService {
 
   private readonly TOKEN_KEY = 'facet_token';
   private pendingRevalidation: Promise<AuthStatus | null> | null = null;
+  private pendingLoad: Promise<AuthStatus> | null = null;
 
   /** Reactive auth state */
   readonly status = signal<AuthStatus | null>(null);
@@ -109,6 +110,17 @@ export class AuthService {
     const status = await firstValueFrom(this.http.get<AuthStatus>('/api/auth/status'));
     this.status.set(status);
     return status;
+  }
+
+  /** The cached status, or the one server load every caller shares while it is
+   *  in flight. Route guards run concurrently, so a cold load must cost a single
+   *  `/api/auth/status` request and no guard may read the signal before it
+   *  settles. Rejects like `checkStatus`. */
+  loadStatus(): Promise<AuthStatus> {
+    const cached = this.status();
+    if (cached) return Promise.resolve(cached);
+    this.pendingLoad ??= this.checkStatus().finally(() => { this.pendingLoad = null; });
+    return this.pendingLoad;
   }
 
   /** Reconcile the cached status with the server, coalescing concurrent callers

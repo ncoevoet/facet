@@ -37,21 +37,6 @@ _CRITIQUE_COLS = [
 ]
 
 
-@pytest.fixture()
-def edition_session_client():
-    """Client carrying an edition session, so the REAL edition gate runs.
-
-    The plain ``client`` is an anonymous caller on an open install, which is
-    read-only: on-demand generation and its DB writes are refused for it.
-    """
-    app = create_app()
-    app.dependency_overrides[get_optional_user] = lambda: CurrentUser(
-        user_id="admin", role="admin", edition_authenticated=True
-    )
-    yield TestClient(app)
-    app.dependency_overrides.clear()
-
-
 _CRITIQUE_SCHEMA = (
     "CREATE TABLE photos (path TEXT PRIMARY KEY, "
     + ", ".join(f"{c} TEXT" for c in _CRITIQUE_COLS if c != 'path')

@@ -575,9 +575,12 @@ export class App implements OnInit {
 
   protected async lockEdition(): Promise<void> {
     await this.auth.dropEdition();
-    const editionRoutes = ['/compare', '/culling', '/junk'];
     const path = this.url().split('?')[0];
-    if (editionRoutes.some(r => path.startsWith(r))) {
+    const onEditionRoute = this.router.config.some(r => {
+      const base = `/${r.path}`;
+      return r.data?.['edition'] === true && (path === base || path.startsWith(`${base}/`));
+    });
+    if (onEditionRoute) {
       this.router.navigate(['/']);
     }
   }

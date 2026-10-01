@@ -139,7 +139,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 - **7 langues dans l'interface** — l'interface est disponible en anglais, français, allemand, espagnol, italien, portugais brésilien et chinois simplifié (简体中文) ; la documentation est disponible dans les sept langues
 - **Multi-utilisateur** — répertoires, notes et accès par rôle propres à chaque utilisateur
 - **Plugins et webhooks** — actions personnalisées déclenchées sur les événements d'évaluation
-- **Analyse depuis l'interface web** — déclenchez des analyses depuis le navigateur (rôle superadmin)
+- **Analyse depuis l'interface web** — déclenchez des analyses depuis le navigateur (superadmin en mode multi-utilisateurs ; accès édition sur une installation mono-utilisateur dotée d'un mot de passe d'édition)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Galerie sur mobile" width="100%"></td>
@@ -149,7 +149,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 
 ## Ce dont vous avez besoin
 
-L'essentiel de Facet fonctionne sur **n'importe quelle machine (CPU)** — l'évaluation, la détection de visages, le tri, la galerie, la recherche, les albums et l'export des métadonnées fonctionnent tous sans GPU. Un **GPU** (avec le profil `16gb` ou `24gb`) débloque les modèles les plus performants : l'évaluation esthétique TOPIQ, les embeddings SigLIP 2, le tagging par VLM, les légendes et la critique IA, ainsi que la saillance du sujet. Pas de GPU local ? Pointez le tagging, le légendage et la critique VLM vers un serveur **Ollama** ou **compatible OpenAI** distant via `vlm_backend` dans `scoring_config.json` — ces fonctionnalités fonctionnent alors aussi sur les profils CPU `legacy`/`8gb`. Dans le visualiseur, les actions d'édition (notes, visages, tri) nécessitent le **mot de passe d'édition**, et le déclenchement des analyses nécessite le rôle **superadmin**.
+L'essentiel de Facet fonctionne sur **n'importe quelle machine (CPU)** — l'évaluation, la détection de visages, le tri, la galerie, la recherche, les albums et l'export des métadonnées fonctionnent tous sans GPU. Un **GPU** (avec le profil `16gb` ou `24gb`) débloque les modèles les plus performants : l'évaluation esthétique TOPIQ, les embeddings SigLIP 2, le tagging par VLM, les légendes et la critique IA, ainsi que la saillance du sujet. Pas de GPU local ? Pointez le tagging, le légendage et la critique VLM vers un serveur **Ollama** ou **compatible OpenAI** distant via `vlm_backend` dans `scoring_config.json` — ces fonctionnalités fonctionnent alors aussi sur les profils CPU `legacy`/`8gb`. Dans le visualiseur, les actions d'édition (notes, visages, tri) nécessitent le **mot de passe d'édition**, et le déclenchement des analyses nécessite `viewer.features.show_scan_button: true` et, en plus, le rôle **superadmin** en mode multi-utilisateurs, ou l'accès édition sur une installation mono-utilisateur.
 
 → Prérequis complets par fonctionnalité (GPU, profil VRAM, paquets optionnels, authentification) : **[Installation › Exigences par fonctionnalité](docs/fr/INSTALLATION.md#exigences-par-fonctionnalité)**.
 

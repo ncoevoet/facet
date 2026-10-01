@@ -238,6 +238,35 @@ describe('AuthService', () => {
     });
   });
 
+  describe('loadStatus()', () => {
+    it('shares one request between concurrent callers', async () => {
+      const first = service.loadStatus();
+      const second = service.loadStatus();
+
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+
+      expect(await first).toEqual(mockStatus);
+      expect(await second).toEqual(mockStatus);
+    });
+
+    it('answers from the cache without a request once the status is known', async () => {
+      service.status.set(mockStatus);
+
+      expect(await service.loadStatus()).toEqual(mockStatus);
+      httpTesting.expectNone('/api/auth/status');
+    });
+
+    it('rejects on a failed load and retries on the next call', async () => {
+      const failed = service.loadStatus();
+      httpTesting.expectOne('/api/auth/status').flush('x', { status: 500, statusText: 'err' });
+      await expect(failed).rejects.toBeDefined();
+
+      const retry = service.loadStatus();
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      expect(await retry).toEqual(mockStatus);
+    });
+  });
+
   describe('login()', () => {
     it('should POST credentials and store token on success', async () => {
       const loginPromise = service.login('secret123', 'admin');

@@ -139,7 +139,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 - **7 lingue nell'interfaccia** — l'interfaccia è disponibile in inglese, francese, tedesco, spagnolo, italiano, portoghese brasiliano e cinese semplificato (简体中文); la documentazione è disponibile in tutte le sette lingue
 - **Multi-utente** — directory, valutazioni e accesso basato sui ruoli per utente
 - **Plugin e webhook** — azioni personalizzate attivate dagli eventi di punteggio
-- **Scansione dall'interfaccia web** — avvia le scansioni dal browser (ruolo superadmin)
+- **Scansione dall'interfaccia web** — avvia le scansioni dal browser (superadmin in modalità multiutente; accesso di modifica su un'installazione a utente singolo con password di modifica)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Galleria mobile" width="100%"></td>
@@ -149,7 +149,7 @@ Passa il puntatore su una foto per vedere un tooltip con il dettaglio del punteg
 
 ## Cosa ti serve
 
-La maggior parte di Facet funziona su **qualsiasi macchina (CPU)** — punteggio, rilevamento dei volti, selezione, galleria, ricerca, album ed esportazione dei metadati funzionano tutti senza una GPU. Una **GPU** (con il profilo `16gb` o `24gb`) sblocca i modelli più potenti: punteggio estetico TOPIQ, embedding SigLIP 2, tagging VLM, didascalie e critica IA, e salienza del soggetto. Niente GPU locale? Indirizza il tagging/le didascalie/la critica VLM verso un server **Ollama** o **compatibile OpenAI** remoto tramite `vlm_backend` in `scoring_config.json` — queste funzionalità funzionano allora anche sui profili CPU `legacy`/`8gb`. Nel viewer, le azioni di modifica (valutazioni, volti, selezione) richiedono la **password di modifica**, e l'avvio delle scansioni richiede il ruolo **superadmin**.
+La maggior parte di Facet funziona su **qualsiasi macchina (CPU)** — punteggio, rilevamento dei volti, selezione, galleria, ricerca, album ed esportazione dei metadati funzionano tutti senza una GPU. Una **GPU** (con il profilo `16gb` o `24gb`) sblocca i modelli più potenti: punteggio estetico TOPIQ, embedding SigLIP 2, tagging VLM, didascalie e critica IA, e salienza del soggetto. Niente GPU locale? Indirizza il tagging/le didascalie/la critica VLM verso un server **Ollama** o **compatibile OpenAI** remoto tramite `vlm_backend` in `scoring_config.json` — queste funzionalità funzionano allora anche sui profili CPU `legacy`/`8gb`. Nel viewer, le azioni di modifica (valutazioni, volti, selezione) richiedono la **password di modifica**, e l'avvio delle scansioni richiede `viewer.features.show_scan_button: true` e inoltre il ruolo **superadmin** in modalità multiutente, oppure l'accesso di modifica su un'installazione a utente singolo.
 
 → Requisiti completi per ciascuna funzionalità (GPU, profilo VRAM, pacchetti opzionali, autenticazione): **[Installazione › Requisiti delle funzionalità](docs/it/INSTALLATION.md#requisiti-delle-funzionalità)**.
 

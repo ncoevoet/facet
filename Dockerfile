@@ -158,7 +158,8 @@ COPY facet.py cli_args.py config_resolve.py int_affinity.py database.py viewer.p
 # without compose (or any other use of this image that skips the mount) still gets
 # a working, preconfigured install, with no file to go stale against the package.
 # docker-entrypoint.sh seeds the /config bind mount docker-compose.yml points
-# FACET_CONFIG at with an empty override; /app/scoring_config.json exists only if
+# FACET_CONFIG at with a near-empty override (carrying a generated viewer.edition_password
+# only when FACET_CONFIG names the seed, as compose does); /app/scoring_config.json exists only if
 # an operator mounted their own there, which is the upgrade path the entrypoint
 # carries across rather than resetting. That mount lands at /config, not
 # /app/config: the latter is the package directory, and a mount there would

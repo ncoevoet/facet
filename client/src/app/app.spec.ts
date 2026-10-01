@@ -527,4 +527,52 @@ describe('App', () => {
       });
     });
   });
+  describe('read-only banner', () => {
+    function render(isReadOnlyInstall: boolean) {
+      const mockRouter = { url: '/', events: NEVER, navigate: vi.fn(), config: [] };
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: Router, useValue: mockRouter },
+          { provide: GalleryStore, useValue: { filters: signal({ ...DEFAULT_FILTERS }), persons: signal([]), selectionCount: signal(0), config: signal(null), types: signal([]), loadTypeCounts: vi.fn(), loadConfig: vi.fn(), viewFilterParams: signal({}) } },
+          { provide: AuthService, useValue: { isAuthenticated: signal(false), isReadOnlyInstall: signal(isReadOnlyInstall), isEdition: signal(false), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(false), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
+          { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string) => k), translations: signal({}) } },
+          { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
+          { provide: CompareFiltersService, useValue: { selectedCategory: signal('') } },
+          { provide: MatDialog, useValue: { open: vi.fn() } },
+          { provide: ApiService, useValue: { get: vi.fn(() => NEVER), post: vi.fn(() => NEVER) } },
+          { provide: ThemeService, useValue: { theme: signal(''), darkMode: signal(true), THEMES: [], setTheme: vi.fn(), toggleDarkMode: vi.fn(), accentColor: signal('#ff6600'), complementaryColor: signal('#0099ff') } },
+        ],
+      });
+      const fixture = TestBed.createComponent(App);
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    const BANNER = `a[href*="VIEWER.md#single-user-mode-default"]`;
+
+    it('renders the hint on a read-only install', () => {
+      expect(render(true).querySelector(BANNER)?.textContent).toContain(I18N.edition.read_only_hint);
+    });
+
+    it('does not render it otherwise', () => {
+      expect(render(false).querySelector(BANNER)).toBeNull();
+    });
+  });
+
+  describe('lockEdition', () => {
+    it('leaves a page the route table flags data.edition, and only those', async () => {
+      const config = [{ path: 'compare', data: { edition: true } }, { path: 'stats' }];
+      const lock = async (url: string) => {
+        TestBed.resetTestingModule();
+        const { app, mockRouter } = createApp(url, [
+          { provide: Router, useValue: { url, events: NEVER, navigate: vi.fn(), config } },
+          { provide: AuthService, useValue: { isAuthenticated: vi.fn(() => true), checkStatus: vi.fn(), dropEdition: vi.fn(() => Promise.resolve()) } },
+        ]);
+        await (app as any).lockEdition();
+        return { app, router: TestBed.inject(Router) as unknown as { navigate: ReturnType<typeof vi.fn> }, mockRouter };
+      };
+      expect((await lock('/compare?x=1')).router.navigate).toHaveBeenCalledWith(['/']);
+      expect((await lock('/stats')).router.navigate).not.toHaveBeenCalled();
+    });
+  });
 });

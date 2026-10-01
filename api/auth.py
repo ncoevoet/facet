@@ -143,7 +143,8 @@ def _is_open_install(password_key):
     and would hand library access to anonymous callers. Such an install is
     treated as locked; only a genuinely absent config, or a configured-and-
     empty password, stays open. An open install is READ-ONLY: it grants library
-    access, never edition rights.
+    access, never edition rights -- not even to a token that carries an
+    edition claim (see CurrentUser.is_edition).
     """
     if config_load_failed() or is_multi_user_enabled():
         return False
@@ -169,7 +170,12 @@ class CurrentUser:
     def is_edition(self):
         if is_multi_user_enabled():
             return self.role in ('admin', 'superadmin')
-        return self.edition_authenticated
+        # An edition claim counts only while an edition password backs it: a
+        # token minted earlier (e.g. a multi-user admin token after ``users``
+        # was removed) must not grant edition on an install that is now open.
+        # A failed config load is not "open" (see _is_open_install), so it
+        # stays on the locked path.
+        return self.edition_authenticated and not _is_open_install(EDITION_PASSWORD_KEY)
 
     @property
     def is_superadmin(self):
@@ -205,8 +211,7 @@ async def get_optional_user(
     # Share-client (proofing) tokens grant access ONLY through
     # require_share_client, which decodes the raw bearer itself. They must never
     # authenticate the regular surface: otherwise a shared-album link would
-    # become a full authenticated (and, in empty-edition-password mode, edition)
-    # session on every get_optional_user endpoint.
+    # become a full authenticated session on every get_optional_user endpoint.
     if payload.get('role') == SHARE_CLIENT_ROLE:
         return None
 

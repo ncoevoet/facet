@@ -11,6 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { firstValueFrom } from 'rxjs';
+import { AuthService } from '../../core/services/auth.service';
 import { ApiService } from '../../core/services/api.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
@@ -81,7 +82,7 @@ interface MergeSuggestionsResponse {
           </mat-slider>
           <span class="text-sm font-mono w-12">{{ threshold() * 100 | fixed:0 }}%</span>
           <div class="flex-1"></div>
-          @if (suggestions().length > 0) {
+          @if (canEdit() && suggestions().length > 0) {
             <button mat-flat-button [disabled]="merging()" (click)="confirmAcceptAll()">
               <mat-icon>done_all</mat-icon>
               {{ I18N.persons.accept_all | translate:{ count: suggestions().length } }}
@@ -107,7 +108,7 @@ interface MergeSuggestionsResponse {
                 <button
                   type="button"
                   class="flex-1 min-w-0 flex flex-col items-center gap-2 p-0 bg-transparent border-0 cursor-pointer group disabled:cursor-default"
-                  [disabled]="merging()"
+                  [disabled]="merging() || !canEdit()"
                   [matTooltip]="I18N.persons.merge_into_this | translate"
                   (click)="mergeInto(suggestion, suggestion.person1)"
                 >
@@ -141,7 +142,7 @@ interface MergeSuggestionsResponse {
                 <button
                   type="button"
                   class="flex-1 min-w-0 flex flex-col items-center gap-2 p-0 bg-transparent border-0 cursor-pointer group disabled:cursor-default"
-                  [disabled]="merging()"
+                  [disabled]="merging() || !canEdit()"
                   [matTooltip]="I18N.persons.merge_into_this | translate"
                   (click)="mergeInto(suggestion, suggestion.person2)"
                 >
@@ -165,7 +166,7 @@ interface MergeSuggestionsResponse {
               <div class="flex items-center justify-center pt-2 border-t border-white/10">
                 <button
                   mat-icon-button
-                  [disabled]="merging()"
+                  [disabled]="merging() || !canEdit()"
                   [matTooltip]="I18N.common.dismiss | translate"
                   [attr.aria-label]="I18N.common.dismiss | translate"
                   (click)="rejectSuggestion(suggestion)"
@@ -191,6 +192,8 @@ interface MergeSuggestionsResponse {
 export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   protected readonly I18N = I18N_KEYS;
   private readonly api = inject(ApiService);
+  /** Merge, reject and accept-all call edition-only routes. */
+  protected readonly canEdit = inject(AuthService).isEdition;
   private readonly i18n = inject(I18nService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);

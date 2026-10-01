@@ -947,7 +947,7 @@
     "lock_title": "Bearbeitungsmodus aktiv - klicken zum Sperren",
     "password_placeholder": "Bearbeitungspasswort",
     "invalid_password": "Ungültiges Passwort",
-    "read_only_hint": "Nur Lesezugriff: Setzen Sie viewer.edition_password in scoring_config.json, um Bewerten, Aussortieren und Bearbeiten zu aktivieren."
+    "read_only_hint": "Nur Lesezugriff: Setzen Sie viewer.edition_password in scoring_config.json, um Bewerten, Aussortieren und Bearbeiten zu aktivieren, und starten Sie den Viewer anschließend neu."
   },
   "nav": {
     "gallery": "Galerie",

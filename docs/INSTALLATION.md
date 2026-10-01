@@ -173,7 +173,7 @@ Use [Docker](#install-with-docker). To use an NVIDIA card on Windows, follow the
 - **No setup to scan.** Facet creates its database on the first scan and ships with
   working settings. To **edit** (rate, cull, manage albums and people), set
   `viewer.edition_password` in `scoring_config.json` — without one the viewer is
-  read-only (the Docker image generates one for you on first start).
+  read-only (set it, then restart the viewer: the config is not hot-reloaded. With the bundled `docker-compose.yml`, the Docker image generates one for you on first start).
 - **Your photos are not modified.** Scanning only reads them; results go to Facet's own
   database. Writing ratings and keywords back to your files is a separate, opt-in action
   ([Interop](INTEROP.md)).
@@ -235,7 +235,7 @@ improvements to it when you upgrade).
 
 `docker-entrypoint.sh` therefore seeds the persistent
 `./facet-config/scoring_config.json` with a generated `viewer.edition_password` on first run
-(printed once in the container log: `docker compose logs facet`). That file is
+(printed once in the container log: `docker compose logs facet`; only when `FACET_CONFIG` names the seed, as `docker-compose.yml` sets it — a plain `docker run` without it seeds an empty override and generates no password). That file is
 bind-mounted by `docker-compose.yml` (as `FACET_CONFIG=/config/scoring_config.json`
 inside the container), so the container runs with zero host setup and every runtime
 config write (the viewer password upgrade, weights, priorities, scoring contexts)
@@ -285,9 +285,7 @@ Alternatives: `podman unshare chown` to edit a container-owned file in place, or
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Otherwise the entrypoint seeds an empty override and your weights, categories and
-> **viewer password are silently no longer read** — and an empty
-> `viewer.edition_password` leaves the install read-only (every edit refused). If you keep your own
+> Otherwise the entrypoint seeds a fresh override (with a newly generated `viewer.edition_password` under compose) and your weights, categories and **viewer password are silently no longer read**. If you keep your own
 > edited `docker-compose.yml` with the old mount still in place, the entrypoint
 > seeds `./facet-config` from *that* file, so nothing is lost.
 >
@@ -661,7 +659,7 @@ Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a high
 | Watch mode (`--watch`) | no | any | — | `watchdog` |
 | GPS extract / darktable export | no | any | — | `exiftool` / `darktable-cli` |
 | Ratings, favorites, face & person edits, culling | no | any | edition | — |
-| Trigger scans from the web UI | no | any | superadmin | — |
+| Trigger scans from the web UI | no | any | edition (single-user) / superadmin (multi-user) | — |
 | Multi-user (per-user ratings & roles) | no | any | role-based | — |
 
 > Face *clustering* runs on CPU by default (standalone `hdbscan`); `cuml`/`cupy` only add optional GPU acceleration — they are **not** required. The edition password and user roles are configured in `scoring_config.json` — see [Configuration](CONFIGURATION.md) for auth.

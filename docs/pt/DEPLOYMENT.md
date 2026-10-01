@@ -618,7 +618,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### Botão de varredura
 
-Para permitir que o superadmin acione varreduras de fotos a partir da interface do visualizador (útil apenas quando o visualizador roda na máquina com GPU):
+Para permitir o disparo de varreduras de fotos a partir da interface do visualizador (o superadmin no modo multiusuário; uma sessão de edição numa instalação de usuário único com `viewer.edition_password` definida). A varredura roda na máquina que hospeda o visualizador e não requer GPU (apenas CPU com o perfil `legacy`, veja [Sem placa de vídeo](INSTALLATION.md#sem-placa-de-vídeo)):
 
 ```json
 {

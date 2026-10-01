@@ -223,7 +223,7 @@ class TestSetRating:
         conn_mock.execute.return_value = mock.MagicMock()
 
         with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
         ):
@@ -243,7 +243,7 @@ class TestSetRating:
     def test_set_rating_validation(self):
         """Rating outside 0-5 should yield 422 from Pydantic validation."""
         with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
         ):
@@ -286,7 +286,7 @@ class TestToggleFavorite:
         conn_mock.execute.return_value.fetchone.return_value = row_mock
 
         with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
         ):
@@ -319,7 +319,7 @@ class TestAssignFace:
         conn_mock.execute.return_value.fetchone.return_value = None
 
         with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
         ):
@@ -341,7 +341,7 @@ class TestAssignFace:
         conn_mock.execute.return_value.fetchone.return_value = face_row
 
         with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
         ):
@@ -389,7 +389,7 @@ class TestAssignFace:
         conn.commit()
 
         with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
         ):
@@ -440,7 +440,7 @@ class TestLockedDatabaseRetry:
     @staticmethod
     def _post(conn_mock, raise_server_exceptions=True):
         with (
-            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "", "features": {}}),
+            mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", {"password": "", "edition_password": "edit", "features": {}}),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces.is_multi_user_enabled", return_value=False),
             mock.patch("api.routers.faces._mint_rating_comparisons"),

@@ -177,7 +177,7 @@ Usa [Docker](#installa-con-docker). Per usare una scheda NVIDIA su Windows, segu
 - **Nessuna configurazione per scansionare.** Facet crea il proprio database alla prima
   scansione e viene fornito con impostazioni già funzionanti. Per **modificare** (valutare,
   selezionare, gestire album e persone) imposta `viewer.edition_password` in
-  `scoring_config.json`: senza, il viewer è in sola lettura (l'immagine Docker ne genera una al primo avvio).
+  `scoring_config.json`: senza, il viewer è in sola lettura (riavvia il viewer dopo averla impostata: la configurazione non viene ricaricata a caldo. Con il `docker-compose.yml` fornito, l'immagine Docker ne genera una al primo avvio).
 - **Le tue foto non vengono modificate.** La scansione si limita a leggerle; i risultati
   finiscono nel database di Facet. Riscrivere voti e parole chiave nei tuoi file è
   un'azione separata, che avvii tu ([Interoperabilità](INTEROP.md)).
@@ -238,7 +238,7 @@ impostazioni che hai effettivamente cambiato, e tutto ciò che ometti mantiene i
 valore fornito (e riceve i miglioramenti apportati quando aggiorni).
 
 `docker-entrypoint.sh` quindi popola il file persistente
-`./facet-config/scoring_config.json` con una `viewer.edition_password` generata al primo avvio (stampata una sola volta nel log del container: `docker compose logs facet`). Quel file viene
+`./facet-config/scoring_config.json` con una `viewer.edition_password` generata al primo avvio (stampata una sola volta nel log del container: `docker compose logs facet`; solo se `FACET_CONFIG` indica questo file, come imposta `docker-compose.yml` — un semplice `docker run` senza questa variabile popola un override vuoto e non genera alcuna password). Quel file viene
 montato da `docker-compose.yml` (come `FACET_CONFIG=/config/scoring_config.json`
 dentro il container), quindi il container funziona senza alcuna configurazione lato
 host e ogni scrittura della configurazione a runtime (la migrazione della password del
@@ -295,9 +295,7 @@ perché l'utente del container sia tu.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Altrimenti l'entrypoint popola un override vuoto e i tuoi pesi, le tue
-> categorie e **la tua password del viewer non vengono più letti** — e un
-> `viewer.edition_password` vuoto lascia l'installazione in sola lettura (ogni modifica rifiutata). Se
+> Altrimenti l'entrypoint popola un nuovo override (con una `viewer.edition_password` appena generata sotto compose) e i tuoi pesi, le tue categorie e **la tua password del viewer non vengono più letti**. Se
 > mantieni il tuo `docker-compose.yml` con il vecchio mount, l'entrypoint inizializza
 > `./facet-config` da *quel* file e non si perde nulla.
 >
@@ -690,7 +688,7 @@ in tutta la documentazione:
 | Modalità watch (`--watch`) | no | qualsiasi | — | `watchdog` |
 | Estrazione GPS / esportazione darktable | no | qualsiasi | — | `exiftool` / `darktable-cli` |
 | Valutazioni, preferiti, modifiche a volti e persone, selezione | no | qualsiasi | edition | — |
-| Avvio delle scansioni dall'interfaccia web | no | qualsiasi | superadmin | — |
+| Avvio delle scansioni dall'interfaccia web | no | qualsiasi | modifica (utente singolo) / superadmin (multiutente) | — |
 | Multi-utente (valutazioni e ruoli per utente) | no | qualsiasi | basata sui ruoli | — |
 
 > Il *clustering* dei volti viene eseguito su CPU per impostazione predefinita

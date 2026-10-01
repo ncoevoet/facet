@@ -178,7 +178,7 @@ Use o [Docker](#instalar-com-docker). Para usar uma placa NVIDIA no Windows, sig
 - **Sem configuração para varrer.** O Facet cria o seu banco de dados na primeira varredura
   e já vem com configurações que funcionam. Para **editar** (avaliar, selecionar, gerenciar
   álbuns e pessoas), defina `viewer.edition_password` em `scoring_config.json` — sem ela o
-  visualizador é somente leitura (a imagem Docker gera uma na primeira inicialização).
+  visualizador é somente leitura (reinicie o visualizador depois de defini-la: a configuração não é recarregada a quente. Com o `docker-compose.yml` incluído, a imagem Docker gera uma na primeira inicialização).
 - **Suas fotos não são modificadas.** A varredura apenas as lê; os resultados vão para o
   banco de dados do próprio Facet. Gravar notas e palavras-chave de volta nos seus
   arquivos é uma ação separada, disparada por você ([Interop](INTEROP.md)).
@@ -241,7 +241,7 @@ ajustes que você realmente mudou, e tudo o que você deixar de fora mantém o v
 distribuído (e recebe as melhorias feitas nele quando você atualiza).
 
 O `docker-entrypoint.sh` portanto semeia o arquivo persistente
-`./facet-config/scoring_config.json` com uma `viewer.edition_password` gerada na primeira execução (impressa uma única vez no log do contêiner: `docker compose logs facet`). Esse
+`./facet-config/scoring_config.json` com uma `viewer.edition_password` gerada na primeira execução (impressa uma única vez no log do contêiner: `docker compose logs facet`; apenas quando `FACET_CONFIG` aponta para esse arquivo, como o `docker-compose.yml` define — um simples `docker run` sem essa variável semeia um override vazio e não gera nenhuma senha). Esse
 arquivo é montado pelo `docker-compose.yml` (como
 `FACET_CONFIG=/config/scoring_config.json` dentro do container), então o container
 roda sem nenhuma configuração no host e toda escrita de configuração em tempo de
@@ -297,9 +297,7 @@ compose) para que o usuário do contêiner seja você.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Caso contrário o entrypoint semeia um override vazio e seus pesos, suas
-> categorias e **sua senha do visualizador deixam de ser lidos** — e um
-> `viewer.edition_password` vazio deixa a instalação somente leitura (toda edição recusada). Se você
+> Caso contrário o entrypoint semeia um override novo (com um `viewer.edition_password` recém-gerado sob compose) e seus pesos, suas categorias e **sua senha do visualizador deixam de ser lidos**. Se você
 > mantiver seu próprio `docker-compose.yml` com o mount antigo, o entrypoint inicializa
 > `./facet-config` a partir *desse* arquivo e nada se perde.
 >
@@ -683,7 +681,7 @@ A maior parte do Facet roda em qualquer lugar (CPU, qualquer perfil). Alguns rec
 | Modo de observação (`--watch`) | não | qualquer | — | `watchdog` |
 | Extração de GPS / exportação darktable | não | qualquer | — | `exiftool` / `darktable-cli` |
 | Avaliações, favoritos, edições de face e pessoa, seleção (culling) | não | qualquer | edition | — |
-| Disparar escaneamentos a partir da interface web | não | qualquer | superadmin | — |
+| Disparar escaneamentos a partir da interface web | não | qualquer | edição (usuário único) / superadmin (multiusuário) | — |
 | Multiusuário (avaliações e funções por usuário) | não | qualquer | baseada em função | — |
 
 > O *agrupamento* de faces roda em CPU por padrão (`hdbscan` autônomo); `cuml`/`cupy`

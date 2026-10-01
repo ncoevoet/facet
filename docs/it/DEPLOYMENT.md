@@ -613,7 +613,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### Pulsante di scansione
 
-Per consentire al superadmin di avviare le scansioni delle foto dall'interfaccia del viewer (utile solo quando il viewer è in esecuzione sulla macchina GPU):
+Per consentire l'avvio delle scansioni delle foto dall'interfaccia del viewer (il superadmin in modalità multiutente; una sessione di modifica su un'installazione a utente singolo con `viewer.edition_password` impostata). La scansione gira sulla macchina che ospita il viewer e non richiede alcuna GPU (solo CPU con il profilo `legacy`, vedi [Nessuna scheda grafica](INSTALLATION.md#nessuna-scheda-grafica)):
 
 ```json
 {

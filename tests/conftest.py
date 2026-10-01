@@ -38,6 +38,7 @@ os.environ["DB_PATH"] = _TEST_DB_FILE.name
 # variable set it back with ``monkeypatch.setenv``.
 os.environ.pop("FACET_CONFIG", None)
 
+from unittest import mock  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
@@ -150,6 +151,29 @@ def edition_client():
     user = CurrentUser(user_id="test", role="admin", edition_authenticated=True)
     app = _make_client_with_user(user)
     yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def edition_session_client():
+    """Single-user client carrying an edition-claim token on a LOCKED install.
+
+    Shared by the caption / critique generation tests, whose REAL edition gate
+    must run. The install is pinned locked (edition password set, no
+    multi-user, no config-load failure) rather than read from the developer's
+    ambient ``VIEWER_CONFIG``: an open install is read-only and ignores the
+    claim, so the outcome would otherwise depend on the local config.
+    """
+    app = create_app()
+    app.dependency_overrides[get_optional_user] = lambda: CurrentUser(
+        user_id="admin", role="admin", edition_authenticated=True
+    )
+    with (
+        mock.patch("api.auth.VIEWER_CONFIG", {"password": "", "edition_password": "x", "features": {}}),
+        mock.patch("api.auth.is_multi_user_enabled", return_value=False),
+        mock.patch("api.auth.config_load_failed", return_value=False),
+    ):
+        yield TestClient(app)
     app.dependency_overrides.clear()
 
 

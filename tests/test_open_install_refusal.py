@@ -38,19 +38,32 @@ def _depends_on(dependant, target):
     )
 
 
-def _routes_requiring(dep):
-    app = create_app()
-    routes = []
-    for top in app.routes:
-        original = getattr(top, "original_router", None)
-        routes.extend(original.routes if original is not None else [top])
-    found = []
+def _walk_routes(routes):
+    """Yield every leaf route of the app, however deeply routers are nested.
+
+    FastAPI wraps each ``include_router`` in an ``_IncludedRouter`` whose
+    ``effective_candidates()`` carry the prefix and the ``dependencies=``
+    passed at include time, so reading the original routers would miss a
+    dependency declared there. Leaves are read through ``dependant`` and
+    ``methods``; anything without both (static Route, WebSocket) is skipped by
+    the caller.
+    """
     for route in routes:
+        if hasattr(route, "effective_candidates"):
+            yield from _walk_routes(route.effective_candidates())
+        else:
+            yield route
+
+
+def _routes_requiring(dep):
+    found = set()
+    for route in _walk_routes(create_app().routes):
         dependant = getattr(route, "dependant", None)
-        if dependant is None or not _depends_on(dependant, dep):
+        methods = getattr(route, "methods", None)
+        if dependant is None or not methods or not _depends_on(dependant, dep):
             continue
-        for method in sorted(route.methods - {"HEAD", "OPTIONS"}):
-            found.append((method, route.path))
+        for method in methods - {"HEAD", "OPTIONS"}:
+            found.add((method, route.path))
     return sorted(found)
 
 
@@ -60,6 +73,94 @@ def _concrete(path):
 
 
 EDITION_ROUTES = _routes_requiring(require_edition)
+# Pinned on purpose: dropping require_edition from a route (or adding a new
+# edition route) must fail here with a readable diff, not slip under a count.
+EXPECTED_EDITION_ROUTES = frozenset({
+    ('DELETE', '/api/albums/{album_id}'),
+    ('DELETE', '/api/albums/{album_id}/photos'),
+    ('DELETE', '/api/albums/{album_id}/scoring_context'),
+    ('DELETE', '/api/albums/{album_id}/share'),
+    ('DELETE', '/api/config/weight_snapshots/{snapshot_id}'),
+    ('GET', '/api/albums/{album_id}/picks'),
+    ('GET', '/api/comparison/category_weights'),
+    ('GET', '/api/comparison/confidence'),
+    ('GET', '/api/comparison/coverage'),
+    ('GET', '/api/comparison/history'),
+    ('GET', '/api/comparison/learned_weights'),
+    ('GET', '/api/comparison/next_pair'),
+    ('GET', '/api/comparison/stats'),
+    ('GET', '/api/config/category_priorities'),
+    ('GET', '/api/config/weight_snapshots'),
+    ('GET', '/api/photo/cull_preview'),
+    ('GET', '/api/photo/social_crop'),
+    ('GET', '/api/photo/social_crop/preview'),
+    ('GET', '/api/plugins'),
+    ('GET', '/api/scan/recompute_status'),
+    ('GET', '/api/updates/check'),
+    ('POST', '/api/albums'),
+    ('POST', '/api/albums/{album_id}/export'),
+    ('POST', '/api/albums/{album_id}/export-portfolio'),
+    ('POST', '/api/albums/{album_id}/photos'),
+    ('POST', '/api/albums/{album_id}/share'),
+    ('POST', '/api/burst-groups/select'),
+    ('POST', '/api/capsules/{capsule_id}/save-album'),
+    ('POST', '/api/comparison/clear_category_override'),
+    ('POST', '/api/comparison/delete'),
+    ('POST', '/api/comparison/edit'),
+    ('POST', '/api/comparison/override_category'),
+    ('POST', '/api/comparison/reset'),
+    ('POST', '/api/comparison/submit'),
+    ('POST', '/api/config/category_priorities'),
+    ('POST', '/api/config/restore_weights'),
+    ('POST', '/api/config/save_snapshot'),
+    ('POST', '/api/config/update_weights'),
+    ('POST', '/api/cull/apply'),
+    ('POST', '/api/culling-groups/clear_sequence_override'),
+    ('POST', '/api/culling-groups/confirm'),
+    ('POST', '/api/culling-groups/override_sequence'),
+    ('POST', '/api/culling/auto'),
+    ('POST', '/api/export/sidecars'),
+    ('POST', '/api/face/{face_id}/assign'),
+    ('POST', '/api/lightroom/import'),
+    ('POST', '/api/lightroom/manifest'),
+    ('POST', '/api/person/{person_id}/avatar'),
+    ('POST', '/api/persons'),
+    ('POST', '/api/persons/delete_batch'),
+    ('POST', '/api/persons/merge'),
+    ('POST', '/api/persons/merge/{source_id}/{target_id}'),
+    ('POST', '/api/persons/merge_batch'),
+    ('POST', '/api/persons/merge_suggestions/reject'),
+    ('POST', '/api/persons/{person_id}/assign_faces'),
+    ('POST', '/api/persons/{person_id}/delete'),
+    ('POST', '/api/persons/{person_id}/hide'),
+    ('POST', '/api/persons/{person_id}/rename'),
+    ('POST', '/api/persons/{person_id}/split'),
+    ('POST', '/api/persons/{person_id}/unhide'),
+    ('POST', '/api/photo/assign_all_faces'),
+    ('POST', '/api/photo/clear_junk'),
+    ('POST', '/api/photo/delete'),
+    ('POST', '/api/photo/embed_metadata'),
+    ('POST', '/api/photo/export_xmp'),
+    ('POST', '/api/photo/unassign_person'),
+    ('POST', '/api/photos/batch_favorite'),
+    ('POST', '/api/photos/batch_rating'),
+    ('POST', '/api/photos/batch_reject'),
+    ('POST', '/api/plugins/test-webhook'),
+    ('POST', '/api/recalculate'),
+    ('POST', '/api/scan/detect_panoramas'),
+    ('POST', '/api/scan/recompute'),
+    ('POST', '/api/similar-groups/select'),
+    ('POST', '/api/stats/categories/recompute'),
+    ('POST', '/api/stats/categories/update'),
+    ('PUT', '/api/albums/{album_id}'),
+    ('PUT', '/api/albums/{album_id}/scoring_context'),
+    ('PUT', '/api/caption'),
+    ('PUT', '/api/config/panorama_detection'),
+    ('PUT', '/api/config/scoring_contexts/{name}'),
+    ('PUT', '/api/photo/gps'),
+})
+
+
 _RATING_ROUTES = [
     ("POST", "/api/photo/set_rating"),
     ("POST", "/api/photo/toggle_favorite"),
@@ -99,6 +200,18 @@ class TestCurrentUserOnOpenInstall:
             assert CurrentUser(edition_authenticated=True).is_edition is True
             assert CurrentUser().is_edition is False
 
+    def test_token_with_edition_claim_is_not_edition(self, open_install):
+        assert CurrentUser(user_id="admin", role="admin", edition_authenticated=True).is_edition is False
+
+    def test_token_with_edition_claim_is_refused_by_an_edition_route(self, open_install):
+        app = create_app()
+        app.dependency_overrides[get_optional_user] = lambda: CurrentUser(
+            user_id="admin", role="admin", edition_authenticated=True
+        )
+        resp = TestClient(app, raise_server_exceptions=False).post("/api/albums", json={})
+        assert resp.status_code == 403
+        assert resp.json()["detail"] == OPEN_DETAIL
+
     def test_auth_status_reports_not_edition(self, open_install):
         body = TestClient(create_app()).get("/api/auth/status").json()
         assert body["edition_authenticated"] is False
@@ -106,12 +219,12 @@ class TestCurrentUserOnOpenInstall:
 
 
 class TestEditionRoutesRefuseAnOpenInstall:
-    def test_inventory_is_not_empty(self):
-        writes = [r for r in EDITION_ROUTES if r[0] != "GET"]
-        reads = [r for r in EDITION_ROUTES if r[0] == "GET"]
-        assert len(EDITION_ROUTES) >= 82
-        assert len(writes) >= 66
-        assert len(reads) >= 16
+    def test_edition_route_set_is_pinned(self):
+        found = set(EDITION_ROUTES)
+        assert found == EXPECTED_EDITION_ROUTES, (
+            f"lost require_edition: {sorted(EXPECTED_EDITION_ROUTES - found)}; "
+            f"new edition routes: {sorted(found - EXPECTED_EDITION_ROUTES)}"
+        )
 
     @pytest.mark.parametrize("method,path", EDITION_ROUTES)
     def test_open_install_is_refused(self, open_install, method, path):

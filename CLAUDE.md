@@ -410,8 +410,8 @@ only what reading those two will NOT tell you.
 - **An absent config means two different things.** Absent at the inherited default path is an
   install running on defaults. Absent at a path someone NAMED (`$FACET_CONFIG`, `--config`)
   raises, and `api/config.py`'s named branch returns `{}` rather than the defaults — those carry
-  an empty `viewer.edition_password`, which leaves the install without an edition password, so handing them
-  over would rebuild the open install (full library access) that branch exists to refuse.
+  an empty `viewer.edition_password` AND an empty `viewer.password`, so handing them over would rebuild
+  an install anyone can read in full — what `viewer.password` controls — that branch exists to refuse.
 - **`facet.LibraryLock` is per host.** `flock` is host-local on SMB/CIFS, so two machines sharing
   an SMB-mounted DB directory would each believe they hold it (the acquire warns once on such a
   mount; NFS between Linux clients is fine). The mutex is the OS lock, not the file's existence,

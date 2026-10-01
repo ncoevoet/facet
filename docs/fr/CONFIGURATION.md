@@ -1843,7 +1843,7 @@ Activez ou désactivez des fonctionnalités optionnelles pour réduire l'utilisa
 | `show_similar_button` | `true` | Afficher le bouton « Trouver des similaires » sur les cartes photo (utilise numpy pour la similarité CLIP) |
 | `show_merge_suggestions` | `true` | Activer la fonctionnalité de suggestions de fusion sur la page de gestion des personnes |
 | `show_rating_controls` | `true` | Afficher les commandes de notation par étoiles et de favori |
-| `show_scan_button` | `false` | Afficher le bouton de déclenchement d'analyse (superadmin en mode multi-utilisateurs ; session édition verrouillée en mode mono-utilisateur) — nécessite un GPU sur l'hôte de la visionneuse |
+| `show_scan_button` | `false` | Afficher le bouton de déclenchement d'analyse (superadmin en mode multi-utilisateurs ; session édition verrouillée en mode mono-utilisateur) — aucun GPU requis : l'analyse s'exécute sur CPU seul avec le profil `legacy` |
 | `metrics_enabled` | `false` | Activer le point d'accès public Prometheus `GET /metrics`. Désactivé par défaut — il expose les nombres de photos/personnes/visages, la taille de la base et la mémoire du processus ; à n'activer que lorsque le point d'accès est joignable depuis le réseau du collecteur, et non depuis Internet public. |
 | `show_semantic_search` | `true` | Afficher la barre de recherche sémantique (recherche texte-vers-image via les embeddings CLIP/SigLIP) |
 | `show_albums` | `true` | Afficher la fonctionnalité d'albums (créer, gérer et parcourir des albums photo) |

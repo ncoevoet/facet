@@ -60,7 +60,7 @@ Optionaler Passwortschutz über die Konfiguration:
 }
 ```
 
-Wenn gesetzt, müssen sich Benutzer authentifizieren, bevor sie auf die Galerie zugreifen können. Für jede Bearbeitung ist ein `edition_password` erforderlich: Bewertungen, Favoriten und Ablehnungen, Aussortieren, Alben, Personen- und Gesichtsverwaltung, Vergleichsmodus, Gewichts- und Prioritätsänderungen, Exporte und KI-Erzeugung auf Anfrage. Ohne `edition_password` (Standardwert) ist die Installation **schreibgeschützt**: Jeder kann stöbern, jede Bearbeitung wird mit `403` abgelehnt („Set viewer.edition_password to enable editing“).
+Wenn gesetzt, müssen sich Benutzer authentifizieren, bevor sie auf die Galerie zugreifen können. Für jede Bearbeitung ist ein `edition_password` erforderlich: Bewertungen, Favoriten und Ablehnungen, Aussortieren, Alben, Personen- und Gesichtsverwaltung, Vergleichsmodus, Gewichts- und Prioritätsänderungen und Exporte. Ohne `edition_password` (Standardwert) ist die Installation **schreibgeschützt**: Jede Bearbeitung wird mit `403` abgelehnt („Set viewer.edition_password to enable editing“). KI-Erzeugung auf Anfrage (Bildbeschreibungen, VLM-Kritiken) braucht es ebenfalls, ist aber eine Einschränkung statt einer Ablehnung: Der Aufruf antwortet mit `200` und liefert nur, was bereits im Cache liegt (`source: "edition_required"` bzw. `vlm_available: false`). Wer *stöbern* darf, entscheidet `viewer.password`: ohne dieses kann jeder die gesamte Bibliothek durchsuchen, mit diesem nur authentifizierte Benutzer. Auf einer solchen Installation zeigt die Galerie außerdem vorhandene Sterne-, Favoriten- und Ablehnungs-Badges nicht mehr an, wie bei einem Viewer ohne Edition auf einer gesperrten Installation. Starten Sie den Viewer nach dem Setzen von `viewer.edition_password` neu: Die Konfiguration wird nicht im laufenden Betrieb neu geladen.
 
 ### Mehrbenutzermodus
 
@@ -402,7 +402,7 @@ Die Aufschlüsselung zeigt außerdem die erklärbaren **Form- und Farbharmonie**
 
 ### VLM-Kritik `[GPU]` `[16gb/24gb]`
 
-Verwendet das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbewusste Kritik. Erfordert das 16gb- oder 24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`.
+Verwendet das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbewusste Kritik. Erfordert das 16gb- oder 24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`. Das Erzeugen einer Kritik erfordert zusätzlich eine Edition-Sitzung; ohne sie wird nur eine bereits zwischengespeicherte Kritik geliefert und `vlm_available` ist `false`.
 
 Der Prompt ist eine konfigurierbare Leiter (`critique.vlm`), die die vollständige Regelaufschlüsselung, Strafen und EXIF einfügt, und die Antwort wird als **Observation / Assessment / Suggestions** gerendert. Das Ergebnis wird pro Foto zwischengespeichert (`photos.vlm_critique`) und bei Bedarf übersetzt, mit einer **Regenerieren**-Schaltfläche zum Neuberechnen. Es läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern.
 
@@ -1077,7 +1077,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Fotoanzahlen pro Typ für die Seitenleisten-Chips. Dieselben fünf Umschalter wie die Galerie; ein ausgelassener fällt auf `viewer.defaults` zurück statt auf „aus" — senden Sie `hide_bursts=0` usw. explizit, um alles zu zählen |
 | `GET /api/similar_photos/{path}` | Ähnliche Fotos (Modi: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantische Text-zu-Bild-Suche (`scope=text` = nur OCR-/Beschreibungstext). `threshold` ist optional: Wird er ausgelassen, löst er sich zum `models.*.search_threshold_percent` des aktiven Encoders auf (dem Client als `search_threshold_default` von `/api/config` bereitgestellt); ein expliziter Wert — einschließlich `0.0` — überschreibt immer den aufgelösten Standardwert. Wird nur ausgewertet, wenn die Suche tatsächlich eine Embedding-Suche durchführt (`scope != 'text'` überspringt die Auflösung vollständig) |
-| `GET /api/critique?path=&mode=&refresh=` | KI-Kritik (regelbasiert oder VLM); `refresh=true` regeneriert die zwischengespeicherte VLM-Kritik |
+| `GET /api/critique?path=&mode=&refresh=` | KI-Kritik (regelbasiert oder VLM); `refresh=true` regeneriert die zwischengespeicherte VLM-Kritik (nur Edition-Sitzung; sonst `vlm_available: false`) |
 | `GET /api/ranker/status` | Status des persönlichen Rankers für die Sortierung „Mein Geschmack" (gelernte Abdeckung %, Held-out-Genauigkeit) |
 | `GET /api/config` | Galerie-Konfiguration |
 
@@ -1170,7 +1170,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 |----------|-------------|
 | `GET /api/memories?date=` | Fotos, die an diesem Datum in früheren Jahren aufgenommen wurden |
 | `GET /api/memories/check` | Prüfen, ob für ein Datum Erinnerungen existieren |
-| `GET /api/caption?path=` | KI-Bildbeschreibung abrufen oder generieren |
+| `GET /api/caption?path=` | KI-Bildbeschreibung abrufen; eine Edition-Sitzung erzeugt sie bei der ersten Anfrage (sonst `source: "edition_required"`) |
 | `PUT /api/caption` | Bildbeschreibung aktualisieren (Bearbeitungsmodus) |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Paginierte Zeitleisten-Fotos. Die fünf `hide_*`-Umschalter sind die der Galerie; ein ausgelassener fällt auf `viewer.defaults` zurück statt auf „aus" |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Verfügbare Daten für die Navigation (gleicher `hide_*`-Rückfall) |
@@ -1384,7 +1384,7 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 | Benutzer kann keine Fotos sehen | `directories` in seiner Benutzerkonfiguration und `shared_directories` prüfen |
 | Scan-Schaltfläche fehlt | Erfordert `viewer.features.show_scan_button: true` plus Scan-Zugriff: Rolle `superadmin` (Mehrbenutzer), oder eine edition-authentifizierte Sitzung auf einer gesperrten Einzelbenutzer-Installation (`viewer.edition_password` gesetzt) — eine offene Einzelbenutzer-Installation zeigt sie nie |
 | Suche liefert keine Ergebnisse | Sicherstellen, dass Fotos `clip_embedding`-Daten haben (zuerst Bewertung ausführen) |
-| VLM-Kritik nicht verfügbar | Erfordert das 16gb/24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true` |
+| VLM-Kritik nicht verfügbar | Erfordert das 16gb/24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`, plus eine Edition-Sitzung zum Erzeugen (ohne sie wird nur eine zwischengespeicherte Kritik geliefert) |
 | Karte zeigt keine Fotos | `--extract-gps` ausführen, um GPS-Spalten zu befüllen; sicherstellen, dass Fotos EXIF-GPS-Daten haben |
 | Bildbeschreibungen werden nicht generiert | Erfordert das 16gb/24gb-VRAM-Profil für VLM-Bildbeschreibungen |
 | Zeitleiste leer | Sicherstellen, dass Fotos `date_taken`-Werte haben |
