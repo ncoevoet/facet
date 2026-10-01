@@ -669,6 +669,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
           }
           <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ I18N.gallery.selection.copy_filenames | translate }}</button>
           @if (auth.isEdition()) {
+            <button mat-button class="!hidden lg:!inline-flex" (click)="openManualTagsDialog()"><mat-icon>sell</mat-icon> {{ I18N.gallery.selection.edit_tags | translate }}</button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="openExportDialog()"><mat-icon>drive_file_move</mat-icon> {{ I18N.export.action | translate }}</button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="openCullDialog()"><mat-icon>folder_move</mat-icon> {{ I18N.cull.action | translate }}</button>
             @if (store.config()?.cull?.trash_available) {
@@ -1628,6 +1629,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'invert':
       case 'compare':
       case 'mark-panorama':
+      case 'tags':
         break;
       default: return assertNever(action);
     }
@@ -1672,6 +1674,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       case 'compare': await this.compareSelection(); break;
       case 'export': this.openExportDialog(); break;
       case 'cull': await this.openCullDialog(); break;
+      case 'tags': await this.openManualTagsDialog(); break;
       case 'delete': await this.deleteSelected(); break;
       case 'copy': await this.copyPaths(); break;
       case 'mark-panorama': await this.markAsPanorama(action.sequenceKind); break;
@@ -1769,6 +1772,31 @@ export class GalleryComponent implements OnInit, OnDestroy {
         ? { filters: this.store.filterPayload(), exclude: [...this.excludedPaths()], count: this.selectionCount() }
         : { paths: [...this.selectedPaths()] },
     });
+  }
+
+  /** Bulk add/remove of one manual tag. The dialog owns the request; the list is
+   *  refetched afterwards because a photo opened in the detail view carries the
+   *  grid row's `manual_tags`, which a bulk write has just made stale. */
+  async openManualTagsDialog(): Promise<void> {
+    const viewScoped = this.viewScoped();
+    const paths = [...this.selectedPaths()];
+    if (!viewScoped && !paths.length) return;
+    const { ManualTagsDialogComponent } = await import('./manual-tags-dialog.component');
+    const ref = this.dialog.open(ManualTagsDialogComponent, {
+      width: '95vw',
+      maxWidth: '500px',
+      data: {
+        paths,
+        filters: viewScoped ? this.store.filterPayload() : null,
+        exclude: viewScoped ? [...this.excludedPaths()] : [],
+        count: this.selectionCount(),
+      },
+    });
+    const written = await firstValueFrom(ref.afterClosed());
+    if (!written) return;
+    const kept = viewScoped ? new Set(this.excludedPaths()) : new Set(this.selectedPaths());
+    await this.store.loadPhotos();
+    this.restoreSelectionWithout(viewScoped, kept, []);
   }
 
   async openCullDialog(explicitPaths?: string[]): Promise<void> {

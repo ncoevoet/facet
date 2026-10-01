@@ -44,47 +44,9 @@ def _no_exiftool(monkeypatch):
 
 
 def _seed_db(db_path, photos):
-    """Create a minimal photos+albums DB and insert the given photo dicts."""
+    """Build the REAL schema (``init_database``) and insert the given photo dicts."""
+    init_database(db_path)
     conn = sqlite3.connect(db_path)
-    conn.executescript(
-        """
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY,
-            filename TEXT,
-            aggregate REAL,
-            category TEXT,
-            caption TEXT,
-            image_width INTEGER,
-            image_height INTEGER,
-            star_rating INTEGER DEFAULT 0,
-            is_favorite INTEGER DEFAULT 0,
-            is_rejected INTEGER DEFAULT 0,
-            tags TEXT
-        );
-        CREATE TABLE albums (
-            id INTEGER PRIMARY KEY,
-            user_id TEXT,
-            name TEXT
-        );
-        CREATE TABLE album_photos (
-            id INTEGER PRIMARY KEY,
-            album_id INTEGER,
-            photo_path TEXT,
-            position INTEGER
-        );
-        CREATE TABLE persons (
-            id INTEGER PRIMARY KEY,
-            name TEXT
-        );
-        CREATE TABLE faces (
-            id INTEGER PRIMARY KEY,
-            photo_path TEXT,
-            person_id INTEGER,
-            bbox_x1 INTEGER, bbox_y1 INTEGER,
-            bbox_x2 INTEGER, bbox_y2 INTEGER
-        );
-        """
-    )
     for p in photos:
         cols = list(p.keys())
         placeholders = ", ".join("?" for _ in cols)
@@ -150,6 +112,24 @@ class TestExportXmp:
         assert desc.get(f"{{{_NS['xmp']}}}Label") == "Yellow"
         subjects = [li.text for li in desc.findall(".//dc:subject/rdf:Bag/rdf:li", _NS)]
         assert subjects == ["sunset", "beach"]
+
+    def test_manual_tag_reaches_the_sidecar(self, client, tmp_path):
+        path, row = _make_photo(tmp_path, "m.jpg", tags="sunset")
+        db = str(tmp_path / "t.db")
+        _seed_db(db, [row])
+        conn = sqlite3.connect(db)
+        conn.execute(
+            "INSERT INTO photo_manual_tags (photo_path, tag, source) VALUES (?, 'trip', 'user')",
+            (path,),
+        )
+        conn.commit()
+        conn.close()
+        with mock.patch(f"{_EXPORT_MODULE}.get_db", _db_cm(db)):
+            resp = client.post("/api/photo/export_xmp", json={"path": path})
+        assert resp.status_code == 200
+        desc = _read_sidecar_desc(resp.json()["sidecar"])
+        subjects = [li.text for li in desc.findall(".//dc:subject/rdf:Bag/rdf:li", _NS)]
+        assert subjects == ["sunset", "trip"]
 
     def test_rejected_photo(self, client, tmp_path):
         path, row = _make_photo(tmp_path, "r.jpg", is_rejected=1)
@@ -605,8 +585,8 @@ class TestPersonNamesFromRegions:
         conn = sqlite3.connect(db)
         conn.execute("INSERT INTO persons (id, name) VALUES (1, ?)", (person_name,))
         conn.execute(
-            "INSERT INTO faces (photo_path, person_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2) "
-            "VALUES (?, 1, 100, 100, 200, 200)",
+            "INSERT INTO faces (photo_path, face_index, embedding, person_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2) "
+            "VALUES (?, 0, x'00', 1, 100, 100, 200, 200)",
             (photo_path,),
         )
         conn.commit()

@@ -1086,6 +1086,7 @@
       "compare": "Compare",
       "actions": "Actions",
       "mark_sequence": "Mark as a set",
+      "edit_tags": "Edit tags…",
       "mark_panorama": "Mark as one panorama",
       "mark_hdr_panorama": "Mark as one HDR panorama",
       "marked_panorama": "{count} photos marked as one panorama",
@@ -2317,6 +2318,18 @@
       "success": "Photo sent to trash",
       "error": "Delete failed"
     }
+  },
+  "manual_tags": {
+    "title": "Edit tags",
+    "tag_label": "Tag",
+    "hint": "Manual tags stay with the photo through rescans and are written as keywords on export.",
+    "add": "Add tag",
+    "add_action": "Add",
+    "remove_action": "Remove",
+    "remove_tag": "Remove tag {tag}",
+    "manual": "Manual tag",
+    "ai": "AI tag",
+    "error": "Could not update the tag. Check it and try again."
   },
   "photo": {
     "category_override": {

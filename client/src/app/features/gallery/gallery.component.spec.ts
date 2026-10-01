@@ -1381,6 +1381,124 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('openManualTagsDialog', () => {
+    const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
+    function select(paths: string[]) {
+      mockStore.selectedPaths.set(new Set(paths));
+      mockStore.selectionCount.set(paths.length);
+    }
+
+    // The dialog owns its request (its own spec); this is the wiring.
+    it('opens the manual-tags dialog with the selected paths', async () => {
+      select(['/a.jpg', '/b.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+
+      await open();
+
+      expect(dialog.open).toHaveBeenCalledTimes(1);
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      expect(data.paths).toEqual(['/a.jpg', '/b.jpg']);
+      expect(data.filters).toBeNull();
+      expect(data.count).toBe(2);
+    });
+
+    it('sends the filter and exclusions under view scope', async () => {
+      mockStore.viewScopeSelected.set(true);
+      mockStore.excludedPaths.set(new Set(['/skip.jpg']));
+      mockStore.selectionCount.set(650);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+
+      await open();
+
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      expect(data.filters).toEqual({ page: '1' });
+      expect(data.exclude).toEqual(['/skip.jpg']);
+      expect(data.count).toBe(650);
+    });
+
+    it('does nothing for an empty path selection', async () => {
+      select([]);
+      const dialog = TestBed.inject(MatDialog);
+
+      await open();
+
+      expect(dialog.open).not.toHaveBeenCalled();
+    });
+
+    it('refetches the list after a write, so the detail view gets fresh manual tags', async () => {
+      select(['/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(1) });
+
+      await open();
+
+      expect(mockStore.loadPhotos).toHaveBeenCalledTimes(1);
+      expect(mockStore.restoreSelection).toHaveBeenCalledWith(['/a.jpg']);
+    });
+
+    it('leaves the list alone when the dialog is cancelled', async () => {
+      select(['/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+
+      await open();
+
+      expect(mockStore.loadPhotos).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('selection bar edit-tags button (rendered)', () => {
+    let fixture: ComponentFixture<GalleryComponent> | null = null;
+
+    afterEach(() => {
+      fixture?.destroy();
+      fixture = null;
+    });
+
+    function render(edition: boolean): ComponentFixture<GalleryComponent> {
+      mockAuth['isEdition'] = vi.fn(() => edition);
+      mockAuth['hasFeature'] = vi.fn(() => false);
+      mockAuth['isMultiUser'] = vi.fn(() => false);
+      mockAuth['isSuperadmin'] = vi.fn(() => false);
+      mockAuth['downloadProfiles'] = vi.fn(() => []);
+      mockStore.config.set({});
+      mockStore.selectionCount.set(2);
+      mockStore.viewScopeSelected.set(false);
+      fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function tagsButton(f: ComponentFixture<GalleryComponent>): HTMLButtonElement | null {
+      return (Array.from(f.nativeElement.querySelectorAll('button')) as HTMLButtonElement[])
+        .find(b => b.textContent?.includes(I18N.gallery.selection.edit_tags)) ?? null;
+    }
+
+    it('is a desktop-only button for an edition user', () => {
+      const button = tagsButton(render(true));
+
+      expect(button).not.toBeNull();
+      expect(button!.className).toContain('!hidden');
+      expect(button!.className).toContain('lg:!inline-flex');
+    });
+
+    it('is absent without edition', () => {
+      expect(tagsButton(render(false))).toBeNull();
+    });
+
+    it('opens the dialog when clicked', () => {
+      const f = render(true);
+      const open = vi.spyOn(f.componentInstance as unknown as { openManualTagsDialog(): Promise<void> }, 'openManualTagsDialog')
+        .mockResolvedValue(undefined);
+
+      tagsButton(f)!.click();
+
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('deleteSelected', () => {
     function select(paths: string[]) {
       mockStore.selectedPaths.set(new Set(paths));
@@ -2785,6 +2903,7 @@ describe('GalleryComponent', () => {
         ['copy', { kind: 'copy' }, 'copyPaths', []],
         ['mark-panorama', { kind: 'mark-panorama', sequenceKind: 'bracket' }, 'markAsPanorama', ['bracket']],
         ['download', { kind: 'download', type: 'darktable', profile: 'P' }, 'downloadSelected', ['darktable', 'P']],
+        ['tags', { kind: 'tags' }, 'openManualTagsDialog', []],
       ];
       for (const [name, action, method, args] of cases) {
         it(`${name} -> ${method}`, async () => {
@@ -2859,6 +2978,7 @@ describe('GalleryComponent', () => {
         const run = spy('runSelectionAction');
         for (const kind of ['invert', 'compare']) await single({ kind });
         await single({ kind: 'mark-panorama', sequenceKind: 'panorama' });
+        await single({ kind: 'tags' });
         expect(run).not.toHaveBeenCalled();
         expect(mockStore.updateFilters).not.toHaveBeenCalled();
         expect(mockStore.toggleFavorite).not.toHaveBeenCalled();

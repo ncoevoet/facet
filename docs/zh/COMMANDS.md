@@ -65,17 +65,17 @@ API 会将其呈现在 `/api/scan/status` 的 `progress` 字段以及 SSE 数据
 |---------|-------------|
 | `python facet.py /path --dry-run` | 对 10 张样本照片评分但不保存 |
 | `python facet.py /path --dry-run --dry-run-count 20` | 对 20 张样本照片评分 |
-| `python facet.py --export-csv` | 把全部评分导出为带时间戳的 CSV |
+| `python facet.py --export-csv` | 把全部评分导出为带时间戳的 CSV（`tags` 列只含 AI 标签，不包含[手动标签](VIEWER.md#手动标签)） |
 | `python facet.py --export-csv output.csv` | 导出到指定的 CSV 文件 |
-| `python facet.py --export-json` | 把全部评分导出为带时间戳的 JSON |
+| `python facet.py --export-json` | 把全部评分导出为带时间戳的 JSON（`tags` 只含 AI 标签，与 CSV 相同） |
 | `python facet.py --export-json output.json` | 导出到指定的 JSON 文件 |
-| `python facet.py --export-manifest` | 导出紧凑的 JSON 清单（路径、类别、评分、标签、星级评分、收藏／淘汰、连拍代表帧）到 `facet_manifest.json`，供 Lightroom Classic 插件等外部工具使用 |
+| `python facet.py --export-manifest` | 导出紧凑的 JSON 清单（路径、类别、评分、标签、星级评分、收藏／淘汰、连拍代表帧）到 `facet_manifest.json`，供 Lightroom Classic 插件等外部工具使用（`tags` = AI 标签 + 手动标签） |
 | _清单版本 2_ | 为每张照片新增 `burst_group_id`、`sequence_kind`、`sequence_group_id` 和 `score_stars`（综合评分经 `xmp_export.score_to_rating` 换算得到），供 Facet 增效工具新增的连拍留用／淘汰与星级兜底选项使用——见 [docs/INTEROP.md](INTEROP.md#facet-增效工具星级留用旗标元数据字段与关键字)。为此版本构建的增效工具会拒绝更早版本的清单，并要求重新导出 |
 | `python facet.py --export-manifest /path` | 把清单限定为某个路径子树下的照片 |
 | `python facet.py --export-manifest --user alice` | 多用户模式：把 Alice 的 `user_preferences` 评分导出到清单，而不是全局列（标签和评分仍为全局） |
 | `python facet.py --import-lightroom 文件` | 导入增效工具导出的 Lightroom 星级／留用／淘汰状态（`facet_lightroom_state.json`，见 docs/INTEROP.md 中的 [Lightroom → Facet](INTEROP.md#lightroom--facet)）—— 文件携带的每个字段都由 Lightroom 说了算。打印 `matched=… unmatched=… changed=…` |
 | `python facet.py --import-lightroom 文件 --user alice` | 多用户模式：写入 Alice 的 `user_preferences` 行，而不是全局列；在多用户安装上**必须**指定 —— 否则会被拒绝，以免导入静默落到错误的范围 |
-| `python facet.py --import-sidecars` | 把 `<image>.xmp` 附属文件中的评分／标记／标签导回数据库（全部照片） |
+| `python facet.py --import-sidecars` | 把 `<image>.xmp` 附属文件中的评分／标记／标签导回数据库（全部照片）；Facet 尚未拥有的关键字会成为[手动标签](INTEROP.md#手动标签与-xmp-关键字) |
 | `python facet.py --import-sidecars /path` | 仅导入某个路径子树下照片的附属文件 |
 | `python facet.py --import-sidecars --user alice` | 多用户模式：把评分导入 Alice 的 `user_preferences`，而不是全局列（关键词仍为全局） |
 | `python facet.py --export-sidecars` | 为全部照片从数据库写入／合并 `<image>.xmp` 附属文件（仅附属文件） |
@@ -84,9 +84,9 @@ API 会将其呈现在 `/api/scan/status` 的 `progress` 字段以及 SSE 数据
 | `python facet.py --export-sidecars --embed-originals` | 同时把元数据**写入文件本身**，适用于 JPEG/HEIC/TIFF/PNG/DNG（会重写原始文件） |
 | `python facet.py --export-sidecars --score-to-stars` | 对你没有手动评分过的照片，由综合评分推导出 `xmp:Rating`（手动评分／收藏／淘汰始终优先） |
 
-> **元数据双向同步。** Facet 会把评分、颜色标记、关键词、照片描述和已命名的人脸区域写入标准的 `<image>.xmp` 附属文件，整个生态都能读取（Lightroom、darktable、digiKam、immich 等）；除非你用 `--export-sidecars --embed-originals` 主动开启，否则原始图像永远不会被修改（仅限 JPEG/HEIC/TIFF/PNG/DNG——RAW 绝不会被改动）。写入文件本身以及安全的关键词并集合并需要 **exiftool**；没有它时，Facet 会退回到零依赖的纯 XML 附属文件。
+> **元数据双向同步。** Facet 会把评分、颜色标记、关键词、照片描述和已命名的人脸区域写入标准的 `<image>.xmp` 附属文件，整个生态都能读取（Lightroom、darktable、digiKam、immich 等）；除非你用 `--export-sidecars --embed-originals` 主动开启，否则原始图像永远不会被修改（仅限 JPEG/HEIC/TIFF/PNG/DNG——RAW 绝不会被改动）。写入文件本身以及安全的关键词并集合并需要 **exiftool**；没有它时，Facet 会退回到零依赖的纯 XML 附属文件。写出的关键字是 AI 标签加上你的[手动标签](VIEWER.md#手动标签)，并且一个关键字一旦写出，之后的导出不会再把它从附属文件中移除（参见[手动标签与 XMP 关键字](INTEROP.md#手动标签与-xmp-关键字)）。
 >
-> **注意事项。** `--import-sidecars` 依据照片的 `scanned_at`（最后一次扫描时间）以*较新者优先*的方式处理评分／标记，而不是依据每条评分的编辑时间——因此比最后一次扫描更新的附属文件，可能覆盖你在扫描之后于 Facet 中改过的评分。如果外部编辑器才是权威来源，请在重新评分之前运行 `--import-sidecars`；如果你使用 `photo_tags` 查找表，则在导入之后运行 `python database.py --migrate-tags`。
+> **注意事项。** `--import-sidecars` 依据照片的 `scanned_at`（最后一次扫描时间）以*较新者优先*的方式处理评分／标记，而不是依据每条评分的编辑时间——因此比最后一次扫描更新的附属文件，可能覆盖你在扫描之后于 Facet 中改过的评分。如果外部编辑器才是权威来源，请在重新评分之前运行 `--import-sidecars`。导入的关键字会进入手动标签表，标签筛选直接读取该表，因此之后不需要运行 `--migrate-tags`。
 >
 > **`--export-manifest` 与 `--export-csv`／`--export-json` 的区别。** 清单的可选参数限定的是*导出哪些照片*（与 `--export-sidecars` 一样），而不是输出文件名——它始终在工作目录中（重新）写入 `facet_manifest.json`，因为它的用途就是就地重新生成，供反复读取固定路径的工具使用。它携带的 `star_rating`／`is_favorite`／`is_rejected` 值与 `--export-sidecars` 相同——默认取全局列，给出 `--user` 时则取指定用户的 `user_preferences` 行，于是多用户安装不会再导出一份全是零的清单——另外还有 `is_burst_lead`（始终为全局），一个顶层的 `pending_corrections` 计数（尚未被检测运行应用的曝光包围／全景手动修正数量——非零计数会在导出后打印一行提到 `--detect-panoramas` 的警告），并以紧凑（非美化缩进）的 JSON 写出：在约 10 万张照片的规模下，`--export-json` 的 `indent=2` 输出会达到几十兆字节，而机器读取方并不会从中获益。
 

@@ -78,6 +78,8 @@ export interface Photo {
   narrative_moment_confidence?: number | null;
   tags?: string | null;
   tags_list: string[];
+  /** Tags the user typed by hand, sorted. Always on the wire (`[]` when none); never shown on a share link. */
+  manual_tags: string[];
   is_monochrome?: boolean | null;
   is_silhouette?: boolean | null;
   /** Worst-channel share of pixels pinned to bin 0 / bin 255, as a percentage.

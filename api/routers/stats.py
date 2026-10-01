@@ -164,9 +164,18 @@ async def api_stats_overview(
 
             # Total distinct tags
             try:
-                from api.db_helpers import is_photo_tags_available
+                from api.db_helpers import is_manual_tags_available, is_photo_tags_available
+                # Distinct union of AI and manual tags: a manual tag equal to an AI
+                # tag is one tag, and a manual-only library still counts its tags.
+                tag_sources = []
                 if is_photo_tags_available(conn):
-                    cur = await conn.execute('SELECT COUNT(DISTINCT tag) FROM photo_tags')
+                    tag_sources.append('SELECT tag FROM photo_tags')
+                if is_manual_tags_available(conn):
+                    tag_sources.append('SELECT tag FROM photo_manual_tags')
+                if tag_sources:
+                    cur = await conn.execute(
+                        f"SELECT COUNT(DISTINCT tag) FROM ({' UNION ALL '.join(tag_sources)})"
+                    )
                     tags_row = await cur.fetchone()
                     await cur.close()
                 else:

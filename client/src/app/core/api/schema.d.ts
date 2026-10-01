@@ -2464,6 +2464,11 @@ export interface paths {
         /**
          * Api Photo
          * @description Get a single photo by path (same shape as gallery items). Async.
+         *
+         *     A request carrying a share ``token`` never receives ``manual_tags`` (they
+         *     are private annotations), whether or not the caller also holds an edition
+         *     session. The token is advisory here, only ever narrowing the response; the
+         *     shared-album list is the primary share surface.
          */
         get: operations["api_photo_api_photo_get"];
         put?: never;
@@ -11103,6 +11108,8 @@ export interface operations {
         parameters: {
             query: {
                 path: string;
+                /** @description Share token: hides the owner's manual tags */
+                token?: string | null;
             };
             header?: never;
             path?: never;

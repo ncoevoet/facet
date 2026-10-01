@@ -168,6 +168,12 @@ python database.py --export-viewer-db --force-export
 
 La funzione "Trova simili" non funzionerà sul database esportato (gli embedding CLIP vengono rimossi). Per questo, usa la macchina di scoring.
 
+**Tag manuali ed esportazione.** L'esportazione include anche la tabella dei [tag manuali](VIEWER.md#tag-manuali) (`photo_manual_tags`), e un'esportazione incrementale la unisce aggiungendo le righe del database di scoring, mai sostituendo la copia della galleria web. I tag digitati sul NAS vengono così conservati, ma con tre limiti:
+
+- Un tag manuale che rimuovi nella galleria web sul NAS torna alla successiva esportazione incrementale se il database di scoring lo possiede ancora.
+- Un tag manuale aggiunto sul NAS non viene copiato nel database di scoring; nulla sincronizza il database della galleria web a monte, quindi aggiungilo anche sulla macchina di scoring se vuoi conservarlo.
+- `--force-export` ricostruisce il database della galleria web da quello di scoring, quindi i tag manuali che esistono solo sul NAS vanno persi.
+
 ### Sincronizza i file
 
 Sulla macchina di scoring, compila prima il client Angular (vedi [Compilazione del client Angular](#compilazione-del-client-angular)).

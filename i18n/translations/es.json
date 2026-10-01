@@ -1086,6 +1086,7 @@
       "compare": "Comparar",
       "actions": "Acciones",
       "mark_sequence": "Marcar como serie",
+      "edit_tags": "Editar etiquetas…",
       "mark_panorama": "Marcar como un panorama",
       "mark_hdr_panorama": "Marcar como un panorama HDR",
       "marked_panorama": "{count} fotos marcadas como un panorama",
@@ -2317,6 +2318,18 @@
       "success": "Foto enviada a la papelera",
       "error": "Error al eliminar"
     }
+  },
+  "manual_tags": {
+    "title": "Editar etiquetas",
+    "tag_label": "Etiqueta",
+    "hint": "Las etiquetas manuales se conservan en la foto tras un nuevo escaneo y se escriben como palabras clave al exportar.",
+    "add": "Añadir etiqueta",
+    "add_action": "Añadir",
+    "remove_action": "Quitar",
+    "remove_tag": "Quitar la etiqueta {tag}",
+    "manual": "Etiqueta manual",
+    "ai": "Etiqueta de IA",
+    "error": "No se pudo modificar la etiqueta. Compruébala e inténtalo de nuevo."
   },
   "photo": {
     "category_override": {

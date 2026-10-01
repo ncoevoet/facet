@@ -19,11 +19,12 @@ from api.config import VIEWER_CONFIG, server_scoring_config
 from api.database import get_async_db
 from api.db_helpers import (
     get_visibility_clause, get_photos_from_clause,
-    build_photo_select_columns,
+    build_photo_select_columns, is_manual_tags_available,
     split_photo_tags, attach_person_data_async, format_date, sanitize_float_values,
 )
 from api.models.discovery import PhotoSearchResponse
 from db.connection import HAS_SQLITE_VEC
+from db.manual_tags import ManualTagError, normalize_manual_tag
 
 router = APIRouter(tags=["search"])
 logger = logging.getLogger(__name__)
@@ -589,6 +590,31 @@ async def _fts_search(conn, query, limit, scope=None):
     return scores
 
 
+async def _manual_tag_search(conn, query, limit, vis_sql, vis_params):
+    """Photos whose manual tag equals the whole normalized query, as {path: 1.0}.
+
+    Manual tags are not in the FTS index, so this runs as its own query and
+    never depends on FTS5 being available. A hit takes the top score: a 0.0
+    would be cut by the blend/truncation in ``api_search``. The match is phrase
+    equality (the stored form of a tag), a documented limitation next to the
+    token-AND FTS match. Visibility-scoped like every other count or list.
+    """
+    if not is_manual_tags_available(conn):
+        return {}
+    try:
+        tag = normalize_manual_tag(query)
+    except ManualTagError:
+        return {}
+    cur = await conn.execute(
+        "SELECT DISTINCT photo_path FROM photo_manual_tags "
+        f"WHERE tag = ? AND photo_path IN (SELECT path FROM photos WHERE {vis_sql}) LIMIT ?",
+        [tag, *vis_params, limit],
+    )
+    rows = await cur.fetchall()
+    await cur.close()
+    return {row[0]: 1.0 for row in rows}
+
+
 @router.get("/api/search", response_model=PhotoSearchResponse, response_model_exclude_unset=True)
 async def api_search(
     request: Request,
@@ -634,6 +660,12 @@ async def api_search(
             # --- FTS5 text search ---
             if await _has_fts(conn):
                 fts_scores = await _fts_search(conn, q, limit, scope='text' if text_only else None)
+
+            # --- Manual-tag companion (outside the FTS path so it works without FTS5;
+            # skipped for scope='text', which excludes tags by design) ---
+            if not text_only:
+                for path, score in (await _manual_tag_search(conn, q, limit, vis_sql, vis_params)).items():
+                    fts_scores[path] = max(fts_scores.get(path, 0.0), score)
 
             # --- Embedding-based search (skipped in text-only scope) ---
             if not text_only:

@@ -1086,6 +1086,7 @@
       "compare": "Vergleichen",
       "actions": "Aktionen",
       "mark_sequence": "Als Serie markieren",
+      "edit_tags": "Schlagwörter bearbeiten…",
       "mark_panorama": "Als ein Panorama markieren",
       "mark_hdr_panorama": "Als ein HDR-Panorama markieren",
       "marked_panorama": "{count} Fotos als ein Panorama markiert",
@@ -2317,6 +2318,18 @@
       "success": "Foto in den Papierkorb verschoben",
       "error": "Löschen fehlgeschlagen"
     }
+  },
+  "manual_tags": {
+    "title": "Schlagwörter bearbeiten",
+    "tag_label": "Schlagwort",
+    "hint": "Manuelle Schlagwörter bleiben dem Foto auch nach erneutem Scannen erhalten und werden beim Export als Keywords geschrieben.",
+    "add": "Schlagwort hinzufügen",
+    "add_action": "Hinzufügen",
+    "remove_action": "Entfernen",
+    "remove_tag": "Schlagwort {tag} entfernen",
+    "manual": "Manuelles Schlagwort",
+    "ai": "KI-Schlagwort",
+    "error": "Das Schlagwort konnte nicht geändert werden. Bitte prüfen und erneut versuchen."
   },
   "photo": {
     "category_override": {

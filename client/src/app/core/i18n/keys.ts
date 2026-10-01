@@ -1102,6 +1102,7 @@ export const I18N = {
       compare: "gallery.selection.compare",
       actions: "gallery.selection.actions",
       mark_sequence: "gallery.selection.mark_sequence",
+      edit_tags: "gallery.selection.edit_tags",
       mark_panorama: "gallery.selection.mark_panorama",
       mark_hdr_panorama: "gallery.selection.mark_hdr_panorama",
       marked_panorama: "gallery.selection.marked_panorama",
@@ -2333,6 +2334,18 @@ export const I18N = {
       success: "photo_detail.delete.success",
       error: "photo_detail.delete.error",
     },
+  },
+  manual_tags: {
+    title: "manual_tags.title",
+    tag_label: "manual_tags.tag_label",
+    hint: "manual_tags.hint",
+    add: "manual_tags.add",
+    add_action: "manual_tags.add_action",
+    remove_action: "manual_tags.remove_action",
+    remove_tag: "manual_tags.remove_tag",
+    manual: "manual_tags.manual",
+    ai: "manual_tags.ai",
+    error: "manual_tags.error",
   },
   photo: {
     category_override: {

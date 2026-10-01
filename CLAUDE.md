@@ -296,7 +296,7 @@ as what it means rather than what it is silently rewrites the wire.
 
 Lookup and side tables: `photo_tags`, `faces`, `persons`, `albums`, `album_photos`,
 `album_client_picks`, `photo_scoring_overrides`, `photo_sequence_overrides`,
-`location_names`, `comparisons`, `learned_scores`, `weight_optimization_runs`,
+`photo_manual_tags`, `location_names`, `comparisons`, `learned_scores`, `weight_optimization_runs`,
 `weight_config_snapshots`, `recommendation_history`, `user_preferences`, `scan_runs`,
 `scan_failures`, `stats_cache`, plus the virtual tables `photos_fts` (FTS5) and
 `photos_vec` (sqlite-vec).
@@ -367,8 +367,8 @@ only what reading those two will NOT tell you.
   long as the correction applies.
 - **Sticky per-photo state goes in a side table, never a new column on `photos`.**
   `save_photo` / `save_photos_batch` write with `INSERT OR REPLACE`, so a new column is silently
-  wiped on the next rescan. This is why `photo_scoring_overrides` and `photo_sequence_overrides`
-  exist. For the same reason `POST /api/comparison/override_category` records an override rather
+  wiped on the next rescan. This is why `photo_scoring_overrides`, `photo_sequence_overrides` and
+  `photo_manual_tags` (user-typed tags, kept apart from the tagger-owned `photos.tags`) exist. For the same reason `POST /api/comparison/override_category` records an override rather
   than writing `photos.category`, which `--recompute-average` would discard.
 - **A scoring context is a *delta* over the global priority order**, never a standalone
   ordering — so a category added later cannot go missing from six separate lists. `PUT` requires

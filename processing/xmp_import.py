@@ -7,7 +7,11 @@ darktable / Lightroom / etc. and fold ratings, picks and keywords back into the
 Conflict policy (two-way sync): ratings / labels apply **newest-wins** by
 ``xmp:MetadataDate`` (falling back to the sidecar file mtime) versus the photo's
 ``scanned_at``; when the photo has no ``scanned_at``, the sidecar wins. Keywords
-are always **merged** (union, deduped) so Facet's own auto-tags are never lost.
+never touch ``photos.tags`` (the tagger owns that column and rewrites it on every
+retag): the foreign ones are stored in ``photo_manual_tags`` with
+``source='xmp'`` and are never lost to a retag. A keyword is foreign unless it
+already is one of the photo's AI tags, a person name of the photo, or a
+hierarchical ``a|b`` path.
 
 Caveat: the photo-side timestamp is ``scanned_at`` (when Facet last scored the
 photo), not a rating-edit time — Facet has no per-rating ``updated_at`` column. A
@@ -17,15 +21,25 @@ in-app edit) will still win and overwrite it. Run an import before re-rating in
 Facet if the external editor is the source of truth. By default imports write
 the global ``photos.*`` rating columns; pass ``user_id`` (CLI ``--user``) in
 multi-user mode to read and write that user's ``user_preferences`` ratings
-instead. Keywords are always merged into the global ``photos.tags``.
+instead. Keywords always go to the global ``photo_manual_tags`` (tags are not
+per-user); ``user_id`` is recorded as ``created_by``.
 """
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
 
+from db.manual_tags import (
+    SOURCE_XMP,
+    ManualTagError,
+    insert_manual_tag,
+    is_ai_tag,
+    load_manual_tags,
+    normalize_manual_tag,
+)
 from processing.rating_writer import upsert_rating_state
 from processing.xmp_export import (
     LABEL_FAVORITE,
@@ -35,6 +49,8 @@ from processing.xmp_export import (
     NS_XMP,
     build_root_filter,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _find_scalar(root, qname: str):
@@ -134,15 +150,41 @@ def parse_sidecar(path: str):
     }
 
 
-def _merge_tags(existing: str, incoming: list[str]) -> str:
-    """Union of existing (comma string) and incoming tags, order-preserving."""
-    seen: set[str] = set()
-    merged: list[str] = []
-    for tag in [t.strip() for t in (existing or "").split(",")] + incoming:
-        if tag and tag not in seen:
-            seen.add(tag)
-            merged.append(tag)
-    return ", ".join(merged)
+def _person_names(conn, path: str) -> set[str]:
+    """Normalized names of the persons recognised in one photo."""
+    names: set[str] = set()
+    for (name,) in conn.execute(
+        "SELECT pe.name FROM faces f JOIN persons pe ON f.person_id = pe.id "
+        "WHERE f.photo_path = ? AND pe.name IS NOT NULL",
+        (path,),
+    ):
+        try:
+            names.add(normalize_manual_tag(name))
+        except ManualTagError:
+            continue
+    return names
+
+
+def _foreign_keywords(conn, path: str, ai_tags, keywords: list[str]) -> list[str]:
+    """Normalized, de-duplicated keywords that are neither AI tags, person names
+    nor hierarchical paths. Unstorable keywords are dropped with a warning."""
+    people: set[str] | None = None
+    foreign: list[str] = []
+    for keyword in keywords:
+        if "|" in keyword:
+            continue
+        try:
+            tag = normalize_manual_tag(keyword)
+        except ManualTagError as ex:
+            logger.warning("Ignoring XMP keyword %r on %s: %s", keyword, path, ex)
+            continue
+        if is_ai_tag(ai_tags, tag) or tag in foreign:
+            continue
+        if people is None:
+            people = _person_names(conn, path)
+        if tag not in people:
+            foreign.append(tag)
+    return foreign
 
 
 def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None) -> dict:
@@ -151,10 +193,10 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
     ``root`` limits the import to photos whose path is, or is under, that path.
     By default ratings are written to the global ``photos`` columns. When
     ``user_id`` is given and multi-user mode is enabled, ratings are read from and
-    written to that user's ``user_preferences`` row instead (keywords are always
-    merged into the global ``photos.tags``, since tags are not per-user).
-    Returns counts: ``updated`` / ``unchanged`` / ``missing`` (no sidecar) /
-    ``skipped`` (unparseable sidecar).
+    written to that user's ``user_preferences`` row instead. Foreign keywords are
+    written to the global ``photo_manual_tags`` (``source='xmp'``), never to
+    ``photos.tags``. Returns counts: ``updated`` / ``unchanged`` / ``missing`` (no
+    sidecar) / ``skipped`` (unparseable sidecar) / ``tags_added`` (new manual-tag rows).
     """
     from api.config import is_multi_user_enabled
     per_user = bool(user_id and is_multi_user_enabled())
@@ -178,7 +220,9 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
             params,
         ).fetchall()
 
-    updated = unchanged = missing = skipped = 0
+    updated = unchanged = missing = skipped = tags_added = 0
+    created_by = user_id if per_user else None
+    created_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     for row in rows:
         sidecar = row["path"] + ".xmp"
         if not os.path.exists(sidecar):
@@ -189,7 +233,11 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
             skipped += 1
             continue
 
-        new_tags = _merge_tags(row["tags"], parsed["tags"])
+        existing = set(load_manual_tags(conn, row["path"]))
+        new_keywords = [
+            tag for tag in _foreign_keywords(conn, row["path"], row["tags"], parsed["tags"])
+            if tag not in existing
+        ]
         star = row["star_rating"] or 0
         favorite = bool(row["is_favorite"])
         rejected = bool(row["is_rejected"])
@@ -202,17 +250,15 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
             favorite = parsed["is_favorite"]
             rejected = parsed["is_rejected"]
 
-        if (new_tags == (row["tags"] or "") and star == (row["star_rating"] or 0)
+        if (not new_keywords and star == (row["star_rating"] or 0)
                 and favorite == bool(row["is_favorite"])
                 and rejected == bool(row["is_rejected"])):
             unchanged += 1
             continue
 
-        if new_tags != (row["tags"] or ""):
-            conn.execute(
-                "UPDATE photos SET tags = ? WHERE path = ?",
-                (new_tags, row["path"]),
-            )
+        for tag in new_keywords:
+            if insert_manual_tag(conn, row["path"], tag, SOURCE_XMP, created_by, created_at):
+                tags_added += 1
         upsert_rating_state(
             conn, row["path"], user_id,
             star_rating=star, is_favorite=favorite, is_rejected=rejected,
@@ -220,4 +266,5 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
         updated += 1
 
     conn.commit()
-    return {"updated": updated, "unchanged": unchanged, "missing": missing, "skipped": skipped}
+    return {"updated": updated, "unchanged": unchanged, "missing": missing, "skipped": skipped,
+            "tags_added": tags_added}

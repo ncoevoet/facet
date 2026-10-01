@@ -151,6 +151,16 @@ describe('GalleryPhotoMenuComponent', () => {
       expect(labels()).not.toContain(I18N.gallery.selection.compare);
     });
 
+    it('offers the edit-tags entry in bulk mode', () => {
+      openMenu(makePhoto(), true);
+      expect(labels()).toContain(I18N.gallery.selection.edit_tags);
+    });
+
+    it('does not offer the edit-tags entry on a single photo', () => {
+      openMenu(makePhoto(), false);
+      expect(labels()).not.toContain(I18N.gallery.selection.edit_tags);
+    });
+
     it('hides the album submenu when albums are disabled', () => {
       host.config.set({ ...FULL_CONFIG, features: { ...FULL_CONFIG.features, show_albums: false } } as ViewerConfig);
       openMenu(makePhoto(), false);
@@ -167,7 +177,7 @@ describe('GalleryPhotoMenuComponent', () => {
           I18N.rating.add_favorite, I18N.rating.mark_rejected, I18N.gallery.selection.rate,
           I18N.albums.add_photos, I18N.export.action, I18N.cull.action, I18N.cull.delete_action,
           I18N.photoCard.embed_to_file, I18N.manage_persons.assign_face,
-          I18N.gallery.selection.mark_sequence,
+          I18N.gallery.selection.mark_sequence, I18N.gallery.selection.edit_tags,
         ]) {
           expect(l).not.toContain(hidden);
         }
@@ -262,6 +272,7 @@ describe('GalleryPhotoMenuComponent', () => {
       { name: 'bulk panorama', bulk: true, path: [I18N.gallery.selection.mark_sequence, I18N.gallery.selection.mark_panorama], expected: { kind: 'mark-panorama', sequenceKind: 'panorama' } },
       { name: 'bulk hdr panorama', bulk: true, path: [I18N.gallery.selection.mark_sequence, I18N.gallery.selection.mark_hdr_panorama], expected: { kind: 'mark-panorama', sequenceKind: 'hdr_panorama' } },
       { name: 'bulk bracket', bulk: true, path: [I18N.gallery.selection.mark_sequence, I18N.gallery.selection.mark_bracket], expected: { kind: 'mark-panorama', sequenceKind: 'bracket' } },
+      { name: 'bulk edit tags', bulk: true, path: [I18N.gallery.selection.edit_tags], expected: { kind: 'tags' } },
       { name: 'bulk copy', bulk: true, path: [I18N.gallery.selection.copy_filenames], expected: { kind: 'copy' } },
       { name: 'bulk export', bulk: true, path: [I18N.export.action], expected: { kind: 'export' } },
       { name: 'bulk cull', bulk: true, path: [I18N.cull.action], expected: { kind: 'cull' } },
@@ -343,6 +354,7 @@ describe('GalleryPhotoMenuComponent', () => {
   describe('isSheetAction', () => {
     it('is true for bulk kinds and false for single-photo-only kinds', () => {
       expect(isSheetAction({ kind: 'favorite' })).toBe(true);
+      expect(isSheetAction({ kind: 'tags' })).toBe(true);
       expect(isSheetAction({ kind: 'download', type: 'raw' })).toBe(true);
       expect(isSheetAction({ kind: 'open' })).toBe(false);
       expect(isSheetAction({ kind: 'toggle-favorite' })).toBe(false);

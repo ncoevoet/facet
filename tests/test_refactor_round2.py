@@ -51,6 +51,10 @@ _PHOTOS_SCHEMA = """
         photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
         source TEXT, created_at TEXT, created_by TEXT, applied_at TEXT
     );
+    CREATE TABLE photo_manual_tags (
+        photo_path TEXT NOT NULL, tag TEXT NOT NULL, source TEXT NOT NULL,
+        created_by TEXT, created_at TEXT, PRIMARY KEY (photo_path, tag)
+    );
 """
 
 _SAMPLE_PHOTO = {

@@ -1086,6 +1086,7 @@
       "compare": "Comparer",
       "actions": "Actions",
       "mark_sequence": "Marquer comme série",
+      "edit_tags": "Modifier les mots-clés…",
       "mark_panorama": "Marquer comme un panorama",
       "mark_hdr_panorama": "Marquer comme un panorama HDR",
       "marked_panorama": "{count} photos marquées comme un panorama",
@@ -2317,6 +2318,18 @@
       "success": "Photo envoyée à la corbeille",
       "error": "Échec de la suppression"
     }
+  },
+  "manual_tags": {
+    "title": "Modifier les mots-clés",
+    "tag_label": "Mot-clé",
+    "hint": "Les mots-clés manuels restent attachés à la photo après un nouveau scan et sont écrits comme mots-clés à l’export.",
+    "add": "Ajouter un mot-clé",
+    "add_action": "Ajouter",
+    "remove_action": "Retirer",
+    "remove_tag": "Retirer le mot-clé {tag}",
+    "manual": "Mot-clé manuel",
+    "ai": "Mot-clé IA",
+    "error": "Impossible de modifier le mot-clé. Vérifiez-le et réessayez."
   },
   "photo": {
     "category_override": {

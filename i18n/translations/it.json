@@ -1086,6 +1086,7 @@
       "compare": "Confronta",
       "actions": "Azioni",
       "mark_sequence": "Segna come serie",
+      "edit_tags": "Modifica tag…",
       "mark_panorama": "Segna come un panorama",
       "mark_hdr_panorama": "Segna come un panorama HDR",
       "marked_panorama": "{count} foto segnate come un panorama",
@@ -2317,6 +2318,18 @@
       "success": "Foto inviata al cestino",
       "error": "Eliminazione non riuscita"
     }
+  },
+  "manual_tags": {
+    "title": "Modifica tag",
+    "tag_label": "Tag",
+    "hint": "I tag manuali restano associati alla foto dopo una nuova scansione e vengono scritti come parole chiave all’esportazione.",
+    "add": "Aggiungi tag",
+    "add_action": "Aggiungi",
+    "remove_action": "Rimuovi",
+    "remove_tag": "Rimuovi il tag {tag}",
+    "manual": "Tag manuale",
+    "ai": "Tag IA",
+    "error": "Impossibile modificare il tag. Controllalo e riprova."
   },
   "photo": {
     "category_override": {

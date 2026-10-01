@@ -168,6 +168,12 @@ python database.py --export-viewer-db --force-export
 
 O recurso "Encontrar semelhantes" não funcionará no banco de dados exportado (os embeddings CLIP são removidos). Use a máquina de pontuação para isso.
 
+**Tags manuais e a exportação.** A exportação inclui também a tabela de [tags manuais](VIEWER.md#tags-manuais) (`photo_manual_tags`), e uma exportação incremental a mescla acrescentando as linhas do banco de dados de pontuação, nunca substituindo a cópia do visualizador. Assim os tags digitados no NAS são preservados, mas com três limites:
+
+- Um tag manual que você remove no visualizador do NAS volta na próxima exportação incremental se o banco de dados de pontuação ainda o tiver.
+- Um tag manual adicionado no NAS não é copiado de volta para o banco de dados de pontuação; nada sincroniza o banco do visualizador no sentido contrário, então adicione-o também na máquina de pontuação se quiser mantê-lo.
+- `--force-export` reconstrói o banco de dados do visualizador a partir do de pontuação, de modo que os tags manuais que existem apenas no NAS são perdidos.
+
 ### Sincronizando arquivos
 
 Na máquina de pontuação, compile primeiro o cliente Angular (consulte [Compilando o cliente Angular](#compilando-o-cliente-angular)).

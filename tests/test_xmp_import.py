@@ -1,13 +1,14 @@
 """Tests for the XMP sidecar importer (processing/xmp_import.py).
 
 Covers parsing both attribute-form (darktable) and element-form (exiftool)
-packets, the rating/label mapping, tag union, and the newest-wins conflict
+packets, the rating/label mapping, keyword routing to photo_manual_tags, and the newest-wins conflict
 policy. Pure stdlib XML — no exiftool needed.
 """
 
 import sqlite3
 
-from processing.xmp_import import _merge_tags, import_sidecars, parse_sidecar
+from db.schema import init_database
+from processing.xmp_import import import_sidecars, parse_sidecar
 
 _HEADER = (
     '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -88,47 +89,44 @@ class TestParseSidecar:
         assert parse_sidecar(path) is None
 
 
-class TestMergeTags:
-    def test_union_dedup_order(self):
-        assert _merge_tags("a, b", ["b", "c"]) == "a, b, c"
-
-    def test_empty_existing(self):
-        assert _merge_tags("", ["x", "y"]) == "x, y"
-
-
-def _make_db():
-    conn = sqlite3.connect(":memory:")
+def _make_db(tmp_path):
+    # Real schema (never a hand-rolled table): the importer also reads faces /
+    # persons and writes photo_manual_tags.
+    db_path = str(tmp_path / "t.db")
+    init_database(db_path)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        "CREATE TABLE photos (path TEXT PRIMARY KEY, tags TEXT, star_rating INTEGER, "
-        "is_favorite INTEGER, is_rejected INTEGER, scanned_at TEXT)"
-    )
     return conn
+
+
+def _add(conn, path, tags="", star=0, fav=0, rej=0, scanned_at=None):
+    conn.execute(
+        "INSERT INTO photos (path, tags, star_rating, is_favorite, is_rejected, scanned_at) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        (path, tags, star, fav, rej, scanned_at),
+    )
 
 
 class TestImportSidecars:
     def test_applies_sidecar_values(self, tmp_path):
         img = str(tmp_path / "p.jpg")
         _write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=5, label="Yellow", subjects=["auto", "Bob"]))
-        conn = _make_db()
-        conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)",
-            (img, "auto", 0, 0, 0, None),
-        )
+        conn = _make_db(tmp_path)
+        _add(conn, img, "auto", 0, 0, 0, None)
         stats = import_sidecars(conn)
         assert stats["updated"] == 1
         row = conn.execute("SELECT * FROM photos WHERE path = ?", (img,)).fetchone()
         assert row["star_rating"] == 5
         assert row["is_favorite"] == 1
-        # tag union keeps the Facet auto-tag and adds the sidecar's Bob.
-        assert row["tags"] == "auto, Bob"
+        # photos.tags is owned by the tagger: the keyword goes to the side table.
+        assert row["tags"] == "auto"
+        assert [r[0] for r in conn.execute(
+            "SELECT tag FROM photo_manual_tags WHERE photo_path = ?", (img,))] == ["bob"]
+        assert stats["tags_added"] == 1
 
     def test_missing_sidecar_counted(self, tmp_path):
-        conn = _make_db()
-        conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)",
-            (str(tmp_path / "none.jpg"), "x", 2, 0, 0, None),
-        )
+        conn = _make_db(tmp_path)
+        _add(conn, str(tmp_path / "none.jpg"), "x", 2, 0, 0, None)
         stats = import_sidecars(conn)
         assert stats["missing"] == 1
         assert stats["updated"] == 0
@@ -138,25 +136,21 @@ class TestImportSidecars:
         # Sidecar dated BEFORE the photo's scanned_at -> Facet rating wins.
         _write(tmp_path, "old.jpg.xmp",
                _attr_xmp(rating=1, subjects=["fromdt"], mdate="2020-01-01T00:00:00Z"))
-        conn = _make_db()
-        conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)",
-            (img, "facet", 5, 0, 0, "2026-06-24T12:00:00Z"),
-        )
+        conn = _make_db(tmp_path)
+        _add(conn, img, "facet", 5, 0, 0, "2026-06-24T12:00:00Z")
         import_sidecars(conn)
         row = conn.execute("SELECT * FROM photos WHERE path = ?", (img,)).fetchone()
         assert row["star_rating"] == 5  # Facet kept (newer)
-        assert row["tags"] == "facet, fromdt"  # tags still union
+        assert row["tags"] == "facet"  # photos.tags untouched
+        assert [r[0] for r in conn.execute(
+            "SELECT tag FROM photo_manual_tags WHERE photo_path = ?", (img,))] == ["fromdt"]
 
     def test_newest_wins_newer_sidecar_overrides(self, tmp_path):
         img = str(tmp_path / "new.jpg")
         _write(tmp_path, "new.jpg.xmp",
                _attr_xmp(rating=2, mdate="2026-06-24T12:00:00Z"))
-        conn = _make_db()
-        conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)",
-            (img, "facet", 5, 0, 0, "2020-01-01T00:00:00Z"),
-        )
+        conn = _make_db(tmp_path)
+        _add(conn, img, "facet", 5, 0, 0, "2020-01-01T00:00:00Z")
         import_sidecars(conn)
         row = conn.execute("SELECT * FROM photos WHERE path = ?", (img,)).fetchone()
         assert row["star_rating"] == 2  # sidecar wins (newer)
@@ -168,9 +162,9 @@ class TestImportSidecars:
         outside = str(tmp_path / "out.jpg")
         _write(sub, "in.jpg.xmp", _attr_xmp(rating=4))
         _write(tmp_path, "out.jpg.xmp", _attr_xmp(rating=4))
-        conn = _make_db()
+        conn = _make_db(tmp_path)
         for p in (inside, outside):
-            conn.execute("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)", (p, "", 0, 0, 0, None))
+            _add(conn, p, "", 0, 0, 0, None)
         import_sidecars(conn, root=str(sub))
         assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (inside,)).fetchone()[0] == 4
         assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (outside,)).fetchone()[0] == 0
@@ -186,9 +180,9 @@ class TestImportSidecars:
         leak = str(sibling / "out.jpg")
         _write(target, "in.jpg.xmp", _attr_xmp(rating=4))
         _write(sibling, "out.jpg.xmp", _attr_xmp(rating=4))
-        conn = _make_db()
+        conn = _make_db(tmp_path)
         for p in (wanted, leak):
-            conn.execute("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?)", (p, "", 0, 0, 0, None))
+            _add(conn, p, "", 0, 0, 0, None)
         import_sidecars(conn, root=str(target))
         assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (wanted,)).fetchone()[0] == 4
         assert conn.execute("SELECT star_rating FROM photos WHERE path = ?", (leak,)).fetchone()[0] == 0

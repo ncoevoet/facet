@@ -202,6 +202,7 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - **Reject** — Mark all selected as rejected (clears favorite and rating)
 - **Rate** — Set star rating (1–5) for all selected, or clear rating
 - **Add to album** — Add selected to an existing or new album
+- **Edit tags** — Add a [manual tag](#manual-tags) to, or remove one from, every selected photo (see [Manual Tags](#manual-tags))
 - **Select all** — With an empty selection, selects the whole filtered view — every photo the current filters match, not just the pages infinite scroll has fetched so far — at no network cost: the server derives the row set from the filters only when a bulk action is actually applied. With one or more photos already selected, it widens to the currently loaded photos only, and a banner offers to widen further to the whole view. Either way, applying an action scoped to the whole view first raises a confirmation dialog stating the exact photo count.
 - **Invert** — Swap the selection for its complement. With an empty selection the complement is the whole filtered view, exactly like Select all above and with the same no-request behavior — the case the previous wording here got wrong. With a non-empty selection it stays bounded to the loaded photos: pick the keepers, invert, reject — the direct way to see exactly what is about to go, without ever reaching photos you have not looked at.
 - **Compare** — Open 2–4 selected photos side by side with synced pan and zoom (scroll to zoom, drag to pan, double-click to reset; every pane moves together and swaps to full resolution past the fit scale). The same view the culling darkroom uses, reachable for any hand-picked set rather than only for frames adjacent in a burst.
@@ -214,7 +215,7 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 
 Bulk actions require edition mode. Double-click any photo to open it.
 
-**Context menu** — Right-click a photo (or focus it and press Shift+F10 / the Menu key) to open a menu at the cursor. On a photo inside a multi-photo selection it acts on the whole selection, with the action bar's actions under the same gates, except Invert and Select all, which stay on the bar (Delete is left out under "select all in view" scope). On any other photo it acts on that photo alone and leaves the selection untouched, and it adds Open photo plus, only where their feature or edition gates allow, Find Similar, Why This Score?, Write metadata to file and Assign face to person (the last only when the photo has unassigned faces). Culling a single photo this way takes only that photo out of the selection: a path selection keeps the rest, and a "select all in view" selection stays whole-view with that photo added to its exclusions. The menu is not offered on touch-first devices (`hover: none` and `pointer: coarse`), where the browser's long-press behavior and the Actions sheet remain.
+**Context menu** — Right-click a photo (or focus it and press Shift+F10 / the Menu key) to open a menu at the cursor. On a photo inside a multi-photo selection it acts on the whole selection, with the action bar's actions under the same gates, except Invert and Select all, which stay on the bar (Delete is left out under "select all in view" scope). On any other photo it acts on that photo alone and leaves the selection untouched, and it adds Open photo plus, only where their feature or edition gates allow, Find Similar, Why This Score?, Write metadata to file and Assign face to person (the last only when the photo has unassigned faces). Under a selection the menu also carries the bulk **Edit tags** entry, edition-gated like the bar's, which is also reachable from the Actions sheet on touch devices. Culling a single photo this way takes only that photo out of the selection: a path selection keeps the rest, and a "select all in view" selection stays whole-view with that photo added to its exclusions. The menu is not offered on touch-first devices (`hover: none` and `pointer: coarse`), where the browser's long-press behavior and the Actions sheet remain.
 
 ### Keep Top N%
 
@@ -275,6 +276,21 @@ Use the **similarity threshold slider** (0–90%) to control how strict the matc
 ### Filter Chips
 
 Active filters shown as removable chips with counts at top of gallery.
+
+### Manual Tags
+
+Manual tags are tags you type yourself, kept next to the AI tags a scan or retag produces. They live in their own table (`photo_manual_tags`), not in the photo's `tags` column, so a rescan or a retag never wipes them.
+
+- **Where they show.** In the photo **detail** view only, as chips beside the AI tags and visually distinct from them (a marker on the chip, not colour alone). Photo cards and the hover tooltip are unchanged and keep showing the AI tags.
+- **Who can edit.** Editing needs an edition session, which in turn needs a set `viewer.edition_password`; like every other edition-gated write, it is refused on an open install (no edition password), where manual tags are read-only. A non-edition viewer sees them read-only. In the detail view an edition user can add a tag, and remove a manual tag, even on a photo that has no tags yet. AI tags have no remove control.
+- **Bulk editing.** Select photos and use **Edit tags** to add or remove one tag across the whole selection: from the selection bar on desktop, from the Actions sheet on mobile, or from the context menu on a photo inside a multi-photo selection. A whole-view selection is accepted like any other bulk action. Photos already carrying 50 manual tags are skipped on a bulk add rather than failing the batch, and the reported `count` is the number of photos actually changed.
+- **Normalisation.** A tag is Unicode-normalised (NFC), trimmed, has runs of whitespace collapsed to one space and is lowercased. It may be at most 64 characters, a photo holds at most 50 manual tags, and an empty tag, a tag containing a comma or one containing a control character is rejected with a `422`. A tag identical to one of the photo's current AI tags is a no-op (nothing is stored), though a later retag can still produce the same tag on both sides; the gallery counts such a photo once.
+- **Search and filter reach them.** The gallery tag filter (including required and excluded tags), the gallery text search, semantic text search (`/api/search`, except the caption-only text scope), the tag dropdown and its counts, the statistics page and the sidecar, embed and Lightroom-manifest exports all see the union of AI and manual tags. Text search matches a manual tag as a whole phrase, not word by word. Capsules are the exception: they count AI tags only, so a capsule's count can be lower than the photos its click-through opens (the gallery tag filter, which does include manual tags). Manual tags never influence scores, categories or narrative moments.
+- **Hidden from share links.** A share-link viewer never sees manual tags in a shared photo, a shared album, its filter dropdown or its tag filter; a shared smart album still applies the owner's own saved filter, including a manual tag the owner filtered on.
+- **Global, not per user.** In multi-user mode manual tags are shared by everyone, not stored per user: any edition user can remove a tag another user added.
+- **Not undoable.** Manual tag edits are not covered by [Undo](#undo); re-add a removed tag by hand. A removed tag can also come back from a sidecar, see [Conflict rules](INTEROP.md#conflict-rules).
+- **Where they come from besides typing.** `--import-sidecars` stores keywords it finds in a sidecar that Facet does not already know (not an AI tag, not a person name) as manual tags, with source `xmp`.
+- **Tied to the file path.** A moved or renamed file is a new photo path and loses its manual tags with the old one.
 
 ## Panoramas and exposure brackets
 
@@ -858,7 +874,8 @@ Batch favorite/reject/rating operations and culling confirms show a snackbar
 with an **Undo** action for ~7 seconds. Batch flag operations are committed
 immediately and undone via inverse API calls (capped at 500 photos); culling
 confirms are deferred — the group disappears instantly but the API call only
-fires once the undo window elapses.
+fires once the undo window elapses. [Manual tag](#manual-tags) edits are not
+undoable.
 
 ## Progressive Web App
 
@@ -1145,6 +1162,8 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `GET /api/photos/count` | `{ total }` — how many photos match the current gallery filters |
 | `GET /api/photos/paths` | `{ total, paths }` — every matching path, unordered; used on demand by actions that need filenames (download, copy), never by select-all. Capped at 10000: a view holding more is refused with a `412` naming the count and the cap rather than truncated — a partial path list would be a selection the user believes is whole — and there is no fallback: the action is abandoned with a "too many photos" message so the user can narrow the filters and retry. Only the actions that need a literal path list go through here; the whole-view selection itself is count-only (`GET /api/photos/count`) and never needed one, so the filter-scoped actions built on it (batch rating/reject writes, cull, sidecar export) are unaffected by this cap and carry their own |
 | `GET /api/photo` | Single photo details |
+| `PUT /api/photo/manual_tags` | Add a [manual tag](#manual-tags) to one photo (edition-gated). Body: `{path, tag}`. `404` for an unknown or invisible path, `422` for an invalid tag or a photo already at 50 tags; a tag that equals one of the photo's AI tags is a no-op answered `200` with `skipped_existing: true` |
+| `DELETE /api/photo/manual_tags` | Remove a manual tag from one photo (edition-gated). Body: `{path, tag}` |
 | `GET /api/photo/set?path=` | The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to (sequence takes precedence over burst, burst over duplicate), keyed on `path` — never a group id, which the bracket and panorama passes each renumber from 1 on every run |
 | `GET /api/photo/histogram?path=&bins=` | Draw-ready luminance + R/G/B bins (`bins` ∈ 32/64/128/256, default 64) measured at scan time on the full-resolution image. Every channel is scaled by one global max, never its own. `r`/`g`/`b` are `null` for a row stored before the per-channel format; 404 when the row has no histogram at all, which is the widget's signal to fall back to sampling the thumbnail |
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Photo counts per type for the sidebar chips. Same five toggles as the gallery; an omitted one falls back to `viewer.defaults` rather than "off" — send `hide_bursts=0` etc. explicitly to count everything |
@@ -1194,6 +1213,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `POST /api/photos/batch_favorite` | Mark multiple photos as favorite (clears rejected). Body is exactly one of `{photo_paths}` (max 1000) or `{filters}` — `filters` takes the same query params as `GET /api/photos`, as strings, with no cap. `exclude` (optional, max 1000) may accompany either and narrows whichever target is sent — subtracted from `photo_paths`, or bound out of the `filters` scope — so it can only narrow, never widen. Supplying neither target or both is a 422, and a `filters` set naming an album is access-checked like that album's own GET — `404` for an album that does not exist, `403` for another user's on an access-controlled install. Response `{success, count}`, where `count` is the number of rows actually written |
 | `POST /api/photos/batch_reject` | Mark multiple photos as rejected (clears favorite and rating). Same body contract as `batch_favorite` above |
 | `POST /api/photos/batch_rating` | Set star rating for multiple photos. Same body contract as `batch_favorite`, plus a required `rating` (0–5) |
+| `POST /api/photos/batch_manual_tags` | Add or remove one [manual tag](#manual-tags) on multiple photos (edition-gated). Same body contract as `batch_favorite`, plus a required `tag` and an `action` of `add` or `delete`. Response `{success, count}`, where `count` is the number of rows actually written: photos already at the 50-tag cap and photos whose AI tags already contain the tag are skipped on `add` |
 
 ### Persons
 

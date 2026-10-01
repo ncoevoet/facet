@@ -13,6 +13,7 @@ export type SheetAction =
   | { kind: 'compare' }
   | { kind: 'export' }
   | { kind: 'cull' }
+  | { kind: 'tags' }
   | { kind: 'delete' }
   | { kind: 'rate'; rating: number }
   | { kind: 'mark-panorama'; sequenceKind: 'panorama' | 'hdr_panorama' | 'bracket' }
@@ -80,6 +81,10 @@ export interface GalleryActionsSheetData {
             {{ I18N.albums.create | translate }}
           </button>
         }
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'tags' })">
+          <mat-icon aria-hidden="true">sell</mat-icon>
+          {{ I18N.gallery.selection.edit_tags | translate }}
+        </button>
         <!-- Present on the desktop bar but previously unreachable on a phone,
              where this sheet is the only way to any bulk action. -->
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'export' })">

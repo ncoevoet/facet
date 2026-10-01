@@ -24,7 +24,7 @@ let PhotoDetailComponent: typeof import('./photo-detail.component').PhotoDetailC
 describe('PhotoDetailComponent', () => {
    
   let component: any;
-  let mockApi: { get: Mock; post: Mock; imageUrl: Mock; downloadUrl: Mock; getRaw: Mock };
+  let mockApi: { get: Mock; post: Mock; put: Mock; delete: Mock; imageUrl: Mock; downloadUrl: Mock; getRaw: Mock };
   let mockRouter: { navigate: Mock };
   let mockLocation: { back: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } } };
@@ -46,6 +46,7 @@ describe('PhotoDetailComponent', () => {
     category: 'portrait',
     tags: 'nature,landscape',
     tags_list: ['nature', 'landscape'],
+    manual_tags: [],
     date_taken: '2025-01-15',
     camera_model: 'Canon R5',
     lens_model: 'RF 50mm',
@@ -90,6 +91,8 @@ describe('PhotoDetailComponent', () => {
     mockApi = {
       get: vi.fn(() => of(samplePhoto)),
       post: vi.fn(() => of({})),
+      put: vi.fn(() => of({})),
+      delete: vi.fn(() => of({})),
       imageUrl: vi.fn((path: string) => `/image?path=${encodeURIComponent(path)}`),
       downloadUrl: vi.fn((path: string, type = 'original', profile?: string) => `/api/download?path=${encodeURIComponent(path)}&type=${type}${profile ? '&profile=' + profile : ''}`),
       getRaw: vi.fn(() => of(new Blob(['test'], { type: 'image/jpeg' }))),
@@ -666,6 +669,140 @@ describe('PhotoDetailComponent', () => {
       await component.setRating(edited.path, 5);
 
       expect(stored().star_rating).toBe(3);
+    });
+  });
+
+  describe('manual tags', () => {
+    const base = { ...samplePhoto, path: '/photos/a.jpg', filename: 'a.jpg', manual_tags: ['trip'] };
+    const stored = () => component.store.photos().find((p: { path: string }) => p.path === base.path);
+
+    function seed() {
+      createComponent();
+      component.store.photos.set([{ ...base }]);
+      component.photo.set({ ...base });
+    }
+
+    it('fetchPhoto defaults manual_tags to [] when the payload omits it', async () => {
+      mockApi.get.mockReturnValue(of({ ...samplePhoto, manual_tags: undefined }));
+      createComponent();
+
+      const photo = await component.fetchPhoto('/photos/test.jpg');
+
+      expect(photo.manual_tags).toEqual([]);
+    });
+
+    it('addManualTag PUTs the tag and writes the sorted result to the signal and the store', async () => {
+      mockApi.put.mockReturnValue(of({ success: true, tag: 'alpha', skipped_existing: false }));
+      seed();
+
+      await component.addManualTag(base, 'Alpha');
+
+      expect(mockApi.put).toHaveBeenCalledWith('/photo/manual_tags', { path: base.path, tag: 'Alpha' });
+      expect(component.photo().manual_tags).toEqual(['alpha', 'trip']);
+      expect(stored().manual_tags).toEqual(['alpha', 'trip']);
+    });
+
+    it('addManualTag does not duplicate a tag the server reports as already present', async () => {
+      mockApi.put.mockReturnValue(of({ success: true, tag: 'trip', skipped_existing: true }));
+      seed();
+
+      await component.addManualTag(base, 'trip');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+    });
+
+    it('addManualTag ignores a blank tag without calling the server', async () => {
+      seed();
+
+      await component.addManualTag(base, '   ');
+
+      expect(mockApi.put).not.toHaveBeenCalled();
+    });
+
+    it('addManualTag leaves state untouched when the server refuses', async () => {
+      mockApi.put.mockReturnValue(throwError(() => new Error('422')));
+      seed();
+
+      await component.addManualTag(base, 'bad');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+      expect(stored().manual_tags).toEqual(['trip']);
+    });
+
+    it('removeManualTag DELETEs with a body and drops the tag from signal and store', async () => {
+      mockApi.delete.mockReturnValue(of({ success: true, tag: 'trip', removed: true }));
+      seed();
+
+      await component.removeManualTag(base, 'trip');
+
+      expect(mockApi.delete).toHaveBeenCalledWith('/photo/manual_tags', { path: base.path, tag: 'trip' });
+      expect(component.photo().manual_tags).toEqual([]);
+      expect(stored().manual_tags).toEqual([]);
+    });
+
+    it('removeManualTag leaves state untouched when the server refuses', async () => {
+      mockApi.delete.mockReturnValue(throwError(() => new Error('boom')));
+      seed();
+
+      await component.removeManualTag(base, 'trip');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+    });
+  });
+
+  describe('Tags section template', () => {
+    async function render(photo: Record<string, unknown>, edition: boolean) {
+      mockAuth.isEdition.set(edition);
+      mockApi.get.mockReturnValue(of(photo));
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: Router, useValue: mockRouter },
+          { provide: Location, useValue: mockLocation },
+          { provide: ActivatedRoute, useValue: mockRoute },
+          { provide: AuthService, useValue: mockAuth },
+          { provide: MatDialog, useValue: mockDialog },
+          { provide: I18nService, useValue: { t: (k: string) => k, locale: () => 'en', translations: signal({}) } },
+        ],
+      });
+      const fixture = TestBed.createComponent(PhotoDetailComponent);
+      fixture.componentInstance.photo.set(photo as never);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    const untagged = { ...samplePhoto, tags: null, tags_list: [], manual_tags: [] };
+
+    it('renders for an edition user on a photo with no tags at all', async () => {
+      const el = await render(untagged, true);
+
+      expect(el.querySelector('[data-testid="tags-section"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="manual-tag-add"]')).not.toBeNull();
+    });
+
+    it('is absent for a non-edition user on a photo with no tags', async () => {
+      const el = await render(untagged, false);
+
+      expect(el.querySelector('[data-testid="tags-section"]')).toBeNull();
+    });
+
+    it('shows manual tags read-only to a non-edition user', async () => {
+      const el = await render({ ...untagged, manual_tags: ['trip'] }, false);
+
+      expect(el.querySelector('[data-testid="manual-tag-chip"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="manual-tag-remove"]')).toBeNull();
+      expect(el.querySelector('[data-testid="manual-tag-add"]')).toBeNull();
+    });
+
+    it('gives manual chips a remove control and AI chips none', async () => {
+      const el = await render({ ...samplePhoto, manual_tags: ['trip'] }, true);
+
+      expect(el.querySelectorAll('[data-testid="ai-tag-chip"]').length).toBe(2);
+      expect(el.querySelectorAll('[data-testid="manual-tag-remove"]').length).toBe(1);
+      expect(el.querySelectorAll('[data-testid="ai-tag-chip"] [data-testid="manual-tag-remove"]').length).toBe(0);
     });
   });
 

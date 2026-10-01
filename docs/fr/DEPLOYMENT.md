@@ -168,6 +168,12 @@ python database.py --export-viewer-db --force-export
 
 La fonctionnalité « Photos similaires » ne fonctionnera pas sur la base de données exportée (les embeddings CLIP sont supprimés). Utilisez la machine de scoring pour cela.
 
+**Tags manuels et export.** L'export embarque aussi la table des [tags manuels](VIEWER.md#tags-manuels) (`photo_manual_tags`), et un export incrémental la fusionne en ajoutant les lignes de la base de scoring, sans jamais remplacer la copie de la visionneuse. Les tags saisis sur le NAS sont ainsi conservés, mais avec trois limites :
+
+- Un tag manuel que vous retirez dans la visionneuse sur le NAS revient au prochain export incrémental si la base de scoring le possède encore.
+- Un tag manuel ajouté sur le NAS n'est pas recopié vers la base de scoring ; rien ne synchronise la base de la visionneuse vers l'amont, ajoutez-le aussi sur la machine de scoring si vous voulez le conserver.
+- `--force-export` reconstruit la base de la visionneuse à partir de celle de scoring : les tags manuels qui n'existent que sur le NAS sont perdus.
+
 ### Synchroniser les fichiers
 
 Sur la machine de scoring, compilez d'abord le client Angular (voir [Compilation du client Angular](#compilation-du-client-angular)).

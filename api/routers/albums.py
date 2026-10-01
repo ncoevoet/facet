@@ -125,7 +125,7 @@ def _album_to_dict(album):
     return result
 
 
-async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort_dir, filters=None):
+async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort_dir, filters=None, include_manual=True):
     """Fetch paginated photos for an album (smart or regular). Async.
 
     ``conn`` must be an aiosqlite Connection. ``_build_gallery_where`` is
@@ -133,11 +133,16 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
     available, get_existing_columns) are cache-warmed by lifespan startup,
     so they don't try to call ``.execute()`` on the async connection.
 
+    ``include_manual=False`` is the share-link switch: the response carries no
+    ``manual_tags`` and a viewer-supplied filter (regular albums) cannot match
+    them. A smart album's owner-saved filter always keeps matching manual tags
+    (owner-chosen content), but its photos still hide them under the switch.
+
     Returns a dict with keys: photos, total, page, per_page, total_pages, has_more.
     """
     # build_photo_select_columns reads the lifespan-warmed
     # _existing_columns_cache and never touches conn — safe with aiosqlite.
-    select_cols = build_photo_select_columns(conn=None, user_id=user_id)
+    select_cols = build_photo_select_columns(conn=None, user_id=user_id, include_manual_tags=include_manual)
 
     if album_row['is_smart'] and album_row['smart_filter_json']:
         # Smart album: evaluate the saved filter with the album OWNER's visibility,
@@ -145,7 +150,7 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
         # library regardless of who holds the share token, otherwise it leaks every
         # DB photo matching the filter (including other users' photos).
         owner_id = album_row['user_id']
-        select_cols = build_photo_select_columns(conn=None, user_id=owner_id)
+        select_cols = build_photo_select_columns(conn=None, user_id=owner_id, include_manual_tags=include_manual)
         from api.routers.gallery import _build_gallery_where
         saved_filters = json.loads(album_row['smart_filter_json'])
         saved_filters = _normalize_smart_filters(saved_filters)
@@ -181,7 +186,7 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
 
         if filters:
             from api.routers.gallery import _build_gallery_where
-            extra_clauses, extra_params = _build_gallery_where(filters, conn)
+            extra_clauses, extra_params = _build_gallery_where(filters, conn, include_manual=include_manual)
             base_where.extend(extra_clauses)
             base_params.extend(extra_params)
 
@@ -212,7 +217,7 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
         await cur.close()
 
     tags_limit = VIEWER_CONFIG['display']['tags_per_photo']
-    photos = split_photo_tags(rows, tags_limit)
+    photos = split_photo_tags(rows, tags_limit, include_manual_tags=include_manual)
     for photo in photos:
         photo['date_formatted'] = format_date(photo.get('date_taken'))
     await attach_person_data_async(photos, conn)
@@ -231,7 +236,12 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
 
 
 async def _get_album_filter_options(conn, album_id):
-    """Return filter dropdown options scoped to a regular album's photos. Async."""
+    """Return filter dropdown options scoped to a regular album's photos. Async.
+
+    AI tags only, on purpose: the sole caller is the share route, and a manual
+    tag in this dropdown would hand the owner's private annotations to a
+    share-link viewer.
+    """
     base = (
         "SELECT {col}, COUNT(*) as cnt FROM album_photos ap "
         "JOIN photos ON photos.path = ap.photo_path "
@@ -1198,7 +1208,7 @@ async def get_shared_album(
             )
             filters = {k: qp[k] for k in _FILTER_KEYS if qp.get(k)}
 
-        result = await _fetch_album_photos(conn, album, user_id, page, per_page, sort, sort_dir, filters=filters)
+        result = await _fetch_album_photos(conn, album, user_id, page, per_page, sort, sort_dir, filters=filters, include_manual=False)
         result['album'] = _album_to_dict(album)
         result['effective_sort'] = sort
         result['effective_sort_direction'] = sort_dir

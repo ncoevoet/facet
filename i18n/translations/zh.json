@@ -1086,6 +1086,7 @@
       "compare": "比较",
       "actions": "操作",
       "mark_sequence": "标记为一组",
+      "edit_tags": "编辑标签…",
       "mark_panorama": "标记为同一组全景照片",
       "mark_hdr_panorama": "标记为同一组 HDR 全景照片",
       "marked_panorama": "已将 {count} 张照片标记为同一组全景照片",
@@ -2317,6 +2318,18 @@
       "success": "照片已发送到回收站",
       "error": "删除失败"
     }
+  },
+  "manual_tags": {
+    "title": "编辑标签",
+    "tag_label": "标签",
+    "hint": "手动标签在重新扫描后仍保留在照片上，导出时会写为关键词。",
+    "add": "添加标签",
+    "add_action": "添加",
+    "remove_action": "移除",
+    "remove_tag": "移除标签 {tag}",
+    "manual": "手动标签",
+    "ai": "AI 标签",
+    "error": "无法更新标签，请检查后重试。"
   },
   "photo": {
     "category_override": {

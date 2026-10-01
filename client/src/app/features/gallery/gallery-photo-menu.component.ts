@@ -222,6 +222,10 @@ const RATINGS = [1, 2, 3, 4, 5].map(value => ({ value, label: '★'.repeat(value
               <mat-icon>panorama_photosphere</mat-icon>
               <span>{{ I18N.gallery.selection.mark_sequence | translate }}</span>
             </button>
+            <button mat-menu-item (click)="emit({ kind: 'tags' }, photo, bulk)">
+              <mat-icon>sell</mat-icon>
+              <span>{{ I18N.gallery.selection.edit_tags | translate }}</span>
+            </button>
           }
         }
 

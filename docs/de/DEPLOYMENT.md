@@ -169,6 +169,12 @@ python database.py --export-viewer-db --force-export
 
 Die Funktion „Ähnliche finden“ funktioniert auf der exportierten Datenbank nicht (CLIP-Embeddings sind entfernt). Verwenden Sie dafür die Bewertungsmaschine.
 
+**Manuelle Tags und der Export.** Der Export enthält auch die Tabelle der [manuellen Tags](VIEWER.md#manuelle-tags) (`photo_manual_tags`), und ein inkrementeller Export führt sie zusammen, indem er die Zeilen der Scoring-Datenbank hinzufügt, nie indem er die Kopie der Web-Galerie ersetzt. So bleiben auf dem NAS eingegebene Tags erhalten, mit drei Einschränkungen:
+
+- Ein manuelles Tag, das Sie in der Web-Galerie auf dem NAS entfernen, kehrt beim nächsten inkrementellen Export zurück, wenn die Scoring-Datenbank es noch hat.
+- Ein auf dem NAS hinzugefügtes manuelles Tag wird nicht in die Scoring-Datenbank zurückkopiert; nichts synchronisiert die Web-Galerie-Datenbank flussaufwärts, fügen Sie es daher auch auf dem Scoring-Rechner hinzu, wenn Sie es behalten wollen.
+- `--force-export` baut die Web-Galerie-Datenbank aus der Scoring-Datenbank neu auf, sodass manuelle Tags, die nur auf dem NAS existieren, verloren gehen.
+
 ### Dateien synchronisieren
 
 Erstellen Sie auf der Bewertungsmaschine zuerst den Angular-Client (siehe [Erstellen des Angular-Clients](#erstellen-des-angular-clients)).

@@ -487,6 +487,7 @@ class TestOptionalThresholdEndToEnd:
                 mock.patch("api.routers.search._load_embedding_matrix", _async_return((matrix, matrix_paths))),
                 mock.patch("api.routers.search._encode_text", return_value=text_emb),
                 mock.patch("api.routers.search._has_fts", _async_return(False)),
+                mock.patch("api.routers.search._manual_tag_search", _async_return({})),
                 mock.patch("api.routers.search._check_vec_available", _async_return(False)),
                 mock.patch("api.routers.search.attach_person_data_async", _no_op_attach),
             ):
@@ -531,6 +532,7 @@ class TestOptionalThresholdEndToEnd:
             mock.patch("api.routers.search._encode_text",
                        return_value=np.zeros(4, dtype=np.float32)),
             mock.patch("api.routers.search._has_fts", _async_return(False)),
+            mock.patch("api.routers.search._manual_tag_search", _async_return({})),
             mock.patch("api.routers.search._check_vec_available", _async_return(False)),
             mock.patch("api.routers.search._load_embedding_matrix",
                        _async_return((np.zeros((0, 4), dtype=np.float32), []))),

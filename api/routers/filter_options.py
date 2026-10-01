@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends
 from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG, is_multi_user_enabled
 from api.database import get_async_db, get_db
-from api.db_helpers import is_photo_tags_available, get_visibility_clause
+from api.db_helpers import is_manual_tags_available, is_photo_tags_available, get_visibility_clause
 from api.models.media import (
     MediaFilterOptionCamerasResponse,
     MediaFilterOptionJunkKindsResponse,
@@ -143,15 +143,21 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
         photo_tags_ready = False
         with get_db() as sync_conn:
             photo_tags_ready = is_photo_tags_available(sync_conn)
+            manual_ready = is_manual_tags_available(sync_conn)
 
         if photo_tags_ready:
             try:
                 vis_sub = f' AND photo_path IN (SELECT path FROM photos WHERE 1=1{vis})' if vis else ''
+                # UNION (not UNION ALL) de-dupes (photo, tag): a manual tag equal to an
+                # AI tag counts that photo once.
+                tag_pairs = "SELECT photo_path, tag FROM photo_tags"
+                if manual_ready:
+                    tag_pairs += " UNION SELECT photo_path, tag FROM photo_manual_tags"
                 rows = await _fetch_all(
                     conn,
                     f"""
                     SELECT tag, COUNT(*) as cnt
-                    FROM photo_tags
+                    FROM ({tag_pairs})
                     WHERE 1=1{vis_sub}
                     GROUP BY tag
                     ORDER BY cnt DESC, tag ASC
@@ -163,15 +169,21 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
             except sqlite3.Error:
                 logger.debug("photo_tags query failed, falling back to split", exc_info=True)
 
+        manual_seed = (
+            f" UNION SELECT '', path, tag || ',' FROM photos JOIN photo_manual_tags m"
+            f" ON m.photo_path = photos.path WHERE 1=1{vis}"
+            if manual_ready else ""
+        )
         tag_query = f"""
-            WITH RECURSIVE split_tags(tag, rest) AS (
-                SELECT '', tags || ',' FROM photos WHERE tags IS NOT NULL AND tags != ''{vis}
+            WITH RECURSIVE split_tags(tag, path, rest) AS (
+                SELECT '', path, tags || ',' FROM photos WHERE tags IS NOT NULL AND tags != ''{vis}
+                {manual_seed}
                 UNION ALL
-                SELECT TRIM(SUBSTR(rest, 1, INSTR(rest, ',') - 1)),
+                SELECT TRIM(SUBSTR(rest, 1, INSTR(rest, ',') - 1)), path,
                        SUBSTR(rest, INSTR(rest, ',') + 1)
                 FROM split_tags WHERE rest != ''
             )
-            SELECT tag, COUNT(*) as cnt
+            SELECT tag, COUNT(DISTINCT path) as cnt
             FROM split_tags
             WHERE tag != ''
             GROUP BY tag
@@ -179,7 +191,7 @@ async def tags(user: Optional[CurrentUser] = Depends(get_optional_user)):
             LIMIT ?
         """
         try:
-            rows = await _fetch_all(conn, tag_query, vp + [max_tags])
+            rows = await _fetch_all(conn, tag_query, vp + (vp if manual_ready else []) + [max_tags])
             return {'tags': [(r[0], r[1]) for r in rows], 'cached': False}
         except sqlite3.Error:
             logger.exception("Failed to query tags")
