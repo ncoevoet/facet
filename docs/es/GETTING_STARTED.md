@@ -134,7 +134,7 @@ de los sidecars que Facet ya escribió. Consulta [Tags manuales](VIEWER.md#tags-
 y palabras clave a Lightroom, Capture One, digiKam o darktable, consulta [Interoperabilidad](INTEROP.md)
 (esto necesita [exiftool](INSTALLATION.md#exiftool) para incrustar).
 
-![Diálogo de tags manuales](../screenshots/getting-started-manual-tags.jpg)
+![Tags manuales en la vista de detalle](../screenshots/getting-started-manual-tags.jpg)
 
 ### Paso 6: Exportar la selección curada
 
@@ -144,7 +144,7 @@ Pon tus elegidas en un álbum y exporta desde allí, o usa
 misma lista de destinos permitidos que en el paso 4
 ([Destinos de exportación y descarte](CONFIGURATION.md#destinos-de-exportación-y-descarte)).
 
-![Exportar un álbum](../screenshots/getting-started-export.jpg)
+![Exportar a un editor](../screenshots/getting-started-export.jpg)
 
 ## Siguientes pasos
 

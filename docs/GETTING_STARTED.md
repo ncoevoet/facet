@@ -130,7 +130,7 @@ from sidecars Facet already wrote. See [Manual tags](VIEWER.md#manual-tags) and
 and keywords into Lightroom, Capture One, digiKam or darktable, see [Interop](INTEROP.md)
 (this needs [exiftool](INSTALLATION.md#exiftool) for embedding).
 
-![Manual tags dialog](screenshots/getting-started-manual-tags.jpg)
+![Manual tags in the photo detail view](screenshots/getting-started-manual-tags.jpg)
 
 ### Step 6: Export the curated set
 
@@ -140,7 +140,7 @@ Put your keepers in an album and export from there, or use
 same destination allow-list as in step 4 applies
 ([Export and cull destinations](CONFIGURATION.md#export-and-cull-destinations)).
 
-![Exporting an album](screenshots/getting-started-export.jpg)
+![Exporting to an editor](screenshots/getting-started-export.jpg)
 
 ## Where next
 

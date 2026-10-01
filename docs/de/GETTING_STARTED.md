@@ -138,7 +138,7 @@ bereits geschrieben hat. Siehe [Manuelle Tags](VIEWER.md#manuelle-tags) und
 und Stichwörter nach Lightroom, Capture One, digiKam oder darktable mitzunehmen, siehe [Interop](INTEROP.md)
 (dafür wird zum Einbetten [exiftool](INSTALLATION.md#exiftool) benötigt).
 
-![Dialog für manuelle Tags](../screenshots/getting-started-manual-tags.jpg)
+![Manuelle Tags in der Detailansicht](../screenshots/getting-started-manual-tags.jpg)
 
 ### Schritt 6: Die kuratierte Auswahl exportieren
 
@@ -148,7 +148,7 @@ den [Editor-Export](VIEWER.md#editor-export) für die Übergabe an einen Editor,
 dieselbe Positivliste für Ziele wie in Schritt 4
 ([Ziele für Export und Aussortierung](CONFIGURATION.md#ziele-für-export-und-aussortierung)).
 
-![Ein Album exportieren](../screenshots/getting-started-export.jpg)
+![Export an einen Editor](../screenshots/getting-started-export.jpg)
 
 ## Wie es weitergeht
 

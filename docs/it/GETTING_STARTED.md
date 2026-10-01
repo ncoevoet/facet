@@ -136,7 +136,7 @@ scritto. Vedi [Tag manuali](VIEWER.md#tag-manuali) e
 e parole chiave in Lightroom, Capture One, digiKam o darktable, vedi [Interoperabilità](INTEROP.md)
 (serve [exiftool](INSTALLATION.md#exiftool) per l'incorporamento).
 
-![Finestra dei tag manuali](../screenshots/getting-started-manual-tags.jpg)
+![Tag manuali nella vista di dettaglio](../screenshots/getting-started-manual-tags.jpg)
 
 ### Passaggio 6: esportare l'insieme curato
 
@@ -146,7 +146,7 @@ Metti le foto tenute in un album ed esporta da lì, oppure usa
 stessa lista consentita di destinazioni del passaggio 4
 ([Destinazioni di esportazione e scarto](CONFIGURATION.md#destinazioni-di-esportazione-e-scarto)).
 
-![Esportazione di un album](../screenshots/getting-started-export.jpg)
+![Esportazione verso un editor](../screenshots/getting-started-export.jpg)
 
 ## Come proseguire
 

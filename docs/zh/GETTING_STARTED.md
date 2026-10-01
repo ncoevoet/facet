@@ -120,7 +120,7 @@ Facet 会自动为照片打标签，你也可以添加**自己的标签**：单�
 若要把评分和关键字带入 Lightroom、Capture One、digiKam 或 darktable，
 请参见[互操作](INTEROP.md)（嵌入需要 [exiftool](INSTALLATION.md#exiftool)）。
 
-![手动标签对话框](../screenshots/getting-started-manual-tags.jpg)
+![照片详情视图中的手动标签](../screenshots/getting-started-manual-tags.jpg)
 
 ### 第 6 步：导出精选照片
 
@@ -128,7 +128,7 @@ Facet 会自动为照片打标签，你也可以添加**自己的标签**：单�
 或用[选片后导出／清理](VIEWER.md#选片后导出清理)把入选照片复制到文件夹。
 适用与第 4 步相同的目标位置允许列表（[导出与选片目标位置](CONFIGURATION.md#导出与选片目标位置)）。
 
-![导出相册](../screenshots/getting-started-export.jpg)
+![导出到编辑器](../screenshots/getting-started-export.jpg)
 
 ## 下一步
 
