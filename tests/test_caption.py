@@ -18,7 +18,6 @@ from fastapi.testclient import TestClient
 from api import create_app
 from api.auth import CurrentUser, get_optional_user
 
-
 _CAPTION_SCHEMA = """
     CREATE TABLE photos (
         path TEXT PRIMARY KEY,
@@ -125,7 +124,7 @@ class TestCaptionEndpoint:
         assert body["source"] == "cached"
 
 
-    def test_vlm_unavailable_returns_503(self, client, tmp_path):
+    def test_vlm_unavailable_returns_503(self, edition_session_client, tmp_path):
         """When no cached caption and VLM is unavailable, return 503."""
         db = str(tmp_path / "caption.db")
         _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
@@ -137,13 +136,13 @@ class TestCaptionEndpoint:
             mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
             mock.patch("api.routers.caption._generate_caption", return_value=None),
         ):
-            resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+            resp = edition_session_client.get("/api/caption", params={"path": "/photos/test.jpg"})
 
         assert resp.status_code == 503
         assert "unavailable" in resp.json()["detail"].lower()
 
 
-    def test_generates_and_stores_caption(self, client, tmp_path):
+    def test_generates_and_stores_caption(self, edition_session_client, tmp_path):
         """When no cached caption, generate via VLM and store it."""
         db = str(tmp_path / "caption.db")
         _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
@@ -155,7 +154,7 @@ class TestCaptionEndpoint:
             mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
             mock.patch("api.routers.caption._generate_caption", return_value="A golden retriever playing in a park"),
         ):
-            resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+            resp = edition_session_client.get("/api/caption", params={"path": "/photos/test.jpg"})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -165,7 +164,7 @@ class TestCaptionEndpoint:
         assert _read_caption(db, "/photos/test.jpg") == "A golden retriever playing in a park"
 
 
-    def test_no_caption_column_skips_cache(self, client, tmp_path):
+    def test_no_caption_column_skips_cache(self, edition_session_client, tmp_path):
         """When caption column doesn't exist, skip cache lookup and storage."""
         db = str(tmp_path / "caption.db")
         _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
@@ -177,7 +176,7 @@ class TestCaptionEndpoint:
             mock.patch("api.routers.caption.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.caption._generate_caption", return_value="Generated caption"),
         ):
-            resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+            resp = edition_session_client.get("/api/caption", params={"path": "/photos/test.jpg"})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -333,3 +332,40 @@ class TestGenerateCaption:
             result = _generate_caption("/photos/test.cr2")
         assert result == "A serene mountain lake"
         mock_load.assert_called_once()
+
+
+class TestCaptionOpenInstallIsReadOnly:
+    """An open install (anonymous, no edition password) never writes a caption."""
+
+    def _get(self, client, db, **params):
+        with (
+            mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+            mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+            mock.patch(
+                "api.routers.caption.get_existing_columns",
+                return_value={"caption", "caption_translated", "path"},
+            ),
+            mock.patch("api.routers.caption._generate_caption", return_value="generated"),
+            mock.patch("api.routers.caption.translate_text", return_value="traduit"),
+        ):
+            return client.get("/api/caption", params={"path": "/photos/test.jpg", **params})
+
+    def test_generation_is_refused_and_nothing_is_written(self, client, tmp_path):
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
+        resp = self._get(client, db)
+        assert resp.status_code == 200
+        assert resp.json() == {"caption": None, "source": "edition_required"}
+        assert _read_caption(db, "/photos/test.jpg") is None
+
+    def test_translation_of_a_cached_caption_is_served_but_not_persisted(self, client, tmp_path):
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": "cached text"}])
+        resp = self._get(client, db, lang="fr")
+        assert resp.status_code == 200
+        assert resp.json()["caption"] == "traduit"
+        conn = sqlite3.connect(db)
+        stored = conn.execute("SELECT caption_translated FROM photos").fetchone()[0]
+        conn.close()
+        assert stored is None

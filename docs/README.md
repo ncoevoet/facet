@@ -9,6 +9,7 @@ photo library, then serves a gallery to browse it. Start with
 | Document | Description |
 |----------|-------------|
 | [Installation](INSTALLATION.md) | Setup per hardware, with or without Docker; dependencies |
+| [Getting Started](GETTING_STARTED.md) | First-run walkthrough: install to scan, review, teach, discard, tag and export |
 | [Commands](COMMANDS.md) | All CLI commands reference |
 | [Configuration](CONFIGURATION.md) | Full `scoring_config.json` reference |
 | [Scoring](SCORING.md) | Categories, weights, tuning guide |

@@ -148,3 +148,57 @@ def test_rescan_refreshes_faces(scored_db):
     facet.save_photos_batch([(_base_result('/p/a.jpg', 7.5), _IMG)])
     with get_connection(db, row_factory=True) as conn:
         assert conn.execute("SELECT COUNT(*) FROM faces WHERE photo_path='/p/a.jpg'").fetchone()[0] == 0
+
+
+def test_rescan_preserves_manual_tags_and_cascade_removes_them(scored_db):
+    """photo_manual_tags is a side table, so the rescan upsert must not touch it,
+    and deleting the photo must drop its tags (ON DELETE CASCADE).
+
+    Meaningful only on a foreign-keys-ON connection: with FKs ON a plain INSERT
+    OR REPLACE would cascade-delete the child row, so the survival assertion
+    discriminates; the PRAGMA is asserted so a connection that silently ignores
+    FKs cannot make both halves pass or fail for the wrong reason.
+    """
+    db, facet = scored_db
+    with get_connection(db, row_factory=False) as conn:
+        assert conn.execute("PRAGMA foreign_keys").fetchone()[0] == 1
+        conn.execute(
+            "INSERT INTO photo_manual_tags (photo_path, tag, source) "
+            "VALUES ('/p/a.jpg', 'trip-norway-2026', 'user')"
+        )
+        conn.commit()
+    facet.save_photos_batch([(_base_result('/p/a.jpg', 9.9), _IMG)])
+    with get_connection(db, row_factory=False) as conn:
+        assert conn.execute(
+            "SELECT tag, source FROM photo_manual_tags WHERE photo_path = '/p/a.jpg'"
+        ).fetchall() == [('trip-norway-2026', 'user')]
+        conn.execute("DELETE FROM photos WHERE path = '/p/a.jpg'")
+        conn.commit()
+        assert conn.execute("SELECT COUNT(*) FROM photo_manual_tags").fetchone()[0] == 0
+
+
+def test_manual_tags_table_is_registered_everywhere(tmp_path):
+    """init_database creates the table and its index, and db.info lists it."""
+    from db.info import get_schema_info
+    from db.schema import ALL_INDEX_GROUPS, PHOTO_MANUAL_TAGS_COLUMNS, _MIGRATED_TABLES
+
+    db = str(tmp_path / "schema.db")
+    init_database(db)
+    with get_connection(db, row_factory=False) as conn:
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='photo_manual_tags'"
+        ).fetchone()
+        assert conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='index' AND name='idx_photo_manual_tags_tag'"
+        ).fetchone()
+        conn.execute("INSERT INTO photos (path, filename) VALUES ('/p/z.jpg', 'z.jpg')")
+        with pytest.raises(Exception, match="CHECK"):
+            conn.execute(
+                "INSERT INTO photo_manual_tags (photo_path, tag, source) "
+                "VALUES ('/p/z.jpg', 't', 'bogus')"
+            )
+    assert get_schema_info()['photo_manual_tags_columns'] == len(PHOTO_MANUAL_TAGS_COLUMNS)
+    assert any(name == 'photo_manual_tags' for name, _ in _MIGRATED_TABLES)
+    assert any(
+        index[1] == 'photo_manual_tags' for group in ALL_INDEX_GROUPS for index in group
+    )

@@ -131,7 +131,7 @@ describe('GalleryComponent', () => {
       getRaw: vi.fn(() => of(new Blob(['x']))),
     };
 
-    mockAuth = { isEdition: vi.fn(() => false) };
+    mockAuth = { isEdition: vi.fn(() => false), downloadProfiles: vi.fn(() => []) };
 
     mockI18n = {
       t: vi.fn((key: string) => key),
@@ -1381,6 +1381,124 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('openManualTagsDialog', () => {
+    const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
+    function select(paths: string[]) {
+      mockStore.selectedPaths.set(new Set(paths));
+      mockStore.selectionCount.set(paths.length);
+    }
+
+    // The dialog owns its request (its own spec); this is the wiring.
+    it('opens the manual-tags dialog with the selected paths', async () => {
+      select(['/a.jpg', '/b.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+
+      await open();
+
+      expect(dialog.open).toHaveBeenCalledTimes(1);
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      expect(data.paths).toEqual(['/a.jpg', '/b.jpg']);
+      expect(data.filters).toBeNull();
+      expect(data.count).toBe(2);
+    });
+
+    it('sends the filter and exclusions under view scope', async () => {
+      mockStore.viewScopeSelected.set(true);
+      mockStore.excludedPaths.set(new Set(['/skip.jpg']));
+      mockStore.selectionCount.set(650);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+
+      await open();
+
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      expect(data.filters).toEqual({ page: '1' });
+      expect(data.exclude).toEqual(['/skip.jpg']);
+      expect(data.count).toBe(650);
+    });
+
+    it('does nothing for an empty path selection', async () => {
+      select([]);
+      const dialog = TestBed.inject(MatDialog);
+
+      await open();
+
+      expect(dialog.open).not.toHaveBeenCalled();
+    });
+
+    it('refetches the list after a write, so the detail view gets fresh manual tags', async () => {
+      select(['/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(1) });
+
+      await open();
+
+      expect(mockStore.loadPhotos).toHaveBeenCalledTimes(1);
+      expect(mockStore.restoreSelection).toHaveBeenCalledWith(['/a.jpg']);
+    });
+
+    it('leaves the list alone when the dialog is cancelled', async () => {
+      select(['/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+
+      await open();
+
+      expect(mockStore.loadPhotos).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('selection bar edit-tags button (rendered)', () => {
+    let fixture: ComponentFixture<GalleryComponent> | null = null;
+
+    afterEach(() => {
+      fixture?.destroy();
+      fixture = null;
+    });
+
+    function render(edition: boolean): ComponentFixture<GalleryComponent> {
+      mockAuth['isEdition'] = vi.fn(() => edition);
+      mockAuth['hasFeature'] = vi.fn(() => false);
+      mockAuth['isMultiUser'] = vi.fn(() => false);
+      mockAuth['isSuperadmin'] = vi.fn(() => false);
+      mockAuth['downloadProfiles'] = vi.fn(() => []);
+      mockStore.config.set({});
+      mockStore.selectionCount.set(2);
+      mockStore.viewScopeSelected.set(false);
+      fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function tagsButton(f: ComponentFixture<GalleryComponent>): HTMLButtonElement | null {
+      return (Array.from(f.nativeElement.querySelectorAll('button')) as HTMLButtonElement[])
+        .find(b => b.textContent?.includes(I18N.gallery.selection.edit_tags)) ?? null;
+    }
+
+    it('is a desktop-only button for an edition user', () => {
+      const button = tagsButton(render(true));
+
+      expect(button).not.toBeNull();
+      expect(button!.className).toContain('!hidden');
+      expect(button!.className).toContain('lg:!inline-flex');
+    });
+
+    it('is absent without edition', () => {
+      expect(tagsButton(render(false))).toBeNull();
+    });
+
+    it('opens the dialog when clicked', () => {
+      const f = render(true);
+      const open = vi.spyOn(f.componentInstance as unknown as { openManualTagsDialog(): Promise<void> }, 'openManualTagsDialog')
+        .mockResolvedValue(undefined);
+
+      tagsButton(f)!.click();
+
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('deleteSelected', () => {
     function select(paths: string[]) {
       mockStore.selectedPaths.set(new Set(paths));
@@ -2326,11 +2444,10 @@ describe('GalleryComponent', () => {
       expect(canShowScanButton()).toBe(true);
     });
 
-    // The open-install trap this change exists to close: on an open single-user
-    // install, CurrentUser.is_edition is true for every caller (the open-install
-    // shortcut), but editionPasswordRequired is false, so the button must stay
-    // hidden even though isEdition() reports true.
-    it('hides the button on an open single-user install even though the caller reads as edition-authenticated', () => {
+    // Defence in depth: the server no longer reports edition on an open install,
+    // but the scan gate must not depend on that — editionPasswordRequired is false
+    // there, so the button stays hidden even if isEdition() ever read true.
+    it('hides the button on an open single-user install even if the caller were to read as edition-authenticated', () => {
       setAuth({ isMultiUser: false, editionPasswordRequired: false, isEdition: true, hasFeature: true });
       expect(canShowScanButton()).toBe(false);
     });
@@ -2338,6 +2455,806 @@ describe('GalleryComponent', () => {
     it('hides the button regardless of role when the feature flag is off', () => {
       setAuth({ isMultiUser: true, isSuperadmin: true, hasFeature: false });
       expect(canShowScanButton()).toBe(false);
+    });
+  });
+
+  // The permanent Scan entry. It belongs to the PAGE, not to the header-slot
+  // toolbar (`#galleryToolbar`): the shell projects that template on lg+ only
+  // (app.html wraps it in `!hidden lg:!flex`), so an icon placed there -- or
+  // given the Keep-top button's `!hidden lg:!inline-flex` -- is gone below lg,
+  // which is exactly where nothing else offers a scan. The fixture holds only
+  // the page's own DOM, never the projected header, so finding the entry in it
+  // is what proves it is not header-slot-only.
+  describe('scan entry above the grid (rendered)', () => {
+    interface ScanAccess {
+      hasFeature: boolean;
+      isMultiUser: boolean;
+      isSuperadmin: boolean;
+      editionPasswordRequired: boolean;
+      isEdition: boolean;
+    }
+    // A locked single-user install with an unlocked edition session.
+    const ALLOWED: ScanAccess = {
+      hasFeature: true, isMultiUser: false, isSuperadmin: false,
+      editionPasswordRequired: true, isEdition: true,
+    };
+    const SUPERADMIN: ScanAccess = {
+      hasFeature: true, isMultiUser: true, isSuperadmin: true,
+      editionPasswordRequired: false, isEdition: true,
+    };
+    const photos = Array.from({ length: 3 }, (_, n) => ({
+      path: `/p${n}.jpg`, filename: `p${n}.jpg`, image_width: 4000, image_height: 3000,
+      is_favorite: false, is_rejected: false, unassigned_faces: 0,
+    }));
+    let fixture: ComponentFixture<GalleryComponent> | null = null;
+
+    afterEach(() => {
+      fixture?.destroy();
+      fixture = null;
+    });
+
+    function render(access: ScanAccess, library: typeof photos): ComponentFixture<GalleryComponent> {
+      mockAuth['hasFeature'] = vi.fn(() => access.hasFeature);
+      mockAuth['isMultiUser'] = vi.fn(() => access.isMultiUser);
+      mockAuth['isSuperadmin'] = vi.fn(() => access.isSuperadmin);
+      mockAuth['editionPasswordRequired'] = vi.fn(() => access.editionPasswordRequired);
+      mockAuth['isEdition'] = vi.fn(() => access.isEdition);
+      mockAuth['downloadProfiles'] = vi.fn(() => []);
+      mockStore.photos.set(library);
+      mockStore.total.set(library.length);
+      fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      return fixture;
+    }
+
+    function allButtons(f: ComponentFixture<GalleryComponent>): HTMLButtonElement[] {
+      return Array.from(f.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
+    }
+
+    function scanEntries(f: ComponentFixture<GalleryComponent>): HTMLButtonElement[] {
+      return allButtons(f).filter(b => b.getAttribute('aria-label') === I18N.gallery.scan_action);
+    }
+
+    it('is offered above a library that already has photos', () => {
+      expect(scanEntries(render(ALLOWED, photos))).toHaveLength(1);
+    });
+
+    it('is offered to a multi-user superadmin too', () => {
+      expect(scanEntries(render(SUPERADMIN, photos))).toHaveLength(1);
+    });
+
+    it('carries the tooltip as well as the accessible name', () => {
+      const f = render(ALLOWED, photos);
+      const [button] = scanEntries(f);
+      expect(button).toBeDefined();
+      const tooltip = f.debugElement.queryAll(By.directive(MatTooltip))
+        .find(de => de.nativeElement === button);
+      expect(tooltip?.injector.get(MatTooltip).message).toBe(I18N.gallery.scan_action);
+    });
+
+    it('opens the scan launcher when clicked', () => {
+      const f = render(ALLOWED, photos);
+      const open = vi.spyOn(f.componentInstance, 'openScanLauncher').mockResolvedValue(undefined);
+      const [button] = scanEntries(f);
+      expect(button).toBeDefined();
+      button.click();
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    // jsdom lays nothing out, so "visible at every width" can only be asserted
+    // as the absence of a class that hides it at some width -- the one thing
+    // copying the Keep-top button's classes would have introduced.
+    it('is not hidden at any width: neither the button nor an ancestor carries a hidden class', () => {
+      const f = render(ALLOWED, photos);
+      const [button] = scanEntries(f);
+      expect(button).toBeDefined();
+      const hiders: string[] = [];
+      for (let el: Element | null = button; el; el = el === f.nativeElement ? null : el.parentElement) {
+        hiders.push(...Array.from(el.classList).filter(c => /(^|:)!?hidden$/.test(c)));
+      }
+      expect(hiders).toEqual([]);
+    });
+
+    for (const [name, access] of [
+      ['the feature flag is off', { ...ALLOWED, hasFeature: false }],
+      ['a multi-user admin is not a superadmin', { ...SUPERADMIN, isSuperadmin: false }],
+      ['a single-user install has no edition password, even if the caller read as edition',
+        { ...ALLOWED, editionPasswordRequired: false }],
+      ['a locked single-user install has no edition session', { ...ALLOWED, isEdition: false }],
+    ] as const) {
+      it(`is withheld when ${name}`, () => {
+        expect(scanEntries(render(access, photos))).toHaveLength(0);
+      });
+    }
+
+    it('leaves an empty library to the empty-state call to action, which already carries Scan', () => {
+      const f = render(ALLOWED, []);
+      expect(scanEntries(f)).toHaveLength(0);
+      expect(allButtons(f).filter(b => b.textContent?.includes(I18N.scan.get_started))).toHaveLength(1);
+    });
+  });
+
+  // The gallery's right-click menu acts on explicit paths: the menu's single-photo
+  // actions must reach these methods without resolving, confirming over or
+  // clearing the selection the user has built (and, under view scope, without
+  // asking the server for the whole view).
+  describe('explicit paths override (context menu)', () => {
+    let dialog: MatDialog;
+    let addPhotos: Mock;
+    let writeText: Mock;
+    let clipboardDescriptor: PropertyDescriptor | undefined;
+    const photo = (path: string, extra: Record<string, unknown> = {}) => ({ path, filename: path.slice(1), ...extra });
+
+    function selectThree(): void {
+      mockStore.photos.set([photo('/a.jpg'), photo('/b.jpg'), photo('/c.jpg'), photo('/x.jpg')]);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg', '/c.jpg']));
+      mockStore.selectionCount.set(3);
+    }
+
+    function selectView(): void {
+      mockStore.viewScopeSelected.set(true);
+      mockStore.selectionScope.set('view');
+      mockStore.selectionCount.set(650);
+      mockStore.total.set(650);
+    }
+
+    beforeEach(() => {
+      dialog = TestBed.inject(MatDialog);
+      addPhotos = TestBed.inject(AlbumService).addPhotos as unknown as Mock;
+      writeText = vi.fn(() => Promise.resolve());
+      clipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+      selectThree();
+    });
+
+    afterEach(() => {
+      if (clipboardDescriptor) Object.defineProperty(navigator, 'clipboard', clipboardDescriptor);
+      else delete (navigator as unknown as { clipboard?: unknown }).clipboard;
+    });
+
+    const copy = (paths?: string[]) =>
+      (component as unknown as { copyPaths: (p?: string[]) => Promise<void> }).copyPaths(paths);
+    const download = (paths?: string[]) =>
+      (component as unknown as { downloadSelected: (t?: string, pr?: string, p?: string[]) => Promise<void> })
+        .downloadSelected('original', undefined, paths);
+
+    it('addToAlbum adds exactly the given paths and leaves the selection alone', async () => {
+      await component.addToAlbum(3, ['/x.jpg']);
+
+      expect(addPhotos).toHaveBeenCalledWith(3, ['/x.jpg']);
+      expect(mockStore.clearSelection).not.toHaveBeenCalled();
+      expect(mockStore.pathsInView).not.toHaveBeenCalled();
+      expect(dialog.open).not.toHaveBeenCalled();
+    });
+
+    it('an empty paths list is a no-op, never a fall-back to the selection', async () => {
+      await component.addToAlbum(3, []);
+      await copy([]);
+
+      expect(addPhotos).not.toHaveBeenCalled();
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('addToAlbum without paths still adds the selection and clears it', async () => {
+      await component.addToAlbum(3);
+
+      expect(addPhotos).toHaveBeenCalledWith(3, ['/a.jpg', '/b.jpg', '/c.jpg']);
+      expect(mockStore.clearSelection).toHaveBeenCalled();
+    });
+
+    it('createAlbumAndAdd forwards the paths to addToAlbum', async () => {
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of({ id: 9, name: 'N' }) });
+
+      await component.createAlbumAndAdd(['/x.jpg']);
+
+      expect(addPhotos).toHaveBeenCalledWith(9, ['/x.jpg']);
+      expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    });
+
+    describe('under a whole-view selection', () => {
+      beforeEach(() => {
+        selectView();
+        mockStore.pathsInView.mockResolvedValue(['/q.jpg']);
+      });
+
+      it('addToAlbum, copyPaths and downloadSelected use the given paths without asking the server', async () => {
+        await component.addToAlbum(3, ['/x.jpg']);
+        await copy(['/x.jpg']);
+        await download(['/x.jpg']);
+
+        expect(addPhotos).toHaveBeenCalledWith(3, ['/x.jpg']);
+        expect(writeText).toHaveBeenCalledWith('x.jpg');
+        expect(mockApi.downloadUrl).toHaveBeenCalledWith('/x.jpg', 'original', undefined);
+        expect(mockStore.countInView).not.toHaveBeenCalled();
+        expect(mockStore.pathsInView).not.toHaveBeenCalled();
+        expect(dialog.open).not.toHaveBeenCalled();
+      });
+    });
+
+    it('copyPaths writes the basenames of the given paths', async () => {
+      await copy(['/d/one.jpg']);
+
+      expect(writeText).toHaveBeenCalledWith('one.jpg');
+      expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    });
+
+    it('downloadSelected downloads only the given paths', async () => {
+      await download(['/x.jpg']);
+
+      expect(mockApi.downloadUrl).toHaveBeenCalledTimes(1);
+      expect(mockApi.downloadUrl).toHaveBeenCalledWith('/x.jpg', 'original', undefined);
+    });
+
+    describe('openExportDialog', () => {
+      it('opens the dialog for the given paths even on an album route', () => {
+        routeMock.snapshot.paramMap.get = vi.fn(() => '42');
+
+        component.openExportDialog(['/x.jpg']);
+
+        expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ paths: ['/x.jpg'] });
+      });
+
+      it('still exports the whole album on an album route when no paths are given', () => {
+        routeMock.snapshot.paramMap.get = vi.fn(() => '42');
+
+        component.openExportDialog();
+
+        expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ albumId: 42 });
+      });
+
+      it('ignores view scope when paths are given', () => {
+        selectView();
+
+        component.openExportDialog(['/x.jpg']);
+
+        expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ paths: ['/x.jpg'] });
+      });
+    });
+
+    describe('openCullDialog', () => {
+      // The real store's loadPhotos() ends a whole-view selection, and its
+      // selection methods move the signals. An inert mock hides both.
+      beforeEach(() => {
+        const setScope = (view: boolean, selected: Iterable<string>, excluded: Iterable<string>) => {
+          mockStore.viewScopeSelected.set(view);
+          mockStore.selectionScope.set(view ? 'view' : 'paths');
+          mockStore.selectedPaths.set(new Set(selected));
+          mockStore.excludedPaths.set(new Set(excluded));
+        };
+        mockStore.loadPhotos.mockImplementation(() => {
+          if (mockStore.viewScopeSelected()) setScope(false, [], []);
+          return Promise.resolve();
+        });
+        mockStore.selectWholeView.mockImplementation(() => setScope(true, [], []));
+        mockStore.restoreSelection.mockImplementation((paths: Iterable<string>) => setScope(false, paths, []));
+        mockStore.toggleSelection.mockImplementation((p: { path: string }) => {
+          const target = mockStore.viewScopeSelected() ? mockStore.excludedPaths : mockStore.selectedPaths;
+          const next = new Set(target());
+          if (!next.delete(p.path)) next.add(p.path);
+          target.set(next);
+        });
+      });
+
+      it('sends the given paths with no filter even under view scope', async () => {
+        selectView();
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
+
+        await component.openCullDialog(['/x.jpg']);
+
+        const data = (dialog.open as Mock).mock.calls[0][1].data;
+        expect(data.paths).toEqual(['/x.jpg']);
+        expect(data.filters).toBeNull();
+        expect(data.exclude).toEqual([]);
+        expect(data.count).toBe(1);
+        expect(mockStore.loadPhotos).toHaveBeenCalled();
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+      });
+
+      it('keeps the whole-view selection across the reload, with the culled photo now excluded', async () => {
+        selectView();
+        mockStore.excludedPaths.set(new Set(['/e.jpg']));
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
+
+        await component.openCullDialog(['/x.jpg']);
+
+        expect(mockStore.viewScopeSelected()).toBe(true);
+        expect(mockStore.selectionScope()).toBe('view');
+        expect([...mockStore.excludedPaths()].sort()).toEqual(['/e.jpg', '/x.jpg']);
+      });
+
+      it('drops the target from a path selection, and only it', async () => {
+        mockStore.selectedPaths.set(new Set(['/a.jpg', '/x.jpg']));
+        mockStore.selectionCount.set(2);
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
+
+        await component.openCullDialog(['/x.jpg']);
+
+        expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg']);
+        expect(mockStore.selectionScope()).toBe('paths');
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+      });
+
+      it('leaves a path selection alone when the target was not selected', async () => {
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(true) });
+
+        await component.openCullDialog(['/x.jpg']);
+
+        expect([...mockStore.selectedPaths()].sort()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg']);
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+      });
+
+      it('touches nothing when the dialog is dismissed', async () => {
+        mockStore.selectedPaths.set(new Set(['/x.jpg']));
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
+
+        await component.openCullDialog(['/x.jpg']);
+
+        expect(mockStore.loadPhotos).not.toHaveBeenCalled();
+        expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('deleteSelected', () => {
+      const confirmed = { includeCompanions: false, includeSequenceSiblings: false };
+      const deleted = (paths: string[]) => of({
+        dry_run: false, deleted: paths, not_found: [], not_visible: [], refused_bracket_lead: [],
+        sequence_siblings: [], skipped: [], trashed: paths.length, errors: {},
+      });
+
+      it('opens the single-photo dialog under view scope, where the no-arg form refuses', async () => {
+        selectView();
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
+
+        await component.deleteSelected(['/x.jpg']);
+
+        const data = (dialog.open as Mock).mock.calls[0][1].data;
+        expect(data.surface).toBe('photo_detail');
+        expect(data.paths).toEqual(['/x.jpg']);
+        expect(data.count).toBe(1);
+      });
+
+      it('removes only the deleted path and does not clear the selection', async () => {
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(confirmed) });
+        mockApi.post.mockReturnValueOnce(deleted(['/x.jpg']));
+
+        await component.deleteSelected(['/x.jpg']);
+
+        expect(mockApi.post).toHaveBeenCalledWith('/photo/delete', expect.objectContaining({ paths: ['/x.jpg'] }));
+        expect(mockStore.removePhotos).toHaveBeenCalledWith(['/x.jpg']);
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+      });
+
+      it('returns without a dialog when the photo is no longer loaded', async () => {
+        await component.deleteSelected(['/gone.jpg']);
+
+        expect(dialog.open).not.toHaveBeenCalled();
+      });
+
+      it('flags a bracket base exposure as a lead, and nothing else', async () => {
+        mockStore.photos.set([
+          photo('/lead.jpg', { sequence_kind: 'bracket', sequence_ev_offset: 0 }),
+          photo('/dark.jpg', { sequence_kind: 'bracket', sequence_ev_offset: -2 }),
+          photo('/pano.jpg', { sequence_kind: 'panorama', sequence_ev_offset: 0 }),
+        ]);
+        (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(null) });
+        const leadOf = async (path: string) => {
+          (dialog.open as Mock).mockClear();
+          await component.deleteSelected([path]);
+          return (dialog.open as Mock).mock.calls[0][1].data;
+        };
+
+        expect((await leadOf('/lead.jpg')).hasBracketLead).toBe(true);
+        expect((await leadOf('/lead.jpg')).hasSiblings).toBe(true);
+        expect((await leadOf('/dark.jpg')).hasBracketLead).toBe(false);
+        expect((await leadOf('/pano.jpg')).hasBracketLead).toBe(false);
+        expect((await leadOf('/pano.jpg')).hasSiblings).toBe(true);
+      });
+
+      it('without paths still refuses under view scope', async () => {
+        selectView();
+
+        await component.deleteSelected();
+
+        expect(dialog.open).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('onPhotoMenuAction', () => {
+    interface Menu {
+      onPhotoMenuAction(e: { action: unknown; photo: unknown; bulk: boolean }): Promise<void>;
+      runSelectionAction(a: unknown): Promise<void>;
+    }
+    const menu = () => component as unknown as Menu;
+    const target = { path: '/x.jpg', filename: 'x.jpg' };
+    const spy = (name: string) =>
+      vi.spyOn(component as unknown as Record<string, (...a: unknown[]) => unknown>, name)
+        .mockResolvedValue(undefined);
+
+    beforeEach(() => {
+      mockStore.photos.set([target]);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg', '/c.jpg']));
+      mockStore.selectionCount.set(3);
+    });
+
+    it('routes a bulk action through runSelectionAction, never the per-photo store calls', async () => {
+      const run = vi.spyOn(menu() as unknown as { runSelectionAction(a: unknown): Promise<void> }, 'runSelectionAction')
+        .mockResolvedValue();
+
+      await menu().onPhotoMenuAction({ action: { kind: 'favorite' }, photo: target, bulk: true });
+
+      expect(run).toHaveBeenCalledTimes(1);
+      expect(run).toHaveBeenCalledWith({ kind: 'favorite' });
+      expect(mockStore.toggleFavorite).not.toHaveBeenCalled();
+    });
+
+    describe('runSelectionAction covers every sheet kind', () => {
+      const cases: [string, unknown, string, unknown[]][] = [
+        ['favorite', { kind: 'favorite' }, 'batchFavorite', []],
+        ['reject', { kind: 'reject' }, 'batchReject', []],
+        ['rate', { kind: 'rate', rating: 4 }, 'batchRate', [4]],
+        ['album', { kind: 'album', albumId: 5 }, 'addToAlbum', [5]],
+        ['create-album', { kind: 'create-album' }, 'createAlbumAndAdd', []],
+        ['invert', { kind: 'invert' }, 'invertSelection', []],
+        ['compare', { kind: 'compare' }, 'compareSelection', []],
+        ['export', { kind: 'export' }, 'openExportDialog', []],
+        ['cull', { kind: 'cull' }, 'openCullDialog', []],
+        ['delete', { kind: 'delete' }, 'deleteSelected', []],
+        ['copy', { kind: 'copy' }, 'copyPaths', []],
+        ['mark-panorama', { kind: 'mark-panorama', sequenceKind: 'bracket' }, 'markAsPanorama', ['bracket']],
+        ['download', { kind: 'download', type: 'darktable', profile: 'P' }, 'downloadSelected', ['darktable', 'P']],
+        ['tags', { kind: 'tags' }, 'openManualTagsDialog', []],
+      ];
+      for (const [name, action, method, args] of cases) {
+        it(`${name} -> ${method}`, async () => {
+          const target = spy(method);
+
+          await menu().runSelectionAction(action);
+
+          expect(target).toHaveBeenCalledTimes(1);
+          expect(target).toHaveBeenCalledWith(...args);
+        });
+      }
+    });
+
+    describe('single photo', () => {
+      const single = (action: unknown) =>
+        menu().onPhotoMenuAction({ action, photo: target, bulk: false });
+
+      afterEach(() => {
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+        expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+        expect(mockStore.batchFavorite).not.toHaveBeenCalled();
+        expect(mockStore.batchReject).not.toHaveBeenCalled();
+        expect(mockStore.batchRating).not.toHaveBeenCalled();
+      });
+
+      it('toggle-favorite toggles that one photo', async () => {
+        await single({ kind: 'toggle-favorite' });
+        expect(mockStore.toggleFavorite).toHaveBeenCalledWith('/x.jpg');
+      });
+
+      it('toggle-reject toggles that one photo', async () => {
+        await single({ kind: 'toggle-reject' });
+        expect(mockStore.toggleRejected).toHaveBeenCalledWith('/x.jpg');
+      });
+
+      it('rate sets that one photo', async () => {
+        await single({ kind: 'rate', rating: 3 });
+        expect(mockStore.setRating).toHaveBeenCalledWith('/x.jpg', 3);
+      });
+
+      it('similar filters by that photo', async () => {
+        await single({ kind: 'similar', mode: 'color' });
+        expect(mockStore.updateFilters).toHaveBeenCalledWith(
+          expect.objectContaining({ similar_to: '/x.jpg', similarity_mode: 'color' }));
+      });
+
+      const cases: [string, unknown, string, unknown[]][] = [
+        ['open', { kind: 'open' }, 'downloadPhoto', [target]],
+        ['critique', { kind: 'critique' }, 'openCritique', [target]],
+        ['embed', { kind: 'embed' }, 'embedMetadata', [target]],
+        ['assign-face', { kind: 'assign-face' }, 'openAddPerson', [target]],
+        ['album', { kind: 'album', albumId: 5 }, 'addToAlbum', [5, ['/x.jpg']]],
+        ['create-album', { kind: 'create-album' }, 'createAlbumAndAdd', [['/x.jpg']]],
+        ['copy', { kind: 'copy' }, 'copyPaths', [['/x.jpg']]],
+        ['export', { kind: 'export' }, 'openExportDialog', [['/x.jpg']]],
+        ['cull', { kind: 'cull' }, 'openCullDialog', [['/x.jpg']]],
+        ['delete', { kind: 'delete' }, 'deleteSelected', [['/x.jpg']]],
+        ['download', { kind: 'download', type: 'raw' }, 'downloadSelected', ['raw', undefined, ['/x.jpg']]],
+      ];
+      for (const [name, action, method, args] of cases) {
+        it(`${name} -> ${method} on that path only`, async () => {
+          const called = spy(method);
+
+          await single(action);
+
+          expect(called).toHaveBeenCalledTimes(1);
+          expect(called).toHaveBeenCalledWith(...args);
+        });
+      }
+
+      it('the bulk-only kinds do nothing', async () => {
+        const run = spy('runSelectionAction');
+        for (const kind of ['invert', 'compare']) await single({ kind });
+        await single({ kind: 'mark-panorama', sequenceKind: 'panorama' });
+        await single({ kind: 'tags' });
+        expect(run).not.toHaveBeenCalled();
+        expect(mockStore.updateFilters).not.toHaveBeenCalled();
+        expect(mockStore.toggleFavorite).not.toHaveBeenCalled();
+      });
+
+      it('leaves the multi-photo selection untouched', async () => {
+        spy('copyPaths');
+        await single({ kind: 'copy' });
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+        expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+        expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('onGridFocusOut and the photo menu overlay', () => {
+    const focusOut = (next: HTMLElement | null) =>
+      (component as unknown as { onGridFocusOut(e: FocusEvent): void })
+        .onGridFocusOut({ relatedTarget: next } as unknown as FocusEvent);
+
+    it('keeps the cursor when focus moves into the cdk overlay container', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }, { path: '/b.jpg' }]);
+      (component as unknown as { activeIndex: { set(v: number): void } }).activeIndex.set(1);
+      const container = document.createElement('div');
+      container.className = 'cdk-overlay-container';
+      const item = document.createElement('button');
+      container.appendChild(item);
+      document.body.appendChild(container);
+
+      focusOut(item);
+      container.remove();
+
+      expect(activeIndex()).toBe(1);
+    });
+
+    it('still drops the cursor when focus goes somewhere unrelated', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }, { path: '/b.jpg' }]);
+      (component as unknown as { activeIndex: { set(v: number): void } }).activeIndex.set(1);
+      const other = document.createElement('button');
+      document.body.appendChild(other);
+
+      focusOut(other);
+      other.remove();
+
+      expect(activeIndex()).toBe(-1);
+    });
+  });
+
+  describe('photo context menu (rendered)', () => {
+    const TOUCH = '(hover: none) and (pointer: coarse)';
+    const photos = Array.from({ length: 12 }, (_, n) => ({
+      path: `/p${n}.jpg`, filename: `p${n}.jpg`, image_width: 4000, image_height: 3000,
+      is_favorite: false, is_rejected: false, unassigned_faces: 0,
+    }));
+    let fixture: ComponentFixture<GalleryComponent> | null = null;
+
+    afterEach(() => {
+      fixture?.destroy();
+      fixture = null;
+      vi.unstubAllGlobals();
+    });
+
+    function render(mode: 'grid' | 'mosaic', virtual: boolean, touch = false): HTMLElement[] {
+      mockAuth['isEdition'] = vi.fn(() => true);
+      mockAuth['hasFeature'] = vi.fn(() => false);
+      mockAuth['isMultiUser'] = vi.fn(() => false);
+      mockAuth['isSuperadmin'] = vi.fn(() => false);
+      mockStore.photos.set(photos);
+      mockStore.config.set({ features: { show_rating_controls: true, show_similar_button: true } });
+      mockStore.galleryMode.set(mode);
+      mockStore.virtualScroll.set(virtual);
+      const wide = mode === 'mosaic' || virtual;
+      vi.stubGlobal('matchMedia', (media: string) => ({
+        matches: media === TOUCH ? touch : wide,
+        media, addEventListener() {}, removeEventListener() {},
+      }));
+      fixture = TestBed.createComponent(GalleryComponent);
+      const instance = fixture.componentInstance as unknown as {
+        desktop: { setup(): void };
+        containerWidth: { set(v: number): void };
+      };
+      if (wide) {
+        instance.desktop.setup();
+        instance.containerWidth.set(1200);
+      }
+      fixture.detectChanges();
+      // The touch reading lands in afterNextRender, after the first pass.
+      TestBed.tick();
+      fixture.detectChanges();
+      expect(fixture.componentInstance.effectiveGalleryMode()).toBe(mode);
+      expect(fixture.componentInstance.virtualOn()).toBe(virtual);
+      return [...fixture.nativeElement.querySelectorAll('app-photo-card')] as HTMLElement[];
+    }
+
+    function rightClick(card: HTMLElement): MouseEvent {
+      const ev = new MouseEvent('contextmenu', {
+        button: 2, clientX: 20, clientY: 20, bubbles: true, cancelable: true,
+      });
+      card.dispatchEvent(ev);
+      fixture!.detectChanges();
+      return ev;
+    }
+
+    const panel = () => document.querySelector('.mat-mdc-menu-panel') as HTMLElement | null;
+    const panelCount = () => document.querySelectorAll('.mat-mdc-menu-panel').length;
+
+    for (const [name, mode, virtual] of [
+      ['plain grid', 'grid', false],
+      ['mosaic', 'mosaic', false],
+      ['windowed rows', 'mosaic', true],
+    ] as const) {
+      describe(name, () => {
+        it('opens the menu and suppresses the native one', () => {
+          const cards = render(mode, virtual);
+
+          const ev = rightClick(cards[cards.length - 2]);
+
+          expect(ev.defaultPrevented).toBe(true);
+          expect(panel()).not.toBeNull();
+        });
+
+        it('leaves the native menu on a touch-first device', () => {
+          const cards = render(mode, virtual, true);
+
+          const ev = rightClick(cards[cards.length - 2]);
+
+          expect(ev.defaultPrevented).toBe(false);
+          expect(panel()).toBeNull();
+        });
+      });
+    }
+
+    it('hides the floating tooltip when the menu opens', () => {
+      const cards = render('grid', false);
+      (fixture!.componentInstance as unknown as { tooltipPhoto: { set(v: unknown): void; (): unknown } })
+        .tooltipPhoto.set(photos[0]);
+
+      rightClick(cards[1]);
+
+      expect((fixture!.componentInstance as unknown as { tooltipPhoto(): unknown }).tooltipPhoto()).toBeNull();
+    });
+
+    it('opens the single-photo menu on an unselected photo, leaving the selection alone', () => {
+      const cards = render('grid', false);
+      mockStore.selectedPaths.set(new Set(['/p0.jpg', '/p1.jpg', '/p2.jpg']));
+      mockStore.selectionCount.set(3);
+      fixture!.detectChanges();
+
+      rightClick(cards[5]);
+
+      expect(panel()!.textContent).toContain(I18N.shortcuts.open_detail);
+      expect(panel()!.textContent).not.toContain(I18N.gallery.selection.mark_sequence);
+      expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+      expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    });
+
+    it('opens the bulk menu on a photo inside a multi-photo selection', () => {
+      const cards = render('grid', false);
+      mockStore.selectedPaths.set(new Set(['/p0.jpg', '/p1.jpg', '/p2.jpg']));
+      mockStore.selectionCount.set(3);
+      fixture!.detectChanges();
+
+      rightClick(cards[1]);
+
+      expect(panel()!.textContent).toContain(I18N.gallery.selection.mark_sequence);
+      expect(panel()!.textContent).not.toContain(I18N.shortcuts.open_detail);
+      expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+    });
+
+    it('treats the sole selected photo as a single-photo menu', () => {
+      const cards = render('grid', false);
+      mockStore.selectedPaths.set(new Set(['/p1.jpg']));
+      mockStore.selectionCount.set(1);
+      fixture!.detectChanges();
+
+      rightClick(cards[1]);
+
+      expect(panel()!.textContent).toContain(I18N.shortcuts.open_detail);
+    });
+
+    it('treats an excluded photo under view scope as a single-photo menu', () => {
+      const cards = render('grid', false);
+      mockStore.viewScopeSelected.set(true);
+      mockStore.excludedPaths.set(new Set(['/p3.jpg']));
+      mockStore.selectionCount.set(11);
+      fixture!.detectChanges();
+
+      rightClick(cards[3]);
+
+      expect(panel()!.textContent).toContain(I18N.shortcuts.open_detail);
+    });
+
+    it('opens from a nested control inside the card too', () => {
+      const cards = render('grid', false);
+
+      const ev = new MouseEvent('contextmenu', { button: 2, bubbles: true, cancelable: true });
+      (cards[2].querySelector('button') ?? cards[2]).dispatchEvent(ev);
+      fixture!.detectChanges();
+
+      expect(ev.defaultPrevented).toBe(true);
+      expect(panel()).not.toBeNull();
+    });
+
+    it('does not change the selection on a right mouse-down', () => {
+      const cards = render('grid', false);
+
+      cards[2].dispatchEvent(new MouseEvent('mousedown', { button: 2, bubbles: true }));
+      cards[2].dispatchEvent(new MouseEvent('pointerdown', { button: 2, bubbles: true }));
+
+      expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+    });
+
+    it('keeps exactly one panel when a second right-click lands while it is open', () => {
+      const cards = render('grid', false);
+      rightClick(cards[1]);
+
+      rightClick(cards[1]);
+
+      expect(panelCount()).toBe(1);
+    });
+
+    it('runs a picked single action against that photo', () => {
+      const cards = render('grid', false);
+      rightClick(cards[4]);
+
+      const item = [...document.querySelectorAll('.mat-mdc-menu-item')]
+        .find(e => e.textContent?.includes(I18N.rating.add_favorite)) as HTMLElement;
+      item.click();
+      fixture!.detectChanges();
+
+      expect(mockStore.toggleFavorite).toHaveBeenCalledWith('/p4.jpg');
+    });
+
+    it('returns focus to the card when the menu is closed with Escape', () => {
+      const cards = render('grid', false);
+      rightClick(cards[4]);
+
+      panel()!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true }));
+      fixture!.detectChanges();
+
+      expect(cards[4].contains(document.activeElement)).toBe(true);
+    });
+
+    it('returns focus to the card after an item is picked', () => {
+      const cards = render('grid', false);
+      rightClick(cards[4]);
+
+      (document.querySelector('.mat-mdc-menu-item') as HTMLElement).click();
+      fixture!.detectChanges();
+
+      expect(cards[4].contains(document.activeElement)).toBe(true);
+    });
+
+    it('has the card focused at the moment a picked action opens its dialog', () => {
+      const cards = render('grid', false);
+      let focusedCard = false;
+      vi.spyOn(fixture!.componentInstance as unknown as Record<string, (...a: unknown[]) => unknown>, 'openExportDialog')
+        .mockImplementation(() => { focusedCard = cards[4].contains(document.activeElement); });
+      rightClick(cards[4]);
+
+      const item = [...document.querySelectorAll('.mat-mdc-menu-item')]
+        .find(e => e.textContent?.includes(I18N.export.action)) as HTMLElement;
+      item.click();
+      fixture!.detectChanges();
+
+      expect(focusedCard).toBe(true);
+    });
+
+    it('does not steal focus when the menu is dismissed from its backdrop', () => {
+      const cards = render('grid', false);
+      rightClick(cards[4]);
+
+      (document.querySelector('.cdk-overlay-backdrop') as HTMLElement).click();
+      fixture!.detectChanges();
+
+      expect(cards[4].contains(document.activeElement)).toBe(false);
     });
   });
 });

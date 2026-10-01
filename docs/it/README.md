@@ -9,6 +9,7 @@ una libreria fotografica locale, poi serve una galleria per sfogliarla. Inizia d
 | Documento | Descrizione |
 |----------|-------------|
 | [Installazione](INSTALLATION.md) | Configurazione per hardware, con o senza Docker; dipendenze |
+| [Per iniziare](GETTING_STARTED.md) | Percorso del primo avvio: dall'installazione a scansione, revisione, addestramento, scarto, tag ed esportazione |
 | [Comandi](COMMANDS.md) | Riferimento di tutti i comandi CLI |
 | [Configurazione](CONFIGURATION.md) | Riferimento completo di `scoring_config.json` |
 | [Punteggio](SCORING.md) | Categorie, pesi, guida alla regolazione |

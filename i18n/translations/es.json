@@ -946,7 +946,8 @@
     "unlock_button": "Desbloquear",
     "lock_title": "Modo edición activo - haz clic para bloquear",
     "password_placeholder": "Contraseña de edición",
-    "invalid_password": "Contraseña incorrecta"
+    "invalid_password": "Contraseña incorrecta",
+    "read_only_hint": "Solo lectura: defina viewer.edition_password en scoring_config.json para activar la valoración, la selección y la edición, y reinicie el visor."
   },
   "nav": {
     "gallery": "Galería",
@@ -1062,6 +1063,7 @@
     },
     "reset_filters": "Restablecer filtros",
     "scroll_to_top": "Volver arriba",
+    "scan_action": "Escanear fotos nuevas",
     "photo_grid": "Cuadrícula de fotos",
     "active_filters": "{count} filtros activos",
     "unknown_person": "Desconocido",
@@ -1069,6 +1071,7 @@
       "count": "{count} seleccionados",
       "clear": "Limpiar",
       "copy_filenames": "Copiar nombres",
+      "copy_filename": "Copiar nombre de archivo",
       "download": "Descargar",
       "copied": "Rutas copiadas al portapapeles",
       "favorite": "Favorito",
@@ -1083,6 +1086,7 @@
       "compare": "Comparar",
       "actions": "Acciones",
       "mark_sequence": "Marcar como serie",
+      "edit_tags": "Editar etiquetas…",
       "mark_panorama": "Marcar como un panorama",
       "mark_hdr_panorama": "Marcar como un panorama HDR",
       "marked_panorama": "{count} fotos marcadas como un panorama",
@@ -2315,6 +2319,18 @@
       "error": "Error al eliminar"
     }
   },
+  "manual_tags": {
+    "title": "Editar etiquetas",
+    "tag_label": "Etiqueta",
+    "hint": "Las etiquetas manuales se conservan en la foto tras un nuevo escaneo y se escriben como palabras clave al exportar.",
+    "add": "Añadir etiqueta",
+    "add_action": "Añadir",
+    "remove_action": "Quitar",
+    "remove_tag": "Quitar la etiqueta {tag}",
+    "manual": "Etiqueta manual",
+    "error": "No se pudo modificar la etiqueta. Compruébala e inténtalo de nuevo.",
+    "already_present": "Esta etiqueta ya está en la foto."
+  },
   "photo": {
     "category_override": {
       "menu_tooltip": "Categoría de puntuación",
@@ -2401,6 +2417,7 @@
     "toggle_select": "Seleccionar / deseleccionar",
     "select_all": "Seleccionar todo lo cargado",
     "clear_selection": "Borrar selección",
+    "context_menu": "Abrir el menú contextual",
     "show_help": "Mostrar esta ayuda",
     "close": "Cerrar",
     "section_gallery": "Galería",

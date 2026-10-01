@@ -27,6 +27,7 @@ COMPUTED_EXTRAS = {
     'sequence_override_pending',
     'date_formatted',
     'tags_list',
+    'manual_tags',
     'persons',
     'unassigned_faces',
     'top_picks_score',

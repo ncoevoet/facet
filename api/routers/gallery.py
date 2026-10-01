@@ -104,7 +104,7 @@ def _fts5_query_from(term: str) -> Optional[str]:
     return ' '.join(tokens) if tokens else None
 
 
-def _apply_search_filter(where_clauses, sql_params, term: str, conn):
+def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_manual=True):
     """Apply the gallery free-text search filter.
 
     Prefers a single ``photos_fts MATCH`` query over the covering FTS5
@@ -112,8 +112,18 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn):
     lens_model + category), OR'd with a person-name LIKE so face-tagged
     person searches still work. Falls back to the legacy LIKE OR-chain if
     the FTS5 table is missing (older DB without rebuild).
+
+    Both branches also match the user's manual tags (``photo_manual_tags``),
+    which are not in the FTS index, via a companion ``IN`` subquery;
+    ``include_manual=False`` (share-link requests) leaves it out.
     """
     from db.fts import has_fts_table
+    from api.db_helpers import is_manual_tags_available
+
+    use_manual = include_manual and is_manual_tags_available(conn)
+    manual_clause = (
+        "photos.path IN (SELECT photo_path FROM photo_manual_tags WHERE tag LIKE ? ESCAPE '\\')"
+    )
 
     fts_query = _fts5_query_from(term)
 
@@ -129,9 +139,12 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn):
             " OR photos.path IN ("
             "SELECT f.photo_path FROM faces f JOIN persons p ON f.person_id = p.id"
             " WHERE p.name LIKE ? ESCAPE '\\')"
-            ")"
+            + (f" OR {manual_clause}" if use_manual else "")
+            + ")"
         )
         sql_params.extend([fts_query, person_like])
+        if use_manual:
+            sql_params.append(person_like)
         return
 
     escaped_term = term.replace('%', '\\%').replace('_', '\\_')
@@ -152,6 +165,10 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn):
     else:
         search_clauses.append("tags LIKE ? ESCAPE '\\'")
     search_params.append(f"%{escaped_term}%")
+
+    if use_manual:
+        search_clauses.append(manual_clause)
+        search_params.append(f"%{escaped_term}%")
 
     existing_cols = get_existing_columns(conn)
     if 'caption' in existing_cols:
@@ -191,7 +208,7 @@ def _add_range_filter(where_clauses, sql_params, params, column, min_key, max_ke
             pass
 
 
-def _apply_text_filters(where_clauses, sql_params, params, conn):
+def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=True):
     """Apply camera, lens, search, tag, composition, person, category filters."""
     if params.get('camera'):
         where_clauses.append("camera_model = ?")
@@ -202,7 +219,7 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
         sql_params.append(f"{clean_search}%")
 
     if params.get('search'):
-        _apply_search_filter(where_clauses, sql_params, params['search'], conn)
+        _apply_search_filter(where_clauses, sql_params, params['search'], conn, include_manual=include_manual)
 
     _add_tag_filter(
         where_clauses, sql_params,
@@ -210,7 +227,8 @@ def _apply_text_filters(where_clauses, sql_params, params, conn):
         require_tags=params.get('require_tags'),
         exclude_tags=params.get('exclude_tags'),
         exclude_art_tags=get_art_tags_from_config() if params.get('exclude_art') == '1' else None,
-        conn=conn
+        conn=conn,
+        include_manual=include_manual,
     )
 
     if params.get('composition_pattern'):
@@ -542,12 +560,16 @@ def _apply_date_album_geo_filters(where_clauses, sql_params, params):
         sql_params.append(escaped + '%')
 
 
-def _build_gallery_where(params, conn=None, user_id=None):
-    """Build WHERE clauses for gallery queries."""
+def _build_gallery_where(params, conn=None, user_id=None, include_manual=True):
+    """Build WHERE clauses for gallery queries.
+
+    ``include_manual=False`` makes the tag filter and the text search AI-only:
+    a share-link request must not be able to probe the owner's manual tags.
+    """
     where_clauses = []
     sql_params = []
     _apply_visibility_and_hide_filters(where_clauses, sql_params, params, user_id)
-    _apply_text_filters(where_clauses, sql_params, params, conn)
+    _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=include_manual)
     _apply_preference_filters(where_clauses, sql_params, params, user_id)
     _apply_score_range_filters(where_clauses, sql_params, params)
     _apply_exif_range_filters(where_clauses, sql_params, params)
@@ -657,16 +679,24 @@ async def gallery_scope_sql_async(conn, filters, user_id, exclude=None, prepared
 @router.get("/api/photo", response_model=Photo, response_model_exclude_unset=True)
 async def api_photo(
     path: str = Query(...),
+    token: Optional[str] = Query(None, description="Share token: hides the owner's manual tags"),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Get a single photo by path (same shape as gallery items). Async."""
+    """Get a single photo by path (same shape as gallery items). Async.
+
+    A request carrying a share ``token`` never receives ``manual_tags`` (they
+    are private annotations), whether or not the caller also holds an edition
+    session. The token is advisory here, only ever narrowing the response; the
+    shared-album list is the primary share surface.
+    """
     try:
         async with get_async_db() as conn:
             user_id = user.user_id if user else None
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            select_cols = build_photo_select_columns(conn=None, user_id=user_id)
+            show_manual = token is None
+            select_cols = build_photo_select_columns(conn=None, user_id=user_id, include_manual_tags=show_manual)
 
             query = f"SELECT {', '.join(select_cols)} FROM {from_clause} WHERE photos.path = ? AND {vis_sql}"
             cur = await conn.execute(query, from_params + [path] + vis_params)
@@ -675,7 +705,7 @@ async def api_photo(
             if not row:
                 raise HTTPException(status_code=404, detail="Photo not found")
 
-            photos = split_photo_tags([row], VIEWER_CONFIG['display']['tags_per_photo'])
+            photos = split_photo_tags([row], VIEWER_CONFIG['display']['tags_per_photo'], include_manual_tags=show_manual)
             photo = photos[0]
             photo['date_formatted'] = format_date(photo.get('date_taken'))
             await attach_person_data_async([photo], conn)

@@ -2,11 +2,12 @@
 
 Covers the ``user_id`` path added to ``import_sidecars`` / ``export_sidecars``:
 in multi-user mode ratings are read from / written to ``user_preferences`` while
-keywords stay on the global ``photos.tags``; single-user mode is unchanged.
+keywords go to the global ``photo_manual_tags`` side table; single-user mode is unchanged.
 """
 
 import sqlite3
 
+from db.schema import init_database
 from processing.xmp_export import export_sidecars
 from processing.xmp_import import import_sidecars
 
@@ -39,18 +40,11 @@ def _write(tmp_path, name, content):
     (tmp_path / name).write_text(content, encoding="utf-8")
 
 
-def _import_db():
-    conn = sqlite3.connect(":memory:")
+def _import_db(tmp_path):
+    db_path = str(tmp_path / "t.db")
+    init_database(db_path)
+    conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    conn.execute(
-        "CREATE TABLE photos (path TEXT PRIMARY KEY, tags TEXT, star_rating INTEGER, "
-        "is_favorite INTEGER, is_rejected INTEGER, scanned_at TEXT, aggregate REAL)"
-    )
-    conn.execute(
-        "CREATE TABLE user_preferences (user_id TEXT, photo_path TEXT, star_rating INTEGER "
-        "DEFAULT 0, is_favorite INTEGER DEFAULT 0, is_rejected INTEGER DEFAULT 0, "
-        "PRIMARY KEY (user_id, photo_path))"
-    )
     return conn
 
 
@@ -75,9 +69,10 @@ class TestImportPerUser:
         monkeypatch.setattr("api.config.is_multi_user_enabled", lambda: True)
         img = str(tmp_path / "p.jpg")
         _write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=5, label="Yellow", subjects=["auto", "Bob"]))
-        conn = _import_db()
+        conn = _import_db(tmp_path)
         conn.execute(
-            "INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?)", (img, "auto", 0, 0, 0, None, None)
+            "INSERT INTO photos (path, tags, star_rating, is_favorite, is_rejected) "
+            "VALUES (?, ?, 0, 0, 0)", (img, "auto")
         )
 
         stats = import_sidecars(conn, user_id="alice")
@@ -86,10 +81,16 @@ class TestImportPerUser:
         prow = conn.execute(
             "SELECT star_rating, is_favorite, tags FROM photos WHERE path = ?", (img,)
         ).fetchone()
-        # global rating columns stay untouched; tags still merged globally
+        # global rating columns stay untouched; keywords never touch photos.tags
         assert prow["star_rating"] == 0
         assert prow["is_favorite"] == 0
-        assert prow["tags"] == "auto, Bob"
+        assert prow["tags"] == "auto"
+        # keywords go to the global side table (tags are not per-user), attributed
+        # to the importing user
+        mrow = conn.execute(
+            "SELECT tag, source, created_by FROM photo_manual_tags WHERE photo_path = ?", (img,)
+        ).fetchone()
+        assert (mrow["tag"], mrow["source"], mrow["created_by"]) == ("bob", "xmp", "alice")
         urow = conn.execute(
             "SELECT star_rating, is_favorite FROM user_preferences "
             "WHERE user_id = ? AND photo_path = ?", ("alice", img)
@@ -101,8 +102,10 @@ class TestImportPerUser:
         monkeypatch.setattr("api.config.is_multi_user_enabled", lambda: False)
         img = str(tmp_path / "p.jpg")
         _write(tmp_path, "p.jpg.xmp", _attr_xmp(rating=4))
-        conn = _import_db()
-        conn.execute("INSERT INTO photos VALUES (?, ?, ?, ?, ?, ?, ?)", (img, "", 0, 0, 0, None, None))
+        conn = _import_db(tmp_path)
+        conn.execute(
+            "INSERT INTO photos (path, tags, star_rating, is_favorite, is_rejected) "
+            "VALUES (?, '', 0, 0, 0)", (img,))
 
         import_sidecars(conn, user_id="alice")
 

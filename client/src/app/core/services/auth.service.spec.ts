@@ -104,6 +104,34 @@ describe('AuthService', () => {
       expect(service.isMultiUser()).toBe(true);
     });
 
+    describe('isReadOnlyInstall (drives the read-only hint)', () => {
+      const single = { ...mockStatus, multi_user: false, edition_authenticated: false, edition_password_required: false };
+
+      it('is false before the status is known', () => {
+        expect(service.isReadOnlyInstall()).toBe(false);
+      });
+
+      it('is true on an open single-user install', () => {
+        service.status.set(single);
+        expect(service.isReadOnlyInstall()).toBe(true);
+      });
+
+      it('is false on a locked install that has not been unlocked yet (the unlock entry covers it)', () => {
+        service.status.set({ ...single, edition_password_required: true });
+        expect(service.isReadOnlyInstall()).toBe(false);
+      });
+
+      it('is false on a locked install once unlocked', () => {
+        service.status.set({ ...single, edition_password_required: true, edition_authenticated: true });
+        expect(service.isReadOnlyInstall()).toBe(false);
+      });
+
+      it('is false for a multi-user regular user', () => {
+        service.status.set({ ...single, multi_user: true, user_role: 'user' });
+        expect(service.isReadOnlyInstall()).toBe(false);
+      });
+    });
+
     it('should derive features from status', () => {
       service.status.set(mockStatus);
       expect(service.features()).toEqual({ face_recognition: true, edition: false });
@@ -207,6 +235,35 @@ describe('AuthService', () => {
       const result = await promise;
       expect(result).toEqual(mockStatus);
       expect(service.status()).toEqual(mockStatus);
+    });
+  });
+
+  describe('loadStatus()', () => {
+    it('shares one request between concurrent callers', async () => {
+      const first = service.loadStatus();
+      const second = service.loadStatus();
+
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+
+      expect(await first).toEqual(mockStatus);
+      expect(await second).toEqual(mockStatus);
+    });
+
+    it('answers from the cache without a request once the status is known', async () => {
+      service.status.set(mockStatus);
+
+      expect(await service.loadStatus()).toEqual(mockStatus);
+      httpTesting.expectNone('/api/auth/status');
+    });
+
+    it('rejects on a failed load and retries on the next call', async () => {
+      const failed = service.loadStatus();
+      httpTesting.expectOne('/api/auth/status').flush('x', { status: 500, statusText: 'err' });
+      await expect(failed).rejects.toBeDefined();
+
+      const retry = service.loadStatus();
+      httpTesting.expectOne('/api/auth/status').flush(mockStatus);
+      expect(await retry).toEqual(mockStatus);
     });
   });
 

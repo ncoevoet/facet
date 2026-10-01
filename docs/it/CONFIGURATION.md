@@ -1676,7 +1676,7 @@ Visualizzazione e comportamento della galleria web.
 | Impostazione | Predefinito | Descrizione |
 |---------|---------|-------------|
 | `default_category` | `""` | Filtro categoria predefinito |
-| `edition_password` | `""` | Password per sbloccare la modalità di modifica (vuoto = disabilitato) |
+| `edition_password` | `""` | Password per sbloccare la modalità di modifica (vuoto = ogni modifica è rifiutata; l'installazione è in sola lettura) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimo per l'ottimizzazione |
 | `pair_selection_strategy` | `"learning"` | Strategia di coppia: `learning` (avvio a freddo per diversità di embedding + disaccordo di rango una volta addestrato), `uncertainty`, `boundary`, `active`, `random` |
@@ -1847,7 +1847,7 @@ Attiva o disattiva le funzionalità opzionali per ridurre l'uso della memoria o 
 | `show_similar_button` | `true` | Mostra il pulsante "Trova simili" sulle schede delle foto (usa numpy per la similarità CLIP) |
 | `show_merge_suggestions` | `true` | Abilita la funzionalità di suggerimenti di unione nella pagina di gestione delle persone |
 | `show_rating_controls` | `true` | Mostra i controlli di valutazione a stelle e preferiti |
-| `show_scan_button` | `false` | Mostra il pulsante di avvio scansione (superadmin in modalità multiutente; sessione di modifica bloccata in modalità utente singolo) — richiede GPU sull'host del viewer |
+| `show_scan_button` | `false` | Mostra il pulsante di avvio scansione (superadmin in modalità multiutente; sessione di modifica bloccata in modalità utente singolo) — nessuna GPU richiesta: la scansione gira solo su CPU con il profilo `legacy` |
 | `metrics_enabled` | `false` | Abilita l'endpoint Prometheus pubblico `GET /metrics`. Disattivato per impostazione predefinita — espone conteggi di foto/persone/volti, dimensione del DB e memoria del processo; abilitalo solo quando l'endpoint è raggiungibile dalla rete dello scraper, non da Internet pubblico. |
 | `show_semantic_search` | `true` | Mostra la barra di ricerca semantica (ricerca testo-immagine usando gli embedding CLIP/SigLIP) |
 | `show_albums` | `true` | Mostra la funzionalità album (crea, gestisci e sfoglia album di foto) |

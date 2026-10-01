@@ -61,7 +61,7 @@ cd client && npx ng serve
 }
 ```
 
-设置之后，用户必须先通过身份验证才能访问查看器。可选的 `edition_password` 用于开放人物管理和比较模式。
+设置之后，用户必须先通过身份验证才能访问查看器。任何编辑操作都需要 `edition_password`：评分、收藏与拒绝、选片、相册、人物与人脸管理、比较模式、权重与优先级修改以及导出。未设置 `edition_password`（出厂默认）时，安装为**只读**：所有编辑都会被 `403` 拒绝（“Set viewer.edition_password to enable editing”）。按需 AI 生成（描述、VLM 点评）同样需要它，但属于降级而非拒绝：调用返回 `200`，只提供已缓存的内容（`source: "edition_required"` 或 `vlm_available: false`）。谁可以*浏览*由 `viewer.password` 决定：未设置时任何人都可浏览整个照片库；设置后只有已通过身份验证的用户可以。在这样的安装上，图库也不再显示已有的星级、收藏和拒绝徽标，与已锁定安装上没有编辑权限的查看器一致。设置 `viewer.edition_password` 之后请重启查看器：配置不会热重载。
 
 登录时还会把会话令牌镜像写入一个 `HttpOnly`、`SameSite=Lax` 的 Cookie，这样那些无法携带 `Authorization` 请求头的浏览器原生请求（加载缩略图的 `<img>` 标签、扫描进度流）在已加锁的部署上也能通过验证。该 Cookie 仅对只读请求（GET/HEAD）生效；任何会改变状态的调用仍然要求 Bearer 令牌，因此不会增加 CSRF 攻击面。退出登录会调用 `POST /api/auth/logout`，该接口会清除此 Cookie。
 
@@ -192,6 +192,7 @@ python database.py --migrate-user-preferences --user alice
 - 可点击的标签，便于快速筛选
 - 已识别人脸的人物头像
 - 类别徽章
+- 右键单击（或按 Shift+F10）可打开[右键菜单](#多选与批量操作)
 
 ### 多选与批量操作
 
@@ -210,8 +211,11 @@ python database.py --migrate-user-preferences --user alice
 - **删除**——把选中的照片直接送入系统回收站（参见[删除](#删除)）；受与“选片后导出／清理”相同的 `viewer.cull.allow_trash` 开关控制，因此一个安装要么两者都显示，要么都不显示。在“选中整个筛选视图”的范围下该按钮被禁用——按筛选条件驱动的删除是唯一可能在单次请求中删除无限多张照片的操作，因此按钮要求改为显式选择。
 - **下载**——下载选中的照片
 - 按 Escape 键或“清除”按钮可清除选择
+- **编辑标签**——为所有选中的照片添加或移除一个[手动标签](#手动标签)（参见[手动标签](#手动标签)）
 
-批量操作需要编辑模式。双击任意照片可直接下载它。
+批量操作需要编辑模式。双击任意照片可打开它。
+
+**右键菜单**——右键单击一张照片（或使其获得焦点后按 Shift+F10／菜单键），会在光标处打开菜单。对位于多张照片选择之内的照片，它作用于整个选择，操作栏中的操作在相同的启用条件下提供，但“反选”和“全选”仍只在操作栏上（在“选中整个视图”范围下不显示“删除”）。对其他任何照片，它只作用于该照片并保持选择不变，同时额外提供打开照片，以及仅在相应功能或版本条件允许时提供的查找相似照片、为什么是这个评分？、将元数据写入文件和将人脸分配给人物（后者仅当照片有未分配的人脸时）。以此方式筛选单张照片只会把该照片移出选择：按路径的选择保留其余照片，“选中整个视图”的选择仍是整个视图，并把该照片加入排除项。触控设备（`hover: none` 且 `pointer: coarse`）上不提供该菜单，仍保留浏览器原生的长按行为和操作面板。对多张照片的选择，菜单还包含批量的**编辑标签**项，与操作栏一样受编辑模式限制；在触屏设备上也可从“操作”面板进入。
 
 ### 保留前 N%
 
@@ -272,6 +276,21 @@ python database.py --migrate-user-preferences --user alice
 ### 筛选条件标签
 
 生效中的筛选条件以可移除的标签形式显示在照片库顶部，并带有数量。
+
+### 手动标签
+
+手动标签是你自己输入的标签，与扫描或重新打标产生的 AI 标签并存。它们存放在独立的表（`photo_manual_tags`）中，而不是照片的 `tags` 列，因此重新扫描或重新打标永远不会清除它们。
+
+- **显示位置。** 仅在照片的**详情**视图中，以标签块的形式显示在 AI 标签旁边，并与之有明显区别（标签块上有标记，而不只是颜色）。照片卡片和悬停提示不变，仍然显示 AI 标签。
+- **谁能编辑。** 编辑需要编辑会话，而编辑会话又要求已设置 `viewer.edition_password`；与其他所有受编辑模式限制的写操作一样，在开放安装（没有编辑密码）上会被拒绝，此时手动标签为只读。没有编辑权限的查看者只能只读查看。在详情视图中，编辑模式的用户可以添加标签，也可以移除手动标签，即使这张照片还没有任何标签。AI 标签没有移除控件。
+- **批量编辑。** 选中照片后使用**编辑标签**，可对整个选择添加或移除一个标签：桌面端从选择栏进入，移动端从“操作”面板进入，或在多张照片选择之内的某张照片上通过右键菜单进入。整个视图范围的选择与其他批量操作一样被接受。已有 50 个手动标签的照片在批量添加时会被跳过，而不是让整批失败，返回的 `count` 是实际被修改的照片数量。
+- **规范化。** 标签会做 Unicode 规范化（NFC）、去除首尾空白、把连续空白压缩为一个空格，并转为小写。长度最多 64 个字符，每张照片最多 50 个手动标签；空标签、含逗号或含控制字符的标签会被以 `422` 拒绝。与照片当前某个 AI 标签相同的标签不起任何作用（不会存储任何内容），不过之后的重新打标仍可能让两边出现相同的标签；照片库只把这样的照片计一次。
+- **搜索和筛选都能找到它们。** 照片库的标签筛选（包括必含和排除标签）、照片库文本搜索、语义文本搜索（`/api/search`，仅限说明文字的范围除外）、标签下拉列表及其计数、统计页面，以及附属文件、嵌入元数据和 Lightroom 清单的导出，看到的都是 AI 标签与手动标签的并集。文本搜索把手动标签作为完整短语匹配，而不是逐词匹配。精选集例外：它只统计 AI 标签，因此精选集显示的数量可能少于点击后打开的照片（照片库的标签筛选确实包含手动标签）。手动标签从不影响评分、类别或叙事瞬间。
+- **对分享链接隐藏。** 通过分享链接访问的查看者永远看不到手动标签，无论是在共享的照片、共享的相册、其筛选下拉列表还是标签筛选中；共享的智能相册仍然应用所有者保存的筛选，包括所有者曾用来筛选的手动标签。
+- **全局，而非按用户。** 在多用户模式下，手动标签由所有人共享，不按用户存储：任何编辑模式的用户都可以移除他人添加的标签。
+- **不可撤销。** 手动标签的编辑不在[撤销](#撤销)的覆盖范围内；请手动重新添加被移除的标签。被移除的标签也可能从附属文件中回来，参见[冲突规则](INTEROP.md#冲突规则)。
+- **除手动输入外的来源。** `--import-sidecars` 会把在附属文件中找到、且 Facet 尚未拥有的关键字（既不是 AI 标签也不是人物姓名）存为手动标签，来源为 `xmp`。
+- **与文件路径绑定。** 被移动或重命名的文件是一个新的照片路径，会随旧路径一起失去它的手动标签。
 
 ## 全景照片与包围曝光
 
@@ -377,14 +396,14 @@ HDR 之间重新标注。**漏检**则从照片库修正，因为未被检测到
 
 ## 触发扫描
 
-当 `viewer.features.show_scan_button` 为 `true`，且调用者拥有扫描权限——多用户模式下为 `superadmin` 角色，或单用户模式下在已锁定的单用户安装（`viewer.edition_password` 已设置）上通过编辑模式身份验证的会话——照片库为空的状态下会出现一个**扫描照片以开始使用**按钮。它在 `scoring_config.json` 中出厂设置为 **`false`**（需主动开启）。在开放的单用户安装上（`viewer.edition_password` 为空，出厂默认值），全部四个扫描路由都会对任何调用者返回 403，即便调用者持有有效的编辑模式生成 JWT，该按钮也绝不会渲染——开放安装本就把匿名调用者当作已通过编辑模式身份验证，而启动扫描子进程绝不能被匿名访问到。该按钮会打开扫描启动器对话框（`ScanLauncherComponent`）。
+当以下**两个**条件同时满足时，才会提供扫描入口：`viewer.features.show_scan_button` 为 `true`（在 `scoring_config.json` 中出厂设置为 **`false`**，需主动开启），**并且**调用者拥有扫描权限——多用户模式下为 `superadmin` 角色，或单用户模式下在已锁定的单用户安装（`viewer.edition_password` 非空）上通过编辑模式身份验证的会话。满足后，照片库会在两处提供扫描入口，二者都会打开扫描启动器对话框（`ScanLauncherComponent`）：照片库为空时的**扫描照片以开始使用**按钮，以及照片库有照片可显示时位于照片网格右上角的**扫描新照片**图标按钮（任何屏幕宽度下都可见）。在开放的单用户安装上（`viewer.edition_password` 为空，出厂默认值），全部四个扫描路由都会对任何调用者返回 403，即便调用者持有有效的编辑模式生成 JWT，这两个入口也绝不会渲染——启动扫描子进程绝不能被匿名访问到。
 
 - 从启动器的列表中选择一个目录，直接在应用内开始扫描
 - 启动器会把实时进度（SSE，并自动回退到轮询）推送到一个由结构化 `progress` 字段驱动的 `mat-progress-bar`，另外还有一段输出日志尾部，扫描结束时会刷新照片库
 - 扫描以后台子进程（`facet.py`）方式运行；同一时间只允许一个扫描（全局锁）
 - 目录选项来自 `get_all_scan_directories()`，它会合并每位用户的 `directories`、共享目录、`path_mapping` 目标以及独立的 `viewer.scan_directories` 列表——请为后者填入初始值（例如 `/data/photos`），这样单用户／Docker 安装才有可选的目标
 
-当查看器运行在拥有 GPU 算力的同一台机器上时，这一功能很有用。
+扫描并不需要 GPU——请参阅[哪种配置档适合我的硬件？](INSTALLATION.md#哪种配置档适合我的硬件)和[没有显卡](INSTALLATION.md#没有显卡)了解仅用 CPU 的路径（`legacy`）。扫描在托管查看器的机器上运行，因此当这台机器可使用 GPU 进行评分时速度最快。
 
 另有一个相关但独立的触发器 `POST /api/scan/recompute`，它复用同一把作业锁来原地重新为已有照片评分（不引入新文件）——参见[类别优先级与拍摄场景评分方案](#类别优先级与拍摄场景评分方案)。与这个扫描按钮依赖模式的访问规则不同，它只受编辑模式限制，不区分超级管理员与已锁定安装。
 
@@ -461,7 +480,7 @@ API：参见下文的 [API 端点](#api-端点)一节。
 
 ### VLM 点评 `[GPU]` `[16gb/24gb]`
 
-使用已配置的 VLM（Qwen3.5-2B 或 Qwen3.5-4B）给出结合上下文的点评。需要 16gb 或 24gb VRAM 配置档，以及 `viewer.features.show_vlm_critique: true`。
+使用已配置的 VLM（Qwen3.5-2B 或 Qwen3.5-4B）给出结合上下文的点评。需要 16gb 或 24gb VRAM 配置档，以及 `viewer.features.show_vlm_critique: true`。生成点评还需要编辑会话；没有时只提供已缓存的点评，且 `vlm_available` 为 `false`。
 
 提示词是一条可配置的阶梯（`critique.vlm`），会注入完整的规则拆解、扣分项和 EXIF，回复按**观察 / 评价 / 建议**呈现。结果按照片缓存（`photos.vlm_critique`）并按需翻译，另有**重新生成**按钮可重新计算。它基于已存储的缩略图运行，因此 RAW 文件也能正确点评，而不会悄无声息地失败。
 
@@ -473,7 +492,7 @@ API：参见下文的 [API 端点](#api-端点)一节。
 
 ## AI 照片描述 `[GPU]` `[16gb/24gb]` `[Edition]`
 
-为任意照片获取 AI 生成的自然语言描述。描述在首次请求时生成，并缓存在数据库的 `caption` 列中。在编辑模式下可以通过照片详情页手动修改描述。（描述的*翻译*在 CPU 上运行——见下文。）
+为任意照片获取 AI 生成的自然语言描述。描述在首次请求时由编辑会话生成（开放的只读安装从不生成），并缓存在数据库的 `caption` 列中。在编辑模式下可以通过照片详情页手动修改描述。（描述的*翻译*在 CPU 上运行——见下文。）
 
 API：参见下文的 [API 端点](#api-端点)一节。
 
@@ -836,6 +855,7 @@ API：参见下文的 [API 端点](#api-端点)一节。
 | `Escape` | 清除选择／关闭筛选抽屉 |
 | `Shift+点击` | 范围选择上次选中项与被点击项之间的照片 |
 | `双击` | 打开照片 |
+| `Shift+F10`／`Menu` | 打开获得焦点的照片卡片的右键菜单（右键单击效果相同） |
 | `?` | 显示键盘快捷键参考（在每个页面都可用） |
 
 当前照片——也就是星级评分、收藏和淘汰快捷键所作用的那一张——会以卡片周围 4px 的描边标出；其他所有卡片会淡化到 50% 不透明度。在光标真正移动到结果中的某张照片之前不会标记任何照片，因此你尚未浏览过的照片库会保持完整亮度。点击一张照片会把标记移到它上面，所以点击之后立刻按下的快捷键会落在你点击的那张照片上，而不是方向键最后停留的地方。
@@ -846,7 +866,7 @@ API：参见下文的 [API 端点](#api-端点)一节。
 其中带有约 7 秒的**撤销**操作。批量标记操作会立即
 提交，并通过反向 API 调用撤销（上限 500 张照片）；选片
 确认则是延迟提交的——分组会立刻消失，但 API 调用
-要等撤销窗口结束后才会发出。
+要等撤销窗口结束后才会发出。[手动标签](#手动标签)的编辑不可撤销。
 
 ## 渐进式网页应用
 
@@ -1133,12 +1153,14 @@ python database.py --stats-info
 | `GET /api/photos/count` | `{ total }`——有多少照片符合当前照片库的筛选条件 |
 | `GET /api/photos/paths` | `{ total, paths }`——所有匹配的路径，无序；仅由需要文件名的操作（下载、复制）按需使用，全选绝不会用到它。上限为 10000：超过此数的视图会被以 `412` 拒绝并给出数量和上限，而不是被截断——一份不完整的路径列表会让用户误以为选择是完整的——而且没有任何回退：该操作会带着一条“照片过多”的提示被放弃，让用户去缩小筛选范围后重试。只有真正需要字面路径列表的操作才会走这里；整个视图的选择本身只需计数（`GET /api/photos/count`），从来不需要路径列表，因此建立在其之上的、按筛选条件限定的操作（批量评分／淘汰写入、选片、附属文件导出）不受此上限影响，它们各有自己的上限 |
 | `GET /api/photo` | 单张照片的详情 |
+| `PUT /api/photo/manual_tags` | 为一张照片添加[手动标签](#手动标签)（受编辑模式限制）。请求体：`{path, tag}`。路径未知或不可见返回 `404`，标签无效或照片已有 50 个标签返回 `422`；与照片某个 AI 标签相同的标签不起作用，返回 `200` 且带 `skipped_existing: true` |
+| `DELETE /api/photo/manual_tags` | 从一张照片移除一个手动标签（受编辑模式限制）。请求体：`{path, tag}` |
 | `GET /api/photo/set?path=` | 一张照片所属的包围曝光／全景／HDR 全景／连拍／重复照片组（序列优先于连拍，连拍优先于重复），以 `path` 为键——绝不用分组 id，因为包围曝光和全景检测每次运行都会从 1 开始重新编号 |
 | `GET /api/photo/histogram?path=&bins=` | 可直接绘制的亮度 + R/G/B 分箱数据（`bins` ∈ 32/64/128/256，默认 64），在扫描时对全分辨率图像测得。每个通道都按同一个全局最大值缩放，而不是各自的最大值。对于在引入分通道格式之前存储的行，`r`/`g`/`b` 为 `null`；当该行完全没有直方图时返回 404，这正是控件回退到对缩略图采样的信号 |
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | 侧边栏类型标签所用的各类型照片数量。与照片库使用同样的五个开关；省略某个开关时会回退到 `viewer.defaults` 而不是“关闭”——要统计全部，请显式发送 `hide_bursts=0` 等 |
 | `GET /api/similar_photos/{path}` | 相似照片（模式：`visual`、`color`、`person`） |
 | `GET /api/search?q=&limit=&threshold=&scope=` | 语义化的以文搜图（`scope=text` = 仅 OCR／描述文本）。`threshold` 为可选参数：省略时会解析为当前生效编码器的 `models.*.search_threshold_percent`（以 `/api/config` 的 `search_threshold_default` 暴露给客户端）；显式传入的值——包括 `0.0`——总会覆盖解析出的默认值。只有当搜索确实执行了嵌入向量检索时才会做这次解析（`scope != 'text'` 会完全跳过解析） |
-| `GET /api/critique?path=&mode=&refresh=` | AI 点评（基于规则或 VLM）；`refresh=true` 会重新生成已缓存的 VLM 点评 |
+| `GET /api/critique?path=&mode=&refresh=` | AI 点评（基于规则或 VLM）；`refresh=true` 会重新生成已缓存的 VLM 点评（仅限编辑会话；否则为 `vlm_available: false`） |
 | `GET /api/ranker/status` | “我的偏好”排序所用的个人排序模型状态（已学习覆盖率 %、留出集准确率） |
 | `GET /api/config` | 查看器配置 |
 
@@ -1182,6 +1204,7 @@ python database.py --stats-info
 | `POST /api/photos/batch_favorite` | 把多张照片标为收藏（并清除淘汰标记）。请求体必须恰好是 `{photo_paths}`（最多 1000）或 `{filters}` 之一——`filters` 接受与 `GET /api/photos` 相同的查询参数（均为字符串），且没有上限。`exclude`（可选，最多 1000）可与两者中的任意一个同时出现，用来收窄所发送的目标——从 `photo_paths` 中减去，或从 `filters` 范围中排除——因此它只能收窄，绝不会扩大。两个目标都不给或都给都会返回 422，而指定了相册的 `filters` 会像该相册自身的 GET 一样做访问检查——相册不存在返回 `404`，在受访问控制的安装上访问他人的相册返回 `403`。响应为 `{success, count}`，其中 `count` 是实际写入的行数 |
 | `POST /api/photos/batch_reject` | 把多张照片标为淘汰（并清除收藏和评分）。请求体契约与上面的 `batch_favorite` 相同 |
 | `POST /api/photos/batch_rating` | 为多张照片设置星级评分。请求体契约与 `batch_favorite` 相同，另需必填的 `rating`（0–5） |
+| `POST /api/photos/batch_manual_tags` | 为多张照片添加或移除一个[手动标签](#手动标签)（受编辑模式限制）。请求体约定与 `batch_favorite` 相同，另加必填的 `tag` 和取值为 `add` 或 `delete` 的 `action`。响应 `{success, count}`，其中 `count` 是实际写入的行数：`add` 时，已达 50 个标签上限的照片和 AI 标签中已含该标签的照片会被跳过 |
 
 ### 人物
 
@@ -1231,7 +1254,7 @@ python database.py --stats-info
 |----------|-------------|
 | `GET /api/memories?date=` | 往年这一天拍摄的照片 |
 | `GET /api/memories/check` | 检查某个日期是否存在回忆 |
-| `GET /api/caption?path=` | 获取或生成 AI 照片描述 |
+| `GET /api/caption?path=` | 获取 AI 照片描述；编辑会话会在首次请求时生成（否则为 `source: "edition_required"`） |
 | `PUT /api/caption` | 更新照片描述（编辑模式） |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | 分页的时间线照片。这五个 `hide_*` 开关就是照片库的那几个；省略某个时会回退到 `viewer.defaults` 而不是“关闭” |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | 可供导航的日期（`hide_*` 回退规则相同） |
@@ -1272,18 +1295,18 @@ python database.py --stats-info
 
 | 端点 | 说明 |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | 获取下一对用于比较的照片 |
+| `GET /api/comparison/next_pair` | `[Edition]` 获取下一对用于比较的照片 |
 | `POST /api/comparison/submit` | 提交比较结果 |
 | `POST /api/comparison/reset` | 重置比较数据 |
-| `GET /api/comparison/stats` | 比较会话统计 |
-| `GET /api/comparison/history` | 列出过往的比较记录 |
+| `GET /api/comparison/stats` | `[Edition]` 比较会话统计 |
+| `GET /api/comparison/history` | `[Edition]` 列出过往的比较记录 |
 | `POST /api/comparison/edit` | 修改一条比较结果 |
 | `POST /api/comparison/delete` | 删除一条比较记录 |
-| `GET /api/comparison/coverage` | 比较记录的类别覆盖情况 |
-| `GET /api/comparison/confidence` | 学习评分的置信度指标 |
+| `GET /api/comparison/coverage` | `[Edition]` 比较记录的类别覆盖情况 |
+| `GET /api/comparison/confidence` | `[Edition]` 学习评分的置信度指标 |
 | `GET /api/comparison/photo_metrics` | 照片的原始指标 |
-| `GET /api/comparison/category_weights` | 类别权重／筛选条件 |
-| `GET /api/comparison/learned_weights` | 从比较中得出的建议权重 |
+| `GET /api/comparison/category_weights` | `[Edition]` 类别权重／筛选条件 |
+| `GET /api/comparison/learned_weights` | `[Edition]` 从比较中得出的建议权重 |
 | `POST /api/comparison/preview_score` | 用自定义权重预览 |
 | `POST /api/comparison/suggest_filters` | 分析筛选条件冲突 |
 | `POST /api/comparison/override_category` | `[Edition]` 为单张照片设置持久的类别覆盖（会针对已配置的类别名称校验；能挺过下一次重新计算） |
@@ -1349,7 +1372,7 @@ python database.py --stats-info
 | 端点 | 说明 |
 |----------|-------------|
 | `POST /api/config/update_weights` | 更新评分权重 |
-| `GET /api/config/weight_snapshots` | 列出已保存的权重快照 |
+| `GET /api/config/weight_snapshots` | `[Edition]` 列出已保存的权重快照 |
 | `POST /api/config/save_snapshot` | 把当前权重保存为快照 |
 | `POST /api/config/restore_weights` | 从快照恢复权重 |
 | `GET /api/config/category_priorities` | `[Edition]` 按当前优先级（求值）顺序列出各类别 |
@@ -1407,8 +1430,8 @@ python database.py --stats-info
 
 | 端点 | 说明 |
 |----------|-------------|
-| `GET /api/plugins` | 列出已配置的插件 |
-| `POST /api/plugins/test-webhook` | 测试某个 webhook 插件 |
+| `GET /api/plugins` | `[Edition]` 列出已配置的插件 |
+| `POST /api/plugins/test-webhook` | `[Edition]` 测试某个 webhook 插件 |
 
 ### Immich
 
@@ -1449,7 +1472,7 @@ python database.py --stats-info
 | 用户看不到照片 | 检查其用户配置中的 `directories` 以及 `shared_directories` |
 | 没有扫描按钮 | 需要 `viewer.features.show_scan_button: true`，外加扫描权限：多用户模式下的 `superadmin` 角色，或单用户模式下在已锁定安装（`viewer.edition_password` 已设置）上通过编辑模式身份验证的会话——开放的单用户安装永远不会显示该按钮 |
 | 搜索没有结果 | 确认照片已有 `clip_embedding` 数据（请先运行评分） |
-| VLM 点评不可用 | 需要 16gb/24gb VRAM 配置档以及 `viewer.features.show_vlm_critique: true` |
+| VLM 点评不可用 | 需要 16gb/24gb VRAM 配置档以及 `viewer.features.show_vlm_critique: true`，另外生成时还需要编辑会话（没有时只提供已缓存的点评） |
 | 地图上没有照片 | 运行 `--extract-gps` 填充 GPS 列，并确认照片带有 EXIF GPS 数据 |
 | 无法生成照片描述 | 基于 VLM 的照片描述需要 16gb/24gb VRAM 配置档 |
 | 时间线为空 | 确认照片有 `date_taken` 值 |

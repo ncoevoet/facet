@@ -1673,7 +1673,7 @@ Exibição e comportamento da galeria web.
 | Configuração | Padrão | Descrição |
 |--------------|--------|-----------|
 | `default_category` | `""` | Filtro de categoria padrão |
-| `edition_password` | `""` | Senha para desbloquear o modo de edição (vazio = desativado) |
+| `edition_password` | `""` | Senha para desbloquear o modo de edição (vazio = toda edição é recusada; a instalação é somente leitura) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Mínimo para otimização |
 | `pair_selection_strategy` | `"learning"` | Estratégia de pares: `learning` (partida a frio por diversidade de embeddings + discordância de classificação uma vez treinado), `uncertainty`, `boundary`, `active`, `random` |
@@ -1844,7 +1844,7 @@ Ative/desative recursos opcionais para reduzir o uso de memória ou simplificar 
 | `show_similar_button` | `true` | Mostra o botão "Encontrar Similares" nos cartões de foto (usa numpy para similaridade CLIP) |
 | `show_merge_suggestions` | `true` | Ativa o recurso de sugestões de mesclagem na página de gerenciamento de pessoas |
 | `show_rating_controls` | `true` | Mostra os controles de avaliação por estrelas e favoritos |
-| `show_scan_button` | `false` | Mostra o botão de disparo de escaneamento (superadmin em modo multiusuário; sessão de edição bloqueada em modo de usuário único) — requer GPU no host do visualizador |
+| `show_scan_button` | `false` | Mostra o botão de disparo de escaneamento (superadmin em modo multiusuário; sessão de edição bloqueada em modo de usuário único) — não requer GPU: a varredura roda apenas na CPU com o perfil `legacy` |
 | `metrics_enabled` | `false` | Ativa o endpoint público Prometheus `GET /metrics`. Desligado por padrão — ele expõe contagens de fotos/pessoas/faces, tamanho do banco de dados e memória do processo; habilite apenas quando o endpoint for acessível pela rede do coletor, não pela internet pública. |
 | `show_semantic_search` | `true` | Mostra a barra de busca semântica (busca de texto para imagem usando embeddings CLIP/SigLIP) |
 | `show_albums` | `true` | Mostra o recurso de álbuns (criar, gerenciar e navegar por álbuns de fotos) |

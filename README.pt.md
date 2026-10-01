@@ -101,7 +101,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 - **Aprendizado a partir de rótulos** — decisões de seleção, classificações por estrelas, favoritos e rejeições alimentam o otimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — salve, restaure e compare configurações de pesos
 - **Histograma** — histograma RGB/luminância com indicadores de clipping, na dica da foto e na visualização de detalhes
-- **Legendas por IA** `[GPU]` `[16gb/24gb]` — descrições em texto, editáveis `[Edition]` e traduzíveis para 5 idiomas (a geração e a visualização são abertas)
+- **Legendas por IA** `[GPU]` `[16gb/24gb]` — descrições em texto, editáveis `[Edition]` e traduzíveis para 5 idiomas (a visualização é aberta; a geração e a edição exigem edição)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Estatísticas de equipamento" width="100%"></td>
@@ -139,7 +139,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 - **7 idiomas na interface** — a interface está disponível em inglês, francês, alemão, espanhol, italiano, português do Brasil e chinês simplificado (简体中文); a documentação está disponível em todos os sete idiomas
 - **Multiusuário** — diretórios, classificações e acesso por função, por usuário
 - **Plugins e webhooks** — ações personalizadas acionadas em eventos de pontuação
-- **Escaneamento pela interface web** — acione escaneamentos pelo navegador (função superadmin)
+- **Escaneamento pela interface web** — acione escaneamentos pelo navegador (superadmin no modo multiusuário; acesso de edição numa instalação de usuário único com senha de edição)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Galeria no celular" width="100%"></td>
@@ -149,7 +149,7 @@ Passe o cursor sobre qualquer foto para ver uma dica com o detalhamento da pontu
 
 ## O que você precisa
 
-A maior parte do Facet roda em **qualquer máquina (CPU)** — pontuação, detecção de rostos, seleção, a galeria, busca, álbuns e exportação de metadados funcionam sem GPU. Uma **GPU** (com o perfil `16gb` ou `24gb`) libera os modelos mais robustos: pontuação estética TOPIQ, embeddings SigLIP 2, marcação por VLM, legendas e crítica por IA, e saliência do sujeito. Sem GPU local? Aponte a marcação/as legendas/a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto via `vlm_backend` no `scoring_config.json` — esses recursos passam a funcionar também nos perfis de CPU `legacy`/`8gb`. No visualizador, as ações de edição (classificações, rostos, seleção) exigem a **senha de edição**, e acionar escaneamentos exige a função **superadmin**.
+A maior parte do Facet roda em **qualquer máquina (CPU)** — pontuação, detecção de rostos, seleção, a galeria, busca, álbuns e exportação de metadados funcionam sem GPU. Uma **GPU** (com o perfil `16gb` ou `24gb`) libera os modelos mais robustos: pontuação estética TOPIQ, embeddings SigLIP 2, marcação por VLM, legendas e crítica por IA, e saliência do sujeito. Sem GPU local? Aponte a marcação/as legendas/a crítica por VLM para um servidor **Ollama** ou **compatível com OpenAI** remoto via `vlm_backend` no `scoring_config.json` — esses recursos passam a funcionar também nos perfis de CPU `legacy`/`8gb`. No visualizador, as ações de edição (classificações, rostos, seleção) exigem a **senha de edição**, e acionar escaneamentos exige `viewer.features.show_scan_button: true` e, além disso, a função **superadmin** no modo multiusuário, ou acesso de edição numa instalação de usuário único.
 
 → Requisitos completos por recurso (GPU, perfil de VRAM, pacotes opcionais, autenticação): **[Instalação › Requisitos por recurso](docs/pt/INSTALLATION.md#requisitos-por-recurso)**.
 
@@ -209,11 +209,14 @@ downloads da primeira execução, e
 [solução de problemas de dependências](docs/pt/INSTALLATION.md#solução-de-conflitos-de-dependência).
 Execute `python facet.py --doctor` para diagnosticar problemas de GPU.
 
+Primeira vez? Siga o roteiro **[Primeiros passos](docs/pt/GETTING_STARTED.md)**: varrer, revisar, treinar, descartar, etiquetar e exportar.
+
 ## Documentação
 
 | Documento | Descrição |
 |----------|-------------|
 | [Instalação](docs/INSTALLATION.md) | Requisitos, configuração de GPU, perfis de VRAM, dependências |
+| [Primeiros passos](docs/pt/GETTING_STARTED.md) | Roteiro da primeira execução: da instalação à varredura, revisão, treinamento, descarte, etiquetagem e exportação |
 | [Comandos](docs/COMMANDS.md) | Referência de todos os comandos da CLI |
 | [Configuração](docs/CONFIGURATION.md) | Referência completa do `scoring_config.json` |
 | [Pontuação](docs/SCORING.md) | Categorias, pesos, guia de ajuste |

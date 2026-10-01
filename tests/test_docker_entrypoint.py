@@ -23,6 +23,7 @@ operator's pre-existing ``/config/scoring_config.json`` was re-chmod'd 0600
 locking them out of editing it from the host without root.
 """
 
+import json
 import os
 import stat
 import subprocess
@@ -38,9 +39,24 @@ def _mode_of(path):
     return stat.S_IMODE(os.stat(path).st_mode)
 
 
-def _run_entrypoint(seeded_config, image_config):
-    """Run docker-entrypoint.sh's non-root tail against a temp SEEDED_CONFIG."""
+def _run_entrypoint(
+    seeded_config, image_config, python_bin=None, facet_config="seeded", extra_env=None, cwd=None
+):
+    """Run docker-entrypoint.sh's non-root tail against a temp SEEDED_CONFIG.
+
+    ``facet_config="seeded"`` mirrors docker-compose.yml (FACET_CONFIG names the
+    seed); ``None`` leaves it unset, as a plain ``docker run`` does.
+    """
     env = dict(os.environ)
+    env.pop("FACET_CONFIG", None)
+    env.pop("GENERATED_PASSWORD", None)
+    if python_bin is not None:
+        env["FACET_ENTRYPOINT_PYTHON"] = python_bin
+    if facet_config == "seeded":
+        env["FACET_CONFIG"] = str(seeded_config)
+    elif facet_config is not None:
+        env["FACET_CONFIG"] = facet_config
+    env.update(extra_env or {})
     env["SEEDED_CONFIG"] = str(seeded_config)
     env["IMAGE_CONFIG"] = str(image_config)
     return subprocess.run(
@@ -49,6 +65,7 @@ def _run_entrypoint(seeded_config, image_config):
         capture_output=True,
         text=True,
         timeout=30,
+        cwd=cwd,
     )
 
 
@@ -69,15 +86,114 @@ pytestmark = pytest.mark.skipif(
 class TestSeedConfigNonRoot:
     """seed_config() driven through the real script, SEEDED_CONFIG in tmp_path."""
 
-    def test_fresh_seed_when_image_config_absent_is_empty_and_owner_only(self, tmp_path):
+    def test_fresh_seed_carries_a_generated_edition_password_printed_once(self, tmp_path):
         seeded = tmp_path / "scoring_config.json"
         image = tmp_path / "no_such_image_config.json"  # deliberately absent
 
         result = _run_entrypoint(seeded, image)
 
         assert result.returncode == 0, result.stderr
+        password = json.loads(seeded.read_text())["viewer"]["edition_password"]
+        assert len(password) >= 24
+        assert _mode_of(seeded) == 0o600
+        assert result.stdout.count(password) == 1
+        assert password not in result.stderr
+
+    def test_failed_password_generation_seeds_empty_and_prints_nothing(self, tmp_path):
+        seeded = tmp_path / "scoring_config.json"
+
+        result = _run_entrypoint(
+            seeded, tmp_path / "no_such_image_config.json", python_bin="/nonexistent/python3"
+        )
+
+        assert result.returncode == 0, result.stderr
         assert seeded.read_text() == "{}\n"
         assert _mode_of(seeded) == 0o600
+        assert "edition_password" not in result.stdout
+        assert "no password was set" in result.stderr
+
+    def test_no_facet_config_seeds_empty_and_prints_nothing(self, tmp_path):
+        """A plain `docker run`: the server reads another file, so a password could never work."""
+        seeded = tmp_path / "scoring_config.json"
+
+        result = _run_entrypoint(
+            seeded, tmp_path / "no_such_image_config.json", facet_config=None
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert seeded.read_text() == "{}\n"
+        assert result.stdout == ""
+        assert "password" not in result.stderr
+
+    def test_facet_config_elsewhere_seeds_empty_and_prints_nothing(self, tmp_path):
+        seeded = tmp_path / "scoring_config.json"
+
+        result = _run_entrypoint(
+            seeded,
+            tmp_path / "no_such_image_config.json",
+            facet_config=str(tmp_path / "other.json"),
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert seeded.read_text() == "{}\n"
+        assert result.stdout == ""
+
+    def test_planted_secrets_module_in_cwd_is_not_imported(self, tmp_path):
+        """The generator runs as root in the image with /app (facet-writable) as CWD."""
+        seeded = tmp_path / "scoring_config.json"
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        marker = tmp_path / "pwned"
+        (cwd / "secrets.py").write_text(
+            f"open({str(marker)!r}, 'w').write('x')\n"
+            "def token_urlsafe(n):\n    return 'planted'\n"
+        )
+
+        result = _run_entrypoint(
+            seeded,
+            tmp_path / "no_such_image_config.json",
+            extra_env={"PYTHONPATH": str(cwd)},
+            cwd=cwd,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert not marker.exists()
+        assert json.loads(seeded.read_text())["viewer"]["edition_password"] != "planted"
+
+    def test_inherited_generated_password_is_never_announced(self, tmp_path):
+        seeded = tmp_path / "scoring_config.json"
+
+        result = _run_entrypoint(
+            seeded,
+            tmp_path / "no_such_image_config.json",
+            python_bin="/nonexistent/python3",
+            extra_env={"GENERATED_PASSWORD": "inherited-secret"},
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert "inherited-secret" not in result.stdout + result.stderr
+        assert seeded.read_text() == "{}\n"
+
+    def test_inherited_generated_password_not_announced_on_image_copy(self, tmp_path):
+        image = tmp_path / "image_config.json"
+        image.write_text("{}\n")
+
+        result = _run_entrypoint(
+            tmp_path / "scoring_config.json",
+            image,
+            extra_env={"GENERATED_PASSWORD": "inherited-secret"},
+        )
+
+        assert "inherited-secret" not in result.stdout + result.stderr
+
+    def test_unwritable_seed_prints_no_password(self, tmp_path):
+        seeded = tmp_path / "missing_dir" / "scoring_config.json"
+
+        result = _run_entrypoint(seeded, tmp_path / "no_such_image_config.json")
+
+        assert result.returncode == 0, result.stderr
+        assert not seeded.exists()
+        assert "edition_password" not in result.stdout
 
     def test_preexisting_file_keeps_mode_inode_and_content(self, tmp_path):
         """Regression test for #127: an operator-owned config is left alone."""
@@ -94,6 +210,7 @@ class TestSeedConfigNonRoot:
         assert seeded.stat().st_ino == inode_before
         assert _mode_of(seeded) == mode_before
         assert seeded.read_text() == '{"real": "config"}\n'
+        assert result.stdout == ""
 
     def test_symlinked_seeded_config_is_refused(self, tmp_path):
         target = tmp_path / "target.json"
@@ -109,6 +226,7 @@ class TestSeedConfigNonRoot:
         assert os.readlink(link) == str(target)
         assert _mode_of(target) == 0o640
         assert target.read_text() == '{"real": 1}\n'
+        assert "edition_password" not in result.stdout
 
     def test_image_config_present_is_copied_verbatim(self, tmp_path):
         image = tmp_path / "image_config.json"
@@ -120,3 +238,4 @@ class TestSeedConfigNonRoot:
         assert result.returncode == 0, result.stderr
         assert seeded.read_text() == image.read_text()
         assert _mode_of(seeded) == 0o600
+        assert result.stdout == ""

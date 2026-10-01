@@ -448,16 +448,12 @@ class TestExportSidecarsCli:
 
     def _db(self, tmp_path):
         import sqlite3
-        conn = sqlite3.connect(":memory:")
+
+        from db.schema import init_database
+        path = str(tmp_path / "cli.db")
+        init_database(path)
+        conn = sqlite3.connect(path)
         conn.row_factory = sqlite3.Row
-        conn.executescript(
-            "CREATE TABLE photos (path TEXT PRIMARY KEY, tags TEXT, caption TEXT, "
-            "category TEXT, star_rating INTEGER, is_favorite INTEGER, is_rejected INTEGER, "
-            "image_width INTEGER, image_height INTEGER, aggregate REAL);"
-            "CREATE TABLE persons (id INTEGER PRIMARY KEY, name TEXT);"
-            "CREATE TABLE faces (id INTEGER PRIMARY KEY, photo_path TEXT, person_id INTEGER, "
-            "bbox_x1 INTEGER, bbox_y1 INTEGER, bbox_x2 INTEGER, bbox_y2 INTEGER);"
-        )
         return conn
 
     def test_writes_sidecar_only_by_default(self, tmp_path):
@@ -465,17 +461,35 @@ class TestExportSidecarsCli:
         img.write_bytes(b"x")
         conn = self._db(tmp_path)
         conn.execute(
-            "INSERT INTO photos VALUES (?, 'beach', '', '', 4, 0, 0, 0, 0, NULL)", (str(img),)
+            "INSERT INTO photos (path, filename, tags, star_rating, is_favorite, is_rejected) "
+            "VALUES (?, 'p.jpg', 'beach', 4, 0, 0)", (str(img),)
         )
         stats = xe.export_sidecars(conn)
         assert stats["written"] == 1
         assert stats["embedded"] == 0           # no embed without opt-in
         assert os.path.exists(str(img) + ".xmp")
 
+    def test_manual_tag_reaches_the_sidecar(self, tmp_path):
+        img = tmp_path / "p.jpg"
+        img.write_bytes(b"x")
+        conn = self._db(tmp_path)
+        conn.execute(
+            "INSERT INTO photos (path, filename, tags) VALUES (?, 'p.jpg', 'beach')", (str(img),)
+        )
+        conn.execute(
+            "INSERT INTO photo_manual_tags (photo_path, tag, source) VALUES (?, 'trip', 'user')",
+            (str(img),),
+        )
+        conn.commit()
+        assert xe.export_sidecars(conn)["written"] == 1
+        xml = open(str(img) + ".xmp", encoding="utf-8").read()
+        assert xml.count("<rdf:li>trip</rdf:li>") == 1
+        assert xml.count("<rdf:li>beach</rdf:li>") == 1
+
     def test_missing_file_counted(self, tmp_path):
         conn = self._db(tmp_path)
         conn.execute(
-            "INSERT INTO photos VALUES (?, '', '', '', 0, 0, 0, 0, 0, NULL)",
+            "INSERT INTO photos (path, filename) VALUES (?, 'gone.jpg')",
             (str(tmp_path / "gone.jpg"),),
         )
         stats = xe.export_sidecars(conn)

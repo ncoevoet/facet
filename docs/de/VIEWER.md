@@ -60,7 +60,7 @@ Optionaler Passwortschutz über die Konfiguration:
 }
 ```
 
-Wenn gesetzt, müssen sich Benutzer authentifizieren, bevor sie auf die Galerie zugreifen können. Ein optionales `edition_password` gewährt Zugriff auf die Personenverwaltung und den Vergleichsmodus.
+Wenn gesetzt, müssen sich Benutzer authentifizieren, bevor sie auf die Galerie zugreifen können. Für jede Bearbeitung ist ein `edition_password` erforderlich: Bewertungen, Favoriten und Ablehnungen, Aussortieren, Alben, Personen- und Gesichtsverwaltung, Vergleichsmodus, Gewichts- und Prioritätsänderungen und Exporte. Ohne `edition_password` (Standardwert) ist die Installation **schreibgeschützt**: Jede Bearbeitung wird mit `403` abgelehnt („Set viewer.edition_password to enable editing“). KI-Erzeugung auf Anfrage (Bildbeschreibungen, VLM-Kritiken) braucht es ebenfalls, ist aber eine Einschränkung statt einer Ablehnung: Der Aufruf antwortet mit `200` und liefert nur, was bereits im Cache liegt (`source: "edition_required"` bzw. `vlm_available: false`). Wer *stöbern* darf, entscheidet `viewer.password`: ohne dieses kann jeder die gesamte Bibliothek durchsuchen, mit diesem nur authentifizierte Benutzer. Auf einer solchen Installation zeigt die Galerie außerdem vorhandene Sterne-, Favoriten- und Ablehnungs-Badges nicht mehr an, wie bei einem Viewer ohne Edition auf einer gesperrten Installation. Starten Sie den Viewer nach dem Setzen von `viewer.edition_password` neu: Die Konfiguration wird nicht im laufenden Betrieb neu geladen.
 
 ### Mehrbenutzermodus
 
@@ -189,6 +189,7 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 - Anklickbare Tags zum schnellen Filtern
 - Personen-Avatare für erkannte Gesichter
 - Kategorieabzeichen
+- Rechtsklick (oder Shift+F10) öffnet das [Kontextmenü](#mehrfachauswahl--sammelaktionen)
 
 ### Mehrfachauswahl & Sammelaktionen
 
@@ -207,8 +208,11 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 - **Löschen** — Sendet die ausgewählten Fotos direkt in den Systempapierkorb (siehe [Löschen](#löschen)); gesperrt über dasselbe `viewer.cull.allow_trash`-Flag wie „In Ordner aussortieren“, sodass eine Installation, die eines zeigt, auch das andere zeigt. Deaktiviert, wenn die Auswahl die gesamte gefilterte Ansicht umfasst — ein filterbasiertes Löschen könnte in einer einzigen Anfrage eine unbegrenzte Menge in den Papierkorb schicken, daher verlangt die Schaltfläche stattdessen eine explizite Auswahl.
 - **Herunterladen** — Ausgewählte Fotos herunterladen
 - Auswahl mit Escape oder der Schaltfläche „Löschen" aufheben
+- **Schlagwörter bearbeiten** — Ein [manuelles Tag](#manuelle-tags) zu jedem ausgewählten Foto hinzufügen oder daraus entfernen (siehe [Manuelle Tags](#manuelle-tags))
 
-Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges Foto, um es direkt herunterzuladen.
+Sammelaktionen erfordern den Bearbeitungsmodus. Doppelklicken Sie ein beliebiges Foto, um es zu öffnen.
+
+**Kontextmenü** — Klicken Sie mit der rechten Maustaste auf ein Foto (oder fokussieren Sie es und drücken Sie Shift+F10 bzw. die Menütaste), um am Mauszeiger ein Menü zu öffnen. Bei einem Foto innerhalb einer Auswahl mehrerer Fotos wirkt es auf die gesamte Auswahl, mit den Aktionen der Aktionsleiste unter denselben Bedingungen, außer Umkehren und Alles auswählen, die auf der Leiste bleiben (Löschen entfällt im Geltungsbereich „Alles in der Ansicht auswählen“). Bei jedem anderen Foto wirkt es nur auf dieses Foto und lässt die Auswahl unberührt; zusätzlich bietet es Foto öffnen sowie, nur wenn die jeweiligen Funktions- oder Editionsbedingungen es erlauben, Ähnliche finden, Warum diese Bewertung?, Metadaten in Datei schreiben und Gesicht einer Person zuweisen (Letzteres nur bei Fotos mit nicht zugewiesenen Gesichtern). Das Aussortieren eines einzelnen Fotos nimmt nur dieses Foto aus der Auswahl: eine Pfadauswahl behält den Rest, und eine Auswahl „Alles in der Ansicht“ bleibt eine Auswahl der ganzen Ansicht, wobei dieses Foto zu den Ausnahmen hinzukommt. Auf Geräten mit Touch-Bedienung (`hover: none` und `pointer: coarse`) wird das Menü nicht angeboten; dort bleiben das native Langdruckverhalten des Browsers und das Aktionsblatt erhalten. Bei einer Auswahl enthält das Menü auch den gebündelten Eintrag **Schlagwörter bearbeiten**, der wie der der Leiste an den Bearbeitungsmodus gebunden ist; auf Touch-Geräten ist er außerdem über das Aktionsblatt erreichbar.
 
 ### Top N% behalten
 
@@ -271,6 +275,21 @@ Verwenden Sie den **Ähnlichkeitsschwellen-Regler** (0–90%), um zu steuern, wi
 
 Aktive Filter werden als entfernbare Chips mit Zählern oben in der Galerie angezeigt.
 
+### Manuelle Tags
+
+Manuelle Tags sind Tags, die Sie selbst eingeben und die neben den KI-Tags stehen, die ein Scan oder ein erneutes Tagging erzeugt. Sie liegen in einer eigenen Tabelle (`photo_manual_tags`), nicht in der Spalte `tags` des Fotos, sodass ein erneuter Scan oder ein erneutes Tagging sie nie löscht.
+
+- **Wo sie erscheinen.** Nur in der **Detailansicht** des Fotos, als Chips neben den KI-Tags und optisch von ihnen unterscheidbar (eine Markierung am Chip, nicht nur die Farbe). Fotokarten und der Hover-Tooltip bleiben unverändert und zeigen weiter die KI-Tags.
+- **Wer sie bearbeiten kann.** Das Bearbeiten erfordert eine Bearbeitungssitzung, die ihrerseits ein gesetztes `viewer.edition_password` voraussetzt; wie jeder andere an den Bearbeitungsmodus gebundene Schreibzugriff wird es auf einer offenen Installation (ohne Bearbeitungspasswort) verweigert, dort sind manuelle Tags schreibgeschützt. Betrachter ohne Bearbeitungsrecht sehen sie schreibgeschützt. In der Detailansicht kann ein Benutzer im Bearbeitungsmodus ein Tag hinzufügen und ein manuelles Tag entfernen, auch bei einem Foto, das noch gar keine Tags hat. KI-Tags haben kein Entfernen-Bedienelement.
+- **Sammelbearbeitung.** Wählen Sie Fotos aus und nutzen Sie **Schlagwörter bearbeiten**, um ein Tag für die gesamte Auswahl hinzuzufügen oder zu entfernen: über die Auswahlleiste am Desktop, über das Aktionsblatt auf dem Handy oder über das Kontextmenü bei einem Foto innerhalb einer Auswahl mehrerer Fotos. Eine Auswahl der gesamten Ansicht wird wie bei jeder anderen Sammelaktion akzeptiert. Fotos, die bereits 50 manuelle Tags tragen, werden beim gesammelten Hinzufügen übersprungen, statt den Stapel scheitern zu lassen, und der gemeldete `count` ist die Zahl der tatsächlich geänderten Fotos.
+- **Normalisierung.** Ein Tag wird Unicode-normalisiert (NFC), von Leerraum an den Rändern befreit, Folgen von Leerzeichen werden zu einem einzigen zusammengezogen, und es wird kleingeschrieben. Es darf höchstens 64 Zeichen lang sein, ein Foto trägt höchstens 50 manuelle Tags, und ein leeres Tag, ein Tag mit Komma oder mit Steuerzeichen wird mit `422` abgelehnt. Ein Tag, das einem der aktuellen KI-Tags des Fotos entspricht, bewirkt nichts (es wird nichts gespeichert), auch wenn ein späteres erneutes Tagging dasselbe Tag auf beiden Seiten erzeugen kann; die Galerie zählt ein solches Foto einmal.
+- **Suche und Filter erfassen sie.** Der Tag-Filter der Galerie (einschließlich erforderlicher und ausgeschlossener Tags), die Textsuche der Galerie, die semantische Textsuche (`/api/search`, außer dem reinen Bildunterschrift-Bereich), die Tag-Auswahlliste samt Zählern, die Statistikseite sowie die Exporte von Sidecars, eingebetteten Metadaten und Lightroom-Manifest sehen alle die Vereinigung aus KI- und manuellen Tags. Die Textsuche findet ein manuelles Tag als ganze Wendung, nicht Wort für Wort. Capsules sind die Ausnahme: Sie zählen nur KI-Tags, sodass die Zahl einer Capsule niedriger sein kann als die Fotos, die ihr Klick öffnet (der Tag-Filter der Galerie enthält manuelle Tags dagegen schon). Manuelle Tags beeinflussen nie Bewertungen, Kategorien oder narrative Momente.
+- **Für Freigabelinks verborgen.** Ein Betrachter über einen Freigabelink sieht manuelle Tags nie, weder in einem freigegebenen Foto oder Album noch in dessen Filter-Auswahlliste oder Tag-Filter; ein freigegebenes Smart-Album wendet weiterhin den gespeicherten Filter des Eigentümers an, einschließlich eines manuellen Tags, nach dem der Eigentümer gefiltert hat.
+- **Global, nicht pro Benutzer.** Im Mehrbenutzerbetrieb werden manuelle Tags von allen geteilt und nicht pro Benutzer gespeichert: Jeder Benutzer im Bearbeitungsmodus kann ein Tag entfernen, das ein anderer hinzugefügt hat.
+- **Nicht rückgängig zu machen.** Änderungen an manuellen Tags werden von [Rückgängig](#rückgängig) nicht abgedeckt; ein entferntes Tag fügen Sie von Hand erneut hinzu. Ein entferntes Tag kann auch aus einem Sidecar zurückkehren, siehe [Konfliktregeln](INTEROP.md#konfliktregeln).
+- **Woher sie sonst kommen.** `--import-sidecars` speichert Stichwörter, die es in einem Sidecar findet und die Facet noch nicht kennt (weder ein KI-Tag noch ein Personenname), als manuelle Tags mit der Quelle `xmp`.
+- **An den Dateipfad gebunden.** Eine verschobene oder umbenannte Datei ist ein neuer Fotopfad und verliert ihre manuellen Tags mit dem alten.
+
 ## Panoramen und Belichtungsreihen
 
 Die Bilder eines Panoramas wurden zum Zusammenfügen aufgenommen, die einer Belichtungsreihe zum Verschmelzen — beides sind keine konkurrierenden Aufnahmen. Die Serienerkennung sieht den Unterschied nicht: Die Bilder treffen Sekunden auseinander von einer Kamera bei einer Brennweite ein. Ohne dies gruppiert sie sie und blendet alle bis auf eines aus, dessen Auswahlkriterium für einen Schwenk nichts bedeutet.
@@ -315,14 +334,14 @@ Zugriff über die Header-Schaltfläche oder `/persons`:
 
 ## Scan auslösen
 
-Wenn `viewer.features.show_scan_button` auf `true` steht und der Aufrufer Scan-Zugriff hat — Rolle `superadmin` im Mehrbenutzermodus, oder eine edition-authentifizierte Sitzung auf einer gesperrten Einzelbenutzer-Installation (`viewer.edition_password` gesetzt) im Einzelbenutzermodus — erscheint im leeren Galerie-Zustand eine Schaltfläche **Fotos scannen, um loszulegen**. Sie wird in `scoring_config.json` auf **`false`** ausgeliefert (Opt-in). Bei einer offenen Einzelbenutzer-Installation (`viewer.edition_password` leer, der ausgelieferte Standardwert) liefern alle vier Scan-Routen für jeden Aufrufer 403, auch für einen mit gültigem edition-generiertem JWT, und die Schaltfläche wird nie gerendert — eine offene Installation behandelt anonyme Aufrufer bereits als edition-authentifiziert, und das Starten eines Scan-Unterprozesses darf nicht anonym erreichbar sein. Die Schaltfläche öffnet den Scan-Starter-Dialog (`ScanLauncherComponent`).
+Der Scan wird angeboten, wenn **beide** Bedingungen erfüllt sind: `viewer.features.show_scan_button` steht auf `true` (in `scoring_config.json` wird er auf **`false`** ausgeliefert, Opt-in) **und** der Aufrufer hat Scan-Zugriff — Rolle `superadmin` im Mehrbenutzermodus, oder eine edition-authentifizierte Sitzung auf einer gesperrten Einzelbenutzer-Installation (ein nicht leeres `viewer.edition_password`) im Einzelbenutzermodus. Die Galerie bietet ihn dann an zwei Stellen an, die beide den Scan-Starter-Dialog (`ScanLauncherComponent`) öffnen: eine Schaltfläche **Fotos scannen, um loszulegen** im leeren Galerie-Zustand und — solange die Galerie Fotos anzeigt — eine Symbolschaltfläche **Neue Fotos scannen** oben rechts über dem Fotoraster, bei jeder Bildschirmbreite. Bei einer offenen Einzelbenutzer-Installation (`viewer.edition_password` leer, der ausgelieferte Standardwert) liefern alle vier Scan-Routen für jeden Aufrufer 403, auch für einen mit gültigem edition-generiertem JWT, und keiner der beiden Einstiegspunkte wird je gerendert — das Starten eines Scan-Unterprozesses darf nicht anonym erreichbar sein.
 
 - Ein Verzeichnis aus der Liste des Starters auswählen und den Scan direkt in der App starten
 - Der Starter überträgt den Fortschritt live (SSE mit automatischem Polling-Rückgriff) in einen `mat-progress-bar`, der vom strukturierten `progress`-Feld gesteuert wird, plus einen Auszug der Ausgabezeilen, und aktualisiert die Galerie, sobald der Scan abgeschlossen ist
 - Der Scan läuft als Hintergrund-Unterprozess (`facet.py`); nur ein Scan gleichzeitig (globale Sperre)
 - Die Verzeichnisauswahl stammt aus `get_all_scan_directories()`, das die `directories` jedes Benutzers, freigegebene Verzeichnisse, `path_mapping`-Ziele und die eigenständige `viewer.scan_directories`-Liste vereint — befüllen Sie letztere (z. B. `/data/photos`), damit Einzelbenutzer-/Docker-Installationen ein auswählbares Ziel haben
 
-Dies ist nützlich, wenn die Galerie auf derselben Maschine läuft, die GPU-Zugriff für die Bewertung hat.
+Für den Scan ist keine GPU nötig — siehe [Welches Profil passt zu meiner Hardware?](INSTALLATION.md#welches-profil-passt-zu-meiner-hardware) und [Keine Grafikkarte](INSTALLATION.md#keine-grafikkarte) für den reinen CPU-Pfad (`legacy`). Der Scan läuft auf der Maschine, die die Galerie hostet, und ist daher am schnellsten, wenn diese Maschine GPU-Zugriff für die Bewertung hat.
 
 Ein verwandter, aber eigenständiger Auslöser, `POST /api/scan/recompute`, verwendet dieselbe Job-Sperre, um vorhandene Fotos direkt neu zu bewerten (keine neuen Dateien) – siehe [Kategoriepriorität & Bewertungskontexte](#kategoriepriorität--bewertungskontexte). Anders als die modusabhängige Zugriffsregel dieser Scan-Schaltfläche ist er ausschließlich Edition-geschützt, ohne Unterscheidung zwischen Superadmin und gesperrter Installation.
 
@@ -399,7 +418,7 @@ Die Aufschlüsselung zeigt außerdem die erklärbaren **Form- und Farbharmonie**
 
 ### VLM-Kritik `[GPU]` `[16gb/24gb]`
 
-Verwendet das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbewusste Kritik. Erfordert das 16gb- oder 24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`.
+Verwendet das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbewusste Kritik. Erfordert das 16gb- oder 24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`. Das Erzeugen einer Kritik erfordert zusätzlich eine Edition-Sitzung; ohne sie wird nur eine bereits zwischengespeicherte Kritik geliefert und `vlm_available` ist `false`.
 
 Der Prompt ist eine konfigurierbare Leiter (`critique.vlm`), die die vollständige Regelaufschlüsselung, Strafen und EXIF einfügt, und die Antwort wird als **Observation / Assessment / Suggestions** gerendert. Das Ergebnis wird pro Foto zwischengespeichert (`photos.vlm_critique`) und bei Bedarf übersetzt, mit einer **Regenerieren**-Schaltfläche zum Neuberechnen. Es läuft gegen das gespeicherte Thumbnail, sodass RAW-Dateien korrekt kritisiert werden, statt still zu scheitern.
 
@@ -411,7 +430,7 @@ Gesteuert über `viewer.features.show_critique` (Standard: `true`) und `viewer.f
 
 ## KI-Bildbeschreibung `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Erhalten Sie eine KI-generierte Bildbeschreibung in natürlicher Sprache für jedes Foto. Beschreibungen werden bei der ersten Anfrage generiert und in der Datenbankspalte `caption` zwischengespeichert. Beschreibungen können im Bearbeitungsmodus über die Fotodetailseite manuell bearbeitet werden. (Die *Übersetzung* von Beschreibungen läuft auf der CPU — siehe unten.)
+Erhalten Sie eine KI-generierte Bildbeschreibung in natürlicher Sprache für jedes Foto. Beschreibungen werden bei der ersten Anfrage von einer Edition-Sitzung generiert (eine offene, schreibgeschützte Installation erzeugt nie eine) und in der Datenbankspalte `caption` zwischengespeichert. Beschreibungen können im Bearbeitungsmodus über die Fotodetailseite manuell bearbeitet werden. (Die *Übersetzung* von Beschreibungen läuft auf der CPU — siehe unten.)
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
@@ -773,6 +792,7 @@ Alle Statistiken sind im Mehrbenutzermodus benutzerbewusst — jeder Benutzer si
 | `Escape` | Auswahl aufheben / Filter-Schublade schließen |
 | `Shift+Click` | Bereichsauswahl von Fotos zwischen zuletzt ausgewähltem und angeklicktem |
 | `Double-click` | Foto öffnen |
+| `Shift+F10` / `Menu` | Kontextmenü der fokussierten Fotokarte öffnen (der Rechtsklick tut dasselbe) |
 | `?` | Die Tastenkürzel-Referenz anzeigen (funktioniert auf jeder Seite) |
 
 ## Rückgängig
@@ -781,7 +801,7 @@ Sammeloperationen für Favorit/Ablehnen/Bewertung und Auswahl-Bestätigungen zei
 eine Snackbar mit einer **Rückgängig**-Aktion für ~7 Sekunden. Sammel-Flag-Operationen
 werden sofort übernommen und über inverse API-Aufrufe rückgängig gemacht (begrenzt auf
 500 Fotos); Auswahl-Bestätigungen werden verzögert — die Gruppe verschwindet sofort,
-aber der API-Aufruf wird erst ausgelöst, wenn das Rückgängig-Zeitfenster abgelaufen ist.
+aber der API-Aufruf wird erst ausgelöst, wenn das Rückgängig-Zeitfenster abgelaufen ist. Änderungen an [manuellen Tags](#manuelle-tags) lassen sich nicht rückgängig machen.
 
 ## Progressive Web App
 
@@ -1068,12 +1088,14 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 | `GET /api/photos/count` | `{ total }` — wie viele Fotos den aktuellen Galerie-Filtern entsprechen |
 | `GET /api/photos/paths` | `{ total, paths }` — jeder passende Pfad, ungeordnet; wird bei Bedarf von Aktionen genutzt, die Dateinamen brauchen (Herunterladen, Kopieren), nie von „Alle auswählen“. Auf 10000 begrenzt: eine Ansicht mit mehr wird mit einem `412` abgelehnt, der die Anzahl und die Obergrenze nennt, statt abgeschnitten zu werden — eine unvollständige Pfadliste wäre eine Auswahl, die der Benutzer für vollständig hält — und es gibt keinen Rückfallpfad: die Aktion wird abgebrochen und meldet „zu viele Fotos“, sodass der Benutzer die Filter eingrenzen und es erneut versuchen kann. Nur die Aktionen, die eine buchstäbliche Pfadliste brauchen, gehen hier durch; die Auswahl der gesamten Ansicht ist selbst reine Zählung (`GET /api/photos/count`) und brauchte nie eine solche Liste, sodass die darauf aufbauenden filterbasierten Aktionen (Stapelschreibvorgänge für Bewertung/Ablehnung, Aussortieren, Sidecar-Export) von dieser Obergrenze nicht betroffen sind und ihre eigene haben |
 | `GET /api/photo` | Details zu einem einzelnen Foto |
+| `PUT /api/photo/manual_tags` | Ein [manuelles Tag](#manuelle-tags) zu einem Foto hinzufügen (an den Bearbeitungsmodus gebunden). Body: `{path, tag}`. `404` bei unbekanntem oder unsichtbarem Pfad, `422` bei ungültigem Tag oder einem Foto, das schon 50 Tags hat; ein Tag, das einem KI-Tag des Fotos entspricht, bewirkt nichts und wird mit `200` und `skipped_existing: true` beantwortet |
+| `DELETE /api/photo/manual_tags` | Ein manuelles Tag von einem Foto entfernen (an den Bearbeitungsmodus gebunden). Body: `{path, tag}` |
 | `GET /api/photo/set?path=` | Die Belichtungsreihen-/Panorama-/HDR-Panorama-/Serienbild-/Duplikat-Menge, zu der ein Foto gehört (Sequenz hat Vorrang vor Serienbild, Serienbild vor Duplikat), referenziert über `path` — niemals eine Gruppen-ID, welche die Belichtungsreihen- und Panorama-Durchläufe bei jedem Lauf jeweils neu ab 1 durchnummerieren |
 | `GET /api/photo/histogram?path=&bins=` | Zeichenfertige Luminanz- + R/G/B-Bins (`bins` ∈ 32/64/128/256, Standard 64), beim Scan am Bild in voller Auflösung gemessen. Jeder Kanal wird mit einem einzigen globalen Maximum skaliert, nie mit seinem eigenen. `r`/`g`/`b` sind `null` für eine Zeile, die vor dem Kanalformat gespeichert wurde; 404, wenn die Zeile überhaupt kein Histogramm hat — das Signal für das Widget, auf das Abtasten des Vorschaubilds zurückzufallen |
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Fotoanzahlen pro Typ für die Seitenleisten-Chips. Dieselben fünf Umschalter wie die Galerie; ein ausgelassener fällt auf `viewer.defaults` zurück statt auf „aus" — senden Sie `hide_bursts=0` usw. explizit, um alles zu zählen |
 | `GET /api/similar_photos/{path}` | Ähnliche Fotos (Modi: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantische Text-zu-Bild-Suche (`scope=text` = nur OCR-/Beschreibungstext). `threshold` ist optional: Wird er ausgelassen, löst er sich zum `models.*.search_threshold_percent` des aktiven Encoders auf (dem Client als `search_threshold_default` von `/api/config` bereitgestellt); ein expliziter Wert — einschließlich `0.0` — überschreibt immer den aufgelösten Standardwert. Wird nur ausgewertet, wenn die Suche tatsächlich eine Embedding-Suche durchführt (`scope != 'text'` überspringt die Auflösung vollständig) |
-| `GET /api/critique?path=&mode=&refresh=` | KI-Kritik (regelbasiert oder VLM); `refresh=true` regeneriert die zwischengespeicherte VLM-Kritik |
+| `GET /api/critique?path=&mode=&refresh=` | KI-Kritik (regelbasiert oder VLM); `refresh=true` regeneriert die zwischengespeicherte VLM-Kritik (nur Edition-Sitzung; sonst `vlm_available: false`) |
 | `GET /api/ranker/status` | Status des persönlichen Rankers für die Sortierung „Mein Geschmack" (gelernte Abdeckung %, Held-out-Genauigkeit) |
 | `GET /api/config` | Galerie-Konfiguration |
 
@@ -1117,6 +1139,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 | `POST /api/photos/batch_favorite` | Mehrere Fotos als Favorit markieren (hebt Ablehnung auf). Der Body ist genau eines von `{photo_paths}` (max. 1000) oder `{filters}` — `filters` übernimmt dieselben Query-Parameter wie `GET /api/photos`, als Strings, ohne Obergrenze. `exclude` (optional, max. 1000) darf beide begleiten und schränkt das jeweils gesendete Ziel ein — von `photo_paths` abgezogen oder aus dem `filters`-Bereich herausgebunden —, kann also nur einschränken, nie erweitern. Wird kein Ziel oder beides angegeben, kommt ein 422, und eine `filters`-Menge, die ein Album benennt, wird genauso zugriffsgeprüft wie das GET dieses Albums selbst — `404` für ein nicht existierendes Album, `403` für das eines anderen Benutzers auf einer Installation mit Zugriffskontrolle. Antwort `{success, count}`, wobei `count` die Anzahl der tatsächlich geschriebenen Zeilen ist |
 | `POST /api/photos/batch_reject` | Mehrere Fotos als abgelehnt markieren (hebt Favorit und Bewertung auf). Gleicher Body-Vertrag wie `batch_favorite` oben |
 | `POST /api/photos/batch_rating` | Sternebewertung für mehrere Fotos setzen. Gleicher Body-Vertrag wie `batch_favorite`, zusätzlich ein erforderliches `rating` (0–5) |
+| `POST /api/photos/batch_manual_tags` | Ein [manuelles Tag](#manuelle-tags) bei mehreren Fotos hinzufügen oder entfernen (an den Bearbeitungsmodus gebunden). Gleicher Body-Vertrag wie `batch_favorite`, dazu ein Pflichtfeld `tag` und eine `action` mit dem Wert `add` oder `delete`. Antwort `{success, count}`, wobei `count` die Zahl der tatsächlich geschriebenen Zeilen ist: Fotos an der Obergrenze von 50 Tags und Fotos, deren KI-Tags das Tag schon enthalten, werden bei `add` übersprungen |
 
 ### Personen
 
@@ -1166,7 +1189,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 |----------|-------------|
 | `GET /api/memories?date=` | Fotos, die an diesem Datum in früheren Jahren aufgenommen wurden |
 | `GET /api/memories/check` | Prüfen, ob für ein Datum Erinnerungen existieren |
-| `GET /api/caption?path=` | KI-Bildbeschreibung abrufen oder generieren |
+| `GET /api/caption?path=` | KI-Bildbeschreibung abrufen; eine Edition-Sitzung erzeugt sie bei der ersten Anfrage (sonst `source: "edition_required"`) |
 | `PUT /api/caption` | Bildbeschreibung aktualisieren (Bearbeitungsmodus) |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Paginierte Zeitleisten-Fotos. Die fünf `hide_*`-Umschalter sind die der Galerie; ein ausgelassener fällt auf `viewer.defaults` zurück statt auf „aus" |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Verfügbare Daten für die Navigation (gleicher `hide_*`-Rückfall) |
@@ -1207,18 +1230,18 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Nächstes Fotopaar zum Vergleich abrufen |
+| `GET /api/comparison/next_pair` | `[Edition]` Nächstes Fotopaar zum Vergleich abrufen |
 | `POST /api/comparison/submit` | Vergleichsergebnis übermitteln |
 | `POST /api/comparison/reset` | Vergleichsdaten zurücksetzen |
-| `GET /api/comparison/stats` | Statistiken der Vergleichssitzung |
-| `GET /api/comparison/history` | Vergangene Vergleiche auflisten |
+| `GET /api/comparison/stats` | `[Edition]` Statistiken der Vergleichssitzung |
+| `GET /api/comparison/history` | `[Edition]` Vergangene Vergleiche auflisten |
 | `POST /api/comparison/edit` | Ein Vergleichsergebnis bearbeiten |
 | `POST /api/comparison/delete` | Einen Vergleich löschen |
-| `GET /api/comparison/coverage` | Kategorieabdeckung der Vergleiche |
-| `GET /api/comparison/confidence` | Konfidenzmetriken für gelernte Wertungen |
+| `GET /api/comparison/coverage` | `[Edition]` Kategorieabdeckung der Vergleiche |
+| `GET /api/comparison/confidence` | `[Edition]` Konfidenzmetriken für gelernte Wertungen |
 | `GET /api/comparison/photo_metrics` | Rohe Metriken für Fotos |
-| `GET /api/comparison/category_weights` | Kategoriegewichte/-filter |
-| `GET /api/comparison/learned_weights` | Vorgeschlagene Gewichte aus Vergleichen |
+| `GET /api/comparison/category_weights` | `[Edition]` Kategoriegewichte/-filter |
+| `GET /api/comparison/learned_weights` | `[Edition]` Vorgeschlagene Gewichte aus Vergleichen |
 | `POST /api/comparison/preview_score` | Vorschau mit benutzerdefinierten Gewichten |
 | `POST /api/comparison/suggest_filters` | Filterkonflikte analysieren |
 | `POST /api/comparison/override_category` | `[Edition]` Dauerhafte Kategorieüberschreibung pro Foto setzen (validiert gegen die konfigurierten Kategorienamen; übersteht die nächste Neuberechnung) |
@@ -1284,7 +1307,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 | Endpunkt | Beschreibung |
 |----------|-------------|
 | `POST /api/config/update_weights` | Bewertungsgewichte aktualisieren |
-| `GET /api/config/weight_snapshots` | Gespeicherte Gewichts-Snapshots auflisten |
+| `GET /api/config/weight_snapshots` | `[Edition]` Gespeicherte Gewichts-Snapshots auflisten |
 | `POST /api/config/save_snapshot` | Aktuelle Gewichte als Snapshot speichern |
 | `POST /api/config/restore_weights` | Gewichte aus einem Snapshot wiederherstellen |
 | `GET /api/config/category_priorities` | `[Edition]` Kategorien in aktueller Prioritäts- (Auswertungs-)Reihenfolge auflisten |
@@ -1338,8 +1361,8 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `GET /api/plugins` | Konfigurierte Plugins auflisten |
-| `POST /api/plugins/test-webhook` | Ein Webhook-Plugin testen |
+| `GET /api/plugins` | `[Edition]` Konfigurierte Plugins auflisten |
+| `POST /api/plugins/test-webhook` | `[Edition]` Ein Webhook-Plugin testen |
 
 ### Immich
 
@@ -1380,7 +1403,7 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 | Benutzer kann keine Fotos sehen | `directories` in seiner Benutzerkonfiguration und `shared_directories` prüfen |
 | Scan-Schaltfläche fehlt | Erfordert `viewer.features.show_scan_button: true` plus Scan-Zugriff: Rolle `superadmin` (Mehrbenutzer), oder eine edition-authentifizierte Sitzung auf einer gesperrten Einzelbenutzer-Installation (`viewer.edition_password` gesetzt) — eine offene Einzelbenutzer-Installation zeigt sie nie |
 | Suche liefert keine Ergebnisse | Sicherstellen, dass Fotos `clip_embedding`-Daten haben (zuerst Bewertung ausführen) |
-| VLM-Kritik nicht verfügbar | Erfordert das 16gb/24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true` |
+| VLM-Kritik nicht verfügbar | Erfordert das 16gb/24gb-VRAM-Profil und `viewer.features.show_vlm_critique: true`, plus eine Edition-Sitzung zum Erzeugen (ohne sie wird nur eine zwischengespeicherte Kritik geliefert) |
 | Karte zeigt keine Fotos | `--extract-gps` ausführen, um GPS-Spalten zu befüllen; sicherstellen, dass Fotos EXIF-GPS-Daten haben |
 | Bildbeschreibungen werden nicht generiert | Erfordert das 16gb/24gb-VRAM-Profil für VLM-Bildbeschreibungen |
 | Zeitleiste leer | Sicherstellen, dass Fotos `date_taken`-Werte haben |

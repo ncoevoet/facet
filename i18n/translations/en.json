@@ -946,7 +946,8 @@
     "unlock_button": "Unlock",
     "lock_title": "Edition mode active - click to lock",
     "password_placeholder": "Edition password",
-    "invalid_password": "Invalid password"
+    "invalid_password": "Invalid password",
+    "read_only_hint": "Read-only: set viewer.edition_password in scoring_config.json to enable rating, culling and editing, then restart the viewer."
   },
   "nav": {
     "gallery": "Gallery",
@@ -1062,6 +1063,7 @@
     },
     "reset_filters": "Reset Filters",
     "scroll_to_top": "Scroll to top",
+    "scan_action": "Scan for new photos",
     "photo_grid": "Photo grid",
     "active_filters": "{count} active filters",
     "unknown_person": "Unknown",
@@ -1069,6 +1071,7 @@
       "count": "{count} selected",
       "clear": "Clear",
       "copy_filenames": "Copy filenames",
+      "copy_filename": "Copy filename",
       "download": "Download",
       "copied": "Paths copied to clipboard",
       "favorite": "Favorite",
@@ -1083,6 +1086,7 @@
       "compare": "Compare",
       "actions": "Actions",
       "mark_sequence": "Mark as a set",
+      "edit_tags": "Edit tags…",
       "mark_panorama": "Mark as one panorama",
       "mark_hdr_panorama": "Mark as one HDR panorama",
       "marked_panorama": "{count} photos marked as one panorama",
@@ -2315,6 +2319,18 @@
       "error": "Delete failed"
     }
   },
+  "manual_tags": {
+    "title": "Edit tags",
+    "tag_label": "Tag",
+    "hint": "Manual tags stay with the photo through rescans and are written as keywords on export.",
+    "add": "Add tag",
+    "add_action": "Add",
+    "remove_action": "Remove",
+    "remove_tag": "Remove tag {tag}",
+    "manual": "Manual tag",
+    "error": "Could not update the tag. Check it and try again.",
+    "already_present": "This tag is already on the photo."
+  },
   "photo": {
     "category_override": {
       "menu_tooltip": "Scoring category",
@@ -2401,6 +2417,7 @@
     "toggle_select": "Select / deselect",
     "select_all": "Select all loaded",
     "clear_selection": "Clear selection",
+    "context_menu": "Open the context menu",
     "show_help": "Show this help",
     "close": "Close",
     "section_gallery": "Gallery",

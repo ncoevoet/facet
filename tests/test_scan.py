@@ -266,11 +266,10 @@ class TestStartScan:
         assert resp.status_code == 200
 
     def test_start_scan_single_user_open_install_refused_even_when_edition_authenticated(self):
-        """The open-install trap this fix exists to close: on a single-user
-        install with no edition_password, CurrentUser.is_edition auto-grants
-        edition access to every caller (the empty-password shortcut) -- but
-        starting a scan spawns an OS subprocess, so require_scan_access must
-        refuse anyway rather than let the open-install shortcut through."""
+        """Defence in depth: an open install (no edition_password) grants no
+        edition rights, but were a caller ever to present an edition claim
+        anyway, starting a scan spawns an OS subprocess, so require_scan_access
+        must refuse on the open install regardless."""
         viewer_cfg = _single_user_viewer_config(edition_password="")
         with _single_user_mode(viewer_cfg):
             app, client, _ = _make_single_user_app(edition_authenticated=True)

@@ -9,6 +9,7 @@ Facet 是一个多维度的照片分析引擎：它为本地照片库评分、�
 | 文档 | 说明 |
 |----------|-------------|
 | [安装](INSTALLATION.md) | 按硬件划分的安装步骤，使用或不使用 Docker；依赖项 |
+| [快速上手](GETTING_STARTED.md) | 首次运行指南：从安装到扫描、审阅、训练、淘汰、打标签和导出 |
 | [命令](COMMANDS.md) | 全部 CLI 命令参考 |
 | [配置](CONFIGURATION.md) | 完整的 `scoring_config.json` 参考 |
 | [评分](SCORING.md) | 类别、权重与调优指南 |

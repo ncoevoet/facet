@@ -6,10 +6,10 @@ export const authGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);
   const router = inject(Router);
 
-  // If we don't have status yet, check with server
+  // If we don't have status yet, load it (shared with concurrent guards)
   if (!auth.status()) {
     try {
-      await auth.checkStatus();
+      await auth.loadStatus();
     } catch {
       router.navigate(['/login']);
       return false;

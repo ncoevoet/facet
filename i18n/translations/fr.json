@@ -946,7 +946,8 @@
     "unlock_button": "Déverrouiller",
     "lock_title": "Mode édition actif - cliquer pour verrouiller",
     "password_placeholder": "Mot de passe d'édition",
-    "invalid_password": "Mot de passe invalide"
+    "invalid_password": "Mot de passe invalide",
+    "read_only_hint": "Lecture seule : définissez viewer.edition_password dans scoring_config.json pour activer la notation, le tri et l'édition, puis redémarrez la visionneuse."
   },
   "nav": {
     "gallery": "Galerie",
@@ -1062,6 +1063,7 @@
     },
     "reset_filters": "Réinitialiser",
     "scroll_to_top": "Remonter en haut",
+    "scan_action": "Scanner de nouvelles photos",
     "photo_grid": "Grille de photos",
     "active_filters": "{count} filtres actifs",
     "unknown_person": "Inconnu",
@@ -1069,6 +1071,7 @@
       "count": "{count} sélectionné(s)",
       "clear": "Effacer",
       "copy_filenames": "Copier les noms",
+      "copy_filename": "Copier le nom du fichier",
       "download": "Télécharger",
       "copied": "Chemins copies dans le presse-papiers",
       "favorite": "Favori",
@@ -1083,6 +1086,7 @@
       "compare": "Comparer",
       "actions": "Actions",
       "mark_sequence": "Marquer comme série",
+      "edit_tags": "Modifier les mots-clés…",
       "mark_panorama": "Marquer comme un panorama",
       "mark_hdr_panorama": "Marquer comme un panorama HDR",
       "marked_panorama": "{count} photos marquées comme un panorama",
@@ -2315,6 +2319,18 @@
       "error": "Échec de la suppression"
     }
   },
+  "manual_tags": {
+    "title": "Modifier les mots-clés",
+    "tag_label": "Mot-clé",
+    "hint": "Les mots-clés manuels restent attachés à la photo après un nouveau scan et sont écrits comme mots-clés à l’export.",
+    "add": "Ajouter un mot-clé",
+    "add_action": "Ajouter",
+    "remove_action": "Retirer",
+    "remove_tag": "Retirer le mot-clé {tag}",
+    "manual": "Mot-clé manuel",
+    "error": "Impossible de modifier le mot-clé. Vérifiez-le et réessayez.",
+    "already_present": "Ce tag est déjà sur la photo."
+  },
   "photo": {
     "category_override": {
       "menu_tooltip": "Catégorie de notation",
@@ -2401,6 +2417,7 @@
     "toggle_select": "Sélectionner / désélectionner",
     "select_all": "Tout sélectionner (chargé)",
     "clear_selection": "Effacer la sélection",
+    "context_menu": "Ouvrir le menu contextuel",
     "show_help": "Afficher cette aide",
     "close": "Fermer",
     "section_gallery": "Galerie",

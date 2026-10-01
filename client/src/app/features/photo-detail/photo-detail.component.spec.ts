@@ -24,7 +24,7 @@ let PhotoDetailComponent: typeof import('./photo-detail.component').PhotoDetailC
 describe('PhotoDetailComponent', () => {
    
   let component: any;
-  let mockApi: { get: Mock; post: Mock; imageUrl: Mock; downloadUrl: Mock; getRaw: Mock };
+  let mockApi: { get: Mock; post: Mock; put: Mock; delete: Mock; imageUrl: Mock; downloadUrl: Mock; getRaw: Mock };
   let mockRouter: { navigate: Mock };
   let mockLocation: { back: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } } };
@@ -46,6 +46,7 @@ describe('PhotoDetailComponent', () => {
     category: 'portrait',
     tags: 'nature,landscape',
     tags_list: ['nature', 'landscape'],
+    manual_tags: [],
     date_taken: '2025-01-15',
     camera_model: 'Canon R5',
     lens_model: 'RF 50mm',
@@ -90,6 +91,8 @@ describe('PhotoDetailComponent', () => {
     mockApi = {
       get: vi.fn(() => of(samplePhoto)),
       post: vi.fn(() => of({})),
+      put: vi.fn(() => of({})),
+      delete: vi.fn(() => of({})),
       imageUrl: vi.fn((path: string) => `/image?path=${encodeURIComponent(path)}`),
       downloadUrl: vi.fn((path: string, type = 'original', profile?: string) => `/api/download?path=${encodeURIComponent(path)}&type=${type}${profile ? '&profile=' + profile : ''}`),
       getRaw: vi.fn(() => of(new Blob(['test'], { type: 'image/jpeg' }))),
@@ -666,6 +669,212 @@ describe('PhotoDetailComponent', () => {
       await component.setRating(edited.path, 5);
 
       expect(stored().star_rating).toBe(3);
+    });
+  });
+
+  describe('manual tags', () => {
+    const base = { ...samplePhoto, path: '/photos/a.jpg', filename: 'a.jpg', manual_tags: ['trip'] };
+    const stored = () => component.store.photos().find((p: { path: string }) => p.path === base.path);
+
+    function seed() {
+      createComponent();
+      component.store.photos.set([{ ...base }]);
+      component.photo.set({ ...base });
+    }
+
+    it('fetchPhoto defaults manual_tags to [] when the payload omits it', async () => {
+      mockApi.get.mockReturnValue(of({ ...samplePhoto, manual_tags: undefined }));
+      createComponent();
+
+      const photo = await component.fetchPhoto('/photos/test.jpg');
+
+      expect(photo.manual_tags).toEqual([]);
+    });
+
+    it('addManualTag PUTs the tag and writes the sorted result to the signal and the store', async () => {
+      mockApi.put.mockReturnValue(of({ success: true, tag: 'alpha', skipped_existing: false }));
+      seed();
+
+      await component.addManualTag(base, 'Alpha');
+
+      expect(mockApi.put).toHaveBeenCalledWith('/photo/manual_tags', { path: base.path, tag: 'Alpha' });
+      expect(component.photo().manual_tags).toEqual(['alpha', 'trip']);
+      expect(stored().manual_tags).toEqual(['alpha', 'trip']);
+    });
+
+    it('addManualTag adds no chip when the server reports the tag already present as a manual tag', async () => {
+      mockApi.put.mockReturnValue(of({ success: true, tag: 'trip', skipped_existing: true }));
+      seed();
+      const open = vi.spyOn(component.snackBar, 'open');
+
+      await component.addManualTag(base, 'trip');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+      expect(open).toHaveBeenCalledWith('manual_tags.already_present', '', { duration: 3000 });
+    });
+
+    it('addManualTag adds no phantom manual chip for a tag the photo already has as an AI tag', async () => {
+      mockApi.put.mockReturnValue(of({ success: true, tag: 'sunset', skipped_existing: true }));
+      seed();
+      component.photo.set({ ...base, tags_list: ['sunset'] });
+      const open = vi.spyOn(component.snackBar, 'open');
+
+      await component.addManualTag(component.photo(), 'sunset');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+      expect(stored().manual_tags).toEqual(['trip']);
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    it('addManualTag shows the action-failed snackbar when the server refuses', async () => {
+      mockApi.put.mockReturnValue(throwError(() => new Error('422')));
+      seed();
+      const open = vi.spyOn(component.snackBar, 'open');
+
+      await component.addManualTag(base, 'bad');
+
+      expect(open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+      expect(component.newTag()).toBe('');
+    });
+
+    it('removeManualTag shows the action-failed snackbar when the server refuses', async () => {
+      mockApi.delete.mockReturnValue(throwError(() => new Error('boom')));
+      seed();
+      const open = vi.spyOn(component.snackBar, 'open');
+
+      await component.removeManualTag(base, 'trip');
+
+      expect(open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+    });
+
+    it('two overlapping removes both land: the second applies to the current state, not a stale capture', async () => {
+      const a = new Subject<unknown>();
+      const b = new Subject<unknown>();
+      mockApi.delete.mockReturnValueOnce(a).mockReturnValueOnce(b);
+      createComponent();
+      const two = { ...base, manual_tags: ['a', 'b'] };
+      component.store.photos.set([{ ...two }]);
+      component.photo.set({ ...two });
+
+      const first = component.removeManualTag(two, 'a');
+      const second = component.removeManualTag(two, 'b');
+      a.next({}); a.complete();
+      await first;
+      b.next({}); b.complete();
+      await second;
+
+      expect(component.photo().manual_tags).toEqual([]);
+      expect(stored().manual_tags).toEqual([]);
+    });
+
+    it('two overlapping adds both land', async () => {
+      const a = new Subject<unknown>();
+      const b = new Subject<unknown>();
+      mockApi.put.mockReturnValueOnce(a).mockReturnValueOnce(b);
+      seed();
+
+      const first = component.addManualTag(base, 'x');
+      const second = component.addManualTag(base, 'y');
+      a.next({ success: true, tag: 'x', skipped_existing: false }); a.complete();
+      await first;
+      b.next({ success: true, tag: 'y', skipped_existing: false }); b.complete();
+      await second;
+
+      expect(component.photo().manual_tags).toEqual(['trip', 'x', 'y']);
+    });
+
+    it('addManualTag ignores a blank tag without calling the server', async () => {
+      seed();
+
+      await component.addManualTag(base, '   ');
+
+      expect(mockApi.put).not.toHaveBeenCalled();
+    });
+
+    it('addManualTag leaves state untouched when the server refuses', async () => {
+      mockApi.put.mockReturnValue(throwError(() => new Error('422')));
+      seed();
+
+      await component.addManualTag(base, 'bad');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+      expect(stored().manual_tags).toEqual(['trip']);
+    });
+
+    it('removeManualTag DELETEs with a body and drops the tag from signal and store', async () => {
+      mockApi.delete.mockReturnValue(of({ success: true, tag: 'trip', removed: true }));
+      seed();
+
+      await component.removeManualTag(base, 'trip');
+
+      expect(mockApi.delete).toHaveBeenCalledWith('/photo/manual_tags', { path: base.path, tag: 'trip' });
+      expect(component.photo().manual_tags).toEqual([]);
+      expect(stored().manual_tags).toEqual([]);
+    });
+
+    it('removeManualTag leaves state untouched when the server refuses', async () => {
+      mockApi.delete.mockReturnValue(throwError(() => new Error('boom')));
+      seed();
+
+      await component.removeManualTag(base, 'trip');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+    });
+  });
+
+  describe('Tags section template', () => {
+    async function render(photo: Record<string, unknown>, edition: boolean) {
+      mockAuth.isEdition.set(edition);
+      mockApi.get.mockReturnValue(of(photo));
+      TestBed.resetTestingModule();
+      TestBed.configureTestingModule({
+        providers: [
+          { provide: ApiService, useValue: mockApi },
+          { provide: Router, useValue: mockRouter },
+          { provide: Location, useValue: mockLocation },
+          { provide: ActivatedRoute, useValue: mockRoute },
+          { provide: AuthService, useValue: mockAuth },
+          { provide: MatDialog, useValue: mockDialog },
+          { provide: I18nService, useValue: { t: (k: string) => k, locale: () => 'en', translations: signal({}) } },
+        ],
+      });
+      const fixture = TestBed.createComponent(PhotoDetailComponent);
+      fixture.componentInstance.photo.set(photo as never);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      fixture.detectChanges();
+      return fixture.nativeElement as HTMLElement;
+    }
+
+    const untagged = { ...samplePhoto, tags: null, tags_list: [], manual_tags: [] };
+
+    it('renders for an edition user on a photo with no tags at all', async () => {
+      const el = await render(untagged, true);
+
+      expect(el.querySelector('[data-testid="tags-section"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="manual-tag-add"]')).not.toBeNull();
+    });
+
+    it('is absent for a non-edition user on a photo with no tags', async () => {
+      const el = await render(untagged, false);
+
+      expect(el.querySelector('[data-testid="tags-section"]')).toBeNull();
+    });
+
+    it('shows manual tags read-only to a non-edition user', async () => {
+      const el = await render({ ...untagged, manual_tags: ['trip'] }, false);
+
+      expect(el.querySelector('[data-testid="manual-tag-chip"]')).not.toBeNull();
+      expect(el.querySelector('[data-testid="manual-tag-remove"]')).toBeNull();
+      expect(el.querySelector('[data-testid="manual-tag-add"]')).toBeNull();
+    });
+
+    it('gives manual chips a remove control and AI chips none', async () => {
+      const el = await render({ ...samplePhoto, manual_tags: ['trip'] }, true);
+
+      expect(el.querySelectorAll('[data-testid="ai-tag-chip"]').length).toBe(2);
+      expect(el.querySelectorAll('[data-testid="manual-tag-remove"]').length).toBe(1);
+      expect(el.querySelectorAll('[data-testid="ai-tag-chip"] [data-testid="manual-tag-remove"]').length).toBe(0);
     });
   });
 

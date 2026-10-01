@@ -238,10 +238,12 @@ def config_load_failed():
 
     An unparseable config yields an EMPTY config — one carrying neither
     ``viewer.password`` nor ``viewer.edition_password`` — which is
-    indistinguishable from a deliberately open install and would otherwise
-    unlock every edition route. ``api.auth`` consults this flag to treat such
-    an install as locked. A genuinely absent config is NOT a failure: a fresh,
-    never-configured install is legitimately open.
+    indistinguishable from a deliberately open install (no ``viewer.password``,
+    so anonymous callers get full library read access) and would otherwise
+    unlock every route that password protects. ``api.auth`` consults this flag
+    to treat such an install as locked. A genuinely absent config is NOT a
+    failure: a fresh, never-configured install is legitimately open for
+    reading; editing needs ``viewer.edition_password``.
     """
     return _config_load_failed
 
@@ -302,9 +304,9 @@ def _read_config():
 
     A missing file at a NAMED path is the exception and gets no defaults at all:
     it returns ``({}, False)`` and arms :func:`config_load_failed`. Handing that
-    caller the shipped defaults would be handing it an empty
-    ``viewer.edition_password``, which is precisely the open install this branch
-    exists to refuse.
+    caller the shipped defaults would be handing it an empty ``viewer.password``
+    (and an empty ``viewer.edition_password``), which is precisely the install
+    anyone can read in full that this branch exists to refuse.
 
     The defaults are read BEFORE the try, so their own ``FileNotFoundError``
     can never be mistaken for the operator's config being absent. It was: the
@@ -321,7 +323,7 @@ def _read_config():
     process is not looking at it. Fail-open there turned a ONE-CHARACTER typo in
     that variable into a fully open install — no password key in the fallback
     defaults, so ``api.auth._is_open_install`` granted an anonymous caller
-    edition rights. Nothing but an unrelated ``ScoringConfig`` raising on the
+    full library access. Nothing but an unrelated ``ScoringConfig`` raising on the
     same path during ``create_app`` kept that off the wire, and an accident in
     another component is not an auth decision.
 

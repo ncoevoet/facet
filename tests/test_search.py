@@ -85,6 +85,7 @@ class TestSearch:
             mock.patch("api.db_helpers.get_preference_columns", return_value={}),
             mock.patch("api.routers.search._load_embedding_matrix", _async_return((None, []))),
             mock.patch("api.routers.search._has_fts", _async_return(False)),
+            mock.patch("api.routers.search._manual_tag_search", _async_return({})),
             mock.patch("api.routers.search._check_vec_available", _async_return(False)),
             mock.patch("api.routers.search._encode_text", return_value=np.array([1.0, 0.0], dtype=np.float32)),
         ):
@@ -130,6 +131,7 @@ class TestSearch:
             mock.patch("api.routers.search._load_embedding_matrix", _async_return((matrix, paths))),
             mock.patch("api.routers.search._encode_text", return_value=text_emb),
             mock.patch("api.routers.search._has_fts", _async_return(False)),
+            mock.patch("api.routers.search._manual_tag_search", _async_return({})),
             mock.patch("api.routers.search._check_vec_available", _async_return(False)),
             mock.patch("api.routers.search.attach_person_data_async", _no_op_attach),
             mock.patch("api.routers.search.sanitize_float_values"),
@@ -171,6 +173,7 @@ class TestSearch:
             mock.patch("api.routers.search._load_embedding_matrix", _async_return((matrix, paths))),
             mock.patch("api.routers.search._encode_text", return_value=text_emb),
             mock.patch("api.routers.search._has_fts", _async_return(False)),
+            mock.patch("api.routers.search._manual_tag_search", _async_return({})),
             mock.patch("api.routers.search._check_vec_available", _async_return(False)),
         ):
             resp = client.get("/api/search", params={"q": "sunset"})
@@ -204,6 +207,7 @@ class TestSearch:
             mock.patch("api.routers.search._load_embedding_matrix", _async_return((matrix, paths))),
             mock.patch("api.routers.search._encode_text", return_value=text_emb),
             mock.patch("api.routers.search._has_fts", _async_return(False)),
+            mock.patch("api.routers.search._manual_tag_search", _async_return({})),
             mock.patch("api.routers.search._check_vec_available", _async_return(False)),
         ):
             resp = client.get("/api/search", params={"q": "sunset", "threshold": 0.15})
@@ -233,6 +237,7 @@ class TestSearch:
             mock.patch("api.routers.search._load_embedding_matrix", _async_return((matrix, paths))),
             mock.patch("api.routers.search._encode_text", side_effect=RuntimeError("GPU OOM")),
             mock.patch("api.routers.search._has_fts", _async_return(False)),
+            mock.patch("api.routers.search._manual_tag_search", _async_return({})),
             mock.patch("api.routers.search._check_vec_available", _async_return(False)),
         ):
             resp = client.get("/api/search", params={"q": "sunset"})
@@ -283,6 +288,7 @@ class TestSearch:
             mock.patch("api.routers.search._load_embedding_matrix", _async_return((matrix, emb_paths))),
             mock.patch("api.routers.search._encode_text", return_value=text_emb),
             mock.patch("api.routers.search._has_fts", _async_return(True)),
+            mock.patch("api.routers.search._manual_tag_search", _async_return({})),
             mock.patch("api.routers.search._fts_search", new=_fts_scores),
             mock.patch("api.routers.search._check_vec_available", _async_return(False)),
             mock.patch("api.routers.search.attach_person_data_async", _no_op_attach),

@@ -176,8 +176,10 @@ nutzen, folgen Sie der [WSL2-Anleitung](DEPLOYMENT.md#windows-wsl2-mit-einer-nvi
   4,7 GB für `legacy`, 6,9 GB für `8gb`, 14,6 GB für `16gb`, 19,1 GB für `24gb`
   (vollständige Aufschlüsselung unter [Downloadgrößen](#downloadgrößen)). Das geschieht
   einmalig; spätere Läufe starten sofort.
-- **Keine Einrichtung.** Es gibt nichts zu konfigurieren. Facet erstellt seine Datenbank
-  beim ersten Scan und liefert funktionierende Einstellungen mit.
+- **Keine Einrichtung zum Scannen.** Facet erstellt seine Datenbank beim ersten Scan und
+  liefert funktionierende Einstellungen mit. Zum **Bearbeiten** (bewerten, aussortieren, Alben
+  und Personen verwalten) setzen Sie `viewer.edition_password` in `scoring_config.json` — ohne
+  ist der Viewer schreibgeschützt (starten Sie den Viewer nach dem Setzen neu: die Konfiguration wird nicht im laufenden Betrieb neu geladen. Mit der mitgelieferten `docker-compose.yml` erzeugt das Docker-Image beim ersten Start eines).
 - **Ihre Fotos werden nicht verändert.** Der Scan liest sie nur; die Ergebnisse landen in
   Facets eigener Datenbank. Bewertungen und Schlagwörter zurück in Ihre Dateien zu
   schreiben, ist eine separate Aktion, die Sie selbst auslösen ([Interop](INTEROP.md)).
@@ -239,7 +241,7 @@ Sie weglassen, behält den ausgelieferten Wert (und übernimmt dessen Verbesseru
 einem Upgrade).
 
 `docker-entrypoint.sh` befüllt daher die persistente Datei
-`./facet-config/scoring_config.json` beim ersten Start mit einem leeren `{}`. Diese
+`./facet-config/scoring_config.json` beim ersten Start mit einem generierten `viewer.edition_password` (einmalig im Container-Log ausgegeben: `docker compose logs facet`; nur wenn `FACET_CONFIG` auf diese Datei zeigt, wie es `docker-compose.yml` setzt — ein einfaches `docker run` ohne diese Variable befüllt eine leere Überschreibung und erzeugt kein Passwort). Diese
 Datei wird von `docker-compose.yml` eingehängt (als
 `FACET_CONFIG=/config/scoring_config.json` im Container), sodass der Container ohne
 jede Host-Einrichtung läuft und jede Konfigurationsänderung zur Laufzeit (die
@@ -296,9 +298,7 @@ Compose), damit der Container-Benutzer Sie selbst ist.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Andernfalls befüllt der Entrypoint eine leere Überschreibung, und Ihre
-> Gewichte, Kategorien und **Ihr Viewer-Passwort werden nicht mehr gelesen** — ein leeres
-> `viewer.edition_password` deaktiviert die Bearbeitungssperre vollständig. Behalten Sie
+> Andernfalls befüllt der Entrypoint eine neue Überschreibung (unter Compose mit einem frisch generierten `viewer.edition_password`), und Ihre Gewichte, Kategorien und **Ihr Viewer-Passwort werden nicht mehr gelesen**. Behalten Sie
 > Ihre eigene `docker-compose.yml` mit dem alten Mount, initialisiert der Entrypoint
 > `./facet-config` aus *dieser* Datei, und es geht nichts verloren.
 >
@@ -684,9 +684,9 @@ Dokumentation verwendete Kennzeichnungen:
 | VLM-Tagging (Qwen3.5) | ja | `16gb`/`24gb` | — | — |
 | Kompositionsmuster (SAMP-Net) | optional | beliebig (`legacy` = CPU) | — | — |
 | Motiverkennung (BiRefNet) | optional | beliebig (`legacy` = CPU) | — | — |
-| KI-Beschreibungen (erzeugen / ansehen) | ja | `16gb`/`24gb` | — | — |
+| KI-Beschreibungen (erzeugen / ansehen) | ja | `16gb`/`24gb` | edition (Erzeugen) | — |
 | KI-Beschreibungen (bearbeiten) | ja | `16gb`/`24gb` | edition | — |
-| VLM-Kritik | ja | `16gb`/`24gb` | — | — |
+| VLM-Kritik | ja | `16gb`/`24gb` | edition (Erzeugen) | — |
 | Gesichtserkennung / -extraktion (InsightFace) | empfohlen (CPU funktioniert, langsam) | beliebig | — | — |
 | Gesichtsclustering (HDBSCAN) | nein (CPU) | beliebig | — | `cuml`/`cupy` (optionale GPU-Beschleunigung) |
 | Semantische Suche | nein | beliebig | — | `sqlite-vec` (greift auf NumPy zurück) |
@@ -694,7 +694,7 @@ Dokumentation verwendete Kennzeichnungen:
 | Überwachungsmodus (`--watch`) | nein | beliebig | — | `watchdog` |
 | GPS-Extraktion / Darktable-Export | nein | beliebig | — | `exiftool` / `darktable-cli` |
 | Bewertungen, Favoriten, Gesichts- & Personenbearbeitungen, Auswahl | nein | beliebig | edition | — |
-| Scans über die Web-Oberfläche auslösen | nein | beliebig | superadmin | — |
+| Scans über die Web-Oberfläche auslösen | nein | beliebig | Edition (Einzelbenutzer) / superadmin (Mehrbenutzer) | — |
 | Mehrbenutzerbetrieb (benutzerspezifische Bewertungen & Rollen) | nein | beliebig | rollenbasiert | — |
 
 > Das Gesichts-*Clustering* läuft standardmäßig über die CPU (eigenständiges

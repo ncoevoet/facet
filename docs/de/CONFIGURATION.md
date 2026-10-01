@@ -1682,7 +1682,7 @@ Anzeige und Verhalten der Web-Galerie.
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
 | `default_category` | `""` | Standard-Kategoriefilter |
-| `edition_password` | `""` | Passwort zum Freischalten des Editionsmodus (leer = deaktiviert) |
+| `edition_password` | `""` | Passwort zum Freischalten des Editionsmodus (leer = jede Bearbeitung wird abgelehnt; die Installation ist schreibgeschützt) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimum für die Optimierung |
 | `pair_selection_strategy` | `"learning"` | Paarstrategie: `learning` (Embedding-Diversität für den Kaltstart + Rang-Uneinigkeit nach dem Training), `uncertainty`, `boundary`, `active`, `random` |
@@ -1852,7 +1852,7 @@ Schalten Sie optionale Features um, um den Speicherverbrauch zu senken oder die 
 | `show_similar_button` | `true` | Schaltfläche „Find Similar“ auf Fotokarten anzeigen (nutzt numpy für CLIP-Ähnlichkeit) |
 | `show_merge_suggestions` | `true` | Funktion für Zusammenführungsvorschläge auf der Personenverwaltungsseite aktivieren |
 | `show_rating_controls` | `true` | Steuerelemente für Sternebewertung und Favorit anzeigen |
-| `show_scan_button` | `false` | Scan-Auslöser-Schaltfläche anzeigen (Superadmin im Mehrbenutzermodus; gesperrte Edition-Sitzung im Einzelbenutzermodus) – erfordert GPU auf dem Viewer-Host |
+| `show_scan_button` | `false` | Scan-Auslöser-Schaltfläche anzeigen (Superadmin im Mehrbenutzermodus; gesperrte Edition-Sitzung im Einzelbenutzermodus) – keine GPU erforderlich: der Scan läuft mit dem Profil `legacy` nur auf der CPU |
 | `metrics_enabled` | `false` | Den öffentlichen Prometheus-Endpunkt `GET /metrics` aktivieren. Standardmäßig aus — er legt Foto-/Personen-/Gesichtszählungen, DB-Größe und Prozessspeicher offen; nur aktivieren, wenn der Endpunkt aus dem Scraper-Netz erreichbar ist, nicht aus dem öffentlichen Internet. |
 | `show_semantic_search` | `true` | Semantische Suchleiste anzeigen (Text-zu-Bild-Suche mit CLIP/SigLIP-Embeddings) |
 | `show_albums` | `true` | Album-Funktion anzeigen (Fotoalben erstellen, verwalten und durchsuchen) |

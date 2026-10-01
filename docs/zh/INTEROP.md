@@ -73,7 +73,7 @@ Facet 的星级为 0 表示“没有意见”（见 `xmp_export.score_to_rating`
 - **Create Facet collections for bursts, brackets, panoramas and HDR panoramas** —— 对当前范围内至少匹配到 2 张照片的每个组，创建或复用一个名为 `<yyyy-mm-dd HH:MM:SS> – <filename>` 的收藏集（取最早那个成员的拍摄时间和文件名；该成员没有拍摄时间时用 `~ (no date) – <filename>`），嵌套在 `Facet › Bursts`、`Facet › Brackets`、`Facet › Panoramas` 或 `Facet › HDR panoramas` 之下。如果一个普通连拍组的成员*全部*已经完整属于某个曝光包围／全景／HDR 全景集合，就不会再为它单独建一个 Bursts 收藏集，因为那只会和 Brackets/Panoramas/HDR panoramas 下已有的那个重复。**重新运行只会新增**——把照片补进重新找到的收藏集，绝不会移除，所以一个收藏集可能会与之后被重新分组或重新检测的集合脱节（某张照片在之后的扫描里被移出某个曝光包围组，并不会把它从收藏集里移除）。如果两个不同组的最早成员在拍摄时间上精确到秒完全相同，且文件名也相同，收藏集的名字也会发生冲突——两台相机都在同一时刻写出了 `IMG_0001`，最终会共用一个收藏集，而不是各自得到一个。这是一个已知的局限，不是需要上报的缺陷。
   - **Rebuild (clear and refill) Facet collections fully covered by this run**（嵌套在上一个选项之下）—— 不再只是新增，而是清空并重新填充一个收藏集，但仅当该收藏集及其整个组都完全落在本次运行的范围之内时才会这样做；只被部分覆盖的收藏集（有成员在选择范围之外），或指向智能／无法解析的收藏集，会保持原样并计为已跳过，汇总会报告重建、删除、跳过和失败的数量。它还会触及本次运行中组已经解散的 Facet 收藏集（组内符合范围的成员不再满足至少 2 个，因而没有计划条目）——这样的收藏集也会被清空并删除，但仅当其当前持有的每张照片都是本次运行匹配到的；若其中持有任何一张本次运行之外的照片，则保持原样不动。只有在 **Create Facet collections for bursts, brackets, panoramas and HDR panoramas** 启用时才会提供——也才会运行——Rebuild；取消勾选该选项会同时关闭 Rebuild。已解散收藏集的清理只会触及名称与 Facet 自身生成的形式完全匹配的收藏集（一个 ISO 日期时间，或未注明日期的 `~ (no date)` 前缀，后接 ` – <filename>`），因此您自己在某个 Facet 集合下重命名的收藏集永远不会被清空或删除。当清理有内容可删除时，Preview 会新增一行 `Facet collections to delete: N`，并且即使这是唯一待处理的变更，清理也会运行，而不会被报告为无需更改。
 - **Write Facet scores/category/set-kind as Lightroom plug-in metadata fields** —— 把 `aggregate` 分数（例如 `8.4`）、一个整数档位（`0`-`10`）、类别以及集合类型写入 Facet 自己的增效工具元数据字段，这些字段在“元数据”面板中可见，并可作为文本（`sdktext:`）条件用于图库筛选器／智能收藏集 —— 例如一个匹配档位“任意为 8、9、10”的智能收藏集。当某个字段不再适用于一张照片时（例如它离开了包围曝光集，集合类型随之消失），该字段会被清空而不是留下过期的值——否则依赖该字段的智能收藏集或图库筛选条件会继续匹配一张已经不再符合条件的照片。Adobe 的 SDK 只允许增效工具自有的字段以文本或枚举的形式进入搜索词汇表，绝不允许数值区间，所以仍然没有“aggregate > 8”这样的智能收藏集 —— 档位是最接近的文本替代方案。另外两个记账用的属性（本次运行推算出的星级／留用值）会同时写入，但不会出现在图库筛选器和智能收藏集条件里 —— 见下文 [Lightroom → Facet](#lightroom--facet) 中关于反向导出的说明。**尚未在真实目录上验证：** 一个无标题的元数据字段在“元数据”面板和图库筛选器中是否真的不可见，仅凭 Lightroom SDK 文档并不能确认；因此这两个记账属性被标记为 `searchable = false, browsable = false`，作为更保险、已确认的退路，而不是依赖未经确认的“省略标题即隐藏”行为 —— 它们在某些 Lightroom Classic 版本中仍可能可见。
-- **Create "Facet" keywords from Facet tags (never included on export)** —— 创建一个 `Facet` 根关键字，为你照片携带的每个 Facet 标签建一个子关键字，并让每张照片的 `Facet ›` 子关键字与它清单中的标签精确对应（随着标签在多次运行之间变化而增删）。这个选项创建或触碰到的每个关键字都关闭了 `Include on Export`，所以 Facet 的自动标签永远不会泄露到 JPEG/TIFF 导出或客户画廊里。你自己在 `Facet` 根之外的关键字会被读取（用来检测一个预先存在的顶层 `Facet` 关键字，并将其采用为根），但这个选项永远不会新增、移除或写入它们；你自己手动放在这个被采用的 `Facet` 根下面的任何子关键字，都会被当作过时项移除。
+- **Create "Facet" keywords from Facet tags (never included on export)** —— 创建一个 `Facet` 根关键字，为你照片携带的每个 Facet 标签建一个子关键字，并让每张照片的 `Facet ›` 子关键字与它清单中的标签精确对应（随着标签在多次运行之间变化而增删）。这个选项创建或触碰到的每个关键字都关闭了 `Include on Export`，所以 Facet 的自动标签永远不会泄露到 JPEG/TIFF 导出或客户画廊里。你自己在 `Facet` 根之外的关键字会被读取（用来检测一个预先存在的顶层 `Facet` 关键字，并将其采用为根），但这个选项永远不会新增、移除或写入它们；你自己手动放在这个被采用的 `Facet` 根下面的任何子关键字，都会被当作过时项移除。你的[手动标签](#手动标签与-xmp-关键字)与 AI 标签一样以 `Facet ›` 子关键字出现；因此在 Facet 中移除手动标签，会在下一次 Apply 时删除对应的子关键字。
 
 **为什么是收藏集，不是堆叠。** Lightroom 的 SDK 没有任何调用可以创建或管理堆叠（Stack）——`stackInFolder`／`stackPositionInFolder` 在 `LrPhoto` 上都是只读的。收藏集是最接近的可写替代方案，而 `canReturnPrior` 让重新运行增效工具时能找回同一个收藏集，而不是重复创建。如果你想要真正的 Lightroom 堆叠，请自己选中某个收藏集里的照片，使用**照片 → 堆叠 → 编为堆叠**（Ctrl/Cmd+G）——这一步增效工具无法替你完成。
 
@@ -100,14 +100,14 @@ Facet 的星级为 0 表示“没有意见”（见 `xmp_export.score_to_rating`
 **星级、标签和关键字（通过 XMP）。** 另外，在这个方向上仍然是单向的：
 
 1. 在 Lightroom 中选中照片，选择**元数据 → 将元数据存储到文件**（Ctrl/Cmd+S）。这会把目录中的星级／颜色标签／关键字刷写进 XMP 附属文件（RAW），或直接嵌入文件本身（DNG/JPEG/PSD/TIFF）。
-2. `python facet.py --import-sidecars`（可选择限定到某个路径）把它们读回 Facet 的数据库。
+2. `python facet.py --import-sidecars`（可选择限定到某个路径）把它们读回 Facet 的数据库。附属文件中 Facet 尚未拥有的关键字会被存为[手动标签](#手动标签与-xmp-关键字)。
 
 ### 冲突规则
 
 - **星级和颜色标签遵循“最新者胜”**，比较的是附属文件的 `xmp:MetadataDate` 与照片的 `scanned_at`（Facet 最后一次为它评分的时间）—— 而不是逐条评分的编辑时间戳。比上次扫描更新的附属文件，可能覆盖你在那次扫描*之后*在 Facet 里改过的星级。请让往返保持简单：导出 → Lightroom 读取 → 在 Lightroom 中编辑 → Lightroom 保存 → 导入，中间不要在 Facet 里重新评星。
-- **标签和关键字在两个方向上始终合并**（求并集并去重）—— Lightroom 的关键字永远不会抹掉 Facet 的自动标签，反之亦然。
-- **多用户**（`--export-sidecars --user alice` / `--import-sidecars --user alice`）：星级会写入 Alice 的 `user_preferences` 行，而不是全局列。无论是否使用 `--user`，关键字都保持全局 —— 它们在用户之间共享。
-- 如果你依赖 `photo_tags` 查找表，请在 `--import-sidecars` 之后运行 `python database.py --migrate-tags`，让标签筛选立即看到合并后的关键字。
+- **标签和关键字只会合并，绝不会被替换。** 导出时，Facet 会把它的 AI 标签和手动标签（去重后）写在附属文件已有内容旁边；导入时，附属文件中的关键字会成为手动标签，且从不触碰 AI 标签——Lightroom 的关键字永远不会清掉 Facet 的自动标签，反之亦然。移除操作会产生什么效果，参见[手动标签与 XMP 关键字](#手动标签与-xmp-关键字)。
+- **多用户**（`--export-sidecars --user alice` / `--import-sidecars --user alice`）：评分会写入 Alice 的 `user_preferences` 行，而不是全局列。无论 `--user` 如何，关键字都保持全局——手动标签由所有用户共享。
+- 导入的关键字会进入 `photo_manual_tags` 表，标签筛选直接读取该表，因此 `--import-sidecars` 之后不再需要运行 `python database.py --migrate-tags`。
 
 ## Capture One
 
@@ -141,13 +141,26 @@ darktable 在[配置 — 查看器](CONFIGURATION.md#查看器)（`viewer.raw_pr
 
 **注意：darktable 自己的 XMP 重新加载并不可靠。** 与 Facet 的写入路径无关，重新导入一张 darktable 已经编辑过的图像，可能会让 darktable 用一份空白历史覆盖附属文件里的编辑历史，而不是把它加载回来 —— 这是一个仍未解决的上游 bug（[darktable#20537](https://github.com/darktable-org/darktable/issues/20537)，报告于 2026-03-15），“check for new/updated xmp files on start”这个首选项并不能防住它。Facet 不是原因（上文经由 exiftool 的合并已经保留了 `darktable:history`），但风险恰恰落在本页的往返流程所依赖的回读步骤上。实用的规避办法，遵循与上文 Capture One 指南相同的“一次性”纪律：执行 `--export-sidecars` 之后，不要对已经编辑过的文件夹做批量重新导入 —— 只为 Facet 刚刚触及的那些图像重新加载附属文件，确认编辑历史还在，再去信任这一批的其余部分。
 
+## 手动标签与 XMP 关键字
+
+Facet 把你自己输入的标签（参见[查看器——手动标签](VIEWER.md#手动标签)）保存在一张独立的附表 `photo_manual_tags` 中，与 `photos.tags` 里的 AI 标签分开。这种分离使重新扫描或重新打标不会动到它们，也决定了关键字如何经由 XMP 往返：
+
+- **导出。** 每个写关键字的环节都按先 AI 标签、再手动标签、最后人物姓名的顺序输出，并且不区分大小写地去重：`--export-sidecars`、照片库的 XMP 导出和“将元数据写入文件”操作，以及 Lightroom 清单（`--export-manifest`、`/api/lightroom/manifest`）。
+- **导入。** `--import-sidecars` 只读取 `dc:subject`。每个关键字都会像手动输入的标签一样被规范化（去除首尾空白、转小写、最多 64 个字符、每张照片最多 50 个手动标签）。它会被存为来源为 `xmp` 的手动标签，除非它已经是照片当前的某个 AI 标签、等于照片的某个人物姓名、是分层路径 `a|b`、含逗号或控制字符，或会超出上限。导入的关键字不再写入 `photos.tags`，所以重新打标不会再覆盖它们。
+- **移除标签不会影响 Facet 已写出的附属文件。** Facet 会合并进现有附属文件，且从不从中删除关键字：因此在 Facet 中移除手动标签后它仍留在附属文件里，而 Facet 自己导出的关键字会在下一次 `--import-sidecars` 时作为手动标签回来。要彻底去掉它，请在附属文件中（或在拥有该关键字的编辑器中）清除该关键字。没有墓碑标记（tombstone）机制。
+- **Lightroom 清单则会传播移除。** 插件的关键字选项会在 Apply 时把每张照片的 `Facet ›` 子关键字改写成与清单一致；在 Facet 中移除的标签因此会在下一次 Apply 时从 Lightroom 中消失。
+- **重新打标可能让已导出的 AI 标签作为手动标签回来。** 如果 Facet 导出的某个 AI 标签后来被重新打标改掉，它就不再匹配照片当前的 AI 标签，下一次导入会把它存为手动标签。
+- **旧版 Facet 导入的关键字留在原处。** 在手动标签出现之前，导入会把关键字直接合并进 `photos.tags`，在那里它们与 AI 标签无法区分，也没有任何迁移会移动它们。这样的关键字会一直显示为 AI 标签，直到 `photos.tags` 被清空或照片被重新打标；而由于导入会跳过已在 `photos.tags` 中的关键字，它也不会重新出现为手动标签。要转换它，请先清空或重新打标 `photos.tags`，再重新运行 `--import-sidecars`；或者直接手动添加该标签。
+- **被移动或重命名的文件会失去它的手动标签。** 它们与照片路径绑定，而移动或重命名后该路径指向的是另一张照片。
+- **`--export-csv` 和 `--export-json` 仍然只含 AI 数据。** 它们的 `tags` 值是原始的 AI 列，不含手动标签。
+
 ## Facet 如何合并
 
 | 字段 | Facet 写入 | Facet 读回 | 冲突规则 |
 |---|---|---|---|
 | 星级／淘汰 | `xmp:Rating`（`-1` = 已淘汰） | `xmp:Rating` | 最新者胜，对比 `scanned_at` |
 | 颜色标签 | `xmp:Label`（`Red` = 已淘汰，`Yellow` = 收藏） | `xmp:Label` | 最新者胜，对比 `scanned_at` |
-| 标签／关键字 | `dc:subject`（扁平结构，包含命名人脸的人物姓名） | `dc:subject` | 始终合并（求并集并去重） |
+| 标签／关键字 | `dc:subject`（扁平，AI 标签 + 手动标签，包含已命名人脸的人物姓名） | `dc:subject`（存为手动标签） | 合并，绝不替换；在 Facet 中的移除不会回写到附属文件（参见[手动标签与 XMP 关键字](#手动标签与-xmp-关键字)） |
 | 层级标签 | `lr:hierarchicalSubject`（`Category\|<cat>`、`People\|<name>`） | 不再导入 | 仅导出 |
 | 照片描述 | `dc:description`（+ 经由 exiftool 的 `IPTC:Caption-Abstract`） | 不再导入 | 仅导出 |
 | 命名的人脸区域 | MWG `mwg-rs:RegionList`（中心归一化，`Type=Face`） | 不再导入 | 仅导出；由 digiKam 原生读取，Lightroom **不**读取（一个已知的 Adobe 限制 —— Lightroom 只消费它自己写出的 MWG 区域） |

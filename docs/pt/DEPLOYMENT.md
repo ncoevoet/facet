@@ -168,6 +168,13 @@ python database.py --export-viewer-db --force-export
 
 O recurso "Encontrar semelhantes" não funcionará no banco de dados exportado (os embeddings CLIP são removidos). Use a máquina de pontuação para isso.
 
+**Tags manuais e a exportação.** A exportação inclui também a tabela de [tags manuais](VIEWER.md#tags-manuais) (`photo_manual_tags`), e uma exportação incremental a mescla acrescentando as linhas do banco de dados de pontuação, nunca substituindo a cópia do visualizador. Assim os tags digitados no NAS são preservados, mas com quatro limites:
+
+- Um tag manual que você remove no visualizador do NAS volta na próxima exportação incremental se o banco de dados de pontuação ainda o tiver.
+- Um tag manual adicionado no NAS não é copiado de volta para o banco de dados de pontuação; nada sincroniza o banco do visualizador no sentido contrário, então adicione-o também na máquina de pontuação se quiser mantê-lo.
+- `--force-export` reconstrói o banco de dados do visualizador a partir do de pontuação, de modo que os tags manuais que existem apenas no NAS são perdidos.
+- A mesclagem apenas acrescenta linhas: um tag manual que você remove na máquina de pontuação permanece no NAS até que `--force-export` reconstrua o banco de dados do visualizador; além disso, ela não aplica o limite de 50 tags por foto, então uma foto pode ultrapassá-lo lá quando os dois lados adicionaram tags.
+
 ### Sincronizando arquivos
 
 Na máquina de pontuação, compile primeiro o cliente Angular (consulte [Compilando o cliente Angular](#compilando-o-cliente-angular)).
@@ -618,7 +625,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### Botão de varredura
 
-Para permitir que o superadmin acione varreduras de fotos a partir da interface do visualizador (útil apenas quando o visualizador roda na máquina com GPU):
+Para permitir o disparo de varreduras de fotos a partir da interface do visualizador (o superadmin no modo multiusuário; uma sessão de edição numa instalação de usuário único com `viewer.edition_password` definida). A varredura roda na máquina que hospeda o visualizador e não requer GPU (apenas CPU com o perfil `legacy`, veja [Sem placa de vídeo](INSTALLATION.md#sem-placa-de-vídeo)):
 
 ```json
 {

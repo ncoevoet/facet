@@ -504,16 +504,54 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
-          <!-- Tags section -->
-          @if (p.tags_list.length) {
-            <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3">
+          <!-- Tags section: AI chips, then manual chips (marked, removable for editors) -->
+          @if (p.tags_list.length || p.manual_tags.length || auth.isEdition()) {
+            <div class="border-t border-[var(--mat-sys-outline-variant)] pt-3" data-testid="tags-section">
               <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.tags | translate }}</div>
-              <div class="flex gap-1.5 flex-wrap">
+              <div class="flex gap-1.5 flex-wrap items-center">
                 @for (tag of p.tags_list; track tag) {
-                  <button class="px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                          (click)="navigateToGallery('tag', tag)">{{ tag }}</button>
+                  <span data-testid="ai-tag-chip" class="inline-flex">
+                    <button class="px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
+                            (click)="navigateToGallery('tag', tag)">{{ tag }}</button>
+                  </span>
+                }
+                @for (tag of p.manual_tags; track tag) {
+                  <span data-testid="manual-tag-chip"
+                        class="inline-flex items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
+                    <button class="inline-flex items-center gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
+                            [attr.title]="I18N.manual_tags.manual | translate"
+                            (click)="navigateToGallery('tag', tag)">
+                      <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
+                      <span class="sr-only">{{ I18N.manual_tags.manual | translate }}:</span>
+                      {{ tag }}
+                    </button>
+                    @if (auth.isEdition()) {
+                      <button data-testid="manual-tag-remove"
+                              class="inline-flex items-center justify-center min-w-6 min-h-6 -my-1.5 -ml-1 cursor-pointer hover:opacity-80"
+                              [attr.aria-label]="I18N.manual_tags.remove_tag | translate:{ tag: tag }"
+                              (click)="removeManualTag(p, tag)">
+                        <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">close</mat-icon>
+                      </button>
+                    }
+                  </span>
                 }
               </div>
+              @if (auth.isEdition()) {
+                <div class="flex items-center gap-1 mt-2" data-testid="manual-tag-add">
+                  <input type="text" maxlength="64"
+                         class="min-w-0 flex-1 px-2 py-1 text-xs rounded border border-[var(--mat-sys-outline-variant)] bg-transparent"
+                         [value]="newTag()"
+                         [attr.aria-label]="I18N.manual_tags.add | translate"
+                         [placeholder]="I18N.manual_tags.add | translate"
+                         (input)="onNewTagInput($event)"
+                         (keydown.enter)="addManualTag(p, newTag())" />
+                  <button mat-icon-button class="!w-7 !h-7 !p-0" (click)="addManualTag(p, newTag())"
+                          [disabled]="!newTag().trim()"
+                          [matTooltip]="I18N.manual_tags.add | translate" [attr.aria-label]="I18N.manual_tags.add | translate">
+                    <mat-icon class="!text-base !w-4 !h-4 !leading-4">add</mat-icon>
+                  </button>
+                </div>
+              }
             </div>
           }
 
@@ -797,6 +835,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (!photo.tags_list) {
       photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];
     }
+    if (!photo.manual_tags) {
+      photo.manual_tags = [];
+    }
     if (!photo.persons) {
       photo.persons = [];
     }
@@ -996,6 +1037,55 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   protected navigateToGallery(filter: string, value: string | number): void {
     this.router.navigate(['/'], { queryParams: { [filter]: String(value) } });
+  }
+
+  protected readonly newTag = signal('');
+
+  protected onNewTagInput(event: Event): void {
+    this.newTag.set((event.target as HTMLInputElement).value);
+  }
+
+  /**
+   * Pessimistic: the signal and the store change only once the server accepted the tag.
+   * The merge reads the CURRENT photo when the response lands, so overlapping edits compose.
+   */
+  protected async addManualTag(p: Photo, raw: string): Promise<void> {
+    const tag = raw.trim();
+    if (!tag) return;
+    try {
+      const res = await firstValueFrom(
+        this.api.put<{ tag: string; skipped_existing: boolean }>('/photo/manual_tags', { path: p.path, tag }));
+      this.newTag.set('');
+      if (res.skipped_existing) {
+        // Nothing was stored: the tag already exists, as a manual tag or as an AI tag.
+        this.snackBar.open(this.i18n.t(I18N.manual_tags.already_present), '', { duration: 3000 });
+        return;
+      }
+      this.updateManualTags(p, tags => (tags.includes(res.tag) ? tags : [...tags, res.tag].sort()));
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    }
+  }
+
+  protected async removeManualTag(p: Photo, tag: string): Promise<void> {
+    try {
+      await firstValueFrom(this.api.delete('/photo/manual_tags', { path: p.path, tag }));
+      this.updateManualTags(p, tags => tags.filter(t => t !== tag));
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    }
+  }
+
+  /** Applies `change` to the photo's manual tags as they are NOW, not as the caller captured them. */
+  private updateManualTags(p: Photo, change: (tags: string[]) => string[]): void {
+    const current = this.photo();
+    if (current?.path === p.path) {
+      this.applyConfirmed(current, { manual_tags: change(current.manual_tags) });
+      return;
+    }
+    // The view moved on to another photo: keep the grid's row right without touching the signal.
+    const row = this.store.photos().find(r => r.path === p.path);
+    this.store.patchPhoto(p.path, { manual_tags: change(row?.manual_tags ?? p.manual_tags) });
   }
 
   protected editCaption(p: Photo): void {

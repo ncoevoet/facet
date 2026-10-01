@@ -946,7 +946,8 @@
     "unlock_button": "Entsperren",
     "lock_title": "Bearbeitungsmodus aktiv - klicken zum Sperren",
     "password_placeholder": "Bearbeitungspasswort",
-    "invalid_password": "Ungültiges Passwort"
+    "invalid_password": "Ungültiges Passwort",
+    "read_only_hint": "Nur Lesezugriff: Setzen Sie viewer.edition_password in scoring_config.json, um Bewerten, Aussortieren und Bearbeiten zu aktivieren, und starten Sie den Viewer anschließend neu."
   },
   "nav": {
     "gallery": "Galerie",
@@ -1062,6 +1063,7 @@
     },
     "reset_filters": "Filter zurücksetzen",
     "scroll_to_top": "Nach oben scrollen",
+    "scan_action": "Neue Fotos scannen",
     "photo_grid": "Fotoraster",
     "active_filters": "{count} aktive Filter",
     "unknown_person": "Unbekannt",
@@ -1069,6 +1071,7 @@
       "count": "{count} ausgewahlt",
       "clear": "Loschen",
       "copy_filenames": "Dateinamen kopieren",
+      "copy_filename": "Dateinamen kopieren",
       "download": "Herunterladen",
       "copied": "Pfade in die Zwischenablage kopiert",
       "favorite": "Favorit",
@@ -1083,6 +1086,7 @@
       "compare": "Vergleichen",
       "actions": "Aktionen",
       "mark_sequence": "Als Serie markieren",
+      "edit_tags": "Schlagwörter bearbeiten…",
       "mark_panorama": "Als ein Panorama markieren",
       "mark_hdr_panorama": "Als ein HDR-Panorama markieren",
       "marked_panorama": "{count} Fotos als ein Panorama markiert",
@@ -2315,6 +2319,18 @@
       "error": "Löschen fehlgeschlagen"
     }
   },
+  "manual_tags": {
+    "title": "Schlagwörter bearbeiten",
+    "tag_label": "Schlagwort",
+    "hint": "Manuelle Schlagwörter bleiben dem Foto auch nach erneutem Scannen erhalten und werden beim Export als Keywords geschrieben.",
+    "add": "Schlagwort hinzufügen",
+    "add_action": "Hinzufügen",
+    "remove_action": "Entfernen",
+    "remove_tag": "Schlagwort {tag} entfernen",
+    "manual": "Manuelles Schlagwort",
+    "error": "Das Schlagwort konnte nicht geändert werden. Bitte prüfen und erneut versuchen.",
+    "already_present": "Dieser Tag ist bereits am Foto vorhanden."
+  },
   "photo": {
     "category_override": {
       "menu_tooltip": "Bewertungskategorie",
@@ -2401,6 +2417,7 @@
     "toggle_select": "Auswählen / abwählen",
     "select_all": "Alle geladenen auswählen",
     "clear_selection": "Auswahl aufheben",
+    "context_menu": "Kontextmenü öffnen",
     "show_help": "Diese Hilfe anzeigen",
     "close": "Schließen",
     "section_gallery": "Galerie",

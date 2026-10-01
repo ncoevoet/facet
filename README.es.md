@@ -101,7 +101,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **Aprendizaje a partir de etiquetas** — las decisiones de selección, las valoraciones por estrellas, los favoritos y los rechazos alimentan el optimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantáneas** — guarda, restaura y compara configuraciones de pesos
 - **Histograma** — histograma RGB/luminancia con indicadores de recorte, en el tooltip de la foto y en la vista de detalle
-- **Leyendas con IA** `[GPU]` `[16gb/24gb]` — descripciones de texto, editables `[Edition]` y traducibles a 5 idiomas (la generación y la visualización están abiertas)
+- **Leyendas con IA** `[GPU]` `[16gb/24gb]` — descripciones de texto, editables `[Edition]` y traducibles a 5 idiomas (la visualización está abierta; la generación y la edición requieren edición)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Estadísticas de equipo" width="100%"></td>
@@ -139,7 +139,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **7 idiomas en la interfaz** — la interfaz está disponible en inglés, francés, alemán, español, italiano, portugués brasileño y chino simplificado (简体中文); la documentación está disponible en los siete idiomas
 - **Multiusuario** — directorios, valoraciones y acceso por roles para cada usuario
 - **Plugins y webhooks** — acciones personalizadas activadas por eventos de puntuación
-- **Escaneo desde la interfaz web** — inicia escaneos desde el navegador (rol de superadministrador)
+- **Escaneo desde la interfaz web** — inicia escaneos desde el navegador (superadministrador en modo multiusuario; acceso de edición en una instalación de un solo usuario con contraseña de edición)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Galería en móvil" width="100%"></td>
@@ -149,7 +149,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 
 ## Qué necesitas
 
-La mayor parte de Facet se ejecuta en **cualquier equipo (CPU)** — la puntuación, la detección de rostros, la selección, la galería, la búsqueda, los álbumes y la exportación de metadatos funcionan todos sin una GPU. Una **GPU** (con el perfil `16gb` o `24gb`) desbloquea los modelos más potentes: puntuación estética TOPIQ, embeddings SigLIP 2, etiquetado VLM, leyendas y crítica con IA, y saliencia del sujeto. ¿Sin GPU local? Apunta el etiquetado/las leyendas/la crítica VLM a un servidor **Ollama** o **compatible con OpenAI** remoto mediante `vlm_backend` en `scoring_config.json` — esas funciones entonces también funcionan en los perfiles de CPU `legacy`/`8gb`. En el visor, las acciones de edición (valoraciones, rostros, selección) necesitan la **contraseña de edición**, y el inicio de escaneos necesita el rol de **superadministrador**.
+La mayor parte de Facet se ejecuta en **cualquier equipo (CPU)** — la puntuación, la detección de rostros, la selección, la galería, la búsqueda, los álbumes y la exportación de metadatos funcionan todos sin una GPU. Una **GPU** (con el perfil `16gb` o `24gb`) desbloquea los modelos más potentes: puntuación estética TOPIQ, embeddings SigLIP 2, etiquetado VLM, leyendas y crítica con IA, y saliencia del sujeto. ¿Sin GPU local? Apunta el etiquetado/las leyendas/la crítica VLM a un servidor **Ollama** o **compatible con OpenAI** remoto mediante `vlm_backend` en `scoring_config.json` — esas funciones entonces también funcionan en los perfiles de CPU `legacy`/`8gb`. En el visor, las acciones de edición (valoraciones, rostros, selección) necesitan la **contraseña de edición**, y el inicio de escaneos necesita `viewer.features.show_scan_button: true` y, además, el rol de **superadministrador** en modo multiusuario, o acceso de edición en una instalación de un solo usuario.
 
 → Requisitos completos por función (GPU, perfil de VRAM, paquetes opcionales, autenticación): **[Instalación › Requisitos por función](docs/es/INSTALLATION.md#requisitos-por-función)**.
 
@@ -209,11 +209,14 @@ descargas de la primera ejecución y
 [resolución de conflictos de dependencias](docs/es/INSTALLATION.md#resolución-de-conflictos-de-dependencias).
 Ejecuta `python facet.py --doctor` para diagnosticar problemas con la GPU.
 
+¿Primera vez? Sigue el recorrido **[Primeros pasos](docs/es/GETTING_STARTED.md)**: escanear, revisar, entrenar, descartar, etiquetar y exportar.
+
 ## Documentación
 
 | Documento | Descripción |
 |----------|-------------|
 | [Instalación](docs/es/INSTALLATION.md) | Requisitos, configuración de GPU, perfiles de VRAM, dependencias |
+| [Primeros pasos](docs/es/GETTING_STARTED.md) | Recorrido de la primera ejecución: de la instalación al escaneo, revisión, entrenamiento, descarte, etiquetado y exportación |
 | [Comandos](docs/es/COMMANDS.md) | Referencia de todos los comandos de la CLI |
 | [Configuración](docs/es/CONFIGURATION.md) | Referencia completa de `scoring_config.json` |
 | [Puntuación](docs/es/SCORING.md) | Categorías, pesos, guía de ajuste |

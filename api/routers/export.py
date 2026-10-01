@@ -213,7 +213,12 @@ def _fetch_rating_rows(conn, paths, user_id):
         f"WHERE photos.path IN ({placeholders}) AND {vis_sql}"
     )
     rows = conn.execute(query, from_params + list(paths) + vis_params).fetchall()
-    return {row["path"]: dict(row) for row in rows}
+    result = {row["path"]: dict(row) for row in rows}
+    from db.manual_tags import load_manual_tags_map, merge_effective_tags
+    manual = load_manual_tags_map(conn, list(result))
+    for path, data in result.items():
+        data["tags"] = merge_effective_tags(data["tags"], manual.get(path, ()))
+    return result
 
 
 def _resolve_filter_paths(conn, filters, user_id, exclude=None, max_paths=None,

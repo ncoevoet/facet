@@ -946,7 +946,8 @@
     "unlock_button": "Desbloquear",
     "lock_title": "Modo de edição ativo — clique para bloquear",
     "password_placeholder": "Senha de edição",
-    "invalid_password": "Senha inválida"
+    "invalid_password": "Senha inválida",
+    "read_only_hint": "Somente leitura: defina viewer.edition_password em scoring_config.json para ativar a avaliação, a seleção e a edição, e reinicie o visualizador."
   },
   "nav": {
     "gallery": "Galeria",
@@ -1062,6 +1063,7 @@
     },
     "reset_filters": "Redefinir filtros",
     "scroll_to_top": "Voltar ao topo",
+    "scan_action": "Escanear novas fotos",
     "photo_grid": "Grade de fotos",
     "active_filters": "{count} filtros ativos",
     "unknown_person": "Desconhecido",
@@ -1069,6 +1071,7 @@
       "count": "{count} selecionadas",
       "clear": "Limpar",
       "copy_filenames": "Copiar nomes dos arquivos",
+      "copy_filename": "Copiar nome do arquivo",
       "download": "Baixar",
       "copied": "Caminhos copiados para a área de transferência",
       "favorite": "Favoritar",
@@ -1083,6 +1086,7 @@
       "compare": "Comparar",
       "actions": "Ações",
       "mark_sequence": "Marcar como série",
+      "edit_tags": "Editar etiquetas…",
       "mark_panorama": "Marcar como um panorama",
       "mark_hdr_panorama": "Marcar como um panorama HDR",
       "marked_panorama": "{count} fotos marcadas como um panorama",
@@ -2315,6 +2319,18 @@
       "error": "Falha ao excluir"
     }
   },
+  "manual_tags": {
+    "title": "Editar etiquetas",
+    "tag_label": "Etiqueta",
+    "hint": "As etiquetas manuais permanecem na foto após uma nova análise e são gravadas como palavras-chave ao exportar.",
+    "add": "Adicionar etiqueta",
+    "add_action": "Adicionar",
+    "remove_action": "Remover",
+    "remove_tag": "Remover a etiqueta {tag}",
+    "manual": "Etiqueta manual",
+    "error": "Não foi possível alterar a etiqueta. Verifique-a e tente novamente.",
+    "already_present": "Esta etiqueta já está na foto."
+  },
   "photo": {
     "category_override": {
       "menu_tooltip": "Categoria de pontuação",
@@ -2401,6 +2417,7 @@
     "toggle_select": "Selecionar / desmarcar",
     "select_all": "Selecionar todas as carregadas",
     "clear_selection": "Limpar seleção",
+    "context_menu": "Abrir o menu de contexto",
     "show_help": "Mostrar esta ajuda",
     "close": "Fechar",
     "section_gallery": "Galeria",

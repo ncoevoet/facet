@@ -415,6 +415,24 @@ PHOTO_TAGS_INDEXES = [
     ('idx_photo_tags_path', 'photo_tags', 'photo_path'),
 ]
 
+# User-authored tags: a side table, never a `photos` column, because
+# save_photo/save_photos_batch rewrite the photo row on rescan and the tagger
+# rewrites `photos.tags` on every retag. `source` records who wrote the row:
+# 'user' (viewer editor) or 'xmp' (sidecar keyword import). Tags are global in
+# multi-user mode; `created_by` is informational (NULL in single-user mode).
+# Readers union this table with the AI tags at read time (never mirrored).
+PHOTO_MANUAL_TAGS_COLUMNS = [
+    ('photo_path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE'),
+    ('tag', 'TEXT NOT NULL'),
+    ('source', "TEXT NOT NULL CHECK(source IN ('user','xmp'))"),
+    ('created_by', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
+PHOTO_MANUAL_TAGS_INDEXES = [
+    ('idx_photo_manual_tags_tag', 'photo_manual_tags', 'tag'),
+]
+
 # Pairwise comparison results for weight optimization
 COMPARISONS_COLUMNS = [
     ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
@@ -628,6 +646,7 @@ USER_PREFERENCES_INDEXES = [
 ALL_INDEX_GROUPS = [
     INDEXES,
     PHOTO_TAGS_INDEXES,
+    PHOTO_MANUAL_TAGS_INDEXES,
     COMPARISONS_INDEXES,
     LEARNED_SCORES_INDEXES,
     WEIGHT_OPTIMIZATION_RUNS_INDEXES,
@@ -803,6 +822,7 @@ _MIGRATED_TABLES = [
     ('faces', FACES_COLUMNS),
     ('persons', PERSONS_COLUMNS),
     ('photo_tags', PHOTO_TAGS_COLUMNS),
+    ('photo_manual_tags', PHOTO_MANUAL_TAGS_COLUMNS),
     ('comparisons', COMPARISONS_COLUMNS),
     ('learned_scores', LEARNED_SCORES_COLUMNS),
     ('rejected_merge_suggestions', REJECTED_MERGE_SUGGESTIONS_COLUMNS),
@@ -959,6 +979,13 @@ def init_database(db_path='photo_scores_pro.db'):
         conn.execute(_build_create_table_sql(
             'photo_tags',
             PHOTO_TAGS_COLUMNS,
+            constraints=['PRIMARY KEY (photo_path, tag)']
+        ))
+
+        # Create photo_manual_tags (user-authored tags; side table, survives rescans)
+        conn.execute(_build_create_table_sql(
+            'photo_manual_tags',
+            PHOTO_MANUAL_TAGS_COLUMNS,
             constraints=['PRIMARY KEY (photo_path, tag)']
         ))
 

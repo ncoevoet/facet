@@ -60,7 +60,7 @@ Proteção por senha opcional via configuração:
 }
 ```
 
-Quando definida, os usuários precisam se autenticar antes de acessar o visualizador. Uma `edition_password` opcional concede acesso ao gerenciamento de pessoas e ao modo de comparação.
+Quando definida, os usuários precisam se autenticar antes de acessar o visualizador. Uma `edition_password` é necessária para qualquer edição: avaliações, favoritos e rejeições, seleção, álbuns, gerenciamento de pessoas e rostos, modo de comparação, mudanças de pesos e prioridades e exportações. Sem `edition_password` (o padrão) a instalação é **somente leitura**: toda edição é recusada com um `403` ("Set viewer.edition_password to enable editing"). A geração por IA sob demanda (legendas, críticas VLM) também a exige, mas é uma degradação e não uma recusa: a chamada responde `200` apenas com o que já está em cache (`source: "edition_required"` ou `vlm_available: false`). Quem pode *navegar* é decidido por `viewer.password`: sem ela, qualquer um navega por toda a biblioteca; com ela, apenas usuários autenticados. Numa instalação assim a galeria também deixa de mostrar os emblemas existentes de estrelas, favoritos e rejeições, como para um visualizador sem edição numa instalação bloqueada. Depois de definir `viewer.edition_password`, reinicie o visualizador: a configuração não é recarregada a quente.
 
 ### Modo Multiusuário
 
@@ -189,6 +189,7 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 - Tags clicáveis para filtragem rápida
 - Avatares de pessoas para rostos reconhecidos
 - Selo de categoria
+- O clique direito (ou Shift+F10) abre o [menu de contexto](#seleção-múltipla-e-ações-em-lote)
 
 ### Seleção Múltipla e Ações em Lote
 
@@ -207,8 +208,11 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 - **Excluir** — Envia as fotos selecionadas diretamente para a lixeira do sistema (veja [Excluir](#excluir)); controlado pela mesma flag `viewer.cull.allow_trash` que Selecionar para pasta, de modo que uma instalação que mostra uma mostra a outra. Desabilitado quando a seleção abrange toda a visualização filtrada — uma exclusão orientada por filtros poderia mover para a lixeira um conjunto sem limite em uma única requisição, então o botão pede uma seleção explícita em vez disso.
 - **Baixar** — Baixa as fotos selecionadas
 - Limpe a seleção com Escape ou o botão Limpar
+- **Editar etiquetas** — Adiciona um [tag manual](#tags-manuais) a cada foto selecionada, ou o remove (veja [Tags manuais](#tags-manuais))
 
-As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer foto para baixá-la diretamente.
+As ações em lote requerem o modo de edição. Dê um duplo clique em qualquer foto para abri-la.
+
+**Menu de contexto** — Clique com o botão direito numa foto (ou dê foco a ela e pressione Shift+F10 / a tecla Menu) para abrir um menu junto ao cursor. Numa foto que faz parte de uma seleção de várias fotos, atua sobre toda a seleção, com as ações da barra de ações sob as mesmas condições, exceto Inverter e Selecionar tudo, que ficam na barra (Excluir é omitido no escopo «selecionar tudo na visualização»). Em qualquer outra foto, atua apenas sobre essa foto e deixa a seleção intacta, e acrescenta Abrir foto e, só quando as condições de recurso ou de edição permitem, Encontrar semelhantes, Por que esta pontuação?, Gravar metadados no arquivo e Atribuir rosto à pessoa (esta só se a foto tiver rostos sem atribuição). Descartar assim uma única foto retira apenas essa foto da seleção: uma seleção por caminhos mantém o resto, e uma seleção «tudo na visualização» continua sendo de toda a visualização, com essa foto adicionada às exclusões. O menu não é oferecido em dispositivos de toque (`hover: none` e `pointer: coarse`), onde se mantêm o comportamento nativo do toque longo e a folha de ações. Sobre uma seleção, o menu traz também a entrada em lote **Editar etiquetas**, sujeita ao modo de edição como a da barra; em dispositivos de toque ela também está disponível na folha de Ações.
 
 ### Manter Top N%
 
@@ -270,6 +274,21 @@ Use o **controle deslizante de limiar de similaridade** (0–90%) para controlar
 
 Os filtros ativos são exibidos como chips removíveis com contagens no topo da galeria.
 
+### Tags manuais
+
+Tags manuais são tags que você digita por conta própria, guardadas ao lado dos tags de IA que um escaneamento ou uma nova etiquetagem produz. Elas vivem em uma tabela própria (`photo_manual_tags`), não na coluna `tags` da foto, de modo que um reescaneamento ou uma nova etiquetagem nunca as apaga.
+
+- **Onde aparecem.** Somente na visualização de **detalhes** da foto, como chips ao lado dos tags de IA e visualmente distintos (uma marca no chip, não apenas a cor). Os cartões de foto e a dica ao passar o mouse permanecem inalterados e continuam mostrando os tags de IA.
+- **Quem pode editá-las.** Editar exige uma sessão de edição, que por sua vez exige um `viewer.edition_password` definido; como qualquer outra escrita sujeita ao modo de edição, é recusada em uma instalação aberta (sem senha de edição), na qual os tags manuais são somente leitura. Quem não tem permissão de edição os vê em somente leitura. Na visualização de detalhes, um usuário em modo de edição pode adicionar um tag e remover um tag manual, mesmo em uma foto que ainda não tem nenhum tag. Os tags de IA não têm controle de remoção.
+- **Edição em lote.** Selecione fotos e use **Editar etiquetas** para adicionar ou remover um tag em toda a seleção: pela barra de seleção no desktop, pela folha de Ações no celular ou pelo menu de contexto sobre uma foto que faz parte de uma seleção de várias fotos. Uma seleção de toda a visualização é aceita como em qualquer outra ação em lote. As fotos que já têm 50 tags manuais são ignoradas em uma adição em lote em vez de fazer o lote falhar, e o `count` devolvido é o número de fotos realmente alteradas.
+- **Normalização.** Um tag é normalizado em Unicode (NFC), tem os espaços das pontas removidos, as sequências de espaços reduzidas a um só e o texto passado para minúsculas. Pode ter no máximo 64 caracteres, uma foto carrega no máximo 50 tags manuais, e um tag vazio, com vírgula ou com caractere de controle é recusado com `422`. Um tag idêntico a um dos tags de IA atuais da foto não faz nada (nada é armazenado), embora uma nova etiquetagem posterior possa produzir o mesmo tag dos dois lados; a galeria conta essa foto uma só vez.
+- **A busca e os filtros os alcançam.** O filtro de tags da galeria (incluindo tags obrigatórios e excluídos), a busca de texto da galeria, a busca semântica de texto (`/api/search`, exceto o escopo somente de legendas), a lista suspensa de tags e suas contagens, a página de estatísticas e as exportações de sidecar, metadados incorporados e manifesto do Lightroom veem todos a união dos tags de IA e manuais. A busca de texto casa um tag manual como frase inteira, não palavra por palavra. As cápsulas são a exceção: contam apenas tags de IA, então o total de uma cápsula pode ser menor que as fotos que o seu clique abre (o filtro de tags da galeria inclui os tags manuais). Os tags manuais nunca influenciam pontuações, categorias ou momentos narrativos.
+- **Ocultos nos links de compartilhamento.** Quem visualiza por um link de compartilhamento nunca vê os tags manuais, nem em uma foto ou um álbum compartilhado, nem na sua lista suspensa de filtros ou no seu filtro de tags; um álbum inteligente compartilhado continua aplicando o filtro salvo pelo proprietário, inclusive um tag manual pelo qual o proprietário filtrou.
+- **Globais, não por usuário.** No modo multiusuário os tags manuais são compartilhados por todos e não armazenados por usuário: qualquer usuário em modo de edição pode remover um tag adicionado por outro.
+- **Não podem ser desfeitas.** As edições de tags manuais não são cobertas por [Desfazer](#desfazer); adicione de novo manualmente um tag removido. Um tag removido também pode voltar de um sidecar, veja [Regras de conflito](INTEROP.md#regras-de-conflito).
+- **De onde vêm além da digitação.** `--import-sidecars` armazena como tags manuais, com origem `xmp`, as palavras-chave que encontra em um sidecar e que o Facet ainda não conhece (nem um tag de IA nem um nome de pessoa).
+- **Presos ao caminho do arquivo.** Um arquivo movido ou renomeado é uma foto nova (outro caminho) e perde os seus tags manuais junto com o caminho antigo.
+
 ## Panorâmicas e brackets de exposição
 
 Os fotogramas de uma panorâmica foram captados para serem unidos e os de um bracket para serem fundidos: nenhum deles é um conjunto de tomadas rivais. A deteção de rajadas não distingue a diferença — chegam com segundos de intervalo, de uma câmara, a uma distância focal — e sem isto agrupa-os e esconde todos menos um, escolhido por um critério que nada significa para uma varredura.
@@ -314,14 +333,14 @@ Acesse pelo botão no cabeçalho ou por `/persons`:
 
 ## Disparo de Varredura
 
-Quando `viewer.features.show_scan_button` é `true` e quem chama tem acesso à varredura — papel `superadmin` em modo multiusuário, ou uma sessão autenticada em modo de edição sobre uma instalação de usuário único bloqueada (`viewer.edition_password` definida) em modo de usuário único — um botão **Varrer fotos para começar** aparece no estado de galeria vazia. Ele vem definido como **`false`** no `scoring_config.json` (adesão explícita). Em uma instalação de usuário único aberta (`viewer.edition_password` vazia, o valor padrão de fábrica), as quatro rotas de varredura retornam 403 para qualquer chamador, incluindo um com um JWT de geração de edição válido, e o botão nunca é exibido — uma instalação aberta já trata chamadores anônimos como autenticados em modo de edição, e disparar um subprocesso de varredura não pode ser acessível anonimamente. O botão abre o diálogo do lançador de varredura (`ScanLauncherComponent`).
+A varredura é oferecida quando **ambas** as condições são atendidas: `viewer.features.show_scan_button` é `true` (vem como **`false`** no `scoring_config.json`, adesão explícita) **e** quem chama tem acesso à varredura — papel `superadmin` em modo multiusuário, ou uma sessão autenticada em modo de edição sobre uma instalação de usuário único bloqueada (um `viewer.edition_password` não vazio) em modo de usuário único. A galeria a oferece então em dois lugares, e ambos abrem o diálogo do lançador de varredura (`ScanLauncherComponent`): um botão **Varrer fotos para começar** no estado de galeria vazia e — enquanto a galeria tiver fotos para mostrar — um botão de ícone **Varrer novas fotos** no canto superior direito da grade de fotos, em qualquer largura de tela. Em uma instalação de usuário único aberta (`viewer.edition_password` vazia, o valor padrão de fábrica), as quatro rotas de varredura retornam 403 para qualquer chamador, incluindo um com um JWT de geração de edição válido, e nenhum dos dois pontos de entrada é exibido — disparar um subprocesso de varredura não pode ser acessível anonimamente.
 
 - Escolha um diretório da lista do lançador e inicie a varredura dentro do aplicativo
 - O lançador transmite o progresso ao vivo (SSE com fallback automático para polling) em uma `mat-progress-bar` controlada pelo campo estruturado `progress`, além de um trecho final de linhas de saída, e atualiza a galeria quando a varredura termina
 - A varredura é executada como um subprocesso em segundo plano (`facet.py`); apenas uma varredura por vez (trava global)
 - As escolhas de diretório vêm de `get_all_scan_directories()`, que une os `directories` de cada usuário, os diretórios compartilhados, os destinos de `path_mapping` e a lista autônoma `viewer.scan_directories` — preencha esta última (ex.: `/data/photos`) para que instalações de usuário único / Docker tenham um destino selecionável
 
-Isso é útil quando o visualizador é executado na mesma máquina que tem acesso à GPU para pontuação.
+Nenhuma GPU é necessária para varrer — veja [Qual perfil combina com o meu hardware?](INSTALLATION.md#qual-perfil-combina-com-o-meu-hardware) e [Sem placa de vídeo](INSTALLATION.md#sem-placa-de-vídeo) para o caminho somente com CPU (`legacy`). A varredura é executada na máquina que hospeda o visualizador, por isso é mais rápida quando essa máquina tem acesso à GPU para pontuação.
 
 Um gatilho relacionado, porém separado, `POST /api/scan/recompute`, reutiliza o mesmo lock de job para repontuar fotos existentes no local (sem novos arquivos) — veja [Prioridade de Categoria e Contextos de Pontuação](#prioridade-de-categoria-e-contextos-de-pontuação). Diferente da regra de acesso deste botão de varredura, que depende do modo, ele é protegido apenas por edition, sem distinção entre superadmin e instalação bloqueada.
 
@@ -398,7 +417,7 @@ O detalhamento também exibe as linhas explicáveis de **forma e harmonia de cor
 
 ### Crítica por VLM `[GPU]` `[16gb/24gb]`
 
-Usa o VLM configurado (Qwen3.5-2B ou Qwen3.5-4B) para uma crítica contextual. Requer o perfil de VRAM 16gb ou 24gb e `viewer.features.show_vlm_critique: true`.
+Usa o VLM configurado (Qwen3.5-2B ou Qwen3.5-4B) para uma crítica contextual. Requer o perfil de VRAM 16gb ou 24gb e `viewer.features.show_vlm_critique: true`. Gerá-la também exige uma sessão de edição; sem ela só uma crítica já em cache é servida e `vlm_available` é `false`.
 
 O prompt é uma escada configurável (`critique.vlm`) que injeta o detalhamento completo de regras, penalidades e EXIF, e a resposta é apresentada como **Observação / Avaliação / Sugestões**. O resultado é armazenado em cache por foto (`photos.vlm_critique`) e traduzido sob demanda, com um botão **Regenerar** para recomputá-lo. Ele roda sobre a miniatura armazenada, então arquivos RAW são criticados corretamente em vez de falharem silenciosamente.
 
@@ -410,7 +429,7 @@ Controlado por `viewer.features.show_critique` (padrão: `true`) e `viewer.featu
 
 ## Legendagem por IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Obtenha uma legenda em linguagem natural gerada por IA para qualquer foto. As legendas são geradas na primeira solicitação e armazenadas em cache na coluna `caption` do banco de dados. As legendas podem ser editadas manualmente no modo de edição pela página de detalhes da foto. (A *tradução* de legendas roda na CPU — veja abaixo.)
+Obtenha uma legenda em linguagem natural gerada por IA para qualquer foto. As legendas são geradas na primeira solicitação por uma sessão de edição (uma instalação aberta, somente leitura, nunca gera nenhuma) e armazenadas em cache na coluna `caption` do banco de dados. As legendas podem ser editadas manualmente no modo de edição pela página de detalhes da foto. (A *tradução* de legendas roda na CPU — veja abaixo.)
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
@@ -772,6 +791,7 @@ Todas as estatísticas são sensíveis ao usuário no modo multiusuário — cad
 | `Escape` | Limpa a seleção / fecha a gaveta de filtros |
 | `Shift+Click` | Seleciona em intervalo as fotos entre a última selecionada e a clicada |
 | `Double-click` | Abre a foto |
+| `Shift+F10` / `Menu` | Abre o menu de contexto do cartão de foto com foco (o clique direito faz o mesmo) |
 | `?` | Mostra a referência de atalhos de teclado (funciona em todas as páginas) |
 
 A foto atual — aquela sobre a qual agem os atalhos de avaliação, favorito e rejeição — é marcada com um contorno de 4px em volta do seu cartão; todos os outros cartões passam a 50% de opacidade. Nada fica marcado até o cursor se mover de fato para uma foto dos resultados, por isso uma galeria que você ainda não percorreu permanece em intensidade total. Clicar numa foto move o marcador para ela, de modo que um atalho digitado logo após um clique se aplica à foto clicada, não àquela onde as setas o tinham deixado.
@@ -782,7 +802,7 @@ Operações em lote de favoritar/rejeitar/avaliar e confirmações de triagem mo
 com uma ação **Desfazer** por cerca de 7 segundos. As operações de marcação em lote são confirmadas
 imediatamente e desfeitas por chamadas de API inversas (limitadas a 500 fotos); as confirmações
 de triagem são adiadas — o grupo desaparece instantaneamente, mas a chamada de API só
-dispara quando a janela de desfazer expira.
+dispara quando a janela de desfazer expira. As edições de [tags manuais](#tags-manuais) não podem ser desfeitas.
 
 ## Progressive Web App
 
@@ -1069,12 +1089,14 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 | `GET /api/photos/count` | `{ total }` — quantas fotos correspondem aos filtros atuais da galeria |
 | `GET /api/photos/paths` | `{ total, paths }` — cada caminho correspondente, sem ordem; usado sob demanda por ações que precisam de nomes de arquivo (download, cópia), nunca por «Selecionar tudo». Limitado a 10000: uma visualização com mais é recusada com um `412` que informa a contagem e o limite em vez de truncada — uma lista de caminhos parcial seria uma seleção que o usuário acredita estar completa — e não há nenhum recurso alternativo: a ação é abandonada com uma mensagem «fotos demais», cabendo ao usuário refinar os filtros e tentar de novo. Só passam por aqui as ações que precisam de uma lista de caminhos literal; a seleção da visualização inteira é ela mesma apenas uma contagem (`GET /api/photos/count`) e nunca precisou dessa lista, portanto as ações baseadas em filtros construídas sobre ela (gravações em lote de nota/rejeição, seleção para pasta, exportação de sidecars) não são afetadas por esse limite e têm o seu próprio |
 | `GET /api/photo` | Detalhes de uma única foto |
+| `PUT /api/photo/manual_tags` | Adiciona um [tag manual](#tags-manuais) a uma foto (sujeito ao modo de edição). Corpo: `{path, tag}`. `404` para um caminho desconhecido ou invisível, `422` para um tag inválido ou uma foto que já tem 50 tags; um tag igual a um dos tags de IA da foto não faz nada e responde `200` com `skipped_existing: true` |
+| `DELETE /api/photo/manual_tags` | Remove um tag manual de uma foto (sujeito ao modo de edição). Corpo: `{path, tag}` |
 | `GET /api/photo/set?path=` | O conjunto bracket/panorâmica/hdr_panorama/sequência/duplicata ao qual uma foto pertence (bracket, panorâmica ou hdr_panorama têm prioridade sobre sequência, que por sua vez tem prioridade sobre duplicata), indexado por `path` — nunca um identificador de grupo, que as passagens de bracket e panorâmica renumeram cada uma a partir de 1 a cada execução |
 | `GET /api/photo/histogram?path=&bins=` | Bins de luminância + R/G/B prontos para desenhar (`bins` ∈ 32/64/128/256, padrão 64), medidos durante a análise na imagem em resolução total. Cada canal é escalado por um único máximo global, nunca pelo seu próprio. `r`/`g`/`b` são `null` para uma linha gravada antes do formato por canal; 404 quando a linha não tem histograma algum, o sinal para o widget recorrer à amostragem da miniatura |
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Contagens de fotos por tipo para os chips da barra lateral. Mesmas cinco chaves da galeria; uma omitida recorre a `viewer.defaults` em vez de "desativado" — envie `hide_bursts=0`, etc., explicitamente para contar tudo |
 | `GET /api/similar_photos/{path}` | Fotos semelhantes (modos: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Busca semântica de texto para imagem (`scope=text` = apenas texto OCR/legenda). `threshold` é opcional: se omitido, resolve-se para o `models.*.search_threshold_percent` do codificador ativo (exposto ao cliente como `search_threshold_default` de `/api/config`); um valor explícito — incluindo `0.0` — sempre prevalece sobre o padrão resolvido. Avaliado apenas quando a busca de fato executa uma busca por embedding (`scope != 'text'` ignora a resolução por completo) |
-| `GET /api/critique?path=&mode=&refresh=` | Crítica por IA (baseada em regras ou VLM); `refresh=true` regenera a crítica VLM em cache |
+| `GET /api/critique?path=&mode=&refresh=` | Crítica por IA (baseada em regras ou VLM); `refresh=true` regenera a crítica VLM em cache (somente sessão de edição; caso contrário `vlm_available: false`) |
 | `GET /api/ranker/status` | Status do ranqueador pessoal para a ordenação "Meu Gosto" (% de cobertura aprendida, precisão em dados retidos) |
 | `GET /api/config` | Configuração do visualizador |
 
@@ -1118,6 +1140,7 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 | `POST /api/photos/batch_favorite` | Marca várias fotos como favoritas (limpa a rejeição). O corpo é exatamente um de `{photo_paths}` (máx. 1000) ou `{filters}` — `filters` usa os mesmos parâmetros de consulta de `GET /api/photos`, como strings, sem limite. `exclude` (opcional, máx. 1000) pode acompanhar qualquer um dos dois e restringe o alvo enviado, seja ele qual for — subtraído de `photo_paths` ou excluído do escopo `filters` —, portanto só pode restringir, nunca ampliar. Não informar nenhum alvo, ou informar ambos, resulta em 422, e um conjunto `filters` que nomeia um álbum é verificado de acesso da mesma forma que o próprio GET desse álbum — `404` para um álbum que não existe, `403` para o de outro usuário em uma instalação com controle de acesso. Resposta `{success, count}`, onde `count` é o número de linhas efetivamente gravadas |
 | `POST /api/photos/batch_reject` | Marca várias fotos como rejeitadas (limpa favorito e avaliação). Mesmo contrato de corpo de `batch_favorite` acima |
 | `POST /api/photos/batch_rating` | Define a avaliação por estrelas para várias fotos. Mesmo contrato de corpo de `batch_favorite`, mais um `rating` obrigatório (0–5) |
+| `POST /api/photos/batch_manual_tags` | Adiciona ou remove um [tag manual](#tags-manuais) em várias fotos (sujeito ao modo de edição). Mesmo contrato de corpo de `batch_favorite`, mais um `tag` obrigatório e uma `action` com valor `add` ou `delete`. Resposta `{success, count}`, em que `count` é o número de linhas realmente gravadas: fotos que já estão no limite de 50 tags e fotos cujos tags de IA já contêm o tag são ignoradas com `add` |
 
 ### Pessoas
 
@@ -1167,7 +1190,7 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 |----------|-------------|
 | `GET /api/memories?date=` | Fotos tiradas nesta data em anos anteriores |
 | `GET /api/memories/check` | Verifica se existem memórias para uma data |
-| `GET /api/caption?path=` | Obtém ou gera uma legenda por IA |
+| `GET /api/caption?path=` | Obtém a legenda por IA; uma sessão de edição a gera na primeira requisição (caso contrário `source: "edition_required"`) |
 | `PUT /api/caption` | Atualiza a legenda da foto (modo de edição) |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Fotos paginadas da linha do tempo. As cinco chaves `hide_*` são as da galeria; uma omitida recorre a `viewer.defaults` em vez de "desativado" |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Datas disponíveis para navegação (mesmo fallback `hide_*`) |
@@ -1208,18 +1231,18 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Obtém o próximo par de fotos para comparação |
+| `GET /api/comparison/next_pair` | `[Edition]` Obtém o próximo par de fotos para comparação |
 | `POST /api/comparison/submit` | Envia o resultado da comparação |
 | `POST /api/comparison/reset` | Redefine os dados de comparação |
-| `GET /api/comparison/stats` | Estatísticas da sessão de comparação |
-| `GET /api/comparison/history` | Lista comparações anteriores |
+| `GET /api/comparison/stats` | `[Edition]` Estatísticas da sessão de comparação |
+| `GET /api/comparison/history` | `[Edition]` Lista comparações anteriores |
 | `POST /api/comparison/edit` | Edita o resultado de uma comparação |
 | `POST /api/comparison/delete` | Exclui uma comparação |
-| `GET /api/comparison/coverage` | Cobertura de comparações por categoria |
-| `GET /api/comparison/confidence` | Métricas de confiança para pontuações aprendidas |
+| `GET /api/comparison/coverage` | `[Edition]` Cobertura de comparações por categoria |
+| `GET /api/comparison/confidence` | `[Edition]` Métricas de confiança para pontuações aprendidas |
 | `GET /api/comparison/photo_metrics` | Métricas brutas das fotos |
-| `GET /api/comparison/category_weights` | Pesos/filtros de categoria |
-| `GET /api/comparison/learned_weights` | Pesos sugeridos a partir de comparações |
+| `GET /api/comparison/category_weights` | `[Edition]` Pesos/filtros de categoria |
+| `GET /api/comparison/learned_weights` | `[Edition]` Pesos sugeridos a partir de comparações |
 | `POST /api/comparison/preview_score` | Prévia com pesos personalizados |
 | `POST /api/comparison/suggest_filters` | Analisa conflitos de filtro |
 | `POST /api/comparison/override_category` | `[Edition]` Define uma substituição de categoria persistente por foto (validada contra os nomes de categoria configurados; sobrevive ao próximo recálculo) |
@@ -1285,7 +1308,7 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 | Endpoint | Descrição |
 |----------|-------------|
 | `POST /api/config/update_weights` | Atualiza os pesos de pontuação |
-| `GET /api/config/weight_snapshots` | Lista os instantâneos de pesos salvos |
+| `GET /api/config/weight_snapshots` | `[Edition]` Lista os instantâneos de pesos salvos |
 | `POST /api/config/save_snapshot` | Salva os pesos atuais como instantâneo |
 | `POST /api/config/restore_weights` | Restaura os pesos de um instantâneo |
 | `GET /api/config/category_priorities` | `[Edition]` Lista as categorias na ordem de prioridade (avaliação) atual |
@@ -1339,8 +1362,8 @@ O endpoint `/api/download/options` detecta automaticamente arquivos RAW companhe
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/plugins` | Lista os plugins configurados |
-| `POST /api/plugins/test-webhook` | Testa um plugin de webhook |
+| `GET /api/plugins` | `[Edition]` Lista os plugins configurados |
+| `POST /api/plugins/test-webhook` | `[Edition]` Testa um plugin de webhook |
 
 ### Immich
 
@@ -1381,7 +1404,7 @@ O endpoint `/api/download/options` detecta automaticamente arquivos RAW companhe
 | Usuário não consegue ver fotos | Verifique `directories` na configuração do usuário e `shared_directories` |
 | Botão de varredura ausente | Requer `viewer.features.show_scan_button: true` mais acesso à varredura: papel `superadmin` (multiusuário), ou uma sessão autenticada em modo de edição sobre uma instalação de usuário único bloqueada (`viewer.edition_password` definida) — uma instalação de usuário único aberta nunca o exibe |
 | Busca não retorna resultados | Garanta que as fotos tenham dados `clip_embedding` (execute a pontuação primeiro) |
-| Crítica por VLM indisponível | Requer o perfil de VRAM 16gb/24gb e `viewer.features.show_vlm_critique: true` |
+| Crítica por VLM indisponível | Requer o perfil de VRAM 16gb/24gb e `viewer.features.show_vlm_critique: true`, mais uma sessão de edição para gerá-la (sem ela só uma crítica em cache é servida) |
 | Mapa não mostra fotos | Execute `--extract-gps` para preencher as colunas GPS, garanta que as fotos tenham dados GPS EXIF |
 | Legendas não são geradas | Requer o perfil de VRAM 16gb/24gb para legendagem por VLM |
 | Linha do tempo vazia | Garanta que as fotos tenham valores em `date_taken` |

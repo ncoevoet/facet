@@ -177,8 +177,10 @@ testé.
   environ 4,7 Go pour `legacy`, 6,9 Go pour `8gb`, 14,6 Go pour `16gb`, 19,1 Go pour
   `24gb` (détail complet dans [Tailles de téléchargement](#tailles-de-téléchargement)).
   Cela n'arrive qu'une fois ; les lancements suivants démarrent immédiatement.
-- **Aucune configuration.** Il n'y a rien à paramétrer. Facet crée sa base de données au
-  premier scan et fonctionne avec des réglages par défaut opérationnels.
+- **Aucune configuration pour scanner.** Facet crée sa base de données au premier scan et
+  fonctionne avec des réglages par défaut opérationnels. Pour **modifier** (noter, trier,
+  gérer albums et personnes), définissez `viewer.edition_password` dans `scoring_config.json` —
+  sans lui, la visionneuse est en lecture seule (redémarrez la visionneuse après l'avoir défini : la configuration n'est pas rechargée à chaud. Avec le `docker-compose.yml` fourni, l'image Docker en génère un au premier démarrage).
 - **Vos photos ne sont pas modifiées.** Le scan se contente de les lire ; les résultats
   vont dans la base de données de Facet. Réécrire les notes et les mots-clés dans vos
   fichiers est une action distincte, que vous déclenchez vous-même ([Interopérabilité](INTEROP.md)).
@@ -241,7 +243,7 @@ vous omettez conserve la valeur livrée (et bénéficie de ses améliorations lo
 mise à niveau).
 
 `docker-entrypoint.sh` initialise donc le fichier persistant
-`./facet-config/scoring_config.json` avec un `{}` vide au premier démarrage. Ce
+`./facet-config/scoring_config.json` avec un `viewer.edition_password` généré au premier démarrage (affiché une seule fois dans le journal du conteneur : `docker compose logs facet` ; uniquement lorsque `FACET_CONFIG` désigne ce fichier, comme le définit `docker-compose.yml` — un simple `docker run` sans cette variable initialise une surcharge vide et ne génère aucun mot de passe). Ce
 fichier est monté par `docker-compose.yml` (sous la forme
 `FACET_CONFIG=/config/scoring_config.json` dans le conteneur), si bien que le
 conteneur tourne sans aucune configuration côté hôte et que chaque écriture de
@@ -297,9 +299,7 @@ dans le compose) pour que l'utilisateur du conteneur soit vous.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> Sinon l'entrypoint initialise une surcharge vide et vos poids, vos
-> catégories et **votre mot de passe d'édition ne sont plus lus** — or un
-> `viewer.edition_password` vide désactive entièrement le contrôle d'édition. Si vous
+> Sinon l'entrypoint initialise une nouvelle surcharge (avec un `viewer.edition_password` fraîchement généré sous compose) et vos poids, vos catégories et **votre mot de passe d'édition ne sont plus lus**. Si vous
 > conservez votre propre `docker-compose.yml` avec l'ancien montage en place,
 > l'entrypoint initialise `./facet-config` à partir de *ce* fichier : rien n'est perdu.
 >
@@ -683,9 +683,9 @@ utilisées tout au long de la documentation :
 | Tagging par VLM (Qwen3.5) | oui | `16gb`/`24gb` | — | — |
 | Motif de composition (SAMP-Net) | optionnel | tout (`legacy` = CPU) | — | — |
 | Saillance du sujet (BiRefNet) | optionnel | tout (`legacy` = CPU) | — | — |
-| Légendes IA (générer / consulter) | oui | `16gb`/`24gb` | — | — |
+| Légendes IA (générer / consulter) | oui | `16gb`/`24gb` | edition (génération) | — |
 | Légendes IA (modifier) | oui | `16gb`/`24gb` | edition | — |
-| Critique VLM | oui | `16gb`/`24gb` | — | — |
+| Critique VLM | oui | `16gb`/`24gb` | edition (génération) | — |
 | Détection / extraction de visages (InsightFace) | recommandé (le CPU fonctionne, lentement) | tout | — | — |
 | Regroupement de visages (HDBSCAN) | non (CPU) | tout | — | `cuml`/`cupy` (accélération GPU optionnelle) |
 | Recherche sémantique | non | tout | — | `sqlite-vec` (repli sur NumPy) |
@@ -693,7 +693,7 @@ utilisées tout au long de la documentation :
 | Mode surveillance (`--watch`) | non | tout | — | `watchdog` |
 | Extraction GPS / export darktable | non | tout | — | `exiftool` / `darktable-cli` |
 | Notes, favoris, édition des visages et personnes, tri | non | tout | edition | — |
-| Déclencher des analyses depuis l'interface web | non | tout | superadmin | — |
+| Déclencher des analyses depuis l'interface web | non | tout | édition (mono-utilisateur) / superadmin (multi-utilisateurs) | — |
 | Multi-utilisateur (notes et rôles par utilisateur) | non | tout | par rôle | — |
 
 > Le *regroupement* de visages s'exécute par défaut sur CPU (paquet `hdbscan`

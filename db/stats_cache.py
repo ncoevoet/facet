@@ -172,13 +172,22 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
         except sqlite3.OperationalError:
             pass
 
-        # 8. Tag counts from photo_tags table (if populated)
+        # 8. Tag counts: AI tags (photo_tags) UNION the user's manual tags.
+        # UNION on (photo, tag) pairs so a manual tag equal to an AI tag counts
+        # that photo once. Either table being non-empty is enough to build it,
+        # otherwise a manual-only library would never cache.
         try:
-            tag_count = conn.execute("SELECT COUNT(*) FROM photo_tags").fetchone()[0]
-            if tag_count > 0:
-                tags = conn.execute("""
+            sources = []
+            for table in ('photo_tags', 'photo_manual_tags'):
+                try:
+                    if conn.execute(f"SELECT 1 FROM {table} LIMIT 1").fetchone():
+                        sources.append(f"SELECT photo_path, tag FROM {table}")
+                except sqlite3.OperationalError:
+                    continue
+            if sources:
+                tags = conn.execute(f"""
                     SELECT tag, COUNT(*) as cnt
-                    FROM photo_tags
+                    FROM ({' UNION '.join(sources)})
                     GROUP BY tag
                     ORDER BY cnt DESC
                     LIMIT 100
@@ -187,10 +196,10 @@ def refresh_stats_cache(db_path='photo_scores_pro.db', verbose=True):
                 stats['tags'] = tag_data
                 _cache_stat(conn, 'tags', json.dumps(tag_data), now)
                 if verbose:
-                    logger.info("  Tags: %d (from photo_tags table)", len(tag_data))
+                    logger.info("  Tags: %d (photo_tags + photo_manual_tags)", len(tag_data))
             else:
                 if verbose:
-                    logger.info("  Tags: skipped (photo_tags table empty - run --migrate-tags)")
+                    logger.info("  Tags: skipped (photo_tags and photo_manual_tags empty - run --migrate-tags)")
         except sqlite3.OperationalError:
             pass
 

@@ -50,6 +50,7 @@ from datetime import datetime, timezone
 from typing import NamedTuple
 from xml.etree import ElementTree as ET
 
+from db.manual_tags import load_manual_tags_map, merge_effective_tags
 from utils.image_loading import JPEG_EXTENSIONS, KNOWN_HEIF_EXTENSIONS
 
 
@@ -677,13 +678,16 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
         sr = dict(cfg.get("score_to_rating", {}))
         sr["enabled"] = True
         cfg["score_to_rating"] = sr
+    manual_map = load_manual_tags_map(conn, [r["path"] for r in rows])
     written = embedded = missing = errors = 0
     for row in rows:
         path = row["path"]
         if not os.path.exists(path):
             missing += 1
             continue
-        rating = XmpRating.from_row(row)
+        data = dict(row)
+        data["tags"] = merge_effective_tags(data["tags"], manual_map.get(path, ()))
+        rating = XmpRating.from_row(data)
         rating.apply_score_mapping(cfg)
         rating.regions = _cli_face_regions(conn, path, row["image_width"], row["image_height"])
         rating.person_names = person_names_from_regions(rating.regions)
@@ -823,6 +827,10 @@ def build_manifest(db_path, root=None, paths=None, score_to_rating=None, user=No
                 f"{select} {where} ORDER BY aggregate DESC", ratings.params + params,
             )
             photos = [row_to_photo(row) for row in cursor]
+
+        manual_map = load_manual_tags_map(conn, [p['path'] for p in photos])
+        for photo in photos:
+            photo['tags'] = merge_effective_tags(photo['tags'], manual_map.get(photo['path'], ()))
 
         if paths is not None:
             pending_corrections = count_pending_groups(paths=paths, conn=conn)

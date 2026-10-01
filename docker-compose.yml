@@ -14,8 +14,9 @@ services:
       # Persistent, editable config — your OVERRIDE, not the whole configuration.
       # Everything Facet ships lives in config/scoring_config.default.json inside
       # the image, and this file is resolved on top of it, so it only needs the
-      # settings you actually changed. docker-entrypoint.sh seeds it with an
-      # empty `{}` on first run; an operator upgrading from the old
+      # settings you actually changed. docker-entrypoint.sh seeds it on first run
+      # with a generated `viewer.edition_password` (printed once to the container
+      # log; an install without one is read-only); an operator upgrading from the old
       # `- ./scoring_config.json:/app/scoring_config.json` mount gets THEIR file
       # carried across rather than reset, since a full config resolves to itself.
       # Edit it by hand to customize weights, viewer password, categories, etc.

@@ -768,6 +768,28 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
             count = dest_conn.execute("SELECT COUNT(*) FROM main.user_preferences").fetchone()[0]
             logger.info("  Synced user preferences (%d rows)", count)
 
+    # --- Merge photo_manual_tags (user-authored tags; additive only) ---
+    # Never replaced wholesale: a tag added on the viewer deployment survives a
+    # re-export, and a source tag is added when absent. The photo guard keeps an
+    # orphan source row (photo absent from the destination) from tripping the FK.
+    # Both sides must have the table: an older scan DB or viewer DB without it
+    # must not abort the export.
+    if 'photo_manual_tags' in dest_tables and 'photo_manual_tags' in src_tables:
+        src_tag_cols = [r[1] for r in dest_conn.execute("PRAGMA src.table_info(photo_manual_tags)").fetchall()]
+        dest_tag_col_set = {r[1] for r in dest_conn.execute("PRAGMA main.table_info(photo_manual_tags)").fetchall()}
+        common_tag_cols = [c for c in src_tag_cols if c in dest_tag_col_set]
+        if 'photo_path' in common_tag_cols and 'tag' in common_tag_cols:
+            col_list = ', '.join(common_tag_cols)
+            dest_conn.execute(
+                f"INSERT OR IGNORE INTO main.photo_manual_tags ({col_list}) "
+                f"SELECT {col_list} FROM src.photo_manual_tags "
+                f"WHERE photo_path IN (SELECT path FROM main.photos)"
+            )
+            dest_conn.commit()
+            if verbose:
+                count = dest_conn.execute("SELECT COUNT(*) FROM main.photo_manual_tags").fetchone()[0]
+                logger.info("  Merged manual tags (%d rows)", count)
+
     # --- Sync photos_vec (sqlite-vec KNN index; no FK/trigger, hand-synced) ---
     # The viewer DB nulls out photos.clip_embedding, so photos_vec is the ONLY
     # place embeddings survive on the deployment — the NumPy search fallback has

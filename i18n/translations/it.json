@@ -946,7 +946,8 @@
     "unlock_button": "Sblocca",
     "lock_title": "Modalita di modifica attiva - clicca per bloccare",
     "password_placeholder": "Password di modifica",
-    "invalid_password": "Password non valida"
+    "invalid_password": "Password non valida",
+    "read_only_hint": "Sola lettura: imposta viewer.edition_password in scoring_config.json per abilitare valutazione, selezione e modifica, poi riavvia il viewer."
   },
   "nav": {
     "gallery": "Galleria",
@@ -1062,6 +1063,7 @@
     },
     "reset_filters": "Ripristina filtri",
     "scroll_to_top": "Torna su",
+    "scan_action": "Scansiona nuove foto",
     "photo_grid": "Griglia di foto",
     "active_filters": "{count} filtri attivi",
     "unknown_person": "Sconosciuto",
@@ -1069,6 +1071,7 @@
       "count": "{count} selezionati",
       "clear": "Cancella",
       "copy_filenames": "Copia nomi file",
+      "copy_filename": "Copia nome file",
       "download": "Scarica",
       "copied": "Percorsi copiati negli appunti",
       "favorite": "Preferito",
@@ -1083,6 +1086,7 @@
       "compare": "Confronta",
       "actions": "Azioni",
       "mark_sequence": "Segna come serie",
+      "edit_tags": "Modifica tag…",
       "mark_panorama": "Segna come un panorama",
       "mark_hdr_panorama": "Segna come un panorama HDR",
       "marked_panorama": "{count} foto segnate come un panorama",
@@ -2315,6 +2319,18 @@
       "error": "Eliminazione non riuscita"
     }
   },
+  "manual_tags": {
+    "title": "Modifica tag",
+    "tag_label": "Tag",
+    "hint": "I tag manuali restano associati alla foto dopo una nuova scansione e vengono scritti come parole chiave all’esportazione.",
+    "add": "Aggiungi tag",
+    "add_action": "Aggiungi",
+    "remove_action": "Rimuovi",
+    "remove_tag": "Rimuovi il tag {tag}",
+    "manual": "Tag manuale",
+    "error": "Impossibile modificare il tag. Controllalo e riprova.",
+    "already_present": "Questo tag è già presente sulla foto."
+  },
   "photo": {
     "category_override": {
       "menu_tooltip": "Categoria di valutazione",
@@ -2401,6 +2417,7 @@
     "toggle_select": "Seleziona / deseleziona",
     "select_all": "Seleziona tutti i caricati",
     "clear_selection": "Annulla selezione",
+    "context_menu": "Apri il menu contestuale",
     "show_help": "Mostra questa guida",
     "close": "Chiudi",
     "section_gallery": "Galleria",

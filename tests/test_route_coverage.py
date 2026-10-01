@@ -43,7 +43,9 @@ PUBLIC_ROUTES = [
     '/api/i18n/pt',
 ]
 
-# Routes that need *some* form of authenticated user but no edition rights.
+# Routes exercised here with an edition session. Most only need *some* authenticated
+# user; a few (e.g. /api/plugins, the comparison reads) are edition-only since an
+# install without viewer.edition_password became read-only.
 AUTH_ROUTES = [
     '/api/photos',
     '/api/type_counts',

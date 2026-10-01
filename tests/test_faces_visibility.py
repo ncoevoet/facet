@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api import create_app
-from api.auth import CurrentUser, require_auth, require_edition
+from api.auth import CurrentUser, require_auth, require_authenticated, require_edition
 from api.types import JUNK_NOT_JUNK
 
 _HELPERS = "api.db_helpers"
@@ -78,6 +78,7 @@ def _client(db_path, user):
     dirs = {"alice": ["/photos/alice"], "bob": ["/photos/bob"]}
     app = create_app()
     app.dependency_overrides[require_auth] = lambda: user
+    app.dependency_overrides[require_authenticated] = lambda: user
     app.dependency_overrides[require_edition] = lambda: user
     patches = [
         mock.patch("api.routers.faces.get_async_db", _async_factory(db_path)),

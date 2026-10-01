@@ -167,8 +167,9 @@ python viewer.py                       # 启动照片库
 - **一次下载。** 首次扫描会拉取你所选配置档的 AI 模型 —— `legacy` 约 4.7 GB、
   `8gb` 约 6.9 GB、`16gb` 约 14.6 GB、`24gb` 约 19.1 GB（完整明细见
   [下载体积](#下载体积)）。这只发生一次，之后的运行会立即开始。
-- **无需设置。** 没有任何东西需要配置。Facet 会在首次扫描时创建数据库，并自带
-  一套可用的设置。
+- **扫描无需设置。** Facet 会在首次扫描时创建数据库，并自带一套可用的设置。若要**编辑**
+  （评分、选片、管理相册和人物），请在 `scoring_config.json` 中设置
+  `viewer.edition_password`——否则查看器为只读（设置后请重启查看器：配置不会热重载。使用随附的 `docker-compose.yml` 时，Docker 镜像会在首次启动时为你生成一个）。
 - **你的照片不会被修改。** 扫描只读取照片，结果写入 Facet 自己的数据库。把星级和
   关键词写回文件是另一项需要你主动开启的操作（[互操作](INTEROP.md)）。
 - **时间。** 首次扫描大型照片库需要一段时间，而且在处理器上明显比在显卡上慢。
@@ -225,8 +226,8 @@ docker compose exec facet python facet.py --doctor   # 使用 Docker 时
 —— 所以它只需要保存你真正改过的那几项设置；凡是你没写的都会沿用出厂值
 （升级时还会自动获得对这些默认值的改进）。
 
-因此 `docker-entrypoint.sh` 会在首次运行时，用一个空的 `{}` 初始化持久化的
-`./facet-config/scoring_config.json`。该文件由 `docker-compose.yml` 绑定挂载
+因此 `docker-entrypoint.sh` 会在首次运行时，用一个生成的 `viewer.edition_password` 初始化持久化的
+`./facet-config/scoring_config.json`（在容器日志中仅打印一次：`docker compose logs facet`；仅当 `FACET_CONFIG` 指向该文件时才会生成——`docker-compose.yml` 即如此设置；不带该变量的普通 `docker run` 只会初始化一个空的覆盖文件，不生成密码）。该文件由 `docker-compose.yml` 绑定挂载
 （在容器内为 `FACET_CONFIG=/config/scoring_config.json`），因此容器无需你在宿主机
 上做任何准备就能运行，而且运行期间写入的每一项配置（照片库密码升级、权重、
 优先级、拍摄场景评分方案）都能在 `docker compose down && up` 之后保留下来。
@@ -270,9 +271,7 @@ chmod 664 facet-config/scoring_config.json
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> 否则入口脚本会初始化一个空的覆盖文件，而你的权重、类别和**照片库密码就会被
-> 悄悄地不再读取** —— 而空的 `viewer.edition_password` 会彻底关闭编辑模式的
-> 访问控制。如果你保留了自己那份仍带旧挂载的 `docker-compose.yml`，入口脚本会
+> 否则入口脚本会初始化一个新的覆盖文件（在 compose 下带有新生成的 `viewer.edition_password`），而你的权重、类别和**照片库密码就会被悄悄地不再读取**。如果你保留了自己那份仍带旧挂载的 `docker-compose.yml`，入口脚本会
 > 用*那个*文件来初始化 `./facet-config`，就不会丢失任何东西。
 >
 > 搬过去的配置是旧的随附文件的完整副本。它照样能用 —— 一份完整配置解析后就是
@@ -630,9 +629,9 @@ Facet 的大部分功能在哪里都能跑（CPU、任意配置档）。少数�
 | VLM 标签（Qwen3.5） | 是 | `16gb`/`24gb` | — | — |
 | 构图模式（SAMP-Net） | 可选 | 任意（`legacy` = CPU） | — | — |
 | 主体显著性（BiRefNet） | 可选 | 任意（`legacy` = CPU） | — | — |
-| AI 照片描述（生成/查看） | 是 | `16gb`/`24gb` | — | — |
+| AI 照片描述（生成/查看） | 是 | `16gb`/`24gb` | 编辑模式 (生成) | — |
 | AI 照片描述（编辑） | 是 | `16gb`/`24gb` | 编辑模式 | — |
-| VLM 点评 | 是 | `16gb`/`24gb` | — | — |
+| VLM 点评 | 是 | `16gb`/`24gb` | 编辑模式 (生成) | — |
 | 人脸检测/提取（InsightFace） | 推荐（CPU 也行，但慢） | 任意 | — | — |
 | 人脸聚类（HDBSCAN） | 否（CPU） | 任意 | — | `cuml`/`cupy`（可选的 GPU 加速） |
 | 语义搜索 | 否 | 任意 | — | `sqlite-vec`（可回退到 NumPy） |
@@ -640,7 +639,7 @@ Facet 的大部分功能在哪里都能跑（CPU、任意配置档）。少数�
 | 监视模式（`--watch`） | 否 | 任意 | — | `watchdog` |
 | GPS 提取 / darktable 导出 | 否 | 任意 | — | `exiftool` / `darktable-cli` |
 | 星级、收藏、人脸与人物编辑、选片 | 否 | 任意 | 编辑模式 | — |
-| 从网页界面触发扫描 | 否 | 任意 | 超级管理员 | — |
+| 从网页界面触发扫描 | 否 | 任意 | 编辑（单用户）/ 超级管理员（多用户） | — |
 | 多用户（按用户区分的星级与角色） | 否 | 任意 | 按角色 | — |
 
 > 人脸*聚类*默认在 CPU 上运行（独立的 `hdbscan`）；`cuml`/`cupy` 只是额外提供可选的 GPU 加速 —— 它们**不是**必需的。编辑密码和用户角色在 `scoring_config.json` 中配置 —— 认证相关内容见[配置](CONFIGURATION.md)。

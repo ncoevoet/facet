@@ -139,7 +139,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 - **7 UI-Sprachen** — die Oberfläche ist auf Englisch, Französisch, Deutsch, Spanisch, Italienisch, brasilianischem Portugiesisch und vereinfachtem Chinesisch (简体中文) verfügbar; die Dokumentation gibt es in allen sieben Sprachen
 - **Mehrbenutzerbetrieb** — benutzerspezifische Verzeichnisse, Bewertungen und rollenbasierter Zugriff
 - **Plugins & Webhooks** — benutzerdefinierte Aktionen, die bei Bewertungsereignissen ausgelöst werden
-- **Scannen über die Web-Oberfläche** — lösen Sie Scans über den Browser aus (Superadmin-Rolle)
+- **Scannen über die Web-Oberfläche** — lösen Sie Scans über den Browser aus (Superadmin im Mehrbenutzermodus; Edition-Zugriff bei einer Einzelbenutzer-Installation mit Bearbeitungspasswort)
 
 <table><tr>
 <td width="33%"><img src="docs/screenshots/mobile-gallery.jpg" alt="Mobile Galerie" width="100%"></td>
@@ -149,7 +149,7 @@ Bewegen Sie den Mauszeiger über ein beliebiges Foto, um einen Tooltip mit der W
 
 ## Was Sie benötigen
 
-Der Großteil von Facet läuft auf **jedem Rechner (CPU)** — Bewertung, Gesichtserkennung, Auswahl, die Galerie, Suche, Alben und Metadaten-Export funktionieren alle ohne GPU. Eine **GPU** (mit dem `16gb`- oder `24gb`-Profil) schaltet die leistungsstärksten Modelle frei: TOPIQ-Ästhetikbewertung, SigLIP-2-Embeddings, VLM-Tagging, KI-Beschreibungen und -Kritik sowie Motiverkennung. Keine lokale GPU? Richten Sie das VLM-Tagging/die Beschreibungen/die Kritik über `vlm_backend` in `scoring_config.json` auf einen entfernten **Ollama**- oder **OpenAI-kompatiblen** Server aus — diese Funktionen laufen dann auch auf den CPU-Profilen `legacy`/`8gb`. Im Viewer benötigen Bearbeitungsaktionen (Bewertungen, Gesichter, Auswahl) das **Bearbeitungspasswort**, und das Auslösen von Scans erfordert die **Superadmin**-Rolle.
+Der Großteil von Facet läuft auf **jedem Rechner (CPU)** — Bewertung, Gesichtserkennung, Auswahl, die Galerie, Suche, Alben und Metadaten-Export funktionieren alle ohne GPU. Eine **GPU** (mit dem `16gb`- oder `24gb`-Profil) schaltet die leistungsstärksten Modelle frei: TOPIQ-Ästhetikbewertung, SigLIP-2-Embeddings, VLM-Tagging, KI-Beschreibungen und -Kritik sowie Motiverkennung. Keine lokale GPU? Richten Sie das VLM-Tagging/die Beschreibungen/die Kritik über `vlm_backend` in `scoring_config.json` auf einen entfernten **Ollama**- oder **OpenAI-kompatiblen** Server aus — diese Funktionen laufen dann auch auf den CPU-Profilen `legacy`/`8gb`. Im Viewer benötigen Bearbeitungsaktionen (Bewertungen, Gesichter, Auswahl) das **Bearbeitungspasswort**, und das Auslösen von Scans erfordert `viewer.features.show_scan_button: true` und zusätzlich im Mehrbenutzermodus die **Superadmin**-Rolle, bei einer Einzelbenutzer-Installation den Edition-Zugriff.
 
 → Vollständige Anforderungen pro Funktion (GPU, VRAM-Profil, optionale Pakete, Auth): **[Installation › Funktionsanforderungen](docs/de/INSTALLATION.md#funktionsanforderungen)**.
 
@@ -209,11 +209,14 @@ Hardware, Downloads beim ersten Start, und
 [Fehlerbehebung bei Abhängigkeiten](docs/de/INSTALLATION.md#abhängigkeitskonflikte-beheben).
 Führen Sie `python facet.py --doctor` aus, um GPU-Probleme zu diagnostizieren.
 
+Zum ersten Mal hier? Folgen Sie der Anleitung **[Erste Schritte](docs/de/GETTING_STARTED.md)**: scannen, sichten, trainieren, aussortieren, taggen und exportieren.
+
 ## Dokumentation
 
 | Dokument | Beschreibung |
 |----------|-------------|
 | [Installation](docs/de/INSTALLATION.md) | Anforderungen, GPU-Einrichtung, VRAM-Profile, Abhängigkeiten |
+| [Erste Schritte](docs/de/GETTING_STARTED.md) | Walkthrough für den ersten Start: von der Installation bis zu Scan, Sichtung, Training, Aussortieren, Tagging und Export |
 | [Befehle](docs/de/COMMANDS.md) | Referenz aller CLI-Befehle |
 | [Konfiguration](docs/de/CONFIGURATION.md) | Vollständige Referenz zu `scoring_config.json` |
 | [Bewertung](docs/de/SCORING.md) | Kategorien, Gewichte, Leitfaden zur Feinabstimmung |

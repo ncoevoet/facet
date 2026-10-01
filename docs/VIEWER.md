@@ -61,7 +61,7 @@ Optional password protection via config:
 }
 ```
 
-When set, users must authenticate before accessing the viewer. An optional `edition_password` grants access to person management and comparison mode.
+When set, users must authenticate before accessing the viewer. An `edition_password` is required for any editing: ratings, favorites and rejects, culling, albums, person and face management, comparison mode, weight and priority changes and exports. With no `edition_password` (the shipped default) the install is **read-only**: every edit is refused with a `403` ("Set viewer.edition_password to enable editing"). On-demand AI generation (captions, VLM critiques) also needs it, but is a degradation rather than a refusal: the call answers `200` with only what is already cached (`source: "edition_required"` or `vlm_available: false`). Who may *browse* is decided by `viewer.password`: with none, anyone can browse the whole library; with one, only authenticated users. On such an install the gallery also no longer shows existing star, favourite and reject badges, as for a non-edition viewer on a locked install. After setting `viewer.edition_password`, restart the viewer: the config is not hot-reloaded.
 
 Login also mirrors the session token in an `HttpOnly` `SameSite=Lax` cookie so browser-native requests that cannot carry an `Authorization` header — `<img>` tags loading thumbnails, the scan progress stream — authenticate on locked deployments. The cookie is honored for read-only requests (GET/HEAD) only; every state-changing call still requires the Bearer token, so it adds no CSRF surface. Logging out calls `POST /api/auth/logout`, which clears the cookie.
 
@@ -192,6 +192,7 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - Clickable tags for quick filtering
 - Person avatars for recognized faces
 - Category badge
+- Right-click (or Shift+F10) opens the [context menu](#multi-select--bulk-actions)
 
 ### Multi-Select & Bulk Actions
 
@@ -201,6 +202,7 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - **Reject** — Mark all selected as rejected (clears favorite and rating)
 - **Rate** — Set star rating (1–5) for all selected, or clear rating
 - **Add to album** — Add selected to an existing or new album
+- **Edit tags** — Add a [manual tag](#manual-tags) to, or remove one from, every selected photo (see [Manual Tags](#manual-tags))
 - **Select all** — With an empty selection, selects the whole filtered view — every photo the current filters match, not just the pages infinite scroll has fetched so far — at no network cost: the server derives the row set from the filters only when a bulk action is actually applied. With one or more photos already selected, it widens to the currently loaded photos only, and a banner offers to widen further to the whole view. Either way, applying an action scoped to the whole view first raises a confirmation dialog stating the exact photo count.
 - **Invert** — Swap the selection for its complement. With an empty selection the complement is the whole filtered view, exactly like Select all above and with the same no-request behavior — the case the previous wording here got wrong. With a non-empty selection it stays bounded to the loaded photos: pick the keepers, invert, reject — the direct way to see exactly what is about to go, without ever reaching photos you have not looked at.
 - **Compare** — Open 2–4 selected photos side by side with synced pan and zoom (scroll to zoom, drag to pan, double-click to reset; every pane moves together and swaps to full resolution past the fit scale). The same view the culling darkroom uses, reachable for any hand-picked set rather than only for frames adjacent in a burst.
@@ -211,7 +213,9 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 - **Download** — Download selected photos
 - Clear selection with Escape or the Clear button
 
-Bulk actions require edition mode. Double-click any photo to download it directly.
+Bulk actions require edition mode. Double-click any photo to open it.
+
+**Context menu** — Right-click a photo (or focus it and press Shift+F10 / the Menu key) to open a menu at the cursor. On a photo inside a multi-photo selection it acts on the whole selection, with the action bar's actions under the same gates, except Invert and Select all, which stay on the bar (Delete is left out under "select all in view" scope). On any other photo it acts on that photo alone and leaves the selection untouched, and it adds Open photo plus, only where their feature or edition gates allow, Find Similar, Why This Score?, Write metadata to file and Assign face to person (the last only when the photo has unassigned faces). Under a selection the menu also carries the bulk **Edit tags** entry, edition-gated like the bar's, which is also reachable from the Actions sheet on touch devices. Culling a single photo this way takes only that photo out of the selection: a path selection keeps the rest, and a "select all in view" selection stays whole-view with that photo added to its exclusions. The menu is not offered on touch-first devices (`hover: none` and `pointer: coarse`), where the browser's long-press behavior and the Actions sheet remain.
 
 ### Keep Top N%
 
@@ -272,6 +276,21 @@ Use the **similarity threshold slider** (0–90%) to control how strict the matc
 ### Filter Chips
 
 Active filters shown as removable chips with counts at top of gallery.
+
+### Manual Tags
+
+Manual tags are tags you type yourself, kept next to the AI tags a scan or retag produces. They live in their own table (`photo_manual_tags`), not in the photo's `tags` column, so a rescan or a retag never wipes them.
+
+- **Where they show.** In the photo **detail** view only, as chips beside the AI tags and visually distinct from them (a marker on the chip, not colour alone). Photo cards and the hover tooltip are unchanged and keep showing the AI tags.
+- **Who can edit.** Editing needs an edition session, which in turn needs a set `viewer.edition_password`; like every other edition-gated write, it is refused on an open install (no edition password), where manual tags are read-only. A non-edition viewer sees them read-only. In the detail view an edition user can add a tag, and remove a manual tag, even on a photo that has no tags yet. AI tags have no remove control.
+- **Bulk editing.** Select photos and use **Edit tags** to add or remove one tag across the whole selection: from the selection bar on desktop, from the Actions sheet on mobile, or from the context menu on a photo inside a multi-photo selection. A whole-view selection is accepted like any other bulk action. Photos already carrying 50 manual tags are skipped on a bulk add rather than failing the batch, and the reported `count` is the number of photos actually changed.
+- **Normalisation.** A tag is Unicode-normalised (NFC), trimmed, has runs of whitespace collapsed to one space and is lowercased. It may be at most 64 characters, a photo holds at most 50 manual tags, and an empty tag, a tag containing a comma or one containing a control character is rejected with a `422`. A tag identical to one of the photo's current AI tags is a no-op (nothing is stored), though a later retag can still produce the same tag on both sides; the gallery counts such a photo once.
+- **Search and filter reach them.** The gallery tag filter (including required and excluded tags), the gallery text search, semantic text search (`/api/search`, except the caption-only text scope), the tag dropdown and its counts, the statistics page and the sidecar, embed and Lightroom-manifest exports all see the union of AI and manual tags. Text search matches a manual tag as a whole phrase, not word by word. Capsules are the exception: they count AI tags only, so a capsule's count can be lower than the photos its click-through opens (the gallery tag filter, which does include manual tags). Manual tags never influence scores, categories or narrative moments.
+- **Hidden from share links.** A share-link viewer never sees manual tags in a shared photo, a shared album, its filter dropdown or its tag filter; a shared smart album still applies the owner's own saved filter, including a manual tag the owner filtered on.
+- **Global, not per user.** In multi-user mode manual tags are shared by everyone, not stored per user: any edition user can remove a tag another user added.
+- **Not undoable.** Manual tag edits are not covered by [Undo](#undo); re-add a removed tag by hand. A removed tag can also come back from a sidecar, see [Conflict rules](INTEROP.md#conflict-rules).
+- **Where they come from besides typing.** `--import-sidecars` stores keywords it finds in a sidecar that Facet does not already know (not an AI tag, not a person name) as manual tags, with source `xmp`.
+- **Tied to the file path.** A moved or renamed file is a new photo path and loses its manual tags with the old one.
 
 ## Panoramas and exposure brackets
 
@@ -385,14 +404,14 @@ Access via header button or `/persons`:
 
 ## Scan Trigger
 
-When `viewer.features.show_scan_button` is `true` and the caller has scan access — `superadmin` role in multi-user mode, or an edition-authenticated session on a locked single-user install (`viewer.edition_password` set) in single-user mode — a **Scan photos to get started** button appears on the empty-gallery state. It ships set to **`false`** in `scoring_config.json` (opt-in). On an open single-user install (`viewer.edition_password` empty, the shipped default) all four scan routes 403 for every caller, including one holding a valid edition-generation JWT, and the button is never rendered — an open install already treats anonymous callers as edition-authenticated, and spawning a scan subprocess must not be reachable anonymously. The button opens the scan launcher dialog (`ScanLauncherComponent`).
+Scan is offered when **both** of these hold: `viewer.features.show_scan_button` is `true` (it ships **`false`** in `scoring_config.json`, opt-in) **and** the caller has scan access — the `superadmin` role in multi-user mode, or an edition-authenticated session on a locked single-user install (a non-empty `viewer.edition_password`) in single-user mode. The gallery then offers it from two places, and both open the scan launcher dialog (`ScanLauncherComponent`): a **Scan photos to get started** button on the empty-gallery state, and — while the gallery has photos to show — a **Scan for new photos** icon button at the top right of the photo grid, at every screen width. On an open single-user install (`viewer.edition_password` empty, the shipped default) all four scan routes 403 for every caller, including one holding a valid edition-generation JWT, and neither entry point is ever rendered — spawning a scan subprocess must not be reachable anonymously.
 
 - Pick a directory from the launcher's list and start the scan in-app
 - The launcher streams live progress (SSE with automatic polling fallback) into a `mat-progress-bar` driven by the structured `progress` field, plus a tail of output lines, and refreshes the gallery when the scan finishes
 - Scan runs as a background subprocess (`facet.py`); only one scan at a time (global lock)
 - Directory choices come from `get_all_scan_directories()`, which unions each user's `directories`, shared directories, `path_mapping` targets, and the standalone `viewer.scan_directories` list — seed the latter (e.g. `/data/photos`) so single-user / Docker installs have a pickable target
 
-This is useful when the viewer runs on the same machine that has GPU access for scoring.
+No GPU is required to scan — see [Which profile fits my hardware?](INSTALLATION.md#which-profile-fits-my-hardware) and [No graphics card](INSTALLATION.md#no-graphics-card) for the CPU-only (`legacy`) path. The scan runs on the machine hosting the viewer, so it is fastest when that machine has GPU access for scoring.
 
 A related but separate trigger, `POST /api/scan/recompute`, reuses the same job lock to rescore existing photos in place (no new files) — see [Category Priority & Scoring Contexts](#category-priority--scoring-contexts). Unlike this scan button's mode-dependent access rule above, it is edition-gated only, with no superadmin/locked-install distinction.
 
@@ -469,7 +488,7 @@ The breakdown also surfaces the explainable **form and color-harmony** rows (sym
 
 ### VLM Critique `[GPU]` `[16gb/24gb]`
 
-Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`.
+Uses the configured VLM (Qwen3.5-2B or Qwen3.5-4B) for a context-aware critique. Requires 16gb or 24gb VRAM profile and `viewer.features.show_vlm_critique: true`. Generating one also requires an edition session; without it only an already cached critique is served and `vlm_available` is `false`.
 
 The prompt is a configurable ladder (`critique.vlm`) that injects the full rule breakdown, penalties and EXIF, and the reply is rendered as **Observation / Assessment / Suggestions**. The result is cached per photo (`photos.vlm_critique`) and translated on demand, with a **Regenerate** button to recompute it. It runs against the stored thumbnail, so RAW files critique correctly instead of failing silently.
 
@@ -481,7 +500,7 @@ Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.feat
 
 ## AI Captioning `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Get an AI-generated natural language caption for any photo. Captions are generated on first request and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page. (Caption *translation* runs on CPU — see below.)
+Get an AI-generated natural language caption for any photo. Captions are generated on first request by an edition session (an open, read-only install never generates one) and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page. (Caption *translation* runs on CPU — see below.)
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
@@ -844,6 +863,7 @@ All stats are user-aware in multi-user mode — each user sees analytics for the
 | `Escape` | Clear selection / close filter drawer |
 | `Shift+Click` | Range-select photos between last selected and clicked |
 | `Double-click` | Open photo |
+| `Shift+F10` / `Menu` | Open the context menu of the focused photo card (right-click does the same) |
 | `?` | Show the keyboard shortcuts reference (works on every page) |
 
 The current photo — the one star-rating, favorite and reject shortcuts act on — is marked with a 4px outline around its card; every other card dims to 50% opacity. Nothing is marked until the cursor has actually moved onto a photo in the results, so a gallery you have not navigated yet stays at full strength. Clicking a photo moves the marker onto it, so a shortcut typed right after a click lands on the photo you clicked, not on wherever the arrow keys last left it.
@@ -854,7 +874,8 @@ Batch favorite/reject/rating operations and culling confirms show a snackbar
 with an **Undo** action for ~7 seconds. Batch flag operations are committed
 immediately and undone via inverse API calls (capped at 500 photos); culling
 confirms are deferred — the group disappears instantly but the API call only
-fires once the undo window elapses.
+fires once the undo window elapses. [Manual tag](#manual-tags) edits are not
+undoable.
 
 ## Progressive Web App
 
@@ -1141,12 +1162,14 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `GET /api/photos/count` | `{ total }` — how many photos match the current gallery filters |
 | `GET /api/photos/paths` | `{ total, paths }` — every matching path, unordered; used on demand by actions that need filenames (download, copy), never by select-all. Capped at 10000: a view holding more is refused with a `412` naming the count and the cap rather than truncated — a partial path list would be a selection the user believes is whole — and there is no fallback: the action is abandoned with a "too many photos" message so the user can narrow the filters and retry. Only the actions that need a literal path list go through here; the whole-view selection itself is count-only (`GET /api/photos/count`) and never needed one, so the filter-scoped actions built on it (batch rating/reject writes, cull, sidecar export) are unaffected by this cap and carry their own |
 | `GET /api/photo` | Single photo details |
+| `PUT /api/photo/manual_tags` | Add a [manual tag](#manual-tags) to one photo (edition-gated). Body: `{path, tag}`. `404` for an unknown or invisible path, `422` for an invalid tag or a photo already at 50 tags; a tag that equals one of the photo's AI tags is a no-op answered `200` with `skipped_existing: true` |
+| `DELETE /api/photo/manual_tags` | Remove a manual tag from one photo (edition-gated). Body: `{path, tag}` |
 | `GET /api/photo/set?path=` | The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to (sequence takes precedence over burst, burst over duplicate), keyed on `path` — never a group id, which the bracket and panorama passes each renumber from 1 on every run |
 | `GET /api/photo/histogram?path=&bins=` | Draw-ready luminance + R/G/B bins (`bins` ∈ 32/64/128/256, default 64) measured at scan time on the full-resolution image. Every channel is scaled by one global max, never its own. `r`/`g`/`b` are `null` for a row stored before the per-channel format; 404 when the row has no histogram at all, which is the widget's signal to fall back to sampling the thumbnail |
 | `GET /api/type_counts?hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Photo counts per type for the sidebar chips. Same five toggles as the gallery; an omitted one falls back to `viewer.defaults` rather than "off" — send `hide_bursts=0` etc. explicitly to count everything |
 | `GET /api/similar_photos/{path}` | Similar photos (modes: `visual`, `color`, `person`) |
 | `GET /api/search?q=&limit=&threshold=&scope=` | Semantic text-to-image search (`scope=text` = OCR/caption text only). `threshold` is optional: omitted, it resolves to the active encoder's `models.*.search_threshold_percent` (exposed to the client as `/api/config`'s `search_threshold_default`); an explicit value — including `0.0` — always overrides the resolved default. Only evaluated when the search actually runs an embedding search (`scope != 'text'` skips the resolution entirely) |
-| `GET /api/critique?path=&mode=&refresh=` | AI critique (rule-based or VLM); `refresh=true` regenerates the cached VLM critique |
+| `GET /api/critique?path=&mode=&refresh=` | AI critique (rule-based or VLM); `refresh=true` regenerates the cached VLM critique (edition session only; otherwise `vlm_available: false`) |
 | `GET /api/ranker/status` | Personal-ranker status for the "My Taste" sort (learned coverage %, held-out accuracy) |
 | `GET /api/config` | Viewer configuration |
 
@@ -1190,6 +1213,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `POST /api/photos/batch_favorite` | Mark multiple photos as favorite (clears rejected). Body is exactly one of `{photo_paths}` (max 1000) or `{filters}` — `filters` takes the same query params as `GET /api/photos`, as strings, with no cap. `exclude` (optional, max 1000) may accompany either and narrows whichever target is sent — subtracted from `photo_paths`, or bound out of the `filters` scope — so it can only narrow, never widen. Supplying neither target or both is a 422, and a `filters` set naming an album is access-checked like that album's own GET — `404` for an album that does not exist, `403` for another user's on an access-controlled install. Response `{success, count}`, where `count` is the number of rows actually written |
 | `POST /api/photos/batch_reject` | Mark multiple photos as rejected (clears favorite and rating). Same body contract as `batch_favorite` above |
 | `POST /api/photos/batch_rating` | Set star rating for multiple photos. Same body contract as `batch_favorite`, plus a required `rating` (0–5) |
+| `POST /api/photos/batch_manual_tags` | Add or remove one [manual tag](#manual-tags) on multiple photos (edition-gated). Same body contract as `batch_favorite`, plus a required `tag` and an `action` of `add` or `delete`. Response `{success, count}`, where `count` is the number of rows actually written: photos already at the 50-tag cap and photos whose AI tags already contain the tag are skipped on `add` |
 
 ### Persons
 
@@ -1239,7 +1263,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 |----------|-------------|
 | `GET /api/memories?date=` | Photos taken on this date in previous years |
 | `GET /api/memories/check` | Check if memories exist for a date |
-| `GET /api/caption?path=` | Get or generate AI caption |
+| `GET /api/caption?path=` | Get the AI caption; an edition session generates it on first request (otherwise `source: "edition_required"`) |
 | `PUT /api/caption` | Update photo caption (edition mode) |
 | `GET /api/timeline?cursor=&limit=&direction=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Paginated timeline photos. The five `hide_*` toggles are the gallery's; an omitted one falls back to `viewer.defaults` rather than "off" |
 | `GET /api/timeline/dates?year=&month=&hide_blinks=&hide_bursts=&hide_duplicates=&hide_brackets=&hide_panoramas=` | Available dates for navigation (same `hide_*` fallback) |
@@ -1280,18 +1304,18 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Get next photo pair for comparison |
+| `GET /api/comparison/next_pair` | `[Edition]`  Get next photo pair for comparison |
 | `POST /api/comparison/submit` | Submit comparison result |
 | `POST /api/comparison/reset` | Reset comparison data |
-| `GET /api/comparison/stats` | Comparison session statistics |
-| `GET /api/comparison/history` | List past comparisons |
+| `GET /api/comparison/stats` | `[Edition]`  Comparison session statistics |
+| `GET /api/comparison/history` | `[Edition]`  List past comparisons |
 | `POST /api/comparison/edit` | Edit a comparison result |
 | `POST /api/comparison/delete` | Delete a comparison |
-| `GET /api/comparison/coverage` | Category coverage of comparisons |
-| `GET /api/comparison/confidence` | Confidence metrics for learned scores |
+| `GET /api/comparison/coverage` | `[Edition]`  Category coverage of comparisons |
+| `GET /api/comparison/confidence` | `[Edition]`  Confidence metrics for learned scores |
 | `GET /api/comparison/photo_metrics` | Raw metrics for photos |
-| `GET /api/comparison/category_weights` | Category weights/filters |
-| `GET /api/comparison/learned_weights` | Suggested weights from comparisons |
+| `GET /api/comparison/category_weights` | `[Edition]`  Category weights/filters |
+| `GET /api/comparison/learned_weights` | `[Edition]`  Suggested weights from comparisons |
 | `POST /api/comparison/preview_score` | Preview with custom weights |
 | `POST /api/comparison/suggest_filters` | Analyze filter conflicts |
 | `POST /api/comparison/override_category` | `[Edition]` Set a sticky per-photo category override (validated against configured category names; survives the next recompute) |
@@ -1357,7 +1381,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | Endpoint | Description |
 |----------|-------------|
 | `POST /api/config/update_weights` | Update scoring weights |
-| `GET /api/config/weight_snapshots` | List saved weight snapshots |
+| `GET /api/config/weight_snapshots` | `[Edition]`  List saved weight snapshots |
 | `POST /api/config/save_snapshot` | Save current weights as snapshot |
 | `POST /api/config/restore_weights` | Restore weights from snapshot |
 | `GET /api/config/category_priorities` | `[Edition]` List categories in current priority (evaluation) order |
@@ -1415,8 +1439,8 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/plugins` | List configured plugins |
-| `POST /api/plugins/test-webhook` | Test a webhook plugin |
+| `GET /api/plugins` | `[Edition]`  List configured plugins |
+| `POST /api/plugins/test-webhook` | `[Edition]`  Test a webhook plugin |
 
 ### Immich
 
@@ -1457,7 +1481,7 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 | User can't see photos | Check `directories` in their user config and `shared_directories` |
 | Scan button missing | Requires `viewer.features.show_scan_button: true` plus scan access: `superadmin` role (multi-user), or an edition-authenticated session on a locked single-user install (`viewer.edition_password` set) — an open single-user install never shows it |
 | Search returns no results | Ensure photos have `clip_embedding` data (run scoring first) |
-| VLM critique unavailable | Requires 16gb/24gb VRAM profile and `viewer.features.show_vlm_critique: true` |
+| VLM critique unavailable | Requires 16gb/24gb VRAM profile and `viewer.features.show_vlm_critique: true`, plus an edition session to generate one (without it only a cached critique is served) |
 | Map shows no photos | Run `--extract-gps` to populate GPS columns, ensure photos have EXIF GPS data |
 | Captions not generating | Requires 16gb/24gb VRAM profile for VLM captioning |
 | Timeline empty | Ensure photos have `date_taken` values |

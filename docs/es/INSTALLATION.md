@@ -175,8 +175,10 @@ Usa [Docker](#instalar-con-docker). Para usar una tarjeta NVIDIA en Windows, sig
   aproximadamente 4,7 GB para `legacy`, 6,9 GB para `8gb`, 14,6 GB para `16gb`, 19,1 GB
   para `24gb` (desglose completo en [Tamaños de descarga](#tamaños-de-descarga)).
   Esto ocurre una sola vez; las siguientes ejecuciones arrancan de inmediato.
-- **Sin configuración.** No hay nada que configurar. Facet crea su base de datos en el
-  primer escaneo y viene con ajustes que funcionan de fábrica.
+- **Sin configuración para escanear.** Facet crea su base de datos en el primer escaneo y
+  viene con ajustes que funcionan de fábrica. Para **editar** (valorar, seleccionar, gestionar
+  álbumes y personas) define `viewer.edition_password` en `scoring_config.json`; sin ella el
+  visor es de solo lectura (reinicia el visor tras definirla: la configuración no se recarga en caliente. Con el `docker-compose.yml` incluido, la imagen Docker genera una en el primer arranque).
 - **Tus fotos no se modifican.** El escaneo solo las lee; los resultados van a la base de
   datos propia de Facet. Escribir valoraciones y palabras clave de vuelta en tus archivos
   es una acción aparte, que lanzas tú ([Interoperabilidad](INTEROP.md)).
@@ -238,7 +240,7 @@ puñado de ajustes que realmente cambiaste, y cualquier cosa que omitas conserva
 valor distribuido (y recibe sus mejoras cuando actualizas).
 
 `docker-entrypoint.sh` por tanto siembra el archivo persistente
-`./facet-config/scoring_config.json` con un `{}` vacío en el primer arranque. Ese
+`./facet-config/scoring_config.json` con una `viewer.edition_password` generada en el primer arranque (se imprime una sola vez en el registro del contenedor: `docker compose logs facet`; solo si `FACET_CONFIG` apunta a este fichero, como lo define `docker-compose.yml` — un simple `docker run` sin esa variable siembra una anulación vacía y no genera ninguna contraseña). Ese
 archivo lo monta `docker-compose.yml` (como `FACET_CONFIG=/config/scoring_config.json`
 dentro del contenedor), así que el contenedor funciona sin ninguna configuración en el
 host y cada escritura de configuración en tiempo de ejecución (la migración de la
@@ -295,9 +297,7 @@ compose) para que el usuario del contenedor seas tú.
 > mkdir -p facet-config && cp scoring_config.json facet-config/scoring_config.json
 > ```
 >
-> De lo contrario el entrypoint siembra una anulación vacía y tus pesos, tus
-> categorías y **tu contraseña del visor dejan de leerse** — y un
-> `viewer.edition_password` vacío desactiva por completo el control de edición. Si
+> De lo contrario el entrypoint siembra una anulación nueva (con un `viewer.edition_password` recién generado bajo compose) y tus pesos, tus categorías y **tu contraseña del visor dejan de leerse**. Si
 > conservas tu propio `docker-compose.yml` con el montaje antiguo, el entrypoint
 > inicializa `./facet-config` a partir de *ese* fichero y no se pierde nada.
 >
@@ -677,9 +677,9 @@ a lo largo de la documentación:
 | Etiquetado VLM (Qwen3.5) | sí | `16gb`/`24gb` | — | — |
 | Patrón de composición (SAMP-Net) | opcional | cualquiera (`legacy` = CPU) | — | — |
 | Saliencia del sujeto (BiRefNet) | opcional | cualquiera (`legacy` = CPU) | — | — |
-| Leyendas con IA (generar / ver) | sí | `16gb`/`24gb` | — | — |
+| Leyendas con IA (generar / ver) | sí | `16gb`/`24gb` | edición (generar) | — |
 | Leyendas con IA (editar) | sí | `16gb`/`24gb` | edición | — |
-| Crítica VLM | sí | `16gb`/`24gb` | — | — |
+| Crítica VLM | sí | `16gb`/`24gb` | edición (generar) | — |
 | Detección / extracción de rostros (InsightFace) | recomendada (la CPU funciona, pero es lenta) | cualquiera | — | — |
 | Agrupación de rostros (HDBSCAN) | no (CPU) | cualquiera | — | `cuml`/`cupy` (aceleración GPU opcional) |
 | Búsqueda semántica | no | cualquiera | — | `sqlite-vec` (recurre a NumPy) |
@@ -687,7 +687,7 @@ a lo largo de la documentación:
 | Modo de vigilancia (`--watch`) | no | cualquiera | — | `watchdog` |
 | Extracción de GPS / exportación a darktable | no | cualquiera | — | `exiftool` / `darktable-cli` |
 | Valoraciones, favoritos, edición de rostros y personas, selección | no | cualquiera | edición | — |
-| Iniciar escaneos desde la interfaz web | no | cualquiera | superadministrador | — |
+| Iniciar escaneos desde la interfaz web | no | cualquiera | edición (un usuario) / superadministrador (multiusuario) | — |
 | Multiusuario (valoraciones y roles por usuario) | no | cualquiera | basada en roles | — |
 
 > La *agrupación* de rostros se ejecuta en CPU por defecto (`hdbscan` independiente);

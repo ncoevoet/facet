@@ -3628,6 +3628,7 @@ def main():
     if args.import_sidecars:
         from processing.xmp_import import import_sidecars
         root = None if args.import_sidecars == 'all' else args.import_sidecars
+        init_database(args.db)  # photo_manual_tags may not exist yet; lock is held
         with get_connection(args.db) as conn:
             stats = import_sidecars(conn, root, user_id=args.user)
         logger.info(

@@ -296,7 +296,7 @@ as what it means rather than what it is silently rewrites the wire.
 
 Lookup and side tables: `photo_tags`, `faces`, `persons`, `albums`, `album_photos`,
 `album_client_picks`, `photo_scoring_overrides`, `photo_sequence_overrides`,
-`location_names`, `comparisons`, `learned_scores`, `weight_optimization_runs`,
+`photo_manual_tags`, `location_names`, `comparisons`, `learned_scores`, `weight_optimization_runs`,
 `weight_config_snapshots`, `recommendation_history`, `user_preferences`, `scan_runs`,
 `scan_failures`, `stats_cache`, plus the virtual tables `photos_fts` (FTS5) and
 `photos_vec` (sqlite-vec).
@@ -367,8 +367,8 @@ only what reading those two will NOT tell you.
   long as the correction applies.
 - **Sticky per-photo state goes in a side table, never a new column on `photos`.**
   `save_photo` / `save_photos_batch` write with `INSERT OR REPLACE`, so a new column is silently
-  wiped on the next rescan. This is why `photo_scoring_overrides` and `photo_sequence_overrides`
-  exist. For the same reason `POST /api/comparison/override_category` records an override rather
+  wiped on the next rescan. This is why `photo_scoring_overrides`, `photo_sequence_overrides` and
+  `photo_manual_tags` (user-typed tags, kept apart from the tagger-owned `photos.tags`) exist. For the same reason `POST /api/comparison/override_category` records an override rather
   than writing `photos.category`, which `--recompute-average` would discard.
 - **A scoring context is a *delta* over the global priority order**, never a standalone
   ordering — so a category added later cannot go missing from six separate lists. `PUT` requires
@@ -410,8 +410,8 @@ only what reading those two will NOT tell you.
 - **An absent config means two different things.** Absent at the inherited default path is an
   install running on defaults. Absent at a path someone NAMED (`$FACET_CONFIG`, `--config`)
   raises, and `api/config.py`'s named branch returns `{}` rather than the defaults — those carry
-  an empty `viewer.edition_password`, which disables edition gating entirely, so handing them
-  over would rebuild the open install that branch exists to refuse.
+  an empty `viewer.edition_password` AND an empty `viewer.password`, so handing them over would rebuild
+  an install anyone can read in full — what `viewer.password` controls — that branch exists to refuse.
 - **`facet.LibraryLock` is per host.** `flock` is host-local on SMB/CIFS, so two machines sharing
   an SMB-mounted DB directory would each believe they hold it (the acquire warns once on such a
   mount; NFS between Linux clients is fine). The mutex is the OS lock, not the file's existence,
@@ -476,7 +476,7 @@ Only the defaults that routinely surprise are worth carrying:
 | Key | Default | Why it surprises |
 |-----|---------|------------------|
 | `viewer.defaults.hide_bursts` / `hide_duplicates` / `hide_brackets` / `hide_panoramas` | `true` | The gallery hides most of a set **by default**, so a bug in a hide clause makes photos vanish rather than duplicate |
-| `viewer.edition_password` | `""` | Empty disables edition gating entirely — the shipped config is an open install |
+| `viewer.edition_password` | `""` | Empty means every edition-gated write and on-demand generation is refused — the shipped config is read-only until a password is set |
 | `narrative_moments.caption_min_confidence` | `0` | `0` means *no* gate, not "reject everything" |
 | `viewer.moment_confidence_min` | `0` | Same inversion: `0` = never dim |
 | `piaa_prior.enabled` | `false` | Validation-gated; the 2026-07-07 experiment failed the ship criterion — keep it off |
