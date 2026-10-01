@@ -7,7 +7,7 @@ import { ManualTagsDialogComponent, ManualTagsDialogData } from './manual-tags-d
 
 describe('ManualTagsDialogComponent', () => {
   let component: ManualTagsDialogComponent;
-  let mockDialogRef: { close: Mock };
+  let mockDialogRef: { close: Mock; disableClose?: boolean };
   let mockApi: { post: Mock };
 
   function create(data: ManualTagsDialogData) {
@@ -110,5 +110,39 @@ describe('ManualTagsDialogComponent', () => {
     expect(mockDialogRef.close).not.toHaveBeenCalled();
     expect(component.failed()).toBe(true);
     expect(component.saving()).toBe(false);
+    expect(mockDialogRef.disableClose).toBeUndefined();
+  });
+
+  it('does not submit on Enter while a save is in flight', async () => {
+    create(pathData);
+    component.tag.set('trip');
+    component.saving.set(true);
+
+    await component.apply('add');
+
+    expect(mockApi.post).not.toHaveBeenCalled();
+  });
+
+  it('cancel after a partial failure closes with the committed count so the caller reloads', async () => {
+    create({ paths: Array.from({ length: 1500 }, (_, i) => `/p${i}.jpg`), count: 1500 });
+    component.tag.set('trip');
+    mockApi.post
+      .mockReturnValueOnce(of({ count: 1000 }))
+      .mockReturnValueOnce(throwError(() => new Error('boom')));
+
+    await component.apply('add');
+    expect(mockDialogRef.disableClose).toBe(true);
+    component.cancel();
+
+    expect(component.failed()).toBe(true);
+    expect(mockDialogRef.close).toHaveBeenCalledWith(1000);
+  });
+
+  it('cancel with nothing committed closes with no result', () => {
+    create(pathData);
+
+    component.cancel();
+
+    expect(mockDialogRef.close).toHaveBeenCalledWith(undefined);
   });
 });

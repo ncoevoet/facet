@@ -25,6 +25,8 @@ TAG_SEPARATOR = '\x1f'
 SOURCE_USER = 'user'
 SOURCE_XMP = 'xmp'
 
+# Cc: control characters; Cf: invisible or text-reordering format characters.
+_REJECTED_CATEGORIES = frozenset({'Cc', 'Cf'})
 _WHITESPACE_RUN = re.compile(r'\s+')
 _CHUNK = 500
 
@@ -36,7 +38,8 @@ class ManualTagError(ValueError):
 def normalize_manual_tag(tag):
     """Return the canonical form of ``tag`` or raise :class:`ManualTagError`.
 
-    NFC, control characters rejected (including ``\\x1f``, the GROUP_CONCAT
+    NFC, control (Cc) and format (Cf: bidi overrides, zero-width, BOM) characters
+    rejected (including ``\\x1f``, the GROUP_CONCAT
     separator), trimmed, internal whitespace collapsed to one space, lowercased,
     non-empty, no comma (the tags column is a comma-joined string), at most
     :data:`MAX_TAG_LENGTH` characters.
@@ -44,8 +47,8 @@ def normalize_manual_tag(tag):
     if not isinstance(tag, str):
         raise ManualTagError("tag must be a string")
     text = unicodedata.normalize('NFC', tag)
-    if any(unicodedata.category(ch) == 'Cc' for ch in text):
-        raise ManualTagError("tag must not contain control characters")
+    if any(unicodedata.category(ch) in _REJECTED_CATEGORIES for ch in text):
+        raise ManualTagError("tag must not contain control or format characters")
     text = _WHITESPACE_RUN.sub(' ', text.strip()).lower()
     if not text:
         raise ManualTagError("tag must not be empty")

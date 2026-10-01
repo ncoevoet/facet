@@ -2328,8 +2328,8 @@
     "remove_action": "Retirer",
     "remove_tag": "Retirer le mot-clé {tag}",
     "manual": "Mot-clé manuel",
-    "ai": "Mot-clé IA",
-    "error": "Impossible de modifier le mot-clé. Vérifiez-le et réessayez."
+    "error": "Impossible de modifier le mot-clé. Vérifiez-le et réessayez.",
+    "already_present": "Ce tag est déjà sur la photo."
   },
   "photo": {
     "category_override": {

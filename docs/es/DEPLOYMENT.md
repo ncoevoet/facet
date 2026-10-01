@@ -168,11 +168,12 @@ python database.py --export-viewer-db --force-export
 
 La función "Buscar similares" no funcionará en la base de datos exportada (los embeddings de CLIP se eliminan). Usa la máquina de puntuación para ello.
 
-**Tags manuales y la exportación.** La exportación incluye también la tabla de [tags manuales](VIEWER.md#tags-manuales) (`photo_manual_tags`), y una exportación incremental la fusiona añadiendo las filas de la base de datos de puntuación, nunca reemplazando la copia de la galería web. Así se conservan los tags escritos en el NAS, pero con tres límites:
+**Tags manuales y la exportación.** La exportación incluye también la tabla de [tags manuales](VIEWER.md#tags-manuales) (`photo_manual_tags`), y una exportación incremental la fusiona añadiendo las filas de la base de datos de puntuación, nunca reemplazando la copia de la galería web. Así se conservan los tags escritos en el NAS, pero con cuatro límites:
 
 - Un tag manual que quitas en la galería web del NAS vuelve en la siguiente exportación incremental si la base de datos de puntuación todavía lo tiene.
 - Un tag manual añadido en el NAS no se copia de vuelta a la base de datos de puntuación; nada sincroniza la base de la galería web hacia arriba, así que añádelo también en la máquina de puntuación si quieres conservarlo.
 - `--force-export` reconstruye la base de datos de la galería web a partir de la de puntuación, de modo que los tags manuales que solo existen en el NAS se pierden.
+- La fusión solo añade filas: un tag manual que quitas en la máquina de puntuación permanece en el NAS hasta que `--force-export` reconstruye la base de datos de la galería web; además no aplica el límite de 50 tags por foto, así que una foto puede superarlo allí cuando ambos lados añadieron tags.
 
 ### Sincronizar archivos
 

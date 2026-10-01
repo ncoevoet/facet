@@ -2344,8 +2344,8 @@ export const I18N = {
     remove_action: "manual_tags.remove_action",
     remove_tag: "manual_tags.remove_tag",
     manual: "manual_tags.manual",
-    ai: "manual_tags.ai",
     error: "manual_tags.error",
+    already_present: "manual_tags.already_present",
   },
   photo: {
     category_override: {

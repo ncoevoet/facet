@@ -2328,8 +2328,8 @@
     "remove_action": "Entfernen",
     "remove_tag": "Schlagwort {tag} entfernen",
     "manual": "Manuelles Schlagwort",
-    "ai": "KI-Schlagwort",
-    "error": "Das Schlagwort konnte nicht geändert werden. Bitte prüfen und erneut versuchen."
+    "error": "Das Schlagwort konnte nicht geändert werden. Bitte prüfen und erneut versuchen.",
+    "already_present": "Dieser Tag ist bereits am Foto vorhanden."
   },
   "photo": {
     "category_override": {

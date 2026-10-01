@@ -702,13 +702,85 @@ describe('PhotoDetailComponent', () => {
       expect(stored().manual_tags).toEqual(['alpha', 'trip']);
     });
 
-    it('addManualTag does not duplicate a tag the server reports as already present', async () => {
+    it('addManualTag adds no chip when the server reports the tag already present as a manual tag', async () => {
       mockApi.put.mockReturnValue(of({ success: true, tag: 'trip', skipped_existing: true }));
       seed();
+      const open = vi.spyOn(component.snackBar, 'open');
 
       await component.addManualTag(base, 'trip');
 
       expect(component.photo().manual_tags).toEqual(['trip']);
+      expect(open).toHaveBeenCalledWith('manual_tags.already_present', '', { duration: 3000 });
+    });
+
+    it('addManualTag adds no phantom manual chip for a tag the photo already has as an AI tag', async () => {
+      mockApi.put.mockReturnValue(of({ success: true, tag: 'sunset', skipped_existing: true }));
+      seed();
+      component.photo.set({ ...base, tags_list: ['sunset'] });
+      const open = vi.spyOn(component.snackBar, 'open');
+
+      await component.addManualTag(component.photo(), 'sunset');
+
+      expect(component.photo().manual_tags).toEqual(['trip']);
+      expect(stored().manual_tags).toEqual(['trip']);
+      expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    it('addManualTag shows the action-failed snackbar when the server refuses', async () => {
+      mockApi.put.mockReturnValue(throwError(() => new Error('422')));
+      seed();
+      const open = vi.spyOn(component.snackBar, 'open');
+
+      await component.addManualTag(base, 'bad');
+
+      expect(open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+      expect(component.newTag()).toBe('');
+    });
+
+    it('removeManualTag shows the action-failed snackbar when the server refuses', async () => {
+      mockApi.delete.mockReturnValue(throwError(() => new Error('boom')));
+      seed();
+      const open = vi.spyOn(component.snackBar, 'open');
+
+      await component.removeManualTag(base, 'trip');
+
+      expect(open).toHaveBeenCalledWith('errors.action_failed', '', { duration: 3000 });
+    });
+
+    it('two overlapping removes both land: the second applies to the current state, not a stale capture', async () => {
+      const a = new Subject<unknown>();
+      const b = new Subject<unknown>();
+      mockApi.delete.mockReturnValueOnce(a).mockReturnValueOnce(b);
+      createComponent();
+      const two = { ...base, manual_tags: ['a', 'b'] };
+      component.store.photos.set([{ ...two }]);
+      component.photo.set({ ...two });
+
+      const first = component.removeManualTag(two, 'a');
+      const second = component.removeManualTag(two, 'b');
+      a.next({}); a.complete();
+      await first;
+      b.next({}); b.complete();
+      await second;
+
+      expect(component.photo().manual_tags).toEqual([]);
+      expect(stored().manual_tags).toEqual([]);
+    });
+
+    it('two overlapping adds both land', async () => {
+      const a = new Subject<unknown>();
+      const b = new Subject<unknown>();
+      mockApi.put.mockReturnValueOnce(a).mockReturnValueOnce(b);
+      seed();
+
+      const first = component.addManualTag(base, 'x');
+      const second = component.addManualTag(base, 'y');
+      a.next({ success: true, tag: 'x', skipped_existing: false }); a.complete();
+      await first;
+      b.next({ success: true, tag: 'y', skipped_existing: false }); b.complete();
+      await second;
+
+      expect(component.photo().manual_tags).toEqual(['trip', 'x', 'y']);
     });
 
     it('addManualTag ignores a blank tag without calling the server', async () => {

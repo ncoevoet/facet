@@ -2328,8 +2328,8 @@
     "remove_action": "Rimuovi",
     "remove_tag": "Rimuovi il tag {tag}",
     "manual": "Tag manuale",
-    "ai": "Tag IA",
-    "error": "Impossibile modificare il tag. Controllalo e riprova."
+    "error": "Impossibile modificare il tag. Controllalo e riprova.",
+    "already_present": "Questo tag è già presente sulla foto."
   },
   "photo": {
     "category_override": {

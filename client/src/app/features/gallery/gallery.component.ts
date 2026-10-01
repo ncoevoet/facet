@@ -531,6 +531,10 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
           </div>
         }
 
+        <!-- Room for the fixed selection bar (up to two wrapped rows) so the last row can scroll clear of it -->
+        @if (selectionCount()) {
+          <div aria-hidden="true" class="h-40"></div>
+        }
         <!-- Infinite scroll sentinel -->
         <div appInfiniteScroll (scrollReached)="onScrollReached()" class="h-1"></div>
       </mat-sidenav-content>
@@ -602,7 +606,7 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
           </div>
         }
         <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
-        <div class="flex items-center gap-0 lg:gap-2">
+        <div class="flex flex-wrap items-center justify-center gap-0 lg:gap-2">
           <button mat-icon-button class="lg:!hidden" (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
           <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ I18N.gallery.selection.clear | translate }}</button>
           @if (!allLoadedSelected()) {

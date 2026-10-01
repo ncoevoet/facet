@@ -3,7 +3,8 @@ import { authGuard } from './core/guards/auth.guard';
 import { editionGuard } from './core/guards/edition.guard';
 
 /**
- * Pages that only issue edition-gated API calls. One spread carries both the
+ * Pages whose purpose is an edition write (some, like merge-suggestions, load
+ * their data with a plain authenticated GET). One spread carries both the
  * guard and the `data.edition` flag, so the flag `App.lockEdition` reads to
  * decide which pages to leave cannot drift from the routes actually guarded.
  */

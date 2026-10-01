@@ -36,7 +36,7 @@ type ManualTagAction = 'add' | 'delete';
       <p class="text-sm opacity-70 mb-3">{{ I18N.gallery.selection.count | translate:{ count: data.count } }}</p>
       <mat-form-field class="w-full" subscriptSizing="dynamic">
         <mat-label>{{ I18N.manual_tags.tag_label | translate }}</mat-label>
-        <input matInput maxlength="64" [value]="tag()" (input)="onInput($event)" (keydown.enter)="apply('add')" />
+        <input matInput maxlength="64" [value]="tag()" (input)="onInput($event)" (keydown.enter)="!saving() && apply('add')" />
         <mat-hint>{{ I18N.manual_tags.hint | translate }}</mat-hint>
       </mat-form-field>
       @if (failed()) {
@@ -44,7 +44,7 @@ type ManualTagAction = 'add' | 'delete';
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ I18N.ui.buttons.cancel | translate }}</button>
+      <button mat-button (click)="cancel()">{{ I18N.ui.buttons.cancel | translate }}</button>
       <button mat-button (click)="apply('delete')" [disabled]="saving() || !tag().trim()">{{ I18N.manual_tags.remove_action | translate }}</button>
       <button mat-flat-button (click)="apply('add')" [disabled]="saving() || !tag().trim()">{{ I18N.manual_tags.add_action | translate }}</button>
     </mat-dialog-actions>
@@ -59,6 +59,8 @@ export class ManualTagsDialogComponent {
   readonly tag = signal('');
   readonly saving = signal(false);
   readonly failed = signal(false);
+  /** Photos already written by chunks that succeeded before a later chunk failed. */
+  private committed = 0;
 
   protected onInput(event: Event): void {
     this.tag.set((event.target as HTMLInputElement).value);
@@ -71,9 +73,17 @@ export class ManualTagsDialogComponent {
     return chunkPhotoPaths(this.data.paths).map(chunk => ({ photo_paths: chunk }));
   }
 
+  /**
+   * Closes with the count committed by a partially failed save, so the gallery
+   * (which reloads on any truthy result) does not keep showing stale rows.
+   */
+  cancel(): void {
+    this.dialogRef.close(this.committed || undefined);
+  }
+
   async apply(action: ManualTagAction): Promise<void> {
     const tag = this.tag().trim();
-    if (!tag) return;
+    if (!tag || this.saving()) return;
     this.saving.set(true);
     this.failed.set(false);
     let total = 0;
@@ -82,10 +92,14 @@ export class ManualTagsDialogComponent {
         const res = await firstValueFrom(
           this.api.post<{ count: number }>('/photos/batch_manual_tags', { ...body, tag, action }));
         total += res.count;
+        this.committed += res.count;
       }
       this.dialogRef.close(total);
     } catch {
       this.failed.set(true);
+      // Escape and backdrop close with undefined: once a chunk landed, only
+      // cancel() may close, so the gallery still reloads.
+      if (this.committed) this.dialogRef.disableClose = true;
     } finally {
       this.saving.set(false);
     }

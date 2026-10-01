@@ -169,11 +169,12 @@ python database.py --export-viewer-db --force-export
 
 Die Funktion „Ähnliche finden“ funktioniert auf der exportierten Datenbank nicht (CLIP-Embeddings sind entfernt). Verwenden Sie dafür die Bewertungsmaschine.
 
-**Manuelle Tags und der Export.** Der Export enthält auch die Tabelle der [manuellen Tags](VIEWER.md#manuelle-tags) (`photo_manual_tags`), und ein inkrementeller Export führt sie zusammen, indem er die Zeilen der Scoring-Datenbank hinzufügt, nie indem er die Kopie der Web-Galerie ersetzt. So bleiben auf dem NAS eingegebene Tags erhalten, mit drei Einschränkungen:
+**Manuelle Tags und der Export.** Der Export enthält auch die Tabelle der [manuellen Tags](VIEWER.md#manuelle-tags) (`photo_manual_tags`), und ein inkrementeller Export führt sie zusammen, indem er die Zeilen der Scoring-Datenbank hinzufügt, nie indem er die Kopie der Web-Galerie ersetzt. So bleiben auf dem NAS eingegebene Tags erhalten, mit vier Einschränkungen:
 
 - Ein manuelles Tag, das Sie in der Web-Galerie auf dem NAS entfernen, kehrt beim nächsten inkrementellen Export zurück, wenn die Scoring-Datenbank es noch hat.
 - Ein auf dem NAS hinzugefügtes manuelles Tag wird nicht in die Scoring-Datenbank zurückkopiert; nichts synchronisiert die Web-Galerie-Datenbank flussaufwärts, fügen Sie es daher auch auf dem Scoring-Rechner hinzu, wenn Sie es behalten wollen.
 - `--force-export` baut die Web-Galerie-Datenbank aus der Scoring-Datenbank neu auf, sodass manuelle Tags, die nur auf dem NAS existieren, verloren gehen.
+- Die Zusammenführung fügt nur Zeilen hinzu: Ein manuelles Tag, das Sie auf dem Scoring-Rechner entfernen, bleibt auf dem NAS, bis `--force-export` die Web-Galerie-Datenbank neu aufbaut; außerdem erzwingt sie die Obergrenze von 50 Tags pro Foto nicht, sodass ein Foto sie dort überschreiten kann, wenn beide Seiten Tags hinzugefügt haben.
 
 ### Dateien synchronisieren
 

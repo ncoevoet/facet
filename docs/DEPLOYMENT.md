@@ -175,11 +175,12 @@ python database.py --export-viewer-db --force-export
 
 The "Find Similar" feature won't work on the exported database (CLIP embeddings are stripped). Use the scoring machine for that.
 
-**Manual tags and the export.** The export carries the [manual tags](VIEWER.md#manual-tags) table (`photo_manual_tags`) too, and an incremental export merges it by adding the scoring database's rows, never by replacing the viewer's copy. That keeps tags typed on the NAS, but it has three limits:
+**Manual tags and the export.** The export carries the [manual tags](VIEWER.md#manual-tags) table (`photo_manual_tags`) too, and an incremental export merges it by adding the scoring database's rows, never by replacing the viewer's copy. That keeps tags typed on the NAS, but it has four limits:
 
 - A manual tag you remove in the viewer on the NAS comes back on the next incremental export if the scoring database still has it.
 - A manual tag added on the NAS is not copied back to the scoring database; nothing syncs the viewer database upstream, so add it on the scoring machine too if you want to keep it.
 - `--force-export` rebuilds the viewer database from the scoring one, so manual tags that exist only on the NAS are lost.
+- The merge only ever adds rows, so a manual tag you remove on the scoring machine stays on the NAS until `--force-export` rebuilds the viewer database; and it does not enforce the 50-tags-per-photo cap, so a photo can exceed it there when both sides added tags.
 
 ### Sync Files
 

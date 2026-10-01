@@ -128,6 +128,16 @@ class TestInvariants:
         _, conn, img = _setup(tmp_path, [])
         assert _foreign_keywords(conn, img, "", ["a\x1fb", "ok"]) == ["ok"]
 
+    def test_format_character_keywords_dropped(self, tmp_path, caplog):
+        # Category Cf (RLO, ZWSP, isolates, BOM) is invisible or reorders text.
+        _, conn, img = _setup(
+            tmp_path, ["a\u202eb", "a\u200bb", "\u2066a", "a\ufeffb", "fine"])
+        with caplog.at_level(logging.WARNING):
+            stats = import_sidecars(conn)
+        assert _manual(conn, img) == [("fine", "xmp")]
+        assert stats["tags_added"] == 1
+        assert "format characters" in caplog.text
+
     def test_overlong_keyword_dropped(self, tmp_path):
         _, conn, img = _setup(tmp_path, ["x" * 65, "ok"])
         import_sidecars(conn)
@@ -138,6 +148,15 @@ class TestInvariants:
         stats = import_sidecars(conn)
         assert len(_manual(conn, img)) == MAX_TAGS_PER_PHOTO
         assert stats["tags_added"] == MAX_TAGS_PER_PHOTO
+
+    def test_photo_at_cap_is_unchanged_on_every_run(self, tmp_path, caplog):
+        _, conn, img = _setup(tmp_path, [f"kw{i:03d}" for i in range(MAX_TAGS_PER_PHOTO + 10)])
+        import_sidecars(conn)
+        with caplog.at_level(logging.INFO):
+            stats = import_sidecars(conn)
+        assert stats["unchanged"] == 1 and stats["updated"] == 0
+        assert stats["tags_added"] == 0
+        assert "10 keyword" in caplog.text
 
 
 class TestNoMigration:

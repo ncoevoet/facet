@@ -33,6 +33,7 @@ from datetime import datetime, timezone
 from xml.etree import ElementTree as ET
 
 from db.manual_tags import (
+    MAX_TAGS_PER_PHOTO,
     SOURCE_XMP,
     ManualTagError,
     insert_manual_tag,
@@ -238,6 +239,11 @@ def import_sidecars(conn, root: str | None = None, *, user_id: str | None = None
             tag for tag in _foreign_keywords(conn, row["path"], row["tags"], parsed["tags"])
             if tag not in existing
         ]
+        room = max(0, MAX_TAGS_PER_PHOTO - len(existing))
+        if len(new_keywords) > room:
+            logger.info("Skipping %d keyword(s) on %s: photo is at the %d-tag cap",
+                        len(new_keywords) - room, row["path"], MAX_TAGS_PER_PHOTO)
+            new_keywords = new_keywords[:room]
         star = row["star_rating"] or 0
         favorite = bool(row["is_favorite"])
         rejected = bool(row["is_rejected"])

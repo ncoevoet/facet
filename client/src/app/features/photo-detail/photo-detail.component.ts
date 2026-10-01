@@ -527,7 +527,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                     </button>
                     @if (auth.isEdition()) {
                       <button data-testid="manual-tag-remove"
-                              class="inline-flex items-center pr-1.5 cursor-pointer hover:opacity-80"
+                              class="inline-flex items-center justify-center min-w-6 min-h-6 -my-1.5 -ml-1 cursor-pointer hover:opacity-80"
                               [attr.aria-label]="I18N.manual_tags.remove_tag | translate:{ tag: tag }"
                               (click)="removeManualTag(p, tag)">
                         <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">close</mat-icon>
@@ -1045,28 +1045,47 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     this.newTag.set((event.target as HTMLInputElement).value);
   }
 
-  /** Pessimistic: the signal and the store change only once the server accepted the tag. */
+  /**
+   * Pessimistic: the signal and the store change only once the server accepted the tag.
+   * The merge reads the CURRENT photo when the response lands, so overlapping edits compose.
+   */
   protected async addManualTag(p: Photo, raw: string): Promise<void> {
     const tag = raw.trim();
     if (!tag) return;
     try {
       const res = await firstValueFrom(
-        this.api.put<{ tag: string }>('/photo/manual_tags', { path: p.path, tag }));
+        this.api.put<{ tag: string; skipped_existing: boolean }>('/photo/manual_tags', { path: p.path, tag }));
       this.newTag.set('');
-      if (p.manual_tags.includes(res.tag)) return;
-      this.applyConfirmed(p, { manual_tags: [...p.manual_tags, res.tag].sort() });
+      if (res.skipped_existing) {
+        // Nothing was stored: the tag already exists, as a manual tag or as an AI tag.
+        this.snackBar.open(this.i18n.t(I18N.manual_tags.already_present), '', { duration: 3000 });
+        return;
+      }
+      this.updateManualTags(p, tags => (tags.includes(res.tag) ? tags : [...tags, res.tag].sort()));
     } catch {
-      // Rejected (422 invalid tag, 404): nothing changes and the input keeps its text.
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }
 
   protected async removeManualTag(p: Photo, tag: string): Promise<void> {
     try {
       await firstValueFrom(this.api.delete('/photo/manual_tags', { path: p.path, tag }));
-      this.applyConfirmed(p, { manual_tags: p.manual_tags.filter(t => t !== tag) });
+      this.updateManualTags(p, tags => tags.filter(t => t !== tag));
     } catch {
-      // Rejected: the chip stays.
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
+  }
+
+  /** Applies `change` to the photo's manual tags as they are NOW, not as the caller captured them. */
+  private updateManualTags(p: Photo, change: (tags: string[]) => string[]): void {
+    const current = this.photo();
+    if (current?.path === p.path) {
+      this.applyConfirmed(current, { manual_tags: change(current.manual_tags) });
+      return;
+    }
+    // The view moved on to another photo: keep the grid's row right without touching the signal.
+    const row = this.store.photos().find(r => r.path === p.path);
+    this.store.patchPhoto(p.path, { manual_tags: change(row?.manual_tags ?? p.manual_tags) });
   }
 
   protected editCaption(p: Photo): void {

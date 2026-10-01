@@ -105,7 +105,8 @@ class TestSinglePhoto:
             assert edition_client.put(PUT, json={"path": PHOTO, "tag": "x"}).status_code == 200
         assert _rows(PHOTO) == ["x"]
 
-    @pytest.mark.parametrize("tag", ["Sunset, Golden Hour", "", "a" * 65, "a\x1fb"])
+    @pytest.mark.parametrize("tag", ["Sunset, Golden Hour", "", "a" * 65, "a\x1fb",
+                                     "a\u202eb", "a\u200bb", "\u2066a", "a\ufeffb"])
     def test_invalid_tag_is_422_and_writes_nothing(self, edition_client, seeded, tag):
         assert edition_client.put(PUT, json={"path": PHOTO, "tag": tag}).status_code == 422
         assert _rows() == []

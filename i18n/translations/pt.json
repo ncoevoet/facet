@@ -2328,8 +2328,8 @@
     "remove_action": "Remover",
     "remove_tag": "Remover a etiqueta {tag}",
     "manual": "Etiqueta manual",
-    "ai": "Etiqueta de IA",
-    "error": "Não foi possível alterar a etiqueta. Verifique-a e tente novamente."
+    "error": "Não foi possível alterar a etiqueta. Verifique-a e tente novamente.",
+    "already_present": "Esta etiqueta já está na foto."
   },
   "photo": {
     "category_override": {

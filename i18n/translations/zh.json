@@ -2328,8 +2328,8 @@
     "remove_action": "移除",
     "remove_tag": "移除标签 {tag}",
     "manual": "手动标签",
-    "ai": "AI 标签",
-    "error": "无法更新标签，请检查后重试。"
+    "error": "无法更新标签，请检查后重试。",
+    "already_present": "照片已有此标签。"
   },
   "photo": {
     "category_override": {
