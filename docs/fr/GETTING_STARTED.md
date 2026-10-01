@@ -137,7 +137,7 @@ Facet a déjà écrits. Voir [Tags manuels](VIEWER.md#tags-manuels) et
 et mots-clés vers Lightroom, Capture One, digiKam ou darktable, voir [Interopérabilité](INTEROP.md)
 (cela nécessite [exiftool](INSTALLATION.md#exiftool) pour l'intégration).
 
-![Manual tags dialog](../screenshots/getting-started-manual-tags.jpg)
+![Tags manuels dans la vue détaillée](../screenshots/getting-started-manual-tags.jpg)
 
 ### Étape 6 : exporter l'ensemble trié
 
@@ -147,7 +147,7 @@ Placez vos photos retenues dans un album et exportez depuis celui-ci, ou utilise
 même liste d'autorisation de destinations qu'à l'étape 4 s'applique
 ([Destinations d'export et de tri](CONFIGURATION.md#destinations-dexport-et-de-tri)).
 
-![Exporting an album](../screenshots/getting-started-export.jpg)
+![Export vers un éditeur](../screenshots/getting-started-export.jpg)
 
 ## Et ensuite
 

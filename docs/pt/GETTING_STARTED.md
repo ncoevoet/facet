@@ -134,7 +134,7 @@ dos sidecars que o Facet já gravou. Veja [Tags manuais](VIEWER.md#tags-manuais)
 e palavras-chave para o Lightroom, Capture One, digiKam ou darktable, veja [Interoperabilidade](INTEROP.md)
 (isso exige o [exiftool](INSTALLATION.md#exiftool) para a incorporação).
 
-![Diálogo de tags manuais](../screenshots/getting-started-manual-tags.jpg)
+![Tags manuais na vista de detalhe](../screenshots/getting-started-manual-tags.jpg)
 
 ### Etapa 6: Exportar o conjunto selecionado
 
@@ -144,7 +144,7 @@ Coloque suas escolhidas em um álbum e exporte a partir dele, ou use a
 mesma lista de permissão de destinos da etapa 4 se aplica
 ([Destinos de exportação e seleção](CONFIGURATION.md#destinos-de-exportação-e-seleção)).
 
-![Exportando um álbum](../screenshots/getting-started-export.jpg)
+![Exportar para um editor](../screenshots/getting-started-export.jpg)
 
 ## Para onde ir depois
 
