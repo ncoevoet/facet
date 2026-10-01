@@ -386,6 +386,7 @@ def create_app() -> FastAPI:
     from api.routers.plugins import router as plugins_router
     from api.routers.memories import router as memories_router
     from api.routers.caption import router as caption_router
+    from api.routers.manual_tags import router as manual_tags_router
     from api.routers.timeline import router as timeline_router
     from api.routers.map import router as map_router
     from api.routers.capsules import router as capsules_router
@@ -424,6 +425,7 @@ def create_app() -> FastAPI:
     app.include_router(plugins_router)
     app.include_router(memories_router)
     app.include_router(caption_router)
+    app.include_router(manual_tags_router)
     app.include_router(timeline_router)
     app.include_router(map_router)
     app.include_router(capsules_router)

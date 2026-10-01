@@ -25,6 +25,7 @@ from api.config import (
 from api.database import get_db_connection
 from comparison.comparison_manager import record_culling_pairs
 from db import DEFAULT_DB_PATH
+from db.manual_tags import TAG_SEPARATOR, normalize_manual_tag, ManualTagError
 from utils.detection import DEFAULT_PHOTO_THUMBNAIL_SIZE
 from utils.panorama import KINDS as PANORAMA_KINDS
 from utils.sequence import BRACKET as BRACKET_KIND
@@ -433,6 +434,16 @@ SEQUENCE_OVERRIDE_SELECT = (
     "WHERE o.photo_path = photos.path) AS sequence_override"
 )
 
+# A photo's user-authored tags, GROUP_CONCAT'ed with TAG_SEPARATOR (\x1f, which
+# normalize_manual_tag rejects, so a stored tag can never contain it). Same
+# correlated-lookup rationale as SEQUENCE_OVERRIDE_SELECT. split_photo_tags turns
+# the raw alias into the ``manual_tags`` list and removes it from the payload.
+MANUAL_TAGS_RAW_COLUMN = 'manual_tags_raw'
+MANUAL_TAGS_SELECT = (
+    "(SELECT GROUP_CONCAT(tag, char(31)) FROM photo_manual_tags "
+    f"WHERE photo_path = photos.path) AS {MANUAL_TAGS_RAW_COLUMN}"
+)
+
 # Whether that correction is still waiting on a detection run. Separate from the
 # value above because the two answer different questions: the correction stays
 # stored for as long as it applies, so its existence cannot mean "pending" --
@@ -482,6 +493,7 @@ def invalidate_existing_columns_cache():
     with _existing_columns_lock:
         _existing_columns_cache = None
         _config_mod._existing_columns_cache = None
+    _manual_tags_present.clear()
 
 
 def is_photo_tags_available(conn=None):
@@ -536,31 +548,109 @@ def is_photo_tags_available(conn=None):
     return _photo_tags_available
 
 
+# Positive results only, keyed by database file: once photo_manual_tags exists it
+# does not go away, while a False must be re-checked because a lifespan
+# init_database (or a CLI upgrade) can create it while the server is up. Table
+# existence is the whole check -- no row count -- so a manual-only library and a
+# first-ever write are both seen at once.
+_manual_tags_present = set()
+
+
+def is_manual_tags_available(conn=None):
+    """True when the ``photo_manual_tags`` table exists (existence only, no row count).
+
+    Readers that touch the table check this first, because a lifespan
+    ``init_database`` failure only logs: a server can run against an older
+    schema. Safe to call with ``conn=None`` or an aiosqlite connection: any
+    connection that is not a synchronous ``sqlite3.Connection`` is replaced by a
+    short-lived one of our own on a cache miss.
+    """
+    key = str(DEFAULT_DB_PATH)
+    if key in _manual_tags_present:
+        return True
+    close_conn = False
+    if not isinstance(conn, sqlite3.Connection):
+        conn = get_db_connection()
+        close_conn = True
+    try:
+        found = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'photo_manual_tags'"
+        ).fetchone() is not None
+    except sqlite3.OperationalError:
+        logger.debug("photo_manual_tags availability check failed", exc_info=True)
+        found = False
+    finally:
+        if close_conn:
+            conn.close()
+    if found:
+        _manual_tags_present.add(key)
+    return found
+
+
+def _manual_tag_match_key(tag):
+    """A viewer-supplied tag in the form manual tags are stored in (lenient).
+
+    A value that cannot be a stored tag (comma, control character, too long)
+    simply matches no manual row, so it is returned unchanged rather than
+    raised on: the AI-tag half of the filter still runs on the raw value.
+    """
+    try:
+        return normalize_manual_tag(tag)
+    except ManualTagError:
+        return tag
+
+
 _art_tags_cache = None
 
 
-def _add_tag_filter(where_clauses, sql_params, tag=None, require_tags=None, exclude_tags=None, exclude_art_tags=None, conn=None):
-    """Build tag-related WHERE clauses using photo_tags table when available."""
+def _add_tag_filter(where_clauses, sql_params, tag=None, require_tags=None, exclude_tags=None, exclude_art_tags=None, conn=None, include_manual=True):
+    """Build tag-related WHERE clauses using photo_tags table when available.
+
+    Manual (user-authored) tags are UNIONed in for ``tag`` / ``require_tags``
+    (exact match, in both the photo_tags and the ``tags LIKE`` branch) and
+    subtracted for ``exclude_tags`` (``AND NOT EXISTS``, never OR: an OR would
+    let a photo carrying the excluded tag only as a manual tag survive).
+    ``exclude_art_tags`` stays AI-only: it excludes on the classifier's art
+    vocabulary. ``include_manual=False`` makes every clause AI-only, which is
+    what a share-link request must use so a private annotation cannot be
+    probed through the tag filter.
+    """
     use_photo_tags = is_photo_tags_available(conn)
+    use_manual = include_manual and is_manual_tags_available(conn)
+    manual_exists = "EXISTS (SELECT 1 FROM photo_manual_tags m WHERE m.photo_path = photos.path AND m.tag {cond})"
 
     if tag:
+        manual_clause = manual_exists.format(cond="= ?")
         if use_photo_tags:
-            where_clauses.append("EXISTS (SELECT 1 FROM photo_tags WHERE photo_path = photos.path AND tag = ?)")
-            sql_params.append(tag)
+            ai_clause = "EXISTS (SELECT 1 FROM photo_tags WHERE photo_path = photos.path AND tag = ?)"
+            ai_params = [tag]
         else:
-            where_clauses.append("tags LIKE ?")
-            sql_params.append(f"%{tag}%")
+            ai_clause = "tags LIKE ?"
+            ai_params = [f"%{tag}%"]
+        if use_manual:
+            where_clauses.append(f"({ai_clause} OR {manual_clause})")
+            sql_params.extend([*ai_params, _manual_tag_match_key(tag)])
+        else:
+            where_clauses.append(ai_clause)
+            sql_params.extend(ai_params)
 
     if require_tags:
         tag_list = [t.strip() for t in require_tags.split(',')]
         if use_photo_tags:
             placeholders = ','.join(['?' for _ in tag_list])
-            where_clauses.append(f"EXISTS (SELECT 1 FROM photo_tags WHERE photo_path = photos.path AND tag IN ({placeholders}))")
-            sql_params.extend(tag_list)
+            ai_clause = f"EXISTS (SELECT 1 FROM photo_tags WHERE photo_path = photos.path AND tag IN ({placeholders}))"
+            ai_params = list(tag_list)
         else:
             tag_conditions = ' OR '.join(['tags LIKE ?' for _ in tag_list])
-            where_clauses.append(f"({tag_conditions})")
-            sql_params.extend([f"%{tag}%" for tag in tag_list])
+            ai_clause = f"({tag_conditions})"
+            ai_params = [f"%{tag}%" for tag in tag_list]
+        if use_manual:
+            placeholders = ','.join(['?' for _ in tag_list])
+            where_clauses.append(f"({ai_clause} OR {manual_exists.format(cond=f'IN ({placeholders})')})")
+            sql_params.extend([*ai_params, *(_manual_tag_match_key(t) for t in tag_list)])
+        else:
+            where_clauses.append(ai_clause)
+            sql_params.extend(ai_params)
 
     if exclude_tags:
         tag_list = [t.strip() for t in exclude_tags.split(',')]
@@ -571,6 +661,9 @@ def _add_tag_filter(where_clauses, sql_params, tag=None, require_tags=None, excl
             else:
                 where_clauses.append("(tags IS NULL OR tags NOT LIKE ?)")
                 sql_params.append(f"%{tag_name}%")
+            if use_manual:
+                where_clauses.append("NOT " + manual_exists.format(cond="= ?"))
+                sql_params.append(_manual_tag_match_key(tag_name))
 
     if exclude_art_tags:
         if use_photo_tags:
@@ -753,8 +846,11 @@ def sanitize_float_values(data):
     return data
 
 
-def build_photo_select_columns(conn, user_id=None):
+def build_photo_select_columns(conn, user_id=None, include_manual_tags=True):
     """Build the SELECT column list for photo queries.
+
+    ``include_manual_tags=False`` leaves the manual-tags subquery out entirely
+    (share-link routes): ``split_photo_tags`` then reports ``manual_tags == []``.
 
     Resolves existing columns, applies user-preference overrides for
     star_rating / is_favorite / is_rejected, and returns a list of SQL
@@ -779,6 +875,8 @@ def build_photo_select_columns(conn, user_id=None):
                 select_cols.append(c)
     select_cols.append(SEQUENCE_OVERRIDE_SELECT)
     select_cols.append(SEQUENCE_OVERRIDE_PENDING_SELECT)
+    if include_manual_tags and is_manual_tags_available(conn):
+        select_cols.append(MANUAL_TAGS_SELECT)
     return select_cols
 
 
@@ -925,11 +1023,23 @@ def reassign_faces_to_person(conn, person_id, face_ids):
     }
 
 
-def split_photo_tags(rows, tags_limit):
-    """Convert DB rows to dicts with pre-split tags_list."""
+def split_photo_tags(rows, tags_limit, include_manual_tags=True):
+    """Convert DB rows to dicts with pre-split ``tags_list`` and ``manual_tags``.
+
+    ``tags_list`` is the AI tags truncated to ``tags_limit``. ``manual_tags`` is
+    the photo's user-authored tags, sorted and NEVER truncated, and is always
+    set (``[]`` when there are none, the table is absent, or
+    ``include_manual_tags`` is False): ``response_model_exclude_unset`` would
+    otherwise drop the field from the wire. The raw GROUP_CONCAT alias is
+    removed even when it is ignored, so it can never leak into a payload.
+    """
     photos = []
     for row in rows:
         photo = dict(row)
+        raw_manual = photo.pop(MANUAL_TAGS_RAW_COLUMN, None)
+        photo['manual_tags'] = (
+            sorted(raw_manual.split(TAG_SEPARATOR)) if include_manual_tags and raw_manual else []
+        )
         if photo.get('tags'):
             photo['tags_list'] = [t.strip() for t in photo['tags'].split(',')[:tags_limit]]
         else:

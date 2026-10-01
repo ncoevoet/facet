@@ -44,6 +44,7 @@ from unittest import mock
 import numpy as np
 import pytest
 
+from api.config import VIEWER_CONFIG
 from api.db_helpers import PHOTO_BASE_COLS, PHOTO_OPTIONAL_COLS
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1015,3 +1016,90 @@ class TestTheResponseModelCheckIsActuallyChecking:
         mutated['KeeperHint'] = {**mutated['KeeperHint'], 'properties': properties}
 
         assert any(dropped in r and 'KeeperHint' in r for r in _stripped_fields(mutated))
+
+
+class TestManualTagsOnEveryPhotoPayload:
+    """``Photo.manual_tags`` is a list on every payload that carries a photo.
+
+    ``_wire_type_ok`` only presence-checks arrays, so a ``null`` would pass the
+    generic contract; and because routes use ``response_model_exclude_unset`` a
+    producer that forgot to set the field would drop it from the wire. Each
+    surface below is driven for real and the value asserted to be a list.
+    """
+
+    prefix = "/apicontract-manual/"
+    tag = "trip-norway-2026"
+    manual = [tag] + [f"m{i}" for i in range(11)]
+
+    @pytest.fixture()
+    def manual_photos(self, seed_photos_prefix):
+        # More manual tags than display.tags_per_photo allows AI tags to show:
+        # tags_list is cut to that limit, manual_tags must not be.
+        photo = self.prefix + "a.jpg"
+        seed_photos_prefix(self.prefix, [{
+            "path": photo, "filename": "a.jpg", "aggregate": 6.0,
+            "date_taken": "2020:06:15 10:00:00",
+            "caption": "apicontractmanualmarker",
+            "tags": ", ".join(f"ai{i}" for i in range(12)),
+            **_MINIMAL_SCORED_FIELDS,
+        }])
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            conn.executemany(
+                "INSERT INTO photo_manual_tags (photo_path, tag, source) VALUES (?, ?, 'user')",
+                [(photo, t) for t in self.manual],
+            )
+            conn.commit()
+            yield photo
+        finally:
+            conn.execute("DELETE FROM photo_manual_tags WHERE photo_path LIKE ?", (self.prefix + "%",))
+            conn.commit()
+            conn.close()
+
+    @staticmethod
+    def _assert_list(photo, expected=None):
+        assert isinstance(photo["manual_tags"], list), photo.get("path")
+        assert "manual_tags_raw" not in photo
+        if expected is not None:
+            assert photo["manual_tags"] == expected
+
+    def test_gallery_and_detail_carry_untruncated_manual_tags(self, edition_client, manual_photos):
+        expected = sorted(self.manual)
+        listing = edition_client.get('/api/photos', params={'per_page': 50, 'hide_bursts': '0'})
+        row = {r['path']: r for r in listing.json()['photos']}[manual_photos]
+        self._assert_list(row, expected)
+        limit = VIEWER_CONFIG['display']['tags_per_photo']
+        assert len(row["tags_list"]) == min(limit, 12) < len(row["manual_tags"]) == 12
+        detail = edition_client.get('/api/photo', params={'path': manual_photos})
+        self._assert_list(detail.json(), expected)
+
+    def test_photo_without_manual_tags_still_sends_a_list(self, edition_client, seeded):
+        listing = edition_client.get('/api/photos', params={'per_page': 50, 'hide_bursts': '0'})
+        row = {r['path']: r for r in listing.json()['photos']}[PHOTO]
+        self._assert_list(row, [])
+
+    def test_search_memories_and_timeline_carry_a_list(self, edition_client, manual_photos):
+        search = edition_client.get('/api/search', params={'q': 'apicontractmanualmarker', 'scope': 'text'})
+        assert search.status_code == 200
+        hits = [p for p in search.json()['photos'] if p['path'] == manual_photos]
+        assert hits
+        self._assert_list(hits[0])
+        memories = edition_client.get('/api/memories', params={'date': '2026-06-15'})
+        mem = [p for y in memories.json()['years'] for p in y['photos'] if p['path'] == manual_photos]
+        assert mem
+        self._assert_list(mem[0])
+        timeline = edition_client.get('/api/timeline', params={'hide_bursts': '0'})
+        assert timeline.status_code == 200
+        found = [p for g in timeline.json()['groups'] for p in g['photos'] if p['path'] == manual_photos]
+        assert found
+        self._assert_list(found[0])
+
+    def test_album_and_capsule_carry_a_list(self, edition_client, manual_photos):
+        create = edition_client.post('/api/albums', json={'name': 'manual tags contract album'})
+        album_id = create.json()['id']
+        try:
+            edition_client.post(f'/api/albums/{album_id}/photos', json={'photo_paths': [manual_photos]})
+            photos = edition_client.get(f'/api/albums/{album_id}/photos').json()['photos']
+            self._assert_list(photos[0])
+        finally:
+            edition_client.delete(f'/api/albums/{album_id}')

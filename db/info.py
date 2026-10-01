@@ -6,7 +6,7 @@ import sqlite3
 
 from db.schema import (
     PHOTOS_COLUMNS, FACES_COLUMNS, PERSONS_COLUMNS,
-    PHOTO_TAGS_COLUMNS, COMPARISONS_COLUMNS, LEARNED_SCORES_COLUMNS,
+    PHOTO_TAGS_COLUMNS, PHOTO_MANUAL_TAGS_COLUMNS, COMPARISONS_COLUMNS, LEARNED_SCORES_COLUMNS,
     WEIGHT_OPTIMIZATION_RUNS_COLUMNS, WEIGHT_CONFIG_SNAPSHOTS_COLUMNS,
     ALL_INDEX_GROUPS, SCHEMA_VERSION,
 )
@@ -23,6 +23,7 @@ def get_schema_info():
         'faces_columns': len(FACES_COLUMNS),
         'persons_columns': len(PERSONS_COLUMNS),
         'photo_tags_columns': len(PHOTO_TAGS_COLUMNS),
+        'photo_manual_tags_columns': len(PHOTO_MANUAL_TAGS_COLUMNS),
         'comparisons_columns': len(COMPARISONS_COLUMNS),
         'weight_config_snapshots_columns': len(WEIGHT_CONFIG_SNAPSHOTS_COLUMNS),
         'learned_scores_columns': len(LEARNED_SCORES_COLUMNS),

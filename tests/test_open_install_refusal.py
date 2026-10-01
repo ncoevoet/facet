@@ -81,6 +81,7 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('DELETE', '/api/albums/{album_id}/scoring_context'),
     ('DELETE', '/api/albums/{album_id}/share'),
     ('DELETE', '/api/config/weight_snapshots/{snapshot_id}'),
+    ('DELETE', '/api/photo/manual_tags'),
     ('GET', '/api/albums/{album_id}/picks'),
     ('GET', '/api/comparison/category_weights'),
     ('GET', '/api/comparison/confidence'),
@@ -143,6 +144,7 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('POST', '/api/photo/export_xmp'),
     ('POST', '/api/photo/unassign_person'),
     ('POST', '/api/photos/batch_favorite'),
+    ('POST', '/api/photos/batch_manual_tags'),
     ('POST', '/api/photos/batch_rating'),
     ('POST', '/api/photos/batch_reject'),
     ('POST', '/api/plugins/test-webhook'),
@@ -158,6 +160,7 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('PUT', '/api/config/panorama_detection'),
     ('PUT', '/api/config/scoring_contexts/{name}'),
     ('PUT', '/api/photo/gps'),
+    ('PUT', '/api/photo/manual_tags'),
 })
 
 

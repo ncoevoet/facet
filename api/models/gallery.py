@@ -128,6 +128,7 @@ class Photo(BaseModel):
     sequence_override_pending: CoercedInt = None
     date_formatted: Optional[str] = None
     tags_list: list[str] = []
+    manual_tags: list[str] = []
     persons: list[PhotoPerson] = []
     unassigned_faces: CoercedInt = None
     top_picks_score: Optional[float] = None

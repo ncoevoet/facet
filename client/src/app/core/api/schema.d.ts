@@ -2789,6 +2789,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photo/manual_tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Api Add Manual Tag
+         * @description Add one manual tag to a photo (no-op when it equals an existing AI tag).
+         */
+        put: operations["api_add_manual_tag_api_photo_manual_tags_put"];
+        post?: never;
+        /**
+         * Api Delete Manual Tag
+         * @description Remove one manual tag from a photo, whichever import wrote it.
+         */
+        delete: operations["api_delete_manual_tag_api_photo_manual_tags_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photo/set": {
         parameters: {
             query?: never;
@@ -2977,6 +3001,31 @@ export interface paths {
          * @description Mark multiple photos as favorite (clears rejected).
          */
         post: operations["api_batch_favorite_api_photos_batch_favorite_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/photos/batch_manual_tags": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Batch Manual Tags
+         * @description Add or remove one manual tag across named paths or a gallery view.
+         *
+         *     ``count`` is the rows actually written or removed: unwritable paths are
+         *     dropped, an at-cap photo and a photo whose AI tags already hold the tag are
+         *     skipped inside the INSERT, and a photo that already has the tag is not
+         *     counted.
+         */
+        post: operations["api_batch_manual_tags_api_photos_batch_manual_tags_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4590,6 +4639,37 @@ export interface components {
             face_id: number;
         };
         /**
+         * BatchManualTagRequest
+         * @description Add or remove one tag across a path list or a whole gallery view.
+         */
+        BatchManualTagRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "add" | "delete";
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `photo_paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
+            exclude?: string[] | null;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Photo Paths */
+            photo_paths?: string[] | null;
+            /** Tag */
+            tag: string;
+        };
+        /** BatchManualTagResponse */
+        BatchManualTagResponse: {
+            /** Count */
+            count: number;
+            /** Success */
+            success: boolean;
+        };
+        /**
          * BatchPhotoRequest
          * @description The set a batch write acts on: named paths, or the gallery view itself.
          *
@@ -5475,6 +5555,37 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** ManualTagDeleteResponse */
+        ManualTagDeleteResponse: {
+            /** Removed */
+            removed: boolean;
+            /** Success */
+            success: boolean;
+            /** Tag */
+            tag: string;
+        };
+        /**
+         * ManualTagRequest
+         * @description One tag on one photo. ``tag`` is normalized server-side (422 when invalid).
+         */
+        ManualTagRequest: {
+            /** Path */
+            path: string;
+            /** Tag */
+            tag: string;
+        };
+        /** ManualTagResponse */
+        ManualTagResponse: {
+            /**
+             * Skipped Existing
+             * @default false
+             */
+            skipped_existing?: boolean;
+            /** Success */
+            success: boolean;
+            /** Tag */
+            tag: string;
+        };
         /** MapCluster */
         MapCluster: {
             /** Count */
@@ -6117,6 +6228,11 @@ export interface components {
             lens_model?: string | null;
             /** Liqe Score */
             liqe_score?: number | null;
+            /**
+             * Manual Tags
+             * @default []
+             */
+            manual_tags?: string[];
             /** Mean Luminance */
             mean_luminance?: number | null;
             /** Mean Saturation */
@@ -11369,6 +11485,72 @@ export interface operations {
             };
         };
     };
+    api_add_manual_tag_api_photo_manual_tags_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualTagRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualTagResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_delete_manual_tag_api_photo_manual_tags_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ManualTagRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ManualTagDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_photo_set_api_photo_set_get: {
         parameters: {
             query: {
@@ -11636,6 +11818,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_batch_manual_tags_api_photos_batch_manual_tags_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchManualTagRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchManualTagResponse"];
                 };
             };
             /** @description Validation Error */
