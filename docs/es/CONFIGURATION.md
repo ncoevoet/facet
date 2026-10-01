@@ -1678,7 +1678,7 @@ Visualización y comportamiento de la galería web.
 | Ajuste | Por defecto | Descripción |
 |---------|---------|-------------|
 | `default_category` | `""` | Filtro de categoría por defecto |
-| `edition_password` | `""` | Contraseña para desbloquear el modo edición (vacío = desactivado) |
+| `edition_password` | `""` | Contraseña para desbloquear el modo edición (vacío = toda edición se rechaza; la instalación es de solo lectura) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Mínimo para la optimización |
 | `pair_selection_strategy` | `"learning"` | Estrategia de pares: `learning` (arranque en frío por diversidad de embeddings + desacuerdo de rango una vez entrenado), `uncertainty`, `boundary`, `active`, `random` |

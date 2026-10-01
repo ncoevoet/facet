@@ -1682,7 +1682,7 @@ Anzeige und Verhalten der Web-Galerie.
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
 | `default_category` | `""` | Standard-Kategoriefilter |
-| `edition_password` | `""` | Passwort zum Freischalten des Editionsmodus (leer = deaktiviert) |
+| `edition_password` | `""` | Passwort zum Freischalten des Editionsmodus (leer = jede Bearbeitung wird abgelehnt; die Installation ist schreibgeschützt) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimum für die Optimierung |
 | `pair_selection_strategy` | `"learning"` | Paarstrategie: `learning` (Embedding-Diversität für den Kaltstart + Rang-Uneinigkeit nach dem Training), `uncertainty`, `boundary`, `active`, `random` |

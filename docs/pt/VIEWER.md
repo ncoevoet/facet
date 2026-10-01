@@ -60,7 +60,7 @@ Proteção por senha opcional via configuração:
 }
 ```
 
-Quando definida, os usuários precisam se autenticar antes de acessar o visualizador. Uma `edition_password` opcional concede acesso ao gerenciamento de pessoas e ao modo de comparação.
+Quando definida, os usuários precisam se autenticar antes de acessar o visualizador. Uma `edition_password` é necessária para qualquer edição: avaliações, favoritos e rejeições, seleção, álbuns, gerenciamento de pessoas e rostos, modo de comparação, mudanças de pesos e prioridades, exportações e geração por IA sob demanda. Sem `edition_password` (o padrão) a instalação é **somente leitura**: qualquer um pode navegar e toda edição é recusada com um `403` ("Set viewer.edition_password to enable editing").
 
 ### Modo Multiusuário
 
@@ -317,7 +317,7 @@ Acesse pelo botão no cabeçalho ou por `/persons`:
 
 ## Disparo de Varredura
 
-Quando `viewer.features.show_scan_button` é `true` e quem chama tem acesso à varredura — papel `superadmin` em modo multiusuário, ou uma sessão autenticada em modo de edição sobre uma instalação de usuário único bloqueada (`viewer.edition_password` definida) em modo de usuário único — um botão **Varrer fotos para começar** aparece no estado de galeria vazia. Ele vem definido como **`false`** no `scoring_config.json` (adesão explícita). Em uma instalação de usuário único aberta (`viewer.edition_password` vazia, o valor padrão de fábrica), as quatro rotas de varredura retornam 403 para qualquer chamador, incluindo um com um JWT de geração de edição válido, e o botão nunca é exibido — uma instalação aberta já trata chamadores anônimos como autenticados em modo de edição, e disparar um subprocesso de varredura não pode ser acessível anonimamente. O botão abre o diálogo do lançador de varredura (`ScanLauncherComponent`).
+Quando `viewer.features.show_scan_button` é `true` e quem chama tem acesso à varredura — papel `superadmin` em modo multiusuário, ou uma sessão autenticada em modo de edição sobre uma instalação de usuário único bloqueada (`viewer.edition_password` definida) em modo de usuário único — um botão **Varrer fotos para começar** aparece no estado de galeria vazia. Ele vem definido como **`false`** no `scoring_config.json` (adesão explícita). Em uma instalação de usuário único aberta (`viewer.edition_password` vazia, o valor padrão de fábrica), as quatro rotas de varredura retornam 403 para qualquer chamador, incluindo um com um JWT de geração de edição válido, e o botão nunca é exibido — disparar um subprocesso de varredura não pode ser acessível anonimamente. O botão abre o diálogo do lançador de varredura (`ScanLauncherComponent`).
 
 - Escolha um diretório da lista do lançador e inicie a varredura dentro do aplicativo
 - O lançador transmite o progresso ao vivo (SSE com fallback automático para polling) em uma `mat-progress-bar` controlada pelo campo estruturado `progress`, além de um trecho final de linhas de saída, e atualiza a galeria quando a varredura termina
@@ -413,7 +413,7 @@ Controlado por `viewer.features.show_critique` (padrão: `true`) e `viewer.featu
 
 ## Legendagem por IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Obtenha uma legenda em linguagem natural gerada por IA para qualquer foto. As legendas são geradas na primeira solicitação e armazenadas em cache na coluna `caption` do banco de dados. As legendas podem ser editadas manualmente no modo de edição pela página de detalhes da foto. (A *tradução* de legendas roda na CPU — veja abaixo.)
+Obtenha uma legenda em linguagem natural gerada por IA para qualquer foto. As legendas são geradas na primeira solicitação por uma sessão de edição (uma instalação aberta, somente leitura, nunca gera nenhuma) e armazenadas em cache na coluna `caption` do banco de dados. As legendas podem ser editadas manualmente no modo de edição pela página de detalhes da foto. (A *tradução* de legendas roda na CPU — veja abaixo.)
 
 API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 
@@ -1212,18 +1212,18 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Obtém o próximo par de fotos para comparação |
+| `GET /api/comparison/next_pair` | `[Edition]` Obtém o próximo par de fotos para comparação |
 | `POST /api/comparison/submit` | Envia o resultado da comparação |
 | `POST /api/comparison/reset` | Redefine os dados de comparação |
-| `GET /api/comparison/stats` | Estatísticas da sessão de comparação |
-| `GET /api/comparison/history` | Lista comparações anteriores |
+| `GET /api/comparison/stats` | `[Edition]` Estatísticas da sessão de comparação |
+| `GET /api/comparison/history` | `[Edition]` Lista comparações anteriores |
 | `POST /api/comparison/edit` | Edita o resultado de uma comparação |
 | `POST /api/comparison/delete` | Exclui uma comparação |
-| `GET /api/comparison/coverage` | Cobertura de comparações por categoria |
-| `GET /api/comparison/confidence` | Métricas de confiança para pontuações aprendidas |
+| `GET /api/comparison/coverage` | `[Edition]` Cobertura de comparações por categoria |
+| `GET /api/comparison/confidence` | `[Edition]` Métricas de confiança para pontuações aprendidas |
 | `GET /api/comparison/photo_metrics` | Métricas brutas das fotos |
-| `GET /api/comparison/category_weights` | Pesos/filtros de categoria |
-| `GET /api/comparison/learned_weights` | Pesos sugeridos a partir de comparações |
+| `GET /api/comparison/category_weights` | `[Edition]` Pesos/filtros de categoria |
+| `GET /api/comparison/learned_weights` | `[Edition]` Pesos sugeridos a partir de comparações |
 | `POST /api/comparison/preview_score` | Prévia com pesos personalizados |
 | `POST /api/comparison/suggest_filters` | Analisa conflitos de filtro |
 | `POST /api/comparison/override_category` | `[Edition]` Define uma substituição de categoria persistente por foto (validada contra os nomes de categoria configurados; sobrevive ao próximo recálculo) |
@@ -1289,7 +1289,7 @@ Os tipos TypeScript do cliente são gerados a partir desse esquema em `client/sr
 | Endpoint | Descrição |
 |----------|-------------|
 | `POST /api/config/update_weights` | Atualiza os pesos de pontuação |
-| `GET /api/config/weight_snapshots` | Lista os instantâneos de pesos salvos |
+| `GET /api/config/weight_snapshots` | `[Edition]` Lista os instantâneos de pesos salvos |
 | `POST /api/config/save_snapshot` | Salva os pesos atuais como instantâneo |
 | `POST /api/config/restore_weights` | Restaura os pesos de um instantâneo |
 | `GET /api/config/category_priorities` | `[Edition]` Lista as categorias na ordem de prioridade (avaliação) atual |
@@ -1343,8 +1343,8 @@ O endpoint `/api/download/options` detecta automaticamente arquivos RAW companhe
 
 | Endpoint | Descrição |
 |----------|-------------|
-| `GET /api/plugins` | Lista os plugins configurados |
-| `POST /api/plugins/test-webhook` | Testa um plugin de webhook |
+| `GET /api/plugins` | `[Edition]` Lista os plugins configurados |
+| `POST /api/plugins/test-webhook` | `[Edition]` Testa um plugin de webhook |
 
 ### Immich
 

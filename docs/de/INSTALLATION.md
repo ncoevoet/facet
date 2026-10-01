@@ -176,8 +176,10 @@ nutzen, folgen Sie der [WSL2-Anleitung](DEPLOYMENT.md#windows-wsl2-mit-einer-nvi
   4,7 GB für `legacy`, 6,9 GB für `8gb`, 14,6 GB für `16gb`, 19,1 GB für `24gb`
   (vollständige Aufschlüsselung unter [Downloadgrößen](#downloadgrößen)). Das geschieht
   einmalig; spätere Läufe starten sofort.
-- **Keine Einrichtung.** Es gibt nichts zu konfigurieren. Facet erstellt seine Datenbank
-  beim ersten Scan und liefert funktionierende Einstellungen mit.
+- **Keine Einrichtung zum Scannen.** Facet erstellt seine Datenbank beim ersten Scan und
+  liefert funktionierende Einstellungen mit. Zum **Bearbeiten** (bewerten, aussortieren, Alben
+  und Personen verwalten) setzen Sie `viewer.edition_password` in `scoring_config.json` — ohne
+  ist der Viewer schreibgeschützt (das Docker-Image erzeugt beim ersten Start eines).
 - **Ihre Fotos werden nicht verändert.** Der Scan liest sie nur; die Ergebnisse landen in
   Facets eigener Datenbank. Bewertungen und Schlagwörter zurück in Ihre Dateien zu
   schreiben, ist eine separate Aktion, die Sie selbst auslösen ([Interop](INTEROP.md)).
@@ -239,7 +241,7 @@ Sie weglassen, behält den ausgelieferten Wert (und übernimmt dessen Verbesseru
 einem Upgrade).
 
 `docker-entrypoint.sh` befüllt daher die persistente Datei
-`./facet-config/scoring_config.json` beim ersten Start mit einem leeren `{}`. Diese
+`./facet-config/scoring_config.json` beim ersten Start mit einem generierten `viewer.edition_password` (einmalig im Container-Log ausgegeben: `docker compose logs facet`). Diese
 Datei wird von `docker-compose.yml` eingehängt (als
 `FACET_CONFIG=/config/scoring_config.json` im Container), sodass der Container ohne
 jede Host-Einrichtung läuft und jede Konfigurationsänderung zur Laufzeit (die
@@ -298,7 +300,7 @@ Compose), damit der Container-Benutzer Sie selbst ist.
 >
 > Andernfalls befüllt der Entrypoint eine leere Überschreibung, und Ihre
 > Gewichte, Kategorien und **Ihr Viewer-Passwort werden nicht mehr gelesen** — ein leeres
-> `viewer.edition_password` deaktiviert die Bearbeitungssperre vollständig. Behalten Sie
+> `viewer.edition_password` lässt die Installation schreibgeschützt (jede Bearbeitung abgelehnt). Behalten Sie
 > Ihre eigene `docker-compose.yml` mit dem alten Mount, initialisiert der Entrypoint
 > `./facet-config` aus *dieser* Datei, und es geht nichts verloren.
 >
@@ -684,9 +686,9 @@ Dokumentation verwendete Kennzeichnungen:
 | VLM-Tagging (Qwen3.5) | ja | `16gb`/`24gb` | — | — |
 | Kompositionsmuster (SAMP-Net) | optional | beliebig (`legacy` = CPU) | — | — |
 | Motiverkennung (BiRefNet) | optional | beliebig (`legacy` = CPU) | — | — |
-| KI-Beschreibungen (erzeugen / ansehen) | ja | `16gb`/`24gb` | — | — |
+| KI-Beschreibungen (erzeugen / ansehen) | ja | `16gb`/`24gb` | edition (Erzeugen) | — |
 | KI-Beschreibungen (bearbeiten) | ja | `16gb`/`24gb` | edition | — |
-| VLM-Kritik | ja | `16gb`/`24gb` | — | — |
+| VLM-Kritik | ja | `16gb`/`24gb` | edition (Erzeugen) | — |
 | Gesichtserkennung / -extraktion (InsightFace) | empfohlen (CPU funktioniert, langsam) | beliebig | — | — |
 | Gesichtsclustering (HDBSCAN) | nein (CPU) | beliebig | — | `cuml`/`cupy` (optionale GPU-Beschleunigung) |
 | Semantische Suche | nein | beliebig | — | `sqlite-vec` (greift auf NumPy zurück) |

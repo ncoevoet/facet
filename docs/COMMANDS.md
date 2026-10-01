@@ -309,7 +309,7 @@ Read-only: it decodes a random sample straight from disk and prints the mean lum
 
 With neither set, `facet.py`, `database.py`, `tag_existing.py`, `diagnostics.py` and `calibrate.py` read a `scoring_config.json` in the **working directory** if there is one — so a photo library that carries its own config is scored by it — and otherwise the one beside the install. Only that inherited fallback may be absent; it means an install running on the shipped defaults.
 
-`viewer.py` and the `api/` server it starts do NOT take that working-directory step — they resolve only `FACET_CONFIG`, else the file beside the install, never a `scoring_config.json` sitting in whatever directory you launched them from. That matters because the viewer's config is the one that carries the operator's passwords: starting it from inside a photo library does not pick up that library's config, and if the install root has none either, it silently falls back to the shipped defaults — an empty `viewer.edition_password` that serves every route anonymously.
+`viewer.py` and the `api/` server it starts do NOT take that working-directory step — they resolve only `FACET_CONFIG`, else the file beside the install, never a `scoring_config.json` sitting in whatever directory you launched them from. That matters because the viewer's config is the one that carries the operator's passwords: starting it from inside a photo library does not pick up that library's config, and if the install root has none either, it silently falls back to the shipped defaults — an empty `viewer.edition_password` and no viewer password, so every read route is served anonymously.
 
 ```bash
 # 1. --config wins over everything. Missing here is an ERROR, not an empty override.

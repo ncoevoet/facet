@@ -946,7 +946,8 @@
     "unlock_button": "Desbloquear",
     "lock_title": "Modo de edição ativo — clique para bloquear",
     "password_placeholder": "Senha de edição",
-    "invalid_password": "Senha inválida"
+    "invalid_password": "Senha inválida",
+    "read_only_hint": "Somente leitura: defina viewer.edition_password em scoring_config.json para ativar a avaliação, a seleção e a edição."
   },
   "nav": {
     "gallery": "Galeria",

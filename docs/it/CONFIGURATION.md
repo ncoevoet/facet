@@ -1676,7 +1676,7 @@ Visualizzazione e comportamento della galleria web.
 | Impostazione | Predefinito | Descrizione |
 |---------|---------|-------------|
 | `default_category` | `""` | Filtro categoria predefinito |
-| `edition_password` | `""` | Password per sbloccare la modalità di modifica (vuoto = disabilitato) |
+| `edition_password` | `""` | Password per sbloccare la modalità di modifica (vuoto = ogni modifica è rifiutata; l'installazione è in sola lettura) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimo per l'ottimizzazione |
 | `pair_selection_strategy` | `"learning"` | Strategia di coppia: `learning` (avvio a freddo per diversità di embedding + disaccordo di rango una volta addestrato), `uncertainty`, `boundary`, `active`, `random` |

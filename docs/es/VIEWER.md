@@ -60,7 +60,7 @@ Protección opcional con contraseña mediante la configuración:
 }
 ```
 
-Cuando se define, los usuarios deben autenticarse antes de acceder al visor. Una `edition_password` opcional concede acceso a la gestión de personas y al modo de comparación.
+Cuando se define, los usuarios deben autenticarse antes de acceder al visor. Se requiere una `edition_password` para cualquier edición: valoraciones, favoritos y rechazos, selección, álbumes, gestión de personas y rostros, modo de comparación, cambios de pesos y prioridades, exportaciones y generación con IA bajo demanda. Sin `edition_password` (el valor por defecto) la instalación es de **solo lectura**: cualquiera puede explorar y toda edición se rechaza con un `403` («Set viewer.edition_password to enable editing»).
 
 ### Modo multiusuario
 
@@ -317,7 +317,7 @@ Accede mediante el botón de la cabecera o `/persons`:
 
 ## Activador de escaneo
 
-Cuando `viewer.features.show_scan_button` está en `true` y quien llama tiene acceso al escaneo — rol `superadmin` en modo multiusuario, o una sesión autenticada en modo de edición sobre una instalación de un solo usuario bloqueada (`viewer.edition_password` definida) en modo de un solo usuario — aparece un botón **Escanear fotos para empezar** en el estado de galería vacía. Se entrega configurado en **`false`** en `scoring_config.json` (activación opcional). En una instalación de un solo usuario abierta (`viewer.edition_password` vacía, el valor predeterminado de fábrica), las cuatro rutas de escaneo devuelven 403 para cualquier llamador, incluido uno con un JWT de generación de edición válido, y el botón nunca se muestra — una instalación abierta ya trata a los llamadores anónimos como autenticados en modo de edición, y lanzar un subproceso de escaneo no debe ser alcanzable de forma anónima. El botón abre el diálogo de lanzamiento de escaneo (`ScanLauncherComponent`).
+Cuando `viewer.features.show_scan_button` está en `true` y quien llama tiene acceso al escaneo — rol `superadmin` en modo multiusuario, o una sesión autenticada en modo de edición sobre una instalación de un solo usuario bloqueada (`viewer.edition_password` definida) en modo de un solo usuario — aparece un botón **Escanear fotos para empezar** en el estado de galería vacía. Se entrega configurado en **`false`** en `scoring_config.json` (activación opcional). En una instalación de un solo usuario abierta (`viewer.edition_password` vacía, el valor predeterminado de fábrica), las cuatro rutas de escaneo devuelven 403 para cualquier llamador, incluido uno con un JWT de generación de edición válido, y el botón nunca se muestra — lanzar un subproceso de escaneo no debe ser alcanzable de forma anónima. El botón abre el diálogo de lanzamiento de escaneo (`ScanLauncherComponent`).
 
 - Elige un directorio de la lista del lanzador e inicia el escaneo dentro de la aplicación
 - El lanzador transmite el progreso en vivo (SSE con recurso automático a sondeo) a una `mat-progress-bar` impulsada por el campo estructurado `progress`, más una cola de líneas de salida, y actualiza la galería cuando finaliza el escaneo
@@ -413,7 +413,7 @@ Controlada por `viewer.features.show_critique` (predeterminado: `true`) y `viewe
 
 ## Subtitulado con IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Obtén un subtítulo en lenguaje natural generado por IA para cualquier foto. Los subtítulos se generan en la primera solicitud y se almacenan en caché en la columna `caption` de la base de datos. Los subtítulos se pueden editar manualmente en modo de edición desde la página de detalle de la foto. (La *traducción* de subtítulos se ejecuta en CPU; consulta más abajo.)
+Obtén un subtítulo en lenguaje natural generado por IA para cualquier foto. Los subtítulos los genera en la primera solicitud una sesión de edición (una instalación abierta, de solo lectura, nunca genera ninguno) y se almacenan en caché en la columna `caption` de la base de datos. Los subtítulos se pueden editar manualmente en modo de edición desde la página de detalle de la foto. (La *traducción* de subtítulos se ejecuta en CPU; consulta más abajo.)
 
 API: consulta la sección [Endpoints de la API](#endpoints-de-la-api) más abajo.
 
@@ -1211,18 +1211,18 @@ Los tipos TypeScript del cliente se generan a partir de ese esquema en `client/s
 
 | Endpoint | Descripción |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Obtener el siguiente par de fotos para comparar |
+| `GET /api/comparison/next_pair` | `[Edition]` Obtener el siguiente par de fotos para comparar |
 | `POST /api/comparison/submit` | Enviar el resultado de una comparación |
 | `POST /api/comparison/reset` | Restablecer los datos de comparación |
-| `GET /api/comparison/stats` | Estadísticas de la sesión de comparación |
-| `GET /api/comparison/history` | Listar comparaciones anteriores |
+| `GET /api/comparison/stats` | `[Edition]` Estadísticas de la sesión de comparación |
+| `GET /api/comparison/history` | `[Edition]` Listar comparaciones anteriores |
 | `POST /api/comparison/edit` | Editar el resultado de una comparación |
 | `POST /api/comparison/delete` | Eliminar una comparación |
-| `GET /api/comparison/coverage` | Cobertura de comparaciones por categoría |
-| `GET /api/comparison/confidence` | Métricas de confianza de las puntuaciones aprendidas |
+| `GET /api/comparison/coverage` | `[Edition]` Cobertura de comparaciones por categoría |
+| `GET /api/comparison/confidence` | `[Edition]` Métricas de confianza de las puntuaciones aprendidas |
 | `GET /api/comparison/photo_metrics` | Métricas en bruto de las fotos |
-| `GET /api/comparison/category_weights` | Pesos/filtros de categoría |
-| `GET /api/comparison/learned_weights` | Pesos sugeridos a partir de las comparaciones |
+| `GET /api/comparison/category_weights` | `[Edition]` Pesos/filtros de categoría |
+| `GET /api/comparison/learned_weights` | `[Edition]` Pesos sugeridos a partir de las comparaciones |
 | `POST /api/comparison/preview_score` | Vista previa con pesos personalizados |
 | `POST /api/comparison/suggest_filters` | Analizar conflictos de filtro |
 | `POST /api/comparison/override_category` | `[Edition]` Establece una anulación de categoría persistente por foto (validada contra los nombres de categoría configurados; sobrevive al siguiente recálculo) |
@@ -1288,7 +1288,7 @@ Los tipos TypeScript del cliente se generan a partir de ese esquema en `client/s
 | Endpoint | Descripción |
 |----------|-------------|
 | `POST /api/config/update_weights` | Actualizar los pesos de puntuación |
-| `GET /api/config/weight_snapshots` | Listar las instantáneas de pesos guardadas |
+| `GET /api/config/weight_snapshots` | `[Edition]` Listar las instantáneas de pesos guardadas |
 | `POST /api/config/save_snapshot` | Guardar los pesos actuales como instantánea |
 | `POST /api/config/restore_weights` | Restaurar los pesos desde una instantánea |
 | `GET /api/config/category_priorities` | `[Edition]` Lista las categorías en su orden de prioridad (evaluación) actual |
@@ -1342,8 +1342,8 @@ El endpoint `/api/download/options` detecta automáticamente los archivos RAW co
 
 | Endpoint | Descripción |
 |----------|-------------|
-| `GET /api/plugins` | Listar los plugins configurados |
-| `POST /api/plugins/test-webhook` | Probar un plugin de webhook |
+| `GET /api/plugins` | `[Edition]` Listar los plugins configurados |
+| `POST /api/plugins/test-webhook` | `[Edition]` Probar un plugin de webhook |
 
 ### Immich
 

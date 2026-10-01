@@ -101,7 +101,7 @@ Pasa el cursor sobre cualquier foto para ver un tooltip con el desglose de la pu
 - **Aprendizaje a partir de etiquetas** — las decisiones de selección, las valoraciones por estrellas, los favoritos y los rechazos alimentan el optimizador de pesos (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantáneas** — guarda, restaura y compara configuraciones de pesos
 - **Histograma** — histograma RGB/luminancia con indicadores de recorte, en el tooltip de la foto y en la vista de detalle
-- **Leyendas con IA** `[GPU]` `[16gb/24gb]` — descripciones de texto, editables `[Edition]` y traducibles a 5 idiomas (la generación y la visualización están abiertas)
+- **Leyendas con IA** `[GPU]` `[16gb/24gb]` — descripciones de texto, editables `[Edition]` y traducibles a 5 idiomas (la visualización está abierta; la generación y la edición requieren edición)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Estadísticas de equipo" width="100%"></td>

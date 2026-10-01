@@ -106,7 +106,7 @@ Hover over any photo for a tooltip with the score breakdown and EXIF data.
 - **Learning from labels** — culling decisions, star ratings, favorites, and rejections feed the weight optimizer (`--sync-label-comparisons`, `--mine-insights`)
 - **Snapshots** — save, restore, and compare weight configurations
 - **Histogram** — RGB/luminance histogram with clipping indicators, in the photo tooltip and detail view
-- **AI captions** `[GPU]` `[16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (generation and viewing are open)
+- **AI captions** `[GPU]` `[16gb/24gb]` — text descriptions, editable `[Edition]` and translatable to 5 languages (viewing is open; generation and editing need edition)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Equipment statistics" width="100%"></td>

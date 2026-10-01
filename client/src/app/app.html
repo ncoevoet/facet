@@ -409,6 +409,15 @@
   </mat-toolbar>
   }
 
+  @if (auth.isReadOnlyInstall()) {
+    <a
+      class="shrink-0 block px-3 py-1.5 text-center text-sm bg-[var(--mat-sys-tertiary-container)] text-[var(--mat-sys-on-tertiary-container)] underline"
+      href="https://github.com/ncoevoet/facet/blob/master/docs/VIEWER.md#single-user-mode-default"
+      target="_blank"
+      rel="noopener noreferrer"
+    >{{ I18N.edition.read_only_hint | translate }}</a>
+  }
+
   <!-- Global per-page help panel (shows the current page's description) -->
   @if (pageHelp.open() && pageHelp.descriptionKey(); as key) {
     <div class="mx-4 mt-3 p-3 rounded-lg bg-[var(--mat-sys-surface-container)] text-sm opacity-80">{{ key | translate }}</div>

@@ -1641,7 +1641,7 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 | 设置 | 默认值 | 说明 |
 |---------|---------|-------------|
 | `default_category` | `""` | 默认的类别筛选 |
-| `edition_password` | `""` | 解锁编辑模式的密码（留空 = 禁用） |
+| `edition_password` | `""` | 解锁编辑模式的密码（留空 = 所有编辑均被拒绝；安装为只读） |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | 进行优化所需的最少比较次数 |
 | `pair_selection_strategy` | `"learning"` | 配对策略：`learning`（冷启动阶段按嵌入多样性，训练完成后按排序分歧）、`uncertainty`、`boundary`、`active`、`random` |

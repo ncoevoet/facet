@@ -176,10 +176,9 @@ def regular_client():
     ``require_edition`` is intentionally NOT overridden — endpoints that need
     it hit the real dependency and return 403, exercising the access-denied
     path. An ``edition_password`` is set for the fixture's lifetime so the
-    "no edition password configured ⇒ every authenticated user is edition"
-    single-user shortcut in ``CurrentUser.is_edition`` is disabled; otherwise
-    this ``edition_authenticated=False`` user would be granted edition access
-    and the negative test would never reach the 403 path.
+    install is locked (not an open, read-only one) and the 403 this
+    ``edition_authenticated=False`` user receives is the locked-install
+    refusal rather than the open-install one.
     """
     from api.auth import VIEWER_CONFIG
     user = CurrentUser(user_id="u1", role="user", display_name="User One")

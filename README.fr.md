@@ -101,7 +101,7 @@ Survolez n'importe quelle photo pour afficher une infobulle avec le détail du s
 - **Apprentissage à partir des étiquettes** — les décisions de tri, les notes (étoiles), les favoris et les rejets alimentent l'optimiseur de poids (`--sync-label-comparisons`, `--mine-insights`)
 - **Instantanés** — enregistrez, restaurez et comparez des configurations de poids
 - **Histogramme** — histogramme RVB/luminance avec indicateurs d'écrêtage, dans l'infobulle de la photo et la vue détaillée
-- **Légendes IA** `[GPU]` `[16gb/24gb]` — descriptions textuelles, modifiables `[Edition]` et traduisibles en 5 langues (la génération et la consultation sont ouvertes)
+- **Légendes IA** `[GPU]` `[16gb/24gb]` — descriptions textuelles, modifiables `[Edition]` et traduisibles en 5 langues (la consultation est ouverte ; la génération et la modification requièrent l'édition)
 
 <table><tr>
 <td><img src="docs/screenshots/stats-gear.jpg" alt="Statistiques d'équipement" width="100%"></td>

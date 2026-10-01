@@ -60,7 +60,7 @@ Optionaler Passwortschutz über die Konfiguration:
 }
 ```
 
-Wenn gesetzt, müssen sich Benutzer authentifizieren, bevor sie auf die Galerie zugreifen können. Ein optionales `edition_password` gewährt Zugriff auf die Personenverwaltung und den Vergleichsmodus.
+Wenn gesetzt, müssen sich Benutzer authentifizieren, bevor sie auf die Galerie zugreifen können. Für jede Bearbeitung ist ein `edition_password` erforderlich: Bewertungen, Favoriten und Ablehnungen, Aussortieren, Alben, Personen- und Gesichtsverwaltung, Vergleichsmodus, Gewichts- und Prioritätsänderungen, Exporte und KI-Erzeugung auf Anfrage. Ohne `edition_password` (Standardwert) ist die Installation **schreibgeschützt**: Jeder kann stöbern, jede Bearbeitung wird mit `403` abgelehnt („Set viewer.edition_password to enable editing“).
 
 ### Mehrbenutzermodus
 
@@ -318,7 +318,7 @@ Zugriff über die Header-Schaltfläche oder `/persons`:
 
 ## Scan auslösen
 
-Wenn `viewer.features.show_scan_button` auf `true` steht und der Aufrufer Scan-Zugriff hat — Rolle `superadmin` im Mehrbenutzermodus, oder eine edition-authentifizierte Sitzung auf einer gesperrten Einzelbenutzer-Installation (`viewer.edition_password` gesetzt) im Einzelbenutzermodus — erscheint im leeren Galerie-Zustand eine Schaltfläche **Fotos scannen, um loszulegen**. Sie wird in `scoring_config.json` auf **`false`** ausgeliefert (Opt-in). Bei einer offenen Einzelbenutzer-Installation (`viewer.edition_password` leer, der ausgelieferte Standardwert) liefern alle vier Scan-Routen für jeden Aufrufer 403, auch für einen mit gültigem edition-generiertem JWT, und die Schaltfläche wird nie gerendert — eine offene Installation behandelt anonyme Aufrufer bereits als edition-authentifiziert, und das Starten eines Scan-Unterprozesses darf nicht anonym erreichbar sein. Die Schaltfläche öffnet den Scan-Starter-Dialog (`ScanLauncherComponent`).
+Wenn `viewer.features.show_scan_button` auf `true` steht und der Aufrufer Scan-Zugriff hat — Rolle `superadmin` im Mehrbenutzermodus, oder eine edition-authentifizierte Sitzung auf einer gesperrten Einzelbenutzer-Installation (`viewer.edition_password` gesetzt) im Einzelbenutzermodus — erscheint im leeren Galerie-Zustand eine Schaltfläche **Fotos scannen, um loszulegen**. Sie wird in `scoring_config.json` auf **`false`** ausgeliefert (Opt-in). Bei einer offenen Einzelbenutzer-Installation (`viewer.edition_password` leer, der ausgelieferte Standardwert) liefern alle vier Scan-Routen für jeden Aufrufer 403, auch für einen mit gültigem edition-generiertem JWT, und die Schaltfläche wird nie gerendert — das Starten eines Scan-Unterprozesses darf nicht anonym erreichbar sein. Die Schaltfläche öffnet den Scan-Starter-Dialog (`ScanLauncherComponent`).
 
 - Ein Verzeichnis aus der Liste des Starters auswählen und den Scan direkt in der App starten
 - Der Starter überträgt den Fortschritt live (SSE mit automatischem Polling-Rückgriff) in einen `mat-progress-bar`, der vom strukturierten `progress`-Feld gesteuert wird, plus einen Auszug der Ausgabezeilen, und aktualisiert die Galerie, sobald der Scan abgeschlossen ist
@@ -414,7 +414,7 @@ Gesteuert über `viewer.features.show_critique` (Standard: `true`) und `viewer.f
 
 ## KI-Bildbeschreibung `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Erhalten Sie eine KI-generierte Bildbeschreibung in natürlicher Sprache für jedes Foto. Beschreibungen werden bei der ersten Anfrage generiert und in der Datenbankspalte `caption` zwischengespeichert. Beschreibungen können im Bearbeitungsmodus über die Fotodetailseite manuell bearbeitet werden. (Die *Übersetzung* von Beschreibungen läuft auf der CPU — siehe unten.)
+Erhalten Sie eine KI-generierte Bildbeschreibung in natürlicher Sprache für jedes Foto. Beschreibungen werden bei der ersten Anfrage von einer Edition-Sitzung generiert (eine offene, schreibgeschützte Installation erzeugt nie eine) und in der Datenbankspalte `caption` zwischengespeichert. Beschreibungen können im Bearbeitungsmodus über die Fotodetailseite manuell bearbeitet werden. (Die *Übersetzung* von Beschreibungen läuft auf der CPU — siehe unten.)
 
 API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 
@@ -1211,18 +1211,18 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Nächstes Fotopaar zum Vergleich abrufen |
+| `GET /api/comparison/next_pair` | `[Edition]` Nächstes Fotopaar zum Vergleich abrufen |
 | `POST /api/comparison/submit` | Vergleichsergebnis übermitteln |
 | `POST /api/comparison/reset` | Vergleichsdaten zurücksetzen |
-| `GET /api/comparison/stats` | Statistiken der Vergleichssitzung |
-| `GET /api/comparison/history` | Vergangene Vergleiche auflisten |
+| `GET /api/comparison/stats` | `[Edition]` Statistiken der Vergleichssitzung |
+| `GET /api/comparison/history` | `[Edition]` Vergangene Vergleiche auflisten |
 | `POST /api/comparison/edit` | Ein Vergleichsergebnis bearbeiten |
 | `POST /api/comparison/delete` | Einen Vergleich löschen |
-| `GET /api/comparison/coverage` | Kategorieabdeckung der Vergleiche |
-| `GET /api/comparison/confidence` | Konfidenzmetriken für gelernte Wertungen |
+| `GET /api/comparison/coverage` | `[Edition]` Kategorieabdeckung der Vergleiche |
+| `GET /api/comparison/confidence` | `[Edition]` Konfidenzmetriken für gelernte Wertungen |
 | `GET /api/comparison/photo_metrics` | Rohe Metriken für Fotos |
-| `GET /api/comparison/category_weights` | Kategoriegewichte/-filter |
-| `GET /api/comparison/learned_weights` | Vorgeschlagene Gewichte aus Vergleichen |
+| `GET /api/comparison/category_weights` | `[Edition]` Kategoriegewichte/-filter |
+| `GET /api/comparison/learned_weights` | `[Edition]` Vorgeschlagene Gewichte aus Vergleichen |
 | `POST /api/comparison/preview_score` | Vorschau mit benutzerdefinierten Gewichten |
 | `POST /api/comparison/suggest_filters` | Filterkonflikte analysieren |
 | `POST /api/comparison/override_category` | `[Edition]` Dauerhafte Kategorieüberschreibung pro Foto setzen (validiert gegen die konfigurierten Kategorienamen; übersteht die nächste Neuberechnung) |
@@ -1288,7 +1288,7 @@ Die TypeScript-Typen des Clients werden mit `cd client && npm run gen:api` aus d
 | Endpunkt | Beschreibung |
 |----------|-------------|
 | `POST /api/config/update_weights` | Bewertungsgewichte aktualisieren |
-| `GET /api/config/weight_snapshots` | Gespeicherte Gewichts-Snapshots auflisten |
+| `GET /api/config/weight_snapshots` | `[Edition]` Gespeicherte Gewichts-Snapshots auflisten |
 | `POST /api/config/save_snapshot` | Aktuelle Gewichte als Snapshot speichern |
 | `POST /api/config/restore_weights` | Gewichte aus einem Snapshot wiederherstellen |
 | `GET /api/config/category_priorities` | `[Edition]` Kategorien in aktueller Prioritäts- (Auswertungs-)Reihenfolge auflisten |
@@ -1342,8 +1342,8 @@ Der Endpunkt `/api/download/options` erkennt begleitende RAW-Dateien automatisch
 
 | Endpunkt | Beschreibung |
 |----------|-------------|
-| `GET /api/plugins` | Konfigurierte Plugins auflisten |
-| `POST /api/plugins/test-webhook` | Ein Webhook-Plugin testen |
+| `GET /api/plugins` | `[Edition]` Konfigurierte Plugins auflisten |
+| `POST /api/plugins/test-webhook` | `[Edition]` Ein Webhook-Plugin testen |
 
 ### Immich
 

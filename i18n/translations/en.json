@@ -946,7 +946,8 @@
     "unlock_button": "Unlock",
     "lock_title": "Edition mode active - click to lock",
     "password_placeholder": "Edition password",
-    "invalid_password": "Invalid password"
+    "invalid_password": "Invalid password",
+    "read_only_hint": "Read-only: set viewer.edition_password in scoring_config.json to enable rating, culling and editing."
   },
   "nav": {
     "gallery": "Gallery",

@@ -14,7 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
-from api.auth import CurrentUser, require_edition, require_auth
+from api.auth import CurrentUser, require_edition, require_auth, require_authenticated
 from api.config import is_multi_user_enabled, _stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import (
@@ -154,7 +154,7 @@ def _writable_photo_paths(conn, user, photo_paths):
 @router.get("/api/person/{person_id}/faces", response_model=PersonFacesResponse, response_model_exclude_unset=True)
 async def api_person_faces(
     person_id: int,
-    user: CurrentUser = Depends(require_auth),
+    user: CurrentUser = Depends(require_authenticated),
 ):
     """Get all faces belonging to a person."""
     vis_sql, vis_params = get_visibility_clause(user.user_id if user else None, table_alias='p')
@@ -207,7 +207,7 @@ def api_set_person_avatar(
 @router.get("/api/photo/faces", response_model=PhotoFacesResponse, response_model_exclude_unset=True)
 async def api_photo_faces(
     path: str,
-    user: CurrentUser = Depends(require_auth),
+    user: CurrentUser = Depends(require_authenticated),
 ):
     """Get all faces in a photo with their current person assignment."""
     vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)

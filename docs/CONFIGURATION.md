@@ -1654,7 +1654,7 @@ Web gallery display and behavior.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `default_category` | `""` | Default category filter |
-| `edition_password` | `""` | Password to unlock edition mode (empty = disabled) |
+| `edition_password` | `""` | Password to unlock edition mode (empty = every edit is refused; the install is read-only) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimum for optimization |
 | `pair_selection_strategy` | `"learning"` | Pair strategy: `learning` (embedding-diversity cold-start + rank-disagreement once trained), `uncertainty`, `boundary`, `active`, `random` |

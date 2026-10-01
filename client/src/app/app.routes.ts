@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { editionGuard } from './core/guards/edition.guard';
 
 export const routes: Routes = [
   {
@@ -29,13 +30,13 @@ export const routes: Routes = [
     path: 'compare',
     loadComponent: () =>
       import('./features/comparison/comparison.component').then(m => m.ComparisonComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, editionGuard],
   },
   {
     path: 'culling',
     loadComponent: () =>
       import('./features/gallery/burst-culling.component').then(m => m.BurstCullingComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, editionGuard],
   },
   {
     path: 'scenes',
@@ -47,7 +48,7 @@ export const routes: Routes = [
     path: 'junk',
     loadComponent: () =>
       import('./features/junk-sweep/junk-sweep.component').then(m => m.JunkSweepComponent),
-    canActivate: [authGuard],
+    canActivate: [authGuard, editionGuard],
   },
   {
     path: 'stats',

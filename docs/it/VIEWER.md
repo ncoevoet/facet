@@ -60,7 +60,7 @@ Protezione facoltativa con password tramite configurazione:
 }
 ```
 
-Quando impostata, gli utenti devono autenticarsi prima di accedere alla galleria. Una `edition_password` facoltativa garantisce l'accesso alla gestione delle persone e alla modalità di confronto.
+Quando impostata, gli utenti devono autenticarsi prima di accedere alla galleria. Per qualsiasi modifica è richiesta una `edition_password`: valutazioni, preferiti e scarti, selezione, album, gestione di persone e volti, modalità di confronto, modifiche a pesi e priorità, esportazioni e generazione IA su richiesta. Senza `edition_password` (il valore predefinito) l'installazione è in **sola lettura**: chiunque può sfogliare e ogni modifica viene rifiutata con un `403` («Set viewer.edition_password to enable editing»).
 
 ### Modalità multiutente
 
@@ -318,7 +318,7 @@ Accessibile tramite il pulsante nell'intestazione o `/persons`:
 
 ## Avvio scansione
 
-Quando `viewer.features.show_scan_button` è `true` e chi chiama ha l'accesso alla scansione — ruolo `superadmin` in modalità multiutente, oppure una sessione autenticata in modalità di modifica su un'installazione a utente singolo bloccata (`viewer.edition_password` impostata) in modalità utente singolo — nello stato di galleria vuota compare un pulsante **Scansiona le foto per iniziare**. Viene fornito impostato su **`false`** in `scoring_config.json` (opt-in). Su un'installazione a utente singolo aperta (`viewer.edition_password` vuota, il valore predefinito di fabbrica) tutte e quattro le rotte di scansione restituiscono 403 per qualsiasi chiamante, incluso chi possiede un JWT di generazione della modifica valido, e il pulsante non viene mai mostrato — un'installazione aperta tratta già i chiamanti anonimi come autenticati in modalità di modifica, e l'avvio di un sottoprocesso di scansione non deve essere raggiungibile in modo anonimo. Il pulsante apre la finestra di avvio della scansione (`ScanLauncherComponent`).
+Quando `viewer.features.show_scan_button` è `true` e chi chiama ha l'accesso alla scansione — ruolo `superadmin` in modalità multiutente, oppure una sessione autenticata in modalità di modifica su un'installazione a utente singolo bloccata (`viewer.edition_password` impostata) in modalità utente singolo — nello stato di galleria vuota compare un pulsante **Scansiona le foto per iniziare**. Viene fornito impostato su **`false`** in `scoring_config.json` (opt-in). Su un'installazione a utente singolo aperta (`viewer.edition_password` vuota, il valore predefinito di fabbrica) tutte e quattro le rotte di scansione restituiscono 403 per qualsiasi chiamante, incluso chi possiede un JWT di generazione della modifica valido, e il pulsante non viene mai mostrato — l'avvio di un sottoprocesso di scansione non deve essere raggiungibile in modo anonimo. Il pulsante apre la finestra di avvio della scansione (`ScanLauncherComponent`).
 
 - Scegli una directory dall'elenco del launcher e avvia la scansione direttamente nell'app
 - Il launcher trasmette l'avanzamento in tempo reale (SSE con fallback automatico al polling) in una `mat-progress-bar` pilotata dal campo strutturato `progress`, oltre a una coda di righe di output, e aggiorna la galleria al termine della scansione
@@ -414,7 +414,7 @@ Controllato da `viewer.features.show_critique` (predefinito: `true`) e `viewer.f
 
 ## Didascalie IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Ottieni una didascalia in linguaggio naturale generata dall'IA per qualsiasi foto. Le didascalie vengono generate alla prima richiesta e memorizzate nella cache nella colonna `caption` del database. Le didascalie possono essere modificate manualmente in modalità di modifica tramite la pagina di dettaglio della foto. (La *traduzione* delle didascalie viene eseguita su CPU — vedi sotto.)
+Ottieni una didascalia in linguaggio naturale generata dall'IA per qualsiasi foto. Le didascalie vengono generate alla prima richiesta da una sessione di modifica (un'installazione aperta, in sola lettura, non ne genera mai) e memorizzate nella cache nella colonna `caption` del database. Le didascalie possono essere modificate manualmente in modalità di modifica tramite la pagina di dettaglio della foto. (La *traduzione* delle didascalie viene eseguita su CPU — vedi sotto.)
 
 API: vedi la sezione [Endpoint API](#endpoint-api) più sotto.
 
@@ -1212,18 +1212,18 @@ I tipi TypeScript del client sono generati da questo schema in `client/src/app/c
 
 | Endpoint | Descrizione |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Ottieni la prossima coppia di foto da confrontare |
+| `GET /api/comparison/next_pair` | `[Edition]` Ottieni la prossima coppia di foto da confrontare |
 | `POST /api/comparison/submit` | Invia il risultato del confronto |
 | `POST /api/comparison/reset` | Azzera i dati di confronto |
-| `GET /api/comparison/stats` | Statistiche della sessione di confronto |
-| `GET /api/comparison/history` | Elenca i confronti passati |
+| `GET /api/comparison/stats` | `[Edition]` Statistiche della sessione di confronto |
+| `GET /api/comparison/history` | `[Edition]` Elenca i confronti passati |
 | `POST /api/comparison/edit` | Modifica il risultato di un confronto |
 | `POST /api/comparison/delete` | Elimina un confronto |
-| `GET /api/comparison/coverage` | Copertura per categoria dei confronti |
-| `GET /api/comparison/confidence` | Metriche di confidenza per i punteggi appresi |
+| `GET /api/comparison/coverage` | `[Edition]` Copertura per categoria dei confronti |
+| `GET /api/comparison/confidence` | `[Edition]` Metriche di confidenza per i punteggi appresi |
 | `GET /api/comparison/photo_metrics` | Metriche grezze delle foto |
-| `GET /api/comparison/category_weights` | Pesi/filtri della categoria |
-| `GET /api/comparison/learned_weights` | Pesi suggeriti dai confronti |
+| `GET /api/comparison/category_weights` | `[Edition]` Pesi/filtri della categoria |
+| `GET /api/comparison/learned_weights` | `[Edition]` Pesi suggeriti dai confronti |
 | `POST /api/comparison/preview_score` | Anteprima con pesi personalizzati |
 | `POST /api/comparison/suggest_filters` | Analizza i conflitti dei filtri |
 | `POST /api/comparison/override_category` | `[Edition]` Imposta una sovrascrittura di categoria persistente per singola foto (convalidata rispetto ai nomi di categoria configurati; sopravvive al ricalcolo successivo) |
@@ -1289,7 +1289,7 @@ I tipi TypeScript del client sono generati da questo schema in `client/src/app/c
 | Endpoint | Descrizione |
 |----------|-------------|
 | `POST /api/config/update_weights` | Aggiorna i pesi di valutazione |
-| `GET /api/config/weight_snapshots` | Elenca le istantanee dei pesi salvate |
+| `GET /api/config/weight_snapshots` | `[Edition]` Elenca le istantanee dei pesi salvate |
 | `POST /api/config/save_snapshot` | Salva i pesi correnti come istantanea |
 | `POST /api/config/restore_weights` | Ripristina i pesi da un'istantanea |
 | `GET /api/config/category_priorities` | `[Edition]` Elenca le categorie nell'attuale ordine di priorità (valutazione) |
@@ -1343,8 +1343,8 @@ L'endpoint `/api/download/options` rileva automaticamente i file RAW associati e
 
 | Endpoint | Descrizione |
 |----------|-------------|
-| `GET /api/plugins` | Elenca i plugin configurati |
-| `POST /api/plugins/test-webhook` | Testa un plugin webhook |
+| `GET /api/plugins` | `[Edition]` Elenca i plugin configurati |
+| `POST /api/plugins/test-webhook` | `[Edition]` Testa un plugin webhook |
 
 ### Immich
 

@@ -561,15 +561,16 @@ class TestUnparseableConfigFailsClosed:
         resp = client.post(_EDITION_ENDPOINT, json=_EDITION_BODY)
         assert resp.status_code == 401
 
-    def test_absent_config_keeps_the_open_install_open(self, tmp_path, load_config_from):
-        """The same request, with the flag disarmed, reaches the handler: a 422
-        on an incomplete body proves the edition gate was passed, without
-        writing an album."""
+    def test_absent_config_is_an_open_install_that_refuses_edits(self, tmp_path, load_config_from):
+        """The same request, with the flag disarmed, is an open install: the
+        caller is authenticated (viewer access is open) but every edit is
+        refused with 403, where the corrupt config above answers 401."""
         load_config_from(tmp_path / "never_configured.json")
         client = _make_client(raise_server_exceptions=False)
 
+        assert client.get("/api/auth/status").json()["authenticated"] is True
         resp = client.post(_EDITION_ENDPOINT, json=_INCOMPLETE_EDITION_BODY)
-        assert resp.status_code == 422
+        assert resp.status_code == 403
 
 
 # ---------------------------------------------------------------------------
@@ -877,7 +878,7 @@ class TestUnparseableConfigStaysLocked:
             "print(ac.config_load_failed(),"
             " repr(ac.VIEWER_CONFIG.get('edition_password', '<missing>')),"
             " auth._is_open_install(auth.EDITION_PASSWORD_KEY),"
-            " auth.CurrentUser().is_edition)"
+            " auth.CurrentUser().is_authenticated)"
         )
         env = {
             **os.environ,
@@ -891,17 +892,18 @@ class TestUnparseableConfigStaysLocked:
         return res.stdout.split()
 
     def test_an_unparseable_config_grants_no_edition_rights(self, tmp_path):
-        failed, password, open_install, is_edition = self._run(tmp_path, "{ not json")
+        failed, password, open_install, is_authenticated = self._run(tmp_path, "{ not json")
         assert failed == "True", "an unparseable config must be recorded as failed"
         # The backfill legitimately supplies the shipped empty password...
         assert password == "''"
         # ...and it must NOT be read as "this install has no lock".
         assert open_install == "False"
-        assert is_edition == "False"
+        # viewer access is what a fail-open would leak
+        assert is_authenticated == "False"
 
     def test_a_valid_empty_override_still_reads_the_shipped_defaults(self, tmp_path):
         """The contrast case: {} is a healthy install, not a failed one."""
-        failed, _password, _open_install, _is_edition = self._run(tmp_path, "{}")
+        failed, _password, _open_install, _is_authenticated = self._run(tmp_path, "{}")
         assert failed == "False"
 
 
@@ -941,7 +943,7 @@ class TestConfigFailureStaysLocked:
             "ac.reload_config()\n"
             "print(auth._is_open_install(auth.VIEWER_PASSWORD_KEY),"
             " auth._is_open_install(auth.EDITION_PASSWORD_KEY),"
-            " auth.CurrentUser().is_edition, bool(ac.VIEWER_CONFIG))\n"
+            " auth.CurrentUser().is_authenticated, bool(ac.VIEWER_CONFIG))\n"
         ))
         assert out[:3] == ["False", "False", "False"], out
         # and the dict is never left empty, which is what read as "no password"

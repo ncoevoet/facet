@@ -76,6 +76,11 @@ export class AuthService {
   readonly isAuthenticated = computed(() => this.status()?.authenticated ?? false);
   readonly isEdition = computed(() => this.status()?.edition_authenticated ?? false);
   readonly editionPasswordRequired = computed(() => this.status()?.edition_password_required ?? false);
+  /** Single-user install with no edition password: read-only until one is set. */
+  readonly isReadOnlyInstall = computed(() => {
+    const status = this.status();
+    return status !== null && !status.multi_user && !status.edition_authenticated && !status.edition_password_required;
+  });
   readonly loginPasswordRequired = computed(() => this.status()?.login_password_required ?? false);
   readonly isSuperadmin = computed(() => this.status()?.user_role === 'superadmin');
   readonly isMultiUser = computed(() => this.status()?.multi_user ?? false);
@@ -212,11 +217,6 @@ export class AuthService {
       // Network error — keep existing token rather than destroying the session
     }
     this.status.update(s => s ? { ...s, edition_authenticated: false } : s);
-  }
-
-  /** Re-enter edition mode locally when no password is required (server already grants it). */
-  grantEditionLocal(): void {
-    this.status.update(s => s ? { ...s, edition_authenticated: true } : s);
   }
 
   /** Check if a feature is enabled */

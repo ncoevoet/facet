@@ -100,11 +100,13 @@ async def api_caption(
                         translate_text, row['caption'], target_lang
                     )
                     if translated:
-                        await conn.execute(
-                            "UPDATE photos SET caption_translated = ? WHERE path = ?",
-                            [translated, path],
-                        )
-                        await conn.commit()
+                        # Caching the translation is a write: edition only.
+                        if is_edition_authenticated(user):
+                            await conn.execute(
+                                "UPDATE photos SET caption_translated = ? WHERE path = ?",
+                                [translated, path],
+                            )
+                            await conn.commit()
                         return {
                             "caption": translated,
                             "source": "translated",

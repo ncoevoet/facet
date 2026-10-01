@@ -30,6 +30,7 @@ from api.config import (
 
 VIEWER_PASSWORD_KEY = 'password'
 EDITION_PASSWORD_KEY = 'edition_password'
+OPEN_INSTALL_EDIT_DETAIL = 'Set viewer.edition_password to enable editing'
 
 VIEWER_GENERATION_CLAIM = 'pv'
 EDITION_GENERATION_CLAIM = 'ev'
@@ -139,9 +140,10 @@ def _is_open_install(password_key):
 
     A scoring_config.json that exists but failed to parse yields a config with
     no passwords at all, which reads exactly like a deliberately open install
-    and would hand edition rights to anonymous callers. Such an install is
+    and would hand library access to anonymous callers. Such an install is
     treated as locked; only a genuinely absent config, or a configured-and-
-    empty password, stays open.
+    empty password, stays open. An open install is READ-ONLY: it grants library
+    access, never edition rights.
     """
     if config_load_failed() or is_multi_user_enabled():
         return False
@@ -167,8 +169,6 @@ class CurrentUser:
     def is_edition(self):
         if is_multi_user_enabled():
             return self.role in ('admin', 'superadmin')
-        if _is_open_install(EDITION_PASSWORD_KEY):
-            return True
         return self.edition_authenticated
 
     @property
@@ -231,15 +231,22 @@ async def require_authenticated(
     return user
 
 
+def _edition_refusal(locked_detail):
+    """The 403 for a caller without edition rights.
+
+    On an open install (no edition password) no session can ever hold edition,
+    so the detail says how to enable editing instead of a dead-end refusal.
+    """
+    detail = OPEN_INSTALL_EDIT_DETAIL if _is_open_install(EDITION_PASSWORD_KEY) else locked_detail
+    return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
+
+
 async def require_edition(
     user: CurrentUser = Depends(require_authenticated),
 ) -> CurrentUser:
     """Require edition-level access. Raises 403 if not authorized."""
     if not user.is_edition:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Edition access required",
-        )
+        raise _edition_refusal("Edition access required")
     return user
 
 
@@ -256,7 +263,7 @@ async def require_auth(
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     else:
         if not user.is_edition:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Edition disabled")
+            raise _edition_refusal("Edition disabled")
     return user
 
 
@@ -278,9 +285,8 @@ async def require_scan_access(
 
     Multi-user mode: superadmin only, unchanged. Single-user mode: edition
     access AND a locked install — an open install (empty
-    viewer.edition_password) is refused even for an authenticated caller,
-    because on that install every request already IS edition-authenticated
-    by the CurrentUser.is_edition open-install shortcut, and this route
+    viewer.edition_password) is refused even for a caller presenting an
+    edition claim, with the actionable detail below, because this route
     starts an OS subprocess. Raises 403 in both refusal cases; never 401
     (require_authenticated already covers "no session").
     """
@@ -604,12 +610,9 @@ def is_edition_enabled() -> bool:
 def is_edition_authenticated(user: Optional[CurrentUser]) -> bool:
     """Check if user has edition-level access.
 
-    When no edition password is configured (single-user, no lock),
-    authenticated users get edition access automatically.
+    An open install (no edition password) grants none: it is read-only.
     Share-token visitors are excluded.
     """
     if user is None:
         return False
-    if _is_open_install(EDITION_PASSWORD_KEY):
-        return True
     return user.is_edition

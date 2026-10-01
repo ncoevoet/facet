@@ -61,7 +61,7 @@ cd client && npx ng serve
 }
 ```
 
-设置之后，用户必须先通过身份验证才能访问查看器。可选的 `edition_password` 用于开放人物管理和比较模式。
+设置之后，用户必须先通过身份验证才能访问查看器。任何编辑操作都需要 `edition_password`：评分、收藏与拒绝、选片、相册、人物与人脸管理、比较模式、权重与优先级修改、导出以及按需 AI 生成。未设置 `edition_password`（出厂默认）时，安装为**只读**：任何人都可浏览，但所有编辑都会被 `403` 拒绝（“Set viewer.edition_password to enable editing”）。
 
 登录时还会把会话令牌镜像写入一个 `HttpOnly`、`SameSite=Lax` 的 Cookie，这样那些无法携带 `Authorization` 请求头的浏览器原生请求（加载缩略图的 `<img>` 标签、扫描进度流）在已加锁的部署上也能通过验证。该 Cookie 仅对只读请求（GET/HEAD）生效；任何会改变状态的调用仍然要求 Bearer 令牌，因此不会增加 CSRF 攻击面。退出登录会调用 `POST /api/auth/logout`，该接口会清除此 Cookie。
 
@@ -380,7 +380,7 @@ HDR 之间重新标注。**漏检**则从照片库修正，因为未被检测到
 
 ## 触发扫描
 
-当 `viewer.features.show_scan_button` 为 `true`，且调用者拥有扫描权限——多用户模式下为 `superadmin` 角色，或单用户模式下在已锁定的单用户安装（`viewer.edition_password` 已设置）上通过编辑模式身份验证的会话——照片库为空的状态下会出现一个**扫描照片以开始使用**按钮。它在 `scoring_config.json` 中出厂设置为 **`false`**（需主动开启）。在开放的单用户安装上（`viewer.edition_password` 为空，出厂默认值），全部四个扫描路由都会对任何调用者返回 403，即便调用者持有有效的编辑模式生成 JWT，该按钮也绝不会渲染——开放安装本就把匿名调用者当作已通过编辑模式身份验证，而启动扫描子进程绝不能被匿名访问到。该按钮会打开扫描启动器对话框（`ScanLauncherComponent`）。
+当 `viewer.features.show_scan_button` 为 `true`，且调用者拥有扫描权限——多用户模式下为 `superadmin` 角色，或单用户模式下在已锁定的单用户安装（`viewer.edition_password` 已设置）上通过编辑模式身份验证的会话——照片库为空的状态下会出现一个**扫描照片以开始使用**按钮。它在 `scoring_config.json` 中出厂设置为 **`false`**（需主动开启）。在开放的单用户安装上（`viewer.edition_password` 为空，出厂默认值），全部四个扫描路由都会对任何调用者返回 403，即便调用者持有有效的编辑模式生成 JWT，该按钮也绝不会渲染——启动扫描子进程绝不能被匿名访问到。该按钮会打开扫描启动器对话框（`ScanLauncherComponent`）。
 
 - 从启动器的列表中选择一个目录，直接在应用内开始扫描
 - 启动器会把实时进度（SSE，并自动回退到轮询）推送到一个由结构化 `progress` 字段驱动的 `mat-progress-bar`，另外还有一段输出日志尾部，扫描结束时会刷新照片库
@@ -476,7 +476,7 @@ API：参见下文的 [API 端点](#api-端点)一节。
 
 ## AI 照片描述 `[GPU]` `[16gb/24gb]` `[Edition]`
 
-为任意照片获取 AI 生成的自然语言描述。描述在首次请求时生成，并缓存在数据库的 `caption` 列中。在编辑模式下可以通过照片详情页手动修改描述。（描述的*翻译*在 CPU 上运行——见下文。）
+为任意照片获取 AI 生成的自然语言描述。描述在首次请求时由编辑会话生成（开放的只读安装从不生成），并缓存在数据库的 `caption` 列中。在编辑模式下可以通过照片详情页手动修改描述。（描述的*翻译*在 CPU 上运行——见下文。）
 
 API：参见下文的 [API 端点](#api-端点)一节。
 
@@ -1276,18 +1276,18 @@ python database.py --stats-info
 
 | 端点 | 说明 |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | 获取下一对用于比较的照片 |
+| `GET /api/comparison/next_pair` | `[Edition]` 获取下一对用于比较的照片 |
 | `POST /api/comparison/submit` | 提交比较结果 |
 | `POST /api/comparison/reset` | 重置比较数据 |
-| `GET /api/comparison/stats` | 比较会话统计 |
-| `GET /api/comparison/history` | 列出过往的比较记录 |
+| `GET /api/comparison/stats` | `[Edition]` 比较会话统计 |
+| `GET /api/comparison/history` | `[Edition]` 列出过往的比较记录 |
 | `POST /api/comparison/edit` | 修改一条比较结果 |
 | `POST /api/comparison/delete` | 删除一条比较记录 |
-| `GET /api/comparison/coverage` | 比较记录的类别覆盖情况 |
-| `GET /api/comparison/confidence` | 学习评分的置信度指标 |
+| `GET /api/comparison/coverage` | `[Edition]` 比较记录的类别覆盖情况 |
+| `GET /api/comparison/confidence` | `[Edition]` 学习评分的置信度指标 |
 | `GET /api/comparison/photo_metrics` | 照片的原始指标 |
-| `GET /api/comparison/category_weights` | 类别权重／筛选条件 |
-| `GET /api/comparison/learned_weights` | 从比较中得出的建议权重 |
+| `GET /api/comparison/category_weights` | `[Edition]` 类别权重／筛选条件 |
+| `GET /api/comparison/learned_weights` | `[Edition]` 从比较中得出的建议权重 |
 | `POST /api/comparison/preview_score` | 用自定义权重预览 |
 | `POST /api/comparison/suggest_filters` | 分析筛选条件冲突 |
 | `POST /api/comparison/override_category` | `[Edition]` 为单张照片设置持久的类别覆盖（会针对已配置的类别名称校验；能挺过下一次重新计算） |
@@ -1353,7 +1353,7 @@ python database.py --stats-info
 | 端点 | 说明 |
 |----------|-------------|
 | `POST /api/config/update_weights` | 更新评分权重 |
-| `GET /api/config/weight_snapshots` | 列出已保存的权重快照 |
+| `GET /api/config/weight_snapshots` | `[Edition]` 列出已保存的权重快照 |
 | `POST /api/config/save_snapshot` | 把当前权重保存为快照 |
 | `POST /api/config/restore_weights` | 从快照恢复权重 |
 | `GET /api/config/category_priorities` | `[Edition]` 按当前优先级（求值）顺序列出各类别 |
@@ -1411,8 +1411,8 @@ python database.py --stats-info
 
 | 端点 | 说明 |
 |----------|-------------|
-| `GET /api/plugins` | 列出已配置的插件 |
-| `POST /api/plugins/test-webhook` | 测试某个 webhook 插件 |
+| `GET /api/plugins` | `[Edition]` 列出已配置的插件 |
+| `POST /api/plugins/test-webhook` | `[Edition]` 测试某个 webhook 插件 |
 
 ### Immich
 

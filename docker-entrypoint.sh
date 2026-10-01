@@ -3,6 +3,7 @@ set -e
 
 SEEDED_CONFIG="${SEEDED_CONFIG:-/config/scoring_config.json}"
 IMAGE_CONFIG="${IMAGE_CONFIG:-/app/scoring_config.json}"
+PYTHON_BIN="${PYTHON_BIN:-python3}"
 
 # Unset FACET_CONFIG when the seed does not exist AND could not be created --
 # and ONLY then. An UNSET variable is the supported zero-override state: it
@@ -28,18 +29,23 @@ fall_back_to_packaged_defaults() {
 
 # The bytes a fresh seed lands with.
 #
-# EMPTY, because the config file is now the operator's override and a fresh
-# install overrides nothing: every value comes from the defaults packaged in the
-# image. That is the whole point -- what lands in /config is the handful of
-# lines someone actually changed, not a 3700-line copy of the shipped config in
-# which their own three edits are invisible.
+# Almost empty, because the config file is now the operator's override and a
+# fresh install overrides nothing: every value comes from the defaults packaged
+# in the image. That is the whole point -- what lands in /config is the handful
+# of lines someone actually changed, not a 3700-line copy of the shipped config
+# in which their own three edits are invisible. The one override a fresh seed
+# carries is a generated viewer.edition_password: an install with an empty one
+# refuses every edit (it is read-only), so a fresh container would otherwise
+# start unable to rate, cull or edit anything. seed_config prints it once to
+# stdout after the seed is written; an existing or mounted config is never
+# touched, and keeps whatever password it had, including none.
 #
 # $IMAGE_CONFIG is not baked into the image any more, so it exists only when an
 # operator mounted their own file there -- the upgrade path from a compose that
 # mounted `./scoring_config.json:/app/scoring_config.json`. That file is copied
 # across verbatim, because seeding an empty override over it would silently reset
-# their weights, categories and viewer password -- the last of which disables
-# edition gating entirely when empty. A full config still resolves to itself, so
+# their weights, categories and viewer password -- the last of which leaves the
+# install read-only (every edit refused) when its edition password is empty. A full config still resolves to itself, so
 # nothing about carrying it across is lossy.
 # Owner-only from the moment the file exists, not owner-only afterwards. The
 # `chmod 600` further down is 77 lines late: on the supported upgrade path the
@@ -57,7 +63,15 @@ write_seed() {
     if [ -e "$IMAGE_CONFIG" ]; then
         ( umask 077; cp "$IMAGE_CONFIG" "$SEEDED_CONFIG" 2>/dev/null )
     else
-        ( umask 077; printf '{}\n' > "$SEEDED_CONFIG" 2>/dev/null )
+        # Generation must never abort the start (set -e) nor print: a failure
+        # falls back to the empty override, and the password is only announced
+        # by seed_config once the seed file has really been written.
+        GENERATED_PASSWORD="$("$PYTHON_BIN" -c 'import secrets; print(secrets.token_urlsafe(18))' 2>/dev/null)" || GENERATED_PASSWORD=""
+        if [ -n "$GENERATED_PASSWORD" ]; then
+            ( umask 077; printf '{"viewer": {"edition_password": "%s"}}\n' "$GENERATED_PASSWORD" > "$SEEDED_CONFIG" 2>/dev/null )
+        else
+            ( umask 077; printf '{}\n' > "$SEEDED_CONFIG" 2>/dev/null )
+        fi
     fi
 }
 
@@ -133,6 +147,10 @@ seed_config() {
     fi
     SEEDED_NOW=1
     chmod 600 "$SEEDED_CONFIG" 2>/dev/null || true
+    if [ -n "${GENERATED_PASSWORD:-}" ]; then
+        echo "facet: generated viewer.edition_password for this new install: $GENERATED_PASSWORD" \
+            "(stored in $SEEDED_CONFIG; it is required to rate, cull or edit)"
+    fi
 }
 
 # The Docker daemon creates any absent bind-mount source on the host as root,

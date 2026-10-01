@@ -170,8 +170,10 @@ Use [Docker](#install-with-docker). To use an NVIDIA card on Windows, follow the
   4.7 GB for `legacy`, 6.9 GB for `8gb`, 14.6 GB for `16gb`, 19.1 GB for `24gb`
   (full breakdown in [Download sizes](#download-sizes)). This happens once; later
   runs start immediately.
-- **No setup.** There is nothing to configure. Facet creates its database on the first
-  scan and ships with working settings.
+- **No setup to scan.** Facet creates its database on the first scan and ships with
+  working settings. To **edit** (rate, cull, manage albums and people), set
+  `viewer.edition_password` in `scoring_config.json` — without one the viewer is
+  read-only (the Docker image generates one for you on first start).
 - **Your photos are not modified.** Scanning only reads them; results go to Facet's own
   database. Writing ratings and keywords back to your files is a separate, opt-in action
   ([Interop](INTEROP.md)).
@@ -232,7 +234,8 @@ actually changed, and anything you leave out keeps the shipped value (and picks 
 improvements to it when you upgrade).
 
 `docker-entrypoint.sh` therefore seeds the persistent
-`./facet-config/scoring_config.json` with an empty `{}` on first run. That file is
+`./facet-config/scoring_config.json` with a generated `viewer.edition_password` on first run
+(printed once in the container log: `docker compose logs facet`). That file is
 bind-mounted by `docker-compose.yml` (as `FACET_CONFIG=/config/scoring_config.json`
 inside the container), so the container runs with zero host setup and every runtime
 config write (the viewer password upgrade, weights, priorities, scoring contexts)
@@ -284,7 +287,7 @@ Alternatives: `podman unshare chown` to edit a container-owned file in place, or
 >
 > Otherwise the entrypoint seeds an empty override and your weights, categories and
 > **viewer password are silently no longer read** — and an empty
-> `viewer.edition_password` disables edition gating entirely. If you keep your own
+> `viewer.edition_password` leaves the install read-only (every edit refused). If you keep your own
 > edited `docker-compose.yml` with the old mount still in place, the entrypoint
 > seeds `./facet-config` from *that* file, so nothing is lost.
 >
@@ -648,9 +651,9 @@ Most of Facet runs anywhere (CPU, any profile). Some features need a GPU, a high
 | VLM tagging (Qwen3.5) | yes | `16gb`/`24gb` | — | — |
 | Composition pattern (SAMP-Net) | optional | any (`legacy` = CPU) | — | — |
 | Subject saliency (BiRefNet) | optional | any (`legacy` = CPU) | — | — |
-| AI captions (generate / view) | yes | `16gb`/`24gb` | — | — |
+| AI captions (generate / view) | yes | `16gb`/`24gb` | edition (generate) | — |
 | AI captions (edit) | yes | `16gb`/`24gb` | edition | — |
-| VLM critique | yes | `16gb`/`24gb` | — | — |
+| VLM critique | yes | `16gb`/`24gb` | edition (generate) | — |
 | Face detection / extraction (InsightFace) | recommended (CPU works, slow) | any | — | — |
 | Face clustering (HDBSCAN) | no (CPU) | any | — | `cuml`/`cupy` (optional GPU accel) |
 | Semantic search | no | any | — | `sqlite-vec` (falls back to NumPy) |

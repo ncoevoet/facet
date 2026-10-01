@@ -60,7 +60,7 @@ Protection facultative par mot de passe via la configuration :
 }
 ```
 
-Lorsqu'il est défini, les utilisateurs doivent s'authentifier avant d'accéder à la visionneuse. Un `edition_password` facultatif donne accès à la gestion des personnes et au mode de comparaison.
+Lorsqu'il est défini, les utilisateurs doivent s'authentifier avant d'accéder à la visionneuse. Un `edition_password` est requis pour toute modification : notes, favoris et rejets, tri, albums, gestion des personnes et des visages, mode de comparaison, changements de poids et de priorités, exports et génération IA à la demande. Sans `edition_password` (valeur livrée par défaut), l'installation est en **lecture seule** : chacun peut parcourir, et toute modification est refusée par un `403` (« Set viewer.edition_password to enable editing »).
 
 ### Mode multi-utilisateurs
 
@@ -318,7 +318,7 @@ Accessible via le bouton d'en-tête ou `/persons` :
 
 ## Déclenchement d'un scan
 
-Lorsque `viewer.features.show_scan_button` vaut `true` et que l'appelant dispose de l'accès au scan — rôle `superadmin` en mode multi-utilisateurs, ou une session authentifiée en édition sur une installation mono-utilisateur verrouillée (`viewer.edition_password` défini) en mode mono-utilisateur — un bouton **Scanner des photos pour commencer** apparaît dans l'état de galerie vide. Il est livré réglé sur **`false`** dans `scoring_config.json` (activation explicite). Sur une installation mono-utilisateur ouverte (`viewer.edition_password` vide, la valeur livrée par défaut), les quatre routes de scan renvoient 403 pour tout appelant, y compris celui détenant un JWT de génération d'édition valide, et le bouton ne s'affiche jamais — une installation ouverte traite déjà les appelants anonymes comme authentifiés en édition, et déclencher un sous-processus de scan ne doit pas être accessible anonymement. Le bouton ouvre la boîte de dialogue de lancement de scan (`ScanLauncherComponent`).
+Lorsque `viewer.features.show_scan_button` vaut `true` et que l'appelant dispose de l'accès au scan — rôle `superadmin` en mode multi-utilisateurs, ou une session authentifiée en édition sur une installation mono-utilisateur verrouillée (`viewer.edition_password` défini) en mode mono-utilisateur — un bouton **Scanner des photos pour commencer** apparaît dans l'état de galerie vide. Il est livré réglé sur **`false`** dans `scoring_config.json` (activation explicite). Sur une installation mono-utilisateur ouverte (`viewer.edition_password` vide, la valeur livrée par défaut), les quatre routes de scan renvoient 403 pour tout appelant, y compris celui détenant un JWT de génération d'édition valide, et le bouton ne s'affiche jamais — déclencher un sous-processus de scan ne doit pas être accessible anonymement. Le bouton ouvre la boîte de dialogue de lancement de scan (`ScanLauncherComponent`).
 
 - Choisissez un répertoire dans la liste du lanceur et démarrez le scan dans l'application
 - Le lanceur diffuse la progression en direct (SSE avec repli automatique sur le polling) dans une `mat-progress-bar` pilotée par le champ structuré `progress`, plus une queue de lignes de sortie, et rafraîchit la galerie à la fin du scan
@@ -414,7 +414,7 @@ Contrôlé par `viewer.features.show_critique` (par défaut : `true`) et `viewer
 
 ## Légendage IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Obtenez une légende en langage naturel générée par IA pour n'importe quelle photo. Les légendes sont générées à la première demande et mises en cache dans la colonne de base de données `caption`. Les légendes peuvent être éditées manuellement en mode édition via la page de détail de la photo. (La *traduction* des légendes s'exécute sur le CPU — voir ci-dessous.)
+Obtenez une légende en langage naturel générée par IA pour n'importe quelle photo. Les légendes sont générées à la première demande par une session d'édition (une installation ouverte, en lecture seule, n'en génère jamais) et mises en cache dans la colonne de base de données `caption`. Les légendes peuvent être éditées manuellement en mode édition via la page de détail de la photo. (La *traduction* des légendes s'exécute sur le CPU — voir ci-dessous.)
 
 API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 
@@ -1214,18 +1214,18 @@ Les types TypeScript du client sont générés à partir de ce schéma dans `cli
 
 | Point d'accès | Description |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Obtenir la prochaine paire de photos à comparer |
+| `GET /api/comparison/next_pair` | `[Edition]` Obtenir la prochaine paire de photos à comparer |
 | `POST /api/comparison/submit` | Soumettre un résultat de comparaison |
 | `POST /api/comparison/reset` | Réinitialiser les données de comparaison |
-| `GET /api/comparison/stats` | Statistiques de session de comparaison |
-| `GET /api/comparison/history` | Lister les comparaisons passées |
+| `GET /api/comparison/stats` | `[Edition]` Statistiques de session de comparaison |
+| `GET /api/comparison/history` | `[Edition]` Lister les comparaisons passées |
 | `POST /api/comparison/edit` | Éditer un résultat de comparaison |
 | `POST /api/comparison/delete` | Supprimer une comparaison |
-| `GET /api/comparison/coverage` | Couverture des comparaisons par catégorie |
-| `GET /api/comparison/confidence` | Métriques de confiance pour les scores appris |
+| `GET /api/comparison/coverage` | `[Edition]` Couverture des comparaisons par catégorie |
+| `GET /api/comparison/confidence` | `[Edition]` Métriques de confiance pour les scores appris |
 | `GET /api/comparison/photo_metrics` | Métriques brutes des photos |
-| `GET /api/comparison/category_weights` | Poids/filtres de catégorie |
-| `GET /api/comparison/learned_weights` | Poids suggérés à partir des comparaisons |
+| `GET /api/comparison/category_weights` | `[Edition]` Poids/filtres de catégorie |
+| `GET /api/comparison/learned_weights` | `[Edition]` Poids suggérés à partir des comparaisons |
 | `POST /api/comparison/preview_score` | Aperçu avec des poids personnalisés |
 | `POST /api/comparison/suggest_filters` | Analyser les conflits de filtres |
 | `POST /api/comparison/override_category` | `[Edition]` Définir un remplacement de catégorie persistant par photo (validé par rapport aux noms de catégorie configurés ; survit au prochain recalcul) |
@@ -1291,7 +1291,7 @@ Les types TypeScript du client sont générés à partir de ce schéma dans `cli
 | Point d'accès | Description |
 |----------|-------------|
 | `POST /api/config/update_weights` | Mettre à jour les poids de scoring |
-| `GET /api/config/weight_snapshots` | Lister les instantanés de poids enregistrés |
+| `GET /api/config/weight_snapshots` | `[Edition]` Lister les instantanés de poids enregistrés |
 | `POST /api/config/save_snapshot` | Enregistrer les poids actuels comme instantané |
 | `POST /api/config/restore_weights` | Restaurer les poids depuis un instantané |
 | `GET /api/config/category_priorities` | `[Edition]` Lister les catégories dans leur ordre de priorité (évaluation) actuel |
@@ -1345,8 +1345,8 @@ Le point d'accès `/api/download/options` détecte automatiquement les fichiers 
 
 | Point d'accès | Description |
 |----------|-------------|
-| `GET /api/plugins` | Lister les plugins configurés |
-| `POST /api/plugins/test-webhook` | Tester un plugin de webhook |
+| `GET /api/plugins` | `[Edition]` Lister les plugins configurés |
+| `POST /api/plugins/test-webhook` | `[Edition]` Tester un plugin de webhook |
 
 ### Immich
 

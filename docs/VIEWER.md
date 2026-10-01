@@ -61,7 +61,7 @@ Optional password protection via config:
 }
 ```
 
-When set, users must authenticate before accessing the viewer. An optional `edition_password` grants access to person management and comparison mode.
+When set, users must authenticate before accessing the viewer. An `edition_password` is required for any editing: ratings, favorites and rejects, culling, albums, person and face management, comparison mode, weight and priority changes, exports and on-demand AI generation. With no `edition_password` (the shipped default) the install is **read-only**: anyone can browse, and every edit is refused with a `403` ("Set viewer.edition_password to enable editing").
 
 Login also mirrors the session token in an `HttpOnly` `SameSite=Lax` cookie so browser-native requests that cannot carry an `Authorization` header — `<img>` tags loading thumbnails, the scan progress stream — authenticate on locked deployments. The cookie is honored for read-only requests (GET/HEAD) only; every state-changing call still requires the Bearer token, so it adds no CSRF surface. Logging out calls `POST /api/auth/logout`, which clears the cookie.
 
@@ -388,7 +388,7 @@ Access via header button or `/persons`:
 
 ## Scan Trigger
 
-When `viewer.features.show_scan_button` is `true` and the caller has scan access — `superadmin` role in multi-user mode, or an edition-authenticated session on a locked single-user install (`viewer.edition_password` set) in single-user mode — a **Scan photos to get started** button appears on the empty-gallery state. It ships set to **`false`** in `scoring_config.json` (opt-in). On an open single-user install (`viewer.edition_password` empty, the shipped default) all four scan routes 403 for every caller, including one holding a valid edition-generation JWT, and the button is never rendered — an open install already treats anonymous callers as edition-authenticated, and spawning a scan subprocess must not be reachable anonymously. The button opens the scan launcher dialog (`ScanLauncherComponent`).
+When `viewer.features.show_scan_button` is `true` and the caller has scan access — `superadmin` role in multi-user mode, or an edition-authenticated session on a locked single-user install (`viewer.edition_password` set) in single-user mode — a **Scan photos to get started** button appears on the empty-gallery state. It ships set to **`false`** in `scoring_config.json` (opt-in). On an open single-user install (`viewer.edition_password` empty, the shipped default) all four scan routes 403 for every caller, including one holding a valid edition-generation JWT, and the button is never rendered — spawning a scan subprocess must not be reachable anonymously. The button opens the scan launcher dialog (`ScanLauncherComponent`).
 
 - Pick a directory from the launcher's list and start the scan in-app
 - The launcher streams live progress (SSE with automatic polling fallback) into a `mat-progress-bar` driven by the structured `progress` field, plus a tail of output lines, and refreshes the gallery when the scan finishes
@@ -484,7 +484,7 @@ Controlled by `viewer.features.show_critique` (default: `true`) and `viewer.feat
 
 ## AI Captioning `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Get an AI-generated natural language caption for any photo. Captions are generated on first request and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page. (Caption *translation* runs on CPU — see below.)
+Get an AI-generated natural language caption for any photo. Captions are generated on first request by an edition session (an open, read-only install never generates one) and cached in the `caption` database column. Captions can be edited manually in edition mode via the photo detail page. (Caption *translation* runs on CPU — see below.)
 
 API: see the [API Endpoints](#api-endpoints) section below.
 
@@ -1284,18 +1284,18 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/comparison/next_pair` | Get next photo pair for comparison |
+| `GET /api/comparison/next_pair` | `[Edition]`  Get next photo pair for comparison |
 | `POST /api/comparison/submit` | Submit comparison result |
 | `POST /api/comparison/reset` | Reset comparison data |
-| `GET /api/comparison/stats` | Comparison session statistics |
-| `GET /api/comparison/history` | List past comparisons |
+| `GET /api/comparison/stats` | `[Edition]`  Comparison session statistics |
+| `GET /api/comparison/history` | `[Edition]`  List past comparisons |
 | `POST /api/comparison/edit` | Edit a comparison result |
 | `POST /api/comparison/delete` | Delete a comparison |
-| `GET /api/comparison/coverage` | Category coverage of comparisons |
-| `GET /api/comparison/confidence` | Confidence metrics for learned scores |
+| `GET /api/comparison/coverage` | `[Edition]`  Category coverage of comparisons |
+| `GET /api/comparison/confidence` | `[Edition]`  Confidence metrics for learned scores |
 | `GET /api/comparison/photo_metrics` | Raw metrics for photos |
-| `GET /api/comparison/category_weights` | Category weights/filters |
-| `GET /api/comparison/learned_weights` | Suggested weights from comparisons |
+| `GET /api/comparison/category_weights` | `[Edition]`  Category weights/filters |
+| `GET /api/comparison/learned_weights` | `[Edition]`  Suggested weights from comparisons |
 | `POST /api/comparison/preview_score` | Preview with custom weights |
 | `POST /api/comparison/suggest_filters` | Analyze filter conflicts |
 | `POST /api/comparison/override_category` | `[Edition]` Set a sticky per-photo category override (validated against configured category names; survives the next recompute) |
@@ -1361,7 +1361,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | Endpoint | Description |
 |----------|-------------|
 | `POST /api/config/update_weights` | Update scoring weights |
-| `GET /api/config/weight_snapshots` | List saved weight snapshots |
+| `GET /api/config/weight_snapshots` | `[Edition]`  List saved weight snapshots |
 | `POST /api/config/save_snapshot` | Save current weights as snapshot |
 | `POST /api/config/restore_weights` | Restore weights from snapshot |
 | `GET /api/config/category_priorities` | `[Edition]` List categories in current priority (evaluation) order |
@@ -1419,8 +1419,8 @@ The `/api/download/options` endpoint detects companion RAW files automatically a
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /api/plugins` | List configured plugins |
-| `POST /api/plugins/test-webhook` | Test a webhook plugin |
+| `GET /api/plugins` | `[Edition]`  List configured plugins |
+| `POST /api/plugins/test-webhook` | `[Edition]`  Test a webhook plugin |
 
 ### Immich
 

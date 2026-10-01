@@ -2326,11 +2326,10 @@ describe('GalleryComponent', () => {
       expect(canShowScanButton()).toBe(true);
     });
 
-    // The open-install trap this change exists to close: on an open single-user
-    // install, CurrentUser.is_edition is true for every caller (the open-install
-    // shortcut), but editionPasswordRequired is false, so the button must stay
-    // hidden even though isEdition() reports true.
-    it('hides the button on an open single-user install even though the caller reads as edition-authenticated', () => {
+    // Defence in depth: the server no longer reports edition on an open install,
+    // but the scan gate must not depend on that — editionPasswordRequired is false
+    // there, so the button stays hidden even if isEdition() ever read true.
+    it('hides the button on an open single-user install even if the caller were to read as edition-authenticated', () => {
       setAuth({ isMultiUser: false, editionPasswordRequired: false, isEdition: true, hasFeature: true });
       expect(canShowScanButton()).toBe(false);
     });

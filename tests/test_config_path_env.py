@@ -282,7 +282,7 @@ class TestAMissingConfigOnlyReadsAsAFreshInstallWhenNobodyNamedIt:
 
         The unnamed branch above hands back the shipped defaults; this one must
         not. Those defaults carry an empty ``viewer.edition_password``, and an
-        empty edition password disables edition gating outright -- so returning
+        empty edition password leaves the install without an edition lock -- so returning
         them here would rebuild, through the merge, the exact open install this
         branch exists to refuse.
         """
@@ -341,7 +341,7 @@ class TestTheAuthSurfaceSeesAMisaimedConfigPath:
     interpreter can be pointed somewhere else — the constant in this process was
     fixed when the suite imported it. The probe reads ``api.auth`` rather than
     ``api.config`` alone because the flag is only interesting where it lands: an
-    anonymous caller's edition rights.
+    anonymous caller's library access.
 
     Startup is NOT expected to abort here, and no longer can:
     ``api.config.server_scoring_config`` catches the ``FileNotFoundError`` the
@@ -389,7 +389,7 @@ class TestTheAuthSurfaceSeesAMisaimedConfigPath:
 
         assert seen["load_failed"] is False
         assert seen["open_edition"] is False
-        assert seen["anon_edition"] is False
+        assert seen["anon_authenticated"] is False
 
     def test_a_named_open_config_stays_open(self, tmp_path):
         named = tmp_path / "scoring_config.json"
@@ -399,7 +399,9 @@ class TestTheAuthSurfaceSeesAMisaimedConfigPath:
 
         assert seen["load_failed"] is False
         assert seen["open_edition"] is True
-        assert seen["anon_edition"] is True
+        # An open install is library-open but read-only: no edition rights.
+        assert seen["anon_edition"] is False
+        assert seen["anon_authenticated"] is True
 
 
 class TestTheServerScoresAndAuthenticatesFromOneFile:

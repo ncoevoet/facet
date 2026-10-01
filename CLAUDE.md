@@ -410,8 +410,8 @@ only what reading those two will NOT tell you.
 - **An absent config means two different things.** Absent at the inherited default path is an
   install running on defaults. Absent at a path someone NAMED (`$FACET_CONFIG`, `--config`)
   raises, and `api/config.py`'s named branch returns `{}` rather than the defaults — those carry
-  an empty `viewer.edition_password`, which disables edition gating entirely, so handing them
-  over would rebuild the open install that branch exists to refuse.
+  an empty `viewer.edition_password`, which leaves the install without an edition password, so handing them
+  over would rebuild the open install (full library access) that branch exists to refuse.
 - **`facet.LibraryLock` is per host.** `flock` is host-local on SMB/CIFS, so two machines sharing
   an SMB-mounted DB directory would each believe they hold it (the acquire warns once on such a
   mount; NFS between Linux clients is fine). The mutex is the OS lock, not the file's existence,
@@ -476,7 +476,7 @@ Only the defaults that routinely surprise are worth carrying:
 | Key | Default | Why it surprises |
 |-----|---------|------------------|
 | `viewer.defaults.hide_bursts` / `hide_duplicates` / `hide_brackets` / `hide_panoramas` | `true` | The gallery hides most of a set **by default**, so a bug in a hide clause makes photos vanish rather than duplicate |
-| `viewer.edition_password` | `""` | Empty disables edition gating entirely — the shipped config is an open install |
+| `viewer.edition_password` | `""` | Empty means every edition-gated write and on-demand generation is refused — the shipped config is read-only until a password is set |
 | `narrative_moments.caption_min_confidence` | `0` | `0` means *no* gate, not "reject everything" |
 | `viewer.moment_confidence_min` | `0` | Same inversion: `0` = never dim |
 | `piaa_prior.enabled` | `false` | Validation-gated; the 2026-07-07 experiment failed the ship criterion — keep it off |

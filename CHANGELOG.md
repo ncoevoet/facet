@@ -4,6 +4,15 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING: an install with no `viewer.edition_password` is now read-only.** Until now an empty edition password meant every anonymous caller held edition rights; it now means none do. Anyone can still browse, but every edit is refused with `403 Set viewer.edition_password to enable editing`. One-line fix: set `viewer.edition_password` in `scoring_config.json` (or `{"viewer": {"edition_password": "..."}}` in your override) and unlock edition from the user menu. The viewer shows a read-only banner explaining this, and pages that only make edit calls (`/compare`, `/culling`, `/junk`) redirect to the gallery. What is refused without an edition password:
+  - **Writes:** ratings, favorites and rejects (including batch), culling select / confirm / auto / override, albums (including share, export and portfolio), persons and face assignment, comparison and weight / priority / scoring-context / snapshot / panorama configuration, recompute and detect-panoramas, category updates and overrides, XMP / embed / sidecar writes, cull-apply and photo delete, the Lightroom manifest and import, GPS updates, capsule save-as-album and caption edits.
+  - **GETs that now need edition:** `/api/photo/cull_preview`, `/api/photo/social_crop` and its preview, `/api/updates/check`, `/api/plugins`, `/api/albums/{id}/picks`, `/api/scan/recompute_status`, and the comparison and config reads `next_pair`, `stats`, `category_weights`, `learned_weights`, `history`, `coverage`, `confidence`, `category_priorities` and `weight_snapshots`.
+  - **Degradations (HTTP 200, not 403):** `GET /api/caption` and `GET /api/critique?mode=vlm` no longer generate on demand (`source: "edition_required"` / `vlm_available: false`), cached captions and critiques are still served, translations of cached text are served but no longer stored (`caption_translated`, `vlm_critique_translated`), and the new-release notice is not shown.
+  - **The one widening:** `GET /api/photo/faces` and `GET /api/person/{id}/faces` are readable by any viewer session, edition or not.
+  - **Docker:** a fresh container seed now carries a generated `viewer.edition_password`, printed once to the container log; an existing or mounted config is never touched.
+
 ## [1.18.0] "Tirage" — 2026-09-30
 
 ### Added

@@ -23,6 +23,7 @@ operator's pre-existing ``/config/scoring_config.json`` was re-chmod'd 0600
 locking them out of editing it from the host without root.
 """
 
+import json
 import os
 import stat
 import subprocess
@@ -38,9 +39,11 @@ def _mode_of(path):
     return stat.S_IMODE(os.stat(path).st_mode)
 
 
-def _run_entrypoint(seeded_config, image_config):
+def _run_entrypoint(seeded_config, image_config, python_bin=None):
     """Run docker-entrypoint.sh's non-root tail against a temp SEEDED_CONFIG."""
     env = dict(os.environ)
+    if python_bin is not None:
+        env["PYTHON_BIN"] = python_bin
     env["SEEDED_CONFIG"] = str(seeded_config)
     env["IMAGE_CONFIG"] = str(image_config)
     return subprocess.run(
@@ -69,15 +72,39 @@ pytestmark = pytest.mark.skipif(
 class TestSeedConfigNonRoot:
     """seed_config() driven through the real script, SEEDED_CONFIG in tmp_path."""
 
-    def test_fresh_seed_when_image_config_absent_is_empty_and_owner_only(self, tmp_path):
+    def test_fresh_seed_carries_a_generated_edition_password_printed_once(self, tmp_path):
         seeded = tmp_path / "scoring_config.json"
         image = tmp_path / "no_such_image_config.json"  # deliberately absent
 
         result = _run_entrypoint(seeded, image)
 
         assert result.returncode == 0, result.stderr
+        password = json.loads(seeded.read_text())["viewer"]["edition_password"]
+        assert len(password) >= 24
+        assert _mode_of(seeded) == 0o600
+        assert result.stdout.count(password) == 1
+        assert password not in result.stderr
+
+    def test_failed_password_generation_seeds_empty_and_prints_nothing(self, tmp_path):
+        seeded = tmp_path / "scoring_config.json"
+
+        result = _run_entrypoint(
+            seeded, tmp_path / "no_such_image_config.json", python_bin="/nonexistent/python3"
+        )
+
+        assert result.returncode == 0, result.stderr
         assert seeded.read_text() == "{}\n"
         assert _mode_of(seeded) == 0o600
+        assert "edition_password" not in result.stdout
+
+    def test_unwritable_seed_prints_no_password(self, tmp_path):
+        seeded = tmp_path / "missing_dir" / "scoring_config.json"
+
+        result = _run_entrypoint(seeded, tmp_path / "no_such_image_config.json")
+
+        assert result.returncode == 0, result.stderr
+        assert not seeded.exists()
+        assert "edition_password" not in result.stdout
 
     def test_preexisting_file_keeps_mode_inode_and_content(self, tmp_path):
         """Regression test for #127: an operator-owned config is left alone."""
@@ -94,6 +121,7 @@ class TestSeedConfigNonRoot:
         assert seeded.stat().st_ino == inode_before
         assert _mode_of(seeded) == mode_before
         assert seeded.read_text() == '{"real": "config"}\n'
+        assert result.stdout == ""
 
     def test_symlinked_seeded_config_is_refused(self, tmp_path):
         target = tmp_path / "target.json"
@@ -109,6 +137,7 @@ class TestSeedConfigNonRoot:
         assert os.readlink(link) == str(target)
         assert _mode_of(target) == 0o640
         assert target.read_text() == '{"real": 1}\n'
+        assert "edition_password" not in result.stdout
 
     def test_image_config_present_is_copied_verbatim(self, tmp_path):
         image = tmp_path / "image_config.json"
@@ -120,3 +149,4 @@ class TestSeedConfigNonRoot:
         assert result.returncode == 0, result.stderr
         assert seeded.read_text() == image.read_text()
         assert _mode_of(seeded) == 0o600
+        assert result.stdout == ""

@@ -946,7 +946,8 @@
     "unlock_button": "Déverrouiller",
     "lock_title": "Mode édition actif - cliquer pour verrouiller",
     "password_placeholder": "Mot de passe d'édition",
-    "invalid_password": "Mot de passe invalide"
+    "invalid_password": "Mot de passe invalide",
+    "read_only_hint": "Lecture seule : définissez viewer.edition_password dans scoring_config.json pour activer la notation, le tri et l'édition."
   },
   "nav": {
     "gallery": "Galerie",

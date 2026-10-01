@@ -138,8 +138,9 @@ def edition_login(body: EditionLoginRequest, request: Request, response: Respons
     if not edition_password:
         # Empty means two different things, exactly as it does on /login — the
         # shared predicate makes the call. A genuinely open install falls
-        # through to the 401 below: there is no edition gate to unlock, so the
-        # request is answered rather than reported as a server fault.
+        # through to the 401 below: there is no edition password to unlock with
+        # (the install is read-only until one is set), so the request is
+        # answered rather than reported as a server fault.
         _refuse_if_config_unreadable(EDITION_PASSWORD_KEY)
         raise HTTPException(status_code=401, detail="Invalid password")
     if not verify_legacy_password(body.password, edition_password):

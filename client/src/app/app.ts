@@ -570,16 +570,12 @@ export class App implements OnInit {
   }
 
   protected showEditionDialog(): void {
-    if (!this.auth.editionPasswordRequired()) {
-      this.auth.grantEditionLocal();
-      return;
-    }
     this.dialog.open(EditionDialogComponent, { width: '95vw', maxWidth: '360px' });
   }
 
   protected async lockEdition(): Promise<void> {
     await this.auth.dropEdition();
-    const editionRoutes = ['/compare', '/culling'];
+    const editionRoutes = ['/compare', '/culling', '/junk'];
     const path = this.url().split('?')[0];
     if (editionRoutes.some(r => path.startsWith(r))) {
       this.router.navigate(['/']);

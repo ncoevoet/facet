@@ -963,6 +963,7 @@ export const I18N = {
     lock_title: "edition.lock_title",
     password_placeholder: "edition.password_placeholder",
     invalid_password: "edition.invalid_password",
+    read_only_hint: "edition.read_only_hint",
   },
   nav: {
     gallery: "nav.gallery",

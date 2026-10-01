@@ -321,7 +321,7 @@ def _read_config():
     process is not looking at it. Fail-open there turned a ONE-CHARACTER typo in
     that variable into a fully open install — no password key in the fallback
     defaults, so ``api.auth._is_open_install`` granted an anonymous caller
-    edition rights. Nothing but an unrelated ``ScoringConfig`` raising on the
+    full library access. Nothing but an unrelated ``ScoringConfig`` raising on the
     same path during ``create_app`` kept that off the wire, and an accident in
     another component is not an auth decision.
 

@@ -1672,7 +1672,7 @@ Affichage et comportement de la galerie web.
 | Réglage | Défaut | Description |
 |---------|--------|-------------|
 | `default_category` | `""` | Filtre de catégorie par défaut |
-| `edition_password` | `""` | Mot de passe pour déverrouiller le mode édition (vide = désactivé) |
+| `edition_password` | `""` | Mot de passe pour déverrouiller le mode édition (vide = toute modification est refusée ; l'installation est en lecture seule) |
 | **comparison_mode** | | |
 | `min_comparisons_for_optimization` | `50` | Minimum pour l'optimisation |
 | `pair_selection_strategy` | `"learning"` | Stratégie de paires : `learning` (démarrage à froid par diversité d'embeddings + désaccord de rang une fois entraîné), `uncertainty`, `boundary`, `active`, `random` |

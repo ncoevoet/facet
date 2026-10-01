@@ -302,15 +302,15 @@ class TestCurrentUserProperties:
             user = CurrentUser()  # no user_id, no role
             assert user.is_authenticated is True
 
-    def test_legacy_no_edition_password_is_edition(self):
-        """When edition_password is empty in legacy mode, any user has edition access."""
+    def test_legacy_no_edition_password_is_not_edition(self):
+        """When edition_password is empty in legacy mode the install is read-only."""
         viewer_cfg = _viewer_config(edition_password="")
         with (
             mock.patch(f"{_AUTH_MODULE}.VIEWER_CONFIG", viewer_cfg),
             mock.patch(f"{_AUTH_MODULE}.is_multi_user_enabled", return_value=False),
         ):
             user = CurrentUser(user_id="viewer1", role="user")
-            assert user.is_edition is True
+            assert user.is_edition is False
 
     def test_legacy_with_edition_password_requires_auth(self):
         """When edition_password is set in legacy mode, edition_authenticated must be True."""

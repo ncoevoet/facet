@@ -174,8 +174,10 @@ Usa [Docker](#installa-con-docker). Per usare una scheda NVIDIA su Windows, segu
   4,7 GB per `legacy`, 6,9 GB per `8gb`, 14,6 GB per `16gb`, 19,1 GB per `24gb`
   (dettaglio completo in [Dimensioni dei download](#dimensioni-dei-download)). Succede
   una sola volta; le esecuzioni successive partono subito.
-- **Nessuna configurazione.** Non c'è nulla da configurare. Facet crea il proprio
-  database alla prima scansione e viene fornito con impostazioni già funzionanti.
+- **Nessuna configurazione per scansionare.** Facet crea il proprio database alla prima
+  scansione e viene fornito con impostazioni già funzionanti. Per **modificare** (valutare,
+  selezionare, gestire album e persone) imposta `viewer.edition_password` in
+  `scoring_config.json`: senza, il viewer è in sola lettura (l'immagine Docker ne genera una al primo avvio).
 - **Le tue foto non vengono modificate.** La scansione si limita a leggerle; i risultati
   finiscono nel database di Facet. Riscrivere voti e parole chiave nei tuoi file è
   un'azione separata, che avvii tu ([Interoperabilità](INTEROP.md)).
@@ -236,7 +238,7 @@ impostazioni che hai effettivamente cambiato, e tutto ciò che ometti mantiene i
 valore fornito (e riceve i miglioramenti apportati quando aggiorni).
 
 `docker-entrypoint.sh` quindi popola il file persistente
-`./facet-config/scoring_config.json` con un `{}` vuoto al primo avvio. Quel file viene
+`./facet-config/scoring_config.json` con una `viewer.edition_password` generata al primo avvio (stampata una sola volta nel log del container: `docker compose logs facet`). Quel file viene
 montato da `docker-compose.yml` (come `FACET_CONFIG=/config/scoring_config.json`
 dentro il container), quindi il container funziona senza alcuna configurazione lato
 host e ogni scrittura della configurazione a runtime (la migrazione della password del
@@ -295,7 +297,7 @@ perché l'utente del container sia tu.
 >
 > Altrimenti l'entrypoint popola un override vuoto e i tuoi pesi, le tue
 > categorie e **la tua password del viewer non vengono più letti** — e un
-> `viewer.edition_password` vuoto disabilita del tutto il controllo di modifica. Se
+> `viewer.edition_password` vuoto lascia l'installazione in sola lettura (ogni modifica rifiutata). Se
 > mantieni il tuo `docker-compose.yml` con il vecchio mount, l'entrypoint inizializza
 > `./facet-config` da *quel* file e non si perde nulla.
 >
@@ -678,9 +680,9 @@ in tutta la documentazione:
 | Tagging VLM (Qwen3.5) | sì | `16gb`/`24gb` | — | — |
 | Modello compositivo (SAMP-Net) | opzionale | qualsiasi (`legacy` = CPU) | — | — |
 | Salienza del soggetto (BiRefNet) | opzionale | qualsiasi (`legacy` = CPU) | — | — |
-| Didascalie IA (genera / visualizza) | sì | `16gb`/`24gb` | — | — |
+| Didascalie IA (genera / visualizza) | sì | `16gb`/`24gb` | edition (generazione) | — |
 | Didascalie IA (modifica) | sì | `16gb`/`24gb` | edition | — |
-| Critica VLM | sì | `16gb`/`24gb` | — | — |
+| Critica VLM | sì | `16gb`/`24gb` | edition (generazione) | — |
 | Rilevamento / estrazione volti (InsightFace) | consigliata (la CPU funziona, ma lentamente) | qualsiasi | — | — |
 | Clustering dei volti (HDBSCAN) | no (CPU) | qualsiasi | — | `cuml`/`cupy` (accelerazione GPU opzionale) |
 | Ricerca semantica | no | qualsiasi | — | `sqlite-vec` (ripiega su NumPy) |

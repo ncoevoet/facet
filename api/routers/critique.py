@@ -465,7 +465,7 @@ async def _attach_vlm_critique(conn, photo, result, lang, refresh, user):
     if target_lang:
         if not translated:
             translated = await asyncio.to_thread(translate_text, text, target_lang)
-            if translated and can_cache:
+            if translated and can_cache and is_edition_authenticated(user):
                 await conn.execute(
                     "UPDATE photos SET vlm_critique_translated = ? WHERE path = ?",
                     [translated, path],
