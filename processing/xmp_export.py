@@ -573,10 +573,13 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
     exe = _resolve_exiftool()
     if not exe:
         raise RuntimeError("exiftool binary not available")
-    is_sidecar = target.lower().endswith(".xmp")
+    # The snapshot/restore below touches the sidecar directly, so it works on
+    # the path re-confined to the image's directory, never the raw argument.
+    sidecar = (_contained_sidecar(target[:-4], target[-4:])
+               if target.lower().endswith(".xmp") else None)
     snapshot = None
-    if is_sidecar and os.path.exists(target):
-        with open(target, "rb") as handle:
+    if sidecar and os.path.exists(sidecar):
+        with open(sidecar, "rb") as handle:
             snapshot = handle.read()
     existing_flat, existing_hier = _read_existing_keywords(target, exe, timeout=timeout)
     tag_args = _exiftool_tag_args(rating, existing_flat, existing_hier)
@@ -590,15 +593,15 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
             f"exiftool failed (exit {result.returncode}): "
             f"{(result.stderr or result.stdout)[:300]}"
         )
-    if is_sidecar:
+    if sidecar:
         try:
-            _assert_well_formed_xmp(target)
+            _assert_well_formed_xmp(sidecar)
         except (ET.ParseError, OSError) as ex:
             if snapshot is None:
-                if os.path.exists(target):
-                    os.remove(target)
+                if os.path.exists(sidecar):
+                    os.remove(sidecar)
             else:
-                with open(target, "wb") as handle:
+                with open(sidecar, "wb") as handle:
                     handle.write(snapshot)
             raise RuntimeError(
                 f"exiftool produced malformed XMP for {target} ({ex}); original restored"
