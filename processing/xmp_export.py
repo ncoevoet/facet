@@ -44,7 +44,11 @@ is sidecar-only, and proprietary RAW is never touched regardless.
 
 from __future__ import annotations
 
+import functools
+import logging
 import os
+import re
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import NamedTuple
@@ -52,6 +56,8 @@ from xml.etree import ElementTree as ET
 
 from db.manual_tags import load_manual_tags_map, merge_effective_tags
 from utils.image_loading import JPEG_EXTENSIONS, KNOWN_HEIF_EXTENSIONS
+
+logger = logging.getLogger(__name__)
 
 
 # XMP namespaces. Registered so ElementTree emits the canonical prefixes that
@@ -418,6 +424,40 @@ def _resolve_exiftool():
     return shutil.which("exiftool") or shutil.which("exiftool.exe")
 
 
+# exiftool 13.23 - 13.27 mis-parse an XMP attribute whose value ends in "="
+# when another attribute follows (darktable writes ``darktable:params="...=="
+# darktable:multi_name="..."``) and emit malformed XML while exiting 0.
+_DEFECTIVE_EXIFTOOL_MIN = (13, 23)
+_DEFECTIVE_EXIFTOOL_FIXED = (13, 28)
+
+
+@functools.lru_cache(maxsize=8)
+def _exiftool_version(exe: str) -> tuple[int, int] | None:
+    """``(major, minor)`` of ``exe`` from ``-ver``, or None when unobtainable."""
+    try:
+        result = subprocess.run([exe, "-ver"], capture_output=True, text=True, timeout=15)
+    except (subprocess.TimeoutExpired, OSError):
+        return None
+    match = re.match(r"\s*(\d+)\.(\d+)", result.stdout or "")
+    return (int(match.group(1)), int(match.group(2))) if match else None
+
+
+def exiftool_is_defective() -> bool:
+    """True when the resolved exiftool is 13.23 - 13.27 (corrupts darktable sidecars)."""
+    exe = _resolve_exiftool()
+    version = _exiftool_version(exe) if exe else None
+    return version is not None and _DEFECTIVE_EXIFTOOL_MIN <= version < _DEFECTIVE_EXIFTOOL_FIXED
+
+
+def _assert_well_formed_xmp(path: str) -> None:
+    """Raise ``ET.ParseError`` unless ``path`` parses (same DOCTYPE rule as xmp_import)."""
+    with open(path, "rb") as handle:
+        data = handle.read()
+    if b"<!DOCTYPE" in data.upper():
+        raise ET.ParseError("DOCTYPE declarations are not allowed in XMP sidecars")
+    ET.fromstring(data)
+
+
 def _region_args(regions: list[FaceRegion]) -> list[str]:
     """exiftool args for MWG face regions. Clears the list first (idempotent)."""
     if not regions:
@@ -501,7 +541,6 @@ def _read_existing_keywords(target: str, exe: str, *, timeout: int) -> tuple[lis
     exit) yields ``([], [])`` so the caller falls back to Facet's own keywords.
     """
     import json
-    import subprocess
 
     try:
         result = subprocess.run(
@@ -531,11 +570,14 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
     preserves all foreign nodes — including external keywords, which are read
     first and unioned with Facet's own. Raises ``RuntimeError`` on failure.
     """
-    import subprocess
-
     exe = _resolve_exiftool()
     if not exe:
         raise RuntimeError("exiftool binary not available")
+    is_sidecar = target.lower().endswith(".xmp")
+    snapshot = None
+    if is_sidecar and os.path.exists(target):
+        with open(target, "rb") as handle:
+            snapshot = handle.read()
     existing_flat, existing_hier = _read_existing_keywords(target, exe, timeout=timeout)
     tag_args = _exiftool_tag_args(rating, existing_flat, existing_hier)
     args = [exe, "-q", "-m", "-overwrite_original", *tag_args, target]
@@ -548,6 +590,19 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
             f"exiftool failed (exit {result.returncode}): "
             f"{(result.stderr or result.stdout)[:300]}"
         )
+    if is_sidecar:
+        try:
+            _assert_well_formed_xmp(target)
+        except (ET.ParseError, OSError) as ex:
+            if snapshot is None:
+                if os.path.exists(target):
+                    os.remove(target)
+            else:
+                with open(target, "wb") as handle:
+                    handle.write(snapshot)
+            raise RuntimeError(
+                f"exiftool produced malformed XMP for {target} ({ex}); original restored"
+            ) from ex
 
 
 def write_metadata(image_path: str, rating: XmpRating, *, overwrite: bool = False,
@@ -568,6 +623,12 @@ def write_metadata(image_path: str, rating: XmpRating, *, overwrite: bool = Fals
         result = write_sidecar(image_path, rating, overwrite=overwrite)
         result["embedded"] = None
         return result
+    if exiftool_is_defective():
+        version = ".".join(map(str, _exiftool_version(_resolve_exiftool())))
+        raise RuntimeError(
+            f"exiftool {version} corrupts XMP sidecars that contain darktable edit "
+            "history (bug in 13.23-13.27); upgrade to 13.28 or newer"
+        )
 
     ext = os.path.splitext(image_path)[1].lower().lstrip(".")
     embedded = None
@@ -696,8 +757,12 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
             written += 1
             if result.get("embedded"):
                 embedded += 1
-        except (OSError, RuntimeError):
+        except (OSError, RuntimeError) as ex:
             errors += 1
+            if errors == 1:
+                logger.warning("sidecar export failed for %s: %s", path, ex)
+            else:
+                logger.debug("sidecar export failed for %s: %s", path, ex)
     return {"written": written, "embedded": embedded, "missing": missing, "errors": errors}
 
 

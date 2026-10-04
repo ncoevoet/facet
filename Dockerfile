@@ -58,13 +58,31 @@ ARG REQUIREMENTS_LOCK=requirements.lock.txt
 
 WORKDIR /app
 
-# System dependencies
+# System dependencies. exiftool is NOT taken from apt: exiftool 13.23-13.27
+# rewrites an XMP sidecar carrying darktable edit history into malformed XML
+# (issue #176) and Debian trixie ships 13.25, so the slim CPU image would
+# corrupt sidecars. It is pure Perl, so only `perl` is needed here (the full
+# package, for the core modules exiftool loads, e.g. Time::Local, Compress::Zlib).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libimage-exiftool-perl \
+    perl \
     libgl1 \
     libglib2.0-0 \
     gosu \
     && rm -rf /var/lib/apt/lists/*
+
+# Pinned exiftool release, verified by checksum. Must stay >= 13.28 (the
+# first release after the 13.23-13.27 corruption); processing/xmp_export.py
+# refuses to write sidecars with an affected version and the CI smoke test
+# checks the version. ADD --checksum needs BuildKit (the default builder).
+ARG EXIFTOOL_VERSION=13.55
+ARG EXIFTOOL_SHA256=5c9d422ad128fab728aacc5cc0aa77095d14cde74931389dd961d3d720e6b316
+ADD --checksum=sha256:${EXIFTOOL_SHA256} \
+    https://github.com/exiftool/exiftool/archive/refs/tags/${EXIFTOOL_VERSION}.tar.gz /tmp/exiftool.tar.gz
+RUN mkdir -p /opt/exiftool \
+    && tar -xzf /tmp/exiftool.tar.gz -C /opt/exiftool --strip-components=1 \
+       "exiftool-${EXIFTOOL_VERSION}/exiftool" "exiftool-${EXIFTOOL_VERSION}/lib" \
+    && ln -s /opt/exiftool/exiftool /usr/local/bin/exiftool \
+    && rm -f /tmp/exiftool.tar.gz
 
 # Python dependencies — pinned lock for a reproducible, self-contained image.
 # Each lock is a pip freeze from a validated container (every version tested
