@@ -410,6 +410,111 @@ class TestWriteMetadata:
         assert desc.get(f"{{{_NS['xmp']}}}Rating") == "5"
 
 
+
+_GOOD_XMP = (
+    '<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF '
+    'xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"/></x:xmpmeta>'
+)
+
+
+def _fake_exiftool(tmp_path, version="13.55", payload="<broken attr=\"a=\" b"):
+    """Executable stand-in: answers -ver, returns [] for reads, corrupts on write."""
+    script = tmp_path / "fake_exiftool"
+    script.write_text(
+        "#!/bin/sh\n"
+        f'if [ "$1" = "-ver" ]; then echo {version}; exit 0; fi\n'
+        'for a in "$@"; do last="$a"; done\n'
+        'case "$*" in *-json*) echo "[]"; exit 0;; esac\n'
+        f"printf '%s' '{payload}' > \"$last\"\n"
+        "exit 0\n"
+    )
+    script.chmod(0o755)
+    return str(script)
+
+
+@pytest.fixture
+def clear_version_cache():
+    xe._exiftool_version.cache_clear()
+    yield
+    xe._exiftool_version.cache_clear()
+
+
+@pytest.mark.usefixtures("clear_version_cache")
+class TestExiftoolVersionGuard:
+    @pytest.mark.parametrize("raw,defective", [
+        ("13.22", False), ("13.23", True), ("13.25", True), ("13.27", True),
+        ("13.28", False), ("13.3", False), ("14.0", False), ("12.76", False),
+        ("garbage", False), ("", False),
+    ])
+    def test_is_defective_version(self, monkeypatch, raw, defective):
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: "/fake/exiftool")
+        monkeypatch.setattr(
+            xe.subprocess, "run",
+            lambda *a, **k: subprocess.CompletedProcess(a, 0, stdout=raw + "\n", stderr=""),
+        )
+        assert xe.exiftool_is_defective() is defective
+
+    def test_lookup_failure_does_not_block(self, monkeypatch):
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: "/nonexistent/exiftool")
+        assert xe.exiftool_is_defective() is False
+
+    def test_write_metadata_refuses_and_leaves_sidecar_untouched(self, monkeypatch, tmp_path):
+        exe = _fake_exiftool(tmp_path, version="13.25")
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: exe)
+        img = tmp_path / "p.jpg"
+        img.write_bytes(b"x")
+        sidecar = tmp_path / "p.jpg.xmp"
+        sidecar.write_bytes(_GOOD_XMP.encode())
+        with pytest.raises(RuntimeError, match="13.25.*13.28"):
+            write_metadata(str(img), XmpRating(star_rating=3))
+        assert sidecar.read_bytes() == _GOOD_XMP.encode()
+
+
+@pytest.mark.usefixtures("clear_version_cache")
+class TestPostWriteValidation:
+    def test_malformed_output_restores_original_bytes(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: _fake_exiftool(tmp_path))
+        sidecar = tmp_path / "p.jpg.xmp"
+        sidecar.write_bytes(_GOOD_XMP.encode())
+        with pytest.raises(RuntimeError, match="malformed XMP"):
+            xe._run_exiftool(str(sidecar), XmpRating(star_rating=3), timeout=30)
+        assert sidecar.read_bytes() == _GOOD_XMP.encode()
+
+    def test_malformed_new_sidecar_is_removed(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: _fake_exiftool(tmp_path))
+        sidecar = tmp_path / "new.jpg.xmp"
+        with pytest.raises(RuntimeError, match="malformed XMP"):
+            xe._run_exiftool(str(sidecar), XmpRating(star_rating=3), timeout=30)
+        assert not sidecar.exists()
+
+    def test_embedded_original_is_not_validated(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: _fake_exiftool(tmp_path))
+        img = tmp_path / "p.jpg"
+        img.write_bytes(b"x")
+        xe._run_exiftool(str(img), XmpRating(star_rating=3), timeout=30)
+
+    def test_export_sidecars_counts_and_logs_error(self, monkeypatch, tmp_path, caplog):
+        import sqlite3
+
+        from db.schema import init_database
+        monkeypatch.setattr(xe, "_resolve_exiftool", lambda: _fake_exiftool(tmp_path))
+        db = str(tmp_path / "e.db")
+        init_database(db)
+        conn = sqlite3.connect(db)
+        conn.row_factory = sqlite3.Row
+        img = tmp_path / "p.jpg"
+        img.write_bytes(b"x")
+        conn.execute(
+            "INSERT INTO photos (path, filename, star_rating) VALUES (?, 'p.jpg', 3)",
+            (str(img),),
+        )
+        with caplog.at_level("WARNING"):
+            stats = xe.export_sidecars(conn)
+        assert stats["errors"] == 1 and stats["written"] == 0
+        assert "malformed XMP" in caplog.text
+        assert not (tmp_path / "p.jpg.xmp").exists()
+
+
 _EXIFTOOL = xe._resolve_exiftool()
 
 
@@ -441,6 +546,35 @@ class TestKeywordMergeIntegration:
         assert result["embedded"] is None
         assert img.read_bytes() == before          # original untouched
         assert os.path.exists(str(img) + ".xmp")    # sidecar still written
+
+    def test_darktable_attribute_ending_in_equals_survives(self, tmp_path):
+        """Issue #176: an attribute value ending in '=' followed by another attribute."""
+        img = tmp_path / "p.jpg"
+        self._make_jpeg(img)
+        sidecar = tmp_path / "p.jpg.xmp"
+        sidecar.write_text(
+            '<x:xmpmeta xmlns:x="adobe:ns:meta/">'
+            '<rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">'
+            '<rdf:Description rdf:about="" '
+            'xmlns:darktable="http://darktable.sf.net/">'
+            '<darktable:history><rdf:Seq>'
+            '<rdf:li darktable:params="abc=" darktable:multi_name="y"/>'
+            '</rdf:Seq></darktable:history>'
+            '</rdf:Description></rdf:RDF></x:xmpmeta>',
+            encoding="utf-8",
+        )
+        write_metadata(str(img), XmpRating(star_rating=3))
+        root = ET.fromstring(sidecar.read_bytes())
+        dt = "{http://darktable.sf.net/}"
+        li = next(e for e in root.iter() if e.tag == "{http://www.w3.org/1999/02/22-rdf-syntax-ns#}li")
+
+        def field(name):
+            # exiftool may normalise attributes into child elements.
+            child = li.find(f"{dt}{name}")
+            return li.get(f"{dt}{name}") if child is None else child.text
+
+        assert field("params") == "abc="
+        assert field("multi_name") == "y"
 
 
 class TestExportSidecarsCli:

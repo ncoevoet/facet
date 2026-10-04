@@ -182,6 +182,17 @@ jobs:
             fail=1
           fi
 
+          # exiftool 13.23-13.27 corrupts XMP sidecars with darktable history
+          # (issue #176); the image pins a release past that, and this fails
+          # the job if a base-image or Dockerfile change ever swaps it back.
+          exif_version=$(docker run --rm --entrypoint exiftool "$image" -ver)
+          echo "exiftool $exif_version"
+          if ! printf '%s' "$exif_version" | grep -Eq '^[0-9]+\.[0-9]+$' \
+             || ! awk -v v="$exif_version" 'BEGIN { split(v, a, "."); exit !(a[1] > 13 || (a[1] == 13 && a[2] >= 28)) }'; then
+            echo "::error::exiftool is '$exif_version', expected >= 13.28. Versions 13.23-13.27 corrupt XMP sidecars that carry darktable edit history (issue #176)."
+            fail=1
+          fi
+
           if docker run --rm "$image" python facet.py --doctor > doctor.log 2>&1; then
             echo "facet.py --doctor exited 0 through the real entrypoint"
           else

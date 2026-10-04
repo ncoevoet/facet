@@ -114,7 +114,7 @@ For the extended IQA tier (optional, `scoring_config.json` `iqa_extended`): `qre
 
 For appearance-based per-face eyes/smile (optional, `scoring_config.json` `face_detection.blendshapes`, ON when installed): `mediapipe==0.10.35`. MUST be installed as `pip install mediapipe==0.10.35 --no-deps` then `pip install absl-py flatbuffers` — NEVER a plain `pip install mediapipe`, whose bundled `opencv-contrib-python` would double-install the `cv2` namespace against Facet's `opencv-python`. Degrades silently to the landmark-geometry scores when absent. Model bundle `face_landmarker.task` (~3.6 MiB) auto-downloads to `pretrained_models/`. See [docs/FACE_RECOGNITION.md](docs/FACE_RECOGNITION.md).
 
-External tool: `exiftool` (command-line, optional — `exifread` fallback handles all RAW formats)
+External tool: `exiftool` >= 13.28 (command-line, optional — `exifread` fallback handles all RAW formats; 13.23–13.27 corrupt darktable XMP sidecars so Facet refuses to write with them; the Docker image pins 13.55)
 
 ## Architecture
 
