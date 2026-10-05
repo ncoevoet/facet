@@ -25,16 +25,16 @@
   },
   "private": true,
   "dependencies": {
-    "@angular/animations": "21.2.22",
+    "@angular/animations": "21.2.25",
     "@angular/cdk": "21.2.14",
-    "@angular/common": "21.2.22",
-    "@angular/compiler": "21.2.22",
-    "@angular/core": "21.2.22",
-    "@angular/forms": "21.2.22",
+    "@angular/common": "21.2.25",
+    "@angular/compiler": "21.2.25",
+    "@angular/core": "21.2.25",
+    "@angular/forms": "21.2.25",
     "@angular/material": "21.2.14",
-    "@angular/platform-browser": "21.2.22",
-    "@angular/router": "21.2.22",
-    "@angular/service-worker": "21.2.22",
+    "@angular/platform-browser": "21.2.25",
+    "@angular/router": "21.2.25",
+    "@angular/service-worker": "21.2.25",
     "@types/leaflet": "1.9.22",
     "chart.js": "4.5.1",
     "chartjs-adapter-date-fns": "3.0.0",
@@ -44,10 +44,10 @@
     "tslib": "2.8.1"
   },
   "devDependencies": {
-    "@angular/build": "21.2.23",
-    "@angular/cli": "21.2.23",
-    "@angular/compiler-cli": "21.2.22",
-    "@angular/platform-browser-dynamic": "21.2.22",
+    "@angular/build": "21.2.24",
+    "@angular/cli": "21.2.24",
+    "@angular/compiler-cli": "21.2.25",
+    "@angular/platform-browser-dynamic": "21.2.25",
     "@tailwindcss/postcss": "4.3.3",
     "angular-eslint": "21.4.0",
     "eslint": "9.39.5",
@@ -62,6 +62,7 @@
   },
   "overrides": {
     "ws": "8.20.1",
-    "undici": "7.29.1"
+    "undici": "7.29.1",
+    "piscina": "5.3.2"
   }
 }
