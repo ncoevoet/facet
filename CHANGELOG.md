@@ -4,6 +4,8 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+## [1.19.0] "Chambre noire" — 2026-10-05
+
 ### Added
 
 - **A permanent Scan action in the gallery.** An icon button at the top right of the photo grid opens the scan launcher whenever the library has photos, at every screen width; until now the only entry was the empty-gallery call to action. On a single-user install it needs both `viewer.features.show_scan_button: true` and a non-empty `viewer.edition_password`; in multi-user mode the user's role decides instead and only a superadmin sees it. `docs/VIEWER.md` and `docs/CONFIGURATION.md` also now say that no GPU is required to scan (CPU-only on the `legacy` profile).
