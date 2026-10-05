@@ -105,7 +105,7 @@ pyarrow==24.0.0
 pydantic==2.13.5
 pydantic_core==2.46.5
 pyiqa==0.1.16
-PyJWT==2.14.0
+PyJWT==2.15.0
 pyparsing==3.3.2
 pytest-asyncio==1.4.0
 pytest-timeout==2.4.0
