@@ -42,7 +42,7 @@ Viewers im `progress`-Feld von `/api/scan/status` und im SSE-Stream bereitstellt
 
 ### Verarbeitungsmodi
 
-**Multi-Pass (Standard):** erkennt den VRAM und lädt die Modelle nacheinander. Jeder Pass lädt sein Modell, verarbeitet alle Fotos und entlädt es dann, um VRAM freizugeben, sodass hochwertige Modelle auch mit begrenztem VRAM laufen.
+**Multi-Pass (Standard):** erkennt den VRAM und lädt die Modelle nacheinander. Jeder Pass lädt sein Modell, verarbeitet alle Fotos und entlädt es dann, um VRAM freizugeben, sodass hochwertige Modelle auch mit begrenztem VRAM laufen; ein Plan, dessen Modelle alle in einen einzigen Durchlauf passen, hält sie stattdessen für den ganzen Scan geladen.
 
 **Single-Pass (`--single-pass`):** lädt alle Modelle gleichzeitig. Schneller, benötigt mehr VRAM. Die Ästhetik wird mit dem CLIP+MLP-Kopf bewertet, daher gilt der Modus für die Profile `legacy` und `8gb`. Bei `16gb` und `24gb` ist das Ästhetikmodell TOPIQ, das nur der Multi-Pass-Scan ausführt; eine Single-Pass-Anforderung (`--single-pass` oder `processing.mode: "single-pass"`) protokolliert deshalb eine Warnung und läuft stattdessen als Multi-Pass. `--pass NAME` und `--dry-run` überspringen diese Prüfung. Im kommerziellen Modus bleibt Single-Pass verfügbar, weil dort das native Q-ReAlign die Ästhetik bewertet. Erreicht ein Single-Pass-Batch dennoch den Scorer ohne Ästhetikkopf, schlägt er fehl: Seine Fotos werden in `scan_failures` erfasst und nicht gespeichert.
 

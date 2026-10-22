@@ -42,7 +42,7 @@ campo `progress` di `/api/scan/status` e nel flusso SSE.
 
 ### Modalità di elaborazione
 
-**Multi-pass (predefinita):** rileva la VRAM e carica i modelli in sequenza. Ogni passaggio carica il proprio modello, elabora tutte le foto, poi lo scarica per liberare la VRAM, così i modelli di alta qualità possono essere eseguiti anche con VRAM limitata.
+**Multi-pass (predefinita):** rileva la VRAM e carica i modelli in sequenza. Ogni passaggio carica il proprio modello, elabora tutte le foto, poi lo scarica per liberare la VRAM, così i modelli di alta qualità possono essere eseguiti anche con VRAM limitata; un piano i cui modelli entrano tutti in un solo passaggio li mantiene caricati per l'intera scansione.
 
 **Single-pass (`--single-pass`):** carica tutti i modelli in una volta. Più veloce, richiede più VRAM. Valuta l'estetica con la head CLIP+MLP, quindi si applica ai profili `legacy` e `8gb`. Su `16gb` e `24gb` il modello estetico è TOPIQ, che viene eseguito solo dalla scansione multi-pass; una richiesta single-pass (`--single-pass` o `processing.mode: "single-pass"`) registra quindi un avviso ed esegue il multi-pass. `--pass NAME` e `--dry-run` saltano questo controllo. In modalità commerciale il single-pass resta disponibile, perché lì l'estetica è valutata dal Q-ReAlign nativo. Se un batch single-pass raggiunge comunque lo scorer senza head estetica, fallisce: le sue foto vengono registrate in `scan_failures` e non salvate.
 

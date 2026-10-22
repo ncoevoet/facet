@@ -42,7 +42,7 @@ visor expone en el campo `progress` de `/api/scan/status` y del flujo SSE.
 
 ### Modos de procesamiento
 
-**Multipaso (por defecto):** detecta la VRAM y carga los modelos secuencialmente. Cada paso carga su modelo, procesa todas las fotos y luego lo descarga para liberar VRAM, de modo que los modelos de alta calidad se ejecutan incluso con VRAM limitada.
+**Multipaso (por defecto):** detecta la VRAM y carga los modelos secuencialmente. Cada paso carga su modelo, procesa todas las fotos y luego lo descarga para liberar VRAM, de modo que los modelos de alta calidad se ejecutan incluso con VRAM limitada; un plan cuyos modelos caben todos en un solo paso los mantiene cargados durante todo el escaneo.
 
 **Un solo paso (`--single-pass`):** carga todos los modelos a la vez. Más rápido, requiere más VRAM. Puntúa la estética con el cabezal CLIP+MLP, así que se aplica a los perfiles `legacy` y `8gb`. En `16gb` y `24gb` el modelo de estética es TOPIQ, que solo ejecuta el escaneo multipaso; por eso una petición de un solo paso (`--single-pass` o `processing.mode: "single-pass"`) registra una advertencia y se ejecuta en multipaso. `--pass NAME` y `--dry-run` omiten esa comprobación. En modo comercial el modo de un solo paso sigue disponible, porque allí el Q-ReAlign nativo puntúa la estética. Si aun así un lote de un solo paso llega al puntuador sin cabezal de estética, falla: sus fotos se registran en `scan_failures` y no se guardan.
 

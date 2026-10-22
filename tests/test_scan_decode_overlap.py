@@ -248,15 +248,24 @@ class TestDecodeRunsWhileGroupZeroLoads:
         assert proc.metrics['decode_overlapped_chunks'] == 2
         assert proc.metrics['images_processed'] == 4
 
-    def test_restricted_single_group_scans_overlap_too(self, monkeypatch):
+    def test_a_restricted_single_group_scan_hides_its_first_load(self, monkeypatch):
+        """A single pass keeps its model, so only chunk 0 still has a load to hide.
+
+        The model is not unloaded after chunk 0, so chunk 1 finds it resident and
+        there is no restore to overlap with — the chunk decodes on this thread and
+        loses only the copy it no longer has to make.
+        """
         manager = _Manager()
         proc = _processor(manager, [['topiq']], monkeypatch, chunk=2, restricted=True)
         monkeypatch.setattr(proc, '_load_images', _stub_decode(proc))
 
         proc.process_directory(PATHS, show_progress=False)
 
-        assert proc._test_executor.submits == 2
+        assert proc._test_executor.submits == 1
+        assert proc.metrics['decode_overlapped_chunks'] == 1
+        assert proc.metrics['resident_chunks'] == 1
         assert proc._test_log.count(('infer', 'topiq', 2)) == 2
+        assert ('unload', 'topiq') not in manager.events
 
     def test_overlapped_and_synchronous_chunks_run_the_same_passes_on_the_same_images(
             self, monkeypatch):

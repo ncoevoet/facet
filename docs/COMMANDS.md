@@ -42,7 +42,7 @@ lines (phase, current/total, ETA) which the viewer's scan API surfaces in the
 
 ### Processing Modes
 
-**Multi-pass (default):** detects VRAM and loads models sequentially. Each pass loads its model, processes all photos, then unloads to free VRAM, so high-quality models run even with limited VRAM.
+**Multi-pass (default):** detects VRAM and loads models sequentially. Each pass loads its model, processes all photos, then unloads to free VRAM, so high-quality models run even with limited VRAM; a plan whose models all fit in one pass keeps them loaded for the whole scan instead.
 
 **Single-pass (`--single-pass`):** loads all models at once. Faster, needs more VRAM. It scores aesthetics with the CLIP+MLP head, so it applies to the `legacy` and `8gb` profiles. On `16gb` and `24gb` the aesthetic model is TOPIQ, which only the multi-pass scan runs, so a single-pass request (`--single-pass` or `processing.mode: "single-pass"`) logs a warning and runs multi-pass instead. `--pass NAME` and `--dry-run` skip that check. In commercial mode single-pass stays available, because native Q-ReAlign scores the aesthetic there. If a single-pass batch still reaches the scorer with no aesthetic head, it fails: its photos are recorded in `scan_failures` and not saved.
 

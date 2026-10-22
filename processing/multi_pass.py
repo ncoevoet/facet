@@ -27,7 +27,7 @@ from tqdm import tqdm
 import licensing
 from db.person_centroids import flush_centroids_safely
 from db.scoring_overrides import get_photo_scoring_overrides
-from models.model_manager import UNIFIED_MEMORY_ACCELERATOR, ModelManager
+from models.model_manager import CUDA_DEVICE, UNIFIED_MEMORY_ACCELERATOR, ModelManager
 from processing.routing import (
     TAGGING_MODELS, face_pass_name, resolve_selected_quality, route_models,
 )
@@ -223,6 +223,9 @@ class ChunkedMultiPassProcessor:
             'io_decode_time': 0.0,
             # Chunks whose decode ran beside the first pass group's model load
             'decode_overlapped_chunks': 0,
+            # Chunks that found their models already in VRAM because a single-pass
+            # plan keeps them across the boundary (see _keeps_plan_resident)
+            'resident_chunks': 0,
             # BGR / gray planes rebuilt from the retained PIL image by the face and
             # saliency passes (they are no longer kept for the whole chunk)
             'rebuild_time': 0.0,
@@ -502,7 +505,9 @@ class ChunkedMultiPassProcessor:
         ``loaded_models``, keeps its refcount above zero: the unload then frees
         nothing and ``release_freed_heap`` walks arenas the weights still hold.
         Under a container limit the RAM cache retains nothing, so every model
-        takes that full-unload path.
+        takes that full-unload path. A single-pass plan is the deliberate
+        exception and has no unload to pin — see :meth:`_keeps_plan_resident`,
+        which keeps that one group loaded across the boundary.
 
         Args:
             paths: Photo paths in this chunk
@@ -534,8 +539,17 @@ class ChunkedMultiPassProcessor:
         results: dict[str, dict[str, Any]] = {path: {} for path in paths}
 
         # Run each pass group
+        keep_resident = self._keeps_plan_resident()
         for group_idx, model_group in enumerate(self.pass_groups):
             self._next_group_pos = group_idx + 1
+            # Only a chunk that STARTS with the kept group already on the card is a
+            # reuse. A chunk that has to load a model — because its chunk-0 load
+            # failed — is not, and counting it would overstate the summary.
+            was_resident = (
+                keep_resident and chunk_idx > 0
+                and all(name in getattr(self.model_manager, 'models', {})
+                        for name in model_group)
+            )
             if group_idx == 0 and preloaded is not None:
                 loaded_models, preloaded = preloaded, None
             else:
@@ -572,10 +586,20 @@ class ChunkedMultiPassProcessor:
             self.metrics['inference_time'] += time.time() - infer_start
             self.metrics['passes_executed'] += 1
 
-            # Unload models from this pass
-            unload_start = time.time()
-            self._unload_group(model_group, loaded_models)
-            self.metrics['model_unload_time'] += time.time() - unload_start
+            # Unload models from this pass — unless this is the only group of the
+            # plan and the next chunk asks for exactly these models again.
+            if keep_resident:
+                if chunk_idx == 0:
+                    logger.info(
+                        "Single pass: keeping %s in VRAM for the rest of the scan "
+                        "(no reload per chunk; models.keep_in_ram \"never\" turns this off)",
+                        ", ".join(model_group))
+                elif was_resident:
+                    self.metrics['resident_chunks'] += 1
+            else:
+                unload_start = time.time()
+                self._unload_group(model_group, loaded_models)
+                self.metrics['model_unload_time'] += time.time() - unload_start
         self._next_group_pos = 0
 
         if failed_stages:
@@ -610,6 +634,46 @@ class ChunkedMultiPassProcessor:
             if self._qrealign_is_primary():
                 supplementary.discard('qrealign')
         return supplementary
+
+    def _keeps_plan_resident(self) -> bool:
+        """Whether the plan's models stay in VRAM across chunk boundaries.
+
+        True when the whole plan is one pass (``len(pass_groups) == 1``), the
+        models live on CUDA, and ``keep_in_ram`` is not ``"never"``.
+
+        A single pass is the one case where unloading between chunks cannot buy
+        anything. :meth:`_load_pass_models` loads the whole group before its
+        inference, so the chunk's VRAM peak already held every one of these
+        models beside their activations; reproducing that state at the boundary
+        reaches no level the chunk did not already reach. Nothing between two
+        chunks touches the device either — the decode, the aggregate pass and
+        the save are CPU and SQLite work — so the unload could only convert
+        resident weights into a host copy (``_move_to_cpu``) and a PCIe copy
+        back (``_restore_from_cache``) at the start of the next chunk, or a
+        reload from disk where the RAM cache refuses to retain them. Every
+        weight crossed the bus twice per chunk, and the host held a second copy
+        of the roster while the next chunk decoded, which is the RAM the decode
+        and ``ram_cache_reserve_gb`` are budgeted against. With the models kept,
+        the next chunk's ``load_model_only`` finds them in ``self.models`` and
+        returns without reading a byte.
+
+        Only CUDA is gated in: it alone reports a VRAM budget separate from the
+        decode's own memory. On CPU ``_move_to_cpu`` is a no-op and the RAM cache
+        already retains the object, and Apple MPS reports no VRAM budget, so both
+        plan against RAM and keep their admission rules untouched. ``"never"``
+        stays the escape hatch — it is documented as giving the memory back
+        between chunks, and a host that wants the card free between chunks (a
+        viewer or another GPU application sharing it) must keep that promise.
+
+        The load side needs no change: ``_load_pass_models`` still asks for every
+        model of the group each chunk, so a model that failed to load at chunk 0
+        is retried at chunk 1 while its siblings stay resident.
+        """
+        if len(self.pass_groups or []) != 1:
+            return False
+        if getattr(self.model_manager, 'device', 'cpu') != CUDA_DEVICE:
+            return False
+        return getattr(self.model_manager, 'keep_in_ram', 'auto') != 'never'
 
     def _unload_group(self, model_group: List[str], loaded_models: Dict[str, Any]):
         """Drop the chunk's references to a pass group, unload it, reclaim once."""
@@ -1855,6 +1919,10 @@ class ChunkedMultiPassProcessor:
             logger.info("  Model load: %.1fs (%.0f%%)", m['model_load_time'], 100 * m['model_load_time'] / total)
             logger.info("  Inference: %.1fs (%.0f%%)", m['inference_time'], 100 * m['inference_time'] / total)
             logger.info("  Model unload: %.1fs (%.0f%%)", m['model_unload_time'], 100 * m['model_unload_time'] / total)
+            if m['resident_chunks']:
+                logger.info(
+                    "  Resident weights: %d of %d chunks reused the kept single-pass models "
+                    "(no reload)", m['resident_chunks'], m['chunks_processed'])
             logger.info("  Plane rebuilds (face + saliency passes): %.1fs (%.0f%%)",
                         m['rebuild_time'], 100 * m['rebuild_time'] / total)
 

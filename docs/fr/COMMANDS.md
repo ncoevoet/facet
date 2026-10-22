@@ -42,7 +42,7 @@ visionneuse expose dans le champ `progress` de `/api/scan/status` et du flux SSE
 
 ### Modes de traitement
 
-**Multi-passes (par défaut) :** détecte la VRAM et charge les modèles séquentiellement. Chaque passe charge son modèle, traite toutes les photos, puis le décharge pour libérer la VRAM, de sorte que des modèles de haute qualité s'exécutent même avec une VRAM limitée.
+**Multi-passes (par défaut) :** détecte la VRAM et charge les modèles séquentiellement. Chaque passe charge son modèle, traite toutes les photos, puis le décharge pour libérer la VRAM, de sorte que des modèles de haute qualité s'exécutent même avec une VRAM limitée ; un plan dont tous les modèles tiennent en une seule passe les garde chargés pendant tout le scan.
 
 **Passe unique (`--single-pass`) :** charge tous les modèles en même temps. Plus rapide, nécessite plus de VRAM. L'esthétique est notée par la tête CLIP+MLP, ce mode vaut donc pour les profils `legacy` et `8gb`. Sur `16gb` et `24gb`, le modèle d'esthétique est TOPIQ, que seul le scan multi-passes exécute ; une demande de passe unique (`--single-pass` ou `processing.mode: "single-pass"`) journalise donc un avertissement et s'exécute en multi-passes. `--pass NAME` et `--dry-run` ignorent cette vérification. En mode commercial, la passe unique reste disponible, car Q-ReAlign natif y note l'esthétique. Si un lot en passe unique atteint tout de même le scoreur sans tête d'esthétique, il échoue : ses photos sont enregistrées dans `scan_failures` et ne sont pas sauvegardées.
 
