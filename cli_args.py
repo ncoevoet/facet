@@ -111,6 +111,11 @@ Configuration:
     scan_group.add_argument('--force-low-space', action='store_true',
                         help='Proceed with a scan even when the volume looks too small for '
                              'the thumbnails/embeddings it will write (overrides the guard)')
+    scan_group.add_argument('--raw-metrics-preview', action='store_true',
+                        help='Score RAW files from the camera-embedded preview JPEG when it covers '
+                             '>= 95%% of the sensor frame (falls back to a rawpy demosaic). The '
+                             'camera\'s tone curve, sharpening and noise reduction then reach the '
+                             'technical scores, so this is for an A/B against a normal scan')
 
     # Database operations
     db_group = parser.add_argument_group('Database operations')

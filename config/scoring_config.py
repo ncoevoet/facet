@@ -49,6 +49,13 @@ RAW_DECODE_DEFAULTS = {
     'preview_min_sensor_ratio': 0.5,
     'viewer_concurrency': 3,
     'faithful_bracket_render': True,
+    # Opt-in metrics render: score a RAW from the camera-embedded JPEG instead
+    # of demosaicing it, when that preview covers at least the ratio below of
+    # the sensor's long edge. Off by default because the camera's tone curve,
+    # sharpening and noise reduction then reach the technical scores. See
+    # docs/CONFIGURATION.md "RAW Decode".
+    'metrics_from_embedded_preview': False,
+    'metrics_preview_min_sensor_ratio': 0.95,
 }
 
 # HDR PQ (SMPTE ST 2084) HEIF still -> SDR sRGB tone-mapping defaults. Only the

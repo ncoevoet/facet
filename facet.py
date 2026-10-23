@@ -214,12 +214,59 @@ def _gather_scan_files(photo_paths, scanning_settings):
     return all_files
 
 
-def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
+def _suppressed_companion_paths(files, raw_canonical, resolve=str):
+    """Resolved paths of the files a RAW/JPEG pair makes redundant.
+
+    Pairing is keyed on (parent dir, lowercased stem), so a JPEG only pairs with
+    a RAW that sits beside it: an unrelated same-stem JPEG in another folder
+    never hides the RAW library-wide.
+
+    By default the RAW is the suppressed member, since a same-stem JPEG is the
+    cheaper decode. With ``raw_canonical`` (``raw_decode.
+    metrics_from_embedded_preview``) the pair resolves the other way round: the
+    RAW already carries the camera's own full-frame JPEG, so it is the row to
+    keep and the companion beside it is the redundant one.
+
+    Args:
+        files: The directory walk.
+        raw_canonical: True to keep the RAW and skip its JPEG/HEIF companion.
+        resolve: Path-to-string resolver, so a scan passes its per-run cache.
+
+    Returns:
+        (suppressed resolved paths, summary label) — the label names which
+        member was skipped.
+    """
+    def _dir_stems(suffixes):
+        return {(os.path.dirname(resolve(f)), f.stem.lower())
+                for f in files if f.suffix.lower() in suffixes}
+
+    if raw_canonical:
+        suppressed_suffixes = JPEG_EXTENSIONS | HEIF_EXTENSIONS
+        companion_stems = _dir_stems(RAW_EXTENSIONS)
+        label = "JPEG w/ RAW preview (skipped):"
+    else:
+        suppressed_suffixes = RAW_EXTENSIONS
+        companion_stems = _dir_stems(JPEG_EXTENSIONS | HEIF_EXTENSIONS)
+        label = "RAW paired w/ JPEG (skipped):"
+
+    return (
+        {resolve(f) for f in files
+         if f.suffix.lower() in suppressed_suffixes
+         and (os.path.dirname(resolve(f)), f.stem.lower()) in companion_stems},
+        label,
+    )
+
+
+def _print_scan_summary(db_path, todo_list, raw_paired_skipped,
+                        companion_label="RAW paired w/ JPEG (skipped):"):
     """Print a table of what landed in the DB from this scan.
 
     Counts photos in `todo_list` paths that ended up in the DB and how many of
     them are hidden by default (blinks, non-lead bursts, non-lead duplicates).
     Chunks the IN-list to stay under SQLite's variable-binding limit.
+
+    ``companion_label`` names which member of a RAW/JPEG pair was skipped: the
+    RAW by default, the JPEG/HEIF when the RAW is the canonical metrics render.
     """
     import sqlite3
     if not todo_list:
@@ -260,7 +307,7 @@ def _print_scan_summary(db_path, todo_list, raw_paired_skipped):
     logger.info("%-28s %d", "Bursts (non-lead, hidden):", bursts_non_lead)
     logger.info("%-28s %d", "Duplicates (non-lead, hidden):", duplicates_non_lead)
     logger.info("%-28s %d", "Blinks (hidden):", blinks)
-    logger.info("%-28s %d", "RAW paired w/ JPEG (skipped):", raw_paired_skipped)
+    logger.info("%-28s %d", companion_label, raw_paired_skipped)
     logger.info("=" * 60)
 
 
@@ -1757,19 +1804,22 @@ def _run_scan(args, resumed_run):
         missing = len(failed) - len(all_files)
         logger.info("Retrying %d failed files (%d no longer on disk)", len(all_files), missing)
 
-    # Identify JPEGs to avoid double-processing if RAW+JPEG pairs exist. Pairing
-    # is keyed on (resolved parent dir, stem) so a JPEG only suppresses a RAW that
-    # sits beside it: an unrelated same-stem JPEG in another folder no longer hides
-    # the RAW library-wide.
-    jpeg_like = JPEG_EXTENSIONS | HEIF_EXTENSIONS
-    jpeg_dir_stems = {
-        (os.path.dirname(_resolved(f)), f.stem.lower())
-        for f in all_files if f.suffix.lower() in jpeg_like
-    }
+    # Resolve and install the RAW decode profile BEFORE anything reads pixels.
+    # The metrics-render mode changes both what a RAW decodes to and which member
+    # of a RAW+JPEG pair is the canonical row, and --dry-run scores through this
+    # same profile, so configuring it after the pairing and sample loops (as it
+    # was) would let those two disagree with the scan that follows.
+    from utils import configure_raw_decode_profile, configure_hdr_pq_tonemap_profile
+    raw_decode_settings = dict(scorer.config.get_raw_decode_settings())
+    if getattr(args, 'raw_metrics_preview', False):
+        raw_decode_settings['metrics_from_embedded_preview'] = True
+    raw_decode_settings = configure_raw_decode_profile(raw_decode_settings)
+    configure_hdr_pq_tonemap_profile(scorer.config.get_hdr_pq_tonemap_settings())
+    raw_metrics_preview = raw_decode_settings['metrics_from_embedded_preview']
+    if raw_metrics_preview:
+        logger.info("RAW metrics: camera-embedded preview (>= %d%% of frame)",
+                    int(round(raw_decode_settings['metrics_preview_min_sensor_ratio'] * 100)))
 
-    def _raw_paired_with_jpeg(f):
-        return (f.suffix.lower() in RAW_EXTENSIONS
-                and (os.path.dirname(_resolved(f)), f.stem.lower()) in jpeg_dir_stems)
     if args.retry_failed:
         unscanned = {_resolved(f) for f in all_files}
     elif args.force_since:
@@ -1788,33 +1838,55 @@ def _run_scan(args, resumed_run):
     else:
         unscanned = scorer.filter_unscanned_paths(_resolved(f) for f in all_files)
 
-    # Filter the list to only include new or un-scanned files
+    # Filter the list to only include new or un-scanned files. Identify RAW+JPEG
+    # pairs first so neither member is processed twice; the direction of the
+    # pairing follows the metrics profile (see _suppressed_companion_paths).
+    suppressed_paths, companion_label = _suppressed_companion_paths(
+        all_files, raw_metrics_preview, _resolved)
     todo_list = [f for f in all_files if _resolved(f) in unscanned
-                 and not _raw_paired_with_jpeg(f)]
-    raw_paired_files = [f for f in all_files if _raw_paired_with_jpeg(f)]
-    raw_paired_skipped = len(raw_paired_files)
+                 and _resolved(f) not in suppressed_paths]
+    suppressed_files = [f for f in all_files if _resolved(f) in suppressed_paths]
+    suppressed_skipped = len(suppressed_files)
+    if raw_metrics_preview and suppressed_skipped:
+        logger.info("Skipped %d companion JPEG(s) (RAW embedded preview is canonical)",
+                    suppressed_skipped)
 
-    # A RAW suppressed above by a newly-collected HEIF/JPEG sibling may already have
-    # its own row from a scan run before that sibling extension was scannable (e.g.
-    # .hif added to SCANNABLE_IMAGE_EXTENSIONS on an existing Canon RAW+HDR library).
-    # That row is never deleted here -- it may carry ratings, tags or faces the user
-    # set by hand -- so warn instead of silently leaving the library double-counted.
-    if raw_paired_files:
-        raw_paired_resolved = {_resolved(f) for f in raw_paired_files}
-        raw_paired_unscanned = scorer.filter_unscanned_paths(raw_paired_resolved)
-        raw_paired_already_rowed = len(raw_paired_resolved) - len(raw_paired_unscanned)
-        if raw_paired_already_rowed:
-            logger.warning(
-                "%d photo(s) are now stored twice, once as the RAW and once as the "
-                "HEIF/JPEG beside it -- this library was scanned before that HEIF/JPEG "
-                "extension was scannable, so the RAW's row from that earlier scan was "
-                "never removed. It is left in place deliberately, since it may carry "
-                "ratings, tags or faces you set by hand. To clean it up, delete the "
-                "superseded RAW file(s) yourself, then run "
-                "'python database.py --cleanup-missing-photos' to remove their now-"
-                "missing rows (cascades to faces, album memberships and the vector index).",
-                raw_paired_already_rowed,
-            )
+    # A file suppressed above may already have its own row from an earlier scan:
+    # the RAW when a JPEG/HEIF sibling only became scannable later (e.g. .hif added
+    # to SCANNABLE_IMAGE_EXTENSIONS on an existing Canon RAW+HDR library), or the
+    # JPEG/HEIF when this library was scanned before metrics_from_embedded_preview
+    # inverted the pair. That row is never deleted here -- it may carry ratings,
+    # tags or faces the user set by hand -- so warn instead of silently leaving the
+    # library double-counted.
+    if suppressed_files:
+        suppressed_unscanned = scorer.filter_unscanned_paths(suppressed_paths)
+        suppressed_already_rowed = len(suppressed_paths) - len(suppressed_unscanned)
+        if suppressed_already_rowed:
+            if raw_metrics_preview:
+                logger.warning(
+                    "%d photo(s) are now stored twice: the RAW beside a JPEG/HEIF carries "
+                    "the camera-embedded preview this scan scores, so the RAW is the row "
+                    "to keep and the companion is skipped -- but that companion already "
+                    "had a row from an earlier scan, and it is left in place deliberately, "
+                    "since it may carry ratings, tags or faces you set by hand. To keep "
+                    "only the RAW, delete the companion JPEG/HEIF file(s) yourself, then "
+                    "run 'python database.py --cleanup-missing-photos' to remove their "
+                    "now-missing rows (cascades to faces, album memberships and the "
+                    "vector index).",
+                    suppressed_already_rowed,
+                )
+            else:
+                logger.warning(
+                    "%d photo(s) are now stored twice, once as the RAW and once as the "
+                    "HEIF/JPEG beside it -- this library was scanned before that HEIF/JPEG "
+                    "extension was scannable, so the RAW's row from that earlier scan was "
+                    "never removed. It is left in place deliberately, since it may carry "
+                    "ratings, tags or faces you set by hand. To clean it up, delete the "
+                    "superseded RAW file(s) yourself, then run "
+                    "'python database.py --cleanup-missing-photos' to remove their now-"
+                    "missing rows (cascades to faces, album memberships and the vector index).",
+                    suppressed_already_rowed,
+                )
 
     logger.info("Found %d total, processing %d new files.", len(all_files), len(todo_list))
 
@@ -1876,11 +1948,7 @@ def _run_scan(args, resumed_run):
         exit(1)
 
     # 2. Main Processing Loop
-    from utils import (
-        configure_raw_decode_profile,
-        configure_raw_decoding,
-        configure_hdr_pq_tonemap_profile,
-    )
+    from utils import configure_raw_decoding
     from processing.scan_state import ScanRun, scan_in_progress
     from processing.progress import emit_progress
     _proc = scorer.config.get_processing_settings()
@@ -1888,8 +1956,9 @@ def _run_scan(args, resumed_run):
         concurrency=_proc.get('raw_decode_concurrency', 0),
         timeout_seconds=_proc.get('raw_decode_timeout_seconds', 120),
     )
-    configure_raw_decode_profile(scorer.config.get_raw_decode_settings())
-    configure_hdr_pq_tonemap_profile(scorer.config.get_hdr_pq_tonemap_settings())
+    # The RAW decode and HDR PQ profiles were installed before the pairing pass
+    # and stay in force for the scan; re-reading them here would let a hand-edit
+    # land between the dry-run samples and the real scan.
 
     # Concurrency guard: a run with a fresh heartbeat looks genuinely live.
     # Resuming on top of it would double-process, so refuse; a fresh scan only
@@ -2132,7 +2201,7 @@ def _run_scan(args, resumed_run):
         except Exception:
             logger.warning("Junk detection failed (non-fatal)", exc_info=True)
 
-    _print_scan_summary(scorer.db_path, todo_list, raw_paired_skipped)
+    _print_scan_summary(scorer.db_path, todo_list, suppressed_skipped, companion_label)
 
     # Auto-populate sqlite-vec table so semantic search is fast on first viewer
     # load after a scan. Idempotent: skips when already up-to-date, no-ops when

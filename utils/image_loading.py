@@ -50,6 +50,14 @@ _avif_available = bool(_pil_features.check('avif'))
 # All RAW formats supported via rawpy/libraw
 RAW_EXTENSIONS = frozenset({'.cr2', '.cr3', '.nef', '.arw', '.raf', '.rw2', '.dng', '.orf', '.srw', '.pef'})
 
+# ``photos.metrics_render``: which rendering the scored pixels came from. It is
+# stamped on the decoded PIL buffer (``pil_img.info``) and persisted with the
+# row, so a library half-rescanned with ``metrics_from_embedded_preview`` on is
+# visible instead of silently mixed. Absent means "not a RAW decode", or a row
+# written before the stamp existed.
+METRICS_DEMOSAIC_RENDER = 0
+METRICS_PREVIEW_RENDER = 1
+
 # JPEG stills
 JPEG_EXTENSIONS = frozenset({'.jpg', '.jpeg'})
 
@@ -780,12 +788,65 @@ def open_nonraw_image(photo, draft_edge=None):
 
 _raw_decode_settings = None
 
+_TRUE_WORDS = frozenset({'true', 'yes', 'on', '1'})
+_FALSE_WORDS = frozenset({'false', 'no', 'off', '0', ''})
+
+METRICS_PREVIEW_MIN_SENSOR_RATIO_FALLBACK = 0.95
+
+
+def _coerce_flag(value, default, name):
+    """Coerce a hand-edited config switch to a bool, or fall back with a warning."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        word = value.strip().lower()
+        if word in _TRUE_WORDS:
+            return True
+        if word in _FALSE_WORDS:
+            return False
+    logger.warning("%s: %r is not a boolean, using %r", name, value, default)
+    return default
+
+
+def _coerce_ratio(value, default, name):
+    """Coerce a hand-edited config ratio to a float in [0.0, 1.0]."""
+    try:
+        ratio = float(value)
+    except (TypeError, ValueError):
+        logger.warning("%s: %r is not a number, using %r", name, value, default)
+        return default
+    if math.isnan(ratio):
+        logger.warning("%s: %r is not a number, using %r", name, value, default)
+        return default
+    if ratio < 0.0 or ratio > 1.0:
+        clamped = max(0.0, min(1.0, ratio))
+        logger.warning("%s: %r is outside [0.0, 1.0], using %r", name, value, clamped)
+        return clamped
+    return ratio
+
 
 def configure_raw_decode_profile(settings=None):
-    """Set the RAW decode profile for this process; missing keys keep defaults."""
+    """Set the RAW decode profile for this process; missing keys keep defaults.
+
+    The two metrics-render keys are coerced here because this profile is read
+    straight off disk and never re-validated (see
+    ``_raw_decode_settings_from_config``): the switch decides whether a
+    demosaic is skipped, and the ratio multiplies a pixel count, so a
+    hand-edited ``null`` or a string ratio must not reach either.
+    """
     global _raw_decode_settings
     merged = dict(RAW_DECODE_DEFAULTS)
-    merged.update(settings or {})
+    if isinstance(settings, dict):
+        merged.update(settings)
+    merged['metrics_from_embedded_preview'] = _coerce_flag(
+        merged.get('metrics_from_embedded_preview'), False,
+        'raw_decode.metrics_from_embedded_preview')
+    merged['metrics_preview_min_sensor_ratio'] = _coerce_ratio(
+        merged.get('metrics_preview_min_sensor_ratio'),
+        METRICS_PREVIEW_MIN_SENSOR_RATIO_FALLBACK,
+        'raw_decode.metrics_preview_min_sensor_ratio')
     _raw_decode_settings = merged
     return merged
 
@@ -920,7 +981,10 @@ def extract_raw_preview(photo_path, min_long_edge=0, min_sensor_ratio=0.0):
         photo_path: Path to a RAW file (str or Path)
         min_long_edge: Reject a preview whose long edge is under this
         min_sensor_ratio: Reject a preview whose long edge is under this
-                          fraction of the sensor's
+                          fraction of the sensor's. A positive ratio also
+                          rejects a preview when LibRaw reports no sensor size,
+                          since coverage cannot then be established — a 1616px
+                          thumbnail must not stand in for a 60MP frame.
     """
     import rawpy
     Image, _ = _ensure_pil()
@@ -943,8 +1007,9 @@ def extract_raw_preview(photo_path, min_long_edge=0, min_sensor_ratio=0.0):
     long_edge = max(preview.size)
     if long_edge < min_long_edge:
         return None
-    if sensor_long_edge > 0 and long_edge < min_sensor_ratio * sensor_long_edge:
-        return None
+    if min_sensor_ratio > 0:
+        if sensor_long_edge <= 0 or long_edge < min_sensor_ratio * sensor_long_edge:
+            return None
     return preview if preview.mode == 'RGB' else preview.convert('RGB')
 
 
@@ -1271,10 +1336,26 @@ def _decode_raw(photo, use_thumbnail, started_event=None, decode_budget='library
         if use_thumbnail:
             pil_img = extract_raw_preview(photo)
 
+        settings = get_raw_decode_settings()
+        if pil_img is None and settings['metrics_from_embedded_preview']:
+            # Opt-in metrics render. The sensor-ratio gate makes the mode
+            # self-selecting per file rather than per body assumed in the
+            # config: a body whose largest embedded JPEG is a 1616x1080 preview
+            # of a 6000x4000 frame (ratio 0.27, Sony A7 III) keeps demosaicing,
+            # while one that embeds a full-frame JpgFromRaw (7008x4672 of
+            # 7168, Sony A7C II) does not.
+            pil_img = extract_raw_preview(
+                photo,
+                min_sensor_ratio=settings['metrics_preview_min_sensor_ratio'],
+            )
+            if pil_img is not None:
+                pil_img.info['metrics_render'] = METRICS_PREVIEW_RENDER
+
         if pil_img is None:
             try:
                 with rawpy.imread(str(photo)) as raw:
                     pil_img = Image.fromarray(raw.postprocess(**raw_postprocess_kwargs(bright=bright)))
+                pil_img.info['metrics_render'] = METRICS_DEMOSAIC_RENDER
             except rawpy.LibRawFileUnsupportedError as ex:
                 # Lightroom-merged floating-point DNGs (*-HDR.dng, *-Pano.dng)
                 # LibRaw refuses to open at all. exiftool can still pull the
@@ -1398,8 +1479,17 @@ def thumbnail_source(photo_path, decoded_img):
     Non-RAW files are already in display space. For RAW the embedded preview is
     preferred, and the caller's own demosaic stands in when there is none — a
     second full decode would cost far more than the thumbnail is worth.
+
+    A metrics render that already came from the camera preview IS that display
+    buffer, so it is returned as-is instead of re-opening the file to extract
+    the very same JPEG. With ``raw_decode.prefer_embedded_preview`` off it
+    still wins: the alternative is a second full demosaic, and this one is
+    already in memory.
     """
     if Path(photo_path).suffix.lower() not in RAW_EXTENSIONS:
+        return decoded_img
+    if (decoded_img is not None
+            and decoded_img.info.get('metrics_render') == METRICS_PREVIEW_RENDER):
         return decoded_img
     preview = _display_preview(photo_path, 0.0)
     return preview if preview is not None else decoded_img
