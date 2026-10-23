@@ -853,13 +853,20 @@ già la curva tonale, le modalità DR e l'esposizione proprie del modello, e ric
 sulla demosaicizzazione del profilo metriche quando non esiste un'anteprima
 utilizzabile.
 
+Un terzo caso opzionale fa leggere al profilo metriche quella stessa anteprima
+della fotocamera invece di demosaicizzare — vedi [Valutazione dall'anteprima
+incorporata nella fotocamera](#valutazione-dallanteprima-incorporata-nella-fotocamera)
+più sotto. È disattivato per impostazione predefinita.
+
 ```json
 "raw_decode": {
   "bright": 1.62,
   "prefer_embedded_preview": true,
   "preview_min_sensor_ratio": 0.5,
   "viewer_concurrency": 3,
-  "faithful_bracket_render": true
+  "faithful_bracket_render": true,
+  "metrics_from_embedded_preview": false,
+  "metrics_preview_min_sensor_ratio": 0.95
 }
 ```
 
@@ -870,6 +877,79 @@ utilizzabile.
 | `preview_min_sensor_ratio` | `0.5` | Quanta parte del sensore un'anteprima deve coprire perché `/image` la serva invece di demosaicizzare. Nikon, Pentax, Samsung e Canon CR3 incorporano un'anteprima quasi a piena dimensione (0,98-0,99); Panasonic si attesta a 0,52, mentre Olympus, Fuji, Sony e DNG incorporano un'anteprima piccola (0,29-0,49) e quindi vengono demosaicizzati |
 | `viewer_concurrency` | `3` | Numero massimo di demosaicizzazioni RAW simultanee per i render del viewer `/image` e `/thumbnail`, su un budget proprio separato da `processing.raw_decode_concurrency` sopra, così una richiesta del viewer non si accoda mai dietro il lavoro di scansione o decodifica da CLI |
 | `faithful_bracket_render` | `true` | Renderizza uno scatto di bracketing senza alcuna correzione — nessuna anteprima della fotocamera, nessun guadagno `bright`. Vedi [più sotto](#i-fotogrammi-di-un-bracketing-vengono-renderizzati-senza-correzioni). `false` renderizza i bracketing come qualsiasi altra foto |
+| `metrics_from_embedded_preview` | `false` | Valuta un RAW a partire dal più grande JPEG che la fotocamera vi ha incorporato, invece di demosaicizzare. Vedi [più sotto](#valutazione-dallanteprima-incorporata-nella-fotocamera) |
+| `metrics_preview_min_sensor_ratio` | `0.95` | Quanto del sensore quell'anteprima deve coprire perché il profilo metriche la accetti. Sotto tale soglia il file viene demosaicizzato esattamente come prima |
+
+### Valutazione dall'anteprima incorporata nella fotocamera
+
+`metrics_from_embedded_preview` è l'unica impostazione di questa sezione che cambia
+ciò che i punteggi *significano*; per questo è disattivata per impostazione
+predefinita e va attivata installazione per installazione.
+
+Ogni RAW porta con sé dei JPEG della fotocamera. Un ARW di una Sony A7C II, per
+esempio, ne contiene tre: un `ThumbnailImage` da ~9 KB, un `PreviewImage` da
+1616×1080 e un `JpgFromRaw` a pieno formato da 7008×4672. Leggere quest'ultimo
+invece di demosaicizzare significa **15× meno I/O e circa 17× meno CPU per foto** —
+misurato su questa libreria, 2,14 s / 38,3 MB letti per ARW contro 0,12 s / 2,5 MB.
+Su una libreria vincolata da un HDD è la differenza tra circa 0,45 e oltre 2,0 foto
+al secondo.
+
+Il prezzo è la fedeltà, ed è quella della fotocamera, non della libreria:
+
+- **Conservato.** Composizione, estetica e qualità dei volti seguono da vicino una
+  demosaicizzazione (ρ di Spearman 0,80-0,93 su 261 coppie appaiate), perché leggono
+  struttura e semantica, non valori di pixel assoluti.
+- **Spostato.** Esposizione e contrasto salgono (la curva tonale della fotocamera è
+  già applicata: misurato +1,34 e +1,76), la nitidezza sale (maschera di contrasto
+  della fotocamera: `tech_sharpness` +0,48, `eye_sharpness` +1,89) e il rumore
+  scende (riduzione del rumore della fotocamera: `noise_sigma` −0,50). L'aggregato
+  composito si sposta di +0,31 con ρ 0,24: la *classifica* all'interno di una
+  libreria resta quindi utilizzabile, mentre i valori assoluti non sono più
+  confrontabili con quelli di una demosaicizzazione.
+
+**Il cancello decide per file, non per installazione.**
+`metrics_preview_min_sensor_ratio` rifiuta ogni anteprima il cui lato lungo è
+inferiore a quella frazione del sensore, e anche un'anteprima di cui LibRaw non
+riporta la dimensione del sensore (la copertura non è allora determinabile). I
+corpi differiscono, ed è proprio per questo che conta: la A7C II incorpora 7008 di
+un fotogramma da 7028 px (rapporto 0,997) e prende la via veloce, mentre un ARW
+della A7 III porta solo l'anteprima 1616×1080 di un fotogramma da 6024 px
+(rapporto 0,27) e continua a essere demosaicizzato. `0.95` mantiene solo anteprime
+quasi a pieno formato; abbassalo per accettarne una più piccola al prezzo di
+valutare una miniatura ingrandita.
+
+**Il RAW diventa la riga canonica.** Un JPEG o HEIF con lo stesso nome accanto a un
+RAW sopprime normalmente il RAW, perché è la decodifica meno costosa. Con questa
+opzione attiva l'accoppiamento si inverte: il RAW contiene già il JPEG a pieno
+formato della fotocamera, quindi è la riga da conservare e il compagno viene
+saltato. Una riga per foto, ed è il `.arw` / `.cr2` / `.dng` — così selezione,
+esportazione e `include_companions` continuano a puntare al RAW. Il log della
+scansione dice `RAW metrics: camera-embedded preview (>= 95% of frame)`, poi
+`Skipped N companion JPEG(s)`, e la riga di riepilogo diventa
+`JPEG w/ RAW preview (skipped)`. Un compagno che aveva già una riga da una
+scansione precedente *non* viene eliminato (può portare valutazioni, tag o volti
+impostati a mano); la scansione avvisa e rimanda a `--cleanup-missing-photos`.
+
+**Viene memorizzato quale rendering ha valutato una riga.** `photos.metrics_render`
+vale `0` per la demosaicizzazione delle metriche, `1` per l'anteprima della
+fotocamera e NULL per le righe non RAW. `python database.py --info` stampa la
+ripartizione (`RAW metrics render: 1 preview, 0 demosaic, 0 unstamped`), così una
+libreria riscansionata solo in parte è visibile invece di restare mescolata in
+silenzio. Cambiare l'impostazione implica quindi una rivalutazione completa —
+`python facet.py --force <cartella>` — dato che le metriche delle vecchie righe non
+sono confrontabili con le nuove. La demosaicizzazione torna sempre disponibile
+disattivando l'opzione e riscansionando; non esiste conversione riga per riga.
+
+**I bracketing non sono esentati.** `_decode_raw` non ha `sequence_kind` al momento
+della decodifica, quindi uno scatto di un bracketing riceve la curva tonale della
+fotocamera come qualsiasi altra foto — proprio la compressione delle alte luci che
+`faithful_bracket_render` esiste per evitare sul lato visualizzazione. Se scatti
+bracketing e selezioni in base all'esposizione, lascia questa opzione disattivata
+finché il percorso di decodifica non conoscerà i tipi di sequenza.
+
+Usa `--raw-metrics-preview` per un A/B estemporaneo senza modificare la
+configurazione, e `--dry-run` per confrontare campioni prima di impegnarti nella
+riscansione.
 
 ### Compromesso di memoria
 

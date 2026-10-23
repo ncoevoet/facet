@@ -29,6 +29,7 @@
 | `python facet.py /path --force-since 2026-01-01` | Like `--force`, but only re-process photos last scanned before the date |
 | `python facet.py /path --watch` | Stay running and re-scan whenever new photos appear (requires `pip install watchdog`; `--watch-debounce N` tunes the quiet period, default 30s) |
 | `python facet.py /path --force-low-space` | Skip the pre-scan free-space guard (proceed even when the volume looks too small for the thumbnails/embeddings the scan will write) |
+| `python facet.py /path --raw-metrics-preview` | Score RAW files from the camera-embedded preview JPEG when it covers at least 95% of the sensor frame (falls back to a rawpy demosaic per file). Faster and I/O-light, but the camera's tone curve, sharpening and noise reduction then reach the technical scores — see [RAW Decode](CONFIGURATION.md#scoring-from-the-camera-embedded-preview) |
 
 ### Scan Bookkeeping
 

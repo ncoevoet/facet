@@ -841,13 +841,19 @@ It prefers the camera-embedded preview, which already carries the model's own
 tone curve, DR modes and exposure, and falls back to the metrics demosaic when
 no usable preview exists.
 
+An opt-in third case makes the metrics profile read that same camera preview
+instead of demosaicing — see [Scoring from the camera-embedded
+preview](#scoring-from-the-camera-embedded-preview) below. It is off by default.
+
 ```json
 "raw_decode": {
   "bright": 1.62,
   "prefer_embedded_preview": true,
   "preview_min_sensor_ratio": 0.5,
   "viewer_concurrency": 3,
-  "faithful_bracket_render": true
+  "faithful_bracket_render": true,
+  "metrics_from_embedded_preview": false,
+  "metrics_preview_min_sensor_ratio": 0.95
 }
 ```
 
@@ -858,6 +864,70 @@ no usable preview exists.
 | `preview_min_sensor_ratio` | `0.5` | How much of the sensor a preview must cover for `/image` to serve it instead of demosaicing. Nikon, Pentax, Samsung and Canon CR3 embed a near-full-size preview (0.98-0.99); Panasonic sits at 0.52, while Olympus, Fuji, Sony and DNG embed a small one (0.29-0.49) and therefore demosaic |
 | `viewer_concurrency` | `3` | Max simultaneous RAW demosaics for the viewer's `/image` and `/thumbnail` renders, on its own budget separate from `processing.raw_decode_concurrency` above, so a viewer request never queues behind scan or CLI decode work |
 | `faithful_bracket_render` | `true` | Render a bracketed frame with no correction at all — no camera preview, no `bright` gain. See [below](#bracketed-frames-render-uncorrected). `false` renders brackets like any other photo |
+| `metrics_from_embedded_preview` | `false` | Score a RAW from the largest JPEG the camera embedded in it instead of demosaicing. See [below](#scoring-from-the-camera-embedded-preview) |
+| `metrics_preview_min_sensor_ratio` | `0.95` | How much of the sensor that preview must cover for the metrics profile to accept it. Below it the file is demosaiced exactly as before |
+
+### Scoring from the camera-embedded preview
+
+`metrics_from_embedded_preview` is the one setting here that changes what the
+scores *mean*, so it is off by default and opt-in per install.
+
+Every RAW carries JPEGs from the camera. A Sony A7C II ARW, for instance, holds
+three: a ~9 KB `ThumbnailImage`, a 1616×1080 `PreviewImage` and a full-frame
+`JpgFromRaw` of 7008×4672. Reading that last one instead of demosaicing is
+**15× less I/O and about 17× less CPU per photo** — measured on this library,
+2.14 s / 38.3 MB read per ARW against 0.12 s / 2.5 MB. On an HDD-bound library
+that is the difference between roughly 0.45 and 2.0+ photos per second.
+
+The trade is fidelity, and it is the camera's, not the library's:
+
+- **Preserved.** Composition, aesthetics and face quality track a demosaic
+  closely (Spearman ρ 0.80-0.93 on 261 matched pairs), because they read
+  structure and semantics rather than absolute pixel values.
+- **Moved.** Exposure and contrast rise (the camera's tone curve is already
+  applied: measured +1.34 and +1.76), sharpness rises (in-camera unsharp
+  masking: `tech_sharpness` +0.48, `eye_sharpness` +1.89) and noise falls
+  (in-camera NR: `noise_sigma` −0.50). The composite aggregate shifts +0.31 with
+  ρ 0.24, so *ranking* inside one library stays usable while absolute values are
+  no longer comparable with a demosaiced one.
+
+**The gate decides per file, not per install.** `metrics_preview_min_sensor_ratio`
+rejects any preview whose long edge is under that fraction of the sensor's, and
+a preview whose sensor size LibRaw does not report is rejected too (coverage
+cannot then be established). Bodies differ, so this matters: the A7C II embeds
+7008 of a 7028px frame (ratio 0.997) and takes the fast path, while an A7 III ARW
+carries only the 1616×1080 preview of a 6024px frame (ratio 0.27) and keeps
+demosaicing. `0.95` keeps near-full-size previews only; lower it to accept a
+smaller one at the cost of scoring an upscaled thumbnail.
+
+**The RAW becomes the canonical row.** A same-stem JPEG or HEIF beside a RAW
+normally suppresses the RAW, since it is the cheaper decode. With this on, the
+pairing inverts: the RAW already holds the camera's own full-frame JPEG, so it
+is the row to keep and the companion is skipped. One row per photo, and it is
+the `.arw` / `.cr2` / `.dng` — so culling, export and `include_companions` keep
+pointing at the RAW. The scan log says `RAW metrics: camera-embedded preview
+(>= 95% of frame)`, then `Skipped N companion JPEG(s)`, and the summary line
+becomes `JPEG w/ RAW preview (skipped)`. A companion that already had a row from
+an earlier scan is *not* deleted (it may carry ratings, tags or faces you set by
+hand); the scan warns and names `--cleanup-missing-photos` instead.
+
+**Which rendering scored a row is stored.** `photos.metrics_render` is `0` for
+the metrics demosaic, `1` for the camera preview, and NULL for non-RAW rows.
+`python database.py --info` prints the split (`RAW metrics render: 1 preview, 0
+demosaic, 0 unstamped`), so a library rescanned only in part is visible rather
+than silently mixed. Toggling the setting therefore means a full re-score —
+`python facet.py --force <folder>` — since the old rows' metrics are not
+comparable with the new ones. The demosaic is always available again by turning
+it off and rescanning; there is no per-row conversion.
+
+**Brackets are not exempt.** `_decode_raw` has no `sequence_kind` at decode
+time, so a bracketed frame takes the camera tone curve like any other photo —
+the very highlight compression `faithful_bracket_render` exists to avoid on the
+display side. If you shoot brackets and cull on exposure, leave this off until
+the decode path learns sequence kinds.
+
+Use `--raw-metrics-preview` for a one-off A/B without editing the config, and
+`--dry-run` to compare samples before committing to the rescan.
 
 ### Memory tradeoff
 

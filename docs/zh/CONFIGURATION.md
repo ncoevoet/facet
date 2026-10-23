@@ -838,13 +838,18 @@ RAW 文件如何被转换成像素。这里有两套配置档，而且它们
 色调曲线、动态范围模式和曝光；当没有可用预览时，才回退到
 指标配置档的去马赛克结果。
 
+还有一个可选的第三种情况：让指标配置档直接读取同一份相机预览，而不去做马赛克
+——见下文[用相机内嵌预览打分](#用相机内嵌预览打分)。该选项默认关闭。
+
 ```json
 "raw_decode": {
   "bright": 1.62,
   "prefer_embedded_preview": true,
   "preview_min_sensor_ratio": 0.5,
   "viewer_concurrency": 3,
-  "faithful_bracket_render": true
+  "faithful_bracket_render": true,
+  "metrics_from_embedded_preview": false,
+  "metrics_preview_min_sensor_ratio": 0.95
 }
 ```
 
@@ -855,6 +860,59 @@ RAW 文件如何被转换成像素。这里有两套配置档，而且它们
 | `preview_min_sensor_ratio` | `0.5` | 预览图必须覆盖多大比例的传感器，`/image` 才会直接使用它而不去马赛克。尼康、宾得、三星和佳能 CR3 内嵌接近全尺寸的预览（0.98-0.99）；松下为 0.52，而奥林巴斯、富士、索尼和 DNG 内嵌的预览很小（0.29-0.49），因此会去马赛克 |
 | `viewer_concurrency` | `3` | 查看器 `/image` 与 `/thumbnail` 渲染同时进行的 RAW 去马赛克数上限，它有独立于上文 `processing.raw_decode_concurrency` 的预算，因此查看器请求绝不会排在扫描或命令行解码作业后面 |
 | `faithful_bracket_render` | `true` | 渲染包围曝光照片时完全不做任何校正 — 既不用相机预览，也不施加 `bright` 增益。见[下文](#包围曝光照片按未校正方式渲染)。设为 `false` 则把包围曝光照片当作普通照片渲染 |
+| `metrics_from_embedded_preview` | `false` | 用相机内嵌的最大 JPEG 为 RAW 打分，而不做去马赛克。见[下文](#用相机内嵌预览打分) |
+| `metrics_preview_min_sensor_ratio` | `0.95` | 该预览需覆盖多少传感器画面，指标配置档才会接受它。低于此值则文件仍按原样去马赛克 |
+
+### 用相机内嵌预览打分
+
+`metrics_from_embedded_preview` 是本节中唯一会改变评分*含义*的设置，因此默认关闭，
+需按安装逐个开启。
+
+每张 RAW 都带有相机生成的 JPEG。例如索尼 A7C II 的 ARW 里有三份：约 9 KB 的
+`ThumbnailImage`、1616×1080 的 `PreviewImage`，以及满幅 7008×4672 的
+`JpgFromRaw`。直接读取最后这份而不做去马赛克，**每张照片的 I/O 少 15 倍、CPU
+少约 17 倍**——在本图库上实测，每个 ARW 的读取由 2.14 秒 / 38.3 MB 降到
+0.12 秒 / 2.5 MB。对于受 HDD 限制的图库，这意味着每秒约 0.45 张与 2.0 张以上的差别。
+
+代价是保真度，而且是相机的保真度，不是图库的：
+
+- **得以保留。** 构图、美学与面部质量与去马赛克结果高度一致（261 对配对样本上
+  的 Spearman ρ 为 0.80-0.93），因为它们读取的是结构与语义，而非绝对像素值。
+- **发生偏移。** 曝光与对比度上升（相机色调曲线已应用：实测 +1.34 与 +1.76），
+  锐度上升（机身锐化：`tech_sharpness` +0.48、`eye_sharpness` +1.89），噪点下降
+  （机身降噪：`noise_sigma` −0.50）。综合聚合分偏移 +0.31、ρ 为 0.24，因此同一个
+  图库内的*排序*仍然可用，但绝对值不再能与去马赛克结果相比。
+
+**门限按文件判断，而非按安装。** `metrics_preview_min_sensor_ratio` 会拒绝长边
+低于传感器该比例的预览；LibRaw 未报告传感器尺寸的预览也会被拒绝（此时无法确定
+覆盖率）。机身之间差异很大，正因如此这一点很重要：A7C II 在 7028 px 的画面中内嵌
+7008 px（比例 0.997），走快速路径；而 A7 III 的 ARW 只带 6024 px 画面中的
+1616×1080 预览（比例 0.27），仍会去马赛克。`0.95` 只保留接近满幅的预览；调低它
+可以接受更小的预览，代价是对一张放大后的缩略图打分。
+
+**RAW 成为规范行。** 与 RAW 同名的 JPEG 或 HEIF 通常会压制 RAW，因为它的解码更
+便宜。开启此选项后，配对关系反转：RAW 本身已带有相机生成的满幅 JPEG，因此它才是
+要保留的行，而同伴文件被跳过。每张照片一行，而且是 `.arw` / `.cr2` / `.dng` ——
+所以筛选、导出和 `include_companions` 仍然指向 RAW。扫描日志会显示 `RAW metrics:
+camera-embedded preview (>= 95% of frame)`，随后是 `Skipped N companion JPEG(s)`，
+汇总行则变为 `JPEG w/ RAW preview (skipped)`。如果某个同伴文件在早先的扫描中已经
+有了行，它*不会*被删除（它可能带有你手工设置的评分、标签或人脸）；扫描会给出警告
+并指向 `--cleanup-missing-photos`。
+
+**哪一次渲染为该行打分会被保存。** `photos.metrics_render` 为 `0` 表示指标去马赛克，
+`1` 表示相机预览，非 RAW 行为 NULL。`python database.py --info` 会打印这一分布
+（`RAW metrics render: 1 preview, 0 demosaic, 0 unstamped`），因此只被部分重扫的图库
+会显示出来，而不是在无声中混用。所以切换该设置意味着完整重评 ——
+`python facet.py --force <文件夹>` —— 因为旧行的指标与新的不可比。关掉选项并重扫
+始终可以回到去马赛克；不存在逐行转换。
+
+**包围曝光不例外。** 解码时 `_decode_raw` 没有 `sequence_kind`，因此包围曝光的
+一张照片会像其他照片一样套上相机色调曲线 —— 而这正是 `faithful_bracket_render`
+在显示端要避免的高光压缩。如果你拍包围曝光并按曝光筛选，在解码路径学会识别序列
+类型之前，请保持此选项关闭。
+
+用 `--raw-metrics-preview` 做一次性的 A/B 对照而不改动配置，用 `--dry-run` 在
+决定重扫前先比较样本。
 
 ### 内存取舍
 

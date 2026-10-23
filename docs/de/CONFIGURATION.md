@@ -857,13 +857,19 @@ zeigen. Es bevorzugt den kameraeigenen Vorschau-Preview, der bereits die eigene
 Tonwertkurve, DR-Modi und Belichtung des Kameramodells trägt, und fällt auf das
 Demosaicing des Metrik-Profils zurück, wenn keine brauchbare Vorschau existiert.
 
+Ein optionaler dritter Fall lässt das Metrik-Profil dieselbe Kameravorschau lesen,
+statt zu demosaicen — siehe [Bewertung aus der kameraeigenen
+Vorschau](#bewertung-aus-der-kameraeigenen-vorschau) unten. Standardmäßig aus.
+
 ```json
 "raw_decode": {
   "bright": 1.62,
   "prefer_embedded_preview": true,
   "preview_min_sensor_ratio": 0.5,
   "viewer_concurrency": 3,
-  "faithful_bracket_render": true
+  "faithful_bracket_render": true,
+  "metrics_from_embedded_preview": false,
+  "metrics_preview_min_sensor_ratio": 0.95
 }
 ```
 
@@ -874,6 +880,81 @@ Demosaicing des Metrik-Profils zurück, wenn keine brauchbare Vorschau existiert
 | `preview_min_sensor_ratio` | `0.5` | Wie viel vom Sensor eine Vorschau abdecken muss, damit `/image` sie ausliefert statt zu demosaicen. Nikon, Pentax, Samsung und Canon CR3 betten eine nahezu formatfüllende Vorschau ein (0,98-0,99); Panasonic liegt bei 0,52, während Olympus, Fuji, Sony und DNG eine kleine Vorschau einbetten (0,29-0,49) und daher demosaict wird |
 | `viewer_concurrency` | `3` | Maximale gleichzeitige RAW-Demosaicings für die Viewer-Renderings von `/image` und `/thumbnail`, mit einem eigenen Budget getrennt von `processing.raw_decode_concurrency` oben, sodass eine Viewer-Anfrage nie hinter Scan- oder CLI-Dekodierarbeit wartet |
 | `faithful_bracket_render` | `true` | Eine Belichtungsreihen-Aufnahme ganz ohne Korrektur rendern — keine Kameravorschau, kein `bright`-Gain. Siehe [unten](#belichtungsreihen-werden-unkorrigiert-gerendert). `false` rendert Belichtungsreihen wie jedes andere Foto |
+| `metrics_from_embedded_preview` | `false` | Eine RAW-Datei aus dem größten von der Kamera eingebetteten JPEG bewerten, statt zu demosaicen. Siehe [unten](#bewertung-aus-der-kameraeigenen-vorschau) |
+| `metrics_preview_min_sensor_ratio` | `0.95` | Wie viel vom Sensor diese Vorschau abdecken muss, damit das Metrik-Profil sie akzeptiert. Darunter wird die Datei genau wie bisher demosaict |
+
+### Bewertung aus der kameraeigenen Vorschau
+
+`metrics_from_embedded_preview` ist die einzige Einstellung hier, die ändert, was
+die Bewertungen *bedeuten*; sie ist deshalb standardmäßig aus und wird pro
+Installation aktiviert.
+
+Jede RAW-Datei trägt JPEGs der Kamera. Eine Sony-A7C-II-ARW enthält zum Beispiel
+drei: ein ~9 KB großes `ThumbnailImage`, ein 1616×1080 großes `PreviewImage` und
+ein formatfüllendes `JpgFromRaw` mit 7008×4672. Dieses letzte zu lesen statt zu
+demosaicen bedeutet **15× weniger I/O und rund 17× weniger CPU pro Foto** — an
+dieser Bibliothek gemessen: 2,14 s / 38,3 MB Lesevorgang pro ARW gegenüber 0,12 s
+/ 2,5 MB. Auf einer HDD-gebundenen Bibliothek ist das der Unterschied zwischen
+etwa 0,45 und über 2,0 Fotos pro Sekunde.
+
+Der Preis ist die Originaltreue — und zwar die der Kamera, nicht die der
+Bibliothek:
+
+- **Erhalten.** Komposition, Ästhetik und Gesichtsqualität folgen einem
+  Demosaicing eng (Spearman ρ 0,80-0,93 bei 261 gepaarten Paaren), weil sie
+  Struktur und Semantik lesen, nicht absolute Pixelwerte.
+- **Verschoben.** Belichtung und Kontrast steigen (die Tonwertkurve der Kamera ist
+  bereits angewendet: gemessen +1,34 und +1,76), die Schärfe steigt (kamerainterne
+  Unscharfmaskierung: `tech_sharpness` +0,48, `eye_sharpness` +1,89) und das
+  Rauschen fällt (kamerainterne Rauschunterdrückung: `noise_sigma` −0,50). Der
+  zusammengesetzte Aggregatwert verschiebt sich um +0,31 bei ρ 0,24, sodass die
+  *Rangfolge* innerhalb einer Bibliothek brauchbar bleibt, die absoluten Werte aber
+  nicht mehr mit denen eines Demosaicings vergleichbar sind.
+
+**Das Gate entscheidet pro Datei, nicht pro Installation.**
+`metrics_preview_min_sensor_ratio` weist jede Vorschau zurück, deren lange Kante
+unter diesem Anteil des Sensors liegt; ebenso eine Vorschau, deren Sensorgröße
+LibRaw nicht meldet (die Abdeckung lässt sich dann nicht feststellen). Kameramodelle
+unterscheiden sich, und genau deshalb ist das wichtig: Die A7C II bettet 7008 von
+7028 Pixeln ein (Anteil 0,997) und nimmt den schnellen Pfad, während eine
+A7-III-ARW nur die 1616×1080-Vorschau eines 6024-Pixel-Rahmens trägt (Anteil 0,27)
+und weiterhin demosaict. `0.95` behält nur nahezu formatfüllende Vorschauen;
+senken Sie den Wert, um eine kleinere zu akzeptieren — um den Preis, dass eine
+hochskalierte Miniaturansicht bewertet wird.
+
+**Die RAW-Datei wird zur maßgeblichen Zeile.** Ein gleichnamiges JPEG oder HEIF
+neben einer RAW-Datei verdrängt normalerweise die RAW-Datei, da es die günstigere
+Dekodierung ist. Mit dieser Einstellung kehrt sich die Paarung um: Die RAW-Datei
+enthält bereits das formatfüllende JPEG der Kamera, ist also die zu behaltende
+Zeile, und der Begleiter wird übersprungen. Eine Zeile pro Foto, und es ist die
+`.arw`/`.cr2`/`.dng` — Aussortieren, Export und `include_companions` zeigen also
+weiterhin auf die RAW-Datei. Das Scan-Log meldet `RAW metrics: camera-embedded
+preview (>= 95% of frame)`, dann `Skipped N companion JPEG(s)`, und die
+Zusammenfassungszeile wird zu `JPEG w/ RAW preview (skipped)`. Ein Begleiter, der
+aus einem früheren Scan bereits eine Zeile hatte, wird *nicht* gelöscht (er kann
+Bewertungen, Tags oder Gesichter tragen, die Sie von Hand gesetzt haben); der Scan
+warnt stattdessen und nennt `--cleanup-missing-photos`.
+
+**Welches Rendering eine Zeile bewertet hat, wird gespeichert.**
+`photos.metrics_render` ist `0` für das Metrik-Demosaicing, `1` für die
+Kameravorschau und NULL für Nicht-RAW-Zeilen. `python database.py --info` gibt die
+Aufteilung aus (`RAW metrics render: 1 preview, 0 demosaic, 0 unstamped`), sodass
+eine nur teilweise neu gescannte Bibliothek sichtbar wird, statt still gemischt zu
+sein. Das Umschalten der Einstellung bedeutet daher eine vollständige Neubewertung
+— `python facet.py --force <Ordner>` —, da die Metriken der alten Zeilen nicht mit
+den neuen vergleichbar sind. Das Demosaicing ist durch Ausschalten und erneutes
+Scannen jederzeit wieder verfügbar; eine Umwandlung pro Zeile gibt es nicht.
+
+**Belichtungsreihen sind nicht ausgenommen.** `_decode_raw` hat zur Dekodierzeit
+keinen `sequence_kind`, eine Aufnahme aus einer Belichtungsreihe nimmt also die
+Tonwertkurve der Kamera wie jedes andere Foto — genau die Highlight-Kompression,
+die `faithful_bracket_render` auf der Anzeigeseite vermeiden soll. Wenn Sie
+Belichtungsreihen aufnehmen und nach Belichtung aussortieren, lassen Sie dies aus,
+bis der Dekodierpfad Sequenzarten kennt.
+
+Nutzen Sie `--raw-metrics-preview` für einen einmaligen A/B-Vergleich ohne
+Konfigurationsänderung und `--dry-run`, um Stichproben zu vergleichen, bevor Sie
+den Neuscan festlegen.
 
 ### Speicher-Trade-off
 

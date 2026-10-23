@@ -29,6 +29,7 @@
 | `python facet.py /path --force-since 2026-01-01` | Como `--force`, pero solo reprocesa las fotos escaneadas por última vez antes de la fecha |
 | `python facet.py /path --watch` | Permanece en ejecución y vuelve a escanear cada vez que aparecen fotos nuevas (requiere `pip install watchdog`; `--watch-debounce N` ajusta el periodo de inactividad, por defecto 30 s) |
 | `python facet.py /path --force-low-space` | Omite la comprobación previa de espacio libre (continúa incluso cuando el volumen parece demasiado pequeño para las miniaturas/embeddings que el escaneo escribirá) |
+| `python facet.py /path --raw-metrics-preview` | Puntúa los RAW a partir de la vista previa JPEG que la cámara incrustó en ellos cuando cubre al menos el 95% del fotograma del sensor (si no, recurre a un demosaicado de rawpy por archivo). Más rápido y con menos E/S, pero la curva tonal, el enfoque y la reducción de ruido de la cámara llegan entonces a las puntuaciones técnicas — ver [RAW Decode](CONFIGURATION.md#puntuación-desde-la-vista-previa-incrustada-en-la-cámara) |
 
 ### Registro de escaneos
 

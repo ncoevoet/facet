@@ -851,13 +851,21 @@ curva de tons, os modos de gama dinâmica e a exposição próprios do modelo, e
 recai na demosaicagem do perfil de métricas quando não existe uma
 pré-visualização utilizável.
 
+Um terceiro caso opcional faz o perfil de métricas ler essa mesma
+pré-visualização da câmara em vez de demosaicar — veja [Pontuação a partir da
+pré-visualização incorporada na
+câmara](#pontuação-a-partir-da-pré-visualização-incorporada-na-câmara) abaixo.
+Está desativado por omissão.
+
 ```json
 "raw_decode": {
   "bright": 1.62,
   "prefer_embedded_preview": true,
   "preview_min_sensor_ratio": 0.5,
   "viewer_concurrency": 3,
-  "faithful_bracket_render": true
+  "faithful_bracket_render": true,
+  "metrics_from_embedded_preview": false,
+  "metrics_preview_min_sensor_ratio": 0.95
 }
 ```
 
@@ -868,6 +876,77 @@ pré-visualização utilizável.
 | `preview_min_sensor_ratio` | `0.5` | Quanto do sensor uma pré-visualização precisa cobrir para que `/image` a sirva em vez de fazer a demosaicagem. Nikon, Pentax, Samsung e Canon CR3 incorporam uma pré-visualização quase de tamanho completo (0,98-0,99); a Panasonic fica em 0,52, enquanto Olympus, Fuji, Sony e DNG incorporam uma pré-visualização pequena (0,29-0,49) e por isso passam pela demosaicagem |
 | `viewer_concurrency` | `3` | Máximo de demosaicagens RAW simultâneas para os renders do visualizador `/image` e `/thumbnail`, com orçamento próprio separado de `processing.raw_decode_concurrency` acima, para que um pedido do visualizador nunca fique na fila atrás do trabalho de varredura ou de decodificação via CLI |
 | `faithful_bracket_render` | `true` | Renderiza um fotograma de bracketing sem qualquer correção — sem pré-visualização da câmara, sem ganho `bright`. Veja [mais abaixo](#fotogramas-de-bracketing-são-renderizados-sem-correção). `false` renderiza os bracketings como qualquer outra foto |
+| `metrics_from_embedded_preview` | `false` | Pontua um RAW a partir do maior JPEG que a câmara nele incorporou, em vez de demosaicar. Veja [mais abaixo](#pontuação-a-partir-da-pré-visualização-incorporada-na-câmara) |
+| `metrics_preview_min_sensor_ratio` | `0.95` | Quanto do sensor essa pré-visualização tem de cobrir para o perfil de métricas a aceitar. Abaixo disso o ficheiro é demosaicado exatamente como antes |
+
+### Pontuação a partir da pré-visualização incorporada na câmara
+
+`metrics_from_embedded_preview` é a única definição desta secção que altera o que
+as pontuações *significam*; por isso está desativada por omissão e ativa-se
+instalação a instalação.
+
+Cada RAW transporta JPEGs da câmara. Um ARW de uma Sony A7C II, por exemplo,
+contém três: um `ThumbnailImage` de ~9 KB, um `PreviewImage` de 1616×1080 e um
+`JpgFromRaw` de corpo inteiro de 7008×4672. Ler este último em vez de demosaicar
+significa **15× menos E/S e cerca de 17× menos CPU por foto** — medido nesta
+biblioteca, 2,14 s / 38,3 MB lidos por ARW contra 0,12 s / 2,5 MB. Numa biblioteca
+limitada por HDD, é a diferença entre cerca de 0,45 e mais de 2,0 fotos por
+segundo.
+
+O preço é a fidelidade, e é a da câmara, não a da biblioteca:
+
+- **Preservado.** A composição, a estética e a qualidade dos rostos acompanham de
+  perto uma demosaicagem (ρ de Spearman 0,80-0,93 em 261 pares emparelhados),
+  porque leem estrutura e semântica, não valores de pixel absolutos.
+- **Deslocado.** A exposição e o contraste sobem (a curva de tons da câmara já está
+  aplicada: medido +1,34 e +1,76), a nitidez sobe (máscara de nitidez da câmara:
+  `tech_sharpness` +0,48, `eye_sharpness` +1,89) e o ruído desce (redução de ruído
+  da câmara: `noise_sigma` −0,50). O agregado compósito desloca-se +0,31 com
+  ρ 0,24, pelo que a *ordenação* dentro de uma biblioteca continua utilizável,
+  mas os valores absolutos já não são comparáveis com os de uma demosaicagem.
+
+**A porta decide por ficheiro, não por instalação.**
+`metrics_preview_min_sensor_ratio` rejeita qualquer pré-visualização cujo lado
+maior fique abaixo dessa fração do sensor, e também uma pré-visualização cujo
+tamanho de sensor o LibRaw não reporta (a cobertura não pode então ser
+estabelecida). Os corpos diferem, e é precisamente por isso que isto importa: a
+A7C II incorpora 7008 de um fotograma de 7028 px (rácio 0,997) e segue a via
+rápida, enquanto um ARW da A7 III traz apenas a pré-visualização de 1616×1080 de um
+fotograma de 6024 px (rácio 0,27) e continua a ser demosaicado. `0.95` conserva
+apenas pré-visualizações quase de corpo inteiro; baixe-o para aceitar uma mais
+pequena, ao custo de pontuar uma miniatura ampliada.
+
+**O RAW passa a ser a linha canónica.** Um JPEG ou HEIF com o mesmo nome ao lado de
+um RAW suprime normalmente o RAW, por ser a descodificação mais barata. Com isto
+ativo, o emparelhamento inverte-se: o RAW já contém o JPEG de corpo inteiro da
+própria câmara, pelo que é a linha a manter e o companheiro é ignorado. Uma linha
+por foto, e é o `.arw` / `.cr2` / `.dng` — para que a seleção, a exportação e
+`include_companions` continuem a apontar para o RAW. O registo do escaneamento diz
+`RAW metrics: camera-embedded preview (>= 95% of frame)`, depois
+`Skipped N companion JPEG(s)`, e a linha de resumo passa a
+`JPEG w/ RAW preview (skipped)`. Um companheiro que já tinha linha de um
+escaneamento anterior *não* é apagado (pode ter avaliações, etiquetas ou rostos
+definidos à mão); o escaneamento avisa e remete para `--cleanup-missing-photos`.
+
+**Fica guardado qual renderização pontuou cada linha.** `photos.metrics_render` é
+`0` para a demosaicagem de métricas, `1` para a pré-visualização da câmara e NULL
+para linhas não-RAW. `python database.py --info` imprime a repartição (`RAW metrics
+render: 1 preview, 0 demosaic, 0 unstamped`), de modo que uma biblioteca
+reescaneada apenas em parte fica visível em vez de silenciosamente misturada.
+Alterar a definição implica por isso uma repontuação completa —
+`python facet.py --force <pasta>` — porque as métricas das linhas antigas não são
+comparáveis com as novas. A demosaicagem volta a estar sempre disponível desativando
+a opção e reescaneando; não há conversão linha a linha.
+
+**Os bracketings não estão isentos.** `_decode_raw` não tem `sequence_kind` no
+momento da descodificação, pelo que um fotograma de bracketing recebe a curva de
+tons da câmara como qualquer outra foto — precisamente a compressão de altas luzes
+que `faithful_bracket_render` existe para evitar no lado da visualização. Se faz
+bracketings e seleciona pela exposição, deixe isto desativado até a via de
+descodificação conhecer os tipos de sequência.
+
+Use `--raw-metrics-preview` para um A/B pontual sem editar a configuração, e
+`--dry-run` para comparar amostras antes de se comprometer com o reescaneamento.
 
 ### Compromisso de memória
 

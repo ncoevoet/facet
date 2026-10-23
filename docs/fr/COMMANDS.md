@@ -29,6 +29,7 @@
 | `python facet.py /path --force-since 2026-01-01` | Comme `--force`, mais retraite uniquement les photos analysées pour la dernière fois avant la date |
 | `python facet.py /path --watch` | Reste actif et réanalyse à chaque apparition de nouvelles photos (nécessite `pip install watchdog` ; `--watch-debounce N` ajuste la période de calme, par défaut 30 s) |
 | `python facet.py /path --force-low-space` | Ignore la protection d'espace libre avant analyse (procède même si le volume semble trop petit pour les miniatures/embeddings que l'analyse va écrire) |
+| `python facet.py /path --raw-metrics-preview` | Note les RAW à partir de l'aperçu JPEG que le boîtier y a intégré lorsqu'il couvre au moins 95 % de la surface du capteur (sinon, retombe sur un dématriçage rawpy fichier par fichier). Plus rapide et moins gourmand en E/S, mais la courbe de tons, la netteté et la réduction de bruit du boîtier atteignent alors les notes techniques — voir [RAW Decode](CONFIGURATION.md#notation-à-partir-de-laperçu-intégré-au-boîtier) |
 
 ### Suivi des analyses
 

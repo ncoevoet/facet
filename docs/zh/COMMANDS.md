@@ -29,6 +29,7 @@
 | `python facet.py /path --force-since 2026-01-01` | 与 `--force` 类似，但只重新处理最后一次扫描时间早于该日期的照片 |
 | `python facet.py /path --watch` | 保持运行，一旦出现新照片就重新扫描（需要 `pip install watchdog`；`--watch-debounce N` 可调整静默期，默认 30 秒） |
 | `python facet.py /path --force-low-space` | 跳过扫描前的可用空间检查（即使卷的剩余空间看起来不足以写入本次扫描产生的缩略图和特征向量，也继续执行） |
+| `python facet.py /path --raw-metrics-preview` | 当相机内嵌的 JPEG 预览覆盖传感器画面的 95% 以上时，用它为 RAW 打分（否则逐个文件回退到 rawpy 去马赛克）。速度更快且 I/O 更少，但相机的色调曲线、锐化和降噪会随之进入技术评分 — 见 [RAW 解码](CONFIGURATION.md#用相机内嵌预览打分) |
 
 ### 扫描记录
 

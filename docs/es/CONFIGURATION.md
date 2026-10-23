@@ -855,13 +855,20 @@ lleva la curva tonal, los modos de rango dinámico y la exposición propios del
 modelo, y recae en el demosaicado del perfil de métricas cuando no existe una
 vista previa utilizable.
 
+Un tercer caso opcional hace que el perfil de métricas lea esa misma vista previa
+de la cámara en lugar de demosaicar — ver [Puntuación desde la vista previa
+incrustada en la cámara](#puntuación-desde-la-vista-previa-incrustada-en-la-cámara)
+más abajo. Está desactivado por defecto.
+
 ```json
 "raw_decode": {
   "bright": 1.62,
   "prefer_embedded_preview": true,
   "preview_min_sensor_ratio": 0.5,
   "viewer_concurrency": 3,
-  "faithful_bracket_render": true
+  "faithful_bracket_render": true,
+  "metrics_from_embedded_preview": false,
+  "metrics_preview_min_sensor_ratio": 0.95
 }
 ```
 
@@ -872,6 +879,77 @@ vista previa utilizable.
 | `preview_min_sensor_ratio` | `0.5` | Cuánto del sensor debe cubrir una vista previa para que `/image` la sirva en lugar de demosaicar. Nikon, Pentax, Samsung y Canon CR3 incorporan una vista previa casi a tamaño completo (0,98-0,99); Panasonic se sitúa en 0,52, mientras que Olympus, Fuji, Sony y DNG incorporan una vista previa pequeña (0,29-0,49) y por tanto se demosaican |
 | `viewer_concurrency` | `3` | Máximo de demosaicados RAW simultáneos para los renders del visor `/image` y `/thumbnail`, con un presupuesto propio separado de `processing.raw_decode_concurrency` de arriba, de modo que una petición del visor nunca hace cola detrás del trabajo de escaneo o de decodificación por CLI |
 | `faithful_bracket_render` | `true` | Renderiza una toma de horquillado sin corrección alguna: sin vista previa de la cámara, sin ganancia `bright`. Ver [más abajo](#las-tomas-de-un-horquillado-se-representan-sin-corrección). `false` renderiza los horquillados como cualquier otra foto |
+| `metrics_from_embedded_preview` | `false` | Puntúa un RAW a partir del mayor JPEG que la cámara incrustó en él, en lugar de demosaicar. Ver [más abajo](#puntuación-desde-la-vista-previa-incrustada-en-la-cámara) |
+| `metrics_preview_min_sensor_ratio` | `0.95` | Qué parte del sensor debe cubrir esa vista previa para que el perfil de métricas la acepte. Por debajo, el archivo se demosaica exactamente como antes |
+
+### Puntuación desde la vista previa incrustada en la cámara
+
+`metrics_from_embedded_preview` es el único ajuste de esta sección que cambia lo
+que *significan* las puntuaciones, por eso está desactivado por defecto y se
+activa instalación por instalación.
+
+Cada RAW lleva JPEGs de la cámara. Un ARW de una Sony A7C II, por ejemplo, lleva
+tres: un `ThumbnailImage` de ~9 KB, un `PreviewImage` de 1616×1080 y un
+`JpgFromRaw` de 7008×4672 a todo el fotograma. Leer este último en lugar de
+demosaicar supone **15× menos E/S y unas 17× menos CPU por foto** — medido en esta
+biblioteca, 2,14 s / 38,3 MB leídos por ARW frente a 0,12 s / 2,5 MB. En una
+biblioteca limitada por un HDD, esa es la diferencia entre unas 0,45 y más de 2,0
+fotos por segundo.
+
+El precio es la fidelidad, y es la de la cámara, no la de la biblioteca:
+
+- **Se conserva.** La composición, la estética y la calidad de los rostros siguen
+  de cerca a un demosaicado (ρ de Spearman 0,80-0,93 en 261 parejas emparejadas),
+  porque leen estructura y semántica, no valores de píxel absolutos.
+- **Se desplaza.** La exposición y el contraste suben (la curva tonal de la cámara
+  ya está aplicada: medido +1,34 y +1,76), la nitidez sube (máscara de enfoque de
+  la cámara: `tech_sharpness` +0,48, `eye_sharpness` +1,89) y el ruido baja
+  (reducción de ruido de la cámara: `noise_sigma` −0,50). El agregado compuesto se
+  desplaza +0,31 con ρ 0,24, así que la *clasificación* dentro de una biblioteca
+  sigue siendo utilizable, mientras que los valores absolutos ya no son
+  comparables con los de un demosaicado.
+
+**La puerta decide por archivo, no por instalación.**
+`metrics_preview_min_sensor_ratio` rechaza cualquier vista previa cuyo lado largo
+quede por debajo de esa fracción del sensor, y también una vista previa cuyo tamaño
+de sensor LibRaw no informa (entonces no se puede establecer la cobertura). Los
+cuerpos difieren, y por eso esto importa: la A7C II incrusta 7008 de un fotograma
+de 7028 px (ratio 0,997) y toma la vía rápida, mientras que un ARW de A7 III solo
+lleva la vista previa de 1616×1080 de un fotograma de 6024 px (ratio 0,27) y sigue
+demosaicando. `0.95` solo conserva vistas previas casi a tamaño completo; bájalo
+para aceptar una más pequeña a costa de puntuar una miniatura reescalada.
+
+**El RAW pasa a ser la fila canónica.** Un JPEG o HEIF con el mismo nombre junto a
+un RAW normalmente suprime el RAW, ya que es la decodificación más barata. Con
+esto activado, el emparejamiento se invierte: el RAW ya contiene el JPEG a tamaño
+completo de la propia cámara, así que es la fila que hay que conservar y el
+compañero se omite. Una fila por foto, y es el `.arw` / `.cr2` / `.dng` — de modo
+que la selección, la exportación y `include_companions` siguen apuntando al RAW.
+El registro del escaneo dice `RAW metrics: camera-embedded preview (>= 95% of
+frame)`, luego `Skipped N companion JPEG(s)`, y la línea del resumen pasa a ser
+`JPEG w/ RAW preview (skipped)`. Un compañero que ya tenía fila de un escaneo
+anterior *no* se borra (puede llevar valoraciones, etiquetas o rostros puestos a
+mano); el escaneo avisa y remite a `--cleanup-missing-photos`.
+
+**Se guarda qué renderizado puntuó cada fila.** `photos.metrics_render` es `0` para
+el demosaicado de métricas, `1` para la vista previa de la cámara y NULL para las
+filas que no son RAW. `python database.py --info` imprime el reparto (`RAW metrics
+render: 1 preview, 0 demosaic, 0 unstamped`), así que una biblioteca reescaneada
+solo en parte se ve en lugar de quedar mezclada en silencio. Por eso, cambiar el
+ajuste implica una repuntuación completa — `python facet.py --force <carpeta>` — ya
+que las métricas de las filas antiguas no son comparables con las nuevas. El
+demosaicado siempre vuelve a estar disponible desactivando la opción y
+reescaneando; no hay conversión por fila.
+
+**Los horquillados no quedan exentos.** `_decode_raw` no tiene `sequence_kind` en
+el momento de decodificar, así que una toma de un horquillado recibe la curva tonal
+de la cámara como cualquier otra foto — justo la compresión de altas luces que
+`faithful_bracket_render` existe para evitar en el lado de la visualización. Si
+disparas horquillados y seleccionas por exposición, deja esto desactivado hasta que
+la vía de decodificación conozca los tipos de secuencia.
+
+Usa `--raw-metrics-preview` para un A/B puntual sin editar la configuración, y
+`--dry-run` para comparar muestras antes de comprometerte con el reescaneo.
 
 ### Compromiso de memoria
 

@@ -853,13 +853,20 @@ Il privilégie l'aperçu intégré par le boîtier, qui porte déjà la courbe d
 modes de plage dynamique et l'exposition propres au modèle, et retombe sur le
 démosaïçage du profil métriques quand aucun aperçu exploitable n'existe.
 
+Un troisième cas optionnel fait lire au profil métriques ce même aperçu du boîtier
+au lieu de dématricer — voir [Notation à partir de l'aperçu intégré au
+boîtier](#notation-à-partir-de-laperçu-intégré-au-boîtier) plus bas. Il est
+désactivé par défaut.
+
 ```json
 "raw_decode": {
   "bright": 1.62,
   "prefer_embedded_preview": true,
   "preview_min_sensor_ratio": 0.5,
   "viewer_concurrency": 3,
-  "faithful_bracket_render": true
+  "faithful_bracket_render": true,
+  "metrics_from_embedded_preview": false,
+  "metrics_preview_min_sensor_ratio": 0.95
 }
 ```
 
@@ -870,6 +877,81 @@ démosaïçage du profil métriques quand aucun aperçu exploitable n'existe.
 | `preview_min_sensor_ratio` | `0.5` | Quelle part du capteur un aperçu doit couvrir pour que `/image` le serve au lieu de démosaïquer. Nikon, Pentax, Samsung et Canon CR3 intègrent un aperçu quasi plein format (0,98-0,99) ; le Panasonic se situe à 0,52, tandis qu'Olympus, Fuji, Sony et DNG intègrent un petit aperçu (0,29-0,49) et démosaïquent donc |
 | `viewer_concurrency` | `3` | Nombre maximal de démosaïçages RAW simultanés pour les rendus de la visionneuse `/image` et `/thumbnail`, sur son propre budget séparé de `processing.raw_decode_concurrency` ci-dessus, si bien qu'une requête de la visionneuse ne fait jamais la queue derrière un scan ou un décodage en ligne de commande |
 | `faithful_bracket_render` | `true` | Afficher une vue d'un bracketing sans aucune correction : ni aperçu du boîtier, ni gain `bright`. Voir [plus bas](#les-vues-dun-bracketing-saffichent-sans-correction). `false` affiche les bracketings comme n'importe quelle autre photo |
+| `metrics_from_embedded_preview` | `false` | Noter un RAW à partir du plus grand JPEG que le boîtier y a intégré au lieu de dématricer. Voir [plus bas](#notation-à-partir-de-laperçu-intégré-au-boîtier) |
+| `metrics_preview_min_sensor_ratio` | `0.95` | Quelle part du capteur cet aperçu doit couvrir pour que le profil métriques l'accepte. En dessous, le fichier est dématricé exactement comme avant |
+
+### Notation à partir de l'aperçu intégré au boîtier
+
+`metrics_from_embedded_preview` est le seul réglage de cette section qui change ce
+que les notes *signifient* ; il est donc désactivé par défaut et s'active
+installation par installation.
+
+Chaque RAW porte des JPEG du boîtier. Un ARW de Sony A7C II, par exemple, en
+contient trois : un `ThumbnailImage` d'environ 9 Ko, un `PreviewImage` de
+1616×1080 et un `JpgFromRaw` pleine image de 7008×4672. Lire ce dernier au lieu de
+dématricer représente **15× moins d'E/S et environ 17× moins de CPU par photo** —
+mesuré sur cette bibliothèque, 2,14 s / 38,3 Mo lus par ARW contre 0,12 s /
+2,5 Mo. Sur une bibliothèque limitée par un disque dur, c'est la différence entre
+environ 0,45 et plus de 2,0 photos par seconde.
+
+Le prix à payer est la fidélité, et c'est celle du boîtier, pas celle de la
+bibliothèque :
+
+- **Préservé.** La composition, l'esthétique et la qualité des visages suivent de
+  près un dématriçage (ρ de Spearman 0,80-0,93 sur 261 paires appariées), parce
+  qu'elles lisent la structure et la sémantique, pas des valeurs de pixel absolues.
+- **Déplacé.** L'exposition et le contraste montent (la courbe de tons du boîtier
+  est déjà appliquée : mesuré +1,34 et +1,76), la netteté monte (masquage d'accentuation
+  du boîtier : `tech_sharpness` +0,48, `eye_sharpness` +1,89) et le bruit baisse
+  (réduction du bruit du boîtier : `noise_sigma` −0,50). L'agrégat composite se
+  décale de +0,31 avec ρ 0,24 : le *classement* à l'intérieur d'une bibliothèque
+  reste donc utilisable, mais les valeurs absolues ne sont plus comparables à
+  celles d'un dématriçage.
+
+**La porte décide fichier par fichier, pas installation par installation.**
+`metrics_preview_min_sensor_ratio` rejette tout aperçu dont le grand côté est
+inférieur à cette fraction de celui du capteur, ainsi qu'un aperçu dont LibRaw ne
+rapporte pas la taille du capteur (la couverture ne peut alors pas être établie).
+Les boîtiers diffèrent, et c'est précisément pourquoi cela compte : l'A7C II
+intègre 7008 pixels d'une image de 7028 px (ratio 0,997) et prend la voie rapide,
+tandis qu'un ARW d'A7 III ne porte que l'aperçu 1616×1080 d'une image de 6024 px
+(ratio 0,27) et continue d'être dématricé. `0.95` ne garde que les aperçus
+quasi pleine taille ; abaissez-le pour en accepter un plus petit, au prix de
+noter une miniature agrandie.
+
+**Le RAW devient la ligne de référence.** Un JPEG ou HEIF de même nom à côté d'un
+RAW supprime normalement le RAW, puisqu'il s'agit du décodage le moins coûteux.
+Avec cette option, l'appariement s'inverse : le RAW contient déjà le JPEG pleine
+image du boîtier, c'est donc la ligne à conserver et le compagnon est ignoré. Une
+ligne par photo, et c'est le `.arw` / `.cr2` / `.dng` — le tri, l'export et
+`include_companions` continuent donc de pointer vers le RAW. Le journal d'analyse
+indique `RAW metrics: camera-embedded preview (>= 95% of frame)`, puis
+`Skipped N companion JPEG(s)`, et la ligne de résumé devient
+`JPEG w/ RAW preview (skipped)`. Un compagnon qui avait déjà une ligne lors d'une
+analyse précédente n'est *pas* supprimé (il peut porter des notes, des étiquettes
+ou des visages que vous avez posés à la main) ; l'analyse émet un avertissement et
+renvoie à `--cleanup-missing-photos`.
+
+**Le rendu qui a noté une ligne est stocké.** `photos.metrics_render` vaut `0` pour
+le dématriçage métriques, `1` pour l'aperçu du boîtier et NULL pour les lignes non
+RAW. `python database.py --info` affiche la répartition (`RAW metrics render: 1
+preview, 0 demosaic, 0 unstamped`), de sorte qu'une bibliothèque réanalysée en
+partie seulement est visible au lieu d'être mélangée en silence. Changer le réglage
+implique donc une renotation complète — `python facet.py --force <dossier>` — car
+les métriques des anciennes lignes ne sont pas comparables aux nouvelles. Le
+dématriçage redevient toujours disponible en désactivant l'option et en
+réanalysant ; il n'y a pas de conversion ligne par ligne.
+
+**Les bracketings ne sont pas exemptés.** `_decode_raw` n'a pas de `sequence_kind`
+au moment du décodage, donc une vue d'un bracketing reçoit la courbe de tons du
+boîtier comme n'importe quelle autre photo — précisément la compression des hautes
+lumières que `faithful_bracket_render` existe pour éviter côté affichage. Si vous
+faites des bracketings et triez sur l'exposition, laissez cette option désactivée
+jusqu'à ce que la voie de décodage connaisse les types de séquence.
+
+Utilisez `--raw-metrics-preview` pour un A/B ponctuel sans modifier la
+configuration, et `--dry-run` pour comparer des échantillons avant de vous engager
+dans la réanalyse.
 
 ### Compromis mémoire
 

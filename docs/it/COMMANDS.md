@@ -29,6 +29,7 @@
 | `python facet.py /path --force-since 2026-01-01` | Come `--force`, ma rielabora solo le foto scansionate l'ultima volta prima della data |
 | `python facet.py /path --watch` | Rimane in esecuzione e riscansiona ogni volta che compaiono nuove foto (richiede `pip install watchdog`; `--watch-debounce N` regola il periodo di inattività, predefinito 30s) |
 | `python facet.py /path --force-low-space` | Salta il controllo dello spazio libero pre-scansione (procede anche quando il volume sembra troppo piccolo per le miniature/embedding che la scansione scriverà) |
+| `python facet.py /path --raw-metrics-preview` | Valuta i RAW a partire dall'anteprima JPEG incorporata dalla fotocamera quando copre almeno il 95% dell'inquadratura del sensore (altrimenti ricade su una demosaicizzazione rawpy per file). Più veloce e con meno I/O, ma la curva tonale, la nitidezza e la riduzione del rumore della fotocamera arrivano così ai punteggi tecnici — vedi [RAW Decode](CONFIGURATION.md#valutazione-dallanteprima-incorporata-nella-fotocamera) |
 
 ### Registrazione delle scansioni
 
