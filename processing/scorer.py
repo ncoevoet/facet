@@ -1633,6 +1633,8 @@ class Facet:
                 'face_quality_iqa': face_res.get('face_quality_iqa'),
                 # Face details for face recognition
                 'face_details': face_res.get('face_details', []),
+                # Which rendering these pixels came from (None = not a RAW)
+                'metrics_render': pil_img.info.get('metrics_render'),
             }
 
             res.update(exif_data)
@@ -2661,6 +2663,14 @@ class Facet:
 
         # Phase 1: Pre-generate thumbnails (CPU work, no DB lock held)
         for res, pil_img in results_with_images:
+            # Which rendering these pixels came from: stamped on the decoded
+            # buffer by utils.image_loading._decode_raw (1 = camera-embedded
+            # preview, 0 = demosaic, absent = not a RAW). A caller that already
+            # copied it onto the row wins; anyone else is served from the buffer
+            # it handed us, so no save path can write a NULL it did not mean.
+            if res.get('metrics_render') is None:
+                res['metrics_render'] = (pil_img.info.get('metrics_render')
+                                         if pil_img is not None else None)
             res['thumbnail'] = generate_photo_thumbnail(
                 thumbnail_source(res['path'], pil_img))
 
@@ -2710,7 +2720,7 @@ class Facet:
                         qrealign_score, aesthetic_v25, deqa_score,
                         subject_sharpness, subject_prominence, subject_placement, bg_separation, subject_bbox,
                         form_symmetry, form_balance, form_edge_entropy, form_fractal, color_harmony,
-                        gps_latitude, gps_longitude, scanned_at, render_version
+                        gps_latitude, gps_longitude, scanned_at, render_version, metrics_render
                     )
                     VALUES (
                         :path, :filename, :category, :image_width, :image_height,
@@ -2731,7 +2741,7 @@ class Facet:
                         :qrealign_score, :aesthetic_v25, :deqa_score,
                         :subject_sharpness, :subject_prominence, :subject_placement, :bg_separation, :subject_bbox,
                         :form_symmetry, :form_balance, :form_edge_entropy, :form_fractal, :color_harmony,
-                        :gps_latitude, :gps_longitude, datetime('now'), {DISPLAY_RENDER_VERSION}
+                        :gps_latitude, :gps_longitude, datetime('now'), {DISPLAY_RENDER_VERSION}, :metrics_render
                     )
                 '''), res)
 

@@ -25,6 +25,13 @@ means "written before the stamp existed", never "unknown but fine".
 
 Only RAW rows are ever pending: JPEG and HEIF display rendering never changed,
 so any pipeline version produces the same bytes for them.
+
+``photos.metrics_render`` is the sibling stamp on the SCORING side — 0 for the
+metrics demosaic, 1 for the camera-embedded preview that
+``raw_decode.metrics_from_embedded_preview`` opts into — and it is not a version
+number: the two renderings are both current, and which one is right is the
+user's setting. ``count_metrics_render`` below reports the split, so a library
+toggled part-way through a rescan is visible instead of silently mixed.
 """
 
 # Camera-embedded preview first, configured `bright` gain on the demosaic
@@ -92,3 +99,40 @@ def count_pending_render(conn):
         ).fetchone()[0]
     except sqlite3.OperationalError:
         return 0
+
+
+def count_metrics_render(conn):
+    """How many RAW rows were scored from each metrics rendering.
+
+    Returns ``{'preview': n, 'demosaic': n, 'unset': n}``. The two counts are
+    not interchangeable — a preview row carries the camera's tone curve,
+    sharpening and noise reduction, so its technical scores are not comparable
+    to a demosaiced row's — and ``unset`` is a row written before
+    ``photos.metrics_render`` existed (or a file whose only readable pixels came
+    from the LibRaw-unsupported rescue path). A library with more than one
+    non-zero count was rescanned with ``metrics_from_embedded_preview`` toggled
+    part-way, which is exactly what this report is for.
+
+    Status/report use only: it scans ``photos``, so never call it on a request
+    path. ``python database.py --info`` is the caller.
+    """
+    import sqlite3
+
+    from utils.image_loading import METRICS_DEMOSAIC_RENDER, METRICS_PREVIEW_RENDER
+
+    counts = {'preview': 0, 'demosaic': 0, 'unset': 0}
+    try:
+        row = conn.execute(
+            "SELECT "
+            f"COALESCE(SUM(CASE WHEN metrics_render = {METRICS_PREVIEW_RENDER} "
+            "THEN 1 ELSE 0 END), 0), "
+            f"COALESCE(SUM(CASE WHEN metrics_render = {METRICS_DEMOSAIC_RENDER} "
+            "THEN 1 ELSE 0 END), 0), "
+            "COALESCE(SUM(CASE WHEN metrics_render IS NULL THEN 1 ELSE 0 END), 0) "
+            f"FROM photos WHERE ({raw_path_predicate()})"
+        ).fetchone()
+    except sqlite3.OperationalError:
+        return counts
+    if row:
+        counts['preview'], counts['demosaic'], counts['unset'] = (int(value) for value in row)
+    return counts

@@ -511,6 +511,16 @@ def main():
         logger.info("Vector search (photos_vec): %d entries", vec_count)
         if vec_count == 0:
             logger.info("  Run --populate-vec to populate for fast semantic search")
+        # Which metrics rendering every RAW row was scored from: 0 = demosaic
+        # (the default), 1 = the camera-embedded preview. Two non-zero counts
+        # mean the library was rescanned with the setting toggled part-way.
+        from db.connection import get_connection
+        from db.render_version import count_metrics_render
+        with get_connection(args.db) as conn:
+            metrics_render = count_metrics_render(conn)
+        logger.info("RAW metrics render: %d preview, %d demosaic, %d unstamped",
+                    metrics_render['preview'], metrics_render['demosaic'],
+                    metrics_render['unset'])
         # Show stats cache status
         logger.info("Statistics cache:")
         cache_info = get_stats_cache_info(args.db)

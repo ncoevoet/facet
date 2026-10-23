@@ -105,3 +105,11 @@
 - **One-off flag.** `--raw-metrics-preview` (`cli_args.py`) sets the key for a single run without editing `scoring_config.json` — the A/B path the plan asks for.
 - **No destructive migration.** A companion that already had a row from an earlier scan is *not* deleted (it may carry ratings, tags or faces set by hand); the scan warns and points at `--cleanup-missing-photos`. The inverse direction warns symmetrically when a JPEG row pre-exists and the RAW becomes canonical, so "stored twice" is visible in either direction.
 
+## 2026-10-23 — RAW metrics from the camera-embedded preview, phase 2/4: DB stamp and persistence
+
+- **Column.** `photos.metrics_render` (`('metrics_render', 'INTEGER')` in `PHOTOS_COLUMNS`): `0` demosaic, `1` camera preview, NULL for non-RAW rows. It rides the existing additive migration, so `python database.py` adds it and no backfill is needed — old RAW rows simply read as unstamped.
+- **One write site.** The stamp is persisted in `save_photos_batch` (which reads `pil_img.info`), not in each caller, so `processing/batch_processor.py` and the multi-pass path both store it without touching `processing/multi_pass.py`; `score_photo_from_pil` also carries `'metrics_render'` in its result dict so a re-score does not drop it.
+- **Reporting.** `count_metrics_render(conn)` in `db/render_version.py`, beside the display-side `render_version` helper and documented as its scoring sibling. It imports `METRICS_DEMOSAIC_RENDER`/`METRICS_PREVIEW_RENDER` lazily from `utils/image_loading.py` — the constants live in the writer rather than in `db/`, because putting them in `db/render_version.py` would give the decode path a utils→db import.
+- **Not dead code.** Wired into `python database.py --info`: `RAW metrics render: N preview, N demosaic, N unstamped`, so a library rescanned only in part is visible instead of silently mixed, which is the plan's stated risk mitigation for toggling the setting without `--force`.
+
+

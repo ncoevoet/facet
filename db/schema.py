@@ -214,6 +214,16 @@ PHOTOS_COLUMNS = [
     # the row's sequence_kind, never on its own. NULL = written before the stamp
     # existed, i.e. before the RAW exposure fix. See db/render_version.py.
     ('render_version', 'INTEGER'),
+
+    # Which rendering the SCORED pixels came from: 0 = rawpy demosaic (the
+    # default metrics profile), 1 = the camera-embedded preview
+    # (raw_decode.metrics_from_embedded_preview). Not a thumbnail stamp — the
+    # display render is render_version above. NULL = a non-RAW row, a rescue
+    # path that had to read an embedded preview for a file LibRaw refuses, or a
+    # row written before this column existed. It is what makes a library that
+    # was only partly rescanned with the mode on visible instead of silently
+    # mixed. See utils/image_loading.py METRICS_*_RENDER.
+    ('metrics_render', 'INTEGER'),
 ]
 
 FACES_COLUMNS = [
