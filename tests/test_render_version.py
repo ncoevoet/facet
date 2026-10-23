@@ -16,7 +16,12 @@ from unittest import mock
 
 import pytest
 
-from db.render_version import DISPLAY_RENDER_VERSION, FAITHFUL_RENDER_VERSION, count_pending_render
+from db.render_version import (
+    DISPLAY_RENDER_VERSION,
+    FAITHFUL_RENDER_VERSION,
+    count_metrics_render,
+    count_pending_render,
+)
 from db.schema import init_database
 
 _RAW_PATH = '/photos/raw/frame.CR3'
@@ -318,6 +323,131 @@ def _now():
     import time
 
     return time.time()
+
+
+# ---------------------------------------------------------------------------
+# 5. `photos.metrics_render`: which rendering scored the pixels
+# ---------------------------------------------------------------------------
+
+class TestMetricsRenderStamp:
+    """``photos.metrics_render`` is not a version: 0 (metrics demosaic) and 1
+    (camera-embedded preview, ``raw_decode.metrics_from_embedded_preview``) are
+    both current renderings, and the setting decides which is right. It is what
+    shows a library that was rescanned with the mode toggled part-way, so the
+    save path must never write a NULL it did not mean: it reads the stamp off
+    the decoded buffer it was handed.
+
+    Geometry parity is pinned at the decode boundary in
+    ``tests/test_raw_decode.py`` — ``image_width``/``image_height`` come from the
+    very array the stamp describes, so a second assertion here would only
+    restate the fixture.
+    """
+
+    def _save(self, db_path, path, pil_img, metrics_render=None):
+        from tests.test_rescan_preservation import _base_result
+        from processing.scorer import Facet
+
+        facet = Facet.__new__(Facet)
+        facet._pending_centroid_persons = set()
+        facet.db_path = db_path
+        res = _base_result(path, 7.0)
+        if metrics_render is not None:
+            res['metrics_render'] = metrics_render
+        with mock.patch('processing.scorer.generate_photo_thumbnail', return_value=b'thumb'), \
+             mock.patch('processing.scorer.thumbnail_source', return_value=None), \
+             mock.patch('processing.scorer.get_plugin_manager', return_value=None, create=True):
+            facet.save_photos_batch([(res, pil_img)])
+
+    @staticmethod
+    def _stored(db_path, path):
+        conn = sqlite3.connect(db_path)
+        try:
+            return conn.execute(
+                "SELECT metrics_render FROM photos WHERE path = ?", (path,)).fetchone()[0]
+        finally:
+            conn.close()
+
+    def _stamped_buffer(self, value):
+        from PIL import Image
+
+        img = Image.new('RGB', (7008 // 8, 4672 // 8), (90, 90, 90))
+        img.info['metrics_render'] = value
+        return img
+
+    @pytest.mark.parametrize("stamp", [0, 1])
+    def test_the_buffer_stamp_is_persisted_with_the_row(self, tmp_path, stamp):
+        from db.render_version import count_metrics_render
+        from utils.image_loading import METRICS_DEMOSAIC_RENDER, METRICS_PREVIEW_RENDER
+
+        db_path = str(tmp_path / 'scan.db')
+        init_database(db_path)
+        self._save(db_path, _RAW_PATH, self._stamped_buffer(stamp))
+
+        assert self._stored(db_path, _RAW_PATH) == stamp
+
+        conn = sqlite3.connect(db_path)
+        counts = count_metrics_render(conn)
+        conn.close()
+        assert counts == {'preview': int(stamp == METRICS_PREVIEW_RENDER),
+                          'demosaic': int(stamp == METRICS_DEMOSAIC_RENDER),
+                          'unset': 0}
+
+    def test_a_non_raw_decode_stays_null(self, tmp_path):
+        from PIL import Image
+
+        db_path = str(tmp_path / 'scan.db')
+        init_database(db_path)
+        self._save(db_path, '/photos/shot.jpg', Image.new('RGB', (80, 60)))
+
+        assert self._stored(db_path, '/photos/shot.jpg') is None
+
+    def test_a_row_that_already_carries_the_stamp_is_not_overwritten(self, tmp_path):
+        """A caller that copied it onto the result (multi-pass) keeps its own word."""
+        from PIL import Image
+
+        db_path = str(tmp_path / 'scan.db')
+        init_database(db_path)
+        self._save(db_path, _RAW_PATH, Image.new('RGB', (80, 60)), metrics_render=1)
+
+        assert self._stored(db_path, _RAW_PATH) == 1
+
+    def test_a_library_scanned_part_way_reports_both_renderings(self, tmp_path):
+        db_path = str(tmp_path / 'scan.db')
+        init_database(db_path)
+        self._save(db_path, '/photos/a.CR3', self._stamped_buffer(1))
+        self._save(db_path, '/photos/b.CR3', self._stamped_buffer(0))
+
+        conn = sqlite3.connect(db_path)
+        counts = count_metrics_render(conn)
+        conn.close()
+
+        assert counts == {'preview': 1, 'demosaic': 1, 'unset': 0}
+
+    def test_a_non_raw_row_is_never_counted(self, tmp_path):
+        from PIL import Image
+
+        db_path = str(tmp_path / 'scan.db')
+        init_database(db_path)
+        self._save(db_path, '/photos/shot.jpg', Image.new('RGB', (80, 60)))
+        self._save(db_path, _RAW_PATH, self._stamped_buffer(1))
+
+        conn = sqlite3.connect(db_path)
+        assert count_metrics_render(conn) == {'preview': 1, 'demosaic': 0, 'unset': 0}
+        conn.close()
+
+    def test_a_pre_stamp_library_reports_every_raw_row_as_unstamped(self, tmp_path):
+        db_path = str(tmp_path / 'scan.db')
+        init_database(db_path)
+        _stamped_raw_row(db_path, _RAW_PATH, DISPLAY_RENDER_VERSION)
+
+        conn = sqlite3.connect(db_path)
+        assert count_metrics_render(conn) == {'preview': 0, 'demosaic': 0, 'unset': 1}
+        conn.close()
+
+    def test_a_database_without_the_table_reports_zeros(self, tmp_path):
+        conn = sqlite3.connect(str(tmp_path / 'empty.db'))
+        assert count_metrics_render(conn) == {'preview': 0, 'demosaic': 0, 'unset': 0}
+        conn.close()
 
 
 @pytest.fixture(autouse=True)

@@ -16,6 +16,7 @@ import subprocess
 import sys
 import threading
 import types
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -30,6 +31,7 @@ from utils.image_loading import (
     configure_raw_decoding,
     extract_raw_preview,
     load_display_image,
+    load_image_for_face_crop,
     load_image_from_path,
     raw_postprocess_kwargs,
     renders_faithfully,
@@ -39,6 +41,8 @@ from utils.image_loading import (
 DEMOSAIC_SIZE = (2000, 1500)
 BIG_PREVIEW_SIZE = (1960, 1470)
 SMALL_PREVIEW_SIZE = (320, 240)
+
+REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 @pytest.fixture(autouse=True)
@@ -340,6 +344,229 @@ class TestThumbnailSource:
 
         assert thumbnail_source(str(tmp_path / "shot.jpg"), decoded) is decoded
 
+    def test_a_metrics_preview_is_its_own_thumbnail_source(self, monkeypatch, tmp_path):
+        """Re-opening the file would extract the very same JPEG a second time."""
+        _install_stub_rawpy(monkeypatch, _jpeg_thumb(BIG_PREVIEW_SIZE))
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+        path = _raw_file(tmp_path)
+        decoded = load_image_from_path(path)[0]
+
+        assert thumbnail_source(path, decoded) is decoded
+
+
+class TestMetricsFromEmbeddedPreview:
+    """``raw_decode.metrics_from_embedded_preview``: score the camera's own JPEG.
+
+    Opt-in and off by default, because the camera's tone curve, sharpening and
+    noise reduction then reach every technical score. These tests pin the three
+    behaviours that make it safe to expose: unchanged when off, the preview only
+    when it actually covers the frame, and a demosaic fallback for everything
+    else. ``pil_img.info['metrics_render']`` says which one the pixels came from.
+    """
+
+    def test_off_by_default_demosaics_and_stamps_the_demosaic(self, monkeypatch, tmp_path):
+        raw = _install_stub_rawpy(monkeypatch, _jpeg_thumb(BIG_PREVIEW_SIZE))
+        configure_raw_decode_profile()
+
+        pil_img, _ = load_image_from_path(_raw_file(tmp_path))
+
+        assert raw.postprocess_kwargs is not None
+        assert pil_img.size == DEMOSAIC_SIZE
+        assert pil_img.info['metrics_render'] == image_loading.METRICS_DEMOSAIC_RENDER
+
+    def test_a_full_size_preview_replaces_the_demosaic(self, monkeypatch, tmp_path):
+        raw = _install_stub_rawpy(monkeypatch, _jpeg_thumb(BIG_PREVIEW_SIZE))
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+
+        pil_img, img_cv = load_image_from_path(_raw_file(tmp_path))
+
+        assert pil_img.size == BIG_PREVIEW_SIZE
+        assert img_cv.shape[:2] == (BIG_PREVIEW_SIZE[1], BIG_PREVIEW_SIZE[0])
+        assert pil_img.info['metrics_render'] == image_loading.METRICS_PREVIEW_RENDER
+        assert raw.postprocess_kwargs is None, "a demosaic ran despite a usable preview"
+
+    def test_an_undersized_preview_falls_back_to_the_demosaic(self, monkeypatch, tmp_path):
+        """1616x1080 of a 6000x4000 frame (ratio 0.27) is a Sony A7 III ARW."""
+        raw = _install_stub_rawpy(monkeypatch, _jpeg_thumb(SMALL_PREVIEW_SIZE))
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+
+        pil_img, _ = load_image_from_path(_raw_file(tmp_path))
+
+        assert pil_img.size == DEMOSAIC_SIZE
+        assert pil_img.info['metrics_render'] == image_loading.METRICS_DEMOSAIC_RENDER
+        assert raw.postprocess_kwargs is not None
+
+    def test_corrupt_preview_bytes_fall_back_to_the_demosaic(self, monkeypatch, tmp_path):
+        _install_stub_rawpy(monkeypatch,
+                            types.SimpleNamespace(format="jpeg", data=b"nope"))
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+
+        pil_img, _ = load_image_from_path(_raw_file(tmp_path))
+
+        assert pil_img.size == DEMOSAIC_SIZE
+        assert pil_img.info['metrics_render'] == image_loading.METRICS_DEMOSAIC_RENDER
+
+    def test_a_preview_of_unknown_sensor_size_is_refused(self, monkeypatch, tmp_path):
+        """With no sensor size, coverage cannot be established: demosaic."""
+        raw = _install_stub_rawpy(monkeypatch, _jpeg_thumb(BIG_PREVIEW_SIZE))
+        raw.sizes = types.SimpleNamespace(width=0, height=0, flip=0)
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+
+        pil_img, _ = load_image_from_path(_raw_file(tmp_path))
+
+        assert pil_img.size == DEMOSAIC_SIZE
+        assert pil_img.info['metrics_render'] == image_loading.METRICS_DEMOSAIC_RENDER
+
+    def test_the_ratio_threshold_is_configurable(self, monkeypatch, tmp_path):
+        """A body whose best preview is 80% of the frame: refused at 0.95."""
+        _install_stub_rawpy(monkeypatch, _jpeg_thumb((1600, 1200)))
+        path = _raw_file(tmp_path)
+
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+        assert load_image_from_path(path)[0].size == DEMOSAIC_SIZE
+
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True,
+                                      'metrics_preview_min_sensor_ratio': 0.75})
+        assert load_image_from_path(path)[0].size == (1600, 1200)
+
+    def test_face_crops_share_the_preview_pixel_space(self, monkeypatch, tmp_path):
+        """Stored face boxes index the metrics decode, so both must agree."""
+        _install_stub_rawpy(monkeypatch, _jpeg_thumb(BIG_PREVIEW_SIZE))
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+        path = _raw_file(tmp_path)
+
+        pil_img, _ = load_image_from_path(path)
+        face_space = load_image_for_face_crop(path)
+
+        assert face_space.shape[:2] == (pil_img.size[1], pil_img.size[0])
+
+    def test_a_non_raw_decode_carries_no_stamp(self, monkeypatch, tmp_path):
+        path = tmp_path / "shot.jpg"
+        Image.new('RGB', (60, 40), 100).save(path)
+
+        pil_img, _ = load_image_from_path(str(path))
+
+        assert pil_img.info.get('metrics_render') is None
+
+
+class TestMetricsProfileCoercion:
+    """The profile is read straight off disk and never re-validated, so the two
+    metrics-render keys are coerced where it is installed."""
+
+    @pytest.mark.parametrize("value,expected", [(True, True), (False, False),
+                                                (1, True), (0, False),
+                                                ("true", True), ("FALSE", False), ("on", True)])
+    def test_the_switch_accepts_the_forms_a_hand_edit_produces(self, value, expected):
+        settings = configure_raw_decode_profile({'metrics_from_embedded_preview': value})
+
+        assert settings['metrics_from_embedded_preview'] is expected
+
+    def test_a_junk_switch_falls_back_to_off(self, caplog):
+        with caplog.at_level('WARNING'):
+            settings = configure_raw_decode_profile({'metrics_from_embedded_preview': None})
+
+        assert settings['metrics_from_embedded_preview'] is False
+        assert any('metrics_from_embedded_preview' in r.message for r in caplog.records)
+
+    def test_the_ratio_is_a_float_in_range(self):
+        assert configure_raw_decode_profile(
+            {'metrics_preview_min_sensor_ratio': "0.9"})['metrics_preview_min_sensor_ratio'] == 0.9
+
+    @pytest.mark.parametrize("value,expected", [(7.0, 1.0), (-0.5, 0.0)])
+    def test_an_out_of_range_ratio_is_clamped(self, value, expected, caplog):
+        with caplog.at_level('WARNING'):
+            settings = configure_raw_decode_profile({'metrics_preview_min_sensor_ratio': value})
+
+        assert settings['metrics_preview_min_sensor_ratio'] == expected
+
+    @pytest.mark.parametrize("value", [None, "wide", float('nan')])
+    def test_a_junk_ratio_falls_back_to_the_documented_default(self, value, caplog):
+        with caplog.at_level('WARNING'):
+            settings = configure_raw_decode_profile({'metrics_preview_min_sensor_ratio': value})
+
+        assert settings['metrics_preview_min_sensor_ratio'] == 0.95
+
+
+class TestCompanionPairingInversion:
+    """Which member of a RAW+JPEG pair is the canonical row.
+
+    By default a same-stem JPEG suppresses the RAW (it is the cheaper decode).
+    With the RAW as the metrics source it is the other way round: the RAW holds
+    the camera's own JPEG, so the companion beside it is the redundant row.
+    """
+
+    @staticmethod
+    def _pairing(files, raw_canonical):
+        from facet import _suppressed_companion_paths
+
+        suppressed, label = _suppressed_companion_paths(files, raw_canonical)
+        return {Path(p).name for p in suppressed}, label
+
+    def test_the_jpeg_suppresses_the_raw_by_default(self):
+        suppressed, label = self._pairing([Path('/lib/foo.ARW'), Path('/lib/foo.JPG')], False)
+
+        assert suppressed == {'foo.ARW'}
+        assert label == "RAW paired w/ JPEG (skipped):"
+
+    def test_the_raw_suppresses_the_jpeg_when_it_is_the_metrics_source(self):
+        suppressed, label = self._pairing([Path('/lib/foo.ARW'), Path('/lib/foo.JPG')], True)
+
+        assert suppressed == {'foo.JPG'}
+        assert label == "JPEG w/ RAW preview (skipped):"
+
+    def test_a_heif_companion_is_treated_like_a_jpeg(self):
+        suppressed, _ = self._pairing([Path('/lib/foo.CR3'), Path('/lib/foo.HIF')], True)
+
+        assert suppressed == {'foo.HIF'}
+
+    def test_an_unpaired_file_is_never_suppressed(self):
+        for raw_canonical in (False, True):
+            assert self._pairing([Path('/lib/foo.ARW')], raw_canonical)[0] == set()
+            assert self._pairing([Path('/lib/foo.JPG')], raw_canonical)[0] == set()
+
+    def test_a_same_stem_in_another_folder_does_not_pair(self):
+        """The pairing is keyed on the parent directory, not the stem alone."""
+        suppressed, _ = self._pairing([Path('/lib/a/foo.ARW'), Path('/lib/b/foo.JPG')], False)
+
+        assert suppressed == set()
+
+
+class TestRealCameraFixtures:
+    """Manual integration check against the two gitignored ARWs in the repo root.
+
+    ``a7cii.arw`` embeds a full-frame JpgFromRaw (7008x4672 of a 7028px frame,
+    ratio 0.997), ``a7iii.arw`` only a 1616x1080 preview of a 6024x4024 frame
+    (ratio 0.27). Skipped when either file or rawpy is absent, so CI never needs
+    them.
+
+    This is the pair the spec's gate is derived from: the mode has to be
+    self-selecting per file, not per body assumed in the config.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _fixtures(self):
+        pytest.importorskip("rawpy")
+        for name in ('a7cii.arw', 'a7iii.arw'):
+            if not (REPO_ROOT / name).exists():
+                pytest.skip(f"{name} is a local, gitignored fixture")
+
+    def test_the_a7cii_scores_from_its_embedded_preview(self):
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+
+        pil_img, _ = load_image_from_path(str(REPO_ROOT / 'a7cii.arw'))
+
+        # The ARW carries Rotate 270 CW, so the upright preview is portrait.
+        assert sorted(pil_img.size) == [4672, 7008]
+        assert pil_img.info['metrics_render'] == image_loading.METRICS_PREVIEW_RENDER
+
+    def test_the_a7iii_has_no_full_size_preview_and_demosaics(self):
+        configure_raw_decode_profile({'metrics_from_embedded_preview': True})
+
+        pil_img, _ = load_image_from_path(str(REPO_ROOT / 'a7iii.arw'))
+
+        assert pil_img.info['metrics_render'] == image_loading.METRICS_DEMOSAIC_RENDER
+        assert max(pil_img.size) > 1700, "the 1616px preview must not have been accepted"
+
 
 class TestPreviewOrientation:
     """``unpack_thumb`` rotates nothing, and some previews carry no EXIF."""
@@ -384,13 +611,17 @@ class TestDefaultsMatchTheShippedConfig:
 
         assert settings == {'bright': 1.62, 'prefer_embedded_preview': True,
                             'preview_min_sensor_ratio': 0.5, 'viewer_concurrency': 3,
-                            'faithful_bracket_render': True}
+                            'faithful_bracket_render': True,
+                            'metrics_from_embedded_preview': False,
+                            'metrics_preview_min_sensor_ratio': 0.95}
 
     def test_shipped_config_matches_the_fallback(self):
         assert ScoringConfig(validate=False).get_raw_decode_settings() == {
             'bright': 1.62, 'prefer_embedded_preview': True,
             'preview_min_sensor_ratio': 0.5, 'viewer_concurrency': 3,
-            'faithful_bracket_render': True}
+            'faithful_bracket_render': True,
+            'metrics_from_embedded_preview': False,
+            'metrics_preview_min_sensor_ratio': 0.95}
 
 
 class TestViewerDecodeBudget:
