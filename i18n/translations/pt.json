@@ -2462,7 +2462,15 @@
       "load_error": "Não foi possível carregar os locais.",
       "place_error": "Não foi possível atualizar o local. Verifique o nome, o limite e a ligação.",
       "save_error": "Não foi possível guardar o local da foto. Tente novamente.",
-      "use_file_location": "Usar a localização do arquivo"
+      "use_file_location": "Usar a localização do arquivo",
+      "batch_title": "Definir localização",
+      "only_missing": "Apenas fotos sem localização",
+      "preview_batch": "Pré-visualizar alterações",
+      "batch_preview": "{changed} fotos serão alteradas; {skipped} ignoradas.",
+      "batch_applied": "{changed} fotos atualizadas; {skipped} ignoradas.",
+      "batch_error": "Não foi possível aplicar a localização. Selecione no máximo 1000 fotos e repita a prévia; a seleção ou o local salvo pode ter mudado.",
+      "batch_limit": "Selecione no máximo 1000 fotos. Sem proteção, as localizações existentes são substituídas. Os arquivos originais não são alterados.",
+      "batch_hint": "Escolha uma localização e confira as alterações antes de salvar a seleção."
     }
   },
   "manual_tags": {
@@ -2766,5 +2774,60 @@
       "ui_suggest_culling": "Sugestões marcadas no plano de seleção",
       "ui_show_comparison": "Comparação mostrada"
     }
+  },
+  "review": {
+    "status": "Estado de revisão",
+    "all": "Todas as decisões",
+    "needs_review": "Por rever",
+    "kept": "Mantidas",
+    "rejected": "Rejeitadas",
+    "keep": "Manter",
+    "reset": "Repor decisão",
+    "updated": "Decisões atualizadas para {{count}} fotos",
+    "shortcut": "Manter fotografia"
+  },
+  "capture_date": {
+    "title": "Corrigir data de captura",
+    "offset": "Deslocamento em segundos (+ depois, − antes)",
+    "invalid": "Use um número inteiro diferente de zero dentro de ±366 dias; selecione no máximo 1000 fotos.",
+    "counts": "{changed} alteradas · {skipped} ignoradas",
+    "samples": "Primeiras 20 alterações. Datas desconhecidas, incompletas, incompatíveis ou fora dos limites são ignoradas.",
+    "photo": "Foto",
+    "before": "Antes",
+    "after": "Depois",
+    "error": "Não foi possível concluir a ação. Verifique o acesso e os ficheiros e volte a pré-visualizar.",
+    "reset_hint": "A data do ficheiro remove a correção manual. Se o ficheiro não tiver data, a data de captura fica desconhecida.",
+    "use_file": "Usar data do ficheiro",
+    "preview": "Pré-visualizar",
+    "apply": "Aplicar correção",
+    "hint": "Desloca a hora local da câmara sem deduzir fuso horário ou horário de verão. Os originais só mudam com a exportação explícita dos metadados."
+  },
+  "organization_history": {
+    "title": "Histórico de organização",
+    "hint": "As suas últimas 50 entradas nesta base do visualizador. Locais e datas afetam todos; decisões, estrelas e favoritos pertencem à sua conta. Os ficheiros originais não são alterados.",
+    "gps": "Local",
+    "date": "Data de captura",
+    "review": "Revisão",
+    "revert": "Reverter esta entrada",
+    "reverted": "Já revertida",
+    "empty": "Nenhuma entrada disponível.",
+    "part": "Parte {part} de {parts}: esta entrada restaura apenas as suas {count} fotos. As partes antigas podem ter expirado.",
+    "success": "Fotos restauradas: {count}",
+    "conflict": "As fotos mudaram desde esta ação. Nada foi restaurado.",
+    "unavailable": "Esta entrada já não está disponível. Nada foi restaurado.",
+    "error": "Não foi possível carregar ou restaurar o histórico.",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "manual_gps": "Local manual",
+    "capture_date": "Data de captura",
+    "manual_date": "Data manual",
+    "stars": "Estrelas",
+    "favorite": "Favorita",
+    "rejected": "Rejeitada",
+    "kept": "Mantida",
+    "yes": "Sim",
+    "no": "Não",
+    "unknown": "Desconhecido",
+    "photo_count": "Fotos: {count}"
   }
 }

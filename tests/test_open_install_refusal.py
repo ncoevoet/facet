@@ -76,6 +76,8 @@ EDITION_ROUTES = _routes_requiring(require_edition)
 # Pinned on purpose: dropping require_edition from a route (or adding a new
 # edition route) must fail here with a readable diff, not slip under a count.
 EXPECTED_EDITION_ROUTES = frozenset({
+    ('GET', '/api/organization_history'),
+    ('POST', '/api/organization_history/{entry_id}/revert'),
     ('DELETE', '/api/albums/{album_id}'),
     ('DELETE', '/api/albums/{album_id}/photos'),
     ('DELETE', '/api/albums/{album_id}/scoring_context'),
@@ -154,9 +156,14 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('POST', '/api/photo/export_xmp'),
     ('POST', '/api/photo/unassign_person'),
     ('POST', '/api/photos/batch_favorite'),
+    ('POST', '/api/photos/batch_gps'),
     ('POST', '/api/photos/batch_manual_tags'),
+    ('POST', '/api/photos/capture_date/preview'),
+    ('POST', '/api/photos/capture_date/apply'),
+    ('DELETE', '/api/photo/capture_date'),
     ('POST', '/api/photos/batch_rating'),
     ('POST', '/api/photos/batch_reject'),
+    ('POST', '/api/photos/batch_review'),
     ('POST', '/api/plugins/test-webhook'),
     ('POST', '/api/recalculate'),
     ('POST', '/api/scan/detect_panoramas'),
@@ -182,8 +189,14 @@ _RATING_ROUTES = [
 ]
 
 
+_REQUEST_BODIES = {
+    ("POST", "/api/photos/batch_review"): {"photo_paths": ["/p.jpg"], "decision": "kept"},
+}
+
+
 def _call(client, method, path):
     valid_bodies = {
+        **_REQUEST_BODIES,
         ('POST', '/api/places'): {'name': 'Work', 'latitude': 0, 'longitude': 0},
         ('PUT', '/api/places/{place_id}'): {'name': 'Work', 'latitude': 0, 'longitude': 0},
         ('PUT', '/api/photo/gps'): {'path': '/missing', 'gps_latitude': 0, 'gps_longitude': 0},

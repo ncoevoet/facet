@@ -2462,7 +2462,15 @@
       "load_error": "Orte konnten nicht geladen werden.",
       "place_error": "Ort konnte nicht aktualisiert werden. Prüfen Sie Name, Limit und Verbindung.",
       "save_error": "Fotoort konnte nicht gespeichert werden. Bitte erneut versuchen.",
-      "use_file_location": "Standort aus der Datei verwenden"
+      "use_file_location": "Standort aus der Datei verwenden",
+      "batch_title": "Ort festlegen",
+      "only_missing": "Nur Fotos ohne Standort",
+      "preview_batch": "Standortänderungen prüfen",
+      "batch_preview": "{changed} Fotos werden geändert; {skipped} übersprungen.",
+      "batch_applied": "{changed} Fotos geändert; {skipped} übersprungen.",
+      "batch_error": "Standort konnte nicht angewendet werden. Wählen Sie höchstens 1000 Fotos und erstellen Sie eine neue Vorschau; Auswahl oder gespeicherter Ort könnte sich geändert haben.",
+      "batch_limit": "Wählen Sie höchstens 1000 Fotos. Ohne Schutz werden vorhandene Standorte ersetzt. Originaldateien bleiben unverändert.",
+      "batch_hint": "Wählen Sie einen Ort und prüfen Sie die Änderungen, bevor Sie die Auswahl speichern."
     }
   },
   "manual_tags": {
@@ -2766,5 +2774,60 @@
       "ui_suggest_culling": "Vorschläge im Auswahlplan markiert",
       "ui_show_comparison": "Vergleich angezeigt"
     }
+  },
+  "review": {
+    "status": "Auswahlstatus",
+    "all": "Alle Entscheidungen",
+    "needs_review": "Zu prüfen",
+    "kept": "Behalten",
+    "rejected": "Abgelehnt",
+    "keep": "Behalten",
+    "reset": "Entscheidung zurücksetzen",
+    "updated": "Entscheidung für {{count}} Fotos aktualisiert",
+    "shortcut": "Foto behalten"
+  },
+  "capture_date": {
+    "title": "Aufnahmedatum korrigieren",
+    "offset": "Versatz in Sekunden (+ später, − früher)",
+    "invalid": "Eine ganze Zahl ungleich null innerhalb von ±366 Tagen; höchstens 1000 Fotos auswählen.",
+    "counts": "{changed} geändert · {skipped} übersprungen",
+    "samples": "Die ersten 20 Änderungen. Unbekannte, unvollständige, nicht unterstützte oder überlaufende Datumswerte werden übersprungen.",
+    "photo": "Foto",
+    "before": "Vorher",
+    "after": "Nachher",
+    "error": "Aktion fehlgeschlagen. Zugriff und Dateien prüfen und die Vorschau erneut laden.",
+    "reset_hint": "Das Dateidatum entfernt die manuelle Korrektur. Ohne Datum in der Datei wird das Aufnahmedatum unbekannt.",
+    "use_file": "Dateidatum verwenden",
+    "preview": "Vorschau",
+    "apply": "Korrektur anwenden",
+    "hint": "Verschiebt die gespeicherte Kamera-Uhrzeit ohne Ableitung von Zeitzone oder Sommerzeit. Originale ändern sich erst beim ausdrücklichen Metadatenexport."
+  },
+  "organization_history": {
+    "title": "Änderungsverlauf",
+    "hint": "Ihre letzten 50 Einträge in dieser Viewer-Datenbank. Orte und Aufnahmedaten gelten für alle; Entscheidungen, Sterne und Favoriten gehören zu Ihrem Konto. Originaldateien bleiben unverändert.",
+    "gps": "Ort",
+    "date": "Aufnahmedatum",
+    "review": "Auswahl",
+    "revert": "Diesen Eintrag zurücksetzen",
+    "reverted": "Bereits zurückgesetzt",
+    "empty": "Keine verfügbaren Einträge.",
+    "part": "Teil {part} von {parts}: Dieser Eintrag stellt nur seine {count} Fotos wieder her. Ältere Teile können abgelaufen sein.",
+    "success": "Wiederhergestellte Fotos: {count}",
+    "conflict": "Fotos wurden seit dieser Aktion geändert. Nichts wurde wiederhergestellt.",
+    "unavailable": "Dieser Eintrag ist nicht mehr verfügbar. Nichts wurde wiederhergestellt.",
+    "error": "Verlauf konnte nicht geladen oder wiederhergestellt werden.",
+    "latitude": "Breitengrad",
+    "longitude": "Längengrad",
+    "manual_gps": "Manueller Ort",
+    "capture_date": "Aufnahmedatum",
+    "manual_date": "Manuelles Datum",
+    "stars": "Sterne",
+    "favorite": "Favorit",
+    "rejected": "Abgelehnt",
+    "kept": "Behalten",
+    "yes": "Ja",
+    "no": "Nein",
+    "unknown": "Unbekannt",
+    "photo_count": "Fotos: {count}"
   }
 }

@@ -235,7 +235,7 @@ def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
     # Count existing photos with ratings
     row = conn.execute("""
         SELECT COUNT(*) FROM photos
-        WHERE star_rating > 0 OR is_favorite = 1 OR is_rejected = 1
+        WHERE star_rating > 0 OR is_favorite = 1 OR is_rejected = 1 OR is_kept = 1
     """).fetchone()
     count = row[0] if row else 0
 
@@ -247,10 +247,10 @@ def migrate_user_preferences(username, db_path=DEFAULT_DB_PATH):
     logger.info("Migrating %d photo rating(s) to user_preferences for user '%s'...", count, username)
 
     conn.execute("""
-        INSERT OR IGNORE INTO user_preferences (user_id, photo_path, star_rating, is_favorite, is_rejected)
-        SELECT ?, path, COALESCE(star_rating, 0), COALESCE(is_favorite, 0), COALESCE(is_rejected, 0)
+        INSERT OR IGNORE INTO user_preferences (user_id, photo_path, star_rating, is_favorite, is_rejected, is_kept)
+        SELECT ?, path, COALESCE(star_rating, 0), COALESCE(is_favorite, 0), COALESCE(is_rejected, 0), COALESCE(is_kept, 0)
         FROM photos
-        WHERE star_rating > 0 OR is_favorite = 1 OR is_rejected = 1
+        WHERE star_rating > 0 OR is_favorite = 1 OR is_rejected = 1 OR is_kept = 1
     """, (username,))
     row = conn.execute("SELECT changes()").fetchone()
     migrated = row[0] if row else 0

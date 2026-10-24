@@ -209,6 +209,19 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 
 Ist `licensing.mode` auf `commercial` gesetzt, blendet der Viewer die Metriken aus, deren Modelle nicht kommerziell genutzt werden dürfen: LIQE, Aesthetic IAA, Face Quality IQA (sofern OFIQ nicht installiert ist), DeQA (sofern `licensing.allow_unclear` nicht gesetzt ist) und Aesthetic V2.5: ihre Bereichsfilter, Filter-Chips und Sortieroptionen. `/api/config` listet sie in `unavailable_metrics`. In der Gewichtungsseite bleiben ihre Regler sichtbar, sind aber deaktiviert und mit einem Tooltip versehen; die Gewichte bleiben erhalten, da die Bewertung sie auslässt und neu normalisiert. Den Viewer nach einer Änderung des Lizenzmodus neu starten.
 
+## Sichtungsentscheidungen
+
+Wähle in der Galerie **Sichtungsstatus → Noch zu sichten**, um unentschiedene Fotos zu bearbeiten. Dabei wird nach **Aufnahmedatum, älteste zuerst** sortiert. Reihenfolge, Zeitraum, Ordner und Album lassen sich weiter anpassen.
+
+**Behalten** und **Ablehnen** entfernen ein Foto nach dem Speichern aus dieser Ansicht. Behaltene Fotos bleiben in der normalen Bibliothek und sind über **Behalten** auffindbar. Favoriten und Sterne bleiben unabhängig davon.
+
+Behalten und **Entscheidung zurücksetzen** stehen in der Detailansicht, im Kontextmenü und für die Mehrfachauswahl bereit. **K** behält das aktuelle Foto. Zurücksetzen löscht Behalten und Ablehnen, ohne Sterne oder Favoriten zu ändern. Galerieaktionen lassen sich rückgängig machen.
+
+Entscheidungen überstehen Neuladen, Neustarts und erneute Scans und gelten pro Benutzer. Bestätigte Auswahlgruppen markieren ihre ausgewählten Fotos ebenfalls als behalten. Bestehende Sterne, Favoriten und bereits gesichtete Gruppen werden nicht automatisch umgewandelt.
+
+Der Sichtungsstatus gilt für die normale Galerie; die Auswahl beendet eine semantische Suche oder die Suche nach ähnlichen Fotos.
+
+
 ## Galeriefunktionen
 
 ### Fotokarten
@@ -547,6 +560,8 @@ API: siehe den Abschnitt [API-Endpunkte](#api-endpunkte) weiter unten.
 Zugriff über die Route `/map`. Gesteuert über `viewer.features.show_map` (Standard: `true`).
 
 ### Gespeicherte Orte und manuelles GPS
+
+Wähle in der Galerie mehrere Fotos und **Ort festlegen** in der Auswahlleiste, den mobilen Aktionen oder dem Kontextmenü. Nutze gespeicherte/zuletzt verwendete Orte, Karte oder Koordinaten. **Nur Fotos ohne Standort** ist anfangs aktiviert; ohne Schutz werden vorhandene Orte ersetzt. Prüfe die Vorschau mit Änderungs- und Überspringzahlen vor dem Speichern. Höchstens 1000 sichtbare Fotos pro Stapel, auch bei einer vollständigen gefilterten Ansicht mit Ausnahmen. Gleiche Koordinaten werden übersprungen. Ändern sich Auswahl, GPS oder gespeicherter Ort, ist eine neue Vorschau nötig. Danach wird die Galerie mit den aktiven Filtern neu geladen. Originaldateien bleiben unverändert.
 
 Öffne in den Galeriefiltern **Standort** und aktiviere **Ohne Standort**, um Fotos mit fehlenden GPS-Koordinaten zu finden. Nach dem Hinzufügen eines Standorts verschwindet das Foto aus diesen Ergebnissen. Der Filter hebt eine Umkreissuche auf. Der Filter kann in einem intelligenten Album gespeichert werden. Eine semantische Suche, die Suche nach ähnlichen Fotos oder eine Umkreissuche deaktiviert ihn.
 
@@ -1526,3 +1541,19 @@ Meldet die semantische Suche, dass die Apple-Silicon-Beschleunigung belegt ist, 
 | Bildbeschreibungen werden nicht generiert | Erfordert das 16gb/24gb-VRAM-Profil für VLM-Bildbeschreibungen |
 | Zeitleiste leer | Sicherstellen, dass Fotos `date_taken`-Werte haben |
 | Port 5000 belegt | `python viewer.py --port 5001` ausführen (oder `PORT=5001` setzen). Unter macOS belegt der AirPlay-Empfänger des ControlCenter standardmäßig Port 5000 — entweder einen anderen Port wählen oder den AirPlay-Empfänger unter Systemeinstellungen → Allgemein → AirDrop & Handoff deaktivieren. |
+
+## Aufnahmedatum korrigieren
+
+Im Bearbeitungsmodus steht **Aufnahmedatum korrigieren** in den Fotodetails und der Auswahlleiste bereit. Eine Auswahl oder „Alle in der Ansicht auswählen“ samt Ausschlüssen ist auf 1000 sichtbare Fotos begrenzt. Der Versatz ist eine ganze Sekundenzahl ungleich null zwischen −31622400 und +31622400 (±366 Tage): positiv bedeutet später, negativ früher. **Vorschau** zeigt die Anzahl geänderter/übersprungener Fotos und die ersten 20 Vorher/Nachher-Werte. **Korrektur anwenden** prüft Umfang und Werte erneut und schreibt alles atomar; bei Änderungen ist eine neue Vorschau nötig.
+
+Die Kamera-Uhrzeit wird ohne Ableitung von Zeitzone oder Sommerzeit verschoben. Unterstützt werden vollständige Werte in `YYYY:MM:DD HH:MM:SS` oder `YYYY-MM-DD[T oder Leerzeichen]HH:MM:SS`. Unbekannte, unvollständige, ungültige oder überlaufende Werte sowie Zeitzonen und Sekundenbruchteile werden übersprungen. Manuelle Daten bleiben bei vollständigen/teilweisen Scans und inkrementellen Viewer-Datenbankexporten erhalten. **Dateidatum verwenden** entfernt die Korrektur; fehlt das Dateidatum, wird das Aufnahmedatum unbekannt. Unlesbare Dateien oder nicht unterstützte Daten behalten die Korrektur.
+
+Originale und Dateiänderungszeiten bleiben unberührt. Der ausdrückliche XMP-Export schreibt `exif:DateTimeOriginal` für manuelle Daten; das ausdrückliche Einbetten schreibt zusätzlich EXIF `DateTimeOriginal` bei unterstützten Formaten, ohne andere EXIF-Datumsfelder zu ändern. Serien- und Sequenzgruppen bleiben erhalten; für neue Gruppen den vorhandenen Scan bzw. die Gruppenerkennung ausdrücklich starten.
+
+## Änderungsverlauf
+
+Öffnen Sie im Bearbeitungsmodus **Änderungsverlauf** über die Galerie oder Fotodetails. Klappen Sie einen Eintrag für den Vorher/Nachher-Vergleich auf und wählen Sie **Diesen Eintrag zurücksetzen**. Orte und Daten gelten gemeinsam; Entscheidungen, Sterne und Favoriten nutzen Ihre Kontoeinstellungen. Dateien und Gesichtserkennung sind ausgeschlossen. Originale bleiben unverändert. Kurzzeitiges Rückgängigmachen und Assistentenaktivität bleiben getrennt.
+
+Diese Datenbank speichert die neuesten **50 Einträge pro Konto**, jeweils mit höchstens **1000 Fotos und 1 MiB**. Große gefilterte Auswahlen werden in derselben Transaktion in beschriftete Teile aufgeteilt. Zurücksetzen betrifft nur den gewählten Teil; ältere Teile können abgelaufen sein. Unveränderte Werte erzeugen keinen Eintrag. Der Verlauf übersteht Neustarts und inkrementelle Aktualisierungen, wird aber nicht zwischen Datenbanken synchronisiert. Ein vollständiger Export beginnt mit leerem Verlauf.
+
+Ein Eintrag wird ganz ausgeblendet, wenn ein Foto gelöscht oder nicht mehr zugänglich ist. Zurücksetzen wird vollständig abgelehnt, wenn ein betroffener Wert inzwischen geändert wurde, auch wenn er wieder gleich ist. Orts-/Datumskonflikte gelten kontenübergreifend; private Auswahländerungen anderer Konten blockieren Ihre nicht. Zurücksetzen erzeugt einen eigenen Eintrag und markiert den ursprünglichen. Scans, Importe und kurzzeitiges Rückgängigmachen machen ältere kollidierende Einträge ebenfalls ungültig.

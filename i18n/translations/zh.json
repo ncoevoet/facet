@@ -2462,7 +2462,15 @@
       "load_error": "无法加载地点。",
       "place_error": "无法更新地点。请检查名称、数量限制和网络连接。",
       "save_error": "无法保存照片位置。请重试。",
-      "use_file_location": "使用文件中的位置"
+      "use_file_location": "使用文件中的位置",
+      "batch_title": "设置位置",
+      "only_missing": "仅限缺少位置的照片",
+      "preview_batch": "预览位置更改",
+      "batch_preview": "将更改 {changed} 张照片；跳过 {skipped} 张。",
+      "batch_applied": "已更新 {changed} 张照片；跳过 {skipped} 张。",
+      "batch_error": "无法应用位置。请选择最多 1000 张照片并重新预览；所选照片或已保存地点可能已更改。",
+      "batch_limit": "请选择最多 1000 张照片。关闭保护后将替换现有位置。原始文件保持不变。",
+      "batch_hint": "选择一个位置，然后预览更改，再保存所选照片。"
     }
   },
   "manual_tags": {
@@ -2766,5 +2774,60 @@
       "ui_suggest_culling": "已在筛选方案中标注建议",
       "ui_show_comparison": "已显示对比"
     }
+  },
+  "review": {
+    "status": "审核状态",
+    "all": "所有决定",
+    "needs_review": "待审核",
+    "kept": "已保留",
+    "rejected": "已拒绝",
+    "keep": "保留",
+    "reset": "重置决定",
+    "updated": "已更新 {{count}} 张照片的决定",
+    "shortcut": "保留照片"
+  },
+  "capture_date": {
+    "title": "校正拍摄日期",
+    "offset": "偏移秒数（+ 推后，− 提前）",
+    "invalid": "请输入非零整数秒，范围为 ±366 天；最多选择 1000 张照片。",
+    "counts": "已更改 {changed} 张 · 已跳过 {skipped} 张",
+    "samples": "前 20 项更改。未知、不完整、不支持或超出日期范围的时间将被跳过。",
+    "photo": "照片",
+    "before": "校正前",
+    "after": "校正后",
+    "error": "无法完成操作。请检查访问权限和文件，然后重新预览。",
+    "reset_hint": "使用文件日期将移除手动校正。如果文件没有日期，拍摄日期将变为未知。",
+    "use_file": "使用文件日期",
+    "preview": "预览",
+    "apply": "应用校正",
+    "hint": "偏移相机记录的本地时间，不推断时区或夏令时。只有明确导出元数据时才会更改原始文件。"
+  },
+  "organization_history": {
+    "title": "整理历史",
+    "hint": "此查看器数据库中您最近的 50 条整理记录。位置和拍摄日期对所有人有效；筛选决定、星级和收藏属于您的账户。不会修改原始文件。",
+    "gps": "位置",
+    "date": "拍摄日期",
+    "review": "筛选",
+    "revert": "还原此条记录",
+    "reverted": "已还原",
+    "empty": "没有可用的历史记录。",
+    "part": "第 {part} 部分，共 {parts} 部分：此记录仅还原其中的 {count} 张照片。较早的部分可能已过期。",
+    "success": "已还原照片数量：{count}",
+    "conflict": "此操作后照片已被修改。未还原任何照片。",
+    "unavailable": "此记录已不可用。未还原任何照片。",
+    "error": "无法加载或还原历史记录。",
+    "latitude": "纬度",
+    "longitude": "经度",
+    "manual_gps": "手动位置",
+    "capture_date": "拍摄日期",
+    "manual_date": "手动日期",
+    "stars": "星级",
+    "favorite": "收藏",
+    "rejected": "已拒绝",
+    "kept": "已保留",
+    "yes": "是",
+    "no": "否",
+    "unknown": "未知",
+    "photo_count": "照片数量：{count}"
   }
 }

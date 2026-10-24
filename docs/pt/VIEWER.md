@@ -209,6 +209,19 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 
 Com `licensing.mode` definido como `commercial`, o visualizador oculta as métricas cujos modelos não podem ser usados comercialmente: LIQE, Aesthetic IAA, Face Quality IQA (a menos que o OFIQ esteja instalado), DeQA (a menos que `licensing.allow_unclear` esteja definido) e Aesthetic V2.5: os respetivos filtros de intervalo, chips de filtro e opções de ordenação. `/api/config` lista-as em `unavailable_metrics`. Na página de ajuste de pesos os controlos continuam visíveis mas desativados, com uma dica; os pesos são mantidos, porque a pontuação os descarta e renormaliza. Reinicie o visualizador depois de alterar o modo de licença.
 
+## Decisões de revisão
+
+Na galeria, escolha **Status de revisão → Precisa de revisão** para percorrer fotos sem decisão. A ordem muda para **data da captura, mais antigas primeiro**; você pode invertê-la ou filtrar por data, pasta ou álbum.
+
+**Manter** e **Rejeitar** retiram a foto dessa visualização após salvar. As fotos mantidas continuam na biblioteca normal e aparecem com o filtro **Mantidas**. Favoritos e estrelas permanecem independentes.
+
+Manter e **Redefinir decisão** estão disponíveis nos detalhes, no menu de contexto e nas ações em lote. **K** mantém a foto atual. Redefinir limpa Manter e Rejeitar sem alterar estrelas ou favoritos. As ações da galeria podem ser desfeitas.
+
+As decisões persistem após recarregar, reiniciar e analisar novamente, e são individuais por usuário. Confirmar um grupo de seleção também marca suas fotos escolhidas como mantidas. Avaliações, favoritos e grupos já revisados não são convertidos automaticamente.
+
+O status de revisão se aplica à galeria normal; escolher um status encerra as buscas semânticas e de fotos semelhantes.
+
+
 ## Recursos da Galeria
 
 ### Cartões de Foto
@@ -546,6 +559,8 @@ API: veja a seção [Endpoints da API](#endpoints-da-api) abaixo.
 Acesse pela rota `/map`. Controlado por `viewer.features.show_map` (padrão: `true`).
 
 ### Lugares salvos e GPS manual
+
+Selecione várias fotos na galeria e escolha **Definir localização** na barra de seleção, nas ações móveis ou no menu de contexto. Use um local salvo/recente, o mapa ou coordenadas. **Apenas fotos sem localização** começa ativado; desative a proteção para substituir localizações existentes. Confira na prévia quantas fotos mudarão e quantas serão ignoradas antes de salvar. Cada lote admite até 1000 fotos visíveis, incluindo uma vista filtrada completa com suas exclusões. Coordenadas iguais são ignoradas. Se a seleção, o GPS ou o local salvo mudar, repita a prévia. A galeria então recarrega os filtros ativos. Os arquivos originais não são alterados.
 
 Nos filtros da galeria, abra **Localização** e ative **Sem geolocalização** para encontrar fotos sem uma coordenada GPS. Ao adicionar uma localização, a foto sai destes resultados. Este filtro limpa a seleção de raio no mapa. O filtro pode ser salvo num álbum inteligente. Iniciar uma pesquisa semântica ou de fotos semelhantes, ou selecionar um raio no mapa, desativa-o.
 
@@ -1525,3 +1540,19 @@ Se a busca semântica informar que a aceleração Apple Silicon está ocupada, t
 | Legendas não são geradas | Requer o perfil de VRAM 16gb/24gb para legendagem por VLM |
 | Linha do tempo vazia | Garanta que as fotos tenham valores em `date_taken` |
 | Porta 5000 em uso | Execute `python viewer.py --port 5001` (ou defina `PORT=5001`). No macOS, o AirPlay Receiver do ControlCenter vincula a 5000 por padrão — escolha outra porta ou desative o AirPlay Receiver em Ajustes do Sistema → Geral → AirDrop e Handoff. |
+
+## Correção da data de captura
+
+No modo de edição, **Corrigir data de captura** está disponível nos detalhes e na barra de seleção. A seleção ou «Selecionar tudo na vista», com exclusões, aceita até 1000 fotos visíveis. Introduza segundos inteiros diferentes de zero entre −31622400 e +31622400 (±366 dias): positivo move para depois, negativo para antes. **Pré-visualizar** mostra contagens de alteradas/ignoradas e as primeiras 20 datas antes/depois. **Aplicar correção** verifica novamente o âmbito e os valores e aplica tudo atomicamente; se mudarem, repita a pré-visualização.
+
+Desloca-se a hora local da câmara sem deduzir fuso horário ou horário de verão. São aceites valores completos `YYYY:MM:DD HH:MM:SS` ou `YYYY-MM-DD[T ou espaço]HH:MM:SS`. Datas desconhecidas, incompletas, inválidas, fora dos limites ou com fuso/frações de segundo são ignoradas. As correções sobrevivem a análises completas/parciais e exportações incrementais da base do visualizador. **Usar data do ficheiro** remove a correção; sem data no ficheiro, a data fica desconhecida. Ficheiros ilegíveis ou datas incompatíveis mantêm a correção.
+
+Originais e datas de modificação dos ficheiros ficam inalterados. A exportação XMP explícita escreve `exif:DateTimeOriginal` para datas manuais; a escrita explícita no ficheiro adiciona EXIF `DateTimeOriginal` nos formatos suportados sem alterar outras datas EXIF. Os grupos de rajadas/sequências são preservados; execute explicitamente a análise ou deteção de grupos para reagrupar.
+
+## Histórico de organização
+
+No modo de edição, abra **Histórico de organização** na galeria ou nos detalhes. Expanda uma entrada para comparar os valores antes/depois e escolha **Reverter esta entrada**. Locais e datas são partilhados; decisões, estrelas e favoritos usam as preferências da sua conta. Ficheiros e reconhecimento facial ficam excluídos. Os originais não mudam. A anulação temporária e a atividade do assistente continuam separadas.
+
+Esta base guarda as últimas **50 entradas por conta**, cada uma com até **1000 fotos e 1 MiB**. Revisões filtradas grandes são divididas em partes na mesma transação. Reverter restaura apenas a parte escolhida; as antigas podem ter expirado. Ações sem alterações não criam entradas. O histórico sobrevive a reinícios e atualizações incrementais, sem sincronização entre bases. Uma exportação completa começa com o histórico vazio.
+
+Uma entrada fica totalmente oculta se alguma foto for eliminada ou deixar de estar visível. A restauração é recusada por inteiro se algum valor afetado mudou depois, mesmo que tenha voltado ao anterior. Conflitos de local/data abrangem todas as contas; revisões privadas de outras contas não bloqueiam as suas. Reverter cria uma nova entrada e marca a original. Análises, importações e anulações temporárias também invalidam entradas anteriores em conflito.

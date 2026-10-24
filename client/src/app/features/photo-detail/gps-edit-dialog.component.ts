@@ -1,4 +1,7 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, DestroyRef, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
+import { AuthService } from '../../core/services/auth.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationStart, Router } from '@angular/router';
+import { Component, inject, signal, computed, effect, viewChild, ElementRef, DestroyRef, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,10 +25,13 @@ export interface GpsEditDialogData {
   lng: number | null;
   /** The photo's location was set in the viewer, so a rescan keeps it. */
   manuallySet?: boolean;
+  onBatchApplied?: () => void;
+  batch?: Pick<components['schemas']['BatchPhotoRequest'], 'photo_paths' | 'filters' | 'exclude'>;
 }
 
 export type SavedPlace = components['schemas']['SavedPlace'];
 export type RecentPlace = components['schemas']['RecentPlace'];
+type BatchGpsDraft = NonNullable<GpsEditDialogData['batch']> & { gps_latitude: number | null; gps_longitude: number | null; only_missing: boolean; saved_place_id?: number | null };
 type GpsResult = components['schemas']['GpsUpdateResponse'];
 
 @Component({
@@ -38,7 +44,7 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
       <mat-icon>location_on</mat-icon><span class="truncate">{{ data.filename }}</span>
     </h2>
     <mat-dialog-content class="!px-4 !pb-2">
-      <p class="text-sm mb-3">{{ I18N.photo_detail.gps.preview_hint | translate }}</p>
+      <p class="text-sm mb-3">{{ (data.batch ? I18N.photo_detail.gps.batch_hint : I18N.photo_detail.gps.preview_hint) | translate }}</p>
       <label class="block text-sm mb-3">
         {{ I18N.photo_detail.gps.search | translate }}
         <input class="block w-full border rounded p-2 bg-transparent" type="search" [ngModel]="search()" (ngModelChange)="search.set($event)">
@@ -94,20 +100,35 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
       </div>
       @if (placeBusy()) { <p role="status">{{ I18N.photo_detail.gps.updating | translate }}</p> }
       @if (placeError()) { <p role="alert">{{ placeError() | translate }}</p> }
+      @if (data.batch) {
+        <label class="flex items-center gap-2 mt-3"><input type="checkbox" [ngModel]="onlyMissing()" (ngModelChange)="onlyMissing.set($event)">{{ I18N.photo_detail.gps.only_missing | translate }}</label>
+        <p class="text-sm mt-2">{{ I18N.photo_detail.gps.batch_limit | translate }}</p>
+        @if (previewCurrent()) { @if (batchPreview(); as preview) {
+          <p role="status" class="mt-2">{{ I18N.photo_detail.gps.batch_preview | translate:{ changed: preview.result.changed, skipped: preview.result.skipped } }}</p>
+        } }
+      }
       @if (saveError()) { <p role="alert">{{ saveError() | translate }}</p> }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button (click)="clearLocation()" class="!mr-auto">{{ I18N.photo_detail.gps_clear | translate }}</button>
+      @if (!data.batch) { <button mat-button (click)="clearLocation()" class="!mr-auto">{{ I18N.photo_detail.gps_clear | translate }}</button> }
       @if (data.manuallySet) {
         <button mat-button (click)="useFileLocation()" [disabled]="saving() || placeBusy()">{{ I18N.photo_detail.gps.use_file_location | translate }}</button>
       }
       <button mat-button (click)="cancel()">{{ I18N.ui.buttons.cancel | translate }}</button>
-      <button mat-flat-button (click)="save()" [disabled]="saving() || placeBusy() || !coordinatesValid() || unchanged()">{{ I18N.ui.buttons.save | translate }}</button>
+      @if (data.batch) {
+        <button mat-button (click)="previewBatch()" [disabled]="saving() || placeBusy() || !batchCoordinatesValid()">{{ I18N.photo_detail.gps.preview_batch | translate }}</button>
+      }
+      <button mat-flat-button (click)="save()" [disabled]="saving() || placeBusy() || (data.batch ? !canApplyBatch() : (!coordinatesValid() || unchanged()))">{{ I18N.ui.buttons.save | translate }}</button>
     </mat-dialog-actions>
   `,
 })
 export class GpsEditDialogComponent {
   protected readonly I18N = i18nKeys();
+  readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly owner = this.auth.status();
+  private readonly url = this.router.url;
+  private navigated = false;
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);
   private readonly dialogRef = inject(MatDialogRef<GpsEditDialogComponent>);
@@ -121,6 +142,17 @@ export class GpsEditDialogComponent {
   readonly selectedLat = signal<number | null>(this.data.lat);
   readonly selectedLng = signal<number | null>(this.data.lng);
   readonly saving = signal(false);
+  readonly onlyMissing = signal(true);
+  private readonly batchTarget = this.data.batch ? structuredClone(this.data.batch) : null;
+  readonly batchCoordinatesValid = computed(() => this.coordinatesValid() && this.selectedLat() !== null && this.selectedLng() !== null);
+  private readonly batchBody = computed(() => ({
+    ...this.batchTarget, gps_latitude: this.selectedLat(), gps_longitude: this.selectedLng(),
+    only_missing: this.onlyMissing(),
+    ...(this.selectedPlaceId() === null ? {} : { saved_place_id: this.selectedPlaceId() }),
+  }));
+  readonly batchPreview = signal<{ body: BatchGpsDraft; result: components['schemas']['BatchGpsResponse'] } | null>(null);
+  readonly previewCurrent = computed(() => !!this.batchPreview() && JSON.stringify(this.batchBody()) === JSON.stringify(this.batchPreview()!.body));
+  readonly canApplyBatch = computed(() => this.batchCoordinatesValid() && this.previewCurrent() && this.batchPreview()!.result.changed > 0);
 
   readonly places = signal<SavedPlace[]>([]);
   readonly recent = signal<RecentPlace[]>([]);
@@ -153,7 +185,26 @@ export class GpsEditDialogComponent {
   private map: L.Map | null = null;
   private marker: L.Marker | null = null;
 
+  private current(): boolean {
+    return !this.dismissed && !this.navigated && !this.destroyed && !this.destroyRef.destroyed && this.auth.status() === this.owner && this.auth.isEdition() && this.router.url === this.url;
+  }
+
+  private invalidateOwner(): void {
+    this.dismissed = true;
+    this.batchPreview.set(null);
+    this.places.set([]);
+    this.recent.set([]);
+    this.dialogRef.close();
+  }
+
   constructor() {
+    effect(() => {
+      if (this.auth.status() !== this.owner || !this.auth.isEdition()) this.invalidateOwner();
+    });
+    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (event instanceof NavigationStart) { this.navigated = true; this.invalidateOwner(); }
+    });
+    this.dialogRef.beforeClosed().pipe(takeUntilDestroyed()).subscribe(() => { this.dismissed = true; this.batchPreview.set(null); });
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
       if (this.map) { this.map.remove(); this.map = null; }
@@ -174,7 +225,7 @@ export class GpsEditDialogComponent {
     const lng = this.selectedLng() ?? 2.3522;
     const zoom = this.selectedLat() !== null ? 13 : 5;
 
-    this.map = createLeafletMap(container, undefined, () => { if (!this.destroyed) this.mapFailed.set(true); }).setView([lat, lng], zoom);
+    this.map = createLeafletMap(container, undefined, () => { if (this.current()) this.mapFailed.set(true); }).setView([lat, lng], zoom);
     // Force Leaflet to recalculate container size after dialog renders
     this.map.invalidateSize();
 
@@ -209,14 +260,14 @@ export class GpsEditDialogComponent {
   }
 
   async loadPlaces(): Promise<void> {
-    if (this.loadingPlaces() || this.placeBusy()) return;
+    if (!this.current() || this.loadingPlaces() || this.placeBusy()) return;
     this.loadingPlaces.set(true);
     this.placesError.set('');
     try {
       const result = await firstValueFrom(this.api.get<components['schemas']['PlacesResponse']>('/places'));
-      if (!this.destroyed) { this.places.set(result.places); this.recent.set(result.recent); }
-    } catch { if (!this.destroyed) this.placesError.set(I18N.photo_detail.gps.load_error); }
-    finally { this.loadingPlaces.set(false); }
+      if (this.current()) { this.places.set(result.places); this.recent.set(result.recent); }
+    } catch { if (this.current()) this.placesError.set(I18N.photo_detail.gps.load_error); }
+    finally { if (this.current()) this.loadingPlaces.set(false); }
   }
 
   selectPlace(place: SavedPlace): void {
@@ -255,66 +306,104 @@ export class GpsEditDialogComponent {
   }
 
   async createPlace(): Promise<void> {
-    if (!this.canCreatePlace()) return;
+    if (!this.current() || !this.canCreatePlace()) return;
     const body = { name: this.placeName().trim(), latitude: this.selectedLat(), longitude: this.selectedLng() };
     this.placeBusy.set(true);
     this.placeError.set('');
     try {
       const place = await firstValueFrom(this.api.post<SavedPlace>('/places', body));
-      if (!this.destroyed) {
+      if (this.current()) {
         this.places.update(places => [...places, place]);
         this.placeName.set('');
         if (this.selectedLat() === place.latitude && this.selectedLng() === place.longitude) this.selectedPlaceId.set(place.id);
       }
-    } catch { if (!this.destroyed) this.placeError.set(I18N.photo_detail.gps.place_error); }
-    finally { this.placeBusy.set(false); }
+    } catch { if (this.current()) this.placeError.set(I18N.photo_detail.gps.place_error); }
+    finally { if (this.current()) this.placeBusy.set(false); }
   }
 
   async renamePlace(place: SavedPlace): Promise<void> {
-    if (this.placeBusy() || this.loadingPlaces() || !this.editNameValid()) return;
+    if (!this.current() || this.placeBusy() || this.loadingPlaces() || !this.editNameValid()) return;
     const body = { name: this.editName().trim(), latitude: place.latitude, longitude: place.longitude };
     this.placeBusy.set(true);
     this.placeError.set('');
     try {
       const updated = await firstValueFrom(this.api.put<SavedPlace>(`/places/${place.id}`, body));
-      if (!this.destroyed) { this.places.update(places => places.map(p => p.id === updated.id ? updated : p)); this.editingId.set(null); }
-    } catch { if (!this.destroyed) this.placeError.set(I18N.photo_detail.gps.place_error); }
-    finally { this.placeBusy.set(false); }
+      if (this.current()) { this.places.update(places => places.map(p => p.id === updated.id ? updated : p)); this.editingId.set(null); }
+    } catch { if (this.current()) this.placeError.set(I18N.photo_detail.gps.place_error); }
+    finally { if (this.current()) this.placeBusy.set(false); }
   }
 
   async deletePlace(place: SavedPlace): Promise<void> {
-    if (this.placeBusy() || this.loadingPlaces()) return;
+    if (!this.current() || this.placeBusy() || this.loadingPlaces()) return;
     this.placeBusy.set(true);
     this.placeError.set('');
     try {
       await firstValueFrom(this.api.delete(`/places/${place.id}`));
-      if (!this.destroyed) {
+      if (this.current()) {
         this.places.update(places => places.filter(p => p.id !== place.id));
         if (this.selectedPlaceId() === place.id) this.selectedPlaceId.set(null);
       }
-    } catch { if (!this.destroyed) this.placeError.set(I18N.photo_detail.gps.place_error); }
-    finally { this.placeBusy.set(false); }
+    } catch { if (this.current()) this.placeError.set(I18N.photo_detail.gps.place_error); }
+    finally { if (this.current()) this.placeBusy.set(false); }
   }
 
-  cancel(): void { this.dismissed = true; this.dialogRef.close(undefined); }
+  cancel(): void { this.dismissed = true; this.batchPreview.set(null); this.dialogRef.close(undefined); }
 
   async useFileLocation(): Promise<void> {
-    if (this.saving() || this.placeBusy()) return;
+    if (!this.current() || this.saving() || this.placeBusy()) return;
+
     this.saving.set(true);
     this.saveError.set('');
     try {
       const result = await firstValueFrom(this.api.delete<GpsResult>(`/photo/gps?path=${encodeURIComponent(this.data.path)}`));
+      if (!this.current()) return;
       this.store.patchPhoto(this.data.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 0 });
       if (this.store.filters().no_gps) void this.store.loadPhotos();
-      if (!this.destroyed && !this.dismissed) this.dialogRef.close({ ...result, gps_manually_set: 0 });
+      if (this.current()) this.dialogRef.close({ ...result, gps_manually_set: 0 });
     } catch {
+      if (!this.current()) return;
       this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
-      if (!this.destroyed) this.saveError.set(I18N.photo_detail.gps.save_error);
-    } finally { this.saving.set(false); }
+      if (this.current()) this.saveError.set(I18N.photo_detail.gps.save_error);
+    } finally { if (this.current()) this.saving.set(false); }
+  }
+
+  async previewBatch(): Promise<void> {
+    if (!this.current() || !this.batchTarget || this.saving() || this.placeBusy() || !this.batchCoordinatesValid()) return;
+    const body = structuredClone(this.batchBody());
+    this.saving.set(true);
+    this.batchPreview.set(null);
+    this.saveError.set('');
+    try {
+      const result = await firstValueFrom(this.api.post<components['schemas']['BatchGpsResponse']>('/photos/batch_gps', { ...body, preview: true }));
+      if (this.current()) this.batchPreview.set({ body, result });
+    } catch { if (this.current()) this.saveError.set(I18N.photo_detail.gps.batch_error); }
+    finally { if (this.current()) this.saving.set(false); }
+  }
+
+  private async saveBatch(): Promise<void> {
+    if (!this.current() || !this.canApplyBatch() || this.saving() || this.placeBusy()) return;
+    const preview = this.batchPreview()!;
+    this.saving.set(true);
+    this.saveError.set('');
+    try {
+      const result = await firstValueFrom(this.api.post<components['schemas']['BatchGpsResponse']>('/photos/batch_gps', {
+        ...preview.body, preview: false, preview_token: preview.result.preview_token,
+      }));
+      // A committed write remains server truth, but an expired dialog cannot
+      // publish into a later session or navigation.
+      if (!this.current()) return;
+      this.data.onBatchApplied?.();
+      void this.store.refreshPaths(null);
+      this.snackBar.open(this.i18n.t(I18N.photo_detail.gps.batch_applied, { changed: result.changed, skipped: result.skipped }), '', { duration: 4000 });
+      if (this.current()) this.dialogRef.close(result);
+    } catch {
+      if (this.current()) { this.batchPreview.set(null); this.saveError.set(I18N.photo_detail.gps.batch_error); }
+    } finally { if (this.current()) this.saving.set(false); }
   }
 
   async save(): Promise<void> {
-    if (this.saving() || this.placeBusy() || !this.coordinatesValid()) return;
+    if (this.batchTarget) { await this.saveBatch(); return; }
+    if (!this.current() || this.saving() || this.placeBusy() || !this.coordinatesValid()) return;
     const body = {
       path: this.data.path,
       gps_latitude: this.selectedLat(),
@@ -325,12 +414,14 @@ export class GpsEditDialogComponent {
     this.saveError.set('');
     try {
       const result = await firstValueFrom(this.api.put<GpsResult>('/photo/gps', body));
+      if (!this.current()) return;
       this.store.patchPhoto(body.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 1 });
       if (this.store.filters().no_gps) void this.store.loadPhotos();
-      if (!this.destroyed && !this.dismissed) this.dialogRef.close(result);
+      if (this.current()) this.dialogRef.close(result);
     } catch {
+      if (!this.current()) return;
       this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
-      if (!this.destroyed) this.saveError.set(I18N.photo_detail.gps.save_error);
-    } finally { this.saving.set(false); }
+      if (this.current()) this.saveError.set(I18N.photo_detail.gps.save_error);
+    } finally { if (this.current()) this.saving.set(false); }
   }
 }

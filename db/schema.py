@@ -155,6 +155,7 @@ PHOTOS_COLUMNS = [
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
     ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),
     ('is_rejected', 'INTEGER DEFAULT 0 CHECK (is_rejected IN (0, 1))'),
+    ('is_kept', 'INTEGER DEFAULT 0 CHECK (is_kept IN (0, 1))'),
 
     # AI captioning
     ('caption', 'TEXT'),
@@ -214,6 +215,8 @@ PHOTOS_COLUMNS = [
     # the row's sequence_kind, never on its own. NULL = written before the stamp
     # existed, i.e. before the RAW exposure fix. See db/render_version.py.
     ('render_version', 'INTEGER'),
+    # Manual capture dates survive EXIF rescans.
+    ('date_manually_set', 'INTEGER NOT NULL DEFAULT 0'),
     # Manual GPS (including intentional clears) survives EXIF rescans.
     ('gps_manually_set', 'INTEGER NOT NULL DEFAULT 0'),
 ]
@@ -823,6 +826,7 @@ USER_PREFERENCES_COLUMNS = [
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
     ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),
     ('is_rejected', 'INTEGER DEFAULT 0 CHECK (is_rejected IN (0, 1))'),
+    ('is_kept', 'INTEGER DEFAULT 0 CHECK (is_kept IN (0, 1))'),
 ]
 
 USER_PREFERENCES_INDEXES = [
@@ -1433,6 +1437,9 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
                 "UPDATE persons SET centroid_model = ? "
                 "WHERE centroid IS NOT NULL AND centroid_model IS NULL",
                 (ARCFACE_MODEL,))
+
+        from db.organization_history import init_schema as init_organization_history
+        init_organization_history(conn)
 
         # Create photos_vec virtual table for vector search (requires sqlite-vec).
         # After the sweep so detect_embedding_dim can see clip_embedding.

@@ -2462,7 +2462,15 @@
       "load_error": "Could not load places.",
       "place_error": "Could not update place. Check the name, limit and connection.",
       "save_error": "Could not save the photo location. Please try again.",
-      "use_file_location": "Use the file's location"
+      "use_file_location": "Use the file's location",
+      "batch_title": "Set location",
+      "only_missing": "Only photos missing a location",
+      "preview_batch": "Preview location changes",
+      "batch_preview": "{changed} photos will change; {skipped} skipped.",
+      "batch_applied": "Updated {changed} photos; {skipped} skipped.",
+      "batch_error": "Could not apply location. Select at most 1000 photos and preview again; the selection or saved place may have changed.",
+      "batch_limit": "Select at most 1000 photos. Existing locations are replaced when protection is off. Original files are unchanged.",
+      "batch_hint": "Choose a location, then preview the changes before saving the selection."
     }
   },
   "manual_tags": {
@@ -2766,5 +2774,60 @@
       "ui_suggest_culling": "Marked suggestions on the culling plan",
       "ui_show_comparison": "Showed a comparison"
     }
+  },
+  "review": {
+    "status": "Review status",
+    "all": "All decisions",
+    "needs_review": "Needs review",
+    "kept": "Kept",
+    "rejected": "Rejected",
+    "keep": "Keep",
+    "reset": "Reset decision",
+    "updated": "Updated {{count}} photo decisions",
+    "shortcut": "Keep photo"
+  },
+  "capture_date": {
+    "title": "Correct capture date",
+    "offset": "Offset in seconds (+ later, − earlier)",
+    "invalid": "Use a nonzero whole number of seconds within ±366 days; select at most 1000 photos.",
+    "counts": "{changed} changed · {skipped} skipped",
+    "samples": "First 20 changes. Unknown, incomplete, unsupported or overflowing dates are skipped.",
+    "photo": "Photo",
+    "before": "Before",
+    "after": "After",
+    "error": "Could not complete the action. Check access and files, then preview again.",
+    "reset_hint": "Use file date removes the manual override. If the file has no date, the capture date becomes unknown.",
+    "use_file": "Use file date",
+    "preview": "Preview",
+    "apply": "Apply correction",
+    "hint": "Shift stored camera walltime; no timezone or daylight-saving inference. Originals stay unchanged until explicit metadata export."
+  },
+  "organization_history": {
+    "title": "Organization history",
+    "hint": "Your last 50 organization entries in this viewer database. GPS and capture dates affect everyone; review decisions, stars and favorites belong to your account. Original files are never changed.",
+    "gps": "Location",
+    "date": "Capture date",
+    "review": "Review",
+    "revert": "Revert this entry",
+    "reverted": "Already reverted",
+    "empty": "No available history entries.",
+    "part": "Part {part} of {parts}: this entry restores only its {count} photos. Older parts may have expired.",
+    "success": "Photos restored: {count}",
+    "conflict": "Photos changed since this action. Nothing was restored.",
+    "unavailable": "This entry is no longer available. Nothing was restored.",
+    "error": "Could not load or restore history.",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "manual_gps": "Manual location",
+    "capture_date": "Capture date",
+    "manual_date": "Manual date",
+    "stars": "Stars",
+    "favorite": "Favorite",
+    "rejected": "Rejected",
+    "kept": "Kept",
+    "yes": "Yes",
+    "no": "No",
+    "unknown": "Unknown",
+    "photo_count": "Photos: {count}"
   }
 }

@@ -2462,7 +2462,15 @@
       "load_error": "Impossible de charger les lieux.",
       "place_error": "Impossible de modifier le lieu. Vérifiez le nom, la limite et la connexion.",
       "save_error": "Impossible d’enregistrer le lieu de la photo. Réessayez.",
-      "use_file_location": "Utiliser le lieu du fichier"
+      "use_file_location": "Utiliser le lieu du fichier",
+      "batch_title": "Définir le lieu",
+      "only_missing": "Uniquement les photos sans lieu",
+      "preview_batch": "Aperçu des changements de lieu",
+      "batch_preview": "{changed} photos seront modifiées ; {skipped} ignorées.",
+      "batch_applied": "{changed} photos modifiées ; {skipped} ignorées.",
+      "batch_error": "Impossible d’appliquer le lieu. Sélectionnez au plus 1000 photos et recommencez l’aperçu ; la sélection ou le lieu enregistré a pu changer.",
+      "batch_limit": "Sélectionnez au plus 1000 photos. Les lieux existants sont remplacés sans la protection. Les fichiers originaux restent inchangés.",
+      "batch_hint": "Choisissez un lieu, puis prévisualisez les changements avant d’enregistrer la sélection."
     }
   },
   "manual_tags": {
@@ -2766,5 +2774,60 @@
       "ui_suggest_culling": "Suggestions marquées sur le plan d'auto-tri",
       "ui_show_comparison": "Comparaison affichée"
     }
+  },
+  "review": {
+    "status": "Décision de tri",
+    "all": "Toutes les décisions",
+    "needs_review": "À examiner",
+    "kept": "Conservées",
+    "rejected": "Rejetées",
+    "keep": "Conserver",
+    "reset": "Réinitialiser la décision",
+    "updated": "Décision mise à jour pour {{count}} photos",
+    "shortcut": "Conserver la photo"
+  },
+  "capture_date": {
+    "title": "Corriger la date de prise de vue",
+    "offset": "Décalage en secondes (+ plus tard, − plus tôt)",
+    "invalid": "Saisissez un nombre entier non nul de secondes, limité à ±366 jours, pour 1000 photos maximum.",
+    "counts": "{changed} modifiées · {skipped} ignorées",
+    "samples": "20 premières modifications. Les dates inconnues, incomplètes, non prises en charge ou hors limites sont ignorées.",
+    "photo": "Photo",
+    "before": "Avant",
+    "after": "Après",
+    "error": "Action impossible. Vérifiez les accès et les fichiers, puis relancez l’aperçu.",
+    "reset_hint": "La date du fichier supprime la correction manuelle. Si le fichier ne contient aucune date, la date devient inconnue.",
+    "use_file": "Utiliser la date du fichier",
+    "preview": "Aperçu",
+    "apply": "Appliquer la correction",
+    "hint": "Décale l’heure locale de l’appareil, sans déduire le fuseau ni l’heure d’été. Les originaux ne changent que lors d’un export explicite des métadonnées."
+  },
+  "organization_history": {
+    "title": "Historique des modifications",
+    "hint": "Vos 50 dernières entrées dans cette base du visualiseur. Les lieux et dates affectent tout le monde ; les décisions, étoiles et favoris appartiennent à votre compte. Les fichiers originaux restent inchangés.",
+    "gps": "Lieu",
+    "date": "Date de prise de vue",
+    "review": "Tri",
+    "revert": "Rétablir cette entrée",
+    "reverted": "Déjà rétablie",
+    "empty": "Aucune entrée disponible.",
+    "part": "Partie {part} sur {parts} : cette entrée ne rétablit que ses {count} photos. Les parties anciennes peuvent avoir expiré.",
+    "success": "Photos rétablies : {count}",
+    "conflict": "Des photos ont changé depuis cette action. Rien n’a été rétabli.",
+    "unavailable": "Cette entrée n’est plus disponible. Rien n’a été rétabli.",
+    "error": "Impossible de charger ou rétablir l’historique.",
+    "latitude": "Latitude",
+    "longitude": "Longitude",
+    "manual_gps": "Lieu manuel",
+    "capture_date": "Date de prise de vue",
+    "manual_date": "Date manuelle",
+    "stars": "Étoiles",
+    "favorite": "Favori",
+    "rejected": "Rejetée",
+    "kept": "Conservée",
+    "yes": "Oui",
+    "no": "Non",
+    "unknown": "Inconnu",
+    "photo_count": "Photos : {count}"
   }
 }

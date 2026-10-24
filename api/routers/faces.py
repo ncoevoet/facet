@@ -9,17 +9,19 @@ import sqlite3
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Optional, Any
+from typing import Literal, Optional, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from api.auth import CurrentUser, require_edition, require_auth, require_authenticated
 from api.config import is_multi_user_enabled, _stats_cache
+from api import organization_history
 from api.database import get_async_db, get_db
 from api.routers.burst_culling import _invalidate_culling_groups_cache
 from api.db_helpers import (
     update_person_face_count, record_label_origin, snapshot_labels, clear_label_origin_for_scope, trigger_auto_retrain, get_visibility_clause,
+    get_preference_columns, read_labels,
     assert_faces_visible, assert_photo_visible, repair_stale_representative,
     is_locked_error, retry_on_locked, select_in_chunks,
 )
@@ -89,6 +91,15 @@ class BatchPhotoRequest(BaseModel):
         if (self.photo_paths is None) == (self.filters is None):
             raise ValueError("exactly one of photo_paths or filters is required")
         return self
+
+
+class BatchUpdateResponse(BaseModel):
+    success: bool
+    count: int
+
+
+class BatchReviewRequest(BatchPhotoRequest):
+    decision: Literal['kept', 'undecided', 'rejected']
 
 
 class BatchRatingRequest(BatchPhotoRequest):
@@ -455,6 +466,7 @@ def api_set_rating(
     with get_db() as conn:
         try:
             _require_writable_photo(conn, user, body.photo_path)
+            history_before = organization_history.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
                 conn.execute("""
@@ -465,6 +477,7 @@ def api_set_rating(
             else:
                 conn.execute("UPDATE photos SET star_rating = ? WHERE path = ?", (body.rating, body.photo_path))
             record_label_origin(conn, user.is_agent_request, user.user_id, [body.photo_path], before)
+            organization_history.finish(conn, user.user_id, 'review', history_before)
             conn.commit()
             _stats_cache.clear()
             if not user.is_agent_request:
@@ -488,6 +501,7 @@ def api_toggle_favorite(
     with get_db() as conn:
         try:
             _require_writable_photo(conn, user, body.photo_path)
+            history_before = organization_history.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
                 row = conn.execute(
@@ -516,6 +530,7 @@ def api_toggle_favorite(
                 else:
                     conn.execute("UPDATE photos SET is_favorite = 0 WHERE path = ?", (body.photo_path,))
             record_label_origin(conn, user.is_agent_request, user.user_id, [body.photo_path], before)
+            organization_history.finish(conn, user.user_id, 'review', history_before)
             conn.commit()
             _stats_cache.clear()
             _invalidate_culling_groups_cache()
@@ -542,6 +557,7 @@ def api_toggle_rejected(
     with get_db() as conn:
         try:
             _require_writable_photo(conn, user, body.photo_path)
+            history_before = organization_history.begin(conn, user.user_id, 'review', [body.photo_path])
             before = snapshot_labels(conn, user.is_agent_request, user.user_id, [body.photo_path])
             if user.user_id and is_multi_user_enabled():
                 row = conn.execute(
@@ -552,9 +568,9 @@ def api_toggle_rejected(
                 new_value = 0 if current else 1
                 if new_value == 1:
                     conn.execute("""
-                        INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite)
-                        VALUES (?, ?, 1, 0, 0)
-                        ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
+                        INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite, is_kept)
+                        VALUES (?, ?, 1, 0, 0, 0)
+                        ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0, is_kept = 0
                     """, (user.user_id, body.photo_path))
                 else:
                     conn.execute("""
@@ -566,16 +582,17 @@ def api_toggle_rejected(
                 row = conn.execute("SELECT is_rejected FROM photos WHERE path = ?", (body.photo_path,)).fetchone()
                 new_value = 0 if row['is_rejected'] else 1
                 if new_value == 1:
-                    conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path = ?", (body.photo_path,))
+                    conn.execute("UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0, is_kept = 0 WHERE path = ?", (body.photo_path,))
                 else:
                     conn.execute("UPDATE photos SET is_rejected = 0 WHERE path = ?", (body.photo_path,))
             record_label_origin(conn, user.is_agent_request, user.user_id, [body.photo_path], before)
+            organization_history.finish(conn, user.user_id, 'review', history_before)
             conn.commit()
             _stats_cache.clear()
             _invalidate_culling_groups_cache()
             if not user.is_agent_request:
                 _mint_rating_comparisons(user.user_id)
-            return {'success': True, 'is_rejected': new_value == 1, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
+            return {'success': True, 'is_rejected': new_value == 1, 'is_kept': False if new_value == 1 else None, 'star_rating': 0 if new_value == 1 else None, 'is_favorite': False if new_value == 1 else None}
         except HTTPException:
             raise
         except sqlite3.Error as ex:
@@ -721,7 +738,8 @@ def _write_paths(conn, paths: list, user: CurrentUser, sql: BatchWriteSql) -> in
 
 
 @retry_on_locked()
-def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql) -> dict:
+def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql,
+                  *, review_rejected: Optional[int] = None) -> dict:
     """Execute a batch update on photos with transaction and cache invalidation.
 
     Which statement of :class:`BatchWriteSql` runs is decided here; the two
@@ -741,6 +759,9 @@ def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql
 
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
+            history_paths = _filter_scope_paths(conn, body, user) if body.filters is not None else _writable_photo_paths(conn, user, [p for p in body.photo_paths or () if p not in set(body.exclude or ())])
+            history_before = organization_history.begin(conn, user.user_id, 'review', history_paths)
             if body.filters is not None:
                 if user.is_agent_request:
                     touched = _filter_scope_paths(conn, body, user)
@@ -748,7 +769,13 @@ def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql
                     count = _write_filter_scope(conn, body, user, sql)
                     record_label_origin(conn, True, user.user_id, touched, before)
                 else:
-                    clear_label_origin_for_scope(conn, user.user_id, *_batch_scope_sql(conn, body, user))
+                    from_clause, where_str, params = _batch_scope_sql(conn, body, user)
+                    if review_rejected is not None:
+                        # A review decision does not endorse unchanged agent-written ratings.
+                        rejected = get_preference_columns(user.user_id)['is_rejected']
+                        where_str += f" AND COALESCE({rejected}, 0) != ?"
+                        params = [*params, review_rejected]
+                    clear_label_origin_for_scope(conn, user.user_id, from_clause, where_str, params)
                     count = _write_filter_scope(conn, body, user, sql)
             else:
                 # `exclude` narrows WHICHEVER target is sent. On the filter
@@ -764,8 +791,13 @@ def _batch_update(body: BatchPhotoRequest, user: CurrentUser, sql: BatchWriteSql
                 if not paths:
                     return {'success': True, 'count': 0}
                 before = snapshot_labels(conn, user.is_agent_request, user.user_id, paths)
+                origin_paths = paths
+                if review_rejected is not None and not user.is_agent_request:
+                    labels = read_labels(conn, user.user_id, paths)
+                    origin_paths = [path for path in paths if labels[path][2] != review_rejected]
                 count = _write_paths(conn, paths, user, sql)
-                record_label_origin(conn, user.is_agent_request, user.user_id, paths, before)
+                record_label_origin(conn, user.is_agent_request, user.user_id, origin_paths, before)
+            organization_history.finish(conn, user.user_id, 'review', history_before)
             conn.commit()
             _stats_cache.clear()
             _invalidate_culling_groups_cache()
@@ -807,6 +839,39 @@ def api_batch_favorite(
     ))
 
 
+@router.post("/api/photos/batch_review", response_model=BatchUpdateResponse)
+def api_batch_review(
+    body: BatchReviewRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Keep/reset preserves ratings and favorites; rejection clears them."""
+    if body.decision == 'rejected':
+        return api_batch_reject(body, user)
+    kept = int(body.decision == 'kept')
+    rejected = int(body.decision == 'rejected')
+    return _batch_update(body, user, BatchWriteSql(
+        multi_user=(
+            "INSERT INTO user_preferences (user_id, photo_path, is_kept, is_rejected) "
+            "VALUES (?, ?, ?, ?) ON CONFLICT(user_id, photo_path) "
+            "DO UPDATE SET is_kept = excluded.is_kept, is_rejected = excluded.is_rejected"
+        ),
+        multi_user_row=lambda path: (user.user_id, path, kept, rejected),
+        single_user="UPDATE photos SET is_kept = ?, is_rejected = ? WHERE path IN ({placeholders})",
+        single_user_prefix=(kept, rejected),
+        filter_multi_user=(
+            "INSERT INTO user_preferences (user_id, photo_path, is_kept, is_rejected) "
+            "SELECT ?, photos.path, ?, ? FROM {scope} "
+            "ON CONFLICT(user_id, photo_path) "
+            "DO UPDATE SET is_kept = excluded.is_kept, is_rejected = excluded.is_rejected"
+        ),
+        filter_multi_user_prefix=(user.user_id, kept, rejected),
+        filter_single_user=(
+            "UPDATE photos SET is_kept = ?, is_rejected = ? "
+            "WHERE path IN (SELECT photos.path FROM {scope})"
+        ),
+    ), review_rejected=rejected)
+
+
 @router.post("/api/photos/batch_reject")
 def api_batch_reject(
     body: BatchPhotoRequest,
@@ -815,20 +880,20 @@ def api_batch_reject(
     """Mark multiple photos as rejected (clears favorite and rating)."""
     return _batch_update(body, user, BatchWriteSql(
         multi_user="""
-            INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite)
-            VALUES (?, ?, 1, 0, 0)
-            ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
+            INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite, is_kept)
+            VALUES (?, ?, 1, 0, 0, 0)
+            ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0, is_kept = 0
         """,
         multi_user_row=lambda path: (user.user_id, path),
-        single_user="UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 WHERE path IN ({placeholders})",
+        single_user="UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0, is_kept = 0 WHERE path IN ({placeholders})",
         filter_multi_user="""
-            INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite)
-            SELECT ?, photos.path, 1, 0, 0 FROM {scope}
-            ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0
+            INSERT INTO user_preferences (user_id, photo_path, is_rejected, star_rating, is_favorite, is_kept)
+            SELECT ?, photos.path, 1, 0, 0, 0 FROM {scope}
+            ON CONFLICT(user_id, photo_path) DO UPDATE SET is_rejected = 1, star_rating = 0, is_favorite = 0, is_kept = 0
         """,
         filter_multi_user_prefix=(user.user_id,),
         filter_single_user=(
-            "UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0 "
+            "UPDATE photos SET is_rejected = 1, star_rating = 0, is_favorite = 0, is_kept = 0 "
             "WHERE path IN (SELECT photos.path FROM {scope})"
         ),
     ))

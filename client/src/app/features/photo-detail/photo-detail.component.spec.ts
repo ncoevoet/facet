@@ -2,7 +2,7 @@ import { GalleryStore } from '../gallery/gallery.store';
 import { makePhoto } from '../../../testing/photo.fixture';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRoute, ParamMap, Router, convertToParamMap } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, NavigationStart, convertToParamMap } from '@angular/router';
 import { Location } from '@angular/common';
 import { MatDialog } from '@angular/material/dialog';
 import { BehaviorSubject, NEVER, Observable, of, Subject, throwError } from 'rxjs';
@@ -33,8 +33,8 @@ describe('PhotoDetailComponent', () => {
   let mockRouter: { navigate: Mock; events: Observable<unknown> };
   let mockLocation: { back: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } }; queryParamMap: BehaviorSubject<ParamMap> };
-  let mockAuth: { identity: () => string; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
-  let mockDialog: { open: Mock };
+  let mockAuth: { status: ReturnType<typeof signal>; identity: () => string; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
+  let mockDialog: { open: Mock; openDialogs: unknown[] };
 
   const samplePhoto = {
     path: '/photos/test.jpg',
@@ -112,8 +112,8 @@ describe('PhotoDetailComponent', () => {
       },
       queryParamMap: new BehaviorSubject(convertToParamMap({ path: '/photos/test.jpg' })),
     };
-    mockAuth = { identity: () => '0|', isEdition: signal(true), downloadProfiles: signal([]) };
-    mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(undefined) })) };
+    mockAuth = { status: signal({ user_id: 'test' }), identity: () => '0|', isEdition: signal(true), downloadProfiles: signal([]) };
+    mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(undefined) })), openDialogs: [] };
   });
 
   it('opens the manual editor with no detections and patches confirmed membership after navigation', async () => {
@@ -216,6 +216,88 @@ describe('PhotoDetailComponent', () => {
   it('should create', () => {
     createComponent();
     expect(component).toBeTruthy();
+  });
+
+  it.each(['k', 'K'])('ignores %s from a dialog button without saving or advancing', key => {
+    createComponent();
+    component.photo.set(makePhoto());
+    mockDialog.openDialogs.push({});
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    const button = document.createElement('button');
+    Object.defineProperty(event, 'target', { value: button });
+    component.onReviewKey(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(mockApi.post).not.toHaveBeenCalled();
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  describe('delayed review responses', () => {
+    it.each(['kept', 'undecided', 'rejected'])('preserves navigation after %s', async decision => {
+      createComponent();
+      const store = TestBed.inject(GalleryStore);
+      const a = makePhoto({ path: '/a.jpg' });
+      const b = makePhoto({ path: '/b.jpg' });
+      store.photos.set([a, b]);
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      const refresh = vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      component.photo.set(a);
+      const response = new Subject<any>();
+      mockApi.post.mockReturnValue(response);
+      const pending = decision === 'rejected' ? component.toggleRejected(a.path) : component.reviewPhoto(decision);
+      component.photo.set(b);
+      response.next({ is_rejected: true, is_favorite: null, star_rating: null });
+      await pending;
+      expect(component.photo()).toBe(b);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(store.photos()[0]).toMatchObject({ path: a.path, is_kept: decision === 'kept', is_rejected: decision === 'rejected' });
+    });
+    it.each(['kept', 'undecided', 'rejected'])('preserves closed detail after %s', async decision => {
+      createComponent();
+      const store = TestBed.inject(GalleryStore);
+      const a = makePhoto({ path: '/a.jpg' });
+      component.photo.set(a);
+      store.photos.set([a]);
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      const refresh = vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      const response = new Subject<any>();
+      mockApi.post.mockReturnValue(response);
+      const pending = decision === 'rejected' ? component.toggleRejected(a.path) : component.reviewPhoto(decision);
+      TestBed.resetTestingModule();
+      response.next({ is_rejected: true, is_favorite: null, star_rating: null });
+      await pending;
+      expect(component.photo()).toBe(a);
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+    it('merges delayed Keep into current metadata', async () => {
+      createComponent();
+      const a = makePhoto({ star_rating: 1 });
+      component.photo.set(a);
+      const response = new Subject<any>();
+      mockApi.post.mockReturnValue(response);
+      const pending = component.reviewPhoto('kept');
+      component.photo.set({ ...a, star_rating: 5, is_favorite: true });
+      response.next({});
+      await pending;
+      expect(component.photo()).toMatchObject({ is_kept: true, star_rating: 5, is_favorite: true });
+    });
+    it('advances last loaded row to refilled successor then supports Next', async () => {
+      createComponent();
+      const store = TestBed.inject(GalleryStore);
+      const all = Array.from({ length: 128 }, (_, i) => makePhoto({ path: `/p${i + 1}.jpg` }));
+      store.photos.set(all.slice(0, 64));
+      store.hasMore.set(true);
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      component.photo.set(all[63]);
+      const remaining = all.filter(p => p.path !== all[63].path);
+      mockApi.get.mockImplementation((_url: string, params: { page: number }) => of({ photos: remaining.slice((params.page - 1) * 64, params.page * 64), total: 127, has_more: params.page === 1 }));
+      await component.reviewPhoto('kept');
+      expect(component.photo().path).toBe('/p65.jpg');
+      await store.nextPage();
+      component.nextPhoto(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      expect(component.photo().path).toBe('/p66.jpg');
+    });
   });
 
   describe('ngOnInit', () => {
@@ -1036,6 +1118,43 @@ describe('PhotoDetailComponent', () => {
       expect(stored().star_rating).toBe(4);
     });
 
+    it('history refreshes the current detail and discards a reply after a newer edit', async () => {
+      createComponent();
+      seedGrid();
+      const closed = new Subject<void>();
+      mockDialog.open.mockReturnValue({ componentInstance: { wasRestored: () => true }, afterClosed: () => closed });
+      await component.openOrganizationHistory();
+      mockApi.get.mockReturnValue(of({ ...edited, gps_latitude: 12 }));
+      closed.next();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(component.photo().gps_latitude).toBe(12);
+      const delayed = new Subject();
+      mockApi.get.mockReturnValue(delayed);
+      closed.next();
+      component.photo.update((photo: typeof edited) => ({ ...photo, star_rating: 5 }));
+      delayed.next({ ...edited, star_rating: 1 });
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(component.photo().star_rating).toBe(5);
+    });
+
+    it('capture date commits are available on immediate reopen and do not replace a newer photo', async () => {
+      createComponent();
+      seedGrid();
+      const closed = new Subject();
+      mockDialog.open.mockReturnValue({ afterClosed: () => closed });
+      await import('./capture-date-dialog.component');
+      component.editCaptureDate(component.photo());
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      closed.next({ date_taken: '2024:01:01 01:00:00', date_manually_set: 1 });
+      component.editCaptureDate(component.photo());
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(mockDialog.open.mock.calls.at(-1)![1].data.manuallySet).toBe(true);
+      expect(stored().date_manually_set).toBe(1);
+      component.photo.set(neighbour);
+      closed.next({ date_taken: null, date_manually_set: 0 });
+      expect(component.photo().path).toBe(neighbour.path);
+    });
+
     it('GPS results preserve concurrent metadata and do not resurrect a navigated photo', async () => {
       createComponent();
       seedGrid();
@@ -1053,6 +1172,82 @@ describe('PhotoDetailComponent', () => {
       closed.next({ gps_latitude: 3, gps_longitude: 4 });
       expect(component.photo().path).toBe(neighbour.path);
       expect(component.photo().gps_latitude).toBeUndefined();
+    });
+
+    describe('gps detail launcher ownership', () => {
+      for (const loss of ['identity', 'edition', 'navigation']) {
+        function lose(events: Subject<NavigationStart>) {
+          if (loss === 'identity') mockAuth.status.set({ user_id: 'bob' });
+          if (loss === 'edition') mockAuth.isEdition.set(false);
+          if (loss === 'navigation') { events.next(new NavigationStart(1, '/other')); events.next(new NavigationStart(2, '/')); }
+        }
+        it(`discards deferred gps import after ${loss} and releases its listener`, async () => {
+          const events = new Subject<NavigationStart>(); mockRouter.events = events;
+          createComponent(); seedGrid();
+          const listeners = events.observers.length;
+          const module = await import('./gps-edit-dialog.component');
+          let finish!: (value: typeof module) => void;
+          vi.spyOn(component, 'loadGpsDialog').mockReturnValue(new Promise(resolve => { finish = resolve; }));
+          component.editGps(component.photo());
+          lose(events); finish(module);
+          await new Promise<void>(resolve => setTimeout(resolve, 0));
+          expect(mockDialog.open).not.toHaveBeenCalled();
+          expect(events.observers).toHaveLength(listeners);
+        });
+        it(`ignores closed gps results after ${loss}`, async () => {
+          const events = new Subject<NavigationStart>(); mockRouter.events = events;
+          createComponent(); seedGrid();
+          const listeners = events.observers.length;
+          const closed = new Subject();
+          mockDialog.open.mockReturnValue({ afterClosed: () => closed });
+          await import('./gps-edit-dialog.component');
+          component.editGps(component.photo());
+          await new Promise<void>(resolve => setTimeout(resolve, 0));
+          expect(mockDialog.open).toHaveBeenCalledOnce();
+          const before = component.photo(); const row = stored();
+          lose(events); closed.next({ gps_latitude: 7, gps_longitude: 8 }); closed.complete();
+          expect(component.photo()).toBe(before); expect(stored()).toBe(row);
+          expect(events.observers).toHaveLength(listeners);
+        });
+      }
+    });
+
+    describe('date detail launcher ownership', () => {
+      for (const loss of ['identity', 'edition', 'navigation']) {
+        function lose(events: Subject<NavigationStart>) {
+          if (loss === 'identity') mockAuth.status.set({ user_id: 'bob' });
+          if (loss === 'edition') mockAuth.isEdition.set(false);
+          if (loss === 'navigation') { events.next(new NavigationStart(1, '/other')); events.next(new NavigationStart(2, '/')); }
+        }
+        it(`discards deferred date import after ${loss} and releases its listener`, async () => {
+          const events = new Subject<NavigationStart>(); mockRouter.events = events;
+          createComponent(); seedGrid();
+          const listeners = events.observers.length;
+          const module = await import('./capture-date-dialog.component');
+          let finish!: (value: typeof module) => void;
+          vi.spyOn(component, 'loadCaptureDateDialog').mockReturnValue(new Promise(resolve => { finish = resolve; }));
+          component.editCaptureDate(component.photo());
+          lose(events); finish(module);
+          await new Promise<void>(resolve => setTimeout(resolve, 0));
+          expect(mockDialog.open).not.toHaveBeenCalled();
+          expect(events.observers).toHaveLength(listeners);
+        });
+        it(`ignores closed date results after ${loss}`, async () => {
+          const events = new Subject<NavigationStart>(); mockRouter.events = events;
+          createComponent(); seedGrid();
+          const listeners = events.observers.length;
+          const closed = new Subject();
+          mockDialog.open.mockReturnValue({ afterClosed: () => closed });
+          await import('./capture-date-dialog.component');
+          component.editCaptureDate(component.photo());
+          await new Promise<void>(resolve => setTimeout(resolve, 0));
+          expect(mockDialog.open).toHaveBeenCalledOnce();
+          const before = component.photo(); const row = stored();
+          lose(events); closed.next({ date_taken: '2024:01:02 12:00:00', date_manually_set: 1 }); closed.complete();
+          expect(component.photo()).toBe(before); expect(stored()).toBe(row);
+          expect(events.observers).toHaveLength(listeners);
+        });
+      }
     });
 
     it('the category override dialog result reaches the store', async () => {

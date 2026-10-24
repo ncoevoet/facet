@@ -4,7 +4,9 @@
 
 Praktische Schritt-für-Schritt-Rezepte, um Facets Bewertungen, Labels und Tags mit den externen Editoren und DAM-Tools auszutauschen, die tatsächlich verwendet werden. Diese Seite setzt voraus, dass Sie bereits wissen, *dass* Facet XMP schreibt — siehe [Befehle — Vorschau & Export](COMMANDS.md#preview--export) für die vollständige Referenz der Optionen `--export-sidecars` / `--import-sidecars` und die Feldzuordnung (`xmp:Rating`, `xmp:Label`, `dc:subject`).
 
-Ein im Viewer gesetzter Standort bleibt in der Facet-Datenbank: Er wird weder in XMP-Sidecars noch in die Bilddateien geschrieben.
+Manuelle Orte und Entscheidungen werden nur beim ausdrücklichen Metadatenexport im Viewer oder mit `--export-sidecars` übertragen. GPS verwendet `exif:GPSLatitude` / `exif:GPSLongitude`; alte gescannte Koordinaten überschreiben keine Datei-Koordinaten. `--embed-originals` schreibt auch EXIF-GPS in unterstützte Originale.
+
+Der Namensraum `https://github.com/ncoevoet/facet/ns/1.0/` definiert `facet:ReviewDecision` (`kept`, `rejected`, `undecided`) und `facet:GPSState` (`set`, `cleared`). Behalten bleibt unabhängig von Sternen und Favoriten; Ablehnen löscht Behalten, Sterne und Favorit. `--import-sidecars` übernimmt Entscheidungen, wenn Standardfelder übereinstimmen oder fehlen. Weicht der Ablehnungsstatus ab, gilt die private Entscheidung als vom Editor unverändert übernommen und wird ignoriert; die Standardfelder folgen dem bisherigen Vergleich mit dem Scanzeitpunkt. Ein Import nur der Entscheidung bleibt ausdrücklich möglich, ohne Zeitvergleich. Manuelles GPS bleibt erhalten, außer mit `--overwrite-manual-gps`. Explizites Löschen wird übertragen; fehlende Felder oder ungültige Koordinaten löschen nichts. `--user alice` berücksichtigt sichtbare Ordner und private Entscheidungen; GPS bleibt gemeinsam. Ohne Benutzer gilt der globale Zustand. Bei `.xmp` und `.facet.xmp` wird die zuletzt geänderte Datei importiert. ExifTool erhält fremde Metadaten; ohne ExifTool bleibt das vorhandene Sidecar erhalten und der Export nutzt `.facet.xmp`. Originale ändern sich nur bei ausdrücklich angeforderter Einbettung.
 
 ## Die RAW-Sidecar-Namensfalle
 
@@ -170,3 +172,5 @@ Facet hält die Tags, die Sie selbst eingeben (siehe [Web-Galerie — Manuelle T
 | Benannte Gesichtsbereiche | MWG `mwg-rs:RegionList` (zentriert-normalisiert, `Type=Face`) | Nicht zurückimportiert | Nur Export; nativ von digiKam gelesen, **nicht** von Lightroom (eine bekannte Adobe-Einschränkung — Lightroom liest nur MWG-Bereiche, die es selbst geschrieben hat) |
 
 Siehe [Befehle — Vorschau & Export](COMMANDS.md#preview--export) für die vollständige CLI-Referenz (`--export-sidecars`, `--import-sidecars`, `--embed-originals`, `--score-to-stars`, `--user`).
+
+Steht ein veraltetes `facet:GPSState=cleared` neben Standard-GPS-Feldern, hat ein vollständiges gültiges Koordinatenpaar Vorrang. Ein unvollständiges oder ungültiges, nicht leeres Paar ist mehrdeutig und wird ignoriert; es löscht keinen Standort. Nur fehlende oder leere Koordinaten mit der expliziten Löschmarkierung löschen GPS. Manuelle GPS-Werte bleiben geschützt, sofern Überschreiben nicht ausdrücklich angefordert wird.

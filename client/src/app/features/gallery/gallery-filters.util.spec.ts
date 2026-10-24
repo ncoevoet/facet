@@ -369,6 +369,30 @@ describe('anyHideToggleActive', () => {
   });
 });
 
+ describe('review status codec', () => {
+  it.each(['undecided', 'kept', 'rejected'] as const)('round trips %s and overrides hide rejected', review_status => {
+    const f = filters({ review_status });
+    expect(applyQueryParams(DEFAULT_FILTERS, buildSyncParams(f, undefined)).review_status).toBe(review_status);
+    expect(buildApiParams(f, false, undefined)).toMatchObject({ review_status });
+    expect(buildApiParams(f, false, undefined)['hide_rejected']).toBeUndefined();
+  });
+  it('ignores invalid review statuses', () => {
+    expect(applyQueryParams(DEFAULT_FILTERS, { review_status: 'bad' }).review_status).toBe('');
+  });
+});
+
+describe('review URL normalization', () => {
+  it('drops relevance after a review status clears a semantic query', () => {
+    expect(applyQueryParams(DEFAULT_FILTERS, { review_status: 'kept', semanticQuery: 'sunset', sort: RELEVANCE_SORT }))
+      .toMatchObject({ semanticQuery: '', sort: 'aggregate' });
+  });
+
+  it('clears ranked searches and retains ordinary filters', () => {
+    expect(applyQueryParams(DEFAULT_FILTERS, { review_status: 'kept', semanticQuery: 'sunset', similar_to: '/a.jpg', search: 'beach', album_id: '3' }))
+      .toMatchObject({ review_status: 'kept', semanticQuery: '', similar_to: '', search: 'beach', album_id: '3' });
+  });
+});
+
 // The only keys POST /photos/by_paths accepts in `filters` (any other is a 422), generated from
 // `gallery_filter_keys()` by scripts/dump_filter_keys.py; tests/test_dump_filter_keys.py fails CI when stale.
 const SERVER_FILTER_KEYS: ReadonlySet<string> = new Set<string>(serverFilterKeys);
@@ -466,5 +490,15 @@ describe('no geolocation filter', () => {
     expect(buildApiParams(f, false, undefined)).toMatchObject({ no_gps: '1' });
     expect(applyQueryParams(DEFAULT_FILTERS, buildSyncParams(f, undefined)).no_gps).toBe('1');
     expect(countActiveFilters(f)).toBe(1);
+  });
+});
+
+
+describe('review and location URL coexistence', () => {
+  it('retains both ordinary filters while clearing incompatible ranked and radius modes', () => {
+    const f = applyQueryParams(DEFAULT_FILTERS, { review_status: 'kept', no_gps: '1', semanticQuery: 'sunset', similar_to: '/a.jpg', gps_lat: '0', gps_lng: '0', gps_radius_km: '5' });
+    expect(f).toMatchObject({ review_status: 'kept', no_gps: '1', semanticQuery: '', similar_to: '', gps_lat: '', gps_lng: '', gps_radius_km: '' });
+    expect(applyQueryParams(DEFAULT_FILTERS, buildSyncParams(f, undefined))).toMatchObject({ review_status: 'kept', no_gps: '1' });
+    expect(buildApiParams(f, false, undefined)).toMatchObject({ review_status: 'kept', no_gps: '1' });
   });
 });

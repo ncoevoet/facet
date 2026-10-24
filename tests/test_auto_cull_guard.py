@@ -95,6 +95,17 @@ def _apply(conn, db, preview, user="_anonymous", **over):
 
 
 class TestPerPhotoExclusion:
+    def test_a_keep_after_preview_is_skipped_and_the_rest_rejected(self, tmp_path):
+        db, conn = _library(tmp_path)
+        preview = _preview(conn, db)
+        conn.execute("UPDATE photos SET is_kept = 1 WHERE path = ?", (_p(tmp_path, "b2.jpg"),))
+        conn.commit()
+        result = _apply(conn, db, preview)
+        assert _rejected(conn) == {"b3.jpg"}
+        assert result.skipped_user_changed == [_p(tmp_path, "b2.jpg")]
+        assert conn.execute("SELECT is_kept FROM photos WHERE path = ?",
+                            (_p(tmp_path, "b2.jpg"),)).fetchone()[0] == 1
+
     def test_a_five_star_after_the_preview_is_skipped_and_the_rest_rejected(self, tmp_path):
         db, conn = _library(tmp_path)
         preview = _preview(conn, db)

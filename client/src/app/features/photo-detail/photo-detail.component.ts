@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, NavigationStart } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -11,7 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { firstValueFrom, skip } from 'rxjs';
+import { firstValueFrom, skip, finalize } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AssistantChangeBatch, AssistantChangesService } from '../../core/agent/assistant-changes.service';
 import { ExtendedQualityComponent } from '../../shared/components/extended-quality/extended-quality.component';
@@ -223,6 +223,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           <!-- Filename + Date + Category + Aggregate -->
           <div>
             <div class="font-semibold text-lg">{{ p.filename }}</div>
+            @if (auth.isEdition()) {
+              <button mat-button (click)="openOrganizationHistory()">{{ I18N.organization_history.title | translate }}</button>
+              <button mat-button (click)="editCaptureDate(p)">{{ I18N.capture_date.title | translate }}</button>
+            }
             @if (p.date_taken) {
               <div class="text-[var(--mat-sys-on-surface-variant)] text-xs">{{ p.date_taken }}</div>
             }
@@ -281,7 +285,18 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 [attr.aria-pressed]="!!p.is_favorite">
                 <mat-icon class="!text-red-400">{{ p.is_favorite ? 'favorite' : 'favorite_border' }}</mat-icon>
               </button>
-              <!-- Reject -->
+              <!-- Review decisions -->
+              <button mat-icon-button (click)="reviewPhoto('kept')" [class.text-green-400]="p.is_kept"
+                [matTooltip]="I18N.review.keep | translate"
+                [attr.aria-label]="I18N.review.keep | translate"
+                [attr.aria-pressed]="!!p.is_kept">
+                <mat-icon>check_circle</mat-icon>
+              </button>
+              <button mat-icon-button (click)="reviewPhoto('undecided')"
+                [matTooltip]="I18N.review.reset | translate"
+                [attr.aria-label]="I18N.review.reset | translate">
+                <mat-icon>restart_alt</mat-icon>
+              </button>
               <button mat-icon-button (click)="toggleRejected(p.path)" [class.text-orange-400]="p.is_rejected"
                 [matTooltip]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
                 [attr.aria-label]="(p.is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate"
@@ -1053,10 +1068,12 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   private applyConfirmed(p: Photo, confirmed: Partial<Photo>): void {
+    this.store.patchPhoto(p.path, confirmed);
     // The page may have moved on, or taken another edit, since p was read.
     const current = this.photo();
-    if (current?.path === p.path) this.photo.set({ ...current, ...confirmed });
-    this.store.patchPhoto(p.path, confirmed);
+    if (!this.destroyRef.destroyed && current?.path === p.path) {
+      this.photo.set({ ...current, ...confirmed });
+    }
   }
 
   protected async setRating(path: string, rating: number): Promise<void> {
@@ -1070,6 +1087,42 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
+  }
+
+  @HostListener('document:keydown', ['$event'])
+  protected onReviewKey(event: KeyboardEvent): void {
+    if (this.dialog.openDialogs.length || isTypingContext(event) || event.ctrlKey || event.metaKey || event.altKey || event.key.toLowerCase() !== 'k' || !this.auth.isEdition()) return;
+    event.preventDefault();
+    void this.reviewPhoto('kept');
+  }
+
+  protected async reviewPhoto(decision: 'kept' | 'undecided'): Promise<void> {
+    const p = this.photo();
+    if (!p || this.reviewSaving) return;
+    this.reviewSaving = true;
+    const photos = this.store.photos();
+    const index = photos.findIndex(photo => photo.path === p.path);
+    const next = photos[index + 1];
+    try {
+      await firstValueFrom(this.api.post('/photos/batch_review', { photo_paths: [p.path], decision }));
+      this.applyConfirmed(p, { is_kept: decision === 'kept', is_rejected: false });
+      await this.advanceAfterReview(p, index, next);
+    } catch {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    } finally { this.reviewSaving = false; }
+  }
+
+  private reviewSaving = false;
+
+  private async advanceAfterReview(previous: Photo, index: number, next?: Photo): Promise<void> {
+    if (!this.store.filters().review_status) return;
+    await this.store.refreshReviewResults();
+    if (this.destroyRef.destroyed || this.photo()?.path !== previous.path) return;
+    const target = this.store.photos().find(photo => photo.path === next?.path) ?? this.store.photos()[index] ?? this.store.photos()[0];
+    if (!target) { this.router.navigate(['/']); return; }
+    this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: { photo: target }, replaceUrl: true });
+    this.photo.set(target);
+    this.fullImageLoaded.set(false);
   }
 
   protected async toggleFavorite(path: string): Promise<void> {
@@ -1092,13 +1145,17 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async toggleRejected(path: string): Promise<void> {
     const p = this.photo();
     if (!p) return;
+    const photos = this.store.photos();
+    const index = photos.findIndex(photo => photo.path === p.path);
+    const next = photos[index + 1];
     try {
       const res = await firstValueFrom(this.api.post<{ is_rejected: boolean; is_favorite: boolean | null; star_rating: number | null }>('/photo/toggle_rejected', { photo_path: path }));
-      const confirmed: Partial<Photo> = { is_rejected: res.is_rejected };
+      const confirmed: Partial<Photo> = { is_rejected: res.is_rejected, is_kept: false };
       if (res.is_favorite !== null) confirmed.is_favorite = res.is_favorite;
       if (res.star_rating !== null) confirmed.star_rating = res.star_rating;
       this.applyConfirmed(p, confirmed);
       this.journal.record('reject', [path], res.is_rejected);
+      await this.advanceAfterReview(p, index, next);
     } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
@@ -1294,9 +1351,64 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     });
   }
 
-  protected editGps(p: Photo): void {
-    import('./gps-edit-dialog.component').then(m => {
-      if (this.destroyRef.destroyed || this.photo()?.path !== p.path) return;
+  protected async openOrganizationHistory(): Promise<void> {
+    const owner = this.auth.status();
+    const path = this.photo()?.path;
+    const { OrganizationHistoryDialogComponent } = await import('./organization-history-dialog.component');
+    if (this.destroyRef.destroyed || this.auth.status() !== owner || !this.auth.isEdition() || this.photo()?.path !== path) return;
+    const ref = this.dialog.open(OrganizationHistoryDialogComponent, { width: '95vw', maxWidth: '820px' });
+    const history = ref.componentInstance;
+    ref.afterClosed().subscribe(async () => {
+      if (!history.wasRestored() || !path || this.destroyRef.destroyed || this.auth.status() !== owner || this.photo()?.path !== path) return;
+      const current = this.photo();
+      const fresh = await this.fetchPhoto(path).catch(() => undefined);
+      if (fresh && !this.destroyRef.destroyed && this.auth.status() === owner && this.photo() === current) this.photo.set(fresh);
+    });
+  }
+
+  protected loadCaptureDateDialog() { return import('./capture-date-dialog.component'); }
+
+  protected async editCaptureDate(p: Photo): Promise<void> {
+    const owner = this.auth.status();
+    const identity = this.auth.identity();
+    const url = this.router.url;
+    let navigated = false;
+    let opened = false;
+    const navigation = this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+      if (event instanceof NavigationStart) navigated = true;
+    });
+    const current = () => !navigated && !this.destroyRef.destroyed && this.auth.status() === owner
+      && this.auth.identity() === identity && this.auth.isEdition() && this.router.url === url && this.photo()?.path === p.path;
+    try {
+      const m = await this.loadCaptureDateDialog();
+      if (!current()) return;
+      const data = { paths: [p.path], count: 1, manuallySet: p.date_manually_set === 1 };
+      const ref = this.dialog.open(m.CaptureDateDialogComponent, { width: '95vw', maxWidth: '760px', data });
+      opened = true;
+      ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef), finalize(() => navigation.unsubscribe())).subscribe((result: import('./capture-date-dialog.component').CaptureDateResult | undefined) => {
+        if (current() && result !== undefined) this.applyConfirmed(p, result);
+      });
+    } finally {
+      if (!opened) navigation.unsubscribe();
+    }
+  }
+
+  protected loadGpsDialog() { return import('./gps-edit-dialog.component'); }
+
+  protected async editGps(p: Photo): Promise<void> {
+    const owner = this.auth.status();
+    const identity = this.auth.identity();
+    const url = this.router.url;
+    let navigated = false;
+    let opened = false;
+    const navigation = this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+      if (event instanceof NavigationStart) navigated = true;
+    });
+    const current = () => !navigated && !this.destroyRef.destroyed && this.auth.status() === owner
+      && this.auth.identity() === identity && this.auth.isEdition() && this.router.url === url && this.photo()?.path === p.path;
+    try {
+      const m = await this.loadGpsDialog();
+      if (!current()) return;
       const ref = this.dialog.open(m.GpsEditDialogComponent, {
         width: '95vw',
         maxWidth: '640px',
@@ -1308,13 +1420,16 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
           manuallySet: p.gps_manually_set === 1,
         },
       });
-      ref.afterClosed().subscribe((result: { gps_latitude: number | null; gps_longitude: number | null; gps_manually_set?: number } | undefined) => {
-        if (result !== undefined) {
+      opened = true;
+      ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef), finalize(() => navigation.unsubscribe())).subscribe((result: { gps_latitude: number | null; gps_longitude: number | null; gps_manually_set?: number } | undefined) => {
+        if (current() && result !== undefined) {
           this.applyConfirmed(p, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: result.gps_manually_set ?? 1 });
           if (this.photo()?.path === p.path) this.locationName.set('');
         }
       });
-    });
+    } finally {
+      if (!opened) navigation.unsubscribe();
+    }
   }
 
   // Zoom & pan

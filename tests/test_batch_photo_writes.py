@@ -53,6 +53,7 @@ ENDPOINTS = [
     ("/api/photos/batch_favorite", {}),
     ("/api/photos/batch_reject", {}),
     ("/api/photos/batch_rating", {"rating": 4}),
+    ("/api/photos/batch_review", {"decision": "kept"}),
 ]
 ENDPOINT_IDS = [path.rsplit("/", 1)[-1] for path, _ in ENDPOINTS]
 
@@ -108,8 +109,9 @@ def alice_client():
 
 
 @pytest.fixture()
-def single_user_client():
+def single_user_client(monkeypatch):
     """Edition client on a single-user install — no ``users`` block at all."""
+    monkeypatch.setitem(api_config.VIEWER_CONFIG, "password", "")
     prev = api_config._FULL_CONFIG.get("users")
     api_config._FULL_CONFIG.pop("users", None)
     try:
@@ -130,7 +132,7 @@ def _photo_flags(paths):
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
         placeholders = ",".join("?" * len(paths))
         rows = conn.execute(
-            f"SELECT path, is_favorite, is_rejected, star_rating FROM photos "
+            f"SELECT path, is_favorite, is_rejected, star_rating, is_kept FROM photos "
             f"WHERE path IN ({placeholders})",
             list(paths),
         ).fetchall()
@@ -490,3 +492,24 @@ class TestFilterScopedAlbumAccess:
         assert resp.status_code == 403, resp.text
         assert _written_prefs(SEEDED) == set()
         assert _touched(_photo_flags(SEEDED)) == set()
+
+
+@pytest.mark.parametrize('explicit', [True, False])
+def test_batch_gps_reuses_real_visibility(alice_client, seeded, explicit):
+    body = {'photo_paths': SEEDED} if explicit else {'filters': ALL_SEEDED_FILTERS}
+    body.update(gps_latitude=1, gps_longitude=2, preview=True)
+    preview = alice_client.post('/api/photos/batch_gps', json=body)
+    assert preview.status_code == 200, preview.text
+    assert preview.json()['changed'] == 2
+    body.update(preview=False, preview_token=preview.json()['preview_token'])
+    assert alice_client.post('/api/photos/batch_gps', json=body).json()['changed'] == 2
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT gps_latitude FROM photos WHERE path=?', (BOB_PHOTO,)).fetchone()[0] is None
+        assert conn.execute('SELECT gps_latitude FROM photos WHERE path=?', (OTHER_CAM_PHOTO,)).fetchone()[0] is None
+
+
+def test_batch_gps_rechecks_private_album_access(alice_client, albums):
+    body = {'filters': {'album_id': str(BOB_ALBUM)}, 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True}
+    assert alice_client.post('/api/photos/batch_gps', json=body).status_code == 403
+    body['filters']['album_id'] = str(UNKNOWN_ALBUM)
+    assert alice_client.post('/api/photos/batch_gps', json=body).status_code == 404

@@ -120,6 +120,7 @@
   "quality",
   "quality_tier",
   "require_tags",
+  "review_status",
   "search",
   "sequence_group_id",
   "sequence_kind",

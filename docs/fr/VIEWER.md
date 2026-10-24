@@ -209,6 +209,19 @@ Contrôlé par `viewer.features.show_my_taste` (par défaut : `true`). L'état d
 
 Avec `licensing.mode` réglé sur `commercial`, la visionneuse masque les métriques dont les modèles ne sont pas utilisables commercialement : LIQE, Aesthetic IAA, Face Quality IQA (sauf si OFIQ est installé), DeQA (sauf si `licensing.allow_unclear` est défini) et Aesthetic V2.5 : leurs filtres de plage, puces de filtre et options de tri. `/api/config` les liste dans `unavailable_metrics`. Sur la page de réglage des poids, leurs curseurs restent visibles mais désactivés, avec une infobulle ; les poids sont conservés, car le calcul du score les écarte et renormalise. Redémarrez la visionneuse après avoir changé le mode de licence.
 
+## Décisions de tri
+
+Dans la galerie, choisissez **Statut de tri → À examiner** pour parcourir les photos sans décision. Ce choix active le tri par **date de prise de vue, des plus anciennes aux plus récentes** ; vous pouvez inverser l’ordre ou filtrer par date, dossier ou album.
+
+**Conserver** et **Rejeter** retirent la photo de cette file après enregistrement. Les photos conservées restent dans la bibliothèque et apparaissent avec le filtre **Conservées**. Cette décision est indépendante des favoris et des étoiles.
+
+Les actions Conserver et **Réinitialiser la décision** sont disponibles dans le détail, le menu contextuel et les actions groupées. **K** conserve la photo courante. Réinitialiser efface les décisions Conserver et Rejeter sans modifier les étoiles ni les favoris. Les actions de galerie disposent d’Annuler.
+
+Les décisions persistent après rechargement, redémarrage et nouvelle analyse, et sont propres à chaque utilisateur. Confirmer un groupe de tri marque ses photos choisies comme conservées. Les anciens favoris, notes et groupes examinés ne sont pas convertis automatiquement.
+
+Le statut de tri s’applique à la galerie normale ; choisir un statut quitte la recherche sémantique et la recherche de photos similaires.
+
+
 ## Fonctionnalités de la galerie
 
 ### Cartes de photo
@@ -547,6 +560,8 @@ API : voir la section [Points d'accès API](#points-daccès-api) ci-dessous.
 Accessible via la route `/map`. Contrôlé par `viewer.features.show_map` (par défaut : `true`).
 
 ### Lieux enregistrés et GPS manuel
+
+Sélectionnez plusieurs photos dans la galerie et choisissez **Définir le lieu** dans la barre de sélection, les actions mobiles ou le menu contextuel. Utilisez un lieu enregistré/récent, la carte ou des coordonnées. **Uniquement les photos sans lieu** est activé au départ ; désactivez cette protection pour remplacer les lieux existants. Vérifiez les nombres de modifications et de photos ignorées dans l’aperçu avant d’enregistrer. Chaque lot est limité à 1000 photos visibles, y compris une vue filtrée complète avec ses exclusions. Les coordonnées identiques sont ignorées. Si la sélection, le GPS ou le lieu enregistré change, recommencez l’aperçu. La galerie recharge ensuite les filtres actifs. Les fichiers originaux restent inchangés.
 
 Dans les filtres de la galerie, ouvre **Localisation** et active **Sans géolocalisation** pour trouver les photos dont une coordonnée GPS manque. Ajouter une position retire la photo de ces résultats. Ce filtre annule la sélection de rayon sur la carte. Ce filtre peut être enregistré dans un album intelligent. Une recherche sémantique, de photos similaires ou par rayon sur la carte le désactive.
 
@@ -1527,3 +1542,19 @@ Si la recherche sémantique indique que l’accélération Apple Silicon est occ
 | Les légendes ne se génèrent pas | Nécessite un profil VRAM 16gb/24gb pour le légendage VLM |
 | Chronologie vide | Assurez-vous que les photos ont des valeurs `date_taken` |
 | Port 5000 occupé | Lancez `python viewer.py --port 5001` (ou définissez `PORT=5001`). Sur macOS, le récepteur AirPlay de ControlCenter occupe 5000 par défaut — choisissez un autre port ou désactivez le récepteur AirPlay dans Réglages Système → Général → AirDrop et Handoff. |
+
+## Correction de la date de prise de vue
+
+En mode édition, **Corriger la date de prise de vue** est disponible dans les détails et la barre de sélection. La sélection et « Tout sélectionner dans la vue », exclusions comprises, sont limitées à 1000 photos visibles. Saisissez un décalage entier non nul en secondes, de −31622400 à +31622400 (±366 jours) : positif pour plus tard, négatif pour plus tôt. **Aperçu** affiche les nombres de photos modifiées/ignorées et les 20 premiers couples avant/après. **Appliquer la correction** vérifie de nouveau la portée et les valeurs et applique tout atomiquement ; en cas de changement, relancez l’aperçu.
+
+Il s’agit de l’heure locale de l’appareil, sans déduction du fuseau ni de l’heure d’été. Seuls les formats complets `YYYY:MM:DD HH:MM:SS` et `YYYY-MM-DD[T ou espace]HH:MM:SS` sont acceptés. Dates inconnues, incomplètes, avec fuseau ou fractions de seconde, invalides ou hors limites sont ignorées. Les corrections survivent aux rescans complets/partiels et aux exports incrémentaux de la base du visualiseur. **Utiliser la date du fichier** supprime la correction ; sans date dans le fichier, elle devient inconnue. Un fichier illisible ou une date non prise en charge conserve la correction.
+
+Aucun original ni horodatage de fichier n’est modifié. L’export XMP explicite écrit `exif:DateTimeOriginal` pour les dates manuelles ; l’écriture explicite dans le fichier ajoute EXIF `DateTimeOriginal` pour les formats compatibles sans modifier les autres dates EXIF. Les groupes de rafales/séquences restent en place ; relancez explicitement le scan ou la détection de groupes pour les recalculer.
+
+## Historique des modifications
+
+En mode édition, ouvrez **Historique des modifications** depuis le bouton de la galerie ou les détails. Dépliez une entrée pour comparer les valeurs avant/après, puis choisissez **Rétablir cette entrée**. Les lieux et dates sont partagés ; décisions, étoiles et favoris utilisent vos préférences de compte. Les fichiers et la reconnaissance faciale sont exclus. Les originaux restent inchangés. L’annulation temporaire et l’activité de l’assistant restent distinctes.
+
+Cette base conserve les **50 dernières entrées par compte**, avec au plus **1000 photos et 1 Mio** par entrée. Les grands tris filtrés sont enregistrés en parties dans la même transaction. Une restauration ne concerne que la partie choisie ; les anciennes parties peuvent avoir expiré. Les actions sans changement n’ajoutent rien. L’historique survit aux redémarrages et mises à jour incrémentales, sans synchronisation entre bases. Un export complet démarre avec un historique vide.
+
+Une entrée est entièrement masquée si une photo est supprimée ou inaccessible. La restauration refuse toute l’entrée si une valeur concernée a changé depuis, même si elle a retrouvé sa valeur précédente. Les conflits de lieu/date concernent tous les comptes ; un tri privé d’un autre compte ne bloque pas le vôtre. La restauration crée sa propre entrée et marque l’originale comme rétablie. Analyses, imports et annulations temporaires invalident aussi les anciennes entrées en conflit.
