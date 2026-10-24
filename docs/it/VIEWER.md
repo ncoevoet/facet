@@ -209,6 +209,19 @@ Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato d
 
 Con `licensing.mode` impostato su `commercial`, il visualizzatore nasconde le metriche i cui modelli non sono utilizzabili commercialmente: LIQE, Aesthetic IAA, Face Quality IQA (salvo che OFIQ sia installato), DeQA (salvo che `licensing.allow_unclear` sia impostato) e Aesthetic V2.5: i relativi filtri di intervallo, chip di filtro e opzioni di ordinamento. `/api/config` le elenca in `unavailable_metrics`. Nella pagina di regolazione dei pesi i cursori restano visibili ma disattivati, con un tooltip; i pesi vengono conservati, perché il punteggio li scarta e rinormalizza. Riavviare il visualizzatore dopo aver cambiato la modalità di licenza.
 
+## Decisioni di revisione
+
+Nella galleria scegli **Stato revisione → Da rivedere** per scorrere le foto senza decisione. Viene impostato l’ordine per **data di scatto, dalle più vecchie**; puoi invertirlo o filtrare per data, cartella o album.
+
+**Conserva** e **Rifiuta** rimuovono la foto da questa vista dopo il salvataggio. Le foto conservate restano nella libreria normale e sono disponibili con il filtro **Conservate**. Preferiti e stelle rimangono indipendenti.
+
+Conserva e **Reimposta decisione** sono disponibili nel dettaglio, nel menu contestuale e nelle azioni multiple. **K** conserva la foto corrente. Reimpostare cancella Conserva e Rifiuta senza modificare stelle o preferiti. Le azioni della galleria possono essere annullate.
+
+Le decisioni sopravvivono a ricaricamenti, riavvii e nuove scansioni e sono personali per ogni utente. Confermare un gruppo di selezione contrassegna anche le foto scelte come conservate. Le vecchie valutazioni, i preferiti e i gruppi già esaminati non vengono convertiti automaticamente.
+
+Lo stato di revisione si applica alla galleria normale; scegliere uno stato chiude le ricerche semantiche e di foto simili.
+
+
 ## Funzionalità della galleria
 
 ### Schede foto

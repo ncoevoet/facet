@@ -62,7 +62,7 @@ _PLAIN_KEYS = (
     "junk_kind", "composition_pattern", "album_id", "path_prefix", "date_from", "date_to",
     "no_gps", "gps_lat", "gps_lng", "gps_radius_km", "hide_blinks", "hide_bursts", "hide_duplicates",
     "hide_brackets", "hide_panoramas", "is_monochrome", "is_silhouette", "favorites_only",
-    "hide_rejected", "show_rejected", "min_rating", "require_tags", "exclude_tags",
+    "hide_rejected", "show_rejected", "review_status", "min_rating", "require_tags", "exclude_tags",
     "color_temp", "quality_tier",
 )
 # min_/max_ for every stem GalleryParams knows; a stem it does not know is dropped

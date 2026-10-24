@@ -209,6 +209,19 @@ Gesteuert über `viewer.features.show_my_taste` (Standard: `true`). Der Ranker-S
 
 Ist `licensing.mode` auf `commercial` gesetzt, blendet der Viewer die Metriken aus, deren Modelle nicht kommerziell genutzt werden dürfen: LIQE, Aesthetic IAA, Face Quality IQA (sofern OFIQ nicht installiert ist), DeQA (sofern `licensing.allow_unclear` nicht gesetzt ist) und Aesthetic V2.5: ihre Bereichsfilter, Filter-Chips und Sortieroptionen. `/api/config` listet sie in `unavailable_metrics`. In der Gewichtungsseite bleiben ihre Regler sichtbar, sind aber deaktiviert und mit einem Tooltip versehen; die Gewichte bleiben erhalten, da die Bewertung sie auslässt und neu normalisiert. Den Viewer nach einer Änderung des Lizenzmodus neu starten.
 
+## Sichtungsentscheidungen
+
+Wähle in der Galerie **Sichtungsstatus → Noch zu sichten**, um unentschiedene Fotos zu bearbeiten. Dabei wird nach **Aufnahmedatum, älteste zuerst** sortiert. Reihenfolge, Zeitraum, Ordner und Album lassen sich weiter anpassen.
+
+**Behalten** und **Ablehnen** entfernen ein Foto nach dem Speichern aus dieser Ansicht. Behaltene Fotos bleiben in der normalen Bibliothek und sind über **Behalten** auffindbar. Favoriten und Sterne bleiben unabhängig davon.
+
+Behalten und **Entscheidung zurücksetzen** stehen in der Detailansicht, im Kontextmenü und für die Mehrfachauswahl bereit. **K** behält das aktuelle Foto. Zurücksetzen löscht Behalten und Ablehnen, ohne Sterne oder Favoriten zu ändern. Galerieaktionen lassen sich rückgängig machen.
+
+Entscheidungen überstehen Neuladen, Neustarts und erneute Scans und gelten pro Benutzer. Bestätigte Auswahlgruppen markieren ihre ausgewählten Fotos ebenfalls als behalten. Bestehende Sterne, Favoriten und bereits gesichtete Gruppen werden nicht automatisch umgewandelt.
+
+Der Sichtungsstatus gilt für die normale Galerie; die Auswahl beendet eine semantische Suche oder die Suche nach ähnlichen Fotos.
+
+
 ## Galeriefunktionen
 
 ### Fotokarten

@@ -2766,5 +2766,16 @@
       "ui_suggest_culling": "Suggestions marquées sur le plan d'auto-tri",
       "ui_show_comparison": "Comparaison affichée"
     }
+  },
+  "review": {
+    "status": "Décision de tri",
+    "all": "Toutes les décisions",
+    "needs_review": "À examiner",
+    "kept": "Conservées",
+    "rejected": "Rejetées",
+    "keep": "Conserver",
+    "reset": "Réinitialiser la décision",
+    "updated": "Décision mise à jour pour {{count}} photos",
+    "shortcut": "Conserver la photo"
   }
 }

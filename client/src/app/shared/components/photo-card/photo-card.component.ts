@@ -1,3 +1,4 @@
+import { i18nKeys } from '../../../core/i18n/keys';
 import { Component, computed, effect, input, output, signal, untracked, viewChildren, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -229,6 +230,12 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
              corners so they never collided, and hiding it left desaturation as
              the only signal -- which conveys nothing to a screen reader and
              nothing at all on an already-monochrome photo. -->
+        @if (isEditionMode() && photo().is_kept && !photo().is_rejected) {
+          <span class="absolute top-2 left-2 flex items-center justify-center rounded-full bg-green-700 text-white w-6 h-6 z-10"
+                [attr.aria-label]="I18N.review.kept | translate" [matTooltip]="I18N.review.kept | translate">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
+          </span>
+        }
         @if (showsRejectedBadge()) {
           <div class="absolute right-9 w-7 h-7 z-20 pointer-events-none inline-flex items-center justify-center transition-opacity md:group-hover/img:opacity-0 bottom-1"
                [attr.aria-label]="'rating.rejected_badge' | translate">
@@ -451,6 +458,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   `,
 })
 export class PhotoCardComponent {
+  protected readonly I18N = i18nKeys();
   // Data
   readonly photo = input.required<Photo>();
   readonly config = input<AppConfig | null>(null);

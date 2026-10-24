@@ -10,6 +10,7 @@ import { i18nKeys } from '../../core/i18n/keys';
 export type SheetAction =
   | { kind: 'favorite' }
   | { kind: 'reject' }
+  | { kind: 'review'; decision: 'kept' | 'undecided' }
   | { kind: 'invert' }
   | { kind: 'compare' }
   | { kind: 'export' }
@@ -55,6 +56,14 @@ export interface GalleryActionsSheetData {
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'favorite' })">
           <mat-icon aria-hidden="true">favorite</mat-icon>
           {{ I18N.gallery.selection.favorite | translate }}
+        </button>
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'review', decision: 'kept' })">
+          <mat-icon aria-hidden="true">check_circle</mat-icon>
+          {{ I18N.review.keep | translate }}
+        </button>
+        <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'review', decision: 'undecided' })">
+          <mat-icon aria-hidden="true">restart_alt</mat-icon>
+          {{ I18N.review.reset | translate }}
         </button>
         <button class="flex items-center gap-3 w-full px-4 py-3 text-sm text-left hover:bg-white/10 cursor-pointer" (click)="pick({ kind: 'reject' })">
           <mat-icon aria-hidden="true">thumb_down</mat-icon>

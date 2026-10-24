@@ -615,6 +615,16 @@ describe('UI tool registry and handlers', () => {
       expect(store.filters()).toMatchObject({ camera: '', min_iso: '', lens: '50mm' });
     });
 
+    it('accepts and reports the review queue, then clears it on replace', async () => {
+      const result = await run('ui_set_gallery_filters', { patch: { review_status: 'undecided' } });
+      expect(result.ok).toBe(true);
+      expect(store.filters()).toMatchObject({ review_status: 'undecided', sort: 'date_taken', sort_direction: 'ASC' });
+      const view = await run('ui_get_gallery_view', {});
+      expect(view).toMatchObject({ data: { filters: { review_status: 'undecided' } } });
+      await run('ui_set_gallery_filters', { patch: { lens: '50mm' }, replace: true });
+      expect(store.filters()).toMatchObject({ review_status: '', lens: '50mm' });
+    });
+
     it('replace also lifts a set scope the user opened', async () => {
       await store.updateFilters({ sequence_group_id: '4', sequence_kind: 'burst', burst_group_id: '4', duplicate_group_id: '2' });
       await run('ui_set_gallery_filters', { patch: { lens: '50mm' }, replace: true });

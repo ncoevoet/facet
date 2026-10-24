@@ -34,7 +34,7 @@ describe('PhotoDetailComponent', () => {
   let mockLocation: { back: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } }; queryParamMap: BehaviorSubject<ParamMap> };
   let mockAuth: { identity: () => string; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
-  let mockDialog: { open: Mock };
+  let mockDialog: { open: Mock; openDialogs: unknown[] };
 
   const samplePhoto = {
     path: '/photos/test.jpg',
@@ -113,7 +113,7 @@ describe('PhotoDetailComponent', () => {
       queryParamMap: new BehaviorSubject(convertToParamMap({ path: '/photos/test.jpg' })),
     };
     mockAuth = { identity: () => '0|', isEdition: signal(true), downloadProfiles: signal([]) };
-    mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(undefined) })) };
+    mockDialog = { open: vi.fn(() => ({ afterClosed: () => of(undefined) })), openDialogs: [] };
   });
 
   it('opens the manual editor with no detections and patches confirmed membership after navigation', async () => {
@@ -216,6 +216,88 @@ describe('PhotoDetailComponent', () => {
   it('should create', () => {
     createComponent();
     expect(component).toBeTruthy();
+  });
+
+  it.each(['k', 'K'])('ignores %s from a dialog button without saving or advancing', key => {
+    createComponent();
+    component.photo.set(makePhoto());
+    mockDialog.openDialogs.push({});
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    const button = document.createElement('button');
+    Object.defineProperty(event, 'target', { value: button });
+    component.onReviewKey(event);
+    expect(event.defaultPrevented).toBe(false);
+    expect(mockApi.post).not.toHaveBeenCalled();
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  describe('delayed review responses', () => {
+    it.each(['kept', 'undecided', 'rejected'])('preserves navigation after %s', async decision => {
+      createComponent();
+      const store = TestBed.inject(GalleryStore);
+      const a = makePhoto({ path: '/a.jpg' });
+      const b = makePhoto({ path: '/b.jpg' });
+      store.photos.set([a, b]);
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      const refresh = vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      component.photo.set(a);
+      const response = new Subject<any>();
+      mockApi.post.mockReturnValue(response);
+      const pending = decision === 'rejected' ? component.toggleRejected(a.path) : component.reviewPhoto(decision);
+      component.photo.set(b);
+      response.next({ is_rejected: true, is_favorite: null, star_rating: null });
+      await pending;
+      expect(component.photo()).toBe(b);
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(store.photos()[0]).toMatchObject({ path: a.path, is_kept: decision === 'kept', is_rejected: decision === 'rejected' });
+    });
+    it.each(['kept', 'undecided', 'rejected'])('preserves closed detail after %s', async decision => {
+      createComponent();
+      const store = TestBed.inject(GalleryStore);
+      const a = makePhoto({ path: '/a.jpg' });
+      component.photo.set(a);
+      store.photos.set([a]);
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      const refresh = vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      const response = new Subject<any>();
+      mockApi.post.mockReturnValue(response);
+      const pending = decision === 'rejected' ? component.toggleRejected(a.path) : component.reviewPhoto(decision);
+      TestBed.resetTestingModule();
+      response.next({ is_rejected: true, is_favorite: null, star_rating: null });
+      await pending;
+      expect(component.photo()).toBe(a);
+      expect(refresh).toHaveBeenCalledOnce();
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+    it('merges delayed Keep into current metadata', async () => {
+      createComponent();
+      const a = makePhoto({ star_rating: 1 });
+      component.photo.set(a);
+      const response = new Subject<any>();
+      mockApi.post.mockReturnValue(response);
+      const pending = component.reviewPhoto('kept');
+      component.photo.set({ ...a, star_rating: 5, is_favorite: true });
+      response.next({});
+      await pending;
+      expect(component.photo()).toMatchObject({ is_kept: true, star_rating: 5, is_favorite: true });
+    });
+    it('advances last loaded row to refilled successor then supports Next', async () => {
+      createComponent();
+      const store = TestBed.inject(GalleryStore);
+      const all = Array.from({ length: 128 }, (_, i) => makePhoto({ path: `/p${i + 1}.jpg` }));
+      store.photos.set(all.slice(0, 64));
+      store.hasMore.set(true);
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      component.photo.set(all[63]);
+      const remaining = all.filter(p => p.path !== all[63].path);
+      mockApi.get.mockImplementation((_url: string, params: { page: number }) => of({ photos: remaining.slice((params.page - 1) * 64, params.page * 64), total: 127, has_more: params.page === 1 }));
+      await component.reviewPhoto('kept');
+      expect(component.photo().path).toBe('/p65.jpg');
+      await store.nextPage();
+      component.nextPhoto(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      expect(component.photo().path).toBe('/p66.jpg');
+    });
   });
 
   describe('ngOnInit', () => {

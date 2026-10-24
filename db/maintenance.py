@@ -597,6 +597,26 @@ def _downsize_face_thumbnails(dest_conn, face_resync_paths, thumbnail_size, batc
     return face_resized
 
 
+def _review_decision_assignments(table: str, source_kept: str, source_rejected: str) -> dict[str, str]:
+    """Keep/reject is one decision: a decided viewer wins, otherwise use the source."""
+    decided = f"(COALESCE({table}.is_kept, 0) != 0 OR COALESCE({table}.is_rejected, 0) != 0)"
+    kept = f"CASE WHEN {decided} THEN {table}.is_kept ELSE {source_kept} END"
+    rejected = f"CASE WHEN {decided} THEN {table}.is_rejected ELSE {source_rejected} END"
+    # Old preview builds could hold both flags. Rejection wins, like the gallery filter.
+    return {
+        'is_kept': f"is_kept = CASE WHEN COALESCE(({rejected}), 0) != 0 THEN 0 ELSE COALESCE(({kept}), 0) END",
+        'is_rejected': f"is_rejected = COALESCE(({rejected}), 0)",
+    }
+
+
+def _normalize_review_decisions(conn: sqlite3.Connection) -> None:
+    """Repair contradictory decisions on copied/new rows without changing ratings."""
+    for table in ('photos', 'user_preferences'):
+        columns = {row[1] for row in conn.execute(f"PRAGMA table_info({table})")}
+        if {'is_kept', 'is_rejected'} <= columns:
+            conn.execute(f"UPDATE {table} SET is_kept = 0 WHERE is_kept != 0 AND is_rejected != 0")
+
+
 def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbose):
     """Incrementally sync changes from source_db into the existing viewer database.
 
@@ -657,15 +677,21 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     # the current destination value so a re-export never overwrites that
     # GPU-expensive cache with a NULL from source.
     _CACHE_COLS = {'vlm_critique', 'vlm_critique_translated', 'caption', 'caption_translated'}
-    _RATING_COLS = {'star_rating', 'is_favorite', 'is_rejected'}
+    _RATING_COLS = {'star_rating', 'is_favorite'}
     update_cols = [c for c in src_photo_cols if c not in _STRIP_COLS and c in dest_photo_col_set]
+    photo_decisions = _review_decision_assignments(
+        'main.photos',
+        "(SELECT is_kept FROM src.photos WHERE src.photos.path = main.photos.path)" if 'is_kept' in src_photo_cols else '0',
+        "(SELECT is_rejected FROM src.photos WHERE src.photos.path = main.photos.path)",
+    )
 
     def _photo_set_expr(col):
         """SET expression that propagates source metadata while preserving
         viewer-side edits. Cache columns keep the destination value when source
         is NULL. A rating column keeps a *set* viewer value (non-NULL and
-        non-zero: star > 0, favorite/rejected = 1), else takes the source value —
-        so the first export carries the scan rating, later viewer ratings survive
+        non-zero: star > 0 or favorite = 1), else takes the source value.
+        Keep/reject instead moves together as one decision: a decided viewer
+        wins, otherwise the source decision is used. Thus later viewer edits survive
         a re-export, and scan ratings still reach a never-rated photo. A rating
         cleared to 0 on the viewer is indistinguishable from unrated and cannot
         be preserved against a non-zero source."""
@@ -675,6 +701,8 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
                     f"THEN main.photos.{col} ELSE {src_val} END")
         if col in _CACHE_COLS:
             return f"{col} = COALESCE({src_val}, {col})"
+        if col in photo_decisions:
+            return photo_decisions[col]
         if col in _RATING_COLS:
             return (f"{col} = CASE WHEN main.photos.{col} IS NOT NULL AND main.photos.{col} != 0 "
                     f"THEN main.photos.{col} ELSE {src_val} END")
@@ -810,7 +838,9 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
     # --- Sync user_preferences (multi-user per-user ratings) ---
     # Mirror the photos rating-preservation logic (F30): a per-user rating set on
     # the viewer deployment survives re-export, while scan-side ratings still reach
-    # (user, photo) pairs the viewer has not rated. Rows for deleted photos cascade
+    # (user, photo) pairs the viewer has not rated. Keep/reject stays a single
+    # decision, with a decided viewer taking precedence over the source.
+    # Rows for deleted photos cascade
     # out with the photos delete above (FK ON DELETE CASCADE, foreign_keys=ON).
     if 'user_preferences' in dest_tables and 'user_preferences' in src_tables:
         src_pref_cols = [r[1] for r in dest_conn.execute("PRAGMA src.table_info(user_preferences)").fetchall()]
@@ -819,8 +849,14 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         pref_rating_cols = [c for c in common_pref_cols if c not in ('user_id', 'photo_path')]
         pref_match = ("sp.user_id = main.user_preferences.user_id "
                       "AND sp.photo_path = main.user_preferences.photo_path")
+        pref_decisions = _review_decision_assignments(
+            'main.user_preferences',
+            f"(SELECT sp.is_kept FROM src.user_preferences sp WHERE {pref_match})" if 'is_kept' in src_pref_cols else '0',
+            f"(SELECT sp.is_rejected FROM src.user_preferences sp WHERE {pref_match})",
+        )
         if pref_rating_cols:
             set_clause = ', '.join(
+                pref_decisions[c] if c in pref_decisions else
                 f"{c} = CASE WHEN main.user_preferences.{c} IS NOT NULL AND main.user_preferences.{c} != 0 "
                 f"THEN main.user_preferences.{c} "
                 f"ELSE (SELECT sp.{c} FROM src.user_preferences sp WHERE {pref_match}) END"
@@ -840,6 +876,9 @@ def _incremental_update_viewer_db(source_db, output_path, thumbnail_size, verbos
         if verbose:
             count = dest_conn.execute("SELECT COUNT(*) FROM main.user_preferences").fetchone()[0]
             logger.info("  Synced user preferences (%d rows)", count)
+
+    _normalize_review_decisions(dest_conn)
+    dest_conn.commit()
 
     # --- Merge photo_manual_tags (user-authored tags; additive only) ---
     # Never replaced wholesale: a tag added on the viewer deployment survives a
@@ -981,6 +1020,8 @@ def export_viewer_db(source_db='photo_scores_pro.db', output_path=None, thumbnai
     dst_conn = sqlite3.connect(output_path)
     src_conn.backup(dst_conn)
     src_conn.close()
+    _normalize_review_decisions(dst_conn)
+    dst_conn.commit()
 
     # A copied database may contain an older active row alongside a deletion
     # learned from another deployment. UUID deletion wins in full copies too.

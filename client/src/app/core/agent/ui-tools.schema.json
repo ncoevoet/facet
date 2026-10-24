@@ -1471,6 +1471,20 @@
                   "null"
                 ]
               },
+              "review_status": {
+                "description": "Review decision: undecided, kept, or rejected; null clears the filter.",
+                "enum": [
+                  "",
+                  "undecided",
+                  "kept",
+                  "rejected",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "search": {
                 "description": "Gallery filter `search`.",
                 "type": [
@@ -2048,5 +2062,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "dc969f0f704340d1"
+  "version": "d02d6fe9d8ddb6d4"
 }

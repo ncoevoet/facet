@@ -92,6 +92,8 @@ _PATCH_FIELDS: dict[str, Any] = {
     for key in MCP_FILTER_KEYS
     if key not in TAB_UNSUPPORTED_FILTER_KEYS
 }
+_PATCH_FIELDS["review_status"] = (Optional[Literal["", "undecided", "kept", "rejected"]], Field(
+    default=None, description="Review decision: undecided, kept, or rejected; null clears the filter."))
 _PATCH_FIELDS["sort"] = (Optional[SortColumn], Field(default=None, description="Sort column."))
 _PATCH_FIELDS["sort_direction"] = (
     Optional[Literal["asc", "desc"]], Field(default=None, description="Sort direction."))

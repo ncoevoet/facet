@@ -460,6 +460,13 @@ def symlink_or_skip(link, target):
         pytest.skip(f"cannot create a symlink here: {ex}")
 
 
+def initialize_photo_database(conn):
+    """Populate an existing in-memory connection with the production schema."""
+    with tempfile.TemporaryDirectory() as directory:
+        db_path = os.path.join(directory, "schema.db")
+        init_database(db_path)
+        with sqlite3.connect(db_path) as source:
+            source.backup(conn)
 # ---------------------------------------------------------------------------
 # Agent (MCP) app: REAL auth, REAL lifespan
 # ---------------------------------------------------------------------------

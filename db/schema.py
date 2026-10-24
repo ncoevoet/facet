@@ -155,6 +155,7 @@ PHOTOS_COLUMNS = [
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
     ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),
     ('is_rejected', 'INTEGER DEFAULT 0 CHECK (is_rejected IN (0, 1))'),
+    ('is_kept', 'INTEGER DEFAULT 0 CHECK (is_kept IN (0, 1))'),
 
     # AI captioning
     ('caption', 'TEXT'),
@@ -823,6 +824,7 @@ USER_PREFERENCES_COLUMNS = [
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
     ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),
     ('is_rejected', 'INTEGER DEFAULT 0 CHECK (is_rejected IN (0, 1))'),
+    ('is_kept', 'INTEGER DEFAULT 0 CHECK (is_kept IN (0, 1))'),
 ]
 
 USER_PREFERENCES_INDEXES = [

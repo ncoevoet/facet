@@ -2781,6 +2781,17 @@ export const I18N = {
       ui_show_comparison: "assistant_activity.ui.ui_show_comparison",
     },
   },
+  review: {
+    status: "review.status",
+    all: "review.all",
+    needs_review: "review.needs_review",
+    kept: "review.kept",
+    rejected: "review.rejected",
+    keep: "review.keep",
+    reset: "review.reset",
+    updated: "review.updated",
+    shortcut: "review.shortcut",
+  },
 } as const;
 
 /** Returns {@link I18N}; use it to initialize class fields -- see the header comment above. */

@@ -209,6 +209,19 @@ Controlada por `viewer.features.show_my_taste` (predeterminado: `true`). El esta
 
 Con `licensing.mode` en `commercial`, el visor oculta las métricas cuyos modelos no pueden usarse comercialmente: LIQE, Aesthetic IAA, Face Quality IQA (salvo que OFIQ esté instalado), DeQA (salvo que se establezca `licensing.allow_unclear`) y Aesthetic V2.5: sus filtros de rango, chips de filtro y opciones de ordenación. `/api/config` las lista en `unavailable_metrics`. En la página de ajuste de pesos sus controles siguen visibles pero deshabilitados, con un tooltip; los pesos se conservan, porque la puntuación los descarta y renormaliza. Reinicie el visor tras cambiar el modo de licencia.
 
+## Decisiones de revisión
+
+En la galería, selecciona **Estado de revisión → Pendientes de revisión** para recorrer las fotos sin decisión. Se activa el orden por **fecha de captura, más antiguas primero**; puedes invertirlo o filtrar por fecha, carpeta o álbum.
+
+**Conservar** y **Rechazar** retiran la foto de esta vista después de guardar. Las fotos conservadas siguen en la biblioteca normal y aparecen con el filtro **Conservadas**. La decisión es independiente de favoritos y estrellas.
+
+Conservar y **Restablecer decisión** están disponibles en el detalle, el menú contextual y las acciones en lote. **K** conserva la foto actual. Restablecer borra Conservar y Rechazar sin cambiar estrellas ni favoritos. Las acciones de galería permiten Deshacer.
+
+Las decisiones sobreviven a recargas, reinicios y nuevos análisis, y son propias de cada usuario. Confirmar un grupo de selección también marca sus fotos elegidas como conservadas. Las valoraciones, favoritos y grupos revisados anteriores no se convierten automáticamente.
+
+El estado de revisión se aplica a la galería normal; elegir un estado cierra las búsquedas semánticas y de fotos similares.
+
+
 ## Funciones de la galería
 
 ### Tarjetas de foto

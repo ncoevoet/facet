@@ -55,7 +55,7 @@ def upsert_rating_state(conn, photo_path, user_id, *,
 
     if per_user:
         row = conn.execute(
-            "SELECT star_rating, is_favorite, is_rejected FROM user_preferences "
+            "SELECT star_rating, is_favorite, is_rejected, is_kept FROM user_preferences "
             "WHERE user_id = ? AND photo_path = ?",
             (user_id, photo_path),
         ).fetchone()
@@ -67,18 +67,19 @@ def upsert_rating_state(conn, photo_path, user_id, *,
         new_star = cur_star if star_rating is UNSET else int(star_rating)
         new_fav = cur_fav if is_favorite is UNSET else int(bool(is_favorite))
         new_rej = cur_rej if is_rejected is UNSET else int(bool(is_rejected))
+        new_kept = 0 if is_rejected is not UNSET and is_rejected else (row["is_kept"] if row else 0)
 
         if not exists and new_star == 0 and not new_fav and not new_rej:
             return
 
         conn.execute(
             "INSERT INTO user_preferences "
-            "(user_id, photo_path, star_rating, is_favorite, is_rejected) "
-            "VALUES (?, ?, ?, ?, ?) "
+            "(user_id, photo_path, star_rating, is_favorite, is_rejected, is_kept) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
             "ON CONFLICT(user_id, photo_path) DO UPDATE SET "
             "star_rating = excluded.star_rating, is_favorite = excluded.is_favorite, "
-            "is_rejected = excluded.is_rejected",
-            (user_id, photo_path, new_star, new_fav, new_rej),
+            "is_rejected = excluded.is_rejected, is_kept = excluded.is_kept",
+            (user_id, photo_path, new_star, new_fav, new_rej, new_kept),
         )
         return
 
@@ -93,6 +94,8 @@ def upsert_rating_state(conn, photo_path, user_id, *,
     if is_rejected is not UNSET:
         sets.append("is_rejected = ?")
         params.append(int(bool(is_rejected)))
+        if is_rejected:
+            sets.append("is_kept = 0")
     if not sets:
         return
     params.append(photo_path)
