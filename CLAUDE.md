@@ -467,7 +467,7 @@ only what reading those two will NOT tell you.
   spanning groups skipped as `spanning_skipped`), dry run unless `--apply`, with the rules read from
   the SERVER config (`api.config`), not `--config`. Its `--cull-min-score` is CLI-only and skips set
   frames, burst members (similar / scene members only when grouped, best effort; scene only under
-  `--cull-group-by scene`), earlier-culled and favourited / star-rated photos; `--copy-keepers` copies every
+  `--cull-group-by scene`), earlier-culled and favourited / star-rated / kept photos; `--copy-keepers` copies every
   non-rejected in-scope frame with its same-stem RAW / `.xmp` companions, never a rejected one's.
 - **Every model the viewer runs on MPS takes `api.model_cache.accelerator_lock(device)`** around
   both its load and its inference. PyTorch's MPS backend is not thread-safe and all models share the

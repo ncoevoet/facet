@@ -115,6 +115,10 @@ describe('GalleryComponent', () => {
       countInView: vi.fn(() => Promise.resolve(650)),
       pathsInView: vi.fn(() => Promise.resolve([] as string[])),
       filterPayload: vi.fn(() => ({ page: '1' })),
+      reviewProgress: signal(null),
+      reviewPercent: signal(0),
+      reviewBookmark: signal(null),
+      continueReview: vi.fn(() => Promise.resolve(null)),
       viewSnapshot: signal(null),
       pinnedPaths: signal<string[] | null>(null),
       clearPinned: vi.fn(() => Promise.resolve()),
@@ -2788,6 +2792,18 @@ describe('GalleryComponent', () => {
 
     const reject = () => (component as unknown as { batchReject: () => Promise<void> }).batchReject();
 
+    it.each(['kept', 'undecided'] as const)('offers Undo for a single %s decision without changing selection', async decision => {
+      const snapshot = new Map([['/a.jpg', { ...snap, is_kept: false }]]);
+      mockStore.batchReview = vi.fn().mockResolvedValue({ snapshot, targeted: 1, count: 1 });
+      mockStore.restoreSnapshot.mockResolvedValue(undefined);
+      await (component as unknown as { reviewSingle: (path: string, decision: 'kept' | 'undecided') => Promise<unknown> }).reviewSingle('/a.jpg', decision);
+      expect(mockStore.batchReview).toHaveBeenCalledWith(['/a.jpg'], decision, false);
+      expect(undoRegister).toHaveBeenCalledWith(expect.objectContaining({ labelKey: 'review.updated', labelParams: { count: 1 } }));
+      await undoRegister.mock.calls[0][0].undo();
+      expect(mockStore.restoreSnapshot).toHaveBeenCalledWith(snapshot);
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+    });
+
     it('offers undo when the snapshot covers every photo the action touched', async () => {
       mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
       mockStore.selectionCount.set(2);
@@ -4111,12 +4127,20 @@ describe('GalleryComponent', () => {
 
     afterEach(() => mockStore.pinnedPaths.set(null));
 
-    it.each(['k', 'K', 'r', 'R'])('%s does nothing on a pinned list: no default prevented, no advance, no write', key => {
+    it.each(['r', 'R'])('%s does nothing on a pinned list: no default prevented, no advance, no write', key => {
       const ev = fire(key);
       expect(ev.defaultPrevented).toBe(false);
       expect(activeIndex()).toBe(0);
       expect(mockStore.toggleRejected).not.toHaveBeenCalled();
       expect(mockStore.setRating).not.toHaveBeenCalled();
+    });
+
+    it.each(['k', 'K'])('%s keeps the focused photo on a pinned list', async key => {
+      mockStore.batchReview = vi.fn().mockResolvedValue({ snapshot: new Map(), targeted: 1, count: 1 });
+      const ev = fire(key);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(mockStore.batchReview).toHaveBeenCalledWith(['/a.jpg'], 'kept', false);
+      await Promise.resolve();
     });
 
     it('X still rejects for real', () => {
@@ -4217,6 +4241,30 @@ describe('GalleryComponent', () => {
       tile.blur();
       return tile;
     }
+
+    it('does not open a resumed photo after the owning gallery is parked', async () => {
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      let resolveResume!: (path: string) => void;
+      mockStore.continueReview.mockImplementation(() => new Promise<string>(resolve => { resolveResume = resolve; }));
+      const pending = (gallery as unknown as { continueReview(): Promise<void> }).continueReview();
+      openPhoto(0);
+      mockStore.photos.set([{ ...photos[1] }]);
+      navigate.mockClear();
+      resolveResume(photos[1].path);
+      await pending;
+      expect(navigate).not.toHaveBeenCalled();
+    });
+
+    it('does not open a resumed photo after navigation away even before detach', async () => {
+      const navigate = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+      let resolveResume!: (path: string) => void;
+      mockStore.continueReview.mockImplementation(() => new Promise<string>(resolve => { resolveResume = resolve; }));
+      const pending = (gallery as unknown as { continueReview(): Promise<void> }).continueReview();
+      (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(2, '/stats'));
+      resolveResume(photos[1].path);
+      await pending;
+      expect(navigate).not.toHaveBeenCalled();
+    });
 
     it('defers the filter sidebar until its block is rendered', async () => {
       expect(fixture.debugElement.query(By.directive(GalleryFilterSidebarComponent))).toBeNull();

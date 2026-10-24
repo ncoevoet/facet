@@ -157,6 +157,7 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('POST', '/api/photos/batch_manual_tags'),
     ('POST', '/api/photos/batch_rating'),
     ('POST', '/api/photos/batch_reject'),
+    ('POST', '/api/photos/batch_review'),
     ('POST', '/api/plugins/test-webhook'),
     ('POST', '/api/recalculate'),
     ('POST', '/api/scan/detect_panoramas'),
@@ -182,8 +183,14 @@ _RATING_ROUTES = [
 ]
 
 
+_REQUEST_BODIES = {
+    ("POST", "/api/photos/batch_review"): {"photo_paths": ["/p.jpg"], "decision": "kept"},
+}
+
+
 def _call(client, method, path):
     valid_bodies = {
+        **_REQUEST_BODIES,
         ('POST', '/api/places'): {'name': 'Work', 'latitude': 0, 'longitude': 0},
         ('PUT', '/api/places/{place_id}'): {'name': 'Work', 'latitude': 0, 'longitude': 0},
         ('PUT', '/api/photo/gps'): {'path': '/missing', 'gps_latitude': 0, 'gps_longitude': 0},

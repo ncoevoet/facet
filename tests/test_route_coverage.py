@@ -48,6 +48,7 @@ PUBLIC_ROUTES = [
 # install without viewer.edition_password became read-only.
 AUTH_ROUTES = [
     '/api/photos',
+    '/api/photos/review_progress',
     '/api/type_counts',
     '/api/folders',
     '/api/filter_options/cameras',

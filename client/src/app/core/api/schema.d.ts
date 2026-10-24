@@ -3269,6 +3269,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photos/batch_review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Batch Review
+         * @description Keep/reset preserves ratings and favorites; rejection clears them.
+         */
+        post: operations["api_batch_review_api_photos_batch_review_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photos/by_paths": {
         parameters: {
             query?: never;
@@ -3442,6 +3462,29 @@ export interface paths {
          *     carry their own.
          */
         get: operations["api_photos_paths_api_photos_paths_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/photos/review_progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Review Progress
+         * @description Decision counts for the whole content scope, ignoring its active decision tab.
+         *
+         *     ``scope_review_status`` retains a smart album's own decision criterion when
+         *     the gallery's temporary review-status filter is cleared for the denominator.
+         */
+        get: operations["api_review_progress_api_photos_review_progress_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5066,6 +5109,32 @@ export interface components {
             photo_paths?: string[] | null;
             /** Rating */
             rating: number;
+        };
+        /** BatchReviewRequest */
+        BatchReviewRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "kept" | "undecided" | "rejected";
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `photo_paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
+            exclude?: string[] | null;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Photo Paths */
+            photo_paths?: string[] | null;
+        };
+        /** BatchUpdateResponse */
+        BatchUpdateResponse: {
+            /** Count */
+            count: number;
+            /** Success */
+            success: boolean;
         };
         /** BurstGroup */
         BurstGroup: {
@@ -6957,6 +7026,8 @@ export interface components {
             is_favorite?: number | null;
             /** Is Group Portrait */
             is_group_portrait?: number | null;
+            /** Is Kept */
+            is_kept?: number | null;
             /** Is Monochrome */
             is_monochrome?: number | null;
             /** Is Rejected */
@@ -7535,6 +7606,20 @@ export interface components {
             };
             /** Success */
             success: boolean;
+        };
+        /**
+         * ReviewProgressResponse
+         * @description Mutually exclusive decisions across the complete visible review scope.
+         */
+        ReviewProgressResponse: {
+            /** Kept */
+            kept: number;
+            /** Rejected */
+            rejected: number;
+            /** Total */
+            total: number;
+            /** Undecided */
+            undecided: number;
         };
         /** SaveSnapshotBody */
         SaveSnapshotBody: {
@@ -8289,6 +8374,8 @@ export interface components {
         ToggleRejectedResponse: {
             /** Is Favorite */
             is_favorite?: boolean | null;
+            /** Is Kept */
+            is_kept?: boolean | null;
             /** Is Rejected */
             is_rejected: boolean;
             /** Star Rating */
@@ -13391,6 +13478,39 @@ export interface operations {
             };
         };
     };
+    api_batch_review_api_photos_batch_review_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchReviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchUpdateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_photos_by_paths_api_photos_by_paths_post: {
         parameters: {
             query?: never;
@@ -13586,6 +13706,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PhotoPathsResponse"];
+                };
+            };
+        };
+    };
+    api_review_progress_api_photos_review_progress_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewProgressResponse"];
                 };
             };
         };

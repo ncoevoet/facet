@@ -469,3 +469,13 @@ class TestCandidatesCache:
             _candidates(threshold=THRESHOLD)
             search._reset_text_encoder_cache()
             assert len(search._candidates_cache) == 0
+
+
+def test_review_progress_respects_semantic_gate(edition_client, library, encoder):
+    response = edition_client.get('/api/photos/review_progress', params={
+        **HIDE_OFF, 'path_prefix': PREFIX, 'semantic_q': QUERY, 'semantic_threshold': THRESHOLD,
+        'review_status': 'undecided', 'hide_rejected': '1',
+    })
+    assert response.status_code == 200, response.text
+    rejected = sum(i % 4 == 1 for i in GATED)
+    assert response.json() == {'total': len(GATED), 'undecided': len(GATED) - rejected, 'kept': 0, 'rejected': rejected}

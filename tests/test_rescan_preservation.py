@@ -69,7 +69,7 @@ def scored_db(tmp_path):
     # Simulate everything a user / later pass attaches to the photo.
     with get_connection(db, row_factory=False) as conn:
         conn.execute(
-            "UPDATE photos SET star_rating=5, is_favorite=1, caption=?, "
+            "UPDATE photos SET star_rating=5, is_favorite=1, is_kept=1, caption=?, "
             "vlm_critique=?, narrative_moment=?, learned_score=? WHERE path='/p/a.jpg'",
             ("a lovely view", "great composition", "nature", 8.5),
         )
@@ -84,8 +84,8 @@ def scored_db(tmp_path):
             "INSERT INTO learned_scores (photo_path, learned_score) VALUES ('/p/a.jpg', 8.5)"
         )
         conn.execute(
-            "INSERT INTO user_preferences (user_id, photo_path, star_rating) "
-            "VALUES ('alice', '/p/a.jpg', 4)"
+            "INSERT INTO user_preferences (user_id, photo_path, star_rating, is_kept) "
+            "VALUES ('alice', '/p/a.jpg', 4, 1)"
         )
         conn.commit()
     return db, facet
@@ -98,12 +98,14 @@ def test_rescan_preserves_user_and_derived_data(scored_db):
 
     with get_connection(db, row_factory=True) as conn:
         row = conn.execute(
-            "SELECT aggregate, star_rating, is_favorite, caption, vlm_critique, "
+            "SELECT aggregate, star_rating, is_favorite, is_kept, caption, vlm_critique, "
             "narrative_moment, learned_score FROM photos WHERE path='/p/a.jpg'"
         ).fetchone()
         assert row['aggregate'] == 9.9                 # scored column refreshed
         assert row['star_rating'] == 5                 # rating preserved
         assert row['is_favorite'] == 1
+        assert row['is_kept'] == 1
+        assert conn.execute("SELECT is_kept FROM user_preferences WHERE user_id='alice'").fetchone()[0] == 1
         assert row['caption'] == "a lovely view"       # expensive AI preserved
         assert row['vlm_critique'] == "great composition"
         assert row['narrative_moment'] == "nature"

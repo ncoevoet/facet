@@ -35,7 +35,7 @@ import { MatMenuModule } from '@angular/material/menu';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
-import { GalleryStore, BatchResult } from './gallery.store';
+import { GalleryStore, BatchResult, REVIEW_RESUME_NAVIGATION } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { isTypingContext } from '../../shared/utils/keyboard';
 import { PHOTO_PATH } from '../../core/gallery-reuse.strategy';
@@ -227,6 +227,25 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
+        @if (store.reviewProgress(); as progress) {
+          <section class="mx-2 md:mx-4 mt-2 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] text-sm" [attr.aria-label]="I18N.gallery.review_progress.title | translate">
+            <div class="flex flex-wrap items-center gap-x-4 gap-y-1">
+              <span>{{ I18N.gallery.review_progress.counts | translate:{ undecided: progress.undecided, kept: progress.kept, rejected: progress.rejected } }}</span>
+              <span>{{ I18N.gallery.review_progress.complete | translate:{ percent: store.reviewPercent(), total: progress.total } }}</span>
+              @if (progress.undecided > 0 && store.filters().review_status !== 'undecided') {
+                <button mat-button (click)="store.startReviewQueue()">{{ I18N.gallery.review_progress.start | translate }}</button>
+              }
+            </div>
+            <progress class="w-full h-1" max="100" [value]="store.reviewPercent()" [attr.aria-label]="I18N.gallery.review_progress.title | translate"></progress>
+          </section>
+        }
+        @if (store.reviewBookmark()) {
+          <div class="mx-2 md:mx-4 mt-2 flex flex-wrap items-center gap-x-3 text-sm">
+            <button mat-button [disabled]="store.loading()" (click)="continueReview()">{{ I18N.gallery.review_progress.resume | translate }}</button>
+            <span class="opacity-70">{{ I18N.gallery.review_progress.browser | translate }}</span>
+          </div>
+        }
+
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
              Never reflected in the URL (sequence_group_id is renumbered on every
              detection pass), so this is the only affordance out of it. -->
@@ -608,6 +627,8 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             @if (auth.isEdition()) {
               <span aria-hidden="true" class="w-px h-6 mx-1 bg-[var(--mat-sys-outline-variant)]"></span>
               <button mat-icon-button disabledInteractive (click)="batchFavorite()" [matTooltip]="I18N.gallery.selection.favorite | translate" [attr.aria-label]="I18N.gallery.selection.favorite | translate"><mat-icon>favorite</mat-icon></button>
+              <button mat-icon-button disabledInteractive (click)="batchReview('kept')" [matTooltip]="I18N.review.keep | translate" [attr.aria-label]="I18N.review.keep | translate"><mat-icon>check_circle</mat-icon></button>
+              <button mat-icon-button disabledInteractive (click)="batchReview('undecided')" [matTooltip]="I18N.review.reset | translate" [attr.aria-label]="I18N.review.reset | translate"><mat-icon>restart_alt</mat-icon></button>
               <button mat-icon-button disabledInteractive (click)="batchReject()" [matTooltip]="I18N.gallery.selection.reject | translate" [attr.aria-label]="I18N.gallery.selection.reject | translate"><mat-icon>thumb_down</mat-icon></button>
               <button mat-icon-button disabledInteractive [matMenuTriggerFor]="rateMenu" [matTooltip]="I18N.gallery.selection.rate | translate" [attr.aria-label]="I18N.gallery.selection.rate | translate"><mat-icon>star</mat-icon></button>
               <mat-menu #rateMenu="matMenu">
@@ -766,6 +787,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private parked = false;
   // Detaching loses the DOM scroll position and focus.
+  private resumeNavigation = 0;
   private returnTo: { scroll: number; focus: Element | null; path: string | null } | null = null;
   private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
@@ -1218,6 +1240,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     // Capture before the outlet detaches the DOM and loses scroll and focus.
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(() => {
+      if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
       if (this.parked) return;
       const focus = document.activeElement;
       const index = Number((focus?.closest('[data-pidx]') as HTMLElement | null)?.dataset['pidx']);
@@ -1336,14 +1359,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.store.filters.update(current => ({ ...current, ...setScope }));
     }
     // Set album_id from route path param (for /album/:albumId route)
-    const albumId = this.route.snapshot.paramMap.get('albumId');
+    const albumId = this.store.filters().album_id === '0' ? null
+      : this.store.filters().album_id || this.route.snapshot.paramMap.get('albumId');
     if (albumId) {
       try {
         const album = await firstValueFrom(this.albumService.get(+albumId));
         if (album.smart_filter_json) {
           // Apply saved filters BEFORE setting currentAlbum (avoids effect saving defaults)
           const savedJson = album.smart_filter_json;
-          this.store.filters.update(current => applySavedAlbumFilters(current, savedJson, albumId));
+          this.store.filters.update(current => applyQueryParams(applySavedAlbumFilters(current, savedJson, albumId), this.route.snapshot.queryParams));
         } else {
           this.store.filters.update(current => ({ ...current, album_id: albumId }));
         }
@@ -1683,6 +1707,23 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (result === null) return; // store reverted and notified
     this.clearSelection();
     const params = { count: result.count, ...extraParams };
+    this.offerMutationUndo(result, i18nKey, params);
+    // The view can move between the count and the write (another session, a
+    // scan). Say so rather than absorbing it: the user approved a number.
+    if (announced !== null && announced !== result.count) {
+      this.snackBar.open(
+        this.i18n.t(I18N.gallery.selection.view_scope_mismatch, { count: result.count, announced }),
+        '', { duration: 5000 },
+      );
+    }
+  }
+
+  private offerMutationUndo(
+    result: BatchResult,
+    i18nKey: string,
+    params: Record<string, string | number>,
+    restoreSelection = true,
+  ): void {
     // Undo replays inverse calls from a snapshot, and the snapshot can only
     // cover LOADED photos -- so offering it for an action that reached further
     // would promise to restore 64 of 5,000. Gate on coverage, not just size.
@@ -1696,20 +1737,22 @@ export class GalleryComponent implements OnInit, OnDestroy {
           // The snapshot's keys, not `paths`: they are the same set whenever
           // undo is offered at all (that is what `covered` asserts), and they
           // are the only ones a view-scoped action ever named.
-          this.store.restoreSelection(result.snapshot.keys());
+          if (restoreSelection) this.store.restoreSelection(result.snapshot.keys());
         },
       });
     } else {
       this.snackBar.open(this.i18n.t(i18nKey, params), '', { duration: 2000 });
     }
-    // The view can move between the count and the write (another session, a
-    // scan). Say so rather than absorbing it: the user approved a number.
-    if (announced !== null && announced !== result.count) {
-      this.snackBar.open(
-        this.i18n.t(I18N.gallery.selection.view_scope_mismatch, { count: result.count, announced }),
-        '', { duration: 5000 },
-      );
-    }
+  }
+
+  private async reviewSingle(path: string, decision: 'kept' | 'undecided'): Promise<BatchResult | null> {
+    const result = await this.store.batchReview([path], decision, false);
+    if (result) this.offerMutationUndo(result, this.I18N.review.updated, { count: result.count }, false);
+    return result;
+  }
+
+  protected async batchReview(decision: 'kept' | 'undecided'): Promise<void> {
+    await this.executeBatchAction(p => this.store.batchReview(p, decision), this.I18N.review.updated);
   }
 
   protected async batchFavorite(): Promise<void> {
@@ -1824,6 +1867,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private async runSinglePhotoAction(action: PhotoMenuAction, photo: Photo): Promise<void> {
     const paths = [photo.path];
     switch (action.kind) {
+      case 'review': await this.reviewSingle(photo.path, action.decision); break;
       case 'toggle-favorite': this.store.toggleFavorite(photo.path); break;
       case 'toggle-reject': this.store.toggleRejected(photo.path); break;
       case 'rate': this.store.setRating(photo.path, action.rating); break;
@@ -1849,6 +1893,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
         break;
       default: return assertNever(action);
     }
+  }
+
+  protected async continueReview(): Promise<void> {
+    const navigation = this.resumeNavigation;
+    const ownsView = () => !this.destroyRef.destroyed && !this.parked && navigation === this.resumeNavigation;
+    const path = await this.store.continueReview(ownsView);
+    if (!ownsView()) return;
+    const photo = path ? this.store.photos().find(p => p.path === path) : null;
+    if (photo) this.downloadPhoto(photo);
   }
 
   protected downloadPhoto(photo: Photo): void {
@@ -1881,6 +1934,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  sheet and the right-click menu's bulk mode so the two cannot drift. */
   private async runSelectionAction(action: SheetAction): Promise<void> {
     switch (action.kind) {
+      case 'review': await this.batchReview(action.decision); break;
       case 'favorite': await this.batchFavorite(); break;
       case 'reject': await this.batchReject(); break;
       case 'rate': await this.batchRate(action.rating); break;
@@ -2516,9 +2570,19 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (event.key >= '1' && event.key <= '5') {
       this.store.setRating(photo.path, Number(event.key));
       advance = true;
+    } else if (event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      void this.reviewSingle(photo.path, 'kept').then(result => {
+        if (result) this.focusAfterDecision(photos, index);
+      });
+      return;
     } else if (event.key === '0' || event.key === 'x' || event.key === 'X') {
-      this.store.toggleRejected(photo.path);
-      advance = true;
+      if (this.store.filters().review_status) {
+        void this.store.toggleRejected(photo.path).then(() => this.focusAfterDecision(photos, index));
+      } else {
+        this.store.toggleRejected(photo.path);
+        advance = true;
+      }
     } else if (event.key === 'f' || event.key === 'F') {
       this.store.toggleFavorite(photo.path);
     } else {
@@ -2531,6 +2595,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.setCursor(next);
       this.focusCard(next);
     }
+  }
+
+  private focusAfterDecision(photos: Photo[], index: number): void {
+    const nextIndex = this.store.photos().findIndex(p => p.path === photos[index + 1]?.path);
+    const target = nextIndex >= 0 ? nextIndex : Math.min(index, this.store.photos().length - 1);
+    if (target >= 0) { this.setCursor(target); this.focusCard(target); }
   }
 
   /** Focus a card by photo index; if windowed out of the DOM, scroll its row

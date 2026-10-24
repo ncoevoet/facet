@@ -234,6 +234,19 @@ class TestReadTools:
         assert result["ok"] is True, result
         assert [r["filename"] for r in result["data"]["rows"]] == ["none.jpg"]
 
+    @pytest.mark.parametrize("status, expected", [("undecided", "new"), ("kept", "keep"), ("rejected", "reject")])
+    def test_search_filters_by_review_decision(self, agent_app, seed_photos_prefix, status, expected):
+        env = agent_app("open")
+        prefix = AGENT_DIR + "review/"
+        seed_photos_prefix(prefix, [
+            {"path": prefix + name + ".jpg", "filename": name + ".jpg", "is_kept": kept,
+             "is_rejected": rejected}
+            for name, kept, rejected in [("new", 0, 0), ("keep", 1, 0), ("reject", 0, 1)]])
+        result = env.call(env.token(env.login()), "search_photos", {
+            "filters": {"review_status": status, "path_prefix": prefix}, "show": False})
+        assert result["ok"] is True, result
+        assert [r["filename"] for r in result["data"]["rows"]] == [expected + ".jpg"]
+
     def test_injection_text_round_trips_as_data(self, agent_app, photos):
         env = agent_app("open")
         token = env.token(env.login())

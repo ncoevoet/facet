@@ -1311,6 +1311,14 @@ export const I18N = {
     },
     channel_clip_highlight_range: "gallery.channel_clip_highlight_range",
     channel_clip_shadow_range: "gallery.channel_clip_shadow_range",
+    review_progress: {
+      title: "gallery.review_progress.title",
+      counts: "gallery.review_progress.counts",
+      complete: "gallery.review_progress.complete",
+      start: "gallery.review_progress.start",
+      resume: "gallery.review_progress.resume",
+      browser: "gallery.review_progress.browser",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -2780,6 +2788,17 @@ export const I18N = {
       ui_suggest_culling: "assistant_activity.ui.ui_suggest_culling",
       ui_show_comparison: "assistant_activity.ui.ui_show_comparison",
     },
+  },
+  review: {
+    status: "review.status",
+    all: "review.all",
+    needs_review: "review.needs_review",
+    kept: "review.kept",
+    rejected: "review.rejected",
+    keep: "review.keep",
+    reset: "review.reset",
+    updated: "review.updated",
+    shortcut: "review.shortcut",
   },
 } as const;
 

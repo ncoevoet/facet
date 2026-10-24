@@ -118,6 +118,7 @@ export interface Photo {
   star_rating?: number | null;
   is_favorite?: boolean | null;
   is_rejected?: boolean | null;
+  is_kept?: boolean | null;
   keeper_hint?: KeeperHint | null;
   /** 'bracket' | 'panorama' | 'hdr_panorama' when this frame belongs to a
    *  deliberate multi-frame set. With the matching hide toggle on, the tile
@@ -175,6 +176,7 @@ const PHOTO_FLAG_FIELDS = [
   'is_duplicate_lead',
   'is_favorite',
   'is_rejected',
+  'is_kept',
 ] as const;
 
 type PhotoFlagField = typeof PHOTO_FLAG_FIELDS[number];

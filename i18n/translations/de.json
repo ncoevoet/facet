@@ -1296,7 +1296,15 @@
       "badge_shadow": "Beschnittene Schatten: {percent}% der Pixel"
     },
     "channel_clip_highlight_range": "Beschnittene Lichter %",
-    "channel_clip_shadow_range": "Beschnittene Schatten %"
+    "channel_clip_shadow_range": "Beschnittene Schatten %",
+    "review_progress": {
+      "title": "Sichtungsfortschritt",
+      "counts": "{undecided} unentschieden · {kept} behalten · {rejected} abgelehnt",
+      "complete": "{percent}% von {total} gesichtet",
+      "start": "Unentschiedene sichten",
+      "resume": "Sichtung fortsetzen",
+      "browser": "Gespeicherte Warteschlange in diesem Browser fortsetzen."
+    }
   },
   "composition_patterns": {
     "none": "Keines",
@@ -2766,5 +2774,16 @@
       "ui_suggest_culling": "Vorschläge im Auswahlplan markiert",
       "ui_show_comparison": "Vergleich angezeigt"
     }
+  },
+  "review": {
+    "status": "Auswahlstatus",
+    "all": "Alle Entscheidungen",
+    "needs_review": "Zu prüfen",
+    "kept": "Behalten",
+    "rejected": "Abgelehnt",
+    "keep": "Behalten",
+    "reset": "Entscheidung zurücksetzen",
+    "updated": "Entscheidung für {{count}} Fotos aktualisiert",
+    "shortcut": "Foto behalten"
   }
 }

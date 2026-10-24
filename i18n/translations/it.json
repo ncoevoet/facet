@@ -1296,7 +1296,15 @@
       "badge_shadow": "Ombre tagliate: {percent}% dei pixel"
     },
     "channel_clip_highlight_range": "% alte luci tagliate",
-    "channel_clip_shadow_range": "% ombre tagliate"
+    "channel_clip_shadow_range": "% ombre tagliate",
+    "review_progress": {
+      "title": "Avanzamento revisione",
+      "counts": "{undecided} da decidere · {kept} conservate · {rejected} rifiutate",
+      "complete": "{percent}% di {total} revisionate",
+      "start": "Rivedi le indecise",
+      "resume": "Continua revisione",
+      "browser": "Riprendi la coda memorizzata in questo browser."
+    }
   },
   "composition_patterns": {
     "none": "Nessuno",
@@ -2766,5 +2774,16 @@
       "ui_suggest_culling": "Suggerimenti segnati sul piano di selezione",
       "ui_show_comparison": "Confronto mostrato"
     }
+  },
+  "review": {
+    "status": "Stato revisione",
+    "all": "Tutte le decisioni",
+    "needs_review": "Da esaminare",
+    "kept": "Conservate",
+    "rejected": "Scartate",
+    "keep": "Conserva",
+    "reset": "Reimposta decisione",
+    "updated": "Decisioni aggiornate per {{count}} foto",
+    "shortcut": "Conserva foto"
   }
 }

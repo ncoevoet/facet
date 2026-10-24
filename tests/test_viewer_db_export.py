@@ -493,3 +493,72 @@ def test_incremental_export_upgrades_destination_gps_schema(tmp_path):
     with sqlite3.connect(out) as conn:
         assert conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set FROM photos WHERE path=?', (_A,)).fetchone() == (3, 4, 1)
         assert conn.execute('SELECT COUNT(*) FROM saved_places').fetchone() == (0,)
+
+
+@pytest.mark.parametrize('table', ['photos', 'user_preferences'])
+@pytest.mark.parametrize(('source_decision', 'viewer_decision', 'expected'), [
+    ((1, 0), (0, 1), (0, 1)),
+    ((0, 1), (1, 0), (1, 0)),
+    ((1, 0), (0, 0), (1, 0)),
+    ((0, 1), (0, 0), (0, 1)),
+    ((0, 0), (1, 0), (1, 0)),
+    ((1, 0), (1, 1), (0, 1)),
+    ((1, 1), (0, 0), (0, 1)),
+])
+def test_incremental_export_merges_review_decision_as_pair(tmp_path, table, source_decision, viewer_decision, expected):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        if table == 'user_preferences':
+            conn.execute("INSERT INTO user_preferences(user_id, photo_path) VALUES(?, ?)", (_USER, _A))
+    export_viewer_db(src, out, verbose=False)
+    key = 'path' if table == 'photos' else 'photo_path'
+    for database, decision, rating in [(src, source_decision, 3), (out, viewer_decision, 5)]:
+        with sqlite3.connect(database) as conn:
+            conn.execute(f"UPDATE {table} SET is_kept=?, is_rejected=?, star_rating=?, is_favorite=1 WHERE {key}=?",
+                         (*decision, rating, _A))
+    for _ in range(2):
+        export_viewer_db(src, out, verbose=False)
+        with sqlite3.connect(out) as conn:
+            assert conn.execute(f"SELECT is_kept, is_rejected, star_rating, is_favorite FROM {table} WHERE {key}=?", (_A,)).fetchone() == (*expected, 5, 1)
+
+
+@pytest.mark.parametrize('table', ['photos', 'user_preferences'])
+@pytest.mark.parametrize('incremental', [False, True])
+def test_export_normalizes_new_conflicting_review_decision(tmp_path, table, incremental):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    if incremental:
+        export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(src) as conn:
+        if table == 'photos':
+            conn.execute("INSERT INTO photos(path, filename, is_kept, is_rejected, star_rating, is_favorite) VALUES('/photos/new.jpg', 'new.jpg', 1, 1, 4, 1)")
+            key, path = 'path', '/photos/new.jpg'
+        else:
+            conn.execute("INSERT INTO user_preferences(user_id, photo_path, is_kept, is_rejected, star_rating, is_favorite) VALUES(?, ?, 1, 1, 4, 1)", (_USER, _A))
+            key, path = 'photo_path', _A
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute(f"SELECT is_kept, is_rejected, star_rating, is_favorite FROM {table} WHERE {key}=?", (path,)).fetchone() == (0, 1, 4, 1)
+    # An export repairs only its own copy; it does not write to the scanner DB.
+    with sqlite3.connect(src) as conn:
+        assert conn.execute(f"SELECT is_kept, is_rejected FROM {table} WHERE {key}=?", (path,)).fetchone() == (1, 1)
+
+
+@pytest.mark.parametrize('table', ['photos', 'user_preferences'])
+def test_incremental_old_source_rejection_does_not_override_viewer_keep(tmp_path, table):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        if table == 'user_preferences':
+            conn.execute("INSERT INTO user_preferences(user_id, photo_path) VALUES(?, ?)", (_USER, _A))
+    export_viewer_db(src, out, verbose=False)
+    key = 'path' if table == 'photos' else 'photo_path'
+    with sqlite3.connect(src) as conn:
+        conn.execute(f"ALTER TABLE {table} DROP COLUMN is_kept")
+        conn.execute(f"UPDATE {table} SET is_rejected=1 WHERE {key}=?", (_A,))
+    with sqlite3.connect(out) as conn:
+        conn.execute(f"UPDATE {table} SET is_kept=1 WHERE {key}=?", (_A,))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute(f"SELECT is_kept, is_rejected FROM {table} WHERE {key}=?", (_A,)).fetchone() == (1, 0)

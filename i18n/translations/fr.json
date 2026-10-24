@@ -1296,7 +1296,15 @@
       "badge_shadow": "Ombres écrêtées : {percent} % des pixels"
     },
     "channel_clip_highlight_range": "Hautes lumières écrêtées %",
-    "channel_clip_shadow_range": "Ombres écrêtées %"
+    "channel_clip_shadow_range": "Ombres écrêtées %",
+    "review_progress": {
+      "title": "Progression du tri",
+      "counts": "{undecided} à trier · {kept} conservées · {rejected} rejetées",
+      "complete": "{percent}% sur {total} triées",
+      "start": "Trier les indécises",
+      "resume": "Continuer le tri",
+      "browser": "Reprendre la file mémorisée dans ce navigateur."
+    }
   },
   "composition_patterns": {
     "none": "Aucun",
@@ -2766,5 +2774,16 @@
       "ui_suggest_culling": "Suggestions marquées sur le plan d'auto-tri",
       "ui_show_comparison": "Comparaison affichée"
     }
+  },
+  "review": {
+    "status": "Décision de tri",
+    "all": "Toutes les décisions",
+    "needs_review": "À examiner",
+    "kept": "Conservées",
+    "rejected": "Rejetées",
+    "keep": "Conserver",
+    "reset": "Réinitialiser la décision",
+    "updated": "Décision mise à jour pour {{count}} photos",
+    "shortcut": "Conserver la photo"
   }
 }

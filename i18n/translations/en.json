@@ -1296,7 +1296,15 @@
       "badge_shadow": "Clipped shadows: {percent}% of pixels"
     },
     "channel_clip_highlight_range": "Clipped Highlights %",
-    "channel_clip_shadow_range": "Clipped Shadows %"
+    "channel_clip_shadow_range": "Clipped Shadows %",
+    "review_progress": {
+      "title": "Review progress",
+      "counts": "{undecided} undecided · {kept} kept · {rejected} rejected",
+      "complete": "{percent}% of {total} reviewed",
+      "start": "Review undecided",
+      "resume": "Continue reviewing",
+      "browser": "Resume the remembered queue on this browser."
+    }
   },
   "composition_patterns": {
     "none": "None",
@@ -2766,5 +2774,16 @@
       "ui_suggest_culling": "Marked suggestions on the culling plan",
       "ui_show_comparison": "Showed a comparison"
     }
+  },
+  "review": {
+    "status": "Review status",
+    "all": "All decisions",
+    "needs_review": "Needs review",
+    "kept": "Kept",
+    "rejected": "Rejected",
+    "keep": "Keep",
+    "reset": "Reset decision",
+    "updated": "Updated {{count}} photo decisions",
+    "shortcut": "Keep photo"
   }
 }
