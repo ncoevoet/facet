@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -85,8 +86,10 @@ describe('GalleryStore', () => {
   let routerNavigate: Mock;
   let queryParams: Record<string, string>;
   let assistantBatches: Subject<AssistantChangeBatch>;
+  let authIdentity: ReturnType<typeof signal<string>>;
 
   beforeEach(() => {
+    authIdentity = signal('0|');
     apiGet = vi.fn();
     apiPost = vi.fn(() => of({}));
     snackOpen = vi.fn();
@@ -103,7 +106,7 @@ describe('GalleryStore', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParams } },
         },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { identity: authIdentity, isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
         { provide: MatSnackBar, useValue: { open: snackOpen } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
@@ -112,6 +115,49 @@ describe('GalleryStore', () => {
     });
 
     store = TestBed.inject(GalleryStore);
+  });
+
+  describe('review refresh ownership', () => {
+    it('does not use another principal removed-photo cache for Undo', async () => {
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      store.photos.set([makePhoto({ path: '/alice', is_kept: true })]);
+      apiGet.mockReturnValue(of(makePhotosResponse({ photos: [] })));
+      await store.refreshReviewResults();
+      authIdentity.set('bob');
+      apiPost.mockClear();
+      await store.restoreSnapshot(new Map([['/alice', { is_kept: false, is_rejected: false, is_favorite: false, star_rating: null }]]));
+      expect(apiPost.mock.calls.some(([url]) => url === '/photos/batch_review')).toBe(false);
+      expect(store.photos()).toEqual([]);
+    });
+    it.each([false, true])('discards old-principal refill/rebuild responses (rebuild=%s)', async rebuild => {
+      const pending = new Subject<PhotosResponse>();
+      apiGet.mockImplementation((url: string) => url === '/photos' ? pending : of({}));
+      store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+      store.photos.set([makePhoto({ path: '/alice', is_kept: true })]);
+      const task = store.refreshReviewResults(rebuild);
+      authIdentity.set('bob'); // No load or sequence change.
+      store.photos.set([makePhoto({ path: '/bob' })]);
+      pending.next(makePhotosResponse({ photos: [makePhoto({ path: '/alice-private' })] }));
+      await task;
+      expect(store.photos().map(p => p.path)).toEqual(['/bob']);
+      expect(routerNavigate).not.toHaveBeenCalled();
+    });
+    it.each(['identity', 'scope'])('discards a rebuilt tail when %s changes without a new load', async change => {
+      const pending = new Subject<PhotosResponse>();
+      apiGet.mockImplementation((url: string, params: { page: number }) => url !== '/photos' ? of({}) : params.page === 1
+        ? of(makePhotosResponse({ photos: [makePhoto({ path: '/first' })], has_more: true })) : pending);
+      store.filters.update(f => ({ ...f, review_status: 'undecided', per_page: 1 }));
+      store.photos.set([makePhoto({ path: '/first' }), makePhoto({ path: '/second' })]);
+      const task = store.refreshReviewResults(true);
+      await vi.waitFor(() => expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ page: 2 })));
+      if (change === 'identity') authIdentity.set('bob');
+      else store.filters.update(f => ({ ...f, path_prefix: '/new' }));
+      store.photos.set([makePhoto({ path: '/current' })]);
+      pending.next(makePhotosResponse({ photos: [makePhoto({ path: '/stale-tail' })] }));
+      await task;
+      expect(store.photos().map(p => p.path)).toEqual(['/current']);
+      expect(routerNavigate).not.toHaveBeenCalled();
+    });
   });
 
   describe('initial state', () => {
@@ -2240,6 +2286,194 @@ describe('GalleryStore optimistic mutations', () => {
     ]);
   });
 
+  it('rebuilds a review queue when a single rating changes its sort order', async () => {
+    const all = Array.from({ length: 4 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, star_rating: i + 1 }));
+    store.photos.set(all);
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'undecided', sort: 'star_rating', sort_direction: 'ASC', per_page: 2, page: 2 });
+    const reordered = [...all.slice(1), { ...all[0], star_rating: 5 }];
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockImplementation((_url: string, params: { page: number }) => of(makePhotosResponse({
+      photos: reordered.slice((params.page - 1) * 2, params.page * 2), total: 4, has_more: params.page === 1,
+    })));
+    await store.setRating('/p0.jpg', 5);
+    expect(store.photos().map(p => p.path)).toEqual(['/p1.jpg', '/p2.jpg', '/p3.jpg', '/p0.jpg']);
+  });
+
+  it('rebuilds favorites-only rejected pages when a single rejection clears a favorite', async () => {
+    const all = Array.from({ length: 4 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, is_rejected: true, is_favorite: true, star_rating: 4 }));
+    store.photos.set(all);
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'rejected', favorites_only: true, per_page: 2, page: 2 });
+    const remaining = all.slice(1);
+    apiPost.mockReturnValue(of({ is_rejected: true, star_rating: 0 }));
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockImplementation((_url: string, params: { page: number }) => of(makePhotosResponse({
+      photos: remaining.slice((params.page - 1) * 2, params.page * 2), total: 3, has_more: params.page === 1,
+    })));
+    await store.toggleRejected('/p0.jpg');
+    expect(store.photos().map(p => p.path)).toEqual(['/p1.jpg', '/p2.jpg', '/p3.jpg']);
+    expect(store.total()).toBe(3);
+  });
+
+  it('keeps a photo without changing stars or favorite and snapshots its decision', async () => {
+    const result = await store.batchReview(['/a.jpg'], 'kept');
+    expect(apiPost).toHaveBeenCalledWith('/photos/batch_review', { photo_paths: ['/a.jpg'], decision: 'kept' });
+    expect(store.photos()[0]).toMatchObject({ is_kept: true, is_rejected: false, star_rating: 3 });
+    expect(result?.snapshot.get('/a.jpg')?.is_kept).toBe(false);
+  });
+
+  it('reloads Needs review from page one after saving, and Undo restores a removed keeper', async () => {
+    store.photos.update(photos => photos.map(p => ({ ...p, is_kept: false })));
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'undecided', page: 3 });
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockReturnValue(of(makePhotosResponse({ photos: [makePhoto({ path: '/b.jpg' })], total: 1 })));
+    const result = await store.batchReview(['/a.jpg'], 'kept');
+    expect(store.photos().map(p => p.path)).toEqual(['/b.jpg']);
+    expect(store.filters().page).toBe(1);
+    expect(store.total()).toBe(1);
+    expect(result?.snapshot.get('/a.jpg')).toMatchObject({ is_kept: false, star_rating: 3 });
+    await store.restoreSnapshot(result!.snapshot);
+    expect(apiPost).toHaveBeenCalledWith('/photos/batch_review', { photo_paths: ['/a.jpg'], decision: 'undecided' });
+  });
+
+  it('Undo restores kept plus favorite and stars after rejection', async () => {
+    store.photos.set([makePhoto({ path: '/a.jpg', is_kept: true, is_favorite: true, star_rating: 4 })]);
+    const result = await store.batchReject(['/a.jpg']);
+    expect(store.photos()[0]).toMatchObject({ is_kept: false, is_rejected: true });
+    await store.restoreSnapshot(result!.snapshot);
+    expect(apiPost).toHaveBeenCalledWith('/photos/batch_review', { photo_paths: ['/a.jpg'], decision: 'kept' });
+    expect(store.photos()[0]).toMatchObject({ is_kept: true, is_rejected: false, is_favorite: true, star_rating: 4 });
+  });
+
+  it('single-photo review never targets the selected whole view', async () => {
+    store.selectionScope.set('view');
+    await store.batchReview(['/a.jpg'], 'kept', false);
+    expect(apiPost).toHaveBeenCalledWith('/photos/batch_review', { photo_paths: ['/a.jpg'], decision: 'kept' });
+  });
+
+  it('refreshes the review queue after a partially successful batch', async () => {
+    const refresh = vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+    const paths = Array.from({ length: 1001 }, (_, i) => `/p${i}.jpg`);
+    apiPost.mockReturnValueOnce(of({ count: 1000 })).mockReturnValueOnce(throwError(() => new Error('offline')));
+    expect(await store.batchReview(paths, 'kept')).toBeNull();
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it('Undo restores rejection with the same cleared metadata as other reject actions', async () => {
+    store.photos.set([makePhoto({ path: '/a.jpg', is_kept: false, is_rejected: true, is_favorite: true, star_rating: 4 })]);
+    const result = await store.batchReview(['/a.jpg'], 'kept');
+    await store.restoreSnapshot(result!.snapshot);
+    expect(apiPost).toHaveBeenLastCalledWith('/photos/batch_review', { photo_paths: ['/a.jpg'], decision: 'rejected' });
+    expect(store.photos()[0]).toMatchObject({ is_kept: false, is_rejected: true, is_favorite: false, star_rating: null });
+  });
+
+  it('refills only the tail of 1100 loaded rows and keeps nextPage contiguous', async () => {
+    const all = Array.from({ length: 1300 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, is_kept: false }));
+    store.photos.set(all.slice(0, 1100));
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'undecided', page: 18 });
+    let remaining = all.slice(3);
+    apiPost.mockImplementation((url: string, body: { decision?: string }) => {
+      if (url === '/photos/batch_review' && body.decision === 'undecided') remaining = all;
+      return of({});
+    });
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockImplementation((_url: string, params: { page: number; per_page: number }) => of(makePhotosResponse({ photos: remaining.slice((params.page - 1) * params.per_page, params.page * params.per_page), total: remaining.length, has_more: params.page * params.per_page < remaining.length })));
+    const result = await store.batchReview(all.slice(0, 3).map(p => p.path), 'kept');
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenLastCalledWith('/photos', expect.objectContaining({ page: 18, per_page: 64 }));
+    expect(store.photos().map(p => p.path)).toEqual(remaining.slice(0, 1152).map(p => p.path));
+    expect(apiPost).toHaveBeenCalledWith('/photos/keeper_hints', { paths: remaining.slice(1088, 1152).map(p => p.path) });
+    await store.nextPage();
+    expect(store.photos().map(p => p.path)).toEqual(remaining.slice(0, 1216).map(p => p.path));
+    await store.restoreSnapshot(result!.snapshot);
+    expect(store.photos().map(p => p.path)).toEqual(all.slice(0, 1216).map(p => p.path));
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+  it('rebuilds sorted review pages when batch rating moves a row out of the prefix', async () => {
+    const all = Array.from({ length: 4 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, star_rating: i + 1 }));
+    store.photos.set(all);
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'undecided', sort: 'star_rating', sort_direction: 'ASC', per_page: 2, page: 2 });
+    const reordered = [...all.slice(1), { ...all[0], star_rating: 5 }];
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockImplementation((_url: string, params: { page: number }) => of(makePhotosResponse({
+      photos: reordered.slice((params.page - 1) * 2, params.page * 2), total: 4, has_more: params.page === 1,
+    })));
+    await store.batchRating(['/p0.jpg'], 5);
+    expect(store.photos().map(p => p.path)).toEqual(['/p1.jpg', '/p2.jpg', '/p3.jpg', '/p0.jpg']);
+  });
+
+  it('rebuilds review pages when unfavoriting removes an early favorites-only row', async () => {
+    const all = Array.from({ length: 4 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, is_favorite: true }));
+    store.photos.set(all);
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'undecided', favorites_only: true, per_page: 2, page: 2 });
+    const remaining = all.slice(1);
+    apiPost.mockImplementation((url: string) => of(url === '/photo/toggle_favorite' ? { is_favorite: false } : {}));
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockImplementation((_url: string, params: { page: number }) => of(makePhotosResponse({
+      photos: remaining.slice((params.page - 1) * 2, params.page * 2), total: 3, has_more: params.page === 1,
+    })));
+    await store.toggleFavorite('/p0.jpg');
+    expect(store.photos().map(p => p.path)).toEqual(['/p1.jpg', '/p2.jpg', '/p3.jpg']);
+    expect(store.total()).toBe(3);
+  });
+
+  it('rebuilds rejected favorites-only pages when batch rejection clears a prefix favorite', async () => {
+    const all = Array.from({ length: 4 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, is_rejected: true, is_favorite: true, star_rating: 4 }));
+    store.photos.set(all);
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'rejected', favorites_only: true, per_page: 2, page: 2 });
+    const remaining = all.slice(1);
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockImplementation((_url: string, params: { page: number }) => of(makePhotosResponse({
+      photos: remaining.slice((params.page - 1) * 2, params.page * 2), total: 3, has_more: params.page === 1,
+    })));
+    await store.batchReject(['/p0.jpg']);
+    expect(store.photos().map(p => p.path)).toEqual(['/p1.jpg', '/p2.jpg', '/p3.jpg']);
+    expect(store.total()).toBe(3);
+  });
+
+  it('ignores pending tail refill after filters change', async () => {
+    store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+    const response = new Subject<PhotosResponse>();
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockReturnValueOnce(response).mockReturnValue(of(makePhotosResponse({ photos: [makePhoto({ path: '/new.jpg' })] })));
+    const pending = store.refreshReviewResults();
+    await store.updateFilter('review_status', 'kept');
+    response.next(makePhotosResponse({ photos: [makePhoto({ path: '/stale.jpg' })] }));
+    await pending;
+    expect(store.photos().map(p => p.path)).toEqual(['/new.jpg']);
+  });
+  it('selecting review clears ranked modes and retains ordinary filters', async () => {
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockReturnValue(of(makePhotosResponse()));
+    store.filters.update(f => ({ ...f, similar_to: '/a.jpg', semanticQuery: 'sunset', search: 'beach', album_id: '3' }));
+    await store.updateFilter('review_status', 'undecided');
+    expect(store.filters()).toMatchObject({ similar_to: '', semanticQuery: '', search: 'beach', album_id: '3' });
+    expect(get).toHaveBeenCalledWith('/photos', expect.objectContaining({ review_status: 'undecided' }));
+  });
+
+  it('keeps the earliest removed photos available for Undo with more than 1000 loaded', async () => {
+    const photos = Array.from({ length: 1100 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, is_kept: false }));
+    store.photos.set(photos);
+    store.filters.set({ ...DEFAULT_FILTERS, review_status: 'undecided', per_page: 1200 });
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockReturnValue(of(makePhotosResponse({ photos: photos.slice(3), total: 1097 })));
+    const result = await store.batchReview(photos.slice(0, 3).map(photo => photo.path), 'kept');
+    await store.restoreSnapshot(result!.snapshot);
+    expect(apiPost).toHaveBeenCalledWith('/photos/batch_review', {
+      photo_paths: ['/p0.jpg', '/p1.jpg', '/p2.jpg'], decision: 'undecided',
+    });
+  });
+
+  it('notifies when an Undo photo is no longer available instead of claiming restoration', async () => {
+    await store.restoreSnapshot(new Map([['/missing.jpg', { is_favorite: false, is_rejected: false, is_kept: false, star_rating: null }]]));
+    expect(snackOpen).toHaveBeenCalledWith('errors.action_failed', '', expect.anything());
+  });
+
+  it('rolls back a failed review decision', async () => {
+    apiPost.mockReturnValue(throwError(() => new Error('offline')));
+    expect(await store.batchReview(['/a.jpg'], 'kept')).toBeNull();
+    expect(store.photos()[0].is_kept).toBeFalsy();
+  });
+
   describe('user activity journal', () => {
     const kinds = (): string[] => TestBed.inject(UserActivityJournal).since().items.map(i => i.kind);
 
@@ -2375,8 +2609,8 @@ describe('GalleryStore optimistic mutations', () => {
   it('batchReject returns the pre-mutation snapshot on success', async () => {
     const res = await store.batchReject(['/a.jpg', '/b.jpg']);
     expect(res).not.toBeNull();
-    expect(res!.snapshot.get('/a.jpg')).toEqual({ is_favorite: false, is_rejected: false, star_rating: 3 });
-    expect(res!.snapshot.get('/b.jpg')).toEqual({ is_favorite: true, is_rejected: false, star_rating: null });
+    expect(res!.snapshot.get('/a.jpg')).toEqual({ is_favorite: false, is_rejected: false, is_kept: false, star_rating: 3 });
+    expect(res!.snapshot.get('/b.jpg')).toEqual({ is_favorite: true, is_rejected: false, is_kept: false, star_rating: null });
     expect(store.photos()[0].is_rejected).toBe(true);
     expect(store.photos()[0].star_rating).toBeNull();
   });
@@ -2505,7 +2739,7 @@ describe('GalleryStore restoreSnapshot', () => {
         paths.map(path => [path, { is_favorite: false, is_rejected: true, star_rating: null }]),
       ));
 
-      const chunks = sentTo('/photos/batch_reject');
+      const chunks = sentTo('/photos/batch_review');
       expect(chunks.map(c => c.length)).toEqual([1000, 500]);
       expect(chunks.flat()).toEqual(paths);
     });
@@ -2552,6 +2786,27 @@ describe('GalleryStore restoreSnapshot', () => {
     expect(store.photos().find(p => p.path === '/b.jpg')!.is_rejected).toBe(true);
     expect(snackOpen).toHaveBeenCalled();
   });
+  it.each(['semanticQuery', 'similar_to'] as const)('activating %s clears review filtering through both update APIs', async key => {
+    vi.spyOn(store, 'loadPhotos').mockResolvedValue();
+    const value = key === 'semanticQuery' ? 'sunset' : '/a.jpg';
+    for (const bulk of [false, true]) {
+      store.filters.set({ ...DEFAULT_FILTERS, review_status: 'undecided', camera: 'Canon' });
+      if (bulk) await store.updateFilters({ [key]: value });
+      else await store.updateFilter(key, value);
+      expect(store.filters()).toMatchObject({ review_status: '', [key]: value, camera: 'Canon' });
+      const restored = applyQueryParams(DEFAULT_FILTERS, buildSyncParams(store.filters(), undefined));
+      expect(restored).toMatchObject({ review_status: '', [key]: value });
+    }
+  });
+
+  it('explicit bulk review activation wins over ranked modes and uses the review ordering', async () => {
+    vi.spyOn(store, 'loadPhotos').mockResolvedValue();
+    await store.updateFilters({ review_status: 'undecided', similar_to: '/a.jpg', semanticQuery: 'sunset', camera: 'Canon' });
+    expect(store.filters()).toMatchObject({ review_status: 'undecided', similar_to: '', semanticQuery: '', sort: 'date_taken', sort_direction: 'ASC', camera: 'Canon' });
+    const restored = applyQueryParams(DEFAULT_FILTERS, buildSyncParams(store.filters(), undefined));
+    expect(restored).toMatchObject({ review_status: 'undecided', similar_to: '', semanticQuery: '' });
+  });
+
 });
 
 describe('GalleryStore smart-album auto-save', () => {
@@ -2655,6 +2910,21 @@ describe('GalleryStore smart-album auto-save', () => {
     store.filters.set({ ...DEFAULT_FILTERS, gps_lat: '0', gps_lng: '0', gps_radius_km: '5', similar_to: '/a.jpg', semanticQuery: 'sunset' });
     await store.updateFilters({ no_gps: '1' });
     expect(store.filters()).toMatchObject({ no_gps: '1', gps_lat: '', gps_lng: '', gps_radius_km: '', similar_to: '', semanticQuery: '' });
+  });
+
+  it.each([false, true])('keeps review and missing-location filters together, then clears both for ranked search (bulk=%s)', async bulk => {
+    vi.spyOn(store, 'loadPhotos').mockResolvedValue();
+    if (bulk) await store.updateFilters({ review_status: 'kept', no_gps: '1' });
+    else {
+      await store.updateFilter('review_status', 'kept');
+      await store.updateFilter('no_gps', '1');
+    }
+    expect(store.filters()).toMatchObject({ review_status: 'kept', no_gps: '1' });
+    expect(applyQueryParams(DEFAULT_FILTERS, buildSyncParams(store.filters(), undefined)))
+      .toMatchObject({ review_status: 'kept', no_gps: '1' });
+    if (bulk) await store.updateFilters({ semanticQuery: 'sunset' });
+    else await store.updateFilter('semanticQuery', 'sunset');
+    expect(store.filters()).toMatchObject({ review_status: '', no_gps: '', semanticQuery: 'sunset' });
   });
 
   it('persists missing-location filtering in smart albums', async () => {

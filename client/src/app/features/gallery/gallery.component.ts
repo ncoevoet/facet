@@ -608,6 +608,8 @@ const RENDER_MIGRATION_DISMISSED_KEY = 'facet_render_migration_dismissed';
             @if (auth.isEdition()) {
               <span aria-hidden="true" class="w-px h-6 mx-1 bg-[var(--mat-sys-outline-variant)]"></span>
               <button mat-icon-button disabledInteractive (click)="batchFavorite()" [matTooltip]="I18N.gallery.selection.favorite | translate" [attr.aria-label]="I18N.gallery.selection.favorite | translate"><mat-icon>favorite</mat-icon></button>
+              <button mat-icon-button disabledInteractive (click)="batchReview('kept')" [matTooltip]="I18N.review.keep | translate" [attr.aria-label]="I18N.review.keep | translate"><mat-icon>check_circle</mat-icon></button>
+              <button mat-icon-button disabledInteractive (click)="batchReview('undecided')" [matTooltip]="I18N.review.reset | translate" [attr.aria-label]="I18N.review.reset | translate"><mat-icon>restart_alt</mat-icon></button>
               <button mat-icon-button disabledInteractive (click)="batchReject()" [matTooltip]="I18N.gallery.selection.reject | translate" [attr.aria-label]="I18N.gallery.selection.reject | translate"><mat-icon>thumb_down</mat-icon></button>
               <button mat-icon-button disabledInteractive [matMenuTriggerFor]="rateMenu" [matTooltip]="I18N.gallery.selection.rate | translate" [attr.aria-label]="I18N.gallery.selection.rate | translate"><mat-icon>star</mat-icon></button>
               <mat-menu #rateMenu="matMenu">
@@ -1683,6 +1685,23 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (result === null) return; // store reverted and notified
     this.clearSelection();
     const params = { count: result.count, ...extraParams };
+    this.offerMutationUndo(result, i18nKey, params);
+    // The view can move between the count and the write (another session, a
+    // scan). Say so rather than absorbing it: the user approved a number.
+    if (announced !== null && announced !== result.count) {
+      this.snackBar.open(
+        this.i18n.t(I18N.gallery.selection.view_scope_mismatch, { count: result.count, announced }),
+        '', { duration: 5000 },
+      );
+    }
+  }
+
+  private offerMutationUndo(
+    result: BatchResult,
+    i18nKey: string,
+    params: Record<string, string | number>,
+    restoreSelection = true,
+  ): void {
     // Undo replays inverse calls from a snapshot, and the snapshot can only
     // cover LOADED photos -- so offering it for an action that reached further
     // would promise to restore 64 of 5,000. Gate on coverage, not just size.
@@ -1696,20 +1715,22 @@ export class GalleryComponent implements OnInit, OnDestroy {
           // The snapshot's keys, not `paths`: they are the same set whenever
           // undo is offered at all (that is what `covered` asserts), and they
           // are the only ones a view-scoped action ever named.
-          this.store.restoreSelection(result.snapshot.keys());
+          if (restoreSelection) this.store.restoreSelection(result.snapshot.keys());
         },
       });
     } else {
       this.snackBar.open(this.i18n.t(i18nKey, params), '', { duration: 2000 });
     }
-    // The view can move between the count and the write (another session, a
-    // scan). Say so rather than absorbing it: the user approved a number.
-    if (announced !== null && announced !== result.count) {
-      this.snackBar.open(
-        this.i18n.t(I18N.gallery.selection.view_scope_mismatch, { count: result.count, announced }),
-        '', { duration: 5000 },
-      );
-    }
+  }
+
+  private async reviewSingle(path: string, decision: 'kept' | 'undecided'): Promise<BatchResult | null> {
+    const result = await this.store.batchReview([path], decision, false);
+    if (result) this.offerMutationUndo(result, this.I18N.review.updated, { count: result.count }, false);
+    return result;
+  }
+
+  protected async batchReview(decision: 'kept' | 'undecided'): Promise<void> {
+    await this.executeBatchAction(p => this.store.batchReview(p, decision), this.I18N.review.updated);
   }
 
   protected async batchFavorite(): Promise<void> {
@@ -1824,6 +1845,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private async runSinglePhotoAction(action: PhotoMenuAction, photo: Photo): Promise<void> {
     const paths = [photo.path];
     switch (action.kind) {
+      case 'review': await this.reviewSingle(photo.path, action.decision); break;
       case 'toggle-favorite': this.store.toggleFavorite(photo.path); break;
       case 'toggle-reject': this.store.toggleRejected(photo.path); break;
       case 'rate': this.store.setRating(photo.path, action.rating); break;
@@ -1881,6 +1903,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  sheet and the right-click menu's bulk mode so the two cannot drift. */
   private async runSelectionAction(action: SheetAction): Promise<void> {
     switch (action.kind) {
+      case 'review': await this.batchReview(action.decision); break;
       case 'favorite': await this.batchFavorite(); break;
       case 'reject': await this.batchReject(); break;
       case 'rate': await this.batchRate(action.rating); break;
@@ -2516,9 +2539,19 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (event.key >= '1' && event.key <= '5') {
       this.store.setRating(photo.path, Number(event.key));
       advance = true;
+    } else if (event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      void this.reviewSingle(photo.path, 'kept').then(result => {
+        if (result) this.focusAfterDecision(photos, index);
+      });
+      return;
     } else if (event.key === '0' || event.key === 'x' || event.key === 'X') {
-      this.store.toggleRejected(photo.path);
-      advance = true;
+      if (this.store.filters().review_status) {
+        void this.store.toggleRejected(photo.path).then(() => this.focusAfterDecision(photos, index));
+      } else {
+        this.store.toggleRejected(photo.path);
+        advance = true;
+      }
     } else if (event.key === 'f' || event.key === 'F') {
       this.store.toggleFavorite(photo.path);
     } else {
@@ -2531,6 +2564,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.setCursor(next);
       this.focusCard(next);
     }
+  }
+
+  private focusAfterDecision(photos: Photo[], index: number): void {
+    const nextIndex = this.store.photos().findIndex(p => p.path === photos[index + 1]?.path);
+    const target = nextIndex >= 0 ? nextIndex : Math.min(index, this.store.photos().length - 1);
+    if (target >= 0) { this.setCursor(target); this.focusCard(target); }
   }
 
   /** Focus a card by photo index; if windowed out of the DOM, scroll its row

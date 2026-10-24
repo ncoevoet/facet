@@ -338,6 +338,31 @@ class TestRejectStandaloneBelow:
         assert flagged == {'low_single.jpg', 'low_solo_group.jpg', 'null_prefs.jpg',
                            'pair_b.jpg', 'already.jpg'}
 
+    @pytest.mark.parametrize('dry_run', [True, False])
+    def test_explicit_keep_is_not_overridden_by_score(self, tmp_path, dry_run):
+        conn = _connect(_new_db(tmp_path))
+        kept, undecided = str(tmp_path / 'kept.jpg'), str(tmp_path / 'undecided.jpg')
+        _add(conn, kept, aggregate=1.0, is_kept=1)
+        _add(conn, undecided, aggregate=1.0)
+        assert reject_standalone_below(conn, '_anonymous', None, 5.0, set(), dry_run) == [undecided]
+        assert tuple(conn.execute('SELECT is_kept, is_rejected FROM photos WHERE path = ?', (kept,)).fetchone()) == (1, 0)
+
+    @pytest.mark.parametrize('dry_run', [True, False])
+    def test_score_pass_honors_only_the_callers_keep(self, tmp_path, monkeypatch, dry_run):
+        monkeypatch.setitem(api.config._FULL_CONFIG, 'users', {
+            name: {'role': 'user', 'directories': [str(tmp_path)]} for name in ['alice', 'bob']})
+        conn = _connect(_new_db(tmp_path))
+        alice_kept, bob_kept = str(tmp_path / 'alice.jpg'), str(tmp_path / 'bob.jpg')
+        _add(conn, alice_kept, aggregate=1.0)
+        _add(conn, bob_kept, aggregate=1.0, is_kept=1)
+        conn.executemany('INSERT INTO user_preferences (user_id, photo_path, is_kept) VALUES (?, ?, 1)',
+                         [('alice', alice_kept), ('bob', bob_kept)])
+        conn.commit()
+        assert reject_standalone_below(conn, 'alice', None, 5.0, set(), dry_run) == [bob_kept]
+        assert tuple(conn.execute("SELECT is_kept, is_rejected FROM user_preferences WHERE user_id = 'alice' AND photo_path = ?", (alice_kept,)).fetchone()) == (1, 0)
+        assert tuple(conn.execute("SELECT is_kept, is_rejected FROM user_preferences WHERE user_id = 'bob' AND photo_path = ?", (bob_kept,)).fetchone()) == (1, 0)
+        assert conn.execute('SELECT count(*) FROM photos WHERE is_rejected = 1').fetchone()[0] == 0
+
     def test_a_dry_run_selects_without_writing(self, tmp_path):
         db = _new_db(tmp_path)
         conn = _connect(db)

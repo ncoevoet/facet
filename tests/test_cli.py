@@ -842,3 +842,10 @@ def test_gps_exif_cli_preserves_manual_points_and_clears(tmp_path, flag):
     with sqlite3.connect(db) as conn:
         assert conn.execute('SELECT path,gps_latitude,gps_longitude,gps_manually_set FROM photos ORDER BY path').fetchall() == [
             ('/cleared', None, None, 1), ('/exif', 1, 2, 0), ('/manual', 8, 9, 1)]
+
+
+def test_overwrite_manual_gps_requires_explicit_import(tmp_path):
+    result = _run(FACET, '--overwrite-manual-gps', '--db', str(tmp_path / 'unused.db'))
+    assert result.returncode == 2
+    assert '--overwrite-manual-gps requires --import-sidecars' in result.stderr
+    assert not (tmp_path / 'unused.db').exists()

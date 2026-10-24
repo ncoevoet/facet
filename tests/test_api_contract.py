@@ -145,6 +145,7 @@ _KNOWN_WIRE_TYPE_EXCEPTIONS: dict[tuple[str, str], str] = {
     ('Photo', 'is_duplicate_lead'): 'sqlite_boolean | null',
     ('Photo', 'is_favorite'): 'sqlite_boolean | null',
     ('Photo', 'is_rejected'): 'sqlite_boolean | null',
+    ('Photo', 'is_kept'): 'sqlite_boolean | null',
 }
 
 

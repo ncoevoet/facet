@@ -209,6 +209,19 @@ Contrôlé par `viewer.features.show_my_taste` (par défaut : `true`). L'état d
 
 Avec `licensing.mode` réglé sur `commercial`, la visionneuse masque les métriques dont les modèles ne sont pas utilisables commercialement : LIQE, Aesthetic IAA, Face Quality IQA (sauf si OFIQ est installé), DeQA (sauf si `licensing.allow_unclear` est défini) et Aesthetic V2.5 : leurs filtres de plage, puces de filtre et options de tri. `/api/config` les liste dans `unavailable_metrics`. Sur la page de réglage des poids, leurs curseurs restent visibles mais désactivés, avec une infobulle ; les poids sont conservés, car le calcul du score les écarte et renormalise. Redémarrez la visionneuse après avoir changé le mode de licence.
 
+## Décisions de tri
+
+Dans la galerie, choisissez **Statut de tri → À examiner** pour parcourir les photos sans décision. Ce choix active le tri par **date de prise de vue, des plus anciennes aux plus récentes** ; vous pouvez inverser l’ordre ou filtrer par date, dossier ou album.
+
+**Conserver** et **Rejeter** retirent la photo de cette file après enregistrement. Les photos conservées restent dans la bibliothèque et apparaissent avec le filtre **Conservées**. Cette décision est indépendante des favoris et des étoiles.
+
+Les actions Conserver et **Réinitialiser la décision** sont disponibles dans le détail, le menu contextuel et les actions groupées. **K** conserve la photo courante. Réinitialiser efface les décisions Conserver et Rejeter sans modifier les étoiles ni les favoris. Les actions de galerie disposent d’Annuler.
+
+Les décisions persistent après rechargement, redémarrage et nouvelle analyse, et sont propres à chaque utilisateur. Confirmer un groupe de tri marque ses photos choisies comme conservées. Les anciens favoris, notes et groupes examinés ne sont pas convertis automatiquement.
+
+Le statut de tri s’applique à la galerie normale ; choisir un statut quitte la recherche sémantique et la recherche de photos similaires.
+
+
 ## Fonctionnalités de la galerie
 
 ### Cartes de photo

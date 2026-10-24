@@ -46,6 +46,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import math
 import os
 import re
 import subprocess
@@ -65,6 +66,8 @@ logger = logging.getLogger(__name__)
 NS_X = "adobe:ns:meta/"
 NS_RDF = "http://www.w3.org/1999/02/22-rdf-syntax-ns#"
 NS_XMP = "http://ns.adobe.com/xap/1.0/"
+NS_EXIF = "http://ns.adobe.com/exif/1.0/"
+NS_FACET = "https://github.com/ncoevoet/facet/ns/1.0/"
 NS_DC = "http://purl.org/dc/elements/1.1/"
 NS_LR = "http://ns.adobe.com/lightroom/1.0/"
 NS_XML = "http://www.w3.org/XML/1998/namespace"
@@ -75,6 +78,8 @@ for _prefix, _uri in (
     ("xmp", NS_XMP),
     ("dc", NS_DC),
     ("lr", NS_LR),
+    ("exif", NS_EXIF),
+    ("facet", NS_FACET),
 ):
     ET.register_namespace(_prefix, _uri)
 
@@ -171,6 +176,10 @@ class XmpRating:
     star_rating: int = 0
     is_favorite: bool = False
     is_rejected: bool = False
+    is_kept: bool = False
+    gps_manually_set: bool = False
+    gps_latitude: float | None = None
+    gps_longitude: float | None = None
     tags: list[str] = field(default_factory=list)
     caption: str = ""
     category: str = ""
@@ -194,6 +203,10 @@ class XmpRating:
             star_rating=int(data.get("star_rating") or 0),
             is_favorite=bool(data.get("is_favorite") or 0),
             is_rejected=bool(data.get("is_rejected") or 0),
+            is_kept=bool(data.get("is_kept") or 0),
+            gps_manually_set=bool(data.get("gps_manually_set") or 0),
+            gps_latitude=data.get("gps_latitude"),
+            gps_longitude=data.get("gps_longitude"),
             tags=_as_list(data.get("tags")),
             caption=(data.get("caption") or "").strip(),
             category=(data.get("category") or "").strip(),
@@ -201,10 +214,24 @@ class XmpRating:
             aggregate=float(agg) if agg is not None else None,
         )
 
+    def review_decision(self) -> str:
+        return "rejected" if self.is_rejected else "kept" if self.is_kept else "undecided"
+
+    def gps_state(self) -> str | None:
+        if not self.gps_manually_set:
+            return None
+        if self.gps_latitude is None and self.gps_longitude is None:
+            return "cleared"
+        if (self.gps_latitude is not None and self.gps_longitude is not None
+                and math.isfinite(self.gps_latitude) and math.isfinite(self.gps_longitude)
+                and abs(self.gps_latitude) <= 90 and abs(self.gps_longitude) <= 180):
+            return "set"
+        raise ValueError("Manual GPS must be a valid coordinate pair or both null")
+
     def apply_score_mapping(self, xmp_export_cfg: dict | None) -> "XmpRating":
         """Derive ``star_rating`` from the aggregate score when unrated.
 
-        Any manual signal (rating, favourite, reject) always wins: with
+        Any manual signal (rating, favourite, Keep, reject) always wins: with
         ``only_when_unrated`` (default true) the mapping is skipped for a photo
         the user has already touched. Returns self for chaining.
         """
@@ -212,7 +239,7 @@ class XmpRating:
         if not sr_cfg.get("enabled"):
             return self
         if sr_cfg.get("only_when_unrated", True) and (
-                self.is_rejected or self.is_favorite or self.star_rating > 0):
+                self.is_kept or self.is_rejected or self.is_favorite or self.star_rating > 0):
             return self
         stars, _label = score_to_stars(self.aggregate, sr_cfg)
         if stars > 0:
@@ -312,6 +339,17 @@ def _apply_facet_nodes(desc, rating: XmpRating) -> None:
     if label:
         desc.set(f"{{{NS_XMP}}}Label", label)
     desc.set(f"{{{NS_XMP}}}MetadataDate", now)
+    desc.set(f"{{{NS_FACET}}}ReviewDecision", rating.review_decision())
+    state = rating.gps_state()
+    if state:
+        desc.set(f"{{{NS_FACET}}}GPSState", state)
+    if state == "set":
+        for name, value, directions in (("GPSLatitude", rating.gps_latitude, "NS"),
+                                        ("GPSLongitude", rating.gps_longitude, "EW")):
+            assert value is not None
+            degrees = int(abs(value))
+            minutes = (abs(value) - degrees) * 60
+            desc.set(f"{{{NS_EXIF}}}{name}", f"{degrees},{minutes:.10f}{directions[value < 0]}")
 
     keywords = rating.all_keywords()
     if keywords:
@@ -513,7 +551,13 @@ def _exiftool_tag_args(rating: XmpRating, existing_flat: list[str],
     external value is not wiped when Facet has none.
     """
     xmp_rating, label = rating.xmp_values()
-    args = [f"-XMP:Rating={xmp_rating}", f"-XMP:Label={label}"]
+    args = [f"-XMP:Rating={xmp_rating}", f"-XMP:Label={label}",
+            f"-XMP-facet:ReviewDecision={rating.review_decision()}"]
+    state = rating.gps_state()
+    if state:
+        args.append(f"-XMP-facet:GPSState={state}")
+        args.extend([f"-XMP-exif:GPSLatitude={rating.gps_latitude if state == 'set' else ''}",
+                     f"-XMP-exif:GPSLongitude={rating.gps_longitude if state == 'set' else ''}"])
     if rating.caption:
         args.append(f"-XMP-dc:Description={rating.caption}")
         args.append(f"-IPTC:Caption-Abstract={rating.caption}")
@@ -590,7 +634,17 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int) -> None:
             snapshot = handle.read()
     existing_flat, existing_hier = _read_existing_keywords(target, exe, timeout=timeout)
     tag_args = _exiftool_tag_args(rating, existing_flat, existing_hier)
-    args = [exe, "-q", "-m", "-overwrite_original", *tag_args, target]
+    config = os.path.join(os.path.dirname(__file__), "facet_exiftool.config")
+    if not target.lower().endswith(".xmp") and rating.gps_state():
+        state = rating.gps_state()
+        for axis, value, directions in (("Latitude", rating.gps_latitude, "NS"),
+                                         ("Longitude", rating.gps_longitude, "EW")):
+            coordinate, reference = "", ""
+            if state == "set":
+                assert value is not None
+                coordinate, reference = str(abs(value)), directions[value < 0]
+            tag_args += [f"-EXIF:GPS{axis}={coordinate}", f"-EXIF:GPS{axis}Ref={reference}"]
+    args = [exe, "-config", config, "-q", "-m", "-overwrite_original", *tag_args, target]
     try:
         result = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired as ex:
@@ -664,6 +718,18 @@ def build_root_filter(root: str) -> tuple[str, list]:
     return "WHERE path = ? OR path LIKE ? ESCAPE '\\'", [abs_root, like_prefix + "%"]
 
 
+def sidecar_scope(root: str | None, user_id: str | None) -> tuple[str, list]:
+    """Intersect CLI root selection with a named user's viewer visibility."""
+    where, params = build_root_filter(root) if root else ("", [])
+    if user_id:
+        from api.db_helpers import get_visibility_clause
+        visibility, visibility_params = get_visibility_clause(user_id)
+        root_condition = where.removeprefix("WHERE ") or "1=1"
+        where = f"WHERE ({root_condition}) AND ({visibility})"
+        params += visibility_params
+    return where, params
+
+
 class RatingColumns(NamedTuple):
     """SQL fragments that select one photo's ratings for an export query.
 
@@ -700,12 +766,12 @@ def rating_columns(user_id: str | None) -> RatingColumns:
             return RatingColumns(
                 "COALESCE(up.star_rating, 0) AS star_rating, "
                 "COALESCE(up.is_favorite, 0) AS is_favorite, "
-                "COALESCE(up.is_rejected, 0) AS is_rejected",
+                "COALESCE(up.is_rejected, 0) AS is_rejected, COALESCE(up.is_kept, 0) AS is_kept",
                 "LEFT JOIN user_preferences up "
                 "ON up.photo_path = photos.path AND up.user_id = ?",
                 [user_id],
             )
-    return RatingColumns("star_rating, is_favorite, is_rejected", "", [])
+    return RatingColumns("star_rating, is_favorite, is_rejected, is_kept", "", [])
 
 
 def _cli_face_regions(conn, path: str, width, height) -> list[FaceRegion]:
@@ -736,10 +802,10 @@ def export_sidecars(conn, root: str | None = None, *, embed_original: bool = Fal
     ``missing`` (file gone from disk) / ``errors``.
     """
     ratings = rating_columns(user_id)
-    where, params = build_root_filter(root) if root else ("", [])
+    where, params = sidecar_scope(root, user_id)
     rows = conn.execute(
         f"SELECT photos.path AS path, tags, caption, category, {ratings.columns}, "
-        f"aggregate, image_width, image_height FROM photos {ratings.join} {where}",
+        f"aggregate, image_width, image_height, gps_latitude, gps_longitude, gps_manually_set FROM photos {ratings.join} {where}",
         ratings.params + params,
     ).fetchall()
     cfg = dict(xmp_export_cfg or {})

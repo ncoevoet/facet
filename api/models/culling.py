@@ -302,6 +302,7 @@ class ToggleRejectedResponse(BaseModel):
 
     success: bool
     is_rejected: bool
+    is_kept: Optional[bool] = None
     star_rating: Optional[int] = None
     is_favorite: Optional[bool] = None
 

@@ -202,10 +202,10 @@ def _fetch_rating_rows(conn, paths, user_id):
     select = (
         "photos.path as path, photos.tags as tags, "
         "photos.caption as caption, photos.category as category, "
-        "photos.aggregate as aggregate, "
+        "photos.aggregate as aggregate, photos.gps_latitude, photos.gps_longitude, photos.gps_manually_set, "
         f"{pref_cols['star_rating']} as star_rating, "
         f"{pref_cols['is_favorite']} as is_favorite, "
-        f"{pref_cols['is_rejected']} as is_rejected"
+        f"{pref_cols['is_rejected']} as is_rejected, {pref_cols['is_kept']} as is_kept"
     )
     placeholders = ",".join("?" * len(paths))
     query = (

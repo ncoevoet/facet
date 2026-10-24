@@ -6,6 +6,7 @@ source='culling' comparison rows (feeding the personal ranker).
 """
 
 import sqlite3
+from tests.conftest import initialize_photo_database
 from contextlib import contextmanager
 from unittest import mock
 
@@ -18,24 +19,6 @@ from api.auth import CurrentUser, get_optional_user, require_edition
 from api.routers.scenes import compute_scenes
 from db.schema import init_database
 
-_SCHEMA = """
-    CREATE TABLE rating_provenance (user_id TEXT NOT NULL DEFAULT '', photo_path TEXT NOT NULL, star_rating INTEGER NOT NULL DEFAULT 0, is_favorite INTEGER NOT NULL DEFAULT 0, is_rejected INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, photo_path));
-    CREATE TABLE photos (
-        path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
-        is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
-        is_rejected INTEGER, category TEXT, sequence_kind TEXT
-    );
-    CREATE TABLE album_photos (
-        id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
-    );
-    CREATE TABLE albums (id INTEGER PRIMARY KEY, user_id TEXT);
-    CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
-    CREATE TABLE comparisons (
-        id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
-        category TEXT, session_id TEXT, user_id TEXT, source TEXT,
-        UNIQUE(photo_a_path, photo_b_path)
-    );
-"""
 
 # Scene 1: three frames minutes apart; Scene 2: next day (gap > 4h default).
 _PHOTOS = [
@@ -57,7 +40,7 @@ def _cm(conn):
 def _db():
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
+    initialize_photo_database(conn)
     conn.executemany(
         "INSERT INTO photos (path, filename, aggregate, date_taken, is_burst_lead, "
         "is_rejected, category) VALUES (?, ?, ?, ?, ?, ?, ?)", _PHOTOS)
@@ -98,7 +81,7 @@ def _seconds_apart_db(n, step_seconds=30):
     """n photos captured step_seconds apart on one continuous day (no big gap)."""
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
+    initialize_photo_database(conn)
     rows = []
     for i in range(n):
         total = i * step_seconds
@@ -132,7 +115,7 @@ def test_album_scopes_scenes():
         "INSERT INTO album_photos (album_id, photo_path) VALUES (1, ?)",
         [("/a1.jpg",), ("/a2.jpg",), ("/a3.jpg",)],
     )
-    conn.execute("INSERT INTO albums (id, user_id) VALUES (1, NULL)")
+    conn.execute("INSERT INTO albums (id, user_id, name) VALUES (1, NULL, 'scene')")
     conn.commit()
     with mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])):
         scenes = compute_scenes(conn, user_id=None, album_id=1)
@@ -150,7 +133,7 @@ def test_album_scoped_scenes_ignore_cap(monkeypatch):
         "INSERT INTO album_photos (album_id, photo_path) VALUES (1, ?)",
         [(f"/c{i}.jpg",) for i in range(20)],
     )
-    conn.execute("INSERT INTO albums (id, user_id) VALUES (1, NULL)")
+    conn.execute("INSERT INTO albums (id, user_id, name) VALUES (1, NULL, 'scene')")
     conn.commit()
     monkeypatch.setattr("api.routers.scenes._scene_config", lambda: {
         'gap_minutes': 20.0, 'min_size': 2, 'max_photos': 6, 'max_scene_size': 60,
@@ -166,7 +149,7 @@ def test_album_scoped_scenes_ignore_cap(monkeypatch):
 
 def test_album_scope_denies_non_owner():
     conn = _db()
-    conn.execute("INSERT INTO albums (id, user_id) VALUES (2, 'userB')")
+    conn.execute("INSERT INTO albums (id, user_id, name) VALUES (2, 'userB', 'scene')")
     conn.commit()
     with (
         mock.patch("api.routers.scenes.get_visibility_clause", return_value=("1=1", [])),
@@ -211,22 +194,12 @@ def test_time_window_scopes_scenes():
     assert scenes[0]["best_path"] == "/b1.jpg"
 
 
-_MOMENT_SCHEMA = """
-    CREATE TABLE photos (
-        path TEXT PRIMARY KEY, filename TEXT, aggregate REAL, date_taken TEXT,
-        is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
-        is_rejected INTEGER, category TEXT,
-        narrative_moment TEXT, narrative_moment_confidence REAL
-    );
-    CREATE TABLE album_photos (id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT);
-    CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
-"""
 
 
 def _moment_db(photos):
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.executescript(_MOMENT_SCHEMA)
+    initialize_photo_database(conn)
     conn.executemany(
         "INSERT INTO photos (path, filename, aggregate, date_taken, is_burst_lead, "
         "is_rejected, category, narrative_moment, narrative_moment_confidence) "

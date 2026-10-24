@@ -4,7 +4,9 @@
 
 Practical, step-by-step recipes for round-tripping Facet's ratings, labels, and tags with the external editors and DAM tools people actually use. This page assumes you already know *that* Facet writes XMP — see [Commands — Preview & Export](COMMANDS.md#preview--export) for the full `--export-sidecars` / `--import-sidecars` flag reference and the field mapping (`xmp:Rating`, `xmp:Label`, `dc:subject`).
 
-A location set in the viewer stays in Facet's database: it is not written to XMP sidecars or to the image files.
+Manual locations and review decisions travel only when you explicitly export metadata in the viewer or run `--export-sidecars`. GPS uses standard `exif:GPSLatitude` / `exif:GPSLongitude`; only manually set locations are exported, so stale scanned GPS cannot replace file GPS. `--embed-originals` also writes EXIF GPS in supported originals. Clearing a location exports an explicit clear; absent fields never clear a location on import.
+
+The Facet namespace `https://github.com/ncoevoet/facet/ns/1.0/` defines `facet:ReviewDecision` (`kept`, `rejected`, `undecided`) and `facet:GPSState` (`set`, `cleared`). Keep is independent of stars and favorites; rejection clears Keep, stars and favorite. `--import-sidecars` applies a present Facet decision when standard review fields agree or are absent. If standard rejection state disagrees, an external editor has changed the standard fields while preserving the private tag: the private decision is ignored and the standard fields use the existing newest-wins scan-time check. Decision-only imports remain explicit and do not use scan times. Manual GPS already in Facet is preserved unless you add `--overwrite-manual-gps`. Invalid or incomplete coordinates are ignored. Named-user imports/exports (`--user alice`) respect that user's visible folders and private decisions; GPS remains shared. With no user, the CLI operates on global state. If both `<image>.xmp` and the fallback `<image>.facet.xmp` exist, import reads the one modified most recently. ExifTool merges foreign metadata; without it, export leaves an existing editor sidecar intact and writes the fallback. Originals remain untouched unless you explicitly request embedding.
 
 ## The RAW sidecar naming gotcha
 
@@ -170,3 +172,5 @@ Facet keeps the tags you type yourself (see [Viewer — Manual Tags](VIEWER.md#m
 | Named face regions | MWG `mwg-rs:RegionList` (center-normalized, `Type=Face`) | Not re-imported | Export-only; read natively by digiKam, **not** read by Lightroom (a known Adobe limitation — Lightroom only consumes MWG regions it wrote itself) |
 
 See [Commands — Preview & Export](COMMANDS.md#preview--export) for the full CLI reference (`--export-sidecars`, `--import-sidecars`, `--embed-originals`, `--score-to-stars`, `--user`).
+
+When a stale `facet:GPSState=cleared` accompanies standard GPS fields, a complete valid latitude/longitude pair wins. A partial or invalid nonblank pair is ambiguous and ignored; it never clears a location. Only an absent or blank pair with the explicit clear marker clears GPS. Existing manual GPS remains protected unless overwrite is explicitly requested.

@@ -209,6 +209,19 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 
 Com `licensing.mode` definido como `commercial`, o visualizador oculta as métricas cujos modelos não podem ser usados comercialmente: LIQE, Aesthetic IAA, Face Quality IQA (a menos que o OFIQ esteja instalado), DeQA (a menos que `licensing.allow_unclear` esteja definido) e Aesthetic V2.5: os respetivos filtros de intervalo, chips de filtro e opções de ordenação. `/api/config` lista-as em `unavailable_metrics`. Na página de ajuste de pesos os controlos continuam visíveis mas desativados, com uma dica; os pesos são mantidos, porque a pontuação os descarta e renormaliza. Reinicie o visualizador depois de alterar o modo de licença.
 
+## Decisões de revisão
+
+Na galeria, escolha **Status de revisão → Precisa de revisão** para percorrer fotos sem decisão. A ordem muda para **data da captura, mais antigas primeiro**; você pode invertê-la ou filtrar por data, pasta ou álbum.
+
+**Manter** e **Rejeitar** retiram a foto dessa visualização após salvar. As fotos mantidas continuam na biblioteca normal e aparecem com o filtro **Mantidas**. Favoritos e estrelas permanecem independentes.
+
+Manter e **Redefinir decisão** estão disponíveis nos detalhes, no menu de contexto e nas ações em lote. **K** mantém a foto atual. Redefinir limpa Manter e Rejeitar sem alterar estrelas ou favoritos. As ações da galeria podem ser desfeitas.
+
+As decisões persistem após recarregar, reiniciar e analisar novamente, e são individuais por usuário. Confirmar um grupo de seleção também marca suas fotos escolhidas como mantidas. Avaliações, favoritos e grupos já revisados não são convertidos automaticamente.
+
+O status de revisão se aplica à galeria normal; escolher um status encerra as buscas semânticas e de fotos semelhantes.
+
+
 ## Recursos da Galeria
 
 ### Cartões de Foto

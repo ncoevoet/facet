@@ -2766,5 +2766,16 @@
       "ui_suggest_culling": "Sugerencias marcadas en el plan de selección",
       "ui_show_comparison": "Comparación mostrada"
     }
+  },
+  "review": {
+    "status": "Estado de revisión",
+    "all": "Todas las decisiones",
+    "needs_review": "Por revisar",
+    "kept": "Conservadas",
+    "rejected": "Rechazadas",
+    "keep": "Conservar",
+    "reset": "Restablecer decisión",
+    "updated": "Decisiones actualizadas para {{count}} fotos",
+    "shortcut": "Conservar foto"
   }
 }

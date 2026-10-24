@@ -174,6 +174,8 @@ const RATINGS = [1, 2, 3, 4, 5].map(value => ({ value, label: '★'.repeat(value
         }
 
         @if (isEdition()) {
+          <button mat-menu-item (click)="emit({ kind: 'review', decision: 'kept' }, photo, bulk)"><mat-icon>check_circle</mat-icon><span>{{ I18N.review.keep | translate }}</span></button>
+          <button mat-menu-item (click)="emit({ kind: 'review', decision: 'undecided' }, photo, bulk)"><mat-icon>restart_alt</mat-icon><span>{{ I18N.review.reset | translate }}</span></button>
           @if (bulk) {
             <button mat-menu-item (click)="emit({ kind: 'favorite' }, photo, bulk)">
               <mat-icon>favorite</mat-icon>

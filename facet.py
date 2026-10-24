@@ -2410,6 +2410,8 @@ def main():
 
     parser = cli_args.build_parser()
     args = parser.parse_args()
+    if args.overwrite_manual_gps and not args.import_sidecars:
+        parser.error("--overwrite-manual-gps requires --import-sidecars")
 
     policy = _apply_licensing_policy(args)
     if policy.mode == licensing.MODE_COMMERCIAL:
@@ -3908,7 +3910,8 @@ def main():
         root = None if args.import_sidecars == 'all' else args.import_sidecars
         init_database(args.db)  # photo_manual_tags may not exist yet; lock is held
         with get_connection(args.db) as conn:
-            stats = import_sidecars(conn, root, user_id=args.user)
+            stats = import_sidecars(conn, root, user_id=args.user,
+                                    overwrite_manual_gps=args.overwrite_manual_gps)
         logger.info(
             "Sidecar import: %d updated, %d unchanged, %d without sidecar, %d skipped",
             stats['updated'], stats['unchanged'], stats['missing'], stats['skipped'],

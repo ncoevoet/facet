@@ -606,3 +606,20 @@ class TestPersonNamesFromRegions:
         subjects = [li.text for li in desc.findall(".//dc:subject/rdf:Bag/rdf:li", _NS)]
         # The comma-bearing name is one keyword, not split into "Smith" + "John".
         assert "Smith, John" in subjects
+
+
+def test_export_carries_effective_keep_and_manual_gps(client, tmp_path):
+    from processing.xmp_import import parse_sidecar
+    path, row = _make_photo(tmp_path, 'organization.jpg', is_kept=1,
+                            star_rating=3, is_favorite=1, gps_latitude=-33.25,
+                            gps_longitude=151.5, gps_manually_set=1)
+    db = str(tmp_path / 'organization.db')
+    _seed_db(db, [row])
+    with mock.patch(f'{_EXPORT_MODULE}.get_db', _db_cm(db)):
+        response = client.post('/api/photo/export_xmp', json={'path': path})
+    assert response.status_code == 200
+    parsed = parse_sidecar(path + '.xmp')
+    assert parsed['review_decision'] == 'kept'
+    assert parsed['gps'] == (-33.25, 151.5)
+    assert parsed['star_rating'] == 3
+    assert parsed['is_favorite'] is True
