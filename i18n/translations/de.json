@@ -2443,6 +2443,13 @@
       "error": "Löschen fehlgeschlagen"
     },
     "gps": {
+      "online_query": "Adresse oder Geschäft",
+      "online_notice": "Die Onlinesuche sendet diese Anfrage an den konfigurierten Photon-Anbieter. Gespeicherte Orte und Koordinaten funktionieren offline. Die Auswahl zeigt eine Vorschau; Speichern übernimmt sie.",
+      "online_search": "Online suchen",
+      "online_disabled": "Die Onlinesuche ist deaktiviert.",
+      "online_loading": "Onlinesuche läuft…",
+      "online_empty": "Keine Orte gefunden. Andere Suchanfrage versuchen oder Koordinaten eingeben.",
+      "online_error": "Onlinesuche fehlgeschlagen oder ausgelastet. Kurz warten und erneut versuchen oder Koordinaten eingeben.",
       "preview_hint": "Wählen Sie einen Ort und dann Speichern, um ihn diesem Foto zuzuweisen.",
       "search": "Gespeicherte Orte suchen",
       "loading": "Orte werden geladen…",

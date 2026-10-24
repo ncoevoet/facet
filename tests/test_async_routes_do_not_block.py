@@ -55,6 +55,8 @@ def _on_event_loop() -> bool:
 def _guarded_openers():
     """(owner, attribute) pairs whose call blocks: a DB open, an image decode, a child."""
     openers = [(sqlite3, "connect"), (subprocess, "run"), (subprocess, "check_output")]
+    from api import place_search
+    openers.append((place_search, "_fetch"))
     from PIL import Image
     openers.append((Image, "open"))
     try:
@@ -119,6 +121,19 @@ def _cold_caches():
     close_change_token_sentinels()
     from api.routers.burst_culling import _invalidate_culling_groups_cache
     _invalidate_culling_groups_cache()
+    from api import place_search
+    with place_search._lock:
+        place_search._cache.clear()
+        place_search._next_request = 0
+        place_search._inflight = False
+
+
+@pytest.fixture(autouse=True)
+def offline_place_search(monkeypatch):
+    """Exercise the blocking provider boundary without making network requests."""
+    from api import place_search
+    monkeypatch.setitem(place_search.VIEWER_CONFIG, 'place_search_url', 'https://example.org/api')
+    monkeypatch.setattr(place_search, '_fetch', lambda *_: {'type': 'FeatureCollection', 'features': []})
 
 
 def _user_app(user):
@@ -202,6 +217,7 @@ _PLACEHOLDER_ALBUM_ID = 1
 _SHARE_TOKEN = 'x'  # the token ASYNC_EXTRA_ROUTES sends to /api/shared/album
 # Required parameters the request lists leave out (they only assert "no 5xx").
 _REQUIRED_PARAMS = {
+    '/api/places/search': {'q': 'Berlin'},
     '/api/timeline/dates': {'year': 2026},
     '/api/timeline/months': {'year': 2026},
 }
@@ -358,3 +374,28 @@ async def test_a_slow_ranker_status_does_not_hold_other_requests():
     assert health.status_code == 200
     assert status.status_code == 200, status.text
     assert health_seconds < 0.75, f"/health waited {health_seconds:.2f}s behind the ranker"
+
+
+def test_the_guard_flags_place_provider_on_the_loop():
+    from api import place_search
+    from fastapi import FastAPI
+    app = FastAPI()
+
+    @app.get('/search-on-loop')
+    async def search_on_loop():
+        return place_search.search('Berlin')
+
+    @app.get('/search-off-loop')
+    async def search_off_loop():
+        return await asyncio.to_thread(place_search.search, 'Berlin')
+
+    client = TestClient(app, raise_server_exceptions=False)
+    _cold_caches()
+    with loop_guard() as hits:
+        assert client.get('/search-off-loop').status_code == 200
+    assert hits == []
+    # A cached result must not hide the provider boundary in the next request.
+    _cold_caches()
+    with loop_guard() as hits:
+        assert client.get('/search-on-loop').status_code == 500
+    assert len(hits) == 1 and hits[0].startswith('api.place_search._fetch')

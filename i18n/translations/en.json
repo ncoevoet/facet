@@ -2443,6 +2443,13 @@
       "error": "Delete failed"
     },
     "gps": {
+      "online_query": "Address or business",
+      "online_notice": "Search online sends this query to the configured Photon provider. Saved places and coordinates work offline. Selecting a result previews it; Save applies it.",
+      "online_search": "Search online",
+      "online_disabled": "Online search is disabled.",
+      "online_loading": "Searching online…",
+      "online_empty": "No places found. Try another query or enter coordinates.",
+      "online_error": "Online search failed or is busy. Wait a moment and try again, or enter coordinates.",
       "preview_hint": "Choose a location, then Save to apply it to this photo.",
       "search": "Search saved places",
       "loading": "Loading places…",

@@ -626,7 +626,7 @@ A location set in the viewer is flagged, and the dialog then offers **Use the fi
 
 The installed app loads map backgrounds directly from OpenStreetMap, outside its offline cache. New map areas need an internet connection.
 
-Saved places and coordinate entry remain usable when the map is unavailable. The search uses saved names locally. Coordinates are stored in Facet’s database, and manual edits—including clearing GPS—survive rescans and EXIF re-extraction. The original image files are unchanged.
+Saved places and coordinate entry remain usable when the map is unavailable. Saved-place filtering uses names locally; online address/business lookup requires a separate explicit search. Coordinates are stored in Facet’s database, and manual edits—including clearing GPS—survive rescans and EXIF re-extraction. The original image files are unchanged.
 
 ## Capsules
 
@@ -1378,6 +1378,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `GET /api/photos/map/count` | Count of geotagged photos |
 | `PUT /api/photo/gps` | `[Edition]` Set or clear photo GPS with `{path, gps_latitude, gps_longitude, saved_place_id?}`. Coordinates must both be null or finite values within latitude ±90 and longitude ±180; returns the saved coordinates |
 | `DELETE /api/photo/gps?path=` | `[Edition]` Drop a hand-set location and re-read the file's own GPS (NULL when the file has none); returns the stored coordinates |
+| `GET /api/places/search?q=` | `[Edition]` Explicit bounded Photon address/business lookup; no photo changes |
 | `GET /api/places` | `[Edition]` Current editor’s saved places and 20 recent assigned points |
 | `POST /api/places` | `[Edition]` Save `{name, latitude, longitude}` as a private named pin (up to 100 places; name 1–120 characters) |
 | `PUT /api/places/{id}` | `[Edition]` Update an owned named pin; existing photos keep their coordinates |
@@ -1600,3 +1601,10 @@ If semantic search reports that Apple Silicon acceleration is busy, retry after 
 | Captions not generating | Requires 16gb/24gb VRAM profile for VLM captioning |
 | Timeline empty | Ensure photos have `date_taken` values |
 | Port 5000 in use | Run `python viewer.py --port 5001` (or set `PORT=5001`). On macOS, ControlCenter's AirPlay Receiver binds 5000 by default — either pick another port or disable AirPlay Receiver in System Settings → General → AirDrop & Handoff. |
+
+
+### Online place search
+
+Use **Address or business → Search online** for an explicit Photon lookup. Your query goes to the configured provider only when you click; typing never sends it. Choose a result to preview coordinates, then **Save** to apply them. The original file stays unchanged. Photon uses OpenStreetMap data (© OpenStreetMap contributors). Offline or unavailable? Saved places and coordinate entry still work. Operators can set `viewer.place_search_url` (default `https://photon.komoot.io/api`) to a self-hosted Photon endpoint, or `""` to disable lookup. The public demo has no availability guarantee. Requests allow 3–200 characters, five results, five seconds and 64 KiB; a per-process cache holds 128 searches for 15 minutes, with at least one second between provider calls and no concurrent calls. Use one viewer worker with the public provider; multiple workers have separate limits. Facet does not log queries; configure reverse-proxy/access logs to omit query strings.
+
+The five-second deadline interrupts active sockets, including slow headers and chunk framing. Native DNS resolution uses operating system timing and may take longer before a socket exists; an expired lookup never opens a connection afterward.

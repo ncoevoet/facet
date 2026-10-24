@@ -1690,6 +1690,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
     from api.model_cache import vlm_known_unavailable
     from api.raw_processing import get_cull_styles
     from api.routers.search import search_threshold_default
+    from api.place_search import endpoint as place_search_endpoint
     from api.types import QUALITY_LEVELS, TYPE_LABELS, available_sort_options, populated_gated_cols, unavailable_columns
 
     features = dict(VIEWER_CONFIG.get('features', {}))
@@ -1742,6 +1743,7 @@ def api_config(user: Optional[CurrentUser] = Depends(get_optional_user)):
         'moment_confidence_min': VIEWER_CONFIG.get('moment_confidence_min', 0),
         'notification_duration_ms': VIEWER_CONFIG.get('notification_duration_ms', 2000),
         'search_threshold_default': search_threshold_default(),
+        'place_search_enabled': bool(place_search_endpoint()),
         'translation_target_language': _FULL_CONFIG.get('translation', {}).get('target_language', ''),
         'is_multi_user': is_multi_user_enabled(),
         'edition_enabled': is_edition_enabled(),

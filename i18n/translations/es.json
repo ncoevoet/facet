@@ -2443,6 +2443,13 @@
       "error": "Error al eliminar"
     },
     "gps": {
+      "online_query": "Dirección o negocio",
+      "online_notice": "La búsqueda en línea envía esta consulta al proveedor Photon configurado. Los lugares guardados y las coordenadas funcionan sin conexión. Seleccionar un resultado muestra una vista previa; Guardar lo aplica.",
+      "online_search": "Buscar en línea",
+      "online_disabled": "La búsqueda en línea está desactivada.",
+      "online_loading": "Buscando en línea…",
+      "online_empty": "No se encontraron lugares. Prueba otra consulta o introduce coordenadas.",
+      "online_error": "La búsqueda en línea falló o está ocupada. Espera y vuelve a intentarlo, o introduce coordenadas.",
       "preview_hint": "Elige un lugar y pulsa Guardar para aplicarlo a esta foto.",
       "search": "Buscar lugares guardados",
       "loading": "Cargando lugares…",

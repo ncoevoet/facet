@@ -3432,6 +3432,7 @@
     }
   },
   "viewer": {
+    "place_search_url": "https://photon.komoot.io/api",
     "password": "",
     "default_category": "",
     "edition_password": "",

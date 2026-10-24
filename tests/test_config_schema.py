@@ -85,3 +85,16 @@ class TestSchemaValidation:
         cfg_dict["viewer"] = {"mcp": {"allow_destructive": True}}
         assert ScoringConfig(_write(tmp_path, cfg_dict), validate=False).validate_schema() == []
 
+
+
+@pytest.mark.parametrize('value,valid', [('', True), ('https://example.org/api', True), (False, False), ([], False)])
+def test_place_search_endpoint_is_string(tmp_path, value, valid):
+    config = _minimal_valid()
+    config['viewer'] = {'place_search_url': value}
+    errors = ScoringConfig(_write(tmp_path, config), validate=False).validate_schema()
+    assert (errors == []) is valid
+
+
+def test_place_search_default_is_photon():
+    from config_resolve import load_defaults
+    assert load_defaults()['viewer']['place_search_url'] == 'https://photon.komoot.io/api'

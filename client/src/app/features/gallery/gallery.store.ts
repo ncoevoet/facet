@@ -154,6 +154,7 @@ export interface SortOption {
 }
 
 export interface ViewerConfig {
+  place_search_enabled?: boolean;
   pagination: { default_per_page: number };
   defaults: {
     type: string;

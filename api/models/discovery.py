@@ -121,6 +121,7 @@ class ViewerConfigResponse(BaseModel):
     cull: CullCapabilities
     moment_confidence_min: Any
     notification_duration_ms: Any
+    place_search_enabled: bool
     search_threshold_default: float
     translation_target_language: str
     is_multi_user: bool

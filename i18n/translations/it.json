@@ -2443,6 +2443,13 @@
       "error": "Eliminazione non riuscita"
     },
     "gps": {
+      "online_query": "Indirizzo o attività",
+      "online_notice": "La ricerca online invia questa richiesta al fornitore Photon configurato. I luoghi salvati e le coordinate funzionano offline. La selezione mostra un’anteprima; Salva la applica.",
+      "online_search": "Cerca online",
+      "online_disabled": "La ricerca online è disattivata.",
+      "online_loading": "Ricerca online…",
+      "online_empty": "Nessun luogo trovato. Prova un’altra ricerca o inserisci le coordinate.",
+      "online_error": "Ricerca online non riuscita o occupata. Attendi e riprova, oppure inserisci le coordinate.",
       "preview_hint": "Scegli un luogo, poi Salva per applicarlo a questa foto.",
       "search": "Cerca luoghi salvati",
       "loading": "Caricamento dei luoghi…",

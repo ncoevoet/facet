@@ -2443,6 +2443,13 @@
       "error": "Échec de la suppression"
     },
     "gps": {
+      "online_query": "Adresse ou établissement",
+      "online_notice": "La recherche en ligne envoie cette requête au fournisseur Photon configuré. Les lieux enregistrés et les coordonnées fonctionnent hors ligne. Un résultat sélectionné est prévisualisé ; Enregistrer l’applique.",
+      "online_search": "Rechercher en ligne",
+      "online_disabled": "La recherche en ligne est désactivée.",
+      "online_loading": "Recherche en ligne…",
+      "online_empty": "Aucun lieu trouvé. Essayez une autre recherche ou saisissez des coordonnées.",
+      "online_error": "La recherche en ligne a échoué ou est occupée. Patientez puis réessayez, ou saisissez des coordonnées.",
       "preview_hint": "Choisissez un lieu, puis Enregistrer pour l’appliquer à cette photo.",
       "search": "Rechercher des lieux enregistrés",
       "loading": "Chargement des lieux…",

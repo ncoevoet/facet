@@ -1,13 +1,14 @@
 """Edition-only personal saved GPS places."""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, field_validator
 
 from api.auth import CurrentUser, require_edition
 from api.config import is_multi_user_enabled
 from api.database import get_db
 from db import places
+from api import place_search
 
 router = APIRouter(tags=['places'])
 Latitude = Annotated[float, Field(ge=-90, le=90, allow_inf_nan=False)]
@@ -90,3 +91,18 @@ def api_update_place(place_id: int, body: PlaceRequest, user: CurrentUser = Depe
 def api_delete_place(place_id: int, user: CurrentUser = Depends(require_edition)):
     _write(user, places.delete_place, place_id)
     return {'success': True}
+
+
+class PlaceSearchResult(BaseModel):
+    label: str
+    latitude: Latitude
+    longitude: Longitude
+
+
+class PlaceSearchResponse(BaseModel):
+    results: list[PlaceSearchResult]
+
+
+@router.get('/api/places/search', response_model=PlaceSearchResponse)
+def api_search_places(q: Annotated[str, Query(min_length=3, max_length=200)], user: CurrentUser = Depends(require_edition)):
+    return {'results': place_search.search(q)}

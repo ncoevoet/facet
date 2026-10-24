@@ -2986,3 +2986,10 @@ The secret that signs session tokens and photo-frame links is **not** a key in t
 - Rotate: `python database.py --rotate-secret`.
 
 A `share_secret` left over from an older install is moved into that file on the next start and removed from `scoring_config.json`. See [Secret storage and rotation](DEPLOYMENT.md#secret-storage-and-rotation).
+
+
+### Online place search
+
+`viewer.place_search_url` defaults to `https://photon.komoot.io/api`. Set an empty string to disable address/business lookup, or use a self-hosted Photon HTTP(S) endpoint without credentials, query parameters or fragments. The browser receives only `place_search_enabled`, never the configured URL. Searches require edition access and an explicit **Search online** click. See [Online place search](VIEWER.md#online-place-search) for privacy, caching and worker limits. The [Photon demo policy](https://github.com/komoot/photon#demo-server) allows reasonable project use with no availability guarantee; [Photon API documentation](https://github.com/komoot/photon/blob/master/docs/api-v1.md) defines its GeoJSON format. There are no retries or redirects.
+
+The five-second transport watchdog shuts down the active socket, including TCP/TLS setup and blocked HTTP header/body/chunk framing reads. Native synchronous DNS resolution still follows the operating system resolver timing and can exceed five seconds before a socket exists. The lookup remains single-flight while DNS is pending; if DNS returns after the deadline, no connection is opened. There are no detached request/DNS workers.

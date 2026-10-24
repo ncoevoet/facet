@@ -6,7 +6,7 @@ const BASE_DELAY_MS = 300;
 
 function isRetryable(error: unknown, req: HttpRequest<unknown>): boolean {
   if (!(error instanceof HttpErrorResponse)) return false;
-  if (req.url.includes('/scan/stream')) return false;
+  if (req.url.includes('/scan/stream') || req.url.split('?')[0].endsWith('/places/search')) return false;
   // Network failures (status 0) and server errors; 429 is excluded on purpose -
   // the server is rate-limiting, retrying makes it worse
   return error.status === 0 || error.status >= 500;

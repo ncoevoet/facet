@@ -2443,6 +2443,13 @@
       "error": "删除失败"
     },
     "gps": {
+      "online_query": "地址或商家",
+      "online_notice": "在线搜索会将此查询发送给已配置的 Photon 服务。已保存地点和坐标输入可离线使用。选择结果仅预览，点击保存后才会应用。",
+      "online_search": "在线搜索",
+      "online_disabled": "在线搜索已禁用。",
+      "online_loading": "正在在线搜索…",
+      "online_empty": "未找到地点。请尝试其他查询或输入坐标。",
+      "online_error": "在线搜索失败或繁忙。请稍后重试，或输入坐标。",
       "preview_hint": "选择位置，然后点击保存以应用到此照片。",
       "search": "搜索已保存地点",
       "loading": "正在加载地点…",

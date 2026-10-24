@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Explicit address and business search in the GPS dialog.** Use **Search online** to send a query to the configured Photon provider, preview a result, then **Save** to apply its coordinates. Saved places and manual coordinates still work offline. `viewer.place_search_url` supports a private Photon endpoint or an empty string to disable lookup; searches are bounded, cached and edition-only. Original files remain unchanged.
+
 ## [1.23.1] "Grip" — 2026-10-24
 
 ### Fixed

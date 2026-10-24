@@ -1526,3 +1526,10 @@ Meldet die semantische Suche, dass die Apple-Silicon-Beschleunigung belegt ist, 
 | Bildbeschreibungen werden nicht generiert | Erfordert das 16gb/24gb-VRAM-Profil für VLM-Bildbeschreibungen |
 | Zeitleiste leer | Sicherstellen, dass Fotos `date_taken`-Werte haben |
 | Port 5000 belegt | `python viewer.py --port 5001` ausführen (oder `PORT=5001` setzen). Unter macOS belegt der AirPlay-Empfänger des ControlCenter standardmäßig Port 5000 — entweder einen anderen Port wählen oder den AirPlay-Empfänger unter Systemeinstellungen → Allgemein → AirDrop & Handoff deaktivieren. |
+
+
+### Photon
+
+Mit **Adresse oder Geschäft → Online suchen** fragen Sie Photon ausdrücklich ab. Erst der Klick sendet die Anfrage an den konfigurierten Anbieter; die Eingabe allein sendet nichts. Ein Ergebnis zeigt Koordinaten als Vorschau; **Speichern** übernimmt sie. Die Originaldatei bleibt unverändert. Photon nutzt OpenStreetMap-Daten (© OpenStreetMap-Mitwirkende). Gespeicherte Orte und Koordinateneingabe funktionieren offline. `viewer.place_search_url` ist standardmäßig `https://photon.komoot.io/api`; eine eigene Photon-Instanz ist möglich, `""` deaktiviert die Suche. Der öffentliche Server garantiert keine Verfügbarkeit. Grenzen: 3–200 Zeichen, fünf Ergebnisse, fünf Sekunden, 64 KiB; pro Prozess 128 Suchanfragen für 15 Minuten im Cache, keine gleichzeitigen Aufrufe und mindestens eine Sekunde Abstand. Beim öffentlichen Anbieter nur einen Worker verwenden. Facet protokolliert keine Suchanfragen; Query-Strings auch aus Proxy-Protokollen ausschließen.
+
+Die Frist von fünf Sekunden unterbricht aktive Sockets, auch bei langsamen HTTP-Headern oder Chunk-Rahmen. Die native DNS-Auflösung folgt den Systemfristen und kann vor dem Öffnen eines Sockets länger dauern; eine abgelaufene Suche öffnet danach keine Verbindung.

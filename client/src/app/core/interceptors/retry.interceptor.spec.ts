@@ -75,6 +75,13 @@ describe('retryInterceptor', () => {
     expect(Date.now() - start).toBeGreaterThanOrEqual(1400); // 300 + 1200 backoff
   }, 10000);
 
+  it('does not retry an explicit online place search', async () => {
+    const { obs, counter } = failingSource(502);
+    next.mockReturnValue(obs);
+    await errored(new HttpRequest('GET', '/api/places/search'));
+    expect(counter.attempts).toBe(1);
+  });
+
   it('does NOT retry a GET on 429 (rate limited)', async () => {
     const { obs, counter } = failingSource(429);
     next.mockReturnValue(obs);

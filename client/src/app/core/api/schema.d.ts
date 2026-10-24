@@ -3494,6 +3494,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/places/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Api Search Places */
+        get: operations["api_search_places_api_places_search_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/places/{place_id}": {
         parameters: {
             query?: never;
@@ -7355,6 +7372,20 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PlaceSearchResponse */
+        PlaceSearchResponse: {
+            /** Results */
+            results: components["schemas"]["PlaceSearchResult"][];
+        };
+        /** PlaceSearchResult */
+        PlaceSearchResult: {
+            /** Label */
+            label: string;
+            /** Latitude */
+            latitude: number;
+            /** Longitude */
+            longitude: number;
+        };
         /** PlacesResponse */
         PlacesResponse: {
             /** Places */
@@ -8425,6 +8456,8 @@ export interface components {
             pagination: {
                 [key: string]: unknown;
             };
+            /** Place Search Enabled */
+            place_search_enabled: boolean;
             /**
              * Populated Scores
              * @default []
@@ -13650,6 +13683,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SavedPlace"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_search_places_api_places_search_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceSearchResponse"];
                 };
             };
             /** @description Validation Error */

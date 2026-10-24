@@ -2443,6 +2443,13 @@
       "error": "Falha ao excluir"
     },
     "gps": {
+      "online_query": "Endereço ou estabelecimento",
+      "online_notice": "A pesquisa online envia esta consulta ao fornecedor Photon configurado. Os locais guardados e as coordenadas funcionam offline. Selecionar um resultado mostra uma prévia; Guardar aplica-o.",
+      "online_search": "Pesquisar online",
+      "online_disabled": "A pesquisa online está desativada.",
+      "online_loading": "A pesquisar online…",
+      "online_empty": "Nenhum local encontrado. Tente outra pesquisa ou introduza coordenadas.",
+      "online_error": "A pesquisa online falhou ou está ocupada. Aguarde e tente novamente, ou introduza coordenadas.",
       "preview_hint": "Escolha um local e depois Guardar para o aplicar a esta foto.",
       "search": "Pesquisar locais guardados",
       "loading": "A carregar locais…",

@@ -64,6 +64,10 @@
     "viewer": {
       "type": "object",
       "properties": {
+        "place_search_url": {
+          "type": "string",
+          "description": "Photon forward-search endpoint; empty disables online lookup. Server-only; no credentials or query parameters."
+        },
         "trusted_local_editing": {
           "type": "boolean",
           "default": false,

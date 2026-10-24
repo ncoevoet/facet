@@ -2457,6 +2457,13 @@ export const I18N = {
       error: "photo_detail.delete.error",
     },
     gps: {
+      online_query: "photo_detail.gps.online_query",
+      online_notice: "photo_detail.gps.online_notice",
+      online_search: "photo_detail.gps.online_search",
+      online_disabled: "photo_detail.gps.online_disabled",
+      online_loading: "photo_detail.gps.online_loading",
+      online_empty: "photo_detail.gps.online_empty",
+      online_error: "photo_detail.gps.online_error",
       preview_hint: "photo_detail.gps.preview_hint",
       search: "photo_detail.gps.search",
       loading: "photo_detail.gps.loading",

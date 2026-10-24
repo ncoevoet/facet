@@ -1,10 +1,13 @@
-import { Component, inject, signal, computed, viewChild, ElementRef, DestroyRef, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { NavigationStart, Router } from '@angular/router';
+import { Component, inject, signal, computed, effect, viewChild, ElementRef, DestroyRef, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject, takeUntil } from 'rxjs';
+import { AuthService } from '../../core/services/auth.service';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
 import type { components } from '../../core/api/schema';
@@ -43,6 +46,22 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
         {{ I18N.photo_detail.gps.search | translate }}
         <input class="block w-full border rounded p-2 bg-transparent" type="search" [ngModel]="search()" (ngModelChange)="search.set($event)">
       </label>
+      <label class="block text-sm mb-2">
+        {{ I18N.photo_detail.gps.online_query | translate }}
+        <input class="block w-full border rounded p-2 bg-transparent" type="search" maxlength="200" [ngModel]="onlineQuery()" (ngModelChange)="setOnlineQuery($event)">
+      </label>
+      <p class="text-xs mb-2">{{ I18N.photo_detail.gps.online_notice | translate }}</p>
+      <p class="text-xs mb-2"><a href="https://photon.komoot.io" target="_blank" rel="noopener noreferrer">Photon</a> · <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a></p>
+      <button mat-button (click)="searchOnline()" [disabled]="saving() || onlineBusy() || !onlineQueryValid() || !onlineEnabled() || !auth.isEdition()">{{ I18N.photo_detail.gps.online_search | translate }}</button>
+      @if (!onlineEnabled()) { <p role="status">{{ I18N.photo_detail.gps.online_disabled | translate }}</p> }
+      @if (onlineBusy()) { <p role="status">{{ I18N.photo_detail.gps.online_loading | translate }}</p> }
+      @if (onlineError()) { <p role="alert">{{ onlineError() | translate }}</p> }
+      @if (onlineSearched() && !onlineResults().length) { <p role="status">{{ I18N.photo_detail.gps.online_empty | translate }}</p> }
+      <ul class="max-h-40 overflow-auto mb-3">
+        @for (result of onlineResults(); track $index) {
+          <li><button mat-button class="!h-auto !py-2 !text-left" (click)="selectOnlineResult(result)">{{ result.label }}</button></li>
+        }
+      </ul>
       @if (loadingPlaces()) { <p role="status">{{ I18N.photo_detail.gps.loading | translate }}</p> }
       @if (placesError()) {
         <p role="alert">{{ placesError() | translate }}</p>
@@ -108,6 +127,11 @@ type GpsResult = components['schemas']['GpsUpdateResponse'];
 })
 export class GpsEditDialogComponent {
   protected readonly I18N = i18nKeys();
+  readonly auth = inject(AuthService);
+  private readonly router = inject(Router);
+  private readonly owner = this.auth.status();
+  private readonly url = this.router.url;
+  private navigated = false;
   private readonly api = inject(ApiService);
   private readonly store = inject(GalleryStore);
   private readonly dialogRef = inject(MatDialogRef<GpsEditDialogComponent>);
@@ -125,6 +149,15 @@ export class GpsEditDialogComponent {
   readonly places = signal<SavedPlace[]>([]);
   readonly recent = signal<RecentPlace[]>([]);
   readonly search = signal('');
+  readonly onlineQuery = signal('');
+  readonly onlineResults = signal<components['schemas']['PlaceSearchResult'][]>([]);
+  readonly onlineBusy = signal(false);
+  readonly onlineSearched = signal(false);
+  readonly onlineError = signal('');
+  readonly onlineEnabled = computed(() => this.store.config()?.place_search_enabled ?? false);
+  readonly onlineQueryValid = computed(() => Array.from(this.onlineQuery().trim()).length >= 3 && Array.from(this.onlineQuery().trim()).length <= 200);
+  private onlineSequence = 0;
+  private readonly cancelOnline = new Subject<void>();
   readonly placeName = signal('');
   readonly editName = signal('');
   readonly editingId = signal<number | null>(null);
@@ -153,9 +186,30 @@ export class GpsEditDialogComponent {
   private map: L.Map | null = null;
   private marker: L.Marker | null = null;
 
+  private current(): boolean {
+    return !this.dismissed && !this.navigated && !this.destroyed && !this.destroyRef.destroyed && this.auth.status() === this.owner && this.auth.isEdition() && this.router.url === this.url;
+  }
+
+  private invalidateOwner(): void {
+    this.dismissed = true;
+    this.places.set([]);
+    this.recent.set([]);
+    this.dialogRef.close();
+  }
+
   constructor() {
+    effect(() => {
+      if (this.auth.status() !== this.owner || !this.auth.isEdition()) this.invalidateOwner();
+    });
+    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (event instanceof NavigationStart) { this.navigated = true; this.invalidateOwner(); }
+    });
+    effect(() => { this.auth.status(); this.invalidateOnline(); });
+    this.dialogRef.beforeClosed().pipe(takeUntilDestroyed()).subscribe(() => { this.dismissed = true; this.invalidateOnline(); });
     this.destroyRef.onDestroy(() => {
       this.destroyed = true;
+      this.invalidateOnline();
+      this.cancelOnline.complete();
       if (this.map) { this.map.remove(); this.map = null; }
     });
     void this.loadPlaces();
@@ -168,13 +222,55 @@ export class GpsEditDialogComponent {
     });
   }
 
+  private invalidateOnline(): void {
+    this.onlineSequence++;
+    this.cancelOnline.next();
+    this.onlineBusy.set(false);
+    this.onlineResults.set([]);
+    this.onlineSearched.set(false);
+    this.onlineError.set('');
+  }
+
+  setOnlineQuery(query: string): void {
+    this.invalidateOnline();
+    this.onlineQuery.set(query);
+  }
+
+  async searchOnline(): Promise<void> {
+    if (!this.current() || this.saving() || this.onlineBusy() || !this.onlineQueryValid() || !this.onlineEnabled() || !this.auth.isEdition()) return;
+    this.invalidateOnline();
+    const sequence = this.onlineSequence;
+    const auth = this.auth.status();
+    this.onlineBusy.set(true);
+    try {
+      const response = await firstValueFrom(this.api.get<components['schemas']['PlaceSearchResponse']>('/places/search', { q: this.onlineQuery().trim() }).pipe(takeUntil(this.cancelOnline)));
+      if (sequence !== this.onlineSequence || auth !== this.auth.status() || this.destroyed || this.dismissed) return;
+      this.onlineResults.set(response.results.filter(result => this.validOnlineResult(result)).slice(0, 5));
+      this.onlineSearched.set(true);
+    } catch {
+      if (sequence === this.onlineSequence && auth === this.auth.status() && !this.destroyed && !this.dismissed) this.onlineError.set(I18N.photo_detail.gps.online_error);
+    } finally {
+      if (sequence === this.onlineSequence) this.onlineBusy.set(false);
+    }
+  }
+
+  private validOnlineResult(result: components['schemas']['PlaceSearchResult']): boolean {
+    return typeof result?.label === 'string' && result.label.trim().length > 0 && result.label.length <= 600 &&
+      typeof result.latitude === 'number' && typeof result.longitude === 'number' && Number.isFinite(result.latitude) && Number.isFinite(result.longitude) && Math.abs(result.latitude) <= 90 && Math.abs(result.longitude) <= 180;
+  }
+
+  selectOnlineResult(result: components['schemas']['PlaceSearchResult']): void {
+    if (!this.current() || this.saving() || !this.auth.isEdition() || this.dismissed || this.destroyed || !this.validOnlineResult(result)) return;
+    this.selectRecent(result);
+  }
+
   private initMap(): void {
     const container = this.mapContainer().nativeElement;
     const lat = this.selectedLat() ?? 48.8566;
     const lng = this.selectedLng() ?? 2.3522;
     const zoom = this.selectedLat() !== null ? 13 : 5;
 
-    this.map = createLeafletMap(container, undefined, () => { if (!this.destroyed) this.mapFailed.set(true); }).setView([lat, lng], zoom);
+    this.map = createLeafletMap(container, undefined, () => { if (this.current()) this.mapFailed.set(true); }).setView([lat, lng], zoom);
     // Force Leaflet to recalculate container size after dialog renders
     this.map.invalidateSize();
 
@@ -185,6 +281,7 @@ export class GpsEditDialogComponent {
     this.map.on('click', (e: L.LeafletMouseEvent) => {
       const wrapped = e.latlng.wrap();
       if (this.destroyed) return;
+      this.invalidateOnline();
       this.selectedPlaceId.set(null);
       this.selectedLat.set(wrapped.lat);
       this.selectedLng.set(wrapped.lng);
@@ -199,6 +296,7 @@ export class GpsEditDialogComponent {
   }
 
   clearLocation(): void {
+    this.invalidateOnline();
     this.selectedPlaceId.set(null);
     this.selectedLat.set(null);
     this.selectedLng.set(null);
@@ -209,14 +307,14 @@ export class GpsEditDialogComponent {
   }
 
   async loadPlaces(): Promise<void> {
-    if (this.loadingPlaces() || this.placeBusy()) return;
+    if (!this.current() || this.loadingPlaces() || this.placeBusy()) return;
     this.loadingPlaces.set(true);
     this.placesError.set('');
     try {
       const result = await firstValueFrom(this.api.get<components['schemas']['PlacesResponse']>('/places'));
-      if (!this.destroyed) { this.places.set(result.places); this.recent.set(result.recent); }
-    } catch { if (!this.destroyed) this.placesError.set(I18N.photo_detail.gps.load_error); }
-    finally { this.loadingPlaces.set(false); }
+      if (this.current()) { this.places.set(result.places); this.recent.set(result.recent); }
+    } catch { if (this.current()) this.placesError.set(I18N.photo_detail.gps.load_error); }
+    finally { if (this.current()) this.loadingPlaces.set(false); }
   }
 
   selectPlace(place: SavedPlace): void {
@@ -225,6 +323,7 @@ export class GpsEditDialogComponent {
   }
 
   selectRecent(point: Pick<RecentPlace, 'latitude' | 'longitude'>): void {
+    this.invalidateOnline();
     this.selectedPlaceId.set(null);
     this.selectedLat.set(point.latitude);
     this.selectedLng.set(point.longitude);
@@ -233,12 +332,14 @@ export class GpsEditDialogComponent {
   }
 
   setLatitude(value: number | null): void {
+    this.invalidateOnline();
     if (value !== this.selectedLat()) this.selectedPlaceId.set(null);
     this.selectedLat.set(value);
     this.syncMarker();
   }
 
   setLongitude(value: number | null): void {
+    this.invalidateOnline();
     if (value !== this.selectedLng()) this.selectedPlaceId.set(null);
     this.selectedLng.set(value);
     this.syncMarker();
@@ -255,82 +356,88 @@ export class GpsEditDialogComponent {
   }
 
   async createPlace(): Promise<void> {
-    if (!this.canCreatePlace()) return;
+    if (!this.current() || !this.canCreatePlace()) return;
     const body = { name: this.placeName().trim(), latitude: this.selectedLat(), longitude: this.selectedLng() };
     this.placeBusy.set(true);
     this.placeError.set('');
     try {
       const place = await firstValueFrom(this.api.post<SavedPlace>('/places', body));
-      if (!this.destroyed) {
+      if (this.current()) {
         this.places.update(places => [...places, place]);
         this.placeName.set('');
         if (this.selectedLat() === place.latitude && this.selectedLng() === place.longitude) this.selectedPlaceId.set(place.id);
       }
-    } catch { if (!this.destroyed) this.placeError.set(I18N.photo_detail.gps.place_error); }
-    finally { this.placeBusy.set(false); }
+    } catch { if (this.current()) this.placeError.set(I18N.photo_detail.gps.place_error); }
+    finally { if (this.current()) this.placeBusy.set(false); }
   }
 
   async renamePlace(place: SavedPlace): Promise<void> {
-    if (this.placeBusy() || this.loadingPlaces() || !this.editNameValid()) return;
+    if (!this.current() || this.placeBusy() || this.loadingPlaces() || !this.editNameValid()) return;
     const body = { name: this.editName().trim(), latitude: place.latitude, longitude: place.longitude };
     this.placeBusy.set(true);
     this.placeError.set('');
     try {
       const updated = await firstValueFrom(this.api.put<SavedPlace>(`/places/${place.id}`, body));
-      if (!this.destroyed) { this.places.update(places => places.map(p => p.id === updated.id ? updated : p)); this.editingId.set(null); }
-    } catch { if (!this.destroyed) this.placeError.set(I18N.photo_detail.gps.place_error); }
-    finally { this.placeBusy.set(false); }
+      if (this.current()) { this.places.update(places => places.map(p => p.id === updated.id ? updated : p)); this.editingId.set(null); }
+    } catch { if (this.current()) this.placeError.set(I18N.photo_detail.gps.place_error); }
+    finally { if (this.current()) this.placeBusy.set(false); }
   }
 
   async deletePlace(place: SavedPlace): Promise<void> {
-    if (this.placeBusy() || this.loadingPlaces()) return;
+    if (!this.current() || this.placeBusy() || this.loadingPlaces()) return;
     this.placeBusy.set(true);
     this.placeError.set('');
     try {
       await firstValueFrom(this.api.delete(`/places/${place.id}`));
-      if (!this.destroyed) {
+      if (this.current()) {
         this.places.update(places => places.filter(p => p.id !== place.id));
         if (this.selectedPlaceId() === place.id) this.selectedPlaceId.set(null);
       }
-    } catch { if (!this.destroyed) this.placeError.set(I18N.photo_detail.gps.place_error); }
-    finally { this.placeBusy.set(false); }
+    } catch { if (this.current()) this.placeError.set(I18N.photo_detail.gps.place_error); }
+    finally { if (this.current()) this.placeBusy.set(false); }
   }
 
-  cancel(): void { this.dismissed = true; this.dialogRef.close(undefined); }
+  cancel(): void { this.dismissed = true; this.invalidateOnline(); this.dialogRef.close(undefined); }
 
   async useFileLocation(): Promise<void> {
-    if (this.saving() || this.placeBusy()) return;
+    if (!this.current() || this.saving() || this.placeBusy()) return;
+    this.invalidateOnline();
     this.saving.set(true);
     this.saveError.set('');
     try {
       const result = await firstValueFrom(this.api.delete<GpsResult>(`/photo/gps?path=${encodeURIComponent(this.data.path)}`));
+      if (!this.current()) return;
       this.store.patchPhoto(this.data.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 0 });
-      if (this.store.filters().no_gps) void this.store.loadPhotos();
-      if (!this.destroyed && !this.dismissed) this.dialogRef.close({ ...result, gps_manually_set: 0 });
+      void this.store.refreshPaths(null);
+      if (this.current()) this.dialogRef.close({ ...result, gps_manually_set: 0 });
     } catch {
+      if (!this.current()) return;
       this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
-      if (!this.destroyed) this.saveError.set(I18N.photo_detail.gps.save_error);
-    } finally { this.saving.set(false); }
+      if (this.current()) this.saveError.set(I18N.photo_detail.gps.save_error);
+    } finally { if (this.current()) this.saving.set(false); }
   }
 
   async save(): Promise<void> {
-    if (this.saving() || this.placeBusy() || !this.coordinatesValid()) return;
+    if (!this.current() || this.saving() || this.placeBusy() || !this.coordinatesValid()) return;
     const body = {
       path: this.data.path,
       gps_latitude: this.selectedLat(),
       gps_longitude: this.selectedLng(),
       ...(this.selectedPlaceId() === null ? {} : { saved_place_id: this.selectedPlaceId() }),
     };
+    this.invalidateOnline();
     this.saving.set(true);
     this.saveError.set('');
     try {
       const result = await firstValueFrom(this.api.put<GpsResult>('/photo/gps', body));
+      if (!this.current()) return;
       this.store.patchPhoto(body.path, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: 1 });
-      if (this.store.filters().no_gps) void this.store.loadPhotos();
-      if (!this.destroyed && !this.dismissed) this.dialogRef.close(result);
+      void this.store.refreshPaths(null);
+      if (this.current()) this.dialogRef.close(result);
     } catch {
+      if (!this.current()) return;
       this.snackBar.open(this.i18n.t(I18N.notifications.connection_error), '', { duration: 3000 });
-      if (!this.destroyed) this.saveError.set(I18N.photo_detail.gps.save_error);
-    } finally { this.saving.set(false); }
+      if (this.current()) this.saveError.set(I18N.photo_detail.gps.save_error);
+    } finally { if (this.current()) this.saving.set(false); }
   }
 }

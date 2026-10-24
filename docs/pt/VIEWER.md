@@ -1525,3 +1525,10 @@ Se a busca semântica informar que a aceleração Apple Silicon está ocupada, t
 | Legendas não são geradas | Requer o perfil de VRAM 16gb/24gb para legendagem por VLM |
 | Linha do tempo vazia | Garanta que as fotos tenham valores em `date_taken` |
 | Porta 5000 em uso | Execute `python viewer.py --port 5001` (ou defina `PORT=5001`). No macOS, o AirPlay Receiver do ControlCenter vincula a 5000 por padrão — escolha outra porta ou desative o AirPlay Receiver em Ajustes do Sistema → Geral → AirDrop e Handoff. |
+
+
+### Photon
+
+Use **Endereço ou estabelecimento → Pesquisar online** para consultar o Photon explicitamente. A consulta só é enviada ao fornecedor configurado ao clicar; escrever não envia nada. Selecione um resultado para pré-visualizar as coordenadas e use **Guardar** para as aplicar. O original não muda. O Photon usa dados OpenStreetMap (© colaboradores OpenStreetMap). Os locais guardados e as coordenadas funcionam offline. `viewer.place_search_url` usa `https://photon.komoot.io/api` por omissão; pode indicar uma instância Photon própria ou `""` para desativar. O servidor público não garante disponibilidade. Limites: 3–200 caracteres, cinco resultados, cinco segundos e 64 KiB; cache de 128 pesquisas por 15 minutos por processo, sem chamadas simultâneas e com pelo menos um segundo de intervalo. Use apenas um worker com o fornecedor público. O Facet não regista consultas; exclua os parâmetros de pesquisa dos registos do proxy.
+
+O prazo de cinco segundos interrompe os sockets ativos, incluindo cabeçalhos e delimitação HTTP lentos. A resolução DNS nativa segue os tempos do sistema e pode demorar mais antes da criação do socket; uma pesquisa expirada não abre depois uma ligação.
