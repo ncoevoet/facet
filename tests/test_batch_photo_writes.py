@@ -490,3 +490,24 @@ class TestFilterScopedAlbumAccess:
         assert resp.status_code == 403, resp.text
         assert _written_prefs(SEEDED) == set()
         assert _touched(_photo_flags(SEEDED)) == set()
+
+
+@pytest.mark.parametrize('explicit', [True, False])
+def test_batch_gps_reuses_real_visibility(alice_client, seeded, explicit):
+    body = {'photo_paths': SEEDED} if explicit else {'filters': ALL_SEEDED_FILTERS}
+    body.update(gps_latitude=1, gps_longitude=2, preview=True)
+    preview = alice_client.post('/api/photos/batch_gps', json=body)
+    assert preview.status_code == 200, preview.text
+    assert preview.json()['changed'] == 2
+    body.update(preview=False, preview_token=preview.json()['preview_token'])
+    assert alice_client.post('/api/photos/batch_gps', json=body).json()['changed'] == 2
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        assert conn.execute('SELECT gps_latitude FROM photos WHERE path=?', (BOB_PHOTO,)).fetchone()[0] is None
+        assert conn.execute('SELECT gps_latitude FROM photos WHERE path=?', (OTHER_CAM_PHOTO,)).fetchone()[0] is None
+
+
+def test_batch_gps_rechecks_private_album_access(alice_client, albums):
+    body = {'filters': {'album_id': str(BOB_ALBUM)}, 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True}
+    assert alice_client.post('/api/photos/batch_gps', json=body).status_code == 403
+    body['filters']['album_id'] = str(UNKNOWN_ALBUM)
+    assert alice_client.post('/api/photos/batch_gps', json=body).status_code == 404

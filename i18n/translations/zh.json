@@ -2462,7 +2462,15 @@
       "load_error": "无法加载地点。",
       "place_error": "无法更新地点。请检查名称、数量限制和网络连接。",
       "save_error": "无法保存照片位置。请重试。",
-      "use_file_location": "使用文件中的位置"
+      "use_file_location": "使用文件中的位置",
+      "batch_title": "设置位置",
+      "only_missing": "仅限缺少位置的照片",
+      "preview_batch": "预览位置更改",
+      "batch_preview": "将更改 {changed} 张照片；跳过 {skipped} 张。",
+      "batch_applied": "已更新 {changed} 张照片；跳过 {skipped} 张。",
+      "batch_error": "无法应用位置。请选择最多 1000 张照片并重新预览；所选照片或已保存地点可能已更改。",
+      "batch_limit": "请选择最多 1000 张照片。关闭保护后将替换现有位置。原始文件保持不变。",
+      "batch_hint": "选择一个位置，然后预览更改，再保存所选照片。"
     }
   },
   "manual_tags": {

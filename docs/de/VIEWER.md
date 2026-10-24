@@ -548,6 +548,8 @@ Zugriff über die Route `/map`. Gesteuert über `viewer.features.show_map` (Stan
 
 ### Gespeicherte Orte und manuelles GPS
 
+Wähle in der Galerie mehrere Fotos und **Ort festlegen** in der Auswahlleiste, den mobilen Aktionen oder dem Kontextmenü. Nutze gespeicherte/zuletzt verwendete Orte, Karte oder Koordinaten. **Nur Fotos ohne Standort** ist anfangs aktiviert; ohne Schutz werden vorhandene Orte ersetzt. Prüfe die Vorschau mit Änderungs- und Überspringzahlen vor dem Speichern. Höchstens 1000 sichtbare Fotos pro Stapel, auch bei einer vollständigen gefilterten Ansicht mit Ausnahmen. Gleiche Koordinaten werden übersprungen. Ändern sich Auswahl, GPS oder gespeicherter Ort, ist eine neue Vorschau nötig. Danach wird die Galerie mit den aktiven Filtern neu geladen. Originaldateien bleiben unverändert.
+
 Öffne in den Galeriefiltern **Standort** und aktiviere **Ohne Standort**, um Fotos mit fehlenden GPS-Koordinaten zu finden. Nach dem Hinzufügen eines Standorts verschwindet das Foto aus diesen Ergebnissen. Der Filter hebt eine Umkreissuche auf. Der Filter kann in einem intelligenten Album gespeichert werden. Eine semantische Suche, die Suche nach ähnlichen Fotos oder eine Umkreissuche deaktiviert ihn.
 
 Öffne bei einem Foto im Bearbeitungsmodus **Ort hinzufügen** oder **Ort bearbeiten**. Suche unter **Gespeicherte Orte** nach einem Namen oder wähle einen **Zuletzt verwendeten Ort**. Die Auswahl zeigt eine Vorschau; erst **Speichern** übernimmt sie für das Foto. Abbrechen ändert das Foto nicht.

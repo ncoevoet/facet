@@ -149,6 +149,7 @@ describe('GalleryComponent', () => {
     };
 
     mockAuth = {
+      status: signal({ user_id: "editor" }),
       identity: vi.fn(() => '0|'),
       isEdition: vi.fn(() => false),
       downloadProfiles: vi.fn(() => []),
@@ -1907,6 +1908,65 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('openBatchGpsDialog', () => {
+    it.each(['identity', 'edition', 'navigation', 'destroy'])('does not open after lazy GPS launch loses %s', async loss => {
+      mockAuth['isEdition'] = vi.fn(() => true);
+      mockStore.selectedPaths.set(new Set(['/a'])); mockStore.selectionCount.set(1);
+      const dialog = TestBed.inject(MatDialog);
+      const task = component.openBatchGpsDialog();
+      if (loss === 'identity') (mockAuth['status'] as ReturnType<typeof signal>).set({ user_id: 'bob' });
+      if (loss === 'edition') mockAuth['isEdition'] = vi.fn(() => false);
+      if (loss === 'navigation') {
+        (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(1, '/other'));
+        (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(2, '/'));
+      }
+      if (loss === 'destroy') TestBed.resetTestingModule();
+      await task;
+      expect(dialog.open).not.toHaveBeenCalled();
+    });
+
+    it('captures the complete filter and exclusions before lazy loading the dialog', async () => {
+      mockAuth['isEdition'] = vi.fn(() => true);
+      mockStore.viewScopeSelected.set(true);
+      mockStore.selectionCount.set(650);
+      mockStore.excludedPaths.set(new Set(['/skip.jpg']));
+      const filters = { no_gps: '1', camera: 'Canon' };
+      (mockStore.filterPayload as Mock).mockReturnValue(filters);
+      const pending = component.openBatchGpsDialog();
+      filters.camera = 'Nikon';
+      mockStore.excludedPaths.set(new Set(['/later.jpg']));
+      await pending;
+      const data = (TestBed.inject(MatDialog).open as Mock).mock.calls[0][1].data;
+      expect(data.batch).toEqual({ filters: { no_gps: '1', camera: 'Canon' }, exclude: ['/skip.jpg'] });
+    });
+
+    it('clears the completed selection but preserves a newer selection', async () => {
+      mockAuth['isEdition'] = vi.fn(() => true);
+      mockStore.selectionCount.set(2);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
+      const dialog = TestBed.inject(MatDialog);
+      await component.openBatchGpsDialog();
+      const applied = (dialog.open as Mock).mock.calls[0][1].data.onBatchApplied;
+      applied();
+      expect(mockStore.clearSelection).toHaveBeenCalledTimes(1);
+      (mockStore.clearSelection as Mock).mockClear();
+      mockStore.selectedPaths.set(new Set(['/new.jpg']));
+      applied();
+      expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    });
+
+    it('opens the shared GPS dialog for explicit selection and refuses read-only access', async () => {
+      mockStore.selectionCount.set(2);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
+      const dialog = TestBed.inject(MatDialog);
+      await component.openBatchGpsDialog();
+      expect(dialog.open).not.toHaveBeenCalled();
+      mockAuth['isEdition'] = vi.fn(() => true);
+      await component.openBatchGpsDialog();
+      expect((dialog.open as Mock).mock.calls[0][1].data.batch).toEqual({ photo_paths: ['/a.jpg', '/b.jpg'] });
+    });
+  });
+
   describe('openManualTagsDialog', () => {
     const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
     function select(paths: string[]) {
@@ -3539,6 +3599,7 @@ describe('GalleryComponent', () => {
         ['mark-panorama', { kind: 'mark-panorama', sequenceKind: 'bracket' }, 'markAsPanorama', ['bracket']],
         ['download', { kind: 'download', type: 'darktable', profile: 'P' }, 'downloadSelected', ['darktable', 'P']],
         ['tags', { kind: 'tags' }, 'openManualTagsDialog', []],
+        ['gps', { kind: 'gps' }, 'openBatchGpsDialog', []],
       ];
       for (const [name, action, method, args] of cases) {
         it(`${name} -> ${method}`, async () => {

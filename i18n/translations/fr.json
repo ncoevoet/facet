@@ -2462,7 +2462,15 @@
       "load_error": "Impossible de charger les lieux.",
       "place_error": "Impossible de modifier le lieu. Vérifiez le nom, la limite et la connexion.",
       "save_error": "Impossible d’enregistrer le lieu de la photo. Réessayez.",
-      "use_file_location": "Utiliser le lieu du fichier"
+      "use_file_location": "Utiliser le lieu du fichier",
+      "batch_title": "Définir le lieu",
+      "only_missing": "Uniquement les photos sans lieu",
+      "preview_batch": "Aperçu des changements de lieu",
+      "batch_preview": "{changed} photos seront modifiées ; {skipped} ignorées.",
+      "batch_applied": "{changed} photos modifiées ; {skipped} ignorées.",
+      "batch_error": "Impossible d’appliquer le lieu. Sélectionnez au plus 1000 photos et recommencez l’aperçu ; la sélection ou le lieu enregistré a pu changer.",
+      "batch_limit": "Sélectionnez au plus 1000 photos. Les lieux existants sont remplacés sans la protection. Les fichiers originaux restent inchangés.",
+      "batch_hint": "Choisissez un lieu, puis prévisualisez les changements avant d’enregistrer la sélection."
     }
   },
   "manual_tags": {

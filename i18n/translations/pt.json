@@ -2462,7 +2462,15 @@
       "load_error": "Não foi possível carregar os locais.",
       "place_error": "Não foi possível atualizar o local. Verifique o nome, o limite e a ligação.",
       "save_error": "Não foi possível guardar o local da foto. Tente novamente.",
-      "use_file_location": "Usar a localização do arquivo"
+      "use_file_location": "Usar a localização do arquivo",
+      "batch_title": "Definir localização",
+      "only_missing": "Apenas fotos sem localização",
+      "preview_batch": "Pré-visualizar alterações",
+      "batch_preview": "{changed} fotos serão alteradas; {skipped} ignoradas.",
+      "batch_applied": "{changed} fotos atualizadas; {skipped} ignoradas.",
+      "batch_error": "Não foi possível aplicar a localização. Selecione no máximo 1000 fotos e repita a prévia; a seleção ou o local salvo pode ter mudado.",
+      "batch_limit": "Selecione no máximo 1000 fotos. Sem proteção, as localizações existentes são substituídas. Os arquivos originais não são alterados.",
+      "batch_hint": "Escolha uma localização e confira as alterações antes de salvar a seleção."
     }
   },
   "manual_tags": {

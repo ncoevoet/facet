@@ -2462,7 +2462,15 @@
       "load_error": "Orte konnten nicht geladen werden.",
       "place_error": "Ort konnte nicht aktualisiert werden. Prüfen Sie Name, Limit und Verbindung.",
       "save_error": "Fotoort konnte nicht gespeichert werden. Bitte erneut versuchen.",
-      "use_file_location": "Standort aus der Datei verwenden"
+      "use_file_location": "Standort aus der Datei verwenden",
+      "batch_title": "Ort festlegen",
+      "only_missing": "Nur Fotos ohne Standort",
+      "preview_batch": "Standortänderungen prüfen",
+      "batch_preview": "{changed} Fotos werden geändert; {skipped} übersprungen.",
+      "batch_applied": "{changed} Fotos geändert; {skipped} übersprungen.",
+      "batch_error": "Standort konnte nicht angewendet werden. Wählen Sie höchstens 1000 Fotos und erstellen Sie eine neue Vorschau; Auswahl oder gespeicherter Ort könnte sich geändert haben.",
+      "batch_limit": "Wählen Sie höchstens 1000 Fotos. Ohne Schutz werden vorhandene Standorte ersetzt. Originaldateien bleiben unverändert.",
+      "batch_hint": "Wählen Sie einen Ort und prüfen Sie die Änderungen, bevor Sie die Auswahl speichern."
     }
   },
   "manual_tags": {

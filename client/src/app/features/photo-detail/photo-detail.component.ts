@@ -1,6 +1,6 @@
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Location } from '@angular/common';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, NavigationStart } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -11,7 +11,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { firstValueFrom, skip } from 'rxjs';
+import { firstValueFrom, skip, finalize } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AssistantChangeBatch, AssistantChangesService } from '../../core/agent/assistant-changes.service';
 import { ExtendedQualityComponent } from '../../shared/components/extended-quality/extended-quality.component';
@@ -1294,9 +1294,22 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     });
   }
 
-  protected editGps(p: Photo): void {
-    import('./gps-edit-dialog.component').then(m => {
-      if (this.destroyRef.destroyed || this.photo()?.path !== p.path) return;
+  protected loadGpsDialog() { return import('./gps-edit-dialog.component'); }
+
+  protected async editGps(p: Photo): Promise<void> {
+    const owner = this.auth.status();
+    const identity = this.auth.identity();
+    const url = this.router.url;
+    let navigated = false;
+    let opened = false;
+    const navigation = this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+      if (event instanceof NavigationStart) navigated = true;
+    });
+    const current = () => !navigated && !this.destroyRef.destroyed && this.auth.status() === owner
+      && this.auth.identity() === identity && this.auth.isEdition() && this.router.url === url && this.photo()?.path === p.path;
+    try {
+      const m = await this.loadGpsDialog();
+      if (!current()) return;
       const ref = this.dialog.open(m.GpsEditDialogComponent, {
         width: '95vw',
         maxWidth: '640px',
@@ -1308,13 +1321,16 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
           manuallySet: p.gps_manually_set === 1,
         },
       });
-      ref.afterClosed().subscribe((result: { gps_latitude: number | null; gps_longitude: number | null; gps_manually_set?: number } | undefined) => {
-        if (result !== undefined) {
+      opened = true;
+      ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef), finalize(() => navigation.unsubscribe())).subscribe((result: { gps_latitude: number | null; gps_longitude: number | null; gps_manually_set?: number } | undefined) => {
+        if (current() && result !== undefined) {
           this.applyConfirmed(p, { gps_latitude: result.gps_latitude, gps_longitude: result.gps_longitude, gps_manually_set: result.gps_manually_set ?? 1 });
           if (this.photo()?.path === p.path) this.locationName.set('');
         }
       });
-    });
+    } finally {
+      if (!opened) navigation.unsubscribe();
+    }
   }
 
   // Zoom & pan

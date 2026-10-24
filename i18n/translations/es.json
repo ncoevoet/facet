@@ -2462,7 +2462,15 @@
       "load_error": "No se pudieron cargar los lugares.",
       "place_error": "No se pudo actualizar el lugar. Comprueba el nombre, el límite y la conexión.",
       "save_error": "No se pudo guardar la ubicación de la foto. Inténtalo de nuevo.",
-      "use_file_location": "Usar la ubicación del archivo"
+      "use_file_location": "Usar la ubicación del archivo",
+      "batch_title": "Asignar ubicación",
+      "only_missing": "Solo fotos sin ubicación",
+      "preview_batch": "Vista previa de los cambios",
+      "batch_preview": "Se cambiarán {changed} fotos; {skipped} omitidas.",
+      "batch_applied": "{changed} fotos actualizadas; {skipped} omitidas.",
+      "batch_error": "No se pudo aplicar la ubicación. Selecciona como máximo 1000 fotos y repite la vista previa; la selección o el lugar guardado puede haber cambiado.",
+      "batch_limit": "Selecciona como máximo 1000 fotos. Sin protección se reemplazan las ubicaciones existentes. Los archivos originales no cambian.",
+      "batch_hint": "Elige una ubicación y revisa los cambios antes de guardar la selección."
     }
   },
   "manual_tags": {

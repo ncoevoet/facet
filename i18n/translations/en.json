@@ -2462,7 +2462,15 @@
       "load_error": "Could not load places.",
       "place_error": "Could not update place. Check the name, limit and connection.",
       "save_error": "Could not save the photo location. Please try again.",
-      "use_file_location": "Use the file's location"
+      "use_file_location": "Use the file's location",
+      "batch_title": "Set location",
+      "only_missing": "Only photos missing a location",
+      "preview_batch": "Preview location changes",
+      "batch_preview": "{changed} photos will change; {skipped} skipped.",
+      "batch_applied": "Updated {changed} photos; {skipped} skipped.",
+      "batch_error": "Could not apply location. Select at most 1000 photos and preview again; the selection or saved place may have changed.",
+      "batch_limit": "Select at most 1000 photos. Existing locations are replaced when protection is off. Original files are unchanged.",
+      "batch_hint": "Choose a location, then preview the changes before saving the selection."
     }
   },
   "manual_tags": {

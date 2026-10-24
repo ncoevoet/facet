@@ -548,6 +548,8 @@ Accessible via la route `/map`. Contrôlé par `viewer.features.show_map` (par d
 
 ### Lieux enregistrés et GPS manuel
 
+Sélectionnez plusieurs photos dans la galerie et choisissez **Définir le lieu** dans la barre de sélection, les actions mobiles ou le menu contextuel. Utilisez un lieu enregistré/récent, la carte ou des coordonnées. **Uniquement les photos sans lieu** est activé au départ ; désactivez cette protection pour remplacer les lieux existants. Vérifiez les nombres de modifications et de photos ignorées dans l’aperçu avant d’enregistrer. Chaque lot est limité à 1000 photos visibles, y compris une vue filtrée complète avec ses exclusions. Les coordonnées identiques sont ignorées. Si la sélection, le GPS ou le lieu enregistré change, recommencez l’aperçu. La galerie recharge ensuite les filtres actifs. Les fichiers originaux restent inchangés.
+
 Dans les filtres de la galerie, ouvre **Localisation** et active **Sans géolocalisation** pour trouver les photos dont une coordonnée GPS manque. Ajouter une position retire la photo de ces résultats. Ce filtre annule la sélection de rayon sur la carte. Ce filtre peut être enregistré dans un album intelligent. Une recherche sémantique, de photos similaires ou par rayon sur la carte le désactive.
 
 Ouvrez **Ajouter un lieu** ou **Modifier le lieu** depuis une photo en mode édition. Recherchez un nom dans **Lieux enregistrés**, ou choisissez un point parmi les **Lieux récents**. La sélection affiche un aperçu ; **Enregistrer** applique le point à la photo. Annuler ne modifie pas la photo.

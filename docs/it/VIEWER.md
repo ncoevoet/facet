@@ -548,6 +548,8 @@ Accessibile tramite la rotta `/map`. Controllato da `viewer.features.show_map` (
 
 ### Luoghi salvati e GPS manuale
 
+Seleziona più foto nella galleria e scegli **Imposta posizione** nella barra di selezione, nelle azioni mobili o nel menu contestuale. Usa un luogo salvato/recente, la mappa o le coordinate. **Solo foto senza posizione** è inizialmente attivo; disattivalo per sostituire le posizioni esistenti. Controlla il numero di foto modificate e ignorate nell’anteprima prima di salvare. Ogni gruppo è limitato a 1000 foto visibili, anche con una vista filtrata completa e le sue esclusioni. Le coordinate uguali vengono ignorate. Se cambiano selezione, GPS o luogo salvato, ripeti l’anteprima. La galleria ricarica poi i filtri attivi. I file originali restano invariati.
+
 Nei filtri della galleria, apri **Posizione** e attiva **Senza geolocalizzazione** per trovare le foto prive di una coordinata GPS. Dopo aver aggiunto una posizione, la foto scompare dai risultati. Il filtro annulla la selezione del raggio sulla mappa. Il filtro può essere salvato in un album intelligente. Si disattiva avviando una ricerca semantica o di foto simili, oppure scegliendo un raggio sulla mappa.
 
 Apri **Aggiungi posizione** o **Modifica posizione** da una foto in modalità modifica. Cerca un nome in **Luoghi salvati** oppure scegli un punto da **Posizioni recenti**. La scelta mostra un’anteprima; **Salva** la applica alla foto. Annulla lascia la foto invariata.

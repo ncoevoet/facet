@@ -119,6 +119,7 @@ PARAMETERISED_ROUTES = [
 # POST routes with a minimal valid-shaped body naming a photo that does not exist:
 # the handler runs (validation passes) and ends in a 4xx or an empty success.
 POST_ROUTES = [
+    ('/api/photos/batch_gps', {'photo_paths': ['/nonexistent.jpg'], 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True}),
     ('/api/photo/set_rating', {'photo_path': '/nonexistent.jpg', 'rating': 3}),
     ('/api/photo/toggle_favorite', {'photo_path': '/nonexistent.jpg'}),
     ('/api/photo/toggle_rejected', {'photo_path': '/nonexistent.jpg'}),

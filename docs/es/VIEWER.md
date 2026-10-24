@@ -547,6 +547,8 @@ Accede mediante la ruta `/map`. Controlado por `viewer.features.show_map` (prede
 
 ### Lugares guardados y GPS manual
 
+Selecciona varias fotos en la galería y usa **Asignar ubicación** en la barra de selección, las acciones móviles o el menú contextual. Elige un lugar guardado/reciente, un punto del mapa o coordenadas. **Solo fotos sin ubicación** está activado inicialmente; al desactivarlo se reemplazan las ubicaciones existentes. Revisa cuántas fotos cambiarán y cuántas se omitirán antes de guardar. Cada lote admite hasta 1000 fotos visibles, incluida la vista filtrada completa y sus exclusiones. Las coordenadas iguales se omiten. Si cambian la selección, el GPS o el lugar guardado, repite la vista previa. Después se recarga la galería con los filtros activos. Los archivos originales no cambian.
+
 En los filtros de la galería, abre **Ubicación** y activa **Sin geolocalización** para encontrar fotos a las que les falta una coordenada GPS. Al añadir una ubicación, la foto sale de estos resultados. Este filtro desactiva la selección de radio del mapa. El filtro se puede guardar en un álbum inteligente. Se desactiva al iniciar una búsqueda semántica o de fotos similares, o al seleccionar un radio en el mapa.
 
 Abre **Añadir ubicación** o **Editar ubicación** desde una foto en modo edición. Busca un nombre en **Lugares guardados** o elige un punto de **Ubicaciones recientes**. La selección muestra una vista previa; **Guardar** la aplica a la foto. Cancelar deja la foto intacta.

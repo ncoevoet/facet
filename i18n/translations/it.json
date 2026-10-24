@@ -2462,7 +2462,15 @@
       "load_error": "Impossibile caricare i luoghi.",
       "place_error": "Impossibile aggiornare il luogo. Controlla nome, limite e connessione.",
       "save_error": "Impossibile salvare il luogo della foto. Riprova.",
-      "use_file_location": "Usa la posizione del file"
+      "use_file_location": "Usa la posizione del file",
+      "batch_title": "Imposta posizione",
+      "only_missing": "Solo foto senza posizione",
+      "preview_batch": "Anteprima delle modifiche",
+      "batch_preview": "{changed} foto saranno modificate; {skipped} ignorate.",
+      "batch_applied": "{changed} foto aggiornate; {skipped} ignorate.",
+      "batch_error": "Impossibile applicare la posizione. Seleziona al massimo 1000 foto e ripeti l’anteprima; la selezione o il luogo salvato potrebbe essere cambiato.",
+      "batch_limit": "Seleziona al massimo 1000 foto. Senza protezione le posizioni esistenti vengono sostituite. I file originali restano invariati.",
+      "batch_hint": "Scegli una posizione e visualizza le modifiche prima di salvare la selezione."
     }
   },
   "manual_tags": {

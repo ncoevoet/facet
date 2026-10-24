@@ -3,19 +3,22 @@ Map view router — GPS-based photo browsing with clustering at low zoom levels.
 
 """
 
+import hashlib
+import json
 import logging
 import re
 import sqlite3
-from typing import Optional
+from typing import Iterator, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ValidationError, model_validator
+from pydantic import BaseModel, Field, ValidationError, model_validator
 
 from api.auth import CurrentUser, get_optional_user, require_edition
 from api.database import get_async_db, get_db
 from api.db_helpers import get_existing_columns, get_visibility_clause, to_exif_date
 from api.models.discovery import PhotoMapCountResponse, PhotoMapResponse
 from api.path_validation import resolve_photo_disk_path
+from api.routers.faces import BatchPhotoRequest, _batch_scope_sql
 from api.routers.places import Latitude, Longitude, place_owner
 from db import places
 from exiftool.exiftool_batch import get_exif_batch
@@ -220,6 +223,95 @@ class GpsUpdateRequest(BaseModel):
 class GpsUpdateResponse(BaseModel):
     gps_latitude: float | None
     gps_longitude: float | None
+
+
+class BatchGpsRequest(BatchPhotoRequest):
+    gps_latitude: Latitude
+    gps_longitude: Longitude
+    saved_place_id: int | None = None
+    only_missing: bool = True
+    preview: bool = False
+    preview_token: str | None = Field(default=None, max_length=64)
+
+
+class BatchGpsResponse(BaseModel):
+    changed: int
+    skipped: int
+    preview_token: str
+
+
+def _gps_batch_scopes(conn: sqlite3.Connection, body: BatchGpsRequest, user: CurrentUser) -> Iterator[tuple[str, list]]:
+    """Reuse gallery visibility/album checks; keep explicit SQL binds bounded."""
+    if body.filters is not None:
+        from_clause, where, params = _batch_scope_sql(conn, body, user)
+        yield f"SELECT DISTINCT photos.path FROM {from_clause}{where} LIMIT 1001", params
+    else:
+        excluded = set(body.exclude or ())
+        paths = list(dict.fromkeys(p for p in body.photo_paths or () if p not in excluded))
+        vis_sql, vis_params = get_visibility_clause(user.user_id if user else None)
+        for start in range(0, len(paths), 400):
+            chunk = paths[start:start + 400]
+            marks = ','.join('?' for _ in chunk)
+            yield f"SELECT path FROM photos WHERE path IN ({marks}) AND {vis_sql}", [*chunk, *vis_params]
+
+
+@router.post("/api/photos/batch_gps", response_model=BatchGpsResponse)
+def api_batch_gps(body: BatchGpsRequest, user: CurrentUser = Depends(require_edition)) -> dict:
+    """Preview or assign one location to a visible selection, without file writes.
+
+    The preview snapshot, visibility, missing coordinates and saved-place
+    ownership are checked again under the apply transaction's write lock.
+    Equal coordinates are skipped rather than pinning an unchanged file location.
+    The deterministic token guards against stale inputs; it is not authorization
+    or proof that a preview was requested. Edition access remains required.
+    """
+    if not {'gps_latitude', 'gps_longitude', 'gps_manually_set'} <= get_existing_columns():
+        raise HTTPException(status_code=400, detail="GPS columns not available")
+    owner = place_owner(user)
+    with get_db() as conn, conn:
+        try:
+            conn.execute("BEGIN" if body.preview else "BEGIN IMMEDIATE")
+            if body.saved_place_id is not None:
+                saved = places.get_place(conn, owner, body.saved_place_id)
+                if (saved['latitude'], saved['longitude']) != (body.gps_latitude, body.gps_longitude):
+                    raise places.PlaceError(409, 'Saved place coordinates changed')
+            rows = []
+            for scope, params in _gps_batch_scopes(conn, body, user):
+                rows.extend(conn.execute(
+                    f"SELECT path, gps_latitude, gps_longitude, gps_manually_set FROM photos WHERE path IN ({scope}) ORDER BY path LIMIT 1001",
+                    params,
+                ).fetchall())
+                if len(rows) > 1000:
+                    raise HTTPException(status_code=412, detail="Select at most 1000 photos for location assignment")
+            rows.sort(key=lambda row: row['path'])
+            coordinates = [body.gps_latitude, body.gps_longitude]
+            token = hashlib.sha256(json.dumps(
+                [owner, [tuple(row) for row in rows], coordinates, body.only_missing, body.saved_place_id],
+                ensure_ascii=True, separators=(',', ':'),
+            ).encode()).hexdigest()
+            if not body.preview and body.preview_token != token:
+                raise HTTPException(status_code=409, detail="Selection changed; preview again before applying")
+            changed_paths = [row['path'] for row in rows
+                             if (row['gps_latitude'], row['gps_longitude']) != tuple(coordinates)
+                             and (not body.only_missing or row['gps_latitude'] is None or row['gps_longitude'] is None)]
+            if not body.preview:
+                for start in range(0, len(changed_paths), 400):
+                    chunk = changed_paths[start:start + 400]
+                    marks = ','.join('?' for _ in chunk)
+                    conn.execute(
+                        f"UPDATE photos SET gps_latitude=?, gps_longitude=?, gps_manually_set=1 WHERE path IN ({marks})",
+                        [*coordinates, *chunk],
+                    )
+                if changed_paths:
+                    # One user action, regardless of the size of the selection.
+                    places.record_assignment(conn, owner, body.gps_latitude, body.gps_longitude, body.saved_place_id)
+            conn.commit()
+            return {'changed': len(changed_paths), 'skipped': len(rows) - len(changed_paths), 'preview_token': token}
+        except places.PlaceError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
+        except sqlite3.Error as exc:
+            logger.exception("Database error assigning batch GPS")
+            raise HTTPException(status_code=500, detail='Internal server error') from exc
 
 
 @router.put("/api/photo/gps", response_model=GpsUpdateResponse)

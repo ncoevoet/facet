@@ -196,3 +196,180 @@ def test_places_openapi_contract(edition_client):
     assert models['GpsUpdateRequest']['properties']['saved_place_id']['anyOf'] == [{'type': 'integer'}, {'type': 'null'}]
     assert schema['paths']['/api/places']['post']['responses']['201']['content']['application/json']['schema'] == {'$ref': '#/components/schemas/SavedPlace'}
     assert schema['paths']['/api/photo/gps']['put']['responses']['200']['content']['application/json']['schema'] == {'$ref': '#/components/schemas/GpsUpdateResponse'}
+
+
+def test_batch_gps_preview_apply_and_only_missing(edition_client, seed_photos_prefix):
+    prefix = '/batchgps/'
+    seed_photos_prefix(prefix, [
+        {'path': prefix + 'missing.jpg', 'filename': 'missing.jpg'},
+        {'path': prefix + 'partial.jpg', 'filename': 'partial.jpg', 'gps_latitude': 9},
+        {'path': prefix + 'existing.jpg', 'filename': 'existing.jpg', 'gps_latitude': 8, 'gps_longitude': 9},
+        {'path': prefix + 'excluded.jpg', 'filename': 'excluded.jpg'},
+    ])
+    body = {'filters': {'folder': prefix}, 'exclude': [prefix + 'excluded.jpg'],
+            'gps_latitude': 1, 'gps_longitude': 2, 'only_missing': True, 'preview': True}
+    preview = edition_client.post('/api/photos/batch_gps', json=body)
+    assert preview.status_code == 200
+    assert (preview.json()['changed'], preview.json()['skipped']) == (2, 1)
+    body['preview_token'] = preview.json()['preview_token']
+    with get_db() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM photos WHERE path LIKE ? AND gps_manually_set=1', (prefix + '%',)).fetchone()[0] == 0
+    body['preview'] = False
+    assert edition_client.post('/api/photos/batch_gps', json=body).json()['changed'] == 2
+    assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 409
+    body['preview'] = True
+    again = edition_client.post('/api/photos/batch_gps', json=body).json()
+    assert (again['changed'], again['skipped']) == (0, 3)
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set FROM photos WHERE path=?', (prefix + 'partial.jpg',)).fetchone()) == (1, 2, 1)
+        assert conn.execute('SELECT gps_latitude FROM photos WHERE path=?', (prefix + 'excluded.jpg',)).fetchone()[0] is None
+
+
+def test_batch_gps_explicit_visibility_exclusion_duplicates_and_place_recheck(edition_client, seed_photos_prefix):
+    paths = ['/batchgpspaths/a.jpg', '/batchgpspaths/b.jpg']
+    seed_photos_prefix('/batchgpspaths/', [{'path': p, 'filename': p} for p in paths])
+    place = edition_client.post('/api/places', json={'name': 'Batch', 'latitude': 1, 'longitude': 2}).json()
+    body = {'photo_paths': paths + paths + ['/absent'], 'exclude': [paths[1]],
+            'gps_latitude': 1, 'gps_longitude': 2, 'saved_place_id': place['id'], 'preview': True}
+    preview = edition_client.post('/api/photos/batch_gps', json=body).json()
+    assert (preview['changed'], preview['skipped']) == (1, 0)
+    body['preview_token'] = preview['preview_token']
+    assert edition_client.get('/api/places').json()['places'][0]['use_count'] == 0
+    with patch('api.routers.map.get_visibility_clause', return_value=('0=1', [])):
+        body['preview'] = False
+        assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 409
+    edition_client.put(f"/api/places/{place['id']}", json={'name': 'Moved', 'latitude': 3, 'longitude': 4})
+    assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 409
+    edition_client.delete(f"/api/places/{place['id']}")
+    assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 404
+    with get_db() as conn:
+        assert conn.execute('SELECT gps_latitude FROM photos WHERE path=?', (paths[0],)).fetchone()[0] is None
+
+
+@pytest.mark.parametrize('extra', [
+    {'gps_latitude': None}, {'gps_latitude': 'NaN'}, {'gps_longitude': 181},
+    {'photo_paths': ['x'] * 1001}, {'filters': {}},
+])
+def test_batch_gps_validation(edition_client, extra):
+    body = {'photo_paths': ['x'], 'gps_latitude': 1, 'gps_longitude': 2}
+    body.update(extra)
+    assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 422
+
+
+def test_batch_gps_rejects_same_count_substitution_and_coordinate_changes(edition_client, seed_photos_prefix):
+    prefix = '/batchgpsstale/'
+    paths = [prefix + 'a.jpg', prefix + 'b.jpg']
+    seed_photos_prefix(prefix, [{'path': p, 'filename': p, 'camera_model': 'Before'} for p in paths])
+    body = {'filters': {'camera': 'Before'}, 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True}
+    preview = edition_client.post('/api/photos/batch_gps', json=body).json()
+    body.update(preview=False, preview_token=preview['preview_token'])
+    with get_db() as conn, conn:
+        conn.execute('UPDATE photos SET gps_latitude=8 WHERE path=?', (paths[0],))
+    assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 409
+    body['preview'] = True
+    body['preview_token'] = edition_client.post('/api/photos/batch_gps', json=body).json()['preview_token']
+    body['preview'] = False
+    with get_db() as conn, conn:
+        conn.execute('UPDATE photos SET camera_model=? WHERE path=?', ('After', paths[0]))
+        conn.execute('INSERT INTO photos(path,filename,camera_model) VALUES (?,?,?)', (prefix + 'c.jpg', 'c.jpg', 'Before'))
+    assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 409
+    with get_db() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM photos WHERE path LIKE ? AND gps_manually_set=1', (prefix + '%',)).fetchone()[0] == 0
+
+
+def test_batch_gps_bounded_scope_and_chunked_apply(edition_client, seed_photos_prefix):
+    prefix = '/batchgpscap/'
+    paths = [prefix + str(i) + '.jpg' for i in range(1001)]
+    seed_photos_prefix(prefix, [{'path': p, 'filename': p} for p in paths])
+    body = {'filters': {'folder': prefix}, 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True}
+    assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 412
+    body['exclude'] = [paths[-1]]
+    preview = edition_client.post('/api/photos/batch_gps', json=body).json()
+    assert preview['changed'] == 1000
+    body.update(preview=False, preview_token=preview['preview_token'])
+    assert edition_client.post('/api/photos/batch_gps', json=body).json()['changed'] == 1000
+    with get_db() as conn:
+        assert conn.execute('SELECT gps_latitude FROM photos WHERE path=?', (paths[-1],)).fetchone()[0] is None
+
+
+def test_batch_gps_failure_rolls_back_and_unchanged_coordinates_are_skipped(edition_client, seed_photos_prefix):
+    path = '/batchgpsrollback/a.jpg'
+    seed_photos_prefix('/batchgpsrollback/', [{'path': path, 'filename': path, 'gps_latitude': 1, 'gps_longitude': 2}])
+    body = {'photo_paths': [path], 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True, 'only_missing': False}
+    assert edition_client.post('/api/photos/batch_gps', json=body).json()['skipped'] == 1
+    body['gps_latitude'] = 3
+    preview = edition_client.post('/api/photos/batch_gps', json=body).json()
+    body.update(preview=False, preview_token=preview['preview_token'])
+    with patch('api.routers.map.places.record_assignment', side_effect=sqlite3.OperationalError('injected')):
+        assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 500
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set FROM photos WHERE path=?', (path,)).fetchone()) == (1, 2, 0)
+
+
+def test_batch_gps_revalidates_place_owner_and_records_one_assignment(edition_client, seed_photos_prefix):
+    prefix = '/batchgpsowner/'
+    paths = [prefix + 'a.jpg', prefix + 'b.jpg']
+    seed_photos_prefix(prefix, [{'path': p, 'filename': p} for p in paths])
+    place = edition_client.post('/api/places', json={'name': 'Batch work', 'latitude': 1, 'longitude': 2}).json()
+    body = {'photo_paths': paths, 'gps_latitude': 1, 'gps_longitude': 2, 'saved_place_id': place['id'], 'preview': True}
+    preview = edition_client.post('/api/photos/batch_gps', json=body).json()
+    body.update(preview=False, preview_token=preview['preview_token'])
+    with patch('api.routers.places.is_multi_user_enabled', return_value=True):
+        assert edition_client.post('/api/photos/batch_gps', json=body).status_code == 404
+    assert edition_client.post('/api/photos/batch_gps', json=body).json()['changed'] == 2
+    listing = edition_client.get('/api/places').json()
+    assert listing['places'][0]['use_count'] == 1
+    assert len(listing['recent']) == 1
+
+
+@pytest.mark.parametrize('preview', [True, False], ids=['preview-read-lock', 'apply-write-lock'])
+def test_batch_gps_preview_does_not_reserve_writer_lock(edition_client, seed_photos_prefix, preview):
+    path = '/batchgpslocking/a.jpg'
+    seed_photos_prefix('/batchgpslocking/', [{'path': path, 'filename': path}])
+    body = {'photo_paths': [path], 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True}
+    snapshot = edition_client.post('/api/photos/batch_gps', json=body).json()
+    body.update(preview=preview, preview_token=snapshot['preview_token'])
+    from api.routers.map import _gps_batch_scopes
+
+    def check_scanner_lock(conn, *args):
+        # A separate scanner connection can reserve the writer slot during a
+        # read preview, while an apply must already own that slot.
+        db_path = conn.execute('PRAGMA database_list').fetchone()[2]
+        with sqlite3.connect(db_path, timeout=0) as scanner:
+            if preview:
+                scanner.execute('BEGIN IMMEDIATE')
+                scanner.rollback()
+            else:
+                with pytest.raises(sqlite3.OperationalError, match='locked'):
+                    scanner.execute('BEGIN IMMEDIATE')
+        yield from _gps_batch_scopes(conn, *args)
+
+    with patch('api.routers.map._gps_batch_scopes', side_effect=check_scanner_lock):
+        response = edition_client.post('/api/photos/batch_gps', json=body)
+    assert response.status_code == 200, response.text
+    assert response.json()['changed'] == 1
+    with get_db() as conn:
+        assert conn.execute('SELECT gps_manually_set FROM photos WHERE path=?', (path,)).fetchone()[0] == (0 if preview else 1)
+
+
+def test_batch_gps_api_protects_existing_locations_by_default(edition_client, seed_photos_prefix):
+    prefix = '/batchgpsdefault/'
+    missing, existing = prefix + 'missing.jpg', prefix + 'existing.jpg'
+    seed_photos_prefix(prefix, [
+        {'path': missing, 'filename': missing},
+        {'path': existing, 'filename': existing, 'gps_latitude': 8, 'gps_longitude': 9},
+    ])
+    body = {'photo_paths': [missing, existing], 'gps_latitude': 1, 'gps_longitude': 2, 'preview': True}
+    preview = edition_client.post('/api/photos/batch_gps', json=body).json()
+    assert (preview['changed'], preview['skipped']) == (1, 1)
+    body.update(preview=False, preview_token=preview['preview_token'])
+    assert edition_client.post('/api/photos/batch_gps', json=body).json()['changed'] == 1
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set FROM photos WHERE path=?', (existing,)).fetchone()) == (8, 9, 0)
+    body.update(preview=True, only_missing=False)
+    preview = edition_client.post('/api/photos/batch_gps', json=body).json()
+    assert (preview['changed'], preview['skipped']) == (1, 1)
+    body.update(preview=False, preview_token=preview['preview_token'])
+    assert edition_client.post('/api/photos/batch_gps', json=body).json()['changed'] == 1
+    with get_db() as conn:
+        assert tuple(conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set FROM photos WHERE path=?', (existing,)).fetchone()) == (1, 2, 1)

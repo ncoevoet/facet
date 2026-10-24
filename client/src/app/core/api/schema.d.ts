@@ -3204,6 +3204,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photos/batch_gps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Batch Gps
+         * @description Preview or assign one location to a visible selection, without file writes.
+         *
+         *     The preview snapshot, visibility, missing coordinates and saved-place
+         *     ownership are checked again under the apply transaction's write lock.
+         *     Equal coordinates are skipped rather than pinning an unchanged file location.
+         *     The deterministic token guards against stale inputs; it is not authorization
+         *     or proof that a preview was requested. Edition access remains required.
+         */
+        post: operations["api_batch_gps_api_photos_batch_gps_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photos/batch_manual_tags": {
         parameters: {
             query?: never;
@@ -4993,6 +5019,47 @@ export interface components {
         AvatarRequest: {
             /** Face Id */
             face_id: number;
+        };
+        /** BatchGpsRequest */
+        BatchGpsRequest: {
+            /**
+             * Exclude
+             * @description Paths to drop from whichever target is sent: subtracted from `photo_paths`, or bound out of the `filters` scope. Only ever narrows.
+             */
+            exclude?: string[] | null;
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /** Gps Latitude */
+            gps_latitude: number;
+            /** Gps Longitude */
+            gps_longitude: number;
+            /**
+             * Only Missing
+             * @default true
+             */
+            only_missing?: boolean;
+            /** Photo Paths */
+            photo_paths?: string[] | null;
+            /**
+             * Preview
+             * @default false
+             */
+            preview?: boolean;
+            /** Preview Token */
+            preview_token?: string | null;
+            /** Saved Place Id */
+            saved_place_id?: number | null;
+        };
+        /** BatchGpsResponse */
+        BatchGpsResponse: {
+            /** Changed */
+            changed: number;
+            /** Preview Token */
+            preview_token: string;
+            /** Skipped */
+            skipped: number;
         };
         /**
          * BatchManualTagRequest
@@ -13279,6 +13346,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_batch_gps_api_photos_batch_gps_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchGpsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchGpsResponse"];
                 };
             };
             /** @description Validation Error */

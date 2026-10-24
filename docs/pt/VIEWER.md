@@ -547,6 +547,8 @@ Acesse pela rota `/map`. Controlado por `viewer.features.show_map` (padrão: `tr
 
 ### Lugares salvos e GPS manual
 
+Selecione várias fotos na galeria e escolha **Definir localização** na barra de seleção, nas ações móveis ou no menu de contexto. Use um local salvo/recente, o mapa ou coordenadas. **Apenas fotos sem localização** começa ativado; desative a proteção para substituir localizações existentes. Confira na prévia quantas fotos mudarão e quantas serão ignoradas antes de salvar. Cada lote admite até 1000 fotos visíveis, incluindo uma vista filtrada completa com suas exclusões. Coordenadas iguais são ignoradas. Se a seleção, o GPS ou o local salvo mudar, repita a prévia. A galeria então recarrega os filtros ativos. Os arquivos originais não são alterados.
+
 Nos filtros da galeria, abra **Localização** e ative **Sem geolocalização** para encontrar fotos sem uma coordenada GPS. Ao adicionar uma localização, a foto sai destes resultados. Este filtro limpa a seleção de raio no mapa. O filtro pode ser salvo num álbum inteligente. Iniciar uma pesquisa semântica ou de fotos semelhantes, ou selecionar um raio no mapa, desativa-o.
 
 Abra **Adicionar localização** ou **Editar localização** em uma foto no modo de edição. Pesquise um nome em **Lugares salvos** ou escolha um ponto em **Localizações recentes**. A seleção mostra uma prévia; **Salvar** aplica o ponto à foto. Cancelar mantém a foto inalterada.

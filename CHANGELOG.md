@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Set a location for selected photos.** Reuse saved/recent places, a map pin or coordinates for up to 1000 visible photos. Preview changed/skipped counts first, protect existing locations with the default only-missing option, and refresh the active gallery filters after applying. Manual coordinates survive rescans; original files are unchanged.
+
 ## [1.23.1] "Grip" — 2026-10-24
 
 ### Fixed

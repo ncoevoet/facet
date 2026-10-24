@@ -620,6 +620,8 @@ In the gallery filters, open **Location** and enable **No geolocation** to find 
 
 Open a photo’s **Add location** or **Edit location** dialog in edition mode. Search **Saved places** by name, or choose a point from **Recent locations**. Selecting a point previews it on the map; **Save** applies it to the photo. Cancel leaves the photo unchanged.
 
+To assign one location to several photos, select them in the gallery and choose **Set location** from the selection bar, mobile actions, or selection context menu. Choose a saved/recent place, map pin, or coordinates. **Only photos missing a location** is enabled initially; turn it off to replace existing locations. **Preview location changes** shows how many will change or be skipped before **Save** applies them. Each batch is limited to 1000 visible photos, including whole-view selections and their exclusions. Unchanged coordinates are skipped. If the selection, its locations, or the saved place changes, preview again before applying. The gallery reloads the active filters after a successful batch.
+
 To save “Work” once, choose a pin on the map or enter its latitude and longitude, then use **Save this place** and give it a name. You can also open an already geotagged photo and bookmark its current point. Rename or delete saved places from the list; changing a bookmark does not move photos previously assigned there. Each editor has a private list on multi-user installs. There are at most 100 saved places per editor and 20 recent unique points; recent points are recorded only after a successful photo save.
 
 A location set in the viewer is flagged, and the dialog then offers **Use the file's location**: it drops the flag and re-reads the GPS from the image file (or clears it when the file has none), so later rescans may update it again.
@@ -1377,6 +1379,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 | `GET /api/photos/map?bounds=&zoom=&limit=` | Geotagged photos within bounds |
 | `GET /api/photos/map/count` | Count of geotagged photos |
 | `PUT /api/photo/gps` | `[Edition]` Set or clear photo GPS with `{path, gps_latitude, gps_longitude, saved_place_id?}`. Coordinates must both be null or finite values within latitude ±90 and longitude ±180; returns the saved coordinates |
+| `POST /api/photos/batch_gps` | `[Edition]` Preview/apply up to 1000 visible photos using `{photo_paths}` or `{filters, exclude?}`, finite paired coordinates, optional `saved_place_id`, and `only_missing` (defaults to true; false explicitly replaces existing locations). Send `preview: true` first; apply with the returned `preview_token`. Returns `changed`, `skipped`, and `preview_token`; stale previews return 409, oversized scopes 412. The deterministic token detects stale inputs; it does not authorize a write or prove that preview was called. Edition access is still required. No file writes |
 | `DELETE /api/photo/gps?path=` | `[Edition]` Drop a hand-set location and re-read the file's own GPS (NULL when the file has none); returns the stored coordinates |
 | `GET /api/places` | `[Edition]` Current editor’s saved places and 20 recent assigned points |
 | `POST /api/places` | `[Edition]` Save `{name, latitude, longitude}` as a private named pin (up to 100 places; name 1–120 characters) |
