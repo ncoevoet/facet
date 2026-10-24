@@ -26,9 +26,9 @@ jobs:
         # schema tests in tests/test_config_schema.py skip silently, and without
         # pytest-timeout the `timeout` marker is an inert unknown mark. The
         # versions are the ones verified against the suite.
-        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt mcp==2.3.0 websockets pillow pillow-heif numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog send2trash tifffile imagecodecs lupa jsonschema==4.26.0 pytest-timeout==2.4.0
+        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt mcp==2.3.0 websockets pillow pillow-heif numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog send2trash tifffile imagecodecs lupa jsonschema==4.26.0 pytest-timeout==2.4.0 pytest-xdist==3.8.0
       - name: Run tests
-        run: python -m pytest --tb=short -q --cov=api --cov=processing --cov=analyzers --cov=config --cov=utils --cov-report=term-missing
+        run: python -m pytest -n 4 --durations=30 --tb=short -q --cov=api --cov=processing --cov=analyzers --cov=config --cov=utils --cov-report=term-missing
       - uses: actions/setup-node@v7
         with:
           node-version: "24"

@@ -26,7 +26,12 @@ import tempfile
 # so a late ``monkeypatch`` would only patch the symbol in one module while
 # the rest keep their original captured copy. Setting the env up-front
 # routes every captured copy at the same fresh, schema-initialised DB.
-_TEST_DB_FILE = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+# Under pytest-xdist every worker is its own process and imports this module itself, so
+# each gets its own file; the worker id in the name only makes that visible (and a
+# leftover attributable). The controller process creates one it never uses.
+_TEST_DB_FILE = tempfile.NamedTemporaryFile(
+    prefix="intraswitch_facet_" + os.environ.get("PYTEST_XDIST_WORKER", "main") + "_",
+    suffix=".db", delete=False)
 _TEST_DB_FILE.close()
 os.environ["DB_PATH"] = _TEST_DB_FILE.name
 
