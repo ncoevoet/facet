@@ -1524,3 +1524,12 @@ Si la búsqueda semántica indica que la aceleración de Apple Silicon está ocu
 | Los subtítulos no se generan | Requiere el perfil de VRAM de 16gb/24gb para el subtitulado con VLM |
 | Línea de tiempo vacía | Asegúrate de que las fotos tengan valores `date_taken` |
 | El puerto 5000 está en uso | Ejecuta `python viewer.py --port 5001` (o define `PORT=5001`). En macOS, el Receptor de AirPlay del Centro de Control ocupa el 5000 por defecto: elige otro puerto o desactiva el Receptor de AirPlay en Ajustes del Sistema → General → AirDrop y Handoff. |
+
+
+### Revisar las marcas manuales de rostros guardadas
+
+En los filtros de refinamiento de la galería, los editores pueden activar **Rostros manuales por revisar** para encontrar fotos con rectángulos de rostros obsoletos o guardados por versiones anteriores. Abra una foto y su editor de rostros habitual para ajustar y guardar un rectángulo tras comprobarlo de nuevo, o eliminarlo. Cuando se corrige o elimina la última marca pendiente, la foto sale de esta vista filtrada. El filtro también funciona en álbumes inteligentes guardados y al seleccionar todos los resultados.
+
+La cola refleja el último escaneo o la última comprobación explícita en el editor de rostros; no supervisa continuamente el sistema de archivos. Los escaneos completos y restringidos comprueban las fotos con marcas manuales aunque la detección de rostros esté desactivada. Los originales ausentes se señalan al intentar validarlos. La lista solo consulta metadatos indexados de la base de datos y no decodifica originales. El editor vuelve a comprobar el original y su resultado es el que prevalece. Los cambios exclusivos de metadatos mantienen las marcas vigentes si coincide la identidad canónica de la imagen; su firma aproximada puede pasar por alto retoques sutiles del mismo tamaño. Revisar las marcas no modifica los archivos originales.
+
+La exportación de una nueva base de datos del visor y sus actualizaciones incrementales conservan el estado de revisión almacenado; las correcciones realizadas en el visor no se sustituyen por datos antiguos del origen.

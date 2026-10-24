@@ -1527,3 +1527,12 @@ Si la recherche sémantique indique que l’accélération Apple Silicon est occ
 | Les légendes ne se génèrent pas | Nécessite un profil VRAM 16gb/24gb pour le légendage VLM |
 | Chronologie vide | Assurez-vous que les photos ont des valeurs `date_taken` |
 | Port 5000 occupé | Lancez `python viewer.py --port 5001` (ou définissez `PORT=5001`). Sur macOS, le récepteur AirPlay de ControlCenter occupe 5000 par défaut — choisissez un autre port ou désactivez le récepteur AirPlay dans Réglages Système → Général → AirDrop et Handoff. |
+
+
+### Vérifier les repères manuels de visages enregistrés
+
+Dans les filtres d’affinage de la galerie, les éditeurs peuvent activer **Visages manuels à vérifier** pour retrouver les photos dont les rectangles de visages sont périmés ou proviennent d’une ancienne version. Ouvrez une photo et son éditeur de visages habituel pour ajuster puis enregistrer un rectangle après une nouvelle vérification, ou le supprimer. Une fois le dernier repère à vérifier corrigé ou supprimé, la photo quitte cette vue filtrée. Le filtre fonctionne aussi dans les albums intelligents enregistrés et lors de la sélection de tous les résultats.
+
+La liste reflète le dernier scan ou la dernière vérification explicite dans l’éditeur de visages, sans surveillance continue du système de fichiers. Les scans complets et restreints vérifient les photos comportant des repères manuels même si la détection des visages est désactivée. Les originaux manquants sont signalés lors d’une tentative de validation. L’affichage de la liste lit uniquement les métadonnées indexées en base et ne décode pas les originaux. L’éditeur revérifie l’original et son résultat fait foi. Les modifications portant uniquement sur les métadonnées conservent la validité des repères si l’identité canonique de l’image correspond ; sa signature approximative peut toutefois manquer des retouches subtiles à dimensions identiques. La vérification ne modifie aucun fichier original.
+
+L’export d’une nouvelle base du visualiseur et les mises à jour incrémentales conservent l’état de vérification mémorisé ; les corrections effectuées dans le visualiseur ne sont pas remplacées par d’anciennes données de la source.

@@ -570,6 +570,13 @@ function saveSectionStates(states: Record<string, boolean>): void {
                again, so without this the only record of one still pending is
                the user's memory. Edition-only: nobody else can make one. -->
           @if (auth.isEdition()) {
+            <mat-checkbox
+              [checked]="store.filters().manual_faces_need_review"
+              (change)="store.updateFilter('manual_faces_need_review', $event.checked)"
+            >{{ I18N.gallery.manual_faces_need_review | translate }}</mat-checkbox>
+            @if (store.filters().manual_faces_need_review) {
+              <p class="text-xs text-gray-500 dark:text-gray-400">{{ I18N.gallery.manual_faces_review_hint | translate }}</p>
+            }
             <mat-form-field subscriptSizing="dynamic" class="w-full">
               <mat-label>{{ I18N.gallery.sequence_override.label | translate }}</mat-label>
               <mat-select [value]="store.filters().sequence_override"
@@ -1055,7 +1062,7 @@ export class GalleryFilterSidebarComponent {
       equipment: (f.camera ? 1 : 0) + (f.lens ? 1 : 0),
       persons: f.person_id ? f.person_id.split(',').length : 0,
       refine: (f.favorites_only ? 1 : 0) + (f.is_monochrome ? 1 : 0) + (f.hide_rejected ? 1 : 0)
-        + (f.sequence_override ? 1 : 0),
+        + (f.sequence_override ? 1 : 0) + (f.manual_faces_need_review ? 1 : 0),
       folder: f.path_prefix ? 1 : 0,
     };
     const fAny = f as Record<string, any>;

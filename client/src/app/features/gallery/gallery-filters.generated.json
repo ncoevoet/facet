@@ -27,6 +27,7 @@
   "is_silhouette",
   "junk_kind",
   "lens",
+  "manual_faces_need_review",
   "max_aesthetic",
   "max_aesthetic_iaa",
   "max_aesthetic_v25",

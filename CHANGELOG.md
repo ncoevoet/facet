@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Review saved manual faces from the gallery.** The new filter finds stale or legacy marks using the last scan or editor check. Correct or delete them in the existing face editor; resolved photos leave the filtered view. Queue listing does not decode originals.
+
 ## [1.23.1] "Grip" — 2026-10-24
 
 ### Fixed

@@ -1525,3 +1525,12 @@ Se la ricerca semantica segnala che l’accelerazione Apple Silicon è occupata,
 | Le didascalie non vengono generate | Richiede il profilo VRAM 16gb/24gb per le didascalie VLM |
 | Cronologia vuota | Assicurati che le foto abbiano valori `date_taken` |
 | Porta 5000 in uso | Esegui `python viewer.py --port 5001` (o imposta `PORT=5001`). Su macOS, il Ricevitore AirPlay di ControlCenter occupa la porta 5000 per impostazione predefinita — scegli un'altra porta oppure disabilita il Ricevitore AirPlay in Impostazioni di Sistema → Generali → AirDrop e Handoff. |
+
+
+### Verificare i riquadri manuali dei volti salvati
+
+Nei filtri di affinamento della galleria, gli editor possono attivare **Volti manuali da verificare** per trovare foto con riquadri dei volti non più validi o salvati da versioni precedenti. Apri una foto e il consueto editor dei volti per modificare e salvare un riquadro dopo una nuova verifica, oppure eliminarlo. Quando l’ultimo riquadro da verificare viene corretto o rimosso, la foto esce dalla vista filtrata. Il filtro funziona anche negli album intelligenti salvati e nella selezione di tutti i risultati.
+
+L’elenco riflette l’ultima scansione o verifica esplicita nell’editor dei volti, senza monitorare continuamente il file system. Le scansioni complete e limitate verificano le foto con riquadri manuali anche quando il rilevamento dei volti è disattivato. Gli originali mancanti vengono segnalati quando si tenta di validarli. L’elenco legge soltanto i metadati indicizzati nel database e non decodifica gli originali. L’editor ricontrolla l’originale e il suo risultato è quello valido. Le modifiche ai soli metadati mantengono validi i riquadri se l’identità canonica dell’immagine corrisponde; la firma approssimativa può però non rilevare ritocchi lievi a dimensioni invariate. La verifica non modifica i file originali.
+
+L’esportazione di un nuovo database del visualizzatore e gli aggiornamenti incrementali conservano lo stato di verifica memorizzato; le correzioni effettuate nel visualizzatore non vengono sostituite da dati precedenti della sorgente.

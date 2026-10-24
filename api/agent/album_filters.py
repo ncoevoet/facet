@@ -18,8 +18,8 @@ from api.agent.ui_tools import CONTRACT_TO_CLIENT_KEY, SMART_ALBUM_EXCLUDE_KEYS,
 from api.models.gallery import query_value
 from api.types import TYPE_FILTERS
 
-# The two flags the client store holds as booleans (``GalleryFilters``); every other value is a string.
-BOOLEAN_KEYS = frozenset({"favorites_only", "is_monochrome"})
+# Flags the client store holds as booleans (``GalleryFilters``); every other value is a string.
+BOOLEAN_KEYS = frozenset({"favorites_only", "is_monochrome", "manual_faces_need_review"})
 # Every spelling an album refuses: the client's own excluded keys plus the contract names that rename to one
 # (``semantic_query`` -> ``semanticQuery``), so a semantic or similar view is refused in both name forms.
 REFUSED_KEYS = SMART_ALBUM_EXCLUDE_KEYS | frozenset(

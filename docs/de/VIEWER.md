@@ -1526,3 +1526,12 @@ Meldet die semantische Suche, dass die Apple-Silicon-Beschleunigung belegt ist, 
 | Bildbeschreibungen werden nicht generiert | Erfordert das 16gb/24gb-VRAM-Profil für VLM-Bildbeschreibungen |
 | Zeitleiste leer | Sicherstellen, dass Fotos `date_taken`-Werte haben |
 | Port 5000 belegt | `python viewer.py --port 5001` ausführen (oder `PORT=5001` setzen). Unter macOS belegt der AirPlay-Empfänger des ControlCenter standardmäßig Port 5000 — entweder einen anderen Port wählen oder den AirPlay-Empfänger unter Systemeinstellungen → Allgemein → AirDrop & Handoff deaktivieren. |
+
+
+### Gespeicherte manuelle Gesichtsmarkierungen prüfen
+
+Mit dem Filter **Manuelle Gesichter prüfen** in den Verfeinerungsfiltern der Galerie finden Bearbeiter Fotos mit veralteten oder aus älteren Versionen übernommenen Gesichtsrahmen. Öffnen Sie ein Foto und den vorhandenen Gesichtseditor, um einen Rahmen anzupassen und nach erneuter Prüfung zu speichern oder zu löschen. Sobald die letzte prüfbedürftige Markierung korrigiert oder entfernt ist, verschwindet das Foto aus dieser gefilterten Ansicht. Der Filter funktioniert auch in gespeicherten intelligenten Alben und bei der Auswahl aller Treffer.
+
+Die Liste zeigt den Stand des letzten Scans oder der letzten ausdrücklichen Prüfung im Gesichtseditor; sie überwacht das Dateisystem nicht fortlaufend. Vollständige und eingeschränkte Scans prüfen Fotos mit manuellen Markierungen auch bei deaktivierter Gesichtserkennung. Fehlende Originale werden beim Prüfversuch markiert. Die Auflistung liest nur indizierte Datenbankmetadaten und dekodiert keine Originale. Der Editor prüft das Original erneut; dieses Ergebnis ist maßgeblich. Änderungen ausschließlich an Metadaten machen Markierungen nicht ungültig, solange die kanonische Bildidentität übereinstimmt. Die grobe Signatur kann jedoch subtile Änderungen bei unveränderter Bildgröße übersehen. Die Prüfung verändert keine Originaldateien.
+
+Beim Export einer neuen Betrachterdatenbank und bei inkrementellen Aktualisierungen bleibt der gespeicherte Prüfstatus erhalten; bereits im Betrachter korrigierte Markierungen werden nicht durch ältere Quelldaten zurückgesetzt.

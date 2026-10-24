@@ -172,6 +172,7 @@ export interface GalleryFilters {
   hide_rejected: boolean;
   favorites_only: boolean;
   is_monochrome: boolean;
+  manual_faces_need_review: boolean;
   search: string;
   // Color facet (opt-in extraction; always-on filter)
   color_temp: string;   // warm | cool | neutral
@@ -438,6 +439,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   hide_rejected: true,
   favorites_only: false,
   is_monochrome: false,
+  manual_faces_need_review: false,
   search: '',
   color_temp: '',
   hue_bucket: '',
@@ -480,6 +482,7 @@ export function countActiveFilters(f: GalleryFilters): number {
   }
   if (f.favorites_only) count++;
   if (f.is_monochrome) count++;
+  if (f.manual_faces_need_review) count++;
   return count;
 }
 
@@ -538,6 +541,7 @@ export function applyQueryParams(
   if (params['hide_rejected'] !== undefined) result.hide_rejected = params['hide_rejected'] !== 'false';
   if (params['favorites_only'] !== undefined) result.favorites_only = params['favorites_only'] === 'true';
   if (params['is_monochrome'] !== undefined) result.is_monochrome = params['is_monochrome'] === 'true';
+  if (params['manual_faces_need_review'] !== undefined) result.manual_faces_need_review = params['manual_faces_need_review'] === 'true';
   if (params['tooltip_mode'] && TOOLTIP_MODES.includes(params['tooltip_mode'] as TooltipMode)) {
     result.tooltip_mode = params['tooltip_mode'] as TooltipMode;
   }
@@ -597,6 +601,7 @@ export function buildSyncParams(
     params['panel_activation'] = f.panel_activation;
   if (f.favorites_only) params['favorites_only'] = 'true';
   if (f.is_monochrome) params['is_monochrome'] = 'true';
+  if (f.manual_faces_need_review) params['manual_faces_need_review'] = 'true';
 
   return params;
 }
@@ -630,6 +635,7 @@ export function buildApiParams(
   if (f.hide_rejected) params['hide_rejected'] = true;
   if (f.favorites_only) params['favorites_only'] = '1';
   if (f.is_monochrome) params['is_monochrome'] = '1';
+  if (f.manual_faces_need_review) params['manual_faces_need_review'] = '1';
 
   // Semantic search is a filter of `GET /photos`. The threshold travels only when
   // the slider left the server's seed, so the server resolves its own calibrated

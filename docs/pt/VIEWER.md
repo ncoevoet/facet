@@ -1525,3 +1525,12 @@ Se a busca semântica informar que a aceleração Apple Silicon está ocupada, t
 | Legendas não são geradas | Requer o perfil de VRAM 16gb/24gb para legendagem por VLM |
 | Linha do tempo vazia | Garanta que as fotos tenham valores em `date_taken` |
 | Porta 5000 em uso | Execute `python viewer.py --port 5001` (ou defina `PORT=5001`). No macOS, o AirPlay Receiver do ControlCenter vincula a 5000 por padrão — escolha outra porta ou desative o AirPlay Receiver em Ajustes do Sistema → Geral → AirDrop e Handoff. |
+
+
+### Rever as marcações manuais de rostos guardadas
+
+Nos filtros de refinamento da galeria, os editores podem ativar **Rostos manuais a rever** para encontrar fotografias com retângulos de rostos desatualizados ou guardados por versões anteriores. Abra uma fotografia e o editor de rostos habitual para ajustar e guardar um retângulo após nova verificação, ou eliminá-lo. Quando a última marcação pendente é corrigida ou removida, a fotografia sai desta vista filtrada. O filtro também funciona nos álbuns inteligentes guardados e na seleção de todos os resultados.
+
+A lista reflete a última análise ou verificação explícita no editor de rostos, sem monitorização contínua do sistema de ficheiros. As análises completas e restritas verificam fotografias com marcações manuais mesmo com a deteção de rostos desativada. Os originais em falta são assinalados quando se tenta validá-los. A lista consulta apenas os metadados indexados da base de dados e não descodifica os originais. O editor verifica novamente o original e o seu resultado é o que prevalece. Alterações apenas aos metadados mantêm as marcações válidas se a identidade canónica da imagem corresponder; a assinatura aproximada pode, contudo, não detetar retoques subtis com dimensões inalteradas. A revisão não modifica os ficheiros originais.
+
+A exportação de uma nova base de dados do visualizador e as atualizações incrementais preservam o estado de revisão guardado; as correções feitas no visualizador não são substituídas por dados antigos da origem.

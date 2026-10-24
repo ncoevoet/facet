@@ -1296,7 +1296,9 @@
       "badge_shadow": "Beschnittene Schatten: {percent}% der Pixel"
     },
     "channel_clip_highlight_range": "Beschnittene Lichter %",
-    "channel_clip_shadow_range": "Beschnittene Schatten %"
+    "channel_clip_shadow_range": "Beschnittene Schatten %",
+    "manual_faces_need_review": "Manuelle Gesichter prüfen",
+    "manual_faces_review_hint": "Stand des letzten Scans oder der letzten Prüfung im Gesichtseditor, keine laufende Überwachung. Öffnen Sie den Gesichtseditor eines Fotos, um gespeicherte Markierungen zu prüfen."
   },
   "composition_patterns": {
     "none": "Keines",

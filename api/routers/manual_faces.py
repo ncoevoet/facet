@@ -83,8 +83,10 @@ def list_manual_faces(path: str, response: Response, user: CurrentUser = Depends
             'SELECT f.*,p.name AS person_name FROM faces f LEFT JOIN persons p ON p.id=f.person_id '
             'WHERE f.photo_path=? AND f.is_manual=1 ORDER BY f.id', (path,)).fetchall()
     states = [_current(path, row['manual_source']) for row in rows]
-    with get_db() as conn:
+    with get_db() as conn, conn:
         _visible(conn, user, path)
+        manual_faces.apply_review_states(conn, {
+            (row['id'], row['manual_source']): state for row, state in zip(rows, states)})
     return {'regions': [manual_faces.region_response(row, state) for row, state in zip(rows, states)]}
 
 
@@ -181,7 +183,7 @@ def _write(body, user, face_id=None):
         fields = (*box, person_id, crop, identity, w, h)
         if old:
             conn.execute('UPDATE faces SET bbox_x1=?,bbox_y1=?,bbox_x2=?,bbox_y2=?,person_id=?, '
-                         'face_thumbnail=?,manual_source=?,manual_width=?,manual_height=? WHERE id=?',
+                         'face_thumbnail=?,manual_source=?,manual_width=?,manual_height=?,manual_review_required=0 WHERE id=?',
                          (*fields, face_id))
         else:
             index = conn.execute('SELECT MIN(COALESCE(face_index,0)) FROM faces WHERE photo_path=?',

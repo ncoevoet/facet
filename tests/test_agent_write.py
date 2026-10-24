@@ -1084,3 +1084,13 @@ class TestCreateAlbumFromPaths:
         assert body["ok"], body
         album_cleanup.append(body["data"]["id"])
         assert body["changed_paths"] == P[:2]
+
+
+def test_manual_review_filter_is_boolean_in_stored_album_and_in_query_contract():
+    from api.agent import album_filters
+    from api.agent.tools_common import MCP_FILTER_KEYS
+    assert 'manual_faces_need_review' in MCP_FILTER_KEYS
+    refusal, stored = album_filters.to_stored({'manual_faces_need_review': '1'})
+    assert refusal is None
+    assert stored == {'manual_faces_need_review': True}
+    assert album_filters.query_form(stored) == {'manual_faces_need_review': '1'}

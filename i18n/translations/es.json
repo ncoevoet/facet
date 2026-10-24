@@ -1296,7 +1296,9 @@
       "badge_shadow": "Sombras recortadas: {percent}% de los píxeles"
     },
     "channel_clip_highlight_range": "% de altas luces recortadas",
-    "channel_clip_shadow_range": "% de sombras recortadas"
+    "channel_clip_shadow_range": "% de sombras recortadas",
+    "manual_faces_need_review": "Rostros manuales por revisar",
+    "manual_faces_review_hint": "Según el último escaneo o revisión en el editor de rostros, sin supervisión continua. Abra el editor de rostros de una foto para revisar las marcas guardadas."
   },
   "composition_patterns": {
     "none": "Ninguno",

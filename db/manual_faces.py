@@ -1,4 +1,7 @@
 """Manual rows are durable annotations, never recognition training examples."""
+from collections.abc import Iterable, Mapping
+import sqlite3
+
 from db.person_carry_over import box_iou
 
 
@@ -61,7 +64,7 @@ def prune_deleted_manual_faces(conn):
     return affected
 
 
-def without_manual_overlaps(conn, path, records):
+def without_manual_overlaps(conn, path, records, review_states=None):
     """Filter detector insert tuples (canonical FACES_UPSERT_SQL column order).
 
     A stale manual frame is retained for review but cannot suppress detections
@@ -75,9 +78,32 @@ def without_manual_overlaps(conn, path, records):
     boxes = []
     for row in manual:
         try:
-            current = is_current(path, row[4], conn, row[5])
+            current = (review_states.get((row[5], row[4]), False) if review_states is not None
+                       else is_current(path, row[4], conn, row[5]))
         except Exception:
             current = False
         if current:
             boxes.append(tuple(row)[:4])
     return [r for r in records if not any(box_iou(r[3:7], box) >= 0.5 for box in boxes)]
+
+
+def apply_review_states(conn: sqlite3.Connection, states: Mapping[tuple[int, str | None], bool]) -> None:
+    """Publish validations only against the exact identity that was observed."""
+    conn.executemany(
+        'UPDATE faces SET manual_review_required=? '
+        'WHERE id=? AND is_manual=1 AND manual_source IS ?',
+        [(int(not current), face_id, source) for (face_id, source), current in states.items()])
+
+
+def validate_review_paths(db_path: str, paths: Iterable[str]) -> dict[tuple[int, str | None], bool]:
+    """Snapshot marked photos only; all filesystem validation runs without a writer."""
+    from db.connection import get_connection
+    rows = []
+    paths = list(dict.fromkeys(paths))
+    with get_connection(db_path, row_factory=False) as conn:
+        for offset in range(0, len(paths), 900):
+            chunk = paths[offset:offset + 900]
+            rows.extend(conn.execute(
+                'SELECT id,photo_path,manual_source FROM faces WHERE is_manual=1 '
+                f'AND photo_path IN ({",".join("?" for _ in chunk)})', chunk).fetchall())
+    return {(face_id, source): is_current(path, source) for face_id, path, source in rows}

@@ -468,3 +468,19 @@ describe('no geolocation filter', () => {
     expect(countActiveFilters(f)).toBe(1);
   });
 });
+
+
+describe('manual face review filter', () => {
+  it('round trips the URL and smart album, and scopes membership and all-filtered actions', () => {
+    const f = filters({ manual_faces_need_review: true });
+    expect(countActiveFilters(f)).toBe(1);
+    expect(buildApiParams(f, false, undefined)['manual_faces_need_review']).toBe('1');
+    expect(buildByPathsFilters(f, false, '', undefined)['manual_faces_need_review']).toBe('1');
+    const url = buildSyncParams(f, undefined);
+    expect(url['manual_faces_need_review']).toBe('true');
+    expect(applyQueryParams(filters(), url as Record<string, string>).manual_faces_need_review).toBe(true);
+    const stored = smartAlbumFilterJson(f);
+    expect(JSON.parse(stored).manual_faces_need_review).toBe(true);
+    expect(applySavedAlbumFilters(filters(), stored, '7').manual_faces_need_review).toBe(true);
+  });
+});

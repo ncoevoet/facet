@@ -1296,7 +1296,9 @@
       "badge_shadow": "Sombras cortadas: {percent}% dos pixels"
     },
     "channel_clip_highlight_range": "% de altas luzes cortadas",
-    "channel_clip_shadow_range": "% de sombras cortadas"
+    "channel_clip_shadow_range": "% de sombras cortadas",
+    "manual_faces_need_review": "Rostos manuais a rever",
+    "manual_faces_review_hint": "Com base na última análise ou verificação no editor de rostos, sem monitorização contínua. Abra o editor de rostos de uma fotografia para rever as marcações guardadas."
   },
   "composition_patterns": {
     "none": "Nenhum",

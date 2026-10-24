@@ -142,6 +142,8 @@ describe('PhotoDetailComponent', () => {
     const other = makePhoto({ path: '/other.jpg', persons: [{ id: 9, name: 'Other' }] });
     const store = TestBed.inject(GalleryStore);
     store.filters.update(f => ({ ...f, person_id: '5', camera: 'Canon' }));
+    mockApi.get.mockReturnValue(of({ photos: [original, remaining], total: 2, has_more: false }));
+    await store.loadPhotos();
     store.photos.set([original, remaining]);
     store.total.set(2);
     vi.spyOn(store, 'reloadPersonOptions').mockResolvedValue();
@@ -155,14 +157,44 @@ describe('PhotoDetailComponent', () => {
       return of({});
     });
 
+    mockApi.post.mockReturnValue(of({ photos: [] }));
     await committed();
 
     expect(store.photos().map(p => p.path)).toEqual(['/remaining.jpg']);
     expect(store.total()).toBe(1);
     expect(store.filters()).toMatchObject({ person_id: '5', camera: 'Canon' });
-    expect(mockApi.get).toHaveBeenCalledWith('/photos', expect.objectContaining({ person_id: '5', camera: 'Canon' }));
+    expect(mockApi.post).toHaveBeenCalledWith('/photos/by_paths', expect.objectContaining({
+      paths: ['/manual.jpg'], filters: expect.objectContaining({ person_id: '5', camera: 'Canon' }),
+    }));
     expect(component.photo()).toEqual(other);
     expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])('refreshes the review queue without clearing newer selection or pins (pinned=%s)', async pinned => {
+    createComponent();
+    const original = makePhoto({ path: '/manual.jpg' });
+    const other = makePhoto({ path: '/other.jpg' });
+    const store = TestBed.inject(GalleryStore);
+    store.filters.update(f => ({ ...f, manual_faces_need_review: true }));
+    mockApi.get.mockReturnValue(of({ photos: [original, other], total: 2, has_more: false }));
+    await store.loadPhotos();
+    vi.spyOn(store, 'reloadPersonOptions').mockResolvedValue();
+    component.photo.set(original);
+    await component.openManualFaces(original);
+    const committed = mockDialog.open.mock.calls[0][1].data.onCommitted;
+    store.selectedPaths.set(new Set(['/other.jpg']));
+    if (pinned) store.pinnedPaths.set(['/manual.jpg', '/other.jpg']);
+    component.photo.set(other);
+    mockApi.get.mockReturnValue(of({ ...original, persons: [] }));
+    mockApi.post.mockReturnValue(of({ photos: pinned ? [original] : [] }));
+    await committed();
+    expect(store.selectedPaths()).toEqual(new Set(['/other.jpg']));
+    expect(store.pinnedPaths()).toEqual(pinned ? ['/manual.jpg', '/other.jpg'] : null);
+    expect(store.photos().map(p => p.path)).toEqual(pinned ? ['/manual.jpg', '/other.jpg'] : ['/other.jpg']);
+    expect(component.photo()).toEqual(other);
+    expect(mockApi.post).toHaveBeenCalledWith('/photos/by_paths', pinned
+      ? { paths: ['/manual.jpg'] }
+      : expect.objectContaining({ filters: expect.objectContaining({ manual_faces_need_review: '1' }) }));
   });
 
   it('refreshes persisted person membership after the detail component is destroyed', async () => {

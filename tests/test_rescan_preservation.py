@@ -249,3 +249,48 @@ def test_real_full_save_refreshes_unedited_exif_gps(scored_db):
     with get_connection(db, row_factory=False) as conn:
         assert conn.execute('SELECT gps_latitude,gps_longitude,gps_manually_set FROM photos WHERE path=?',
                             ('/p/a.jpg',)).fetchone() == (1, 2, 0)
+
+
+@pytest.mark.parametrize('mode', ['full', 'partial_faces', 'partial_no_faces'])
+@pytest.mark.parametrize('change', ['unchanged', 'metadata', 'replacement', 'unavailable'])
+def test_scan_validates_manual_review_without_write_lock(scored_db, tmp_path, monkeypatch, mode, change):
+    import sqlite3
+    from db import manual_faces
+    db, facet = scored_db
+    path = str(tmp_path / 'manual.png')
+    _IMG.save(path)
+    identity = manual_faces.source_identity(path)
+    with get_connection(db, row_factory=False) as conn:
+        conn.execute('INSERT INTO photos(path,filename) VALUES (?,?)', (path, 'manual.png'))
+        fid = conn.execute("INSERT INTO faces(photo_path,face_index,embedding,is_manual,manual_source) "
+                           "VALUES (?,-1,X'',1,?)", (path, identity)).lastrowid
+        conn.commit()
+    if change == 'metadata':
+        from PIL.PngImagePlugin import PngInfo
+        meta = PngInfo()
+        meta.add_text('Description', 'metadata rewrite')
+        _IMG.save(path, pnginfo=meta)
+    elif change == 'replacement':
+        Image.new('RGB', (64, 64), 'green').save(path)
+    elif change == 'unavailable':
+        from pathlib import Path
+        Path(path).unlink()
+    original = manual_faces.is_current
+    visited = []
+    def unlocked(disk_path, source, *args):
+        visited.append(disk_path)
+        with sqlite3.connect(db, timeout=0) as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            conn.rollback()
+        return original(disk_path, source)
+    monkeypatch.setattr(manual_faces, 'is_current', unlocked)
+    results = [_base_result(path, 6), _base_result('/p/a.jpg', 7)]
+    if mode == 'full':
+        facet.save_photos_batch([(r, _IMG) for r in results])
+    else:
+        facet.save_photos_partial([(r, _IMG, ('aggregate',)) for r in results],
+                                  refresh_faces=mode == 'partial_faces')
+    assert visited == [path]
+    with get_connection(db, row_factory=False) as conn:
+        assert conn.execute('SELECT manual_review_required FROM faces WHERE id=?', (fid,)).fetchone() == (
+            int(change in ('replacement', 'unavailable')),)

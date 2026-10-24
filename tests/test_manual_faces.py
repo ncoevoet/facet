@@ -376,3 +376,86 @@ def test_person_gallery_membership_and_warm_counts_follow_manual_changes(edition
     assert edition_client.delete(f"/api/photo/manual-faces/{region['id']}", params={'path': manual_photo}).status_code == 200
     assert_gallery(ada, set())
     assert_gallery(bo, set())
+
+
+def test_review_queue_cached_until_editor_validation_and_cleared_by_save(edition_client, manual_photo, monkeypatch):
+    data = payload(edition_client, manual_photo)
+    region = edition_client.post('/api/photo/manual-faces', json=data).json()
+    def queued():
+        response = edition_client.get('/api/photos', params={'manual_faces_need_review': '1'})
+        assert response.status_code == 200, response.text
+        return [p['path'] for p in response.json()['photos']]
+    assert manual_photo not in queued()
+    Image.new('RGB', (120, 90), 'green').save(manual_photo)
+    assert manual_photo not in queued()
+    assert edition_client.get('/api/photo/manual-faces', params={'path': manual_photo}).json()['regions'][0]['source_changed']
+    from utils import manual_face_frame as frames
+    with monkeypatch.context() as patch:
+        patch.setattr(frames, 'is_current', lambda *a, **k: pytest.fail('Gallery accessed original'))
+        assert manual_photo in queued()
+    update = payload(edition_client, manual_photo)
+    update.pop('client_id')
+    assert edition_client.put(f"/api/photo/manual-faces/{region['id']}", json=update).status_code == 200
+    assert manual_photo not in queued()
+    with get_db() as conn, conn:
+        conn.execute('UPDATE faces SET manual_review_required=1 WHERE id=?', (region['id'],))
+    assert manual_photo in queued()
+    assert edition_client.delete(f"/api/photo/manual-faces/{region['id']}", params={'path': manual_photo}).status_code == 200
+    assert manual_photo not in queued()
+
+
+def test_review_validation_does_not_overwrite_newer_identity(edition_client, manual_photo, monkeypatch):
+    data = payload(edition_client, manual_photo)
+    region = edition_client.post('/api/photo/manual-faces', json=data).json()
+    from api.routers import manual_faces as module
+    def concurrent_edit(*args):
+        with get_db() as conn, conn:
+            conn.execute('UPDATE faces SET manual_source=?,manual_review_required=0 WHERE id=?',
+                         ('newer-editor-frame', region['id']))
+        return False
+    monkeypatch.setattr(module, '_current', concurrent_edit)
+    assert edition_client.get('/api/photo/manual-faces', params={'path': manual_photo}).status_code == 200
+    with get_db() as conn:
+        assert conn.execute('SELECT manual_review_required FROM faces WHERE id=?', (region['id'],)).fetchone()[0] == 0
+
+
+def test_review_filter_visibility_membership_and_all_filtered_target(edition_client, manual_photo, seed_photos_prefix, monkeypatch):
+    region = edition_client.post('/api/photo/manual-faces', json=payload(edition_client, manual_photo)).json()
+    other = '/queue-other/current.jpg'
+    seed_photos_prefix('/queue-other/', [{'path': other, 'filename': 'current.jpg'}])
+    with get_db() as conn, conn:
+        conn.execute('UPDATE faces SET manual_review_required=1 WHERE id=?', (region['id'],))
+    filters = {'manual_faces_need_review': True}
+    matched = edition_client.post('/api/photos/by_paths', json={'paths': [manual_photo, other], 'filters': filters})
+    assert matched.status_code == 200, matched.text
+    assert [p['path'] for p in matched.json()['photos']] == [manual_photo]
+    result = edition_client.post('/api/photos/batch_rating', json={'filters': {'manual_faces_need_review': '1'}, 'rating': 4})
+    assert result.status_code == 200, result.text
+    with get_db() as conn:
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (manual_photo,)).fetchone()[0] == 4
+        assert conn.execute('SELECT star_rating FROM photos WHERE path=?', (other,)).fetchone()[0] != 4
+    from api.routers import gallery
+    monkeypatch.setattr(gallery, 'get_visibility_clause', lambda *a, **k: ('photos.path != ?', [manual_photo]))
+    hidden = edition_client.get('/api/photos', params={'manual_faces_need_review': '1'})
+    assert hidden.status_code == 200, hidden.text
+    assert hidden.json()['photos'] == []
+    hidden_paths = edition_client.post('/api/photos/by_paths', json={'paths': [manual_photo], 'filters': filters})
+    assert hidden_paths.json()['photos'] == []
+
+
+def test_unavailable_editor_validation_flags_mark_and_rechecks_visibility(edition_client, manual_photo, monkeypatch):
+    from pathlib import Path
+    region = edition_client.post('/api/photo/manual-faces', json=payload(edition_client, manual_photo)).json()
+    Path(manual_photo).unlink()
+    response = edition_client.get('/api/photo/manual-faces', params={'path': manual_photo})
+    assert response.json()['regions'][0]['source_changed']
+    with get_db() as conn:
+        assert conn.execute('SELECT manual_review_required FROM faces WHERE id=?', (region['id'],)).fetchone()[0] == 1
+    from api.routers import manual_faces as module
+    def revoked(*args):
+        def deny(*args):
+            raise LookupError('Access revoked')
+        monkeypatch.setattr(module, 'assert_photo_visible', deny)
+        return False
+    monkeypatch.setattr(module, '_current', revoked)
+    assert edition_client.get('/api/photo/manual-faces', params={'path': manual_photo}).status_code == 404

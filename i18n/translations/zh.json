@@ -1296,7 +1296,9 @@
       "badge_shadow": "阴影溢出：{percent}% 的像素"
     },
     "channel_clip_highlight_range": "高光溢出比例 %",
-    "channel_clip_shadow_range": "阴影溢出比例 %"
+    "channel_clip_shadow_range": "阴影溢出比例 %",
+    "manual_faces_need_review": "手动人脸需要检查",
+    "manual_faces_review_hint": "基于最近一次扫描或人脸编辑器检查，并非持续监控。打开照片的人脸编辑器，检查已保存的标记。"
   },
   "composition_patterns": {
     "none": "无",

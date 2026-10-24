@@ -1296,7 +1296,9 @@
       "badge_shadow": "Clipped shadows: {percent}% of pixels"
     },
     "channel_clip_highlight_range": "Clipped Highlights %",
-    "channel_clip_shadow_range": "Clipped Shadows %"
+    "channel_clip_shadow_range": "Clipped Shadows %",
+    "manual_faces_need_review": "Manual faces need review",
+    "manual_faces_review_hint": "Based on the last scan or face-editor check, not continuous monitoring. Open a photo’s face editor to review saved marks."
   },
   "composition_patterns": {
     "none": "None",

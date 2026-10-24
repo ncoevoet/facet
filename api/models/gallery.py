@@ -274,6 +274,7 @@ class GalleryParams(BaseModel):
     date_to: str = ''
     # Content flags
     is_monochrome: str = ''
+    manual_faces_need_review: str = ''
     category: str = ''
     narrative_moment: str = ''
     junk_kind: str = ''         # exact kind, or 'any' for any junk

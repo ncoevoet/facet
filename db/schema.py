@@ -247,6 +247,7 @@ FACES_COLUMNS = [
     ('manual_source', 'TEXT'),
     ('manual_width', 'INTEGER'),
     ('manual_height', 'INTEGER'),
+    ('manual_review_required', 'INTEGER NOT NULL DEFAULT 0'),
 ]
 
 # UUIDs are never reused. Explicit deletion survives synchronization with an
@@ -832,6 +833,11 @@ USER_PREFERENCES_INDEXES = [
     ('idx_user_prefs_rating', 'user_preferences', 'user_id, star_rating'),
 ]
 
+# Required by the review queue before background gallery indexes finish.
+MANUAL_FACE_INDEXES = [
+    ('idx_faces_manual_review', 'faces', 'photo_path, is_manual, manual_review_required'),
+]
+
 # Identity constraints share the registry used by schema diagnostics. Manual
 # UUIDs identify annotations only; automatic rows do not own this namespace.
 IDENTITY_INDEXES = [
@@ -900,6 +906,7 @@ ALL_INDEX_GROUPS = [
     ALBUM_INDEXES,
     USER_PREFERENCES_INDEXES,
     IDENTITY_INDEXES,
+    MANUAL_FACE_INDEXES,
     MCP_TOKENS_INDEXES,
 ]
 
@@ -1403,8 +1410,29 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
         # creation because new indexes may target columns added here (e.g.
         # comparisons.source), and before the photos_vec init below because that
         # reads photos.clip_embedding, which the sweep backfills on old DBs.
+        migrate_manual_review = 'manual_review_required' not in {
+            row[1] for row in conn.execute('PRAGMA table_info(faces)')}
         for table_name, columns in _MIGRATED_TABLES:
             _migrate_add_missing_columns(conn, table_name, columns)
+
+        if migrate_manual_review:
+            # One-time conservative bootstrap. Existing v2 frames are verifiable;
+            # obsolete, malformed or missing identities require the editor.
+            import json
+            for face_id, source in conn.execute(
+                    'SELECT id,manual_source FROM faces WHERE is_manual=1').fetchall():
+                try:
+                    identity = json.loads(source)
+                    verifiable = (isinstance(identity, dict) and identity.get('v') == 2
+                                  and isinstance(identity.get('w'), int) and identity['w'] > 0
+                                  and isinstance(identity.get('h'), int) and identity['h'] > 0
+                                  and isinstance(identity.get('sig'), list) and len(identity['sig']) == 64
+                                  and all(isinstance(n, (int, float)) and 0 <= n <= 255 for n in identity['sig'])
+                                  and isinstance(identity.get('stat'), list) and len(identity['stat']) == 4)
+                except (KeyError, TypeError, ValueError):
+                    verifiable = False
+                if not verifiable:
+                    conn.execute('UPDATE faces SET manual_review_required=1 WHERE id=?', (face_id,))
 
         # Shared pre-upgrade copies share numeric identities. Every NEW person
         # gets a random key, including inserts by scanners and older callers.

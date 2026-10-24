@@ -252,6 +252,11 @@ def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=
             except ValueError:
                 pass
 
+    if params.get('manual_faces_need_review') in ('1', 'true'):
+        where_clauses.append(
+            'EXISTS (SELECT 1 FROM faces WHERE photo_path=photos.path '
+            'AND is_manual=1 AND manual_review_required=1)')
+
     if params.get('is_monochrome') == '1':
         where_clauses.append("is_monochrome = 1")
 

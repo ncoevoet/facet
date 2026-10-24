@@ -2683,9 +2683,13 @@ class Facet:
                 if face.get('embedding'):
                     face_records.append(face_upsert_row(res['path'], face, embedding_model))
 
+        from db.manual_faces import validate_review_paths, apply_review_states
+        review_states = validate_review_paths(self.db_path, [res['path'] for res, _ in results_with_images])
+
         # Phase 3: Fast DB inserts (short transaction)
         from analyzers.form_facet import FORM_METRIC_COLUMNS
         with get_connection(self.db_path, row_factory=False) as conn:
+            apply_review_states(conn, review_states)
             # Batch insert photos
             for res, _ in results_with_images:
                 # Optional extended-IQA columns default to NULL for callers/passes
@@ -2755,7 +2759,7 @@ class Facet:
                 [res['path'] for res, _ in results_with_images
                  if not ('face_details' in res and res['face_details'] is None)],
                 face_records, FACES_UPSERT_SQL,
-                defer_centroids=self._pending_centroid_persons)
+                defer_centroids=self._pending_centroid_persons, review_states=review_states)
 
             # Sync clip embeddings to photos_vec for vector search
             vec_records = [
@@ -2822,7 +2826,10 @@ class Facet:
                     if face.get('embedding'):
                         face_records.append(face_upsert_row(res['path'], face, embedding_model))
 
+        from db.manual_faces import validate_review_paths, apply_review_states
+        review_states = validate_review_paths(self.db_path, [res['path'] for res, _, _ in batch])
         with get_connection(self.db_path, row_factory=False) as conn:
+            apply_review_states(conn, review_states)
             for res, _, computed_columns in batch:
                 conn.execute(_photos_partial_upsert(computed_columns), res)
 
@@ -2832,7 +2839,7 @@ class Facet:
                     [res['path'] for res, _, _ in batch
                      if not ('face_details' in res and res['face_details'] is None)],
                     face_records, FACES_UPSERT_SQL,
-                    defer_centroids=self._pending_centroid_persons)
+                    defer_centroids=self._pending_centroid_persons, review_states=review_states)
 
             sync_vec_batch(conn, [
                 (res['path'], res['clip_embedding'])

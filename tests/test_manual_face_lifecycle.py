@@ -95,6 +95,7 @@ def test_additive_schema_upgrade_keeps_faces_and_assigns_legacy_person_keys(tmp_
         conn.execute("INSERT INTO persons(id,name) VALUES (7,'Existing')")
         conn.execute("INSERT INTO faces(photo_path,face_index,embedding,person_id) VALUES ('p',0,X'00',7)")
         conn.execute('DROP INDEX idx_manual_face_key')
+        conn.execute('DROP INDEX idx_faces_manual_review')
         for col in ('is_manual', 'manual_key', 'manual_source', 'manual_width', 'manual_height'):
             conn.execute('ALTER TABLE faces DROP COLUMN ' + col)
         conn.execute('DROP TRIGGER persons_assign_key')
@@ -125,3 +126,25 @@ def test_manual_identity_constraint_is_partial_and_survives_upgrade(tmp_path):
     init_database(db)
     with sqlite3.connect(db) as conn:
         assert conn.execute("SELECT COUNT(*) FROM faces WHERE is_manual=1 AND manual_key='same'").fetchone() == (1,)
+
+
+@pytest.mark.parametrize('kind', ['legacy', 'current', 'malformed_v2', 'missing'])
+def test_review_migration_is_one_time_and_query_uses_covering_index(manual_db, kind):
+    db, path, _, fid = manual_db
+    source = {'legacy': 'legacy-stat-only', 'current': source_identity(path),
+              'malformed_v2': '{"v":2}', 'missing': None}[kind]
+    with sqlite3.connect(db) as conn:
+        conn.execute('UPDATE faces SET manual_source=? WHERE id=?', (source, fid))
+        conn.execute('DROP INDEX idx_faces_manual_review')
+        conn.execute('ALTER TABLE faces DROP COLUMN manual_review_required')
+    init_database(db, build_photo_indexes=False)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute('SELECT manual_review_required FROM faces WHERE id=?', (fid,)).fetchone() == (int(kind != 'current'),)
+        conn.execute('UPDATE faces SET manual_review_required=0 WHERE id=?', (fid,))
+    init_database(db, build_photo_indexes=False)
+    with sqlite3.connect(db) as conn:
+        assert conn.execute('SELECT manual_review_required FROM faces WHERE id=?', (fid,)).fetchone() == (0,)
+        plan = conn.execute('EXPLAIN QUERY PLAN SELECT path FROM photos WHERE EXISTS '
+                            '(SELECT 1 FROM faces WHERE photo_path=photos.path AND is_manual=1 '
+                            'AND manual_review_required=1)').fetchall()
+        assert any('COVERING INDEX idx_faces_manual_review' in row[3] for row in plan)

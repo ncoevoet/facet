@@ -1600,3 +1600,12 @@ If semantic search reports that Apple Silicon acceleration is busy, retry after 
 | Captions not generating | Requires 16gb/24gb VRAM profile for VLM captioning |
 | Timeline empty | Ensure photos have `date_taken` values |
 | Port 5000 in use | Run `python viewer.py --port 5001` (or set `PORT=5001`). On macOS, ControlCenter's AirPlay Receiver binds 5000 by default — either pick another port or disable AirPlay Receiver in System Settings → General → AirDrop & Handoff. |
+
+
+### Review saved manual faces
+
+In the gallery’s Refine filters, editors can enable **Manual faces need review** to find photos with stale or legacy saved face rectangles. Open a photo and its existing face editor to adjust and save a rectangle, or delete it. After the last mark needing review is corrected or removed, the photo leaves this filtered gallery. The filter also works in saved smart albums and whole-view selections.
+
+The queue reflects the last scan or explicit face-editor check, not continuous filesystem monitoring. Full scans and restricted scans check photos with manual marks even when face detection is disabled. Missing originals are flagged when validation is attempted. Listing the queue reads indexed database metadata and does not decode originals. Opening the editor rechecks the original and is authoritative. Metadata-only rewrites remain current when the existing canonical image identity matches; its coarse signature may miss subtle same-size edits, as with ordinary manual-face validation. No original files are changed by reviewing marks.
+
+Fresh viewer-database exports and incremental updates preserve the cached review status; corrections already made in the viewer are not replaced by older source annotations.

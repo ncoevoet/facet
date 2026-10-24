@@ -189,7 +189,7 @@ def reattach_named_persons(conn, snapshot, min_iou=CARRY_OVER_MIN_IOU, extra_per
     return {'reattached': reattached, 'unmatched': len(snapshot) - reattached}
 
 
-def replace_photo_faces(conn, photo_paths, face_records, insert_sql, defer_centroids=None):
+def replace_photo_faces(conn, photo_paths, face_records, insert_sql, defer_centroids=None, review_states=None):
     """Replace the stored faces of ``photo_paths`` and keep their named persons.
 
     Snapshot, delete, insert ``face_records`` (rows for ``insert_sql``), then
@@ -213,7 +213,7 @@ def replace_photo_faces(conn, photo_paths, face_records, insert_sql, defer_centr
     for record in face_records:
         by_path.setdefault(record[0], []).append(record)
     for path, records in by_path.items():
-        filtered.extend(without_manual_overlaps(conn, path, records))
+        filtered.extend(without_manual_overlaps(conn, path, records, review_states))
     face_records = filtered
     conn.executemany("DELETE FROM faces WHERE photo_path = ? AND is_manual=0", [(p,) for p in photo_paths])
     if face_records:
