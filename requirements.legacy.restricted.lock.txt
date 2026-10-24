@@ -9,5 +9,5 @@ onnx==1.22.0
 onnxruntime==1.27.0
 openai-clip==1.0.1
 pyiqa==0.1.16
-setuptools==80.10.2
+setuptools==84.1.0
 yapf==0.43.0
