@@ -5,7 +5,7 @@
 addict==2.4.0
 facexlib==0.3.0
 insightface==1.0.1
-onnx==1.22.0
+onnx==1.23.2
 onnxruntime==1.27.0
 openai-clip==1.0.1
 pyiqa==0.1.16
