@@ -118,6 +118,7 @@ export interface Photo {
   star_rating?: number | null;
   is_favorite?: boolean | null;
   is_rejected?: boolean | null;
+  is_kept?: boolean | null;
   keeper_hint?: KeeperHint | null;
   /** 'bracket' | 'panorama' | 'hdr_panorama' when this frame belongs to a
    *  deliberate multi-frame set. With the matching hide toggle on, the tile
@@ -140,6 +141,8 @@ export interface Photo {
   caption_translated?: string | null;
   gps_latitude?: number | null;
   gps_longitude?: number | null;
+  /** 1 when the capture date was corrected in the viewer; rescans then keep it. */
+  date_manually_set?: number | null;
   /** 1 when the location was set in the viewer; rescans then keep it. */
   gps_manually_set?: number | null;
 }
@@ -175,6 +178,7 @@ const PHOTO_FLAG_FIELDS = [
   'is_duplicate_lead',
   'is_favorite',
   'is_rejected',
+  'is_kept',
 ] as const;
 
 type PhotoFlagField = typeof PHOTO_FLAG_FIELDS[number];

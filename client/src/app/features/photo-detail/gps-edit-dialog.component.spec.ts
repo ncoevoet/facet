@@ -383,7 +383,7 @@ describe('GpsEditDialogComponent', () => {
           { provide: ApiService, useValue: mockApi },
           { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-          { provide: AuthService, useValue: { isEdition: () => true } },
+          { provide: AuthService, useValue: { identity: () => '0|', isEdition: () => true } },
           { provide: AlbumService, useValue: { list: () => of({ albums: [] }), update: () => of({}) } },
           { provide: I18nService, useValue: { t: (key: string) => key } },
         ],

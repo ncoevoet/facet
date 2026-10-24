@@ -150,6 +150,7 @@ describe('GalleryComponent', () => {
 
     mockAuth = {
       identity: vi.fn(() => '0|'),
+      status: signal({ user_id: 'alice', edition_authenticated: true }),
       isEdition: vi.fn(() => false),
       downloadProfiles: vi.fn(() => []),
       hasFeature: vi.fn(() => false),
@@ -1907,6 +1908,36 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('capture-date targets', () => {
+    beforeEach(() => { mockAuth['isEdition'] = vi.fn(() => true); });
+    it.each(['identity', 'edition', 'navigation', 'destroy'])('does not open after lazy date launch loses %s', async loss => {
+      mockStore.selectedPaths.set(new Set(['/a'])); mockStore.selectionCount.set(1);
+      const dialog = TestBed.inject(MatDialog);
+      const task = component.openCaptureDateDialog();
+      if (loss === 'identity') (mockAuth['status'] as ReturnType<typeof signal>).set({ user_id: 'bob' });
+      if (loss === 'edition') mockAuth['isEdition'] = vi.fn(() => false);
+      if (loss === 'navigation') {
+        (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(1, '/other'));
+        (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(2, '/'));
+      }
+      if (loss === 'destroy') TestBed.resetTestingModule();
+      await task;
+      expect(dialog.open).not.toHaveBeenCalled();
+    });
+    it('captures scope and exclusions before lazy loading the dialog', async () => {
+      mockStore.viewScopeSelected.set(true);
+      mockStore.excludedPaths.set(new Set(['/skip.jpg']));
+      mockStore.selectionCount.set(12);
+      mockStore.filterPayload.mockReturnValue({ camera: 'Canon' });
+      const dialog = TestBed.inject(MatDialog);
+      const pending = component.openCaptureDateDialog();
+      mockStore.filterPayload.mockReturnValue({ camera: 'Nikon' });
+      mockStore.excludedPaths.set(new Set(['/new.jpg']));
+      await pending;
+      expect((dialog.open as Mock).mock.calls[0][1].data).toEqual({ paths: [], filters: { camera: 'Canon' }, exclude: ['/skip.jpg'], count: 12 });
+    });
+  });
+
   describe('openManualTagsDialog', () => {
     const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
     function select(paths: string[]) {
@@ -2788,6 +2819,18 @@ describe('GalleryComponent', () => {
 
     const reject = () => (component as unknown as { batchReject: () => Promise<void> }).batchReject();
 
+    it.each(['kept', 'undecided'] as const)('offers Undo for a single %s decision without changing selection', async decision => {
+      const snapshot = new Map([['/a.jpg', { ...snap, is_kept: false }]]);
+      mockStore.batchReview = vi.fn().mockResolvedValue({ snapshot, targeted: 1, count: 1 });
+      mockStore.restoreSnapshot.mockResolvedValue(undefined);
+      await (component as unknown as { reviewSingle: (path: string, decision: 'kept' | 'undecided') => Promise<unknown> }).reviewSingle('/a.jpg', decision);
+      expect(mockStore.batchReview).toHaveBeenCalledWith(['/a.jpg'], decision, false);
+      expect(undoRegister).toHaveBeenCalledWith(expect.objectContaining({ labelKey: 'review.updated', labelParams: { count: 1 } }));
+      await undoRegister.mock.calls[0][0].undo();
+      expect(mockStore.restoreSnapshot).toHaveBeenCalledWith(snapshot);
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+    });
+
     it('offers undo when the snapshot covers every photo the action touched', async () => {
       mockStore.selectedPaths.set(new Set(['/a.jpg', '/b.jpg']));
       mockStore.selectionCount.set(2);
@@ -3539,6 +3582,7 @@ describe('GalleryComponent', () => {
         ['mark-panorama', { kind: 'mark-panorama', sequenceKind: 'bracket' }, 'markAsPanorama', ['bracket']],
         ['download', { kind: 'download', type: 'darktable', profile: 'P' }, 'downloadSelected', ['darktable', 'P']],
         ['tags', { kind: 'tags' }, 'openManualTagsDialog', []],
+        ['capture-date', { kind: 'capture-date' }, 'openCaptureDateDialog', []],
       ];
       for (const [name, action, method, args] of cases) {
         it(`${name} -> ${method}`, async () => {
@@ -4111,12 +4155,20 @@ describe('GalleryComponent', () => {
 
     afterEach(() => mockStore.pinnedPaths.set(null));
 
-    it.each(['k', 'K', 'r', 'R'])('%s does nothing on a pinned list: no default prevented, no advance, no write', key => {
+    it.each(['r', 'R'])('%s does nothing on a pinned list: no default prevented, no advance, no write', key => {
       const ev = fire(key);
       expect(ev.defaultPrevented).toBe(false);
       expect(activeIndex()).toBe(0);
       expect(mockStore.toggleRejected).not.toHaveBeenCalled();
       expect(mockStore.setRating).not.toHaveBeenCalled();
+    });
+
+    it.each(['k', 'K'])('%s keeps the focused photo on a pinned list', async key => {
+      mockStore.batchReview = vi.fn().mockResolvedValue({ snapshot: new Map(), targeted: 1, count: 1 });
+      const ev = fire(key);
+      expect(ev.defaultPrevented).toBe(true);
+      expect(mockStore.batchReview).toHaveBeenCalledWith(['/a.jpg'], 'kept', false);
+      await Promise.resolve();
     });
 
     it('X still rejects for real', () => {

@@ -187,6 +187,12 @@ class TestShareLinksHideManualTags:
     @pytest.fixture()
     def shared_albums(self, seeded):
         with _db() as conn:
+            # Shared tag filters may use the normalized index instead of photos.tags.
+            # Keep both AI representations consistent, without indexing manual tags.
+            conn.executemany(
+                "INSERT OR IGNORE INTO photo_tags (photo_path, tag) VALUES (?, ?)",
+                [(AI_ONLY, "alpine glow"), (BOTH, TAG), (BOTH, "alpine glow")],
+            )
             conn.execute(
                 "INSERT OR REPLACE INTO albums (id, name, is_smart, share_token) VALUES (?, 'readers', 0, ?)",
                 (ALBUM_ID, SHARE_TOKEN),
@@ -236,7 +242,11 @@ class TestShareLinksHideManualTags:
         assert values == {"alpine glow"}
         assert TAG not in json.dumps(body["filter_options"])
 
-    def test_viewer_tag_filter_on_share_request_is_ai_only(self, edition_client, shared_albums):
+    @pytest.mark.parametrize("photo_tags_available", [False, True])
+    def test_viewer_tag_filter_on_share_request_is_ai_only(
+        self, edition_client, shared_albums, photo_tags_available, monkeypatch
+    ):
+        monkeypatch.setattr("api.db_helpers.is_photo_tags_available", lambda conn: photo_tags_available)
         resp = self._shared(edition_client, tag=TAG)
         paths = {p["path"] for p in resp.json()["photos"]}
         assert MANUAL_ONLY not in paths

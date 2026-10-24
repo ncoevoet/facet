@@ -3332,6 +3332,27 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(fixture.debugElement.queryAll(By.css('[data-testid="reject-marker"]'))).toHaveLength(1);
   });
 
+  it('shows only Rejected for a legacy photo with conflicting review flags', () => {
+    store.groups.set([{
+      group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 2,
+      photos: [{ ...photo('/p1.jpg'), is_kept: 1, is_rejected: 1 }, photo('/p2.jpg')],
+    }]);
+    fixture.detectChanges();
+    expect(fixture.debugElement.queryAll(By.css('[data-testid="kept-marker"]'))).toHaveLength(0);
+    expect(fixture.debugElement.queryAll(By.css('[data-testid="reject-marker"]'))).toHaveLength(1);
+  });
+
+  it('shows a persisted Keep marker independently of the pending culling selection', () => {
+    store.groups.set([{
+      group_id: 1, type: 'burst', reason: '', best_path: '/p1.jpg', count: 2,
+      photos: [{ ...photo('/p1.jpg'), is_kept: 1 }, photo('/p2.jpg')],
+    }]);
+    fixture.detectChanges();
+    const markers = fixture.debugElement.queryAll(By.css('[data-testid="kept-marker"]'));
+    expect(markers).toHaveLength(1);
+    expect(markers[0].nativeElement.textContent).toContain('review.kept');
+  });
+
   it('closes the auto-cull dialog on Escape despite its keydown shield', () => {
     openAutoCullDialog();
     expect(autoCullDialog()).toBeTruthy();

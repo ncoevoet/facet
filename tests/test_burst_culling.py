@@ -1,6 +1,7 @@
 """Tests for burst culling helpers and endpoints (api/routers/burst_culling.py)."""
 
 import sqlite3
+from tests.conftest import initialize_photo_database
 from contextlib import contextmanager
 from unittest import mock
 
@@ -53,12 +54,6 @@ def _real_schema_db(tmp_path, var_limit=None):
 
 # Every culling feed reports each frame's pending panorama correction, so this
 # side table is part of the schema they query even when no correction exists.
-_SEQUENCE_OVERRIDES_SCHEMA = """
-    CREATE TABLE photo_sequence_overrides (
-        photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
-        source TEXT, created_at TEXT, created_by TEXT, applied_at TEXT
-    );
-"""
 
 
 # ---------------------------------------------------------------------------
@@ -545,24 +540,13 @@ class TestConfirmBracketGroup:
     malformed body must not be able to reject arbitrary photos through it.
     """
 
-    _SCHEMA = """
-        CREATE TABLE rating_provenance (user_id TEXT NOT NULL DEFAULT '', photo_path TEXT NOT NULL, star_rating INTEGER NOT NULL DEFAULT 0, is_favorite INTEGER NOT NULL DEFAULT 0, is_rejected INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, photo_path));
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, sequence_group_id INTEGER,
-            sequence_kind TEXT, sequence_ev_offset REAL, is_rejected INTEGER DEFAULT 0
-        );
-        CREATE TABLE comparisons (
-            id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
-            category TEXT, session_id TEXT, user_id TEXT, source TEXT
-        );
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
 
     @staticmethod
     def _db():
         import sqlite3
         conn = sqlite3.connect(":memory:", check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.executescript(TestConfirmBracketGroup._SCHEMA)
+        initialize_photo_database(conn)
         rungs = (('/k0.jpg', -2.0), ('/k1.jpg', 0.0), ('/k2.jpg', 2.0))
         for path, ev in rungs:
             conn.execute(
@@ -674,13 +658,9 @@ class TestConfirmPanoramaServedAsBurst(TestConfirmBracketGroup):
         import sqlite3
         conn = sqlite3.connect(":memory:", check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.executescript(TestConfirmBracketGroup._SCHEMA)
-        conn.execute("ALTER TABLE photos ADD COLUMN burst_group_id INTEGER")
-        conn.execute("ALTER TABLE photos ADD COLUMN burst_reviewed INTEGER DEFAULT 0")
-        conn.execute("ALTER TABLE photos ADD COLUMN is_burst_lead INTEGER DEFAULT 0")
+        initialize_photo_database(conn)
         # `record_culling_pairs` reads it, so without it the pair-writing path
         # raises and "no pairs were written" would hold for the wrong reason.
-        conn.execute("ALTER TABLE photos ADD COLUMN category TEXT DEFAULT 'default'")
         conn.execute("ALTER TABLE photos ADD COLUMN timestamp TEXT")
         for index in range(3):
             conn.execute(
@@ -1201,19 +1181,6 @@ class TestSelectSimilarInvalidatesCache:
 # ---------------------------------------------------------------------------
 
 class TestQueryBurstGroupsScope:
-    _SCHEMA = """
-        CREATE TABLE rating_provenance (user_id TEXT NOT NULL DEFAULT '', photo_path TEXT NOT NULL, star_rating INTEGER NOT NULL DEFAULT 0, is_favorite INTEGER NOT NULL DEFAULT 0, is_rejected INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, photo_path));
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
-            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0,
-            burst_group_id INTEGER, burst_reviewed INTEGER, eyes_open_score REAL,
-            expression_score REAL, face_count INTEGER, category TEXT,
-            sequence_kind TEXT, sequence_ev_offset REAL
-        );
-        CREATE TABLE album_photos (
-            id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT
-        );
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
 
     # g1: two frames inside the window; g2: outside; g3: two frames inside +
     # a tail frame 3s AFTER the window end (boundary burst).
@@ -1231,7 +1198,7 @@ class TestQueryBurstGroupsScope:
         import sqlite3
         conn = sqlite3.connect(":memory:", check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.executescript(self._SCHEMA)
+        initialize_photo_database(conn)
         conn.executemany(
             "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
             "tech_sharpness, is_blink, is_burst_lead, burst_group_id, burst_reviewed, "
@@ -1305,25 +1272,13 @@ class TestFetchBracketGroups:
     and the small-set exclusion — had no coverage of its own.
     """
 
-    _SCHEMA = """
-        CREATE TABLE rating_provenance (user_id TEXT NOT NULL DEFAULT '', photo_path TEXT NOT NULL, star_rating INTEGER NOT NULL DEFAULT 0, is_favorite INTEGER NOT NULL DEFAULT 0, is_rejected INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, photo_path));
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
-            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER DEFAULT 0,
-            is_burst_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
-            eyes_open_score REAL, expression_score REAL, face_count INTEGER DEFAULT 0,
-            category TEXT, is_rejected INTEGER DEFAULT 0,
-            sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
-            shadow_clipped INTEGER, highlight_clipped INTEGER
-        );
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
 
     @staticmethod
     def _db(rows):
         import sqlite3
         conn = sqlite3.connect(":memory:", check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.executescript(TestFetchBracketGroups._SCHEMA)
+        initialize_photo_database(conn)
         conn.executemany(
             "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
             "tech_sharpness, sequence_group_id, sequence_kind, sequence_ev_offset, "
@@ -1401,23 +1356,12 @@ class TestPanoramaGroupsCarryTheOverride:
     feed would look exactly as it did before the click.
     """
 
-    _SCHEMA = """
-        CREATE TABLE rating_provenance (user_id TEXT NOT NULL DEFAULT '', photo_path TEXT NOT NULL, star_rating INTEGER NOT NULL DEFAULT 0, is_favorite INTEGER NOT NULL DEFAULT 0, is_rejected INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, photo_path));
-        CREATE TABLE photos (
-            path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
-            aesthetic REAL, tech_sharpness REAL, is_blink INTEGER DEFAULT 0,
-            is_burst_lead INTEGER DEFAULT 0, burst_group_id INTEGER,
-            eyes_open_score REAL, expression_score REAL, face_count INTEGER DEFAULT 0,
-            category TEXT, is_rejected INTEGER DEFAULT 0,
-            sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL
-        );
-    """ + _SEQUENCE_OVERRIDES_SCHEMA
 
     def _db(self, overrides=()):
         import sqlite3
         conn = sqlite3.connect(":memory:", check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.executescript(self._SCHEMA)
+        initialize_photo_database(conn)
         conn.executemany(
             "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
             "tech_sharpness, sequence_group_id, sequence_kind) VALUES (?,?,?,5.0,5.0,5.0,1,'panorama')",
@@ -1547,7 +1491,7 @@ class TestCullingGroupsUserMarks:
 
     PREFIX = "/cgmarks-b4/"
     GID = 61616
-    MARK_KEYS = ("is_rejected", "is_favorite", "star_rating")
+    MARK_KEYS = ("is_rejected", "is_favorite", "star_rating", "is_kept")
 
     @classmethod
     def _rows(cls):
@@ -1556,7 +1500,7 @@ class TestCullingGroupsUserMarks:
                     "aggregate": 6.0 + second, "aesthetic": 6.0, "tech_sharpness": 6.0,
                     "burst_group_id": cls.GID, "is_burst_lead": int(second == 1), **extra}
         return [row("a.jpg", 1, is_rejected=1, is_favorite=0, star_rating=0),
-                row("b.jpg", 2, is_rejected=0, is_favorite=1, star_rating=4),
+                row("b.jpg", 2, is_rejected=0, is_favorite=1, star_rating=4, is_kept=1),
                 row("c.jpg", 3, is_rejected=0, is_favorite=0, star_rating=0)]
 
     @pytest.fixture()
@@ -1589,6 +1533,7 @@ class TestCullingGroupsUserMarks:
         assert (a["is_rejected"], a["is_favorite"], a["star_rating"]) == (1, 0, 0)
         assert (b["is_rejected"], b["is_favorite"], b["star_rating"]) == (0, 1, 4)
         assert (c["is_rejected"], c["is_favorite"], c["star_rating"]) == (0, 0, 0)
+        assert (a["is_kept"], b["is_kept"], c["is_kept"]) == (0, 1, 0)
         for photo in photos.values():
             for key in self.MARK_KEYS:
                 assert type(photo[key]) is int, (key, photo[key])
@@ -1618,6 +1563,33 @@ class TestCullingGroupsUserMarks:
         assert (c["is_rejected"], c["is_favorite"], c["star_rating"]) == (1, 1, 5)
         # The photos-table values (a rejected, b favourite) belong to nobody in multi-user mode.
         assert (photos[self.PREFIX + "a.jpg"]["is_rejected"], photos[self.PREFIX + "b.jpg"]["star_rating"]) == (0, 0)
+
+    def test_keep_marks_are_per_user_and_refreshed_after_a_cached_fetch(self, client):
+        from tests.conftest import _TEST_DB_FILE
+        path = self.PREFIX + "c.jpg"
+        conn = sqlite3.connect(_TEST_DB_FILE.name)
+        try:
+            with (
+                mock.patch("api.db_helpers.is_multi_user_enabled", return_value=True),
+                mock.patch("api.routers.burst_culling.is_multi_user_enabled", return_value=True),
+                mock.patch("api.routers.burst_culling.get_visibility_clause", return_value=("1=1", [])),
+                mock.patch("api.db_helpers.get_visibility_clause", return_value=("1=1", [])),
+            ):
+                conn.execute("INSERT INTO user_preferences (user_id, photo_path, is_kept) VALUES ('other-user', ?, 1)", (path,))
+                conn.commit()
+                before = self._photos(client)
+                assert before[path]["is_kept"] == 0
+                assert before[self.PREFIX + "b.jpg"]["is_kept"] == 0
+                conn.execute("INSERT INTO user_preferences (user_id, photo_path, is_kept) VALUES ('cgmarks-user', ?, 1)", (path,))
+                conn.commit()
+                assert self._photos(client)[path]["is_kept"] == 1
+                conn.execute("UPDATE user_preferences SET is_kept = 0 WHERE user_id = 'cgmarks-user' AND photo_path = ?", (path,))
+                conn.commit()
+                assert self._photos(client)[path]["is_kept"] == 0
+        finally:
+            conn.execute("DELETE FROM user_preferences WHERE photo_path LIKE ?", (self.PREFIX + "%",))
+            conn.commit()
+            conn.close()
 
     def test_a_group_with_no_photos_is_untouched(self):
         from api.routers.burst_culling import attach_user_marks

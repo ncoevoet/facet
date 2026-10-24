@@ -53,6 +53,7 @@ ENDPOINTS = [
     ("/api/photos/batch_favorite", {}),
     ("/api/photos/batch_reject", {}),
     ("/api/photos/batch_rating", {"rating": 4}),
+    ("/api/photos/batch_review", {"decision": "kept"}),
 ]
 ENDPOINT_IDS = [path.rsplit("/", 1)[-1] for path, _ in ENDPOINTS]
 
@@ -108,8 +109,9 @@ def alice_client():
 
 
 @pytest.fixture()
-def single_user_client():
+def single_user_client(monkeypatch):
     """Edition client on a single-user install — no ``users`` block at all."""
+    monkeypatch.setitem(api_config.VIEWER_CONFIG, "password", "")
     prev = api_config._FULL_CONFIG.get("users")
     api_config._FULL_CONFIG.pop("users", None)
     try:
@@ -130,7 +132,7 @@ def _photo_flags(paths):
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
         placeholders = ",".join("?" * len(paths))
         rows = conn.execute(
-            f"SELECT path, is_favorite, is_rejected, star_rating FROM photos "
+            f"SELECT path, is_favorite, is_rejected, star_rating, is_kept FROM photos "
             f"WHERE path IN ({placeholders})",
             list(paths),
         ).fetchall()

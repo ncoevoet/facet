@@ -2766,5 +2766,32 @@
       "ui_suggest_culling": "Suggestions marquées sur le plan d'auto-tri",
       "ui_show_comparison": "Comparaison affichée"
     }
+  },
+  "review": {
+    "status": "Décision de tri",
+    "all": "Toutes les décisions",
+    "needs_review": "À examiner",
+    "kept": "Conservées",
+    "rejected": "Rejetées",
+    "keep": "Conserver",
+    "reset": "Réinitialiser la décision",
+    "updated": "Décision mise à jour pour {{count}} photos",
+    "shortcut": "Conserver la photo"
+  },
+  "capture_date": {
+    "title": "Corriger la date de prise de vue",
+    "offset": "Décalage en secondes (+ plus tard, − plus tôt)",
+    "invalid": "Saisissez un nombre entier non nul de secondes, limité à ±366 jours, pour 1000 photos maximum.",
+    "counts": "{changed} modifiées · {skipped} ignorées",
+    "samples": "20 premières modifications. Les dates inconnues, incomplètes, non prises en charge ou hors limites sont ignorées.",
+    "photo": "Photo",
+    "before": "Avant",
+    "after": "Après",
+    "error": "Action impossible. Vérifiez les accès et les fichiers, puis relancez l’aperçu.",
+    "reset_hint": "La date du fichier supprime la correction manuelle. Si le fichier ne contient aucune date, la date devient inconnue.",
+    "use_file": "Utiliser la date du fichier",
+    "preview": "Aperçu",
+    "apply": "Appliquer la correction",
+    "hint": "Décale l’heure locale de l’appareil, sans déduire le fuseau ni l’heure d’été. Les originaux ne changent que lors d’un export explicite des métadonnées."
   }
 }

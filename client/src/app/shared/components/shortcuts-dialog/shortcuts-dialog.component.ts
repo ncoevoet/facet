@@ -58,6 +58,7 @@ export class ShortcutsDialogComponent {
         { keys: ['Space'], labelKey: 'shortcuts.toggle_select' },
         { keys: ['Ctrl', 'A'], labelKey: 'shortcuts.select_all' },
         { keys: ['1', '–', '5'], labelKey: 'shortcuts.rate' },
+        { keys: ['K'], labelKey: this.I18N.review.shortcut },
         { keys: ['0', 'X'], labelKey: 'shortcuts.reject' },
         { keys: ['F'], labelKey: 'shortcuts.favorite' },
         { keys: ['Esc'], labelKey: 'shortcuts.clear_selection' },
@@ -67,6 +68,7 @@ export class ShortcutsDialogComponent {
     {
       titleKey: 'shortcuts.section_detail',
       rows: [
+        { keys: ['K'], labelKey: this.I18N.review.shortcut },
         { keys: ['←', '→'], labelKey: 'shortcuts.navigate' },
         { keys: ['Esc'], labelKey: 'shortcuts.close' },
       ],

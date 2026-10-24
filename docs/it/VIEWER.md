@@ -209,6 +209,19 @@ Controllato da `viewer.features.show_my_taste` (predefinito: `true`). Lo stato d
 
 Con `licensing.mode` impostato su `commercial`, il visualizzatore nasconde le metriche i cui modelli non sono utilizzabili commercialmente: LIQE, Aesthetic IAA, Face Quality IQA (salvo che OFIQ sia installato), DeQA (salvo che `licensing.allow_unclear` sia impostato) e Aesthetic V2.5: i relativi filtri di intervallo, chip di filtro e opzioni di ordinamento. `/api/config` le elenca in `unavailable_metrics`. Nella pagina di regolazione dei pesi i cursori restano visibili ma disattivati, con un tooltip; i pesi vengono conservati, perché il punteggio li scarta e rinormalizza. Riavviare il visualizzatore dopo aver cambiato la modalità di licenza.
 
+## Decisioni di revisione
+
+Nella galleria scegli **Stato revisione → Da rivedere** per scorrere le foto senza decisione. Viene impostato l’ordine per **data di scatto, dalle più vecchie**; puoi invertirlo o filtrare per data, cartella o album.
+
+**Conserva** e **Rifiuta** rimuovono la foto da questa vista dopo il salvataggio. Le foto conservate restano nella libreria normale e sono disponibili con il filtro **Conservate**. Preferiti e stelle rimangono indipendenti.
+
+Conserva e **Reimposta decisione** sono disponibili nel dettaglio, nel menu contestuale e nelle azioni multiple. **K** conserva la foto corrente. Reimpostare cancella Conserva e Rifiuta senza modificare stelle o preferiti. Le azioni della galleria possono essere annullate.
+
+Le decisioni sopravvivono a ricaricamenti, riavvii e nuove scansioni e sono personali per ogni utente. Confermare un gruppo di selezione contrassegna anche le foto scelte come conservate. Le vecchie valutazioni, i preferiti e i gruppi già esaminati non vengono convertiti automaticamente.
+
+Lo stato di revisione si applica alla galleria normale; scegliere uno stato chiude le ricerche semantiche e di foto simili.
+
+
 ## Funzionalità della galleria
 
 ### Schede foto
@@ -1525,3 +1538,11 @@ Se la ricerca semantica segnala che l’accelerazione Apple Silicon è occupata,
 | Le didascalie non vengono generate | Richiede il profilo VRAM 16gb/24gb per le didascalie VLM |
 | Cronologia vuota | Assicurati che le foto abbiano valori `date_taken` |
 | Porta 5000 in uso | Esegui `python viewer.py --port 5001` (o imposta `PORT=5001`). Su macOS, il Ricevitore AirPlay di ControlCenter occupa la porta 5000 per impostazione predefinita — scegli un'altra porta oppure disabilita il Ricevitore AirPlay in Impostazioni di Sistema → Generali → AirDrop e Handoff. |
+
+## Correzione della data di scatto
+
+In modalità modifica, **Correggi data di scatto** è disponibile nei dettagli e nella barra di selezione. La selezione o «Seleziona tutto nella vista», con esclusioni, accetta al massimo 1000 foto visibili. Inserisci secondi interi diversi da zero tra −31622400 e +31622400 (±366 giorni): positivo sposta dopo, negativo prima. **Anteprima** mostra il numero di foto modificate/ignorate e le prime 20 date prima/dopo. **Applica correzione** ricontrolla ambito e valori e applica tutto atomicamente; se cambiano, ripeti l’anteprima.
+
+Si sposta l’ora locale della fotocamera senza dedurre fuso orario o ora legale. Sono supportati valori completi `YYYY:MM:DD HH:MM:SS` o `YYYY-MM-DD[T o spazio]HH:MM:SS`. Date sconosciute, incomplete, non valide, fuori intervallo o con fuso/frazioni di secondo vengono ignorate. Le correzioni sopravvivono a scansioni complete/parziali ed esportazioni incrementali del database del visualizzatore. **Usa data del file** rimuove la correzione; senza data nel file, la data diventa sconosciuta. File illeggibili o date non supportate conservano la correzione.
+
+Originali e date di modifica dei file rimangono invariati. L’esportazione XMP esplicita scrive `exif:DateTimeOriginal` per date manuali; la scrittura esplicita nel file aggiunge EXIF `DateTimeOriginal` nei formati supportati senza modificare altre date EXIF. I gruppi di raffiche/sequenze restano invariati; avvia esplicitamente la scansione o il rilevamento dei gruppi per raggruppare nuovamente.

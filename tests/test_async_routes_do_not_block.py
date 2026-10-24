@@ -186,6 +186,12 @@ def _drive(requests, statuses=None):
             apps[key] = TestClient(_user_app(user) if user else create_app(),
                                    raise_server_exceptions=False)
         client = apps[key]
+        if path == '/api/photos/capture_date/apply':
+            # Reach the apply transaction instead of stopping at a stale token.
+            draft = {k: v for k, v in body.items() if k != 'preview_token'}
+            preview = client.post('/api/photos/capture_date/preview', json=draft)
+            assert preview.status_code == 200, preview.text
+            body = {**draft, 'preview_token': preview.json()['preview_token']}
         _cold_caches()
         with loop_guard() as hits:
             resp = client.request(method, path, params=params, json=body)
@@ -265,6 +271,8 @@ def _bind(requests, photo_path, album_id):
             params['album_id'] = album_id
         if isinstance(body, dict):
             body = {k: value(v) for k, v in body.items()}
+            if path in ('/api/photos/capture_date/preview', '/api/photos/capture_date/apply'):
+                body = {**body, 'photo_paths': [photo_path]}
         yield method, path, params, body, user
 
 

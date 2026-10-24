@@ -210,6 +210,19 @@ Controlled by `viewer.features.show_my_taste` (default: `true`). Ranker status i
 
 With `licensing.mode` set to `commercial`, the viewer hides the metrics whose models cannot be used commercially — LIQE, Aesthetic IAA, Face Quality IQA (unless OFIQ is installed), DeQA (unless `licensing.allow_unclear` is set) and Aesthetic V2.5: their range filters, filter chips and sort options. `/api/config` lists them in `unavailable_metrics`. On the Weight Tuning page their sliders stay visible but disabled, with a tooltip; the weights are kept, because scoring drops and renormalises them. Restart the viewer after changing the licensing mode.
 
+## Review decisions
+
+Use **Review status → Needs review** in the gallery to work through undecided photos. Entering this view selects **Date Taken, oldest first**; you can reverse the order or narrow it by date, folder or album.
+
+Choose **Keep** for a photo you want to retain, or **Reject** for one you do not. Both decisions remove the photo from Needs review after saving. Kept photos remain in the normal library and can be found with the **Kept** status filter. Keep is independent of favorites and star ratings.
+
+Keep and **Reset decision** are available in photo detail, the gallery context menu and bulk actions. Press **K** to keep the current photo. Reset decision clears Keep and Reject and returns the photo to Needs review without changing its stars or favorite flag. Use Undo to reverse a gallery action.
+
+Decisions survive reloads, viewer restarts and rescans. On multi-user installs they belong to the current user. Confirming a culling group also marks its chosen keepers as Kept. Existing ratings, favorites and previously reviewed groups are not automatically converted into Keep decisions.
+
+Review status applies to the regular gallery; choosing a status exits semantic and Similar Photos searches.
+
+
 ## Gallery Features
 
 ### Photo Cards
@@ -1317,6 +1330,7 @@ The client's TypeScript types are generated from that schema into `client/src/ap
 |----------|-------------|
 | `POST /api/photos/batch_favorite` | Mark multiple photos as favorite (clears rejected). Body is exactly one of `{photo_paths}` (max 1000) or `{filters}` — `filters` takes the same query params as `GET /api/photos`, as strings, with no cap. `exclude` (optional, max 1000) may accompany either and narrows whichever target is sent — subtracted from `photo_paths`, or bound out of the `filters` scope — so it can only narrow, never widen. Supplying neither target or both is a 422, and a `filters` set naming an album is access-checked like that album's own GET — `404` for an album that does not exist, `403` for another user's on an access-controlled install. Response `{success, count}`, where `count` is the number of rows actually written |
 | `POST /api/photos/batch_reject` | Mark multiple photos as rejected (clears favorite and rating). Same body contract as `batch_favorite` above |
+| `POST /api/photos/batch_review` | Set a review decision. Keep/reset preserves stars and favorites; rejection clears them, like the other Reject actions. Same targeting/exclusion contract as `batch_favorite`, plus `decision: kept \| undecided \| rejected`. Kept clears rejection; rejected clears Keep; undecided clears both. Returns `{success, count}`. The gallery accepts `review_status=undecided\|kept\|rejected`; omit it for the normal library |
 | `POST /api/photos/batch_rating` | Set star rating for multiple photos. Same body contract as `batch_favorite`, plus a required `rating` (0–5) |
 | `POST /api/photos/batch_manual_tags` | Add or remove one [manual tag](#manual-tags) on multiple photos (edition-gated). Same body contract as `batch_favorite`, plus a required `tag` and an `action` of `add` or `delete`. Response `{success, count}`, where `count` is the number of rows actually written: photos already at the 50-tag cap and photos whose AI tags already contain the tag are skipped on `add` |
 
@@ -1600,3 +1614,13 @@ If semantic search reports that Apple Silicon acceleration is busy, retry after 
 | Captions not generating | Requires 16gb/24gb VRAM profile for VLM captioning |
 | Timeline empty | Ensure photos have `date_taken` values |
 | Port 5000 in use | Run `python viewer.py --port 5001` (or set `PORT=5001`). On macOS, ControlCenter's AirPlay Receiver binds 5000 by default — either pick another port or disable AirPlay Receiver in System Settings → General → AirDrop & Handoff. |
+
+## Capture-date correction
+
+In edition mode, choose **Correct capture date** in photo details or the gallery selection bar. Selected photos and “Select all in view” (with exclusions) use the same workflow, limited to 1000 visible photos. Enter a nonzero integer offset in seconds, from −31622400 to +31622400 (±366 days); positive shifts later, negative earlier. **Preview** shows changed/skipped counts and the first 20 original/new timestamps; **Apply correction** rechecks the live scope and values atomically. If anything changed, preview again.
+
+This shifts camera walltime without inferring timezones or daylight saving. Only complete `YYYY:MM:DD HH:MM:SS` or `YYYY-MM-DD[T or space]HH:MM:SS` values are supported. Unknown dates, date-only values, timezone/subsecond suffixes, invalid calendar dates and overflows are skipped, preserving seconds. Manual dates survive full/partial rescans and incremental viewer database exports. **Use file date** on a manually corrected photo rereads the original and removes the override; no file date means an unknown capture date. Unreadable files or unsupported file dates keep the override.
+
+Corrections do not write originals or change file modification times. Existing explicit XMP export writes standard `exif:DateTimeOriginal` for manual dates; **Write metadata to file** additionally updates EXIF `DateTimeOriginal` for supported formats, leaving other EXIF date fields alone. Existing burst/sequence assignments are retained; run the existing scan/group detection workflow explicitly when regrouping is needed.
+
+Edition API: `POST /api/photos/capture_date/preview` accepts `photo_paths` or `filters`, optional `exclude`, and `offset_seconds`; `POST /api/photos/capture_date/apply` also requires the returned `preview_token`. `DELETE /api/photo/capture_date?path=` restores the file date.

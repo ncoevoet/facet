@@ -10,6 +10,7 @@ regular_client / anonymous_client) — never mock.patch on auth dependencies.
 """
 
 import sqlite3
+from tests.conftest import initialize_photo_database
 import time
 from contextlib import contextmanager
 from unittest import mock
@@ -21,39 +22,6 @@ from api.routers.burst_culling import (
     _culling_groups_cache,
 )
 
-_SCHEMA = """
-    CREATE TABLE rating_provenance (user_id TEXT NOT NULL DEFAULT '', photo_path TEXT NOT NULL, star_rating INTEGER NOT NULL DEFAULT 0, is_favorite INTEGER NOT NULL DEFAULT 0, is_rejected INTEGER NOT NULL DEFAULT 0, PRIMARY KEY (user_id, photo_path));
-    CREATE TABLE photos (
-        path TEXT PRIMARY KEY, filename TEXT, date_taken TEXT, aggregate REAL,
-        aesthetic REAL, tech_sharpness REAL, is_blink INTEGER, is_burst_lead INTEGER, is_sequence_lead INTEGER DEFAULT 0,
-        burst_group_id INTEGER, burst_reviewed INTEGER DEFAULT 0,
-        similarity_reviewed INTEGER DEFAULT 0, eyes_open_score REAL,
-        expression_score REAL, face_count INTEGER DEFAULT 0, category TEXT,
-        is_rejected INTEGER DEFAULT 0,
-        sequence_group_id INTEGER, sequence_kind TEXT, sequence_ev_offset REAL,
-        shadow_clipped INTEGER, highlight_clipped INTEGER
-    );
-    CREATE TABLE albums (
-        id INTEGER PRIMARY KEY, user_id TEXT, name TEXT, description TEXT,
-        cover_photo_path TEXT, is_smart INTEGER DEFAULT 0, smart_filter_json TEXT,
-        share_token TEXT, created_at TEXT, updated_at TEXT, scoring_context TEXT
-    );
-    CREATE TABLE album_photos (
-        id INTEGER PRIMARY KEY, album_id INTEGER, photo_path TEXT,
-        position INTEGER, added_at TEXT,
-        UNIQUE(album_id, photo_path)
-    );
-    CREATE TABLE comparisons (
-        id INTEGER PRIMARY KEY, photo_a_path TEXT, photo_b_path TEXT, winner TEXT,
-        category TEXT, session_id TEXT, user_id TEXT, source TEXT,
-        UNIQUE(photo_a_path, photo_b_path)
-    );
-    CREATE TABLE stats_cache (key TEXT PRIMARY KEY, value TEXT, updated_at REAL);
-    CREATE TABLE photo_sequence_overrides (
-        photo_path TEXT PRIMARY KEY, sequence_kind TEXT, override_group_key TEXT,
-        source TEXT, created_at TEXT, created_by TEXT, applied_at TEXT
-    );
-"""
 
 # Burst group 1: burst_score 9.15 / 8.30 / 4.05 (weights .4/.25/.2/.15, no blink).
 # Burst group 2: burst_score 7.45 / 7.025 (0.425 apart — near-tie).
@@ -76,7 +44,7 @@ def _cm(conn):
 def _db(photos=None):
     conn = sqlite3.connect(":memory:", check_same_thread=False)
     conn.row_factory = sqlite3.Row
-    conn.executescript(_SCHEMA)
+    initialize_photo_database(conn)
     for path, dt, score, gid in (photos if photos is not None else _BURST_PHOTOS):
         conn.execute(
             "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "
@@ -225,6 +193,9 @@ class TestApply:
         rejected = [r["path"] for r in conn.execute(
             "SELECT path FROM photos WHERE is_rejected = 1").fetchall()]
         assert rejected == ["/g1c.jpg"]
+        assert {r["path"] for r in conn.execute("SELECT path FROM photos WHERE is_kept = 1")} == {
+            "/g1a.jpg", "/g1b.jpg", "/g2a.jpg", "/g2b.jpg"}
+        assert conn.execute("SELECT is_kept FROM photos WHERE path='/g1c.jpg'").fetchone()[0] == 0
         # Every member of both processed groups is marked reviewed.
         assert conn.execute(
             "SELECT COUNT(*) FROM photos WHERE burst_reviewed = 1").fetchone()[0] == 5
@@ -481,7 +452,7 @@ class TestLargeSimilarGroup:
     culled all the way down instead of leaving its worst photos untouched."""
 
     def test_similar_group_over_twenty_culls_every_photo(self, edition_client):
-        photos = [(f"/p{i:02d}.jpg", f"2024:06:15 10:00:{i:02d}", float(25 - i), None)
+        photos = [(f"/p{i:02d}.jpg", f"2024:06:15 10:00:{i:02d}", float(25 - i) / 2.5, None)
                   for i in range(25)]
         conn = _db(photos=photos)
         all_paths = [p[0] for p in photos]
@@ -682,7 +653,7 @@ class TestAutoCullMixedSequenceGroup:
     def _conn(self):
         conn = sqlite3.connect(":memory:", check_same_thread=False)
         conn.row_factory = sqlite3.Row
-        conn.executescript(_SCHEMA)
+        initialize_photo_database(conn)
         for path, dt, score, kind in self.ROWS:
             conn.execute(
                 "INSERT INTO photos (path, filename, date_taken, aggregate, aesthetic, "

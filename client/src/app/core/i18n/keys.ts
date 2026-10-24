@@ -2781,6 +2781,33 @@ export const I18N = {
       ui_show_comparison: "assistant_activity.ui.ui_show_comparison",
     },
   },
+  review: {
+    status: "review.status",
+    all: "review.all",
+    needs_review: "review.needs_review",
+    kept: "review.kept",
+    rejected: "review.rejected",
+    keep: "review.keep",
+    reset: "review.reset",
+    updated: "review.updated",
+    shortcut: "review.shortcut",
+  },
+  capture_date: {
+    title: "capture_date.title",
+    offset: "capture_date.offset",
+    invalid: "capture_date.invalid",
+    counts: "capture_date.counts",
+    samples: "capture_date.samples",
+    photo: "capture_date.photo",
+    before: "capture_date.before",
+    after: "capture_date.after",
+    error: "capture_date.error",
+    reset_hint: "capture_date.reset_hint",
+    use_file: "capture_date.use_file",
+    preview: "capture_date.preview",
+    apply: "capture_date.apply",
+    hint: "capture_date.hint",
+  },
 } as const;
 
 /** Returns {@link I18N}; use it to initialize class fields -- see the header comment above. */

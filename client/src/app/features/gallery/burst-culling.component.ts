@@ -705,6 +705,11 @@ interface ShortcutRow {
                           {{ I18N.rating.rejected_badge | translate }}
                         </span>
                       }
+                      @if (photo.is_kept && !photo.is_rejected) {
+                        <span data-testid="kept-marker" class="px-2 py-0.5 rounded bg-green-700 text-white text-xs font-bold">
+                          {{ I18N.review.kept | translate }}
+                        </span>
+                      }
                       @if (photo.sequence_kind === 'bracket') {
                         <span class="px-2 py-0.5 rounded bg-amber-600 text-white text-xs font-bold">
                           {{ photo.sequence_ev_offset | evOffset }}

@@ -2766,5 +2766,32 @@
       "ui_suggest_culling": "Vorschläge im Auswahlplan markiert",
       "ui_show_comparison": "Vergleich angezeigt"
     }
+  },
+  "review": {
+    "status": "Auswahlstatus",
+    "all": "Alle Entscheidungen",
+    "needs_review": "Zu prüfen",
+    "kept": "Behalten",
+    "rejected": "Abgelehnt",
+    "keep": "Behalten",
+    "reset": "Entscheidung zurücksetzen",
+    "updated": "Entscheidung für {{count}} Fotos aktualisiert",
+    "shortcut": "Foto behalten"
+  },
+  "capture_date": {
+    "title": "Aufnahmedatum korrigieren",
+    "offset": "Versatz in Sekunden (+ später, − früher)",
+    "invalid": "Eine ganze Zahl ungleich null innerhalb von ±366 Tagen; höchstens 1000 Fotos auswählen.",
+    "counts": "{changed} geändert · {skipped} übersprungen",
+    "samples": "Die ersten 20 Änderungen. Unbekannte, unvollständige, nicht unterstützte oder überlaufende Datumswerte werden übersprungen.",
+    "photo": "Foto",
+    "before": "Vorher",
+    "after": "Nachher",
+    "error": "Aktion fehlgeschlagen. Zugriff und Dateien prüfen und die Vorschau erneut laden.",
+    "reset_hint": "Das Dateidatum entfernt die manuelle Korrektur. Ohne Datum in der Datei wird das Aufnahmedatum unbekannt.",
+    "use_file": "Dateidatum verwenden",
+    "preview": "Vorschau",
+    "apply": "Korrektur anwenden",
+    "hint": "Verschiebt die gespeicherte Kamera-Uhrzeit ohne Ableitung von Zeitzone oder Sommerzeit. Originale ändern sich erst beim ausdrücklichen Metadatenexport."
   }
 }

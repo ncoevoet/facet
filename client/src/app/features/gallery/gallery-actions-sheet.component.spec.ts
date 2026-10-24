@@ -46,6 +46,15 @@ describe('GalleryActionsSheetComponent', () => {
     expect(dismiss).toHaveBeenCalledWith({ kind: 'tags' });
   });
 
+  it('offers capture date correction only with edition access', () => {
+    const find = (el: HTMLElement) => Array.from(el.querySelectorAll('button')).find(b => b.textContent?.includes(I18N.capture_date.title));
+    expect(find(render({ isEdition: false }))).toBeUndefined();
+    const button = find(render());
+    expect(button).toBeDefined();
+    button!.click();
+    expect(dismiss).toHaveBeenCalledWith({ kind: 'capture-date' });
+  });
+
   it('closes without an action from the header close button', () => {
     const close = render().querySelector<HTMLButtonElement>('[data-sheet-close]');
     expect(close?.getAttribute('aria-label')).toBe(I18N.dialog.close);

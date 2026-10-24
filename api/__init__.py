@@ -619,6 +619,8 @@ def create_app() -> FastAPI:
     app.include_router(plugins_router)
     app.include_router(memories_router)
     app.include_router(caption_router)
+    from api.routers.capture_dates import router as capture_dates_router
+    app.include_router(capture_dates_router)
     app.include_router(manual_tags_router)
     app.include_router(timeline_router)
     app.include_router(map_router)

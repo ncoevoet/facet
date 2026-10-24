@@ -42,6 +42,8 @@ _FILTER_FIELDS: dict[str, Any] = {
 _FILTER_FIELDS["show_rejected"] = (Optional[bool], Field(
     default=None, description="true lists ONLY the rejected photos; false or omitted is the "
     "normal listing. Other values are refused."))
+_FILTER_FIELDS["review_status"] = (Optional[Literal["", "undecided", "kept", "rejected"]], Field(
+    default=None, description="Review decision: undecided, kept, or rejected; empty clears the filter."))
 SearchFilters = create_model("SearchFilters", __config__=ConfigDict(extra="forbid"), **_FILTER_FIELDS)
 
 # Every column the gallery routes serve is requestable, except the BLOBs (a guard: none is

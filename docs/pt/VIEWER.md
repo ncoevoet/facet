@@ -209,6 +209,19 @@ Controlado por `viewer.features.show_my_taste` (padrão: `true`). O status do ra
 
 Com `licensing.mode` definido como `commercial`, o visualizador oculta as métricas cujos modelos não podem ser usados comercialmente: LIQE, Aesthetic IAA, Face Quality IQA (a menos que o OFIQ esteja instalado), DeQA (a menos que `licensing.allow_unclear` esteja definido) e Aesthetic V2.5: os respetivos filtros de intervalo, chips de filtro e opções de ordenação. `/api/config` lista-as em `unavailable_metrics`. Na página de ajuste de pesos os controlos continuam visíveis mas desativados, com uma dica; os pesos são mantidos, porque a pontuação os descarta e renormaliza. Reinicie o visualizador depois de alterar o modo de licença.
 
+## Decisões de revisão
+
+Na galeria, escolha **Status de revisão → Precisa de revisão** para percorrer fotos sem decisão. A ordem muda para **data da captura, mais antigas primeiro**; você pode invertê-la ou filtrar por data, pasta ou álbum.
+
+**Manter** e **Rejeitar** retiram a foto dessa visualização após salvar. As fotos mantidas continuam na biblioteca normal e aparecem com o filtro **Mantidas**. Favoritos e estrelas permanecem independentes.
+
+Manter e **Redefinir decisão** estão disponíveis nos detalhes, no menu de contexto e nas ações em lote. **K** mantém a foto atual. Redefinir limpa Manter e Rejeitar sem alterar estrelas ou favoritos. As ações da galeria podem ser desfeitas.
+
+As decisões persistem após recarregar, reiniciar e analisar novamente, e são individuais por usuário. Confirmar um grupo de seleção também marca suas fotos escolhidas como mantidas. Avaliações, favoritos e grupos já revisados não são convertidos automaticamente.
+
+O status de revisão se aplica à galeria normal; escolher um status encerra as buscas semânticas e de fotos semelhantes.
+
+
 ## Recursos da Galeria
 
 ### Cartões de Foto
@@ -1525,3 +1538,11 @@ Se a busca semântica informar que a aceleração Apple Silicon está ocupada, t
 | Legendas não são geradas | Requer o perfil de VRAM 16gb/24gb para legendagem por VLM |
 | Linha do tempo vazia | Garanta que as fotos tenham valores em `date_taken` |
 | Porta 5000 em uso | Execute `python viewer.py --port 5001` (ou defina `PORT=5001`). No macOS, o AirPlay Receiver do ControlCenter vincula a 5000 por padrão — escolha outra porta ou desative o AirPlay Receiver em Ajustes do Sistema → Geral → AirDrop e Handoff. |
+
+## Correção da data de captura
+
+No modo de edição, **Corrigir data de captura** está disponível nos detalhes e na barra de seleção. A seleção ou «Selecionar tudo na vista», com exclusões, aceita até 1000 fotos visíveis. Introduza segundos inteiros diferentes de zero entre −31622400 e +31622400 (±366 dias): positivo move para depois, negativo para antes. **Pré-visualizar** mostra contagens de alteradas/ignoradas e as primeiras 20 datas antes/depois. **Aplicar correção** verifica novamente o âmbito e os valores e aplica tudo atomicamente; se mudarem, repita a pré-visualização.
+
+Desloca-se a hora local da câmara sem deduzir fuso horário ou horário de verão. São aceites valores completos `YYYY:MM:DD HH:MM:SS` ou `YYYY-MM-DD[T ou espaço]HH:MM:SS`. Datas desconhecidas, incompletas, inválidas, fora dos limites ou com fuso/frações de segundo são ignoradas. As correções sobrevivem a análises completas/parciais e exportações incrementais da base do visualizador. **Usar data do ficheiro** remove a correção; sem data no ficheiro, a data fica desconhecida. Ficheiros ilegíveis ou datas incompatíveis mantêm a correção.
+
+Originais e datas de modificação dos ficheiros ficam inalterados. A exportação XMP explícita escreve `exif:DateTimeOriginal` para datas manuais; a escrita explícita no ficheiro adiciona EXIF `DateTimeOriginal` nos formatos suportados sem alterar outras datas EXIF. Os grupos de rajadas/sequências são preservados; execute explicitamente a análise ou deteção de grupos para reagrupar.

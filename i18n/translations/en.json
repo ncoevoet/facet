@@ -2766,5 +2766,32 @@
       "ui_suggest_culling": "Marked suggestions on the culling plan",
       "ui_show_comparison": "Showed a comparison"
     }
+  },
+  "review": {
+    "status": "Review status",
+    "all": "All decisions",
+    "needs_review": "Needs review",
+    "kept": "Kept",
+    "rejected": "Rejected",
+    "keep": "Keep",
+    "reset": "Reset decision",
+    "updated": "Updated {{count}} photo decisions",
+    "shortcut": "Keep photo"
+  },
+  "capture_date": {
+    "title": "Correct capture date",
+    "offset": "Offset in seconds (+ later, − earlier)",
+    "invalid": "Use a nonzero whole number of seconds within ±366 days; select at most 1000 photos.",
+    "counts": "{changed} changed · {skipped} skipped",
+    "samples": "First 20 changes. Unknown, incomplete, unsupported or overflowing dates are skipped.",
+    "photo": "Photo",
+    "before": "Before",
+    "after": "After",
+    "error": "Could not complete the action. Check access and files, then preview again.",
+    "reset_hint": "Use file date removes the manual override. If the file has no date, the capture date becomes unknown.",
+    "use_file": "Use file date",
+    "preview": "Preview",
+    "apply": "Apply correction",
+    "hint": "Shift stored camera walltime; no timezone or daylight-saving inference. Originals stay unchanged until explicit metadata export."
   }
 }

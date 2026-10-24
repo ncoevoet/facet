@@ -174,6 +174,8 @@ const RATINGS = [1, 2, 3, 4, 5].map(value => ({ value, label: '★'.repeat(value
         }
 
         @if (isEdition()) {
+          <button mat-menu-item (click)="emit({ kind: 'review', decision: 'kept' }, photo, bulk)"><mat-icon>check_circle</mat-icon><span>{{ I18N.review.keep | translate }}</span></button>
+          <button mat-menu-item (click)="emit({ kind: 'review', decision: 'undecided' }, photo, bulk)"><mat-icon>restart_alt</mat-icon><span>{{ I18N.review.reset | translate }}</span></button>
           @if (bulk) {
             <button mat-menu-item (click)="emit({ kind: 'favorite' }, photo, bulk)">
               <mat-icon>favorite</mat-icon>
@@ -221,6 +223,9 @@ const RATINGS = [1, 2, 3, 4, 5].map(value => ({ value, label: '★'.repeat(value
             <button mat-menu-item [matMenuTriggerFor]="sequenceMenu">
               <mat-icon>panorama_photosphere</mat-icon>
               <span>{{ I18N.gallery.selection.mark_sequence | translate }}</span>
+            </button>
+            <button mat-menu-item (click)="emit({ kind: 'capture-date' }, photo, bulk)">
+              <mat-icon>edit_calendar</mat-icon>{{ I18N.capture_date.title | translate }}
             </button>
             <button mat-menu-item (click)="emit({ kind: 'tags' }, photo, bulk)">
               <mat-icon>sell</mat-icon>

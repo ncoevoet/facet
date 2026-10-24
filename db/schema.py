@@ -155,6 +155,7 @@ PHOTOS_COLUMNS = [
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
     ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),
     ('is_rejected', 'INTEGER DEFAULT 0 CHECK (is_rejected IN (0, 1))'),
+    ('is_kept', 'INTEGER DEFAULT 0 CHECK (is_kept IN (0, 1))'),
 
     # AI captioning
     ('caption', 'TEXT'),
@@ -214,6 +215,8 @@ PHOTOS_COLUMNS = [
     # the row's sequence_kind, never on its own. NULL = written before the stamp
     # existed, i.e. before the RAW exposure fix. See db/render_version.py.
     ('render_version', 'INTEGER'),
+    # Manual capture dates survive EXIF rescans.
+    ('date_manually_set', 'INTEGER NOT NULL DEFAULT 0'),
     # Manual GPS (including intentional clears) survives EXIF rescans.
     ('gps_manually_set', 'INTEGER NOT NULL DEFAULT 0'),
 ]
@@ -823,6 +826,7 @@ USER_PREFERENCES_COLUMNS = [
     ('star_rating', 'INTEGER DEFAULT 0 CHECK (star_rating >= 0 AND star_rating <= 5)'),
     ('is_favorite', 'INTEGER DEFAULT 0 CHECK (is_favorite IN (0, 1))'),
     ('is_rejected', 'INTEGER DEFAULT 0 CHECK (is_rejected IN (0, 1))'),
+    ('is_kept', 'INTEGER DEFAULT 0 CHECK (is_kept IN (0, 1))'),
 ]
 
 USER_PREFERENCES_INDEXES = [

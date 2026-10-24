@@ -2766,5 +2766,32 @@
       "ui_suggest_culling": "Suggerimenti segnati sul piano di selezione",
       "ui_show_comparison": "Confronto mostrato"
     }
+  },
+  "review": {
+    "status": "Stato revisione",
+    "all": "Tutte le decisioni",
+    "needs_review": "Da esaminare",
+    "kept": "Conservate",
+    "rejected": "Scartate",
+    "keep": "Conserva",
+    "reset": "Reimposta decisione",
+    "updated": "Decisioni aggiornate per {{count}} foto",
+    "shortcut": "Conserva foto"
+  },
+  "capture_date": {
+    "title": "Correggi data di scatto",
+    "offset": "Scostamento in secondi (+ dopo, − prima)",
+    "invalid": "Usa un numero intero diverso da zero entro ±366 giorni; seleziona al massimo 1000 foto.",
+    "counts": "{changed} modificate · {skipped} ignorate",
+    "samples": "Prime 20 modifiche. Le date sconosciute, incomplete, non supportate o fuori intervallo vengono ignorate.",
+    "photo": "Foto",
+    "before": "Prima",
+    "after": "Dopo",
+    "error": "Impossibile completare l’azione. Verifica accesso e file, poi ripeti l’anteprima.",
+    "reset_hint": "La data del file rimuove la correzione manuale. Se il file non ha una data, la data di scatto diventa sconosciuta.",
+    "use_file": "Usa data del file",
+    "preview": "Anteprima",
+    "apply": "Applica correzione",
+    "hint": "Sposta l’ora locale della fotocamera senza dedurre fuso orario o ora legale. Gli originali cambiano solo con l’esportazione esplicita dei metadati."
   }
 }

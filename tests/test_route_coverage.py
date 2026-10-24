@@ -119,6 +119,8 @@ PARAMETERISED_ROUTES = [
 # POST routes with a minimal valid-shaped body naming a photo that does not exist:
 # the handler runs (validation passes) and ends in a 4xx or an empty success.
 POST_ROUTES = [
+    ('/api/photos/capture_date/preview', {'photo_paths': [], 'offset_seconds': 1}),
+    ('/api/photos/capture_date/apply', {'photo_paths': [], 'offset_seconds': 1, 'preview_token': 'stale'}),
     ('/api/photo/set_rating', {'photo_path': '/nonexistent.jpg', 'rating': 3}),
     ('/api/photo/toggle_favorite', {'photo_path': '/nonexistent.jpg'}),
     ('/api/photo/toggle_rejected', {'photo_path': '/nonexistent.jpg'}),
@@ -272,3 +274,7 @@ class TestAngularSpaShell:
         assert 'text/html' in resp.headers.get('content-type', ''), (
             f"content-type={resp.headers.get('content-type')!r}"
         )
+
+
+def test_capture_date_reset_missing_photo(edition_client):
+    assert edition_client.delete('/api/photo/capture_date', params={'path': '/missing.jpg'}).status_code == 404
