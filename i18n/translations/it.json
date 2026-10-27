@@ -1329,7 +1329,17 @@
     "faces_need_names": "Volti senza nome",
     "faces_need_names_hint": "Include volti non assegnati e gruppi di persone senza nome. Usa + per assegnare un volto o dai un nome a un gruppo in Persone. Le foto senza volti rilevati sono escluse.",
     "faces_need_names_readonly_hint": "Include volti non assegnati e gruppi senza nome. Chi dispone dell’accesso in modifica può assegnare i volti o nominare i gruppi. Le foto senza volti rilevati sono escluse.",
-    "help_none": "Questa pagina non ha ancora un testo di aiuto."
+    "help_none": "Questa pagina non ha ancora un testo di aiuto.",
+    "shortcuts": {
+      "page_title": "Scorciatoie della galleria",
+      "rate": "Valuta la foto a fuoco",
+      "favourite": "Aggiungi ai preferiti la foto a fuoco",
+      "reject": "Scarta la foto a fuoco",
+      "focus_search": "Attiva la ricerca",
+      "toggle_sidebar": "Mostra / nascondi la barra laterale",
+      "swap_layout": "Cambia griglia / mosaico",
+      "select": "Seleziona la foto a fuoco"
+    }
   },
   "composition_patterns": {
     "none": "Nessuno",

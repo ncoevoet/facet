@@ -1329,7 +1329,17 @@
     "faces_need_names": "Gesichter ohne Namen",
     "faces_need_names_hint": "Enthält nicht zugewiesene Gesichter und unbenannte Personengruppen. Mit + ein Gesicht zuweisen oder unter Personen eine Gruppe benennen. Fotos ohne erkannte Gesichter sind ausgeschlossen.",
     "faces_need_names_readonly_hint": "Enthält nicht zugewiesene Gesichter und unbenannte Personengruppen. Personen mit Bearbeitungszugriff können Gesichter zuweisen oder Gruppen benennen. Fotos ohne erkannte Gesichter sind ausgeschlossen.",
-    "help_none": "Diese Seite hat noch keinen Hilfetext."
+    "help_none": "Diese Seite hat noch keinen Hilfetext.",
+    "shortcuts": {
+      "page_title": "Galerie-Tastenkürzel",
+      "rate": "Fokusfoto bewerten",
+      "favourite": "Fokusfoto favorisieren",
+      "reject": "Fokusfoto verwerfen",
+      "focus_search": "Suchfeld fokussieren",
+      "toggle_sidebar": "Filterseitenleiste ein-/ausblenden",
+      "swap_layout": "Raster / Mosaik wechseln",
+      "select": "Fokusfoto auswählen"
+    }
   },
   "composition_patterns": {
     "none": "Keines",

@@ -1344,6 +1344,16 @@ export const I18N = {
     faces_need_names_hint: "gallery.faces_need_names_hint",
     faces_need_names_readonly_hint: "gallery.faces_need_names_readonly_hint",
     help_none: "gallery.help_none",
+    shortcuts: {
+      page_title: "gallery.shortcuts.page_title",
+      rate: "gallery.shortcuts.rate",
+      favourite: "gallery.shortcuts.favourite",
+      reject: "gallery.shortcuts.reject",
+      focus_search: "gallery.shortcuts.focus_search",
+      toggle_sidebar: "gallery.shortcuts.toggle_sidebar",
+      swap_layout: "gallery.shortcuts.swap_layout",
+      select: "gallery.shortcuts.select",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",

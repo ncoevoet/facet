@@ -1329,7 +1329,17 @@
     "faces_need_names": "未命名的人脸",
     "faces_need_names_hint": "包括未分配的人脸和未命名的人物组。点击 + 分配人脸，或在“人物”中为分组命名。不包括未检测到人脸的照片。",
     "faces_need_names_readonly_hint": "包含未分配的人脸和尚未命名的人物组。拥有编辑权限的用户可以分配人脸或为组命名。不包含未检测到人脸的照片。",
-    "help_none": "此页面暂无帮助内容。"
+    "help_none": "此页面暂无帮助内容。",
+    "shortcuts": {
+      "page_title": "照片库快捷键",
+      "rate": "给焦点照片打分",
+      "favourite": "收藏焦点照片",
+      "reject": "淘汰焦点照片",
+      "focus_search": "聚焦搜索框",
+      "toggle_sidebar": "显示 / 隐藏筛选侧栏",
+      "swap_layout": "切换网格 / 马赛克",
+      "select": "选择焦点照片"
+    }
   },
   "composition_patterns": {
     "none": "无",

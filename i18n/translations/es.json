@@ -1329,7 +1329,17 @@
     "faces_need_names": "Caras sin nombre",
     "faces_need_names_hint": "Incluye caras sin asignar y grupos de personas sin nombre. Usa + para asignar una cara o nombra un grupo en Personas. No incluye fotos sin caras detectadas.",
     "faces_need_names_readonly_hint": "Incluye caras sin asignar y grupos sin nombre. Quien tenga acceso de edición puede asignar caras o nombrar grupos. Se excluyen fotos sin caras detectadas.",
-    "help_none": "Esta página aún no tiene texto de ayuda."
+    "help_none": "Esta página aún no tiene texto de ayuda.",
+    "shortcuts": {
+      "page_title": "Atajos de la galería",
+      "rate": "Puntuar la foto enfocada",
+      "favourite": "Marcar como favorita la foto enfocada",
+      "reject": "Rechazar la foto enfocada",
+      "focus_search": "Enfocar el cuadro de búsqueda",
+      "toggle_sidebar": "Mostrar / ocultar la barra lateral",
+      "swap_layout": "Cambiar cuadrícula / mosaico",
+      "select": "Seleccionar la foto enfocada"
+    }
   },
   "composition_patterns": {
     "none": "Ninguno",

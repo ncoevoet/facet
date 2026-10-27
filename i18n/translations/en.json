@@ -1329,7 +1329,17 @@
     "faces_need_names": "Faces without names",
     "faces_need_names_hint": "Includes unassigned faces and unnamed person groups. Use + to assign a face, or name a group in People. Photos with no detected faces are excluded.",
     "faces_need_names_readonly_hint": "Includes unassigned faces and unnamed person groups. Someone with edition access can assign faces or name groups. Photos with no detected faces are excluded.",
-    "help_none": "This page has no help text yet."
+    "help_none": "This page has no help text yet.",
+    "shortcuts": {
+      "page_title": "Gallery shortcuts",
+      "rate": "Rate the focused photo",
+      "favourite": "Favourite the focused photo",
+      "reject": "Reject the focused photo",
+      "focus_search": "Focus the search box",
+      "toggle_sidebar": "Show / hide the filter sidebar",
+      "swap_layout": "Switch grid / mosaic",
+      "select": "Select the focused photo"
+    }
   },
   "composition_patterns": {
     "none": "None",

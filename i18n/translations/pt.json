@@ -1329,7 +1329,17 @@
     "faces_need_names": "Rostos sem nome",
     "faces_need_names_hint": "Inclui rostos não atribuídos e grupos de pessoas sem nome. Use + para atribuir um rosto ou dê um nome a um grupo em Pessoas. Fotos sem rostos detetados são excluídas.",
     "faces_need_names_readonly_hint": "Inclui rostos não atribuídos e grupos sem nome. Quem tem acesso de edição pode atribuir rostos ou dar nomes aos grupos. Fotos sem rostos detetados são excluídas.",
-    "help_none": "Esta página ainda não tem texto de ajuda."
+    "help_none": "Esta página ainda não tem texto de ajuda.",
+    "shortcuts": {
+      "page_title": "Atalhos da galeria",
+      "rate": "Avaliar a foto em foco",
+      "favourite": "Favoritar a foto em foco",
+      "reject": "Rejeitar a foto em foco",
+      "focus_search": "Focar a caixa de busca",
+      "toggle_sidebar": "Mostrar / ocultar a barra lateral",
+      "swap_layout": "Alternar grade / mosaico",
+      "select": "Selecionar a foto em foco"
+    }
   },
   "composition_patterns": {
     "none": "Nenhum",
