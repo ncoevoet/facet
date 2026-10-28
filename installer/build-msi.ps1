@@ -24,6 +24,7 @@ if ($dirty) { Write-Warning "Uncommitted changes are NOT in the MSI (it packages
 
 $version = (Select-String -Path (Join-Path $repo 'pyproject.toml') -Pattern '^version = "([^"]+)"').Matches[0].Groups[1].Value
 $commit  = git -C $repo rev-parse --short HEAD
+$branch  = git -C $repo rev-parse --abbrev-ref HEAD
 
 foreach ($d in $out, $work) { if (Test-Path $d) { Remove-Item -Recurse -Force $d } }
 New-Item -ItemType Directory -Force $out, $stage, $obj | Out-Null
@@ -42,6 +43,9 @@ New-Item -ItemType Directory -Force $distStage | Out-Null
 Copy-Item -Recurse (Join-Path $dist '*') $distStage
 New-Item -ItemType Directory -Force (Join-Path $stage 'installer\bin') | Out-Null
 Copy-Item $Uv (Join-Path $stage 'installer\bin\uv.exe')
+# The user menu shows this beside the version (FACET_BUILD, set by Start-Facet.ps1), as the Docker
+# image's --build-arg FACET_BUILD does, so two builds of one release can be told apart.
+Set-Content (Join-Path $stage 'installer\build-label.txt') "$branch@$commit" -Encoding ascii
 Set-Content (Join-Path $stage 'BUILD.txt') "Facet $version, commit $commit, built $(Get-Date -Format s)" -Encoding ascii
 
 # Harvest, compile, link. A per-user install with file key paths trips ICE38/ICE64/ICE91 by

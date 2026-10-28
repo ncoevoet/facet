@@ -36,6 +36,9 @@ try {
     }
 
     New-Item -ItemType Directory -Force $FacetLogs | Out-Null
+    # The build the MSI was made from (branch@commit), shown in the user menu beside the version.
+    $buildLabel = Join-Path $PSScriptRoot 'build-label.txt'
+    if (Test-Path $buildLabel) { $env:FACET_BUILD = (Get-Content $buildLabel -Raw).Trim() }
     $bind = if ($Lan) { '0.0.0.0' } else { '127.0.0.1' }
     $proc = Start-Process -FilePath $FacetPython -ArgumentList @('viewer.py', '--production', '--port', $Port, '--host', $bind) `
         -WorkingDirectory $FacetApp -WindowStyle Hidden -PassThru `
