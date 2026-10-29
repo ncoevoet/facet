@@ -786,12 +786,13 @@
       [transitionType]="'kenburns'"
       (closed)="closeMemories()" />
   }
-  <!-- Tooltip menu shared by the header and mobile-bar triggers: where details show, then what opens them -->
+  <!-- Tooltip menu shared by the header and mobile-bar triggers: where details show, then what shows them.
+       Picks stop propagation so the menu stays open for the second row. -->
   <mat-menu #tooltipModeMenu="matMenu">
-    <div role="group" aria-labelledby="tooltip-menu-show">
-      <div id="tooltip-menu-show" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ I18N.gallery.tooltip_mode.show | translate }}</div>
+    <div role="group" aria-labelledby="tooltip-menu-show-in">
+      <div id="tooltip-menu-show-in" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ I18N.gallery.tooltip_mode.show_in | translate }}</div>
       @for (place of detailsPlaces(); track place.id) {
-        <button mat-menu-item role="menuitemradio" [attr.aria-checked]="detailsPlace() === place.id" (click)="setDetailsPlace(place.id)">
+        <button mat-menu-item role="menuitemradio" [disabled]="place.disabled" [attr.aria-checked]="detailsPlace() === place.id" (click)="setDetailsPlace($event, place.id)">
           <mat-icon aria-hidden="true">{{ place.icon }}</mat-icon>
           <span class="flex items-center gap-4">
             <span class="grow">{{ place.label | translate }}</span>
@@ -802,23 +803,21 @@
         </button>
       }
     </div>
-    @if (detailsPlace() !== 'off') {
-      <mat-divider />
-      <div role="group" aria-labelledby="tooltip-menu-open-on">
-        <div id="tooltip-menu-open-on" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ I18N.gallery.tooltip_mode.open_on | translate }}</div>
-        @for (trigger of detailsTriggers(); track trigger.id) {
-          <button mat-menu-item role="menuitemradio" [attr.aria-checked]="detailsTrigger() === trigger.id" (click)="setDetailsTrigger(trigger.id)">
-            <mat-icon aria-hidden="true">{{ trigger.icon }}</mat-icon>
-            <span class="flex items-center gap-4">
-              <span class="grow">{{ trigger.label | translate }}</span>
-              @if (detailsTrigger() === trigger.id) {
-                <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-              }
-            </span>
-          </button>
-        }
-      </div>
-    }
+    <mat-divider />
+    <div role="group" aria-labelledby="tooltip-menu-show-on">
+      <div id="tooltip-menu-show-on" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ I18N.gallery.tooltip_mode.show_on | translate }}</div>
+      @for (trigger of detailsTriggers(); track trigger.id) {
+        <button mat-menu-item role="menuitemradio" [disabled]="trigger.disabled" [attr.aria-checked]="detailsTrigger() === trigger.id" (click)="setDetailsTrigger($event, trigger.id)">
+          <mat-icon aria-hidden="true">{{ trigger.icon }}</mat-icon>
+          <span class="flex items-center gap-4">
+            <span class="grow">{{ trigger.label | translate }}</span>
+            @if (detailsTrigger() === trigger.id) {
+              <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
+            }
+          </span>
+        </button>
+      }
+    </div>
   </mat-menu>
 
   <!-- Sort menu shared by the desktop and mobile sort buttons -->

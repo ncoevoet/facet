@@ -58,6 +58,22 @@ import { isUnavailableKey, unavailableSet } from './shared/utils/unavailable-met
 
 /** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
 const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
+const TOOLTIP_PLACE_KEY = 'facet_tooltip_place';
+
+/** The tooltip menu's remembered place while details are off; panel is the default mode. */
+function readTooltipPlace(): 'popup' | 'panel' {
+  try {
+    return localStorage.getItem(TOOLTIP_PLACE_KEY) === 'popup' ? 'popup' : 'panel';
+  } catch {
+    return 'panel';
+  }
+}
+
+function writeTooltipPlace(place: 'popup' | 'panel'): void {
+  try {
+    localStorage.setItem(TOOLTIP_PLACE_KEY, place);
+  } catch { /* storage blocked: the place is only remembered for this page */ }
+}
 const RELEASE_NOTICE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Translation key of a configured sort column's label. */
@@ -603,49 +619,58 @@ export class App implements OnInit {
   protected readonly canDockDetails = this.railCapable.isDesktop;
 
   /**
-   * The tooltip menu asks two questions: where details show (popup, side
-   * panel, off) and what opens them (hover, click, either). Both map onto
-   * `tooltip_mode` + `panel_activation`, so each choice is listed once.
+   * The tooltip menu has two rows: where details show (popup or side panel)
+   * and what shows them (off, hover, click, or either). They map onto
+   * `tooltip_mode` + `panel_activation`; `off` has no place of its own, so the
+   * last place is remembered per browser for when details come back on.
    */
-  protected readonly detailsPlace = computed<'popup' | 'panel' | 'off'>(() => {
+  private readonly lastDetailsPlace = signal<'popup' | 'panel'>(readTooltipPlace());
+  protected readonly detailsPlace = computed<'popup' | 'panel'>(() => {
     const mode = this.store.filters().tooltip_mode;
-    return mode === 'hover' || mode === 'click' ? 'popup' : mode;
+    if (mode === 'off') return this.lastDetailsPlace();
+    return mode === 'panel' ? 'panel' : 'popup';
   });
-  protected readonly detailsTrigger = computed<PanelActivation | null>(() => {
+  protected readonly detailsTrigger = computed<PanelActivation | 'off'>(() => {
     const { tooltip_mode, panel_activation } = this.store.filters();
-    if (tooltip_mode === 'off') return null;
+    if (tooltip_mode === 'off') return 'off';
     return tooltip_mode === 'panel' ? panel_activation : tooltip_mode;
   });
   protected readonly detailsPlaces = computed(() => [
-    { id: 'popup' as const, icon: 'chat_bubble_outline', label: this.I18N.gallery.tooltip_mode.popup },
-    ...(this.canDockDetails() || this.detailsPlace() === 'panel'
-      ? [{ id: 'panel' as const, icon: 'view_sidebar', label: this.I18N.gallery.tooltip_mode.panel }]
-      : []),
-    { id: 'off' as const, icon: 'visibility_off', label: this.I18N.gallery.tooltip_mode.off },
+    { id: 'popup' as const, icon: 'chat_bubble_outline', label: this.I18N.gallery.tooltip_mode.popup, disabled: false },
+    // Below the rail's width the panel cannot render; keep it visible but unpickable.
+    { id: 'panel' as const, icon: 'view_sidebar', label: this.I18N.gallery.tooltip_mode.panel,
+      disabled: !this.canDockDetails() && this.detailsPlace() !== 'panel' },
   ]);
   protected readonly detailsTriggers = computed(() => [
-    { id: 'hover' as const, icon: 'mouse', label: this.I18N.gallery.tooltip_mode.hover },
-    { id: 'click' as const, icon: 'touch_app', label: this.I18N.gallery.tooltip_mode.click },
+    { id: 'off' as const, icon: 'visibility_off', label: this.I18N.gallery.tooltip_mode.off, disabled: false },
+    { id: 'hover' as const, icon: 'mouse', label: this.I18N.gallery.tooltip_mode.hover, disabled: false },
+    { id: 'click' as const, icon: 'touch_app', label: this.I18N.gallery.tooltip_mode.click, disabled: false },
     // The floating popup has no "either" mode; only the side panel does.
-    ...(this.detailsPlace() === 'panel'
-      ? [{ id: 'both' as const, icon: 'swap_horiz', label: this.I18N.gallery.panel_activation.both }]
-      : []),
+    { id: 'both' as const, icon: 'swap_horiz', label: this.I18N.gallery.panel_activation.both,
+      disabled: this.detailsPlace() !== 'panel' },
   ]);
 
-  protected setDetailsPlace(place: 'popup' | 'panel' | 'off'): void {
+  protected setDetailsPlace(event: Event, place: 'popup' | 'panel'): void {
+    event.stopPropagation();
     if (place === this.detailsPlace()) return;
-    if (place === 'popup') {
-      // Carry the panel's trigger over when the popup supports it.
-      const trigger = this.store.filters().panel_activation;
-      void this.store.updateFilter('tooltip_mode', trigger === 'click' ? 'click' : 'hover');
+    this.lastDetailsPlace.set(place);
+    writeTooltipPlace(place);
+    const trigger = this.detailsTrigger();
+    if (trigger === 'off') return;
+    if (place === 'panel') {
+      void this.store.updateFilter('tooltip_mode', 'panel');
     } else {
-      void this.store.updateFilter('tooltip_mode', place);
+      void this.store.updateFilter('tooltip_mode', trigger === 'click' ? 'click' : 'hover');
     }
   }
 
-  protected setDetailsTrigger(trigger: PanelActivation): void {
-    if (this.detailsPlace() === 'panel') {
-      void this.store.updateFilter('panel_activation', trigger);
+  protected setDetailsTrigger(event: Event, trigger: PanelActivation | 'off'): void {
+    event.stopPropagation();
+    if (trigger === this.detailsTrigger()) return;
+    if (trigger === 'off') {
+      void this.store.updateFilter('tooltip_mode', 'off');
+    } else if (this.detailsPlace() === 'panel') {
+      void this.store.updateFilters({ tooltip_mode: 'panel', panel_activation: trigger });
     } else if (trigger !== 'both') {
       void this.store.updateFilter('tooltip_mode', trigger);
     }

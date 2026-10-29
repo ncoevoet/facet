@@ -377,7 +377,7 @@ Campi della risposta e codici di stato: [API.md](../API.md).
 - **Modalità layout** — **Griglia** (schede uniformi) o **Mosaico** (righe giustificate che mantengono le proporzioni), a ogni larghezza dello schermo.
 - **Dimensione miniatura** — cursore dell'altezza di scheda/riga (120–400px, salvato in localStorage)
 - **Nascondi dettagli** — nasconde i metadati sulle schede (solo modalità griglia)
-- **Tooltip** — due domande, ciascuna con una sola risposta. **Mostra dettagli**: **Popup**, **Pannello laterale** (predefinito) o **Disattivato**. **Apri con**: **Hover** o **Clic**; il pannello laterale aggiunge **Hover o clic** (predefinito).
+- **Tooltip** — due righe. **Mostra in**: **Popup** o **Pannello laterale** (predefinito). **Mostra con**: **Disattivato**, **Hover**, **Clic** o **Hover o clic** (predefinito; solo pannello laterale). Il menu resta aperto tra una scelta e l'altra, e **Disattivato** conserva la posizione per quando i dettagli tornano.
   - Il pannello laterale mostra i dettagli completi nel cassetto di destra, organizzato come il dettaglio della foto. Con **Hover o clic** segue passaggio e clic, quindi funziona sugli schermi touch. Mantiene l'ultima foto quando il cursore lascia la griglia.
   - Cliccare una foto tiene il pannello su di essa finché non premi **Deseleziona** (che deseleziona anche la foto). **Esc** fa lo stesso e cancella la selezione.
   - Il pannello condivide il cassetto con i filtri; aprire i filtri lo nasconde. Richiede una finestra larga almeno 1280px.

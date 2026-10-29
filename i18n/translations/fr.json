@@ -1122,9 +1122,9 @@
     "hide_details": "Masquer détails",
     "tooltip_mode": {
       "label": "Infobulle",
-      "show": "Afficher les détails",
+      "show_in": "Afficher dans",
       "popup": "Infobulle flottante",
-      "open_on": "Ouvrir au",
+      "show_on": "Afficher au",
       "hover": "Survol",
       "click": "Clic",
       "panel": "Panneau latéral",

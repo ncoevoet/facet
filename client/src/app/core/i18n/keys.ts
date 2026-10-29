@@ -1136,9 +1136,9 @@ export const I18N = {
     hide_details: "gallery.hide_details",
     tooltip_mode: {
       label: "gallery.tooltip_mode.label",
-      show: "gallery.tooltip_mode.show",
+      show_in: "gallery.tooltip_mode.show_in",
       popup: "gallery.tooltip_mode.popup",
-      open_on: "gallery.tooltip_mode.open_on",
+      show_on: "gallery.tooltip_mode.show_on",
       hover: "gallery.tooltip_mode.hover",
       click: "gallery.tooltip_mode.click",
       panel: "gallery.tooltip_mode.panel",

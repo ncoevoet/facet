@@ -1122,9 +1122,9 @@
     "hide_details": "Nascondi dettagli",
     "tooltip_mode": {
       "label": "Tooltip",
-      "show": "Mostra dettagli",
+      "show_in": "Mostra in",
       "popup": "Popup",
-      "open_on": "Apri con",
+      "show_on": "Mostra con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Pannello laterale",

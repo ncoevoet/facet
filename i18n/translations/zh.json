@@ -1122,9 +1122,9 @@
     "hide_details": "隐藏照片详情",
     "tooltip_mode": {
       "label": "提示信息",
-      "show": "显示详情",
+      "show_in": "显示位置",
       "popup": "弹出窗口",
-      "open_on": "打开方式",
+      "show_on": "显示时机",
       "hover": "悬停",
       "click": "点击",
       "panel": "侧边面板",
