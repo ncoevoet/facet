@@ -1122,6 +1122,9 @@
     "hide_details": "隐藏照片详情",
     "tooltip_mode": {
       "label": "提示信息",
+      "show": "显示详情",
+      "popup": "弹出窗口",
+      "open_on": "打开方式",
       "hover": "悬停",
       "click": "点击",
       "panel": "侧边面板",
@@ -1130,9 +1133,6 @@
       "panel_deselect": "取消选择"
     },
     "panel_activation": {
-      "label": "面板触发方式",
-      "hover": "悬停",
-      "click": "点击",
       "both": "悬停或点击"
     },
     "hide_blinks": "隐藏闭眼照片",

@@ -1122,6 +1122,9 @@
     "hide_details": "Nascondi dettagli",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show": "Mostra dettagli",
+      "popup": "Popup",
+      "open_on": "Apri con",
       "hover": "Hover",
       "click": "Clic",
       "panel": "Pannello laterale",
@@ -1130,9 +1133,6 @@
       "panel_deselect": "Deseleziona"
     },
     "panel_activation": {
-      "label": "Attivazione pannello",
-      "hover": "Hover",
-      "click": "Clic",
       "both": "Hover o clic"
     },
     "hide_blinks": "Nascondi occhi chiusi",

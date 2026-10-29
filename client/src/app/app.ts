@@ -28,7 +28,7 @@ import { I18nService } from './core/services/i18n.service';
 import { ThemeService } from './core/services/theme.service';
 import { PageHelpService } from './core/services/page-help.service';
 import { HeaderSlotService } from './core/services/header-slot.service';
-import { GalleryStore, GalleryFilters, anyHideToggleActive } from './features/gallery/gallery.store';
+import { GalleryStore, GalleryFilters, PanelActivation, anyHideToggleActive } from './features/gallery/gallery.store';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { TimelineFiltersService } from './features/timeline/timeline-filters.service';
 import { AlbumsFiltersService } from './features/albums/albums-filters.service';
@@ -601,6 +601,55 @@ export class App implements OnInit {
    */
   private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
   protected readonly canDockDetails = this.railCapable.isDesktop;
+
+  /**
+   * The tooltip menu asks two questions: where details show (popup, side
+   * panel, off) and what opens them (hover, click, either). Both map onto
+   * `tooltip_mode` + `panel_activation`, so each choice is listed once.
+   */
+  protected readonly detailsPlace = computed<'popup' | 'panel' | 'off'>(() => {
+    const mode = this.store.filters().tooltip_mode;
+    return mode === 'hover' || mode === 'click' ? 'popup' : mode;
+  });
+  protected readonly detailsTrigger = computed<PanelActivation | null>(() => {
+    const { tooltip_mode, panel_activation } = this.store.filters();
+    if (tooltip_mode === 'off') return null;
+    return tooltip_mode === 'panel' ? panel_activation : tooltip_mode;
+  });
+  protected readonly detailsPlaces = computed(() => [
+    { id: 'popup' as const, icon: 'chat_bubble_outline', label: this.I18N.gallery.tooltip_mode.popup },
+    ...(this.canDockDetails() || this.detailsPlace() === 'panel'
+      ? [{ id: 'panel' as const, icon: 'view_sidebar', label: this.I18N.gallery.tooltip_mode.panel }]
+      : []),
+    { id: 'off' as const, icon: 'visibility_off', label: this.I18N.gallery.tooltip_mode.off },
+  ]);
+  protected readonly detailsTriggers = computed(() => [
+    { id: 'hover' as const, icon: 'mouse', label: this.I18N.gallery.tooltip_mode.hover },
+    { id: 'click' as const, icon: 'touch_app', label: this.I18N.gallery.tooltip_mode.click },
+    // The floating popup has no "either" mode; only the side panel does.
+    ...(this.detailsPlace() === 'panel'
+      ? [{ id: 'both' as const, icon: 'swap_horiz', label: this.I18N.gallery.panel_activation.both }]
+      : []),
+  ]);
+
+  protected setDetailsPlace(place: 'popup' | 'panel' | 'off'): void {
+    if (place === this.detailsPlace()) return;
+    if (place === 'popup') {
+      // Carry the panel's trigger over when the popup supports it.
+      const trigger = this.store.filters().panel_activation;
+      void this.store.updateFilter('tooltip_mode', trigger === 'click' ? 'click' : 'hover');
+    } else {
+      void this.store.updateFilter('tooltip_mode', place);
+    }
+  }
+
+  protected setDetailsTrigger(trigger: PanelActivation): void {
+    if (this.detailsPlace() === 'panel') {
+      void this.store.updateFilter('panel_activation', trigger);
+    } else if (trigger !== 'both') {
+      void this.store.updateFilter('tooltip_mode', trigger);
+    }
+  }
 
   async ngOnInit(): Promise<void> {
     this.railCapable.setup();

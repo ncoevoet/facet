@@ -377,11 +377,11 @@ Response fields and status codes: [API.md](API.md).
 - **Layout Mode** — **Grid** (uniform cards) or **Mosaic** (justified rows keeping aspect ratios), at every screen width.
 - **Thumbnail Size** — card/row height slider (120–400px, saved in localStorage)
 - **Hide Details** — hide metadata on cards (grid mode only)
-- **Tooltip** — how photo details appear: **Side panel** (default), **Hover**, **Click** or **Off**.
-  - The side panel shows full details in the right-hand drawer, laid out like photo detail. It follows hover and click, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
+- **Tooltip** — two questions, each answered once. **Show details**: **Popup**, **Side panel** (default) or **Off**. **Open on**: **Hover** or **Click**; the side panel adds **Hover or click** (default).
+  - The side panel shows full details in the right-hand drawer, laid out like photo detail. With **Hover or click** it follows both, so it works on touch screens. It keeps the last photo when the cursor leaves the grid.
   - Clicking a photo holds the panel on it until you press **Deselect** (which also deselects the photo). **Escape** does the same and clears the selection.
   - The panel shares the drawer with the filters; opening the filters hides it. It needs a viewport at least 1280px wide.
-  - **Hover** and **Click** show a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
+  - The **Popup** shows a short bubble: category, aggregate and rank, aesthetic, composition, sharpness, exposure, and one EXIF line.
 - **Customize card buttons** — reorder and show/hide the buttons on a card's hover row. Nine actions are available: find similar, why-this-score, write metadata, assign a face, open the duplicate group, burst group, bracket/panorama set or photo stack, and open the photo page. Group buttons appear only on photos in such a group. Duplicate-group and photo-stack buttons are on by default; the others are opt-in. Saved per browser.
 - **Hide Blinks** — hide photos with detected blinks
 - **Blinks Only / Duplicates Only** — show only blinked photos, or every member of each duplicate group. The hide toggles are suspended for that view.

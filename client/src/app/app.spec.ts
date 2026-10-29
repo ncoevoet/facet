@@ -951,10 +951,43 @@ describe('App', () => {
       expect(menus[0]).toBe(menus[1]);
       await openMenu(fixture, triggers[1]);
       const items = menuItems();
-      expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-      expect(items.map(item => item.textContent?.includes('check'))).toEqual([false, true, false]);
+      // Show details: Popup, Off (no side panel at this width) / Open on: Hover, Click
+      expect(items.map(item => iconOf(item))).toEqual(['chat_bubble_outline', 'visibility_off', 'mouse', 'touch_app']);
+      expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'true']);
+      expect(items.map(item => item.textContent?.includes('check'))).toEqual([true, false, false, true]);
+      const panel = items[0].closest('.mat-mdc-menu-panel')!;
+      const headers = Array.from(panel.querySelectorAll('[role="group"]'))
+        .map(group => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim());
+      expect(headers).toEqual([I18N.gallery.tooltip_mode.show, I18N.gallery.tooltip_mode.open_on]);
       items[2].click();
-      expect(store.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'hover');
+      items[1].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'off');
+    });
+
+    it('lists each tooltip trigger once, and the side panel trigger sets panel_activation', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'panel', panel_activation: 'click' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const items = menuItems();
+      expect(items.map(item => iconOf(item)))
+        .toEqual(['chat_bubble_outline', 'view_sidebar', 'visibility_off', 'mouse', 'touch_app', 'swap_horiz']);
+      expect(items.map(item => item.getAttribute('aria-checked')))
+        .toEqual(['false', 'true', 'false', 'false', 'true', 'false']);
+      items[5].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('panel_activation', 'both');
+      // Back to the popup keeps the panel's click trigger.
+      items[0].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+    });
+
+    it('drops the trigger group when details are off', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'off' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      expect(menuItems().map(item => iconOf(item))).toEqual(['chat_bubble_outline', 'visibility_off']);
     });
 
     it('is one shared menu for both triggers', () => {

@@ -1136,6 +1136,9 @@ export const I18N = {
     hide_details: "gallery.hide_details",
     tooltip_mode: {
       label: "gallery.tooltip_mode.label",
+      show: "gallery.tooltip_mode.show",
+      popup: "gallery.tooltip_mode.popup",
+      open_on: "gallery.tooltip_mode.open_on",
       hover: "gallery.tooltip_mode.hover",
       click: "gallery.tooltip_mode.click",
       panel: "gallery.tooltip_mode.panel",
@@ -1144,9 +1147,6 @@ export const I18N = {
       panel_deselect: "gallery.tooltip_mode.panel_deselect",
     },
     panel_activation: {
-      label: "gallery.panel_activation.label",
-      hover: "gallery.panel_activation.hover",
-      click: "gallery.panel_activation.click",
       both: "gallery.panel_activation.both",
     },
     hide_blinks: "gallery.hide_blinks",

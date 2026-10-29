@@ -1122,6 +1122,9 @@
     "hide_details": "Hide Details",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show": "Show details",
+      "popup": "Popup",
+      "open_on": "Open on",
       "hover": "Hover",
       "click": "Click",
       "panel": "Side panel",
@@ -1130,9 +1133,6 @@
       "panel_deselect": "Deselect"
     },
     "panel_activation": {
-      "label": "Panel activation",
-      "hover": "Hover",
-      "click": "Click",
       "both": "Hover or click"
     },
     "hide_blinks": "Hide Blinks",

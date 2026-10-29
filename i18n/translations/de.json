@@ -1122,6 +1122,9 @@
     "hide_details": "Details ausblenden",
     "tooltip_mode": {
       "label": "Tooltip",
+      "show": "Details anzeigen",
+      "popup": "Popup",
+      "open_on": "Öffnen bei",
       "hover": "Hover",
       "click": "Klick",
       "panel": "Seitenleiste",
@@ -1130,9 +1133,6 @@
       "panel_deselect": "Auswahl aufheben"
     },
     "panel_activation": {
-      "label": "Panel-Aktivierung",
-      "hover": "Hover",
-      "click": "Klick",
       "both": "Hover oder Klick"
     },
     "hide_blinks": "Blinzler ausblenden",

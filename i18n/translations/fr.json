@@ -1122,6 +1122,9 @@
     "hide_details": "Masquer détails",
     "tooltip_mode": {
       "label": "Infobulle",
+      "show": "Afficher les détails",
+      "popup": "Infobulle flottante",
+      "open_on": "Ouvrir au",
       "hover": "Survol",
       "click": "Clic",
       "panel": "Panneau latéral",
@@ -1130,9 +1133,6 @@
       "panel_deselect": "Désélectionner"
     },
     "panel_activation": {
-      "label": "Activation du panneau",
-      "hover": "Survol",
-      "click": "Clic",
       "both": "Survol ou clic"
     },
     "hide_blinks": "Masquer clignements",

@@ -7,6 +7,7 @@ All notable changes to Facet are documented in this file.
 ### Fixed
 
 - **Header and phone layouts no longer crush their controls.** Below 1680 px the secondary destinations move into a More menu, so the gallery search and Type selector keep their width and the culling filters stop scrolling; on phones the nav and culling bars lose their scrollbars, person rename boxes fit their tiles, long camera names no longer cut off the stats legend, and the photo page keeps room for the filename
+- **The Tooltip menu lists each choice once.** It asks two things under their own headings: **Show details** (Popup, Side panel or Off) and **Open on** (Hover or Click, plus Hover or click for the side panel), replacing a list that offered Hover and Click both as modes and again in a Panel activation submenu. The saved `tooltip_mode` and `panel_activation` values are unchanged.
 - **Stack browsing keeps the image in place.** Moving between known stack members preserves the thumbnail strip's measured space while fresh membership loads, without retaining old navigation controls.
 
 ## [1.26.0] "Histogramme" — 2026-10-28

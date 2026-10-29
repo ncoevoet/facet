@@ -786,85 +786,39 @@
       [transitionType]="'kenburns'"
       (closed)="closeMemories()" />
   }
-  <!-- Tooltip-mode and panel-activation menus shared by the header and mobile-bar triggers -->
+  <!-- Tooltip menu shared by the header and mobile-bar triggers: where details show, then what opens them -->
   <mat-menu #tooltipModeMenu="matMenu">
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'hover'" (click)="store.updateFilter('tooltip_mode', 'hover')">
-      <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.hover | translate }}</span>
-        @if (store.filters().tooltip_mode === 'hover') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'click'" (click)="store.updateFilter('tooltip_mode', 'click')">
-      <mat-icon aria-hidden="true">touch_app</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.click | translate }}</span>
-        @if (store.filters().tooltip_mode === 'click') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    @if (canDockDetails()) {
-      <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'panel'" (click)="store.updateFilter('tooltip_mode', 'panel')">
-        <mat-icon aria-hidden="true">view_sidebar</mat-icon>
-        <span class="flex items-center gap-4">
-          <span class="grow">{{ I18N.gallery.tooltip_mode.panel | translate }}</span>
-          @if (store.filters().tooltip_mode === 'panel') {
-            <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-          }
-        </span>
-      </button>
-      @if (store.filters().tooltip_mode === 'panel') {
-        <button mat-menu-item [matMenuTriggerFor]="panelActivationMenu">
-          <mat-icon aria-hidden="true">{{
-            store.filters().panel_activation === 'hover' ? 'chat_bubble_outline'
-            : store.filters().panel_activation === 'click' ? 'touch_app'
-            : 'swap_horiz'
-          }}</mat-icon>
-          {{ I18N.gallery.panel_activation.label | translate }}
+    <div role="group" aria-labelledby="tooltip-menu-show">
+      <div id="tooltip-menu-show" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ I18N.gallery.tooltip_mode.show | translate }}</div>
+      @for (place of detailsPlaces(); track place.id) {
+        <button mat-menu-item role="menuitemradio" [attr.aria-checked]="detailsPlace() === place.id" (click)="setDetailsPlace(place.id)">
+          <mat-icon aria-hidden="true">{{ place.icon }}</mat-icon>
+          <span class="flex items-center gap-4">
+            <span class="grow">{{ place.label | translate }}</span>
+            @if (detailsPlace() === place.id) {
+              <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
+            }
+          </span>
         </button>
       }
+    </div>
+    @if (detailsPlace() !== 'off') {
+      <mat-divider />
+      <div role="group" aria-labelledby="tooltip-menu-open-on">
+        <div id="tooltip-menu-open-on" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ I18N.gallery.tooltip_mode.open_on | translate }}</div>
+        @for (trigger of detailsTriggers(); track trigger.id) {
+          <button mat-menu-item role="menuitemradio" [attr.aria-checked]="detailsTrigger() === trigger.id" (click)="setDetailsTrigger(trigger.id)">
+            <mat-icon aria-hidden="true">{{ trigger.icon }}</mat-icon>
+            <span class="flex items-center gap-4">
+              <span class="grow">{{ trigger.label | translate }}</span>
+              @if (detailsTrigger() === trigger.id) {
+                <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
+              }
+            </span>
+          </button>
+        }
+      </div>
     }
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'off'" (click)="store.updateFilter('tooltip_mode', 'off')">
-      <mat-icon aria-hidden="true">visibility_off</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.off | translate }}</span>
-        @if (store.filters().tooltip_mode === 'off') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-  </mat-menu>
-  <mat-menu #panelActivationMenu="matMenu">
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'hover'" (click)="store.updateFilter('panel_activation', 'hover')">
-      <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.hover | translate }}</span>
-        @if (store.filters().panel_activation === 'hover') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'click'" (click)="store.updateFilter('panel_activation', 'click')">
-      <mat-icon aria-hidden="true">touch_app</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.click | translate }}</span>
-        @if (store.filters().panel_activation === 'click') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'both'" (click)="store.updateFilter('panel_activation', 'both')">
-      <mat-icon aria-hidden="true">swap_horiz</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.both | translate }}</span>
-        @if (store.filters().panel_activation === 'both') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
   </mat-menu>
 
   <!-- Sort menu shared by the desktop and mobile sort buttons -->
