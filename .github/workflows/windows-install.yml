@@ -95,7 +95,7 @@ jobs:
           node-version: "24"
           cache: "npm"
           cache-dependency-path: client/package-lock.json
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: face-library
           path: library
