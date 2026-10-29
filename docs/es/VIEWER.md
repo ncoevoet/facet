@@ -491,6 +491,8 @@ En modo de edición, abre una foto y elige **Marcar un rostro ausente**, incluso
 
 El ajuste heredado `viewer.performance.face_cache_size` se ignora y se puede quitar.
 
+**Objetos.** El mismo editor puede marcar un objeto en su lugar: elija **Objeto**, dibuje el rectángulo, escriba una etiqueta (por ejemplo «tarta de cumpleaños») y guarde. Los objetos se muestran como rectángulos azules con etiqueta sobre la foto, la búsqueda de la galería los encuentra por su etiqueta y los asistentes pueden leerlos (`GET /api/photo/objects`) para saber a qué zona se refiere. Un objeto nunca es una cara: no afecta a la detección, al agrupamiento, a las personas ni a las puntuaciones de cara.
+
 ## Activador de escaneo
 
 Inicia un escaneo desde el navegador. El botón Escanear aparece cuando se cumplen **ambas** condiciones:

@@ -693,6 +693,7 @@ def invalidate_existing_columns_cache():
         _existing_columns_cache = None
         _config_mod._existing_columns_cache = None
     _manual_tags_present.clear()
+    _photo_objects_present.clear()
 
 
 def is_photo_tags_available(conn=None):
@@ -799,6 +800,36 @@ def is_manual_tags_available(conn=None):
         if close_conn:
             conn.close()
     _manual_tags_present[key] = (found, now)
+    return found
+
+
+# Same contract as _manual_tags_present, for the user-marked objects table.
+_photo_objects_present: dict[str, tuple[bool, float]] = {}
+
+
+def is_photo_objects_available(conn=None):
+    """True when the ``photo_objects`` table exists; same caching and connection rules
+    as :func:`is_manual_tags_available`."""
+    key = str(DEFAULT_DB_PATH)
+    now = time.monotonic()
+    entry = _photo_objects_present.get(key)
+    if entry is not None and (entry[0] or now - entry[1] < PHOTO_TAGS_CACHE_TTL):
+        return entry[0]
+    close_conn = False
+    if not isinstance(conn, sqlite3.Connection):
+        conn = get_db_connection()
+        close_conn = True
+    try:
+        found = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'photo_objects'"
+        ).fetchone() is not None
+    except sqlite3.OperationalError:
+        logger.debug("photo_objects availability check failed", exc_info=True)
+        found = False
+    finally:
+        if close_conn:
+            conn.close()
+    _photo_objects_present[key] = (found, now)
     return found
 
 

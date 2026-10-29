@@ -491,6 +491,8 @@ In edition mode, open a photo and choose **Mark a missing face**, even when no f
 
 The legacy `viewer.performance.face_cache_size` setting is ignored and can be removed.
 
+**Objects.** The same editor can mark an object instead: choose **Object**, draw the box, type a label (for example "birthday cake") and save. Objects show as blue labelled boxes on the photo, the gallery search finds them by label, and assistants can read them (`GET /api/photo/objects`) to know which region is meant. An object is never a face: it does not touch detection, clustering, people or face scores.
+
 ## Scan Trigger
 
 Start a scan from the browser. The Scan button appears when **both** hold:

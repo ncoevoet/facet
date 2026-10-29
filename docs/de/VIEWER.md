@@ -491,6 +491,8 @@ Klicken Sie auf den Namen einer Person, um alle ihre Fotos unter `/person/<id>` 
 
 Die veraltete Einstellung `viewer.performance.face_cache_size` wird ignoriert und kann entfernt werden.
 
+**Objekte.** Derselbe Editor kann stattdessen ein Objekt markieren: **Objekt** wählen, das Rechteck ziehen, eine Bezeichnung eingeben (zum Beispiel „Geburtstagstorte“) und speichern. Objekte erscheinen als blaue, beschriftete Rechtecke auf dem Foto, die Galeriesuche findet sie über die Bezeichnung, und Assistenten können sie lesen (`GET /api/photo/objects`), um zu wissen, welcher Bereich gemeint ist. Ein Objekt ist nie ein Gesicht: Es berührt weder Erkennung, Clustering, Personen noch Gesichtswertungen.
+
 ## Scan auslösen
 
 Starten Sie einen Scan im Browser. Die Scan-Schaltfläche erscheint, wenn **beides** zutrifft:

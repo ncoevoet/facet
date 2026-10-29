@@ -123,16 +123,21 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_man
     person searches still work. Falls back to the legacy LIKE OR-chain if
     the FTS5 table is missing (older DB without rebuild).
 
-    Both branches also match the user's manual tags (``photo_manual_tags``),
-    which are not in the FTS index, via a companion ``IN`` subquery;
-    ``include_manual=False`` (share-link requests) leaves it out.
+    Both branches also match the user's manual tags (``photo_manual_tags``) and
+    the labels of user-marked objects (``photo_objects``), neither of which is in
+    the FTS index, via companion ``IN`` subqueries; ``include_manual=False``
+    (share-link requests) leaves both out.
     """
     from db.fts import has_fts_table
-    from api.db_helpers import is_manual_tags_available
+    from api.db_helpers import is_manual_tags_available, is_photo_objects_available
 
     use_manual = include_manual and is_manual_tags_available(conn)
     manual_clause = (
         "photos.path IN (SELECT photo_path FROM photo_manual_tags WHERE tag LIKE ? ESCAPE '\\')"
+    )
+    use_objects = include_manual and is_photo_objects_available(conn)
+    object_clause = (
+        "photos.path IN (SELECT photo_path FROM photo_objects WHERE label LIKE ? ESCAPE '\\')"
     )
 
     fts_query = _fts5_query_from(term)
@@ -150,10 +155,13 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_man
             "SELECT f.photo_path FROM faces f JOIN persons p ON f.person_id = p.id"
             " WHERE p.name LIKE ? ESCAPE '\\')"
             + (f" OR {manual_clause}" if use_manual else "")
+            + (f" OR {object_clause}" if use_objects else "")
             + ")"
         )
         sql_params.extend([fts_query, person_like])
         if use_manual:
+            sql_params.append(person_like)
+        if use_objects:
             sql_params.append(person_like)
         return
 
@@ -178,6 +186,9 @@ def _apply_search_filter(where_clauses, sql_params, term: str, conn, include_man
 
     if use_manual:
         search_clauses.append(manual_clause)
+        search_params.append(f"%{escaped_term}%")
+    if use_objects:
+        search_clauses.append(object_clause)
         search_params.append(f"%{escaped_term}%")
 
     existing_cols = get_existing_columns(conn)

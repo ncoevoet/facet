@@ -40,6 +40,8 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     http.match('/api/filter_options/metric_ranges').forEach(request => request.flush({ ranges: {} }));
     http.match('/api/photos/keeper_hints').forEach(request => request.flush({}));
     http.match(request => request.url === '/api/photo/set').forEach(request => request.flush({ kind: null, members: [] }));
+    // The object layer asks for each photo's marked objects.
+    http.match(request => request.url === '/api/photo/objects').forEach(request => request.flush({ objects: [] }));
   };
   const render = async () => {
     harness.detectChanges();

@@ -491,6 +491,8 @@ No modo de edição, abra uma foto e escolha **Marcar um rosto ausente**, mesmo 
 
 A configuração antiga `viewer.performance.face_cache_size` é ignorada e pode ser removida.
 
+**Objetos.** O mesmo editor pode marcar um objeto em vez disso: escolha **Objeto**, desenhe o retângulo, escreva uma etiqueta (por exemplo «bolo de aniversário») e guarde. Os objetos aparecem como retângulos azuis com etiqueta na foto, a pesquisa da galeria encontra-os pela etiqueta e os assistentes podem lê-los (`GET /api/photo/objects`) para saber a que zona se refere. Um objeto nunca é um rosto: não mexe na deteção, no agrupamento, nas pessoas nem nas pontuações de rosto.
+
 ## Disparo de Varredura
 
 Inicie uma varredura pelo navegador. O botão Varrer aparece quando **ambas** as condições valem:

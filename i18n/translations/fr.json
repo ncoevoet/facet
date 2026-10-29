@@ -2824,7 +2824,7 @@
     }
   },
   "manual_faces": {
-    "title": "Marquer un visage manquant / Gérer les visages manuels",
+    "title": "Marquer un visage manquant ou un objet / Gérer les marques",
     "instructions": "Tracez un rectangle ou saisissez ses bords en pourcentage. Choisissez une personne, puis enregistrez.",
     "unavailable": "Original indisponible. Vous pouvez supprimer les marques enregistrées.",
     "preview": "Photo redressée pour marquer les visages",
@@ -2846,7 +2846,15 @@
     "save_failed": "Échec de l’enregistrement. Brouillon conservé. Si la source a changé ou la session a expiré, rechargez l’aperçu.",
     "reload": "Recharger l’éditeur",
     "refresh_failed": "La modification est enregistrée, mais les informations des personnes n’ont pas pu être actualisées. Rechargez la photo.",
-    "detected_overlap": "Un visage est déjà détecté ici. Fermez cet éditeur et utilisez l’action d’attribution des visages détectés. Votre brouillon est conservé."
+    "detected_overlap": "Un visage est déjà détecté ici. Fermez cet éditeur et utilisez l’action d’attribution des visages détectés. Votre brouillon est conservé.",
+    "mark_kind": "Ce que marque le rectangle",
+    "kind_face": "Visage",
+    "kind_object": "Objet",
+    "object_instructions": "Tracez un rectangle autour de l'objet ou saisissez ses bords en pourcentage. Donnez-lui un libellé, puis enregistrez. La recherche de la galerie trouve les objets ; ils ne comptent jamais comme des visages.",
+    "object_label": "Libellé",
+    "object_placeholder": "ex. gâteau d'anniversaire",
+    "objects": "Objets marqués",
+    "objects_empty": "Aucun objet marqué."
   },
   "assistant_activity": {
     "chip": "Assistant actif",

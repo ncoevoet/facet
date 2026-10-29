@@ -412,4 +412,49 @@ describe('manual face editor', () => {
     expect(api.post.mock.calls[0][1].bbox).toEqual([0.1, 0.2, 0.8, 0.9]);
     expect(committed).toHaveBeenCalledTimes(1);
   });
+  describe('marking an object', () => {
+    const object = { id: 9, label: 'birthday cake', box: [0.1, 0.2, 0.8, 0.9] };
+
+    beforeEach(() => {
+      component.kind.set('object');
+      api.post.mockReturnValue(of(object));
+    });
+
+    it('saves a labelled box to the objects route and never touches faces', async () => {
+      const changed = vi.fn();
+      (component.data as { onObjectsChanged?: () => void }).onObjectsChanged = changed;
+      component.objectLabel.set('  Birthday cake ');
+
+      await component.saveObject();
+
+      expect(api.post).toHaveBeenCalledTimes(1);
+      expect(api.post).toHaveBeenCalledWith('/photo/objects', {
+        path: '/a.raw', label: 'Birthday cake', box: [0.1, 0.2, 0.8, 0.9],
+      });
+      expect(component.objects()).toEqual([object]);
+      expect(component.objectLabel()).toBe('');
+      expect(changed).toHaveBeenCalledTimes(1);
+      expect(committed).not.toHaveBeenCalled();
+      expect(component.regions()).toEqual([]);
+    });
+
+    it('needs a label and a box', async () => {
+      component.objectLabel.set('   ');
+      expect(component.objectValid()).toBe(false);
+      component.objectLabel.set('car');
+      expect(component.objectValid()).toBe(true);
+      component.bbox.set([0, 0, 0, 0]);
+      expect(component.objectValid()).toBe(false);
+      await component.saveObject();
+      expect(api.post).not.toHaveBeenCalled();
+    });
+
+    it('removes an object through the objects route', async () => {
+      component.objects.set([object]);
+      await component.removeObject(object);
+      expect(api.delete).toHaveBeenCalledWith('/photo/objects/9');
+      expect(component.objects()).toEqual([]);
+      expect(committed).not.toHaveBeenCalled();
+    });
+  });
 });

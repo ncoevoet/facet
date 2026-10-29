@@ -21,6 +21,7 @@ import { StalenessGuardFactory } from '../../core/services/staleness-guard.servi
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
 import { ZoomPanDirective } from '../../shared/directives/zoom-pan.directive';
+import { PhotoObjectLayerComponent } from './photo-object-layer.component';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -60,6 +61,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   imports: [
     StackNavigatorComponent,
     ZoomPanDirective,
+    PhotoObjectLayerComponent,
     MetricRankComponent,
     PhotoMetricsTabsComponent,
     MatIconModule,
@@ -250,6 +252,12 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             (load)="onFullImageLoad()"
             [style.transform]="zoom.transform()"
           />
+          <app-photo-object-layer
+            [path]="p.path"
+            [imageWidth]="p.image_width"
+            [imageHeight]="p.image_height"
+            [transform]="zoom.transform()"
+            [revision]="objectsRevision()" />
         </div>
 
         <!-- Info panel -->
@@ -570,6 +578,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly viewerOwner = this.auth.identity();
 
   readonly photo = signal<Photo | null>(null);
+  /** Bumped when the mark dialog adds or removes an object, so the object layer re-reads. */
+  protected readonly objectsRevision = signal(0);
   protected readonly photoMissing = signal(false);
   protected readonly downloading = signal(false);
   protected readonly downloadOptions = signal<DownloadOption[]>([]);
@@ -978,7 +988,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         if (this.store.filters().person_id || this.store.filters().manual_faces_need_review || this.store.filters().faces_need_names) {
           await this.store.refreshPaths([path]);
         }
-      } },
+      }, onObjectsChanged: () => this.objectsRevision.update(n => n + 1) },
     });
   }
 

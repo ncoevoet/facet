@@ -4,6 +4,10 @@ All notable changes to Facet are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- **Mark an object.** The mark editor on the photo page can mark an object instead of a face: pick **Object**, draw the box and give it a label. Objects show as blue labelled boxes, the gallery search finds them by label, and `GET /api/photo/objects` lets assistants see which region is meant. They live in a new `photo_objects` side table and never touch faces, clustering or people.
+
 ### Fixed
 
 - **Header and phone layouts no longer crush their controls.** Below 1680 px the secondary destinations move into a More menu, so the gallery search and Type selector keep their width and the culling filters stop scrolling; on phones the nav and culling bars lose their scrollbars, person rename boxes fit their tiles, long camera names no longer cut off the stats legend, and the photo page keeps room for the filename

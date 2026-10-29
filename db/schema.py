@@ -594,6 +594,27 @@ PHOTO_MANUAL_TAGS_INDEXES = [
     ('idx_photo_manual_tags_tag', 'photo_manual_tags', 'tag'),
 ]
 
+# User-marked objects: a labelled box on a photo (e.g. "cake"), for search and for
+# assistants to know which region is meant. Never a face: nothing in face detection,
+# clustering or persons reads this table. Box corners are normalised to the upright
+# frame, like a face's box. Side table, so a rescan never touches it.
+PHOTO_OBJECTS_COLUMNS = [
+    ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
+    ('photo_path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE'),
+    ('label', 'TEXT NOT NULL'),
+    ('x1', 'REAL NOT NULL'),
+    ('y1', 'REAL NOT NULL'),
+    ('x2', 'REAL NOT NULL'),
+    ('y2', 'REAL NOT NULL'),
+    ('created_by', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
+PHOTO_OBJECTS_INDEXES = [
+    ('idx_photo_objects_path', 'photo_objects', 'photo_path'),
+    ('idx_photo_objects_label', 'photo_objects', 'label'),
+]
+
 # Pairwise comparison results for weight optimization
 COMPARISONS_COLUMNS = [
     ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
@@ -926,6 +947,7 @@ ALL_INDEX_GROUPS = [
     INDEXES,
     PHOTO_TAGS_INDEXES,
     PHOTO_MANUAL_TAGS_INDEXES,
+    PHOTO_OBJECTS_INDEXES,
     COMPARISONS_INDEXES,
     LEARNED_SCORES_INDEXES,
     WEIGHT_OPTIMIZATION_RUNS_INDEXES,
@@ -1118,6 +1140,7 @@ _MIGRATED_TABLES = [
     ('persons', PERSONS_COLUMNS),
     ('photo_tags', PHOTO_TAGS_COLUMNS),
     ('photo_manual_tags', PHOTO_MANUAL_TAGS_COLUMNS),
+    ('photo_objects', PHOTO_OBJECTS_COLUMNS),
     ('mcp_tokens', MCP_TOKENS_COLUMNS),
     ('rating_provenance', RATING_PROVENANCE_COLUMNS),
     ('photo_metadata_edits', PHOTO_METADATA_EDITS_COLUMNS),
@@ -1337,6 +1360,9 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
             PHOTO_MANUAL_TAGS_COLUMNS,
             constraints=['PRIMARY KEY (photo_path, tag)']
         ))
+
+        # Create photo_objects (user-marked labelled boxes; side table, survives rescans)
+        conn.execute(_build_create_table_sql('photo_objects', PHOTO_OBJECTS_COLUMNS))
 
         # Create mcp_tokens (agent bearer tokens, hash only; side table)
         conn.execute(_build_create_table_sql('mcp_tokens', MCP_TOKENS_COLUMNS))
