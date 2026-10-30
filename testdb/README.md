@@ -229,3 +229,9 @@ Massachusetts, Amherst, Technical Report 07-49, October 2007.
 http://vis-www.cs.umass.edu/lfw/
 
 LFW photos are 250x250 and carry no capture date, so scenes and the timeline do not apply.
+
+## Reference set: CC-BY-SA files
+
+Reference-set files under CC-BY-SA (any case, used unmodified only) keep their own licence and are not
+covered by the repo's MIT licence. They are never derived from, no pixels or thumbnails of them
+are committed, and review pages built from them stay local.

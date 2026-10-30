@@ -1,0 +1,1114 @@
+{
+  "schema_version": 1,
+  "cases": {
+    "portrait": {
+      "group": "category",
+      "title": "portrait",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "portrait_bw": {
+      "group": "category",
+      "title": "portrait bw",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "group_portrait": {
+      "group": "category",
+      "title": "group portrait",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "silhouette": {
+      "group": "category",
+      "title": "silhouette",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "art": {
+      "group": "category",
+      "title": "art",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "macro": {
+      "group": "category",
+      "title": "macro",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "astro": {
+      "group": "category",
+      "title": "astro",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "street": {
+      "group": "category",
+      "title": "street",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "aerial": {
+      "group": "category",
+      "title": "aerial",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "concert": {
+      "group": "category",
+      "title": "concert",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "night": {
+      "group": "category",
+      "title": "night",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "wildlife": {
+      "group": "category",
+      "title": "wildlife",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "architecture": {
+      "group": "category",
+      "title": "architecture",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "food": {
+      "group": "category",
+      "title": "food",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "landscape": {
+      "group": "category",
+      "title": "landscape",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "boundary-street-urban": {
+      "group": "category",
+      "title": "boundary street urban",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "boundary-night-concert": {
+      "group": "category",
+      "title": "boundary night concert",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-one": {
+      "group": "faces",
+      "title": "face one",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-two": {
+      "group": "faces",
+      "title": "face two",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-crowd10": {
+      "group": "faces",
+      "title": "face crowd10",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-tiny": {
+      "group": "faces",
+      "title": "face tiny",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-profile": {
+      "group": "faces",
+      "title": "face profile",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-occluded-hand": {
+      "group": "faces",
+      "title": "face occluded hand",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-mask": {
+      "group": "faces",
+      "title": "face mask",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-sunglasses": {
+      "group": "faces",
+      "title": "face sunglasses",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-blink": {
+      "group": "faces",
+      "title": "face blink",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-smile": {
+      "group": "faces",
+      "title": "face smile",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-child": {
+      "group": "faces",
+      "title": "face child",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-motion-blur": {
+      "group": "faces",
+      "title": "face motion blur",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-nonhuman": {
+      "group": "faces",
+      "title": "face nonhuman",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-animal": {
+      "group": "faces",
+      "title": "face animal",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "face-none": {
+      "group": "faces",
+      "title": "face none",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-global": {
+      "group": "composition",
+      "title": "samp global",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-horizontal": {
+      "group": "composition",
+      "title": "samp horizontal",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-vertical": {
+      "group": "composition",
+      "title": "samp vertical",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-triangular": {
+      "group": "composition",
+      "title": "samp triangular",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-surround": {
+      "group": "composition",
+      "title": "samp surround",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-quarter": {
+      "group": "composition",
+      "title": "samp quarter",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-cross": {
+      "group": "composition",
+      "title": "samp cross",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "samp-rule-of-thirds": {
+      "group": "composition",
+      "title": "samp rule of thirds",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "subject-centred": {
+      "group": "composition",
+      "title": "subject centred",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "subject-edge": {
+      "group": "composition",
+      "title": "subject edge",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "subject-small": {
+      "group": "composition",
+      "title": "subject small",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "subject-fill": {
+      "group": "composition",
+      "title": "subject fill",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-sharp": {
+      "group": "technical",
+      "title": "tech sharp",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-oof": {
+      "group": "technical",
+      "title": "tech oof",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-motion": {
+      "group": "technical",
+      "title": "tech motion",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-glass": {
+      "group": "technical",
+      "title": "tech glass",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-noise-iso": {
+      "group": "technical",
+      "title": "tech noise iso",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-jpeg-heavy": {
+      "group": "technical",
+      "title": "tech jpeg heavy",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-under": {
+      "group": "technical",
+      "title": "tech under",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-over": {
+      "group": "technical",
+      "title": "tech over",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-clip-shadow": {
+      "group": "technical",
+      "title": "tech clip shadow",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-clip-highlight": {
+      "group": "technical",
+      "title": "tech clip highlight",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-clip-single-channel": {
+      "group": "technical",
+      "title": "tech clip single channel",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-cast": {
+      "group": "technical",
+      "title": "tech cast",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-bw": {
+      "group": "technical",
+      "title": "tech bw",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-sepia": {
+      "group": "technical",
+      "title": "tech sepia",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "tech-stylised": {
+      "group": "technical",
+      "title": "tech stylised",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "geo-portrait": {
+      "group": "geometry",
+      "title": "geo portrait",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "geo-landscape": {
+      "group": "geometry",
+      "title": "geo landscape",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "geo-square": {
+      "group": "geometry",
+      "title": "geo square",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "geo-wide": {
+      "group": "geometry",
+      "title": "geo wide",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "geo-ge40mp": {
+      "group": "geometry",
+      "title": "geo ge40mp",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "geo-le640": {
+      "group": "geometry",
+      "title": "geo le640",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "fmt-jpeg": {
+      "group": "files",
+      "title": "fmt jpeg",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "fmt-heic": {
+      "group": "files",
+      "title": "fmt heic",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "fmt-hif-hdr-pq": {
+      "group": "files",
+      "title": "fmt hif hdr pq",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "fmt-hif-sdr": {
+      "group": "files",
+      "title": "fmt hif sdr",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-cr2": {
+      "group": "files",
+      "title": "raw cr2",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-cr3": {
+      "group": "files",
+      "title": "raw cr3",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-nef": {
+      "group": "files",
+      "title": "raw nef",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-arw": {
+      "group": "files",
+      "title": "raw arw",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-raf": {
+      "group": "files",
+      "title": "raw raf",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-rw2": {
+      "group": "files",
+      "title": "raw rw2",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-orf": {
+      "group": "files",
+      "title": "raw orf",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-pef": {
+      "group": "files",
+      "title": "raw pef",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-dng": {
+      "group": "files",
+      "title": "raw dng",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "raw-dng-lrmerged-jxl": {
+      "group": "files",
+      "title": "raw dng lrmerged jxl",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-1": {
+      "group": "metadata",
+      "title": "exif orient 1",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-2": {
+      "group": "metadata",
+      "title": "exif orient 2",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-3": {
+      "group": "metadata",
+      "title": "exif orient 3",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-4": {
+      "group": "metadata",
+      "title": "exif orient 4",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-5": {
+      "group": "metadata",
+      "title": "exif orient 5",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-6": {
+      "group": "metadata",
+      "title": "exif orient 6",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-7": {
+      "group": "metadata",
+      "title": "exif orient 7",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-orient-8": {
+      "group": "metadata",
+      "title": "exif orient 8",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "exif-none": {
+      "group": "metadata",
+      "title": "exif none",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "gps-present": {
+      "group": "metadata",
+      "title": "gps present",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "gps-absent": {
+      "group": "metadata",
+      "title": "gps absent",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "icc-adobergb": {
+      "group": "colour",
+      "title": "icc adobergb",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "icc-displayp3": {
+      "group": "colour",
+      "title": "icc displayp3",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "icc-none": {
+      "group": "colour",
+      "title": "icc none",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "cmyk": {
+      "group": "colour",
+      "title": "cmyk",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "bit-16": {
+      "group": "colour",
+      "title": "bit 16",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "comp-raw-jpeg": {
+      "group": "companions",
+      "title": "comp raw jpeg",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "comp-xmp": {
+      "group": "companions",
+      "title": "comp xmp",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "seq-bracket3": {
+      "group": "sequences",
+      "title": "seq bracket3",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "seq-bracket5": {
+      "group": "sequences",
+      "title": "seq bracket5",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "seq-panorama-ge8": {
+      "group": "sequences",
+      "title": "seq panorama ge8",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "seq-panorama-le6-negative": {
+      "group": "sequences",
+      "title": "seq panorama le6 negative",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "seq-burst-obvious": {
+      "group": "sequences",
+      "title": "seq burst obvious",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "seq-burst-ambiguous": {
+      "group": "sequences",
+      "title": "seq burst ambiguous",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "dup-edited": {
+      "group": "sequences",
+      "title": "dup edited",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "dup-resized": {
+      "group": "sequences",
+      "title": "dup resized",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "junk-screenshot": {
+      "group": "junk",
+      "title": "junk screenshot",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "junk-document": {
+      "group": "junk",
+      "title": "junk document",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "junk-receipt": {
+      "group": "junk",
+      "title": "junk receipt",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "junk-meme": {
+      "group": "junk",
+      "title": "junk meme",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "junk-slide": {
+      "group": "junk",
+      "title": "junk slide",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "junk-lookalike-real": {
+      "group": "junk",
+      "title": "junk lookalike real",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-celebration": {
+      "group": "moments",
+      "title": "moment general celebration",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-dining": {
+      "group": "moments",
+      "title": "moment general dining",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-beach": {
+      "group": "moments",
+      "title": "moment general beach",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-water_activity": {
+      "group": "moments",
+      "title": "moment general water activity",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-mountains": {
+      "group": "moments",
+      "title": "moment general mountains",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-nature_wildlife": {
+      "group": "moments",
+      "title": "moment general nature wildlife",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-cityscape": {
+      "group": "moments",
+      "title": "moment general cityscape",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-travel_landmark": {
+      "group": "moments",
+      "title": "moment general travel landmark",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-concert": {
+      "group": "moments",
+      "title": "moment general concert",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-sports": {
+      "group": "moments",
+      "title": "moment general sports",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-group_gathering": {
+      "group": "moments",
+      "title": "moment general group gathering",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-portrait": {
+      "group": "moments",
+      "title": "moment general portrait",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-children": {
+      "group": "moments",
+      "title": "moment general children",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-pets": {
+      "group": "moments",
+      "title": "moment general pets",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-nightlife": {
+      "group": "moments",
+      "title": "moment general nightlife",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-ceremony": {
+      "group": "moments",
+      "title": "moment general ceremony",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-scenic_landscape": {
+      "group": "moments",
+      "title": "moment general scenic landscape",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-snow_winter": {
+      "group": "moments",
+      "title": "moment general snow winter",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-home_indoor": {
+      "group": "moments",
+      "title": "moment general home indoor",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-general-road_vehicle": {
+      "group": "moments",
+      "title": "moment general road vehicle",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-getting_ready_bride": {
+      "group": "moments",
+      "title": "moment wedding getting ready bride",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-getting_ready_groom": {
+      "group": "moments",
+      "title": "moment wedding getting ready groom",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-ceremony_entrance": {
+      "group": "moments",
+      "title": "moment wedding ceremony entrance",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-vows": {
+      "group": "moments",
+      "title": "moment wedding vows",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-ring_exchange": {
+      "group": "moments",
+      "title": "moment wedding ring exchange",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-first_kiss": {
+      "group": "moments",
+      "title": "moment wedding first kiss",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-recessional": {
+      "group": "moments",
+      "title": "moment wedding recessional",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-family_formals": {
+      "group": "moments",
+      "title": "moment wedding family formals",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-couple_portraits": {
+      "group": "moments",
+      "title": "moment wedding couple portraits",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-cocktail_hour": {
+      "group": "moments",
+      "title": "moment wedding cocktail hour",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-reception_details": {
+      "group": "moments",
+      "title": "moment wedding reception details",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-dinner_toasts": {
+      "group": "moments",
+      "title": "moment wedding dinner toasts",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-cake_cutting": {
+      "group": "moments",
+      "title": "moment wedding cake cutting",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-first_dance": {
+      "group": "moments",
+      "title": "moment wedding first dance",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-party_dancing": {
+      "group": "moments",
+      "title": "moment wedding party dancing",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    },
+    "moment-wedding-send_off": {
+      "group": "moments",
+      "title": "moment wedding send off",
+      "min_photos": 3,
+      "max_photos": 5,
+      "known_gap": "not yet sourced"
+    }
+  },
+  "photos": [],
+  "pairs": [],
+  "known_gaps": [
+    {
+      "case": "label-human_others",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-sports",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-vehicle",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-travel",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-fashion",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-urban",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-long_exposure",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-cinematic",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-vintage",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-abstract",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-minimalist",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-dramatic",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-monochrome",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-weather",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-default",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-golden_hour",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-blue_hour",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-product",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    },
+    {
+      "case": "label-candid",
+      "reason": "outside the 15 categories the issue labels; no expected_category or pairs yet"
+    }
+  ]
+}
