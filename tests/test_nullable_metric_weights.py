@@ -99,8 +99,19 @@ def test_all_null_column_keeps_prior_through_fit_and_apply_percent():
     from optimization.weight_optimizer import _active_columns
     active = _active_columns(D)
     assert active.tolist() == [True, True, False]
-    percent = WeightOptimizer._round_percent_weights(dict(zip(('m0', 'm1', 'subject_sharpness'), fitted)))
+    names = ('m0', 'm1', 'subject_sharpness')
+    percent = WeightOptimizer._round_percent_weights(dict(zip(names, fitted)), dict(zip(names, w0)))
     assert percent['subject_sharpness'] == 20.0
+    assert sum(percent.values()) == pytest.approx(100.)
+
+
+def test_rounding_residual_never_lands_on_a_held_weight():
+    from optimization.weight_optimizer import WeightOptimizer
+    served = {'a': .2, 'c': .2, 't': .24, 'subject_sharpness': .36}
+    # The held weight is the largest; the three fitted ones each round down.
+    fitted = {'a': .21333, 'c': .21333, 't': .21334, 'subject_sharpness': .36}
+    percent = WeightOptimizer._round_percent_weights(fitted, served)
+    assert percent['subject_sharpness'] == 36.0
     assert sum(percent.values()) == pytest.approx(100.)
 
 

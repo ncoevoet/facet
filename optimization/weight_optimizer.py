@@ -888,17 +888,21 @@ class WeightOptimizer:
             return uniform
 
     @staticmethod
-    def _round_percent_weights(new_weights: Dict[str, float], log: bool = False) -> Dict[str, float]:
+    def _round_percent_weights(new_weights: Dict[str, float], served: Dict[str, float],
+                               log: bool = False) -> Dict[str, float]:
         """``new_weights`` as the config stores them: percent, one decimal, summing to 100.
 
         Rounding to a tenth of a percent can leave the total a hair off 100, so
-        the largest weight absorbs the difference. Shared by the write and by the
-        bonus projection, so the shift is measured on the weights that land.
+        the largest weight that moved from ``served`` absorbs the difference: a
+        weight the fit held at its prior stays exactly where the operator set it.
+        Shared by the write and by the bonus projection, so the shift is measured
+        on the weights that land.
         """
         percent = {c: round(w * 100, 1) for c, w in new_weights.items()}
         total = sum(percent.values())
         if total > 0 and abs(total - 100.0) > 0.01:
-            largest = max(percent, key=lambda c: percent[c])
+            moved = [c for c in percent if percent[c] != round(served.get(c, 0.0) * 100, 1)]
+            largest = max(moved or percent, key=lambda c: percent[c])
             adjustment = 100.0 - total
             percent[largest] = round(percent[largest] + adjustment, 1)
             if log:
@@ -922,7 +926,7 @@ class WeightOptimizer:
             logger.info("No database at %s: bonus not re-centred", self.db_path)
             return None
         served = self._load_current_weights(category)
-        rounded = self._round_percent_weights(new_weights)
+        rounded = self._round_percent_weights(new_weights, served)
         diff = np.array([rounded[c] / 100.0 - served[c] if c in rounded else 0.0
                          for c in self.SCORE_COMPONENTS])
         old_w = np.array([served[c] for c in self.SCORE_COMPONENTS])
@@ -1049,7 +1053,8 @@ class WeightOptimizer:
 
         # Components are config metric keys - write '<key>_percent' directly,
         # rounded to a tenth of a percent and summing to exactly 100
-        for component, percent in self._round_percent_weights(new_weights, log=True).items():
+        served = self._load_current_weights(category)
+        for component, percent in self._round_percent_weights(new_weights, served, log=True).items():
             cat_weights[f"{component}_percent"] = percent
 
         # The new weights are over the SERVED weight space (quality already folded
