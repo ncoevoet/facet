@@ -66,8 +66,8 @@ def test_optimizer_null_pair_matches_removed_column():
     masked = np.concatenate((complete, np.full((3, 2, 1), np.nan)), axis=2)
     y, rw = np.array([1, -1, 1]), np.ones(3)
     w = np.array([.5, .5])
-    # The absent component is fixed at zero in the prior and start.
-    full_w = np.array([.5, .5, 0.])
+    # A positive prior on the absent component must be removed and redistributed.
+    full_w = np.array([.3, .3, .4])
     expected = _fit_weights(complete, y, rw, w, 100., [w], 100)[0]
     actual = _fit_weights(masked, y, rw, full_w, 100., [full_w], 100)[0]
     assert actual[:2] == pytest.approx(expected, abs=1e-5)
@@ -96,3 +96,25 @@ def test_licence_only_fallback_is_zero():
     values = np.array([[-np.inf, 8.], [np.nan, 8.]])
     scores, _ = _row_scores_and_gradient(values, np.array([1., 0.]))
     assert scores.tolist() == [0., 5.]
+
+
+def test_default_native_aggregates_byte_identical_to_previous_rule(tmp_path, monkeypatch):
+    import struct
+    import processing.scorer as scorer
+    path = tmp_path / 'config.json'
+    path.write_text('{}')
+    cfg = ScoringConfig(str(path), validate=False)
+    scanner = scorer.Facet.__new__(scorer.Facet)
+    scanner.config = cfg
+    new_rule = scorer.weights_for_row
+    for category in cfg.config['categories']:
+        monkeypatch.setattr(scanner, '_determine_photo_category', lambda m, c: category['name'])
+        for optional in (None, 0., 8.):
+            row = {'aesthetic': 7.3, 'tech_sharpness': 4.1, 'comp_score': 6.2,
+                   **{key: optional for key in scorer.NULLABLE_SCORING_METRICS}}
+            monkeypatch.setattr(scorer, 'weights_for_row', new_rule)
+            actual = scanner.calculate_aggregate_logic(row)[0]
+            monkeypatch.setattr(scorer, 'weights_for_row',
+                                lambda w, m, unavailable: scorer.renormalise_weights(w, unavailable) if unavailable else w)
+            previous = scanner.calculate_aggregate_logic(row)[0]
+            assert struct.pack('!d', actual) == struct.pack('!d', previous)
