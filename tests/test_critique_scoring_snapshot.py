@@ -60,12 +60,15 @@ def snapshot(tmp_path):
         finally:
             conn.close()
 
+    # Import route modules before patching their shared config factory: a
+    # route's module-level import must not retain this fixture's mock.
+    app = create_app()
     with (
         mock.patch.object(critique, "get_db", database),
         mock.patch.object(critique, "get_visibility_clause", return_value=("1=1", [])),
         mock.patch("api.config.server_scoring_config", return_value=config),
     ):
-        yield path, config, queries, TestClient(create_app())
+        yield path, config, queries, TestClient(app)
 
 
 def get(client):
