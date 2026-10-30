@@ -1213,18 +1213,21 @@ export class GalleryComponent implements OnInit, OnDestroy {
     });
   });
 
-  /** Why photos are hidden, in words: "287 burst repeat(s), 23 blink(s)...". */
+  /** Why photos are hidden, in words: "287 burst repeat(s), 23 blink(s)...". The summary counts
+   *  every kind in scope, so a kind whose toggle is off is left out: an opened burst would
+   *  otherwise list its own repeats as hidden while all of them are on screen. */
   protected readonly hiddenReasons = computed(() => {
     this.i18n.translations();
     const h = this.store.hiddenSummary();
-    const reasons: [number, string][] = [
-      [h.bursts, I18N.gallery.hidden_banner.reason_bursts],
-      [h.blinks, I18N.gallery.hidden_banner.reason_blinks],
-      [h.duplicates, I18N.gallery.hidden_banner.reason_duplicates],
-      [h.brackets, I18N.gallery.hidden_banner.reason_brackets],
-      [h.panoramas, I18N.gallery.hidden_banner.reason_panoramas],
+    const f = this.store.filters();
+    const reasons: [boolean, number, string][] = [
+      [f.hide_bursts, h.bursts, I18N.gallery.hidden_banner.reason_bursts],
+      [f.hide_blinks, h.blinks, I18N.gallery.hidden_banner.reason_blinks],
+      [f.hide_duplicates, h.duplicates, I18N.gallery.hidden_banner.reason_duplicates],
+      [f.hide_brackets, h.brackets, I18N.gallery.hidden_banner.reason_brackets],
+      [f.hide_panoramas, h.panoramas, I18N.gallery.hidden_banner.reason_panoramas],
     ];
-    return reasons.filter(([n]) => n > 0).map(([n, key]) => this.i18n.t(key, { n })).join(', ');
+    return reasons.filter(([on, n]) => on && n > 0).map(([, n, key]) => this.i18n.t(key, { n })).join(', ');
   });
 
   /** Show the hidden-photos banner when filters are hiding rows and at least one is on. */

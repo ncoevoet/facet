@@ -1557,6 +1557,15 @@ describe('GalleryComponent', () => {
       expect(mockStore.showAllHidden).toHaveBeenCalled();
     });
 
+    it('names only the kinds whose hide toggle is on', () => {
+      // An opened burst lifts hide_bursts: its repeats are on screen, so only the blink is hidden.
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 2, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_bursts: false, hide_blinks: true });
+      const text = stack(render())!.querySelector('[role="status"]')!.textContent!;
+      expect(text).toContain(I18N.gallery.hidden_banner.reason_blinks);
+      expect(text).not.toContain(I18N.gallery.hidden_banner.reason_bursts);
+    });
+
     it('the set-scope bar adds nothing when the whole set is on screen', () => {
       mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
       mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
