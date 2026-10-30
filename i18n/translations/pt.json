@@ -3109,7 +3109,8 @@
       "create_photo_stack": "Pilha de fotos criada",
       "update_photo_stack": "Pilha de fotos atualizada",
       "unstack_photos": "Fotos desempilhadas",
-      "undo_photo_stack": "Alteração da pilha desfeita"
+      "undo_photo_stack": "Alteração da pilha desfeita",
+      "import_ai_edit": "Importou uma edição por IA"
     },
     "ui": {
       "ui_navigate": "Página aberta",

@@ -1110,14 +1110,14 @@ Que ferramentas de IA podem importar uma edição com `import_ai_edit` (ver [Age
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
   }
 }
 ```
 
 | Definição | Predefinição | Descrição |
 |---------|---------|-------------|
-| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Nome da ferramenta → etiqueta do nome do ficheiro |
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nome da ferramenta → etiqueta do nome do ficheiro |
 
 ---
 

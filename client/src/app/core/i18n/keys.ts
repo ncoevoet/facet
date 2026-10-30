@@ -3124,6 +3124,7 @@ export const I18N = {
       update_photo_stack: "assistant_activity.tools.update_photo_stack",
       unstack_photos: "assistant_activity.tools.unstack_photos",
       undo_photo_stack: "assistant_activity.tools.undo_photo_stack",
+      import_ai_edit: "assistant_activity.tools.import_ai_edit",
     },
     ui: {
       ui_navigate: "assistant_activity.ui.ui_navigate",

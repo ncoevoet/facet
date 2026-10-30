@@ -3109,7 +3109,8 @@
       "create_photo_stack": "Fotostapel erstellt",
       "update_photo_stack": "Fotostapel geändert",
       "unstack_photos": "Fotostapel aufgelöst",
-      "undo_photo_stack": "Stapeländerung rückgängig gemacht"
+      "undo_photo_stack": "Stapeländerung rückgängig gemacht",
+      "import_ai_edit": "KI-Bearbeitung importiert"
     },
     "ui": {
       "ui_navigate": "Seite geöffnet",

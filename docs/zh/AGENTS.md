@@ -382,7 +382,7 @@ curl -s -X POST http://localhost:5000/api/mcp/tokens -H "Authorization: Bearer $
 
 ## Prompts
 
-服务器还提供五个现成的提示词，由 `prompts/list` 列出并按令牌级别过滤。提示词只会提到令牌可调用的工具，破坏性工具只出现在试运行与确认之后。每次调用都计入读取速率限制，并按名称记录审计，从不记录其参数。
+服务器还提供六个现成的提示词，由 `prompts/list` 列出并按令牌级别过滤。提示词只会提到令牌可调用的工具，破坏性工具只出现在试运行与确认之后。每次调用都计入读取速率限制，并按名称记录审计，从不记录其参数。
 
 | 提示词 | 参数 | 它要求助手做什么 |
 |--------|------|------------------|
@@ -391,6 +391,7 @@ curl -s -X POST http://localhost:5000/api/mcp/tokens -H "Authorization: Bearer $
 | `build_album` | `theme`, `album_name` | 把匹配的照片收集到新相册 |
 | `tag_people` | `person` | 找到与某人相似的人脸并分配你确认的那些 |
 | `teach_taste` | `category` | 在你的标签页中打开成对比较页面并统计你已做的比较次数；每一对的答案始终是你自己的点击 |
+| `edit_photo` | `change`, `photo` | 找到照片（按路径、描述、点名的人物或标签页中的选择），用助手的图像模型在照片库之外编辑一份副本，先给你看，再用 `import_ai_edit` 导回。提示词会列出服务器接受的工具名称。使用技能文件的助手：[示例技能](../examples/agent-skills/facet/SKILL.md) |
 
 ## 暗房（选片分组）
 

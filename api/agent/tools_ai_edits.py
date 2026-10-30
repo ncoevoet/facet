@@ -34,7 +34,8 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
         '`original_path` is the library photo; `source_file` is the edit on the server\'s disk (absolute path, '
         'a rendered image, not already a library photo). `mode` is required: `move` deletes the source after '
         'the copy is verified, `copy` keeps it. `tool` must be a key of the server\'s `ai_edits.tool_suffixes` '
-        '(e.g. `antigravity-gemini`); the file lands beside the original as `{name}_{suffix}_{revision}{ext}`, '
+        '(by default `antigravity-gemini` → agy, `openai-chatgpt` → gpt, `anthropic-claude` → ant; '
+        'an unknown name is refused with the configured list); the file lands beside the original as `{name}_{suffix}_{revision}{ext}`, '
         'never over an existing file. The new file is scanned when scanning is enabled (`scan.started`); '
         'otherwise it appears after the next scan. `get_photo` on the edit returns `ai_edit_of`. '
         'Not idempotent: each call adds a revision.',

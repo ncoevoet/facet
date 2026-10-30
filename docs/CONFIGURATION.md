@@ -1113,14 +1113,14 @@ Which AI tools may import an edit with `import_ai_edit` (see [AI Agents](AGENTS.
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
   }
 }
 ```
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Tool name → file-name tag |
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Tool name → file-name tag |
 
 ---
 

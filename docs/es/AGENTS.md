@@ -382,7 +382,7 @@ Los asistentes pueden leer los pesos de puntuación y simular un cambio. Cuatro 
 
 ## Prompts
 
-El servidor ofrece además cinco prompts listos, listados por `prompts/list` y filtrados por el nivel del token. Un prompt solo nombra herramientas que el token puede llamar, y una herramienta destructiva solo tras su simulación y su confirmación. Cada llamada cuenta en el límite de lectura y se registra por nombre, nunca con sus argumentos.
+El servidor ofrece además seis prompts listos, listados por `prompts/list` y filtrados por el nivel del token. Un prompt solo nombra herramientas que el token puede llamar, y una herramienta destructiva solo tras su simulación y su confirmación. Cada llamada cuenta en el límite de lectura y se registra por nombre, nunca con sus argumentos.
 
 | Prompt | Argumentos | Qué pide al asistente |
 |--------|------------|-----------------------|
@@ -391,6 +391,7 @@ El servidor ofrece además cinco prompts listos, listados por `prompts/list` y f
 | `build_album` | `theme`, `album_name` | Reunir las fotos que coinciden en un álbum nuevo |
 | `tag_people` | `person` | Encontrar rostros parecidos a una persona y asignar los que confirmes |
 | `teach_taste` | `category` | Abrir la página de comparación por pares en tu pestaña y llevar la cuenta de las comparaciones hechas; la respuesta a cada par es siempre tu propio clic |
+| `edit_photo` | `change`, `photo` | Encontrar la foto (por ruta, descripción, personas nombradas o la selección de la pestaña), editar una copia fuera de la biblioteca con el modelo de imagen del asistente, mostrártela y traerla con `import_ai_edit`. El prompt indica los nombres de herramienta que acepta el servidor. Asistentes con archivos de skill: [skill de ejemplo](../examples/agent-skills/facet/SKILL.md) |
 
 ## Cuarto oscuro (grupos de descarte)
 

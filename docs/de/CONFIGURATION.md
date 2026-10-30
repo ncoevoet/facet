@@ -1119,14 +1119,14 @@ Welche KI-Werkzeuge mit `import_ai_edit` eine Bearbeitung importieren dürfen (s
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
   }
 }
 ```
 
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
-| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Werkzeugname → Kürzel im Dateinamen |
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Werkzeugname → Kürzel im Dateinamen |
 
 ---
 

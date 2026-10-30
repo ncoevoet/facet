@@ -382,7 +382,7 @@ Les assistants peuvent lire les pondérations de score et simuler un changement.
 
 ## Prompts
 
-Le serveur propose aussi cinq prompts prêts à l'emploi, listés par `prompts/list` et filtrés selon le niveau du jeton. Un prompt ne nomme que des outils que le jeton peut appeler, et un outil destructif seulement derrière son essai à blanc et sa confirmation. Chaque appel compte dans la limite de lecture et est journalisé par nom, jamais avec ses arguments.
+Le serveur propose aussi six prompts prêts à l'emploi, listés par `prompts/list` et filtrés selon le niveau du jeton. Un prompt ne nomme que des outils que le jeton peut appeler, et un outil destructif seulement derrière son essai à blanc et sa confirmation. Chaque appel compte dans la limite de lecture et est journalisé par nom, jamais avec ses arguments.
 
 | Prompt | Arguments | Ce qu'il demande à l'assistant |
 |--------|-----------|--------------------------------|
@@ -391,6 +391,7 @@ Le serveur propose aussi cinq prompts prêts à l'emploi, listés par `prompts/l
 | `build_album` | `theme`, `album_name` | Réunir les photos correspondantes dans un nouvel album |
 | `tag_people` | `person` | Trouver les visages qui ressemblent à une personne et assigner ceux que vous confirmez |
 | `teach_taste` | `category` | Ouvrir la page de comparaison par paires dans votre onglet et suivre le nombre de comparaisons faites ; la réponse à chaque paire reste toujours votre propre clic |
+| `edit_photo` | `change`, `photo` | Trouver la photo (par chemin, description, personnes nommées ou sélection de l'onglet), retoucher une copie hors de la bibliothèque avec le modèle d'image de l'assistant, te la montrer, puis la ramener avec `import_ai_edit`. Le prompt donne les noms d'outil acceptés par le serveur. Assistants à fichiers de skill : [skill d'exemple](../examples/agent-skills/facet/SKILL.md) |
 
 ## Chambre noire (groupes de tri)
 

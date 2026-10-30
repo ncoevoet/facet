@@ -382,7 +382,7 @@ Gli assistenti possono leggere i pesi di punteggio e provare a vuoto una modific
 
 ## Prompts
 
-Il server offre anche cinque prompt pronti, elencati da `prompts/list` e filtrati in base al livello del token. Un prompt nomina solo strumenti che il token può chiamare, e uno strumento distruttivo solo dopo la prova a vuoto e la conferma. Ogni chiamata conta nel limite di lettura ed è registrata per nome, mai con i suoi argomenti.
+Il server offre anche sei prompt pronti, elencati da `prompts/list` e filtrati in base al livello del token. Un prompt nomina solo strumenti che il token può chiamare, e uno strumento distruttivo solo dopo la prova a vuoto e la conferma. Ogni chiamata conta nel limite di lettura ed è registrata per nome, mai con i suoi argomenti.
 
 | Prompt | Argomenti | Cosa chiede all'assistente |
 |--------|-----------|----------------------------|
@@ -391,6 +391,7 @@ Il server offre anche cinque prompt pronti, elencati da `prompts/list` e filtrat
 | `build_album` | `theme`, `album_name` | Raccogliere le foto corrispondenti in un nuovo album |
 | `tag_people` | `person` | Trovare i volti simili a una persona e assegnare quelli che confermi |
 | `teach_taste` | `category` | Aprire la pagina di confronto a coppie nella tua scheda e tenere il conto dei confronti fatti; la risposta a ogni coppia è sempre il tuo clic |
+| `edit_photo` | `change`, `photo` | Trovare la foto (per percorso, descrizione, persone nominate o selezione della scheda), modificare una copia fuori dalla libreria con il modello di immagini dell'assistente, mostrartela e riportarla con `import_ai_edit`. Il prompt elenca i nomi di strumento accettati dal server. Assistenti con file di skill: [skill di esempio](../examples/agent-skills/facet/SKILL.md) |
 
 ## Camera oscura (gruppi di selezione)
 

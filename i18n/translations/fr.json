@@ -3109,7 +3109,8 @@
       "create_photo_stack": "Pile de photos créée",
       "update_photo_stack": "Pile de photos modifiée",
       "unstack_photos": "Pile de photos dissociée",
-      "undo_photo_stack": "Modification de pile annulée"
+      "undo_photo_stack": "Modification de pile annulée",
+      "import_ai_edit": "A importé une retouche IA"
     },
     "ui": {
       "ui_navigate": "Page ouverte",

@@ -382,7 +382,7 @@ Os assistentes podem ler os pesos de pontuação e simular uma alteração. Quat
 
 ## Prompts
 
-O servidor oferece ainda cinco prompts prontos, listados por `prompts/list` e filtrados pelo nível do token. Um prompt só nomeia ferramentas que o token pode chamar, e uma ferramenta destrutiva só depois da sua simulação e da sua confirmação. Cada chamada conta no limite de leitura e é registrada pelo nome, nunca com os seus argumentos.
+O servidor oferece ainda seis prompts prontos, listados por `prompts/list` e filtrados pelo nível do token. Um prompt só nomeia ferramentas que o token pode chamar, e uma ferramenta destrutiva só depois da sua simulação e da sua confirmação. Cada chamada conta no limite de leitura e é registrada pelo nome, nunca com os seus argumentos.
 
 | Prompt | Argumentos | O que pede ao assistente |
 |--------|------------|--------------------------|
@@ -391,6 +391,7 @@ O servidor oferece ainda cinco prompts prontos, listados por `prompts/list` e fi
 | `build_album` | `theme`, `album_name` | Reunir as fotos correspondentes em um novo álbum |
 | `tag_people` | `person` | Encontrar rostos parecidos com uma pessoa e atribuir os que confirmar |
 | `teach_taste` | `category` | Abrir a página de comparação por pares na sua aba e acompanhar quantas comparações fez; a resposta a cada par é sempre o seu próprio clique |
+| `edit_photo` | `change`, `photo` | Encontrar a foto (por caminho, descrição, pessoas nomeadas ou a seleção do separador), editar uma cópia fora da biblioteca com o modelo de imagem do assistente, mostrá-la a ti e trazê-la com `import_ai_edit`. O prompt indica os nomes de ferramenta que o servidor aceita. Assistentes com ficheiros de skill: [skill de exemplo](../examples/agent-skills/facet/SKILL.md) |
 
 ## Câmara escura (grupos de triagem)
 

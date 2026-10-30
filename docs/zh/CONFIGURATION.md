@@ -1111,14 +1111,14 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
   }
 }
 ```
 
 | 设置 | 默认值 | 说明 |
 |---------|---------|-------------|
-| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | 工具名称 → 文件名标记 |
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | 工具名称 → 文件名标记 |
 
 ---
 

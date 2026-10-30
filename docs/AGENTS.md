@@ -382,7 +382,7 @@ Assistants can read the scoring weights and dry-run a change. Four tools write: 
 
 ## Prompts
 
-The server also offers five ready-made prompts, listed by `prompts/list` and filtered by the token's level. A prompt only names tools the token can call, and a destructive tool only behind its dry run and confirmation. Each call counts against the read rate limit and is logged by name, never with its arguments.
+The server also offers six ready-made prompts, listed by `prompts/list` and filtered by the token's level. A prompt only names tools the token can call, and a destructive tool only behind its dry run and confirmation. Each call counts against the read rate limit and is logged by name, never with its arguments.
 
 | Prompt | Arguments | What it asks the assistant to do |
 |--------|-----------|-----------------------------------|
@@ -391,6 +391,7 @@ The server also offers five ready-made prompts, listed by `prompts/list` and fil
 | `build_album` | `theme`, `album_name` | Collect matching photos into a new album |
 | `tag_people` | `person` | Find faces that look like a person and assign the ones you confirm |
 | `teach_taste` | `category` | Open the pairwise comparison page in your tab and track how many comparisons you have made; the answer to each pair is always your own click |
+| `edit_photo` | `change`, `photo` | Find the photo (by path, description, named people or the tab's selection), edit a copy outside the library with the assistant's image model, show it to you, then bring it back with `import_ai_edit`. The prompt lists the tool names the server accepts. Skill-file assistants: [example skill](examples/agent-skills/facet/SKILL.md) |
 
 ## Darkroom (culling groups)
 

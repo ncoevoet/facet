@@ -1114,14 +1114,14 @@ Les outils d'IA autorisés à importer une retouche avec `import_ai_edit` (voir 
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
   }
 }
 ```
 
 | Paramètre | Défaut | Description |
 |---------|---------|-------------|
-| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Nom de l'outil → étiquette du nom de fichier |
+| `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nom de l'outil → étiquette du nom de fichier |
 
 ---
 

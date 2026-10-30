@@ -382,7 +382,7 @@ Assistenten können die Scoring-Gewichte lesen und eine Änderung im Probelauf p
 
 ## Prompts
 
-Der Server bietet außerdem fünf vorgefertigte Prompts an, die `prompts/list` aufführt und nach der Stufe des Tokens filtert. Ein Prompt nennt nur Werkzeuge, die das Token aufrufen kann, und ein destruktives Werkzeug nur hinter Probelauf und Bestätigung. Jeder Aufruf zählt zum Lese-Ratenlimit und wird nach Namen protokolliert, nie mit seinen Argumenten.
+Der Server bietet außerdem sechs vorgefertigte Prompts an, die `prompts/list` aufführt und nach der Stufe des Tokens filtert. Ein Prompt nennt nur Werkzeuge, die das Token aufrufen kann, und ein destruktives Werkzeug nur hinter Probelauf und Bestätigung. Jeder Aufruf zählt zum Lese-Ratenlimit und wird nach Namen protokolliert, nie mit seinen Argumenten.
 
 | Prompt | Argumente | Was er den Assistenten tun lässt |
 |--------|-----------|----------------------------------|
@@ -391,6 +391,7 @@ Der Server bietet außerdem fünf vorgefertigte Prompts an, die `prompts/list` a
 | `build_album` | `theme`, `album_name` | Passende Fotos in einem neuen Album sammeln |
 | `tag_people` | `person` | Gesichter finden, die einer Person ähneln, und die bestätigten zuweisen |
 | `teach_taste` | `category` | Die Paarvergleichsseite in Ihrem Tab öffnen und mitzählen, wie viele Vergleiche Sie gemacht haben; die Antwort auf jedes Paar ist immer Ihr eigener Klick |
+| `edit_photo` | `change`, `photo` | Das Foto finden (per Pfad, Beschreibung, genannten Personen oder der Auswahl im Tab), eine Kopie außerhalb der Bibliothek mit dem Bildmodell des Assistenten bearbeiten, sie dir zeigen und dann mit `import_ai_edit` zurückbringen. Der Prompt nennt die Werkzeugnamen, die der Server annimmt. Assistenten mit Skill-Dateien: [Beispiel-Skill](../examples/agent-skills/facet/SKILL.md) |
 
 ## Dunkelkammer (Auswahlgruppen)
 
