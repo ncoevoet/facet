@@ -7,12 +7,13 @@ export const FEATURE_MARK = '✦';
 
 export type MarkTone = 'quality' | 'taste' | 'moment' | 'memories' | 'smart';
 
+/** Important: a Material tab label and an active nav button colour their icons over a plain class. */
 const MARK_TONES: Readonly<Record<MarkTone, string>> = {
-  quality: 'text-emerald-500',
-  taste: 'text-amber-400',
-  moment: 'text-[var(--mat-sys-primary)]',
-  memories: 'text-rose-500',
-  smart: 'text-teal-400',
+  quality: '!text-emerald-500',
+  taste: '!text-amber-400',
+  moment: '!text-[var(--mat-sys-primary)]',
+  memories: '!text-rose-500',
+  smart: '!text-teal-400',
 };
 
 /** Keys of the data-driven icon tables (sort options, weights, sidebar sections) that draw the mark. */
