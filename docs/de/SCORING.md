@@ -4,6 +4,8 @@
 
 Fotos werden zunächst einer Kategorie zugeordnet und anschließend mit den Gewichten dieser Kategorie bewertet.
 
+Fehlende oder NULL-Werte für subject_sharpness, subject_prominence, subject_placement, bg_separation und face_quality_iqa werden aus der gewichteten Bewertung ausgeschlossen. Nur ihr positives Gewicht wird auf verfügbare Metriken verteilt; null bleibt ein gültiger Messwert. Fehlen alle gewichteten Eingaben, gilt der neutrale Wert 5.0. Lizenzausschlüsse gelten zuerst. Die ausgelieferten Gewichte bleiben unverändert. `--optimize-weights` lässt ein Gewicht unverändert, wenn der Vergleichssatz für diese Metrik keinen Wert enthält. Für Salienz zuerst `--recompute-saliency`, dann `--recompute-average` ausführen.
+
 ## So funktioniert die Bewertung
 
 1. **Kategorieerkennung** – Das Foto wird auf seinen Inhalt analysiert (Gesichter, Tags, EXIF-Daten)
@@ -231,10 +233,10 @@ Verwenden Sie `subject_sharpness_percent` und `bg_separation_percent` für Portr
 **Kein Motiv, keine Zahl.** Wird kein Motiv gefunden, werden `subject_sharpness`, `subject_placement` und `bg_separation` als NULL gespeichert (ebenso `power_point_score`, wenn es keinen Motivrahmen gibt), `subject_prominence` ist 0.0 und `subject_bbox` NULL.
 
 - Die Bereichsfilter der Galerie überspringen ein NULL (`min_subject_sharpness=0` liefert kein Foto ohne Motiv). Statistiken lassen es bei Mittelwerten weg, und die Oberfläche zeigt es als fehlend.
-- Der Gesamtwert bewertet ein NULL als neutrale 5.0, sodass sich kein Gesamtwert ändert.
+- NULL-Salienzwerte folgen der obigen Regel für fehlende Werte; die ausgelieferten Gewichte bleiben unverändert.
 - Frühere Versionen speicherten eine neutrale 5.0. Bestehende Zeilen behalten sie, bis `--recompute-saliency` und `--recompute-composition-cpu` sie umschreiben.
 
-**Wenn die Salienz fehlschlägt**, wird nichts geschrieben; Facet speichert nie eine neutrale Zahl für ein fehlgeschlagenes Ergebnis. Ein nie bewertetes Foto behält NULL in allen fünf Salienz-Spalten (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`) und wird neutral (5.0) bewertet, wie ein Foto, das gescannt wurde, bevor es die Salienz gab. Regeln für Wiederholung und Batchgröße: [Motiv-Salienz](COMMANDS.md#motiv-salienz).
+**Wenn die Salienz fehlschlägt**, wird nichts geschrieben; Facet speichert nie eine neutrale Zahl für ein fehlgeschlagenes Ergebnis. Ein nie bewertetes Foto behält NULL in allen fünf Salienz-Spalten (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`), wie ein Foto, das gescannt wurde, bevor es die Salienz gab. Regeln für Wiederholung und Batchgröße: [Motiv-Salienz](COMMANDS.md#motiv-salienz).
 
 ## Ergänzende IQA-Dimensionen
 
@@ -250,7 +252,7 @@ Diese Modelle laufen auf jedem Profil als Teil der Standard-Bewertungspipeline, 
 
 **Wenn ein ergänzendes Modell ein Foto nicht bewerten kann**, speichert es in der Spalte dieses Modells (`face_quality_iqa`, `liqe_score`, `aesthetic_iaa`, `aesthetic_v25`) NULL statt einer neutralen 5.0. Das passiert, wenn TOPIQ NR-Face kein Gesicht findet oder LIQE eine kurze Seite unter 224 px erhält; Aesthetic V2.5 kann, sofern aktiviert, bei jedem Bild fehlschlagen. Ein CPU-Speicherfehler wird nicht mit kleinerer Batchgröße wiederholt.
 
-- **Gesamtwert:** Ein NULL wird neutral (5.0) bewertet, sodass sich Gesamtwerte, Kategorien und Rangfolgen nicht ändern.
+- Ein NULL bei face_quality_iqa folgt der obigen Regel; andere ergänzende NULL-Eingaben behalten die neutrale Ersetzung 5.0.
 - **Galerie:** Ein Bereichsfilter auf Ästhetik (IAA), Gesichtsqualität (IQA), LIQE oder Aesthetic V2.5 trifft auf ein unbewertetes Foto nicht zu (`min_face_quality_iqa=0` überspringt ein Foto ohne Gesicht). Eine aufsteigende Sortierung danach, nach Q-ReAlign oder DeQA stellt unbewertete Fotos ans Ende, in der Galerie und in Alben.
 - **Alte neutrale 5.0-Werte** bleiben, bis `--repair-neutral-iqa` sie löscht; führen Sie danach `--recompute-iqa` und `--recompute-average` aus, oder scannen Sie mit `--force` neu.
 - **Ausfall des primären Modells** (TOPIQ auf `16gb` und `24gb`): Das Foto wird als fehlgeschlagen erfasst, statt mit einer neutralen 5.0 gespeichert zu werden. Ein neues Foto nimmt der nächste Scan auf; ein bereits gespeichertes behält seine Zeile und wird von `--retry-failed all` (ein bloßes `--retry-failed` erfasst nur den letzten Lauf mit Fehlern) oder einem weiteren `--force`-Neuscan erneut verarbeitet.

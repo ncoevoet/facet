@@ -4,6 +4,8 @@
 
 As fotos são classificadas em uma categoria e, em seguida, pontuadas com os pesos dessa categoria.
 
+Os valores ausentes ou NULL de subject_sharpness, subject_prominence, subject_placement, bg_separation e face_quality_iqa são excluídos da pontuação ponderada. Apenas o seu peso positivo é redistribuído pelas métricas disponíveis; zero continua válido. Se faltarem todas as entradas ponderadas, usa-se o valor neutro 5.0. As exclusões de licença aplicam-se primeiro. Os pesos predefinidos não mudam. `--optimize-weights` deixa um peso inalterado quando o conjunto de comparações não tem nenhum valor para essa métrica. Para preencher a saliência, execute `--recompute-saliency` e depois `--recompute-average`.
+
 ## Como a Pontuação Funciona
 
 1. **Detecção de Categoria** - A foto é analisada quanto ao conteúdo (rostos, tags, dados EXIF)
@@ -231,10 +233,10 @@ Use `subject_sharpness_percent` e `bg_separation_percent` para retrato/vida selv
 **Sem sujeito, sem número.** Quando nenhum sujeito é encontrado, `subject_sharpness`, `subject_placement` e `bg_separation` são armazenados como NULL (assim como `power_point_score` quando não há caixa de sujeito), `subject_prominence` é 0.0 e `subject_bbox` é NULL.
 
 - Os filtros de intervalo da galeria ignoram um NULL (`min_subject_sharpness=0` não devolve uma foto sem sujeito). As estatísticas o deixam de fora das médias e a interface o mostra como ausente.
-- O agregado pontua um NULL como um 5.0 neutro, então nenhum agregado muda.
+- As entradas de saliência NULL seguem a regra acima para valores ausentes; os pesos predefinidos não mudam.
 - Versões anteriores armazenavam um 5.0 neutro. As linhas existentes o mantêm até que `--recompute-saliency` e `--recompute-composition-cpu` as reescrevam.
 
-**Quando a saliência falha**, nada é gravado; o Facet nunca grava um número neutro no lugar de um resultado com falha. Uma foto que nunca foi pontuada mantém NULL nas cinco colunas de saliência (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`) e pontua neutro (5.0), como uma foto varrida antes de a saliência existir. Regras de nova tentativa e de tamanho de lote: [Saliência do Sujeito](COMMANDS.md#saliência-do-sujeito).
+**Quando a saliência falha**, nada é gravado; o Facet nunca grava um número neutro no lugar de um resultado com falha. Uma foto que nunca foi pontuada mantém NULL nas cinco colunas de saliência (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`), como uma foto varrida antes de a saliência existir. Regras de nova tentativa e de tamanho de lote: [Saliência do Sujeito](COMMANDS.md#saliência-do-sujeito).
 
 ## Dimensões Suplementares de IQA
 
@@ -250,7 +252,7 @@ Esses modelos são executados como parte do pipeline de pontuação padrão em t
 
 **Quando um modelo suplementar não consegue pontuar uma foto**, ele grava NULL na coluna desse modelo (`face_quality_iqa`, `liqe_score`, `aesthetic_iaa`, `aesthetic_v25`) em vez de um 5.0 neutro. Isso acontece quando o TOPIQ NR-Face não encontra rosto ou o LIQE recebe um lado menor abaixo de 224 px; o Aesthetic V2.5, quando ativado, pode falhar em qualquer imagem. Um erro de memória da CPU não é repetido com um tamanho de lote menor.
 
-- **Agregado:** um NULL pontua neutro (5.0), então pontuações, categorias e rankings não mudam.
+- Um face_quality_iqa NULL segue a regra acima; as outras entradas suplementares NULL mantêm a imputação neutra 5.0.
 - **Galeria:** um filtro de intervalo em Estética (IAA), Qualidade do rosto (IQA), LIQE ou Aesthetic V2.5 não inclui uma foto sem pontuação (`min_face_quality_iqa=0` ignora uma foto sem rosto). Uma ordenação crescente por esses campos, Q-ReAlign ou DeQA coloca as fotos sem pontuação por último, na galeria e nos álbuns.
 - **Valores neutros 5.0 antigos** permanecem até que `--repair-neutral-iqa` os apague; depois execute `--recompute-iqa` e `--recompute-average`, ou faça uma nova varredura com `--force`.
 - **Falha do modelo principal** (TOPIQ nos perfis `16gb` e `24gb`): a foto é registrada como falha em vez de ser gravada com um 5.0 neutro. Uma foto nova é retomada pela próxima varredura; uma já gravada mantém a sua linha e é repetida por `--retry-failed all` (um `--retry-failed` sem argumento cobre apenas a última execução que registrou falhas) ou por outra varredura com `--force`.

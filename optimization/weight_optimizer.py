@@ -50,7 +50,7 @@ from optimization.learning_policy import deferred_if_external
 from db.scoring_overrides import get_photo_scoring_overrides
 from processing.scorer import (
     Facet, SCORING_METRIC_KEYS, SERVED_ROW_COLUMNS, build_metric_vector,
-    fold_quality_weight, unavailable_for_config,
+    fold_quality_weight, unavailable_for_config, NULLABLE_SCORING_METRICS,
 )
 
 logger = logging.getLogger("facet.optimizer")
@@ -77,6 +77,30 @@ _NORMALIZER_TTL_SECONDS = 300.0
 _BONUS_MIN, _BONUS_MAX = -5.0, 5.0
 
 
+def _row_scores_and_gradient(X, w):
+    """Score rows: NaN is optional NULL, -inf is a licence exclusion.
+
+    Exclusions score zero when nothing remains; optional NULLs retain the
+    neutral 5.0 fallback. Neither sentinel enters arithmetic on metric values.
+    """
+    present = np.isfinite(X)
+    values = np.where(present, X, 0.0)
+    denominator = present @ w
+    numerator = values @ w
+    scores = np.where(np.isnan(X) @ w > 0, 5.0, 0.0)
+    gradient = np.zeros_like(X)
+    valid = denominator > 0
+    scores[valid] = numerator[valid] / denominator[valid]
+    gradient[valid] = (values[valid] - scores[valid, None] * present[valid]) / denominator[valid, None]
+    return scores, gradient
+
+
+def _pair_difference(D, w):
+    if D.ndim == 2:
+        return D @ w
+    return _row_scores_and_gradient(D[:, 0], w)[0] - _row_scores_and_gradient(D[:, 1], w)[0]
+
+
 def _pairwise_objective(w, D, y, rw, w0, lam):
     """Penalised Bradley-Terry negative log-likelihood and its gradient.
 
@@ -97,7 +121,12 @@ def _pairwise_objective(w, D, y, rw, w0, lam):
     k = len(w)
     s = w.sum()
     u = w / s if s > 1e-8 else np.full(k, 1.0 / k)
-    d = D @ u
+    if D.ndim == 3:
+        a, ga = _row_scores_and_gradient(D[:, 0], u)
+        b, gb = _row_scores_and_gradient(D[:, 1], u)
+        d, jacobian = a - b, ga - gb
+    else:
+        d, jacobian = D @ u, D
     decisive = y != 0
     yd = y * d
     loss_i = np.where(decisive, np.logaddexp(0.0, -yd),
@@ -105,20 +134,50 @@ def _pairwise_objective(w, D, y, rw, w0, lam):
     dloss_dd = np.where(decisive, -y * expit(-yd), expit(d) - 0.5)
     delta = w - w0
     loss = float(rw @ loss_i) + lam * float(delta @ delta)
-    g_u = (rw * dloss_dd) @ D
+    g_u = (rw * dloss_dd) @ jacobian
     g_w = (g_u - g_u @ u) / s if s > 1e-8 else np.zeros(k)
     return loss, g_w + 2.0 * lam * delta
 
 
-def _fit_weights(D, y, rw, w0, lam, starts, maxiter, ftol=1e-6) -> Tuple[np.ndarray, float]:
+def _active_columns(D) -> np.ndarray:
+    """Columns with at least one finite value in ``D`` (all of them for 2-D ``D``).
+
+    Compute it once on the full comparison set: a fold or bootstrap subset can
+    lack a column the full set has, and that must not change which weights the
+    fit is allowed to move.
+    """
+    k = D.shape[-1]
+    return np.any(np.isfinite(D), axis=(0, 1)) if D.ndim == 3 else np.ones(k, dtype=bool)
+
+
+def _fit_weights(D, y, rw, w0, lam, starts, maxiter, ftol=1e-6, active=None) -> Tuple[np.ndarray, float]:
     """Minimise :func:`_pairwise_objective` from each start; keep the best.
 
     Bounds ``[0, 0.6]`` per weight, weights summing to 1, SLSQP. Returns the
     normalised weights and the objective at them (``w0`` when every start
-    fails).
+    fails). A column with no finite value in the comparison set (``active``
+    False) carries no evidence, so it is held at its prior ``w0`` and the
+    active columns share what remains.
     """
-    k = D.shape[1]
-    bounds = [(0.0, _WEIGHT_UPPER_BOUND)] * k
+    k = D.shape[-1]
+    if active is None:
+        active = _active_columns(D)
+    if not active.any():
+        return w0.copy(), _pairwise_objective(w0, D, y, rw, w0, lam)[0]
+    held = np.where(active, 0.0, w0)
+    rest = 1.0 - held.sum()
+    if rest <= 1e-9:
+        return w0.copy(), _pairwise_objective(w0, D, y, rw, w0, lam)[0]
+
+    def on_active(vec):
+        vec = np.where(active, vec, 0.0)
+        return vec / vec.sum() * rest if vec.sum() else active / active.sum() * rest
+
+    w0_fit = held + on_active(w0)
+    starts = [held + on_active(start) for start in starts]
+    upper = max(_WEIGHT_UPPER_BOUND, rest / active.sum())
+    bounds = [(0.0, upper) if enabled else (w0[i], w0[i]) for i, enabled in enumerate(active)]
+    w0 = w0_fit
     constraint = {'type': 'eq', 'fun': lambda w: w.sum() - 1.0, 'jac': lambda w: np.ones_like(w)}
     best, best_loss = None, float('inf')
     for start in starts:
@@ -137,13 +196,14 @@ def _fit_weights(D, y, rw, w0, lam, starts, maxiter, ftol=1e-6) -> Tuple[np.ndar
         best_loss = _pairwise_objective(best, D, y, rw, w0, lam)[0]
     w = np.maximum(best, 0.0)
     w = w / w.sum() if w.sum() > 0 else np.full(k, 1.0 / k)
+    w = np.where(active, w, w0)
     return w, best_loss
 
 
 def _decisive_correct(w, D, y) -> np.ndarray:
     """Per decisive pair: does ``w`` score the winner strictly higher?"""
     m = y != 0
-    d = D[m] @ w
+    d = _pair_difference(D[m], w)
     return np.where(y[m] == 1, d > 0, d < 0)
 
 
@@ -274,7 +334,7 @@ class WeightOptimizer:
         self._normalizer, self._normalizer_read_at = normalizer, now
         return normalizer
 
-    def _metric_vector(self, row: dict, category: Optional[str]) -> List[float]:
+    def _metric_vector(self, row: dict, category: Optional[str], *, mask_missing=False) -> List[float]:
         """Build the metric vector the scorer serves for one photo, in component order.
 
         The row is first rewritten exactly as ``update_all_aggregates`` rewrites
@@ -292,7 +352,10 @@ class WeightOptimizer:
         prepared = Facet.prepare_scoring_row(dict(row), cfg, self._get_normalizer(), category=category)
         cat = category or Facet._determine_photo_category(prepared, cfg)
         vec = build_metric_vector(prepared, cfg, cat, unavailable=unavailable_for_config(cfg))
-        return [max(0.0, min(10.0, vec.get(c, 0.0))) for c in self.SCORE_COMPONENTS]
+        return [float('-inf') if mask_missing and c in unavailable_for_config(cfg)
+                else float('nan') if mask_missing and c in NULLABLE_SCORING_METRICS and prepared.get(c) is None
+                else max(0.0, min(10.0, vec.get(c, 0.0)))
+                for c in self.SCORE_COMPONENTS]
 
     def _fetch_comparison_data(
         self,
@@ -301,6 +364,7 @@ class WeightOptimizer:
         include_ties: bool = True,
         sources: Optional[List[str]] = None,
         user_id: Optional[str] = None,
+        mask_missing: bool = False,
     ):
         """Fetch comparisons and build both photos' production metric vectors.
 
@@ -387,8 +451,8 @@ class WeightOptimizer:
                 'winner': row['winner'],
                 'source': row['source'],
             })
-            features_a.append(self._metric_vector(a, category))
-            features_b.append(self._metric_vector(b, category))
+            features_a.append(self._metric_vector(a, category, mask_missing=mask_missing))
+            features_b.append(self._metric_vector(b, category, mask_missing=mask_missing))
             winners.append(1 if row['winner'] == 'a' else (-1 if row['winner'] == 'b' else 0))
             row_weights.append(self.SOURCE_WEIGHTS.get(row['source'], 1.0))
 
@@ -469,7 +533,7 @@ class WeightOptimizer:
             return deferred
         with get_connection(self.db_path) as conn:
             comparisons, X_a, X_b, winners, row_weights = self._fetch_comparison_data(
-                conn, category=category, include_ties=include_ties, sources=sources,
+                conn, category=category, include_ties=include_ties, sources=sources, mask_missing=True,
             )
         too_few = self._too_few_decisive(winners, len(comparisons), min_comparisons)
         if too_few:
@@ -477,7 +541,7 @@ class WeightOptimizer:
 
         n_features = len(self.SCORE_COMPONENTS)
         old_weights, old_w = self._prior(category)
-        D = X_a - X_b
+        D = np.stack((X_a, X_b), axis=1)
 
         accuracy_before = _decisive_accuracy(old_w, D, winners)
 
@@ -486,10 +550,11 @@ class WeightOptimizer:
         starts += [rng.dirichlet(np.ones(n_features)) for _ in range(3)]
         new_w, best_nll = _fit_weights(
             D, winners, row_weights, old_w, l2_regularization, starts, maxiter=500, ftol=1e-9,
+            active=_active_columns(D),
         )
         accuracy_after = _decisive_accuracy(new_w, D, winners)
 
-        diff = D @ new_w
+        diff = _pair_difference(D, new_w)
         per_comparison = []
         for comp, d, winner in zip(comparisons, diff, winners):
             if winner == 1:
@@ -606,18 +671,19 @@ class WeightOptimizer:
             return deferred
         with get_connection(self.db_path) as conn:
             all_data, X_a, X_b, winners, row_weights = self._fetch_comparison_data(
-                conn, category=category, include_ties=include_ties, sources=sources,
+                conn, category=category, include_ties=include_ties, sources=sources, mask_missing=True,
             )
         too_few = self._too_few_decisive(winners, len(all_data), min_comparisons)
         if too_few:
             return too_few
 
         old_weights, old_w = self._prior(category)
-        D = X_a - X_b
+        D = np.stack((X_a, X_b), axis=1)
         fold_a, fold_b, n_used = _photo_folds(
             [c['photo_a'] for c in all_data], [c['photo_b'] for c in all_data], n_folds,
         )
 
+        active = _active_columns(D)
         fold_weights, fold_accuracies = [], []
         new_correct, old_correct = [], []
         for fold in range(n_used):
@@ -627,7 +693,7 @@ class WeightOptimizer:
                 continue
             trained_w, _ = _fit_weights(
                 D[train], winners[train], row_weights[train], old_w, l2_regularization,
-                starts=[old_w.copy()], maxiter=300,
+                starts=[old_w.copy()], maxiter=300, active=active,
             )
             fold_weights.append(trained_w)
             new_c = _decisive_correct(trained_w, D[test], winners[test])
@@ -709,21 +775,22 @@ class WeightOptimizer:
             return deferred
         with get_connection(self.db_path) as conn:
             all_data, X_a, X_b, winners, row_weights = self._fetch_comparison_data(
-                conn, category=category, include_ties=True, sources=sources,
+                conn, category=category, include_ties=True, sources=sources, mask_missing=True,
             )
         too_few = self._too_few_decisive(winners, len(all_data), min_comparisons)
         if too_few:
             return too_few
 
         _, old_w = self._prior(category)
-        D = X_a - X_b
+        D = np.stack((X_a, X_b), axis=1)
         rng = np.random.RandomState(42)
+        active = _active_columns(D)
         samples = []
         for _ in range(n_bootstrap):
             idx = rng.choice(len(all_data), size=len(all_data), replace=True)
             boot_w, _ = _fit_weights(
                 D[idx], winners[idx], row_weights[idx], old_w, l2_regularization,
-                starts=[old_w.copy()], maxiter=200,
+                starts=[old_w.copy()], maxiter=200, active=active,
             )
             samples.append(boot_w)
 
@@ -821,17 +888,21 @@ class WeightOptimizer:
             return uniform
 
     @staticmethod
-    def _round_percent_weights(new_weights: Dict[str, float], log: bool = False) -> Dict[str, float]:
+    def _round_percent_weights(new_weights: Dict[str, float], served: Dict[str, float],
+                               log: bool = False) -> Dict[str, float]:
         """``new_weights`` as the config stores them: percent, one decimal, summing to 100.
 
         Rounding to a tenth of a percent can leave the total a hair off 100, so
-        the largest weight absorbs the difference. Shared by the write and by the
-        bonus projection, so the shift is measured on the weights that land.
+        the largest weight that moved from ``served`` absorbs the difference: a
+        weight the fit held at its prior stays exactly where the operator set it.
+        Shared by the write and by the bonus projection, so the shift is measured
+        on the weights that land.
         """
         percent = {c: round(w * 100, 1) for c, w in new_weights.items()}
         total = sum(percent.values())
         if total > 0 and abs(total - 100.0) > 0.01:
-            largest = max(percent, key=lambda c: percent[c])
+            moved = [c for c in percent if percent[c] != round(served.get(c, 0.0) * 100, 1)]
+            largest = max(moved or percent, key=lambda c: percent[c])
             adjustment = 100.0 - total
             percent[largest] = round(percent[largest] + adjustment, 1)
             if log:
@@ -841,9 +912,9 @@ class WeightOptimizer:
     def _projected_mean_shift(self, new_weights: Dict[str, float], category: Optional[str]) -> Optional[float]:
         """Mean change of ``category``'s scores if ``new_weights`` replace the served ones.
 
-        ``mean over the category's photos of V @ (w_new - w_served)``, with ``V``
-        the metric vector as served (``_metric_vector``) and ``w_served`` the
-        folded current weights. The pairwise likelihood is blind to a constant
+        Mean over the category's photos of the new row score minus the
+        served row score, each independently normalized over available inputs.
+        ``w_served`` contains the folded current weights. The pairwise likelihood is blind to a constant
         added to a whole category, so without this the apply moves the
         category's level against every other category. None when there is
         nothing to measure: no ``categories[]`` entry, no database, or no photo
@@ -855,10 +926,12 @@ class WeightOptimizer:
             logger.info("No database at %s: bonus not re-centred", self.db_path)
             return None
         served = self._load_current_weights(category)
-        rounded = self._round_percent_weights(new_weights)
+        rounded = self._round_percent_weights(new_weights, served)
         diff = np.array([rounded[c] / 100.0 - served[c] if c in rounded else 0.0
                          for c in self.SCORE_COMPONENTS])
-        total = np.zeros(len(self.SCORE_COMPONENTS))
+        old_w = np.array([served[c] for c in self.SCORE_COMPONENTS])
+        new_w = old_w + diff
+        total = 0.0
         count = 0
         try:
             with get_connection(self.db_path) as conn:
@@ -870,7 +943,9 @@ class WeightOptimizer:
                     if not batch:
                         break
                     for row in batch:
-                        total += self._metric_vector(dict(row), category)
+                        vector = np.array([self._metric_vector(dict(row), category, mask_missing=True)])
+                        total += (_row_scores_and_gradient(vector, new_w)[0][0]
+                                  - _row_scores_and_gradient(vector, old_w)[0][0])
                         count += 1
         except sqlite3.Error:
             logger.warning("Could not project the %s category's mean shift: bonus not re-centred",
@@ -879,7 +954,7 @@ class WeightOptimizer:
         if count == 0:
             logger.info("No photos stored in category %s: bonus not re-centred", category)
             return None
-        return float(total @ diff / count)
+        return float(total / count)
 
     def apply_optimized_weights(
         self,
@@ -978,7 +1053,8 @@ class WeightOptimizer:
 
         # Components are config metric keys - write '<key>_percent' directly,
         # rounded to a tenth of a percent and summing to exactly 100
-        for component, percent in self._round_percent_weights(new_weights, log=True).items():
+        served = self._load_current_weights(category)
+        for component, percent in self._round_percent_weights(new_weights, served, log=True).items():
             cat_weights[f"{component}_percent"] = percent
 
         # The new weights are over the SERVED weight space (quality already folded

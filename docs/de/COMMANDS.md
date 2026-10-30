@@ -274,7 +274,7 @@ Die Salienz läuft auf allen Profilen; `legacy` führt sie langsamer auf der CPU
 - **Ein fehlgeschlagenes Foto** wird als ERROR protokolliert, und es wird nichts geschrieben. Ein nie bewertetes Foto bleibt NULL und wird vom nächsten `--recompute-saliency` erneut aufgegriffen; eines, das bereits Salienz hatte, behält seine Werte, auch unter `--recompute-saliency --force`. Ein vollständiger Neuscan (etwa `python facet.py --force`) speichert dafür NULL.
 - **Ein Foto ohne Motiv** speichert NULL für Schärfe, Platzierung und Trennung, Prominenz 0.0 und ein NULL-`subject_bbox` (sowie ein NULL-`power_point_score` aus dem Kompositionsschritt). Das ist endgültig; es wird nicht erneut gemessen.
 - **Ältere Zeilen** speicherten stattdessen eine neutrale 5.0. `--recompute-saliency` und `--recompute-composition-cpu` schreiben sie um. `--recompute-saliency` greift auch Fotos auf, die bewertet wurden, bevor `subject_bbox` existierte.
-- Eine NULL-Metrik zählt im Gesamtwert neutral. Siehe [Dimensionen der Motiverkennung](SCORING.md#dimensionen-der-motiverkennung).
+- Eine optionale NULL-Metrik wird aus dem Gesamtwert ausgeschlossen und ihr Gewicht auf die vorhandenen Metriken verteilt; nur wenn alle fehlen, gilt der neutrale Wert 5.0. Siehe [Bewertungssystem](SCORING.md).
 
 ### Verschlagwortungsmodelle
 

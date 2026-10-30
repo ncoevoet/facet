@@ -101,8 +101,9 @@ class TestPriorBinds:
         opt, w0, w = self._fit(db)  # default l2_regularization
         from db import get_connection
         with get_connection(db) as conn:
-            _, X_a, X_b, y, rw = opt._fetch_comparison_data(conn, category='portrait')
-        d = (X_a - X_b) @ w
+            _, X_a, X_b, y, rw = opt._fetch_comparison_data(conn, category='portrait', mask_missing=True)
+        from optimization.weight_optimizer import _pair_difference
+        d = _pair_difference(np.stack((X_a, X_b), axis=1), w)
         data_term = float((rw * _softplus(-y * d)).sum())  # decisive pairs only in this set
         import inspect
         lam = inspect.signature(WeightOptimizer.optimize_weights_direct).parameters[

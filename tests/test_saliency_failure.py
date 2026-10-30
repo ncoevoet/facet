@@ -1,7 +1,7 @@
 """Issue #184: a failed saliency run stores NULL (or keeps the stored value), never a neutral score.
 
 Covers the three writers (``_pass_saliency`` + restricted save, ``--recompute-saliency``'s
-flush) and the aggregate reader that scores a NULL as the neutral 5.0.
+flush) and the aggregate reader that redistributes a NULL metric's weight.
 """
 
 import pytest
@@ -100,7 +100,7 @@ def test_a_photo_that_never_had_saliency_stays_null_after_a_failure(seeded):
     assert _saliency_row(db, path) == _FAILED
 
 
-def test_null_saliency_scores_neutral_in_the_aggregate():
+def test_null_saliency_redistributes_weight_in_the_aggregate():
     from config.scoring_config import ScoringConfig
     from config_resolve import defaults_path
     from processing.scorer import Facet, build_metric_vector
@@ -113,6 +113,7 @@ def test_null_saliency_scores_neutral_in_the_aggregate():
                    subject_placement=5.0, bg_separation=5.0)
 
     vector = build_metric_vector(nulls, cfg, 'default')
+    # Model features remain finite; scoring drops the missing inputs' weights.
     for key in ('subject_sharpness', 'subject_prominence', 'subject_placement', 'bg_separation'):
         assert vector[key] == 5.0
 
@@ -129,7 +130,10 @@ def test_null_saliency_scores_neutral_in_the_aggregate():
     cfg.get_weights = weighted
     score_null, _ = facet.calculate_aggregate_logic(nulls)
     score_neutral, _ = facet.calculate_aggregate_logic(neutral)
-    assert score_null == score_neutral
+    cfg.get_weights = original
+    score_without_saliency, _ = facet.calculate_aggregate_logic(base)
+    assert score_null == pytest.approx(score_without_saliency)
+    assert score_null != pytest.approx(score_neutral)
     assert 0.0 < score_null < float('inf')
 
 

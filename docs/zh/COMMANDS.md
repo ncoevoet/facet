@@ -274,7 +274,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 - **失败的照片**会记录一条 ERROR 且不写入任何内容。从未评分的照片保持 NULL，并会被下一次 `--recompute-saliency` 选中；已有显著性的照片保留其值，即使使用 `--recompute-saliency --force`。完整重新扫描（例如 `python facet.py --force`）则会为其存入 NULL。
 - **没有主体的照片**存入 NULL 的清晰度、位置和分离度，突出程度为 0.0，`subject_bbox` 为 NULL（构图步骤中的 `power_point_score` 也为 NULL）。这是最终结果，不会再次测量。
 - **较旧的行**存的是中性的 5.0。`--recompute-saliency` 和 `--recompute-composition-cpu` 会将其重写。`--recompute-saliency` 还会选取 `subject_bbox` 出现之前评分的照片。
-- NULL 指标在综合评分中按中性计分。见[主体显著性维度](SCORING.md#主体显著性维度)。
+- 可选指标为 NULL 时不参与综合评分，其权重重新分配给存在的指标；仅当全部缺失时，综合评分才采用中性值 5.0。见[评分系统](SCORING.md)。
 
 ### 标签模型
 
