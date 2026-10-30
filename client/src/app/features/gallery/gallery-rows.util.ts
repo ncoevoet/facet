@@ -74,7 +74,9 @@ export function gridColumnCount(width: number, cardMinW: number, gap: number, is
  * Row-chunk the photos the way the CSS grid lays them out.
  *
  * With hideDetails (the default) cards are aspect-square, so heights are
- * exact. With details shown, the height is an estimate refined by the
+ * exact. With the natural tile fit the row instead keeps the tallest original
+ * ratio — still exact, and cards hug their own photo rather than the row
+ * height. With details shown, the height is an estimate refined by the
  * tallest image in the row plus DETAILS_ESTIMATE_PX.
  */
 export function buildGridRows(
@@ -84,6 +86,7 @@ export function buildGridRows(
   gap: number,
   hideDetails: boolean,
   isDesktop = true,
+  tileFit: 'square' | 'natural' = 'square',
 ): GalleryRow[] {
   if (!photos.length || width <= 0) return [];
   const cols = gridColumnCount(width, cardMinW, gap, isDesktop);
@@ -97,11 +100,11 @@ export function buildGridRows(
     if (cols === 1) {
       height = Math.round(cellW / aspectOf(rowPhotos[0]))
         + (hideDetails ? 0 : DETAILS_ESTIMATE_PX);
-    } else if (hideDetails) {
+    } else if (hideDetails && tileFit === 'square') {
       height = Math.round(cellW);
     } else {
       const maxImgH = Math.max(...rowPhotos.map(p => cellW / aspectOf(p)));
-      height = Math.round(maxImgH) + DETAILS_ESTIMATE_PX;
+      height = Math.round(maxImgH) + (hideDetails ? 0 : DETAILS_ESTIMATE_PX);
     }
     const widths = rowPhotos.map(() => Math.floor(cellW));
     rows.push({ photos: rowPhotos, widths, height, offset, startIndex: start });

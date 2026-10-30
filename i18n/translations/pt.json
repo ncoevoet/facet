@@ -1479,6 +1479,11 @@
       "named": "Nomeado {name}",
       "error": "Não foi possível salvar o nome",
       "remove": "Remover do filtro"
+    },
+    "tile_fit": {
+      "label": "Apresentação dos cartões",
+      "square": "Recorte quadrado",
+      "natural": "Proporção original"
     }
   },
   "composition_patterns": {

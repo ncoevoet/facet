@@ -1479,6 +1479,11 @@
       "named": "Nombrado {name}",
       "error": "No se pudo guardar el nombre",
       "remove": "Quitar del filtro"
+    },
+    "tile_fit": {
+      "label": "Presentación de miniaturas",
+      "square": "Recorte cuadrado",
+      "natural": "Proporción original"
     }
   },
   "composition_patterns": {

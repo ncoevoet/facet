@@ -1479,6 +1479,11 @@
       "named": "Named {name}",
       "error": "Could not save the name",
       "remove": "Remove from filter"
+    },
+    "tile_fit": {
+      "label": "Tile presentation",
+      "square": "Square crop",
+      "natural": "Original ratio"
     }
   },
   "composition_patterns": {

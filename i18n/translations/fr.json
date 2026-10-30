@@ -1479,6 +1479,11 @@
       "named": "Nommé {name}",
       "error": "Impossible d'enregistrer le nom",
       "remove": "Retirer du filtre"
+    },
+    "tile_fit": {
+      "label": "Présentation des vignettes",
+      "square": "Recadrage carré",
+      "natural": "Ratio d'origine"
     }
   },
   "composition_patterns": {

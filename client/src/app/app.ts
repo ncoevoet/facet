@@ -29,6 +29,7 @@ import { ThemeService } from './core/services/theme.service';
 import { PageHelpService } from './core/services/page-help.service';
 import { HeaderSlotService } from './core/services/header-slot.service';
 import { GalleryStore, GalleryFilters, PanelActivation, anyHideToggleActive } from './features/gallery/gallery.store';
+import { TILE_FITS } from './features/gallery/gallery-filters.util';
 import { StatsFiltersService } from './features/stats/stats-filters.service';
 import { TimelineFiltersService } from './features/timeline/timeline-filters.service';
 import { AlbumsFiltersService } from './features/albums/albums-filters.service';
@@ -627,6 +628,8 @@ export class App implements OnInit {
    */
   private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
   protected readonly canDockDetails = this.railCapable.isDesktop;
+
+  protected readonly TILE_FITS = TILE_FITS;
 
   /**
    * The tooltip menu has two rows: where details show (popup or side panel)

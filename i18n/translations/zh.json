@@ -1479,6 +1479,11 @@
       "named": "已命名为 {name}",
       "error": "无法保存名称",
       "remove": "从筛选中移除"
+    },
+    "tile_fit": {
+      "label": "照片呈现方式",
+      "square": "裁切到正方形",
+      "natural": "保持原有比例"
     }
   },
   "composition_patterns": {

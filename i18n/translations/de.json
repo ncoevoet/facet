@@ -1479,6 +1479,11 @@
       "named": "{name} benannt",
       "error": "Name konnte nicht gespeichert werden",
       "remove": "Aus dem Filter entfernen"
+    },
+    "tile_fit": {
+      "label": "Kachel-Darstellung",
+      "square": "Quadratisch zugeschnitten",
+      "natural": "Originalformat"
     }
   },
   "composition_patterns": {

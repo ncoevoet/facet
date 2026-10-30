@@ -1494,6 +1494,11 @@ export const I18N = {
       error: "gallery.person_chip.error",
       remove: "gallery.person_chip.remove",
     },
+    tile_fit: {
+      label: "gallery.tile_fit.label",
+      square: "gallery.tile_fit.square",
+      natural: "gallery.tile_fit.natural",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",

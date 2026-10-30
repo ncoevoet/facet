@@ -340,6 +340,10 @@
             <mat-icon>palette</mat-icon>
             {{ I18N.ui.theme | translate }}
           </button>
+          <button mat-menu-item [matMenuTriggerFor]="tileFitMenu" [disabled]="store.galleryMode() === 'mosaic'">
+            <mat-icon>crop_square</mat-icon>
+            {{ I18N.gallery.tile_fit.label | translate }}
+          </button>
           @if (auth.features()['mcp']) {
             <button mat-menu-item (click)="showConnectAssistantDialog()">
               <mat-icon>smart_toy</mat-icon>
@@ -393,6 +397,19 @@
               <span class="flex items-center gap-3 whitespace-nowrap">
                 <span class="grow">{{ lang.name }}</span>
                 @if (i18n.locale() === lang.code) {
+                  <span class="flex shrink-0"><mat-icon aria-hidden="true">check</mat-icon></span>
+                }
+              </span>
+            </button>
+          }
+        </mat-menu>
+        <mat-menu #tileFitMenu="matMenu">
+          @for (fit of TILE_FITS; track fit) {
+            <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tile_fit === fit" (click)="store.updateFilter('tile_fit', fit)">
+              <mat-icon aria-hidden="true">{{ fit === 'square' ? 'crop_square' : 'crop_original' }}</mat-icon>
+              <span class="flex items-center gap-4 whitespace-nowrap">
+                <span class="grow">{{ (fit === 'square' ? I18N.gallery.tile_fit.square : I18N.gallery.tile_fit.natural) | translate }}</span>
+                @if (store.filters().tile_fit === fit) {
                   <span class="flex shrink-0"><mat-icon aria-hidden="true">check</mat-icon></span>
                 }
               </span>

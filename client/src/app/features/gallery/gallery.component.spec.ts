@@ -4797,6 +4797,19 @@ describe('GalleryComponent', () => {
       mockStore.filters.set({ ...DEFAULT_FILTERS });
     });
 
+    it('keeps the original ratio when the tile fit is natural (no fill, natural row heights)', () => {
+      pin();
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: true, tile_fit: 'natural' });
+      render('grid', false);
+      const card = fixture!.nativeElement.querySelector('app-photo-card') as HTMLElement;
+      const tile = card.querySelector('[role="button"]') as HTMLElement;
+      expect(tile.classList.contains('aspect-square')).toBe(false);
+      expect(card.querySelector('img')!.classList.contains('object-cover')).toBe(false);
+      const row = fixture!.componentInstance.rowsModel()[0];
+      expect(row.height).not.toBe(row.widths[0]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS });
+    });
+
     it('builds rows with the real hide_details setting', () => {
       pin();
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_details: false });
