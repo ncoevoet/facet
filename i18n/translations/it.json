@@ -1076,7 +1076,8 @@
       "command_hint": "Esegui {command} per aggiornarle tutte in una volta."
     },
     "set_scope": {
-      "message": "Viene mostrato un gruppo di foto: {kind}"
+      "message": "Viene mostrato un gruppo di foto: {kind}",
+      "partial": "{shown} di {total} mostrate ({reasons} nascoste)"
     },
     "pinned": {
       "chip": "{count} foto scelta dal tuo assistente",
@@ -2708,10 +2709,7 @@
     },
     "ai_edit": {
       "badge": "Modifica IA",
-      "badge_short": "IA",
-      "edit_of": "Modifica IA di",
-      "edits": "Modifiche IA",
-      "compare": "Confronta l'originale e le sue modifiche IA"
+      "badge_short": "IA"
     },
     "delete": {
       "button_label": "Elimina",

@@ -350,9 +350,8 @@ Le contrôle **Garder le top %** de la barre d'outils (mode édition) trie toute
 Un outil d'IA peut ajouter à la bibliothèque une copie retouchée d'une photo avec l'outil d'assistant `import_ai_edit` (voir [Agents IA](AGENTS.md)). Le fichier est placé à côté de l'original sous le nom `{name}_{suffix}_{revision}{ext}`, par exemple `IMG_3533_agy_1.JPG`, puis analysé seul.
 
 - La galerie marque une retouche d'un ✨ **IA** en haut de sa vignette. ✨ est réservé à ce qu'une IA a produit ou choisi.
-- La page d'une retouche affiche **Retouche IA de** avec la vignette de l'original, le modèle et la note. La page de l'original liste ses **Retouches IA**.
-- Le bouton de comparaison ouvre l'original à côté de ses retouches (jusqu'à quatre volets), panoramique et zoom synchronisés.
 - Une retouche prise au même instant rejoint en général la rafale de l'original ; « Meilleure de la rafale » montre la mieux notée.
+- Sur la page de la photo, la bande de la rafale montre d'abord les vues que la galerie garde, puis les retouches IA, marquées ✨ **IA**, et enfin les clignements qu'elle masque, marqués **CLIN**.
 
 ### Liste épinglée par l'assistant
 
@@ -381,7 +380,7 @@ Quand un assistant connecté via [Agents IA (MCP)](AGENTS.md) vous montre une li
 - **Inclure les vues de la série** (`include_sequence_siblings`) ajoute les autres vues de la série, mais seulement celles dont l'état garder/rejeter correspond à l'action. Les vues gardées ne sont jamais mises à la corbeille parce qu'une voisine a été rejetée. Une vue que vous avez désélectionnée n'est jamais réintégrée.
 - L'aperçu indique toujours combien de vues voisines existent (`sequence_siblings`). `matched` distingue « rien n'était éligible » d'un résultat vide.
 - Déplacer ou mettre à la corbeille la tête d'une série promeut une voisine survivante, de sorte que la série reste visible.
-- Pour choisir un sous-ensemble exact d'une série, ouvrez-la d'abord avec l'action « ouvrir cette série dans la galerie » du détail de la photo. Cette vue montre chaque image.
+- Pour choisir un sous-ensemble exact d'une série, ouvrez-la d'abord avec l'action « ouvrir cette série dans la galerie » du détail de la photo. Cette vue montre chaque image que les options de masquage laissent passer (les clignements sont masqués par défaut) ; sa barre indique combien sont masquées et pourquoi, et « Tout afficher » les fait revenir jusqu'à ce que vous quittiez la série. L'en-tête de série du détail de la photo compte les clignements et marque chacun.
 
 Un tri limité par un filtre suit les mêmes règles de filtre que la galerie, Type de photo compris. Une vue de plus de 10 000 photos est refusée plutôt que tronquée, même pour une simulation : restreignez-la (album, date, personne…) et réessayez. Détails : [API.md](../API.md).
 

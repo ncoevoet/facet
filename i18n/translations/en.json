@@ -1076,7 +1076,8 @@
       "command_hint": "Run {command} to refresh them all at once."
     },
     "set_scope": {
-      "message": "Showing one photo set: {kind}"
+      "message": "Showing one photo set: {kind}",
+      "partial": "showing {shown} of {total} ({reasons} hidden)"
     },
     "pinned": {
       "chip": "{count} photo chosen by your assistant",
@@ -2708,10 +2709,7 @@
     },
     "ai_edit": {
       "badge": "AI edit",
-      "badge_short": "AI",
-      "edit_of": "AI edit of",
-      "edits": "AI edits",
-      "compare": "Compare the original and its AI edits"
+      "badge_short": "AI"
     },
     "delete": {
       "button_label": "Delete",

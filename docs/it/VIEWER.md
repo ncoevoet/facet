@@ -350,9 +350,8 @@ Il controllo **Tieni top %** nella barra degli strumenti (modalità di modifica)
 Uno strumento di IA può portare nella libreria una copia modificata di una foto con lo strumento dell'assistente `import_ai_edit` (vedi [Agenti IA](AGENTS.md)). Il file viene messo accanto all'originale come `{name}_{suffix}_{revision}{ext}`, per esempio `IMG_3533_agy_1.JPG`, e analizzato da solo.
 
 - La galleria segna una modifica con ✨ **IA** in cima alla sua miniatura. ✨ è riservato a ciò che un'IA ha creato o scelto.
-- La pagina di una modifica mostra **Modifica IA di** con la miniatura dell'originale, il modello e la nota. La pagina dell'originale elenca le sue **Modifiche IA**.
-- Il pulsante di confronto apre l'originale accanto alle modifiche (fino a quattro riquadri) con panoramica e zoom sincronizzati.
 - Una modifica con lo stesso orario di scatto di solito entra nella raffica dell'originale; «Migliore della raffica» mostra quella con punteggio più alto.
+- Nella pagina della foto la striscia della raffica mostra prima i fotogrammi che la galleria tiene, poi le modifiche IA, segnate ✨ **IA**, e infine gli occhi chiusi che nasconde, segnati **OCCHI CHIUSI**.
 
 ### Elenco fissato dall'assistente
 
@@ -381,7 +380,7 @@ Quando un assistente collegato tramite [Assistenti IA (MCP)](AGENTS.md) ti mostr
 - **Includi fotogrammi della serie** (`include_sequence_siblings`) aggiunge gli altri fotogrammi della serie, ma solo quelli il cui stato conserva/scarta corrisponde all'azione. I fotogrammi conservati non vengono mai cestinati perché un fratello è stato scartato. Un fotogramma che hai deselezionato non viene mai riportato dentro.
 - L'anteprima riporta sempre quanti fotogrammi fratelli esistono (`sequence_siblings`). `matched` distingue "nessuno idoneo" da un risultato vuoto.
 - Spostare o cestinare il capofila di una serie promuove un fratello rimasto, così la serie resta visibile.
-- Per scegliere un sottoinsieme esatto di una serie, aprila prima con l'azione "apri questa serie nella galleria" del dettaglio foto. Quella vista mostra ogni fotogramma.
+- Per scegliere un sottoinsieme esatto di una serie, aprila prima con l'azione "apri questa serie nella galleria" del dettaglio foto. Quella vista mostra ogni fotogramma lasciato dai filtri di occultamento (gli occhi chiusi sono nascosti per impostazione predefinita); la sua barra dice quanti sono nascosti e perché, e «Mostra tutto» li riporta finché non chiudi la serie. L'intestazione della serie nel dettaglio foto conta gli occhi chiusi e li contrassegna uno per uno.
 
 Una selezione legata ai filtri segue le stesse regole di filtro della galleria, Tipo di foto incluso. Una vista oltre 10 000 foto viene rifiutata invece che troncata, anche per un'esecuzione a vuoto: restringila (album, data, persona…) e riprova. Dettagli: [API.md](../API.md).
 

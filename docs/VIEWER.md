@@ -350,9 +350,8 @@ The **Keep top %** control in the toolbar (edition mode) culls the whole filtere
 An AI tool can bring an edited copy of a photo into the library through the assistant tool `import_ai_edit` (see [AI Agents](AGENTS.md)). The file lands beside the original as `{name}_{suffix}_{revision}{ext}`, for example `IMG_3533_agy_1.JPG`, and is scanned on its own.
 
 - The gallery marks an edit with ✨ **AI** at the top of its tile. ✨ is kept for what an AI made or picked.
-- An edit's photo page shows **AI edit of** with the original's thumbnail, the model and the note. The original's photo page lists its **AI edits**.
-- The compare button opens the original beside its edits (up to four panes) with synced pan and zoom.
 - An edit shot at the same moment usually joins the original's burst, so the gallery's Best of Burst shows whichever scores higher.
+- On the photo page the burst strip lists the frames the gallery keeps first, then the AI edits, labelled ✨ **AI**, then the blinks it drops, labelled **BLINK**.
 
 ### Assistant-pinned list
 
@@ -381,7 +380,7 @@ When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an ex
 - **Include sequence siblings** (`include_sequence_siblings`) adds the set's other frames, but only those whose own keep/reject state matches the action. Kept frames are never trashed because a sibling was rejected. A frame you deselected is never pulled back in.
 - The preview always reports how many sibling frames exist (`sequence_siblings`). `matched` tells "nothing qualified" apart from an empty result.
 - Moving or trashing a set's lead promotes a surviving sibling, so the set stays visible.
-- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame.
+- To pick an exact subset of a set, open it with the photo detail's "open this set in the gallery" action first. That view shows every frame the hide toggles leave in (blinks are hidden by default); its bar says how many are hidden and why, and its Show all brings them back until you clear the set. The photo detail's set header counts blink frames and labels each one.
 
 A filter-scoped cull follows the same filter rules as the gallery, Photo Type included. A view over 10 000 photos is refused rather than truncated, even for a dry run: narrow it (album, date, person…) and retry. Details: [API.md](API.md).
 

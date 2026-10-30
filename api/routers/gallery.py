@@ -800,7 +800,7 @@ async def _fetch_sequence_set(conn, vis_sql, vis_params, kind, group_id):
     """
     order_col = "ABS(sequence_ev_offset)" if kind == BRACKET_KIND else "date_taken"
     cur = await conn.execute(
-        f"""SELECT path, sequence_ev_offset, is_sequence_lead
+        f"""SELECT path, sequence_ev_offset, is_sequence_lead, is_blink
             FROM photos
             WHERE sequence_kind = ? AND sequence_group_id = ? AND {vis_sql}
             ORDER BY {order_col}, path""",
@@ -809,10 +809,12 @@ async def _fetch_sequence_set(conn, vis_sql, vis_params, kind, group_id):
     rows = await cur.fetchall()
     await cur.close()
     members = [
-        {'path': r['path'], 'ev_offset': r['sequence_ev_offset'], 'is_lead': bool(r['is_sequence_lead'])}
+        {'path': r['path'], 'ev_offset': r['sequence_ev_offset'], 'is_lead': bool(r['is_sequence_lead']),
+         'is_blink': bool(r['is_blink'])}
         for r in rows
     ]
     await attach_preview_versions_async(conn, members)
+    await attach_ai_edit_sources_async(conn, members)
     ev_span = None
     if kind == BRACKET_KIND:
         offsets = [m['ev_offset'] for m in members if m['ev_offset'] is not None]
@@ -824,7 +826,7 @@ async def _fetch_sequence_set(conn, vis_sql, vis_params, kind, group_id):
 async def _fetch_grouped_set(conn, vis_sql, vis_params, kind, group_col, lead_col, group_id):
     """A burst or duplicate set, in capture order. Neither carries an EV offset."""
     cur = await conn.execute(
-        f"""SELECT path, {lead_col}
+        f"""SELECT path, {lead_col}, is_blink
             FROM photos
             WHERE {group_col} = ? AND {vis_sql}
             ORDER BY date_taken, path""",
@@ -833,10 +835,11 @@ async def _fetch_grouped_set(conn, vis_sql, vis_params, kind, group_col, lead_co
     rows = await cur.fetchall()
     await cur.close()
     members = [
-        {'path': r['path'], 'ev_offset': None, 'is_lead': bool(r[lead_col])}
+        {'path': r['path'], 'ev_offset': None, 'is_lead': bool(r[lead_col]), 'is_blink': bool(r['is_blink'])}
         for r in rows
     ]
     await attach_preview_versions_async(conn, members)
+    await attach_ai_edit_sources_async(conn, members)
     return {'kind': kind, 'group_id': group_id, 'count': len(members), 'ev_span': None, 'members': members}
 
 

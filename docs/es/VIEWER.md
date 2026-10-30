@@ -350,9 +350,8 @@ El control **Conservar el % superior** de la barra de herramientas (modo de edic
 Una herramienta de IA puede traer a la biblioteca una copia editada de una foto con la herramienta del asistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). El archivo queda junto al original como `{name}_{suffix}_{revision}{ext}`, por ejemplo `IMG_3533_agy_1.JPG`, y se escanea por separado.
 
 - La galería marca una edición con ✨ **IA** en la parte superior de su miniatura. ✨ se reserva para lo que una IA hizo o eligió.
-- La página de una edición muestra **Edición con IA de** con la miniatura del original, el modelo y la nota. La página del original lista sus **Ediciones con IA**.
-- El botón de comparar abre el original junto a sus ediciones (hasta cuatro paneles) con desplazamiento y zoom sincronizados.
 - Una edición con la misma hora de captura suele unirse a la ráfaga del original, y «Mejor de la ráfaga» muestra la de mayor puntuación.
+- En la página de la foto, la tira de la ráfaga muestra primero los fotogramas que la galería conserva, luego las ediciones con IA, marcadas ✨ **IA**, y al final los parpadeos que oculta, marcados **PARPADEO**.
 
 ### Lista fijada por el asistente
 
@@ -381,7 +380,7 @@ Cuando un asistente conectado mediante [Agentes de IA (MCP)](AGENTS.md) te muest
 - **Incluir fotogramas hermanos de la secuencia** (`include_sequence_siblings`) añade los demás fotogramas del conjunto, pero solo aquellos cuyo propio estado de conservar/rechazar coincide con la acción. Los fotogramas conservados nunca se envían a la papelera porque un hermano fue rechazado. Un fotograma que deseleccionaste nunca vuelve a incluirse.
 - La vista previa siempre informa de cuántos fotogramas hermanos existen (`sequence_siblings`). `matched` distingue "nada cumplía" de un resultado vacío.
 - Mover o enviar a la papelera la principal de un conjunto promueve a un hermano superviviente, de modo que el conjunto sigue visible.
-- Para elegir un subconjunto exacto de un conjunto, ábrelo antes con la acción "abrir este conjunto en la galería" del detalle de la foto. Esa vista muestra todos los fotogramas.
+- Para elegir un subconjunto exacto de un conjunto, ábrelo antes con la acción "abrir este conjunto en la galería" del detalle de la foto. Esa vista muestra todos los fotogramas que dejan los interruptores de ocultar (los parpadeos se ocultan por defecto); su barra indica cuántos se ocultan y por qué, y «Mostrar todo» los recupera hasta que cierras el conjunto. La cabecera del conjunto en el detalle de la foto cuenta los parpadeos y marca cada uno.
 
 Un descarte con ámbito de filtro sigue las mismas reglas de filtro que la galería, incluido el Tipo de foto. Una vista de más de 10 000 fotos se rechaza en lugar de truncarse, incluso en simulación: acótala (álbum, fecha, persona…) y reinténtalo. Detalles: [API.md](../API.md).
 

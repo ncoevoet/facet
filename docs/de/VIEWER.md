@@ -350,9 +350,8 @@ Das Steuerelement **Top % behalten** in der Symbolleiste (Bearbeitungsmodus) sor
 Ein KI-Werkzeug kann über das Assistenten-Werkzeug `import_ai_edit` eine bearbeitete Kopie eines Fotos in die Bibliothek bringen (siehe [KI-Agenten](AGENTS.md)). Die Datei landet neben dem Original als `{name}_{suffix}_{revision}{ext}`, etwa `IMG_3533_agy_1.JPG`, und wird einzeln gescannt.
 
 - Die Galerie markiert eine Bearbeitung oben auf der Kachel mit ✨ **KI**. ✨ steht nur für das, was eine KI gemacht oder ausgewählt hat.
-- Die Fotoseite einer Bearbeitung zeigt **KI-Bearbeitung von** mit dem Vorschaubild des Originals, dem Modell und der Notiz. Die Fotoseite des Originals listet seine **KI-Bearbeitungen**.
-- Die Vergleichsschaltfläche öffnet das Original neben seinen Bearbeitungen (bis zu vier Bereiche) mit synchronem Schwenken und Zoomen.
 - Eine Bearbeitung mit demselben Aufnahmezeitpunkt landet meist in der Serie des Originals; „Bestes der Serie“ zeigt dann die höher bewertete.
+- Auf der Fotoseite listet der Serienstreifen zuerst die Aufnahmen, die die Galerie behält, dann die KI-Bearbeitungen mit ✨ **KI** und zuletzt die ausgeblendeten Blinzler mit **BLINZ**.
 
 ### Vom Assistenten angeheftete Liste
 
@@ -381,7 +380,7 @@ Zeigt Ihnen ein über [KI-Agenten (MCP)](AGENTS.md) verbundener Assistent eine e
 - **Sequenzgeschwister einbeziehen** (`include_sequence_siblings`) fügt die anderen Aufnahmen des Sets hinzu, aber nur jene, deren eigener Behalten-/Ablehnen-Status zur Aktion passt. Behaltene Aufnahmen werden nie entsorgt, weil ein Geschwister abgelehnt wurde. Eine Aufnahme, die Sie abgewählt haben, wird nie wieder hinzugezogen.
 - Die Vorschau meldet immer, wie viele Geschwister-Aufnahmen existieren (`sequence_siblings`). `matched` unterscheidet „nichts kam infrage“ von einem leeren Ergebnis.
 - Wird das Leitfoto eines Sets verschoben oder entsorgt, rückt ein überlebendes Geschwister nach, sodass das Set sichtbar bleibt.
-- Um eine genaue Teilmenge eines Sets zu wählen, öffnen Sie es zuerst über die Aktion „dieses Set in der Galerie öffnen“ der Fotodetailansicht. Diese Ansicht zeigt jede Aufnahme.
+- Um eine genaue Teilmenge eines Sets zu wählen, öffnen Sie es zuerst über die Aktion „dieses Set in der Galerie öffnen“ der Fotodetailansicht. Diese Ansicht zeigt jede Aufnahme, die die Ausblende-Schalter übrig lassen (Blinzler sind standardmäßig ausgeblendet); ihre Leiste nennt, wie viele ausgeblendet sind und warum, und „Alle anzeigen“ holt sie zurück, bis Sie das Set schließen. Der Set-Kopf der Fotodetailansicht zählt Blinzler und markiert jeden.
 
 Ein filterbasiertes Aussortieren folgt denselben Filterregeln wie die Galerie, den Fototyp eingeschlossen. Eine Ansicht mit über 10 000 Fotos wird abgelehnt statt abgeschnitten, auch bei einem Trockenlauf: Grenzen Sie sie ein (Album, Datum, Person…) und versuchen Sie es erneut. Details: [API.md](../API.md).
 

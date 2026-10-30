@@ -350,9 +350,8 @@ O controle **Manter top %** na barra de ferramentas (modo de edição) faz a tri
 Uma ferramenta de IA pode trazer para a biblioteca uma cópia editada de uma foto com a ferramenta do assistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). O ficheiro fica ao lado do original como `{name}_{suffix}_{revision}{ext}`, por exemplo `IMG_3533_agy_1.JPG`, e é analisado sozinho.
 
 - A galeria assinala uma edição com ✨ **IA** no topo da miniatura. ✨ fica reservado ao que uma IA criou ou escolheu.
-- A página de uma edição mostra **Edição por IA de** com a miniatura do original, o modelo e a nota. A página do original lista as suas **Edições por IA**.
-- O botão de comparar abre o original ao lado das edições (até quatro painéis) com deslocamento e zoom sincronizados.
 - Uma edição com a mesma hora de captura costuma juntar-se à rajada do original; «Melhor da rajada» mostra a de pontuação mais alta.
+- Na página da foto, a faixa da rajada mostra primeiro as fotos que a galeria mantém, depois as edições por IA, marcadas ✨ **IA**, e por fim os piscares que oculta, marcados **PISCOU**.
 
 ### Lista fixada pelo assistente
 
@@ -381,7 +380,7 @@ Quando um assistente ligado através de [Agentes de IA (MCP)](AGENTS.md) lhe mos
 - **Incluir irmãos de sequência** (`include_sequence_siblings`) acrescenta os outros quadros da série, mas somente aqueles cujo estado de manter/rejeitar corresponde à ação. Quadros mantidos nunca vão para a lixeira porque um irmão foi rejeitado. Um quadro que você desselecionou nunca é readicionado.
 - A prévia sempre informa quantos quadros irmãos existem (`sequence_siblings`). `matched` distingue "nada se qualificou" de um resultado vazio.
 - Mover ou descartar o líder de uma série promove um irmão sobrevivente, de modo que a série continua visível.
-- Para escolher um subconjunto exato de uma série, abra-a antes pela ação "abrir esta série na galeria" do detalhe da foto. Essa visualização mostra todos os quadros.
+- Para escolher um subconjunto exato de uma série, abra-a antes pela ação "abrir esta série na galeria" do detalhe da foto. Essa visualização mostra todos os quadros que as opções de ocultar deixam passar (as piscadelas ficam ocultas por omissão); a sua barra indica quantos estão ocultos e porquê, e «Mostrar tudo» repõe-nos até fechar a série. O cabeçalho da série no detalhe da foto conta as piscadelas e assinala cada uma.
 
 Uma triagem com escopo de filtro segue as mesmas regras de filtro da galeria, Tipo de Foto incluído. Uma visualização com mais de 10 000 fotos é recusada em vez de truncada, mesmo em uma simulação: refine (álbum, data, pessoa…) e tente de novo. Detalhes: [API.md](../API.md).
 

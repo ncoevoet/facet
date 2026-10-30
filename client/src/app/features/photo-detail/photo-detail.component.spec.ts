@@ -2224,16 +2224,19 @@ describe('PhotoDetailComponent', () => {
       expect(component.photoSet()).toEqual({ kind: 'bracket', group_id: 1, count: 3, ev_span: 2, members: [] });
     });
 
-    it('shows the original of an AI edit and compares the two', async () => {
-      const edit = { edit_path: '/photos/test.jpg', source_path: '/photos/orig.jpg', tool: 'antigravity-gemini',
-        model: 'gemini-image', note: 'brighter', revision: 1 };
+    it('names the blink frames, which the gallery hides when the set is opened there', async () => {
+      const burst = {
+        kind: 'burst', group_id: 161, count: 3, ev_span: null, members: [
+          { path: '/photos/a.jpg', ev_offset: null, is_lead: false, is_blink: true },
+          { path: '/photos/b.jpg', ev_offset: null, is_lead: false, is_blink: false },
+          { path: '/photos/test.jpg', ev_offset: null, is_lead: true, is_blink: false },
+        ],
+      };
       mockApi.get.mockImplementation((url: string) => {
-        if (url === '/photo/ai_edits') return of({ edit_of: edit, edits: [] });
-        if (url === '/photo/set') return of({ kind: null, group_id: null, count: 0, ev_span: null, members: [] });
+        if (url === '/photo/set') return of(burst);
         if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
         return of(samplePhoto);
       });
-      mockApi.post.mockReturnValue(of({ photos: [] }));
       const view = renderDetail();
       view.componentInstance.photo.set(makePhoto({}));
       for (let i = 0; i < 3; i++) {
@@ -2242,18 +2245,22 @@ describe('PhotoDetailComponent', () => {
       }
       view.detectChanges();
 
-      const section = view.nativeElement.querySelector('[data-ai-edits]') as HTMLElement;
-      expect(section.textContent).toContain('photo_detail.ai_edit.edit_of');
-      expect(section.textContent).toContain('gemini-image');
-      expect(section.querySelectorAll('img').length).toBe(1);
-      (section.querySelector('[data-ai-compare]') as HTMLButtonElement).click();
-      await new Promise<void>(resolve => setTimeout(resolve, 0));
-      expect(mockApi.post).toHaveBeenCalledWith('/photos/by_paths', { paths: ['/photos/orig.jpg', '/photos/test.jpg'], filters: {} });
+      const text = view.nativeElement.textContent as string;
+      expect(text).toContain('gallery.hidden_banner.reason_blinks');
+      expect(text.match(/ui\.badges\.blink/g)?.length).toBe(1);
     });
 
-    it('has no AI-edit section for a photo with no edits', async () => {
+    it('orders the strip kept frames, then AI edits, then blinks, and labels the AI edit', async () => {
+      const burst = {
+        kind: 'burst', group_id: 161, count: 4, ev_span: null, members: [
+          { path: '/photos/a.jpg', ev_offset: null, is_lead: false, is_blink: true },
+          { path: '/photos/a_agy_1.jpg', ev_offset: null, is_lead: false, is_blink: false, ai_edit_of: '/photos/test.jpg' },
+          { path: '/photos/b.jpg', ev_offset: null, is_lead: false, is_blink: false },
+          { path: '/photos/test.jpg', ev_offset: null, is_lead: true, is_blink: false },
+        ],
+      };
       mockApi.get.mockImplementation((url: string) => {
-        if (url === '/photo/ai_edits') return of({ edit_of: null, edits: [] });
+        if (url === '/photo/set') return of(burst);
         if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
         return of(samplePhoto);
       });
@@ -2263,7 +2270,16 @@ describe('PhotoDetailComponent', () => {
         view.detectChanges();
         await new Promise<void>(resolve => setTimeout(resolve, 0));
       }
-      expect(view.nativeElement.querySelector('[data-ai-edits]')).toBeNull();
+      view.detectChanges();
+
+      const thumbs = [...view.nativeElement.querySelectorAll('img[src*="size=96"]')] as HTMLImageElement[];
+      const order = thumbs.map(img => img.getAttribute('src') ?? '')
+        .map(src => ['b.jpg', 'test.jpg', 'a_agy_1.jpg', 'a.jpg'].find(name => src.includes(encodeURIComponent('/photos/' + name))))
+        .filter(Boolean);
+      expect(order).toEqual(['b.jpg', 'test.jpg', 'a_agy_1.jpg', 'a.jpg']);
+      const labels = view.nativeElement.querySelectorAll('[data-ai-label]');
+      expect(labels.length).toBe(1);
+      expect(labels[0].textContent).toContain('photo_detail.ai_edit.badge_short');
     });
 
     it('ignores a stale set response after navigating to another photo', async () => {

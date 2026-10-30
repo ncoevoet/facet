@@ -1091,6 +1091,7 @@ export const I18N = {
     },
     set_scope: {
       message: "gallery.set_scope.message",
+      partial: "gallery.set_scope.partial",
     },
     pinned: {
       chip: "gallery.pinned.chip",
@@ -2723,9 +2724,6 @@ export const I18N = {
     ai_edit: {
       badge: "photo_detail.ai_edit.badge",
       badge_short: "photo_detail.ai_edit.badge_short",
-      edit_of: "photo_detail.ai_edit.edit_of",
-      edits: "photo_detail.ai_edit.edits",
-      compare: "photo_detail.ai_edit.compare",
     },
     delete: {
       button_label: "photo_detail.delete.button_label",

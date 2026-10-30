@@ -1076,7 +1076,8 @@
       "command_hint": "运行 {command} 可一次性刷新全部缩略图。"
     },
     "set_scope": {
-      "message": "正在显示一组照片：{kind}"
+      "message": "正在显示一组照片：{kind}",
+      "partial": "显示 {shown}/{total}（已隐藏：{reasons}）"
     },
     "pinned": {
       "chip": "助手挑选了 {count} 张照片",
@@ -2708,10 +2709,7 @@
     },
     "ai_edit": {
       "badge": "AI 编辑",
-      "badge_short": "AI",
-      "edit_of": "AI 编辑自",
-      "edits": "AI 编辑版本",
-      "compare": "对比原图与 AI 编辑版本"
+      "badge_short": "AI"
     },
     "delete": {
       "button_label": "删除",

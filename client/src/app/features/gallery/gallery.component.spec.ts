@@ -1167,6 +1167,40 @@ describe('GalleryComponent', () => {
       });
     });
 
+    it('puts back the hide toggles a set-bar Show all lifted, keeping the set\'s own restore', () => {
+      const before = { hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
+      mockStore.filters.set({ ...DEFAULT_FILTERS, ...before, burst_group_id: '161' });
+      localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: true }));
+      // The real Show all saves every toggle off, the set's own included.
+      mockStore.showAllHidden.mockImplementation(() => {
+        mockStore.hiddenFiltersStash.set(before);
+        localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: false, hide_blinks: false }));
+      });
+
+      component.showWholeSet();
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        ...before, hide_bursts: true,
+      });
+      expect(mockStore.hiddenFiltersStash()).toBeNull();
+    });
+
+    it('leaves a gallery-wide Show all alone when the set is cleared', () => {
+      const stash = { hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
+      mockStore.hiddenFiltersStash.set(stash);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, burst_group_id: '161', hide_bursts: false });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '', hide_bursts: true,
+      });
+      expect(mockStore.hiddenFiltersStash()).toBe(stash);
+      mockStore.hiddenFiltersStash.set(null);
+    });
+
     it('falls back to the config default when nothing is stored in localStorage', () => {
       mockStore.config.set({ defaults: { hide_panoramas: false } });
       mockStore.filters.set({
@@ -1541,6 +1575,39 @@ describe('GalleryComponent', () => {
       expect(text).not.toContain(reasons.reason_blinks);
       expect(text).not.toContain(reasons.reason_duplicates);
       expect(text).not.toContain(reasons.reason_panoramas);
+    });
+
+    it('the set-scope bar says what the hide toggles left out, so its count matches the photo page', () => {
+      // A burst of 3 whose blink frame hide_blinks still filters out: the bar must
+      // not leave the user to reconcile 2 tiles with "3 photos" on the photo page.
+      mockStore.total.set(2);
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(bar.textContent).toContain(I18N.gallery.set_scope.partial);
+      Array.from(bar.querySelectorAll('button')).find(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))!.click();
+      expect(mockStore.showAllHidden).toHaveBeenCalled();
+    });
+
+    it('names only the kinds whose hide toggle is on', () => {
+      // An opened burst lifts hide_bursts: its repeats are on screen, so only the blink is hidden.
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 2, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_bursts: false, hide_blinks: true });
+      const text = stack(render())!.querySelector('[role="status"]')!.textContent!;
+      expect(text).toContain(I18N.gallery.hidden_banner.reason_blinks);
+      expect(text).not.toContain(I18N.gallery.hidden_banner.reason_bursts);
+    });
+
+    it('the set-scope bar adds nothing when the whole set is on screen', () => {
+      mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(bar.textContent).not.toContain(I18N.gallery.set_scope.partial);
+      expect(Array.from(bar.querySelectorAll('button')).some(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))).toBe(false);
     });
 
     it('renders the restore twin once Show all has been used', () => {

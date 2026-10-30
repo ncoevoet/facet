@@ -1295,7 +1295,7 @@ class TestPhotoSetEndpoint:
                sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=1),
         _photo("/p-c.jpg", "2024:06:15 13:00:01",
                sequence_group_id=2, sequence_kind="panorama", is_sequence_lead=0),
-        _photo("/burst-a.jpg", "2024:06:15 14:00:01", burst_group_id=5, is_burst_lead=0),
+        _photo("/burst-a.jpg", "2024:06:15 14:00:01", burst_group_id=5, is_burst_lead=0, is_blink=1),
         _photo("/burst-b.jpg", "2024:06:15 14:00:00", burst_group_id=5, is_burst_lead=1),
         _photo("/dup-a.jpg", "2024:06:15 15:00:00", duplicate_group_id=9, is_duplicate_lead=1),
         _photo("/dup-b.jpg", "2024:06:15 15:00:01", duplicate_group_id=9, is_duplicate_lead=0),
@@ -1365,6 +1365,29 @@ class TestPhotoSetEndpoint:
         assert [m["path"] for m in data["members"]] == ["/burst-b.jpg", "/burst-a.jpg"]
         lead = next(m for m in data["members"] if m["path"] == "/burst-b.jpg")
         assert lead["is_lead"] is True
+
+    def test_members_carry_the_blink_flag(self, tmp_path):
+        """The gallery hides blinks by default, so the photo page names them: a
+        burst of two that opens in the gallery as one must say why."""
+        data = self._fetch(tmp_path, "/burst-b.jpg").json()
+        assert {m["path"]: m["is_blink"] for m in data["members"]} == {
+            "/burst-b.jpg": False, "/burst-a.jpg": True}
+
+    def test_members_carry_the_original_of_an_ai_edit(self, tmp_path):
+        """An AI edit taken at the same moment joins its original's burst; the strip labels it."""
+        db_path = str(tmp_path / "test.db")
+        _make_db(db_path, self._PHOTOS)
+        with sqlite3.connect(db_path) as conn:
+            conn.execute("INSERT INTO photo_ai_edits (edit_path, source_path, tool, revision)"
+                         " VALUES ('/burst-a.jpg', '/burst-b.jpg', 'antigravity-gemini', 1)")
+        app = _create_app_no_auth()
+        with (
+            mock.patch("api.routers.gallery.get_async_db", _async_conn_factory(db_path)),
+            mock.patch("api.db_helpers._existing_columns_cache", _existing_columns(db_path)),
+        ):
+            data = TestClient(app).get("/api/photo/set?path=/burst-b.jpg").json()
+        assert {m["path"]: m.get("ai_edit_of") for m in data["members"]} == {
+            "/burst-b.jpg": None, "/burst-a.jpg": "/burst-b.jpg"}
 
     def test_duplicate_set(self, tmp_path):
         data = self._fetch(tmp_path, "/dup-b.jpg").json()

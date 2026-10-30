@@ -8209,8 +8209,15 @@ export interface components {
          * @description One frame in a bracket/panorama/burst/duplicate set.
          */
         PhotoSetMember: {
+            /** Ai Edit Of */
+            ai_edit_of?: string | null;
             /** Ev Offset */
             ev_offset?: number | null;
+            /**
+             * Is Blink
+             * @default false
+             */
+            is_blink?: boolean;
             /** Is Lead */
             is_lead: boolean;
             /** Path */
