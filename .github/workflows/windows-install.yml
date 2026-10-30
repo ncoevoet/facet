@@ -68,7 +68,7 @@ jobs:
           lfw="$HOME/lfw-data/lfw_home/lfw_funneled"
           python testdb/make_lfw_subset.py --lfw "$lfw" --out library/photos
           python testdb/make_references.py --lfw "$lfw" --photos library/photos --out library/references
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: face-library
           path: library/
@@ -114,7 +114,7 @@ jobs:
           Expand-Archive $zip (Join-Path $env:RUNNER_TEMP 'wix')
           & .\installer\build-msi.ps1 -WixDir (Join-Path $env:RUNNER_TEMP 'wix') -Uv (Get-Command uv).Source
           "MSI=$((Get-ChildItem installer\out\*.msi).FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: facet-msi
           path: installer/out/*.msi
@@ -194,7 +194,7 @@ jobs:
           if ($LASTEXITCODE) { throw "ci_report exited $LASTEXITCODE" }
           & $FacetPython testdb\ci_compare.py --baseline testdb\README.md reports\windows.txt
           if ($LASTEXITCODE) { throw 'the Windows report is below the README baseline' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: report-windows
           path: reports/
@@ -251,7 +251,7 @@ jobs:
           Copy-Item "$env:RUNNER_TEMP\install.log" ci-logs -ErrorAction SilentlyContinue
           Copy-Item "$env:LOCALAPPDATA\Facet\data\logs\*" ci-logs -ErrorAction SilentlyContinue
           exit 0
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: windows-logs
