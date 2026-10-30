@@ -28,12 +28,14 @@ import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/c
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { onPageQuery } from '../../shared/utils/page-query';
+import { MarkTonePipe } from '../../shared/pipes/mark-tone.pipe';
 
 @Component({
   selector: 'app-albums',
   standalone: true,
   host: { class: 'block px-4 pt-4 pb-4' },
   imports: [
+    MarkTonePipe,
     RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDialogModule, MatTooltipModule,
     MatProgressSpinnerModule,
@@ -95,9 +97,9 @@ import { onPageQuery } from '../../shared/utils/page-query';
               <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
                 <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
                 @if (album.is_smart) {
-                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
+                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 shrink-0 pointer-events-auto" [class]="'smart' | markTone"
                             [matTooltip]="'albums.smart_tooltip' | translate"
-                            [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
+                            [attr.aria-label]="'albums.smart_tooltip' | translate">✦</mat-icon>
                 }
               </div>
             </div>
@@ -107,9 +109,9 @@ import { onPageQuery } from '../../shared/utils/page-query';
               <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
                 <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
                 @if (album.is_smart) {
-                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
+                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 shrink-0 pointer-events-auto" [class]="'smart' | markTone"
                             [matTooltip]="'albums.smart_tooltip' | translate"
-                            [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
+                            [attr.aria-label]="'albums.smart_tooltip' | translate">✦</mat-icon>
                 }
               </div>
             </div>

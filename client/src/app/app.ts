@@ -56,6 +56,7 @@ import { I18N, i18nKeys } from './core/i18n/keys';
 import { folderDisplayName } from './features/folders/folders.util';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from './shared/utils/media-query';
 import { isUnavailableKey, unavailableSet } from './shared/utils/unavailable-metrics';
+import { MarkTonePipe } from './shared/pipes/mark-tone.pipe';
 
 /** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
 const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
@@ -150,6 +151,7 @@ export class EditionDialogComponent {
     TranslatePipe,
     SortGroupKeyPipe,
     SortOptionIconPipe,
+    MarkTonePipe,
     ThumbnailUrlPipe,
     MatSliderModule,
     NgTemplateOutlet,

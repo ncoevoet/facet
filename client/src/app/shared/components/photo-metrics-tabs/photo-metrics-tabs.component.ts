@@ -15,6 +15,7 @@ import { MetricDistribution } from '../../utils/metric-distribution';
 import { ExtendedQualityComponent } from '../extended-quality/extended-quality.component';
 import { HistogramComponent } from '../histogram/histogram.component';
 import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.component';
+import { MarkTonePipe } from '../../pipes/mark-tone.pipe';
 
 /**
  * A photo's metrics in icon tabs (EXIF, Quality, Composition, Technical,
@@ -29,6 +30,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
 @Component({
   selector: 'app-photo-metrics-tabs',
   imports: [
+    MarkTonePipe,
     MatIconModule, MatTabsModule, MatTooltipModule, FixedPipe, IsLensNamePipe, ShutterSpeedPipe,
     ThumbnailUrlPipe, TranslatePipe, ExtendedQualityComponent, HistogramComponent, MetricScoreRowComponent,
   ],
@@ -71,7 +73,7 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
       }
 
       <mat-tab [aria-label]="'photo_detail.quality' | translate">
-        <ng-template mat-tab-label><mat-icon aria-hidden="true" [matTooltip]="'photo_detail.quality' | translate">auto_awesome</mat-icon></ng-template>
+        <ng-template mat-tab-label><mat-icon aria-hidden="true" [class]="'quality' | markTone" [matTooltip]="'photo_detail.quality' | translate">✦</mat-icon></ng-template>
       <div class="pt-3">
         <div class="flex flex-col gap-0.5">
           <app-metric-score-row [label]="'tooltip.aesthetic' | translate" [range]="ranges()['aesthetic']" [value]="p.aesthetic">{{ p.aesthetic | fixed:1 }}</app-metric-score-row>
