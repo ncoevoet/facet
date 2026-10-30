@@ -2882,20 +2882,26 @@ class Facet:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
         return _sanitize_exif_numeric(exif_data)
 
-    def save_photos_batch(self, results_with_images):
+    def save_photos_batch(self, results_with_images, *, phase_metrics=None):
         """
         Batch insert multiple photos in a single transaction for better performance.
 
         Args:
             results_with_images: List of (result_dict, pil_img) tuples
+            phase_metrics: Optional scan metrics receiving thumbnail wall seconds
         """
         if not results_with_images:
             return
 
         # Phase 1: Pre-generate thumbnails (CPU work, no DB lock held)
-        for res, pil_img in results_with_images:
-            res['thumbnail'] = generate_photo_thumbnail(
-                thumbnail_source(res['path'], pil_img))
+        thumbnail_start = time.perf_counter()
+        try:
+            for res, pil_img in results_with_images:
+                res['thumbnail'] = generate_photo_thumbnail(
+                    thumbnail_source(res['path'], pil_img))
+        finally:
+            if phase_metrics is not None:
+                phase_metrics['thumbnail_time'] += time.perf_counter() - thumbnail_start
 
         # Phase 2: Collect all face records for batch insert (including thumbnails,
         # landmarks and per-face quality signals — shared upsert: see db.schema)

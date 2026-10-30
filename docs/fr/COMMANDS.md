@@ -63,6 +63,8 @@ Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaqu
 | `embeddings` | CLIP ViT-L-14 ou SigLIP 2 NaFlex | `clip_embedding` pour la similarité et l'étiquetage | 4-5 Go |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 Go |
 
+Les mesures multi-passes utilisent une horloge monotone. Le temps EXIF du lot et la somme des secondes de travail des replis sont inclus dans le décodage ; les replis parallèles peuvent se chevaucher. Agrégation, vignettes (lecture source comprise) et sauvegarde hors vignettes sont des intervalles séparés ; la sauvegarde inclut préparation et commit. Les passes restreintes ignorent agrégation et vignettes photo. Les chevauchements décodage/modèles et les reconstructions imbriquées restent inchangés : ne pas additionner tous les compteurs ni convertir les secondes de travail EXIF en pourcentage mural. Le mode mono-passe est exclu. Pour une référence, analyser une copie fixe de 500 RAW/JPEG dans une base temporaire et conserver le résumé, la révision, le profil, les workers, la taille des blocs, le stockage et les conditions de cache. Répéter à conditions identiques. Aucun jeu de référence ni benchmark avant/après fourni ; aucun gain revendiqué.
+
 ## Aperçu et export
 
 | Commande | Description |

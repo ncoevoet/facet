@@ -226,6 +226,11 @@ class ChunkedMultiPassProcessor:
             # BGR / gray planes rebuilt from the retained PIL image by the face and
             # saliency passes (they are no longer kept for the whole chunk)
             'rebuild_time': 0.0,
+            'exif_batch_time': 0.0,
+            'exif_fallback_time': 0.0,
+            'aggregate_time': 0.0,
+            'thumbnail_time': 0.0,
+            'save_time': 0.0,
         }
 
         # Decode overlap (see _overlap_allowed) and RAM-cache trim state, per scan.
@@ -417,7 +422,7 @@ class ChunkedMultiPassProcessor:
         if total == 0:
             return self.metrics
 
-        start_time = time.time()
+        start_time = time.perf_counter()
         initial_chunk = self.chunk_size
         tuning_label = "on" if self.auto_tuning_enabled else "off"
         logger.info("Processing %d photos (initial chunk size: %d, auto-tuning: %s)...",
@@ -486,7 +491,7 @@ class ChunkedMultiPassProcessor:
             finally:
                 flush_centroids_safely(self.scorer)
 
-        self.metrics['total_time'] = time.time() - start_time
+        self.metrics['total_time'] = time.perf_counter() - start_time
         self._print_summary()
 
         return self.metrics
@@ -523,9 +528,9 @@ class ChunkedMultiPassProcessor:
             images, preloaded = self._decode_beside_first_load(
                 paths, first_group, supplementary, failed_stages)
         else:
-            io_start = time.time()
+            io_start = time.perf_counter()
             images = self._load_images(paths)
-            io_wall = time.time() - io_start
+            io_wall = time.perf_counter() - io_start
             self.metrics['io_time'] += io_wall
             self.metrics['io_decode_time'] += io_wall
         self._record_chunk_pixels(images)
@@ -540,12 +545,12 @@ class ChunkedMultiPassProcessor:
                 loaded_models, preloaded = preloaded, None
             else:
                 # Load models for this pass
-                load_start = time.time()
+                load_start = time.perf_counter()
                 loaded_models = self._load_pass_models(model_group, supplementary, failed_stages)
-                self.metrics['model_load_time'] += time.time() - load_start
+                self.metrics['model_load_time'] += time.perf_counter() - load_start
 
             # Run inference for each model in this pass
-            infer_start = time.time()
+            infer_start = time.perf_counter()
             device = getattr(self.model_manager, 'device', 'cpu')
             for model_name in list(loaded_models):
                 try:
@@ -569,26 +574,34 @@ class ChunkedMultiPassProcessor:
                     if device == UNIFIED_MEMORY_ACCELERATOR:
                         clear_device_cache(device)
 
-            self.metrics['inference_time'] += time.time() - infer_start
+            self.metrics['inference_time'] += time.perf_counter() - infer_start
             self.metrics['passes_executed'] += 1
 
             # Unload models from this pass
-            unload_start = time.time()
+            unload_start = time.perf_counter()
             self._unload_group(model_group, loaded_models)
-            self.metrics['model_unload_time'] += time.time() - unload_start
+            self.metrics['model_unload_time'] += time.perf_counter() - unload_start
         self._next_group_pos = 0
 
         if failed_stages:
             self._record_chunk_pass_failure(images, results, failed_stages)
 
+        if not self.restricted:
+            aggregate_start = time.perf_counter()
+            self._compute_aggregates(results, images)
+            self.metrics['aggregate_time'] += time.perf_counter() - aggregate_start
+
+        # Thumbnail generation is nested in the full save. Subtract only that
+        # interval so these two scan-thread phases do not double count.
+        thumbnail_before = self.metrics['thumbnail_time']
+        save_start = time.perf_counter()
         if self.restricted:
             self._save_results_restricted(results, images)
         else:
-            # Compute aggregate scores (CPU pass) - needs images for technical metrics
-            self._compute_aggregates(results, images)
-
-            # Save results to database
             self._save_results(results, images)
+        self.metrics['save_time'] += (
+            time.perf_counter() - save_start
+            - (self.metrics['thumbnail_time'] - thumbnail_before))
 
         # Free memory
         del images
@@ -753,23 +766,23 @@ class ChunkedMultiPassProcessor:
         future = self._decode_executor.submit(self._decode_on_worker, paths, deferred_errors)
         self._decode_future = future
 
-        load_start = time.time()
+        load_start = time.perf_counter()
         loaded_models = self._load_pass_models(first_group, supplementary, failed_stages)
-        self.metrics['model_load_time'] += time.time() - load_start
+        self.metrics['model_load_time'] += time.perf_counter() - load_start
 
-        io_start = time.time()
+        io_start = time.perf_counter()
         try:
             images, decode_wall = future.result()
         except BaseException:
-            self.metrics['io_time'] += time.time() - io_start
-            unload_start = time.time()
+            self.metrics['io_time'] += time.perf_counter() - io_start
+            unload_start = time.perf_counter()
             try:
                 self._report_deferred_errors(future, deferred_errors)
             finally:
                 self._unload_group(first_group, loaded_models)
-                self.metrics['model_unload_time'] += time.time() - unload_start
+                self.metrics['model_unload_time'] += time.perf_counter() - unload_start
             raise
-        self.metrics['io_time'] += time.time() - io_start
+        self.metrics['io_time'] += time.perf_counter() - io_start
         self._report_deferred_errors(future, deferred_errors)
         self.metrics['io_decode_time'] += decode_wall
         self.metrics['decode_overlapped_chunks'] += 1
@@ -956,11 +969,15 @@ class ChunkedMultiPassProcessor:
         # One batched exiftool call for the whole chunk instead of one
         # subprocess round-trip per image; per-image fallback below covers
         # paths missing from the batch result
+        exif_start = time.perf_counter()
         try:
             from exiftool import get_exif_batch
             chunk_exif = get_exif_batch(paths, chunk_size=100)
         except ImportError:
             chunk_exif = {}
+
+        self.metrics['exif_batch_time'] += time.perf_counter() - exif_start
+        exif_lock = threading.Lock()
 
         report = report_error if report_error is not None else self.on_error
 
@@ -980,7 +997,15 @@ class ChunkedMultiPassProcessor:
             cache = ImageCache(img_cv)
 
             resolved = str(Path(path).resolve())
-            exif_data = chunk_exif.get(resolved) or self.scorer.get_exif_data(path)
+            exif_data = chunk_exif.get(resolved)
+            if not exif_data:
+                fallback_start = time.perf_counter()
+                try:
+                    exif_data = self.scorer.get_exif_data(path)
+                finally:
+                    duration = time.perf_counter() - fallback_start
+                    with exif_lock:
+                        self.metrics['exif_fallback_time'] += duration
 
             # Compute technical metrics (all CPU operations)
             sharpness_data = tech_analyzer.get_sharpness_data(img_cv, cache=cache)
@@ -1776,7 +1801,7 @@ class ChunkedMultiPassProcessor:
             batch.append((result, pil_img))
 
         if batch:
-            self.scorer.save_photos_batch(batch)
+            self.scorer.save_photos_batch(batch, phase_metrics=self.metrics)
             self.scorer.commit()
 
     def _save_results_restricted(self, results: Dict, images: Dict):
@@ -1857,6 +1882,13 @@ class ChunkedMultiPassProcessor:
             logger.info("  Model unload: %.1fs (%.0f%%)", m['model_unload_time'], 100 * m['model_unload_time'] / total)
             logger.info("  Plane rebuilds (face + saliency passes): %.1fs (%.0f%%)",
                         m['rebuild_time'], 100 * m['rebuild_time'] / total)
+
+            logger.info("  EXIF batch wall (included in decode): %.1fs", m['exif_batch_time'])
+            logger.info("  EXIF fallback worker-seconds (included in decode): %.1fs",
+                        m['exif_fallback_time'])
+            logger.info("  Aggregate wall: %.1fs", m['aggregate_time'])
+            logger.info("  Thumbnail wall: %.1fs", m['thumbnail_time'])
+            logger.info("  Save wall (excluding thumbnails): %.1fs", m['save_time'])
 
             # Auto-tuning summary (only if adjustments occurred)
             monitor = getattr(self, '_ram_monitor', None)
