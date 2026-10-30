@@ -1138,7 +1138,8 @@
       "panel": "Painel lateral",
       "off": "Desligado",
       "panel_empty": "Passe o cursor sobre uma foto ou clique nela para ver aqui os seus detalhes",
-      "panel_deselect": "Desmarcar"
+      "panel_deselect": "Desmarcar",
+      "panel_why": "Por que esta pontuação?"
     },
     "panel_activation": {
       "both": "Passar o mouse ou clicar"
