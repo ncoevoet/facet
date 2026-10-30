@@ -1148,6 +1148,7 @@ export const I18N = {
       off: "gallery.tooltip_mode.off",
       panel_empty: "gallery.tooltip_mode.panel_empty",
       panel_deselect: "gallery.tooltip_mode.panel_deselect",
+      details: "gallery.tooltip_mode.details",
     },
     panel_activation: {
       label: "gallery.panel_activation.label",
@@ -1460,6 +1461,10 @@ export const I18N = {
       preview_loading: "gallery.compare.preview_loading",
       preview_ready: "gallery.compare.preview_ready",
       preview_failed: "gallery.compare.preview_failed",
+      two_up: "gallery.compare.two_up",
+      previous_candidate: "gallery.compare.previous_candidate",
+      next_candidate: "gallery.compare.next_candidate",
+      candidate_position: "gallery.compare.candidate_position",
     },
     clipping: {
       badge_highlight: "gallery.clipping.badge_highlight",

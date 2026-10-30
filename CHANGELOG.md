@@ -6,13 +6,14 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
-- Gallery comparison labels a reference photo, allows deliberate reference promotion and independent framing, and reports sharp-preview readiness per pane. Relinking inspection resets framing without changing review decisions.
+- Gallery comparison labels a reference photo, allows deliberate reference promotion and independent framing, and reports sharp-preview readiness per pane. Two-up keeps a stable reference while stepping through selected candidates. Relinking inspection resets framing without changing review decisions.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
 
 ### Changed
 
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
 - Desktop navigation uses labeled destinations beside the photo workspace. The gallery names its collection and distinguishes matching photos from displayed groups; card metadata follows the selected light or dark theme.
+- The gallery details panel names its owning photo and can be closed without clearing the batch selection.
 
 ### Fixed
 

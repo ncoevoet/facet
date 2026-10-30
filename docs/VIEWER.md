@@ -4,6 +4,8 @@
 
 The viewer is a FastAPI + Angular web app for browsing, filtering, culling and managing your photos.
 
+On desktop, labeled destinations sit beside the workspace; the header holds controls for the current page. The gallery names its collection and separates matching photos from displayed groups. The details panel names the photo it describes; Close hides the panel without clearing the batch selection, while Deselect keeps its existing selection behavior.
+
 ## Contents
 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Review decisions](#review-decisions) · [Gallery Features](#gallery-features)
@@ -322,7 +324,7 @@ Click photos to select; Shift+Click selects a range. An action bar appears at th
 - **Edit tags** — add or remove a [manual tag](#manual-tags) on every selected photo
 - **Select all** — with an empty selection, selects every photo the filters match, not just loaded pages. With photos already selected, it adds the loaded photos and offers to widen to the whole view. Whole-view actions confirm the exact photo count first.
 - **Invert** — swap the selection for its complement. From an empty selection that is the whole view. From a non-empty selection it stays within loaded photos: pick keepers, invert, reject.
-- **Compare** — open 2–4 selected photos side by side. A labeled reference can be changed with the pin button; this changes only the comparison, never ratings or review decisions. Inspection starts linked; unlink to frame each pane independently. Relinking resets all framing. Scroll to zoom, drag to pan and double-click to reset. Linked movement does not align subjects. Each pane reports sharp-preview loading, readiness or failure (with the stored thumbnail retained); zooming can request full resolution.
+- **Compare** — open 2–4 selected photos side by side. A labeled reference can be changed with the pin button; this changes only the comparison, never ratings or review decisions. Inspection starts linked; unlink to frame each pane independently. Relinking resets all framing. Scroll to zoom, drag to pan and double-click to reset. Linked movement does not align subjects. Each pane reports sharp-preview loading, readiness or failure (with the stored thumbnail retained); zooming can request full resolution. For three or four selected photos, Two-up keeps the reference visible while Previous/Next moves through candidates. Promoting a candidate swaps the former reference into the candidate slot. Turning Two-up off restores all selected panes.
 - **Copy filenames** — copy filenames to the clipboard. A whole-view copy confirms first; over 10 000 photos is refused.
 - **Export** — write XMP sidecars next to the files (see [Editor Export](#editor-export))
 - **Cull to folder** — copy keeps, or move/trash rejects, to a folder (see [Cull to folder](#cull-to-folder))

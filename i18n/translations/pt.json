@@ -1133,7 +1133,8 @@
       "panel": "Painel lateral",
       "off": "Desligado",
       "panel_empty": "Passe o cursor sobre uma foto ou clique nela para ver aqui os seus detalhes",
-      "panel_deselect": "Desmarcar"
+      "panel_deselect": "Desmarcar",
+      "details": "Detalhes da foto"
     },
     "panel_activation": {
       "label": "Ativação do painel",
@@ -1445,7 +1446,11 @@
       "promote": "Usar {name} como referência",
       "preview_loading": "A carregar pré-visualização detalhada…",
       "preview_ready": "Pré-visualização detalhada pronta",
-      "preview_failed": "Pré-visualização detalhada indisponível; miniatura apresentada"
+      "preview_failed": "Pré-visualização detalhada indisponível; miniatura apresentada",
+      "two_up": "Duas vistas",
+      "previous_candidate": "Candidata anterior",
+      "next_candidate": "Candidata seguinte",
+      "candidate_position": "Candidata {current} de {total}"
     },
     "clipping": {
       "badge_highlight": "Altas luzes cortadas: {percent}% dos pixels",

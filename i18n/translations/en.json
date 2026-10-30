@@ -1133,7 +1133,8 @@
       "panel": "Side panel",
       "off": "Off",
       "panel_empty": "Hover or click a photo to see its details here",
-      "panel_deselect": "Deselect"
+      "panel_deselect": "Deselect",
+      "details": "Photo details"
     },
     "panel_activation": {
       "label": "Panel activation",
@@ -1445,7 +1446,11 @@
       "promote": "Use {name} as reference",
       "preview_loading": "Loading sharp preview…",
       "preview_ready": "Sharp preview ready",
-      "preview_failed": "Sharp preview unavailable; thumbnail shown"
+      "preview_failed": "Sharp preview unavailable; thumbnail shown",
+      "two_up": "Two-up",
+      "previous_candidate": "Previous candidate",
+      "next_candidate": "Next candidate",
+      "candidate_position": "Candidate {current} of {total}"
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",

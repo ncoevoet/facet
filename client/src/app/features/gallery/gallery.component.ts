@@ -238,6 +238,16 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                background covers the whole rail instead of a rounded card. -->
           <div class="flex flex-col h-full bg-[var(--facet-tooltip-bg)]" data-details-rail tabindex="-1" (keydown.escape)="onRailEscape($event)"
                (focusout)="onGridFocusOut($event)">
+            <header class="flex items-center gap-2 px-4 py-2 border-b border-[var(--mat-sys-outline-variant)] shrink-0">
+              <div class="min-w-0 flex-1">
+                <h2 class="m-0 text-sm font-medium text-[var(--mat-sys-on-surface)]">{{ I18N.gallery.tooltip_mode.details | translate }}</h2>
+                @if (panelPhoto(); as owner) {
+                  <p data-inspector-owner class="m-0 truncate text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="owner.filename">{{ owner.filename }}</p>
+                }
+              </div>
+              <button mat-icon-button data-close-inspector [attr.aria-label]="I18N.dialog.close | translate"
+                      (click)="store.updateFilter('tooltip_mode', 'off')"><mat-icon>close</mat-icon></button>
+            </header>
             @if (hasActivePhoto()) {
               <button mat-button class="!min-w-0 shrink-0 self-start mx-2 mt-2" (click)="releasePanel()">
                 <mat-icon>arrow_back</mat-icon> {{ I18N.gallery.tooltip_mode.panel_deselect | translate }}

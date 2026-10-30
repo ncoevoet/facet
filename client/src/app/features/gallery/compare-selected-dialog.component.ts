@@ -41,6 +41,12 @@ export interface CompareSelectedData {
       <div class="flex items-center gap-2 px-3 py-2 text-white/90 text-sm shrink-0">
         <mat-icon class="!text-base !w-5 !h-5 !leading-5">compare</mat-icon>
         <span class="flex-1 truncate">{{ I18N.gallery.compare.title | translate:{ count: panes().length } }}</span>
+        @if (panes().length > 2) {
+          <button mat-button data-two-up class="!text-white shrink-0" [attr.aria-pressed]="twoUp()"
+                  [attr.aria-label]="I18N.gallery.compare.two_up | translate" (click)="twoUp.set(!twoUp())">
+            <mat-icon>view_column_2</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.two_up | translate }}</span>
+          </button>
+        }
         <button mat-button data-link-inspection class="!text-white shrink-0"
                 [attr.aria-pressed]="linked()"
                 [attr.aria-label]="(linked() ? I18N.gallery.compare.linked : I18N.gallery.compare.independent) | translate"
@@ -66,8 +72,8 @@ export interface CompareSelectedData {
       </div>
 
       <div class="flex-1 min-h-0 grid grid-cols-2 gap-1 p-1"
-           [class.!grid-cols-1]="panes().length < 2"
-           [class.grid-rows-2]="panes().length > 2">
+           [class.!grid-cols-1]="visiblePhotos().length < 2"
+           [class.grid-rows-2]="visiblePhotos().length > 2">
         @for (pane of paneStates(); track pane.photo.path) {
           @let photo = pane.photo;
           <div class="relative flex flex-col w-full h-full min-h-0 overflow-hidden" [attr.data-reference]="referencePath() === photo.path">
@@ -79,7 +85,7 @@ export interface CompareSelectedData {
                 <button mat-icon-button data-promote-reference class="!text-white shrink-0"
                         [attr.aria-label]="I18N.gallery.compare.promote | translate:{ name: photo.filename }"
                         [matTooltip]="I18N.gallery.compare.promote | translate:{ name: photo.filename }"
-                        (click)="referencePath.set(photo.path)"><mat-icon>push_pin</mat-icon></button>
+                        (click)="promote(photo.path)"><mat-icon>push_pin</mat-icon></button>
               }
             </div>
             <app-synced-zoom class="w-full h-full min-h-0"
@@ -100,6 +106,17 @@ export interface CompareSelectedData {
         }
       </div>
 
+      @if (twoUp() && candidates().length) {
+        <div class="flex items-center justify-center gap-2 px-3 text-white shrink-0 border-t border-white/20">
+          <button mat-icon-button data-candidate-previous class="!text-white disabled:!text-white/30"
+                  [disabled]="candidateIndex() <= 0" [attr.aria-label]="I18N.gallery.compare.previous_candidate | translate"
+                  (click)="moveCandidate(-1)"><mat-icon>chevron_left</mat-icon></button>
+          <span class="min-w-0 truncate text-xs" aria-live="polite">{{ I18N.gallery.compare.candidate_position | translate:{ current: candidateIndex() + 1, total: candidates().length } }}</span>
+          <button mat-icon-button data-candidate-next class="!text-white disabled:!text-white/30"
+                  [disabled]="candidateIndex() >= candidates().length - 1" [attr.aria-label]="I18N.gallery.compare.next_candidate | translate"
+                  (click)="moveCandidate(1)"><mat-icon>chevron_right</mat-icon></button>
+        </div>
+      }
       <div class="px-3 py-2 text-center text-white/60 text-xs shrink-0">
         {{ I18N.gallery.compare.hint | translate }}
       </div>
@@ -119,19 +136,41 @@ export class CompareSelectedDialogComponent {
   protected readonly zoom = signal<ZoomState>({ ...FIT_ZOOM });
   protected readonly linked = signal(true);
   protected readonly referencePath = signal(this.data.photos?.[0]?.path ?? null);
+  protected readonly twoUp = signal(false);
+  private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
   private readonly independentZoom = signal(new Map<string, ZoomState>());
   private readonly readiness = signal(new Map<string, 'loading' | 'ready' | 'failed'>());
 
   /** Extra selected photos are dropped rather than shrunk past usefulness. */
   protected readonly panes = computed(() => (this.data.photos ?? []).slice(0, MAX_COMPARE_PANES));
+  protected readonly candidates = computed(() => this.panes().filter(photo => photo.path !== this.referencePath()));
+  protected readonly candidateIndex = computed(() => Math.max(0, this.candidates().findIndex(photo => photo.path === this.candidatePath())));
+  protected readonly visiblePhotos = computed(() => {
+    if (!this.twoUp()) return this.panes();
+    const reference = this.panes().find(photo => photo.path === this.referencePath());
+    const candidate = this.candidates()[this.candidateIndex()];
+    return [reference, candidate].filter((photo): photo is Photo => !!photo);
+  });
 
-  protected readonly paneStates = computed(() => this.panes().map(photo => ({
+  protected readonly paneStates = computed(() => this.visiblePhotos().map(photo => ({
     photo,
     zoom: this.linked() ? this.zoom() : this.independentZoom().get(photo.path) ?? this.zoom(),
     statusKey: { loading: this.I18N.gallery.compare.preview_loading, ready: this.I18N.gallery.compare.preview_ready, failed: this.I18N.gallery.compare.preview_failed }[this.readiness().get(photo.path) ?? 'loading'],
   })));
 
   protected readonly zoomed = computed(() => this.paneStates().some(pane => pane.zoom.scale > FIT_ZOOM.scale));
+
+  protected promote(path: string): void {
+    if (!this.panes().some(photo => photo.path === path)) return;
+    const previous = this.referencePath();
+    this.referencePath.set(path);
+    this.candidatePath.set(previous);
+  }
+
+  protected moveCandidate(direction: number): void {
+    const next = this.candidates()[this.candidateIndex() + direction];
+    if (next) this.candidatePath.set(next.path);
+  }
 
   protected onZoom(path: string, state: ZoomState): void {
     if (this.linked()) this.zoom.set(state);

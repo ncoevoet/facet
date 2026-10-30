@@ -136,4 +136,25 @@ describe('CompareSelectedDialogComponent', () => {
     fixture.detectChanges();
     expect(statuses()[0]).toContain('gallery.compare.preview_ready');
   });
+
+  it('cycles only candidates in two-up mode and swaps the old reference back into the candidate slot on promotion', () => {
+    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    expect(root.querySelector('[data-two-up]')).not.toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
+    expect(root.querySelector<HTMLButtonElement>('[data-candidate-previous]')!.disabled).toBe(true);
+    root.querySelector<HTMLButtonElement>('[data-candidate-next]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/c.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-promote-reference]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/c.jpg', '/a.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
 });

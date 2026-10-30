@@ -4,6 +4,8 @@
 
 Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, Aussortieren und Verwalten Ihrer Fotos.
 
+Am Desktop stehen beschriftete Ziele neben dem Arbeitsbereich; die Kopfzeile enthält die Seitensteuerung. Die Galerie nennt die Sammlung und unterscheidet passende Fotos von angezeigten Gruppen. Das Detailfenster nennt sein Foto; Schließen blendet es aus, ohne die Mehrfachauswahl zu löschen. Abwählen behält sein bisheriges Verhalten.
+
 ## Inhalt
 
 - [Galerie starten](#galerie-starten) · [Authentifizierung](#authentifizierung) · [Filteroptionen](#filteroptionen) · [Sortierung](#sortierung) · [Sichtungsentscheidungen](#sichtungsentscheidungen) · [Galeriefunktionen](#galeriefunktionen)
@@ -322,7 +324,7 @@ Klicken Sie Fotos zum Auswählen an; Umschalt+Klick wählt einen Bereich. Unten 
 - **Schlagwörter bearbeiten** — Ein [manuelles Tag](#manuelle-tags) zu jedem ausgewählten Foto hinzufügen oder daraus entfernen
 - **Alle auswählen** — Bei leerer Auswahl wird jedes Foto gewählt, auf das die Filter zutreffen, nicht nur die geladenen Seiten. Sind bereits Fotos gewählt, kommen die geladenen Fotos hinzu, und es wird angeboten, auf die ganze Ansicht zu erweitern. Aktionen für die ganze Ansicht bestätigen zuerst die genaue Fotozahl.
 - **Umkehren** — Die Auswahl gegen ihr Komplement tauschen. Bei leerer Auswahl ist das die ganze Ansicht. Bei nicht leerer Auswahl bleibt es auf geladene Fotos begrenzt: erst die Behalte-Kandidaten wählen, umkehren, ablehnen.
-- **Vergleichen** — öffnet 2–4 ausgewählte Fotos nebeneinander. Die Stecknadel ändert die gekennzeichnete Referenz, niemals Bewertungen oder Entscheidungen. Die Ansicht ist zunächst gekoppelt; entkoppeln erlaubt individuelles Ausrichten. Erneutes Koppeln setzt alle Ansichten zurück. Scrollen zum Zoomen, Ziehen zum Verschieben, Doppelklick zum Zurücksetzen. Gekoppelte Bewegungen richten keine Motive aus. Jedes Fenster zeigt Laden, Bereitschaft oder Fehler der Detailvorschau (die Miniatur bleibt erhalten); Zoomen kann volle Auflösung anfordern.
+- **Vergleichen** — öffnet 2–4 ausgewählte Fotos nebeneinander. Die Stecknadel ändert die gekennzeichnete Referenz, niemals Bewertungen oder Entscheidungen. Die Ansicht ist zunächst gekoppelt; entkoppeln erlaubt individuelles Ausrichten. Erneutes Koppeln setzt alle Ansichten zurück. Scrollen zum Zoomen, Ziehen zum Verschieben, Doppelklick zum Zurücksetzen. Gekoppelte Bewegungen richten keine Motive aus. Jedes Fenster zeigt Laden, Bereitschaft oder Fehler der Detailvorschau (die Miniatur bleibt erhalten); Zoomen kann volle Auflösung anfordern. Bei drei oder vier Fotos hält Zwei Ansichten die Referenz fest, während Vorheriger/Nächster die Kandidaten durchläuft. Eine neue Referenz tauscht die bisherige in das Kandidatenfenster. Ausschalten zeigt wieder alle ausgewählten Bilder.
 - **Dateinamen kopieren** — Dateinamen in die Zwischenablage kopieren. Ein Kopieren der ganzen Ansicht bestätigt zuerst; über 10 000 Fotos wird abgelehnt.
 - **Exportieren** — XMP-Sidecars neben die Dateien schreiben (siehe [Editor-Export](#editor-export))
 - **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))

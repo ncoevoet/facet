@@ -1133,7 +1133,8 @@
       "panel": "Panneau latéral",
       "off": "Désactivée",
       "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici",
-      "panel_deselect": "Désélectionner"
+      "panel_deselect": "Désélectionner",
+      "details": "Détails de la photo"
     },
     "panel_activation": {
       "label": "Activation du panneau",
@@ -1445,7 +1446,11 @@
       "promote": "Utiliser {name} comme référence",
       "preview_loading": "Chargement de l’aperçu détaillé…",
       "preview_ready": "Aperçu détaillé prêt",
-      "preview_failed": "Aperçu détaillé indisponible ; miniature affichée"
+      "preview_failed": "Aperçu détaillé indisponible ; miniature affichée",
+      "two_up": "Deux vues",
+      "previous_candidate": "Candidate précédente",
+      "next_candidate": "Candidate suivante",
+      "candidate_position": "Candidate {current} sur {total}"
     },
     "clipping": {
       "badge_highlight": "Hautes lumières écrêtées : {percent} % des pixels",

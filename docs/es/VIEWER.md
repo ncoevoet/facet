@@ -4,6 +4,8 @@
 
 El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descartar y gestionar tus fotos.
 
+En escritorio, los destinos con nombre están junto al espacio de trabajo; la cabecera contiene los controles de la página. La galería identifica la colección y distingue fotos coincidentes de grupos mostrados. El panel de detalles identifica su foto; Cerrar lo oculta sin borrar la selección múltiple, mientras Deseleccionar conserva su comportamiento.
+
 ## Contenido
 
 - [Iniciar el visor](#iniciar-el-visor) · [Autenticación](#autenticación) · [Opciones de filtrado](#opciones-de-filtrado) · [Ordenación](#ordenación) · [Decisiones de revisión](#decisiones-de-revisión) · [Funciones de la galería](#funciones-de-la-galería)
@@ -322,7 +324,7 @@ Haz clic en las fotos para seleccionarlas; Shift+clic selecciona un rango. Abajo
 - **Editar etiquetas**: añade o quita un [tag manual](#tags-manuales) en cada foto seleccionada
 - **Seleccionar todo**: con una selección vacía, selecciona todas las fotos que coinciden con los filtros, no solo las páginas cargadas. Con fotos ya seleccionadas, añade las cargadas y ofrece ampliar a toda la vista. Las acciones sobre toda la vista confirman antes el número exacto de fotos.
 - **Invertir**: cambia la selección por su complemento. Desde una selección vacía es toda la vista. Desde una selección no vacía se queda dentro de las fotos cargadas: elige las que conservas, invierte, rechaza.
-- **Comparar** — abre 2–4 fotos seleccionadas en paralelo. El botón de chincheta cambia la referencia sin modificar valoraciones ni decisiones. La inspección empieza vinculada; desvincula para encuadrar cada panel por separado. Volver a vincular restablece los encuadres. Desplaza para ampliar, arrastra para mover y haz doble clic para restablecer. El movimiento vinculado no alinea sujetos. Cada panel indica carga, disponibilidad o fallo de la vista detallada (conservando la miniatura); ampliar puede solicitar resolución completa.
+- **Comparar** — abre 2–4 fotos seleccionadas en paralelo. El botón de chincheta cambia la referencia sin modificar valoraciones ni decisiones. La inspección empieza vinculada; desvincula para encuadrar cada panel por separado. Volver a vincular restablece los encuadres. Desplaza para ampliar, arrastra para mover y haz doble clic para restablecer. El movimiento vinculado no alinea sujetos. Cada panel indica carga, disponibilidad o fallo de la vista detallada (conservando la miniatura); ampliar puede solicitar resolución completa. Con tres o cuatro fotos, Dos vistas mantiene la referencia mientras Anterior/Siguiente recorre las candidatas. Promover una candidata coloca la referencia anterior en el panel candidato. Desactivar Dos vistas restaura todos los paneles.
 - **Copiar nombres**: copia los nombres de archivo al portapapeles. Una copia de toda la vista pide confirmación antes; más de 10 000 fotos se rechaza.
 - **Exportar**: escribe sidecars XMP junto a los archivos (ver [Exportación al editor](#exportación-al-editor))
 - **Descartar a carpeta**: copia las conservadas, o mueve/envía a la papelera las rechazadas, a una carpeta (ver [Descartar a carpeta](#descartar-a-carpeta))

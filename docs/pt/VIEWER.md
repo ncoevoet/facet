@@ -4,6 +4,8 @@
 
 O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar, fazer a triagem e gerenciar suas fotos.
 
+No computador, os destinos identificados ficam junto à área de trabalho; o cabeçalho contém os controlos da página. A galeria identifica a coleção e distingue fotos correspondentes de grupos apresentados. O painel de detalhes identifica a sua foto; Fechar oculta-o sem limpar a seleção múltipla, enquanto Desselecionar mantém o comportamento anterior.
+
 ## Conteúdo
 
 - [Iniciando o Visualizador](#iniciando-o-visualizador) · [Autenticação](#autenticação) · [Opções de Filtragem](#opções-de-filtragem) · [Ordenação](#ordenação) · [Decisões de revisão](#decisões-de-revisão) · [Recursos da Galeria](#recursos-da-galeria)
@@ -322,7 +324,7 @@ Clique nas fotos para selecionar; Shift+Clique seleciona um intervalo. Uma barra
 - **Editar etiquetas** — adiciona ou remove uma [tag manual](#tags-manuais) em todas as fotos selecionadas
 - **Selecionar todas** — com uma seleção vazia, seleciona todas as fotos que os filtros encontram, não só as páginas carregadas. Com fotos já selecionadas, acrescenta as carregadas e oferece ampliar para toda a visualização. As ações de toda a visualização confirmam antes a contagem exata de fotos.
 - **Inverter** — troca a seleção pelo seu complemento. A partir de uma seleção vazia, é toda a visualização. A partir de uma seleção não vazia, permanece entre as fotos carregadas: escolha as que ficam, inverta, rejeite.
-- **Comparar** — abre 2–4 fotos selecionadas lado a lado. O botão de alfinete muda a referência sem alterar classificações ou decisões. A inspeção começa ligada; desligue para enquadrar cada painel separadamente. Voltar a ligar repõe todos os enquadramentos. Desloque para ampliar, arraste para mover e clique duas vezes para repor. O movimento ligado não alinha sujeitos. Cada painel indica carregamento, disponibilidade ou falha da pré-visualização detalhada (mantendo a miniatura); ampliar pode pedir resolução completa.
+- **Comparar** — abre 2–4 fotos selecionadas lado a lado. O botão de alfinete muda a referência sem alterar classificações ou decisões. A inspeção começa ligada; desligue para enquadrar cada painel separadamente. Voltar a ligar repõe todos os enquadramentos. Desloque para ampliar, arraste para mover e clique duas vezes para repor. O movimento ligado não alinha sujeitos. Cada painel indica carregamento, disponibilidade ou falha da pré-visualização detalhada (mantendo a miniatura); ampliar pode pedir resolução completa. Com três ou quatro fotos, Duas vistas mantém a referência enquanto Anterior/Seguinte percorre as candidatas. Promover uma candidata coloca a referência anterior no painel candidato. Desativar Duas vistas repõe todos os painéis.
 - **Copiar nomes de arquivo** — copia os nomes de arquivo para a área de transferência. Uma cópia de toda a visualização pede confirmação antes; acima de 10 000 fotos é recusada.
 - **Exportar** — grava sidecars XMP ao lado dos arquivos (veja [Exportação para Editor](#exportação-para-editor))
 - **Selecionar para pasta** — copia as mantidas, ou move/descarta as rejeitadas, para uma pasta (veja [Selecionar para pasta](#selecionar-para-pasta))

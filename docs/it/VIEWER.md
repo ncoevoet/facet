@@ -4,6 +4,8 @@
 
 La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare e gestire le tue foto.
 
+Sul desktop, le destinazioni con etichetta affiancano lo spazio di lavoro; la testata contiene i controlli della pagina. La galleria indica la raccolta e distingue foto corrispondenti e gruppi visualizzati. Il pannello dettagli indica la propria foto; Chiudi lo nasconde senza cancellare la selezione multipla, mentre Deseleziona conserva il comportamento precedente.
+
 ## Contenuti
 
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Decisioni di revisione](#decisioni-di-revisione) · [Funzionalità della galleria](#funzionalità-della-galleria)
@@ -322,7 +324,7 @@ Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a
 - **Modifica tag** — aggiungi o rimuovi un [tag manuale](#tag-manuali) su ogni foto selezionata
 - **Seleziona tutto** — con una selezione vuota, seleziona ogni foto che i filtri trovano, non solo le pagine caricate. Con foto già selezionate, aggiunge quelle caricate e propone di estendere all'intera vista. Le azioni sull'intera vista confermano prima il numero esatto di foto.
 - **Inverti** — sostituisce la selezione con il suo complemento. Da una selezione vuota è l'intera vista. Da una selezione non vuota resta tra le foto caricate: scegli le foto da conservare, inverti, rifiuta.
-- **Confronta** — apre 2–4 foto selezionate affiancate. Il pulsante puntina cambia il riferimento senza modificare valutazioni o decisioni. Le viste sono inizialmente collegate; scollega per inquadrare ogni riquadro separatamente. Ricollegare ripristina tutte le inquadrature. Scorri per ingrandire, trascina per spostare, doppio clic per ripristinare. Il movimento collegato non allinea i soggetti. Ogni riquadro indica caricamento, disponibilità o errore dell’anteprima dettagliata (mantenendo la miniatura); lo zoom può richiedere la piena risoluzione.
+- **Confronta** — apre 2–4 foto selezionate affiancate. Il pulsante puntina cambia il riferimento senza modificare valutazioni o decisioni. Le viste sono inizialmente collegate; scollega per inquadrare ogni riquadro separatamente. Ricollegare ripristina tutte le inquadrature. Scorri per ingrandire, trascina per spostare, doppio clic per ripristinare. Il movimento collegato non allinea i soggetti. Ogni riquadro indica caricamento, disponibilità o errore dell’anteprima dettagliata (mantenendo la miniatura); lo zoom può richiedere la piena risoluzione. Con tre o quattro foto, Due viste mantiene il riferimento mentre Precedente/Successiva scorre le candidate. Promuovere una candidata sposta il riferimento precedente nel riquadro candidato. Disattivare Due viste ripristina tutti i riquadri.
 - **Copia nomi file** — copia i nomi file negli appunti. Una copia dell'intera vista chiede prima conferma; oltre 10 000 foto viene rifiutata.
 - **Esporta** — scrive sidecar XMP accanto ai file (vedi [Esportazione per editor](#esportazione-per-editor))
 - **Scarta in cartella** — copia le foto conservate, o sposta/cestina quelle scartate, in una cartella (vedi [Scarta in cartella](#scarta-in-cartella))

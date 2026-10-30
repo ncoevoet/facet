@@ -4,6 +4,8 @@
 
 La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer, trier et gérer vos photos.
 
+Sur ordinateur, les destinations nommées sont à côté de l’espace de travail ; l’en-tête contient les commandes de la page. La galerie nomme la collection et distingue photos correspondantes et groupes affichés. Le panneau de détails nomme sa photo ; Fermer le masque sans effacer la sélection multiple, tandis que Désélectionner conserve son comportement habituel.
+
 ## Sommaire
 
 - [Démarrer la visionneuse](#démarrer-la-visionneuse) · [Authentification](#authentification) · [Options de filtrage](#options-de-filtrage) · [Tri](#tri) · [Décisions de tri](#décisions-de-tri) · [Fonctionnalités de la galerie](#fonctionnalités-de-la-galerie)
@@ -322,7 +324,7 @@ Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage
 - **Modifier les mots-clés** — ajoute ou retire un [tag manuel](#tags-manuels) sur chaque photo sélectionnée
 - **Tout sélectionner** — avec une sélection vide, sélectionne toutes les photos que les filtres retiennent, pas seulement les pages chargées. Avec des photos déjà sélectionnées, ajoute les photos chargées et propose d'élargir à toute la vue. Les actions sur toute la vue confirment d'abord le nombre exact de photos.
 - **Inverser** — remplace la sélection par son complément. À partir d'une sélection vide, c'est toute la vue. À partir d'une sélection non vide, cela reste dans les photos chargées : choisissez les gardées, inversez, rejetez.
-- **Comparer** — ouvre 2 à 4 photos sélectionnées côte à côte. Le bouton épingle change la référence sans modifier les notes ni les décisions. L’inspection est liée au départ ; déliez pour cadrer chaque volet séparément. Relier réinitialise tous les cadrages. Molette pour zoomer, glisser pour déplacer, double-clic pour réinitialiser. Le mouvement lié n’aligne pas les sujets. Chaque volet indique le chargement, la disponibilité ou l’échec de l’aperçu détaillé (la miniature est conservée) ; le zoom peut demander la pleine résolution.
+- **Comparer** — ouvre 2 à 4 photos sélectionnées côte à côte. Le bouton épingle change la référence sans modifier les notes ni les décisions. L’inspection est liée au départ ; déliez pour cadrer chaque volet séparément. Relier réinitialise tous les cadrages. Molette pour zoomer, glisser pour déplacer, double-clic pour réinitialiser. Le mouvement lié n’aligne pas les sujets. Chaque volet indique le chargement, la disponibilité ou l’échec de l’aperçu détaillé (la miniature est conservée) ; le zoom peut demander la pleine résolution. Avec trois ou quatre photos, Deux vues garde la référence visible tandis que Précédente/Suivante parcourt les candidates. Promouvoir une candidate place l’ancienne référence dans le volet candidat. Désactiver Deux vues rétablit tous les volets.
 - **Copier les noms** — copie les noms de fichiers dans le presse-papiers. Une copie de toute la vue demande d'abord confirmation ; au-delà de 10 000 photos, elle est refusée.
 - **Exporter** — écrit des sidecars XMP à côté des fichiers (voir [Export vers éditeur](#export-vers-éditeur))
 - **Trier vers un dossier** — copie les gardées, ou déplace/met à la corbeille les rejetées, vers un dossier (voir [Trier vers un dossier](#trier-vers-un-dossier))

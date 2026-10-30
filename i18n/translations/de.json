@@ -1133,7 +1133,8 @@
       "panel": "Seitenleiste",
       "off": "Aus",
       "panel_empty": "Fahre über ein Foto oder klicke es an, um seine Details hier zu sehen",
-      "panel_deselect": "Auswahl aufheben"
+      "panel_deselect": "Auswahl aufheben",
+      "details": "Fotodetails"
     },
     "panel_activation": {
       "label": "Panel-Aktivierung",
@@ -1445,7 +1446,11 @@
       "promote": "{name} als Referenz verwenden",
       "preview_loading": "Detailvorschau wird geladen…",
       "preview_ready": "Detailvorschau bereit",
-      "preview_failed": "Detailvorschau nicht verfügbar; Miniatur wird angezeigt"
+      "preview_failed": "Detailvorschau nicht verfügbar; Miniatur wird angezeigt",
+      "two_up": "Zwei Ansichten",
+      "previous_candidate": "Vorheriger Kandidat",
+      "next_candidate": "Nächster Kandidat",
+      "candidate_position": "Kandidat {current} von {total}"
     },
     "clipping": {
       "badge_highlight": "Beschnittene Lichter: {percent}% der Pixel",

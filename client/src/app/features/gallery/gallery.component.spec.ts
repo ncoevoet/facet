@@ -2012,6 +2012,16 @@ describe('GalleryComponent', () => {
           key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true,
         }));
 
+        it('names the inspector owner and closes the panel without dispatching a deselection', () => {
+          expect(rail.querySelector('[data-inspector-owner]')?.textContent).toContain('a.jpg');
+          mockStore.toggleSelection.mockClear();
+          mockStore.clearSelection.mockClear();
+          rail.querySelector<HTMLButtonElement>('[data-close-inspector]')!.click();
+          expect(mockStore.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
+          expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+          expect(mockStore.clearSelection).not.toHaveBeenCalled();
+        });
+
         it('Escape releases the photo and the drawer is not closed (rendered)', () => {
           // MatDrawer closes itself on an Escape from inside it unless disableClose is set;
           // the open/close effect would then reopen it, so the rail would flicker.
