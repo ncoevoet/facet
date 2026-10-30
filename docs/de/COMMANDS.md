@@ -63,6 +63,8 @@ Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehl
 | `embeddings` | CLIP ViT-L-14 oder SigLIP 2 NaFlex | `clip_embedding` für Ähnlichkeit und Verschlagwortung | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 GB |
 
+Die Multi-Pass-Messungen verwenden monotone Uhren. EXIF-Batchzeit und summierte Worker-Sekunden der Fallbacks sind in der Dekodierzeit enthalten; parallele Fallbacks können sich überlappen. Aggregation, Vorschaubilder (einschließlich Quelldateilesen) und Speichern ohne Vorschaubilder sind getrennte Intervalle; Speichern enthält Vorbereitung und Commit. Eingeschränkte Durchläufe überspringen Aggregation und Foto-Vorschaubilder. Bestehende Dekodier-/Modellüberlappung und verschachtelte Ebenenrekonstruktionen bleiben unverändert: nicht alle Timer addieren oder EXIF-Worker-Sekunden als Laufzeitanteil interpretieren. Single-Pass ist ausgenommen. Für eine Baseline eine feste Kopie von 500 RAW/JPEG in eine Testdatenbank scannen; Zusammenfassung, Revision, Profil, Worker, Blockgröße, Speicher und Cachebedingungen festhalten. Unter gleichen Bedingungen wiederholen. Kein Referenzdatensatz oder Vorher-/Nachher-Benchmark vorhanden; kein Geschwindigkeitsgewinn behauptet.
+
 ## Vorschau & Export
 
 | Befehl | Beschreibung |

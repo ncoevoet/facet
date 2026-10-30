@@ -63,6 +63,8 @@ Facet registra cada escaneo (estado, modo, directorios, contadores) y cada error
 | `embeddings` | CLIP ViT-L-14 o SigLIP 2 NaFlex | `clip_embedding` para similitud y etiquetado | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 GB |
 
+Las mediciones multipaso usan relojes monótonos. El tiempo EXIF del lote y los segundos de trabajo acumulados de las lecturas alternativas están incluidos en la decodificación; las alternativas paralelas pueden solaparse. Agregación, miniaturas (incluida la lectura de origen) y guardado sin miniaturas son intervalos separados; guardar incluye preparación y commit. Los pasos restringidos omiten agregación y miniaturas de fotos. No cambian los solapamientos de decodificación/modelos ni las reconstrucciones anidadas: no sumar todos los tiempos ni interpretar los segundos de trabajo EXIF como porcentaje del tiempo total. El modo de un paso queda fuera. Para una referencia, analizar una copia fija de 500 RAW/JPEG en una base temporal y conservar resumen, revisión, perfil, workers, tamaño de bloque, almacenamiento y condiciones de caché. Repetir en condiciones idénticas. No se aporta colección de referencia ni benchmark antes/después; no se afirma mejora de velocidad.
+
 ## Vista previa y exportación
 
 | Comando | Descripción |

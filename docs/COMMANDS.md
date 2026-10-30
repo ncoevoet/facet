@@ -63,6 +63,8 @@ Facet records every scan (status, mode, directories, counters) and every per-fil
 | `embeddings` | CLIP ViT-L-14 or SigLIP 2 NaFlex | `clip_embedding` for similarity and tagging | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 GB |
 
+Multi-pass phase measurements use monotonic wall clocks. EXIF batch wall time and summed fallback worker-seconds are included in decode wall time; parallel fallbacks can overlap. Aggregate, thumbnail generation (including source reads), and save excluding thumbnails are separate scan-thread intervals; save includes result preparation and commit, not just SQL. Restricted passes skip aggregation and photo thumbnails. Existing decode/model overlap and nested plane rebuild timings remain unchanged: do not sum every reported timer or interpret EXIF worker-seconds as a wall-time percentage. Single-pass scans are outside this instrumentation. To collect a baseline, scan a fixed 500-photo RAW/JPEG copy into a scratch database, retain the final summary, and record the revision, profile, workers, chunk size, storage and cache conditions. Repeat under identical conditions for comparisons. No reference collection or before/after benchmark is supplied; no speedup is claimed.
+
 ## Preview & Export
 
 | Command | Description |

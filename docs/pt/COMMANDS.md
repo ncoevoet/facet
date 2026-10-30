@@ -63,6 +63,8 @@ O Facet registra cada escaneamento (estado, modo, diretórios, contadores) e cad
 | `embeddings` | CLIP ViT-L-14 ou SigLIP 2 NaFlex | `clip_embedding` para similaridade e marcação | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 GB |
 
+As medições multipassagem usam relógios monotónicos. O tempo EXIF do lote e a soma dos segundos de trabalho das alternativas estão incluídos na descodificação; alternativas paralelas podem sobrepor-se. Agregação, miniaturas (incluindo leitura da origem) e gravação sem miniaturas são intervalos separados; gravar inclui preparação e commit. Passagens restritas omitem agregação e miniaturas de fotos. A sobreposição descodificação/modelos e as reconstruções aninhadas não mudam: não somar todos os tempos nem interpretar segundos de trabalho EXIF como percentagem do tempo total. O modo de passagem única fica excluído. Para uma referência, analisar uma cópia fixa de 500 RAW/JPEG numa base temporária e guardar resumo, revisão, perfil, workers, tamanho dos blocos, armazenamento e condições de cache. Repetir em condições idênticas. Não há coleção de referência nem benchmark antes/depois; não se afirma ganho de velocidade.
+
 ## Preview & Export
 
 | Comando | Descrição |
