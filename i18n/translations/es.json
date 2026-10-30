@@ -2706,6 +2706,13 @@
       "open_in_gallery": "Abrir este grupo en la galería",
       "member_position": "Fotograma {position} de {count}"
     },
+    "ai_edit": {
+      "badge": "Edición con IA",
+      "badge_short": "IA",
+      "edit_of": "Edición con IA de",
+      "edits": "Ediciones con IA",
+      "compare": "Comparar el original y sus ediciones con IA"
+    },
     "delete": {
       "button_label": "Eliminar",
       "confirm_title": "¿Eliminar esta foto?",

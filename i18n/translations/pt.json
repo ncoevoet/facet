@@ -2706,6 +2706,13 @@
       "open_in_gallery": "Abrir este grupo na galeria",
       "member_position": "Quadro {position} de {count}"
     },
+    "ai_edit": {
+      "badge": "Edição por IA",
+      "badge_short": "IA",
+      "edit_of": "Edição por IA de",
+      "edits": "Edições por IA",
+      "compare": "Comparar o original e as suas edições por IA"
+    },
     "delete": {
       "button_label": "Excluir",
       "confirm_title": "Excluir esta foto?",

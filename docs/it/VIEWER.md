@@ -345,6 +345,15 @@ Il controllo **Tieni top %** nella barra degli strumenti (modalità di modifica)
 - La selezione è limitata a 5000 foto. Su una vista più grande, restringi il filtro (album, data, persona…).
 - Con i `hide_brackets` / `hide_panoramas` predefiniti, una serie di bracket o panorama conta come **una** foto.
 
+### Modifiche IA
+
+Uno strumento di IA può portare nella libreria una copia modificata di una foto con lo strumento dell'assistente `import_ai_edit` (vedi [Agenti IA](AGENTS.md)). Il file viene messo accanto all'originale come `{name}_{suffix}_{revision}{ext}`, per esempio `IMG_3533_agy_1.JPG`, e analizzato da solo.
+
+- La galleria segna una modifica con ✨ **IA** in cima alla sua miniatura. ✨ è riservato a ciò che un'IA ha creato o scelto.
+- La pagina di una modifica mostra **Modifica IA di** con la miniatura dell'originale, il modello e la nota. La pagina dell'originale elenca le sue **Modifiche IA**.
+- Il pulsante di confronto apre l'originale accanto alle modifiche (fino a quattro riquadri) con panoramica e zoom sincronizzati.
+- Una modifica con lo stesso orario di scatto di solito entra nella raffica dell'originale; «Migliore della raffica» mostra quella con punteggio più alto.
+
 ### Elenco fissato dall'assistente
 
 Quando un assistente collegato tramite [Assistenti IA (MCP)](AGENTS.md) ti mostra un elenco esatto di foto, la galleria lo visualizza nell'ordine dell'assistente. Una riga di stato dice quante foto sono state scelte; **Torna alla vista abituale** ripristina i tuoi filtri.

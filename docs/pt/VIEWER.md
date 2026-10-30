@@ -345,6 +345,15 @@ O controle **Manter top %** na barra de ferramentas (modo de edição) faz a tri
 - A seleção é limitada a 5000 fotos. Em uma visualização maior, refine o filtro (álbum, data, pessoa…).
 - Com `hide_brackets` / `hide_panoramas` por padrão, um bracketing ou uma panorâmica conta como **uma** foto.
 
+### Edições por IA
+
+Uma ferramenta de IA pode trazer para a biblioteca uma cópia editada de uma foto com a ferramenta do assistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). O ficheiro fica ao lado do original como `{name}_{suffix}_{revision}{ext}`, por exemplo `IMG_3533_agy_1.JPG`, e é analisado sozinho.
+
+- A galeria assinala uma edição com ✨ **IA** no topo da miniatura. ✨ fica reservado ao que uma IA criou ou escolheu.
+- A página de uma edição mostra **Edição por IA de** com a miniatura do original, o modelo e a nota. A página do original lista as suas **Edições por IA**.
+- O botão de comparar abre o original ao lado das edições (até quatro painéis) com deslocamento e zoom sincronizados.
+- Uma edição com a mesma hora de captura costuma juntar-se à rajada do original; «Melhor da rajada» mostra a de pontuação mais alta.
+
 ### Lista fixada pelo assistente
 
 Quando um assistente ligado através de [Agentes de IA (MCP)](AGENTS.md) lhe mostra uma lista exata de fotos, a galeria a apresenta na ordem do assistente. Uma linha de estado indica quantas fotos foram escolhidas; **Voltar à vista habitual** restaura os seus filtros.

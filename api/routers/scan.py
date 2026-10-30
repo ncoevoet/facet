@@ -163,6 +163,59 @@ def scan_feature_refusal(user) -> Optional[str]:
     return "Scan feature not enabled"
 
 
+def _spawn_scan(targets: list[str], reported: list[str]):
+    """Start ``facet.py`` on ``targets`` and track it as the one running job. Caller holds ``_scan_lock``."""
+    proc = subprocess.Popen(
+        [sys.executable, FACET_SCRIPT, *targets],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+        env=_cross_process_job_env(),
+    )
+
+    _scan_state['running'] = True
+    _scan_state['kind'] = JOB_KIND_SCAN
+    _scan_state['process'] = proc
+    _scan_state['output_lines'] = deque(maxlen=500)
+    _scan_state['started_at'] = time.time()
+    _scan_state['directories'] = reported
+    _scan_state['exit_code'] = None
+    _scan_state['progress'] = None
+    _scan_state['scope'] = None
+
+    reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
+    reader.start()
+    return proc
+
+
+def start_file_scan(user, paths: list[str]) -> Optional[str]:
+    """Scan just ``paths``; None once started, else why not.
+
+    For files the server itself just placed beside a library photo (an imported AI
+    edit), so the paths are server-origin like the configured directories. The same
+    switch and the same one-job rule as ``POST /api/scan/start`` apply.
+    """
+    if (refusal := scan_feature_refusal(user)) is not None:
+        return refusal
+    if not _scan_lock.acquire(blocking=False):
+        return "A scan is already running"
+    try:
+        if _scan_state['running']:
+            return "A scan is already running"
+        if (conflict := _library_job_conflict_detail()):
+            return conflict
+        try:
+            _spawn_scan(paths, paths)
+        except (subprocess.SubprocessError, OSError):
+            logger.exception("File scan failed to start")
+            _scan_state['running'] = False
+            return 'Scan failed to start'
+        return None
+    finally:
+        _scan_lock.release()
+
+
 @router.post("/start", response_model=ScanStartResponse, response_model_exclude_unset=True)
 def start_scan(
     body: ScanStartRequest,
@@ -203,29 +256,7 @@ def start_scan(
 
         # Rebuild from canonical server-side list so subprocess args are provably server-origin
         validated_dirs = [d for d in get_all_scan_directories() if d in set(directories)]
-        cmd = [sys.executable, FACET_SCRIPT] + validated_dirs
-
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            env=_cross_process_job_env(),
-        )
-
-        _scan_state['running'] = True
-        _scan_state['kind'] = JOB_KIND_SCAN
-        _scan_state['process'] = proc
-        _scan_state['output_lines'] = deque(maxlen=500)
-        _scan_state['started_at'] = time.time()
-        _scan_state['directories'] = directories
-        _scan_state['exit_code'] = None
-        _scan_state['progress'] = None
-        _scan_state['scope'] = None
-
-        reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
-        reader.start()
+        proc = _spawn_scan(validated_dirs, directories)
 
         return {
             'success': True,

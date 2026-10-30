@@ -2720,6 +2720,13 @@ export const I18N = {
       open_in_gallery: "photo_detail.set.open_in_gallery",
       member_position: "photo_detail.set.member_position",
     },
+    ai_edit: {
+      badge: "photo_detail.ai_edit.badge",
+      badge_short: "photo_detail.ai_edit.badge_short",
+      edit_of: "photo_detail.ai_edit.edit_of",
+      edits: "photo_detail.ai_edit.edits",
+      compare: "photo_detail.ai_edit.compare",
+    },
     delete: {
       button_label: "photo_detail.delete.button_label",
       confirm_title: "photo_detail.delete.confirm_title",

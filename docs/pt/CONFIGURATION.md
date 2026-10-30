@@ -1103,6 +1103,24 @@ Pesos usados pela seleção de rajadas para escolher o melhor disparo em cada gr
 
 ---
 
+## Edições por IA
+
+Que ferramentas de IA podem importar uma edição com `import_ai_edit` (ver [Agentes de IA](AGENTS.md)) e a etiqueta que cada uma põe no nome do ficheiro: uma edição de `IMG_3533.JPG` feita com `antigravity-gemini` é guardada como `IMG_3533_agy_1.JPG`. Uma ferramenta que não conste é recusada.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy" }
+  }
+}
+```
+
+| Definição | Predefinição | Descrição |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Nome da ferramenta → etiqueta do nome do ficheiro |
+
+---
+
 ## Duplicate Detection
 
 Encontra fotos duplicadas em toda a biblioteca: candidatos de pHash frouxo, confirmados por uma verificação de similaridade de embedding.

@@ -1111,6 +1111,24 @@ Pesi usati dalla selezione delle raffiche per scegliere lo scatto migliore in ci
 
 ---
 
+## Modifiche IA
+
+Quali strumenti di IA possono importare una modifica con `import_ai_edit` (vedi [Agenti IA](AGENTS.md)) e l'etichetta che ciascuno mette nel nome del file: una modifica di `IMG_3533.JPG` fatta con `antigravity-gemini` viene salvata come `IMG_3533_agy_1.JPG`. Uno strumento non elencato viene rifiutato.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy" }
+  }
+}
+```
+
+| Impostazione | Predefinito | Descrizione |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Nome dello strumento → etichetta nel nome del file |
+
+---
+
 ## Duplicate Detection
 
 Trova le foto duplicate nell'intera libreria: candidati pHash permissivi, confermati da un controllo di similarità sugli embedding.

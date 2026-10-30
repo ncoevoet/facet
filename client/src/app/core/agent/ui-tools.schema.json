@@ -281,6 +281,21 @@
       ]
     },
     {
+      "id": "import_ai_edits",
+      "summary": "Bring an AI-edited copy of a photo into the library, linked to its original",
+      "tools": [
+        {
+          "name": "import_ai_edit",
+          "required_level": "edition"
+        }
+      ],
+      "when": [
+        "detail",
+        "gallery",
+        "selection"
+      ]
+    },
+    {
       "id": "write_metadata",
       "summary": "Set a photo's caption or write XMP sidecars next to the files",
       "tools": [

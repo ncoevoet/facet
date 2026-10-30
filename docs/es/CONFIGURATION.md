@@ -1109,6 +1109,24 @@ Pesos que usa el descarte de ráfagas para elegir la mejor toma de cada grupo de
 
 ---
 
+## Ediciones con IA
+
+Qué herramientas de IA pueden importar una edición con `import_ai_edit` (ver [Agentes de IA](AGENTS.md)) y la etiqueta que cada una pone en el nombre del archivo: una edición de `IMG_3533.JPG` hecha con `antigravity-gemini` se guarda como `IMG_3533_agy_1.JPG`. Una herramienta que no figure se rechaza.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy" }
+  }
+}
+```
+
+| Ajuste | Predeterminado | Descripción |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Nombre de la herramienta → etiqueta del nombre de archivo |
+
+---
+
 ## Detección de duplicados
 
 Encuentra fotos duplicadas en toda la biblioteca: candidatos de pHash flexible, confirmados por una comprobación de similitud de embeddings.

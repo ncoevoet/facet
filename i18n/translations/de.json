@@ -2706,6 +2706,13 @@
       "open_in_gallery": "Diese Gruppe in der Galerie öffnen",
       "member_position": "Bild {position} von {count}"
     },
+    "ai_edit": {
+      "badge": "KI-Bearbeitung",
+      "badge_short": "KI",
+      "edit_of": "KI-Bearbeitung von",
+      "edits": "KI-Bearbeitungen",
+      "compare": "Original und KI-Bearbeitungen vergleichen"
+    },
     "delete": {
       "button_label": "Löschen",
       "confirm_title": "Dieses Foto löschen?",

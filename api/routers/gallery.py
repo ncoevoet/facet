@@ -44,6 +44,7 @@ from api.types import (
 )
 from metric_columns import SCORE_RANGE_COLUMNS
 from api.visual_similarity import find_visual_page
+from db.ai_edits import attach_ai_edit_sources_async
 from db.preview_versions import attach_preview_versions_async
 from utils.histogram import unpack_histogram
 from utils.sequence import BRACKET as BRACKET_KIND
@@ -770,6 +771,7 @@ async def api_photo(
             override = await cur.fetchone()
             await cur.close()
             photo['category_override'] = override['category_override'] if override else None
+            await attach_ai_edit_sources_async(conn, [photo])
 
             sanitize_float_values([photo])
 
@@ -1267,6 +1269,7 @@ async def _assemble_gallery_rows(rows, conn) -> list[dict]:
     for photo in photos:
         photo['date_formatted'] = format_date(photo.get('date_taken'))
     await attach_person_data_async(photos, conn)
+    await attach_ai_edit_sources_async(conn, photos)
     return photos
 
 

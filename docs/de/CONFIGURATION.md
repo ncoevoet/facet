@@ -1112,6 +1112,24 @@ Gewichte, die das Serienbild-Culling verwendet, um die beste Aufnahme jeder Seri
 
 ---
 
+## KI-Bearbeitungen
+
+Welche KI-Werkzeuge mit `import_ai_edit` eine Bearbeitung importieren dürfen (siehe [KI-Agenten](AGENTS.md)) und welches Kürzel jedes in den Dateinamen setzt: Eine Bearbeitung von `IMG_3533.JPG` durch `antigravity-gemini` wird als `IMG_3533_agy_1.JPG` gespeichert. Ein nicht aufgeführtes Werkzeug wird abgewiesen.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy" }
+  }
+}
+```
+
+| Einstellung | Standard | Beschreibung |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Werkzeugname → Kürzel im Dateinamen |
+
+---
+
 ## Duplicate Detection
 
 Findet Duplikate in der gesamten Bibliothek: lockere pHash-Kandidaten, bestätigt durch eine Embedding-Ähnlichkeitsprüfung.

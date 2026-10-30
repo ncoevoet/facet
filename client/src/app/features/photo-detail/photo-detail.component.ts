@@ -15,7 +15,8 @@ import { firstValueFrom, skip, finalize } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AssistantChangeBatch, AssistantChangesService } from '../../core/agent/assistant-changes.service';
 import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
-import { Photo, KeeperHint, PhotoSet, normalisePhotoFlags } from '../../shared/models/photo.model';
+import { AiEdits, Photo, KeeperHint, PhotoSet, normalisePhotoFlags } from '../../shared/models/photo.model';
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
 import { PhotoActionsService } from '../../core/services/photo-actions.service';
@@ -61,6 +62,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 };
 
 
+/** The compare view's pane cap (`MAX_COMPARE_PANES`), not imported so the photo page does not load it eagerly. */
+const MAX_AI_COMPARE_PANES = 4;
+
 @Component({
   selector: 'app-photo-detail',
   imports: [
@@ -82,6 +86,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     FixedPipe,
     TranslatePipe,
     ThumbnailUrlPipe,
+    FilenamePipe,
     PersonThumbnailUrlPipe,
     CategoryLabelPipe,
     DownloadIconPipe,
@@ -554,6 +559,38 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               </div>
             }
           }
+
+          <!-- AI edits: the original this photo was made from, or the edits made from it. -->
+          @if (aiEditThumbs().length) {
+            <div class="pt-1" data-ai-edits>
+              <div class="flex items-center gap-2 flex-wrap mb-2 text-sm">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-amber-300" aria-hidden="true">auto_awesome</mat-icon>
+                <span class="font-medium">{{ (aiEdits()?.edit_of ? I18N.photo_detail.ai_edit.edit_of : I18N.photo_detail.ai_edit.edits) | translate }}</span>
+                @if (aiEdits()?.edit_of; as parent) {
+                  @if (parent.model) {
+                    <span class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ parent.model }}</span>
+                  }
+                }
+                <button mat-icon-button class="!w-7 !h-7 !p-0 !inline-flex !items-center !justify-center ml-auto" (click)="compareAiEdit()"
+                        data-ai-compare
+                        [matTooltip]="I18N.photo_detail.ai_edit.compare | translate" [attr.aria-label]="I18N.photo_detail.ai_edit.compare | translate">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">compare</mat-icon>
+                </button>
+              </div>
+              @if (aiEdits()?.edit_of?.note; as note) {
+                <p class="text-xs text-[var(--mat-sys-on-surface-variant)] mb-2">{{ note }}</p>
+              }
+              <div class="flex gap-2 flex-wrap">
+                @for (path of aiEditThumbs(); track path) {
+                  <button class="relative rounded-lg overflow-hidden w-16 h-16 shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                          [attr.aria-label]="path | filename"
+                          (click)="openSetMember(path)">
+                    <img [src]="path | thumbnailUrl:96" alt="" class="w-full h-full object-cover" />
+                  </button>
+                }
+              </div>
+            </div>
+          }
         </div>
       </div>
     } @else if (photoMissing()) {
@@ -686,6 +723,23 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   // Set membership (bracket/panorama/hdr_panorama/burst/duplicate)
   protected readonly photoSet = signal<PhotoSet | null>(null);
+  /** The AI-edit links of the open photo: its original, if it is an edit, and its own edits. */
+  protected readonly aiEdits = signal<AiEdits | null>(null);
+  private aiEditsEffect = effect(() => {
+    const p = this.photo();
+    this.aiEdits.set(null);
+    if (!p) return;
+    const requestedPath = p.path;
+    firstValueFrom(this.api.get<AiEdits>('/photo/ai_edits', { path: requestedPath }))
+      .then(res => { if (this.photo()?.path === requestedPath) this.aiEdits.set(res); })
+      .catch(() => { if (this.photo()?.path === requestedPath) this.aiEdits.set(null); });
+  });
+  /** Thumbnails beside the section: the original of an edit, or the edits of an original. */
+  protected readonly aiEditThumbs = computed(() => {
+    const ai = this.aiEdits();
+    if (!ai) return [];
+    return ai.edit_of ? [ai.edit_of.source_path] : (ai.edits ?? []).map(e => e.edit_path);
+  });
   private photoSetEffect = effect(() => {
     const p = this.photo();
     this.photoSet.set(null);
@@ -860,6 +914,27 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       } finally { this.memberPhoto = null; }
     } catch {
       if (!current()) return;
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+    }
+  }
+
+  /** Open the original beside its AI edits (original first, at most four panes) in the synced compare view. */
+  protected async compareAiEdit(): Promise<void> {
+    const ai = this.aiEdits();
+    const current = this.photo()?.path;
+    if (!ai || !current) return;
+    const original = ai.edit_of?.source_path ?? current;
+    const edits = ai.edit_of ? [current] : (ai.edits ?? []).map(e => e.edit_path);
+    const paths = [original, ...edits].slice(0, MAX_AI_COMPARE_PANES);
+    if (paths.length < 2) return;
+    try {
+      const res = await firstValueFrom(this.api.post<{ photos: Photo[] }>('/photos/by_paths', { paths, filters: {} }));
+      if (res.photos.length < 2) return;
+      const { CompareSelectedDialogComponent } = await import('../gallery/compare-selected-dialog.component');
+      this.dialog.open(CompareSelectedDialogComponent, {
+        data: { photos: res.photos }, width: '96vw', height: '92vh', maxWidth: '96vw', autoFocus: false,
+      });
+    } catch {
       this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
     }
   }

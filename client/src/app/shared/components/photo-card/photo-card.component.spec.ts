@@ -152,6 +152,16 @@ describe('PhotoCardComponent', () => {
     expect(fixture.nativeElement.querySelector('button[aria-label="photoCard.stack_set"]')).not.toBeNull();
   });
 
+  it('marks an AI edit with the ✨ badge, and nothing else', () => {
+    fixture.componentInstance.photo.set(makePhoto({ ai_edit_of: '/photos/original.jpg' }));
+    fixture.detectChanges();
+    const badge = fixture.nativeElement.querySelector('[aria-label="photo_detail.ai_edit.badge"]') as HTMLElement;
+    expect(badge?.querySelector('mat-icon')?.textContent?.trim()).toBe('auto_awesome');
+    fixture.componentInstance.photo.set(makePhoto({}));
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[aria-label="photo_detail.ai_edit.badge"]')).toBeNull();
+  });
+
   it('should have default input values', () => {
     const card = getCard();
     expect(card.isSelected()).toBe(false);

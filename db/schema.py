@@ -594,6 +594,26 @@ PHOTO_MANUAL_TAGS_INDEXES = [
     ('idx_photo_manual_tags_tag', 'photo_manual_tags', 'tag'),
 ]
 
+# AI edits: a file an AI tool made from a library photo, imported through
+# POST /api/photo/ai_edits/import. The edit is keyed by its own path, which may not
+# be scanned yet (the import scans it right after), so only the original carries
+# a foreign key. `tool` is a key of `ai_edits.tool_suffixes`. Side table, so a
+# rescan of either file never loses the link.
+PHOTO_AI_EDITS_COLUMNS = [
+    ('edit_path', 'TEXT PRIMARY KEY'),
+    ('source_path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE'),
+    ('tool', 'TEXT NOT NULL'),
+    ('model', 'TEXT'),
+    ('note', 'TEXT'),
+    ('revision', 'INTEGER NOT NULL'),
+    ('created_by', 'TEXT'),
+    ('created_at', "TEXT DEFAULT (datetime('now'))"),
+]
+
+PHOTO_AI_EDITS_INDEXES = [
+    ('idx_photo_ai_edits_source', 'photo_ai_edits', 'source_path'),
+]
+
 # Pairwise comparison results for weight optimization
 COMPARISONS_COLUMNS = [
     ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
@@ -926,6 +946,7 @@ ALL_INDEX_GROUPS = [
     INDEXES,
     PHOTO_TAGS_INDEXES,
     PHOTO_MANUAL_TAGS_INDEXES,
+    PHOTO_AI_EDITS_INDEXES,
     COMPARISONS_INDEXES,
     LEARNED_SCORES_INDEXES,
     WEIGHT_OPTIMIZATION_RUNS_INDEXES,
@@ -1118,6 +1139,7 @@ _MIGRATED_TABLES = [
     ('persons', PERSONS_COLUMNS),
     ('photo_tags', PHOTO_TAGS_COLUMNS),
     ('photo_manual_tags', PHOTO_MANUAL_TAGS_COLUMNS),
+    ('photo_ai_edits', PHOTO_AI_EDITS_COLUMNS),
     ('mcp_tokens', MCP_TOKENS_COLUMNS),
     ('rating_provenance', RATING_PROVENANCE_COLUMNS),
     ('photo_metadata_edits', PHOTO_METADATA_EDITS_COLUMNS),
@@ -1337,6 +1359,9 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
             PHOTO_MANUAL_TAGS_COLUMNS,
             constraints=['PRIMARY KEY (photo_path, tag)']
         ))
+
+        # Create photo_ai_edits (AI-made files linked to their original; side table, survives rescans)
+        conn.execute(_build_create_table_sql('photo_ai_edits', PHOTO_AI_EDITS_COLUMNS))
 
         # Create mcp_tokens (agent bearer tokens, hash only; side table)
         conn.execute(_build_create_table_sql('mcp_tokens', MCP_TOKENS_COLUMNS))

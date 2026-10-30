@@ -1104,6 +1104,24 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 
 ---
 
+## AI 编辑
+
+哪些 AI 工具可以通过 `import_ai_edit` 导入编辑版本（参见 [AI 智能体](AGENTS.md)），以及各工具写入文件名的标记：`antigravity-gemini` 对 `IMG_3533.JPG` 的编辑会保存为 `IMG_3533_agy_1.JPG`。未列出的工具会被拒绝。
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy" }
+  }
+}
+```
+
+| 设置 | 默认值 | 说明 |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | 工具名称 → 文件名标记 |
+
+---
+
 ## 重复照片检测
 
 在全库范围内检测重复照片：先用宽松的 pHash 得到候选，再用嵌入相似度检查加以确认。

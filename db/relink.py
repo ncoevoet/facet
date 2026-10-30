@@ -30,6 +30,8 @@ _PLAIN_REFS = {
     ('face_reextract_snapshot', 'photo_path'),
     ('photo_stacks', 'cover_path'), ('photo_stack_members', 'photo_path'),
     ('stack_suggestion_dismissals', 'photo_path'),
+    # An AI edit's own path: no foreign key, since the link is recorded before the edit is scanned.
+    ('photo_ai_edits', 'edit_path'),
 }
 _NON_ASSET_PATHS = {
     ('photos', 'path'), ('photos_fts', 'path'), ('scan_failures', 'path'),

@@ -345,6 +345,15 @@ Le contrôle **Garder le top %** de la barre d'outils (mode édition) trie toute
 - La sélection est plafonnée à 5000 photos. Sur une vue plus grande, restreignez le filtre (album, date, personne…).
 - Avec les valeurs par défaut `hide_brackets` / `hide_panoramas`, un bracketing ou un panorama compte pour **une** photo.
 
+### Retouches IA
+
+Un outil d'IA peut ajouter à la bibliothèque une copie retouchée d'une photo avec l'outil d'assistant `import_ai_edit` (voir [Agents IA](AGENTS.md)). Le fichier est placé à côté de l'original sous le nom `{name}_{suffix}_{revision}{ext}`, par exemple `IMG_3533_agy_1.JPG`, puis analysé seul.
+
+- La galerie marque une retouche d'un ✨ **IA** en haut de sa vignette. ✨ est réservé à ce qu'une IA a produit ou choisi.
+- La page d'une retouche affiche **Retouche IA de** avec la vignette de l'original, le modèle et la note. La page de l'original liste ses **Retouches IA**.
+- Le bouton de comparaison ouvre l'original à côté de ses retouches (jusqu'à quatre volets), panoramique et zoom synchronisés.
+- Une retouche prise au même instant rejoint en général la rafale de l'original ; « Meilleure de la rafale » montre la mieux notée.
+
 ### Liste épinglée par l'assistant
 
 Quand un assistant connecté via [Agents IA (MCP)](AGENTS.md) vous montre une liste exacte de photos, la galerie l'affiche dans l'ordre de l'assistant. Une ligne d'état indique combien de photos ont été choisies ; **Revenir à la vue habituelle** rétablit vos filtres.

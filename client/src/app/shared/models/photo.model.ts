@@ -8,6 +8,8 @@ export interface KeeperHint {
 export interface Photo {
   preview_revision?: string | null;
   path: string;
+  /** The original this photo was made from, when it is a recorded AI edit. */
+  ai_edit_of?: string | null;
   filename: string;
   // Scores
   /** Null for a row the scoring pass has not reached yet (e.g. mid-scan). */
@@ -165,6 +167,23 @@ export interface PhotoSetMember {
   ev_offset: number | null;
   is_lead: boolean;
   preview_revision?: string | null;
+}
+
+/** One recorded AI edit: a file an AI tool made from `source_path`. */
+export interface AiEdit {
+  edit_path: string;
+  source_path: string;
+  tool: string;
+  model?: string | null;
+  note?: string | null;
+  revision: number;
+  created_at?: string | null;
+}
+
+/** `GET /api/photo/ai_edits`: the original a photo was made from, if it is an edit, and its own edits. */
+export interface AiEdits {
+  edit_of: AiEdit | null;
+  edits: AiEdit[];
 }
 
 /** The bracket/panorama/hdr_panorama/burst/duplicate set a photo belongs to,

@@ -2706,6 +2706,13 @@
       "open_in_gallery": "Open this set in the gallery",
       "member_position": "Frame {position} of {count}"
     },
+    "ai_edit": {
+      "badge": "AI edit",
+      "badge_short": "AI",
+      "edit_of": "AI edit of",
+      "edits": "AI edits",
+      "compare": "Compare the original and its AI edits"
+    },
     "delete": {
       "button_label": "Delete",
       "confirm_title": "Delete this photo?",

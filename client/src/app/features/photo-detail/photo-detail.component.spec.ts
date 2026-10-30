@@ -2224,6 +2224,48 @@ describe('PhotoDetailComponent', () => {
       expect(component.photoSet()).toEqual({ kind: 'bracket', group_id: 1, count: 3, ev_span: 2, members: [] });
     });
 
+    it('shows the original of an AI edit and compares the two', async () => {
+      const edit = { edit_path: '/photos/test.jpg', source_path: '/photos/orig.jpg', tool: 'antigravity-gemini',
+        model: 'gemini-image', note: 'brighter', revision: 1 };
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/ai_edits') return of({ edit_of: edit, edits: [] });
+        if (url === '/photo/set') return of({ kind: null, group_id: null, count: 0, ev_span: null, members: [] });
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+      mockApi.post.mockReturnValue(of({ photos: [] }));
+      const view = renderDetail();
+      view.componentInstance.photo.set(makePhoto({}));
+      for (let i = 0; i < 3; i++) {
+        view.detectChanges();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
+      view.detectChanges();
+
+      const section = view.nativeElement.querySelector('[data-ai-edits]') as HTMLElement;
+      expect(section.textContent).toContain('photo_detail.ai_edit.edit_of');
+      expect(section.textContent).toContain('gemini-image');
+      expect(section.querySelectorAll('img').length).toBe(1);
+      (section.querySelector('[data-ai-compare]') as HTMLButtonElement).click();
+      await new Promise<void>(resolve => setTimeout(resolve, 0));
+      expect(mockApi.post).toHaveBeenCalledWith('/photos/by_paths', { paths: ['/photos/orig.jpg', '/photos/test.jpg'], filters: {} });
+    });
+
+    it('has no AI-edit section for a photo with no edits', async () => {
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/ai_edits') return of({ edit_of: null, edits: [] });
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+      const view = renderDetail();
+      view.componentInstance.photo.set(makePhoto({}));
+      for (let i = 0; i < 3; i++) {
+        view.detectChanges();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
+      expect(view.nativeElement.querySelector('[data-ai-edits]')).toBeNull();
+    });
+
     it('ignores a stale set response after navigating to another photo', async () => {
       const photoA = { ...samplePhoto, path: '/photos/a.jpg' };
       const photoB = { ...samplePhoto, path: '/photos/b.jpg' };

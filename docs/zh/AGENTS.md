@@ -277,6 +277,7 @@ curl -s -X POST http://localhost:5000/api/mcp/tokens -H "Authorization: Bearer $
 | `update_photo_stack` | `edition` | 替换成员/顺序及可选封面，拒绝旧版本 | 1000 个路径 |
 | `unstack_photos` | `edition` | 解散堆叠，保留原片 |  |
 | `undo_photo_stack` | `edition` | 仅撤销可用的堆叠条目，拒绝后续变更 |  |
+| `import_ai_edit` | `edition` | 把照片的 AI 编辑版本导入照片库并放在原图旁（`mode`：`move` 或 `copy`，必填；`tool` 必须已配置）；非幂等，每次调用新增一个版本 | 1 file |
 | `create_album` | `edition` | 创建相册（不幂等：调用两次会创建两个相册）：可为空，也可由 `filters` / `target: "view"` 创建跟随这些筛选条件的智能相册，或由 `paths` / `target: "selection"` 创建并在同一次调用中填充的固定相册（`added`、`skipped`）。智能相册使用查看器自身的隐藏开关，在 `list_albums` 中显示 0 张照片。不含任何有效筛选条件的 `filters`（`{}`，或仅含已关闭的显示开关）会被拒绝并返回 `invalid_input`：要创建空相册请省略 `filters` | |
 | `album_add_photos` | `edition` | 向相册添加照片（已有的会被忽略） | 1000 个路径 |
 | `album_remove_photos` | `edition` | 从相册移除照片；照片本身不受影响 | 1000 个路径 |

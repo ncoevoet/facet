@@ -2706,6 +2706,13 @@
       "open_in_gallery": "在照片库中打开此照片组",
       "member_position": "第 {position} / {count} 张"
     },
+    "ai_edit": {
+      "badge": "AI 编辑",
+      "badge_short": "AI",
+      "edit_of": "AI 编辑自",
+      "edits": "AI 编辑版本",
+      "compare": "对比原图与 AI 编辑版本"
+    },
     "delete": {
       "button_label": "删除",
       "confirm_title": "删除这张照片？",

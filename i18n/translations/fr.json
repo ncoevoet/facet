@@ -2706,6 +2706,13 @@
       "open_in_gallery": "Ouvrir ce groupe dans la galerie",
       "member_position": "Image {position} sur {count}"
     },
+    "ai_edit": {
+      "badge": "Retouche IA",
+      "badge_short": "IA",
+      "edit_of": "Retouche IA de",
+      "edits": "Retouches IA",
+      "compare": "Comparer l'original et ses retouches IA"
+    },
     "delete": {
       "button_label": "Supprimer",
       "confirm_title": "Supprimer cette photo ?",

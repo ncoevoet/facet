@@ -1106,6 +1106,24 @@ Weights used by burst culling to pick the best shot in each burst group. Weights
 
 ---
 
+## AI edits
+
+Which AI tools may import an edit with `import_ai_edit` (see [AI Agents](AGENTS.md)), and the tag each puts in the file name: an edit of `IMG_3533.JPG` by `antigravity-gemini` is saved as `IMG_3533_agy_1.JPG`. A tool not listed is refused.
+
+```json
+{
+  "ai_edits": {
+    "tool_suffixes": { "antigravity-gemini": "agy" }
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `tool_suffixes` | `{"antigravity-gemini": "agy"}` | Tool name → file-name tag |
+
+---
+
 ## Duplicate Detection
 
 Finds duplicate photos across the whole library: loose pHash candidates, confirmed by an embedding similarity check.

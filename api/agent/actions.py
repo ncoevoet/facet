@@ -66,6 +66,8 @@ ACTIONS: tuple[Action, ...] = (
     Action("manage_stacks", "Read or organize an owner-private local photo stack without changing files or review decisions",
            ("get_photo_stack", "create_photo_stack", "update_photo_stack", "unstack_photos", "undo_photo_stack"),
            _when("gallery", "detail", "selection")),
+    Action("import_ai_edits", "Bring an AI-edited copy of a photo into the library, linked to its original",
+           ("import_ai_edit",), _when("detail", "gallery", "selection")),
     Action("write_metadata", "Set a photo's caption or write XMP sidecars next to the files",
            ("set_caption", "export_metadata"), _when("detail", "gallery", "selection")),
     Action("junk_sweep", "Review junk-sweep candidates (shown on the junk page with show=true) and reject or keep them",

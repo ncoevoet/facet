@@ -345,6 +345,15 @@ The **Keep top %** control in the toolbar (edition mode) culls the whole filtere
 - The selection is capped at 5000 photos. On a larger view, narrow the filter (album, date, person…).
 - Under the default `hide_brackets` / `hide_panoramas`, a bracket or panorama set counts as **one** photo.
 
+### AI edits
+
+An AI tool can bring an edited copy of a photo into the library through the assistant tool `import_ai_edit` (see [AI Agents](AGENTS.md)). The file lands beside the original as `{name}_{suffix}_{revision}{ext}`, for example `IMG_3533_agy_1.JPG`, and is scanned on its own.
+
+- The gallery marks an edit with ✨ **AI** at the top of its tile. ✨ is kept for what an AI made or picked.
+- An edit's photo page shows **AI edit of** with the original's thumbnail, the model and the note. The original's photo page lists its **AI edits**.
+- The compare button opens the original beside its edits (up to four panes) with synced pan and zoom.
+- An edit shot at the same moment usually joins the original's burst, so the gallery's Best of Burst shows whichever scores higher.
+
 ### Assistant-pinned list
 
 When an assistant connected through [AI Agents (MCP)](AGENTS.md) shows you an exact list of photos, the gallery displays it in the assistant's order. A status line says how many photos were chosen; **Show the usual view** restores your filters.
