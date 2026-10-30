@@ -1091,6 +1091,7 @@ export const I18N = {
     },
     set_scope: {
       message: "gallery.set_scope.message",
+      partial: "gallery.set_scope.partial",
     },
     pinned: {
       chip: "gallery.pinned.chip",

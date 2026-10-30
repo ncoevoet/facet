@@ -2224,6 +2224,32 @@ describe('PhotoDetailComponent', () => {
       expect(component.photoSet()).toEqual({ kind: 'bracket', group_id: 1, count: 3, ev_span: 2, members: [] });
     });
 
+    it('names the blink frames, which the gallery hides when the set is opened there', async () => {
+      const burst = {
+        kind: 'burst', group_id: 161, count: 3, ev_span: null, members: [
+          { path: '/photos/a.jpg', ev_offset: null, is_lead: false, is_blink: true },
+          { path: '/photos/b.jpg', ev_offset: null, is_lead: false, is_blink: false },
+          { path: '/photos/test.jpg', ev_offset: null, is_lead: true, is_blink: false },
+        ],
+      };
+      mockApi.get.mockImplementation((url: string) => {
+        if (url === '/photo/set') return of(burst);
+        if (url === '/download/options') return of({ options: [{ type: 'original', label: 'original' }] });
+        return of(samplePhoto);
+      });
+      const view = renderDetail();
+      view.componentInstance.photo.set(makePhoto({}));
+      for (let i = 0; i < 3; i++) {
+        view.detectChanges();
+        await new Promise<void>(resolve => setTimeout(resolve, 0));
+      }
+      view.detectChanges();
+
+      const text = view.nativeElement.textContent as string;
+      expect(text).toContain('gallery.hidden_banner.reason_blinks');
+      expect(text.match(/ui\.badges\.blink/g)?.length).toBe(1);
+    });
+
     it('ignores a stale set response after navigating to another photo', async () => {
       const photoA = { ...samplePhoto, path: '/photos/a.jpg' };
       const photoB = { ...samplePhoto, path: '/photos/b.jpg' };

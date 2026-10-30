@@ -1076,7 +1076,8 @@
       "command_hint": "Lancez {command} pour toutes les rafraîchir d'un coup."
     },
     "set_scope": {
-      "message": "Un groupe de photos est affiché : {kind}"
+      "message": "Un groupe de photos est affiché : {kind}",
+      "partial": "{shown} sur {total} affichées ({reasons} masquées)"
     },
     "pinned": {
       "chip": "{count} photo choisie par votre assistant",

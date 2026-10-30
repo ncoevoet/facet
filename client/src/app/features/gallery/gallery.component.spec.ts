@@ -1543,6 +1543,30 @@ describe('GalleryComponent', () => {
       expect(text).not.toContain(reasons.reason_panoramas);
     });
 
+    it('the set-scope bar says what the hide toggles left out, so its count matches the photo page', () => {
+      // A burst of 3 whose blink frame hide_blinks still filters out: the bar must
+      // not leave the user to reconcile 2 tiles with "3 photos" on the photo page.
+      mockStore.total.set(2);
+      mockStore.hiddenSummary.set({ total: 1, blinks: 1, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: true, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(bar.textContent).toContain(I18N.gallery.set_scope.partial);
+      Array.from(bar.querySelectorAll('button')).find(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))!.click();
+      expect(mockStore.showAllHidden).toHaveBeenCalled();
+    });
+
+    it('the set-scope bar adds nothing when the whole set is on screen', () => {
+      mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
+      mockStore.filters.set({ ...DEFAULT_FILTERS, burst_group_id: '161' });
+      const html = render();
+      const bar = Array.from(html.querySelectorAll('mat-sidenav-content > div'))
+        .find(el => el.textContent?.includes(I18N.gallery.set_scope.message))!;
+      expect(bar.textContent).not.toContain(I18N.gallery.set_scope.partial);
+      expect(Array.from(bar.querySelectorAll('button')).some(b => b.textContent?.includes(I18N.gallery.hidden_banner.show_all))).toBe(false);
+    });
+
     it('renders the restore twin once Show all has been used', () => {
       mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
       mockStore.hiddenFiltersStash.set({

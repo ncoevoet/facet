@@ -1076,7 +1076,8 @@
       "command_hint": "Execute {command} para atualizar todas de uma vez."
     },
     "set_scope": {
-      "message": "A mostrar um grupo de fotos: {kind}"
+      "message": "A mostrar um grupo de fotos: {kind}",
+      "partial": "a mostrar {shown} de {total} ({reasons} ocultas)"
     },
     "pinned": {
       "chip": "{count} foto escolhida pelo seu assistente",

@@ -164,6 +164,9 @@ export interface PhotoSetMember {
    *  every other kind, which has no base frame to measure against. */
   ev_offset: number | null;
   is_lead: boolean;
+  /** The gallery hides blinks by default, so a set opened there can show
+   *  fewer frames than `count`; the photo page names them up front. */
+  is_blink?: boolean;
   preview_revision?: string | null;
 }
 

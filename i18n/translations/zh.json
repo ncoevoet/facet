@@ -1076,7 +1076,8 @@
       "command_hint": "运行 {command} 可一次性刷新全部缩略图。"
     },
     "set_scope": {
-      "message": "正在显示一组照片：{kind}"
+      "message": "正在显示一组照片：{kind}",
+      "partial": "显示 {shown}/{total}（已隐藏：{reasons}）"
     },
     "pinned": {
       "chip": "助手挑选了 {count} 张照片",

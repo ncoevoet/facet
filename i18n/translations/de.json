@@ -1076,7 +1076,8 @@
       "command_hint": "Führen Sie {command} aus, um alle auf einmal aufzufrischen."
     },
     "set_scope": {
-      "message": "Eine Fotogruppe wird angezeigt: {kind}"
+      "message": "Eine Fotogruppe wird angezeigt: {kind}",
+      "partial": "{shown} von {total} angezeigt ({reasons} ausgeblendet)"
     },
     "pinned": {
       "chip": "{count} vom Assistenten ausgewähltes Foto",

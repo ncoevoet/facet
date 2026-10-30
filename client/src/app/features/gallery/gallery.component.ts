@@ -278,7 +278,17 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             <mat-icon class="opacity-70 !text-base !w-5 !h-5">{{ kind | photoSetKindIcon }}</mat-icon>
             <span class="flex-1">
               {{ I18N.gallery.set_scope.message | translate:{ kind: (kind | photoSetKindLabel | translate) } }}
+              <!-- The hide toggles still apply inside a set (blinks above all), so say
+                   what is missing rather than list fewer frames than the photo page counted. -->
+              @if (store.hiddenSummary().total > 0) {
+                · {{ I18N.gallery.set_scope.partial | translate:{ shown: store.photoTotal(), total: store.photoTotal() + store.hiddenSummary().total, reasons: hiddenReasons() } }}
+              }
             </span>
+            @if (store.hiddenSummary().total > 0) {
+              <button mat-button class="!min-w-0" (click)="store.showAllHidden()">
+                {{ I18N.gallery.hidden_banner.show_all | translate }}
+              </button>
+            }
             <button mat-button class="!min-w-0" (click)="clearSetScope()">
               {{ I18N.ui.buttons.clear | translate }}
             </button>

@@ -1076,7 +1076,8 @@
       "command_hint": "Run {command} to refresh them all at once."
     },
     "set_scope": {
-      "message": "Showing one photo set: {kind}"
+      "message": "Showing one photo set: {kind}",
+      "partial": "showing {shown} of {total} ({reasons} hidden)"
     },
     "pinned": {
       "chip": "{count} photo chosen by your assistant",
