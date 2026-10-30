@@ -2830,6 +2830,7 @@ class Facet:
 
         # 4. Fallback to Pillow (JPEG and TIFF/DNG via modern getexif API)
         try:
+            from PIL import ExifTags, Image
             with Image.open(image_path) as img:
                 exif = img.getexif()
                 all_tags = dict(exif.items())
