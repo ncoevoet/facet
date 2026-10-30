@@ -24,6 +24,8 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- **The Hover trigger is offered disabled below the desktop width.** The floating hover bubble never renders under 768px, so picking it stored a preference that could not do anything; the entry now greys out unless already selected, and becomes selectable again from 768px up. Resizing preserves the saved trigger.
+
 - **`--recompute-iqa` no longer crashes when Q-ReAlign is on.** The command builds a lightweight scorer with no device, which reached the native Q-ReAlign model and failed with `Attempting to cast a BatchFeature to type None`. Q-ReAlign is on by default for the 8gb, 16gb and 24gb profiles; it now runs on the detected device.
 - **Photo cards fill their tile on phones.** With details hidden (the default), cards below 768 px kept the photo at its natural height over a dead background strip; the tile now fills as a square at every width.
 - **Dialog headers share one style.** The shortcuts reference, the cull dialog and the customize-shortcuts dialog now carry the same icon-tile header — title with its description as a subtitle, aligned with the content below.

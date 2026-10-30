@@ -77,6 +77,38 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
 }
 
 describe('App', () => {
+  it('initializes the hover breakpoint and removes its listener on destruction', async () => {
+    const get = vi.fn(() => of({}));
+    const { app } = createApp('/', [
+      { provide: AuthService, useValue: {
+        identity: () => '0|', isAuthenticated: () => true, isEdition: () => false,
+        checkStatus: vi.fn(() => Promise.resolve()),
+      } },
+      { provide: ApiService, useValue: { get } },
+    ]);
+    const mql = {
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    } as unknown as MediaQueryList;
+    const originalMatchMedia = window.matchMedia.bind(window);
+    const query = vi.spyOn(window, 'matchMedia').mockImplementation(value =>
+      value === '(min-width: 768px)' ? mql : originalMatchMedia(value),
+    );
+    try {
+      await app.ngOnInit();
+      expect(get).toHaveBeenCalledTimes(3);
+      expect(query).toHaveBeenCalledWith('(min-width: 768px)');
+      expect((app as unknown as { canUseHoverTooltips: () => boolean }).canUseHoverTooltips()).toBe(true);
+      expect(mql.addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+      const handler = vi.mocked(mql.addEventListener).mock.calls[0][1];
+      TestBed.resetTestingModule();
+      expect(mql.removeEventListener).toHaveBeenCalledWith('change', handler);
+    } finally {
+      query.mockRestore();
+    }
+  });
+
   describe('help dialog shortcuts', () => {
     afterEach(() => {
       TestBed.inject(KeyboardMappingService).resetAll();
@@ -978,19 +1010,18 @@ describe('App', () => {
         .toEqual(['chat_bubble_outline', 'view_sidebar', 'visibility_off', 'mouse', 'touch_app', 'swap_horiz']);
       expect(items.map(item => item.getAttribute('aria-checked')))
         .toEqual(['true', 'false', 'false', 'false', 'true', 'false']);
-      // No side panel at this width; the popup has no "either" trigger.
+      // No side panel at this width; the popup has no "either" trigger; the
+      // hover bubble is desktop-only, so its entry is offered disabled here.
       expect(items.map(item => (item as HTMLButtonElement).disabled))
-        .toEqual([false, true, false, false, false, true]);
+        .toEqual([false, true, false, true, false, true]);
       const panel = items[0].closest('.mat-mdc-menu-panel')!;
       const headers = Array.from(panel.querySelectorAll('[role="group"]'))
         .map(group => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim());
       expect(headers).toEqual([I18N.gallery.tooltip_mode.show_in, I18N.gallery.tooltip_mode.show_on]);
-      items[3].click();
-      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'hover');
-      // A pick keeps the menu open for the other row.
-      expect(menuItems()).toHaveLength(6);
       items[2].click();
       expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'off');
+      // A pick keeps the menu open for the other row.
+      expect(menuItems()).toHaveLength(6);
     });
 
     it('sets the side panel trigger through panel_activation and carries click back to the popup', async () => {
@@ -1001,11 +1032,70 @@ describe('App', () => {
       const items = menuItems();
       expect(items.map(item => item.getAttribute('aria-checked')))
         .toEqual(['false', 'true', 'false', 'false', 'true', 'false']);
-      expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, false, false, false, false, false]);
+      // A panel user sees every entry enabled except hover: the desktop-only
+      // bubble cannot serve this width, and the active trigger is click.
+      expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, false, false, true, false, false]);
       items[5].click();
       expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'both' });
       items[0].click();
       expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+    });
+
+    it('offers the hover trigger enabled once the viewport is desktop-wide', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
+      (fixture.componentInstance as unknown as { tooltipCapable: { setMatches: (v: boolean) => void } })
+        .tooltipCapable.setMatches(true);
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const items = menuItems();
+      expect(items.map(item => (item as HTMLButtonElement).disabled)).toEqual([false, true, false, false, false, true]);
+      items[3].click();
+      expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'hover');
+    });
+
+    it('updates the open menu on resize without writing the preference', async () => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const capability = (fixture.componentInstance as unknown as {
+        tooltipCapable: { setMatches: (v: boolean) => void };
+      }).tooltipCapable;
+      const hover = () => menuItems()[3] as HTMLButtonElement;
+      expect(hover().disabled).toBe(true);
+      hover().click();
+      expect(store.updateFilter).not.toHaveBeenCalled();
+
+      capability.setMatches(true);
+      fixture.detectChanges();
+      expect(hover().disabled).toBe(false);
+      capability.setMatches(false);
+      fixture.detectChanges();
+      expect(hover().disabled).toBe(true);
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      expect(store.updateFilters).not.toHaveBeenCalled();
+    });
+
+    it.each(['popup', 'panel'] as const)('keeps the selected hover trigger enabled on a narrow %s', async place => {
+      const { fixture, root, store } = render();
+      store.filters.update(filters => ({
+        ...filters, tooltip_mode: place === 'panel' ? 'panel' : 'hover', panel_activation: 'hover',
+      }));
+      fixture.detectChanges();
+      await openMenu(fixture, byLabel(root, I18N.gallery.tooltip_mode.label)[0] as HTMLButtonElement);
+      const hover = menuItems()[3] as HTMLButtonElement;
+      expect(hover.getAttribute('aria-checked')).toBe('true');
+      expect(hover.disabled).toBe(false);
+      hover.click();
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      expect(store.updateFilters).not.toHaveBeenCalled();
+      menuItems()[4].click();
+      if (place === 'panel') {
+        expect(store.updateFilters).toHaveBeenLastCalledWith({ tooltip_mode: 'panel', panel_activation: 'click' });
+      } else {
+        expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'click');
+      }
     });
 
     it('keeps the place while off, and turning back on uses it', async () => {
