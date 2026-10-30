@@ -2034,9 +2034,20 @@ describe('GalleryComponent', () => {
 
         it('names the inspector owner and closes the panel without dispatching a deselection', () => {
           expect(rail.querySelector('[data-inspector-owner]')?.textContent).toContain('a.jpg');
+          mockStore.selectedPaths.set(new Set(['/a.jpg', '/offscreen.jpg']));
+          mockStore.selectionCount.set(2);
+          mockStore.updateFilter.mockImplementationOnce((key: string, value: string) => {
+            expect(key).toBe('tooltip_mode');
+            mockStore.filters.set({ ...mockStore.filters(), tooltip_mode: value });
+          });
+          fixture.detectChanges();
           mockStore.toggleSelection.mockClear();
           mockStore.clearSelection.mockClear();
           rail.querySelector<HTMLButtonElement>('[data-close-inspector]')!.click();
+          fixture.detectChanges();
+          expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+          expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg', '/offscreen.jpg']);
+          expect(mockStore.selectionCount()).toBe(2);
           expect(mockStore.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
           expect(mockStore.toggleSelection).not.toHaveBeenCalled();
           expect(mockStore.clearSelection).not.toHaveBeenCalled();

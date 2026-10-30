@@ -157,4 +157,27 @@ describe('CompareSelectedDialogComponent', () => {
     expect(paths()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
+
+  it('moves candidates backward and stops at both boundaries without changing the reference', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
+    fixture.detectChanges();
+    const previous = root.querySelector<HTMLButtonElement>('[data-candidate-previous]')!;
+    const next = root.querySelector<HTMLButtonElement>('[data-candidate-next]')!;
+    next.click(); fixture.detectChanges();
+    next.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/d.jpg']);
+    expect(next.disabled).toBe(true);
+    next.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/d.jpg']);
+    previous.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/c.jpg']);
+    previous.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
+    expect(previous.disabled).toBe(true);
+    previous.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
+  });
 });
