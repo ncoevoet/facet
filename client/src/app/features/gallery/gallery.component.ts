@@ -1,3 +1,4 @@
+import { StackActionsService } from './stack-actions.service';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import {
   Component,
@@ -32,15 +33,16 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSliderModule } from '@angular/material/slider';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatBottomSheet, MatBottomSheetModule } from '@angular/material/bottom-sheet';
+import { HttpErrorResponse } from '@angular/common/http';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
-import { filter, firstValueFrom } from 'rxjs';
+import { filter, firstValueFrom, takeUntil } from 'rxjs';
 import { GalleryStore, BatchResult, REVIEW_RESUME_NAVIGATION } from './gallery.store';
 import { NoticeDismissals, NoticeKind, readNoticeDismissals, saveNoticeDismissals, withDismissal } from './notice-dismiss.util';
 import { Photo } from '../../shared/models/photo.model';
-import { isPageShortcutBlocked, isTypingContext } from '../../shared/utils/keyboard';
+import { isImeOrRepeat, isPageShortcutBlocked, isShortcutContextBlocked, isTypingContext } from '../../shared/utils/keyboard';
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { PHOTO_PATH } from '../../core/gallery-reuse.strategy';
@@ -910,6 +912,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly stacks = inject(PhotoStackService);
+  private readonly stackActions = inject(StackActionsService);
   private readonly outlet = inject(RouterOutlet, { optional: true });
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly ngZone = inject(NgZone);
@@ -2323,8 +2326,42 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly stackShortcut = computed(() => this.keymap.keymap().stack.toUpperCase());
   private stackOpening = false;
 
+  protected async quickStack(): Promise<void> {
+    if (!this.canOpenStackFlow()) return;
+    const selection = this.selectedPaths();
+    const paths = [...selection];
+    const session = this.stacks.context();
+    const live = () => !this.destroyRef.destroyed && !this.parked && this.stacks.isLive(session);
+    const selectionClear = this.store.captureSelectionClear(paths);
+    this.stackOpening = true;
+    try {
+      const preview = await firstValueFrom(this.stacks.previewRegroup(paths, 'selected').pipe(takeUntil(this.router.events.pipe(filter(event => event instanceof NavigationStart))), takeUntilDestroyed(this.destroyRef)));
+      if (!live() || this.selectedPaths() !== selection || this.viewScoped()) return;
+      if (preview.source_stacks.length) {
+        this.stackOpening = false;
+        await this.createStack();
+        return;
+      }
+      // Create refuses newly stacked members too, closing the race after preview.
+      const applied = await this.stackActions.commit(this.stacks.create(paths, paths[0]), {
+        paths, action: 'create', session, live, labelKey: I18N.stacks.stacked, labelParams: { count: paths.length },
+        onUndone: selectionClear.restore,
+      });
+      if (applied && live()) selectionClear.clear();
+    } catch (error) {
+      // A preview failure is not a membership conflict; 401/403/429 already have the interceptor's toast.
+      if (!live() || error instanceof HttpErrorResponse && [401, 403, 429].includes(error.status)) return;
+      const conflict = error instanceof HttpErrorResponse && error.status === 409;
+      this.snackBar.open(this.i18n.t(conflict ? I18N.stacks.stack_failed : I18N.errors.action_failed), '', { duration: 5000 });
+    } finally { this.stackOpening = false; }
+  }
+
+  private canOpenStackFlow(): boolean {
+    return this.canCreateStack() && !this.stackOpening && !this.parked && !this.store.slideshowActive() && !this.dialog.openDialogs.length;
+  }
+
   protected async createStack(): Promise<void> {
-    if (!this.canCreateStack() || this.stackOpening || this.parked || this.store.slideshowActive() || this.dialog.openDialogs.length) return;
+    if (!this.canOpenStackFlow()) return;
     this.stackOpening = true;
     try {
       const paths = [...this.selectedPaths()];
@@ -2862,6 +2899,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  query below cannot see it. */
   protected onGalleryShortcut(event: KeyboardEvent): void {
     if (this.parked || this.store.slideshowActive() || event.defaultPrevented) return;
+    // Either Cmd or Ctrl, like select-all; never both.
+    const quickChord = event.key.toLowerCase() === 's' && event.shiftKey && !event.altKey && event.ctrlKey !== event.metaKey;
+    if (quickChord && !isImeOrRepeat(event) && !isShortcutContextBlocked(event) && this.canOpenStackFlow()) {
+      event.preventDefault(); void this.quickStack(); return;
+    }
     if (isPageShortcutBlocked(event)) return;
 
     if (this.keymap.matches(event, 'stack')) {

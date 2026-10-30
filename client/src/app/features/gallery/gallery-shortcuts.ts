@@ -25,6 +25,7 @@ export function galleryShortcutSection(map: KeymapConfig): ShortcutSection {
       { keys: ['0', label(map.reject)], labelKey: I18N.shortcuts.reject },
       { keys: [label(map.favourite)], labelKey: I18N.shortcuts.favorite },
       { keys: map.stack ? [label(map.stack)] : [], labelKey: I18N.shortcuts.stack },
+      { keys: ['⌘/Ctrl', 'Shift', 'S'], labelKey: I18N.shortcuts.quick_stack },
       { keys: ['Esc'], labelKey: I18N.shortcuts.clear_selection },
       { keys: ['Shift', 'F10'], labelKey: I18N.shortcuts.context_menu },
       { keys: [label(map.focusSearch)], labelKey: I18N.shortcuts.focus_search },

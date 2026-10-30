@@ -9,6 +9,9 @@ import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { i18nKeys } from '../../core/i18n/keys';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { PageContextService } from '../../core/agent/page-context.service';
+import { isImeOrRepeat, isPageShortcutBlocked } from '../../shared/utils/keyboard';
+import { GalleryStore } from './gallery.store';
 import { StackEditorComponent } from './stack-editor.component';
 import { STACK_EDITOR_HOST, StackEditorHost, StackEditorData } from './stack-editor-host';
 import { STACK_EDITOR_HISTORY, StackEditorHistory, readStackEditorHistory } from './stack-editor-history';
@@ -34,6 +37,8 @@ import { STACK_EDITOR_HISTORY, StackEditorHistory, readStackEditorHistory } from
 })
 export class StackEditorPageComponent implements StackEditorHost {
   protected readonly I18N = i18nKeys();
+  private readonly pageContext = inject(PageContextService);
+  private readonly store = inject(GalleryStore);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly location = inject(Location);
@@ -46,6 +51,7 @@ export class StackEditorPageComponent implements StackEditorHost {
   readonly closing$ = new Subject<void>();
   readonly visits = signal<{ id: number; data: StackEditorData }[]>([]);
   private source: StackEditorHistory | null = null;
+  private selectionClear: { clear: () => void; restore: () => void } = { clear: () => undefined, restore: () => undefined };
   private epoch = 0;
   private owner = this.auth.identity();
   private returnUrl = '/';
@@ -57,7 +63,9 @@ export class StackEditorPageComponent implements StackEditorHost {
     const epoch = this.epoch;
     const owner = this.owner;
     const session = this.stacks.context();
+    const selection = this.selectionClear;
     return () => {
+      selection.restore();
       if (!this.destroyRef.destroyed && !this.navigating && epoch === this.epoch
         && owner === this.auth.identity() && this.auth.isEdition() && session()) void this.editor()?.continueEditing();
     };
@@ -88,9 +96,21 @@ export class StackEditorPageComponent implements StackEditorHost {
     this.destroyRef.onDestroy(() => { this.clearView(); this.source = null; this.help.setDescription(null); });
   }
   @HostListener('document:keydown', ['$event'])
-  onKeydown(event: KeyboardEvent): void { if (!this.navigating) this.keydown$.next(event); }
+  onKeydown(event: KeyboardEvent): void {
+    if (this.navigating) return;
+    // The one Escape handler for the whole page: the editor only ever sees what this forwards.
+    if (event.key === 'Escape' && !event.defaultPrevented && !event.shiftKey && !isImeOrRepeat(event)
+      && !isPageShortcutBlocked(event) && !this.pageContext.overlays().length
+      && !(event.target instanceof HTMLElement && event.target.closest('[role="slider"], [role="radiogroup"]'))) {
+      event.preventDefault(); event.stopPropagation(); this.back(); return;
+    }
+    this.keydown$.next(event);
+  }
   setBusy(busy: boolean): void { this.busy = busy; }
-  finish(result: 'saved' | 'skip' | 'close'): void { if (result === 'close') this.back(); }
+  finish(result: 'saved' | 'skip' | 'close'): void {
+    if (result === 'saved') this.selectionClear.clear();
+    if (result === 'close') this.back();
+  }
   back(): void { if (!this.busy) void this.router.navigateByUrl(this.returnUrl); }
   invalidate(): void {
     this.clearView(); this.source = null; this.returnUrl = '/';
@@ -104,6 +124,7 @@ export class StackEditorPageComponent implements StackEditorHost {
     if (this.destroyRef.destroyed || this.auth.identity() !== this.owner || !this.auth.isEdition()) { this.invalidate(); return; }
     const source = readStackEditorHistory(value, this.auth.identity(), this.router);
     if (!source) { this.invalidate(); return; }
+    this.selectionClear = this.store.captureSelectionClear(source.paths);
     this.source = source; this.returnUrl = source.returnUrl;
     this.location.replaceState(this.location.path(true), '', { ...this.location.getState() as Record<string, unknown>, [STACK_EDITOR_HISTORY]: source });
     this.visits.set([{ id: ++this.epoch, data: { paths: source.paths, activePath: source.activePath } }]);

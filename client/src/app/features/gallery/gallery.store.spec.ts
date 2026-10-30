@@ -120,6 +120,41 @@ describe('GalleryStore', () => {
     store = TestBed.inject(GalleryStore);
   });
 
+  describe('committed stack selection', () => {
+    it('clears the captured explicit selection', () => {
+      store.restoreSelection(['/a', '/b']);
+      store.captureSelectionClear(['/a', '/b']).clear();
+      expect(store.selectedPaths().size).toBe(0);
+    });
+    it('restores the cleared selection in its order on Undo', () => {
+      store.restoreSelection(['/b', '/a']);
+      const selection = store.captureSelectionClear(['/b', '/a']);
+      selection.restore();
+      expect([...store.selectedPaths()]).toEqual(['/b', '/a']);
+      selection.clear();
+      selection.restore();
+      expect([...store.selectedPaths()]).toEqual(['/b', '/a']);
+    });
+    it.each(['selection', 'account'])('does not restore over a newer %s', change => {
+      store.restoreSelection(['/a', '/b']);
+      const selection = store.captureSelectionClear(['/a', '/b']);
+      selection.clear();
+      if (change === 'selection') store.restoreSelection(['/c', '/d']);
+      if (change === 'account') authIdentity.set('bob');
+      selection.restore();
+      expect([...store.selectedPaths()]).toEqual(change === 'selection' ? ['/c', '/d'] : []);
+    });
+    it.each(['selection', 'account', 'scope'])('preserves a newer %s', change => {
+      store.restoreSelection(['/a', '/b']);
+      const { clear } = store.captureSelectionClear(['/a', '/b']);
+      if (change === 'selection') store.restoreSelection(['/a', '/b']);
+      if (change === 'account') authIdentity.set('bob');
+      if (change === 'scope') store.selectionScope.set('view');
+      clear();
+      expect([...store.selectedPaths()]).toEqual(['/a', '/b']);
+    });
+  });
+
   describe('manual stack display and action scope', () => {
     it('keeps representative paging separate from matching-photo selection', async () => {
       apiGet.mockReturnValue(of(makePhotosResponse({ total: 2, photo_total: 5, has_more: true })));

@@ -33,6 +33,7 @@ describe('GalleryReuseStrategy', () => {
           { path: '', component: GalleryStub },
           { path: 'album/:albumId', component: GalleryStub },
           { path: 'photo', component: OtherStub },
+          { path: 'stacks/edit', component: OtherStub },
           { path: 'login', component: OtherStub },
           { path: 'protected', component: OtherStub, canActivate: [authGuard] },
           { path: 'persons', component: OtherStub },
@@ -65,6 +66,44 @@ describe('GalleryReuseStrategy', () => {
     await back();
     expect(harness.routeDebugElement?.componentInstance).toBe(gallery);
     expect(destroyed).toBe(0);
+  });
+
+  it('preserves the gallery instance and DOM through the stack editor Back route', async () => {
+    const album = await harness.navigateByUrl('/album/42?sort=date', GalleryStub);
+    const node = harness.routeNativeElement;
+    const before = destroyed;
+    await harness.navigateByUrl('/stacks/edit');
+    expect(destroyed).toBe(before);
+    await harness.navigateByUrl('/album/42?sort=date');
+    expect(harness.routeDebugElement?.componentInstance).toBe(album);
+    expect(harness.routeNativeElement).toBe(node);
+    expect(destroyed).toBe(before);
+  });
+
+  it('reattaches the parked gallery on a history back from the stack editor', async () => {
+    const album = await harness.navigateByUrl('/album/42?sort=date', GalleryStub);
+    await harness.navigateByUrl('/stacks/edit');
+    const before = destroyed;
+    await back();
+    expect(harness.routeDebugElement?.componentInstance).toBe(album);
+    expect(destroyed).toBe(before);
+  });
+
+  it('destroys the parked gallery when the stack editor leaves for another page', async () => {
+    await harness.navigateByUrl('/album/42?sort=date', GalleryStub);
+    await harness.navigateByUrl('/stacks/edit');
+    const before = destroyed;
+    await harness.navigateByUrl('/persons');
+    expect(destroyed).toBe(before + 1);
+  });
+
+  it('drops the parked gallery when stack Back targets another album', async () => {
+    const album = await harness.navigateByUrl('/album/42?sort=date', GalleryStub);
+    await harness.navigateByUrl('/stacks/edit');
+    const before = destroyed;
+    await harness.navigateByUrl('/album/43?sort=date');
+    expect(harness.routeDebugElement?.componentInstance).not.toBe(album);
+    expect(destroyed).toBe(before + 1);
   });
 
   it('builds a fresh gallery when the photo navigates to it instead', async () => {

@@ -57,7 +57,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: LFW download (cached; the source is slow and sometimes down)
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/lfw-data
           key: lfw-funneled-v1

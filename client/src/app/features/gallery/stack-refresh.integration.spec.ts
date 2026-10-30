@@ -21,6 +21,8 @@ import { StackDialogComponent } from './stack-dialog.component';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { StackEditorPageComponent } from './stack-editor-page.component';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
+import { GalleryReuseStrategy } from '../../core/gallery-reuse.strategy';
+import { RouteReuseStrategy } from '@angular/router';
 import { Location } from '@angular/common';
 import { ThemeService } from '../../core/services/theme.service';
 
@@ -57,6 +59,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     requests = new Subject();
     assistantBatches = new Subject();
     TestBed.configureTestingModule({ providers: [
+      { provide: RouteReuseStrategy, useClass: GalleryReuseStrategy },
       provideHttpClient(withXhr(), withInterceptors([(request, next) => { requests.next(request); return next(request); }])), provideHttpClientTesting(), provideRouter([]), provideNativeDateAdapter(),
       { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {}, paramMap: convertToParamMap({}) } } },
@@ -95,12 +98,53 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
   });
 
 
+  it('retains the real routed gallery and cards on unchanged editor Back without listing reads', async () => {
+    fixture.destroy();
+    const router = TestBed.inject(Router);
+    router.resetConfig([{ path: '', component: GalleryComponent }, { path: 'stacks/edit', component: StackEditorPageComponent }]);
+    const routed = await RouterTestingHarness.create('/');
+    flushSideData(); await routed.fixture.whenStable(); routed.detectChanges();
+    store.hasMore.set(true);
+    const paging = store.nextPage();
+    const extra = [makePhoto({ path: '/trip/c.jpg' }), makePhoto({ path: '/trip/d.jpg' })];
+    http.expectOne(request => request.url === '/api/photos').flush({ ...page, page: 2, photos: extra, total: 4 });
+    await paging; flushSideData(); await routed.fixture.whenStable(); routed.detectChanges();
+    const gallery = routed.routeDebugElement!.componentInstance;
+    const node = routed.routeNativeElement!;
+    const cards = [...node.querySelectorAll('app-photo-card')];
+    expect(cards).toHaveLength(4);
+    const scroll = node.querySelector<HTMLElement>('mat-sidenav-content')!;
+    scroll.scrollTop = 180;
+    const scrollTo = vi.fn(); Object.defineProperty(scroll, 'scrollTo', { value: scrollTo, configurable: true });
+    const sort = store.filters().sort;
+    store.restoreSelection(rows.map(photo => photo.path)); routed.detectChanges();
+    node.querySelector<HTMLButtonElement>('[data-create-stack]')!.click();
+    await vi.waitFor(() => expect(router.url).toBe('/stacks/edit')); routed.detectChanges();
+    http.expectOne('/api/stacks/regroup/preview').flush({ selected_paths: rows.map(photo => photo.path), mode: 'combine', paths: rows.map(photo => photo.path), cover_path: rows[0].path, source_stacks: [], unstacked_paths: rows.map(photo => photo.path), affected_paths: rows.map(photo => photo.path), expected_state: 'a'.repeat(64) });
+    await routed.fixture.whenStable(); routed.detectChanges();
+    routed.routeNativeElement!.querySelector<HTMLButtonElement>('[data-stack-back]')!.click();
+    await vi.waitFor(() => expect(router.url).toBe('/')); flushSideData();
+    await routed.fixture.whenStable(); routed.detectChanges();
+    expect(routed.routeDebugElement!.componentInstance).toBe(gallery);
+    expect(routed.routeNativeElement).toBe(node);
+    expect([...node.querySelectorAll('app-photo-card')]).toEqual(cards);
+    expect(store.photos().map(photo => photo.path)).toEqual([...rows, ...extra].map(photo => photo.path));
+    expect(store.filters().page).toBe(2); expect(store.filters().sort).toBe(sort);
+    expect(scrollTo).toHaveBeenCalledWith(expect.objectContaining({ top: 180 }));
+    expect(store.selectedPaths().size).toBe(2);
+    http.expectNone(request => request.url === '/api/photos');
+    http.expectNone('/api/photos/review_progress');
+    routed.fixture.destroy();
+  });
+
   describe('Stack shortcut through document/grid and HTTP', () => {
     let routed: RouterTestingHarness;
     beforeEach(async () => {
-      TestBed.inject(Router).resetConfig([{ path: 'stacks/edit', component: StackEditorPageComponent }]);
+      TestBed.inject(Router).resetConfig([{ path: 'stacks/edit', component: StackEditorPageComponent }, { path: 'blocked', children: [], canActivate: [() => false] }]);
       routed = await RouterTestingHarness.create();
       document.body.appendChild(fixture.nativeElement);
+      galleryToasts = vi.spyOn(fixture.debugElement.injector.get(MatSnackBar), 'open')
+        .mockReturnValue({ onAction: () => NEVER, afterDismissed: () => NEVER } as never) as unknown as ReturnType<typeof vi.fn>;
     });
     const key = (init: KeyboardEventInit = {}, target: EventTarget = document) => {
       const event = new KeyboardEvent('keydown', { key: 's', bubbles: true, cancelable: true, ...init });
@@ -108,6 +152,11 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
       return event;
     };
     const select = () => { store.toggleSelection(rows[0]); store.toggleSelection(rows[1]); fixture.detectChanges(); };
+    const chord = (modifier: 'ctrl' | 'meta' = 'ctrl', init: KeyboardEventInit = {}) =>
+      key({ key: 'S', shiftKey: true, ctrlKey: modifier === 'ctrl', metaKey: modifier === 'meta', ...init });
+    // The gallery imports MatSnackBarModule, so its toasts go through its own injector, not the root mock.
+    const snackTexts = () => galleryToasts.mock.calls.map(call => String(call[0]));
+    let galleryToasts: ReturnType<typeof vi.fn>;
     const noEditor = () => {
       expect(document.querySelector('app-stack-dialog')).toBeNull();
       http.expectNone('/api/stacks/regroup/preview');
@@ -118,6 +167,151 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
       await fixture.whenStable();
     };
     afterEach(async () => { await closeEditor(); });
+
+    it('quick stacks explicit paths in selection order without navigation and clears success', async () => {
+      store.restoreSelection([rows[1].path, rows[0].path]); fixture.detectChanges();
+      const event = chord();
+      expect(event.defaultPrevented).toBe(true);
+      const paths = [rows[1].path, rows[0].path];
+      http.expectOne('/api/stacks/regroup/preview').flush({ selected_paths: paths, mode: 'selected', paths, source_stacks: [] });
+      await fixture.whenStable();
+      const write = http.expectOne('/api/stacks');
+      expect(write.request.body).toEqual({ paths, cover_path: paths[0] });
+      expect([...store.selectedPaths()]).toEqual(paths);
+      write.flush({ undo: { entry_id: 71 } });
+      await fixture.whenStable(); flushSideData();
+      await vi.waitFor(() => expect(store.selectedPaths().size).toBe(0));
+      expect(TestBed.inject(Router).url).toBe('/');
+      http.expectNone('/api/stacks/regroup/apply');
+    });
+
+    it('cancels a quick-stack preview on a real cancelled navigation without writing', async () => {
+      select();
+      chord();
+      const preview = http.expectOne('/api/stacks/regroup/preview');
+      expect(await TestBed.inject(Router).navigateByUrl('/blocked')).toBe(false);
+      expect(preview.cancelled).toBe(true);
+      await fixture.whenStable();
+      http.expectNone('/api/stacks');
+      expect(store.selectedPaths().size).toBe(2);
+    });
+
+    it('refuses a deferred quick-stack preview after a new same-content selection', async () => {
+      select();
+      chord();
+      const preview = http.expectOne('/api/stacks/regroup/preview');
+      store.restoreSelection(rows.map(photo => photo.path));
+      preview.flush({ source_stacks: [] });
+      await fixture.whenStable(); await Promise.resolve();
+      http.expectNone('/api/stacks');
+      expect(store.selectedPaths().size).toBe(2);
+    });
+
+    it('opens the editor for an existing stack member without writing', async () => {
+      select();
+      chord();
+      http.expectOne('/api/stacks/regroup/preview').flush({ source_stacks: [{ id: 'existing' }] });
+      await vi.waitFor(() => expect(TestBed.inject(Router).url).toBe('/stacks/edit')); routed.detectChanges();
+      http.expectOne('/api/stacks/regroup/preview').flush({}, { status: 403, statusText: 'Unavailable' });
+      http.expectNone('/api/stacks');
+      expect(store.selectedPaths().size).toBe(2);
+    });
+
+    it.each(['failure', 'new selection'])('retains selection on quick-stack %s', async outcome => {
+      select();
+      chord();
+      http.expectOne('/api/stacks/regroup/preview').flush({ source_stacks: [] });
+      await fixture.whenStable();
+      const write = http.expectOne('/api/stacks');
+      if (outcome === 'new selection') store.restoreSelection([rows[0].path]);
+      write.flush(outcome === 'failure' ? {} : { undo: { entry_id: 72 } }, outcome === 'failure' ? { status: 409, statusText: 'Conflict' } : {});
+      await fixture.whenStable(); await Promise.resolve(); await Promise.resolve();
+      expect([...store.selectedPaths()]).toEqual(outcome === 'failure' ? rows.map(row => row.path) : [rows[0].path]);
+      flushSideData();
+    });
+
+    it.each(['ctrl', 'meta'] as const)('quick stacks with %s+Shift+S on every platform', modifier => {
+      select();
+      expect(chord(modifier).defaultPrevented).toBe(true);
+      http.expectOne('/api/stacks/regroup/preview');
+    });
+
+    it.each([
+      ['Ctrl and Meta together', { ctrlKey: true, metaKey: true }],
+      ['Alt', { altKey: true }],
+      ['an auto-repeat', { repeat: true }],
+      ['an IME composition', { isComposing: true }],
+    ])('ignores the quick-stack chord with %s', (_name, init) => {
+      select();
+      expect(chord('ctrl', init).defaultPrevented).toBe(false);
+      http.expectNone('/api/stacks/regroup/preview');
+    });
+
+    it('ignores the quick-stack chord while a dialog is open', () => {
+      select();
+      const dialog = document.body.appendChild(document.createElement('mat-dialog-container'));
+      try {
+        expect(chord().defaultPrevented).toBe(false);
+        http.expectNone('/api/stacks/regroup/preview');
+      } finally { dialog.remove(); }
+    });
+
+    it('reports a create conflict as an existing stack member', async () => {
+      select(); chord();
+      http.expectOne('/api/stacks/regroup/preview').flush({ source_stacks: [] });
+      await fixture.whenStable();
+      http.expectOne('/api/stacks').flush({}, { status: 409, statusText: 'Conflict' });
+      await vi.waitFor(() => expect(snackTexts()).toContain('stacks.stack_failed {}'));
+    });
+
+    it('reports a failed preview as a generic failure, not a stack conflict', async () => {
+      select(); chord();
+      http.expectOne('/api/stacks/regroup/preview').flush({}, { status: 500, statusText: 'Server Error' });
+      await vi.waitFor(() => expect(snackTexts()).toContain('errors.action_failed {}'));
+      expect(snackTexts()).not.toContain('stacks.stack_failed {}');
+      http.expectNone('/api/stacks');
+    });
+
+    it('leaves a rate-limited preview to the interceptor toast', async () => {
+      select(); chord();
+      http.expectOne('/api/stacks/regroup/preview').flush({}, { status: 429, statusText: 'Too Many Requests' });
+      await fixture.whenStable(); await Promise.resolve();
+      expect(snackTexts()).toEqual([]);
+      http.expectNone('/api/stacks');
+    });
+
+    it('stays silent when a navigation cancels the preview', async () => {
+      select(); chord();
+      http.expectOne('/api/stacks/regroup/preview');
+      expect(await TestBed.inject(Router).navigateByUrl('/blocked')).toBe(false);
+      await fixture.whenStable(); await Promise.resolve();
+      expect(snackTexts()).toEqual([]);
+    });
+
+    it('restores the cleared selection in its order when the quick stack is undone', async () => {
+      const action = new Subject<void>();
+      (TestBed.inject(MatSnackBar).open as unknown as ReturnType<typeof vi.fn>)
+        .mockImplementation(() => ({ onAction: () => action, afterDismissed: () => NEVER }));
+      const paths = [rows[1].path, rows[0].path];
+      store.restoreSelection(paths); fixture.detectChanges();
+      chord();
+      http.expectOne('/api/stacks/regroup/preview').flush({ source_stacks: [] });
+      await fixture.whenStable();
+      http.expectOne('/api/stacks').flush({ undo: { entry_id: 73 } });
+      await vi.waitFor(() => expect(store.selectedPaths().size).toBe(0));
+      flushSideData();
+      action.next();
+      http.expectOne('/api/organization_history/73/revert').flush({});
+      await fixture.whenStable(); await Promise.resolve();
+      // Undo refreshes the listing before its onUndone runs.
+      await vi.waitFor(() => {
+        http.match(request => request.url === '/api/photos').forEach(request => request.flush(page));
+        progressRequests().filter(request => !request.cancelled).forEach(request => request.flush(counts));
+        flushSideData();
+        expect([...store.selectedPaths()]).toEqual(paths);
+      });
+      flushSideData();
+    });
 
     it.each(['document', 'grid'])('opens one editor via %s with exactly the explicit paths and never writes on S', async target => {
       select();

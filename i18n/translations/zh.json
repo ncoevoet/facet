@@ -2919,6 +2919,7 @@
     "key_in_use": "该按键已被其他操作使用",
     "key_reserved": "该按键为保留按键",
     "stack": "堆叠所选照片（仅限编辑权限）",
+    "quick_stack": "快速堆叠所选照片（已有堆叠成员将打开编辑器）",
     "unassigned": "未分配",
     "stack_hint": "堆叠照片（{key}）",
     "keymap_title": "自定义快捷键"

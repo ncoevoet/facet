@@ -2919,6 +2919,7 @@
     "key_in_use": "Questo tasto è già assegnato",
     "key_reserved": "Questo tasto è riservato",
     "stack": "Impila le foto selezionate (solo modifica)",
+    "quick_stack": "Impila rapidamente la selezione (le pile esistenti aprono l’editor)",
     "unassigned": "Non assegnato",
     "stack_hint": "Impila foto ({key})",
     "keymap_title": "Personalizza le scorciatoie"
