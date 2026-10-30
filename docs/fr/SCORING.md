@@ -233,10 +233,10 @@ Utilisez `subject_sharpness_percent` et `bg_separation_percent` pour le portrait
 **Pas de sujet, pas de nombre.** Quand aucun sujet n'est trouvé, `subject_sharpness`, `subject_placement` et `bg_separation` sont stockés NULL (tout comme `power_point_score` quand il n'y a pas de cadre de sujet), `subject_prominence` vaut 0.0 et `subject_bbox` est NULL.
 
 - Les filtres de plage de la galerie ignorent un NULL (`min_subject_sharpness=0` ne renvoie pas une photo sans sujet). Les statistiques l'excluent des moyennes, et l'interface l'affiche comme absent.
-- L'agrégat compte un NULL comme un 5.0 neutre : aucun agrégat ne bouge.
+- Les entrées de saillance NULL suivent la règle des valeurs manquantes ci-dessus ; les poids livrés restent inchangés.
 - Les versions précédentes stockaient un 5.0 neutre. Les lignes existantes le gardent jusqu'à ce que `--recompute-saliency` et `--recompute-composition-cpu` les réécrivent.
 
-**Quand la saillance échoue**, rien n'est écrit ; Facet ne stocke jamais un nombre neutre pour un résultat en échec. Une photo jamais notée garde NULL dans les cinq colonnes de saillance (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`) et obtient un score neutre (5.0), comme une photo scannée avant l'existence de la saillance. Règles de reprise et de taille de lot : [Saillance du sujet](COMMANDS.md#saillance-du-sujet).
+**Quand la saillance échoue**, rien n'est écrit ; Facet ne stocke jamais un nombre neutre pour un résultat en échec. Une photo jamais notée garde NULL dans les cinq colonnes de saillance (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`), comme une photo scannée avant l'existence de la saillance. Règles de reprise et de taille de lot : [Saillance du sujet](COMMANDS.md#saillance-du-sujet).
 
 ## Dimensions IQA supplémentaires
 
@@ -252,7 +252,7 @@ Ces modèles s'exécutent dans le cadre du pipeline de scoring par défaut sur c
 
 **Quand un modèle supplémentaire ne peut pas noter une photo**, il stocke NULL dans la colonne de ce modèle (`face_quality_iqa`, `liqe_score`, `aesthetic_iaa`, `aesthetic_v25`) au lieu d'un 5,0 neutre. Cela se produit quand TOPIQ NR-Face ne trouve aucun visage, ou quand le petit côté de l'image pour LIQE est inférieur à 224 px ; Aesthetic V2.5, s'il est activé, peut échouer sur n'importe quelle image. Une erreur de mémoire du CPU n'est pas retentée avec une taille de lot plus petite.
 
-- **Agrégat :** un NULL compte comme neutre (5,0), si bien que les scores, catégories et classements ne bougent pas.
+- Un face_quality_iqa NULL suit la règle ci-dessus ; les autres entrées supplémentaires NULL restent imputées à la valeur neutre 5,0.
 - **Galerie :** un filtre de plage sur Esthétique (IAA), Qualité du visage (IQA), LIQE ou Aesthetic V2.5 ne retient pas une photo sans score (`min_face_quality_iqa=0` écarte une photo sans visage). Un tri croissant sur ces colonnes, sur Q-ReAlign ou sur DeQA place les photos sans score en dernier, dans la galerie comme dans les albums.
 - **Anciennes valeurs neutres de 5,0 :** elles restent tant que `--repair-neutral-iqa` ne les a pas effacées ; lancez ensuite `--recompute-iqa` puis `--recompute-average`, ou rescannez avec `--force`.
 - **Échec du modèle principal** (TOPIQ sur `16gb` et `24gb`) : la photo est enregistrée comme échouée au lieu d'être sauvegardée avec un 5,0 neutre. Une nouvelle photo est reprise par le scan suivant ; une photo déjà stockée garde sa ligne et est retentée par `--retry-failed all` (un `--retry-failed` sans argument ne couvre que le dernier scan ayant enregistré des échecs) ou par un nouveau scan avec `--force`.

@@ -233,10 +233,10 @@ Use `subject_sharpness_percent` and `bg_separation_percent` for portrait/wildlif
 **No subject, no number.** When no subject is found, `subject_sharpness`, `subject_placement` and `bg_separation` are stored as NULL (as is `power_point_score` when there is no subject box), `subject_prominence` is 0.0 and `subject_bbox` is NULL.
 
 - Gallery range filters skip a NULL (`min_subject_sharpness=0` does not return a photo without a subject). Statistics leave it out of averages, and the UI shows it as absent.
-- The aggregate scores a NULL as a neutral 5.0, so no aggregate moves.
+- NULL saliency inputs follow the missing-value rule above; shipped weights remain unchanged.
 - Earlier versions stored a neutral 5.0. Existing rows keep it until `--recompute-saliency` and `--recompute-composition-cpu` rewrite them.
 
-**When saliency fails**, nothing is written; Facet never stores a neutral number for a failed result. A never-scored photo keeps NULL in all five saliency columns (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`) and scores neutral (5.0), like a photo scanned before saliency existed. Retry and batch-size rules: [Subject Saliency](COMMANDS.md#subject-saliency).
+**When saliency fails**, nothing is written; Facet never stores a neutral number for a failed result. A never-scored photo keeps NULL in all five saliency columns (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`), like a photo scanned before saliency existed. Retry and batch-size rules: [Subject Saliency](COMMANDS.md#subject-saliency).
 
 ## Supplementary IQA Dimensions
 
@@ -252,7 +252,7 @@ These models run as part of the default scoring pipeline on every profile, inclu
 
 **When a supplementary model cannot score a photo**, it stores NULL in that model's column (`face_quality_iqa`, `liqe_score`, `aesthetic_iaa`, `aesthetic_v25`) instead of a neutral 5.0. This happens when TOPIQ NR-Face finds no face, or LIQE gets a short side under 224 px; Aesthetic V2.5, when enabled, can fail on any image. A CPU memory error is not retried at a smaller batch size.
 
-- **Aggregate:** a NULL scores neutral (5.0), so scores, categories and rankings do not move.
+- A NULL face_quality_iqa follows the missing-value rule above; other supplementary NULL inputs retain neutral 5.0 imputation.
 - **Gallery:** a range filter on Aesthetic (IAA), Face Quality (IQA), LIQE or Aesthetic V2.5 does not match an unscored photo (`min_face_quality_iqa=0` skips a faceless photo). An ascending sort on those, Q-ReAlign or DeQA puts unscored photos last, in the gallery and in albums.
 - **Old neutral 5.0 values** stay until `--repair-neutral-iqa` clears them; then run `--recompute-iqa` and `--recompute-average`, or rescan with `--force`.
 - **Primary model failure** (TOPIQ on `16gb` and `24gb`): the photo is recorded as failed instead of saved with a neutral 5.0. A new photo is picked up by the next scan; a stored one keeps its row and is retried by `--retry-failed all` (a bare `--retry-failed` covers only the latest run with failures) or another `--force` rescan.
