@@ -6,6 +6,8 @@ La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare
 
 Sul desktop, le destinazioni con etichetta affiancano lo spazio di lavoro; la testata contiene i controlli della pagina. La galleria indica la raccolta e distingue foto corrispondenti e gruppi visualizzati. Il pannello dettagli indica la propria foto; Chiudi lo nasconde senza cancellare la selezione multipla, mentre Deseleziona conserva il comportamento precedente.
 
+Sugli schermi piccoli, Navigazione apre un menu di destinazioni con nome. Griglia e Mosaico sono disponibili anche nella testata della raccolta. La barra di selezione etichetta Cancella e Confronta; le altre operazioni mantengono destinatari e autorizzazioni.
+
 ## Contenuti
 
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Decisioni di revisione](#decisioni-di-revisione) · [Funzionalità della galleria](#funzionalità-della-galleria)
@@ -143,7 +145,7 @@ La ricerca testuale della galleria conserva le parole Unicode e tratta la punteg
 
 ### Schede della barra laterale
 
-La barra laterale dei filtri raggruppa le sue sezioni in cinque schede, mostrate come icone (passa il mouse per vedere il nome). Un piccolo badge su un'icona conta i filtri attivi della scheda, e la scheda mantiene il suo nome per gli screen reader («Sfoglia, 2 attivi»). L'ultima scheda usata viene ricordata in questo browser (`facet_sidebar_tab`). Sfoglia, Qualità e Soggetto hanno pannelli comprimibili, ciascuno dei quali ricorda se è aperto; Revisione e Visualizzazione non ne hanno.
+La barra laterale dei filtri raggruppa le sue sezioni in cinque schede, mostrate con icone ed etichette (passa il mouse per il nome completo). Un piccolo badge su un'icona conta i filtri attivi della scheda, e la scheda mantiene il suo nome per gli screen reader («Sfoglia, 2 attivi»). L'ultima scheda usata viene ricordata in questo browser (`facet_sidebar_tab`). Sfoglia, Qualità e Soggetto hanno pannelli comprimibili, ciascuno dei quali ricorda se è aperto; Revisione e Visualizzazione non ne hanno.
 
 | Scheda | Sezioni |
 |--------|---------|

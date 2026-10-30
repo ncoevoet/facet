@@ -282,6 +282,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] break-words">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
+          <div class="flex flex-wrap items-center gap-3">
           <p class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
             @if (store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
@@ -289,6 +290,21 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               {{ I18N.gallery.photo_count | translate:{ count: store.photoTotal() } }}
             }
           </p>
+          <div class="flex items-center gap-1 border border-[var(--mat-sys-outline-variant)] rounded-lg p-0.5">
+            <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
+                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
+                    [attr.aria-pressed]="store.galleryMode() === 'grid'"
+                    [attr.aria-label]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
+              <mat-icon>grid_view</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_grid | translate }}</span>
+            </button>
+            <button mat-button data-gallery-layout="mosaic" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
+                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'mosaic'"
+                    [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
+                    [attr.aria-label]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
+              <mat-icon>auto_awesome_mosaic</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
+            </button>
+          </div>
+          </div>
         </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
@@ -711,7 +727,8 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
            container is its own stacking context and a z-20 card would paint over it. -->
       @if (selectionCount() && !overDrawerOpen()) {
         <div #selectionBar data-selection-bar
-             class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit flex flex-wrap items-center gap-1 px-2 py-1 rounded-2xl bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-outline-variant)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
+             role="region" [attr.aria-label]="(viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() }"
+             class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-primary)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
              [style.right.px]="noticeRightPx()">
           <!-- Every loaded photo is selected, but the view runs past the pages
                fetched so far. Offer the rest explicitly on its own line (w-full
@@ -726,13 +743,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             <p class="text-xs basis-full opacity-80">{{ I18N.stacks.folded_scope | translate }}</p>
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
-          <button mat-icon-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
+          <button mat-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon>{{ I18N.gallery.selection.clear | translate }}</button>
           @if (!allLoadedSelected()) {
             <button mat-icon-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon></button>
           }
           <button mat-icon-button disabledInteractive (click)="invertSelection()" [matTooltip]="I18N.gallery.selection.invert | translate" [attr.aria-label]="I18N.gallery.selection.invert | translate"><mat-icon>flip</mat-icon></button>
           @if (canCompareSelection()) {
-            <button mat-icon-button disabledInteractive (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate"><mat-icon>compare</mat-icon></button>
+            <button mat-button disabledInteractive (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate"><mat-icon>compare</mat-icon>{{ I18N.gallery.selection.compare | translate }}</button>
           }
           @if (auth.isEdition()) {
             <button mat-icon-button [disabled]="viewScoped() || selectionCount() > MAX_REFRESH_PATHS" (click)="refreshSelectedPhotos()"

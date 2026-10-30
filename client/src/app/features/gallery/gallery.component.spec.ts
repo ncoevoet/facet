@@ -94,6 +94,7 @@ describe('GalleryComponent', () => {
       initializing: signal(false),
       galleryMounts: signal(0),
       galleryMode: signal('mosaic'),
+      setGalleryMode: vi.fn((mode: string) => mockStore.galleryMode.set(mode)),
       cardWidth: signal(300),
       virtualScroll: signal(false),
       setFilterDrawerOpen: vi.fn(),
@@ -241,6 +242,25 @@ describe('GalleryComponent', () => {
       ],
     }).compileComponents();
     component = TestBed.runInInjectionContext(() => new GalleryComponent());
+  });
+
+  it('switches layout from the collection header without changing filters or batch selection', () => {
+    mockStore.selectedPaths.set(new Set(['/selected.jpg']));
+    const filters = mockStore.filters();
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const grid = root.querySelector<HTMLButtonElement>('[data-gallery-layout="grid"]')!;
+    const mosaic = root.querySelector<HTMLButtonElement>('[data-gallery-layout="mosaic"]')!;
+    expect(mosaic.getAttribute('aria-pressed')).toBe('true');
+    grid.click();
+    fixture.detectChanges();
+    expect(mockStore.setGalleryMode).toHaveBeenCalledWith('grid');
+    expect(grid.getAttribute('aria-pressed')).toBe('true');
+    expect(mosaic.getAttribute('aria-pressed')).toBe('false');
+    expect(mockStore.filters()).toBe(filters);
+    expect([...mockStore.selectedPaths()]).toEqual(['/selected.jpg']);
+    fixture.destroy();
   });
 
   it('renders the translated reason a similar search cannot run instead of a silent empty gallery', () => {
@@ -2904,14 +2924,14 @@ describe('GalleryComponent', () => {
       const el = bar(f)!;
       expect(el.closest('.relative.h-full')).not.toBeNull();
       expect(el.classList.contains('absolute')).toBe(true);
-      expect(el.classList.contains('rounded-2xl')).toBe(true);
+      expect(el.classList.contains('rounded-lg')).toBe(true);
       expect(el.classList.contains('fixed')).toBe(false);
       expect(el.classList.contains('left-2')).toBe(true);
       expect(el.classList.contains('md:left-4')).toBe(true);
       expect(el.classList.contains('md:bottom-4')).toBe(true);
     });
 
-    it('gives every edition action an icon button with matching tooltip and aria-label', () => {
+    it('gives every edition action matching tooltip and aria-label, with Clear visibly labeled', () => {
       const f = render();
       const keys = [
         I18N.gallery.selection.clear, I18N.gallery.selection.select_all, I18N.gallery.selection.invert,
@@ -2923,16 +2943,25 @@ describe('GalleryComponent', () => {
       for (const key of keys) {
         const button = labelled(f, key);
         expect(button, key).not.toBeNull();
-        expect(button!.classList.contains('mat-mdc-icon-button'), key).toBe(true);
+        if (key === I18N.gallery.selection.clear) {
+          expect(button!.textContent).toContain(key);
+        } else {
+          expect(button!.classList.contains('mat-mdc-icon-button'), key).toBe(true);
+        }
         const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === button);
         expect(tooltip?.injector.get(MatTooltip).message, key).toBe(key);
       }
     });
 
-    it('shows no text in the buttons other than the icon ligature', () => {
+    it('labels Clear and Compare while keeping secondary commands compact', () => {
       const f = render();
       for (const button of Array.from(bar(f)!.querySelectorAll('button'))) {
         if (button.closest('.w-full')) continue;
+        const label = button.getAttribute('aria-label');
+        if (label === I18N.gallery.selection.clear || label === I18N.gallery.selection.compare) {
+          expect(button.textContent).toContain(button.getAttribute('aria-label'));
+          continue;
+        }
         expect(button.textContent!.trim()).toMatch(/^[a-z_]*$/);
       }
     });

@@ -172,6 +172,49 @@ html.light-mode.theme-azure {
   --facet-accent: #0284c7; --facet-accent-dim: #bae6fd; --facet-accent-text: #0369a1;
 }
 
+// Photo inspection uses neutral surroundings across every accent palette.
+// Keep primary/secondary action colors from the chosen theme. :root gives the
+// light override the same specificity as the light + accent combinations above.
+html:root:not(.light-mode) {
+  @include mat.theme-overrides((
+    surface: #17191c,
+    surface-dim: #131519,
+    surface-bright: #3b4047,
+    surface-container-lowest: #111316,
+    surface-container-low: #1b1e22,
+    surface-container: #212428,
+    surface-container-high: #292d33,
+    surface-container-highest: #343941,
+    surface-variant: #32373e,
+    on-surface: #e5e7eb,
+    on-surface-variant: #b5bac3,
+    outline: #89919d,
+    outline-variant: #424852,
+    background: #17191c,
+    on-background: #e5e7eb,
+  ));
+}
+
+html:root.light-mode {
+  @include mat.theme-overrides((
+    surface: #f8f9fb,
+    surface-dim: #d9dfe7,
+    surface-bright: #ffffff,
+    surface-container-lowest: #ffffff,
+    surface-container-low: #f1f3f6,
+    surface-container: #e9ecf1,
+    surface-container-high: #e1e5eb,
+    surface-container-highest: #d9dfe7,
+    surface-variant: #dce1e8,
+    on-surface: #1d232d,
+    on-surface-variant: #465161,
+    outline: #6c7787,
+    outline-variant: #c4cbd5,
+    background: #f8f9fb,
+    on-background: #1d232d,
+  ));
+}
+
 body {
   background-color: var(--mat-sys-surface, #0b0b0b);
   color: var(--mat-sys-on-surface);

@@ -1062,7 +1062,20 @@ describe('App', () => {
     it.each([[true], [false]])('offers Organization history in the nav exactly while edition is %s', (edition) => {
       const { root } = render(edition);
       const buttons = root.querySelectorAll(`nav button[aria-label="${I18N.organization_history.title}"]`);
-      expect(buttons.length).toBe(edition ? 2 : 0);
+      expect(buttons.length).toBe(edition ? 1 : 0);
+    });
+
+    it.each([[true], [false]])('offers labeled mobile navigation with editing destinations gated by edition %s', (edition) => {
+      const { fixture, root } = render(edition);
+      const trigger = root.querySelector<HTMLButtonElement>('[data-mobile-navigation]');
+      expect(trigger).not.toBeNull();
+      trigger!.click();
+      fixture.detectChanges();
+      const menu = document.querySelector('.mat-mdc-menu-panel')!;
+      expect(menu.textContent).toContain(I18N.nav.persons);
+      expect(menu.querySelector('a[href="/culling"]') !== null).toBe(edition);
+      expect(menu.querySelector('a[href="/compare"]') !== null).toBe(edition);
+      expect(menu.querySelector('a[href="/stats"]')).not.toBeNull();
     });
 
     it('keeps desktop destinations labeled in a leading navigation rail instead of an overflow menu', () => {

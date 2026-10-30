@@ -6,6 +6,8 @@ La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer
 
 Sur ordinateur, les destinations nommées sont à côté de l’espace de travail ; l’en-tête contient les commandes de la page. La galerie nomme la collection et distingue photos correspondantes et groupes affichés. Le panneau de détails nomme sa photo ; Fermer le masque sans effacer la sélection multiple, tandis que Désélectionner conserve son comportement habituel.
 
+Sur petit écran, Navigation ouvre un menu de destinations nommées. Grille et Mosaïque sont aussi disponibles dans l’en-tête de collection. La barre de sélection nomme Effacer et Comparer ; les autres opérations conservent leurs cibles et autorisations.
+
 ## Sommaire
 
 - [Démarrer la visionneuse](#démarrer-la-visionneuse) · [Authentification](#authentification) · [Options de filtrage](#options-de-filtrage) · [Tri](#tri) · [Décisions de tri](#décisions-de-tri) · [Fonctionnalités de la galerie](#fonctionnalités-de-la-galerie)
@@ -143,7 +145,7 @@ La recherche textuelle de la galerie conserve les mots Unicode et traite la ponc
 
 ### Onglets de la barre latérale
 
-La barre latérale de filtres regroupe ses sections en cinq onglets, affichés sous forme d'icônes (survolez pour voir le nom). Un petit badge sur une icône compte les filtres actifs de l'onglet, et l'onglet garde son nom pour les lecteurs d'écran (« Parcourir, 2 actif(s) »). Le dernier onglet utilisé est mémorisé dans ce navigateur (`facet_sidebar_tab`). Parcourir, Qualité et Sujet ont des panneaux repliables, chacun mémorisant s'il est ouvert ; Tri et Affichage n'en ont pas.
+La barre latérale de filtres regroupe ses sections en cinq onglets, affichés avec icônes et libellés (survolez pour voir le nom complet). Un petit badge sur une icône compte les filtres actifs de l'onglet, et l'onglet garde son nom pour les lecteurs d'écran (« Parcourir, 2 actif(s) »). Le dernier onglet utilisé est mémorisé dans ce navigateur (`facet_sidebar_tab`). Parcourir, Qualité et Sujet ont des panneaux repliables, chacun mémorisant s'il est ouvert ; Tri et Affichage n'en ont pas.
 
 | Onglet | Sections |
 |--------|----------|

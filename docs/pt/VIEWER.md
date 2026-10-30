@@ -6,6 +6,8 @@ O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar
 
 No computador, os destinos identificados ficam junto à área de trabalho; o cabeçalho contém os controlos da página. A galeria identifica a coleção e distingue fotos correspondentes de grupos apresentados. O painel de detalhes identifica a sua foto; Fechar oculta-o sem limpar a seleção múltipla, enquanto Desselecionar mantém o comportamento anterior.
 
+Em ecrãs pequenos, Navegação abre um menu de destinos identificados. Grelha e Mosaico também estão no cabeçalho da coleção. A barra de seleção identifica Limpar e Comparar; as restantes operações mantêm os seus destinos e permissões.
+
 ## Conteúdo
 
 - [Iniciando o Visualizador](#iniciando-o-visualizador) · [Autenticação](#autenticação) · [Opções de Filtragem](#opções-de-filtragem) · [Ordenação](#ordenação) · [Decisões de revisão](#decisões-de-revisão) · [Recursos da Galeria](#recursos-da-galeria)
@@ -143,7 +145,7 @@ A pesquisa de texto da galeria preserva palavras Unicode e trata a pontuação d
 
 ### Abas da barra lateral
 
-A barra lateral de filtros agrupa as suas seções em cinco abas, mostradas como ícones (passe o mouse para ver o nome). Um pequeno emblema num ícone conta os filtros ativos da aba, e a aba mantém o nome para leitores de tela (“Explorar, 2 ativos”). A última aba usada fica guardada neste navegador (`facet_sidebar_tab`). Explorar, Qualidade e Assunto têm painéis recolhíveis, e cada um lembra se está aberto; Revisão e Visualização não os têm.
+A barra lateral de filtros agrupa as suas seções em cinco abas, mostradas com ícones e rótulos (passe o mouse para ver o nome completo). Um pequeno emblema num ícone conta os filtros ativos da aba, e a aba mantém o nome para leitores de tela (“Explorar, 2 ativos”). A última aba usada fica guardada neste navegador (`facet_sidebar_tab`). Explorar, Qualidade e Assunto têm painéis recolhíveis, e cada um lembra se está aberto; Revisão e Visualização não os têm.
 
 | Aba | Seções |
 |-----|--------|

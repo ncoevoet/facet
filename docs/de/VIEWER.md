@@ -6,6 +6,8 @@ Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, A
 
 Am Desktop stehen beschriftete Ziele neben dem Arbeitsbereich; die Kopfzeile enthält die Seitensteuerung. Die Galerie nennt die Sammlung und unterscheidet passende Fotos von angezeigten Gruppen. Das Detailfenster nennt sein Foto; Schließen blendet es aus, ohne die Mehrfachauswahl zu löschen. Abwählen behält sein bisheriges Verhalten.
 
+Auf kleinen Bildschirmen öffnet Navigation ein Menü beschrifteter Ziele. Raster und Mosaik stehen auch im Sammlungskopf bereit. Die Auswahlleiste beschriftet Leeren und Vergleichen; andere Vorgänge behalten ihre Ziele und Berechtigungen.
+
 ## Inhalt
 
 - [Galerie starten](#galerie-starten) · [Authentifizierung](#authentifizierung) · [Filteroptionen](#filteroptionen) · [Sortierung](#sortierung) · [Sichtungsentscheidungen](#sichtungsentscheidungen) · [Galeriefunktionen](#galeriefunktionen)
@@ -143,7 +145,7 @@ Die Textsuche der Galerie behält Unicode-Wörter bei und behandelt Satzzeichen 
 
 ### Tabs der Seitenleiste
 
-Die Filter-Seitenleiste gruppiert ihre Abschnitte in fünf Tabs, die als Symbole angezeigt werden (Name per Mouseover). Ein kleines Abzeichen am Symbol zählt die aktiven Filter im Tab, und der Tab behält seinen Namen für Screenreader („Durchsuchen, 2 aktiv“). Der zuletzt verwendete Tab wird in diesem Browser gespeichert (`facet_sidebar_tab`). Durchsuchen, Qualität und Motiv haben einklappbare Bereiche, die sich jeweils merken, ob sie geöffnet sind; Prüfen und Anzeige haben keine.
+Die Filter-Seitenleiste gruppiert ihre Abschnitte in fünf Tabs, die Symbole und Beschriftungen zeigen (voller Name per Mouseover). Ein kleines Abzeichen am Symbol zählt die aktiven Filter im Tab, und der Tab behält seinen Namen für Screenreader („Durchsuchen, 2 aktiv“). Der zuletzt verwendete Tab wird in diesem Browser gespeichert (`facet_sidebar_tab`). Durchsuchen, Qualität und Motiv haben einklappbare Bereiche, die sich jeweils merken, ob sie geöffnet sind; Prüfen und Anzeige haben keine.
 
 | Tab | Abschnitte |
 |-----|-----------|

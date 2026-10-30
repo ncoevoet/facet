@@ -6,6 +6,8 @@ El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descar
 
 En escritorio, los destinos con nombre están junto al espacio de trabajo; la cabecera contiene los controles de la página. La galería identifica la colección y distingue fotos coincidentes de grupos mostrados. El panel de detalles identifica su foto; Cerrar lo oculta sin borrar la selección múltiple, mientras Deseleccionar conserva su comportamiento.
 
+En pantallas pequeñas, Navegación abre un menú de destinos con nombre. Cuadrícula y Mosaico también están en la cabecera de la colección. La barra de selección etiqueta Limpiar y Comparar; las demás operaciones conservan sus destinos y permisos.
+
 ## Contenido
 
 - [Iniciar el visor](#iniciar-el-visor) · [Autenticación](#autenticación) · [Opciones de filtrado](#opciones-de-filtrado) · [Ordenación](#ordenación) · [Decisiones de revisión](#decisiones-de-revisión) · [Funciones de la galería](#funciones-de-la-galería)
@@ -143,7 +145,7 @@ La búsqueda de texto de la galería conserva las palabras Unicode y trata la pu
 
 ### Pestañas de la barra lateral
 
-La barra lateral de filtros agrupa sus secciones en cinco pestañas, mostradas como iconos (pasa el ratón para ver el nombre). Una pequeña insignia en un icono cuenta los filtros activos de la pestaña, y la pestaña conserva su nombre para los lectores de pantalla («Explorar, 2 activos»). La última pestaña usada se recuerda en este navegador (`facet_sidebar_tab`). Explorar, Calidad y Sujeto tienen paneles plegables, cada uno recuerda si está abierto; Revisión y Visualización no los tienen.
+La barra lateral de filtros agrupa sus secciones en cinco pestañas, mostradas con iconos y etiquetas (pasa el ratón para ver el nombre completo). Una pequeña insignia en un icono cuenta los filtros activos de la pestaña, y la pestaña conserva su nombre para los lectores de pantalla («Explorar, 2 activos»). La última pestaña usada se recuerda en este navegador (`facet_sidebar_tab`). Explorar, Calidad y Sujeto tienen paneles plegables, cada uno recuerda si está abierto; Revisión y Visualización no los tienen.
 
 | Pestaña | Secciones |
 |---------|-----------|

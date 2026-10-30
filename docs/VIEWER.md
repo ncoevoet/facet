@@ -6,6 +6,8 @@ The viewer is a FastAPI + Angular web app for browsing, filtering, culling and m
 
 On desktop, labeled destinations sit beside the workspace; the header holds controls for the current page. The gallery names its collection and separates matching photos from displayed groups. The details panel names the photo it describes; Close hides the panel without clearing the batch selection, while Deselect keeps its existing selection behavior.
 
+On small screens, Navigation opens a menu of labeled destinations. Grid and Mosaic are also available in the collection header. The selection bar labels Clear and Compare; other operations retain their existing targets and permissions.
+
 ## Contents
 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Review decisions](#review-decisions) · [Gallery Features](#gallery-features)
@@ -143,7 +145,7 @@ Gallery text search keeps Unicode words and treats filename punctuation as word 
 
 ### Sidebar Tabs
 
-The filter sidebar groups its sections into five tabs, shown as icons (hover for the name). A small badge on an icon counts the active filters inside that tab, and the tab keeps its name for screen readers ("Browse, 2 active"). The last tab you used is remembered in this browser (`facet_sidebar_tab`). Browse, Quality and Subject keep collapsible panels, each remembering whether it is open; Review and Display have none.
+The filter sidebar groups its sections into five tabs, shown with icons and labels (hover for the full name). A small badge on an icon counts the active filters inside that tab, and the tab keeps its name for screen readers ("Browse, 2 active"). The last tab you used is remembered in this browser (`facet_sidebar_tab`). Browse, Quality and Subject keep collapsible panels, each remembering whether it is open; Review and Display have none.
 
 | Tab | Sections |
 |-----|----------|
