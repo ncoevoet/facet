@@ -1170,7 +1170,12 @@ describe('GalleryComponent', () => {
     it('puts back the hide toggles a set-bar Show all lifted, keeping the set\'s own restore', () => {
       const before = { hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
       mockStore.filters.set({ ...DEFAULT_FILTERS, ...before, burst_group_id: '161' });
-      mockStore.showAllHidden.mockImplementation(() => mockStore.hiddenFiltersStash.set(before));
+      localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: true }));
+      // The real Show all saves every toggle off, the set's own included.
+      mockStore.showAllHidden.mockImplementation(() => {
+        mockStore.hiddenFiltersStash.set(before);
+        localStorage.setItem(DISPLAY_OPTIONS_KEY, JSON.stringify({ hide_bursts: false, hide_blinks: false }));
+      });
 
       component.showWholeSet();
       component.clearSetScope();

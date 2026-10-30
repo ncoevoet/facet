@@ -1449,32 +1449,34 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const updates: Partial<GalleryFilters> = {
       sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
     };
-    const stored = loadDisplayOptionsFromStorage();
+    // A Show all pressed on the set bar was for the set alone: leaving the set puts back
+    // the toggles it lifted, and the saved preferences as they were before it wrote them.
+    const setShowAll = this.store.hiddenFiltersStash() === this.setShowAll?.stash ? this.setShowAll : null;
+    this.setShowAll = null;
+    const stored = setShowAll?.stored ?? loadDisplayOptionsFromStorage();
     const defaults = this.store.config()?.defaults;
     if (kind === 'burst') updates.hide_bursts = stored.hide_bursts ?? (defaults?.hide_bursts ?? true);
     else if (kind === 'duplicate') updates.hide_duplicates = stored.hide_duplicates ?? (defaults?.hide_duplicates ?? true);
     else if (kind === 'bracket') updates.hide_brackets = stored.hide_brackets ?? (defaults?.hide_brackets ?? true);
     else updates.hide_panoramas = stored.hide_panoramas ?? (defaults?.hide_panoramas ?? true);
-    // A Show all pressed on the set bar was for the set alone: leaving the set puts the
-    // other hide toggles back. The set's own toggle keeps the restore picked above.
-    const stash = this.setShowAllStash;
-    this.setShowAllStash = null;
-    if (stash && this.store.hiddenFiltersStash() === stash) {
+    if (setShowAll) {
       this.store.hiddenFiltersStash.set(null);
       const own = kind === 'burst' ? 'hide_bursts' : kind === 'duplicate' ? 'hide_duplicates'
         : kind === 'bracket' ? 'hide_brackets' : 'hide_panoramas';
-      Object.assign(updates, { ...stash, [own]: updates[own] });
+      Object.assign(updates, { ...setShowAll.stash, [own]: updates[own] });
     }
     void this.store.updateFilters(updates);
   }
 
-  /** The stash a set-bar Show all made, so clearing the set restores it; null otherwise. */
-  private setShowAllStash: HiddenFilterFlags | null = null;
+  /** What a set-bar Show all replaced: the store's stash, and the saved display preferences it
+   *  overwrote (the set's own toggle is restored from those, not from what Show all wrote). */
+  private setShowAll: { stash: HiddenFilterFlags | null; stored: ReturnType<typeof loadDisplayOptionsFromStorage> } | null = null;
 
   /** Show every frame of the open set, blinks included, until the set is cleared. */
   showWholeSet(): void {
+    const stored = loadDisplayOptionsFromStorage();
     this.store.showAllHidden();
-    this.setShowAllStash = this.store.hiddenFiltersStash();
+    this.setShowAll = { stash: this.store.hiddenFiltersStash(), stored };
   }
 
   /** Container width for mosaic layout (updated via ResizeObserver) */
