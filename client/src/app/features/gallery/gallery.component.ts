@@ -37,7 +37,7 @@ import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
-import { GalleryStore, BatchResult, REVIEW_RESUME_NAVIGATION } from './gallery.store';
+import { GalleryStore, BatchResult, HiddenFilterFlags, REVIEW_RESUME_NAVIGATION } from './gallery.store';
 import { NoticeDismissals, NoticeKind, readNoticeDismissals, saveNoticeDismissals, withDismissal } from './notice-dismiss.util';
 import { Photo } from '../../shared/models/photo.model';
 import { isPageShortcutBlocked, isTypingContext } from '../../shared/utils/keyboard';
@@ -285,7 +285,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               }
             </span>
             @if (store.hiddenSummary().total > 0) {
-              <button mat-button class="!min-w-0" (click)="store.showAllHidden()">
+              <button mat-button class="!min-w-0" (click)="showWholeSet()">
                 {{ I18N.gallery.hidden_banner.show_all | translate }}
               </button>
             }
@@ -1455,7 +1455,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
     else if (kind === 'duplicate') updates.hide_duplicates = stored.hide_duplicates ?? (defaults?.hide_duplicates ?? true);
     else if (kind === 'bracket') updates.hide_brackets = stored.hide_brackets ?? (defaults?.hide_brackets ?? true);
     else updates.hide_panoramas = stored.hide_panoramas ?? (defaults?.hide_panoramas ?? true);
+    // A Show all pressed on the set bar was for the set alone: leaving the set puts the
+    // other hide toggles back. The set's own toggle keeps the restore picked above.
+    const stash = this.setShowAllStash;
+    this.setShowAllStash = null;
+    if (stash && this.store.hiddenFiltersStash() === stash) {
+      this.store.hiddenFiltersStash.set(null);
+      const own = kind === 'burst' ? 'hide_bursts' : kind === 'duplicate' ? 'hide_duplicates'
+        : kind === 'bracket' ? 'hide_brackets' : 'hide_panoramas';
+      Object.assign(updates, { ...stash, [own]: updates[own] });
+    }
     void this.store.updateFilters(updates);
+  }
+
+  /** The stash a set-bar Show all made, so clearing the set restores it; null otherwise. */
+  private setShowAllStash: HiddenFilterFlags | null = null;
+
+  /** Show every frame of the open set, blinks included, until the set is cleared. */
+  showWholeSet(): void {
+    this.store.showAllHidden();
+    this.setShowAllStash = this.store.hiddenFiltersStash();
   }
 
   /** Container width for mosaic layout (updated via ResizeObserver) */

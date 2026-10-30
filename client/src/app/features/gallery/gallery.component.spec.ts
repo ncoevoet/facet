@@ -1167,6 +1167,35 @@ describe('GalleryComponent', () => {
       });
     });
 
+    it('puts back the hide toggles a set-bar Show all lifted, keeping the set\'s own restore', () => {
+      const before = { hide_blinks: true, hide_bursts: false, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
+      mockStore.filters.set({ ...DEFAULT_FILTERS, ...before, burst_group_id: '161' });
+      mockStore.showAllHidden.mockImplementation(() => mockStore.hiddenFiltersStash.set(before));
+
+      component.showWholeSet();
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '',
+        ...before, hide_bursts: true,
+      });
+      expect(mockStore.hiddenFiltersStash()).toBeNull();
+    });
+
+    it('leaves a gallery-wide Show all alone when the set is cleared', () => {
+      const stash = { hide_blinks: true, hide_bursts: true, hide_duplicates: true, hide_brackets: true, hide_panoramas: true };
+      mockStore.hiddenFiltersStash.set(stash);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, burst_group_id: '161', hide_bursts: false });
+
+      component.clearSetScope();
+
+      expect(mockStore.updateFilters).toHaveBeenCalledWith({
+        sequence_group_id: '', sequence_kind: '', burst_group_id: '', duplicate_group_id: '', hide_bursts: true,
+      });
+      expect(mockStore.hiddenFiltersStash()).toBe(stash);
+      mockStore.hiddenFiltersStash.set(null);
+    });
+
     it('falls back to the config default when nothing is stored in localStorage', () => {
       mockStore.config.set({ defaults: { hide_panoramas: false } });
       mockStore.filters.set({
