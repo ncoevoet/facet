@@ -274,7 +274,7 @@ A saliência roda em todos os perfis; `legacy` a roda na CPU, mais lento. `--rec
 - **Uma foto com falha** é registrada como ERROR e nada é gravado. Uma foto nunca pontuada continua NULL e é pega pelo próximo `--recompute-saliency`; uma que já tinha saliência mantém os seus valores, mesmo com `--recompute-saliency --force`. Um novo escaneamento completo (por exemplo, `python facet.py --force`) grava NULL para ela.
 - **Uma foto sem sujeito** grava nitidez, posicionamento e separação NULL, proeminência 0.0 e `subject_bbox` NULL (e `power_point_score` NULL, do passo de composição). Isso é definitivo; não é medido de novo.
 - **Linhas antigas** gravavam um 5.0 neutro. `--recompute-saliency` e `--recompute-composition-cpu` as reescrevem. `--recompute-saliency` também pega fotos pontuadas antes de `subject_bbox` existir.
-- Uma métrica NULL pontua neutro no agregado. Veja [Subject Saliency Dimensions](SCORING.md#dimensões-de-saliência-do-sujeito).
+- Uma métrica opcional NULL é excluída do agregado e o seu peso é redistribuído pelas métricas presentes; só se faltarem todas, o agregado usa o valor neutro 5.0. Veja [Sistema de Pontuação](SCORING.md).
 
 ### Modelos de Marcação
 

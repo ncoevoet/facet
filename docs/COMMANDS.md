@@ -274,7 +274,7 @@ Saliency runs on every profile; `legacy` runs it on CPU, slower. `--recompute-sa
 - **A failed photo** is logged as an ERROR and nothing is written. A never-scored photo stays NULL and is picked up by the next `--recompute-saliency`; one that already had saliency keeps its values, even under `--recompute-saliency --force`. A full rescan (for example `python facet.py --force`) stores NULL for it.
 - **A photo with no subject** stores NULL sharpness, placement and separation, prominence 0.0, and a NULL `subject_bbox` (and NULL `power_point_score` from the composition step). This is final; it is not measured again.
 - **Older rows** stored a neutral 5.0 instead. `--recompute-saliency` and `--recompute-composition-cpu` rewrite them. `--recompute-saliency` also picks up photos scored before `subject_bbox` existed.
-- A NULL metric scores neutral in the aggregate. See [Subject Saliency Dimensions](SCORING.md#subject-saliency-dimensions).
+- A NULL optional metric is left out of the aggregate and its weight is redistributed over the metrics that are present; only when all of them are missing does the aggregate fall back to a neutral 5.0. See [Scoring System](SCORING.md).
 
 ### Tagging Models
 

@@ -4,7 +4,7 @@
 
 Photos are classified into a category, then scored with that category's weights.
 
-Missing subject_sharpness, subject_prominence, subject_placement, bg_separation and face_quality_iqa values (absent or NULL) are excluded from weighted scoring. Their weight is redistributed over available metrics only when positive; zero remains a valid value. If all weighted inputs are missing, the neutral input is 5.0. Licence exclusions still apply first. Shipped weights are unchanged. Weight tuning and pairwise/distribution evaluation are follow-ups requiring representative comparison data; no weight benefit is claimed here. To populate saliency, run `--recompute-saliency`, then `--recompute-average`.
+Missing subject_sharpness, subject_prominence, subject_placement, bg_separation and face_quality_iqa values (absent or NULL) are excluded from weighted scoring. Their weight is redistributed over available metrics only when positive; zero remains a valid value. If all weighted inputs are missing, the neutral input is 5.0. Licence exclusions still apply first. Shipped weights are unchanged. `--optimize-weights` leaves a weight unchanged when the comparison set has no value for that metric. To populate saliency, run `--recompute-saliency`, then `--recompute-average`.
 
 ## How Scoring Works
 

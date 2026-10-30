@@ -4,7 +4,7 @@
 
 Las fotos se clasifican en una categoría y luego se puntúan con los pesos de esa categoría.
 
-Los valores ausentes o NULL de subject_sharpness, subject_prominence, subject_placement, bg_separation y face_quality_iqa se excluyen del cálculo ponderado. Solo su peso positivo se redistribuye entre las métricas disponibles; cero sigue siendo válido. Si faltan todas las entradas ponderadas, se usa el valor neutro 5.0. Las exclusiones de licencia se aplican primero. Los pesos predeterminados no cambian. Su ajuste y la evaluación de comparaciones y distribuciones quedan para un seguimiento con datos representativos. Para completar la saliencia, ejecute `--recompute-saliency` y luego `--recompute-average`.
+Los valores ausentes o NULL de subject_sharpness, subject_prominence, subject_placement, bg_separation y face_quality_iqa se excluyen del cálculo ponderado. Solo su peso positivo se redistribuye entre las métricas disponibles; cero sigue siendo válido. Si faltan todas las entradas ponderadas, se usa el valor neutro 5.0. Las exclusiones de licencia se aplican primero. Los pesos predeterminados no cambian. `--optimize-weights` deja un peso sin cambios cuando el conjunto de comparaciones no tiene ningún valor para esa métrica. Para completar la saliencia, ejecute `--recompute-saliency` y luego `--recompute-average`.
 
 ## Cómo funciona la puntuación
 

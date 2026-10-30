@@ -66,12 +66,42 @@ def test_optimizer_null_pair_matches_removed_column():
     masked = np.concatenate((complete, np.full((3, 2, 1), np.nan)), axis=2)
     y, rw = np.array([1, -1, 1]), np.ones(3)
     w = np.array([.5, .5])
-    # A positive prior on the absent component must be removed and redistributed.
+    # A prior on a component with no data is held, not zeroed or redistributed:
+    # the data columns share the remaining 0.6 exactly as they would share 1.0.
     full_w = np.array([.3, .3, .4])
-    expected = _fit_weights(complete, y, rw, w, 100., [w], 100)[0]
+    # The prior penalty acts on weights summing to 0.6, i.e. 0.6**2 of its strength on shares.
+    expected = _fit_weights(complete, y, rw, w, 100. * .36, [w], 100)[0]
     actual = _fit_weights(masked, y, rw, full_w, 100., [full_w], 100)[0]
-    assert actual[:2] == pytest.approx(expected, abs=1e-5)
-    assert actual[2] == pytest.approx(0., abs=1e-5)
+    assert actual[2] == pytest.approx(.4, abs=1e-9)
+    assert actual[:2] / actual[:2].sum() == pytest.approx(expected, abs=1e-5)
+
+
+def test_all_null_column_keeps_prior_through_fit_and_apply_percent():
+    from optimization.weight_optimizer import WeightOptimizer
+    rng = np.random.RandomState(0)
+    n = 60
+    a, b = rng.uniform(0, 10, (n, 3)), rng.uniform(0, 10, (n, 3))
+    a[:, 2] = np.nan
+    b[:, 2] = np.nan
+    y = np.where(a[:, 0] + a[:, 1] > b[:, 0] + b[:, 1], 1, -1)
+    w0 = np.array([.4, .4, .2])
+    D = np.stack((a, b), axis=1)
+    fitted = _fit_weights(D, y, np.ones(n), w0, 100., [w0], 300)[0]
+    assert fitted[2] == pytest.approx(.2, abs=1e-9)
+    assert fitted.sum() == pytest.approx(1.)
+    assert fitted.max() <= .6 + 1e-9
+    # A licence-excluded column (-inf everywhere) is held the same way.
+    lic = D.copy()
+    lic[:, :, 2] = -np.inf
+    assert _fit_weights(lic, y, np.ones(n), w0, 100., [w0], 300)[0][2] == pytest.approx(.2, abs=1e-9)
+    # A subset that happens to lack the column's data must not unpin it when
+    # the full-set mask is passed in.
+    from optimization.weight_optimizer import _active_columns
+    active = _active_columns(D)
+    assert active.tolist() == [True, True, False]
+    percent = WeightOptimizer._round_percent_weights(dict(zip(('m0', 'm1', 'subject_sharpness'), fitted)))
+    assert percent['subject_sharpness'] == 20.0
+    assert sum(percent.values()) == pytest.approx(100.)
 
 
 def test_native_aggregate_and_critique_agree(tmp_path):
@@ -98,7 +128,12 @@ def test_licence_only_fallback_is_zero():
     assert scores.tolist() == [0., 5.]
 
 
-def test_default_native_aggregates_byte_identical_to_previous_rule(tmp_path, monkeypatch):
+def test_positive_nullable_weights_with_all_inputs_present_match_previous_rule(tmp_path, monkeypatch):
+    """Positive subject / face-IQA weights, every input present: the aggregate is
+    bit-identical to the rule before this change, in the default and the
+    commercial licensing mode. (Replaces a test that fed shipped zero weights, which
+    cannot reach the new branch; test_shipped_weights_are_exactly_unchanged keeps
+    covering the zero-weight identity.)"""
     import struct
     import processing.scorer as scorer
     path = tmp_path / 'config.json'
@@ -106,15 +141,20 @@ def test_default_native_aggregates_byte_identical_to_previous_rule(tmp_path, mon
     cfg = ScoringConfig(str(path), validate=False)
     scanner = scorer.Facet.__new__(scorer.Facet)
     scanner.config = cfg
-    new_rule = scorer.weights_for_row
-    for category in cfg.config['categories']:
-        monkeypatch.setattr(scanner, '_determine_photo_category', lambda m, c: category['name'])
-        for optional in (None, 0., 8.):
-            row = {'aesthetic': 7.3, 'tech_sharpness': 4.1, 'comp_score': 6.2,
-                   **{key: optional for key in scorer.NULLABLE_SCORING_METRICS}}
-            monkeypatch.setattr(scorer, 'weights_for_row', new_rule)
-            actual = scanner.calculate_aggregate_logic(row)[0]
-            monkeypatch.setattr(scorer, 'weights_for_row',
-                                lambda w, m, unavailable: scorer.renormalise_weights(w, unavailable) if unavailable else w)
-            previous = scanner.calculate_aggregate_logic(row)[0]
-            assert struct.pack('!d', actual) == struct.pack('!d', previous)
+    monkeypatch.setattr(scanner, '_determine_photo_category', lambda m, c: 'default')
+    served = {'aesthetic': .4, 'tech_sharpness': .2, 'comp_score': .1,
+              'subject_sharpness': .15, 'face_quality_iqa': .15}
+    monkeypatch.setattr(cfg, 'get_weights', lambda category: dict(served))
+    row = {'aesthetic': 7.3, 'tech_sharpness': 4.1, 'comp_score': 6.2,
+           'subject_sharpness': 8., 'face_quality_iqa': 3.5}
+    def previous_rule(w, m, unavailable):
+        return scorer.renormalise_weights(w, unavailable) if unavailable else w
+
+    for unavailable in (frozenset(), frozenset({'face_quality_iqa'})):
+        monkeypatch.setattr(scorer, 'unavailable_for_config', lambda c, u=unavailable: u)
+        actual = scanner.calculate_aggregate_logic(row)[0]
+        new_rule = scorer.weights_for_row
+        monkeypatch.setattr(scorer, 'weights_for_row', previous_rule)
+        previous = scanner.calculate_aggregate_logic(row)[0]
+        monkeypatch.setattr(scorer, 'weights_for_row', new_rule)
+        assert struct.pack('!d', actual) == struct.pack('!d', previous)

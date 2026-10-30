@@ -289,15 +289,6 @@ class TestCVFoldsMatchDeployedObjective:
         old_w = np.array([old_weights.get(c, 1.0 / n) for c in WeightOptimizer.SCORE_COMPONENTS])
         old_w = old_w / old_w.sum()
 
-        # Wholly absent optional inputs have no learnable coefficient. The
-        # prior is redistributed over eligible columns before each fold fit.
-        from db import get_connection
-        with get_connection(db_path) as conn:
-            _, a, b, _, _ = optimizer._fetch_comparison_data(conn, mask_missing=True)
-        eligible = np.any(np.isfinite(np.stack((a, b), axis=1)), axis=(0, 1))
-        old_w = np.where(eligible, old_w, 0.0)
-        old_w /= old_w.sum()
-
         # A huge L2 penalty should overwhelm the comparison-fit term in every
         # fold, so the averaged CV weights land right back on the current
         # config weights -- only possible if each fold is actually anchored to

@@ -139,22 +139,45 @@ def _pairwise_objective(w, D, y, rw, w0, lam):
     return loss, g_w + 2.0 * lam * delta
 
 
-def _fit_weights(D, y, rw, w0, lam, starts, maxiter, ftol=1e-6) -> Tuple[np.ndarray, float]:
+def _active_columns(D) -> np.ndarray:
+    """Columns with at least one finite value in ``D`` (all of them for 2-D ``D``).
+
+    Compute it once on the full comparison set: a fold or bootstrap subset can
+    lack a column the full set has, and that must not change which weights the
+    fit is allowed to move.
+    """
+    k = D.shape[-1]
+    return np.any(np.isfinite(D), axis=(0, 1)) if D.ndim == 3 else np.ones(k, dtype=bool)
+
+
+def _fit_weights(D, y, rw, w0, lam, starts, maxiter, ftol=1e-6, active=None) -> Tuple[np.ndarray, float]:
     """Minimise :func:`_pairwise_objective` from each start; keep the best.
 
     Bounds ``[0, 0.6]`` per weight, weights summing to 1, SLSQP. Returns the
     normalised weights and the objective at them (``w0`` when every start
-    fails).
+    fails). A column with no finite value in the comparison set (``active``
+    False) carries no evidence, so it is held at its prior ``w0`` and the
+    active columns share what remains.
     """
     k = D.shape[-1]
-    active = np.any(np.isfinite(D), axis=(0, 1)) if D.ndim == 3 else np.ones(k, dtype=bool)
+    if active is None:
+        active = _active_columns(D)
     if not active.any():
         return w0.copy(), _pairwise_objective(w0, D, y, rw, w0, lam)[0]
-    w0 = np.where(active, w0, 0.0)
-    w0 = w0 / w0.sum() if w0.sum() else active / active.sum()
-    starts = [np.where(active, start, 0.0) for start in starts]
-    starts = [start / start.sum() if start.sum() else w0.copy() for start in starts]
-    bounds = [(0.0, _WEIGHT_UPPER_BOUND) if enabled else (0.0, 0.0) for enabled in active]
+    held = np.where(active, 0.0, w0)
+    rest = 1.0 - held.sum()
+    if rest <= 1e-9:
+        return w0.copy(), _pairwise_objective(w0, D, y, rw, w0, lam)[0]
+
+    def on_active(vec):
+        vec = np.where(active, vec, 0.0)
+        return vec / vec.sum() * rest if vec.sum() else active / active.sum() * rest
+
+    w0_fit = held + on_active(w0)
+    starts = [held + on_active(start) for start in starts]
+    upper = max(_WEIGHT_UPPER_BOUND, rest / active.sum())
+    bounds = [(0.0, upper) if enabled else (w0[i], w0[i]) for i, enabled in enumerate(active)]
+    w0 = w0_fit
     constraint = {'type': 'eq', 'fun': lambda w: w.sum() - 1.0, 'jac': lambda w: np.ones_like(w)}
     best, best_loss = None, float('inf')
     for start in starts:
@@ -173,6 +196,7 @@ def _fit_weights(D, y, rw, w0, lam, starts, maxiter, ftol=1e-6) -> Tuple[np.ndar
         best_loss = _pairwise_objective(best, D, y, rw, w0, lam)[0]
     w = np.maximum(best, 0.0)
     w = w / w.sum() if w.sum() > 0 else np.full(k, 1.0 / k)
+    w = np.where(active, w, w0)
     return w, best_loss
 
 
@@ -526,6 +550,7 @@ class WeightOptimizer:
         starts += [rng.dirichlet(np.ones(n_features)) for _ in range(3)]
         new_w, best_nll = _fit_weights(
             D, winners, row_weights, old_w, l2_regularization, starts, maxiter=500, ftol=1e-9,
+            active=_active_columns(D),
         )
         accuracy_after = _decisive_accuracy(new_w, D, winners)
 
@@ -658,6 +683,7 @@ class WeightOptimizer:
             [c['photo_a'] for c in all_data], [c['photo_b'] for c in all_data], n_folds,
         )
 
+        active = _active_columns(D)
         fold_weights, fold_accuracies = [], []
         new_correct, old_correct = [], []
         for fold in range(n_used):
@@ -667,7 +693,7 @@ class WeightOptimizer:
                 continue
             trained_w, _ = _fit_weights(
                 D[train], winners[train], row_weights[train], old_w, l2_regularization,
-                starts=[old_w.copy()], maxiter=300,
+                starts=[old_w.copy()], maxiter=300, active=active,
             )
             fold_weights.append(trained_w)
             new_c = _decisive_correct(trained_w, D[test], winners[test])
@@ -758,12 +784,13 @@ class WeightOptimizer:
         _, old_w = self._prior(category)
         D = np.stack((X_a, X_b), axis=1)
         rng = np.random.RandomState(42)
+        active = _active_columns(D)
         samples = []
         for _ in range(n_bootstrap):
             idx = rng.choice(len(all_data), size=len(all_data), replace=True)
             boot_w, _ = _fit_weights(
                 D[idx], winners[idx], row_weights[idx], old_w, l2_regularization,
-                starts=[old_w.copy()], maxiter=200,
+                starts=[old_w.copy()], maxiter=200, active=active,
             )
             samples.append(boot_w)
 
