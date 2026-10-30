@@ -268,9 +268,18 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
-        @if (store.photoTotal() !== store.total()) {
-          <p role="status" class="text-sm opacity-80 px-3 py-2">{{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}</p>
-        }
+        <header data-collection-header class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-3 md:px-4 pt-4 pb-2">
+          <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] break-words">
+            {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
+          </h1>
+          <p class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
+            @if (store.photoTotal() !== store.total()) {
+              {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
+            } @else {
+              {{ I18N.gallery.photo_count | translate:{ count: store.photoTotal() } }}
+            }
+          </p>
+        </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
              Never reflected in the URL (sequence_group_id is renumbered on every

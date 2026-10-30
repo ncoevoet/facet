@@ -89,4 +89,51 @@ describe('CompareSelectedDialogComponent', () => {
     fixture.debugElement.nativeElement.querySelector('button[aria-label="dialog.close"]').click();
     expect(dialogRef.close).toHaveBeenCalled();
   });
+
+  it('can inspect panes independently and deliberately reset them when relinking', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const toggle = fixture.nativeElement.querySelector('[data-link-inspection]');
+    expect(toggle).not.toBeNull();
+    toggle.click();
+    fixture.detectChanges();
+    const next = { scale: 3, tx: 17, ty: -4 };
+    panes()[1].componentInstance.zoomChange.emit(next);
+    fixture.detectChanges();
+    expect(panes()[0].componentInstance.zoom()).toEqual(FIT_ZOOM);
+    expect(panes()[1].componentInstance.zoom()).toEqual(next);
+    toggle.click();
+    fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
+  });
+
+  it('promotes a reference without changing pane membership or writing a review decision', () => {
+    const paths = ['/a.jpg', '/b.jpg', '/c.jpg'];
+    const { fixture, dialogRef } = build(paths);
+    const reference = () => fixture.nativeElement.querySelector('[data-reference="true"]');
+    expect(reference()).not.toBeNull();
+    expect(reference().textContent).toContain('a.jpg');
+    fixture.nativeElement.querySelectorAll('[data-promote-reference]')[0].click();
+    fixture.detectChanges();
+    expect(reference().textContent).toContain('b.jpg');
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(paths);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it('keeps sharp-preview readiness owned by its pane, including failure then recovery', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    panes[0].componentInstance.sharpFailed.emit('/a-preview');
+    panes[1].componentInstance.sharpLoaded.emit('/b-preview');
+    fixture.detectChanges();
+    const statuses = () => Array.from(fixture.nativeElement.querySelectorAll('[data-preview-status]') as NodeListOf<HTMLElement>).map(p => p.textContent);
+    expect(statuses()[0]).toContain('gallery.compare.preview_failed');
+    expect(statuses()[1]).toContain('gallery.compare.preview_ready');
+    panes[0].componentInstance.sharpPending.emit('/a-preview');
+    fixture.detectChanges();
+    expect(statuses()[0]).toContain('gallery.compare.preview_loading');
+    panes[0].componentInstance.sharpLoaded.emit('/a-preview');
+    fixture.detectChanges();
+    expect(statuses()[0]).toContain('gallery.compare.preview_ready');
+  });
 });

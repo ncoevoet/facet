@@ -1435,8 +1435,17 @@
     "moment_confidence_range": "时刻分组置信度",
     "compare": {
       "title": "正在对比 {count} 张照片",
-      "hint": "滚轮缩放，拖动平移，所有窗格同步移动。双击重置。",
-      "reset_zoom": "重置缩放"
+      "hint": "滚动缩放，拖动平移。联动仅共享移动，不会对齐主体。双击重置。",
+      "reset_zoom": "重置缩放",
+      "linked": "联动",
+      "independent": "独立",
+      "link_help": "取消联动可单独调整每张图像。重新联动会重置所有视图。",
+      "reference": "参考照片",
+      "candidate": "候选照片",
+      "promote": "将 {name} 用作参考照片",
+      "preview_loading": "正在加载清晰预览…",
+      "preview_ready": "清晰预览已就绪",
+      "preview_failed": "清晰预览不可用；显示缩略图"
     },
     "clipping": {
       "badge_highlight": "高光溢出：{percent}% 的像素",

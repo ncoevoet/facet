@@ -1435,8 +1435,17 @@
     "moment_confidence_range": "Moment Confidence",
     "compare": {
       "title": "Comparing {count} photos",
-      "hint": "Scroll to zoom, drag to pan — every pane moves together. Double-click to reset.",
-      "reset_zoom": "Reset zoom"
+      "hint": "Scroll to zoom, drag to pan. Linked inspection shares movement, not subject alignment. Double-click to reset.",
+      "reset_zoom": "Reset zoom",
+      "linked": "Linked",
+      "independent": "Independent",
+      "link_help": "Unlink to frame each image separately. Linking again resets all framing.",
+      "reference": "Reference",
+      "candidate": "Candidate",
+      "promote": "Use {name} as reference",
+      "preview_loading": "Loading sharp preview…",
+      "preview_ready": "Sharp preview ready",
+      "preview_failed": "Sharp preview unavailable; thumbnail shown"
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",

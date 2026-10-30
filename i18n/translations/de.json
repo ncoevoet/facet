@@ -1435,8 +1435,17 @@
     "moment_confidence_range": "Moment-Konfidenz",
     "compare": {
       "title": "{count} Fotos im Vergleich",
-      "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben – alle Bereiche bewegen sich gemeinsam. Doppelklick setzt zurück.",
-      "reset_zoom": "Zoom zurücksetzen"
+      "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben. Kopplung teilt Bewegungen, nicht die Motivausrichtung. Doppelklick zum Zurücksetzen.",
+      "reset_zoom": "Zoom zurücksetzen",
+      "linked": "Gekoppelt",
+      "independent": "Unabhängig",
+      "link_help": "Entkoppeln, um jedes Bild einzeln auszurichten. Erneutes Koppeln setzt alle Ansichten zurück.",
+      "reference": "Referenz",
+      "candidate": "Kandidat",
+      "promote": "{name} als Referenz verwenden",
+      "preview_loading": "Detailvorschau wird geladen…",
+      "preview_ready": "Detailvorschau bereit",
+      "preview_failed": "Detailvorschau nicht verfügbar; Miniatur wird angezeigt"
     },
     "clipping": {
       "badge_highlight": "Beschnittene Lichter: {percent}% der Pixel",

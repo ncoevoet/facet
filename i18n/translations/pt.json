@@ -1435,8 +1435,17 @@
     "moment_confidence_range": "Confiança do momento",
     "compare": {
       "title": "A comparar {count} fotos",
-      "hint": "Roda para ampliar, arraste para deslocar — todos os painéis se movem juntos. Duplo clique para repor.",
-      "reset_zoom": "Repor o zoom"
+      "hint": "Desloque para ampliar e arraste para mover. A ligação partilha movimentos, não alinha os sujeitos. Clique duas vezes para repor.",
+      "reset_zoom": "Repor o zoom",
+      "linked": "Ligadas",
+      "independent": "Independentes",
+      "link_help": "Desligue para enquadrar cada imagem separadamente. Voltar a ligar repõe todos os enquadramentos.",
+      "reference": "Referência",
+      "candidate": "Candidata",
+      "promote": "Usar {name} como referência",
+      "preview_loading": "A carregar pré-visualização detalhada…",
+      "preview_ready": "Pré-visualização detalhada pronta",
+      "preview_failed": "Pré-visualização detalhada indisponível; miniatura apresentada"
     },
     "clipping": {
       "badge_highlight": "Altas luzes cortadas: {percent}% dos pixels",

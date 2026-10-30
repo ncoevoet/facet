@@ -1065,15 +1065,38 @@ describe('App', () => {
       expect(buttons.length).toBe(edition ? 2 : 0);
     });
 
-    it('folds the secondary destinations into one More menu below 1680px and keeps the inline set above it', () => {
+    it('keeps desktop destinations labeled in a leading navigation rail instead of an overflow menu', () => {
       const { root } = render(true);
-      const more = root.querySelector<HTMLButtonElement>(`nav button[aria-label="${I18N.nav.more}"]`)!;
-      expect(more.classList.contains('!hidden')).toBe(true);
-      expect(more.classList.contains('lg:max-[1679px]:!inline-flex')).toBe(true);
-      const stats = root.querySelector<HTMLElement>(`nav a[aria-label="${I18N.nav.stats}"].\\!hidden`)!;
-      expect(stats.classList.contains('min-[1680px]:!inline-flex')).toBe(true);
-      const persons = root.querySelector<HTMLElement>(`nav a[aria-label="${I18N.nav.persons}"].\\!hidden`)!;
-      expect(persons.classList.contains('lg:!inline-flex')).toBe(true);
+      const rail = root.querySelector<HTMLElement>('aside[data-workspace-navigation]');
+      expect(rail).not.toBeNull();
+      for (const label of [I18N.nav.stats, I18N.nav.persons, I18N.nav.culling]) {
+        const link = rail!.querySelector<HTMLAnchorElement>(`a[aria-label="${label}"]`)!;
+        expect(link).not.toBeNull();
+        expect(link.textContent).toContain(label);
+        expect(link.getAttribute('ariaCurrentWhenActive')).toBe('page');
+      }
+      expect(root.querySelector(`nav button[aria-label="${I18N.nav.more}"]`)).toBeNull();
+    });
+
+    it('removes editing destinations immediately when edition access is lost', () => {
+      const { fixture, root } = render(true);
+      const auth = TestBed.inject(AuthService) as unknown as { isEdition: ReturnType<typeof signal<boolean>> };
+      expect(root.querySelector('aside a[href="/culling"]')).not.toBeNull();
+      auth.isEdition.set(false);
+      fixture.detectChanges();
+      expect(root.querySelector('aside a[href="/culling"]')).toBeNull();
+      expect(root.querySelector('aside a[href="/compare"]')).toBeNull();
+      expect(root.querySelector('aside a[href="/stats"]')).not.toBeNull();
+    });
+
+    it('removes navigation and its reserved desktop space after logout', () => {
+      const { fixture, root } = render(false);
+      const auth = TestBed.inject(AuthService) as unknown as { isAuthenticated: ReturnType<typeof signal<boolean>> };
+      expect(root.querySelector('aside[data-workspace-navigation]')).not.toBeNull();
+      auth.isAuthenticated.set(false);
+      fixture.detectChanges();
+      expect(root.querySelector('aside[data-workspace-navigation]')).toBeNull();
+      expect(root.firstElementChild!.classList.contains('lg:pl-48')).toBe(false);
     });
 
     it.each([['kept', 1], ['lost', 0]])('opens the history dialog after the lazy load only while edition is %s', async (state, opens) => {

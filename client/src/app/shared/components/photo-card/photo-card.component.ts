@@ -415,9 +415,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
 
       <!-- Details below photo -->
       @if (!hideDetails()) {
-        <div class="pt-1 text-xs text-neutral-300 leading-snug">
+        <div class="px-2 py-2 text-xs text-[var(--mat-sys-on-surface-variant)] leading-snug">
           <div class="flex items-center gap-1">
-            <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
+            <span class="font-medium text-[var(--mat-sys-on-surface)] truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
               @if (showsBestBadge()) {
                 <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
@@ -434,9 +434,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             </span>
           </div>
           @if (photo().date_taken) {
-            <div class="text-neutral-500">{{ photo().date_taken }}</div>
+            <div class="text-[var(--mat-sys-on-surface-variant)]">{{ photo().date_taken }}</div>
           }
-          <div class="text-neutral-500">
+          <div class="text-[var(--mat-sys-on-surface-variant)]">
             @if (photo().focal_length) { {{ photo().focal_length }}mm }
             @if (photo().f_stop) { f/{{ photo().f_stop }} }
             @if (photo().shutter_speed) { {{ photo().shutter_speed | shutterSpeed }} }

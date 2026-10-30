@@ -1435,8 +1435,17 @@
     "moment_confidence_range": "Confiance du moment",
     "compare": {
       "title": "Comparaison de {count} photos",
-      "hint": "Molette pour zoomer, glisser pour déplacer : tous les volets bougent ensemble. Double-clic pour réinitialiser.",
-      "reset_zoom": "Réinitialiser le zoom"
+      "hint": "Défilez pour zoomer, faites glisser pour déplacer. Le lien partage les mouvements, pas l’alignement du sujet. Double-cliquez pour réinitialiser.",
+      "reset_zoom": "Réinitialiser le zoom",
+      "linked": "Liées",
+      "independent": "Indépendantes",
+      "link_help": "Déliez pour cadrer chaque image séparément. Relier réinitialise tous les cadrages.",
+      "reference": "Référence",
+      "candidate": "Candidate",
+      "promote": "Utiliser {name} comme référence",
+      "preview_loading": "Chargement de l’aperçu détaillé…",
+      "preview_ready": "Aperçu détaillé prêt",
+      "preview_failed": "Aperçu détaillé indisponible ; miniature affichée"
     },
     "clipping": {
       "badge_highlight": "Hautes lumières écrêtées : {percent} % des pixels",
