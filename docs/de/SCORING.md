@@ -4,6 +4,8 @@
 
 Fotos werden zunächst einer Kategorie zugeordnet und anschließend mit den Gewichten dieser Kategorie bewertet.
 
+Fehlende oder NULL-Werte für subject_sharpness, subject_prominence, subject_placement, bg_separation und face_quality_iqa werden aus der gewichteten Bewertung ausgeschlossen. Nur ihr positives Gewicht wird auf verfügbare Metriken verteilt; null bleibt ein gültiger Messwert. Fehlen alle gewichteten Eingaben, gilt der neutrale Wert 5.0. Lizenzausschlüsse gelten zuerst. Die ausgelieferten Gewichte bleiben unverändert. Gewichtsanpassung und Vergleichs-/Verteilungsauswertung folgen mit repräsentativen Vergleichsdaten. Für Salienz zuerst `--recompute-saliency`, dann `--recompute-average` ausführen.
+
 ## So funktioniert die Bewertung
 
 1. **Kategorieerkennung** – Das Foto wird auf seinen Inhalt analysiert (Gesichter, Tags, EXIF-Daten)

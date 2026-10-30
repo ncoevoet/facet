@@ -4,6 +4,8 @@
 
 照片先被归入某个类别，再按该类别的权重进行评分。
 
+subject_sharpness、subject_prominence、subject_placement、bg_separation 和 face_quality_iqa 的缺失值或 NULL 不参与加权评分。仅当被排除指标的权重大于零时，才将其权重重新分配给可用指标；零仍是有效值。如果所有加权输入均缺失，则采用中性值 5.0。许可证排除规则优先适用。默认权重保持不变。权重调整、成对比较和分布评估需要有代表性的比较数据，留待后续处理。要补充显著性指标，请先运行 `--recompute-saliency`，再运行 `--recompute-average`。
+
 ## 评分的工作原理
 
 1. **类别判定** - 分析照片内容（人脸、标签、EXIF 数据）

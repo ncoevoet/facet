@@ -907,13 +907,12 @@ def api_comparison_preview_score(
     # weighted the way calculate_aggregate_logic does: the quality weight folded into aesthetic, the
     # licence-unavailable metrics dropped, each value clamped to 0..10. Stored metrics only; nothing is re-scored.
     from processing.scorer import (
-        build_metric_vector, fold_quality_weight, renormalise_weights, unavailable_for_config,
+        build_metric_vector, fold_quality_weight, weights_for_row, unavailable_for_config,
         weighted_metric_contribution,
     )
     weights = fold_quality_weight(weights)
     unavailable = unavailable_for_config(config)
-    if unavailable:
-        weights = renormalise_weights(weights, unavailable)
+    weights = weights_for_row(weights, metrics, unavailable)
     vector = build_metric_vector(metrics, config, category, unavailable=unavailable)
     preview_score = 0.0
     for weight_key, value in vector.items():

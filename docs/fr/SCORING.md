@@ -4,6 +4,8 @@
 
 Les photos sont classées dans une catégorie, puis notées avec les poids de cette catégorie.
 
+Les valeurs absentes ou NULL de subject_sharpness, subject_prominence, subject_placement, bg_separation et face_quality_iqa sont exclues du score pondéré. Leur poids positif est redistribué aux métriques disponibles ; zéro reste valide. Si toutes les entrées pondérées manquent, la valeur neutre est 5.0. Les exclusions de licence passent en premier. Les poids livrés restent inchangés. Leur ajustement et l’évaluation des comparaisons et distributions nécessitent des données représentatives et feront l’objet d’un suivi. Pour renseigner la saillance, exécutez `--recompute-saliency`, puis `--recompute-average`.
+
 ## Fonctionnement du scoring
 
 1. **Détection de la catégorie** - La photo est analysée pour son contenu (visages, tags, données EXIF)

@@ -4,6 +4,8 @@
 
 Le foto vengono classificate in una categoria e poi valutate con i pesi di quella categoria.
 
+I valori assenti o NULL di subject_sharpness, subject_prominence, subject_placement, bg_separation e face_quality_iqa sono esclusi dal punteggio ponderato. Solo il loro peso positivo viene redistribuito alle metriche disponibili; zero rimane valido. Se mancano tutti gli ingressi ponderati, si usa il valore neutro 5.0. Le esclusioni di licenza si applicano prima. I pesi predefiniti non cambiano. La taratura e la valutazione di confronti e distribuzioni richiedono dati rappresentativi e saranno affrontate in seguito. Per completare la salienza, eseguire `--recompute-saliency`, poi `--recompute-average`.
+
 ## Come funziona il punteggio
 
 1. **Rilevamento della categoria** - La foto viene analizzata per il contenuto (volti, tag, dati EXIF)

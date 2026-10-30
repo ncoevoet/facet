@@ -4,6 +4,8 @@
 
 As fotos são classificadas em uma categoria e, em seguida, pontuadas com os pesos dessa categoria.
 
+Os valores ausentes ou NULL de subject_sharpness, subject_prominence, subject_placement, bg_separation e face_quality_iqa são excluídos da pontuação ponderada. Apenas o seu peso positivo é redistribuído pelas métricas disponíveis; zero continua válido. Se faltarem todas as entradas ponderadas, usa-se o valor neutro 5.0. As exclusões de licença aplicam-se primeiro. Os pesos predefinidos não mudam. O ajuste e a avaliação de comparações e distribuições ficam para uma etapa posterior com dados representativos. Para preencher a saliência, execute `--recompute-saliency` e depois `--recompute-average`.
+
 ## Como a Pontuação Funciona
 
 1. **Detecção de Categoria** - A foto é analisada quanto ao conteúdo (rostos, tags, dados EXIF)
