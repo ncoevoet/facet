@@ -26,13 +26,17 @@ const COARSE_POINTER_QUERY = '(pointer: coarse)';
 function useMediaQuerySignal(
   query: string,
   onChange?: (matches: boolean) => void,
-): { matches: Signal<boolean>; setup: () => void; cleanup: () => void } {
+): { matches: Signal<boolean>; setMatches: (v: boolean) => void; setup: () => void; cleanup: () => void } {
   const matches = signal(false);
   let mql: MediaQueryList | null = null;
   let handler: ((e: MediaQueryListEvent) => void) | null = null;
 
   return {
     matches: matches.asReadonly(),
+    /** Writable on purpose: tests drive the breakpoint directly instead of
+     *  stubbing window.matchMedia (a broken stub poisons the shared jsdom
+     *  window for every later spec file). */
+    setMatches: (v: boolean) => matches.set(v),
     setup() {
       mql = window.matchMedia(query);
       matches.set(mql.matches);
@@ -52,12 +56,12 @@ function useMediaQuerySignal(
 
 export function useDesktopSignal(
   options?: { onChange?: (matches: boolean) => void; breakpointPx?: number },
-): { isDesktop: Signal<boolean>; setup: () => void; cleanup: () => void } {
+): { isDesktop: Signal<boolean>; setMatches: (v: boolean) => void; setup: () => void; cleanup: () => void } {
   const query = useMediaQuerySignal(
     `(min-width: ${options?.breakpointPx ?? DEFAULT_BREAKPOINT_PX}px)`,
     options?.onChange,
   );
-  return { isDesktop: query.matches, setup: query.setup, cleanup: query.cleanup };
+  return { isDesktop: query.matches, setMatches: query.setMatches, setup: query.setup, cleanup: query.cleanup };
 }
 
 /** Whether the primary pointer is a finger or a stylus rather than a mouse. */

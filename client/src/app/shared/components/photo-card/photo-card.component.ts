@@ -136,7 +136,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       role="button"
       tabindex="0"
       class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
-      [class.md:aspect-square]="hideDetails() && !mosaicMode()"
+      [class.aspect-square]="hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
@@ -153,18 +153,15 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     >
       <!-- Image wrapper with hover overlay scoped to image only -->
       <div class="group/img relative"
-           [class.md:h-full]="hideDetails()"
-           [class.h-full]="mosaicMode()">
+           [class.h-full]="mosaicMode() || hideDetails()">
         <img
           [src]="photo().path | thumbnailUrl:thumbSize():photo().preview_revision"
           [alt]="photo().caption || photo().filename"
           loading="lazy"
           decoding="async"
           class="w-full bg-[var(--mat-sys-surface-container)] transition-opacity duration-500"
-          [class.md:h-full]="hideDetails()"
-          [class.md:object-cover]="hideDetails()"
-          [class.h-full]="mosaicMode()"
-          [class.object-cover]="mosaicMode()"
+          [class.h-full]="mosaicMode() || hideDetails()"
+          [class.object-cover]="mosaicMode() || hideDetails()"
           [class.grayscale]="isEditionMode() && photo().is_rejected"
           [class.opacity-60]="isEditionMode() && photo().is_rejected"
           [style.opacity]="imageLoaded() ? (isEditionMode() && photo().is_rejected ? '0.6' : '1') : '0'"

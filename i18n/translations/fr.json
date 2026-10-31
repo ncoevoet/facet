@@ -1131,7 +1131,7 @@
       "hover": "Survol",
       "click": "Clic",
       "panel": "Panneau latéral",
-      "off": "Désactivée",
+      "off": "Aucun détail",
       "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici",
       "panel_deselect": "Désélectionner"
     },

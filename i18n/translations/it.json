@@ -1131,7 +1131,7 @@
       "hover": "Hover",
       "click": "Clic",
       "panel": "Pannello laterale",
-      "off": "Disattivato",
+      "off": "Nessun dettaglio",
       "panel_empty": "Passa il cursore su una foto o fai clic per vederne qui i dettagli",
       "panel_deselect": "Deseleziona"
     },

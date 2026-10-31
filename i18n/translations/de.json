@@ -1131,7 +1131,7 @@
       "hover": "Hover",
       "click": "Klick",
       "panel": "Seitenleiste",
-      "off": "Aus",
+      "off": "Keine Details",
       "panel_empty": "Fahre über ein Foto oder klicke es an, um seine Details hier zu sehen",
       "panel_deselect": "Auswahl aufheben"
     },

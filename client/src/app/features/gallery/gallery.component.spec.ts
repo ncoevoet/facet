@@ -5256,6 +5256,22 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('leaving panel mode (rendered)', () => {
+    it('releases the held photo when the mode switches away from panel', () => {
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'panel' });
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const comp = fixture.componentInstance as unknown as { activeIndex: WritableSignal<number>; releasePanel(): void };
+      comp.activeIndex.set(0);
+      const release = vi.spyOn(comp, 'releasePanel').mockImplementation(() => {});
+      mockStore.filters.set({ ...DEFAULT_FILTERS, tooltip_mode: 'hover' });
+      fixture.detectChanges();
+      expect(release).toHaveBeenCalledOnce();
+      fixture.destroy();
+    });
+  });
+
   describe('kept alive behind an open photo (rendered)', () => {
     const photos = Array.from({ length: 3 }, (_, n) => ({
       path: `/p${n}.jpg`, filename: `p${n}.jpg`, image_width: 4000, image_height: 3000,

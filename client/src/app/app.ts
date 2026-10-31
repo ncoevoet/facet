@@ -610,6 +610,15 @@ export class App implements OnInit {
   private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
   protected readonly canDockDetails = this.railCapable.isDesktop;
 
+  /** 侧边面板 doubles as a switch: selecting it while it is already the mode
+   *  hands the detail surface back to the hover bubbles (the docked rail
+   *  closes); selecting it again docks the rail. The stored preference moves
+   *  with the switch, exactly like picking either radio item outright. */
+  protected togglePanelMode(): void {
+    const current = this.store.filters().tooltip_mode;
+    this.store.updateFilter('tooltip_mode', current === 'panel' ? 'hover' : 'panel');
+  }
+
   async ngOnInit(): Promise<void> {
     this.railCapable.setup();
     this.setupUpdateNotifications();

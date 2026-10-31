@@ -176,14 +176,14 @@ describe('PhotoCardComponent', () => {
     expect(img.parentElement!.classList.contains('h-full')).toBe(true);
   });
 
-  it('leaves the image at its natural height below md outside mosaic', () => {
+  it('fills the tile below md too when details are hidden (no dead strip)', () => {
     const cardFixture = TestBed.createComponent(PhotoCardComponent);
     cardFixture.componentRef.setInput('photo', makePhoto());
     cardFixture.componentRef.setInput('hideDetails', true);
     cardFixture.detectChanges();
     const img = (cardFixture.nativeElement as HTMLElement).querySelector('img')!;
-    expect(img.classList.contains('h-full')).toBe(false);
-    expect(img.classList.contains('object-cover')).toBe(false);
+    expect(img.classList.contains('h-full')).toBe(true);
+    expect(img.classList.contains('object-cover')).toBe(true);
   });
 
   it('never asks for a thumbnail above the stored 640 px', () => {

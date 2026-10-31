@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { DefaultUrlSerializer, Router, provideRouter } from '@angular/router';
-import { Provider, signal } from '@angular/core';
+import { Provider, signal, WritableSignal } from '@angular/core';
 import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS, ViewerConfig } from './features/gallery/gallery.store';
@@ -977,6 +977,33 @@ describe('App', () => {
       expect(items.map(item => item.textContent?.includes('check'))).toEqual([false, true, false]);
       items[2].click();
       expect(store.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
+    });
+
+    it('toggles the docked rail: clicking the checked 侧边面板 hands details back to hover', async () => {
+      // The panel item only renders when the viewport can dock the rail (>= 1280px).
+      const mqlSpy = vi.spyOn(window, 'matchMedia').mockImplementation((query: string) => ({
+        matches: query.includes('1280'), media: query, onchange: null,
+        addEventListener() {}, removeEventListener() {}, addListener() {}, removeListener() {}, dispatchEvent: () => false,
+      } as unknown as MediaQueryList));
+      try {
+        const { fixture, root, store } = render();
+        store.filters.update(filters => ({ ...filters, tooltip_mode: 'panel' }));
+        fixture.detectChanges();
+        const triggers = Array.from(byLabel(root, I18N.gallery.tooltip_mode.label)) as HTMLButtonElement[];
+        await openMenu(fixture, triggers[1]);
+        const panelItem = menuItems().find(i => i.textContent?.includes(I18N.gallery.tooltip_mode.panel))!;
+        expect(panelItem).toBeDefined();
+        panelItem.click();
+        expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'hover');
+        // Selecting it while unchecked docks the rail again.
+        store.filters.update(filters => ({ ...filters, tooltip_mode: 'hover' }));
+        fixture.detectChanges();
+        await openMenu(fixture, triggers[1]);
+        menuItems().find(i => i.textContent?.includes(I18N.gallery.tooltip_mode.panel))!.click();
+        expect(store.updateFilter).toHaveBeenLastCalledWith('tooltip_mode', 'panel');
+      } finally {
+        mqlSpy.mockRestore();
+      }
     });
 
     it('is one shared menu for both triggers', () => {
