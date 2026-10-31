@@ -3010,6 +3010,10 @@ export const I18N = {
         exiftool_upgrade: "export.jobs.errors.exiftool_upgrade",
         stopped: "export.jobs.errors.stopped",
       },
+      partial: "export.jobs.partial",
+      workspace_title: "export.jobs.workspace_title",
+      workspace_hint: "export.jobs.workspace_hint",
+      receipt_id: "export.jobs.receipt_id",
     },
   },
   undo: {
@@ -3360,6 +3364,12 @@ export const I18N = {
     field: "organization_history.field",
     entry_action: "organization_history.entry_action",
     stack: "organization_history.stack",
+    limits_title: "organization_history.limits_title",
+    limits: "organization_history.limits",
+    reload: "organization_history.reload",
+    preview_action: "organization_history.preview_action",
+    restore_preview: "organization_history.restore_preview",
+    restore_boundary: "organization_history.restore_boundary",
   },
   stacks: {
     review_help: "stacks.review_help",

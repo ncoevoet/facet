@@ -12,6 +12,7 @@ import { OrganizationHistoryDialogComponent } from './organization-history-dialo
 
 type Entry = components['schemas']['OrganizationEntry'];
 const messages = {
+  preview_action: 'Review restore…', limits_title: 'What history can restore', limits: 'Up to 50 recent entries.', reload: 'Reload history', restore_preview: 'Restore {count} photos', restore_boundary: 'Conflicts restore nothing.',
   title: 'Organization history', hint: 'History belongs to this account.', gps: 'Location', date: 'Capture date',
   review: 'Review', revert: 'Revert this entry', reverted: 'Already reverted', empty: 'No available history entries.',
   success: 'Photos restored: {count}', error: 'Could not load or restore history.',
@@ -24,7 +25,7 @@ const messages = {
   entry_action: '{action} · {kind} · {date} · #{id}',
 };
 const translations = { organization_history: messages, capture_date: { before: 'Before', after: 'After' },
-  ui: { labels: { loading: 'Loading...' } }, dialog: { close: 'Close' }, culling: { lightbox: { undecided: 'Undecided' } } };
+  dialog: { close: 'Close' }, ui: { labels: { loading: 'Loading...' }, buttons: { cancel: 'Cancel' } }, culling: { lightbox: { undecided: 'Undecided' } } };
 const entry = (overrides: Partial<Entry> = {}): Entry => ({
   id: 901, kind: 'gps', created_at: '2026-10-24T10:11:00', part: 1, parts: 1, reverted: false,
   changes: [{ path: '/history/a.jpg', before: [null, 2, 0], after: [3, 4, 1], revision: 5 }], ...overrides,
@@ -68,8 +69,13 @@ describe('Organization history rendered controls and HTTP', () => {
     else request.flush({ entries });
     await settle();
   }
-  function sections(): HTMLElement[] { return [...root.querySelectorAll('section')]; }
-  function revert(index = 0): HTMLButtonElement { return sections()[index].querySelector('button')!; }
+  function sections(): HTMLElement[] { return [...root.querySelectorAll<HTMLElement>('mat-dialog-content > section')]; }
+  function revert(index = 0): HTMLButtonElement { return sections()[index].querySelector('button[aria-label]')!; }
+  async function applyRestore() {
+    revert().click(); await settle();
+    (root.querySelector('[data-history-apply]') as HTMLButtonElement).click();
+    await settle();
+  }
   function assertNoRestore() {
     expect(store.refreshPaths).not.toHaveBeenCalled();
     expect(fixture.componentInstance.wasRestored()).toBe(false);
@@ -77,11 +83,28 @@ describe('Organization history rendered controls and HTTP', () => {
   }
   afterEach(() => { try { http?.verify(); } finally { TestBed.resetTestingModule(); } });
 
+  it('previews and cancels a restore without writing, then explicitly applies the captured entry', async () => {
+    await create();
+    revert().click(); await settle();
+    expect(root.querySelector('[data-history-preview]')?.textContent).toContain('Restore 1 photos');
+    expect(revert().compareDocumentPosition(root.querySelector('[data-history-preview]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    http.expectNone(request => request.method === 'POST');
+    const cancel = [...root.querySelectorAll('[data-history-preview] button')].find(button => button.textContent?.trim() === 'Cancel') as HTMLButtonElement;
+    cancel.click(); await settle();
+    expect(root.querySelector('[data-history-preview]')).toBeNull();
+    http.expectNone(request => request.method === 'POST');
+    await applyRestore();
+    http.expectOne('/api/organization_history/901/revert').flush({}, { status: 409, statusText: 'Conflict' });
+    await settle();
+    expect(sections()[0].querySelector('[role=alert]')?.textContent).toContain(messages.conflict);
+    assertNoRestore();
+  });
+
   it('gives same-kind and same-minute entries distinct accessible action names', async () => {
     await create([entry(), entry({ id: 902 })]);
     const names = sections().map(section => section.querySelector('button')!.getAttribute('aria-label'));
-    expect(names[0]).toBe('Revert this entry · Location · 24/10/2026 10:11 · #901');
-    expect(names[1]).toBe('Revert this entry · Location · 24/10/2026 10:11 · #902');
+    expect(names[0]).toBe('Review restore… · Location · 24/10/2026 10:11 · #901');
+    expect(names[1]).toBe('Review restore… · Location · 24/10/2026 10:11 · #902');
     expect(new Set(names).size).toBe(2);
     expect(sections().map(section => section.querySelector('h3')?.textContent?.trim()))
       .toEqual(['Location · 24/10/2026 10:11', 'Location · 24/10/2026 10:11']);
@@ -96,7 +119,7 @@ describe('Organization history rendered controls and HTTP', () => {
     it(`renders ${kind} values under named column and row headers after expansion`, async () => {
       await create([entry({ kind, changes: [{ path: '/history/a.jpg', before: [...before], after: [...after], revision: 5 }] })]);
       expect(root.querySelector('table')).toBeNull();
-      const details = root.querySelector('details')!;
+      const details = sections()[0].querySelector('details')!;
       expect(details.querySelector('summary')?.textContent?.trim()).toBe('Before → After');
       details.open = true;
       details.dispatchEvent(new Event('toggle'));
@@ -121,6 +144,12 @@ describe('Organization history rendered controls and HTTP', () => {
     expect(root.querySelector('[role="alert"]')?.textContent).toContain(messages.error);
     assertNoRestore();
     expect(sections()).toHaveLength(0);
+    expect(root.textContent).not.toContain(messages.empty);
+    (root.querySelector('[data-history-reload]') as HTMLButtonElement).click();
+    http.expectOne('/api/organization_history').flush({ entries: [entry()] });
+    await settle();
+    expect(sections()).toHaveLength(1);
+    expect(root.querySelector('[role=alert]')).toBeNull();
     const close = [...root.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Close')!;
     close.click();
     expect(dialog.close).toHaveBeenCalled();
@@ -143,8 +172,7 @@ describe('Organization history rendered controls and HTTP', () => {
   for (const [status, message] of [[404, messages.unavailable], [409, messages.conflict], [500, messages.error]] as const) {
     it(`renders the ${status} refusal without announcing a restore or refreshing the gallery`, async () => {
       await create();
-      revert().click();
-      await settle();
+      await applyRestore();
       expect(revert().disabled).toBe(true);
       const request = http.expectOne('/api/organization_history/901/revert');
       expect(request.request.method).toBe('POST');
@@ -160,11 +188,11 @@ describe('Organization history rendered controls and HTTP', () => {
 
   it('retries a failed restore, refreshes once, and reloads the inverse and reverted entries', async () => {
     await create();
-    revert().click();
+    await applyRestore();
     http.expectOne('/api/organization_history/901/revert').flush({}, { status: 500, statusText: 'Refused' });
     await settle();
     assertNoRestore();
-    revert().click();
+    await applyRestore();
     http.expectOne('/api/organization_history/901/revert').flush({ changed: 1 });
     await settle();
     expect(store.refreshPaths.mock.calls).toEqual([[null]]);

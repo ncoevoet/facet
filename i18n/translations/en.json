@@ -2995,7 +2995,11 @@
         "write_failed": "Could not write metadata. Check the server logs.",
         "exiftool_upgrade": "ExifTool 13.23 to 13.27 corrupts XMP sidecars. Upgrade ExifTool to 13.28 or newer.",
         "stopped": "Export stopped unexpectedly. Check the server logs and retry the remaining photos."
-      }
+      },
+      "partial": "Completed with unfinished items",
+      "workspace_title": "Processing and export receipts",
+      "workspace_hint": "Sidecar receipts for this account. Closing this window leaves jobs running. Start new exports from a photo selection or album.",
+      "receipt_id": "Receipt"
     }
   },
   "undo": {
@@ -3345,7 +3349,13 @@
     "photo_count": "Photos: {count}",
     "field": "Field",
     "entry_action": "{action} · {kind} · {date} · #{id}",
-    "stack": "Photo stack"
+    "stack": "Photo stack",
+    "limits_title": "What history can restore",
+    "limits": "Up to 50 recent entries for this account. Review fields, location, capture date and manual stacks are supported. Manual tags, exports and file moves are not undone here. Short Undo is separate and limited to its snapshot.",
+    "reload": "Reload history",
+    "preview_action": "Review restore…",
+    "restore_preview": "Restore this entry: {count} photos · part {part}/{parts}.",
+    "restore_boundary": "Only this part will be restored. The server checks recorded values and revisions; a conflict restores nothing. Other parts are separate actions."
   },
   "stacks": {
     "review_help": "Review suggested stacks using the darkroom. S stacks with the proposed cover in the grid or the focused photo in the darkroom; Enter opens a group or stacks the focused photo. X skips. Edit members changes the group before saving. Stacking never changes photo review decisions. R rejects the focused photo immediately and excludes it from the draft. Undo restores its review and draft membership. Grouping waits for Save; leaving without saving does not undo Reject.",
