@@ -1041,7 +1041,9 @@
     "junk_sweep": "Junk Sweep",
     "help": "Help",
     "more": "More",
-    "navigation": "Navigation"
+    "navigation": "Navigation",
+    "pin_navigation": "Pin navigation open",
+    "unpin_navigation": "Unpin navigation"
   },
   "auth": {
     "logout": "Log out",

@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
-import { ApplicationRef, ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, inject, signal, TemplateRef, WritableSignal } from '@angular/core';
-import { Location, NgTemplateOutlet } from '@angular/common';
+import { ApplicationRef, ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signal, TemplateRef, WritableSignal } from '@angular/core';
+import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { GalleryReuseStrategy } from '../../core/gallery-reuse.strategy';
@@ -2894,7 +2894,7 @@ describe('GalleryComponent', () => {
     });
   });
 
-  // The selection bar is a floating, icon-only card inside the gallery host (not a
+  // The selection bar is a floating contextual command bar inside the gallery host (not a
   // fixed full-width strip): placement, label reachability and the notice baseline.
   describe('floating selection card (rendered)', () => {
     let fixture: ComponentFixture<GalleryComponent> | null = null;
@@ -2942,7 +2942,7 @@ describe('GalleryComponent', () => {
       expect(el.classList.contains('md:bottom-4')).toBe(true);
     });
 
-    it('gives every edition action matching tooltip and aria-label, with Clear visibly labeled', () => {
+    it('preserves every edition action with matching tooltip and accessible name', () => {
       const f = render();
       const keys = [
         I18N.gallery.selection.clear, I18N.gallery.selection.select_all, I18N.gallery.selection.invert,
@@ -2954,27 +2954,34 @@ describe('GalleryComponent', () => {
       for (const key of keys) {
         const button = labelled(f, key);
         expect(button, key).not.toBeNull();
-        if (key === I18N.gallery.selection.clear) {
-          expect(button!.textContent).toContain(key);
-        } else {
-          expect(button!.classList.contains('mat-mdc-icon-button'), key).toBe(true);
-        }
+        expect(button!.querySelector('mat-icon'), key).not.toBeNull();
         const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === button);
         expect(tooltip?.injector.get(MatTooltip).message, key).toBe(key);
       }
     });
 
-    it('labels Clear and Compare while keeping secondary commands compact', () => {
+    it('keeps review commands visible and secondary commands inside a closed Actions disclosure', () => {
       const f = render();
-      for (const button of Array.from(bar(f)!.querySelectorAll('button'))) {
-        if (button.closest('.w-full')) continue;
-        const label = button.getAttribute('aria-label');
-        if (label === I18N.gallery.selection.clear || label === I18N.gallery.selection.compare) {
-          expect(button.textContent).toContain(button.getAttribute('aria-label'));
-          continue;
-        }
-        expect(button.textContent!.trim()).toMatch(/^[a-z_]*$/);
+      const disclosure = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-more]')!;
+      expect(disclosure.open).toBe(false);
+      expect(disclosure.querySelector('summary')!.textContent).toContain(I18N.gallery.selection.actions);
+      for (const label of [I18N.gallery.selection.clear, I18N.review.keep, I18N.gallery.selection.reject]) {
+        const button = labelled(f, label)!;
+        expect(button.textContent).toContain(label);
+        expect(button.closest('details')).toBeNull();
       }
+      for (const label of [I18N.gallery.selection.edit_tags, I18N.gallery.selection.rate, I18N.gallery.selection.favorite]) {
+        const button = labelled(f, label)!;
+        expect(button.closest('details')).toBe(disclosure);
+        expect(button.textContent).toContain(label);
+      }
+      disclosure.querySelector('summary')!.click();
+      expect(disclosure.open).toBe(true);
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      disclosure.querySelector('summary')!.dispatchEvent(escape);
+      expect(disclosure.open).toBe(false);
+      expect(escape.defaultPrevented).toBe(true);
+      expect(mockStore.selectionCount()).toBe(2);
     });
 
     it('keeps the tooltip on the disabled delete button (disabledInteractive)', () => {
@@ -5803,13 +5810,11 @@ describe('GalleryComponent', () => {
   });
 
   describe('toolbar search and view shortcuts (rendered)', () => {
-    // Stands in for the shell, which renders the gallery's header-slot template
-    // through a template outlet in the global toolbar.
+    // Independent overlays exercise shortcut guards beside the real collection controls.
     @Component({
       selector: 'app-toolbar-host',
-      imports: [NgTemplateOutlet, MatMenuModule, MatSelectModule],
+      imports: [MatMenuModule, MatSelectModule],
       template: `
-        <ng-container [ngTemplateOutlet]="template()" />
         <button data-testid="keyboard-test-menu" [matMenuTriggerFor]="menu">Menu</button>
         <mat-menu #menu="matMenu">
           <button mat-menu-item>Berries</button>
@@ -5824,7 +5829,7 @@ describe('GalleryComponent', () => {
       `,
     })
     class ToolbarHostComponent {
-      readonly template = inject(HeaderSlotService).template;
+
     }
 
     let fixture: ComponentFixture<GalleryComponent>;
@@ -5840,13 +5845,15 @@ describe('GalleryComponent', () => {
       host = TestBed.createComponent(ToolbarHostComponent);
       host.detectChanges();
       document.body.appendChild(host.nativeElement);
-      search = host.nativeElement.querySelector(`input[placeholder="${I18N.gallery.search_placeholder}"]`) as HTMLInputElement;
+      document.body.appendChild(fixture.nativeElement);
+      search = fixture.nativeElement.querySelector(`input[placeholder="${I18N.gallery.search_placeholder}"]`) as HTMLInputElement;
       mockStore.updateFilter.mockClear();
       vi.useFakeTimers();
     });
 
     afterEach(() => {
       vi.useRealTimers();
+      (fixture.nativeElement as HTMLElement).remove();
       host.destroy();
       (host.nativeElement as HTMLElement).remove();
       if (!fixture.componentRef.hostView.destroyed) fixture.destroy();
@@ -5877,13 +5884,15 @@ describe('GalleryComponent', () => {
         mockStore.filterPayload.mockImplementation(() => GalleryStore.prototype.filterPayload.call(mockStore));
         (mockAuth as { isEdition: unknown }).isEdition = () => edition();
         edition.set(true);
+        fixture.detectChanges();
         host.detectChanges();
       });
 
       it('withholds discovery and refuses direct launch without edition rights', async () => {
         edition.set(false);
+        fixture.detectChanges();
         host.detectChanges();
-        expect(host.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
         const dialog = dialogForSuggestions();
         await (gallery as unknown as { openStackSuggestions(): Promise<void> }).openStackSuggestions();
         expect(dialog.open).not.toHaveBeenCalled();
@@ -5895,9 +5904,10 @@ describe('GalleryComponent', () => {
       ])('withholds discovery and refuses direct launch for %j', async search => {
         mockStore.filters.set({ ...DEFAULT_FILTERS, ...search });
         mockStore.canScopeSelectionToView.set(false);
+        fixture.detectChanges();
         host.detectChanges();
         expect(mockStore.filterPayload()).toBeNull();
-        expect(host.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
         const dialog = dialogForSuggestions();
         await (gallery as unknown as { openStackSuggestions(): Promise<void> }).openStackSuggestions();
         expect(dialog.open).not.toHaveBeenCalled();
@@ -5910,7 +5920,7 @@ describe('GalleryComponent', () => {
         const router = TestBed.inject(Router);
         const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
         vi.spyOn(router, 'url', 'get').mockReturnValue('/album/42?sort=date&tag=a%20b#focused');
-        const button = host.nativeElement.querySelector('[data-stack-suggestions]') as HTMLButtonElement;
+        const button = fixture.nativeElement.querySelector('[data-stack-suggestions]') as HTMLButtonElement;
         button.click();
         expect(navigate).toHaveBeenCalledWith(['/culling'], { queryParams: {
           mode: 'stacks', filters: JSON.stringify(filters), return: '/album/42?sort=date&tag=a%20b#focused',
@@ -5995,18 +6005,11 @@ describe('GalleryComponent', () => {
         expect(search.selectionEnd).toBe(3);
       });
 
-      it('/ opens the sidebar and focuses its search below 1360 px, where the toolbar search is hidden', async () => {
+      it('/ focuses the collection search on narrow screens without opening another panel', () => {
         stubWide(false);
-        const [sidebarBlock] = await fixture.getDeferBlocks();
-        await sidebarBlock.render(DeferBlockState.Complete);
-        const focusSearch = vi.spyOn(GalleryFilterSidebarComponent.prototype, 'focusSearch').mockImplementation(() => undefined);
         expect(key({ key: '/' }).defaultPrevented).toBe(true);
-        expect(document.activeElement).not.toBe(search);
-        expect(mockStore.setFilterDrawerOpen).toHaveBeenCalledWith(true);
-        expect(gallery['filterSidebar']()).toBeTruthy();
-        fixture.detectChanges();
-        await fixture.whenStable();
-        expect(focusSearch).toHaveBeenCalledOnce();
+        expect(document.activeElement).toBe(search);
+        expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
       });
 
       it.each(['b', 'B'])('%s toggles the filter sidebar', k => {
@@ -6101,6 +6104,7 @@ describe('GalleryComponent', () => {
         vi.useRealTimers();
         const trigger = host.debugElement.query(By.css('[data-testid="keyboard-test-menu"]')).injector.get(MatMenuTrigger);
         trigger.openMenu();
+        fixture.detectChanges();
         host.detectChanges();
         await host.whenStable();
         const menu = TestBed.inject(OverlayContainer).getContainerElement().querySelector('[role="menu"]')!;
@@ -6109,6 +6113,7 @@ describe('GalleryComponent', () => {
         vi.useFakeTimers();
         key({ key: letter, keyCode: letter === '/' ? 191 : letter.toUpperCase().charCodeAt(0) }, item);
         vi.runOnlyPendingTimers();
+        fixture.detectChanges();
         host.detectChanges();
         expect(trigger.menuOpen).toBe(true);
         expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
@@ -6121,6 +6126,7 @@ describe('GalleryComponent', () => {
         vi.useRealTimers();
         const select = host.debugElement.query(By.css('mat-select[aria-label="Test selector"]')).componentInstance as MatSelect;
         select.open();
+        fixture.detectChanges();
         host.detectChanges();
         await host.whenStable();
         expect(select.panelOpen).toBe(true);
@@ -6129,6 +6135,7 @@ describe('GalleryComponent', () => {
         vi.useFakeTimers();
         key({ key: letter, keyCode: letter === '/' ? 191 : letter.toUpperCase().charCodeAt(0) }, panel);
         vi.runOnlyPendingTimers();
+        fixture.detectChanges();
         host.detectChanges();
         expect(select.panelOpen).toBe(true);
         expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
@@ -6146,6 +6153,7 @@ describe('GalleryComponent', () => {
         element.focus();
         key({ key: letter, keyCode: letter === '/' ? 191 : letter.toUpperCase().charCodeAt(0) }, element);
         vi.runOnlyPendingTimers();
+        fixture.detectChanges();
         host.detectChanges();
         expect(select.panelOpen).toBe(false);
         expect(select.value).toBe(letter === '/' ? 's' : letter);

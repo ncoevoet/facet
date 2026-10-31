@@ -4,9 +4,9 @@
 
 O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar, fazer a triagem e gerenciar suas fotos.
 
-No computador, os destinos identificados ficam junto à área de trabalho; o cabeçalho contém os controlos da página. A galeria identifica a coleção e distingue fotos correspondentes de grupos apresentados. O painel de detalhes identifica a sua foto; Fechar oculta-o sem limpar a seleção múltipla, enquanto Desselecionar mantém o comportamento anterior.
+No computador, a barra superior separa destinos de comandos da página. Navegação mostra ou oculta uma barra lateral compacta. O ponteiro ou o foco a expandem sobre as fotos; Fixar mantém a barra aberta e reserva espaço. No telefone, Navegação abre um menu com nomes. Os detalhes identificam a foto; Fechar preserva a seleção.
 
-Em ecrãs pequenos, Navegação abre um menu de destinos identificados. Grelha e Mosaico também estão no cabeçalho da coleção. A barra de seleção identifica Limpar e Comparar; as restantes operações mantêm os seus destinos e permissões.
+O cabeçalho reúne nome, contagens de fotos correspondentes e grupos exibidos, Grade/Mosaico e busca textual em qualquer largura. A seleção oferece Limpar, Comparar e, com edição, Manter/Rejeitar. Ações revela comandos secundários nomeados no computador; no telefone permanece o painel Ações. Alvos e permissões são preservados.
 
 ## Conteúdo
 

@@ -4,9 +4,9 @@
 
 La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer, trier et gérer vos photos.
 
-Sur ordinateur, les destinations nommées sont à côté de l’espace de travail ; l’en-tête contient les commandes de la page. La galerie nomme la collection et distingue photos correspondantes et groupes affichés. Le panneau de détails nomme sa photo ; Fermer le masque sans effacer la sélection multiple, tandis que Désélectionner conserve son comportement habituel.
+Sur ordinateur, la barre supérieure sépare les destinations des commandes de page. Navigation affiche ou masque une barre latérale compacte. Le survol ou le focus la développe au-dessus des photos ; Épingler la maintient ouverte en réservant sa place. Sur téléphone, Navigation ouvre un menu nommé. Le panneau de détails nomme sa photo ; Fermer le masque sans effacer la sélection.
 
-Sur petit écran, Navigation ouvre un menu de destinations nommées. Grille et Mosaïque sont aussi disponibles dans l’en-tête de collection. La barre de sélection nomme Effacer et Comparer ; les autres opérations conservent leurs cibles et autorisations.
+L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques.
 
 ## Sommaire
 

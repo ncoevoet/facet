@@ -12,8 +12,8 @@ All notable changes to Facet are documented in this file.
 ### Changed
 
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
-- Desktop navigation uses labeled destinations beside the photo workspace. The gallery names its collection and distinguishes matching photos from displayed groups; card metadata follows the selected light or dark theme.
-- Small-screen navigation uses a labeled menu, filter tabs show their names, and Grid/Mosaic controls are available in the collection header. Clear and Compare have visible labels in the selection bar.
+- Application destinations use a compact top bar with an optional desktop icon sidebar: show/hide, hover or focus to expand, and pin to reserve space. Card metadata follows the selected light or dark theme.
+- The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
 - Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
 - The gallery details panel names its owning photo and can be closed without clearing the batch selection.
 

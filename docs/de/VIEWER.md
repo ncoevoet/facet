@@ -4,9 +4,9 @@
 
 Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, Aussortieren und Verwalten Ihrer Fotos.
 
-Am Desktop stehen beschriftete Ziele neben dem Arbeitsbereich; die Kopfzeile enthält die Seitensteuerung. Die Galerie nennt die Sammlung und unterscheidet passende Fotos von angezeigten Gruppen. Das Detailfenster nennt sein Foto; Schließen blendet es aus, ohne die Mehrfachauswahl zu löschen. Abwählen behält sein bisheriges Verhalten.
+Am Desktop trennt die obere Leiste Ziele von Seitenbefehlen. Navigation zeigt oder verbirgt eine kompakte Symbolleiste. Zeiger oder Tastaturfokus erweitern sie über den Fotos; Anheften hält sie offen und reserviert Platz. Am Telefon öffnet Navigation ein beschriftetes Menü. Die Details nennen ihr Foto; Schließen erhält die Auswahl.
 
-Auf kleinen Bildschirmen öffnet Navigation ein Menü beschrifteter Ziele. Raster und Mosaik stehen auch im Sammlungskopf bereit. Die Auswahlleiste beschriftet Leeren und Vergleichen; andere Vorgänge behalten ihre Ziele und Berechtigungen.
+Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten.
 
 ## Inhalt
 

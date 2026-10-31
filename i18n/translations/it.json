@@ -1041,7 +1041,9 @@
     "junk_sweep": "Pulizia",
     "help": "Aiuto",
     "more": "Altro",
-    "navigation": "Navigazione"
+    "navigation": "Navigazione",
+    "pin_navigation": "Mantieni aperta la navigazione",
+    "unpin_navigation": "Sblocca la navigazione"
   },
   "auth": {
     "logout": "Esci",

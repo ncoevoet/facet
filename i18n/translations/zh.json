@@ -1041,7 +1041,9 @@
     "junk_sweep": "废片清理",
     "help": "帮助",
     "more": "更多",
-    "navigation": "导航"
+    "navigation": "导航",
+    "pin_navigation": "固定展开导航",
+    "unpin_navigation": "取消固定导航"
   },
   "auth": {
     "logout": "退出登录",

@@ -4,9 +4,9 @@
 
 The viewer is a FastAPI + Angular web app for browsing, filtering, culling and managing your photos.
 
-On desktop, labeled destinations sit beside the workspace; the header holds controls for the current page. The gallery names its collection and separates matching photos from displayed groups. The details panel names the photo it describes; Close hides the panel without clearing the batch selection, while Deselect keeps its existing selection behavior.
+On desktop, the top bar separates application destinations from page controls. Its Navigation button shows or hides a compact icon sidebar. Hovering or focusing that sidebar expands it over the photos; Pin keeps it open and reserves space. On phones, Navigation opens a labeled menu. The details panel names its photo; Close hides it without clearing the selection.
 
-On small screens, Navigation opens a menu of labeled destinations. Grid and Mosaic are also available in the collection header. The selection bar labels Clear and Compare; other operations retain their existing targets and permissions.
+The collection header contains its name, matching-photo and displayed-group counts, Grid/Mosaic and exact text search at every width. The selection bar exposes Clear, Compare and, with editing access, Keep/Reject. Desktop Actions reveals labeled secondary commands; phones retain the Actions sheet. Targets and permissions remain unchanged.
 
 ## Contents
 

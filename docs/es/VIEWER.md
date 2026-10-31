@@ -4,9 +4,9 @@
 
 El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descartar y gestionar tus fotos.
 
-En escritorio, los destinos con nombre están junto al espacio de trabajo; la cabecera contiene los controles de la página. La galería identifica la colección y distingue fotos coincidentes de grupos mostrados. El panel de detalles identifica su foto; Cerrar lo oculta sin borrar la selección múltiple, mientras Deseleccionar conserva su comportamiento.
+En escritorio, la barra superior separa los destinos de los controles de página. Navegación muestra u oculta una barra lateral compacta. El puntero o el foco la amplían sobre las fotos; Fijar la mantiene abierta y reserva espacio. En teléfonos, Navegación abre un menú con nombres. Los detalles identifican su foto; Cerrar conserva la selección.
 
-En pantallas pequeñas, Navegación abre un menú de destinos con nombre. Cuadrícula y Mosaico también están en la cabecera de la colección. La barra de selección etiqueta Limpiar y Comparar; las demás operaciones conservan sus destinos y permisos.
+La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos.
 
 ## Contenido
 

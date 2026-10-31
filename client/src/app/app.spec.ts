@@ -1078,37 +1078,65 @@ describe('App', () => {
       expect(menu.querySelector('a[href="/stats"]')).not.toBeNull();
     });
 
-    it('keeps desktop destinations labeled in a leading navigation rail instead of an overflow menu', () => {
+    it('uses compact top navigation without reserving a permanent left rail', () => {
       const { root } = render(true);
-      const rail = root.querySelector<HTMLElement>('aside[data-workspace-navigation]');
-      expect(rail).not.toBeNull();
-      for (const label of [I18N.nav.stats, I18N.nav.persons, I18N.nav.culling]) {
-        const link = rail!.querySelector<HTMLAnchorElement>(`a[aria-label="${label}"]`)!;
-        expect(link).not.toBeNull();
+      const header = root.querySelector<HTMLElement>('header[data-workspace-navigation]');
+      expect(header).not.toBeNull();
+      expect(root.querySelector('aside[data-workspace-navigation]')).toBeNull();
+      expect(root.firstElementChild!.classList.contains('lg:pl-48')).toBe(false);
+      const primary = header!.querySelector('[data-primary-navigation]')!;
+      for (const [href, label] of [['/', I18N.nav.gallery], ['/culling', I18N.nav.culling]]) {
+        const link = primary.querySelector(`a[href="${href}"]`)!;
         expect(link.textContent).toContain(label);
         expect(link.getAttribute('ariaCurrentWhenActive')).toBe('page');
       }
-      expect(root.querySelector(`nav button[aria-label="${I18N.nav.more}"]`)).toBeNull();
+      expect(header!.querySelector('[data-mobile-navigation]')).not.toBeNull();
+    });
+
+    it('can hide, preview and pin navigation without letting hover reserve the expanded width', () => {
+      const { fixture, root } = render(true);
+      const toggle = root.querySelector<HTMLButtonElement>('[data-toggle-navigation]')!;
+      expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
+      toggle.click(); fixture.detectChanges();
+      const rail = root.querySelector<HTMLElement>('[data-expandable-navigation]')!;
+      const main = root.querySelector('main')!;
+      expect(main.classList.contains('lg:ml-14')).toBe(true);
+      rail.dispatchEvent(new Event('mouseenter')); fixture.detectChanges();
+      expect(rail.classList.contains('!w-48')).toBe(true);
+      expect(main.classList.contains('lg:ml-48')).toBe(false);
+      rail.dispatchEvent(new Event('mouseleave')); fixture.detectChanges();
+      expect(rail.classList.contains('!w-48')).toBe(false);
+      rail.dispatchEvent(new FocusEvent('focusin')); fixture.detectChanges();
+      expect(rail.classList.contains('!w-48')).toBe(true);
+      rail.dispatchEvent(new Event('mouseleave')); fixture.detectChanges();
+      expect(rail.classList.contains('!w-48')).toBe(true);
+      rail.querySelector<HTMLButtonElement>('[data-pin-navigation]')!.click(); fixture.detectChanges();
+      rail.dispatchEvent(new Event('mouseleave')); fixture.detectChanges();
+      expect(rail.classList.contains('!w-48')).toBe(true);
+      expect(main.classList.contains('lg:ml-48')).toBe(true);
+      expect(rail.querySelector('[data-pin-navigation]')!.getAttribute('aria-pressed')).toBe('true');
+      toggle.click(); fixture.detectChanges();
+      expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
+      expect(main.classList.contains('lg:ml-48')).toBe(false);
     });
 
     it('removes editing destinations immediately when edition access is lost', () => {
       const { fixture, root } = render(true);
       const auth = TestBed.inject(AuthService) as unknown as { isEdition: ReturnType<typeof signal<boolean>> };
-      expect(root.querySelector('aside a[href="/culling"]')).not.toBeNull();
+      expect(root.querySelector('[data-primary-navigation] a[href="/culling"]')).not.toBeNull();
       auth.isEdition.set(false);
       fixture.detectChanges();
-      expect(root.querySelector('aside a[href="/culling"]')).toBeNull();
-      expect(root.querySelector('aside a[href="/compare"]')).toBeNull();
-      expect(root.querySelector('aside a[href="/stats"]')).not.toBeNull();
+      expect(root.querySelector('[data-primary-navigation] a[href="/culling"]')).toBeNull();
+      expect(root.querySelector('[data-mobile-navigation]')).not.toBeNull();
     });
 
     it('removes navigation and its reserved desktop space after logout', () => {
       const { fixture, root } = render(false);
       const auth = TestBed.inject(AuthService) as unknown as { isAuthenticated: ReturnType<typeof signal<boolean>> };
-      expect(root.querySelector('aside[data-workspace-navigation]')).not.toBeNull();
+      expect(root.querySelector('[data-workspace-navigation]')).not.toBeNull();
       auth.isAuthenticated.set(false);
       fixture.detectChanges();
-      expect(root.querySelector('aside[data-workspace-navigation]')).toBeNull();
+      expect(root.querySelector('[data-workspace-navigation]')).toBeNull();
       expect(root.firstElementChild!.classList.contains('lg:pl-48')).toBe(false);
     });
 

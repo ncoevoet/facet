@@ -4,9 +4,9 @@
 
 La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare e gestire le tue foto.
 
-Sul desktop, le destinazioni con etichetta affiancano lo spazio di lavoro; la testata contiene i controlli della pagina. La galleria indica la raccolta e distingue foto corrispondenti e gruppi visualizzati. Il pannello dettagli indica la propria foto; Chiudi lo nasconde senza cancellare la selezione multipla, mentre Deseleziona conserva il comportamento precedente.
+Sul desktop, la barra superiore separa le destinazioni dai comandi della pagina. Navigazione mostra o nasconde una barra laterale compatta. Il puntatore o il focus la espandono sopra le foto; Fissa la mantiene aperta riservando spazio. Sul telefono Navigazione apre un menu con etichette. I dettagli indicano la foto; Chiudi conserva la selezione.
 
-Sugli schermi piccoli, Navigazione apre un menu di destinazioni con nome. Griglia e Mosaico sono disponibili anche nella testata della raccolta. La barra di selezione etichetta Cancella e Confronta; le altre operazioni mantengono destinatari e autorizzazioni.
+L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate.
 
 ## Contenuti
 

@@ -1056,6 +1056,8 @@ export const I18N = {
     help: "nav.help",
     more: "nav.more",
     navigation: "nav.navigation",
+    pin_navigation: "nav.pin_navigation",
+    unpin_navigation: "nav.unpin_navigation",
   },
   auth: {
     logout: "auth.logout",

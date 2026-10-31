@@ -230,6 +230,33 @@ export class App implements OnInit {
   protected readonly compareFilters = inject(CompareFiltersService);
   protected readonly mapFilters = inject(MapFiltersService);
   protected readonly capsuleFilters = inject(CapsuleFiltersService);
+  protected readonly navigationVisible = signal(false);
+  protected readonly navigationPinned = signal(false);
+  protected readonly navigationHover = signal(false);
+  protected readonly navigationFocused = signal(false);
+  protected readonly navigationExpanded = computed(() => this.navigationPinned() || this.navigationHover() || this.navigationFocused());
+
+  protected toggleNavigation(): void {
+    this.navigationVisible.update(visible => !visible);
+    this.navigationHover.set(false);
+    this.navigationFocused.set(false);
+  }
+
+  protected collapseNavigationPreview(): void {
+    this.navigationHover.set(false);
+    this.navigationFocused.set(false);
+  }
+
+  protected toggleNavigationPin(): void {
+    this.navigationPinned.update(pinned => !pinned);
+  }
+
+  protected onNavigationFocusOut(event: FocusEvent): void {
+    if (!(event.relatedTarget instanceof Node) || !(event.currentTarget as HTMLElement).contains(event.relatedTarget)) {
+      this.navigationFocused.set(false);
+    }
+  }
+
   protected readonly mobileSearchOpen = signal(false);
   protected readonly mobileAlbumsSearchOpen = signal(false);
   protected readonly mobilePersonsSearchOpen = signal(false);
