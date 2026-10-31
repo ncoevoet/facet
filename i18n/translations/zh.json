@@ -1056,6 +1056,14 @@
     "user_menu": "用户菜单"
   },
   "gallery": {
+    "presentation": {
+      "label": "显示",
+      "help": "选择任务布局。筛选、排序、相册和选择保持不变。",
+      "browse": "浏览",
+      "review": "审阅",
+      "organize": "整理",
+      "reset": "重置为默认显示"
+    },
     "help": "按评分、日期或个人偏好排序\n用侧栏筛选：人物、标签、相机、类别等\n搜索框按文件名或描述查找",
     "hidden_banner": {
       "message": "当前筛选条件隐藏了 {n} 张照片",

@@ -1056,6 +1056,14 @@
     "user_menu": "Benutzermenü"
   },
   "gallery": {
+    "presentation": {
+      "label": "Ansicht",
+      "help": "Aufgabenlayout wählen. Filter, Sortierung, Album und Auswahl bleiben gleich.",
+      "browse": "Durchsehen",
+      "review": "Prüfen",
+      "organize": "Organisieren",
+      "reset": "Anzeige auf Standard zurücksetzen"
+    },
     "help": "Nach Bewertung, Datum oder deinem Geschmack sortieren\nMit der Seitenleiste filtern: Personen, Tags, Kamera, Kategorien\nSuche nach Dateiname oder Beschreibung",
     "hidden_banner": {
       "message": "{n} Fotos durch aktuelle Filter ausgeblendet",

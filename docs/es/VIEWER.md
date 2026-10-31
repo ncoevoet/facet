@@ -8,6 +8,8 @@ En escritorio, la barra superior separa los destinos de los controles de página
 
 La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos. Orden, dirección, Filtros, información de foto y presentación forman un único grupo de colección en escritorio y teléfono. Cuenta, Edición y escaneo permitido permanecen en la barra de aplicación; la galería no duplica una barra inferior. Abrir una foto cierra los menús de colección y pausa sus comandos hasta volver.
 
+**Vistas de trabajo.** Vista → Explorar usa un mosaico compacto con información al pasar el puntero (por clic en pantallas estrechas). Revisar usa tarjetas más grandes con detalles e inspección por clic (panel lateral si hay espacio). Organizar usa una cuadrícula más densa con detalles e información por clic. Solo cambian diseño, tamaño, detalles e inspección; consulta, orden, álbum, selección y página cargada se mantienen. Restablecer vista predeterminada recupera la presentación configurada sin restablecer filtros. Si los ajustes manuales ya no coinciden, ninguna vista queda marcada.
+
 ## Contenido
 
 - [Iniciar el visor](#iniciar-el-visor) · [Autenticación](#autenticación) · [Opciones de filtrado](#opciones-de-filtrado) · [Ordenación](#ordenación) · [Decisiones de revisión](#decisiones-de-revisión) · [Funciones de la galería](#funciones-de-la-galería)

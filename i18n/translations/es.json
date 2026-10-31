@@ -1056,6 +1056,14 @@
     "user_menu": "Menú de usuario"
   },
   "gallery": {
+    "presentation": {
+      "label": "Vista",
+      "help": "Elige un diseño de trabajo. Los filtros, el orden, el álbum y la selección se mantienen.",
+      "browse": "Explorar",
+      "review": "Revisar",
+      "organize": "Organizar",
+      "reset": "Restablecer vista predeterminada"
+    },
     "help": "Ordena por puntuación, fecha o tu gusto personal\nFiltra con la barra lateral: personas, etiquetas, cámara, categorías\nBusca por nombre de archivo o descripción",
     "hidden_banner": {
       "message": "{n} fotos ocultas por los filtros actuales",

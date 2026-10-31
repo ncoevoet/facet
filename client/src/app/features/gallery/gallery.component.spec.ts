@@ -64,6 +64,21 @@ describe('GalleryComponent', () => {
   let routeMock: { snapshot: { paramMap: { get: Mock }; queryParams: Record<string, string> } };
   let outletMock: { attachEvents: Subject<unknown>; detachEvents: Subject<unknown> };
 
+  it('releases a stale side-drawer inset for mobile or a closed desktop drawer', () => {
+    const desktop = signal(true);
+    Object.defineProperty(component, 'isDesktop', { value: desktop });
+    const geometry = component as unknown as { noticeInsetPx: WritableSignal<number>; noticeRightPx: () => number };
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tooltip_mode: 'hover' }));
+    mockStore.filterDrawerOpen.set(true);
+    geometry.noticeInsetPx.set(320);
+    expect(geometry.noticeRightPx()).toBe(336);
+    desktop.set(false);
+    expect(geometry.noticeRightPx()).toBe(8);
+    desktop.set(true);
+    mockStore.filterDrawerOpen.set(false);
+    expect(geometry.noticeRightPx()).toBe(16);
+  });
+
   beforeEach(async () => {
     mockStore = {
       filters: signal<GalleryFilters>({ ...DEFAULT_FILTERS }),
@@ -1711,7 +1726,11 @@ describe('GalleryComponent', () => {
         return this.tagName === 'MAT-SIDENAV-CONTENT' ? 683 : 0;
       });
       try {
-        const notices = stack(render())!;
+        const fixture = TestBed.createComponent(GalleryComponent);
+        Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true) });
+        mockStore.filterDrawerOpen.set(true);
+        fixture.detectChanges();
+        const notices = stack(fixture.nativeElement as HTMLElement)!;
         expect(notices.classList.contains('left-2')).toBe(false);
         // 1000 - (0 + 683) = 317 (drawer + scrollbar) plus the margin.
         expect(parseFloat(notices.style.right)).toBeGreaterThanOrEqual(317 + 8);

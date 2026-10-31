@@ -219,7 +219,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
     </ng-template>
 
     <div #noticeHost class="relative h-full">
-    <mat-sidenav-container class="h-full">
+    <mat-sidenav-container class="h-full !overflow-clip">
       <!-- One end drawer, two occupants. Material allows a single drawer per
            side, which is also the behaviour we want: the details rail and the
            filters compete for the same strip, so opening the filters hides the
@@ -1239,7 +1239,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly noticeInsetPx = signal(0);
 
   /** Right offset of the floating notices: a margin (16px md+, 8px below) plus the drawer/scrollbar gap. */
-  protected readonly noticeRightPx = computed(() => this.noticeInsetPx() + this.floatMarginPx());
+  protected readonly noticeRightPx = computed(() => {
+    // ResizeObserver can retain the previous side-drawer inset after a viewport
+    // or presentation change. An over drawer never reserves photo-canvas width.
+    const reservesSpace = this.isDesktop() && (this.store.filterDrawerOpen() || this.detailsRailVisible());
+    return (reservesSpace ? this.noticeInsetPx() : 0) + this.floatMarginPx();
+  });
 
   /** Re-measure the drawer/scrollbar gap whenever the host or the content box resizes. */
   private readonly trackNoticeInset = effect(onCleanup => {

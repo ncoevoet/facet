@@ -13,6 +13,7 @@ import { SortGroupKeyPipe } from '../../shared/pipes/sort-group-key.pipe';
 import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/media-query';
 import { GalleryFilters, GalleryStore } from './gallery.store';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
+import { GalleryDisplayPreset, galleryPresentation } from './gallery-presentation.util';
 
 const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 
@@ -22,11 +23,27 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [MatBadgeModule, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
   host: { class: 'flex flex-wrap items-center gap-1' },
-  template: `@if (!pinned()) {
+  template: `
+    <button mat-button data-display-presets class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="displayPresetMenu"
+            [attr.aria-label]="I18N.gallery.presentation.label | translate"
+            [matTooltip]="I18N.gallery.presentation.help | translate">
+      <mat-icon class="max-md:!m-0">tune</mat-icon><span class="hidden md:inline">{{ I18N.gallery.presentation.label | translate }}</span>
+    </button>
+    <mat-menu #displayPresetMenu="matMenu">
+      <p class="m-0 px-4 py-2 max-w-72 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.presentation.help | translate }}</p>
+      @for (preset of presets; track preset.id) {
+        <button mat-menu-item role="menuitemradio" [attr.aria-checked]="activePreset() === preset.id"
+                [attr.data-display-preset]="preset.id" (click)="applyPreset(preset.id)">
+          <mat-icon>{{ activePreset() === preset.id ? 'check' : preset.icon }}</mat-icon>{{ preset.label | translate }}
+        </button>
+      }
+      <button mat-menu-item data-reset-display (click)="applyPreset('default')"><mat-icon>restart_alt</mat-icon>{{ I18N.gallery.presentation.reset | translate }}</button>
+    </mat-menu>
+    @if (!pinned()) {
           @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-          <button mat-button class="" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
+          <button mat-button data-collection-sort class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
             @let currentIcon = store.filters().sort | sortOptionIcon;
-            <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
+            <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center max-md:!m-0" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
           <span class="hidden md:inline">{{ currentSortLabelKey() | translate }}</span></button>
           <button
             class=""
@@ -53,13 +70,13 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
           <span>{{ I18N.gallery.filters | translate }}</span></button>
         }
 <button
-          class=""
+          class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
           mat-button
           [matMenuTriggerFor]="tooltipModeMenu"
           [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
           [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate"
         >
-          <mat-icon>{{
+          <mat-icon class="max-md:!m-0">{{
             store.filters().tooltip_mode === 'click' ? 'touch_app'
             : store.filters().tooltip_mode === 'off' ? 'visibility_off'
             : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
@@ -189,6 +206,24 @@ export class GalleryViewControlsComponent {
   private readonly tooltips = viewChildren(MatTooltip);
   private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
   protected readonly canDockDetails = this.railCapable.isDesktop;
+  protected readonly presets: { id: GalleryDisplayPreset; label: string; icon: string }[] = [
+    { id: 'browse', label: I18N.gallery.presentation.browse, icon: 'photo_library' },
+    { id: 'review', label: I18N.gallery.presentation.review, icon: 'fact_check' },
+    { id: 'organize', label: I18N.gallery.presentation.organize, icon: 'folder' },
+  ];
+  protected readonly activePreset = computed(() => {
+    const filters = this.store.filters();
+    return this.presets.find(({ id }) => {
+      const candidate = galleryPresentation(id, this.canDockDetails());
+      return candidate.mode === this.store.galleryMode() && candidate.cardWidth === this.store.cardWidth()
+        && candidate.hide_details === filters.hide_details && candidate.tooltip_mode === filters.tooltip_mode
+        && candidate.panel_activation === filters.panel_activation;
+    })?.id ?? null;
+  });
+
+  protected applyPreset(preset: GalleryDisplayPreset | 'default'): void {
+    if (this.canAct()) void this.store.applyDisplayPreset(preset, this.canDockDetails());
+  }
   constructor() {
     afterNextRender(() => this.railCapable.setup());
     inject(DestroyRef).onDestroy(() => this.railCapable.cleanup());

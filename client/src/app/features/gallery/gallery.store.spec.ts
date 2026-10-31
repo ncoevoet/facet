@@ -22,7 +22,7 @@ import {
 } from './gallery.store';
 import { Photo } from '../../shared/models/photo.model';
 import { makePhoto } from '../../../testing/photo.fixture';
-import { applyQueryParams, buildSyncParams } from './gallery-filters.util';
+import { applyQueryParams, buildSyncParams, CARD_WIDTH_KEY, DISPLAY_OPTIONS_KEY, GALLERY_MODE_KEY } from './gallery-filters.util';
 import { PersonAssignmentHistoryService } from '../../core/services/person-assignment-history.service';
 import type { Mock } from 'vitest';
 
@@ -118,6 +118,57 @@ describe('GalleryStore', () => {
     });
 
     store = TestBed.inject(GalleryStore);
+  });
+
+  describe('task display presets', () => {
+    const saved = new Map<string, string | null>();
+    beforeEach(() => {
+      for (const key of [CARD_WIDTH_KEY, DISPLAY_OPTIONS_KEY, GALLERY_MODE_KEY]) saved.set(key, localStorage.getItem(key));
+    });
+    afterEach(() => {
+      for (const [key, value] of saved) {
+        if (value === null) localStorage.removeItem(key);
+        else localStorage.setItem(key, value);
+      }
+      saved.clear();
+    });
+    it.each(['browse', 'review', 'organize', 'default'] as const)('changes only presentation with %s, retaining a pinned query and selection without HTTP', async preset => {
+      store.config.set(makeConfig());
+      store.filters.update(filters => ({ ...filters, page: 3, album_id: '17', search: 'rain', sort: 'date_taken', hide_bursts: false, review_status: 'kept' }));
+      store.pinnedPaths.set(['/pinned-a', '/pinned-b']);
+      store.restoreSelection(['/pinned-b']);
+      store.focusedPath.set('/pinned-a');
+      const before = { ...store.filters() };
+      const beforePayload = store.filterPayload();
+      await store.applyDisplayPreset(preset, true);
+      expect(store.filterPayload()).toEqual(beforePayload);
+      expect(store.filters()).toMatchObject({ page: before.page, album_id: before.album_id, search: before.search, sort: before.sort, hide_bursts: false, review_status: 'kept' });
+      expect(store.pinnedPaths()).toEqual(['/pinned-a', '/pinned-b']);
+      expect([...store.selectedPaths()]).toEqual(['/pinned-b']);
+      expect(store.focusedPath()).toBe('/pinned-a');
+      expect(apiGet).not.toHaveBeenCalled();
+      expect(apiPost).not.toHaveBeenCalled();
+      expect(routerNavigate).toHaveBeenCalled();
+    });
+
+    it('uses click inspection on narrow review screens and restores configured display defaults separately from the query', async () => {
+      const config = makeConfig();
+      config.defaults.gallery_mode = 'mosaic';
+      config.defaults.tooltip_mode = 'off';
+      config.display.thumbnail_slider = { min_px: 96, max_px: 480, default_px: 192, step_px: 8 };
+      store.config.set(config);
+      await store.applyDisplayPreset('review', false);
+      expect(store.filters()).toMatchObject({ hide_details: false, tooltip_mode: 'click', panel_activation: 'click' });
+      expect(store.galleryMode()).toBe('grid');
+      expect(store.cardWidth()).toBe(240);
+      await store.applyDisplayPreset('default', false);
+      expect(store.galleryMode()).toBe('mosaic');
+      expect(store.cardWidth()).toBe(192);
+      expect(store.filters().tooltip_mode).toBe('off');
+      await store.applyDisplayPreset('browse', false);
+      expect(store.filters().tooltip_mode).toBe('click');
+      expect(apiGet).not.toHaveBeenCalled();
+    });
   });
 
   describe('committed stack selection', () => {

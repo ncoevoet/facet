@@ -8,6 +8,8 @@ No computador, a barra superior separa destinos de comandos da página. Navegaç
 
 O cabeçalho reúne nome, contagens de fotos correspondentes e grupos exibidos, Grade/Mosaico e busca textual em qualquer largura. A seleção oferece Limpar, Comparar e, com edição, Manter/Rejeitar. Ações revela comandos secundários nomeados no computador; no telefone permanece o painel Ações. Alvos e permissões são preservados. Ordenação, direção, Filtros, informações da foto e apresentação formam um único grupo da coleção no computador e telefone. Conta, Edição e análise permitida ficam na barra da aplicação; a galeria não duplica uma barra inferior. Abrir uma foto fecha os menus da coleção e pausa os comandos até voltar.
 
+**Vistas de trabalho.** Vista → Explorar usa um mosaico compacto com informação ao passar o ponteiro (por clique em ecrãs estreitos). Rever usa cartões maiores com detalhes e inspeção por clique (painel lateral quando há espaço). Organizar usa uma grelha mais densa com detalhes e informação por clique. Só mudam disposição, tamanho, detalhes e inspeção; consulta, ordenação, álbum, seleção e página carregada mantêm-se. Repor a vista predefinida restaura a apresentação configurada sem repor os filtros. Uma vista deixa de estar marcada quando os ajustes manuais já não correspondem.
+
 ## Conteúdo
 
 - [Iniciando o Visualizador](#iniciando-o-visualizador) · [Autenticação](#autenticação) · [Opções de Filtragem](#opções-de-filtragem) · [Ordenação](#ordenação) · [Decisões de revisão](#decisões-de-revisão) · [Recursos da Galeria](#recursos-da-galeria)

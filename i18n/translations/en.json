@@ -1056,6 +1056,14 @@
     "user_menu": "User menu"
   },
   "gallery": {
+    "presentation": {
+      "label": "Display",
+      "help": "Choose a task layout. Filters, sort, album and selection stay the same.",
+      "browse": "Browse",
+      "review": "Review",
+      "organize": "Organize",
+      "reset": "Reset display to defaults"
+    },
     "help": "Sort by score, date or your personal taste\nFilter with the sidebar: people, tags, camera, categories\nSearch by filename or description",
     "hidden_banner": {
       "message": "{n} photos hidden by current filters",

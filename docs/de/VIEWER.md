@@ -8,6 +8,8 @@ Am Desktop trennt die obere Leiste Ziele von Seitenbefehlen. Navigation zeigt od
 
 Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten. Sortierung, Richtung, Filter, Fotoinformationen und Diashow bilden eine Sammlungssteuerung am Desktop und Telefon. Konto, Bearbeitungsmodus und erlaubte Scan-Aktionen bleiben in der Anwendungsleiste; die Galerie hat keine doppelte untere Leiste. Beim Öffnen eines Fotos schließen sich Sammlungsmenüs und ihre Befehle pausieren bis zur Rückkehr.
 
+**Anzeigevorgaben.** Ansicht → Durchsehen verwendet ein kompaktes Mosaik mit Informationen beim Überfahren (auf schmalen Bildschirmen per Klick). Prüfen zeigt größere Rasterkarten mit Details und klickgesteuerter Inspektion (bei ausreichender Breite als Seitenpanel). Organisieren zeigt ein dichteres Raster mit Details und Klickinformationen. Nur Layout, Kartengröße, Detailanzeige und Inspektion ändern sich; Abfrage, Sortierung, Album, Auswahl und geladene Seite bleiben erhalten. Anzeige auf Standard zurücksetzen stellt die konfigurierte Darstellung ohne Filterreset wieder her. Bei abweichenden manuellen Einstellungen ist keine Vorgabe markiert.
+
 ## Inhalt
 
 - [Galerie starten](#galerie-starten) · [Authentifizierung](#authentifizierung) · [Filteroptionen](#filteroptionen) · [Sortierung](#sortierung) · [Sichtungsentscheidungen](#sichtungsentscheidungen) · [Galeriefunktionen](#galeriefunktionen)

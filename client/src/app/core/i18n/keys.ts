@@ -1070,6 +1070,14 @@ export const I18N = {
     user_menu: "auth.user_menu",
   },
   gallery: {
+    presentation: {
+      label: "gallery.presentation.label",
+      help: "gallery.presentation.help",
+      browse: "gallery.presentation.browse",
+      review: "gallery.presentation.review",
+      organize: "gallery.presentation.organize",
+      reset: "gallery.presentation.reset",
+    },
     help: "gallery.help",
     hidden_banner: {
       message: "gallery.hidden_banner.message",

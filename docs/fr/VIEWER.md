@@ -8,6 +8,8 @@ Sur ordinateur, la barre supérieure sépare les destinations des commandes de p
 
 L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques. Tri, sens, Filtres, informations photo et diaporama forment un seul groupe de collection sur ordinateur et téléphone. Compte, Édition et analyse autorisée restent dans la barre d’application ; la galerie n’a plus de barre inférieure en double. Ouvrir une photo ferme les menus de collection et suspend leurs commandes jusqu’au retour.
 
+**Dispositions de travail.** Affichage → Parcourir utilise une mosaïque compacte avec informations au survol (au clic sur les écrans étroits). Examiner utilise de grandes vignettes en grille avec détails et inspection au clic (panneau latéral si la largeur le permet). Organiser utilise une grille plus dense avec détails et informations au clic. Seuls disposition, taille, détails et inspection changent ; requête, tri, album, sélection et page chargée restent identiques. Rétablir l’affichage par défaut restaure la présentation configurée sans réinitialiser les filtres. Une disposition n’est plus cochée si des réglages manuels ne lui correspondent plus.
+
 ## Sommaire
 
 - [Démarrer la visionneuse](#démarrer-la-visionneuse) · [Authentification](#authentification) · [Options de filtrage](#options-de-filtrage) · [Tri](#tri) · [Décisions de tri](#décisions-de-tri) · [Fonctionnalités de la galerie](#fonctionnalités-de-la-galerie)

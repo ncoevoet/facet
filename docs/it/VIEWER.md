@@ -8,6 +8,8 @@ Sul desktop, la barra superiore separa le destinazioni dai comandi della pagina.
 
 L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate. Ordinamento, direzione, Filtri, informazioni foto e presentazione formano un unico gruppo della raccolta su desktop e telefono. Account, Modifica e scansione autorizzata restano nella barra dell’applicazione; la galleria non duplica una barra inferiore. Aprire una foto chiude i menu della raccolta e sospende i comandi fino al ritorno.
 
+**Viste di lavoro.** Vista → Sfoglia usa un mosaico compatto con informazioni al passaggio del puntatore (al clic sugli schermi stretti). Rivedi usa riquadri più grandi con dettagli e ispezione al clic (pannello laterale sugli schermi ampi). Organizza usa una griglia più densa con dettagli e informazioni al clic. Cambiano solo layout, dimensioni, dettagli e ispezione; query, ordinamento, album, selezione e pagina caricata restano invariati. Ripristina la vista predefinita ripristina la presentazione configurata senza azzerare i filtri. Nessuna vista è selezionata se le regolazioni manuali non corrispondono più.
+
 ## Contenuti
 
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Decisioni di revisione](#decisioni-di-revisione) · [Funzionalità della galleria](#funzionalità-della-galleria)

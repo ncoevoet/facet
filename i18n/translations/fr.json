@@ -1056,6 +1056,14 @@
     "user_menu": "Menu utilisateur"
   },
   "gallery": {
+    "presentation": {
+      "label": "Affichage",
+      "help": "Choisissez une disposition. Filtres, tri, album et sélection sont conservés.",
+      "browse": "Parcourir",
+      "review": "Examiner",
+      "organize": "Organiser",
+      "reset": "Rétablir l’affichage par défaut"
+    },
     "help": "Triez par score, date ou votre goût personnel\nFiltrez avec la barre latérale : personnes, tags, appareil, catégories\nRecherchez par nom de fichier ou description",
     "hidden_banner": {
       "message": "{n} photos masquées par les filtres actuels",

@@ -8,6 +8,8 @@ On desktop, the top bar separates application destinations from page controls. I
 
 The collection header contains its name, matching-photo and displayed-group counts, Grid/Mosaic and exact text search at every width. The selection bar exposes Clear, Compare and, with editing access, Keep/Reject. Desktop Actions reveals labeled secondary commands; phones retain the Actions sheet. Targets and permissions remain unchanged. Sort, direction, Filters, photo information and slideshow now form one collection control group on desktop and phone. Account, Edition and permitted scan actions stay in the application bar; the gallery has no duplicate bottom toolbar. Opening a photo closes collection menus and pauses their commands until you return.
 
+**Display presets.** Display → Browse uses a compact mosaic with hover information (click information on narrow screens). Review uses larger grid cards with details and click-owned inspection (a docked panel where the screen is wide enough). Organize uses a denser grid with details and click information. These presets change only layout, card size, detail visibility and inspection behavior: they preserve the query, sort, album, selection and loaded page. Reset display to defaults restores the configured presentation without resetting filters. Manual adjustments leave a preset unchecked when its settings no longer match.
+
 ## Contents
 
 - [Starting the Viewer](#starting-the-viewer) · [Authentication](#authentication) · [Filtering Options](#filtering-options) · [Sorting](#sorting) · [Review decisions](#review-decisions) · [Gallery Features](#gallery-features)

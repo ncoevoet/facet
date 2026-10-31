@@ -18,6 +18,7 @@ describe('GalleryViewControlsComponent', () => {
       filters: signal({ ...DEFAULT_FILTERS }), config: signal(config),
       pinnedPaths: signal<string[] | null>(null), filterDrawerOpen: signal(true), activeFilterCount: signal(0),
       slideshowActive: signal(false), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), setUserSort: vi.fn(() => Promise.resolve()),
+      galleryMode: signal('grid'), cardWidth: signal(168), applyDisplayPreset: vi.fn(() => Promise.resolve()),
     };
     TestBed.configureTestingModule({
       imports: [GalleryViewControlsComponent],
@@ -44,6 +45,22 @@ describe('GalleryViewControlsComponent', () => {
       await fixture.whenStable();
       fixture.detectChanges();
     };
+
+    it('offers display-only task presets in pinned lists and blocks captured commands while parked', async () => {
+      const { fixture, root, store } = render();
+      store.pinnedPaths.set(['/fixed']);
+      fixture.detectChanges();
+      await openMenu(fixture, root.querySelector<HTMLButtonElement>('[data-display-presets]')!);
+      const organize = document.querySelector<HTMLButtonElement>('[data-display-preset="organize"]')!;
+      expect(organize).not.toBeNull();
+      organize.click();
+      expect(store.applyDisplayPreset).toHaveBeenCalledWith('organize', expect.any(Boolean));
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      store.applyDisplayPreset.mockClear();
+      fixture.componentInstance.setActive(false);
+      organize.click();
+      expect(store.applyDisplayPreset).not.toHaveBeenCalled();
+    });
 
     ;
 

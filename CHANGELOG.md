@@ -6,12 +6,16 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
+- Browse, Review and Organize display presets change layout, density and inspection without changing the current query, sort, album, selection or loaded page. Reset display restores configured presentation separately from filters.
+
 - Gallery comparison labels a reference photo, allows deliberate reference promotion and independent framing, and reports sharp-preview readiness per pane. Two-up keeps a stable reference while stepping through selected candidates. Relinking preserves manually aligned crops; linked gestures apply relative zoom and pan across candidates, while Reset fits every photo without changing review decisions.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
 
 ### Changed
 
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+- Floating gallery actions release a closed inspector’s reserved width when switching to a narrow screen. The drawer container no longer scrolls horizontally when a focused control moves during resizing.
+
 - The selection bar discloses selected photos outside loaded tiles and whole-view exclusions. Comparison refuses partial or oversized selections instead of silently opening only some selected photos.
 
 - Gallery sort, filters, inspection and slideshow use one collection-owned control group at every width. Account and scan actions sit in the application bar; the duplicate gallery toolbar and mobile bottom bar are removed. Collection menus close and reject stale commands while a photo page parks the gallery.
