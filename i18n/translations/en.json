@@ -2853,6 +2853,16 @@
       "top": "Top {pct}% of the library",
       "range": "Library range {min}–{max}",
       "top_in_range": "Top {pct}% of the library · library range {min}–{max}"
+    },
+    "assessment": {
+      "title": "AI assessment",
+      "score": "AI score",
+      "measurements": "Measurements {available}/{total}",
+      "explanation": "AI measurements support inspection. Your stars and Keep/Reject decisions are separate.",
+      "unavailable": "Unavailable",
+      "unavailable_help": "Unavailable means no usable measurement was returned. It is not a zero or a low score; the reason is not supplied here.",
+      "group_pick": "Suggested in this group",
+      "group_pick_help": "The group suggestion ranks these alternatives. It is not your rating and does not automatically mean Keep."
     }
   },
   "manual_tags": {

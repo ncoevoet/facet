@@ -21,6 +21,8 @@ import { AlbumService, Album } from '../../core/services/album.service';
 import { GalleryStore } from './gallery.store';
 import { SceneDatePipe, MomentLabelPipe, MomentUncertainPipe } from '../scenes/scenes.pipes';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
+import { AssessmentValuePipe } from '../../shared/pipes/assessment-value.pipe';
+import { PhotoAssessmentComponent } from '../../shared/components/photo-assessment/photo-assessment.component';
 import { ThumbnailUrlPipe, FaceThumbnailUrlPipe, ImageUrlPipe, STORED_THUMBNAIL_EDGE, RENDERED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { SwipeDecisionDirective } from '../../shared/directives/swipe-decision.directive';
@@ -149,6 +151,7 @@ interface SceneSummary {
 @Component({
   selector: 'app-burst-culling',
   imports: [
+    AssessmentValuePipe, PhotoAssessmentComponent,
     DecimalPipe,
     PercentPipe,
     NgClass,
@@ -680,7 +683,7 @@ interface SceneSummary {
                     @if (!stacksMode()) {
                       @if (photo.path === group.best_path) {
                         <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
-                          {{ I18N.culling.auto_best | translate }}
+                          {{ I18N.photo_detail.assessment.group_pick | translate }}
                         </div>
                       } @else if (photo.cull_reason; as reason) {
                         <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium max-w-[160px] truncate">
@@ -724,7 +727,7 @@ interface SceneSummary {
                     }
                     <div class="absolute bottom-2 left-2 flex items-center gap-1">
                       <span class="px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
-                        {{ photo.aggregate | number:'1.1-1' }}
+                        {{ I18N.photo_detail.assessment.score | translate }} {{ photo.aggregate | assessmentValue }}
                       </span>
                       @if (!stacksMode()) {
                         @if (photo.is_rejected) {
@@ -1093,6 +1096,10 @@ interface SceneSummary {
         </ng-template>
         <!-- Image -->
         @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
+          <div class="shrink-0 px-4 text-white bg-neutral-950" role="presentation"
+               (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" (keydown.escape)="closeLightbox()">
+            <app-photo-assessment [photo]="lbPhoto" [groupPick]="lbPhoto.path === lbGroup.best_path" />
+          </div>
           @if (compareMode() === 'single') {
             <!-- overflow-hidden: the peaking overlay rides the zoom transform as a
                  sibling of the zoom pane, so only this box keeps it off the chrome. -->
@@ -1388,7 +1395,7 @@ interface SceneSummary {
                       }
                     </div>
                     @if (photo.path === lbGroup.best_path) {
-                      <span class="text-green-400 text-[10px] font-bold">{{ I18N.culling.auto_best | translate }}</span>
+                      <span class="text-green-400 text-[10px] font-bold">{{ I18N.photo_detail.assessment.group_pick | translate }}</span>
                     } @else if (!stacksMode() && photo.cull_reason; as reason) {
                       <span class="text-white/60 text-[10px] truncate" [style.max-width.px]="faceSize()">{{ reason | cullReason }}</span>
                     }
@@ -1428,7 +1435,7 @@ interface SceneSummary {
                         <div class="absolute bottom-1 right-1 px-1 py-0.5 rounded bg-black/70 text-white text-[10px] leading-none">{{ pIdx + 1 }}</div>
                       </div>
                       @if (photo.path === lbGroup.best_path) {
-                        <span class="text-green-400 text-[10px] font-bold">{{ I18N.culling.auto_best | translate }}</span>
+                        <span class="text-green-400 text-[10px] font-bold">{{ I18N.photo_detail.assessment.group_pick | translate }}</span>
                       } @else if (!stacksMode() && photo.cull_reason; as reason) {
                         <span class="text-white/60 text-[10px] max-w-[96px] truncate">{{ reason | cullReason }}</span>
                       }

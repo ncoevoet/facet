@@ -15,6 +15,7 @@ import { MetricDistribution } from '../../utils/metric-distribution';
 import { ExtendedQualityComponent } from '../extended-quality/extended-quality.component';
 import { HistogramComponent } from '../histogram/histogram.component';
 import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.component';
+import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.component';
 
 /**
  * A photo's metrics in icon tabs (EXIF, Quality, Composition, Technical,
@@ -30,12 +31,13 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
   selector: 'app-photo-metrics-tabs',
   imports: [
     MatIconModule, MatTabsModule, MatTooltipModule, FixedPipe, IsLensNamePipe, ShutterSpeedPipe,
-    ThumbnailUrlPipe, TranslatePipe, ExtendedQualityComponent, HistogramComponent, MetricScoreRowComponent,
+    ThumbnailUrlPipe, TranslatePipe, ExtendedQualityComponent, HistogramComponent, MetricScoreRowComponent, PhotoAssessmentComponent,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block' },
   template: `
     @let p = photo();
+    <app-photo-assessment [photo]="p" [range]="ranges()['aggregate']" />
     <!-- One group per tab set: when the EXIF tab comes or goes under an unchanged
          index, a kept group reselects whichever tab was active instead of the remembered one. -->
     @for (withExif of [hasExif()]; track withExif) {

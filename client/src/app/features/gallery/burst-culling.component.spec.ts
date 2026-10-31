@@ -159,6 +159,33 @@ describe('BurstCullingComponent', () => {
   });
 
   describe('overlays', () => {
+    it('keeps assessment disclosure keyboard and clicks inside the darkroom without reviewing or closing', async () => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const rendered = fixture.componentInstance;
+      const cull = fixture.debugElement.injector.get(CullingStore);
+      await cull.loadGroups();
+      rendered['openLightbox'](cull.groups()[0], 0);
+      fixture.detectChanges();
+      const close = vi.spyOn(rendered, 'closeLightbox' as never);
+      const initialSelections = cull.selectionsMap();
+      const details: HTMLDetailsElement = fixture.nativeElement.querySelector('[data-photo-assessment]');
+      const summary = details.querySelector('summary')!;
+      summary.click();
+      expect(details.open).toBe(true);
+      expect(close).not.toHaveBeenCalled();
+      for (const key of [' ', 'Enter', 'ArrowRight']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+        summary.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+      }
+      expect(cull.selectionsMap()).toEqual(initialSelections);
+      expect(close).not.toHaveBeenCalled();
+      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(close).toHaveBeenCalledOnce();
+    });
+
     it('reports the auto-cull confirm as a dialog while it is shown, and nothing once it is closed', () => {
       const context = TestBed.inject(PageContextService);
       TestBed.tick();

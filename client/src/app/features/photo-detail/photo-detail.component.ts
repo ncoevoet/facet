@@ -14,7 +14,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, skip, finalize } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AssistantChangeBatch, AssistantChangesService } from '../../core/agent/assistant-changes.service';
-import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
 import { Photo, KeeperHint, PhotoSet, normalisePhotoFlags } from '../../shared/models/photo.model';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
@@ -66,7 +65,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   imports: [
     StackNavigatorComponent,
     ZoomPanDirective,
-    MetricRankComponent,
     PhotoMetricsTabsComponent,
     PhotoFaceLayerComponent,
     PersonFaceMenuComponent,
@@ -320,10 +318,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   {{ I18N.culling.reason.better_shot | translate }}
                 </span>
               }
-              <span class="ml-auto flex items-center gap-2">
-                @if (store.metricRangesByColumn()['aggregate']; as range) {<app-metric-rank class="w-28" [range]="range" [value]="p.aggregate" />}
-                <span class="text-[var(--mat-sys-primary)] font-semibold">{{ p.aggregate | fixed:1 }}</span>
-              </span>
             </div>
           </div>
 

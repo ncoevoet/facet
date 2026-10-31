@@ -2868,6 +2868,16 @@ export const I18N = {
       range: "photo_detail.distribution.range",
       top_in_range: "photo_detail.distribution.top_in_range",
     },
+    assessment: {
+      title: "photo_detail.assessment.title",
+      score: "photo_detail.assessment.score",
+      measurements: "photo_detail.assessment.measurements",
+      explanation: "photo_detail.assessment.explanation",
+      unavailable: "photo_detail.assessment.unavailable",
+      unavailable_help: "photo_detail.assessment.unavailable_help",
+      group_pick: "photo_detail.assessment.group_pick",
+      group_pick_help: "photo_detail.assessment.group_pick_help",
+    },
   },
   manual_tags: {
     batch: {

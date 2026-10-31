@@ -19,6 +19,7 @@ import { KEY_SUBJECT_COORDINATE_SPACE } from './burst-culling.pipes';
 import type { KeySubject } from './burst-culling.pipes';
 import { normalizedInspectionBox, sharedInspectionPeople, NormalizedBox } from './comparison-inspection.util';
 import { isTypingContext } from '../../shared/utils/keyboard';
+import { PhotoAssessmentComponent } from '../../shared/components/photo-assessment/photo-assessment.component';
 
 // Module-level consts, not direct class-field initializers: Vite's test transform
 // snapshots an imported binding used as a field initializer before a
@@ -44,6 +45,7 @@ export interface CompareSelectedData {
   selector: 'app-compare-selected-dialog',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    PhotoAssessmentComponent,
     MatDialogModule, MatIconModule, MatButtonModule, MatTooltipModule,
     SyncedZoomComponent, ThumbnailUrlPipe, ImageUrlPipe, TranslatePipe,
   ],
@@ -103,6 +105,7 @@ export interface CompareSelectedData {
             @for (pane of paneStates(); track pane.photo.path) {
               <div class="flex min-w-0 flex-wrap items-center gap-1">
                 <span class="max-w-28 truncate" [title]="pane.photo.filename">{{ pane.photo.filename }}</span>
+                <app-photo-assessment class="w-full" [photo]="pane.photo" />
                 <button mat-button class="!text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ (pane.suggestion?.kind === 'person' ? I18N.gallery.compare.inspection.suggested_face : pane.suggestion?.kind === 'subject' ? I18N.gallery.compare.inspection.suggested_subject : inspectionState() === 'loading' ? I18N.ui.labels.loading : I18N.gallery.compare.inspection.no_crop) | translate }}</button>
                 <select data-frame-face [disabled]="!pane.faces.length" [attr.aria-label]="(I18N.gallery.compare.inspection.choose_face | translate) + ': ' + pane.photo.filename" class="min-w-0 max-w-40 rounded border bg-[var(--mat-sys-surface-container)] px-1 py-1" (change)="frameFace(pane.photo.path, $event)">
                   <option value="">{{ I18N.gallery.compare.inspection.choose_face | translate }}</option>
