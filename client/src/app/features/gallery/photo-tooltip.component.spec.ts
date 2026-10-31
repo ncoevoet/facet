@@ -355,7 +355,7 @@ describe('PhotoTooltipComponent', () => {
       fixture.detectChanges();
       const text = fixture.nativeElement.textContent as string;
       for (const key of ['tooltip.aesthetic', 'tooltip.composition', 'tooltip.exposure']) expect(text).toContain(key);
-      expect(text).not.toContain('tooltip.tech_sharpness');
+      expect(fixture.nativeElement.querySelector('[data-floating-key-scores]').textContent).not.toContain('tooltip.tech_sharpness');
       expect(text).toContain('Canon EOS R6');
       expect(text).toContain('ISO 640');
       expect(fixture.nativeElement.querySelector('app-histogram')).toBeNull();

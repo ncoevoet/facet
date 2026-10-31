@@ -43,7 +43,7 @@ describe('PhotoDetailComponent', () => {
   let component: any;
   let changes$: Subject<AssistantChangeBatch>;
   let mockApi: { get: Mock; post: Mock; put: Mock; delete: Mock; imageUrl: Mock; downloadUrl: Mock; getRaw: Mock };
-  let mockRouter: { url: string; navigate: Mock; events: Observable<unknown> };
+  let mockRouter: { url: string; navigate: Mock; currentNavigation: () => null; events: Observable<unknown> };
   let mockLocation: { back: Mock };
   let mockRoute: { snapshot: { queryParamMap: { get: Mock } }; queryParamMap: BehaviorSubject<ParamMap> };
   let mockAuth: { status: ReturnType<typeof signal>; identity: () => string; isEdition: ReturnType<typeof signal>; downloadProfiles: ReturnType<typeof signal> };
@@ -118,7 +118,7 @@ describe('PhotoDetailComponent', () => {
       downloadUrl: vi.fn((path: string, type = 'original', profile?: string) => `/api/download?path=${encodeURIComponent(path)}&type=${type}${profile ? '&profile=' + profile : ''}`),
       getRaw: vi.fn(() => of(new Blob(['test'], { type: 'image/jpeg' }))),
     };
-    mockRouter = { url: '/photo', navigate: vi.fn(), events: new Subject() };
+    mockRouter = { url: '/photo', navigate: vi.fn(), currentNavigation: () => null, events: new Subject() };
     mockLocation = { back: vi.fn() };
     mockRoute = {
       snapshot: {
@@ -323,7 +323,7 @@ describe('PhotoDetailComponent', () => {
     });
     view.componentInstance.photo.set(makePhoto({ aggregate: 6.4 }));
     view.detectChanges();
-    const header = view.debugElement.queryAll(By.css('app-metric-rank.w-28'));
+    const header = view.debugElement.queryAll(By.css('app-photo-assessment app-metric-rank'));
     expect(header).toHaveLength(1);
     expect(header[0].componentInstance.value()).toBe(6.4);
   });

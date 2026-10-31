@@ -157,7 +157,7 @@ export class CategoryLabelPipe implements PipeTransform {
                  EXIF line. Every other metric lives in the side
                  panel and photo detail, which the docked rail renders below. -->
             @if (!docked()) {
-              <div class="border-t border-[var(--facet-tooltip-divider)] pt-1.5 mt-1">
+              <div data-floating-key-scores class="border-t border-[var(--facet-tooltip-divider)] pt-1.5 mt-1">
                 @for (row of KEY_SCORES; track row.field) {
                   @if (p[row.field] !== null && p[row.field] !== undefined) {
                     <div class="flex items-baseline gap-2">

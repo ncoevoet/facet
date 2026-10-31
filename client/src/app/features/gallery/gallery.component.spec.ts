@@ -5294,6 +5294,7 @@ describe('GalleryComponent', () => {
     function render(wide = true): HTMLElement {
       mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
       fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(wide), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }

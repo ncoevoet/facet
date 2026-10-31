@@ -600,7 +600,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly viewerOwner = this.auth.identity();
   /** Only gallery-opened entries own an in-app Back destination. Direct links
    *  must not send Escape to an unrelated page or about:blank. */
-  private readonly openedFromGallery = !!history.state?.['photo'];
+  private readonly openedFromGallery = !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
 
   readonly photo = signal<Photo | null>(null);
   protected readonly photoMissing = signal(false);

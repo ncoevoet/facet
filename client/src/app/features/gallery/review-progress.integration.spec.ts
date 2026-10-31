@@ -61,6 +61,7 @@ describe('rendered review progress with real store and HTTP', () => {
     http = TestBed.inject(HttpTestingController);
     store = TestBed.inject(GalleryStore);
     fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
     fixture.detectChanges();
     const photosStarted = requested('/api/photos');
     http.expectOne('/api/config').flush(config);

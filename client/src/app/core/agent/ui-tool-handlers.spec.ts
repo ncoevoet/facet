@@ -1087,6 +1087,7 @@ describe('UI tool registry and handlers', () => {
           { user_activity: { items: { kind: string; seq: number }[]; until: number; truncated: boolean } }).user_activity;
 
       it('preserves manual Keep and Reset review values through ui_get_context', async () => {
+        edition = true;
         await store.loadPhotos();
         await store.batchReview(['/a.jpg'], 'kept', false);
         await store.batchReview(['/a.jpg'], 'undecided', false);
