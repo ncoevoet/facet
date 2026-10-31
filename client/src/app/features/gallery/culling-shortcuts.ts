@@ -29,3 +29,26 @@ export const CULLING_SHORTCUT_SECTIONS: { titleKey: string; rows: CullingShortcu
   },
   { titleKey: 'culling.shortcuts.darkroom_title', rows: DARKROOM_SHORTCUTS },
 ];
+
+export const STACK_DARKROOM_SHORTCUTS: CullingShortcutRow[] = [
+  { keys: ['R'], labelKey: 'stacks.reject_focused' },
+  { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
+  { keys: ['S', 'Enter'], labelKey: 'stacks.stack_cover' },
+  { keys: ['X'], labelKey: 'stacks.suggestion_skip' },
+  ...DARKROOM_SHORTCUTS.filter(row => ['Z', 'P', 'G', 'F', 'Esc'].includes(row.keys[0])),
+];
+export const STACK_SHORTCUT_SECTIONS = [
+  { titleKey: 'stacks.suggestions', rows: [
+    { keys: ['↑', '↓'], labelKey: 'culling.shortcuts.select' },
+    { keys: ['Enter'], labelKey: 'culling.shortcuts.open' },
+    { keys: ['S'], labelKey: 'stacks.stack_cover' },
+    { keys: ['X'], labelKey: 'stacks.suggestion_skip' },
+  ] },
+  { titleKey: 'culling.shortcuts.darkroom_title', rows: STACK_DARKROOM_SHORTCUTS },
+];
+
+export const MANUAL_STACK_SHORTCUT_SECTIONS = [{ titleKey: 'stacks.create', rows: [
+  { keys: ['Esc'], labelKey: 'stacks.back_gallery' },
+  { keys: ['R'], labelKey: 'stacks.reject_focused' },
+  { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
+] }];

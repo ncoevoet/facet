@@ -15,7 +15,7 @@ CLIENT_JSON = Path(__file__).resolve().parent.parent / "client/src/app/core/agen
 
 
 def test_committed_json_matches_the_contract():
-    assert CLIENT_JSON.read_text() == render_client_json(), (
+    assert CLIENT_JSON.read_text(encoding="utf-8") == render_client_json(), (
         "ui-tools.schema.json is stale: run `venv/bin/python scripts/dump_ui_tools.py`")
 
 
@@ -24,7 +24,7 @@ DOCS = Path(__file__).resolve().parent.parent / "docs"
 
 @pytest.mark.parametrize("lang", ["", "fr", "de", "it", "es", "pt", "zh"])
 def test_every_ui_tool_has_a_row_in_the_agents_doc_table(lang):
-    text = (DOCS / lang / "AGENTS.md").read_text()
+    text = (DOCS / lang / "AGENTS.md").read_text(encoding="utf-8")
     rows = {m.group(1) for m in re.finditer(r"^\| `(ui_[a-z_]+)` \|", text, re.MULTILINE)}
     assert rows == {tool.name for tool in UI_TOOLS}
 
@@ -102,7 +102,7 @@ def test_ui_show_culling_plan_is_an_edition_write_free_tool():
 
 def test_the_tab_may_report_the_plan_refusals():
     from api.agent.ui_tools import TAB_ERROR_CODES
-    assert {"unsaved_decisions", "plan_changed", "plan_load_failed", "navigation_refused"} <= TAB_ERROR_CODES
+    assert {"unsaved_decisions", "plan_changed", "plan_load_failed", "stack_mode_active", "navigation_refused"} <= TAB_ERROR_CODES
 
 
 def test_the_navigating_tools_describe_the_leave_culling_refusal():
@@ -268,12 +268,12 @@ def test_the_mcp_registration_carries_the_same_sentence():
 @pytest.mark.parametrize("lang", ["", "fr", "de", "it", "es", "pt", "zh"])
 def test_every_agents_doc_lists_the_same_error_codes_and_modal_open(lang):
     def codes(path):
-        line = next(row for row in path.read_text().splitlines() if re.search(r"^- \*\*[^*]+[:：]\*\* `forbidden_level`", row))
+        line = next(row for row in path.read_text(encoding="utf-8").splitlines() if re.search(r"^- \*\*[^*]+[:：]\*\* `forbidden_level`", row))
         return set(re.findall(r"`([a-z_]+)`", line))
     english = codes(DOCS / "AGENTS.md")
     assert "modal_open" in english
     assert codes(DOCS / lang / "AGENTS.md") == english
-    reasons = next(row for row in (DOCS / lang / "AGENTS.md").read_text().splitlines() if '{"applied": false, "reason"}' in row)
+    reasons = next(row for row in (DOCS / lang / "AGENTS.md").read_text(encoding="utf-8").splitlines() if '{"applied": false, "reason"}' in row)
     assert "modal_open" in reasons
 
 

@@ -1,3 +1,10 @@
+import enBundle from '../../../../../i18n/translations/en.json';
+import deBundle from '../../../../../i18n/translations/de.json';
+import esBundle from '../../../../../i18n/translations/es.json';
+import frBundle from '../../../../../i18n/translations/fr.json';
+import itBundle from '../../../../../i18n/translations/it.json';
+import ptBundle from '../../../../../i18n/translations/pt.json';
+import zhBundle from '../../../../../i18n/translations/zh.json';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -98,6 +105,16 @@ describe('I18nService', () => {
 
       expect(service.t('photos.count', { count: 42 })).toBe('42 photos');
     });
+  });
+
+  it.each(Object.entries({ en: enBundle, de: deBundle, es: esBundle, fr: frBundle, it: itBundle, pt: ptBundle, zh: zhBundle }))('formats Reject counts from the shipped %s bundle', async (locale, bundle) => {
+    service.locale.set(locale);
+    const loading = service.load(); httpTesting.expectOne(`/api/i18n/${locale}`).flush(bundle); await loading;
+    const one = service.t('stacks.reject_count', { count: 1 });
+    const two = service.t('stacks.reject_count', { count: 2 });
+    expect(one).toMatch(/(?:^|\s)1(?=\s|张|$)/); expect(two).toMatch(/(?:^|\s)2(?=\s|张|$)/);
+    expect(one).not.toMatch(/[{}]/); expect(two).not.toMatch(/[{}]/);
+    expect(one).not.toBe(two);
   });
 
   describe('load()', () => {

@@ -8,10 +8,19 @@ wenn Sie ihn brauchen.
 
 ## Welche Installation passt zu mir?
 
+Beide Wege führen dasselbe Facet aus; sie tauschen einfache Installation gegen Leistung.
+Wählen Sie den, der zu Ihnen passt.
+
+| | Docker | Ohne Docker |
+|---|---|---|
+| Installation | Ein Befehl: alles steckt im Image | `install.sh` (Linux, macOS) oder das Windows-Installationsprogramm richtet eine Python-Umgebung auf dem Rechner ein |
+| Aktualisieren | Das neue Image holen | Den Code aktualisieren und `install.sh` erneut ausführen, oder das neue Windows-Installationsprogramm installieren |
+| Leistung | Ein Container liegt zwischen Facet und Ihren Dateien und der Grafikkarte; unter Windows läuft er in WSL2 | Facet nutzt Grafikkarte und Dateien des Rechners direkt |
+
 | Ihre Situation | Weiter zu |
 |----------------|-------|
-| Windows, macOS oder Linux, und Sie wollen es einfach zum Laufen bringen | [Installation mit Docker](#installation-mit-docker) |
-| Linux oder macOS, und Sie bevorzugen keine Container | [Installation ohne Docker](#installation-ohne-docker) |
+| Windows, macOS oder Linux, in einem Container | [Installation mit Docker](#installation-mit-docker) |
+| Windows, macOS oder Linux, ohne Container | [Installation ohne Docker](#installation-ohne-docker) |
 | Ein NAS, oder ein Server, den Sie von anderen Rechnern aus erreichen wollen | [Bereitstellung](DEPLOYMENT.md) |
 
 ## Welches Profil passt zu meiner Hardware?
@@ -162,8 +171,80 @@ python viewer.py                       # Galerie starten
 
 ### Windows
 
-Verwenden Sie [Docker](#installation-mit-docker). Für eine NVIDIA-Karte folgen Sie der
-[WSL2-Anleitung](DEPLOYMENT.md#windows-wsl2-mit-einer-nvidia-gpu), dem getesteten Weg.
+Ein Installationsprogramm pro Benutzer (MSI) richtet Facet ohne Administratorrechte ein:
+
+| Ordner | Inhalt |
+|---|---|
+| `%LOCALAPPDATA%\Facet\app` | das Programm, wird bei jedem Update ersetzt |
+| `%LOCALAPPDATA%\Facet\venv` | die Python-Umgebung, erstellt, sobald das Installationsprogramm fertig ist |
+| `%LOCALAPPDATA%\Facet\data` | die Datenbank (`photo_scores_pro.db`) und die Protokolle |
+| `%LOCALAPPDATA%\Facet\config` | `scoring_config.json` |
+
+**Das Installationsprogramm beschaffen.** Noch kein Release enthält eines. Bauen Sie es aus
+einem Klon mit `installer\build-msi.ps1` (es braucht WiX 3.14, `uv` und den gebauten Client und
+sagt, wo es WiX gibt), oder laden Sie das Artefakt `facet-msi` eines Laufs des Workflows
+*Windows install (MSI)* herunter. Zum Bauen braucht es Node.js 22.22.3 oder neuer für den
+Client (22.14 scheitert bei `npm run build`).
+
+**Erster Start.** Das Installationsprogramm startet die Einrichtung der Python-Umgebung, sobald
+es fertig ist. Die Umgebung ist etwa 6 GB groß, und der
+Download-Cache von uv (`%LOCALAPPDATA%\uv\cache`) braucht noch einmal etwa so viel. Der
+Startmenü-Eintrag *Facet* führt die Einrichtung aus, wenn sie nie abgeschlossen wurde, und
+erneut nach einem Update, das die Abhängigkeiten von Facet ändert. Er wählt den PyTorch-Build
+für Ihre NVIDIA-Karte und deren Treiber so, wie es `install.sh` tut, oder den CPU-Build ohne
+NVIDIA-Karte. Erreicht der installierte GPU-Build die Karte nicht, bricht die Einrichtung mit
+einer Erklärung ab: Treiber aktualisieren, oder `Setup-Facet.ps1 -Force -Cpu` ausführen.
+
+Kann die Galerie nicht starten (Port belegt, Einrichtung fehlgeschlagen, nach 90 s keine
+Antwort), zeigt das Fenster des Startmenü-Eintrags den Fehler und wartet auf die Eingabetaste.
+Nach 90 s ohne Antwort bleibt die Galerie gestartet und kann noch hochkommen.
+
+**Im Alltag:**
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app\installer"
+.\Scan-Facet.ps1 "\\NAS\Photos"   # Fotos bewerten; weitere Argumente gehen an facet.py
+.\Start-Facet.ps1                # die Galerie, unter http://localhost:5000
+.\Stop-Facet.ps1                 # Galerie und laufende Scans beenden
+```
+
+Die Galerie antwortet nur auf diesem Rechner. `Start-Facet.ps1 -Lan` öffnet sie für andere
+Geräte und startet erst, wenn `viewer.password` in der Konfiguration gesetzt ist.
+
+**Eine Schreibweise pro Ordner.** Facet speichert jedes Foto unter dem Pfad, über den es gescannt
+wurde; `\\NAS\Photos` und dieselbe Freigabe als Laufwerk `Z:\` sind für Facet zwei verschiedene
+Ordner: Wer beide scannt, hat jedes Foto doppelt. Wählen Sie eine Schreibweise und bleiben Sie dabei.
+
+**Verwaltete Rechner.** Die Verknüpfungen starten Facets unsignierte PowerShell-Skripte mit `-ExecutionPolicy Bypass`. Eine per Gruppenrichtlinie gesetzte Ausführungsrichtlinie hat Vorrang, sodass die Skripte auf einem verwalteten PC womöglich nicht laufen; bitten Sie die Administration, sie zuzulassen.
+
+**Die Deinstallation** (Einstellungen, Apps) beendet Facet und entfernt das Programm, die
+Verknüpfungen, die Python-Umgebung und ExifTool (auch unter einem eigenen `FACET_HOME`) und
+behält `data` und `config`. Was sie nicht löschen kann, steht in `data\logs\uninstall.log`. Der
+Download-Cache von uv (`%LOCALAPPDATA%\uv\cache`) und die heruntergeladenen Modelle bleiben
+(`.cache`, `.insightface` in Ihrem Benutzerordner). Ein Update behält einen eigenen
+Installationsordner und richtet die Umgebung nur neu ein, wenn sich die Abhängigkeiten von Facet
+geändert haben.
+
+**Eine Bibliothek aus Docker übernehmen.** Die Datenbank speichert den vollständigen Pfad
+jedes Fotos, und die Windows-Installation sieht dieselben Fotos unter einem anderen
+(`\\NAS\Photos\...` statt `/data/photos/...`). Kopieren Sie die Datenbank nach `data`,
+beenden Sie Facet und schreiben Sie dann die Pfade um, zuerst als Probelauf:
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app"
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos" --dry-run
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos"
+```
+
+Das Werkzeug behält eine Kopie der Datenbank (`photo_scores_pro.db.before-rewrite-<Zeit>`),
+verweigert das Zusammenführen eines Fotos, das schon unter dem neuen Pfad gescannt wurde, und
+leert den Vektorindex, den `..\venv\Scripts\python.exe database.py --db
+..\data\photo_scores_pro.db --populate-vec` neu aufbaut. Der Rückgängig-Verlauf von vor dem
+Umzug gilt danach nicht mehr. Diese Befehle gehen vom Standard-Installationsordner aus. Ein
+alter und ein neuer Präfix, von denen einer im anderen liegt (zum Beispiel `D:\Photos` nach
+`D:\Photos\new`), werden abgelehnt; gehen Sie über einen temporären Präfix.
+
+Docker läuft auch unter Windows; für eine NVIDIA-Karte folgen Sie der [WSL2-Anleitung](DEPLOYMENT.md#windows-wsl2-mit-einer-nvidia-gpu).
 
 ## Erster Start: was Sie erwartet
 

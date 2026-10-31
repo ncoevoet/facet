@@ -419,9 +419,11 @@ directory o di quelle condivise. API: `POST /api/persons` (vedi [API.md](../API.
 
 ### Da nominare
 
-La pagina Gestisci persone elenca i cluster numerosi senza nome in una sezione **Da nominare**,
+La pagina Gestisci persone elenca i cluster numerosi senza nome in una scheda **Da nominare**,
 ciascuno con un campo nome. Un cluster vi compare quando ha almeno
 `viewer.persons.needs_naming_min_faces` volti (predefinito `5`).
+
+Senza nome significa nome assente o vuoto, che il cluster venga dal raggruppamento o da una divisione; le persone nascoste (ignorate) sono escluse. La scheda compare solo in modalità modifica, accanto a **Con nome**, che elenca solo le persone con nome, così ognuna compare una volta; la pagina si apre su **Con nome**.
 
 ### Pagina Suggerimenti di unione
 

@@ -163,40 +163,46 @@ class TestPersonFaces:
 class TestPhotoFaces:
     """GET /api/photo/faces — read-only, async."""
 
-    def test_returns_faces_with_person_name_ordered_by_index(self, auth_client, tmp_path):
-        app, client = auth_client
-        db = str(tmp_path / "photo_faces.db")
-        _make_faces_db(
-            db,
-            photos=[("/x.jpg", 5.0), ("/other.jpg", 4.0)],
-            persons=[(5, "Alice")],
-            faces=[
-                {"id": 10, "photo_path": "/x.jpg", "face_index": 1, "person_id": 5,
-                 "bbox_x1": 0, "bbox_y1": 0, "bbox_x2": 5, "bbox_y2": 5},
-                {"id": 11, "photo_path": "/x.jpg", "face_index": 0, "person_id": None,
-                 "bbox_x1": 1, "bbox_y1": 1, "bbox_x2": 6, "bbox_y2": 6},
-                {"id": 12, "photo_path": "/other.jpg", "face_index": 0, "person_id": 5,
-                 "bbox_x1": 2, "bbox_y1": 2, "bbox_x2": 7, "bbox_y2": 7},
-            ],
-        )
-        with mock.patch("api.routers.faces.get_async_db", _async_conn_factory(db)):
-            resp = client.get("/api/photo/faces", params={"path": "/x.jpg"})
+    def test_returns_faces_with_person_name_ordered_by_index(self, edition_client, seed_people):
+        prefix = "/test_faces_photo_faces/"
+        photo = seed_people.photo(prefix, "x.jpg")
+        other = seed_people.photo(prefix, "other.jpg")
+        alice = seed_people.person("Alice")
+        unassigned = seed_people.face(photo)
+        alices = seed_people.face(photo, alice)
+        seed_people.face(other, alice)
+
+        resp = edition_client.get("/api/photo/faces", params={"path": photo})
 
         assert resp.status_code == 200
         faces = resp.json()["faces"]
-        # Only faces in /x.jpg, ordered by face_index ASC
-        assert [f["id"] for f in faces] == [11, 10]
+        # Only faces in x.jpg, ordered by face_index ASC
+        assert [f["id"] for f in faces] == [unassigned, alices]
         assert faces[0]["person_id"] is None
         assert faces[0]["person_name"] is None
-        assert faces[1]["person_id"] == 5
+        assert faces[1]["person_id"] == alice
         assert faces[1]["person_name"] == "Alice"
 
-    def test_returns_empty_for_photo_without_faces(self, auth_client, tmp_path):
-        app, client = auth_client
-        db = str(tmp_path / "no_faces.db")
-        _make_faces_db(db)
-        with mock.patch("api.routers.faces.get_async_db", _async_conn_factory(db)):
-            resp = client.get("/api/photo/faces", params={"path": "/nope.jpg"})
+    def test_box_is_normalised_to_the_frame_or_null(self, edition_client, seed_people):
+        """``box`` is the face in 0..1 frame units; null without trusted dimensions."""
+        prefix = "/test_faces_box/"
+        sized = seed_people.photo(prefix, "sized.jpg", image_width=1000, image_height=500)
+        unsized = seed_people.photo(prefix, "unsized.jpg")
+        seed_people.face(sized, bbox=(100, 50, 300, 250))
+        # Far outside a 1000x500 frame: a coordinate-space mismatch, not drawn.
+        seed_people.face(sized, bbox=(2000, 50, 2400, 250))
+        seed_people.face(unsized, bbox=(1, 1, 6, 6))
+
+        sized_faces = edition_client.get("/api/photo/faces", params={"path": sized}).json()["faces"]
+        unsized_faces = edition_client.get("/api/photo/faces", params={"path": unsized}).json()["faces"]
+
+        assert [f["box"] for f in sized_faces] == [[0.1, 0.1, 0.3, 0.5], None]
+        assert [f["box"] for f in unsized_faces] == [None]
+
+    def test_returns_empty_for_photo_without_faces(self, edition_client, seed_people):
+        photo = seed_people.photo("/test_faces_photo_faces/", "faceless.jpg")
+
+        resp = edition_client.get("/api/photo/faces", params={"path": photo})
 
         assert resp.status_code == 200
         assert resp.json()["faces"] == []

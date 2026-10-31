@@ -63,6 +63,8 @@ Facet enregistre chaque analyse (statut, mode, répertoires, compteurs) et chaqu
 | `embeddings` | CLIP ViT-L-14 ou SigLIP 2 NaFlex | `clip_embedding` pour la similarité et l'étiquetage | 4-5 Go |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 Go |
 
+Les mesures multi-passes utilisent une horloge monotone. Le temps EXIF du lot et la somme des secondes de travail des replis sont inclus dans le décodage ; les replis parallèles peuvent se chevaucher. Agrégation, vignettes (lecture source comprise) et sauvegarde hors vignettes sont des intervalles séparés ; la sauvegarde inclut préparation et commit. Les passes restreintes ignorent agrégation et vignettes photo. Les chevauchements décodage/modèles et les reconstructions imbriquées restent inchangés : ne pas additionner tous les compteurs ni convertir les secondes de travail EXIF en pourcentage mural. Le mode mono-passe est exclu. Pour une référence, analyser une copie fixe de 500 RAW/JPEG dans une base temporaire et conserver le résumé, la révision, le profil, les workers, la taille des blocs, le stockage et les conditions de cache. Répéter à conditions identiques. Aucun jeu de référence ni benchmark avant/après fourni ; aucun gain revendiqué.
+
 ## Aperçu et export
 
 | Commande | Description |
@@ -274,7 +276,7 @@ La saillance s'exécute sur tous les profils ; `legacy` l'exécute sur CPU, plu
 - **Une photo en échec** est journalisée en ERROR et rien n'est écrit. Une photo jamais notée reste à NULL et est reprise par le prochain `--recompute-saliency` ; une photo qui avait déjà une saillance garde ses valeurs, même avec `--recompute-saliency --force`. Une nouvelle analyse complète (par exemple `python facet.py --force`) stocke NULL pour elle.
 - **Une photo sans sujet** stocke NULL pour la netteté, le placement et la séparation, une prééminence de 0.0 et un `subject_bbox` NULL (et un `power_point_score` NULL issu de l'étape de composition). C'est définitif : elle n'est plus mesurée.
 - **Les anciennes lignes** stockaient un 5.0 neutre à la place. `--recompute-saliency` et `--recompute-composition-cpu` les réécrivent. `--recompute-saliency` reprend aussi les photos notées avant l'existence de `subject_bbox`.
-- Une métrique NULL compte comme neutre dans l'agrégat. Voir [Dimensions de la saillance du sujet](SCORING.md#dimensions-de-la-saillance-du-sujet).
+- Une métrique facultative NULL est exclue de l'agrégat et son poids est redistribué aux métriques présentes ; ce n'est que si toutes manquent que l'agrégat prend la valeur neutre 5.0. Voir [Système de scoring](SCORING.md).
 
 ### Modèles d'étiquetage
 

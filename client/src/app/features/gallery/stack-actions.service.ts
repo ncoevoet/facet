@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, firstValueFrom } from 'rxjs';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
-import { PhotoStackService, StackMutation } from '../../core/services/photo-stack.service';
+import { PhotoStackService, StackMutation, StackRegroupMutation } from '../../core/services/photo-stack.service';
 import { UndoService } from '../../core/services/undo.service';
 import { I18N } from '../../core/i18n/keys';
 import { GalleryStore } from './gallery.store';
@@ -32,10 +32,12 @@ export class StackActionsService {
    * Rejects when the server refuses. Resolves false, without journaling or refreshing,
    * when the caller or the account lapsed while the request was in flight.
    */
-  async commit(request: Observable<StackMutation>, commit: StackCommit): Promise<boolean> {
+  async commit(request: Observable<StackMutation | StackRegroupMutation>, commit: StackCommit): Promise<boolean> {
     const result = await firstValueFrom(request);
     if (!this.stacks.isLive(commit.live ?? commit.session)) return false;
-    this.journal.record('stack', commit.paths, commit.action);
+    if ('changed' in result && !result.changed) return true;
+    const paths = 'affected_paths' in result ? result.affected_paths : commit.paths;
+    this.journal.record('stack', paths, commit.action);
     void this.store.refreshPaths(null);
     const entryId = result.undo?.entry_id;
     if (entryId !== undefined) {
@@ -46,7 +48,7 @@ export class StackActionsService {
           this.stacks.assertLive(commit.session);
           await firstValueFrom(this.stacks.revert(entryId));
           this.stacks.assertLive(commit.session);
-          this.journal.record('stack', commit.paths, 'undo');
+          this.journal.record('stack', paths, 'undo');
           await this.store.refreshPaths(null);
           commit.onUndone?.();
         },

@@ -1,6 +1,8 @@
 import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { NgTemplateOutlet } from '@angular/common';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import {
@@ -27,6 +29,15 @@ import { PersonCardComponent, Person } from '../../shared/components/person-card
 import { ConfirmDialogComponent } from '../../shared/components/confirm-dialog/confirm-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { PersonsFiltersService } from './persons-filters.service';
+import {
+  FindMoreFacesDialogComponent,
+  FindMoreFacesDialogData,
+  FindMoreFacesResult,
+} from './find-more-faces-dialog.component';
+import { RenamePersonResponse, SameNamePerson, SameNameMergeService } from './same-name-merge.service';
+import { PersonHideService } from './person-hide.service';
+import { PersonNameOption, personNameOptions } from '../../shared/utils/person-name';
+import { PersonFaceBoxesService } from '../../shared/components/photo-card/person-face-boxes.service';
 import { onPageQuery } from '../../shared/utils/page-query';
 import { registerPageContext } from '../../core/agent/page-context.service';
 import { UserActivityJournal, activityName } from '../../core/agent/user-activity-journal.service';
@@ -238,6 +249,11 @@ export class PersonFacesDialogComponent implements OnInit {
   }
 }
 
+/** The /persons tabs, as written in ``?tab=``. */
+export type PersonsTab = 'named' | 'naming';
+/** Orders the Needs naming tab offers; a name sort means nothing on unnamed persons. */
+export type NamingSort = 'faces' | 'recent';
+
 @Component({
   selector: 'app-manage-persons',
   imports: [
@@ -254,36 +270,58 @@ export class PersonFacesDialogComponent implements OnInit {
     PersonCardComponent,
     InfiniteScrollDirective,
     RouterLink,
+    MatTabsModule,
+    NgTemplateOutlet,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <ng-template #personsToolbar>
-      <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
-        <mat-label>{{ I18N.persons.search_placeholder | translate }}</mat-label>
-        <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" />
-        <mat-icon matPrefix class="opacity-60">search</mat-icon>
-        @if (personsFilters.search()) {
-          <button matSuffix mat-icon-button (click)="personsFilters.search.set('')" [attr.aria-label]="I18N.persons.clear_search | translate">
-            <mat-icon>close</mat-icon>
-          </button>
-        }
-      </mat-form-field>
-      <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
-        <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
-        <mat-select [value]="personsFilters.sort()" (selectionChange)="onPersonsSortChange($event.value)">
-          <mat-option value="count">{{ I18N.persons.sort_count | translate }}</mat-option>
-          <mat-option value="name">{{ I18N.persons.sort_name | translate }}</mat-option>
-        </mat-select>
-      </mat-form-field>
-      <button
-        class="!hidden lg:!inline-flex"
-        mat-icon-button
-        (click)="togglePersonsSortDirection()"
-        [matTooltip]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-        [attr.aria-label]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-      >
-        <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-      </button>
+      @if (namingTabActive()) {
+        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2" subscriptSizing="dynamic">
+          <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
+          <mat-select data-naming-sort [value]="namingSort()" (selectionChange)="namingSort.set($event.value)">
+            <mat-option value="faces">{{ I18N.persons.sort_faces | translate }}</mat-option>
+            <mat-option value="recent">{{ I18N.persons.sort_recent | translate }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <button
+          class="!hidden lg:!inline-flex"
+          mat-icon-button
+          data-naming-sort-direction
+          (click)="namingSortDirection.set(namingSortDirection() === 'desc' ? 'asc' : 'desc')"
+          [matTooltip]="namingSortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+          [attr.aria-label]="namingSortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+        >
+          <mat-icon>{{ namingSortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+        </button>
+      } @else {
+        <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
+          <mat-label>{{ I18N.persons.search_placeholder | translate }}</mat-label>
+          <input matInput [value]="personsFilters.search()" (input)="personsFilters.search.set($any($event.target).value)" />
+          <mat-icon matPrefix class="opacity-60">search</mat-icon>
+          @if (personsFilters.search()) {
+            <button matSuffix mat-icon-button (click)="personsFilters.search.set('')" [attr.aria-label]="I18N.persons.clear_search | translate">
+              <mat-icon>close</mat-icon>
+            </button>
+          }
+        </mat-form-field>
+        <mat-form-field class="!hidden lg:!inline-flex w-44" subscriptSizing="dynamic">
+          <mat-label>{{ I18N.gallery.sort | translate }}</mat-label>
+          <mat-select [value]="personsFilters.sort()" (selectionChange)="onPersonsSortChange($event.value)">
+            <mat-option value="count">{{ I18N.persons.sort_count | translate }}</mat-option>
+            <mat-option value="name">{{ I18N.persons.sort_name | translate }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <button
+          class="!hidden lg:!inline-flex"
+          mat-icon-button
+          (click)="togglePersonsSortDirection()"
+          [matTooltip]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+          [attr.aria-label]="personsFilters.sortDirection() === 'desc' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
+        >
+          <mat-icon>{{ personsFilters.sortDirection() === 'desc' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
+        </button>
+      }
       @if (auth.isEdition()) {
         <button mat-icon-button class="!hidden lg:!inline-flex" [matTooltip]="I18N.manage_persons.new_person | translate" [attr.aria-label]="I18N.manage_persons.new_person | translate" (click)="personsFilters.createRequested.set(personsFilters.createRequested() + 1)">
           <mat-icon>person_add</mat-icon>
@@ -307,38 +345,11 @@ export class PersonFacesDialogComponent implements OnInit {
       }
     </ng-template>
 
-    <div class="px-4 pt-4 pb-4">
+    <ng-template #namedPane>
       <!-- Loading -->
       @if (loading() && persons().length === 0) {
         <div class="flex justify-center py-16">
           <mat-spinner diameter="48" [attr.aria-label]="I18N.ui.labels.loading | translate" />
-        </div>
-      }
-
-      <!-- Needs naming section -->
-      @if (auth.isEdition() && needsNaming().length > 0) {
-        <div class="mb-6 rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] overflow-hidden">
-          <button
-            class="flex items-center w-full px-4 py-2 gap-2 text-left hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
-            (click)="needsNamingExpanded.set(!needsNamingExpanded())"
-          >
-            <mat-icon class="opacity-60">{{ needsNamingExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
-            <span class="font-medium flex-1" [matTooltip]="I18N.manage_persons.needs_naming_help | translate">{{ I18N.manage_persons.needs_naming | translate }} ({{ needsNaming().length }})</span>
-          </button>
-          @if (needsNamingExpanded()) {
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
-              @for (p of needsNaming(); track p.id) {
-                <app-person-card
-                  [person]="p"
-                  [isEditing]="true"
-                  [canEdit]="true"
-                  (editSave)="onNeedsNamingSave($event)"
-                  (editCancel)="onNeedsNamingCancel()"
-                  (viewPhotos)="onViewPhotos($event)"
-                />
-              }
-            </div>
-          }
         </div>
       }
 
@@ -347,6 +358,7 @@ export class PersonFacesDialogComponent implements OnInit {
         @for (person of persons(); track person.id) {
           <app-person-card
             [person]="person"
+            [nameOptions]="nameOptions()"
             [isSelected]="selectedIds().has(person.id)"
             [isEditing]="editingId() === person.id"
             [canEdit]="auth.isEdition()"
@@ -359,6 +371,7 @@ export class PersonFacesDialogComponent implements OnInit {
             (hidden)="onHide($event)"
             (unhidden)="onUnhide($event)"
             (split)="onSplit($event)"
+            (findMore)="onFindMore($event)"
           />
         }
       </div>
@@ -377,6 +390,87 @@ export class PersonFacesDialogComponent implements OnInit {
         <div appInfiniteScroll (scrollReached)="onScrollReached()" class="flex justify-center py-8">
           <mat-spinner diameter="36" [attr.aria-label]="I18N.ui.labels.loading | translate" />
         </div>
+      }
+      <!-- Ignored: hidden persons (staff, strangers), with Restore -->
+      @if (auth.isEdition() && ignored().length > 0) {
+        <div class="mt-6 rounded-xl border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] overflow-hidden">
+          <button
+            class="flex items-center w-full px-4 py-2 gap-2 text-left hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer"
+            [attr.aria-expanded]="ignoredExpanded()"
+            (click)="ignoredExpanded.set(!ignoredExpanded())"
+          >
+            <mat-icon class="opacity-60">{{ ignoredExpanded() ? 'expand_more' : 'chevron_right' }}</mat-icon>
+            <span class="font-medium flex-1" [matTooltip]="I18N.persons.ignored_help | translate">{{ I18N.persons.ignored_section | translate }} ({{ ignoredTotal() }})</span>
+          </button>
+          @if (ignoredExpanded()) {
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 p-4">
+              @for (p of ignored(); track p.id) {
+                <app-person-card
+                  [person]="p"
+                  [canEdit]="true"
+                  [restoreOnly]="true"
+                  (viewPhotos)="onViewPhotos($event)"
+                  (unhidden)="onUnhide($event)"
+                  (deleted)="onDelete($event)"
+                />
+              }
+            </div>
+            @if (ignored().length < ignoredTotal()) {
+              <div class="flex items-center justify-center gap-3 px-4 pb-4 text-sm">
+                <span class="opacity-70">{{ I18N.persons.ignored_shown_of | translate:{ shown: ignored().length, total: ignoredTotal() } }}</span>
+                <button mat-button [disabled]="ignoredLoading()" (click)="loadMoreIgnored()">{{ I18N.persons.load_more | translate }}</button>
+              </div>
+            }
+          }
+        </div>
+      }
+
+    </ng-template>
+
+    <div class="px-4 pt-4 pb-4">
+      @if (auth.isEdition()) {
+        <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
+                       [selectedIndex]="tab() === 'naming' ? 1 : 0" (selectedIndexChange)="selectTab($event === 1 ? 'naming' : 'named')">
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span data-tab="named">{{ I18N.manage_persons.named | translate }} ({{ total() }})</span>
+            </ng-template>
+            <div class="pt-4">
+              <ng-container [ngTemplateOutlet]="namedPane" />
+            </div>
+          </mat-tab>
+          <mat-tab>
+            <ng-template mat-tab-label>
+              <span data-tab="naming" [matTooltip]="I18N.manage_persons.needs_naming_help | translate">{{ I18N.manage_persons.needs_naming | translate }} ({{ needsNaming().length }})</span>
+            </ng-template>
+            <div class="pt-4">
+              @if (needsNamingSorted().length > 0) {
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  @for (p of needsNamingSorted(); track p.id) {
+                    <app-person-card
+                      [person]="p"
+                      [isEditing]="true"
+                      [canEdit]="true"
+                      [nameOptions]="nameOptions()"
+                      (editSave)="onNeedsNamingSave($event)"
+                      (findMore)="onFindMore($event)"
+                      (editCancel)="onNeedsNamingCancel()"
+                      (viewPhotos)="onViewPhotos($event)"
+                      (hidden)="onHide($event)"
+                    />
+                  }
+                </div>
+              } @else {
+                <div data-needs-naming-empty class="text-center py-16 opacity-60 max-w-md mx-auto">
+                  <mat-icon class="!text-5xl !w-12 !h-12 mb-4">how_to_reg</mat-icon>
+                  <p>{{ I18N.manage_persons.needs_naming_empty | translate }}</p>
+                </div>
+              }
+            </div>
+          </mat-tab>
+        </mat-tab-group>
+      } @else {
+        <ng-container [ngTemplateOutlet]="namedPane" />
       }
     </div>
 
@@ -415,6 +509,9 @@ export class ManagePersonsComponent implements OnInit {
   protected readonly personsFilters = inject(PersonsFiltersService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
+  private readonly sameNameMerge = inject(SameNameMergeService);
+  private readonly faceBoxes = inject(PersonFaceBoxesService);
+  private readonly hide = inject(PersonHideService);
   private readonly personsToolbar = viewChild<TemplateRef<unknown>>('personsToolbar');
 
   readonly persons = signal<Person[]>([]);
@@ -423,7 +520,32 @@ export class ManagePersonsComponent implements OnInit {
   readonly editingId = signal<number | null>(null);
   readonly selectedIds = this.personsFilters.selectedIds;
   readonly needsNaming = signal<Person[]>([]);
-  readonly needsNamingExpanded = signal(true);
+  /** Existing names offered while typing a name (see loadNameOptions). */
+  readonly nameOptions = signal<PersonNameOption[]>([]);
+  /** Needs naming's own sort, applied locally to the fully loaded list: its rows carry only face counts and ids. */
+  readonly namingSort = signal<NamingSort>('faces');
+  readonly namingSortDirection = signal<'asc' | 'desc'>('desc');
+  /** Needs naming in the toolbar's order: by face count, or newest group first (the highest id). */
+  readonly needsNamingSorted = computed(() => {
+    const key = this.namingSort();
+    const dir = this.namingSortDirection() === 'desc' ? -1 : 1;
+    return [...this.needsNaming()].sort((a, b) =>
+      dir * (key === 'faces' ? a.face_count - b.face_count || a.id - b.id : a.id - b.id));
+  });
+  /** The toolbar acts on Needs naming while that tab is shown to an edition user. */
+  readonly namingTabActive = computed(() => this.auth.isEdition() && this.tab() === 'naming');
+
+  /** The selected tab, mirrored in ``?tab=``; Named unless the URL asks for Needs naming. */
+  readonly tab = signal<PersonsTab>(
+    inject(ActivatedRoute).snapshot.queryParamMap.get('tab') === 'naming' ? 'naming' : 'named');
+  /** Hidden persons, shown in the Ignored section (collapsed by default). */
+  readonly ignored = signal<Person[]>([]);
+  /** Every hidden person, from the response; the section loads them a page at a time. */
+  readonly ignoredTotal = signal(0);
+  readonly ignoredLoading = signal(false);
+  readonly ignoredExpanded = signal(false);
+  private ignoredPage = 1;
+  private readonly ignoredPerPage = 200;
 
   private page = 1;
   private readonly perPage = 48;
@@ -462,9 +584,22 @@ export class ManagePersonsComponent implements OnInit {
       this.personsFilters.sortDirection();
       this.personsFilters.search();
       this.personsFilters.showHidden();
+      // Locking or unlocking edition shows or hides Needs naming, which decides
+      // whether the grid lists unnamed persons too.
+      this.auth.isEdition();
       if (this.initialized) {
         untracked(() => this.loadPersons(true));
       }
+    });
+    // Unlocking edition after the page opened shows Needs naming and Ignored, which
+    // read-only users never load.
+    let wasEdition = this.auth.isEdition();
+    effect(() => {
+      const edition = this.auth.isEdition();
+      if (edition && !wasEdition && this.initialized) {
+        untracked(() => void Promise.all([this.loadNeedsNaming(), this.loadIgnored()]));
+      }
+      wasEdition = edition;
     });
     // Open the new-person dialog when the shell's add button increments the counter
     const initialCreate = this.personsFilters.createRequested();
@@ -478,7 +613,14 @@ export class ManagePersonsComponent implements OnInit {
   async ngOnInit(): Promise<void> {
     this.pageHelp.setDescription(I18N.persons.help);
     this.initialized = true;
-    await Promise.all([this.loadPersons(true), this.loadNeedsNaming()]);
+    await Promise.all([this.loadPersons(true), this.loadNeedsNaming(), this.loadNameOptions(), this.loadIgnored()]);
+  }
+
+  /** Switch tabs and keep the choice in the URL, so a reload or Back returns to it. */
+  selectTab(tab: PersonsTab): void {
+    if (tab === this.tab()) return;
+    this.tab.set(tab);
+    void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true });
   }
 
   onPersonsSortChange(sort: string): void {
@@ -487,6 +629,38 @@ export class ManagePersonsComponent implements OnInit {
 
   togglePersonsSortDirection(): void {
     this.personsFilters.sortDirection.update(d => d === 'desc' ? 'asc' : 'desc');
+  }
+
+  /** The Ignored section's first page; read-only users never see the section, so it is not asked for. */
+  async loadIgnored(): Promise<void> {
+    if (!this.auth.isEdition()) return;
+    this.ignoredPage = 1;
+    await this.fetchIgnored(false);
+  }
+
+  async loadMoreIgnored(): Promise<void> {
+    if (this.ignoredLoading() || this.ignored().length >= this.ignoredTotal()) return;
+    this.ignoredPage++;
+    await this.fetchIgnored(true);
+  }
+
+  private async fetchIgnored(append: boolean): Promise<void> {
+    this.ignoredLoading.set(true);
+    try {
+      const res = await firstValueFrom(
+        this.api.get<PersonsResponse>('/persons', {
+          hidden_only: true, page: this.ignoredPage, per_page: this.ignoredPerPage, sort: 'count_desc',
+        }),
+      );
+      const page = res.persons ?? [];
+      this.ignored.update((list) => (append ? [...list, ...page.filter((p) => !list.some((q) => q.id === p.id))] : page));
+      this.ignoredTotal.set(res.total ?? page.length);
+    } catch {
+      // silent: the section just won't render
+      if (append) this.ignoredPage--;
+    } finally {
+      this.ignoredLoading.set(false);
+    }
   }
 
   async loadNeedsNaming(): Promise<void> {
@@ -504,8 +678,10 @@ export class ManagePersonsComponent implements OnInit {
   async onNeedsNamingSave({ id, name }: { id: number; name: string }): Promise<void> {
     const trimmed = name.trim();
     if (!trimmed) return;
+    const faceCount = this.needsNaming().find(p => p.id === id)?.face_count ?? 0;
+    let res: RenamePersonResponse;
     try {
-      await firstValueFrom(this.api.post(`/persons/${id}/rename`, { name: trimmed }));
+      res = await firstValueFrom(this.api.post<RenamePersonResponse>(`/persons/${id}/rename`, { name: trimmed }));
       this.journal.record('person', [], { action: 'rename', person_id: id, name: activityName(trimmed) });
       // Drop the now-named person from the needs-naming section.
       this.needsNaming.update(list => list.filter(p => p.id !== id));
@@ -514,7 +690,56 @@ export class ManagePersonsComponent implements OnInit {
       this.snackBar.open(this.i18n.t(I18N.persons.renamed), '', { duration: 2000 });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.persons.rename_error), '', { duration: 3000 });
+      return;
     }
+    // The newly named person moves from Needs naming into the named-only grid;
+    // an attempted merge has reloaded the grid itself, a declined one has not.
+    const reloaded = await this.offerSameNameMerge(id, faceCount, trimmed, res.same_name_persons ?? []);
+    if (!reloaded) await this.loadPersons(true);
+  }
+
+  /**
+   * Every distinct person name, for the name line's suggestions. Read from the
+   * filter options (all persons, not just the loaded page); names that fold to the
+   * same key are offered once, as the person with the most photos.
+   */
+  async loadNameOptions(): Promise<void> {
+    try {
+      const res = await firstValueFrom(
+        this.api.get<{ persons: [number, string | null, number][] }>('/filter_options/persons'),
+      );
+      this.nameOptions.set(personNameOptions(res.persons ?? []));
+    } catch {
+      // keep the previous suggestions
+    }
+  }
+
+  /**
+   * After a rename, offer to merge the persons already carrying the name (see
+   * SameNameMergeService: the user picks which). Returns true when a merge was
+   * attempted, which reloads the grid, Needs naming and the suggestions; otherwise
+   * (no namesake, or declined) only the suggestions are refreshed, so the caller
+   * still owns the grid.
+   */
+  async offerSameNameMerge(
+    personId: number,
+    faceCount: number,
+    name: string,
+    sameName: SameNamePerson[],
+  ): Promise<boolean> {
+    if (sameName.length > 0) {
+      const result = await this.sameNameMerge.offer({ id: personId, face_count: faceCount }, name, sameName);
+      if (result.status === 'merged') {
+        this.journal.record('person', [], mergeActivity(
+          result.merges.length, result.merges.map(m => [m.source_id, m.target_id]), false));
+      }
+      if (result.status !== 'declined') {
+        await Promise.all([this.loadPersons(true), this.loadNeedsNaming(), this.loadNameOptions()]);
+        return true;
+      }
+    }
+    await this.loadNameOptions();
+    return false;
   }
 
   onNeedsNamingCancel(): void {
@@ -551,6 +776,15 @@ export class ManagePersonsComponent implements OnInit {
     }
   }
 
+  /**
+   * While Needs naming is on screen (edition mode) it lists every unnamed person,
+   * so the grid shows named persons only. Showing hidden persons lists everyone,
+   * so a hidden unnamed cluster can still be found and unhidden.
+   */
+  namedOnly(): boolean {
+    return this.auth.isEdition() && !this.personsFilters.showHidden();
+  }
+
   async loadPersons(reset: boolean): Promise<void> {
     if (reset) {
       this.page = 1;
@@ -569,6 +803,7 @@ export class ManagePersonsComponent implements OnInit {
           per_page: this.perPage,
           sort: sortParam,
           include_hidden: this.personsFilters.showHidden(),
+          named_only: this.namedOnly(),
         }),
       );
 
@@ -609,8 +844,9 @@ export class ManagePersonsComponent implements OnInit {
       return;
     }
 
+    let res: RenamePersonResponse;
     try {
-      await firstValueFrom(this.api.post(`/persons/${person.id}/rename`, { name: trimmed }));
+      res = await firstValueFrom(this.api.post<RenamePersonResponse>(`/persons/${person.id}/rename`, { name: trimmed }));
       this.journal.record('person', [], { action: 'rename', person_id: person.id, name: activityName(trimmed) });
       this.persons.update((list) =>
         list.map((p) => (p.id === person.id ? { ...p, name: trimmed } : p)),
@@ -618,9 +854,11 @@ export class ManagePersonsComponent implements OnInit {
       this.snackBar.open(this.i18n.t(I18N.persons.renamed), '', { duration: 2000 });
     } catch {
       this.snackBar.open(this.i18n.t(I18N.persons.rename_error), '', { duration: 3000 });
+      return;
     } finally {
       this.editingId.set(null);
     }
+    await this.offerSameNameMerge(person.id, person.face_count, trimmed, res.same_name_persons ?? []);
   }
 
   // --- Delete ---
@@ -641,8 +879,13 @@ export class ManagePersonsComponent implements OnInit {
     try {
       await firstValueFrom(this.api.post(`/persons/${person.id}/delete`));
       this.journal.record('person', [], { action: 'delete', person_id: person.id });
+      const inGrid = this.persons().some((p) => p.id === person.id);
       this.persons.update((list) => list.filter((p) => p.id !== person.id));
-      this.total.update((t) => t - 1);
+      if (this.ignored().some((p) => p.id === person.id)) {
+        this.ignored.update((list) => list.filter((p) => p.id !== person.id));
+        this.ignoredTotal.update((t) => Math.max(0, t - 1));
+      }
+      if (inGrid) this.total.update((t) => t - 1);
       this.selectedIds.update((s) => {
         const next = new Set(s);
         next.delete(person.id);
@@ -674,7 +917,7 @@ export class ManagePersonsComponent implements OnInit {
   }
 
   onDelete(id: number): void {
-    const person = this.persons().find((p) => p.id === id);
+    const person = this.persons().find((p) => p.id === id) ?? this.ignored().find((p) => p.id === id);
     if (person) void this.deletePerson(person);
   }
 
@@ -691,31 +934,79 @@ export class ManagePersonsComponent implements OnInit {
     if (person) void this.splitPerson(person);
   }
 
+  onFindMore(id: number): void {
+    // Needs-naming cards are not necessarily on the loaded page of the main grid.
+    const person = this.persons().find((p) => p.id === id) ?? this.needsNaming().find((p) => p.id === id);
+    if (person) void this.findMoreFaces(person);
+  }
+
+  // --- Find more faces ---
+
+  async findMoreFaces(person: Person): Promise<void> {
+    const ref = this.dialog.open(FindMoreFacesDialogComponent, {
+      data: { personId: person.id, personName: person.name } as FindMoreFacesDialogData,
+      width: '95vw',
+      maxWidth: '720px',
+    });
+
+    const result: FindMoreFacesResult | undefined = await firstValueFrom(ref.afterClosed());
+    if (!result || result.added <= 0) return;
+
+    this.journal.record('person', [], { action: 'find_more', person_id: person.id, count: result.added });
+    this.snackBar.open(this.i18n.t(I18N.persons.find_more_added, { count: result.added }), '', { duration: 2000 });
+    // Faces may have come from other persons, emptying (and deleting) them: reload rather than patch.
+    await Promise.all([this.loadPersons(true), this.loadNeedsNaming()]);
+  }
+
   // --- Hide / Unhide ---
 
   async setHidden(personId: number, hidden: boolean): Promise<void> {
-    try {
-      await firstValueFrom(
-        this.api.post(`/persons/${personId}/${hidden ? 'hide' : 'unhide'}`),
-      );
-      this.journal.record('person', [], { action: hidden ? 'hide' : 'unhide', person_id: personId });
-      if (hidden && !this.personsFilters.showHidden()) {
-        // Drop the person from the list when hidden persons are not shown.
-        this.persons.update((list) => list.filter((p) => p.id !== personId));
-        this.total.update((t) => t - 1);
-      } else {
-        this.persons.update((list) =>
-          list.map((p) => (p.id === personId ? { ...p, is_hidden: hidden } : p)),
-        );
+    const known = this.persons().find((p) => p.id === personId) ?? this.needsNaming().find((p) => p.id === personId);
+    // Reload instead of restoring a snapshot on Undo: anything done since the ignore stays.
+    const stored = await this.hide.setHidden(personId, hidden,
+      async () => { await Promise.all([this.loadPersons(true), this.loadNeedsNaming(), this.loadIgnored()]); });
+    if (!stored) return;
+    // Ignoring moves a person out of Needs naming and into Ignored; restoring
+    // moves it back, to whichever list its name decides. Ignored is patched in
+    // place so the pages already loaded there stay loaded.
+    if (hidden) {
+      this.needsNaming.update((list) => list.filter((p) => p.id !== personId));
+      if (known) this.addIgnored({ ...known, is_hidden: true });
+    } else {
+      if (this.ignored().some((p) => p.id === personId)) {
+        this.ignored.update((list) => list.filter((p) => p.id !== personId));
+        this.ignoredTotal.update((t) => Math.max(0, t - 1));
       }
-      this.snackBar.open(
-        this.i18n.t(hidden ? 'persons.hidden_done' : 'persons.unhidden_done'),
-        '',
-        { duration: 2000 },
-      );
-    } catch {
-      this.snackBar.open(this.i18n.t(I18N.persons.hide_error), '', { duration: 3000 });
+      void this.loadNeedsNaming();
     }
+    if (hidden && !this.personsFilters.showHidden()) {
+      // Drop the person from the list when hidden persons are not shown; one only
+      // in Needs naming was never counted in the grid's total (the Named tab count).
+      if (this.persons().some((p) => p.id === personId)) this.total.update((t) => t - 1);
+      this.persons.update((list) => list.filter((p) => p.id !== personId));
+    } else if (!hidden && !this.persons().some((p) => p.id === personId)) {
+      // A restored person the grid does not hold comes back into it, and its count.
+      void this.loadPersons(true);
+    } else {
+      this.persons.update((list) =>
+        list.map((p) => (p.id === personId ? { ...p, is_hidden: hidden } : p)),
+      );
+    }
+  }
+
+  /**
+   * Put a newly ignored person into the loaded Ignored rows at its ``count_desc``
+   * place. When it sorts past the last loaded row while more remain, only the total
+   * grows: the next page will bring it.
+   */
+  private addIgnored(person: Person): void {
+    if (this.ignored().some((p) => p.id === person.id)) return;
+    const list = this.ignored();
+    const at = list.findIndex((p) => p.face_count < person.face_count);
+    const complete = list.length >= this.ignoredTotal();
+    this.ignoredTotal.update((t) => t + 1);
+    if (at === -1 && !complete) return;
+    this.ignored.set(at === -1 ? [...list, person] : [...list.slice(0, at), person, ...list.slice(at)]);
   }
 
   // --- Split ---
@@ -850,6 +1141,7 @@ export class ManagePersonsComponent implements OnInit {
         );
         merged += 1;
       }
+      this.faceBoxes.clear();
       this.journal.record('person', [], mergeActivity(merged, sourceIds.length === 1 ? [[sourceIds[0], targetId]] : null, false));
 
       this.persons.update((list) =>
@@ -863,7 +1155,10 @@ export class ManagePersonsComponent implements OnInit {
       this.selectedIds.set(new Set());
       this.snackBar.open(this.i18n.t(I18N.persons.merged), '', { duration: 2000 });
     } catch {
-      if (merged > 0) this.journal.record('person', [], mergeActivity(merged, null, true));
+      if (merged > 0) {
+        this.faceBoxes.clear();
+        this.journal.record('person', [], mergeActivity(merged, null, true));
+      }
       this.snackBar.open(this.i18n.t(I18N.persons.merge_error), '', { duration: 3000 });
     }
   }

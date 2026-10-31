@@ -1597,7 +1597,7 @@ Web gallery display and behavior.
 | `max_tags` | `20` | Max tags |
 | `min_photos_for_person` | `10` | Hide persons with fewer photos from dropdown |
 | **persons** | | |
-| `needs_naming_min_faces` | `5` | Minimum faces for a cluster to appear under "Needs naming" in `/persons` |
+| `needs_naming_min_faces` | `5` | Minimum faces for a cluster to appear under "Needs naming" in `/persons`; `1` lists every unnamed person |
 | **raw_processor** | | |
 | `darktable.executable` | `"darktable-cli"` | darktable-cli binary name or absolute path |
 | `darktable.profiles` | `[]` | Array of named darktable export profiles (see below) |
@@ -2532,7 +2532,7 @@ Exposes the tools described in [AI Agents (MCP)](AGENTS.md) at `POST /mcp`: read
 
 On an open install (no `viewer.password`):
 - `/mcp` serves only a read-only anonymous key, which shows nothing the open `/api` does not.
-- A new token is `readonly`, unless `viewer.trusted_local_editing` allows a Full-editing token for same-machine requests.
+- A new token is `readonly`, unless `viewer.trusted_local_editing` is on or the session is logged in with `viewer.edition_password`: either can mint a Full-editing token, which edits only for same-machine requests.
 - Tokens can be created, listed and revoked only from the computer running Facet (or in an edition session when `viewer.edition_password` is set).
 
 ```json

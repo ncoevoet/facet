@@ -417,7 +417,9 @@ Un visage qui appartient déjà à une autre personne est déplacé, et une pers
 
 ### À nommer
 
-La page Gérer les personnes liste les grands clusters non nommés dans une section **À nommer**, chacun avec un champ de nom. Un cluster y apparaît lorsqu'il compte au moins `viewer.persons.needs_naming_min_faces` visages (défaut `5`).
+La page Gérer les personnes liste les grands clusters non nommés dans un onglet **À nommer**, chacun avec un champ de nom. Un cluster y apparaît lorsqu'il compte au moins `viewer.persons.needs_naming_min_faces` visages (défaut `5`).
+
+Non nommé signifie sans nom ou avec un nom vide, que le cluster vienne du regroupement ou d'une division ; les personnes masquées (ignorées) en sont exclues. L'onglet n'apparaît qu'en mode édition, à côté de **Nommées**, qui ne liste que les personnes nommées, si bien que chacune n'apparaît qu'une fois ; la page s'ouvre sur **Nommées**.
 
 ### Page Suggestions de fusion
 

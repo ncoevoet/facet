@@ -237,6 +237,24 @@ class TestLoadResolved:
         assert resolved["performance"]["cache_size_mb"] == \
             load_defaults()["performance"]["cache_size_mb"]
 
+    def test_a_utf8_override_is_decoded_as_utf8_whatever_the_locale(self, tmp_path):
+        """A hand-edited override saved as UTF-8 must not be read with the
+        locale's code page (cp1252 on Windows, ASCII under LC_ALL=C)."""
+        path = tmp_path / "scoring_config.json"
+        path.write_bytes(
+            json.dumps({"viewer": {"directories": ["/photos/Été"]}}, ensure_ascii=False).encode("utf-8"))
+        code = ("import json, sys, config_resolve;"
+                "r = config_resolve.load_resolved(sys.argv[1], named=True);"
+                "sys.stdout.write(json.dumps(r['viewer']['directories']))")
+        result = subprocess.run(
+            [sys.executable, "-X", "utf8=0", "-c", code, str(path)],
+            cwd=Path(__file__).resolve().parent.parent,
+            env={**os.environ, "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0", "LC_ALL": "C"},
+            capture_output=True, text=True,
+        )
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout) == ["/photos/Été"]
+
 
 class TestPathIsNamed:
     """One question, one implementation: did a HUMAN choose this path?"""

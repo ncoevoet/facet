@@ -121,6 +121,7 @@ class MediaCritiqueResponse(BaseModel):
     vlm_critique: Optional[str] = None
     vlm_source: Optional[str] = None
     vlm_available: Optional[bool] = None
+    vlm_translation_missing: Optional[bool] = None
 
 
 class MediaFaceMarker(BaseModel):

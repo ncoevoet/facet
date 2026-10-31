@@ -934,3 +934,30 @@ class TestMetrics:
         assert proc.metrics['io_time'] == pytest.approx(4.0)
         assert proc.metrics['io_decode_time'] == pytest.approx(4.0)
         assert proc.metrics['decode_overlapped_chunks'] == 0
+
+
+@pytest.mark.parametrize('restricted', [False, True])
+def test_post_inference_phase_accounting(monkeypatch, restricted):
+    clock = _FakeClock()
+    monkeypatch.setattr('processing.multi_pass.time', types.SimpleNamespace(
+        time=clock.read, perf_counter=clock.read))
+    proc = _processor(_Manager(device='cpu'), [['clip']], monkeypatch,
+                      chunk=2, restricted=restricted)
+    monkeypatch.setattr(proc, '_load_images', _stub_decode(proc))
+
+    def aggregate(results, images):
+        clock.advance(2)
+
+    def save(results, images):
+        clock.advance(3)
+        if not restricted:
+            proc.metrics['thumbnail_time'] += 3
+        clock.advance(5)
+
+    monkeypatch.setattr(proc, '_compute_aggregates', aggregate)
+    monkeypatch.setattr(proc, '_save_results', save)
+    monkeypatch.setattr(proc, '_save_results_restricted', save)
+    proc.process_directory(PATHS[:2], show_progress=False)
+    assert proc.metrics['aggregate_time'] == (0 if restricted else 2)
+    assert proc.metrics['thumbnail_time'] == (0 if restricted else 3)
+    assert proc.metrics['save_time'] == (8 if restricted else 5)

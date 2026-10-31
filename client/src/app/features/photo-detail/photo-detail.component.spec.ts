@@ -246,6 +246,60 @@ describe('PhotoDetailComponent', () => {
     return view;
   }
 
+  it('refreshes rendered face boxes after every committed manual edit', async () => {
+    let faces: object[] = [];
+    mockApi.get.mockImplementation((url: string) => {
+      if (url === '/photo/faces') return of({ faces });
+      if (url === '/photo') return of(samplePhoto);
+      return of({});
+    });
+    const view = renderDetail();
+    vi.spyOn(TestBed.inject(GalleryStore), 'reloadPersonOptions').mockResolvedValue();
+    view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path, image_width: 6000, image_height: 4000 }));
+    view.detectChanges();
+    await view.whenStable();
+    (view.componentInstance as any).dialog = mockDialog;
+    await (view.componentInstance as any).openManualFaces(view.componentInstance.photo());
+    const committed = mockDialog.open.mock.calls.at(-1)![1].data.onCommitted;
+    expect(view.nativeElement.querySelectorAll('[data-face]')).toHaveLength(0);
+    for (const box of [[0.1, 0.2, 0.3, 0.4], [0.2, 0.3, 0.5, 0.6]]) {
+      faces = [{ id: 42, person_id: 1, person_name: 'Alice', box }];
+      await committed();
+      view.detectChanges();
+      const rect = view.nativeElement.querySelector('[data-face]');
+      expect(rect).not.toBeNull();
+      expect(Number(rect.getAttribute('x'))).toBe(box[0] * 6000);
+      expect(view.nativeElement.querySelector('app-photo-face-layer text').textContent).toContain('Alice');
+    }
+    faces = [];
+    await committed();
+    view.detectChanges();
+    expect(view.nativeElement.querySelectorAll('[data-face]')).toHaveLength(0);
+  });
+
+  it.each(['navigate', 'destroy'] as const)('does not reload obsolete face boxes after %s', async (leave) => {
+    mockApi.get.mockImplementation((url: string) => url === '/photo/faces' ? of({ faces: [] }) : of(samplePhoto));
+    const view = renderDetail();
+    vi.spyOn(TestBed.inject(GalleryStore), 'reloadPersonOptions').mockResolvedValue();
+    view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path }));
+    view.detectChanges();
+    await view.whenStable();
+    (view.componentInstance as any).dialog = mockDialog;
+    await (view.componentInstance as any).openManualFaces(view.componentInstance.photo());
+    const committed = mockDialog.open.mock.calls.at(-1)![1].data.onCommitted;
+    if (leave === 'destroy') {
+      view.destroy();
+    } else {
+      view.componentInstance.photo.set(makePhoto({ path: '/other.jpg' }));
+      view.detectChanges();
+      await view.whenStable();
+    }
+    mockApi.get.mockClear();
+    await committed();
+    expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/faces')).toEqual([]);
+    expect(mockApi.get).toHaveBeenCalledWith('/photo', { path: samplePhoto.path });
+  });
+
   it('ranks each score that has a library distribution, and only those', () => {
     localStorage.setItem('facet_photo_detail_tab', 'quality');
     const view = renderDetail();
@@ -308,6 +362,60 @@ describe('PhotoDetailComponent', () => {
     const refresh = root.querySelector('button[aria-label="photo_refresh.title"]') as HTMLButtonElement;
     expect(refresh.classList.contains('max-md:!hidden')).toBe(true);
     expect(root.querySelector('span.truncate')!.classList.contains('min-w-0')).toBe(true);
+  });
+
+  it('cycles the face-box button hover, always, off, remembering each and telling the layer', () => {
+    localStorage.removeItem('facet_face_box_mode');
+    localStorage.removeItem('facet_show_face_boxes');
+    const view = renderDetail();
+    view.componentInstance.photo.set(makePhoto({}));
+    view.detectChanges();
+    const root = view.nativeElement as HTMLElement;
+    const button = () => root.querySelector('button[data-face-box-mode]') as HTMLButtonElement;
+    const layer = () => view.debugElement.query((d) => d.name === 'app-photo-face-layer').componentInstance as { mode: () => string };
+    const seen: [string | null, string, string | null][] = [];
+    for (let i = 0; i < 4; i++) {
+      seen.push([button().getAttribute('aria-label'), layer().mode(), localStorage.getItem('facet_face_box_mode')]);
+      button().click();
+      view.detectChanges();
+    }
+    expect(seen).toEqual([
+      ['photo_faces.box_mode_hover', 'hover', null],
+      ['photo_faces.box_mode_always', 'always', 'always'],
+      ['photo_faces.box_mode_off', 'off', 'off'],
+      ['photo_faces.box_mode_hover', 'hover', 'hover'],
+    ]);
+    localStorage.removeItem('facet_face_box_mode');
+  });
+
+  it('a Persons avatar opens the face menu on its largest face, even with boxes off; See all photos navigates', async () => {
+    localStorage.setItem('facet_face_box_mode', 'off');
+    mockAuth.isEdition.set(true);
+    mockApi.get.mockImplementation((url: string) => url === '/photo/faces'
+      ? of({ faces: [
+        { id: 11, face_index: 0, person_id: 1, person_name: 'Alice', box: [0, 0, 0.1, 0.1] },
+        { id: 12, face_index: 1, person_id: 1, person_name: 'Alice', box: [0.2, 0.2, 0.7, 0.7] },
+        { id: 13, face_index: 2, person_id: 4, person_name: 'Bob', box: [0, 0, 0.9, 0.9] },
+      ] })
+      : of(samplePhoto));
+    const view = renderDetail();
+    view.componentInstance.photo.set(makePhoto({ persons: [{ id: 1, name: 'Alice' }], image_width: 1000, image_height: 800 }));
+    view.detectChanges();
+    await view.whenStable();
+    view.detectChanges();
+    const avatar = view.nativeElement.querySelector('button[data-person-avatar]') as HTMLButtonElement;
+    expect(avatar.getAttribute('aria-haspopup')).toBe('menu');
+    avatar.click();
+    view.detectChanges();
+    await view.whenStable();
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+    const menu = view.debugElement.query((d) => d.name === 'app-person-face-menu' && d.parent?.name !== 'app-photo-face-layer').componentInstance as { target: () => unknown };
+    expect(menu.target()).toEqual({ person: { id: 1, name: 'Alice' }, face: { id: 12 } });
+    const items = [...document.querySelectorAll('.mat-mdc-menu-panel [mat-menu-item]')] as HTMLElement[];
+    expect(items.some((b) => b.textContent!.includes('photo_faces.not_person'))).toBe(true);
+    items.find((b) => b.textContent!.includes('photo_faces.view_photos'))!.click();
+    expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], { queryParams: { person_id: '1' } });
+    localStorage.removeItem('facet_face_box_mode');
   });
 
   it('renders NULL and zero extended metrics in the actual detail template', () => {
@@ -1786,8 +1894,9 @@ describe('PhotoDetailComponent', () => {
     // this component's signal, so a caption edited in the lightbox was shown
     // back at its pre-edit value in the grid tooltip that carries it.
     it('generateCaption puts the generated caption in the store', async () => {
-      mockApi.get.mockImplementation((url: string) =>
-        url === '/caption' ? of({ caption: 'a generated caption' }) : of(samplePhoto));
+      mockApi.get.mockImplementation(() => of(samplePhoto));
+      mockApi.post.mockImplementation((url: string) =>
+        url === '/caption' ? of({ caption: 'a generated caption' }) : of({}));
       createComponent();
       seedGrid({ caption: 'stale' });
 
@@ -1802,8 +1911,9 @@ describe('PhotoDetailComponent', () => {
     // photo's caption on whichever tile the user had moved on to.
     it('generateCaption drops a response that arrives after the user moved on', async () => {
       const captions = new Subject<{ caption: string }>();
-      mockApi.get.mockImplementation((url: string) =>
-        url === '/caption' ? captions.asObservable() : of(samplePhoto));
+      mockApi.get.mockImplementation(() => of(samplePhoto));
+      mockApi.post.mockImplementation((url: string) =>
+        url === '/caption' ? captions.asObservable() : of({}));
       createComponent();
       seedGrid({ caption: 'stale' });
 
@@ -1818,8 +1928,9 @@ describe('PhotoDetailComponent', () => {
     });
 
     it('generateCaption refetches the config when generation fails', async () => {
+      mockApi.post.mockImplementation((url: string) =>
+        url === '/caption' ? throwError(() => new Error('503')) : of({}));
       mockApi.get.mockImplementation((url: string) => {
-        if (url === '/caption') return throwError(() => new Error('503'));
         if (url === '/config') return of({ features: { show_captions: false } });
         return of(samplePhoto);
       });

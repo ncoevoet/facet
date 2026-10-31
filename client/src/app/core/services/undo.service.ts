@@ -14,10 +14,13 @@ export interface UndoableCommand {
   commit?: () => Promise<void>;
   /** Reverses the action (inverse API calls + local state restore). */
   undo: () => Promise<void>;
+  /** How long the Undo stays offered; 7 s unless the action asks for longer. */
+  durationMs?: number;
 }
 
 /**
- * Single-slot undo manager. Shows a snackbar with an Undo action for ~7s.
+ * Single-slot undo manager. Shows a snackbar with an Undo action for ~7s, or
+ * the command's own ``durationMs``.
  *
  * Two strategies:
  * - invert: the action is already committed; Undo issues inverse calls.
@@ -49,7 +52,7 @@ export class UndoService {
     const ref = this.snackBar.open(
       this.i18n.t(cmd.labelKey, cmd.labelParams),
       this.i18n.t(I18N.undo.action),
-      { duration: 7000 },
+      { duration: cmd.durationMs ?? 7000 },
     );
 
     let undone = false;

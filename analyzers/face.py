@@ -106,10 +106,29 @@ class FaceAnalyzer:
             _cpu_session_warned = True
             logger.warning(
                 "InsightFace is running on the CPU although Facet selected CUDA: its ONNX Runtime "
-                "sessions use %s. 'python facet.py --doctor' shows the ONNX Runtime state. %s",
-                ", ".join(sorted(providers)), repair_hint(torch.version.cuda))
+                "sessions use %s. 'python facet.py --doctor' shows the ONNX Runtime state. %s%s",
+                ", ".join(sorted(providers)), self._cuda_mismatch_cause(torch.version.cuda),
+                repair_hint(torch.version.cuda))
         except Exception as ex:
             logger.debug("Could not read the InsightFace session providers: %s", ex)
+
+    @staticmethod
+    def _cuda_mismatch_cause(torch_cuda):
+        """The CUDA-major mismatch behind the fallback, as a sentence ending in a space, or "".
+
+        Guarded apart from the session read so a missing ``onnxruntime`` can never
+        swallow the whole warning.
+        """
+        try:
+            import onnxruntime
+            from utils.onnx_runtime import cuda_mismatch
+            mismatch = cuda_mismatch(getattr(onnxruntime, 'cuda_version', None), torch_cuda)
+        except Exception:
+            return ""
+        if not mismatch:
+            return ""
+        return (f"{mismatch} (a wheel built for a different CUDA major cannot load its provider "
+                "libraries, such as cuBLAS). ")
 
     def _crop_face_thumbnail(self, img_cv, bbox, padding=0.3):
         """Crop face region from full-res image with padding and resize to thumbnail.

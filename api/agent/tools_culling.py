@@ -55,7 +55,7 @@ AUTO_CULL_SHOW = (
     "compare as manual culling, with the plan's keepers pre-selected for the user to flip and confirm group "
     "by group. Report `shown_in_tab` (applied, or the reason it was not: `unsaved_decisions` when the user "
     "holds unconfirmed decisions on the page, `plan_changed` when the library moved since the preview, `plan_load_failed` when the tab could not "
-    "load the plan for another reason, `navigation_refused` when the tab declined to open /culling, `comparison_open` when the user is on the comparison page, `modal_open` when a dialog, bottom sheet or slideshow is open in the tab, "
+    "load the plan for another reason, `navigation_refused` when the tab declined to open /culling, `comparison_open` when the user is on the comparison page, `modal_open` when a dialog, bottom sheet or slideshow is open in the tab, `stack_mode_active` when the page is in Suggested stacks mode, "
     "`too_large` when the overrides are too big to send). A page with `cursor` > 0 only moves the tab's focus "
     "to that page's first group. `ui_get_context` reports the user's progress as `culling` (confirmed groups, "
     "pending flips, and `culling.changed`: every group whose keepers differ from the plan, with its "

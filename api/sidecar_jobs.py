@@ -27,6 +27,10 @@ _ERROR_CODES = {METADATA_REPAIR_MESSAGE: 'metadata_repair', WRITE_FAILURE_MESSAG
                 EXIFTOOL_UPGRADE_MESSAGE: 'exiftool_upgrade', _STOPPED_MESSAGE: 'stopped'}
 
 
+_RECEIPT_OPEN_ATTEMPTS = 5
+_RECEIPT_OPEN_RETRY_SECONDS = 0.01
+
+
 class JobNotFound(LookupError):
     """No export job or plan with this ID belongs to the caller."""
 
@@ -106,9 +110,21 @@ def _open_receipt(path):
     # GENERIC_READ; SHARE_READ | SHARE_WRITE | SHARE_DELETE; OPEN_EXISTING.
     # Python's ordinary Windows open omits SHARE_DELETE, so a concurrent poll
     # can otherwise prevent the worker's os.replace from publishing progress.
-    handle = create(str(path), 0x80000000, 0x7, None, 3, 0x80, None)
-    if handle == wintypes.HANDLE(-1).value:
-        raise ctypes.WinError(ctypes.get_last_error())
+    #
+    # While a progress write republishes the receipt, ReplaceFile can fall back to
+    # os.replace (see _replace_receipt), and for that instant the name is missing
+    # (ERROR_FILE_NOT_FOUND) or refused (ERROR_SHARING_VIOLATION). Retry briefly, about
+    # 50 ms in all, so a poll does not answer "not found" for a job that exists. A
+    # receipt that is genuinely absent (or held for longer) still reads as not found,
+    # after that delay.
+    for attempt in range(_RECEIPT_OPEN_ATTEMPTS):
+        handle = create(str(path), 0x80000000, 0x7, None, 3, 0x80, None)
+        if handle != wintypes.HANDLE(-1).value:
+            break
+        error = ctypes.get_last_error()
+        if error not in (2, 32) or attempt == _RECEIPT_OPEN_ATTEMPTS - 1:
+            raise ctypes.WinError(error)
+        time.sleep(_RECEIPT_OPEN_RETRY_SECONDS)
     try:
         fd = msvcrt.open_osfhandle(handle, os.O_RDONLY)
     except BaseException:

@@ -127,6 +127,14 @@ class TestScan:
         _, result = call(agent_app, {"scope": "all"})
         assert names(result) == ["a", "d", "b"]
 
+    def test_unnamed_is_every_face_without_a_name(self, agent_app, library):
+        """In no cluster, or in a cluster nobody named; never a named, hidden or own face."""
+        assert names(call(agent_app, {"scope": "unnamed"})[1]) == ["a", "b"]
+        run("UPDATE persons SET name = NULL WHERE id = ?", (BOB,))
+        assert names(call(agent_app, {"scope": "unnamed"})[1]) == ["a", "d", "b"]
+        run("UPDATE persons SET name = '  ' WHERE id = ?", (BOB,))
+        assert names(call(agent_app, {"scope": "unnamed"})[1]) == ["a", "d", "b"]
+
     def test_min_similarity_and_limit_apply(self, agent_app, library):
         assert names(call(agent_app, {"min_similarity": 0.6})[1]) == ["a"]
         assert names(call(agent_app, {"min_similarity": 0.0, "limit": 1})[1]) == ["a"]

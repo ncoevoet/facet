@@ -76,6 +76,7 @@ EDITION_ROUTES = _routes_requiring(require_edition)
 # Pinned on purpose: dropping require_edition from a route (or adding a new
 # edition route) must fail here with a readable diff, not slip under a count.
 EXPECTED_EDITION_ROUTES = frozenset({
+    ('POST', '/api/stacks/regroup/apply'),
     ('POST', '/api/stacks'),
     ('PUT', '/api/stacks/{stack_id}'),
     ('DELETE', '/api/stacks/{stack_id}'),
@@ -144,6 +145,7 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('POST', '/api/export/sidecar_jobs/{job_id}/cancel'),
     ('POST', '/api/export/sidecar_jobs/{job_id}/retry'),
     ('POST', '/api/face/{face_id}/assign'),
+    ('POST', '/api/face/{face_id}/unassign'),
     ('POST', '/api/lightroom/import'),
     ('POST', '/api/lightroom/manifest'),
     ('POST', '/api/person/{person_id}/avatar'),
@@ -160,6 +162,8 @@ EXPECTED_EDITION_ROUTES = frozenset({
     ('POST', '/api/persons/{person_id}/rename'),
     ('POST', '/api/persons/{person_id}/split'),
     ('POST', '/api/persons/{person_id}/unhide'),
+    ('POST', '/api/caption'),
+    ('POST', '/api/critique/vlm'),
     ('POST', '/api/photo/assign_all_faces'),
     ('POST', '/api/photo/clear_junk'),
     ('POST', '/api/photo/delete'),

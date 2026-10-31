@@ -46,7 +46,7 @@ class _StubScorer:
     def calculate_aggregate_logic(self, metrics):
         return 7.5, "default"
 
-    def save_photos_batch(self, batch):
+    def save_photos_batch(self, batch, *, phase_metrics=None):
         self.saved.extend(batch)
 
     def commit(self):

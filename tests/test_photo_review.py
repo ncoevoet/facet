@@ -194,7 +194,10 @@ def test_review_rejection_clears_rating_and_favorite(edition_client, seed_photos
                                "is_kept": 1, "is_favorite": 1, "star_rating": 4}])
     scope = {"photo_paths": [path]} if target == "paths" else {"filters": {"camera": "ReviewRestoreCam"}}
     response = edition_client.post("/api/photos/batch_review", json={**scope, "decision": "rejected"})
-    assert response.json() == {"success": True, "count": 1}
+    payload = response.json()
+    if target == 'paths':
+        assert isinstance(payload.pop('undo_entry_id'), int)
+    assert payload == {"success": True, "count": 1}
     with sqlite3.connect(DEFAULT_DB_PATH) as conn:
         assert conn.execute("SELECT is_kept, is_rejected, is_favorite, star_rating FROM photos WHERE path=?", [path]).fetchone() == (0, 1, 0, 0)
 
@@ -346,3 +349,64 @@ def test_culling_keep_only_changes_visible_paths(tmp_path, monkeypatch, agent, i
         if entries:
             assert tuple(entries[0][:2]) == ("alice", "alice")
             assert [change['path'] for change in json.loads(entries[0]['payload'])] == [visible]
+
+
+@pytest.mark.parametrize("per_user", [False, True])
+def test_single_reject_receipt_restores_exact_review_and_refuses_later_changes(
+        edition_client, seed_photos_prefix, monkeypatch, per_user):
+    from api import config
+    prefix = '/stack-reject-receipt/'
+    path = prefix + 'focused.jpg'
+    seed_photos_prefix(prefix, [dict(path=path, filename='focused.jpg', is_kept=1,
+                                   is_rejected=0, is_favorite=1, star_rating=4)])
+    if per_user:
+        monkeypatch.setitem(config._FULL_CONFIG, 'users', {'test': {'directories': [prefix]}, 'bob': {'directories': [prefix]}})
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute("INSERT INTO user_preferences(user_id,photo_path,is_kept,is_rejected,is_favorite,star_rating) VALUES('test',?,1,0,1,5)", [path])
+    def flags():
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            if per_user:
+                return conn.execute("SELECT is_kept,is_rejected,is_favorite,star_rating FROM user_preferences WHERE user_id='test' AND photo_path=?", [path]).fetchone()
+            return conn.execute('SELECT is_kept,is_rejected,is_favorite,star_rating FROM photos WHERE path=?', [path]).fetchone()
+    before = flags()
+    result = edition_client.post('/api/photos/batch_review', json=dict(photo_paths=[path], decision='rejected'))
+    assert result.status_code == 200, result.text
+    receipt = result.json()['undo_entry_id']
+    from api.auth import CurrentUser, require_edition
+    original_auth = edition_client.app.dependency_overrides[require_edition]
+    edition_client.app.dependency_overrides[require_edition] = lambda: CurrentUser(user_id='bob', edition_authenticated=True)
+    try:
+        foreign = edition_client.post(f'/api/organization_history/{receipt}/revert')
+        assert foreign.status_code == 404
+        assert 'undo_entry_id' not in foreign.json()
+    finally:
+        edition_client.app.dependency_overrides[require_edition] = original_auth
+    assert flags() == (0, 1, 0, 0)
+    repeated = edition_client.post('/api/photos/batch_review', json=dict(photo_paths=[path], decision='rejected'))
+    assert repeated.status_code == 200
+    assert 'undo_entry_id' not in repeated.json()
+    assert edition_client.post(f'/api/organization_history/{receipt}/revert').status_code == 200
+    assert flags() == before
+    second = edition_client.post('/api/photos/batch_review', json=dict(photo_paths=[path], decision='rejected')).json()['undo_entry_id']
+    edition_client.post('/api/photos/batch_rating', json=dict(photo_paths=[path], rating=2))
+    assert edition_client.post(f'/api/organization_history/{second}/revert').status_code == 409
+    assert flags() == (0, 1, 0, 2)
+
+
+def test_single_reject_capture_failure_rolls_back_without_receipt(edition_client, seed_photos_prefix):
+    path = '/stack-reject-failure/a.jpg'
+    seed_photos_prefix('/stack-reject-failure/', [dict(path=path, filename='a.jpg', is_kept=1,
+                                                     is_favorite=1, star_rating=4)])
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        original_count = conn.execute('SELECT COUNT(*) FROM organization_history').fetchone()[0]
+        conn.execute("CREATE TRIGGER fail_reject_receipt BEFORE INSERT ON organization_history BEGIN SELECT RAISE(ABORT,'full'); END")
+    try:
+        result = edition_client.post('/api/photos/batch_review', json=dict(photo_paths=[path], decision='rejected'))
+        assert result.status_code == 500
+        assert 'undo_entry_id' not in result.json()
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            assert conn.execute('SELECT is_kept,is_rejected,is_favorite,star_rating FROM photos WHERE path=?', [path]).fetchone() == (1, 0, 1, 4)
+            assert conn.execute('SELECT COUNT(*) FROM organization_history').fetchone()[0] == original_count
+    finally:
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('DROP TRIGGER fail_reject_receipt')

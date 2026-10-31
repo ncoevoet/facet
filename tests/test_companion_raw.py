@@ -6,9 +6,10 @@ import sys
 import pytest
 
 from api import raw_processing
+from tests.conftest import symlink_or_skip
 
-
-pytestmark = pytest.mark.skipif(sys.platform == 'win32', reason='macOS spelling regression; Windows lookup is unchanged')
+NATIVE_SPELLING = pytest.mark.skipif(sys.platform not in ('darwin', 'win32'),
+                                     reason='macOS and Windows resolve the directory-entry spelling natively')
 
 
 @pytest.fixture(autouse=True)
@@ -37,7 +38,7 @@ def test_companion_preserves_the_symlink_entry_name(tmp_path):
     photo = library / 'shot.jpg'
     photo.write_bytes(b'JPEG fixture')
     raw = library / 'shot.CR2'
-    raw.symlink_to(target)
+    symlink_or_skip(raw, target)
 
     found = raw_processing.find_companion_raw(str(photo))
     assert found == str(raw)
@@ -105,7 +106,7 @@ def test_cold_lookup_is_independent_of_directory_size_and_warm_lookup_skips_cand
         first = raw_processing._find_companion_raw_cached('shot', str(tmp_path), ('.cr2', '.nef'))
         cold_probes = len(probes)
         assert 1 <= cold_probes <= 4
-        native_opens = int(exists and sys.platform == 'darwin')
+        native_opens = int(exists and sys.platform == 'darwin')  # Windows asks the OS by name, without a handle
         assert len(opens) == len(identities) == len(returned_entries) == native_opens
         second = raw_processing._find_companion_raw_cached('shot', str(tmp_path), ('.cr2', '.nef'))
         assert len(probes) == cold_probes
@@ -166,7 +167,7 @@ def test_raw_download_uses_the_companions_actual_filename(edition_client, seed_p
     assert raw.read_bytes() == b'RAW fixture'
 
 
-@pytest.mark.skipif(sys.platform != 'darwin', reason='macOS directory-entry spelling')
+@NATIVE_SPELLING
 def test_cached_companion_tracks_a_case_only_rename(tmp_path):
     raw = tmp_path / 'shot.CR2'
     raw.write_bytes(b'RAW fixture')
@@ -209,7 +210,7 @@ def test_companion_keeps_a_symlinked_parent_path(tmp_path):
     folder = tmp_path / 'original'
     folder.mkdir()
     alias = tmp_path / 'alias'
-    alias.symlink_to(folder, target_is_directory=True)
+    symlink_or_skip(alias, folder)
     (folder / 'shot.jpg').write_bytes(b'JPEG fixture')
     (folder / 'shot.CR2').write_bytes(b'RAW fixture')
     found = raw_processing.find_companion_raw(str(alias / 'shot.jpg'))
@@ -247,9 +248,8 @@ def test_native_lookup_refuses_a_file_renamed_to_another_stem(tmp_path, monkeypa
     assert renamed.read_bytes() == b'RAW fixture'
 
 
-@pytest.mark.skipif(sys.platform != 'darwin', reason='macOS native filename lookup')
+@NATIVE_SPELLING
 def test_native_lookup_failure_refuses_culling_before_any_file_changes(edition_client, seed_photos_prefix, tmp_path, monkeypatch):
-    import fcntl
     from fastapi.testclient import TestClient
     from api import config
 
@@ -265,7 +265,11 @@ def test_native_lookup_failure_refuses_culling_before_any_file_changes(edition_c
     def unavailable(*args):
         raise OSError('temporary native filename lookup failure')
 
-    monkeypatch.setattr(fcntl, 'fcntl', unavailable)
+    if sys.platform == 'darwin':
+        import fcntl
+        monkeypatch.setattr(fcntl, 'fcntl', unavailable)
+    else:
+        monkeypatch.setattr(raw_processing, 'windows_entry_path', unavailable)
     client = TestClient(edition_client.app, raise_server_exceptions=False)
     try:
         response = client.post('/api/cull/apply', json={'paths': [str(photo)], 'action': 'move_rejects',
@@ -438,3 +442,47 @@ def test_cached_companion_deleted_since_is_looked_up_again(tmp_path, monkeypatch
     other.unlink()
     raw.write_bytes(b'RAW fixture')
     assert raw_processing._find_companion_raw_cached('shot', str(tmp_path), ('.cr2', '.nef')) == str(raw)
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows directory-entry spelling')
+def test_windows_entry_path_keeps_the_leaf_spelling_and_the_given_parent(tmp_path):
+    folder = tmp_path / 'Mixed Case'
+    folder.mkdir()
+    (folder / 'shot.CR2').write_bytes(b'RAW fixture')
+    probe = tmp_path / 'MIXED case' / 'shot.cr2'
+    assert raw_processing.windows_entry_path(probe) == str(tmp_path / 'MIXED case' / 'shot.CR2')
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows directory-entry spelling')
+@pytest.mark.parametrize('missing', ['leaf', 'parent'])
+def test_windows_entry_path_reports_a_missing_entry_as_not_found(tmp_path, missing):
+    path = tmp_path / 'shot.CR2' if missing == 'leaf' else tmp_path / 'gone' / 'shot.CR2'
+    with pytest.raises(FileNotFoundError):
+        raw_processing.windows_entry_path(path)
+
+
+def test_windows_entry_path_is_the_identity_off_windows(tmp_path):
+    if sys.platform == 'win32':
+        pytest.skip('Windows resolves the spelling')
+    assert raw_processing.windows_entry_path(tmp_path / 'shot.cr2') == str(tmp_path / 'shot.cr2')
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows directory-entry spelling')
+def test_cull_keeps_a_sidecars_on_disk_filename_case(edition_client, seed_photos_prefix, tmp_path, monkeypatch):
+    from api import config
+
+    source = tmp_path / 'source'
+    source.mkdir()
+    target = tmp_path / 'out'
+    photo = source / 'shot.jpg'
+    photo.write_bytes(b'JPEG fixture')
+    (source / 'shot.XMP').write_bytes(b'XMP fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'scan_directories', [str(source)])
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'export', {'allowed_target_dirs': [str(target)]})
+    seed_photos_prefix(str(source) + os.sep, [{'path': str(photo), 'filename': photo.name, 'is_rejected': 1}])
+    applied = edition_client.post('/api/cull/apply', json={
+        'paths': [str(photo)], 'action': 'move_rejects', 'target_dir': str(target),
+        'include_companions': True, 'dry_run': False})
+    assert applied.status_code == 200, applied.text
+    assert applied.json()['moved'] == 2
+    assert sorted(path.name for path in target.iterdir()) == ['shot.XMP', 'shot.jpg']

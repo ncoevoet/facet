@@ -714,3 +714,44 @@ class TestFaceAnalyzerIsBuiltOnFirstUse:
             assert scorer.face_analyzer is stand_in
 
         assert build.call_count == 0
+
+
+@pytest.mark.parametrize('fail_thumbnail', [False, True])
+def test_batch_thumbnail_timer_preserves_bytes_and_records_failure(monkeypatch, fail_thumbnail):
+    import types
+    from PIL import Image
+    from processing import scorer as module
+
+    image = Image.new('RGB', (32, 24), (90, 30, 10))
+    expected = module.generate_photo_thumbnail(image)
+    result = {'path': 'fixture.jpg'}
+    metrics = {'thumbnail_time': 7.0}
+    now = [10.0]
+    monkeypatch.setattr(module, 'time', types.SimpleNamespace(perf_counter=lambda: now[0]))
+    monkeypatch.setattr(module, 'thumbnail_source', lambda path, fallback: fallback)
+    original = module.generate_photo_thumbnail
+
+    def thumbnail(img):
+        now[0] += 3.0
+        if fail_thumbnail:
+            raise ValueError('thumbnail failure')
+        return original(img)
+
+    def connection(*args, **kwargs):
+        # Stop at the database boundary, after the real thumbnail phase. Its
+        # elapsed time must not enter thumbnail_time, even on this failure.
+        now[0] += 5.0
+        raise RuntimeError('database boundary')
+
+    monkeypatch.setattr(module, 'generate_photo_thumbnail', thumbnail)
+    monkeypatch.setattr(module, 'get_connection', connection)
+    monkeypatch.setattr(module, 'validate_review_paths', lambda *args: {})
+    instance = module.Facet.__new__(module.Facet)
+    instance.db_path = ':memory:'
+    error = ValueError if fail_thumbnail else RuntimeError
+    with pytest.raises(error, match='thumbnail failure' if fail_thumbnail else 'database boundary'):
+        instance.save_photos_batch([(result, image)], phase_metrics=metrics)
+    assert metrics['thumbnail_time'] == 10.0
+    if not fail_thumbnail:
+        assert result['thumbnail'] == expected
+    assert image.size == (32, 24)

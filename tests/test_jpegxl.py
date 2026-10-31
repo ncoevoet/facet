@@ -117,12 +117,27 @@ def test_bad_jpegxl_can_fall_back_to_stored_thumbnail(tmp_path, seed_photos_pref
     assert jxl_client.get("/image", params={"path": str(path)}).status_code == 500
 
 
-def test_scanner_reads_original_capture_date(tmp_path):
+def test_scanner_reads_original_capture_date(tmp_path, monkeypatch, caplog):
+    import exiftool
+    import processing.scorer as scorer_module
     from processing.scorer import Facet
+
+    def _no_exiftool(*args, **kwargs):
+        raise FileNotFoundError("exiftool disabled for this test")
+
+    # Isolate the Pillow fallback (step 4) from the machine: no persistent
+    # ExifTool, no exiftool binary, and no module-level Pillow handles that an
+    # earlier test or a full Facet.__init__ may have populated.
+    monkeypatch.setattr(exiftool, "get_exif_single", lambda *a, **k: {})
+    monkeypatch.setattr("subprocess.run", _no_exiftool)
+    monkeypatch.setattr(scorer_module, "Image", None)
+    monkeypatch.setattr(scorer_module, "ExifTags", None)
     path = tmp_path / "diploma.jxl"
     _jpegxl(path)
     scorer = object.__new__(Facet)
-    assert scorer.get_exif_data(path)["date_taken"] == "2024:01:13 11:36:39"
+    with caplog.at_level("WARNING"):
+        assert scorer.get_exif_data(path)["date_taken"] == "2024:01:13 11:36:39"
+    assert "EXIF extraction failed" not in caplog.text
 
 
 @pytest.mark.parametrize("accept,native", [

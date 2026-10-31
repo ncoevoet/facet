@@ -1593,7 +1593,7 @@ Exibição e comportamento da galeria web.
 | `max_tags` | `20` | Máximo de tags |
 | `min_photos_for_person` | `10` | Oculta do menu suspenso pessoas com menos fotos |
 | **persons** | | |
-| `needs_naming_min_faces` | `5` | Mínimo de faces para que um cluster apareça em "Precisa de nome" de `/persons` |
+| `needs_naming_min_faces` | `5` | Mínimo de faces para que um cluster apareça em "Precisa de nome" de `/persons`; `1` lista todas as pessoas sem nome |
 | **raw_processor** | | |
 | `darktable.executable` | `"darktable-cli"` | Nome do binário darktable-cli ou caminho absoluto |
 | `darktable.profiles` | `[]` | Array de perfis de exportação darktable nomeados (veja abaixo) |
@@ -2523,7 +2523,7 @@ Expõe as ferramentas descritas em [Agentes de IA (MCP)](AGENTS.md) em `POST /mc
 
 Em uma instalação aberta (sem `viewer.password`):
 - `/mcp` serve apenas uma chave anônima só de leitura, que não mostra nada que a `/api` aberta não mostre.
-- Um token novo é `readonly`, a menos que `viewer.trusted_local_editing` permita um token de edição completa para as requisições do mesmo computador.
+- Um token novo é `readonly`, a menos que `viewer.trusted_local_editing` esteja ativo ou a sessão tenha entrado com `viewer.edition_password`: ambos podem criar um token de edição completa, que só edita nas requisições do mesmo computador.
 - Os tokens só se criam, listam e revogam a partir do computador onde o Facet está rodando (ou em uma sessão de edição quando `viewer.edition_password` está definido).
 
 ```json

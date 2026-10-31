@@ -124,11 +124,15 @@ COPY requirements.restricted.lock.txt requirements.legacy.restricted.lock.txt ./
 # CPU base only: the image ships no torch at all, so install it up front from
 # the CPU wheel index before anything in the lock can pull in a CUDA build
 # transitively.
+# Pinned to the default CUDA base image's torch, so the CPU and CUDA images run
+# the same release and a rebuild cannot drift.
 # The trailing python call records the torch this image is SUPPOSED to end up
 # with — the base image's on a CUDA base, the one just installed on the CPU base
 # — so the guard after the lock install can prove pip did not replace it.
+ARG CPU_TORCH_VERSION=2.11.0
+ARG CPU_TORCHVISION_VERSION=0.26.0
 RUN if [ "$STRIP_TORCH" = "0" ]; then \
-        pip install --no-cache-dir --break-system-packages torch torchvision --index-url https://download.pytorch.org/whl/cpu ; \
+        pip install --no-cache-dir --break-system-packages "torch==${CPU_TORCH_VERSION}" "torchvision==${CPU_TORCHVISION_VERSION}" --index-url https://download.pytorch.org/whl/cpu ; \
     fi \
     && python -c 'import pathlib, torch; pathlib.Path("/tmp/intended-torch").write_text(torch.__version__)'
 # --break-system-packages: the CUDA 12.8 base is Ubuntu 24.04 and ships

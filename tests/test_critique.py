@@ -213,198 +213,275 @@ class TestCritiqueEndpoint:
         assert isinstance(body["weaknesses"], list)
 
 
-    def test_vlm_mode_unavailable(self, client, tmp_path):
-        """When mode=vlm but VLM returns nothing, vlm_available=False in response.
+_FAKE_RULE = {
+    "category": "landscape",
+    "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
+    "aggregate": 7.5, "breakdown": [], "strengths": [], "weaknesses": [],
+    "suggestions": [], "penalties": {},
+}
 
-        _get_vlm_critique is the blocking inference call (wrapped in
-        asyncio.to_thread by the handler); patch it with a plain stub returning
-        None to simulate an unavailable VLM.
-        """
+
+def _vlm_patches(db, vlm_stub=None, **extra):
+    """Patch the critique router onto a temp DB; ``vlm_stub`` replaces the model call."""
+    stack = [
+        mock.patch("api.routers.critique.VIEWER_CONFIG",
+                   {"features": {"show_critique": True, "show_vlm_critique": True}}),
+        mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
+        mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
+        mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
+        mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
+        mock.patch("api.routers.critique._build_rule_critique", return_value=dict(_FAKE_RULE)),
+        mock.patch("api.routers.critique.resolve_vlm_config", return_value={"model_path": "stub"}),
+        mock.patch("api.routers.critique.vlm_known_unavailable", return_value=False),
+    ]
+    if vlm_stub is not None:
+        stack.append(mock.patch("api.routers.critique._get_vlm_critique", vlm_stub))
+    for target, value in extra.items():
+        stack.append(mock.patch(f"api.routers.critique.{target}", value))
+    return stack
+
+
+@contextmanager
+def _patched(db, vlm_stub=None, **extra):
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        for patch in _vlm_patches(db, vlm_stub, **extra):
+            stack.enter_context(patch)
+        yield
+
+
+def _stored_vlm(db):
+    conn = sqlite3.connect(db)
+    row = conn.execute(
+        "SELECT vlm_critique, vlm_critique_translated FROM photos WHERE path = '/photos/test.jpg'"
+    ).fetchone()
+    conn.close()
+    return row
+
+
+def _seed_cached(db, text="Cached.", translated=None):
+    conn = sqlite3.connect(db)
+    conn.execute(
+        "UPDATE photos SET vlm_critique = ?, vlm_critique_translated = ? WHERE path = '/photos/test.jpg'",
+        (text, translated),
+    )
+    conn.commit()
+    conn.close()
+
+
+_GET = {"path": "/photos/test.jpg", "mode": "vlm"}
+_POST = {"path": "/photos/test.jpg"}
+
+
+class TestCritiqueVlmGetIsReadOnly:
+    """GET /api/critique never generates, translates or writes."""
+
+    def test_nothing_cached_reports_availability_without_generating(self, edition_session_client, tmp_path):
         db = str(tmp_path / "critique.db")
         _make_db(db, [_make_photo()])
-
-        fake_rule = {
-            "category": "landscape",
-            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
-            "aggregate": 7.5,
-            "breakdown": [],
-            "strengths": [],
-            "weaknesses": [],
-            "suggestions": [],
-            "penalties": {},
-        }
-
-        with (
-            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-            mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
-            mock.patch("api.routers.critique._get_vlm_critique", return_value=None),
-        ):
-            resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
-
+        stub = mock.MagicMock(return_value="must not run")
+        translate = mock.MagicMock(return_value="must not run")
+        with _patched(db, stub, translate_text=translate, translation_target=lambda lang: "fr"):
+            resp = edition_session_client.get("/api/critique", params={**_GET, "lang": "fr"})
         assert resp.status_code == 200
         body = resp.json()
-        assert body.get("vlm_available") is False
+        assert body["vlm_available"] is True
         assert "vlm_critique" not in body
+        stub.assert_not_called()
+        translate.assert_not_called()
+        assert _stored_vlm(db) == (None, None)
 
-    def test_vlm_mode_available(self, edition_session_client, tmp_path):
-        """When mode=vlm and VLM returns text, it appears as vlm_critique."""
+    def test_unavailable_when_the_model_is_not_configured(self, edition_session_client, tmp_path):
         db = str(tmp_path / "critique.db")
         _make_db(db, [_make_photo()])
+        with _patched(db, mock.MagicMock(), vlm_known_unavailable=lambda: True):
+            resp = edition_session_client.get("/api/critique", params=_GET)
+        assert resp.json()["vlm_available"] is False
 
-        fake_rule = {
-            "category": "landscape",
-            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
-            "aggregate": 7.5,
-            "breakdown": [],
-            "strengths": [],
-            "weaknesses": [],
-            "suggestions": [],
-            "penalties": {},
-        }
+    def test_unavailable_to_a_caller_without_edition(self, client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        stub = mock.MagicMock()
+        with _patched(db, stub):
+            resp = client.get("/api/critique", params=_GET)
+        assert resp.json()["vlm_available"] is False
+        stub.assert_not_called()
+        assert _stored_vlm(db) == (None, None)
 
-        with (
-            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-            mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
-            mock.patch("api.routers.critique._get_vlm_critique", return_value="A lovely landscape."),
-        ):
-            resp = edition_session_client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
+    def test_cached_critique_is_served_to_non_edition(self, client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        _seed_cached(db)
+        stub = mock.MagicMock()
+        with _patched(db, stub):
+            resp = client.get("/api/critique", params=_GET)
+        body = resp.json()
+        assert body["vlm_critique"] == "Cached."
+        assert body["vlm_source"] == "cached"
+        assert "vlm_available" not in body
+        stub.assert_not_called()
 
-        assert resp.status_code == 200
+    def test_stored_translation_is_served_and_a_missing_one_is_not_made(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        _seed_cached(db, "Cached.", "Mis en cache.")
+        translate = mock.MagicMock(return_value="must not run")
+        with _patched(db, translate_text=translate, translation_target=lambda lang: "fr"):
+            translated = edition_session_client.get("/api/critique", params={**_GET, "lang": "fr"})
+        assert translated.json()["vlm_critique"] == "Mis en cache."
+        _seed_cached(db, "Cached.", None)
+        with _patched(db, translate_text=translate, translation_target=lambda lang: "fr"):
+            untranslated = edition_session_client.get("/api/critique", params={**_GET, "lang": "fr"})
+        assert untranslated.json()["vlm_critique"] == "Cached."
+        assert untranslated.json()["vlm_translation_missing"] is True
+        assert translated.json()["vlm_translation_missing"] is False
+        translate.assert_not_called()
+        assert _stored_vlm(db) == ("Cached.", None)
+
+    def test_refresh_is_no_longer_a_get_parameter(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        _seed_cached(db, "Stale.")
+        stub = mock.MagicMock(return_value="Fresh.")
+        with _patched(db, stub):
+            resp = edition_session_client.get("/api/critique", params={**_GET, "refresh": "true"})
+        assert resp.json()["vlm_critique"] == "Stale."
+        stub.assert_not_called()
+        assert _stored_vlm(db) == ("Stale.", None)
+
+
+class TestCritiqueVlmPost:
+    """POST /api/critique/vlm generates, stores, translates; edition only."""
+
+    def test_generates_and_stores(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        stub = mock.MagicMock(return_value="A lovely landscape.")
+        with _patched(db, stub):
+            resp = edition_session_client.post("/api/critique/vlm", json=_POST)
+        assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["vlm_critique"] == "A lovely landscape."
         assert body["vlm_source"] == "generated"
         assert "vlm_available" not in body
+        assert _stored_vlm(db) == ("A lovely landscape.", None)
 
-    def test_vlm_critique_cached_on_second_call(self, edition_session_client, tmp_path):
-        """The generated critique is persisted and reused without a second inference."""
+    def test_model_returning_nothing_reports_unavailable(self, edition_session_client, tmp_path):
         db = str(tmp_path / "critique.db")
         _make_db(db, [_make_photo()])
-
-        fake_rule = {
-            "category": "landscape",
-            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
-            "aggregate": 7.5,
-            "breakdown": [],
-            "strengths": [],
-            "weaknesses": [],
-            "suggestions": [],
-            "penalties": {},
-        }
-        vlm_stub = mock.MagicMock(return_value="Cached critique text.")
-
-        with (
-            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-            mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
-            mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
-        ):
-            first = edition_session_client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
-            second = edition_session_client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
-
-        assert first.json()["vlm_source"] == "generated"
-        assert second.json()["vlm_critique"] == "Cached critique text."
-        assert second.json()["vlm_source"] == "cached"
-        assert vlm_stub.call_count == 1
-
-        conn = sqlite3.connect(db)
-        stored = conn.execute("SELECT vlm_critique FROM photos WHERE path = '/photos/test.jpg'").fetchone()[0]
-        conn.close()
-        assert stored == "Cached critique text."
-
-    def test_vlm_refresh_regenerates(self, edition_session_client, tmp_path):
-        """refresh=true bypasses the cache and re-runs inference."""
-        db = str(tmp_path / "critique.db")
-        _make_db(db, [_make_photo()])
-        conn = sqlite3.connect(db)
-        conn.execute("UPDATE photos SET vlm_critique = 'Stale text.' WHERE path = '/photos/test.jpg'")
-        conn.commit()
-        conn.close()
-
-        fake_rule = {
-            "category": "landscape",
-            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
-            "aggregate": 7.5,
-            "breakdown": [],
-            "strengths": [],
-            "weaknesses": [],
-            "suggestions": [],
-            "penalties": {},
-        }
-        vlm_stub = mock.MagicMock(return_value="Fresh text.")
-
-        with (
-            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-            mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
-            mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
-        ):
-            resp = edition_session_client.get(
-                "/api/critique",
-                params={"path": "/photos/test.jpg", "mode": "vlm", "refresh": "true"},
-            )
-
-        assert resp.json()["vlm_critique"] == "Fresh text."
-        assert vlm_stub.call_count == 1
-
-    def test_vlm_translation_persisted_and_returned(self, edition_session_client, tmp_path):
-        """When lang maps to a translation target, _attach_vlm_critique translates
-        the generated text, persists the translation, and returns it."""
-        db = str(tmp_path / "critique.db")
-        _make_db(db, [_make_photo()])
-
-        fake_rule = {
-            "category": "landscape",
-            "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
-            "aggregate": 7.5,
-            "breakdown": [],
-            "strengths": [],
-            "weaknesses": [],
-            "suggestions": [],
-            "penalties": {},
-        }
-
-        with (
-            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-            mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-            mock.patch("api.routers.critique._build_rule_critique", return_value=fake_rule),
-            mock.patch("api.routers.critique._get_vlm_critique", return_value="A lovely landscape."),
-            mock.patch("api.routers.critique.translation_target", return_value="fr"),
-            mock.patch("api.routers.critique.translate_text", return_value="Un beau paysage."),
-        ):
-            resp = edition_session_client.get(
-                "/api/critique",
-                params={"path": "/photos/test.jpg", "mode": "vlm", "lang": "fr"},
-            )
-
+        with _patched(db, mock.MagicMock(return_value=None)):
+            resp = edition_session_client.post("/api/critique/vlm", json=_POST)
         assert resp.status_code == 200
-        body = resp.json()
-        assert body["vlm_critique"] == "Un beau paysage."
-        assert body["vlm_source"] == "generated"
+        assert resp.json()["vlm_available"] is False
+        assert _stored_vlm(db) == (None, None)
 
-        conn = sqlite3.connect(db)
-        stored = conn.execute(
-            "SELECT vlm_critique, vlm_critique_translated FROM photos WHERE path = '/photos/test.jpg'"
-        ).fetchone()
-        conn.close()
-        assert stored[0] == "A lovely landscape."
-        assert stored[1] == "Un beau paysage."
+    def test_cached_text_is_reused_without_inference(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        _seed_cached(db, "Cached critique text.")
+        stub = mock.MagicMock(return_value="must not run")
+        with _patched(db, stub):
+            resp = edition_session_client.post("/api/critique/vlm", json=_POST)
+        assert resp.json()["vlm_critique"] == "Cached critique text."
+        assert resp.json()["vlm_source"] == "cached"
+        stub.assert_not_called()
+
+    def test_refresh_regenerates(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        _seed_cached(db, "Stale text.", "Vieux.")
+        stub = mock.MagicMock(return_value="Fresh text.")
+        with _patched(db, stub):
+            resp = edition_session_client.post("/api/critique/vlm", json={**_POST, "refresh": True})
+        assert resp.json()["vlm_critique"] == "Fresh text."
+        assert stub.call_count == 1
+        assert _stored_vlm(db) == ("Fresh text.", None)
+
+    def test_translation_persisted_and_returned(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        with _patched(db, mock.MagicMock(return_value="A lovely landscape."),
+                      translation_target=lambda lang: "fr",
+                      translate_text=lambda text, lang: "Un beau paysage."):
+            resp = edition_session_client.post("/api/critique/vlm", json={**_POST, "lang": "fr"})
+        assert resp.status_code == 200
+        assert resp.json()["vlm_critique"] == "Un beau paysage."
+        assert resp.json()["vlm_source"] == "generated"
+        assert _stored_vlm(db) == ("A lovely landscape.", "Un beau paysage.")
+
+    def test_translates_a_cached_critique_and_stores_it(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        _seed_cached(db, "Cached.")
+        stub = mock.MagicMock()
+        with _patched(db, stub, translation_target=lambda lang: "fr",
+                      translate_text=lambda text, lang: "Mis en cache."):
+            resp = edition_session_client.post("/api/critique/vlm", json={**_POST, "lang": "fr"})
+        assert resp.json()["vlm_critique"] == "Mis en cache."
+        stub.assert_not_called()
+        assert _stored_vlm(db) == ("Cached.", "Mis en cache.")
+
+    def test_requires_edition(self, anonymous_client, regular_client):
+        for denied in (anonymous_client, regular_client):
+            resp = denied.post("/api/critique/vlm", json=_POST)
+            assert resp.status_code in (401, 403), resp.text
+
+    def test_denied_caller_runs_nothing(self, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        stub = mock.MagicMock(return_value="must not run")
+        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
+        try:
+            with _patched(db, stub), mock.patch("api.auth.is_multi_user_enabled", return_value=True):
+                resp = client.post("/api/critique/vlm", json=_POST)
+        finally:
+            app.dependency_overrides.clear()
+        assert resp.status_code in (401, 403)
+        stub.assert_not_called()
+        assert _stored_vlm(db) == (None, None)
+
+    def test_concurrent_posts_share_one_generation(self, edition_session_client, tmp_path):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        from api.routers import critique as crit
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        calls = []
+        entered = threading.Event()
+        gate = crit._critique_flights
+
+        def slow(photo, rule, thumbnail):
+            calls.append(1)
+            entered.set()
+            # Hold the leader until the second request is awaiting its flight.
+            assert _wait_for_joiner(gate)
+            return "Shared text."
+
+        def post():
+            return edition_session_client.post("/api/critique/vlm", json=_POST)
+
+        with (
+            _patched(db, slow),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            first = pool.submit(post)
+            assert entered.wait(10)
+            second = pool.submit(post)
+            responses = [first.result(timeout=30), second.result(timeout=30)]
+        assert [r.status_code for r in responses] == [200, 200]
+        assert {r.json()["vlm_critique"] for r in responses} == {"Shared text."}
+        assert len(calls) == 1
+        assert _stored_vlm(db) == ("Shared text.", None)
+
+    def test_a_failed_generation_does_not_wedge_the_gate(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "critique.db")
+        _make_db(db, [_make_photo()])
+        stub = mock.MagicMock(side_effect=[RuntimeError("boom"), "Second try."])
+        with _patched(db, stub):
+            with pytest.raises(RuntimeError):
+                edition_session_client.post("/api/critique/vlm", json=_POST)
+            retried = edition_session_client.post("/api/critique/vlm", json=_POST)
+        assert retried.json()["vlm_critique"] == "Second try."
 
 
 def _client_for(user):
@@ -412,98 +489,6 @@ def _client_for(user):
     app = create_app()
     app.dependency_overrides[get_optional_user] = lambda: user
     return TestClient(app), app
-
-
-class TestCritiqueVlmEditionGate:
-    """F5': VLM critique generation is edition-only; cached reads stay open."""
-
-    _RULE = {
-        "category": "landscape",
-        "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
-        "aggregate": 7.5, "breakdown": [], "strengths": [], "weaknesses": [],
-        "suggestions": [], "penalties": {},
-    }
-
-    def test_generation_denied_for_non_edition(self, tmp_path):
-        db = str(tmp_path / "critique.db")
-        _make_db(db, [_make_photo()])
-        vlm_stub = mock.MagicMock(return_value="should not run")
-        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
-        try:
-            with (
-                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-                mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
-                mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
-                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
-            ):
-                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
-        finally:
-            app.dependency_overrides.clear()
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body.get("vlm_available") is False
-        assert "vlm_critique" not in body
-        vlm_stub.assert_not_called()
-        conn = sqlite3.connect(db)
-        stored = conn.execute(
-            "SELECT vlm_critique FROM photos WHERE path = '/photos/test.jpg'"
-        ).fetchone()[0]
-        conn.close()
-        assert stored is None
-
-    def test_cached_read_open_to_non_edition(self, tmp_path):
-        db = str(tmp_path / "critique.db")
-        _make_db(db, [_make_photo()])
-        conn = sqlite3.connect(db)
-        conn.execute("UPDATE photos SET vlm_critique = 'Cached.' WHERE path = '/photos/test.jpg'")
-        conn.commit()
-        conn.close()
-        vlm_stub = mock.MagicMock(return_value="should not run")
-        client, app = _client_for(CurrentUser(user_id="u1", role="user"))
-        try:
-            with (
-                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-                mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
-                mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
-                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
-            ):
-                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
-        finally:
-            app.dependency_overrides.clear()
-        assert resp.status_code == 200
-        assert resp.json()["vlm_critique"] == "Cached."
-        vlm_stub.assert_not_called()
-
-    def test_generation_allowed_for_edition_admin(self, tmp_path):
-        db = str(tmp_path / "critique.db")
-        _make_db(db, [_make_photo()])
-        client, app = _client_for(
-            CurrentUser(user_id="admin", role="admin", edition_authenticated=True)
-        )
-        try:
-            with (
-                mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-                mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-                mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-                mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-                mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-                mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
-                mock.patch("api.routers.critique._get_vlm_critique", return_value="Fresh critique."),
-                mock.patch("api.auth.is_multi_user_enabled", return_value=True),
-            ):
-                resp = client.get("/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm"})
-        finally:
-            app.dependency_overrides.clear()
-        assert resp.status_code == 200
-        assert resp.json()["vlm_critique"] == "Fresh critique."
 
 
 # ---------------------------------------------------------------------------
@@ -1001,57 +986,19 @@ class TestGetVlmCritique:
             assert section in out
 
 
-class TestCritiqueOpenInstallIsReadOnly:
-    """An open install (anonymous, no edition password) never writes a critique."""
+def _wait_for_joiner(gate, timeout=10.0):
+    """Block until a second caller is awaiting the in-flight future.
 
-    _RULE = {
-        "category": "landscape",
-        "category_reason": {"reason_key": "default", "category": "landscape", "details": []},
-        "aggregate": 7.5, "breakdown": [], "strengths": [], "weaknesses": [],
-        "suggestions": [], "penalties": {},
-    }
-
-    def _get(self, client, db, vlm_stub, **params):
-        with (
-            mock.patch("api.routers.critique.VIEWER_CONFIG", {"features": {"show_critique": True}}),
-            mock.patch("api.routers.critique.get_async_db", _async_conn_factory(db)),
-            mock.patch("api.routers.critique.get_db", _sync_conn_factory(db)),
-            mock.patch("api.routers.critique.get_visibility_clause", _fake_vis),
-            mock.patch("api.routers.critique.get_existing_columns", return_value=_VLM_TEST_COLS),
-            mock.patch("api.routers.critique._build_rule_critique", return_value=dict(self._RULE)),
-            mock.patch("api.routers.critique._get_vlm_critique", vlm_stub),
-            mock.patch("api.routers.critique.translate_text", return_value="Un beau paysage."),
-        ):
-            return client.get(
-                "/api/critique", params={"path": "/photos/test.jpg", "mode": "vlm", **params}
-            )
-
-    def _stored(self, db):
-        conn = sqlite3.connect(db)
-        row = conn.execute(
-            "SELECT vlm_critique, vlm_critique_translated FROM photos WHERE path = '/photos/test.jpg'"
-        ).fetchone()
-        conn.close()
-        return row
-
-    def test_generation_is_refused_and_nothing_is_written(self, client, tmp_path):
-        db = str(tmp_path / "critique.db")
-        _make_db(db, [_make_photo()])
-        vlm_stub = mock.MagicMock(return_value="should not run")
-        resp = self._get(client, db, vlm_stub)
-        assert resp.status_code == 200
-        assert resp.json().get("vlm_available") is False
-        vlm_stub.assert_not_called()
-        assert self._stored(db) == (None, None)
-
-    def test_translation_of_a_cached_critique_is_served_but_not_persisted(self, client, tmp_path):
-        db = str(tmp_path / "critique.db")
-        _make_db(db, [_make_photo()])
-        conn = sqlite3.connect(db)
-        conn.execute("UPDATE photos SET vlm_critique = 'Cached.' WHERE path = '/photos/test.jpg'")
-        conn.commit()
-        conn.close()
-        resp = self._get(client, db, mock.MagicMock(), lang="fr")
-        assert resp.status_code == 200
-        assert resp.json()["vlm_critique"] == "Un beau paysage."
-        assert self._stored(db) == ("Cached.", None)
+    ``asyncio.wrap_future`` registers a done-callback on the shared future, so a
+    callback there proves the joiner already holds the leader's flight and can
+    no longer become a leader itself.
+    """
+    import time
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with gate._lock:
+            flights = list(gate._flights.values())
+        if any(f._done_callbacks for f in flights):
+            return True
+        time.sleep(0.005)
+    return False

@@ -7,10 +7,17 @@ are revocable, and they are bound to the credentials of their owner at mint time
 * multi-user -- ``user_gen`` digests the user's ``password_hash`` (the role is live);
 * single password -- ``user_gen`` is the viewer-password generation and
   ``edition_gen`` the edition-password generation (``api.auth.password_generation``);
-* open install -- the principal is the fixed ``_anonymous`` and the token is read-only, except
-  under ``viewer.trusted_local_editing``: an ``edition`` token then resolves to ``edition`` for a
-  /mcp request that passed the loopback boundary (``TokenGrant.trusted_local``, set by
-  :func:`verify_request`). Any password lowers it again, and clearing the password revives it.
+* open install -- the principal is the fixed ``_anonymous`` and the token is read-only, with two
+  exceptions, both for a /mcp request that passed the same-machine boundary (set by
+  :func:`verify_request` from the request itself):
+
+  - under ``viewer.trusted_local_editing`` (no password at all) an ``edition`` token resolves to
+    ``edition`` (``TokenGrant.trusted_local``). Any password lowers it again, and clearing the
+    password revives it;
+  - with ``viewer.edition_password`` set, an ``edition`` token minted from an edition session
+    resolves to ``edition`` (``TokenGrant.local``) while that password is unchanged: ``edition_gen``
+    is checked as on a single password. The token is a bearer secret on an install anyone can read,
+    so the locality check is what keeps a LAN or proxied caller at ``readonly``.
 
 ``TokenGrant.resolve`` re-derives the EFFECTIVE level on EVERY call as
 ``min(token.level, live level)``. The internal JWT is minted fresh with CURRENT
@@ -29,7 +36,7 @@ from typing import Any, Optional
 
 from api.auth import (
     EDITION_PASSWORD_KEY, CurrentUser, VIEWER_PASSWORD_KEY, _is_open_install, _trusted_local_editing_enabled,
-    password_generation, trusted_local_for,
+    password_generation, request_is_local_for, trusted_local_for,
 )
 from api.config import config_load_failed, get_user_config, is_multi_user_enabled
 from api.database import get_db
@@ -123,9 +130,9 @@ def snapshot(principal: str) -> tuple[str, str]:
         if user is None:
             raise ValueError(f"unknown user {principal!r}")
         return user_generation(user), ""
-    if mode == "legacy":
-        return password_generation(VIEWER_PASSWORD_KEY), password_generation(EDITION_PASSWORD_KEY)
-    return password_generation(VIEWER_PASSWORD_KEY), ""
+    # An open install pins the edition password too: an edition token minted there under one dies
+    # with it (see TokenGrant.resolve).
+    return password_generation(VIEWER_PASSWORD_KEY), password_generation(EDITION_PASSWORD_KEY)
 
 
 def _public(row: sqlite3.Row) -> dict:
@@ -177,8 +184,8 @@ def verify(plaintext: Optional[str]) -> Optional["TokenGrant"]:
     """The grant behind ``plaintext``, or None when unknown, malformed or revoked.
 
     Liveness against the owner's credentials is NOT decided here -- that is
-    :meth:`TokenGrant.resolve`, which runs on every call. The grant is never trusted-local: only
-    :func:`verify_request` sets that fact, from the request itself.
+    :meth:`TokenGrant.resolve`, which runs on every call. The grant is never local or trusted-local:
+    only :func:`verify_request` sets those facts, from the request itself.
     """
     if not isinstance(plaintext, str) or not plaintext.startswith(TOKEN_PREFIX) \
             or len(plaintext) > MAX_TOKEN_LENGTH:
@@ -194,9 +201,10 @@ def verify(plaintext: Optional[str]) -> Optional["TokenGrant"]:
 
 
 def verify_request(plaintext: Optional[str], request: Any) -> Optional["TokenGrant"]:
-    """:func:`verify`, with ``trusted_local`` derived from the /mcp ``request`` itself (a Request or a WebSocket)."""
+    """:func:`verify`, with ``local`` and ``trusted_local`` derived from the /mcp ``request`` itself (a Request or a WebSocket)."""
     grant = verify(plaintext)
-    return None if grant is None else replace(grant, trusted_local=trusted_local_for(request))
+    return None if grant is None else replace(grant, local=request_is_local_for(request),
+                                              trusted_local=trusted_local_for(request))
 
 
 def list_tokens(user_id: Optional[str] = None) -> list[dict]:
@@ -254,11 +262,18 @@ class ResolvedGrant:
     selection_snapshot: Optional[dict] = None
     # An open-install grant whose /mcp request passed the trusted-local boundary (see TokenGrant.resolve).
     trusted_local: bool = False
+    # An open-install edition grant held through ``viewer.edition_password`` from a local /mcp request.
+    # Unlike ``trusted_local`` it waives nothing (scanning still needs show_scan_button).
+    local_edition: bool = False
 
     def jwt_claims(self) -> Optional[dict]:
         """Claims for the 60-second internal JWT, or None on an open install.
 
-        The one open-install exception is a local Full-editing grant: it signs NO ``sub`` (the
+        The open-install exception is a local Full-editing grant. With ``local_edition`` the JWT
+        carries the edition claim under the edition browser session's own ``sub`` (``_legacy``), so
+        owner-keyed state (the undo history, sidecar jobs) is shared with the user's edition session;
+        ``CurrentUser.is_edition`` honours the claim only while an edition password backs it (and
+        ``create_access_token`` pins its generation), exactly as for that session. Under the opt-in (``trusted_local``) it signs NO ``sub`` (the
         open-install browser's own identity is ``user_id=None``; PyJWT refuses a null ``sub``, and an
         undecodable bearer would fall through to the anonymous human path) plus ``mcp_local``, the only way a request-derived trust
         reaches an agent JWT (see ``CurrentUser.from_payload``).
@@ -271,6 +286,9 @@ class ResolvedGrant:
             if self.level == "edition" and self.trusted_local:
                 return {"role": self.role, "display_name": "", "edition": True, "mcp": True,
                         "mcp_local": True, "mcp_token_id": self.token_id}
+            if self.level == "edition" and self.local_edition:
+                return {"sub": LEGACY_PRINCIPAL, "role": self.role, "display_name": "", "edition": True,
+                        "mcp": True, "mcp_token_id": self.token_id}
             return None
         return {
             "sub": self.principal,
@@ -384,7 +402,9 @@ class TokenGrant:
     user_gen: str
     edition_gen: str
     minted_level: str = "readonly"
-    # The /mcp request presenting this token passed the trusted-local boundary. Default False: fail closed.
+    # The /mcp request presenting this token passed the same-machine boundary (``request_is_local``).
+    local: bool = False
+    # ... and ``viewer.trusted_local_editing`` was on for it. Both default False: fail closed.
     trusted_local: bool = False
 
     @property
@@ -417,13 +437,15 @@ class TokenGrant:
         if mode == "open":
             if self.user_id != OPEN_PRINCIPAL:
                 return None
-            local = self.trusted_local and _trusted_local_editing_enabled()
-            if not local:
-                return ResolvedGrant(self.id, OPEN_PRINCIPAL, "readonly", "user", "", True, "readonly")
-            # A local process is as trusted as the local browser: its reach ceiling is edition whatever
-            # the row was minted at. A non-local grant keeps the readonly ceiling above.
-            return ResolvedGrant(self.id, OPEN_PRINCIPAL, "edition" if self.level == "edition" else "readonly",
-                                 "user", "", True, "edition", trusted_local=True)
+            if self.trusted_local and _trusted_local_editing_enabled():
+                # A local process is as trusted as the local browser: its reach ceiling is edition whatever
+                # the row was minted at. A non-local grant keeps the readonly ceiling below.
+                return ResolvedGrant(self.id, OPEN_PRINCIPAL, "edition" if self.level == "edition" else "readonly",
+                                     "user", "", True, "edition", trusted_local=True)
+            if self.local and _legacy_level(self.level, self.edition_gen) == "edition":
+                return ResolvedGrant(self.id, OPEN_PRINCIPAL, "edition", "user", "", True, "edition",
+                                     local_edition=True)
+            return ResolvedGrant(self.id, OPEN_PRINCIPAL, "readonly", "user", "", True, "readonly")
         if self.user_id != LEGACY_PRINCIPAL:
             return None
         level = _legacy_level(self.level, self.edition_gen)

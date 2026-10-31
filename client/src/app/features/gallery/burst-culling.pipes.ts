@@ -19,8 +19,8 @@ export interface CullingPhoto {
   aggregate: number | null;
   aesthetic: number | null;
   tech_sharpness: number | null;
-  is_blink: number;
-  is_burst_lead: number;
+  is_blink: number | null;
+  is_burst_lead: number | null;
   date_taken: string | null;
   burst_score: number;
   eyes_open_score?: number | null;
@@ -90,7 +90,8 @@ export interface CullingGroupPlan {
 /** A burst, similar, scene, bracket or panorama group surfaced for culling. */
 export interface CullingGroup {
   group_id: number;
-  type: CullingGroupType;
+  type: CullingGroupType | 'duplicate';
+  suggestionKey?: string;
   reason: string;
   photos: CullingPhoto[];
   best_path: string;
@@ -492,13 +493,14 @@ export class CullGroupIconPipe implements PipeTransform {
   private static readonly ICONS: Record<string, string> = {
     all: 'dashboard',
     burst: 'burst_mode',
+    duplicate: 'content_copy',
     similar: 'filter_none',
     scene: 'movie_filter',
     ...SEQUENCE_KIND_ICONS,
   };
 
   transform(kind: string): string {
-    return CullGroupIconPipe.ICONS[kind] ?? 'dashboard';
+    return Object.hasOwn(CullGroupIconPipe.ICONS, kind) ? CullGroupIconPipe.ICONS[kind] : 'dashboard';
   }
 }
 
@@ -508,6 +510,7 @@ export class CullGroupLabelPipe implements PipeTransform {
   private static readonly KEYS: Record<string, string> = {
     all: 'culling.group_by.all',
     burst: 'culling.group_by.bursts',
+    duplicate: 'stacks.suggestion_duplicate',
     similar: 'culling.group_by.similar',
     scene: 'culling.group_by.scenes',
     bracket: 'culling.group_by.brackets',
@@ -516,7 +519,7 @@ export class CullGroupLabelPipe implements PipeTransform {
   };
 
   transform(kind: string): string {
-    return CullGroupLabelPipe.KEYS[kind] ?? '';
+    return Object.hasOwn(CullGroupLabelPipe.KEYS, kind) ? CullGroupLabelPipe.KEYS[kind] : '';
   }
 }
 

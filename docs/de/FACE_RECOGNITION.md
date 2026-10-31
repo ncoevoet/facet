@@ -426,9 +426,11 @@ in Ihren eigenen oder geteilten Verzeichnissen anhängen. API: `POST /api/person
 
 ### Zu benennen
 
-Die Seite „Personen verwalten“ listet große unbenannte Cluster in einem Abschnitt
+Die Seite „Personen verwalten“ listet große unbenannte Cluster im Reiter
 **Zu benennen** auf, jeweils mit einem Namensfeld. Ein Cluster erscheint dort, wenn er
 mindestens `viewer.persons.needs_naming_min_faces` Gesichter hat (Standard `5`).
+
+Unbenannt heißt ohne oder mit leerem Namen, ob der Cluster aus dem Clustering oder einer Aufteilung stammt; ausgeblendete (ignorierte) Personen fehlen. Der Reiter erscheint nur im Bearbeitungsmodus, neben **Benannt**, das nur benannte Personen listet, sodass jede Person einmal erscheint; die Seite öffnet auf **Benannt**.
 
 ### Seite mit Zusammenführungsvorschlägen
 

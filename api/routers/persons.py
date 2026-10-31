@@ -15,12 +15,12 @@ from api.config import VIEWER_CONFIG, invalidate_stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import (
     assert_faces_visible, get_visibility_clause, reassign_faces_to_person, person_visibility_exists,
-    select_in_chunks,
+    person_unnamed_clause, select_in_chunks,
 )
 from db import person_not_hidden_clause
 from db.embedding_space import ARCFACE_MODEL, active_embedding_model, tag_matches
 from db.person_centroids import recompute_person_centroid
-from api.models.culling import PersonsListResponse, PersonsNeedsNamingResponse
+from api.models.culling import PersonsListResponse, PersonsNeedsNamingResponse, RenamePersonResponse
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +38,11 @@ _SORT_CLAUSES = {
     "quality_desc": "ORDER BY rep_quality DESC, p.id",
 }
 
+
+# A person still waiting for a name: none, or only spaces. Shared by the
+# needs-naming list and the persons list's ``named_only`` filter so the two
+# partition the persons exactly.
+_UNNAMED_SQL = person_unnamed_clause('p')
 
 # --- Pydantic request bodies ---
 
@@ -143,6 +148,8 @@ async def list_persons(
     sort: str = Query("count_desc", pattern="^(count_asc|count_desc|quality_asc|quality_desc|name_asc|name_desc|assignment)$"),
     include_hidden: bool = Query(False),
     recent_ids: str = Query("", max_length=MAX_RECENT_IDS * 16 + MAX_RECENT_IDS - 1),
+    named_only: bool = Query(False),
+    hidden_only: bool = Query(False),
     user: CurrentUser = Depends(require_authenticated),
 ):
     """List all persons with pagination and search.
@@ -155,6 +162,11 @@ async def list_persons(
     confer no visibility: hidden (even with include_hidden), deleted and
     inaccessible candidates stay out. In assignment order, ``face_count`` is
     computed from visible photos; other orders return the stored library count.
+    ``named_only=true`` leaves out persons without a name, which the needs-naming
+    list already shows.
+    ``hidden_only=true`` returns the hidden ones alone (the persons page's Ignored
+    section). It is ignored under ``sort=assignment``: the assignment rule wins,
+    so hidden persons never become assignment candidates.
     """
     recent = []
     if recent_ids:
@@ -184,13 +196,17 @@ async def list_persons(
         ) """
         from_clause += ' LEFT JOIN visible_counts ON visible_counts.person_id = p.id'
         count_column = 'COALESCE(visible_counts.face_count, 0)'
-        where_parts.append("TRIM(COALESCE(p.name, '')) != ''")
+        where_parts.append(f"NOT {_UNNAMED_SQL}")
         recent_order = ('CASE p.id ' + ' '.join(f'WHEN ? THEN {rank}' for rank in range(len(recent)))
                         + f' ELSE {len(recent)} END, ') if recent else ''
         order_params = recent
         order_clause = f"ORDER BY {recent_order}COALESCE(visible_counts.face_count, 0) DESC, p.name COLLATE NOCASE ASC, p.name ASC, p.id ASC"
-    if not include_hidden or sort == 'assignment':
+    if hidden_only and sort != 'assignment':
+        where_parts.append(f"NOT {person_not_hidden_clause('p')}")
+    elif not include_hidden or sort == 'assignment':
         where_parts.append(person_not_hidden_clause('p'))
+    if named_only:
+        where_parts.append(f"NOT {_UNNAMED_SQL}")
     if search.strip():
         term = search.strip()
         numeric_id = int(term) if term.isascii() and term.isdecimal() and len(term) <= 19 else None
@@ -235,20 +251,54 @@ async def list_persons(
     return {"persons": persons, "total": total, "sort": sort}
 
 
-@router.post("/api/persons/{person_id}/rename")
+@router.post("/api/persons/{person_id}/rename", response_model=RenamePersonResponse)
 def rename_person(
     person_id: int,
     body: RenamePersonRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Rename a person (set or update their name)."""
+    """Rename a person (set or update their name).
+
+    ``face_count`` is this person's own stored count, the same measure as each
+    entry of ``same_name_persons``, so the viewer picks the largest merge target
+    like with like. ``same_name_persons`` lists the other visible, non-hidden persons whose name is
+    the same ignoring case and surrounding spaces, largest first, so the viewer can
+    offer to merge clusters of one person that clustering split apart. Nothing is
+    merged here: two different people may share a name.
+    """
+    user_id = user.user_id if user else None
     name = body.name.strip()
     with get_db() as conn:
-        _assert_person_visible(conn, user.user_id if user else None, person_id)
+        _assert_person_visible(conn, user_id, person_id)
         conn.execute("UPDATE persons SET name = ? WHERE id = ?", (name or None, person_id))
         conn.commit()
+        same_name = _same_name_persons(conn, user_id, person_id, name) if name else []
+        row = conn.execute("SELECT face_count FROM persons WHERE id = ?", (person_id,)).fetchone()
     invalidate_stats_cache()
-    return {"success": True, "name": name or f"Person {person_id}"}
+    return {"success": True, "name": name or f"Person {person_id}",
+            "face_count": (row[0] if row else 0) or 0, "same_name_persons": same_name}
+
+
+def _same_name_persons(conn, user_id, person_id, name):
+    """Other visible, non-hidden persons named ``name`` ignoring case, largest first.
+
+    Compared with ``str.casefold`` in Python rather than SQLite's ``LOWER``, which
+    folds ASCII only and would miss "ÉLODIE" against "élodie".
+    """
+    fragment, params = person_visibility_exists(user_id, 'p.id')
+    rows = conn.execute(
+        "SELECT p.id, p.name, p.face_count FROM persons p "
+        f"WHERE p.id != ? AND p.name IS NOT NULL AND {person_not_hidden_clause('p')}"
+        + (f" AND {fragment}" if fragment else ""),
+        [person_id, *params],
+    ).fetchall()
+    key = name.casefold()
+    matches = [
+        {"id": r[0], "name": r[1], "face_count": r[2] or 0}
+        for r in rows if r[1].strip().casefold() == key
+    ]
+    matches.sort(key=lambda m: (-m["face_count"], m["id"]))
+    return matches
 
 
 @router.post("/api/persons/merge")
@@ -506,7 +556,11 @@ async def api_persons_needs_naming(
     min_faces: Optional[int] = Query(None, ge=0),
     user: CurrentUser = Depends(require_authenticated),
 ):
-    """List unnamed auto-clustered persons with face_count >= min_faces (default from config)."""
+    """List unnamed, non-hidden persons with face_count >= min_faces (default from config).
+
+    Unnamed means no name or a blank one, whether the person came from clustering or
+    from a split, so every person still waiting for a name is listed here once.
+    """
     if min_faces is None:
         try:
             min_faces = int(VIEWER_CONFIG.get('persons', {}).get('needs_naming_min_faces', 5))
@@ -520,7 +574,7 @@ async def api_persons_needs_naming(
             SELECT p.id, p.name, p.representative_face_id, p.face_count,
                    CASE WHEN p.face_thumbnail IS NOT NULL THEN 1 ELSE 0 END as face_thumbnail
             FROM persons p
-            WHERE p.name IS NULL AND p.auto_clustered = 1 AND p.face_count >= ?{extra}
+            WHERE {_UNNAMED_SQL} AND {person_not_hidden_clause('p')} AND p.face_count >= ?{extra}
             ORDER BY p.face_count DESC, p.id
         """, [min_faces, *vis_params])
         rows = await cur.fetchall()

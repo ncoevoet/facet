@@ -420,9 +420,11 @@ propios directorios o de los compartidos. API: `POST /api/persons` (consulta [AP
 
 ### Por nombrar
 
-La página de gestión de personas muestra los clústeres grandes sin nombre en una sección
+La página de gestión de personas muestra los clústeres grandes sin nombre en una pestaña
 **Por nombrar**, cada uno con un campo de nombre. Un clúster aparece allí cuando tiene al menos
 `viewer.persons.needs_naming_min_faces` rostros (por defecto `5`).
+
+Sin nombre significa sin nombre o con uno en blanco, venga el clúster del agrupamiento o de una división; las personas ocultas (ignoradas) quedan fuera. La pestaña solo aparece en modo edición, junto a **Con nombre**, que lista solo las personas con nombre, así cada persona aparece una vez; la página se abre en **Con nombre**.
 
 ### Página de sugerencias de fusión
 

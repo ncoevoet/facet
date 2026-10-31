@@ -277,7 +277,7 @@ def _read_overrides():
     "the file is there and does not parse" while still merging the shipped
     defaults under whatever it did read.
     """
-    with open(_CONFIG_PATH) as f:
+    with open(_CONFIG_PATH, encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -587,7 +587,7 @@ def _read_secret_file():
     """
     path = secret_path()
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             secret = f.read().strip()
     except FileNotFoundError:
         return ''
@@ -1295,7 +1295,7 @@ def _load_mcp_settings_spec() -> tuple[dict, dict]:
     """
     defaults = {key: value for key, value in load_defaults()['viewer']['mcp'].items()
                 if key != 'allowed_origins'}
-    with open(_MCP_SCHEMA_PATH) as f:
+    with open(_MCP_SCHEMA_PATH, encoding="utf-8") as f:
         props = json.load(f)['properties']['viewer']['properties']['mcp']['properties']
     bounds = {key: (props[key].get('minimum'), props[key].get('maximum'))
               for key, value in defaults.items() if not isinstance(value, (bool, str))}

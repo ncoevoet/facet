@@ -14,15 +14,18 @@ from typing import Optional
 
 import licensing
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 
-from api.auth import CurrentUser, get_optional_user, is_edition_authenticated
+from api.auth import CurrentUser, get_optional_user, is_edition_authenticated, require_edition
 from api.config import VIEWER_CONFIG, _FULL_CONFIG
 from api.database import get_async_db, get_db, run_sync
+from api.inflight import GenerationInterrupted, InflightGate
 from api.db_helpers import get_existing_columns, get_visibility_clause
 from api.models.media import MediaCritiqueResponse
 from api.model_cache import (
     get_or_load_vlm_tagger,
     resolve_vlm_config,
+    vlm_known_unavailable,
     translate_text,
     translation_target,
     vlm_accelerator_lock,
@@ -31,6 +34,7 @@ from api.model_cache import (
 
 router = APIRouter(tags=["critique"])
 logger = logging.getLogger(__name__)
+_critique_flights = InflightGate()
 
 # Score thresholds for strength/weakness classification
 _STRENGTH_THRESHOLD = 7.5
@@ -229,14 +233,13 @@ def _calculate_breakdown(photo, sc, category):
     Returns a sorted list of score contributions with metric details.
     """
     from processing.scorer import (
-        build_metric_vector, fold_quality_weight, renormalise_weights,
+        build_metric_vector, fold_quality_weight, weights_for_row,
         unavailable_for_config, weighted_metric_contribution,
     )
 
     weights = fold_quality_weight(sc.get_weights(category))
     unavailable = unavailable_for_config(sc)
-    if unavailable:
-        weights = renormalise_weights(weights, unavailable)
+    weights = weights_for_row(weights, photo, unavailable)
     vector = build_metric_vector(photo, sc, category, unavailable=unavailable)
     breakdown = []
     for metric_key, value in vector.items():
@@ -487,17 +490,16 @@ async def api_critique(
     path: str = Query(...),
     mode: str = Query("rule"),
     lang: Optional[str] = Query(None),
-    refresh: bool = Query(False),
     user: Optional[CurrentUser] = Depends(get_optional_user),
 ):
-    """Get AI critique for a photo's score.
+    """Get AI critique for a photo's score. Strictly read-only.
 
     Modes:
       - rule: Fast rule-based analysis (always available)
-      - vlm: VLM-powered natural language critique (requires GPU + a profile
-        with a VLM tagging model). The generated text is cached per photo;
-        ``refresh=true`` regenerates it. When ``lang`` matches the configured
-        ``translation.target_language``, the critique is translated.
+      - vlm: the rule critique plus the VLM critique already cached for the
+        photo (and its stored translation when ``lang`` selects one). Nothing is generated,
+        translated or written here: ``vlm_available`` tells the client whether
+        ``POST /api/critique/vlm`` can produce one for this caller.
     """
     if not VIEWER_CONFIG.get('features', {}).get('show_critique', True):
         raise HTTPException(status_code=403, detail="Critique feature is disabled")
@@ -505,49 +507,103 @@ async def api_critique(
     photo, result = await run_sync(_load_rule_critique, path, user)
     if mode == 'vlm':
         async with get_async_db() as conn:
-            await _attach_vlm_critique(conn, photo, result, lang, refresh, user)
+            await _attach_cached_vlm_critique(conn, photo['path'], result, lang, user)
     return result
 
 
-async def _attach_vlm_critique(conn, photo, result, lang, refresh, user):
-    """Attach a cached or freshly generated VLM critique to the rule result."""
+class CritiqueVlmRequest(BaseModel):
+    path: str
+    lang: Optional[str] = None
+    refresh: bool = False
+
+
+@router.post("/api/critique/vlm", response_model=MediaCritiqueResponse, response_model_exclude_unset=True)
+async def api_generate_vlm_critique(
+    body: CritiqueVlmRequest,
+    user: CurrentUser = Depends(require_edition),
+):
+    """Generate (or, with ``refresh``, regenerate) and store the VLM critique.
+
+    Edition only. Concurrent requests for the same photo share one generation.
+    When ``lang`` matches ``translation.target_language`` the critique is also
+    translated and the translation stored.
+    """
+    if not VIEWER_CONFIG.get('features', {}).get('show_critique', True):
+        raise HTTPException(status_code=403, detail="Critique feature is disabled")
+
+    photo, result = await run_sync(_load_rule_critique, body.path, user)
+    async with get_async_db() as conn:
+        await _generate_vlm_critique(conn, photo, result, body.lang, body.refresh)
+    return result
+
+
+async def _cached_vlm_columns(conn, path):
+    if 'vlm_critique' not in get_existing_columns():
+        return None, None
+    cur = await conn.execute(
+        "SELECT vlm_critique, vlm_critique_translated FROM photos WHERE path = ?", [path]
+    )
+    row = await cur.fetchone()
+    await cur.close()
+    return (row['vlm_critique'], row['vlm_critique_translated']) if row else (None, None)
+
+
+def _vlm_generation_possible(user):
+    """True when the model is enabled and configured and the caller may run it."""
+    return bool(
+        is_edition_authenticated(user)
+        and VIEWER_CONFIG.get('features', {}).get('show_vlm_critique', False)
+        # GET must never import torch: on an unresolved ``auto`` profile this stays
+        # optimistic and the POST discovers the truth.
+        and not vlm_known_unavailable()
+    )
+
+
+async def _attach_cached_vlm_critique(conn, path, result, lang, user):
+    """Attach the stored VLM critique to the rule result; never generate, translate or write."""
+    text, translated = await _cached_vlm_columns(conn, path)
+    if not text:
+        result['vlm_available'] = await asyncio.to_thread(_vlm_generation_possible, user)
+        return
+    # A translation is served only when it is already stored: producing one runs a model.
+    wants_translation = bool(translation_target(lang))
+    result['vlm_critique'] = (translated if wants_translation else None) or text
+    result['vlm_source'] = 'cached'
+    result['vlm_translation_missing'] = wants_translation and not translated
+
+
+async def _generate_vlm_critique(conn, photo, result, lang, refresh):
+    """Attach a cached or freshly generated VLM critique, storing what it produces."""
     path = photo['path']
-    existing_cols = get_existing_columns()
-    can_cache = 'vlm_critique' in existing_cols
-    text = None
-    translated = None
+    can_cache = 'vlm_critique' in get_existing_columns()
+    text, translated = (None, None) if refresh else await _cached_vlm_columns(conn, path)
     source = 'cached'
 
-    if can_cache and not refresh:
-        cur = await conn.execute(
-            "SELECT vlm_critique, vlm_critique_translated FROM photos WHERE path = ?", [path]
-        )
-        row = await cur.fetchone()
-        await cur.close()
-        if row:
-            text = row['vlm_critique']
-            translated = row['vlm_critique_translated']
-
     if not text:
-        if not is_edition_authenticated(user):
-            result['vlm_available'] = False
-            return
-
         cur = await conn.execute("SELECT thumbnail FROM photos WHERE path = ?", [path])
         row = await cur.fetchone()
         await cur.close()
         thumbnail = row['thumbnail'] if row else None
-        # VLM inference is GPU/CPU-bound and blocking — run it off the
-        # event loop so it never stalls other async requests.
-        text = await asyncio.to_thread(_get_vlm_critique, photo, result, thumbnail)
+
+        async def generate_and_store():
+            # VLM inference is GPU/CPU-bound and blocking: run it off the event loop.
+            generated = await asyncio.to_thread(_get_vlm_critique, photo, result, thumbnail)
+            if generated and can_cache:
+                # Only the leader of a shared run stores the text (and drops the
+                # translation of the text it replaces); joiners resume after this.
+                await conn.execute(
+                    "UPDATE photos SET vlm_critique = ?, vlm_critique_translated = NULL WHERE path = ?",
+                    [generated, path],
+                )
+                await conn.commit()
+            return generated
+
+        try:
+            text, _ = await _critique_flights.run(path, generate_and_store)
+        except GenerationInterrupted:
+            raise HTTPException(status_code=503, detail="VLM critique generation was interrupted")
         translated = None
         source = 'generated'
-        if text and can_cache:
-            await conn.execute(
-                "UPDATE photos SET vlm_critique = ?, vlm_critique_translated = NULL WHERE path = ?",
-                [text, path],
-            )
-            await conn.commit()
 
     if not text:
         result['vlm_available'] = False
@@ -557,10 +613,10 @@ async def _attach_vlm_critique(conn, photo, result, lang, refresh, user):
     if target_lang:
         if not translated:
             translated = await asyncio.to_thread(translate_text, text, target_lang)
-            if translated and can_cache and is_edition_authenticated(user):
+            if translated and can_cache:
                 await conn.execute(
-                    "UPDATE photos SET vlm_critique_translated = ? WHERE path = ?",
-                    [translated, path],
+                    "UPDATE photos SET vlm_critique_translated = ? WHERE path = ? AND vlm_critique = ?",
+                    [translated, path, text],
                 )
                 await conn.commit()
         if translated:

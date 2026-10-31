@@ -1,4 +1,5 @@
-import { Component, input, output, viewChild, ElementRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, input, output, signal, viewChild, ElementRef, ChangeDetectionStrategy } from '@angular/core';
+import { MatAutocompleteModule, MatAutocompleteTrigger } from '@angular/material/autocomplete';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -7,6 +8,9 @@ import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { PersonThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
+import { PersonNameSuggestionsComponent } from '../person-name-suggestions/person-name-suggestions.component';
+import { EnterPickGuard } from '../../utils/enter-pick-guard';
+import { PersonNameOption } from '../../utils/person-name';
 
 export interface Person {
   id: number;
@@ -28,6 +32,8 @@ export interface Person {
     MatTooltipModule,
     TranslatePipe,
     PersonThumbnailUrlPipe,
+    MatAutocompleteModule,
+    PersonNameSuggestionsComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -40,6 +46,7 @@ export interface Person {
       tabindex="0"
       [attr.aria-label]="person().name || ('persons.unnamed' | translate)"
       (click)="selected.emit(person().id)"
+      (dblclick)="viewPhotos.emit(person().id)"
       (keydown.enter)="selected.emit(person().id)"
       (keydown.space)="selected.emit(person().id); $event.preventDefault()"
     >
@@ -70,40 +77,75 @@ export interface Person {
               [attr.aria-label]="'persons.face_count' | translate:{ count: person().face_count }">
           {{ person().face_count }}
         </span>
+        <!-- While the name line is open the action row is not shown, so the card's
+             actions sit on the avatar: view photos, find more, ignore. -->
+        @if (canEdit() && isEditing() && !restoreOnly()) {
+          <div class="absolute bottom-1.5 right-1.5 z-10 flex gap-1" role="presentation" (keydown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <button
+              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              [matTooltip]="'persons.view_photos' | translate"
+              [attr.aria-label]="'persons.view_photos' | translate"
+              (click)="viewPhotos.emit(person().id); $event.stopPropagation()">
+              <mat-icon class="!text-lg !w-5 !h-5 !leading-5">photo_library</mat-icon>
+            </button>
+            <button
+              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              [matTooltip]="'persons.find_more' | translate"
+              [attr.aria-label]="'persons.find_more' | translate"
+              (click)="findMore.emit(person().id); $event.stopPropagation()">
+              <mat-icon class="!text-lg !w-5 !h-5 !leading-5">person_search</mat-icon>
+            </button>
+            <button
+              class="w-8 h-8 rounded-full bg-black/60 hover:bg-black/80 transition-colors text-white inline-flex items-center justify-center cursor-pointer"
+              [matTooltip]="'persons.hide' | translate"
+              [attr.aria-label]="'persons.hide' | translate"
+              (click)="hidden.emit(person().id); $event.stopPropagation()">
+              <mat-icon class="!text-lg !w-5 !h-5 !leading-5">block</mat-icon>
+            </button>
+          </div>
+        }
       </div>
 
       <mat-card-content class="!px-3 !pt-2 !pb-2">
         <div class="flex items-center gap-1">
-          <!-- Checkbox -->
-          @if (canEdit()) {
+          <!-- Checkbox: not while the name line is open, where it is no use and its
+               focus halo sat beside the input. -->
+          @if (canEdit() && !isEditing()) {
             <mat-checkbox
               class="shrink-0 -ml-1.5"
               [checked]="isSelected()"
               (change)="selected.emit(person().id)"
               (click)="$event.stopPropagation()"
+              (dblclick)="$event.stopPropagation()"
             />
           }
           <!-- Name & count -->
           <div class="min-w-0 flex-1">
             @if (isEditing()) {
-              <div class="flex flex-wrap items-center justify-end gap-1"
+              <div class="flex flex-wrap items-center justify-end gap-1 outline-none"
                    role="presentation"
                    tabindex="-1"
                    (click)="$event.stopPropagation()"
-                   (keydown)="$event.stopPropagation()">
+                   (keydown)="$event.stopPropagation()"
+                   (dblclick)="$event.stopPropagation()">
                 <input
                   #nameInput
-                  class="min-w-24 flex-1 bg-transparent border-b border-current outline-none text-sm py-0.5"
+                  class="min-w-24 flex-1 h-7 bg-transparent border-0 border-b-2 border-[var(--mat-sys-outline-variant)] focus:border-[var(--mat-sys-primary)] !outline-none focus-visible:!outline-none text-sm"
                   [value]="person().name ?? ''"
-                  (keyup.enter)="onSave()"
+                  [matAutocomplete]="suggestions.panel"
+                  autocomplete="off"
+                  (input)="draft.set($any($event.target).value)"
+                  (keydown.enter)="onEnterDown()"
+                  (keyup.enter)="onEnterUp()"
                   (keyup.escape)="editCancel.emit()"
                   [attr.aria-label]="'persons.rename' | translate"
                 />
-                <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.confirm' | translate" [attr.aria-label]="'dialog.confirm' | translate" (click)="onSave()">
-                  <mat-icon class="!text-base">check</mat-icon>
+                <app-person-name-suggestions #suggestions [options]="nameOptions()" [query]="draft()" />
+                <button mat-icon-button class="!w-7 !h-7 !p-0 !inline-flex items-center justify-center shrink-0" [matTooltip]="'dialog.confirm' | translate" [attr.aria-label]="'dialog.confirm' | translate" (click)="onSave()">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
                 </button>
-                <button mat-icon-button class="!w-7 !h-7" [matTooltip]="'dialog.cancel' | translate" [attr.aria-label]="'dialog.cancel' | translate" (click)="editCancel.emit()">
-                  <mat-icon class="!text-base">close</mat-icon>
+                <button mat-icon-button class="!w-7 !h-7 !p-0 !inline-flex items-center justify-center shrink-0" [matTooltip]="'dialog.cancel' | translate" [attr.aria-label]="'dialog.cancel' | translate" (click)="editCancel.emit()">
+                  <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
                 </button>
               </div>
             }
@@ -115,16 +157,24 @@ export interface Person {
                  role="presentation"
                  tabindex="-1"
                  (click)="$event.stopPropagation()"
-                 (keydown)="$event.stopPropagation()">
-              <button mat-icon-button [matTooltip]="'persons.rename' | translate" [attr.aria-label]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
-                <mat-icon class="opacity-60">edit</mat-icon>
-              </button>
+                 (keydown)="$event.stopPropagation()"
+                 (dblclick)="$event.stopPropagation()">
+              @if (!restoreOnly()) {
+                <button mat-icon-button [matTooltip]="'persons.rename' | translate" [attr.aria-label]="'persons.rename' | translate" (click)="editStart.emit(person().id)">
+                  <mat-icon class="opacity-60">edit</mat-icon>
+                </button>
+              }
               <button mat-icon-button [matTooltip]="'persons.view_photos' | translate" [attr.aria-label]="'persons.view_photos' | translate" (click)="viewPhotos.emit(person().id)">
                 <mat-icon class="opacity-60">photo_library</mat-icon>
               </button>
-              <button mat-icon-button [matTooltip]="'persons.split' | translate" [attr.aria-label]="'persons.split' | translate" (click)="split.emit(person().id)">
-                <mat-icon class="opacity-60">call_split</mat-icon>
-              </button>
+              @if (!restoreOnly()) {
+                <button mat-icon-button [matTooltip]="'persons.split' | translate" [attr.aria-label]="'persons.split' | translate" (click)="split.emit(person().id)">
+                  <mat-icon class="opacity-60">call_split</mat-icon>
+                </button>
+                <button mat-icon-button [matTooltip]="'persons.find_more' | translate" [attr.aria-label]="'persons.find_more' | translate" (click)="findMore.emit(person().id)">
+                  <mat-icon class="opacity-60">person_search</mat-icon>
+                </button>
+              }
               @if (person().is_hidden) {
                 <button mat-icon-button [matTooltip]="'persons.unhide' | translate" [attr.aria-label]="'persons.unhide' | translate" (click)="unhidden.emit(person().id)">
                   <mat-icon class="opacity-60">visibility</mat-icon>
@@ -149,8 +199,17 @@ export class PersonCardComponent {
   readonly isSelected = input(false);
   readonly isEditing = input(false);
   readonly canEdit = input(false);
+  /** Only view photos, restore and delete: the Ignored section, where renaming or splitting makes no sense. */
+  readonly restoreOnly = input(false);
+  /** Existing names offered while typing one (with each person's face and photo count). */
+  readonly nameOptions = input<readonly PersonNameOption[]>([]);
 
   readonly nameInput = viewChild<ElementRef<HTMLInputElement>>('nameInput');
+  private readonly autocomplete = viewChild(MatAutocompleteTrigger);
+  /** What is typed in the name line, which filters the suggestions. */
+  protected readonly draft = signal('');
+  /** Keeps an Enter keydown that picked a suggestion from also saving on its keyup. */
+  private readonly enterGuard = new EnterPickGuard();
 
   readonly selected = output<number>();
   readonly viewPhotos = output<number>();
@@ -161,6 +220,15 @@ export class PersonCardComponent {
   readonly hidden = output<number>();
   readonly unhidden = output<number>();
   readonly split = output<number>();
+  readonly findMore = output<number>();
+
+  protected onEnterDown(): void {
+    this.enterGuard.down(this.autocomplete());
+  }
+
+  protected onEnterUp(): void {
+    if (this.enterGuard.up()) this.onSave();
+  }
 
   onSave(): void {
     const value = this.nameInput()?.nativeElement.value ?? '';

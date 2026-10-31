@@ -1,6 +1,7 @@
 export interface AdditionalFilterDef {
   id: string;
   labelKey: string;
+  helpKey: string;
   sectionKey: string;
   minKey: string;
   maxKey: string;

@@ -4,6 +4,8 @@
 
 照片先被归入某个类别，再按该类别的权重进行评分。
 
+subject_sharpness、subject_prominence、subject_placement、bg_separation 和 face_quality_iqa 的缺失值或 NULL 不参与加权评分。仅当被排除指标的权重大于零时，才将其权重重新分配给可用指标；零仍是有效值。如果所有加权输入均缺失，则采用中性值 5.0。许可证排除规则优先适用。默认权重保持不变。当比较集中没有某个指标的任何值时，`--optimize-weights` 会保持该指标的权重不变。要补充显著性指标，请先运行 `--recompute-saliency`，再运行 `--recompute-average`。
+
 ## 评分的工作原理
 
 1. **类别判定** - 分析照片内容（人脸、标签、EXIF 数据）
@@ -230,10 +232,10 @@
 **没有主体就没有数值。** 找不到主体时，`subject_sharpness`、`subject_placement` 和 `bg_separation` 存为 NULL（没有主体框时 `power_point_score` 也一样），`subject_prominence` 为 0.0，`subject_bbox` 为 NULL。
 
 - 图库的范围筛选会跳过 NULL（`min_subject_sharpness=0` 不会返回没有主体的照片）。统计数据在计算平均值时不计入它，界面显示为缺失。
-- 综合评分把 NULL 按中性的 5.0 计分，所以没有任何综合评分改变。
+- NULL 显著性输入遵循上文的缺失值规则；默认权重保持不变。
 - 早期版本存的是中性的 5.0。已有的行保留它，直到 `--recompute-saliency` 和 `--recompute-composition-cpu` 将其重写。
 
-**显著性失败时**，不会写入任何内容；Facet 绝不会为失败的结果存入中性数值。从未评分的照片，其五个显著性列（`subject_sharpness`、`subject_prominence`、`subject_placement`、`bg_separation`、`subject_bbox`）保持 NULL，并按中性（5.0）计分，与显著性功能出现之前扫描的照片一样。重试和批大小规则见[主体显著性](COMMANDS.md#主体显著性)。
+**显著性失败时**，不会写入任何内容；Facet 绝不会为失败的结果存入中性数值。从未评分的照片，其五个显著性列（`subject_sharpness`、`subject_prominence`、`subject_placement`、`bg_separation`、`subject_bbox`）保持 NULL，与显著性功能出现之前扫描的照片一样。重试和批大小规则见[主体显著性](COMMANDS.md#主体显著性)。
 
 ## 补充 IQA 维度
 
@@ -249,7 +251,7 @@
 
 **补充模型无法为照片评分时**，会在该模型对应的列（`face_quality_iqa`、`liqe_score`、`aesthetic_iaa`、`aesthetic_v25`）中存入 NULL，而不是中性的 5.0。TOPIQ NR-Face 找不到人脸，或 LIQE 的短边小于 224 px 时会出现这种情况；Aesthetic V2.5（启用时）可能对任何图片失败。CPU 内存错误不会以更小的批大小重试。
 
-- **综合评分：**NULL 按中性（5.0）计分，因此评分、类别和排名都不会变化。
+- face_quality_iqa 为 NULL 时遵循上文的缺失值规则；其他补充指标的 NULL 输入仍使用中性值 5.0。
 - **图库：**对美学（IAA）、人脸画质（IQA）、LIQE 或 Aesthetic V2.5 的范围筛选不会匹配没有评分的照片（`min_face_quality_iqa=0` 会跳过没有人脸的照片）。按这些列、Q-ReAlign 或 DeQA 升序排序时，没有评分的照片排在最后，图库和相册中都是如此。
 - **旧的中性 5.0 值**会保留，直到 `--repair-neutral-iqa` 将其清除；之后运行 `--recompute-iqa` 和 `--recompute-average`，或用 `--force` 重新扫描。
 - **主画质模型失败**（`16gb` 与 `24gb` 上的 TOPIQ）：该照片会被记为失败，而不是以中性的 5.0 保存。新照片会在下次扫描时重新处理；已存储的照片保留其原有记录，可由 `--retry-failed all`（不带参数的 `--retry-failed` 只覆盖最近一次记录了失败的运行）或再次 `--force` 重新扫描来重试。

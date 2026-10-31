@@ -10,6 +10,7 @@ import pytest
 
 from db.schema import init_database
 from metric_columns import JSON_SCORE_COLUMNS, SCORE_RANGE_COLUMNS
+from tests.conftest import symlink_or_skip
 from tests.test_cli import _sanitized_env
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -142,7 +143,7 @@ def test_output_must_not_overwrite_source_database(tmp_path, alias):
     output = (db if alias == 'same' else Path(str(db) + alias)
               if alias.startswith('-') else tmp_path / 'alias.json')
     if alias == 'symlink':
-        output.symlink_to(db)
+        symlink_or_skip(output, db)
     elif alias == 'hardlink':
         os.link(db, output)
     result = run_export(tmp_path, db, output)

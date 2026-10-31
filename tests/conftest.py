@@ -364,6 +364,10 @@ def seed_photos_prefix():
     prefixes: list[str] = []
 
     def seed(prefix, rows):
+        # Cleanup deletes by prefix: a row outside it would leak into the shared DB
+        # (a hard-coded "/" against backslash paths on Windows did exactly that).
+        for row in rows:
+            assert row["path"].startswith(prefix), f"{row['path']!r} is outside the seeded prefix {prefix!r}"
         prefixes.append(prefix)
         for row in rows:
             cols = list(row.keys())
@@ -443,6 +447,78 @@ def seeded_photos(seed_photos_prefix):
     return seed_photos_prefix(SEEDED_PHOTOS_PREFIX, _SEEDED_PHOTOS)
 
 
+class _PeopleSeeder:
+    """Persons and faces on top of ``seed_photos_prefix``; see ``seed_people``."""
+
+    def __init__(self, conn, seed_photos):
+        self._conn = conn
+        self._seed_photos = seed_photos
+        self.prefixes: list[str] = []
+        self.person_ids: list[int] = []
+
+    def photo(self, prefix, name, **columns):
+        """Insert one photo under ``prefix`` and return its path."""
+        if prefix not in self.prefixes:
+            self.prefixes.append(prefix)
+        path = prefix + name
+        self._seed_photos(prefix, [{"path": path, "filename": name, **columns}])
+        return path
+
+    def person(self, name=None, is_hidden=0):
+        """Insert a person with no faces yet and return its (autoincrement) id."""
+        cur = self._conn.execute(
+            "INSERT INTO persons (name, face_count, is_hidden) VALUES (?, 0, ?)", (name, is_hidden))
+        self._conn.commit()
+        self.person_ids.append(cur.lastrowid)
+        return cur.lastrowid
+
+    def face(self, path, person_id=None, bbox=(10, 10, 60, 60), confidence=0.9, embedding=None):
+        """Insert a face on ``path`` and keep its person's ``face_count`` in step.
+
+        ``embedding`` defaults to 4 distinct bytes, which no embedding-space scan
+        reads (wrong length); pass real float32 bytes for one that should.
+        """
+        index = self._conn.execute(
+            "SELECT COUNT(*) FROM faces WHERE photo_path = ?", (path,)).fetchone()[0]
+        cur = self._conn.execute(
+            "INSERT INTO faces (photo_path, face_index, embedding, bbox_x1, bbox_y1, bbox_x2, "
+            "bbox_y2, confidence, person_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (path, index, sqlite3.Binary(embedding or index.to_bytes(4, "little")), *bbox,
+             confidence, person_id))
+        if person_id is not None:
+            self._conn.execute(
+                "UPDATE persons SET face_count = face_count + 1 WHERE id = ?", (person_id,))
+        self._conn.commit()
+        return cur.lastrowid
+
+    def cleanup(self):
+        for prefix in self.prefixes:
+            self._conn.execute("DELETE FROM faces WHERE photo_path LIKE ?", (prefix + "%",))
+        if self.person_ids:
+            self._conn.execute(
+                f"DELETE FROM persons WHERE id IN ({','.join('?' * len(self.person_ids))})",
+                self.person_ids)
+        self._conn.commit()
+
+
+@pytest.fixture()
+def seed_people(seed_photos_prefix):
+    """Persons and faces in the SHARED session database, cleaned up afterwards.
+
+    Photos go through ``seed_photos_prefix`` (the real schema, prefix-scoped
+    teardown); persons take autoincrement ids rather than fixed ones, so no test
+    can collide with a row another module left behind. Every face and person the
+    test created is deleted on teardown, before the photos.
+    """
+    conn = sqlite3.connect(_TEST_DB_FILE.name)
+    seeder = _PeopleSeeder(conn, seed_photos_prefix)
+    try:
+        yield seeder
+    finally:
+        seeder.cleanup()
+        conn.close()
+
+
 CGROUP_PATH_CONSTANTS = {
     'v2_limit': 'CGROUP_V2_LIMIT_PATH',
     'v2_usage': 'CGROUP_V2_USAGE_PATH',
@@ -510,7 +586,7 @@ def initialize_photo_database(conn):
     with tempfile.TemporaryDirectory() as directory:
         db_path = os.path.join(directory, "schema.db")
         init_database(db_path)
-        with sqlite3.connect(db_path) as source:
+        with contextlib.closing(sqlite3.connect(db_path)) as source:
             source.backup(conn)
 # ---------------------------------------------------------------------------
 # Agent (MCP) app: REAL auth, REAL lifespan

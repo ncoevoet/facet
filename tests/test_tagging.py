@@ -42,6 +42,17 @@ class _FakeConfig:
 # ---------------------------------------------------------------------------
 
 class TestSiglipTextPadding:
+    @pytest.fixture(autouse=True)
+    def _fresh_tokenizer_cache(self):
+        # models.tagger._tokenizer_cache is process-level: a tokenizer any earlier
+        # test on this worker loaded under the SigLIP name would be returned
+        # instead of the patched from_pretrained, so nothing would be recorded.
+        from models import tagger as tagger_module
+
+        tagger_module._tokenizer_cache.clear()
+        yield
+        tagger_module._tokenizer_cache.clear()
+
     def test_transformers_backend_pads_to_max_length(self):
         """SigLIP text must be tokenized with padding='max_length', max_length=64."""
         torch = pytest.importorskip("torch")

@@ -14,6 +14,7 @@ describe('FilterDisplayPipe', () => {
     sliderMax: 10,
     step: 0.1,
     spanWidth: 'col-span-2',
+    helpKey: 'gallery.sidebar.metric_help.score_range',
   };
 
   it('shows range from filter values', () => {

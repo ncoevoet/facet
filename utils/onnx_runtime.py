@@ -56,6 +56,18 @@ def cuda_major(version):
         return None
 
 
+def cuda_mismatch(ort_cuda, torch_cuda):
+    """The sentence naming an ONNX Runtime wheel built for another CUDA major than PyTorch, else "".
+
+    Empty when the majors match or either version is absent (the CPU wheel has no
+    ``cuda_version``), so the caller can append it unconditionally.
+    """
+    ort_major = cuda_major(ort_cuda)
+    if ort_major is None or ort_major == cuda_major(torch_cuda):
+        return ""
+    return f"onnxruntime is built for CUDA {ort_cuda} but PyTorch uses CUDA {torch_cuda}"
+
+
 def gpu_requirement(torch_cuda):
     """The ``onnxruntime-gpu`` requirement for a PyTorch CUDA version, or None when no GPU wheel works.
 

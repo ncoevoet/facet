@@ -227,7 +227,7 @@ class TestAutoCull:
         assert result["ok"] and result["shown_in_tab"]["applied"] is False and result["shown_in_tab"]["reason"] == "no_tab"
         assert result["confirm"]
 
-    @pytest.mark.parametrize("code", ["unsaved_decisions", "plan_changed", "plan_load_failed", "too_large"])
+    @pytest.mark.parametrize("code", ["unsaved_decisions", "plan_changed", "plan_load_failed", "stack_mode_active", "too_large"])
     def test_a_tab_refusal_becomes_the_reason(self, agent_app, photos, fake_tab, code):
         nonce.reset()
         env = agent_app("legacy")

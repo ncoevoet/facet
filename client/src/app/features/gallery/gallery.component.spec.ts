@@ -1533,6 +1533,16 @@ describe('GalleryComponent', () => {
       expect(mockStore.showAllHidden).toHaveBeenCalled();
     });
 
+    it('the hidden-photos notice lists only the reasons with a non-zero count', () => {
+      const text = stack(render())!.querySelector('[role="status"]')!.textContent!;
+      const reasons = I18N.gallery.hidden_banner;
+      expect(text).toContain(reasons.reason_bursts);
+      expect(text).toContain(reasons.reason_brackets);
+      expect(text).not.toContain(reasons.reason_blinks);
+      expect(text).not.toContain(reasons.reason_duplicates);
+      expect(text).not.toContain(reasons.reason_panoramas);
+    });
+
     it('renders the restore twin once Show all has been used', () => {
       mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
       mockStore.hiddenFiltersStash.set({
@@ -4975,6 +4985,11 @@ describe('GalleryComponent', () => {
       expect(host.querySelector('section progress')).toBeNull();
     });
 
+    it('shows no review notice when the scope holds no photos', () => {
+      mockStore.reviewProgress.set({ total: 0, undecided: 0, kept: 0, rejected: 0 });
+      expect(render().querySelector('[data-review-progress]')).toBeNull();
+    });
+
     it('renders the decision counts and completion for the scope', () => {
       mockStore.reviewProgress.set({ total: 10, undecided: 6, kept: 3, rejected: 1 });
       mockStore.reviewPercent.set(40);
@@ -5838,25 +5853,20 @@ describe('GalleryComponent', () => {
         expect(dialog.open).not.toHaveBeenCalled();
       });
 
-      it('opens discovery from the rendered toolbar with the ordinary view filters', async () => {
+      it('navigates from the toolbar with the exact filter payload and opaque return URL', async () => {
+        mockStore.filters.set({ ...DEFAULT_FILTERS, album_id: '42', camera: 'Camera & Lens' });
         const filters = mockStore.filterPayload();
-        expect(filters).not.toBeNull();
-        const dialog = dialogForSuggestions();
+        expect(filters).toMatchObject({ album_id: '42', camera: 'Camera & Lens' });
+        const router = TestBed.inject(Router);
+        const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
+        vi.spyOn(router, 'url', 'get').mockReturnValue('/album/42?sort=date&tag=a%20b#focused');
         const button = host.nativeElement.querySelector('[data-stack-suggestions]') as HTMLButtonElement;
-        expect(button).not.toBeNull();
         button.click();
-        await vi.waitFor(() => expect(dialog.open).toHaveBeenCalledOnce());
-        expect(dialog.open).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ data: { filters } }));
+        expect(navigate).toHaveBeenCalledWith(['/culling'], { queryParams: {
+          mode: 'stacks', filters: JSON.stringify(filters), return: '/album/42?sort=date&tag=a%20b#focused',
+        } });
       });
 
-      it('refuses discovery when the view becomes unsupported while the dialog loads', async () => {
-        const dialog = dialogForSuggestions();
-        const opening = (gallery as unknown as { openStackSuggestions(): Promise<void> }).openStackSuggestions();
-        mockStore.filters.set({ ...DEFAULT_FILTERS, semanticQuery: 'photos of mountains' });
-        mockStore.canScopeSelectionToView.set(false);
-        await opening;
-        expect(dialog.open).not.toHaveBeenCalled();
-      });
     });
 
     describe('search delay', () => {
@@ -5985,8 +5995,8 @@ describe('GalleryComponent', () => {
 
       it('focuses the search with a remapped key, and no longer with /', () => {
         stubWide(true);
-        TestBed.inject(KeyboardMappingService).setKey('focusSearch', 's');
-        expect(key({ key: 's' }).defaultPrevented).toBe(true);
+        TestBed.inject(KeyboardMappingService).setKey('focusSearch', 'g');
+        expect(key({ key: 'g' }).defaultPrevented).toBe(true);
         expect(document.activeElement).toBe(search);
         search.blur();
         expect(key({ key: '/' }).defaultPrevented).toBe(false);

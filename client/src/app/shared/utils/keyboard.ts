@@ -20,12 +20,20 @@ export function isControlActivation(event: Event): boolean {
   return !!target?.closest?.('button, a[href], [role="menuitem"], [role="option"]');
 }
 
+/** True for an auto-repeat or an IME composition keystroke, which no shortcut should act on. */
+export function isImeOrRepeat(event: KeyboardEvent): boolean {
+  return event.repeat || event.isComposing || event.keyCode === 229;
+}
+
+/** True when focus is in a typing context or a dialog / bottom sheet is open, whatever modifiers are held. */
+export function isShortcutContextBlocked(event: KeyboardEvent): boolean {
+  return isTypingContext(event) || !!document.querySelector('mat-dialog-container, mat-bottom-sheet-container');
+}
+
 /**
  * True when a page-level letter/digit shortcut must stand down: focus is in a typing
  * context, a modifier is held, or a dialog / bottom sheet is open.
  */
 export function isPageShortcutBlocked(event: KeyboardEvent): boolean {
-  return isTypingContext(event)
-    || event.ctrlKey || event.metaKey || event.altKey
-    || !!document.querySelector('mat-dialog-container, mat-bottom-sheet-container');
+  return isShortcutContextBlocked(event) || event.ctrlKey || event.metaKey || event.altKey;
 }

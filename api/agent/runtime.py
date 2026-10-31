@@ -61,8 +61,9 @@ def level_refusal(name: str, resolved: Any, floor: Optional[str] = None) -> Opti
     if resolved.inpage:
         return err("forbidden_level", f"This session's level is {resolved.level}; {name} needs "
                    f"{needs}" + (": unlock edition in Facet" if needs == "edition" else ""))
-    hint = (" (an open install grants it only to a local request under viewer.trusted_local_editing, "
-            "addressed as http://localhost:<port>; otherwise set viewer.password and mint an edition token)"
+    hint = (" (an open install grants it only to a request from the computer running Facet, addressed as "
+            "http://localhost:<port>, holding a Full-editing token minted under viewer.edition_password or "
+            "viewer.trusted_local_editing; for remote use set viewer.password and mint an edition token)"
             if needs == "edition" and tokens.install_mode() == "open" else "")
     return err("forbidden_level", f"This token's level is {resolved.level}; {name} needs {needs}{hint}")
 

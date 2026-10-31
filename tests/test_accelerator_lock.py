@@ -366,7 +366,7 @@ def test_a_local_caption_is_generated_with_the_mps_lock_held(edition_session_cli
         mock.patch("api.routers.caption.get_or_load_vlm_tagger", return_value=tagger),
         mock.patch("utils.image_loading.load_image_from_path", return_value=(Image.new("RGB", (8, 8)), None)),
     ):
-        resp = edition_session_client.get("/api/caption", params={"path": path})
+        resp = edition_session_client.post("/api/caption", json={"path": path})
     assert resp.status_code == 200, resp.text
     assert resp.json()["source"] == "generated"
     assert tagger.held == [True]
@@ -381,7 +381,7 @@ def test_a_local_critique_is_generated_with_the_mps_lock_held(edition_session_cl
         mock.patch("api.routers.critique.resolve_vlm_config", return_value={"model_path": "stub"}),
         mock.patch("api.routers.critique.get_or_load_vlm_tagger", return_value=tagger),
     ):
-        resp = edition_session_client.get("/api/critique", params={"path": path, "mode": "vlm"})
+        resp = edition_session_client.post("/api/critique/vlm", json={"path": path})
     assert resp.status_code == 200, resp.text
     assert resp.json()["vlm_critique"] == "A stubbed model reply."
     assert tagger.held == [True]

@@ -28,9 +28,9 @@ describe('KeyboardMappingDialogComponent', () => {
     return fixture.nativeElement as HTMLElement;
   }
 
-  /** The remappable actions are the only stroked buttons; OK is flat, Reset raised. */
+  /** One clickable row per remappable action; OK is flat, Reset raised. */
   const actionButtons = (root: HTMLElement): HTMLButtonElement[] =>
-    Array.from(root.querySelectorAll<HTMLButtonElement>('button[mat-stroked-button]'));
+    Array.from(root.querySelectorAll<HTMLButtonElement>('button[data-keymap-row]'));
 
   const press = (key: string, init: KeyboardEventInit = {}): void => {
     document.dispatchEvent(new KeyboardEvent('keydown', { key, ...init }));
@@ -42,10 +42,24 @@ describe('KeyboardMappingDialogComponent', () => {
   it('lists every remappable action with its current key', () => {
     const root = render();
     const buttons = actionButtons(root);
-    expect(buttons.length).toBe(6);
-    expect(buttons[0].textContent!.trim()).toBe(DEFAULT_KEYMAP.favourite.toUpperCase());
-    expect(buttons[2].textContent!.trim()).toBe(DEFAULT_KEYMAP.keep.toUpperCase());
-    expect(buttons.map(b => b.textContent!.trim())).toContain('/');
+    expect(buttons.length).toBe(7);
+    // Each row reads label + key cap together.
+    expect(buttons[0].textContent!.trim().endsWith(DEFAULT_KEYMAP.favourite.toUpperCase())).toBe(true);
+    expect(buttons[2].textContent!.trim().endsWith(DEFAULT_KEYMAP.keep.toUpperCase())).toBe(true);
+    expect(buttons[3].textContent!.trim().endsWith('/')).toBe(true);
+  });
+
+  it('shows Stack unassigned and captures a free binding without replacing the older S action', () => {
+    const root = render();
+    const service = TestBed.inject(KeyboardMappingService);
+    service.keymap.set({ ...DEFAULT_KEYMAP, stack: '', focusSearch: 's' });
+    fixture.detectChanges();
+    const button = actionButtons(root).find(row => row.querySelector('span')?.textContent?.trim() === I18N.shortcuts.stack)!;
+    expect(button.querySelector('kbd')!.textContent!.trim()).toBe(I18N.shortcuts.unassigned);
+    expect(button.querySelector('span')!.textContent).toContain(I18N.shortcuts.stack);
+    button.click(); press('g');
+    expect(button.querySelector('kbd')!.textContent!.trim()).toBe('G');
+    expect(service.keymap().focusSearch).toBe('s');
   });
 
   it('captures a pressed key into the clicked action and persists it', () => {
@@ -55,7 +69,7 @@ describe('KeyboardMappingDialogComponent', () => {
     fixture.detectChanges();
     expect(actionButtons(root)[0].textContent).toContain(I18N.shortcuts.press_key);
     press('z');
-    expect(actionButtons(root)[0].textContent!.trim()).toBe('Z');
+    expect(actionButtons(root)[0].textContent!.trim().endsWith('Z')).toBe(true);
     expect(service.keymap().favourite).toBe('z');
     expect(JSON.parse(localStorage.getItem(KEYMAP_STORAGE_KEY)!).favourite).toBe('z');
   });
@@ -73,7 +87,7 @@ describe('KeyboardMappingDialogComponent', () => {
     const service = TestBed.inject(KeyboardMappingService);
     actionButtons(root)[0].click();
     press('Escape');
-    expect(actionButtons(root)[0].textContent!.trim()).toBe(DEFAULT_KEYMAP.favourite.toUpperCase());
+    expect(actionButtons(root)[0].textContent!.trim().endsWith(DEFAULT_KEYMAP.favourite.toUpperCase())).toBe(true);
     expect(service.keymap().favourite).toBe(DEFAULT_KEYMAP.favourite);
   });
 
@@ -84,7 +98,7 @@ describe('KeyboardMappingDialogComponent', () => {
     press('c', { ctrlKey: true });
     expect(actionButtons(root)[0].textContent).toContain(I18N.shortcuts.press_key);
     press('g');
-    expect(actionButtons(root)[0].textContent!.trim()).toBe('G');
+    expect(actionButtons(root)[0].textContent!.trim().endsWith('G')).toBe(true);
   });
 
   it.each(['3', '0', '9', ' ', '?'])('refuses the reserved key %j with an announced message and keeps the old binding', key => {
@@ -104,15 +118,15 @@ describe('KeyboardMappingDialogComponent', () => {
     document.dispatchEvent(tab);
     fixture.detectChanges();
     expect(tab.defaultPrevented).toBe(false);
-    expect(actionButtons(root)[0].textContent!.trim()).toBe(DEFAULT_KEYMAP.favourite.toUpperCase());
+    expect(actionButtons(root)[0].textContent!.trim().endsWith(DEFAULT_KEYMAP.favourite.toUpperCase())).toBe(true);
   });
 
-  it('names each key button by its action and its current key', () => {
+  it('names each row by its action and its current key', () => {
     const root = render();
-    const button = actionButtons(root)[1];
-    const name = button.getAttribute('aria-labelledby')!.split(' ')
-      .map(id => root.querySelector(`#${id}`)!.textContent!.trim());
-    expect(name).toEqual([I18N.shortcuts.reject, DEFAULT_KEYMAP.reject.toUpperCase()]);
+    // The row reads label + key cap together, so its accessible name holds both.
+    const name = actionButtons(root)[1].textContent!.trim();
+    expect(name).toContain(I18N.shortcuts.reject);
+    expect(name.endsWith(DEFAULT_KEYMAP.reject.toUpperCase())).toBe(true);
   });
 
   it('refuses a key another action already holds and keeps the old binding', () => {
@@ -154,7 +168,7 @@ describe('KeyboardMappingDialogComponent', () => {
     root.querySelector<HTMLButtonElement>('button[mat-button]')!.click();
     fixture.detectChanges();
     expect(service.keymap()).toEqual(DEFAULT_KEYMAP);
-    expect(actionButtons(root)[0].textContent!.trim()).toBe(DEFAULT_KEYMAP.favourite.toUpperCase());
+    expect(actionButtons(root)[0].textContent!.trim().endsWith(DEFAULT_KEYMAP.favourite.toUpperCase())).toBe(true);
   });
 
   it('stops listening for keys once closed', () => {
@@ -185,7 +199,7 @@ describe('KeyboardMappingDialogComponent', () => {
       document.removeEventListener('keydown', pageListener);
       expect(ref.getState()).toBe(MatDialogState.OPEN);
       expect(pageListener).not.toHaveBeenCalled();
-      expect(actionButtons(root)[0].textContent!.trim()).toBe(DEFAULT_KEYMAP.favourite.toUpperCase());
+      expect(actionButtons(root)[0].textContent!.trim().endsWith(DEFAULT_KEYMAP.favourite.toUpperCase())).toBe(true);
       ref.close();
     });
   });

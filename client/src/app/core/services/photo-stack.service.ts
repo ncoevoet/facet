@@ -8,6 +8,9 @@ import { Photo } from '../../shared/models/photo.model';
 
 export type PhotoStack = components['schemas']['PhotoStack'];
 export type StackMutation = components['schemas']['StackMutation'];
+export type StackRegroupPreview = components['schemas']['StackRegroupPreview'];
+export type StackRegroupMutation = components['schemas']['StackRegroupMutation'];
+export type StackRegroupMode = StackRegroupPreview['mode'];
 export type StackSuggestionKind = components['schemas']['StackSuggestionDismissal']['kind'];
 
 /** Manual stacks only organize references; individual photo actions keep their exact scope. */
@@ -62,6 +65,20 @@ export class PhotoStackService {
     try {
       return await this.router.navigate(['/photo'], { queryParams: { path }, state: { photo }, replaceUrl });
     } finally { subscription.unsubscribe(); }
+  }
+
+  previewRegroup(selectedPaths: string[], mode: StackRegroupMode) {
+    return this.api.post<StackRegroupPreview>('/stacks/regroup/preview', { selected_paths: selectedPaths, mode });
+  }
+  regroup(preview: StackRegroupPreview, paths: string[], cover: string) {
+    const body: components['schemas']['StackRegroupApply'] = {
+      selected_paths: preview.selected_paths, mode: preview.mode, expected_state: preview.expected_state,
+      paths, cover_path: cover,
+    };
+    const session = this.context();
+    return this.api.post<StackRegroupMutation>('/stacks/regroup/apply', body).pipe(tap(result => {
+      if (result.changed && this.isLive(session)) this.changed();
+    }));
   }
 
   get(id: string) { return this.api.get<PhotoStack | null>(`/stacks/${encodeURIComponent(id)}`); }

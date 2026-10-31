@@ -72,7 +72,7 @@ GPU 会被自动检测，并非必需。Facet 既能纯 CPU 运行，也能使�
 </tr></table>
 
 <details><summary>完整的筛选侧边栏——展开全部分区（点击查看）</summary>
-<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="展开全部选项的筛选侧边栏" width="380"></p>
+<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="筛选侧边栏的五个标签页并排展示：浏览、审阅、画质、主体和显示" width="900"></p>
 </details>
 
 **工作流小贴士：**

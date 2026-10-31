@@ -10,6 +10,10 @@ from typing import Any
 from db import organization_history as history
 
 MAX_MEMBERS = 1000
+# SQLite before 3.32 caps a statement at 999 bound variables; the supported floor
+# is that older limit, so every IN list shares it with the caller's own binds.
+SQLITE_MAX_BINDS = 999
+IN_CHUNK = 300
 
 
 class StackError(ValueError):
@@ -87,21 +91,36 @@ def init_schema(conn: sqlite3.Connection) -> None:
         END""")
 
 
-def _transaction(conn: sqlite3.Connection) -> None:
+def visibility_chunk_size(extra_binds: int) -> int:
+    """Largest IN-list chunk that fits beside ``extra_binds`` other bound variables.
+
+    The supported SQLite floor allows ``SQLITE_MAX_BINDS`` (999) variables per
+    statement, shared with directory-visibility binds; chunks never exceed
+    ``IN_CHUNK`` and always hold at least one key.
+    """
+    return max(1, min(IN_CHUNK, SQLITE_MAX_BINDS - extra_binds))
+
+
+def check_paths(paths: list[str], minimum: int) -> None:
+    """Refuse a non-distinct, malformed or out-of-range explicit photo list."""
+    if (not minimum <= len(paths) <= MAX_MEMBERS
+            or any(not isinstance(p, str) or not p or '\x00' in p for p in paths)
+            or len(set(paths)) != len(paths)):
+        bounds = f'{minimum}\u2013{MAX_MEMBERS}' if minimum else f'at most {MAX_MEMBERS}'
+        raise StackError(f'Choose distinct explicit photos ({bounds})', 422)
+
+
+def transaction(conn: sqlite3.Connection) -> None:
     if not conn.in_transaction:
         raise RuntimeError('Stack mutations require a caller-owned transaction')
 
 
 def visible_paths(conn: sqlite3.Connection, paths: list[str], visibility_sql: str,
                   visibility_params: tuple | list) -> set[str]:
-    result: set[str] = set()
-    for start in range(0, len(paths), 300):
-        chunk = paths[start:start + 300]
-        marks = ','.join('?' for _ in chunk)
-        result.update(r[0] for r in conn.execute(
-            f'SELECT photos.path FROM photos WHERE photos.path IN ({marks}) AND ({visibility_sql})',
-            [*chunk, *visibility_params]))
-    return result
+    from api.db_helpers import select_in_chunks
+    return {r[0] for r in select_in_chunks(
+        conn, f'SELECT photos.path FROM photos WHERE photos.path IN ({{placeholders}}) AND ({visibility_sql})',
+        paths, after=visibility_params, chunk=visibility_chunk_size(len(visibility_params)))}
 
 
 def get_stack(conn: sqlite3.Connection, owner: str, stack_id: str, *,
@@ -130,21 +149,19 @@ def get_stack_by_photo(conn: sqlite3.Connection, owner: str, path: str, **kwargs
 
 
 def _validate(conn, owner, paths, cover_path, stack_id, visibility_sql, visibility_params):
-    if len(paths) > MAX_MEMBERS or len(set(paths)) != len(paths) or any(not isinstance(p, str) or not p or '\x00' in p for p in paths):
-        raise StackError('Choose distinct explicit photos (at most 1000)', 422)
+    check_paths(paths, 0)
     if cover_path is not None and cover_path not in paths:
         raise StackError('Cover must be a member', 422)
     if len(visible_paths(conn, paths, visibility_sql, visibility_params)) != len(paths):
         raise StackError()
-    for start in range(0, len(paths), 300):
-        chunk = paths[start:start + 300]
-        marks = ','.join('?' for _ in chunk)
-        if conn.execute(f'SELECT 1 FROM photo_stack_members WHERE owner=? AND photo_path IN ({marks}) AND stack_id!=? LIMIT 1',
-                        [owner, *chunk, stack_id]).fetchone():
-            raise StackError('A selected photo already belongs to a stack; remove it there first')
+    from api.db_helpers import select_in_chunks
+    if next(select_in_chunks(
+            conn, 'SELECT 1 FROM photo_stack_members WHERE owner=? AND photo_path IN ({placeholders}) '
+            'AND stack_id!=? LIMIT 1', paths, before=[owner], after=[stack_id], chunk=IN_CHUNK), None):
+        raise StackError('A selected photo already belongs to a stack; remove it there first')
 
 
-def _stamp(conn, owner, paths):
+def stamp(conn, owner, paths):
     conn.execute('UPDATE organization_clock SET revision=revision+1 WHERE id=1')
     revision = conn.execute('SELECT revision FROM organization_clock WHERE id=1').fetchone()[0]
     conn.executemany("""INSERT INTO organization_revisions(path,kind,scope,revision) VALUES (?,'stack',?,?)
@@ -152,7 +169,7 @@ def _stamp(conn, owner, paths):
     return revision
 
 
-def _write(conn, owner, stack_id, paths, cover_path, revision):
+def write(conn, owner, stack_id, paths, cover_path, revision):
     conn.execute('DELETE FROM photo_stack_members WHERE stack_id=? AND owner=?', (stack_id, owner))
     if len(paths) < 2:
         conn.execute('DELETE FROM photo_stacks WHERE id=? AND owner=?', (stack_id, owner))
@@ -164,7 +181,7 @@ def _write(conn, owner, stack_id, paths, cover_path, revision):
                      [(stack_id, owner, path, i) for i, path in enumerate(paths)])
 
 
-def _finish(conn, owner, before, stack_id):
+def finish(conn, owner, before, stack_id):
     history.record(conn, owner, 'stack', owner, before)
     row = conn.execute("SELECT id FROM organization_history WHERE owner=? AND kind='stack' ORDER BY id DESC LIMIT 1", (owner,)).fetchone()
     return dict(stack=get_stack(conn, owner, stack_id), undo=dict(entry_id=row[0]) if row else None)
@@ -172,21 +189,21 @@ def _finish(conn, owner, before, stack_id):
 
 def create_stack(conn: sqlite3.Connection, owner: str, paths: list[str], cover_path: str, *,
                  visibility_sql: str = '1=1', visibility_params: tuple | list = ()) -> dict[str, Any]:
-    _transaction(conn)
+    transaction(conn)
     if len(paths) < 2 or cover_path is None:
         raise StackError('A stack needs at least two photos and a cover', 422)
     stack_id = str(uuid.uuid4())
     _validate(conn, owner, paths, cover_path, stack_id, visibility_sql, visibility_params)
     before = history.snapshot(conn, 'stack', owner, paths)
-    revision = _stamp(conn, owner, paths)
-    _write(conn, owner, stack_id, paths, cover_path, revision)
-    return _finish(conn, owner, before, stack_id)
+    revision = stamp(conn, owner, paths)
+    write(conn, owner, stack_id, paths, cover_path, revision)
+    return finish(conn, owner, before, stack_id)
 
 
 def update_stack(conn: sqlite3.Connection, owner: str, stack_id: str, paths: list[str],
                  cover_path: str | None, expected_revision: int, *,
                  visibility_sql: str = '1=1', visibility_params: tuple | list = ()) -> dict[str, Any]:
-    _transaction(conn)
+    transaction(conn)
     stack = get_stack(conn, owner, stack_id, visibility_sql=visibility_sql, visibility_params=visibility_params)
     if not stack or not stack['editable'] or stack['revision'] != expected_revision:
         raise StackError()
@@ -197,9 +214,9 @@ def update_stack(conn: sqlite3.Connection, owner: str, stack_id: str, paths: lis
         return dict(stack=stack, undo=None)
     affected = list(dict.fromkeys([*old_paths, *paths]))
     before = history.snapshot(conn, 'stack', owner, affected)
-    revision = _stamp(conn, owner, affected)
-    _write(conn, owner, stack_id, paths, chosen_cover, revision)
-    return _finish(conn, owner, before, stack_id)
+    revision = stamp(conn, owner, affected)
+    write(conn, owner, stack_id, paths, chosen_cover, revision)
+    return finish(conn, owner, before, stack_id)
 
 
 def delete_stack(conn: sqlite3.Connection, owner: str, stack_id: str, expected_revision: int, **kwargs) -> dict[str, Any]:
@@ -208,7 +225,7 @@ def delete_stack(conn: sqlite3.Connection, owner: str, stack_id: str, expected_r
 
 def restore(conn: sqlite3.Connection, owner: str, changes: list[dict[str, Any]]) -> None:
     """Restore a validated whole history entry; the caller checks visibility/revisions."""
-    _transaction(conn)
+    transaction(conn)
     paths = [c['path'] for c in changes]
     current_ids = {c['after'][0] for c in changes if c['after']}
     before_ids = {c['before'][0] for c in changes if c['before']}
@@ -216,9 +233,9 @@ def restore(conn: sqlite3.Connection, owner: str, changes: list[dict[str, Any]])
         actual = {r[0] for r in conn.execute('SELECT photo_path FROM photo_stack_members WHERE stack_id=? AND owner=?', (stack_id, owner))}
         if not actual.issubset(paths):
             raise StackError()
-    revision = _stamp(conn, owner, paths)
+    revision = stamp(conn, owner, paths)
     for stack_id in current_ids:
-        _write(conn, owner, stack_id, [], None, revision)
+        write(conn, owner, stack_id, [], None, revision)
     for stack_id in before_ids:
         members = sorted((c for c in changes if c['before'] and c['before'][0] == stack_id), key=lambda c: c['before'][2])
-        _write(conn, owner, stack_id, [c['path'] for c in members], members[0]['before'][1], revision)
+        write(conn, owner, stack_id, [c['path'] for c in members], members[0]['before'][1], revision)

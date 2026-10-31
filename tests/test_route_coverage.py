@@ -126,9 +126,13 @@ PARAMETERISED_ROUTES = [
 # POST routes with a minimal valid-shaped body naming a photo that does not exist:
 # the handler runs (validation passes) and ends in a 4xx or an empty success.
 POST_ROUTES = [
+    ('/api/stacks', {'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg'}),
+    ('/api/stacks/regroup/preview', {'selected_paths': ['/none/a.jpg', '/none/b.jpg']}),
+    ('/api/stacks/regroup/apply', {'selected_paths': ['/none/a.jpg', '/none/b.jpg'],
+                                'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg',
+                                'expected_state': '0' * 64}),
     ('/api/stacks/suggestions', {'filters': {}}),
     ('/api/stacks/suggestions/dismissals', {'kind': 'burst', 'paths': ['/none/a.jpg', '/none/b.jpg']}),
-    ('/api/stacks', {'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg'}),
     ('/api/export/sidecar_jobs', {}),
     ('/api/export/sidecar_jobs/not-a-job/cancel', {}),
     ('/api/export/sidecar_jobs/not-a-job/retry', {}),
@@ -139,7 +143,11 @@ POST_ROUTES = [
     ('/api/photo/set_rating', {'photo_path': '/nonexistent.jpg', 'rating': 3}),
     ('/api/photo/toggle_favorite', {'photo_path': '/nonexistent.jpg'}),
     ('/api/photo/toggle_rejected', {'photo_path': '/nonexistent.jpg'}),
+    ('/api/critique/vlm', {'path': '/nonexistent.jpg'}),
+    ('/api/caption', {'path': '/nonexistent.jpg'}),
     ('/api/photos/key_subjects', {'paths': []}),
+    ('/api/person/1/face_boxes', {'paths': ['/nonexistent.jpg']}),
+    ('/api/face/987654321/unassign', {}),
     ('/api/photos/batch_favorite', {'photo_paths': ['/nonexistent.jpg']}),
     ('/api/photos/batch_rating', {'photo_paths': ['/nonexistent.jpg'], 'rating': 3}),
     ('/api/lightroom/manifest', {'paths': ['/nonexistent.jpg']}),

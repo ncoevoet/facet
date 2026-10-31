@@ -33,7 +33,7 @@ from api.db_helpers import (
     split_photo_tags, attach_person_data_async, sanitize_float_values,
     get_visibility_clause, get_photos_from_clause, get_preference_columns,
     build_photo_select_columns, album_filter_clause,
-    format_date, to_exif_date, paginate,
+    format_date, to_exif_date, paginate, person_unnamed_clause,
 )
 from api.routers.search import semantic_candidates
 from api.top_picks import get_top_picks_score_sql, get_top_picks_threshold, with_top_picks_alias
@@ -259,7 +259,7 @@ def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=
         where_clauses.append(
             'EXISTS (SELECT 1 FROM faces f LEFT JOIN persons p ON p.id=f.person_id '
             'WHERE f.photo_path=photos.path AND (f.person_id IS NULL OR '
-            f"(p.id IS NOT NULL AND {person_not_hidden_clause('p')} AND TRIM(COALESCE(p.name,''))='')))")
+            f"(p.id IS NOT NULL AND {person_not_hidden_clause('p')} AND {person_unnamed_clause('p')})))")
 
     if params.get('manual_faces_need_review') in ('1', 'true'):
         where_clauses.append(

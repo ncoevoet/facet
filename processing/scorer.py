@@ -728,8 +728,9 @@ def build_metric_vector(m, cfg, category, penalties=None, unavailable=()):
     penalties: precomputed _calculate_scoring_penalties result, to avoid a second
                pass when the caller already has it.
     unavailable: metric keys to leave out instead of substituting the neutral
-                 5.0 (commercial mode). Only scoring passes it; the optimizer
-                 keeps the default () and so sees every metric.
+                 5.0 (commercial mode). Scoring and optimization both pass the
+                 exclusions resolved from their configuration. NULL optional
+                 values stay neutral here; weights_for_row drops their weight.
     """
     safe_float = _safe_float
     exif_settings = cfg.get_exif_adjustments() if cfg else {}
@@ -895,6 +896,28 @@ def unavailable_for_config(cfg):
     if key not in cache:
         cache[key] = frozenset(licensing.unavailable_metrics(licensing.resolve_policy(cfg.config)))
     return cache[key]
+
+
+NULLABLE_SCORING_METRICS = frozenset({
+    'subject_sharpness', 'subject_prominence', 'subject_placement',
+    'bg_separation', 'face_quality_iqa',
+})
+
+
+def weights_for_row(weights, metrics, unavailable=()):
+    """Drop unavailable and NULL optional inputs without perturbing default sums.
+
+    Licence exclusions take precedence. If no weighted input remains after
+    dropping NULLs, retain neutral imputation for those optional inputs.
+    """
+    out = renormalise_weights(weights, unavailable) if unavailable else weights
+    missing = {key for key in NULLABLE_SCORING_METRICS
+               if metrics.get(key) is None and out.get(key, 0) > 0}
+    if not missing:
+        return out
+    if any(out.get(key, 0) > 0 for key in _WEIGHTED_METRIC_KEYS - missing):
+        return renormalise_weights(out, missing)
+    return out
 
 
 def renormalise_weights(weights, unavailable):
@@ -1575,8 +1598,7 @@ class Facet:
         category = self._determine_photo_category(m, cfg)
         w = fold_quality_weight(cfg.get_weights(category) if cfg else {})
         unavailable = unavailable_for_config(cfg)
-        if unavailable:
-            w = renormalise_weights(w, unavailable)
+        w = weights_for_row(w, m, unavailable)
 
         # =================================================================
         # DATA-DRIVEN SCORING: weighted sum over the shared metric vector
@@ -2830,6 +2852,7 @@ class Facet:
 
         # 4. Fallback to Pillow (JPEG and TIFF/DNG via modern getexif API)
         try:
+            from PIL import ExifTags, Image
             with Image.open(image_path) as img:
                 exif = img.getexif()
                 all_tags = dict(exif.items())
@@ -2859,20 +2882,26 @@ class Facet:
             logger.warning("EXIF extraction failed for %s: %s", image_path, e)
         return _sanitize_exif_numeric(exif_data)
 
-    def save_photos_batch(self, results_with_images):
+    def save_photos_batch(self, results_with_images, *, phase_metrics=None):
         """
         Batch insert multiple photos in a single transaction for better performance.
 
         Args:
             results_with_images: List of (result_dict, pil_img) tuples
+            phase_metrics: Optional scan metrics receiving thumbnail wall seconds
         """
         if not results_with_images:
             return
 
         # Phase 1: Pre-generate thumbnails (CPU work, no DB lock held)
-        for res, pil_img in results_with_images:
-            res['thumbnail'] = generate_photo_thumbnail(
-                thumbnail_source(res['path'], pil_img))
+        thumbnail_start = time.perf_counter()
+        try:
+            for res, pil_img in results_with_images:
+                res['thumbnail'] = generate_photo_thumbnail(
+                    thumbnail_source(res['path'], pil_img))
+        finally:
+            if phase_metrics is not None:
+                phase_metrics['thumbnail_time'] += time.perf_counter() - thumbnail_start
 
         # Phase 2: Collect all face records for batch insert (including thumbnails,
         # landmarks and per-face quality signals — shared upsert: see db.schema)

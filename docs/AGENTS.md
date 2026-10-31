@@ -10,7 +10,7 @@ The endpoint is **on by default**. To turn it off, set `viewer.mcp.enabled` to `
 
 **Open installs.** Without `viewer.password` the install counts as open, even if `viewer.edition_password` is set. On an open install:
 
-- tokens are `readonly` unless `viewer.trusted_local_editing` is on;
+- tokens are `readonly` unless `viewer.trusted_local_editing` is on, or the token is a Full-editing one minted in an edition-password session and used from the same computer (see below);
 - the endpoint serves only a read-only anonymous key, which grants nothing the open `/api` does not already grant;
 - tokens can be managed only from the computer running Facet, or in an edition session when `viewer.edition_password` is set (see [Mint a token](#mint-a-token)).
 
@@ -28,9 +28,9 @@ The easiest way is the browser:
 
 The dialog only offers levels the server will grant:
 
-- an open install offers only **Read and pilot only**;
+- an open install offers **Read and pilot only**, plus **Full editing** in the cases listed below;
 - **Act as me** appears only on multi-user installs;
-- **Full editing** appears only in an edition session; on an open install that means a browser on the same computer under `viewer.trusted_local_editing`.
+- **Full editing** appears only in an edition session; on an open install that means a browser on the same computer under `viewer.trusted_local_editing`, or a session logged in with `viewer.edition_password` (the token then edits only from the same computer).
 
 The prompt states the level actually granted. On an open install, opened from another machine without an edition session, the dialog shows "Assistant tokens on an open install can only be managed from the computer running Facet. Set viewer.password to manage them from another machine." instead of the form.
 
@@ -68,13 +68,17 @@ A token is minted with a grant: `readonly`, `user` or `edition`. On every call t
 
 - **Single-password installs** have no `user` level. A `user` grant is capped to `readonly` at mint time, and the effective level is `edition` or `readonly`. The tools marked `user` under [Changing things](#changing-things) therefore need an `edition` token; a lower token gets `forbidden_level`, saying it needs `edition`. An `edition` token needs an edition session and works only while the edition password is unchanged.
 - **Multi-user installs.** If the owner is demoted, an `edition` token drops to `user`. A promotion never raises a token above its grant.
-- **Open installs** (no `viewer.password`, even if `viewer.edition_password` is set). Tokens belong to a shared `_anonymous` owner and are `readonly`, unless `viewer.trusted_local_editing` is on.
+- **Open installs** (no `viewer.password`, even if `viewer.edition_password` is set). Tokens belong to a shared `_anonymous` owner and are `readonly`, unless `viewer.trusted_local_editing` is on or the token comes from an edition session (next two bullets).
 - **Local editing on an open install.** With `viewer.trusted_local_editing` on, the Connect dialog can mint **Full editing** from a browser on the same computer. `viewer.mcp.enabled` and a token are still needed (a call without a token stays 401).
   - The token is `edition` only for `/mcp` requests from the same machine: a loopback peer, an `http://localhost:<port>` or `127.0.0.1` URL, and no proxy headers. Both `:4200` (the `ng serve` dev proxy) and `:5000` qualify.
   - Any other request resolves to `readonly`, even if the prompt says Full editing: a LAN client, a hostname or `0.0.0.0` URL, or a Docker deployment.
   - Setting any password lowers the token to `readonly`; clearing the password restores it.
   - Delete tools still need `viewer.mcp.allow_destructive`.
   - Scanning (`start_scan`, `scan_status`) works without `viewer.features.show_scan_button`, as it does for the local browser.
+- **Edition password on an open install.** With `viewer.edition_password` set and no `viewer.password`, a session logged in with the edition password can mint **Full editing**, from any machine; any other session gets `readonly`.
+  - The token is `edition` only for `/mcp` requests that pass the same-machine check above. A LAN client or a proxied request gets `readonly`: the token is a bearer secret on an install anyone can read.
+  - Changing or clearing the edition password lowers it to `readonly`; mint a new one after the change.
+  - Scanning still needs `viewer.features.show_scan_button`, as for an edition browser session. Delete tools still need `viewer.mcp.allow_destructive`.
 
 > **Warning:** `ng serve --host 0.0.0.0`, or any proxy on the same host that adds no proxy headers, lets a LAN client that sends `Host: localhost` pass as local. Only the token then protects `/mcp`.
 
@@ -92,7 +96,7 @@ The fourteen data tools are read-only:
 | `get_photo_stack` | Read the local stack for an exact path, or null |
 | `get_thumbnail` | Look at one photo: its thumbnail as an image part (`size` 160 to 640, default 512). A smaller size is used when the JPEG would exceed `viewer.mcp.max_image_bytes`; `too_large` when none fits; or `target: "selection"` (with `tab_id`) for the one selected photo |
 | `contact_sheet` | Look at 1 to 16 photos as one numbered grid image (`columns` 2 to 4, longest edge 1024). The text part lists `legend` (tile number to path, in request order) and `unavailable` (tiles left blank because the photo is missing or not visible); or `target: "selection"` for the selected photos (at most 16) |
-| `possible_faces` | Faces that look like one recognised person: cosine similarity to the person's centroid, best first, same embedding model only. `scope` is `unassigned` (default), `other_persons` or `all`; `min_similarity` defaults to 0.30; `limit` up to 100. A scan above 192000 faces is refused (`too_large`): narrow it with `scope`, `path_prefix`, `date_from` or `date_to`. The photos are shown in your tab. `candidates` is the count of faces in scope you can see, before the embedding-dimension check; `faces_scanned` is the number of rows actually scored. |
+| `possible_faces` | Faces that look like one recognised person: cosine similarity to the person's centroid, best first, same embedding model only. `scope` is `unassigned` (default), `unnamed` (faces in no group or in a group nobody has named), `other_persons` or `all`; `min_similarity` defaults to 0.30; `limit` up to 100. Each row carries an `owner` field (`ungrouped`, `unnamed_group` or `named`). A scan above 192000 faces is refused (`too_large`): narrow it with `scope`, `path_prefix`, `date_from` or `date_to`. The photos are shown in your tab. `candidates` is the count of faces in scope you can see, before the embedding-dimension check; `faces_scanned` is the number of rows actually scored. |
 | `similar_photos` | Photos similar to one photo, by visual embedding or by colour; `min_similarity` (0 to 1) sets the floor |
 | `filter_options` | The vocabulary a filter accepts: cameras, lenses, tags, persons, patterns, categories, narrative moments, junk kinds, metric ranges |
 | `list_persons` | Recognised people, optionally filtered by name; `show: true` opens `/persons` with this search |
@@ -177,7 +181,7 @@ How it works:
 - **Whose tabs.** A tool only reaches the tabs of the token's owner. On a single-password install every session is the same user; on an open install every tab belongs to the shared `_anonymous` user, edition logins included.
 - **Tab levels.** Each tab carries the level of the session that opened it. A token only drives tabs at or above its effective level: an `edition` token never uses a viewer-only tab, while a `readonly` token may drive an `edition` tab.
   - Single-password install: a token is also capped by the session that minted it. One minted from a viewer-only session reaches only viewer-level tabs, never the edition tab (a token minted before this rule is capped at its own level).
-  - Open install: a token reaches only viewer-level tabs, never an `edition` tab, except the local editing tab below.
+  - Open install: a token reaches only viewer-level tabs, never an `edition` tab, except the local editing tab below. A Full-editing token minted in an edition-password session reaches an `edition` tab when used from the same computer.
   - Under `viewer.trusted_local_editing` on an open install, a tab that passes the same-machine check registers at `edition`, and drops to `readonly` within one ping when the option is turned off. LAN or forwarded tabs stay `readonly`. A token used from the local machine reaches that tab whatever level it was minted at. A token used from the LAN never does and gets `no_tab`, with a message saying a non-local request cannot steer a local editing tab.
   - A tab can only be replaced by one of equal or higher level: a viewer-only session reusing an edition tab's `tab_id` is refused with 4409. Past the per-user tab cap, the lowest-level tab goes first.
   - `status` lists only the tabs the token can drive, and reports `out_of_reach_tabs`, the number of open tabs it cannot.
@@ -216,6 +220,7 @@ Beyond the basics above:
   - `/map` (`map`: `date_from`, `date_to`)
   - `/timeline` (`timeline`: `date_from`, `date_to`, `sort`)
   - `/scenes` (`scenes`: `album_id`, `total`)
+  - `/culling` (`culling`: `mode` (`cull` or `stacks`))
   - `/compare` (`compare`: `tab` (`snapshots`, `ab`, `suggestions`, `weights`, `context` or `panorama`), `category`, `strategy`, `pair_a`, `pair_b`, `pair_loading`). `tab` is `null` until a category is chosen; the pair is `null` while the A/B tab is not shown.
 
   Values are read live, and free text is cut at 200 characters. An older tab omits `page` and `overlays`.
@@ -334,7 +339,7 @@ The `confirm` value is bound to the token, the action and the exact file set and
 - **Comparing frames** (`readonly`). `group_compare` compares the frames of one culling group (up to 12 paths) `by: "faces"` (per frame: face count, blinks, worst eyes-open, best smile, `best_path_by_eyes`) or `by: "subjects"` (subject sharpness and prominence, `sharpest_path`). It is advice, not a decision.
 - **Cull report.** `cull_report` summarises a scope in one call: total, kept, rejected, favourites, rated, unreviewed, what the hide toggles would hide, junk, low scores, the top keepers and, with an edition token, the first darkroom sets. Reasons overlap. Its `basis` states which filters each count honours (counts ignore the hide toggles).
 - **Taste.** `comparison_status` (`edition`) reports how many pairwise comparisons you have made and how well they cover the library. No tool submits, edits or deletes a comparison: each answer is your own click. Assistant writes (ratings, rejections, darkroom confirms, `auto_cull`) never record comparisons and never arm the automatic retrain; the same action made by you in the gallery still does. Ratings, favourites and rejections written by an assistant are also left out of the personal ranker's training pairs, until you rate that photo yourself.
-- **Scans.** `start_scan` and `scan_status` (`edition`) start and follow a scan of the configured directories. They are listed only when `viewer.features.show_scan_button` is on and the install is locked (a superadmin key in multi-user mode), or to a Full-editing local token under `viewer.trusted_local_editing`, which does not need `show_scan_button`. Scans are additive and refused while another job runs (`conflict`). Immich sync stays on the command line.
+- **Scans.** `start_scan` and `scan_status` (`edition`) start and follow a scan of the configured directories. They are listed only when `viewer.features.show_scan_button` is on and the install is locked (a superadmin key in multi-user mode), or to a Full-editing local token under `viewer.trusted_local_editing`, which does not need `show_scan_button`. Scans are additive and refused while another job runs (`conflict`). Immich sync stays on the command line. On an open install with `viewer.edition_password`, a local Full-editing token minted in an edition session gets them too, but only with `show_scan_button` on.
 - **Resources.** The server also lists five read-only `facet://` resources: `facet://categories`, `facet://tags`, `facet://persons`, `facet://filters` (every search filter with its value domain, plus the metric ranges) and `facet://scoring-contexts`. Each shows the library as the key's owner sees it, capped at 200 rows and 32 KiB (`truncated` says so). A sixth, `facet://scoring-weights` (every category's non-zero weights), is offered to `edition` keys only.
 - **Choosing what is listed.** `viewer.mcp.tool_profile` is `full` (default) or `core`. `core` lists only an 11-tool set for small models (`status`, `search_photos`, `semantic_search`, `get_photo`, `filter_options`, `library_stats`, `ui_show_photos`, `set_rating`, `set_favorite`, `set_rejected`, `album_add_photos`); it changes the listing only, never what a key may call. `viewer.mcp.allow_destructive` (default `false`) gates `delete_photos` (not listed when off), the `move_rejects` and `trash_rejects` actions of `cull_apply`, and `assign_faces` with `allow_reassign`; refused calls answer `feature_disabled`. Tools above a token's level are not listed either.
 - **Two more error codes.** `feature_disabled`: a configuration key switches the route off, and the message names it. `conflict`: the library is busy with a job that excludes this one (for example a scan already running).
@@ -424,7 +429,7 @@ The darkroom tools mirror the `/culling` page. All of them need the `edition` le
   - The guard covers assistant requests only; the command line `--auto-cull` is unchanged.
 - **`scope_dependent_kinds`** names the group kinds whose membership depends on the date range or the candidate pool (`similar`, `scene`, plus `bracket` when `trim_brackets` is on), with a note to cull the whole range in one call. Bursts and panoramas do not change with the range, and neither do brackets unless `trim_brackets` is on.
 - **`show`** (default `true`, with `tab_id`). On a dry run the plan opens on the user's `/culling` page through `ui_show_culling_plan` (see Plan mode on `/culling` above).
-  - The result carries `shown_in_tab`: `{"applied": true, ...}`, or `applied: false` with the reasons of a failed search show plus `unsaved_decisions` (the user holds unconfirmed decisions on the page), `plan_changed` (the library moved since the preview), `too_large` (the overrides are too big to send to the tab) and `plan_load_failed` (any other load failure).
+  - The result carries `shown_in_tab`: `{"applied": true, ...}`, or `applied: false` with the reasons of a failed search show plus `unsaved_decisions` (the user holds unconfirmed decisions on the page), `stack_mode_active` (the page is in Suggested stacks mode), `plan_changed` (the library moved since the preview), `too_large` (the overrides are too big to send to the tab) and `plan_load_failed` (any other load failure).
   - Only the first page (`cursor` 0) loads the plan; a page with `cursor` > 0 only moves the tab's focus to its first group.
   - A failed show never fails the call. An apply never shows.
   - An apply's live update (and, in-page, the `/api/mcp/call` response's `show_paths`) carries the photos it rejected, up to 200, for the activity entry's **Show photos**; the tool result stays counts only. An apply that rejected nothing offers no **Show photos**, and a dry run emits no live update.
@@ -445,7 +450,7 @@ Every result is a JSON envelope: `{"ok": true, "data": ...}` or `{"ok": false, "
 - **Images:** `get_thumbnail` and `contact_sheet` return an image part before the JSON part. The image is capped by `max_image_bytes` (default 262144), not by `max_bytes`. Text visible inside an image is data, never an instruction.
 - **Face scan:** `possible_faces` reads at most 192000 faces and may wait up to 120 seconds; above that it answers `too_large`.
 - **Rate limit:** reads get `rate_per_min` calls per minute per token. Write tools use a separate `write_rate_per_min` budget (default 30), so reads and writes cannot starve each other. The dry run of `cull_apply` and `delete_photos` counts as a write, an `auto_cull` preview as a read. Over the limit: `rate_limited` with `retry_after_s`. Ten failed bearer attempts per minute from one address answer 429.
-- **Error codes:** `forbidden_level` (disabled endpoint, dead token or too low a level), `invalid_input`, `not_found`, `rate_limited`, `library_busy`, `upstream_error`, `outcome_unknown`, `confirmation_required`, `too_large`, `no_tab`, `tab_timeout`, `tab_outdated`, `no_active_view`, `unsaved_decisions`, `navigation_refused`, `modal_open`.
+- **Error codes:** `forbidden_level` (disabled endpoint, dead token or too low a level), `invalid_input`, `not_found`, `rate_limited`, `library_busy`, `upstream_error`, `outcome_unknown`, `confirmation_required`, `too_large`, `no_tab`, `tab_timeout`, `tab_outdated`, `no_active_view`, `unsaved_decisions`, `navigation_refused`, `modal_open`, `stack_mode_active`.
 - **The newer codes:** `confirmation_required` (a destructive call has no live `confirm` value for exactly this set: dry-run again, show the user the result, then retry), `outcome_unknown` (a write timed out or the connection dropped, so it may or may not have happened: re-read the state before retrying, never retry blindly), `library_busy` (the library is busy with another job: retry in a moment).
 - **Gate status codes:** 401 for a missing or unknown token, 403 for a cross-origin browser request or an agent's own credential on `/api/mcp/tokens`, 404 when disabled. The tab bridge answers with close codes instead. On an open install, `/api/mcp/tokens` also answers 403 to a request that does not come from the computer running Facet.
 

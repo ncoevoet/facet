@@ -68,7 +68,7 @@ Zwei Passwörter steuern den Zugriff:
 - **`viewer.password`** entscheidet, wer *stöbern* darf. Leer heißt: Jeder kann die gesamte Bibliothek durchsuchen. Ist es gesetzt, müssen sich Benutzer zuerst anmelden.
 - **`viewer.edition_password`** ist für jede Bearbeitung erforderlich: Bewertungen, Favoriten und Ablehnungen, Aussortieren, Alben, Personen- und Gesichtsverwaltung, Vergleichsmodus, Gewichts- und Prioritätsänderungen sowie Exporte. Leer (der ausgelieferte Standard) macht die Installation **schreibgeschützt**: Bearbeitungen werden mit `403` abgelehnt („Set viewer.edition_password to enable editing“).
 
-KI-Erzeugung auf Anfrage (Bildbeschreibungen, VLM-Kritiken) braucht ebenfalls das Bearbeitungspasswort. Ohne es erhalten Sie nur, was bereits im Cache liegt (`source: "edition_required"` oder `vlm_available: false`). Ohne Bearbeitungspasswort blendet die Galerie zudem vorhandene Sterne-, Favoriten- und Ablehnungs-Badges aus, wie bei Betrachtern ohne Edition auf einer passwortgeschützten Installation.
+KI-Erzeugung auf Anfrage (Bildbeschreibungen, VLM-Kritiken) braucht ebenfalls das Bearbeitungspasswort. Ohne es erhalten Sie nur, was bereits im Cache liegt (`source: "none"` oder `vlm_available: false`). Ohne Bearbeitungspasswort blendet die Galerie zudem vorhandene Sterne-, Favoriten- und Ablehnungs-Badges aus, wie bei Betrachtern ohne Edition auf einer passwortgeschützten Installation.
 
 Starten Sie den Viewer nach dem Setzen von `viewer.edition_password` neu: Die Konfiguration wird nicht im laufenden Betrieb neu geladen.
 
@@ -139,8 +139,26 @@ python database.py --migrate-user-preferences --user alice
 
 Die Textsuche der Galerie behält Unicode-Wörter bei und behandelt Satzzeichen in Dateinamen als Wortgrenzen. So sucht `IMG_0042.JPG` gemeinsam nach den Präfixen `IMG`, `0042` und `JPG`. Kyrillische und CJK-Begriffe funktionieren. FTS-Operatoren wie `OR` werden als wörtliche Begriffe behandelt.
 
+### Tabs der Seitenleiste
+
+Die Filter-Seitenleiste gruppiert ihre Abschnitte in fünf Tabs, die als Symbole angezeigt werden (Name per Mouseover). Ein kleines Abzeichen am Symbol zählt die aktiven Filter im Tab, und der Tab behält seinen Namen für Screenreader („Durchsuchen, 2 aktiv“). Der zuletzt verwendete Tab wird in diesem Browser gespeichert (`facet_sidebar_tab`). Durchsuchen, Qualität und Motiv haben einklappbare Bereiche, die sich jeweils merken, ob sie geöffnet sind; Prüfen und Anzeige haben keine.
+
+| Tab | Abschnitte |
+|-----|-----------|
+| **Durchsuchen** | Semantische Suche, Personen, Zeitraum, Inhalt, Alben, Standort, Ordner, Ausrüstung |
+| **Prüfen** | Je eine Menüzeile für die Entscheidung, dann für Serien, Duplikate, Blinzler, Belichtungsreihen, Panoramen und Abgelehnte, eine Sternebewertung, die Schalter Favoriten und Monochrom und für Editoren *Manuelle Gesichter prüfen* und *Panorama-Korrekturen* |
+| **Qualität** | Qualität, Farbe & Qualität, Erweiterte Qualität, Technik, Belichtung & Bereich (wie gut das Bild ist) |
+| **Motiv** | Gesichtsmetriken, Komposition, Motiverkennung, Momente (was im Bild zu sehen ist) |
+| **Anzeige** | Ansicht (Kartengröße, Layout, schnelles Scrollen, Kartenaktionen) |
+
+Kopfzeile, **Filter suchen**, der Hinweis für Smart-Alben und die Dateinamensuche bleiben auf jedem Tab über den Tabs, daher funktioniert `/` von jedem aus. Eine Eingabe in **Filter suchen** blendet die Tabs aus und listet die passenden Regler aus allen Tabs.
+
+Die Zahl neben **Filter** ist die Summe aller aktiven Filter. Ein Min/Max-Bereich zählt einmal, ebenso der Ortsfilter. Die Dateinamensuche und *Ähnlich zu* haben keinen Abschnitt und werden nur in dieser Summe gezählt, ebenso ein Filter auf eine Metrik, die diese Installation ausblendet, damit **Filter zurücksetzen** ihn trotzdem löschen kann. **Filter zurücksetzen** (mit Tooltip) erscheint neben der Zahl, solange mindestens ein Filter aktiv ist; das schlichte **X** ganz rechts schließt die Seitenleiste nur auf schmalen Bildschirmen.
+
+Im Tab Prüfen sind die Entscheidung und jede Gruppe (zum Beispiel Duplikate) eine Zeile mit ihrem aktuellen Wert (etwa Ausgeblendet, Eingeblendet oder Nur diese), die ein Menü mit Auswahlmöglichkeiten samt einzeiliger Erklärung öffnet. Eine Zeile mit ihrem Standardwert zählt nicht zum Abzeichen des Tabs oder der Kopfzeile. *Nur* und *Ausgeblendet* schließen sich gegenseitig aus. Solange eine Entscheidung gewählt ist, ist Abgelehnt gesperrt, und sein Tooltip nennt den Grund. Die Sterne-Schaltfläche setzt eine Mindestbewertung: Jeder Klick erhöht sie um eins, und der Klick nach 5 oder nach einem aus einem Link übernommenen Maximum löscht sie. Sie teilt sich eine Zeile mit den reinen Symbol-Schaltern Favoriten und Monochrom, die Tooltips haben. In den Tabs Qualität und Motiv erklärt das Überfahren des Namens einer Einstellung, was bewertet wird und von welchem Modell, und auch die Steuerelemente im Tab Prüfen haben Tooltips.
+
 <details><summary>Filter-Seitenleiste — alle Abschnitte aufgeklappt (zum Anzeigen klicken)</summary>
-<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Filter-Seitenleiste mit allen aufgeklappten Abschnitten" width="360"></p>
+<p align="center"><img src="../screenshots/filter-sidebar-full.jpg" alt="Die fünf Tabs der Filter-Seitenleiste nebeneinander: Durchsuchen, Prüfen, Qualität, Motiv und Anzeige" width="900"></p>
 </details>
 
 ### Primärfilter
@@ -248,13 +266,19 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 
 ### Manuelle Fotostapel
 
-Gruppieren Sie zusammengehörige Fotos unter einer Titelbild-Kachel. Wählen Sie **2–1000 Fotos** ausdrücklich aus, wählen Sie in der Auswahlleiste **Fotos stapeln** und bestätigen Sie das Titelbild. Eine Gesamtauswahl der Ansicht kann keinen Stapel erstellen.
+Wählen Sie **2–1000 konkrete Fotos**, dann **Fotos stapeln** in der Auswahlleiste oder drücken Sie **S**, um den ganzseitigen Editor unter `/stacks/edit` zu öffnen. Eine Gesamtauswahl der Ansicht erstellt keinen Stapel. S öffnet nur die Vorschau und speichert nicht. Benutzermenü → **Tastenkürzel anpassen** ändert die Galeriebelegung; Tooltip, Hilfe und `?` zeigen die aktuelle Taste. Belegt eine ältere gespeicherte Einstellung bereits S, bleibt sie erhalten und Stapeln ist **Nicht zugewiesen**, bis Sie eine freie Taste wählen. Bearbeitungsrechte sind erforderlich. Jedes Foto gehört je Eigentümer höchstens einem Stapel. Die Seite zeigt mittig eine zoombare Vorschau über einem dauerhaften Miniaturstreifen. Klicken Sie auf eine Miniatur oder verwenden Sie `←`/`→`, um ein Foto zu fokussieren; die zugehörigen Schaltflächen wählen das Titelbild, ändern die Reihenfolge oder entfernen es. Zoomtaste, Mausrad oder Doppelklick zeigen Details.
 
-- Ein Foto gehört je Eigentümer zu höchstens einem manuellen Stapel. Stapel werden nie automatisch zusammengeführt.
-- Öffnen Sie das Zählabzeichen oder ein gestapeltes Foto, um dessen Mitglieder in der Fotoansicht zu durchblättern. Pfeiltasten und Streifen folgen der Stapelreihenfolge und bleiben im Stapel.
-- Mit **Stapel verwalten** wählen Sie das Titelbild, ordnen um und fügen Fotos hinzu oder entfernen sie. Beim Entfernen des Titelbilds wird das früheste verbleibende Mitglied gewählt. Unter zwei Mitgliedern wird der Stapel aufgelöst, ebenso mit **Stapel auflösen**.
+Mit **Cmd+Umschalt+S** oder **Strg+Umschalt+S** stapeln Sie ausdrücklich ausgewählte, ungestapelte Fotos sofort in Auswahlreihenfolge; das erste wird Titelbild. Vorhandene Stapelmitglieder öffnen den Editor. Erfolg hebt die gespeicherte Auswahl auf, Rückgängig stellt sie wieder her; Abbruch oder Fehler behalten sie. Escape im Editor kehrt ohne Speichern zur ursprünglichen Galerie zurück.
+
+**Beim Stapeln ablehnen.** Fokussieren Sie im Seiteneditor oder Stapeldialog ein Foto und wählen Sie **Ablehnen** oder **R**. Das aktive Foto in der Dunkelkammer der Stapelvorschläge bietet dieselbe Aktion; öffnen Sie diese zuerst zur Auswahl. Ablehnen speichert sofort die gewöhnliche Sichtungsentscheidung, löscht Behalten, Favorit und Sterne und schließt nur dieses Foto aus dem vorgeschlagenen Stapel aus. Originaldateien werden weder gelöscht noch verändert. Zähler und abgedunkelte Miniaturen zeigen Ausschlüsse. Rückgängig stellt vorherige Werte und weiterhin relevante Entwurfsmitgliedschaft wieder her, ohne spätere Reihenfolge oder Titelbildwahl zu ersetzen; spätere Sichtungsänderungen können Rückgängig verhindern. Bereits abgelehnte Fotos bleiben bis zum ausdrücklichen Ausschluss enthalten, ohne weitere Sichtungsentscheidung. Gruppierung wartet auf Speichern; Verlassen ohne Speichern macht Ablehnen nicht rückgängig.
+
+Gehören ausgewählte Fotos bereits zu Stapeln, ist **Stapel zusammenführen** die Vorgabe: Die Vorschau nimmt deren übrige Mitglieder hinzu. **Nur ausgewählte Fotos** verschiebt nur die konkrete Auswahl. Der Editor zeigt Auswahl- und Ergebnisanzahl, zusätzliche Mitglieder und eine Zusammenfassung der Folgen; klappen Sie die Details für jeden Quellstapel auf. Mindestens zwei zurückbleibende Mitglieder behalten ihren Stapel; ein einzelnes wird unabhängig und eine leere Quelle verschwindet. Aus dem neuen Stapel ausgeschlossene Fotos bleiben nach denselben Regeln in ihrer Quelle. Zielstapel und insgesamt betroffene Fotos sind jeweils auf 1000 begrenzt; nicht verfügbare oder teilweise sichtbare Quellen werden abgelehnt. Beim Moduswechsel bleiben weiterhin passende Reihenfolge, Titelbild und Ausschlüsse erhalten.
+
+Prüfen Sie die vom Server aktualisierte Vorschau und speichern Sie mit **Fotos stapeln**. Die Seite bleibt zur Ergebniskontrolle offen; die Benachrichtigung bietet **Rückgängig**, solange sie verfügbar ist und die Revisionen passen. **Weiter bearbeiten** lädt vor erneutem Speichern eine frische Vorschau. **Zurück zur Galerie** führt zur ursprünglichen Galerie oder zum Album mit der genauen URL zurück und beendet das bisherige Rückgängig. Verlassen ohne Speichern verwirft die Gruppierung; ausdrückliches Ablehnen bleibt gespeichert. Neuladen im Browser stellt die Auswahl nur für dasselbe Konto und nach erneuter Autorisierung her; eine URL ohne gültigen Auswahlzustand bietet einen Rückweg.
+
+Das Zählabzeichen oder ein gestapeltes Foto öffnet die Fotoansicht mit Vorschaustreifen, Vor-/Zurück-Schaltflächen und Positionsanzeige in gespeicherter Reihenfolge. Pfeiltasten bleiben im Stapel. **Stapel verwalten** öffnet einen zusätzlichen Dialog: Klicken Sie auf eine Miniatur oder nutzen Sie Links/Rechts für die große Vorschau, wählen Sie **Titelbild**, ändern Sie die Reihenfolge mit den Pfeilschaltflächen oder entfernen Sie Mitglieder. Allein das Öffnen behält die normale Bearbeitung bei: Entfernte Mitglieder werden unabhängig, nach Entfernen des Titelbilds wird das erste verbleibende gewählt, und unter zwei Mitgliedern oder mit **Stapel auflösen** wird die Gruppe aufgelöst. Das ausdrückliche **Hinzufügen ausgewählter Fotos** aus einem anderen Stapel wechselt zur Gruppierungsvorschau mit beiden Modi. Gruppierungsänderungen bewahren Dateien und Sichtungswerte; ausdrückliches Ablehnen ändert Sichtungswerte sofort.
+
 - Aktionen für Bewertung, Behalten/Ablehnen, Metadaten, Download, Album und Löschen erweitern einen Stapel nie implizit.
-- Stapelbearbeitungen ändern nie Dateien, Metadaten, Bewertungen oder Behalten/Ablehnen-Entscheidungen. Machen Sie sie im [Änderungsverlauf](#änderungsverlauf) rückgängig, solange sich nichts geändert hat; spätere Änderungen führen zu einem Konflikt.
 
 **In der Galerie.** Ein Stapel klappt zu einer Kachel zusammen; **Alle Stapel aufklappen** ist eine gemerkte Einstellung. Filter und Albummitgliedschaft gelten für einzelne Fotos: Das Titelbild erscheint, wenn es passt, sonst das erste passende Mitglied. Das Durchblättern eines Stapels umgeht das automatische Ausblenden von Serien/Duplikaten. Zeitleiste und Karte zeigen einzelne Fotos.
 
@@ -268,15 +292,14 @@ Gruppieren Sie zusammengehörige Fotos unter einer Titelbild-Kachel. Wählen Sie
 - Vollständige Viewer-Datenbankexporte lassen Stapel und intelligente Alben weg, deren Filter einen privaten Stapel nennen, sowie intelligente Alben mit unlesbaren Filtern (ungültiges JSON, zu tiefe Verschachtelung oder über 1 MiB). Inkrementelle Aktualisierungen bewahren die eigenen Alben und Stapel des Ziels.
 - [Immich-Import/Übertragung von Stapeln](IMMICH.md#manuelle-stapel-importieren-und-übertragen) ist ein getrennter CLI-Vorgang.
 
-**Vorgeschlagene Stapel** prüft vorhandene Duplikat- und Serien-Gruppen innerhalb der aktuellen Filter, eine nach der anderen. Es ignoriert das Ausblenden von Serien/Duplikaten, damit Sie jedes Mitglied sehen.
+**Vorgeschlagene Stapel** öffnet die ganzseitige Prüfung unter `/culling?mode=stacks` mit den aktuellen Galeriefiltern und einem Rückweg zur ursprünglichen Galerie oder zum Album. Bearbeitungsrechte sind erforderlich. Vorhandene Duplikat- und Seriengruppen werden ohne Ausblenden ihrer Mitglieder geprüft.
 
-- Das fokussierte Bild erscheint groß und wird zum Titelbild. `←`/`→` verschieben den Fokus.
-- **`S`** (oder **Mit diesem Titelbild stapeln**) stapelt die Gruppe; **`X`** (oder **Überspringen**) lässt sie aus. Beides bietet Rückgängig. **Mitglieder bearbeiten** öffnet zuvor den Stapel-Editor.
-- Ein Überspringen wird pro Konto gespeichert und gilt, bis sich die Mitglieder der Gruppe ändern.
-- Gruppen mit bereits gestapelten Fotos oder Belichtungsreihen-/Panoramabildern werden übersprungen. Überlappende Gruppen entfallen ganz, Duplikatgruppen haben Vorrang.
-- Jeder Schwung enthält höchstens 20 Vorschläge und 2000 Fotos (1000 pro Gruppe). **Neu laden** holt den nächsten Schwung.
-- Nicht angeboten in angehefteten Listen, bei Ähnlichen Fotos oder in der semantischen Suche. Nur-Lese-Benutzer können ansehen, aber weder stapeln noch überspringen.
-- Vorschläge verwerfen nie ein Foto und ändern keine Datei.
+- Im Raster wählen `↑`/`↓` eine Gruppe, **Enter** öffnet ihre Dunkelkammer und **S** stapelt sie mit dem vorgeschlagenen Titelbild. In der Dunkelkammer fokussieren `←`/`→` ein Bild; **S** oder **Enter** stapelt mit diesem Titelbild. **X** überspringt; Stapeln und Überspringen bieten Rückgängig.
+- **Ablehnen** oder **R** in der Dunkelkammer schließt das aktive Foto aus. Stapeln speichert verbleibende Fotos und erfordert mindestens zwei. Überspringen verwirft den ursprünglichen Vorschlag. Bei zu wenigen Fotos können Sie ausgeschlossene Fotos prüfen, Gruppen wechseln, rückgängig machen, überspringen oder zurückgehen. Die Ablehnung bleibt nach Abschluss eines Vorschlags gespeichert. Rückgängig für Stapeln oder Überspringen stellt dessen Ausschlüsse wieder her; ein späterer Vorschlag beginnt als neuer Entwurf.
+- Die Dunkelkammer behält große zoombare Vorschau, Lupe, Vergleich und Miniaturstreifen. **Z** schaltet Zoom, **P** Fokus-Peaking, **F** Vollbild um; **G** wechselt das Kompositionsraster; **Escape** führt zum Gruppenraster zurück. **Mitglieder bearbeiten** öffnet einen zusätzlichen Dialog; bei nur noch einem Foto bietet er **Diesen Stapel überspringen**.
+- Übersprungene Gruppen werden je Konto bis zur Änderung ihrer Mitglieder gespeichert. Gruppen mit bereits gestapelten Fotos oder Belichtungsreihen-/Panoramabildern werden ausgeschlossen; überlappende Gruppen werden ganz ausgeschlossen, mit Vorrang für Duplikate.
+- Die Kopfzeile zählt geladene Vorschläge, nicht die gesamte Bibliothek. Ein Durchgang umfasst höchstens 20 Vorschläge und 2000 Fotos (1000 je Gruppe). Der nächste lädt erst automatisch, wenn alle geladenen Vorschläge gestapelt oder übersprungen wurden. **Vorschläge neu laden** lädt denselben Bereich erneut; **Zurück zur Galerie** führt zum Ursprung.
+- Nicht in angehefteten Listen, Ähnliche Fotos oder der semantischen Suche verfügbar. Stapeln und Überspringen ändern weder Sichtungsentscheidungen noch Originale. Nur ausdrückliches Ablehnen ändert die Sichtungswerte.
 
 ### Fotokarten
 
@@ -341,7 +364,7 @@ Zeigt Ihnen ein über [KI-Agenten (MCP)](AGENTS.md) verbundener Assistent eine e
 - **Jeder Lauf beginnt als Trockenlauf.** Sie sehen eine Vorschau, bevor etwas geschrieben wird; Verschieben/Papierkorb laufen nur mit einem ausdrücklichen `dry_run=false`.
 - **Der Server wählt die Dateien anhand des Status jedes Fotos.** Kopieren wirkt nur auf Behaltene, Verschieben/Papierkorb nur auf Abgelehnte. Alles andere wird als `excluded_by_state` gemeldet. Der Client kann keine Liste zu löschender Dateien übergeben.
 - **Begleitdateien sind optional.** Das Ablehnen eines JPEGs nimmt sein RAW nicht mit, solange Sie nicht **RAW/XMP-Begleitdatei einbeziehen** (`include_companions`) ankreuzen.
-- Unter macOS behalten RAW-Begleitdateien ihre Dateinamen auf dem Datenträger, einschließlich großgeschriebener Erweiterungen.
+- Unter macOS und Windows behalten RAW-Begleitdateien ihre Dateinamen auf dem Datenträger, einschließlich großgeschriebener Erweiterungen; unter Windows gilt das auch für `.xmp`-Sidecars.
 
 **Verfügbarkeit von „Abgelehnte in den Papierkorb“.** Die Option erscheint nur, wenn `viewer.cull.allow_trash` an ist *und* das Paket `send2trash` installiert ist (`/api/config` meldet `cull.trash_available: true`). Andernfalls nennt der Dialog den Grund: „das Paket `send2trash` ist nicht installiert“ oder „ein Administrator hat den Papierkorb deaktiviert“.
 
@@ -390,7 +413,7 @@ Antwortfelder und Statuscodes: [API.md](../API.md).
 - **Beste der Belichtungsreihe** — Nur die Basisbelichtung jeder Belichtungsreihe anzeigen. **Standardmäßig an.** Unabhängig von „Beste aus Serie“, da das Serien-Leitfoto einer Reihe nicht immer ihre Basisbelichtung ist.
 - **Beste des Panoramas** — Nur das mittlere Bild jedes Panoramas oder HDR-Panoramas anzeigen. **Standardmäßig an.**
 - **Endloses Scrollen** — Fotos werden beim Scrollen geladen
-- **Schnelles Scrollen (virtualisiert)** — Rendert nur Zeilen nahe dem Sichtbereich, sodass tiefes Scrollen schnell bleibt. Standardmäßig an. Schalten Sie es im Anzeige-Abschnitt der Seitenleiste aus, falls Layoutprobleme auftreten. Der Rastermodus mit angezeigten Details rendert stets vollständig. In localStorage gespeichert (`facet_virtual_scroll`).
+- **Schnelles Scrollen (virtualisiert)** — Rendert nur Zeilen nahe dem Sichtbereich, sodass tiefes Scrollen schnell bleibt. Standardmäßig an. Schalten Sie es im Tab „Anzeige“ der Seitenleiste aus, falls Layoutprobleme auftreten. Der Rastermodus mit angezeigten Details rendert stets vollständig. In localStorage gespeichert (`facet_virtual_scroll`).
 
 ### Ähnliche Fotos
 
@@ -446,7 +469,7 @@ Die Aufnahmen eines Panoramas sollen zusammengefügt und die einer Belichtungsre
 - Verschwindet eine markierte Aufnahme oder verliert ihre Belichtungs- oder Datumsdaten, wartet das ganze Set, bis jedes Mitglied wieder die Voraussetzungen erfüllt.
 - **Markieren hat Vorrang vor der Panorama-Erkennung**: Ein erkanntes Panorama, das markierte Aufnahmen enthält, wird beim nächsten Lauf verworfen.
 
-**Korrekturen gelten beim nächsten Erkennungslauf.** Eine Korrektur wird sofort gespeichert und als ausstehend angezeigt: ein Uhr-Abzeichen auf der Galeriekachel, ein Chip *Korrektur ausstehend* im Aussortieren. Die Auswahlseite zeigt ein Banner mit der Schaltfläche **Erkennung erneut ausführen**. Der Filter *Panorama-Korrekturen* der Seitenleiste (nur Edition, unter Verfeinern) listet ausstehende Korrekturen bibliotheksweit auf. *Korrektur verwerfen* entfernt eine später wieder.
+**Korrekturen gelten beim nächsten Erkennungslauf.** Eine Korrektur wird sofort gespeichert und als ausstehend angezeigt: ein Uhr-Abzeichen auf der Galeriekachel, ein Chip *Korrektur ausstehend* im Aussortieren. Die Auswahlseite zeigt ein Banner mit der Schaltfläche **Erkennung erneut ausführen**. Der Filter *Panorama-Korrekturen* der Seitenleiste (nur Edition, im Tab Prüfen) listet ausstehende Korrekturen bibliotheksweit auf. *Korrektur verwerfen* entfernt eine später wieder.
 
 **Einstellen.** Der Tab Panoramen unter Vergleichen enthält die kalibrierten Schwellenwerte: Mindestanzahl Aufnahmen, minimaler Schwenk, längste Lücke und HDR-Belichtungsspanne. Das Speichern ändert nichts, bis Sie die Erkennung erneut ausführen (die Schaltfläche steht neben Speichern). Siehe [CONFIGURATION.md](CONFIGURATION.md#panorama-erkennung).
 
@@ -460,9 +483,13 @@ Die Auswahlliste zeigt Personen mit Gesichts-Thumbnails. Ein Klick filtert die G
 
 ### Personengalerie
 
-Klicken Sie auf den Namen einer Person, um alle ihre Fotos unter `/person/<id>` zu sehen.
+Klicken Sie auf den Namen einer Person, um alle ihre Fotos unter `/person/<id>` zu sehen. Auf der Seite „Personen verwalten“ öffnet ein Doppelklick auf eine Personenkarte (benannt, unbenannt in „Zu benennen“ oder ignoriert) die Galerie mit den Fotos dieser Person; Doppelklicks auf Namensfeld, Kontrollkästchen und Schaltflächen bleiben diesen vorbehalten.
+
+**Aus der Galerie benennen.** Ist die Galerie nach einer Person gefiltert (`?person_id=95`), zeigt deren Chip in der Zeile der aktiven Filter ihr Gesicht und ihren Namen, oder **Unbenannt**, als Hinweis umrandet; sein × (**Aus dem Filter entfernen**) nimmt die Person aus dem Filter. Für Bearbeitungsbenutzer stehen vor dem × zwei Schaltflächen. **Umbenennen** (der Stift) benennt die Person direkt um: Das Namensfeld zeigt „Wer ist das? Namen eingeben oder wählen“ bei einer unbenannten und „Umbenennen oder zusammenführen mit…“ bei einer benannten Person, seine Vorschläge zeigen zu jeder Person Gesicht, Namen und Fotoanzahl, und **Speichern** oder **Abbrechen** schließt es (Escape bricht ebenfalls ab). Der Name wird immer zuerst gespeichert (`POST /api/persons/{id}/rename`); tragen andere Gruppen ihn bereits (Groß-/Kleinschreibung und Leerzeichen werden ignoriert, ob sie unter den Vorschlägen sind oder nicht), bietet der Chip anschließend dieselbe Zusammenführung an wie die Seite „Personen verwalten“ (siehe **Umbenennen** unten), und nach einer Zusammenführung wechselt die Galerie zur verbleibenden Person. **Mehr** (⋮) öffnet das Personenmenü: **Alle Fotos von {name} ansehen**, **Weitere Gesichter von {name} finden** und **Ignorieren** (**Wiederherstellen** bei einer ignorierten Person). Halten die Ausblendoptionen der Galerie einige Fotos der Person verborgen, nennen die Hinweise der Galerie deren Zahl, aufgeschlüsselt nach Serienbild-, Blinzel-, Duplikat-, Belichtungsreihen- und Panoramafotos, damit Sie sie vor dem Benennen einblenden.
 
 ### Seite „Personen verwalten“
+
+Im Bearbeitungsmodus hat die Seite zwei Reiter, **Benannt (N)** und **Zu benennen (N)**, und öffnet immer auf **Benannt**. **Zu benennen** listet die unbenannten Cluster, jeweils mit einem Namensfeld; **Benannt** enthält die benannten Personen, mit den ignorierten in einem einklappbaren Abschnitt **Ignoriert** am Ende. Schreibgeschützte Benutzer sehen nur das Raster der benannten Personen. Namensvorschläge zeigen hier wie am Personen-Chip der Galerie und im Gesichtsmenü des Fotos zu jeder Person Gesicht, Namen und Fotoanzahl. Auf **Zu benennen** bietet das Sortiermenü **Gesichteranzahl** und **Neueste**. Ist niemand mehr zu benennen, zeigt der Reiter „Alle sind benannt. Neue Gesichter, die einen Namen brauchen, erscheinen hier.“
 
 Öffnen Sie sie über die Schaltfläche in der Kopfzeile oder `/persons`:
 
@@ -470,13 +497,20 @@ Klicken Sie auf den Namen einer Person, um alle ihre Fotos unter `/person/<id>` 
 |--------|--------|
 | **Zusammenführen** | Quellperson wählen, Zielperson anklicken, bestätigen |
 | **Löschen** | Auf die Löschen-Schaltfläche der Personenkarte klicken |
-| **Umbenennen** | Auf den Namen der Person klicken, um ihn direkt zu bearbeiten |
+| **Umbenennen** | Auf den Namen der Person klicken, um ihn direkt zu bearbeiten. Tragen andere Gruppen den Namen bereits (Groß-/Kleinschreibung und umgebende Leerzeichen ignoriert), zeigt eine Bestätigung je Person eine Kachel (Gesicht, Name, Gesichterzahl), alle ausgewählt, und markiert die Person, die bestehen bleibt: die größte der ausgewählten, die ihre Schreibweise behält. Heben Sie die Auswahl eines Namensvetters auf oder brechen Sie ab, um ihn getrennt zu halten. Eine Zusammenführung lässt sich nicht rückgängig machen |
 | **Aufteilen** | Die Gesichter einer Person öffnen, eine Teilmenge wählen und als neue Person abspalten |
-| **Ausblenden** | Ein Cluster aus der Personenliste, den Filtern und den Zusammenführungsvorschlägen ausblenden (umkehrbar) |
+| **Weitere Gesichter finden** | Die Suchschaltfläche auf einer Personenkarte oder **Weitere Gesichter von {name} finden** in einem Personenmenü listet Gesichter, die dieser Person ähneln, beste Treffer zuerst, verglichen mit dem Zentroid der Person (`GET /api/person/{id}/possible_faces`). Unter **Welche Gesichter einbeziehen** zeigen drei Chips jeweils ihre Anzahl: **Ohne Gruppe** und **Unbenannte Gruppen**, standardmäßig an, und **Benannte Personen**, aus. Ein Gesicht, das einer benannten Person gehört, trägt ein Abzeichen **von {name}**, und wird eines angehakt, warnt der Dialog, dass Hinzufügen es zu dieser Person verschiebt. Über den Gesichtern listet **Ähnliche Gruppen** andere Cluster, deren Zentroid dem dieser Person ähnelt (die unbenannten, dazu die benannten, solange **Benannte Personen** an ist); jede zeigt ihr Bild, ihren Namen oder **Unbenannte Gruppe**, ihre Gesichterzahl und **{percent} % ähnlich**, mit **Alle zusammenführen**, um die ganze Gruppe in diese Person zu übernehmen. Bei einer benannten Gruppe wird zuerst nachgefragt, und eine Zusammenführung lässt sich nicht rückgängig machen. Jedes Gesicht trägt **Stark** (ab 50 % Ähnlichkeit) oder **Möglich** samt Prozentwert, und **Wie ähnlich** setzt die Schwelle: eine Signalbalken-Schaltfläche mit `≥NN%`, die das Stufenmenü öffnet, mit fünf Stufen, **Sehr streng** 60 %, **Streng** 50 %, **Normal** 35 % (Standard), **Locker** 25 % und **Sehr locker** 20 %. Erfüllt kein Gesicht die Schwelle, zeigt der Dialog „Keine Gesichter ähneln {name} (am nächsten: N %).“ und bietet **Locker versuchen** oder **Benannte Personen einbeziehen** an. Müsste eine Suche zu viele Gesichter vergleichen, durchsucht sie nur Gesichter ohne Gruppe; sind es dann noch zu viele, fragt sie nach einem **Jahr** für die Suche. **Alle starken auswählen**, Umschalt-Klick für einen Bereich und die Leertaste auf einem fokussierten Gesicht beschleunigen das Anhaken; die Schaltfläche Hinzufügen zeigt, wie viele angehakt sind. Das Hinzufügen berechnet den Zentroid neu, sodass die nächste Runde nach dem gerade Bestätigten sortiert wird; nicht angehakte Gesichter werden nicht erneut angeboten, solange der Dialog offen ist |
+| **Ignorieren** | Ein Cluster ignorieren (Personal, Fremde): die ⊘-Schaltfläche einer Karte, auch auf „Zu benennen“-Karten. Ignorierte Personen verschwinden aus Liste, „Zu benennen“, Filtern, Zusammenführungsvorschlägen und Gesichtersuche und stehen im einklappbaren Abschnitt **Ignoriert** am Ende des Reiters **Benannt**, mit **Wiederherstellen** (`GET /api/persons?hidden_only=true`). Es nutzt dasselbe `is_hidden`-Flag wie bisher. Ignorieren wirkt sofort und zeigt 10 Sekunden lang eine Benachrichtigung mit **Rückgängig**, hier und in jedem Personenmenü. |
+
+### Gesichter auf dem Foto
+
+In der Fotoansicht erscheint ein Rahmen um jedes erkannte Gesicht, solange der Zeiger über dem Foto ist; beim Überfahren eines Gesichts erscheint dessen Name (roter Rahmen: noch unbenannt). Die Rahmen folgen Zoom und Verschieben, und Ziehen oder Doppelklicken auf einem Gesicht verschiebt weiterhin bzw. setzt den Zoom zurück. Der Rahmen eines unbenannten Gesichts ist zusätzlich gestrichelt, damit er nicht allein über die Farbe erkennbar ist, und jeder Rahmen hat eine dunkle Kontur, damit er auf jedem Hintergrund sichtbar bleibt. Sofern die Rahmen nicht auf **Aus** stehen, wechseln Sie mit der Tastatur per Tab zwischen den Gesichtern, die jeweils mit ihrem Namen (oder als unbekanntes Gesicht) angesagt werden, und öffnen mit Eingabe oder Leertaste deren Menü. Auf einem Touchscreen öffnet ein Tippen das Menü eines Gesichts nur, während die Rahmen angezeigt werden (die Rahmen stehen auf **Immer**, oder, sofern sie nicht auf **Aus** stehen, das Gesicht gehört der Person, auf die die Galerie gefiltert ist); sonst bewirkt ein Tippen auf das Foto beim Gesicht nichts. Im Bearbeitungsmodus öffnet ein Klick auf ein Gesicht ein Menü: **Person ändern…** (oder **Dieses Gesicht benennen…**), um eine vorhandene Person zu wählen oder einen neuen Namen einzugeben, **Weitere Gesichter von … finden** für diese Person und **Nicht …**, um genau dieses Gesicht von der Person zu lösen (`POST /api/face/{id}/unassign`); ihre übrigen Gesichter im Foto bleiben ihr zugeordnet. Gesichter, deren gespeicherte Abmessungen nicht vertrauenswürdig sind, werden nicht gezeichnet. Die Rahmen stammen aus `GET /api/photo/faces`, das für jedes Gesicht ein auf das Bild normiertes `box` liefert. Jedes Gesicht, das zu einer Person gehört, ob benannt oder nicht, bietet außerdem **Alle Fotos von … ansehen** (oder **Alle Fotos dieser Gruppe ansehen**), das die Galerie auf diese Person gefiltert öffnet; das funktioniert auch schreibgeschützt. Eine Schaltfläche in der Werkzeugleiste schaltet die Gesichtsrahmen reihum durch drei Zustände, pro Browser gespeichert: **Aus** (keine Rahmen, Gesichter lassen sich weder anklicken noch fokussieren), **Beim Überfahren** (die Voreinstellung, wie oben beschrieben) und **Immer** (alle Rahmen und Namen bleiben sichtbar). Ist die Galerie auf eine Person gefiltert, bleiben deren Gesichter mit dickerer Linie umrahmt, außer die Rahmen stehen auf **Aus**. **Als Bild von … verwenden** macht das angeklickte Gesicht zum Kartenbild; eine Person, die Gesichter ohne Bild erhält, bekommt automatisch das sicherste. Ist die Galerie auf eine Person gefiltert, umrahmt jedes Vorschaubild deren Gesicht rot, damit vor dem Benennen klar ist, welches Gesicht ein Cluster meint. Ein Klick auf den Avatar einer Person in der Liste **Personen** der rechten Leiste öffnet dasselbe Menü wie ein Klick auf den Rahmen dieses Gesichts, auch wenn die Rahmen auf **Aus** stehen; **Alle Fotos von … ansehen** in diesem Menü öffnet die Galerie.
 
 ### Ein übersehenes Gesicht markieren
 
 Öffnen Sie im Bearbeitungsmodus ein Foto und wählen Sie **Fehlendes Gesicht markieren**, auch wenn keine Gesichter erkannt wurden. Zeichnen Sie ein Rechteck (oder geben Sie die Koordinaten ein), wählen Sie eine bestehende Person oder geben Sie einen neuen Namen ein und wählen Sie dann **Speichern**. Abbrechen speichert nichts.
+
+Beim Speichern, Bearbeiten oder Entfernen eines manuellen Gesichts werden die Gesichtsrahmen und Personen aktualisiert, ohne das Foto erneut zu öffnen.
 
 - Mit demselben Editor passen Sie eine manuelle Markierung an, weisen sie neu zu oder entfernen sie.
 - Manuelle Markierungen bleiben über erneute Scans und die Viewer-Synchronisierung mit ihrer Person verknüpft. Sie trainieren die Erkennung nicht und ändern keine Gesichtsqualitätswerte.
@@ -616,17 +650,17 @@ Der Dialog unterscheidet außerdem ein Foto, das *noch nicht bewertet* ist, von 
 
 ### VLM-Kritik `[GPU]` `[16gb/24gb]`
 
-Nutzt das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbezogene Kritik. Erfordert das Profil 16gb oder 24gb, `viewer.features.show_vlm_critique` auf `true` (der Standard) und eine Bearbeitungssitzung zum Erzeugen. Ohne Edition wird nur eine zwischengespeicherte Kritik gezeigt, und `vlm_available` ist `false`.
+Nutzt das konfigurierte VLM (Qwen3.5-2B oder Qwen3.5-4B) für eine kontextbezogene Kritik. Erfordert das Profil 16gb oder 24gb, `viewer.features.show_vlm_critique` auf `true` (der Standard) und eine Bearbeitungssitzung zum Erzeugen. Ohne Edition wird nur eine zwischengespeicherte Kritik gezeigt, und `vlm_available` ist `false`. Der Dialog erzeugt über `POST /api/critique/vlm` (nur Edition; gleichzeitige Anfragen für ein Foto teilen sich eine einzige Erzeugung); `GET /api/critique` liest nur den Cache und erzeugt, übersetzt oder schreibt nie.
 
 - Der Prompt (`critique.vlm`) enthält die Wertungsaufschlüsselung, gespeicherte und neu berechnete Wertungen, erkannte Bedingungen und EXIF.
-- Die Antwort lautet **Beobachtung / Bewertung / Vorschläge**. Sie wird pro Foto zwischengespeichert (`photos.vlm_critique`), bei Bedarf übersetzt, und **Neu erzeugen** berechnet sie neu.
+- Die Antwort lautet **Beobachtung / Bewertung / Vorschläge**. Sie wird pro Foto zwischengespeichert (`photos.vlm_critique`), übersetzt, wenn eine Bearbeitungssitzung sie in der Zielsprache öffnet (dann gespeichert und danach unverändert ausgeliefert), und **Neu erzeugen** berechnet sie neu. Ohne Bearbeitungssitzung sehen Sie den unübersetzten Text, es sei denn, es liegt bereits eine gespeicherte Übersetzung vor.
 - Sie läuft auf dem gespeicherten Vorschaubild, daher funktionieren RAW-Dateien.
 
 **Visuelles „Warum diese Bewertung“-Overlay.** Ist `viewer.features.show_saliency_overlay` an (Standard `true`), hat der Kritikdialog **Overlay anzeigen**. Es zeichnet die BiRefNet-Salienzkarte als Heatmap (`GET /api/saliency_overlay`) sowie Gesichtsrahmen und Augenmarker aus gespeicherten Landmarken (`GET /api/photo/face_markers`). Rahmen sind grün bei offenen Augen, bernsteinfarben bei einem Blinzeln. Die Heatmap hat Vorschaubild-Auflösung und ist daher ungefähr. Der Schalter ist bei Profilen ausgeblendet, die keine Salienzmaske erzeugen können.
 
 ## KI-Bildbeschreibung `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Erhalten Sie für jedes Foto eine Bildunterschrift in natürlicher Sprache. Eine Bearbeitungssitzung erzeugt sie bei der ersten Anfrage; danach liegt sie in der Spalte `caption` im Cache. Bearbeiten Sie Bildunterschriften in der Fotodetailansicht (Bearbeitungsmodus). Eine offene, schreibgeschützte Installation erzeugt nie eine.
+Erhalten Sie für jedes Foto eine Bildunterschrift in natürlicher Sprache. Eine Bearbeitungssitzung erzeugt sie bei der ersten Anfrage; danach liegt sie in der Spalte `caption` im Cache. Bearbeiten Sie Bildunterschriften in der Fotodetailansicht (Bearbeitungsmodus). Eine offene, schreibgeschützte Installation erzeugt nie eine. `POST /api/caption` erzeugt (und übersetzt) sie; `GET /api/caption` liefert nur die gespeicherte Bildunterschrift oder Übersetzung und erzeugt, übersetzt oder schreibt nie.
 
 Massenerzeugung und Übersetzung über die CLI:
 
@@ -1097,11 +1131,13 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 | `F` | Das fokussierte Foto favorisieren / Favorit aufheben (Bearbeitungsmodus) |
 | `X` oder `0` | Das fokussierte Foto ablehnen / Ablehnung aufheben (Bearbeitungsmodus; springt automatisch weiter) |
 | `/` | Die Suche der Symbolleiste fokussieren (ab 1360 px Breite sichtbar); schmaler öffnet es die Suche der Filter-Seitenleiste |
+| `S` | Den Stapel-Editor für die ausdrückliche Auswahl öffnen (Bearbeitungsmodus; umbelegbar, kann unbelegt bleiben) |
+| `Strg+Umschalt+S` / `Cmd+Umschalt+S` | Die ausdrückliche, ungestapelte Auswahl sofort in Auswahlreihenfolge stapeln, das erste Foto als Titelbild (Bearbeitungsmodus; vorhandene Stapelmitglieder öffnen den Editor) |
 | `B` | Die Filter-Seitenleiste ein-/ausblenden |
 | `V` | Zwischen Raster- und Mosaiklayout wechseln |
 | `?` | Die Tastenkürzel-Referenz anzeigen (auf jeder Seite; auch unter Benutzermenü → Hilfe) |
 
-**Tasten umbelegen.** `K`, `F`, `X`, `/`, `B` und `V` sind Standardwerte. Unter Benutzermenü → **Tastenkürzel anpassen** klicken Sie eine Aktion an und drücken eine neue Taste (`Esc` oder `Tab` bricht ab). Ziffern, `Space` und `?` sind reserviert, und eine bereits verwendete Taste wird abgelehnt. **Alle zurücksetzen** stellt die Standardwerte wieder her. Die Belegung wird pro Browser gespeichert (`localStorage`). Die Fotoseite verwendet dieselben Tasten, und die Referenz unter `?` zeigt immer die geltenden Tasten.
+**Tasten umbelegen.** `K`, `F`, `X`, `/`, `B`, `V` und `S` sind Standardwerte. Unter Benutzermenü → **Tastenkürzel anpassen** klicken Sie eine Aktion an und drücken eine neue Taste (`Esc` oder `Tab` bricht ab). Ziffern, `Space` und `?` sind reserviert, und eine bereits verwendete Taste wird abgelehnt. **Alle zurücksetzen** stellt die Standardwerte wieder her. Die Belegung wird pro Browser gespeichert (`localStorage`). Die Fotoseite verwendet dieselben Tasten, und die Referenz unter `?` zeigt immer die geltenden Tasten.
 
 **Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten werden auf 50 % abgedunkelt. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
 
@@ -1391,7 +1427,7 @@ Facet scannt JPEG XL (`.jxl`) mit der Kernabhängigkeit `imagecodecs`, die in St
 
 ### Gespeicherte manuelle Gesichtsmarkierungen prüfen
 
-Finden Sie Fotos, deren gespeicherte Gesichtsrechtecke eine Prüfung brauchen. Aktivieren Sie in den Verfeinern-Filtern der Galerie **Manuelle Gesichter brauchen Prüfung** (Editoren). Öffnen Sie den Gesichtseditor eines Fotos und passen Sie jedes markierte Rechteck an und speichern Sie es, oder löschen Sie es. Das Foto verlässt dann die Liste. Der Filter funktioniert in intelligenten Alben und bei Auswahlen der ganzen Ansicht und erscheint als entfernbarer Chip.
+Finden Sie Fotos, deren gespeicherte Gesichtsrechtecke eine Prüfung brauchen. Aktivieren Sie im Tab Prüfen der Galerie-Seitenleiste **Manuelle Gesichter prüfen** (Editoren). Öffnen Sie den Gesichtseditor eines Fotos und passen Sie jedes markierte Rechteck an und speichern Sie es, oder löschen Sie es. Das Foto verlässt dann die Liste. Der Filter funktioniert in intelligenten Alben und bei Auswahlen der ganzen Ansicht und erscheint als entfernbarer Chip.
 
 - Die Liste spiegelt den letzten Scan oder die letzte Editor-Prüfung, keine Live-Dateiüberwachung. Scans prüfen Fotos mit manuellen Markierungen auch bei ausgeschalteter Gesichtserkennung.
 - Das Öffnen des Editors prüft das Original erneut und ist maßgeblich.

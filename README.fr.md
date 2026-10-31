@@ -72,7 +72,7 @@ Survolez n'importe quelle photo pour afficher le détail du score et les donnée
 </tr></table>
 
 <details><summary>Barre latérale de filtres — toutes les sections développées (cliquer pour afficher)</summary>
-<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Barre latérale de filtres avec toutes les options développées" width="380"></p>
+<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Les cinq onglets de la barre latérale de filtres côte à côte : Parcourir, Tri, Qualité, Sujet et Affichage" width="900"></p>
 </details>
 
 **Conseils de flux de travail :**

@@ -253,12 +253,38 @@ class PossibleFace(BaseModel):
     photo_path: str
     person_id: Optional[int] = None
     person_name: Optional[str] = None
+    owner: Literal["ungrouped", "unnamed_group", "named"] = Field(
+        description="In no group, in a group nobody has named, or in a named person.")
     similarity: float
     distance: float
 
 
+class PossibleFaceCounts(BaseModel):
+    """Scanned faces at or above ``min_similarity`` per owner class, whatever ``owners`` says."""
+
+    ungrouped: int
+    unnamed_group: int
+    named: int
+
+
+class SimilarGroup(BaseModel):
+    """Another person whose centroid looks like this person's."""
+
+    person_id: int
+    name: Optional[str] = Field(default=None, description="Null for a group nobody has named.")
+    face_count: int
+    similarity: float
+
+
 class PossibleFacesResponse(BaseModel):
     faces: list[PossibleFace]
+    counts: PossibleFaceCounts
+    best_similarity: Optional[float] = Field(
+        description="Highest similarity among every scanned face, below the threshold included; "
+                    "null when nothing was scanned.")
+    similar_groups: list[SimilarGroup] = Field(
+        description="Up to 10 visible, non-hidden persons of the same embedding model whose "
+                    "centroid is at least min_similarity alike, best first.")
     faces_scanned: int = Field(
         description="Rows actually scored against the centroid (after the embedding-dimension check).")
     candidates: int = Field(
@@ -276,10 +302,36 @@ class PhotoFace(BaseModel):
     bbox_y2: Optional[int] = None
     person_id: Optional[int] = None
     person_name: Optional[str] = None
+    box: Optional[list[float]] = Field(
+        default=None,
+        description="[x1, y1, x2, y2] normalised to the frame (0..1); null when the stored "
+                    "dimensions cannot be trusted for this face.")
 
 
 class PhotoFacesResponse(BaseModel):
     faces: list[PhotoFace]
+
+
+class PersonFaceBoxesResponse(BaseModel):
+    """``POST /api/person/{person_id}/face_boxes``.
+
+    Keyed by photo path. A path the caller cannot see, an unknown path, and a
+    photo where none of the person's faces has a trustworthy box are all absent
+    alike, so the map is no existence oracle.
+    """
+
+    boxes: dict[str, list[list[float]]] = Field(
+        description="Photo path -> the person's faces in it, each [x1, y1, x2, y2] "
+                    "normalised to the frame (0..1).")
+
+
+class UnassignFaceResponse(BaseModel):
+    """``POST /api/face/{face_id}/unassign``."""
+
+    success: bool
+    face_id: int
+    person_id: Optional[int] = Field(
+        default=None, description="The person the face was detached from; null when it had none.")
 
 
 class ToggleFavoriteResponse(BaseModel):
@@ -331,6 +383,23 @@ class PersonNeedsNamingEntry(BaseModel):
     representative_face_id: Optional[int] = None
     face_count: Optional[int] = None
     face_thumbnail: int
+
+
+class SameNamePerson(BaseModel):
+    id: int
+    name: str
+    face_count: int
+
+
+class RenamePersonResponse(BaseModel):
+    """``POST /api/persons/{person_id}/rename``."""
+
+    success: bool
+    name: str
+    face_count: int = Field(description="The renamed person's own stored face count.")
+    same_name_persons: list[SameNamePerson] = Field(
+        description="Other visible, non-hidden persons with the same name ignoring case "
+                    "and surrounding spaces, largest first. Nothing is merged.")
 
 
 class PersonsNeedsNamingResponse(BaseModel):

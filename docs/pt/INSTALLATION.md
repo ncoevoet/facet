@@ -7,10 +7,19 @@ copie o bloco. A parte [Avançado](#avançado) só é necessária quando você p
 
 ## Qual instalação é para mim?
 
+Os dois caminhos executam o mesmo Facet; eles trocam simplicidade de instalação por
+desempenho. Escolha o que combina com você.
+
+| | Docker | Sem Docker |
+|---|---|---|
+| Instalação | Um comando: tudo vem na imagem | `install.sh` (Linux, macOS) ou o instalador do Windows cria um ambiente Python na máquina |
+| Atualização | Baixar a nova imagem | Atualizar o código e rodar `install.sh` de novo, ou instalar o novo instalador do Windows |
+| Desempenho | Um container fica entre o Facet e seus arquivos e sua placa de vídeo; no Windows ele roda dentro do WSL2 | O Facet usa diretamente a placa de vídeo e os arquivos da máquina |
+
 | A sua situação | Vá para |
 |----------------|-------|
-| Windows, macOS ou Linux, e você só quer que funcione | [Instalar com Docker](#instalar-com-docker) |
-| Linux ou macOS, e você prefere não usar containers | [Instalar sem Docker](#instalar-sem-docker) |
+| Windows, macOS ou Linux, em um container | [Instalar com Docker](#instalar-com-docker) |
+| Windows, macOS ou Linux, sem containers | [Instalar sem Docker](#instalar-sem-docker) |
 | Um NAS, ou um servidor que você quer acessar de outras máquinas | [Implantação](DEPLOYMENT.md) |
 
 ## Qual perfil combina com o meu hardware?
@@ -159,8 +168,79 @@ Abra <http://localhost:5000>.
 
 ### Windows
 
-Use o [Docker](#instalar-com-docker). Para uma placa NVIDIA, siga o
-[guia do WSL2](DEPLOYMENT.md#windows-wsl2-com-uma-gpu-nvidia), o caminho testado.
+Um instalador por usuário (MSI) instala o Facet sem direitos de administrador:
+
+| Pasta | Conteúdo |
+|---|---|
+| `%LOCALAPPDATA%\Facet\app` | o programa, substituído a cada atualização |
+| `%LOCALAPPDATA%\Facet\venv` | o ambiente Python, criado quando o instalador termina |
+| `%LOCALAPPDATA%\Facet\data` | o banco de dados (`photo_scores_pro.db`) e os logs |
+| `%LOCALAPPDATA%\Facet\config` | `scoring_config.json` |
+
+**Obter o instalador.** Nenhuma versão publicada o inclui ainda. Gere-o a partir de um clone
+com `installer\build-msi.ps1` (precisa do WiX 3.14, do `uv` e do cliente compilado, e indica
+onde obter o WiX), ou baixe o artefato `facet-msi` de uma execução do workflow *Windows install
+(MSI)*. A compilação precisa do Node.js 22.22.3 ou mais recente para o cliente (22.14 falha em
+`npm run build`).
+
+**Primeira execução.** O instalador inicia a criação do ambiente Python assim que termina. O ambiente tem cerca de 6 GB, e o cache de download do uv
+(`%LOCALAPPDATA%\uv\cache`) ocupa quase o mesmo. O item *Facet* do menu Iniciar executa a
+configuração se ela nunca foi concluída, e de novo após uma atualização que mude as
+dependências do Facet. Ele escolhe a versão do PyTorch para sua placa NVIDIA e o driver dela
+como o `install.sh` faz, ou a versão para CPU sem placa NVIDIA. Se a versão para GPU instalada
+não alcançar a placa, a instalação para e explica: atualize o driver, ou rode `Setup-Facet.ps1
+-Force -Cpu`.
+
+Se a galeria não consegue iniciar (porta em uso, falha na configuração, sem resposta após 90
+s), a janela do item do menu Iniciar mostra o erro e espera por Enter. Após 90 s sem resposta,
+a galeria continua em execução e ainda pode subir.
+
+**No dia a dia:**
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app\installer"
+.\Scan-Facet.ps1 "\\NAS\Photos"   # pontuar fotos; argumentos extras vão para o facet.py
+.\Start-Facet.ps1                # a galeria, em http://localhost:5000
+.\Stop-Facet.ps1                 # parar a galeria e qualquer varredura
+```
+
+A galeria só responde neste computador. `Start-Facet.ps1 -Lan` a abre para outros
+dispositivos e se recusa a iniciar enquanto `viewer.password` não estiver definido na
+configuração.
+
+**Uma só grafia por pasta.** O Facet guarda cada foto com o caminho pelo qual ela foi varrida:
+`\\NAS\Photos` e o mesmo compartilhamento mapeado como `Z:\` são, para ele, duas pastas
+diferentes, e varrer as duas adiciona cada foto duas vezes. Escolha uma e mantenha.
+
+**Computadores gerenciados.** Os atalhos executam os scripts PowerShell não assinados do Facet com `-ExecutionPolicy Bypass`. Uma política de execução definida por Política de Grupo tem prioridade, então em um PC gerenciado os scripts podem não rodar; peça ao administrador para permiti-los.
+
+**Desinstalar** (Configurações, Aplicativos) para o Facet e remove o programa, os atalhos, o
+ambiente Python e o ExifTool (também sob um `FACET_HOME` próprio), e mantém `data` e `config`. O
+que ele não conseguir apagar fica listado em `data\logs\uninstall.log`. O cache de download do uv
+(`%LOCALAPPDATA%\uv\cache`) e os modelos baixados ficam (`.cache`, `.insightface` na sua pasta de
+usuário). Uma atualização mantém uma pasta de instalação personalizada e só prepara o ambiente de
+novo quando as dependências do Facet mudaram.
+
+**Trazer uma biblioteca do Docker.** O banco de dados guarda o caminho completo de cada foto,
+e a instalação do Windows vê as mesmas fotos em outro (`\\NAS\Photos\...` em vez de
+`/data/photos/...`). Copie o banco para `data`, pare o Facet e reescreva os caminhos,
+primeiro em simulação:
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app"
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos" --dry-run
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos"
+```
+
+A ferramenta guarda uma cópia do banco (`photo_scores_pro.db.before-rewrite-<hora>`), se recusa
+a mesclar uma foto já varrida no novo caminho e esvazia o índice vetorial, que
+`..\venv\Scripts\python.exe database.py --db ..\data\photo_scores_pro.db --populate-vec`
+reconstrói. O histórico de desfazer de antes da mudança deixa de valer. Estes comandos
+pressupõem a pasta de instalação padrão. Um prefixo antigo e um novo em que um está dentro do
+outro (por exemplo, `D:\Photos` para `D:\Photos\new`) são recusados; passe por um prefixo
+temporário.
+
+O Docker também funciona no Windows; para uma placa NVIDIA, siga o [guia do WSL2](DEPLOYMENT.md#windows-wsl2-com-uma-gpu-nvidia).
 
 ## Primeira execução: o que esperar
 
