@@ -43,7 +43,7 @@ cryptography==50.0.2
 cycler==0.12.1
 # datasets 5.1.0 requires pyarrow>=24.0.0, which Windows cannot take (see the pyarrow pin below);
 # 5.0.1 accepts pyarrow>=21.0.0. Windows only, like that pin.
-datasets==5.0.1 ; sys_platform == "win32"
+datasets==5.1.0 ; sys_platform == "win32"
 datasets==5.1.0 ; sys_platform != "win32"
 dill==0.4.1
 distlib==0.4.4
@@ -58,10 +58,10 @@ filterpy==1.4.5
 flatbuffers==25.12.19
 fonttools==4.65.0
 frozenlist==1.8.0
-fsspec==2026.6.0
+fsspec==2026.9.0
 ftfy==6.3.1
 future==1.0.0
-grpcio==1.84.1
+grpcio==1.85.0
 h11==0.16.0
 hdbscan==0.8.44
 hf-xet==1.7.0
