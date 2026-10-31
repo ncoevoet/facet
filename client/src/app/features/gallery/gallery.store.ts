@@ -2448,6 +2448,35 @@ export class GalleryStore {
     return this.runBatch(paths, '/photos/batch_rating', { star_rating: rating || null }, { rating });
   }
 
+  /** A previewed explicit list never adopts a later whole-view selection. */
+  async batchRatingPaths(paths: string[], rating: number): Promise<BatchResult | null> {
+    return this.runBatch(paths, '/photos/batch_rating', { star_rating: rating || null }, { rating }, false);
+  }
+
+  /** Rating Undo never restores unrelated favorite or review-decision fields. */
+  async restoreRatingSnapshot(snapshot: Map<string, PhotoFlagSnapshot>, expectedRating: number): Promise<boolean> {
+    const owner = this.auth.identity(), status = this.auth.status(), token = this.auth.token;
+    const authorized = () => owner === this.auth.identity() && status === this.auth.status() && token === this.auth.token && this.auth.isEdition();
+    if (!authorized()) return false;
+    const current = new Map([...this.reviewedPhotos, ...this.photos().map(photo => [photo.path, photo] as const)]);
+    if ([...snapshot.keys()].some(path => !current.has(path) || (current.get(path)!.star_rating ?? 0) !== expectedRating)) {
+      this.notifyActionFailed();
+      return false;
+    }
+    const groups = new Map<number, string[]>();
+    for (const [path, flags] of snapshot) {
+      const rating = flags.star_rating ?? 0;
+      const paths = groups.get(rating) ?? [];
+      paths.push(path); groups.set(rating, paths);
+    }
+    for (const [rating, paths] of groups) {
+      const latest = new Map([...this.reviewedPhotos, ...this.photos().map(photo => [photo.path, photo] as const)]);
+      if (!authorized() || paths.some(path => !latest.has(path) || (latest.get(path)!.star_rating ?? 0) !== expectedRating)) return false;
+      if (!await this.batchRatingPaths(paths, rating)) return false;
+    }
+    return authorized();
+  }
+
   /** Run up to `limit` path-keyed async tasks concurrently. Returns the paths whose task rejected. */
   private async runChunked(tasks: { path: string; run: () => Promise<unknown> }[], limit = 10): Promise<Set<string>> {
     const failed = new Set<string>();

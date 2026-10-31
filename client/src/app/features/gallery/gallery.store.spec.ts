@@ -120,6 +120,41 @@ describe('GalleryStore', () => {
     store = TestBed.inject(GalleryStore);
   });
 
+  describe('rating-only preview Undo', () => {
+    it('writes stars only and preserves a newer favorite and Keep decision', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      store.photos.set([makePhoto({ path: '/a', star_rating: 3, is_favorite: true, is_kept: true })]);
+      vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      const restored = await store.restoreRatingSnapshot(new Map([['/a', { star_rating: 1, is_favorite: false, is_kept: false, is_rejected: false }]]), 3);
+      expect(restored).toBe(true);
+      expect(apiPost.mock.calls).toEqual([['/photos/batch_rating', { photo_paths: ['/a'], rating: 1 }]]);
+      expect(store.photos()[0]).toMatchObject({ star_rating: 1, is_favorite: true, is_kept: true });
+    });
+
+    it('stops Undo rating groups when the owner changes after a confirmed request', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      store.photos.set([makePhoto({ path: '/a', star_rating: 3 }), makePhoto({ path: '/b', star_rating: 3 })]);
+      apiPost.mockImplementation(() => { authIdentity.set('bob'); return of({ count: 1 }); });
+      const flags = { is_favorite: false, is_kept: false, is_rejected: false };
+      expect(await store.restoreRatingSnapshot(new Map([['/a', { ...flags, star_rating: 1 }], ['/b', { ...flags, star_rating: 2 }]]), 3)).toBe(false);
+      expect(apiPost).toHaveBeenCalledOnce();
+    });
+
+    it('refuses a newer rating in a later Undo group after an earlier group completes', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
+      store.photos.set([makePhoto({ path: '/a', star_rating: 3 }), makePhoto({ path: '/b', star_rating: 3 })]);
+      vi.spyOn(store, 'refreshReviewResults').mockResolvedValue();
+      apiPost.mockImplementation(() => {
+        store.photos.update(photos => photos.map(photo => photo.path === '/b' ? { ...photo, star_rating: 5 } : photo));
+        return of({ count: 1 });
+      });
+      const flags = { is_favorite: false, is_kept: false, is_rejected: false };
+      expect(await store.restoreRatingSnapshot(new Map([['/a', { ...flags, star_rating: 1 }], ['/b', { ...flags, star_rating: 2 }]]), 3)).toBe(false);
+      expect(apiPost).toHaveBeenCalledOnce();
+      expect(store.photos().find(photo => photo.path === '/b')?.star_rating).toBe(5);
+    });
+  });
+
   describe('task display presets', () => {
     const saved = new Map<string, string | null>();
     beforeEach(() => {

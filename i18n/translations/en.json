@@ -1564,6 +1564,19 @@
       "named": "Named {name}",
       "error": "Could not save the name",
       "remove": "Remove from filter"
+    },
+    "rating_preview": {
+      "title": "Edit personal rating",
+      "target": "Captured target: {count} photos",
+      "scope": "Only these photo paths change. Folded group members and companion files are not added. Tags, favorites and Keep/Reject stay unchanged.",
+      "observed": "Available loaded ratings: {loaded}/{total}",
+      "unknown": "Ratios describe loaded photos only. Offscreen values are unknown; zero means no personal stars.",
+      "operation": "New rating",
+      "clear": "Clear stars",
+      "clear_plan": "Clear personal stars on {count} captured photos.",
+      "set_plan": "Set {rating} personal stars on {count} captured photos.",
+      "boundary": "No files are rewritten. Batches commit separately. Short Undo is limited to loaded snapshots and locally known conflicts; History uses server-side conflict checks.",
+      "whole_scope": "This captured whole-view list includes matching folded members after exclusions. No further members or companion files are added. Tags, favorites and Keep/Reject stay unchanged."
     }
   },
   "composition_patterns": {
