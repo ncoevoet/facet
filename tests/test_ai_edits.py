@@ -174,3 +174,20 @@ def test_an_original_without_a_caption_gives_just_the_ai_line(edition_client, li
         apply_ai_edit_captions(conn)
         caption = conn.execute('SELECT caption FROM photos WHERE path = ?', (target,)).fetchone()[0]
     assert caption == 'AI: brighten faces'
+
+
+@pytest.mark.parametrize('states,expected', [
+    ([(True, False), (True, True), (False, True)], True),   # the scan finishes with the photo
+    ([(True, False), (False, False)], False),               # the scan ends without it (failed)
+    ([(True, False)] * 50, False),                          # still running at the deadline
+])
+def test_the_import_waits_for_its_scan_before_saying_ready(monkeypatch, states, expected):
+    import asyncio
+
+    from api.agent import tools_ai_edits
+
+    calls = iter(states)
+    monkeypatch.setattr(tools_ai_edits, '_scan_state_for', lambda path: next(calls))
+    monkeypatch.setattr(tools_ai_edits, 'READY_POLL_S', 0)
+    monkeypatch.setattr(tools_ai_edits, 'READY_WAIT_S', 0 if len(states) == 50 else 60)
+    assert asyncio.run(tools_ai_edits._wait_until_ready('/p/x_agy_1.jpg')) is expected

@@ -80,12 +80,19 @@ setting this skill needs. It names no server address and no library path.
    for example `IMG_3533_agy_2.JPG`. It never overwrites an existing file. It
    records the link to the original and scans the new file.
 
-7. **Confirm.**
-   - Report `edit_path` and `revision`.
-   - If `scan.started` is false, the file is placed and linked, and it shows up
-     after the next scan. `scan.detail` says why.
-   - Otherwise, open the edit with `ui_open_photo`. In the original's burst
+7. **Wait for Facet, then confirm.** `import_ai_edit` does not answer until
+   Facet has scanned the edit (up to 3 minutes). Tell the user "importing,
+   waiting for Facet" while the call runs. Don't call anything else, and don't
+   say it's done before the answer comes back.
+   - `ready: true`: the edit is in Facet. Confirm it with `edit_path`,
+     `revision`, the new `caption`, and the Facet link (`photo_page` on the
+     Facet server). Then open it with `ui_open_photo`. In the original's burst
      strip it is labelled ✨ AI.
+   - `ready: false` with `scan.started` true: the scan took longer than 3
+     minutes or failed. Call `get_photo` on `edit_path` once a minute or so,
+     and confirm when it answers. Say so if it still fails after a few tries.
+   - `scan.started` false: the file is placed and linked and shows up after
+     the next scan. `scan.detail` says why. Tell the user that, not "done".
 
 ## Rules
 

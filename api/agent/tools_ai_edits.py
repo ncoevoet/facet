@@ -1,5 +1,8 @@
 """AI-edit import: bring a file an AI tool made into the library, linked to its original."""
+import asyncio
+import time
 from typing import Annotated, Literal, Optional
+from urllib.parse import quote
 
 from mcp.server.mcpserver import Context, MCPServer
 from mcp.types import CallToolResult, ToolAnnotations
@@ -14,6 +17,34 @@ ImportPath = Annotated[str, Field(min_length=1, max_length=4096)]
 # A second call imports a second revision, so the tool is not idempotent; it never overwrites a file.
 IMPORT_ANNOTATIONS = ToolAnnotations(read_only_hint=False, destructive_hint=False,
                                      idempotent_hint=False, open_world_hint=False)
+# How long the tool waits for the edit's scan, so the assistant can confirm the photo is in
+# Facet instead of guessing; a slower scan answers ready=false and the edit shows up later.
+READY_WAIT_S = 180
+READY_POLL_S = 3
+
+
+def _scan_state_for(path: str) -> tuple[bool, bool]:
+    """(scan job still running, edit's photo row exists)."""
+    from api.database import get_db
+    from api.routers.scan import _scan_state
+
+    with get_db() as conn:
+        exists = conn.execute('SELECT 1 FROM photos WHERE path = ?', (path,)).fetchone() is not None
+    return bool(_scan_state.get('running')), exists
+
+
+async def _wait_until_ready(path: str) -> bool:
+    """True once the scan job is over and the edit is a photo (scored, grouped, captioned)."""
+    # The import marks the scan job running before it answers, so "not running" means
+    # the job is over: the photo either made it or the scan failed.
+    deadline = time.monotonic() + READY_WAIT_S
+    while True:
+        running, exists = await asyncio.to_thread(_scan_state_for, path)
+        if not running:
+            return exists
+        if time.monotonic() >= deadline:
+            return False
+        await asyncio.sleep(READY_POLL_S)
 
 
 def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
@@ -22,10 +53,22 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
                              model: Annotated[Optional[str], Field(max_length=200)] = None,
                              note: Annotated[Optional[str], Field(max_length=1000)] = None) -> CallToolResult:
         async def handler(grant, resolved, settings):
-            return await client.call(grant, 'import_ai_edit', json={
+            result = await client.call(grant, 'import_ai_edit', json={
                 'original_path': original_path, 'source_file': source_file, 'mode': mode,
                 'tool': tool, 'model': model, 'note': note,
             }, timeout=settings['call_timeout_s'])
+            data = result.get('data') if result.get('ok') else None
+            if not isinstance(data, dict):
+                return result
+            edit_path = data['edit_path']
+            data['ready'] = bool(data['scan']['started']) and await _wait_until_ready(edit_path)
+            data['photo_page'] = '/photo?path=' + quote(edit_path, safe='')
+            if data['ready']:
+                photo = await client.call(grant, 'get_photo', query={'path': edit_path},
+                                          timeout=settings['call_timeout_s'])
+                if photo.get('ok') and isinstance(photo.get('data'), dict):
+                    data['caption'] = photo['data'].get('caption')
+            return result
         return await run_tool(ctx, 'import_ai_edit', handler, write=True)
 
     register_tool(
@@ -40,5 +83,8 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
         'otherwise it appears after the next scan. `get_photo` on the edit returns `ai_edit_of`. '
         '`note` is one line on what changed (e.g. "removed watch from left wrist"); once scanned, the edit\'s '
         'caption is the original\'s caption followed by "AI: <note>". '
+        'The call waits for that scan (up to 3 minutes) and answers `ready: true` only once the edit is in '
+        'Facet, with its `caption` and `photo_page` (a path on the Facet server): tell the user it is ready '
+        'only then. `ready: false` means it is placed and linked and will appear when the scan finishes. '
         'Not idempotent: each call adds a revision.',
         IMPORT_ANNOTATIONS, WRITE_TOOL_LEVELS['import_ai_edit'])

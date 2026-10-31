@@ -156,9 +156,12 @@ def _edit_photo(args: dict, visible: frozenset) -> str:
         "changed (the edit's caption becomes the original's caption plus \"AI: \" and the note), and as `tool` the name that matches you: " + (tools or "none is configured; tell the user")
         + ". Facet places the file beside the original as name_tag_revision with the source's extension, never "
         "over an existing file, links it to the original and scans it.",
-        "Report the new path and revision. If the scan did not start, say the file is placed and linked and will "
-        "appear after the next scan."
-        + (" Otherwise open it with `ui_open_photo`." if "ui_open_photo" in visible else ""),
+        "The import call waits until Facet has scanned the edit (up to three minutes): tell the user it is "
+        "importing, and confirm it is done only when the answer says ready, with the new path, revision, caption "
+        "and photo page"
+        + (", then open it with `ui_open_photo`." if "ui_open_photo" in visible else ".")
+        + " If it is not ready yet, check with `get_photo` on the new path every minute or so and confirm then. "
+        "If the scan did not start, say the file is placed and linked and will appear after the next scan.",
     ]
     return f"Edit a photo from the Facet library with AI and bring the edit back.\n\n{_steps(steps)}\n\n{DATA_NOTE}"
 
