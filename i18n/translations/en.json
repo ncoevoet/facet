@@ -2912,7 +2912,8 @@
       "replace_preview": "Replace every manual tag on the target with these tags:",
       "clear_preview": "Remove every manual tag from the target.",
       "replace_boundary": "This can remove imported manual tags. AI tags and other metadata stay unchanged. Each batch is atomic; multiple batches are separate commits. No Undo is available for manual tags.",
-      "recheck": "A Replace/Clear response is uncertain. Close, inspect the target and create a new preview; repeating this old plan could overwrite newer tags."
+      "recheck": "A Replace/Clear response is uncertain. Close, inspect the target and create a new preview; repeating this old plan could overwrite newer tags.",
+      "captured_view_scope": "The matching whole-view photo list was captured after exclusions, including matching folded members. Later matches are not added. Companion files are not included."
     },
     "title": "Edit tags",
     "tag_label": "Tag",

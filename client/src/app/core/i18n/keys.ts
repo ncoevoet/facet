@@ -2927,6 +2927,7 @@ export const I18N = {
       clear_preview: "manual_tags.batch.clear_preview",
       replace_boundary: "manual_tags.batch.replace_boundary",
       recheck: "manual_tags.batch.recheck",
+      captured_view_scope: "manual_tags.batch.captured_view_scope",
     },
     title: "manual_tags.title",
     tag_label: "manual_tags.tag_label",

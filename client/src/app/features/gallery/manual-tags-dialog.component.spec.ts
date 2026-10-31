@@ -113,8 +113,8 @@ describe('ManualTagsDialogComponent', () => {
     expect(mockApi.post.mock.calls[0][1].action).toBe('delete');
   });
 
-  it('sends the filter and exclusions, not a path list, for a whole-view selection', async () => {
-    create({ paths: [], filters: { tag: 'x' }, exclude: ['/c.jpg'], count: 5000 });
+  it('sends the captured matching list for a whole-view selection', async () => {
+    create({ paths: ['/a.jpg', '/b.jpg'], fromWholeView: true, count: 2 });
     component.tag.set('trip');
 
     component.preview('add');
@@ -122,7 +122,7 @@ describe('ManualTagsDialogComponent', () => {
 
     expect(mockApi.post).toHaveBeenCalledTimes(1);
     expect(mockApi.post).toHaveBeenCalledWith('/photos/batch_manual_tags',
-      { filters: { tag: 'x' }, exclude: ['/c.jpg'], tag: 'trip', action: 'add' });
+      { photo_paths: ['/a.jpg', '/b.jpg'], tag: 'trip', action: 'add' });
   });
 
   it('splits a long path list into chunks of at most 1000 and sums the counts', async () => {
@@ -210,17 +210,17 @@ describe('ManualTagsDialogComponent', () => {
     expect(mockDialogRef.close).toHaveBeenCalledWith(undefined);
   });
   it('previews without writing and freezes the tag, action and target for Apply', async () => {
-    const data = { paths: [], filters: { tag: 'old' }, exclude: ['/skip'], count: 2 };
+    const data = { paths: ['/a.jpg', '/b.jpg'], fromWholeView: true, count: 2 };
     create(data);
     component.tag.set('trip');
     component.preview('add');
     expect(mockApi.post).not.toHaveBeenCalled();
-    data.filters.tag = 'outside';
-    component.data.filters!['tag'] = 'changed';
+    data.paths.push('/outside');
+    component.data.paths.push('/changed');
     component.tag.set('different');
     component.preview('delete');
     await component.apply();
-    expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/photos/batch_manual_tags', { filters: { tag: 'old' }, exclude: ['/skip'], tag: 'trip', action: 'add' });
+    expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/photos/batch_manual_tags', { photo_paths: ['/a.jpg', '/b.jpg'], tag: 'trip', action: 'add' });
   });
 
   it('requires an explicit preview before any write', async () => {

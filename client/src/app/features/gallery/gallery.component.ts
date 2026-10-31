@@ -2749,32 +2749,33 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (!this.auth.isEdition() || !this.selectionCount()) return;
     const owner = this.auth.identity();
     const viewScoped = this.viewScoped();
-    const paths = viewScoped ? [] : [...this.selectedPaths()];
-    if (!viewScoped && !paths.length) return;
-    const selected = new Set(paths);
-    const repaired = new WeakSet<ManualTagsDialogResult>();
-    const repair = async (result: ManualTagsDialogResult): Promise<void> => {
-      if (this.auth.identity() !== owner || repaired.has(result) || !result.confirmedCount && !result.uncertain) return;
-      repaired.add(result);
-      // Tag/text membership may gain offscreen rows. The store retains parked
-      // repair debt and respects the currently authorized view without selection reset.
-      const filters = this.store.filters();
-      const membershipMayChange = this.store.pinnedPaths() === null
-        && (viewScoped || !!filters.tag || !!filters.search || !!this.store.currentAlbum()?.is_smart);
-      await this.store.refreshPaths(membershipMayChange ? null : paths);
-    };
-    const data: ManualTagsDialogData = {
-      paths,
-      filters: viewScoped ? structuredClone(this.store.filterPayload()) : null,
-      exclude: viewScoped ? [...this.excludedPaths()] : [],
-      count: this.selectionCount(),
-      observation: viewScoped ? null : observeManualTags(this.store.photos().filter(photo => selected.has(photo.path))),
-      onSettled: result => { void repair(result); },
-    };
+    const target = this.captureSelectionContext();
+    const token = this.auth.token;
     const liveness = this.staleness.create(this.destroyRef, { track: 'status' });
     try {
+      const paths = await this.resolveSelectionPaths(null);
+      if (!paths?.length || !liveness.current() || !target.current() || this.auth.token !== token) return;
+      const selected = new Set(paths);
+      const repaired = new WeakSet<ManualTagsDialogResult>();
+      const repair = async (result: ManualTagsDialogResult): Promise<void> => {
+        if (this.auth.identity() !== owner || repaired.has(result) || !result.confirmedCount && !result.uncertain) return;
+        repaired.add(result);
+        // Tag/text membership may gain offscreen rows. The store retains parked
+        // repair debt and respects the currently authorized view without selection reset.
+        const filters = this.store.filters();
+        const membershipMayChange = this.store.pinnedPaths() === null
+          && (viewScoped || !!filters.tag || !!filters.search || !!this.store.currentAlbum()?.is_smart);
+        await this.store.refreshPaths(membershipMayChange ? null : paths);
+      };
+      const data: ManualTagsDialogData = {
+        paths,
+        fromWholeView: viewScoped,
+        count: paths.length,
+        observation: observeManualTags(this.store.photos().filter(photo => selected.has(photo.path))),
+        onSettled: result => { void repair(result); },
+      };
       const { ManualTagsDialogComponent } = await import('./manual-tags-dialog.component');
-      if (!liveness.current()) return;
+      if (!liveness.current() || !target.current() || this.auth.token !== token) return;
       const ref = this.dialog.open<InstanceType<typeof ManualTagsDialogComponent>, ManualTagsDialogData, ManualTagsDialogResult>(ManualTagsDialogComponent, {
         width: '95vw', maxWidth: '600px', closeOnNavigation: false, data,
       });

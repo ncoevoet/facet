@@ -16,8 +16,7 @@ import { chunkPhotoPaths } from './gallery.store';
 
 export interface ManualTagsDialogScope {
   paths: string[];
-  filters?: Record<string, unknown> | null;
-  exclude?: string[];
+  fromWholeView?: boolean;
   count: number;
   observation?: ManualTagObservation | null;
 }
@@ -51,15 +50,15 @@ export interface ManualTagsDialogResult {
     <mat-dialog-content>
       <p data-tag-target class="text-sm font-medium">{{ I18N.manual_tags.batch.target | translate:{ count: data.count } }}</p>
       <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.manual_tags.batch.ownership | translate }}</p>
-      @if (data.filters) {
-        <p data-tag-view-scope class="text-sm">{{ I18N.manual_tags.batch.view_scope | translate:{ count: data.exclude?.length ?? 0 } }}</p>
+      @if (data.fromWholeView) {
+        <p data-tag-view-scope class="text-sm">{{ I18N.manual_tags.batch.captured_view_scope | translate }}</p>
       } @else {
         <p class="text-xs">{{ I18N.manual_tags.batch.explicit_scope | translate }}</p>
+      }
         <div class="flex flex-wrap gap-1 mb-3">
           @for (name of targetNames; track $index) { <span class="max-w-full truncate rounded bg-[var(--mat-sys-surface-container)] px-2 py-1 text-xs" [title]="name">{{ name }}</span> }
           @if (data.paths.length > targetNames.length) { <span class="text-xs py-1">{{ I18N.manual_tags.batch.more | translate:{ count: data.paths.length - targetNames.length } }}</span> }
         </div>
-      }
       @if (data.observation; as observed) {
         <details class="mb-3">
           <summary class="cursor-pointer text-sm py-2">{{ I18N.manual_tags.batch.observed | translate:{ loaded: observed.photos, count: data.count } }}</summary>
@@ -125,7 +124,7 @@ export class ManualTagsDialogComponent {
   private readonly dialogRef = inject(MatDialogRef<ManualTagsDialogComponent>);
   private readonly input = inject<ManualTagsDialogData>(MAT_DIALOG_DATA);
   readonly data: ManualTagsDialogScope = structuredClone({
-    paths: this.input.paths, filters: this.input.filters, exclude: this.input.exclude,
+    paths: this.input.paths, fromWholeView: this.input.fromWholeView,
     count: this.input.count, observation: this.input.observation,
   });
   protected readonly targetNames = this.data.paths.slice(0, 3).map(path => path.split(/[\\/]/).pop() ?? path);
@@ -167,9 +166,7 @@ export class ManualTagsDialogComponent {
       || action !== 'clear' && (!values.length || values.length > 50)
       || (action === 'add' || action === 'delete') && values.length !== 1) return;
     const tag = values.join(' · ');
-    const bodies = this.data.filters
-      ? [{ filters: this.data.filters, exclude: this.data.exclude ?? [] }]
-      : chunkPhotoPaths(this.data.paths).map(chunk => ({ photo_paths: chunk }));
+    const bodies = chunkPhotoPaths(this.data.paths).map(chunk => ({ photo_paths: chunk }));
     if (!bodies.length) return;
     this.plan.set({ action, tag, values: [...values], bodies: structuredClone(bodies) });
   }

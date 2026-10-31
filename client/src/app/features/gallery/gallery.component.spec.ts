@@ -2573,14 +2573,14 @@ describe('GalleryComponent', () => {
   });
 
   describe('openManualTagsDialog', () => {
-    beforeEach(() => { mockAuth['isEdition'] = vi.fn(() => true); mockStore.refreshPaths = vi.fn(() => Promise.resolve()); });
+    beforeEach(() => { mockAuth['isEdition'] = vi.fn(() => true); mockStore.refreshPaths = vi.fn(() => Promise.resolve()); mockStore.pathsInView = vi.fn(async () => ['/matching-cover', '/matching-member']); });
     const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
     function select(paths: string[]) {
       mockStore.selectedPaths.set(new Set(paths));
       mockStore.selectionCount.set(paths.length);
     }
 
-    it('captures view filters, exclusions and count before loading the dialog', async () => {
+    it('refuses a tag preview when view criteria or exclusions change while resolving paths', async () => {
       mockStore.viewScopeSelected.set(true);
       const filters = { tag: 'old' };
       mockStore.filterPayload = vi.fn(() => filters);
@@ -2593,7 +2593,7 @@ describe('GalleryComponent', () => {
       mockStore.excludedPaths.set(new Set(['/new-skip']));
       mockStore.selectionCount.set(1);
       await pending;
-      expect((dialog.open as Mock).mock.calls[0][1].data).toMatchObject({ filters: { tag: 'old' }, exclude: ['/old-skip'], count: 650, observation: null });
+      expect(dialog.open).not.toHaveBeenCalled();
     });
 
     it('refuses a late launch after edition access is lost', async () => {
@@ -2697,11 +2697,11 @@ describe('GalleryComponent', () => {
       expect(dialog.open).toHaveBeenCalledTimes(1);
       const data = (dialog.open as Mock).mock.calls[0][1].data;
       expect(data.paths).toEqual(['/a.jpg', '/b.jpg']);
-      expect(data.filters).toBeNull();
+      expect(data.filters).toBeUndefined();
       expect(data.count).toBe(2);
     });
 
-    it('sends the filter and exclusions under view scope', async () => {
+    it('captures resolved matching members and the actual count under view scope', async () => {
       mockStore.viewScopeSelected.set(true);
       mockStore.excludedPaths.set(new Set(['/skip.jpg']));
       mockStore.selectionCount.set(650);
@@ -2711,9 +2711,11 @@ describe('GalleryComponent', () => {
       await open();
 
       const data = (dialog.open as Mock).mock.calls[0][1].data;
-      expect(data.filters).toEqual({ page: '1' });
-      expect(data.exclude).toEqual(['/skip.jpg']);
-      expect(data.count).toBe(650);
+      expect(mockStore.pathsInView).toHaveBeenCalledOnce();
+      expect(data.paths).toEqual(['/matching-cover', '/matching-member']);
+      expect(data.fromWholeView).toBe(true);
+      expect(data.filters).toBeUndefined();
+      expect(data.count).toBe(2);
     });
 
     it('does nothing for an empty path selection', async () => {
