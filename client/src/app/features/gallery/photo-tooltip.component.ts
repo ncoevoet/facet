@@ -66,7 +66,7 @@ export class CategoryLabelPipe implements PipeTransform {
            escaped class binding is invisible to it (z-[1000] silently vanished
            that way). Docking overrides it through style bindings instead. -->
       <div #root
-        class="fixed z-[1000] pointer-events-none flex flex-col backdrop-blur-sm p-2.5 rounded-xl shadow-2xl"
+        class="fixed z-[1000] pointer-events-none flex flex-col p-3 rounded shadow-lg"
         [class.max-h-[calc(100vh-2rem)]]="!docked()"
         [class.overflow-y-auto]="!docked()"
         [style.position]="docked() ? 'static' : null"
@@ -93,7 +93,7 @@ export class CategoryLabelPipe implements PipeTransform {
           <img
             [src]="p.path | thumbnailUrl:640:p.preview_revision"
             [alt]="p.filename"
-            class="rounded-md shrink-0 max-w-full w-auto h-auto"
+            class="rounded-sm shrink-0 max-w-full w-auto h-auto"
             [class.self-center]="docked()"
             [class.max-h-[40vh]]="!isLandscape() && !docked()"
             [class.max-h-[28vh]]="isLandscape() && !docked()"
@@ -124,7 +124,7 @@ export class CategoryLabelPipe implements PipeTransform {
             <!-- Category + aggregate placed in the library like photo detail's,
                with the stars on their own line. -->
             @if (p.category) { <div class="flex items-center gap-2 mt-1 mb-1.5">
-              <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] truncate">{{ p.category | categoryLabel }}</span>
+              <span class="text-xs text-[var(--facet-tooltip-text-secondary)] truncate">{{ p.category | categoryLabel }}</span>
             </div> }
             @if (!docked()) { <app-photo-assessment [photo]="p" [range]="store.metricRangesByColumn()['aggregate']" /> }
             @if (p.star_rating) {

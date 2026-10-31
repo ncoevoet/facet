@@ -144,7 +144,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
          Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="w-28 sm:w-44 shrink-0" subscriptSizing="dynamic">
+        <mat-form-field class="w-24 sm:w-40 shrink-0" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -155,11 +155,14 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
         </mat-form-field>
 
         <!-- Exact text search commits through the existing debounced handler. -->
-        <mat-form-field class="min-w-0 flex-1" subscriptSizing="dynamic">
-          <mat-label>{{ I18N.gallery.search_placeholder | translate }}</mat-label>
+        <label class="relative block min-w-0 flex-1">
+          <span class="sr-only">{{ I18N.gallery.search_placeholder | translate }}</span>
           <input
             #toolbarSearch
             matInput
+            type="search"
+            autocomplete="off"
+            class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-11 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)]"
             [placeholder]="I18N.gallery.search_placeholder | translate"
             [value]="store.filters().search"
             (input)="onSearchInput($event)"
@@ -167,13 +170,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             (blur)="onSearchChange($event)"
           />
           @if (store.filters().search) {
-            <button matSuffix mat-icon-button (click)="clearSearch()" [attr.aria-label]="I18N.gallery.clear_search | translate">
+            <button type="button" class="!absolute right-0 top-0" mat-icon-button (click)="clearSearch()" [attr.aria-label]="I18N.gallery.clear_search | translate">
               <mat-icon>close</mat-icon>
             </button>
           } @else {
-            <mat-icon matSuffix>search</mat-icon>
+            <mat-icon class="pointer-events-none !absolute right-3 top-2 text-[var(--mat-sys-on-surface-variant)]" aria-hidden="true">search</mat-icon>
           }
-        </mat-form-field>
+        </label>
       }
 
       @if (!pinned()) {
@@ -275,13 +278,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
-        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] px-3 py-3 md:px-4">
-          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-2">
-          <div class="min-w-0 flex-1">
-          <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
+        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-3 py-2 md:px-4">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div class="min-w-0 flex-1 md:flex-none md:max-w-64">
+          <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
-          <p role="status" class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
+          <p role="status" class="m-0 text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
             @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
@@ -289,7 +292,10 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             }
           </p>
           </div>
-          <div class="flex items-center gap-1 border border-[var(--mat-sys-outline-variant)] rounded-lg p-0.5">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 items-center gap-1 md:order-none md:w-auto md:flex-1">
+            <ng-container [ngTemplateOutlet]="galleryToolbar" />
+          </div>
+          <div class="flex shrink-0 items-center gap-0.5 rounded p-0.5 bg-[var(--mat-sys-surface-container)]">
             <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
                     [attr.aria-pressed]="store.galleryMode() === 'grid'"
@@ -303,12 +309,11 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               <mat-icon>auto_awesome_mosaic</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
             </button>
           </div>
-          <app-gallery-view-controls class="max-md:w-full" />
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex items-center gap-2">
-            <ng-container [ngTemplateOutlet]="galleryToolbar" />
+          <div class="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <app-gallery-criteria class="min-w-0 flex-1" />
+            <app-gallery-view-controls class="shrink-0 max-md:w-full" />
           </div>
-          <app-gallery-criteria />
         </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
@@ -1129,7 +1134,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   readonly galleryColsStyle = computed(() =>
     this.isDesktop()
       ? `repeat(auto-fill, minmax(${this.cardWidth()}px, 1fr))`
-      : `repeat(${this.gridColumns()}, 1fr)`,
+      : `repeat(${this.gridColumns()}, minmax(0, 1fr))`,
   );
 
   /** Skeleton placeholders for the initial load (matches a typical first page). */
@@ -1184,7 +1189,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * and the rail is a standing preference to come back to once they are closed.
    */
   readonly detailsRailVisible = computed(
-    () => this.panelMode() && (!this.store.filterDrawerOpen() || this.pinned()),
+    () => this.panelMode() && this.panelPhoto() !== null && (!this.store.filterDrawerOpen() || this.pinned()),
   );
 
   /** Set kinds whose sets are currently collapsed behind one frame.
@@ -1738,7 +1743,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // this drawer, so it keeps the strip open on its own once the filters close.
     effect(() => {
       // The persisted flag is left alone while pinned: the drawer only stays shut.
-      const open = (this.store.filterDrawerOpen() && !this.pinned()) || this.panelMode();
+      const open = (this.store.filterDrawerOpen() && !this.pinned()) || this.detailsRailVisible();
       const drawer = this.filterDrawer();
       if (!drawer) return;
       if (open) drawer.open();

@@ -260,7 +260,7 @@ export function loadActiveTab(): SidebarTabId {
 @Component({
   selector: 'app-gallery-filter-sidebar',
   standalone: true,
-  host: { class: 'flex flex-col h-full' },
+  host: { class: 'flex flex-col h-full bg-[var(--mat-sys-surface-container-lowest)] [&_.mat-expansion-panel]:!shadow-none [&_.mat-expansion-panel]:!rounded-none [&_.mat-expansion-panel]:!bg-transparent [&_.mat-expansion-panel]:!mx-0 [&_.mat-expansion-panel]:!my-0 [&_.mat-expansion-panel]:border-b [&_.mat-expansion-panel]:border-[var(--mat-sys-outline-variant)]' },
   imports: [
     DecimalPipe,
     MetricSparklineComponent,
@@ -288,12 +288,12 @@ export function loadActiveTab(): SidebarTabId {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-<div class="shrink-0 px-2">
+<div class="shrink-0 px-3 border-b border-[var(--mat-sys-outline-variant)]">
 
-      <div class="pt-3 pb-2 flex items-center gap-2">
+      <div class="py-2 flex items-center gap-2">
         <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
         @if (totalActiveCount()) {
-          <span data-test="active-count" class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ totalActiveCount() }}</span>
+          <span data-test="active-count" class="text-xs rounded min-w-5 h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-surface-container-high)] text-[var(--mat-sys-on-surface)] tabular-nums leading-none">{{ totalActiveCount() }}</span>
         }
         <span class="flex-1"></span>
         @if (totalActiveCount()) {
@@ -304,7 +304,7 @@ export function loadActiveTab(): SidebarTabId {
             {{ I18N.gallery.reset_filters | translate }}
           </button>
         }
-        <button mat-icon-button data-test="close" class="md:hidden !w-8 !h-8 !p-0 !min-w-0 shrink-0"
+        <button mat-icon-button data-test="close" class="shrink-0"
           [matTooltip]="I18N.dialog.close | translate"
           [attr.aria-label]="I18N.dialog.close | translate"
           (click)="store.setFilterDrawerOpen(false)">
@@ -321,7 +321,8 @@ export function loadActiveTab(): SidebarTabId {
       }
 
       <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
-      <div class="2xl:!hidden mb-1">
+      <details class="2xl:!hidden mb-1">
+        <summary class="cursor-pointer py-2 text-sm text-[var(--mat-sys-on-surface-variant)]">{{ I18N.ui.filters.search | translate }}</summary>
         <mat-form-field subscriptSizing="dynamic" class="w-full">
           <mat-label>{{ I18N.ui.filters.search | translate }}</mat-label>
           <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
@@ -336,20 +337,22 @@ export function loadActiveTab(): SidebarTabId {
             </button>
           }
         </mat-form-field>
-      </div>
+      </details>
 
       <!-- Find a filter -->
-      <mat-form-field subscriptSizing="dynamic" class="w-full !mb-1">
-        <mat-icon matPrefix class="mr-1 opacity-60">manage_search</mat-icon>
+      <label class="relative block mb-2">
+        <span class="sr-only">{{ I18N.gallery.sidebar.find_filter | translate }}</span>
         <input matInput [placeholder]="I18N.gallery.sidebar.find_filter | translate"
+               type="search" autocomplete="off"
+               class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-11 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)]"
                [attr.aria-label]="I18N.gallery.sidebar.find_filter | translate"
                [value]="filterQuery()" (input)="filterQuery.set($any($event.target).value)" />
         @if (filterQuery()) {
-          <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="filterQuery.set('')" [attr.aria-label]="I18N.gallery.sidebar.clear_find_filter | translate">
+          <button type="button" mat-icon-button class="!absolute right-0 top-0" (click)="filterQuery.set('')" [attr.aria-label]="I18N.gallery.sidebar.clear_find_filter | translate">
             <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
           </button>
         }
-      </mat-form-field>
+      </label>
 
       @if (!filterQuery().trim()) {
         <nav mat-tab-nav-bar mat-stretch-tabs="true" animationDuration="0ms" [tabPanel]="tabPanel"

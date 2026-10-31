@@ -2101,9 +2101,22 @@ describe('GalleryComponent', () => {
         mockStore.selectionCount.set(0);
       });
 
-      it('disableClose follows the rail: false while the filters occupy the drawer', () => {
+      it('leaves the photo canvas full-width until the inspector has an owner', () => {
         const fixture = TestBed.createComponent(GalleryComponent);
         (fixture.componentInstance as unknown as { railWide: { setup(): void } }).railWide.setup();
+        fixture.detectChanges();
+        expect(fixture.componentInstance.panelMode()).toBe(true);
+        expect(fixture.componentInstance.detailsRailVisible()).toBe(false);
+        expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+        fixture.destroy();
+      });
+
+      it('disableClose follows the rail: false while the filters occupy the drawer', () => {
+        mockStore.photos.set([makePhoto({ path: '/inspected.jpg', filename: 'inspected.jpg' })]);
+        Object.assign(mockApi, { get: vi.fn(() => of({})) });
+        const fixture = TestBed.createComponent(GalleryComponent);
+        (fixture.componentInstance as unknown as { railWide: { setup(): void } }).railWide.setup();
+        fixture.componentInstance['setCursor'](0);
         fixture.detectChanges();
         const drawer = fixture.debugElement.query(By.directive(MatSidenav)).componentInstance as MatSidenav;
         expect(fixture.componentInstance.detailsRailVisible()).toBe(true);

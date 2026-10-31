@@ -88,7 +88,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     // detection that would have to apply a conditional class. The top asks for
     // nothing but that same outline kept off the scrollport's edge, since
     // nothing in the shell is fixed or sticky above the grid.
-    class: 'scroll-mt-2 scroll-mb-48',
+    class: 'min-w-0 scroll-mt-2 scroll-mb-48',
     // The current-photo marker stays separate from batch selection.
     // Both sit on the host rather than on the tile below, because the host's
     // own `content-visibility: auto` brings paint containment with it, and that
@@ -135,7 +135,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     <div
       role="button"
       tabindex="0"
-      class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
+      class="relative rounded-sm overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container-lowest)] h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
       [class.aspect-square]="hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
@@ -424,7 +424,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 <span class="text-neutral-400 font-medium" [matTooltip]="'gallery.aggregate_score' | translate">{{ photo().aggregate | fixed:1 }}</span>
               }
               <span
-                class="px-1 py-0.5 rounded text-xs font-bold"
+                class="px-1.5 py-0.5 rounded-sm text-xs font-medium tabular-nums !bg-[var(--mat-sys-surface-container-high)] !text-[var(--mat-sys-on-surface)]"
                 [class]="(photo() | sortScore:currentSort()) | scoreClass:config()"
                 [matTooltip]="(currentSort() === 'aggregate' ? ('gallery.aggregate_score' | translate) : ('gallery.sort_score' | translate) + ' (' + currentSort() + ')')
                   + (badgeTopPercent() === null ? '' : ' · ' + ('photo_detail.distribution.top' | translate:{ pct: badgeTopPercent()! }))"
