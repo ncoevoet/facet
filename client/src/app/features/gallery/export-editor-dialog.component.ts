@@ -168,7 +168,7 @@ export interface ExportEditorDialogData {
 })
 export class ExportEditorDialogComponent {
   protected readonly I18N = i18nKeys();
-  protected readonly data = inject<ExportEditorDialogData>(MAT_DIALOG_DATA);
+  protected readonly data = structuredClone(inject<ExportEditorDialogData>(MAT_DIALOG_DATA));
   private readonly exportService = inject(ExportService);
   private readonly dialogRef = inject(MatDialogRef<ExportEditorDialogComponent>);
   private readonly snackBar = inject(MatSnackBar);
@@ -178,6 +178,7 @@ export class ExportEditorDialogComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly owner = this.auth.identity();
+  private readonly token = this.auth.token;
   private readonly readsStopped = new Subject<void>();
   private watching = 0;
   private attached = true;
@@ -251,7 +252,7 @@ export class ExportEditorDialogComponent {
   }
 
   private current(seq = this.watching): boolean {
-    return this.attached && !this.destroyRef.destroyed && this.auth.identity() === this.owner
+    return this.attached && !this.destroyRef.destroyed && this.auth.identity() === this.owner && this.auth.token === this.token
       && this.auth.isEdition() && seq === this.watching;
   }
 
