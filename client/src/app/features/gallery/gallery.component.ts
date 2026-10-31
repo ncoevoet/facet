@@ -753,7 +753,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
           @if (viewScoped() || selectionGroupTargets().total) {
-            <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets
+            <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets tabindex="-1"
               (keydown.escape)="selectionTargets.open = false; targetsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #targetsSummary class="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
               <div class="absolute bottom-full left-0 mb-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">

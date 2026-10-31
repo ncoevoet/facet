@@ -58,6 +58,36 @@ describe('SyncedZoomComponent', () => {
     expect(api(f).transform()).toBe('translate(10px, -5px) scale(2)');
   });
 
+  it('frames a valid normalized crop within scale bounds and refuses mismatched source geometry', () => {
+    const f = make(); measure(f); f.componentInstance.measurePane();
+    const box = [0.5, 0.25, 0.75, 0.5];
+    const frame = f.componentInstance.zoomForRegion(box, 4 / 3)!;
+    expect(frame.scale).toBeCloseTo(8 / 3);
+    expect(frame.tx + frame.scale * 100).toBeCloseTo(0);
+    expect(frame.ty - frame.scale * 75).toBeCloseTo(0);
+    expect(f.componentInstance.zoomForRegion(box, 1)).toBeNull();
+    expect(f.componentInstance.zoomForRegion([0.8, 0.2, 0.1, 0.5])).toBeNull();
+    expect(f.componentInstance.zoomForRegion([0, 0, Number.NaN, 1])).toBeNull();
+    expect(f.componentInstance.zoomForRegion([0.1, 0.1, 0.11, 0.11])?.scale).toBe(8);
+  });
+
+  it('opts into keyboard pan/zoom and delegates Fit without stealing other surfaces’ shortcuts', () => {
+    const f = make({ scale: 2, tx: 0, ty: 0 });
+    const host = f.nativeElement as HTMLElement;
+    const zooms: ZoomState[] = []; let fits = 0;
+    f.componentInstance.zoomChange.subscribe(z => zooms.push(z));
+    f.componentInstance.fitRequested.subscribe(() => fits++);
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    expect(zooms).toEqual([]);
+    f.componentRef.setInput('keyboardInspection', true); f.detectChanges();
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', shiftKey: true, bubbles: true }));
+    expect(zooms.at(-1)).toEqual({ scale: 2, tx: -64, ty: 0 });
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }));
+    expect(fits).toBe(1);
+    expect(host.tabIndex).toBe(0);
+    expect(host.classList.contains('touch-none')).toBe(true);
+  });
+
   it('uses the thumbnail at fit scale and the full-res past it', () => {
     expect(api(make(FIT_ZOOM)).effectiveSrc()).toBe('/thumb.jpg');
     expect(api(make({ scale: 1.5, tx: 0, ty: 0 })).effectiveSrc()).toBe('/full.jpg');

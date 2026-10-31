@@ -1508,6 +1508,21 @@
         "fit_short": "Fit",
         "sources": "Image sources and magnification",
         "fallback": "Preview unavailable"
+      },
+      "inspection": {
+        "title": "Inspect",
+        "magnification": "Loupe",
+        "shared_person": "Frame saved person in visible panes…",
+        "partial": "Some stored detection data could not be loaded.",
+        "help": "Framing switches to Independent. Check crops before linking. Saved assignments can be wrong or outdated. Loupe enlarges displayed pixels; zoom in to request the source image.",
+        "no_correspondence": "No unique saved person with usable boxes in every visible pane. Use manual framing; Link shares movement, not identity.",
+        "suggested_face": "Suggested face",
+        "suggested_subject": "Suggested subject",
+        "no_crop": "Crop unavailable",
+        "choose_face": "Choose face…",
+        "manual_fallback": "This crop could not be framed reliably. Wait for the image or use manual zoom and pan.",
+        "review_link": "Independent framing applied. Check alignment, then Link. Fit restores the whole frame.",
+        "keyboard": "Pane keys: +/− zoom, arrows pan, Shift moves farther, F/Home fits. Z toggles the loupe at Fit. On touch, use zoom buttons and drag. Escape closes comparison."
       }
     },
     "clipping": {

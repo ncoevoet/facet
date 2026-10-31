@@ -7,14 +7,28 @@ import { FIT_ZOOM, MAX_COMPARE_PANES, SyncedZoomComponent } from './synced-zoom.
 import { Photo } from '../../shared/models/photo.model';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
+import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { Subject, of, throwError } from 'rxjs';
+import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { sharedInspectionPeople } from './comparison-inspection.util';
 
 const photo = (path: string): Photo => ({ path, filename: path.slice(1) } as Photo);
 
 function build(paths: string[]) {
-  const dialogRef = { close: vi.fn() };
+  const closed = new Subject<unknown>();
+  const dialogRef = { close: vi.fn(() => closed.next(undefined)), beforeClosed: () => closed };
+  const authStatus = signal({ user_id: 'alice' });
+  const api = { get: vi.fn(), post: vi.fn() };
+  api.get.mockReturnValue(of({ faces: [] }));
+  api.post.mockReturnValue(of({ key_subjects_by_path: {} }));
   TestBed.configureTestingModule({
     imports: [CompareSelectedDialogComponent],
     providers: [
+      provideRouter([]),
+      { provide: ApiService, useValue: api },
+      { provide: AuthService, useValue: { status: authStatus, identity: () => authStatus().user_id, isEdition: () => false, token: null } },
       { provide: MAT_DIALOG_DATA, useValue: { photos: paths.map(photo) } },
       { provide: MatDialogRef, useValue: dialogRef },
       { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
@@ -22,7 +36,7 @@ function build(paths: string[]) {
   });
   const fixture = TestBed.createComponent(CompareSelectedDialogComponent);
   fixture.detectChanges();
-  return { fixture, dialogRef };
+  return { fixture, dialogRef, api, authStatus, closed };
 }
 
 describe('CompareSelectedDialogComponent', () => {
@@ -88,6 +102,102 @@ describe('CompareSelectedDialogComponent', () => {
     const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg']);
     fixture.debugElement.nativeElement.querySelector('button[aria-label="dialog.close"]').click();
     expect(dialogRef.close).toHaveBeenCalled();
+  });
+
+  it('loads bounded stored inspection data only on explicit Inspect and offers retry after failure', async () => {
+    const { fixture, api } = build(['/a.jpg', '/b.jpg']);
+    expect(api.get).not.toHaveBeenCalled(); expect(api.post).not.toHaveBeenCalled();
+    api.post.mockReturnValue(throwError(() => new Error('offline')));
+    const component = fixture.componentInstance as unknown as { loadInspection(): Promise<void>; inspectionState(): string };
+    await component.loadInspection(); fixture.detectChanges();
+    expect(component.inspectionState()).toBe('partial');
+    expect(api.get).toHaveBeenCalledTimes(2);
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/photos/key_subjects', { paths: ['/a.jpg', '/b.jpg'] });
+    api.post.mockReturnValue(of({ key_subjects_by_path: {} }));
+    await component.loadInspection(); fixture.detectChanges();
+    expect(component.inspectionState()).toBe('ready');
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#comparison-inspection')).not.toBeNull();
+    expect(api.post).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels reads and discards late inspection answers as soon as closing starts', async () => {
+    const { fixture, api, closed } = build(['/a.jpg', '/b.jpg']);
+    const response = new Subject<unknown>();
+    api.get.mockReturnValue(response); api.post.mockReturnValue(response);
+    const component = fixture.componentInstance as unknown as { loadInspection(): Promise<void>; inspectionState(): string };
+    const pending = component.loadInspection();
+    expect(response.observed).toBe(true);
+    closed.next(undefined);
+    await pending;
+    expect(response.observed).toBe(false);
+    expect(component.inspectionState()).toBe('loading');
+  });
+
+  it('closes a read-only comparison when its account context changes', () => {
+    const { fixture, authStatus, dialogRef } = build(['/a.jpg', '/b.jpg']);
+    authStatus.set({ user_id: 'bob' }); fixture.detectChanges();
+    expect(dialogRef.close).toHaveBeenCalledOnce();
+  });
+
+  it('frames one unambiguous saved person in each visible pane, independently and atomically', async () => {
+    const { fixture, api } = build(['/a.jpg', '/b.jpg']);
+    api.get.mockImplementation((_url, params) => of({ faces: [{ id: params.path === '/a.jpg' ? 1 : 2, face_index: 0, person_id: 7, person_name: 'Ada', box: [0.5, 0.25, 0.75, 0.5] }] }));
+    const component = fixture.componentInstance as unknown as { loadInspection(): Promise<void> };
+    await component.loadInspection();
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(de => de.componentInstance as SyncedZoomComponent);
+    const first = vi.spyOn(panes[0], 'zoomForRegion').mockReturnValue({ scale: 3, tx: 20, ty: -10 });
+    const second = vi.spyOn(panes[1], 'zoomForRegion').mockReturnValue(null);
+    const select = fixture.nativeElement.querySelector('[data-shared-person]') as HTMLSelectElement;
+    select.value = '7'; select.dispatchEvent(new Event('change')); fixture.detectChanges();
+    expect(panes.map(p => p.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
+    second.mockReturnValue({ scale: 2, tx: -30, ty: 10 });
+    select.value = '7'; select.dispatchEvent(new Event('change')); fixture.detectChanges();
+    expect(first).toHaveBeenCalledWith([0.5, 0.25, 0.75, 0.5], undefined);
+    expect(panes.map(p => p.zoom().scale)).toEqual([3, 2]);
+    expect(fixture.nativeElement.querySelector('[data-link-inspection]').getAttribute('aria-pressed')).toBe('false');
+    expect(fixture.nativeElement.textContent).toContain('gallery.compare.inspection.review_link');
+  });
+
+  it('keeps manual alignment at linked zoom bounds and reserves explicit reset for Fit', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    fixture.nativeElement.querySelector('[data-link-inspection]').click(); fixture.detectChanges();
+    panes[0].componentInstance.zoomChange.emit({ scale: 1.1, tx: 20, ty: 10 }); fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-link-inspection]').click(); fixture.detectChanges();
+    const host = panes[0].nativeElement as HTMLElement;
+    host.dispatchEvent(new KeyboardEvent('keydown', { key: '-', bubbles: true })); fixture.detectChanges();
+    host.dispatchEvent(new WheelEvent('wheel', { deltaY: 1000, bubbles: true })); fixture.detectChanges();
+    expect(panes[0].componentInstance.zoom()).toEqual({ scale: 1.1, tx: 20, ty: 10 });
+    expect(panes[1].componentInstance.zoom()).toEqual(FIT_ZOOM);
+    expect([...fixture.nativeElement.querySelectorAll('[data-zoom-out]')].every((button: any) => button.disabled)).toBe(true);
+    host.dispatchEvent(new MouseEvent('dblclick', { bubbles: true })); fixture.detectChanges();
+    expect(panes.map(p => p.componentInstance.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
+  });
+
+  it('requires saved identity and one valid occurrence, never merely equal face indexes', () => {
+    const face = { id: 1, face_index: 0, person_id: 0, person_name: 'Ada', box: [0.1, 0.2, 0.4, 0.6] };
+    const rows = new Map([['/a', [face]], ['/b', [{ ...face, id: 2 }]]]);
+    expect(sharedInspectionPeople(['/a', '/b'], rows).map(p => p.id)).toEqual([0]);
+    rows.set('/b', [{ ...face, person_id: 8 }]);
+    expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
+    rows.set('/b', [face, { ...face, id: 2 }]);
+    expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
+    rows.set('/b', [{ ...face, box: [0.1, 0.2, 2, 0.6] }]);
+    expect(sharedInspectionPeople(['/a', '/b'], rows)).toEqual([]);
+  });
+
+  it('retains unusable face occurrences when deciding whether API-loaded correspondence is ambiguous', async () => {
+    const { fixture, api } = build(['/a.jpg', '/b.jpg']);
+    const face = { id: 1, face_index: 0, person_id: 7, person_name: 'Ada', box: [0.1, 0.2, 0.4, 0.6] };
+    api.get.mockImplementation((_url, params) => of({ faces: params.path === '/a.jpg' ? [face, { ...face, id: 2, face_index: 1, box: null }] : [face] }));
+    const component = fixture.componentInstance as unknown as { loadInspection(): Promise<void>; sharedPeople(): unknown[] };
+    await component.loadInspection();
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    expect(component.sharedPeople()).toEqual([]);
+    expect(fixture.nativeElement.querySelector('[data-shared-person]').disabled).toBe(true);
+    expect(fixture.nativeElement.querySelector('[data-frame-face]').querySelectorAll('option')).toHaveLength(2);
   });
 
   it('preserves manual alignment when relinking and applies relative gestures until an explicit reset', () => {

@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, afterRenderEffect, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
+import { normalizedInspectionBox } from './comparison-inspection.util';
 
 export interface ZoomState {
   scale: number;
@@ -77,7 +78,12 @@ export class LoadedSources {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [LoupeDirective],
   host: {
-    class: 'block relative overflow-hidden bg-black',
+    class: 'block relative overflow-hidden bg-black focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-white',
+    '[class.touch-none]': 'keyboardInspection()',
+    '[attr.tabindex]': 'keyboardInspection() ? 0 : null',
+    role: 'group',
+    '[attr.aria-label]': 'alt()',
+    '(keydown)': 'onKeydown($event)',
     '(wheel)': 'onWheel($event)',
     '(pointerdown)': 'onPointerDown($event)',
     '(pointermove)': 'onPointerMove($event)',
@@ -105,6 +111,8 @@ export class SyncedZoomComponent {
    *  in past fit; null keeps the frame's own centre. */
   readonly focusPoint = input<[number, number] | null>(null);
   readonly zoomChange = output<ZoomState>();
+  readonly keyboardInspection = input(false);
+  readonly fitRequested = output<void>();
 
   /** Shown until `src` has been fetched by a preloader; null disables the
    *  progressive load entirely (no `Image` is ever constructed). */
@@ -346,6 +354,42 @@ export class SyncedZoomComponent {
   /** Repeat this pane's reads only; framing and the selected photo stay intact. */
   retry(): void { this.retryAttempt.update(attempt => attempt + 1); }
 
+  /** Compute every pane's proposed crop before the parent commits any of them. */
+  zoomForRegion(value: unknown, expectedAspect?: number): ZoomState | null {
+    const box = normalizedInspectionBox(value);
+    if (!box) return null;
+    this.measurePane();
+    const { w, h } = this.paneSize();
+    const { w: iw, h: ih } = this.naturalSize();
+    if (!w || !h || !iw || !ih || expectedAspect !== undefined && (!Number.isFinite(expectedAspect) || expectedAspect <= 0 || Math.abs(iw / ih / expectedAspect - 1) > 0.03)) return null;
+    const fit = this.containFitScale(w, h, iw, ih);
+    const [x1, y1, x2, y2] = box;
+    const scale = this.clampScale(Math.min(w / ((x2 - x1) * iw * fit * 1.5), h / ((y2 - y1) * ih * fit * 1.5)));
+    if (scale === SyncedZoomComponent.MIN_SCALE) return { ...FIT_ZOOM };
+    return { scale, tx: -scale * ((x1 + x2) / 2 - 0.5) * iw * fit, ty: -scale * ((y1 + y2) / 2 - 0.5) * ih * fit };
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    if (!this.keyboardInspection() || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+    if (event.key === 'Home' || event.key.toLowerCase() === 'f') {
+      event.preventDefault(); event.stopPropagation(); this.fitRequested.emit(); return;
+    }
+    const z = this.zoom();
+    let next: ZoomState | null = null;
+    const step = event.shiftKey ? 64 : 24;
+    if (event.key === '+' || event.key === '=') next = { ...z, scale: this.clampScale(z.scale * 1.5) };
+    else if (event.key === '-') next = { ...z, scale: this.clampScale(z.scale / 1.5) };
+    else if (z.scale > 1) {
+      const delta: Record<string, [number, number]> = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+      const pan = delta[event.key];
+      if (pan) next = { scale: z.scale, tx: z.tx + pan[0], ty: z.ty + pan[1] };
+    }
+    if (!next) return;
+    event.preventDefault(); event.stopPropagation();
+    this.markManuallyFramed();
+    this.zoomChange.emit(next);
+  }
+
   private clampScale(scale: number): number {
     return Math.max(SyncedZoomComponent.MIN_SCALE, Math.min(SyncedZoomComponent.MAX_SCALE, scale));
   }
@@ -392,7 +436,7 @@ export class SyncedZoomComponent {
     const z = this.zoom();
     const scale = this.clampScale(z.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
     if (scale === SyncedZoomComponent.MIN_SCALE) {
-      this.zoomChange.emit({ ...FIT_ZOOM });
+      this.zoomChange.emit(this.keyboardInspection() ? { ...z, scale } : { ...FIT_ZOOM });
       return;
     }
     // Only the fit -> zoomed step re-frames. A step taken while already zoomed
@@ -436,6 +480,7 @@ export class SyncedZoomComponent {
   }
 
   protected onDoubleClick(): void {
-    this.toggleZoom();
+    if (this.keyboardInspection() && this.zoom().scale > 1) this.fitRequested.emit();
+    else this.toggleZoom();
   }
 }
