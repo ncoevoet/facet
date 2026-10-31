@@ -64,6 +64,8 @@ Facet registra cada escaneo (estado, modo, directorios, contadores) y cada error
 | `embeddings` | CLIP ViT-L-14 o SigLIP 2 NaFlex | `clip_embedding` para similitud y etiquetado | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 GB |
 
+Las mediciones multipaso usan relojes monótonos. El tiempo EXIF del lote y los segundos de trabajo acumulados de las lecturas alternativas están incluidos en la decodificación; las alternativas paralelas pueden solaparse. Agregación, miniaturas (incluida la lectura de origen) y guardado sin miniaturas son intervalos separados; guardar incluye preparación y commit. Los pasos restringidos omiten agregación y miniaturas de fotos. No cambian los solapamientos de decodificación/modelos ni las reconstrucciones anidadas: no sumar todos los tiempos ni interpretar los segundos de trabajo EXIF como porcentaje del tiempo total. El modo de un paso queda fuera. Para una referencia, analizar una copia fija de 500 RAW/JPEG en una base temporal y conservar resumen, revisión, perfil, workers, tamaño de bloque, almacenamiento y condiciones de caché. Repetir en condiciones idénticas. No se aporta colección de referencia ni benchmark antes/después; no se afirma mejora de velocidad.
+
 ## Vista previa y exportación
 
 | Comando | Descripción |
@@ -275,7 +277,7 @@ La saliencia se ejecuta en todos los perfiles; `legacy` la ejecuta en CPU, más 
 - **Una foto que falla** se registra como ERROR y no se escribe nada. Una foto nunca puntuada sigue en NULL y la recoge el siguiente `--recompute-saliency`; una que ya tenía saliencia conserva sus valores, incluso con `--recompute-saliency --force`. Un reescaneo completo (por ejemplo `python facet.py --force`) guarda NULL para ella.
 - **Una foto sin sujeto** guarda NULL en nitidez, ubicación y separación, prominencia 0,0 y un `subject_bbox` NULL (y un `power_point_score` NULL desde el paso de composición). Es un resultado final; no se vuelve a medir.
 - **Las filas antiguas** guardaban en su lugar un 5,0 neutro. `--recompute-saliency` y `--recompute-composition-cpu` las reescriben. `--recompute-saliency` también recoge las fotos puntuadas antes de que existiera `subject_bbox`.
-- Una métrica NULL puntúa como neutra en el agregado. Ver [Dimensiones de saliencia del sujeto](SCORING.md#dimensiones-de-saliencia-del-sujeto).
+- Una métrica opcional NULL se excluye del agregado y su peso se redistribuye entre las métricas presentes; solo si faltan todas, el agregado usa el valor neutro 5.0. Ver [Sistema de puntuación](SCORING.md).
 
 ### Modelos de etiquetado
 

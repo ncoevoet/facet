@@ -64,6 +64,8 @@ Facet zeichnet jeden Scan (Status, Modus, Verzeichnisse, Zähler) und jeden Fehl
 | `embeddings` | CLIP ViT-L-14 oder SigLIP 2 NaFlex | `clip_embedding` für Ähnlichkeit und Verschlagwortung | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` | ~3 GB |
 
+Die Multi-Pass-Messungen verwenden monotone Uhren. EXIF-Batchzeit und summierte Worker-Sekunden der Fallbacks sind in der Dekodierzeit enthalten; parallele Fallbacks können sich überlappen. Aggregation, Vorschaubilder (einschließlich Quelldateilesen) und Speichern ohne Vorschaubilder sind getrennte Intervalle; Speichern enthält Vorbereitung und Commit. Eingeschränkte Durchläufe überspringen Aggregation und Foto-Vorschaubilder. Bestehende Dekodier-/Modellüberlappung und verschachtelte Ebenenrekonstruktionen bleiben unverändert: nicht alle Timer addieren oder EXIF-Worker-Sekunden als Laufzeitanteil interpretieren. Single-Pass ist ausgenommen. Für eine Baseline eine feste Kopie von 500 RAW/JPEG in eine Testdatenbank scannen; Zusammenfassung, Revision, Profil, Worker, Blockgröße, Speicher und Cachebedingungen festhalten. Unter gleichen Bedingungen wiederholen. Kein Referenzdatensatz oder Vorher-/Nachher-Benchmark vorhanden; kein Geschwindigkeitsgewinn behauptet.
+
 ## Vorschau & Export
 
 | Befehl | Beschreibung |
@@ -275,7 +277,7 @@ Die Salienz läuft auf allen Profilen; `legacy` führt sie langsamer auf der CPU
 - **Ein fehlgeschlagenes Foto** wird als ERROR protokolliert, und es wird nichts geschrieben. Ein nie bewertetes Foto bleibt NULL und wird vom nächsten `--recompute-saliency` erneut aufgegriffen; eines, das bereits Salienz hatte, behält seine Werte, auch unter `--recompute-saliency --force`. Ein vollständiger Neuscan (etwa `python facet.py --force`) speichert dafür NULL.
 - **Ein Foto ohne Motiv** speichert NULL für Schärfe, Platzierung und Trennung, Prominenz 0.0 und ein NULL-`subject_bbox` (sowie ein NULL-`power_point_score` aus dem Kompositionsschritt). Das ist endgültig; es wird nicht erneut gemessen.
 - **Ältere Zeilen** speicherten stattdessen eine neutrale 5.0. `--recompute-saliency` und `--recompute-composition-cpu` schreiben sie um. `--recompute-saliency` greift auch Fotos auf, die bewertet wurden, bevor `subject_bbox` existierte.
-- Eine NULL-Metrik zählt im Gesamtwert neutral. Siehe [Dimensionen der Motiverkennung](SCORING.md#dimensionen-der-motiverkennung).
+- Eine optionale NULL-Metrik wird aus dem Gesamtwert ausgeschlossen und ihr Gewicht auf die vorhandenen Metriken verteilt; nur wenn alle fehlen, gilt der neutrale Wert 5.0. Siehe [Bewertungssystem](SCORING.md).
 
 ### Verschlagwortungsmodelle
 

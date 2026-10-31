@@ -233,14 +233,13 @@ def _calculate_breakdown(photo, sc, category):
     Returns a sorted list of score contributions with metric details.
     """
     from processing.scorer import (
-        build_metric_vector, fold_quality_weight, renormalise_weights,
+        build_metric_vector, fold_quality_weight, weights_for_row,
         unavailable_for_config, weighted_metric_contribution,
     )
 
     weights = fold_quality_weight(sc.get_weights(category))
     unavailable = unavailable_for_config(sc)
-    if unavailable:
-        weights = renormalise_weights(weights, unavailable)
+    weights = weights_for_row(weights, photo, unavailable)
     vector = build_metric_vector(photo, sc, category, unavailable=unavailable)
     breakdown = []
     for metric_key, value in vector.items():

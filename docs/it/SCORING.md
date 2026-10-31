@@ -4,6 +4,8 @@
 
 Le foto vengono classificate in una categoria e poi valutate con i pesi di quella categoria.
 
+I valori assenti o NULL di subject_sharpness, subject_prominence, subject_placement, bg_separation e face_quality_iqa sono esclusi dal punteggio ponderato. Solo il loro peso positivo viene redistribuito alle metriche disponibili; zero rimane valido. Se mancano tutti gli ingressi ponderati, si usa il valore neutro 5.0. Le esclusioni di licenza si applicano prima. I pesi predefiniti non cambiano. `--optimize-weights` lascia invariato un peso quando l'insieme dei confronti non ha alcun valore per quella metrica. Per completare la salienza, eseguire `--recompute-saliency`, poi `--recompute-average`.
+
 ## Come funziona il punteggio
 
 1. **Rilevamento della categoria** - La foto viene analizzata per il contenuto (volti, tag, dati EXIF)
@@ -231,10 +233,10 @@ Usa `subject_sharpness_percent` e `bg_separation_percent` per ritratti/fauna sel
 **Nessun soggetto, nessun numero.** Quando non si trova alcun soggetto, `subject_sharpness`, `subject_placement` e `bg_separation` vengono memorizzati come NULL (come `power_point_score` quando non c'è un riquadro del soggetto), `subject_prominence` è 0.0 e `subject_bbox` è NULL.
 
 - I filtri di intervallo della galleria saltano un NULL (`min_subject_sharpness=0` non restituisce una foto senza soggetto). Le statistiche lo escludono dalle medie e l'interfaccia lo mostra come assente.
-- L'aggregato conta un NULL come un 5.0 neutro, quindi nessun aggregato cambia.
+- Gli ingressi di salienza NULL seguono la regola dei valori mancanti sopra; i pesi predefiniti restano invariati.
 - Le versioni precedenti memorizzavano un 5.0 neutro. Le righe esistenti lo mantengono finché `--recompute-saliency` e `--recompute-composition-cpu` non le riscrivono.
 
-**Quando la salienza fallisce**, non viene scritto nulla; Facet non memorizza mai un numero neutro per un risultato fallito. Una foto mai valutata mantiene NULL in tutte e cinque le colonne di salienza (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`) e ottiene un punteggio neutro (5.0), come una foto scansionata prima che esistesse la salienza. Regole di ripetizione e dimensione del batch: [Salienza del soggetto](COMMANDS.md#salienza-del-soggetto).
+**Quando la salienza fallisce**, non viene scritto nulla; Facet non memorizza mai un numero neutro per un risultato fallito. Una foto mai valutata mantiene NULL in tutte e cinque le colonne di salienza (`subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation`, `subject_bbox`), come una foto scansionata prima che esistesse la salienza. Regole di ripetizione e dimensione del batch: [Salienza del soggetto](COMMANDS.md#salienza-del-soggetto).
 
 ## Dimensioni IQA supplementari
 
@@ -250,7 +252,7 @@ Questi modelli vengono eseguiti come parte della pipeline di punteggio predefini
 
 **Quando un modello supplementare non riesce a valutare una foto**, memorizza NULL nella colonna di quel modello (`face_quality_iqa`, `liqe_score`, `aesthetic_iaa`, `aesthetic_v25`) invece di un 5.0 neutro. Succede quando TOPIQ NR-Face non trova alcun volto, o quando LIQE riceve un lato corto inferiore a 224 px; Aesthetic V2.5, se attivato, può fallire su qualsiasi immagine. Un errore di memoria della CPU non viene ritentato con una dimensione di batch inferiore.
 
-- **Aggregato:** un NULL vale come neutro (5.0), quindi punteggi, categorie e classifiche non cambiano.
+- Un face_quality_iqa NULL segue la regola sopra; gli altri ingressi supplementari NULL mantengono il valore neutro 5.0.
 - **Galleria:** un filtro di intervallo su Estetica (IAA), Qualità volto (IQA), LIQE o Aesthetic V2.5 non include una foto senza punteggio (`min_face_quality_iqa=0` salta una foto senza volti). Un ordinamento crescente su questi, su Q-ReAlign o su DeQA mette le foto senza punteggio in fondo, nella galleria e negli album.
 - **I vecchi valori neutri 5.0** restano finché `--repair-neutral-iqa` non li cancella; poi esegui `--recompute-iqa` e `--recompute-average`, oppure riscansiona con `--force`.
 - **Errore del modello principale** (TOPIQ sui profili `16gb` e `24gb`): la foto viene registrata come fallita invece di essere salvata con un 5.0 neutro. Una foto nuova viene ripresa dalla scansione successiva; una già memorizzata conserva la propria riga e viene ritentata da `--retry-failed all` (un `--retry-failed` senza argomento copre solo l'ultima esecuzione con errori) o da un'altra scansione con `--force`.
