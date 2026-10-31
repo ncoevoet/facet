@@ -277,7 +277,7 @@ As ferramentas de escrita estão na mesma lista `/mcp` que as de leitura. Cada u
 | `update_photo_stack` | `edition` | Substituir membros/ordem explícitos e capa opcional; revisão antiga é recusada | 1000 caminhos |
 | `unstack_photos` | `edition` | Dissolver uma pilha; os originais ficam intactos |  |
 | `undo_photo_stack` | `edition` | Desfazer apenas uma entrada de pilha disponível; alterações posteriores são recusadas |  |
-| `import_ai_edit` | `edition` | Trazer para a biblioteca uma edição por IA de uma foto, ao lado dela (`mode`: `move` ou `copy`, obrigatório; `tool` tem de estar configurada); não idempotente, cada chamada acrescenta uma revisão | 1 file |
+| `import_ai_edit` | `edition` | Trazer para a biblioteca uma edição por IA de uma foto, ao lado dela (`mode`: `move` ou `copy`, obrigatório; `tool` tem de estar configurada); não idempotente, cada chamada acrescenta uma revisão; `tag` etiqueta a edição como `ai: <tag>` | 1 file |
 | `create_album` | `edition` | Cria um álbum (não idempotente: duas vezes cria dois álbuns): vazio, ou a partir de `filters` / `target: "view"` como álbum inteligente que segue esses filtros, ou a partir de `paths` / `target: "selection"` como álbum fixo preenchido na mesma chamada (`added`, `skipped`). Um álbum inteligente usa os interruptores de ocultação do visualizador e em `list_albums` mostra 0 fotos. Uns `filters` sem nenhum filtro efetivo (`{}`, ou apenas interruptores de visualização desligados) são recusados como `invalid_input`: omita `filters` para um álbum vazio | |
 | `album_add_photos` | `edition` | Adiciona fotos a um álbum (as já presentes são ignoradas) | 1000 caminhos |
 | `album_remove_photos` | `edition` | Remove fotos de um álbum; as fotos não são tocadas | 1000 caminhos |

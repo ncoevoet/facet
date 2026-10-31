@@ -277,7 +277,7 @@ Schreibwerkzeuge stehen in derselben `/mcp`-Liste wie die Lesewerkzeuge. Jedes l
 | `update_photo_stack` | `edition` | Mitglieder/Reihenfolge und optionales Titelbild ersetzen; alte Revision verweigert | 1000 Pfade |
 | `unstack_photos` | `edition` | Stapel auflösen, Originale bleiben erhalten |  |
 | `undo_photo_stack` | `edition` | Nur verfügbaren Stapeleintrag rückgängig machen; spätere Änderungen verweigert |  |
-| `import_ai_edit` | `edition` | Eine KI-Bearbeitung eines Fotos neben ihm in die Bibliothek bringen (`mode`: `move` oder `copy`, Pflicht; `tool` muss konfiguriert sein); nicht idempotent, jeder Aufruf fügt eine Revision hinzu | 1 file |
+| `import_ai_edit` | `edition` | Eine KI-Bearbeitung eines Fotos neben ihm in die Bibliothek bringen (`mode`: `move` oder `copy`, Pflicht; `tool` muss konfiguriert sein); nicht idempotent, jeder Aufruf fügt eine Revision hinzu; `tag` versieht die Bearbeitung mit dem Tag `ai: <tag>` | 1 file |
 | `create_album` | `edition` | Legt ein Album an (nicht idempotent: zweimal ergibt zwei Alben): leer, oder aus `filters` / `target: "view"` als Smart-Album, das diesen Filtern folgt, oder aus `paths` / `target: "selection"` als festes Album, im selben Aufruf befüllt (`added`, `skipped`). Smart-Alben nutzen die Ausblend-Schalter des Viewers und zeigen in `list_albums` 0 Fotos. `filters` ohne wirksamen Filter (`{}` oder nur ausgeschaltete Anzeige-Schalter) werden als `invalid_input` abgewiesen: lassen Sie `filters` für ein leeres Album weg | |
 | `album_add_photos` | `edition` | Fügt einem Album Fotos hinzu (bereits enthaltene werden ignoriert) | 1000 Pfade |
 | `album_remove_photos` | `edition` | Entfernt Fotos aus einem Album; die Fotos selbst bleiben unberührt | 1000 Pfade |

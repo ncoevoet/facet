@@ -3,7 +3,8 @@
 The import places the file beside the original as ``{stem}_{suffix}_{revision}{ext}``
 (the suffix comes from ``ai_edits.tool_suffixes``, keyed by the tool's name), copies
 it and checks the copy byte for byte, deletes the source only for ``mode: move``,
-records the link in ``photo_ai_edits`` and scans the one new file. An existing file
+records the link (and the optional ``ai: ...`` tag, written by a trigger once the
+scan inserts the photo) in ``photo_ai_edits`` and scans the one new file. An existing file
 is never overwritten. Reads follow photo visibility; the import is edition-gated.
 """
 
@@ -23,7 +24,8 @@ from api.db_helpers import get_visibility_clause
 from api.models.ai_edits import AiEdit, AiEditImport, AiEditImportResponse, AiEditsResponse
 from api.routers.faces import _require_writable_photo
 from api.routers.scan import start_file_scan
-from db.ai_edits import _path_module, edit_file_name, next_revision
+from db.ai_edits import _path_module, ai_edit_tag, edit_file_name, next_revision
+from db.manual_tags import ManualTagError
 from utils.image_loading import RAW_EXTENSIONS, SCANNABLE_IMAGE_EXTENSIONS
 
 logger = logging.getLogger(__name__)
@@ -105,6 +107,10 @@ def import_ai_edit(body: AiEditImport, user: CurrentUser = Depends(require_editi
     if not suffix:
         known = ', '.join(sorted(suffixes)) or 'none configured'
         raise HTTPException(status_code=422, detail=f'Unknown tool {body.tool!r} (known: {known})')
+    try:
+        tag = ai_edit_tag(body.tag) if body.tag and body.tag.strip() else None
+    except ManualTagError as ex:
+        raise HTTPException(status_code=422, detail=f'tag: {ex}') from None
 
     with get_db() as conn:
         _require_writable_photo(conn, user, body.original_path)
@@ -133,22 +139,22 @@ def import_ai_edit(body: AiEditImport, user: CurrentUser = Depends(require_editi
 
     with get_db() as conn:
         conn.execute(
-            'INSERT INTO photo_ai_edits (edit_path, source_path, tool, model, note, revision, created_by)'
-            ' VALUES (?, ?, ?, ?, ?, ?, ?)',
-            (target, body.original_path, body.tool, body.model, body.note, revision,
+            'INSERT INTO photo_ai_edits (edit_path, source_path, tool, model, note, tag, revision, created_by)'
+            ' VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            (target, body.original_path, body.tool, body.model, body.note, tag, revision,
              user.user_id if user and is_multi_user_enabled() else None))
         conn.commit()
 
     refusal = start_file_scan(user, [target])
     return {
-        'edit_path': target, 'revision': revision, 'mode': body.mode, 'source_removed': source_removed,
+        'edit_path': target, 'revision': revision, 'tag': tag, 'mode': body.mode, 'source_removed': source_removed,
         'scan': {'started': refusal is None, 'detail': refusal},
     }
 
 
 def _edit(row) -> AiEdit:
     return AiEdit(edit_path=row['edit_path'], source_path=row['source_path'], tool=row['tool'],
-                  model=row['model'], note=row['note'], revision=row['revision'], created_at=row['created_at'])
+                  model=row['model'], note=row['note'], tag=row['tag'], revision=row['revision'], created_at=row['created_at'])
 
 
 @router.get('/api/photo/ai_edits', response_model=AiEditsResponse)

@@ -73,13 +73,17 @@ setting this skill needs. It names no server address and no library path.
 
    - `model`: the image model you used.
    - `note`: one line on what changed.
+   - `tag`: a few words on what changed, for example "removed watch from left
+     wrist". Facet tags the edit `ai: removed watch from left wrist` once it is
+     scanned. The tag is lowercase, has no comma, and is at most 64 characters
+     with the prefix.
 
    Facet saves the file beside the original as `{name}_{tag}_{revision}{ext}`,
    for example `IMG_3533_agy_2.JPG`. It never overwrites an existing file. It
    records the link to the original and scans the new file.
 
 7. **Confirm.**
-   - Report `edit_path` and `revision`.
+   - Report `edit_path`, `revision` and `tag`.
    - If `scan.started` is false, the file is placed and linked, and it shows up
      after the next scan. `scan.detail` says why.
    - Otherwise, open the edit with `ui_open_photo`. In the original's burst

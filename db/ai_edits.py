@@ -66,3 +66,35 @@ async def attach_ai_edit_sources_async(conn, photos: list[dict]) -> None:
     for photo in photos:
         if photo['path'] in found:
             photo['ai_edit_of'] = found[photo['path']]
+
+
+AI_TAG_PREFIX = 'ai: '
+
+
+def ai_edit_tag(text):
+    """The manual tag an import writes on its edit: ``ai: <text>``, normalized like any manual tag.
+
+    Raises :class:`db.manual_tags.ManualTagError` for text that cannot be a tag (comma,
+    control characters, longer than the tag cap once prefixed)."""
+    from db.manual_tags import normalize_manual_tag
+
+    body = ' '.join(text.split())
+    if body.lower().startswith('ai:'):
+        body = body[3:].strip()
+    return normalize_manual_tag(AI_TAG_PREFIX + body)
+
+
+def create_ai_edit_tag_trigger(conn):
+    """Tag an imported edit when its photo row first appears.
+
+    The import records the tag before the file is scanned, and ``photo_manual_tags``
+    references ``photos``, so the tag is written by this trigger on the scan's INSERT.
+    A rescan updates the row (no INSERT), so a tag the user removed stays removed."""
+    conn.execute(
+        "CREATE TRIGGER IF NOT EXISTS ai_edit_tag_on_scan AFTER INSERT ON photos "
+        "WHEN EXISTS (SELECT 1 FROM photo_ai_edits WHERE edit_path = NEW.path AND tag IS NOT NULL) "
+        "BEGIN "
+        "INSERT OR IGNORE INTO photo_manual_tags (photo_path, tag, source, created_by) "
+        "SELECT NEW.path, tag, 'user', created_by FROM photo_ai_edits "
+        "WHERE edit_path = NEW.path AND tag IS NOT NULL; "
+        "END")
