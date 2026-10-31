@@ -105,7 +105,7 @@ def join_ai_edits_to_original_sets(conn, edit_paths) -> int:
     alone. The edit takes the original's tags when its own scoring produced none. The
     next full scan's burst pass regroups the library as usual. Returns how many edits
     were placed. Does not commit."""
-    from db.tags import sync_photo_tags
+    from db.tags import write_photo_tags
 
     placed = 0
     for edit_path in edit_paths:
@@ -123,7 +123,6 @@ def join_ai_edits_to_original_sets(conn, edit_paths) -> int:
         conn.execute("UPDATE photos SET burst_group_id = ?, is_burst_lead = 0 WHERE path = ?",
                      (group, edit_path))
         if not (edit_tags or '').strip() and (original_tags or '').strip():
-            conn.execute("UPDATE photos SET tags = ? WHERE path = ?", (original_tags, edit_path))
-            sync_photo_tags(conn, [edit_path])
+            write_photo_tags(conn, [(edit_path, original_tags)])
         placed += 1
     return placed
