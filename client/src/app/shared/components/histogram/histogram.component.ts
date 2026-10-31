@@ -153,6 +153,11 @@ export const HISTOGRAM_PANEL_HEIGHT = 160;
         }
       </div>
 
+      <details class="mt-1 text-[10px]" data-histogram-source>
+        <summary class="cursor-pointer">{{ (curveSource() === 'stored' ? I18N.histogram.provenance.stored : I18N.histogram.provenance.thumbnail) | translate }}</summary>
+        <p class="my-1">{{ I18N.histogram.provenance.note | translate }}</p>
+      </details>
+
       @if (showModeToggle() && !monochrome()) {
         <div class="flex items-center gap-1 mt-1 flex-wrap" role="group"
              [attr.aria-label]="I18N.histogram.mode.label | translate">
@@ -223,7 +228,7 @@ export class HistogramComponent {
 
   protected readonly viewBox = computed(() => `0 0 ${VIEW_WIDTH} ${this.height()}`);
 
-  protected readonly curves = computed(() => {
+  private readonly curveChannels = computed(() => {
     const mode = this.effectiveMode();
     const stored = this.storedChannels();
     const sampled = this.sampledChannels();
@@ -231,7 +236,12 @@ export class HistogramComponent {
     // mode needs per-channel data: prefer the self-consistent sampled set,
     // falling back to the (channel-less) stored one only until sampling
     // resolves -- the template already degrades that to a luma polygon.
-    const source = mode === 'luma' ? (stored ?? sampled) : (sampled ?? stored);
+    return mode === 'luma' ? (stored ?? sampled) : (sampled ?? stored);
+  });
+  protected readonly curveSource = computed(() => this.curveChannels() === this.storedChannels() ? 'stored' : 'thumbnail');
+
+  protected readonly curves = computed(() => {
+    const source = this.curveChannels();
     if (!source) return null;
     const height = this.height();
     const rgb = this.monochrome() ? null : source;

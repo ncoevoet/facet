@@ -2863,6 +2863,15 @@
       "unavailable_help": "Unavailable means no usable measurement was returned. It is not a zero or a low score; the reason is not supplied here.",
       "group_pick": "Suggested in this group",
       "group_pick_help": "The group suggestion ranks these alternatives. It is not your rating and does not automatically mean Keep."
+    },
+    "rendition": {
+      "edited": "Developed preview",
+      "pending": "Requested rendition loading…",
+      "attempt_failed": "Requested rendition unavailable",
+      "note": "Source image means the display image delivered by the server, not an editable RAW render. Dimensions describe decoded pixels. Zoom is relative to Fit, not 100% sensor pixels. Stored histogram measurements describe the analyzed render; thumbnail estimates and clipping markers do not prove RAW sensor clipping.",
+      "base_render": "Base display render",
+      "edited_failed": "Developed preview unavailable",
+      "source_failed": "Source image unavailable"
     }
   },
   "manual_tags": {
@@ -3152,6 +3161,11 @@
     "clipping": {
       "shadow": "Shadow clipping: {channels}",
       "highlight": "Highlight clipping: {channels}"
+    },
+    "provenance": {
+      "stored": "Stored render histogram",
+      "thumbnail": "Thumbnail estimate",
+      "note": "This curve describes a rendered image, not RAW sensor values. Clipping markers use stored measurements when available; thumbnail sampling cannot establish sensor clipping."
     }
   },
   "manual_faces": {

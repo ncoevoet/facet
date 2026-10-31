@@ -2878,6 +2878,15 @@ export const I18N = {
       group_pick: "photo_detail.assessment.group_pick",
       group_pick_help: "photo_detail.assessment.group_pick_help",
     },
+    rendition: {
+      edited: "photo_detail.rendition.edited",
+      pending: "photo_detail.rendition.pending",
+      attempt_failed: "photo_detail.rendition.attempt_failed",
+      note: "photo_detail.rendition.note",
+      base_render: "photo_detail.rendition.base_render",
+      edited_failed: "photo_detail.rendition.edited_failed",
+      source_failed: "photo_detail.rendition.source_failed",
+    },
   },
   manual_tags: {
     batch: {
@@ -3166,6 +3175,11 @@ export const I18N = {
     clipping: {
       shadow: "histogram.clipping.shadow",
       highlight: "histogram.clipping.highlight",
+    },
+    provenance: {
+      stored: "histogram.provenance.stored",
+      thumbnail: "histogram.provenance.thumbnail",
+      note: "histogram.provenance.note",
     },
   },
   manual_faces: {

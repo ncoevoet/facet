@@ -21,6 +21,8 @@ import { PhotoActionsService } from '../../core/services/photo-actions.service';
 import { PhotoDetailBase } from '../../shared/directives/photo-detail-base.directive';
 import { ZoomPanDirective } from '../../shared/directives/zoom-pan.directive';
 import { FixedPipe } from '../../shared/pipes/fixed.pipe';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { RenditionReadoutComponent } from '../../shared/components/rendition-readout/rendition-readout.component';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { PersonThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
@@ -78,6 +80,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     MatProgressSpinnerModule,
     MatSnackBarModule,
     FixedPipe,
+    CaptureDatePipe, RenditionReadoutComponent,
     TranslatePipe,
     ThumbnailUrlPipe,
     PersonThumbnailUrlPipe,
@@ -247,20 +250,21 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
       <!-- Main content: image + info -->
       <div class="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 lg:overflow-hidden">
         <!-- Image panel -->
-        <div appZoomPan #zoom="zoomPan" class="group/photo shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative overflow-hidden cursor-grab">
+        <div [appZoomPan]="p.path" #zoom="zoomPan" class="group/photo shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative overflow-hidden cursor-grab">
           <img
-            [src]="p.path | thumbnailUrl:640:p.preview_revision"
+            [src]="thumbnailImageUrl()"
             [alt]="p.filename"
             class="w-full lg:max-w-full lg:max-h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="fullImageLoaded()"
             [style.transform]="zoom.transform()"
+            (load)="onThumbnailState($event)" (error)="onThumbnailState($event, true)"
           />
           <img
             [src]="fullImageUrl()"
             [alt]="p.filename"
             class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="!fullImageLoaded()"
-            (load)="onFullImageLoad()"
+            (load)="onFullImageLoad($event)" (error)="onFullImageError($event)"
             [style.transform]="zoom.transform()"
           />
           <app-photo-face-layer
@@ -273,6 +277,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [focusPersonIds]="focusPersonIds()"
             (changed)="refreshPeople(p.path)" />
           <app-person-face-menu [path]="p.path" [canEdit]="auth.isEdition()" (changed)="onPersonMenuChanged(p.path)" />
+          <div class="absolute inset-x-2 bottom-2 rounded bg-black/80 px-2 py-1 text-white cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+            <app-rendition-readout [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" (retry)="retryFullImage()" />
+          </div>
         </div>
 
         <!-- Info panel -->
@@ -290,7 +297,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   </button>
                 }
                 @if (p.date_taken) {
-                  <span class="leading-4">{{ p.date_taken }}</span>
+              <span class="leading-4">{{ p.date_taken | captureDate }}</span>
                 }
               </div>
             }
@@ -413,6 +420,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                                   [histogramHeight]="HISTOGRAM_PANEL_HEIGHT"
                                   [histogramDefaultMode]="histogramDefaultMode()"
                                   [indicatorPercent]="clippingIndicatorPercent()" />
+          <details class="text-xs text-[var(--mat-sys-on-surface-variant)]"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p>{{ I18N.photo_detail.rendition.note | translate }}</p></details>
 
 
           <!-- Location -->
@@ -834,7 +842,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     }
     this.photoMissing.set(false);
     this.photo.set(photo);
-    this.fullImageLoaded.set(false);
+
   }
 
   private memberAllowed(path: string): boolean {
@@ -954,7 +962,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       replaceUrl: true,
     });
     this.photo.set(next);
-    this.fullImageLoaded.set(false);
+
   }
 
   protected async download(path: string, type = 'original', profile?: string): Promise<void> {
@@ -1100,7 +1108,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       if (!target) { this.router.navigate(['/']); return; }
       this.router.navigate(['/photo'], { queryParams: { path: target.path }, state: { photo: target }, replaceUrl: true });
       this.photo.set(target);
-      this.fullImageLoaded.set(false);
+
     } finally { navigation.unsubscribe(); }
   }
 
@@ -1353,7 +1361,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       const refreshed = await this.photoActions.refreshPhotos([p.path]);
       if (!current() || !refreshed.includes(p.path)) return;
       const photo = await this.fetchPhoto(p.path);
-      if (current()) { this.fullImageLoaded.set(false); this.photo.set(photo); }
+      if (current()) this.photo.set(photo);
     } finally { dispose(); }
   }
 

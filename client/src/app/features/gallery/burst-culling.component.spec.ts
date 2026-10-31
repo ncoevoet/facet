@@ -1668,6 +1668,11 @@ describe('BurstCullingComponent', () => {
       expect(component['activeStyle']()).toBe('');
       expect(component['previewLoading']()).toBe(false);
       expect(mockSnackBar.open).toHaveBeenCalled();
+      expect(component['developedFailure']()).toEqual({ path: '/photo1.jpg', style: 'velvia' });
+      component['retryDarkroomPane']({ retry: vi.fn(), frameKey: () => '/photo1.jpg' } as unknown as SyncedZoomComponent);
+      expect(component['activeStyle']()).toBe('velvia');
+      expect(component['developedFailure']()).toBeNull();
+      expect(component['developedPreviewUrl']()).toContain('facet_retry=');
     });
 
     it('a stale onerror (user navigated away) neither reverts the style nor toasts', () => {
@@ -1692,6 +1697,20 @@ describe('BurstCullingComponent', () => {
 
       expect(component['previewLoading']()).toBe(true);
     });
+  });
+
+  it('records visible rendition evidence only for this route owner and does not change review state', async () => {
+    await store.loadGroups();
+    component['openLightbox'](store.groups()[0], 0);
+    const selections = store.selectionsMap();
+    component['onDisplayedRendition']({ kind: 'source', phase: 'ready', width: 600, height: 400 }, '/photo1.jpg', '');
+    expect(component['displayedRenditions']().get('/photo1.jpg')?.width).toBe(600);
+    component['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/not-visible.jpg', '');
+    expect(component['displayedRenditions']().has('/not-visible.jpg')).toBe(false);
+    component['pageNavigating'] = true;
+    component['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/photo1.jpg', '');
+    expect(component['displayedRenditions']().get('/photo1.jpg')?.phase).toBe('ready');
+    expect(store.selectionsMap()).toEqual(selections);
   });
 
   describe('subject close-up strip (non-face groups)', () => {
