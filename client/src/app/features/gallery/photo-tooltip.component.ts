@@ -123,9 +123,9 @@ export class CategoryLabelPipe implements PipeTransform {
 
             <!-- Category + aggregate placed in the library like photo detail's,
                with the stars on their own line. -->
-            <div class="flex items-center gap-2 mt-1 mb-1.5">
+            @if (p.category) { <div class="flex items-center gap-2 mt-1 mb-1.5">
               <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] truncate">{{ p.category | categoryLabel }}</span>
-            </div>
+            </div> }
             @if (!docked()) { <app-photo-assessment [photo]="p" [range]="store.metricRangesByColumn()['aggregate']" /> }
             @if (p.star_rating) {
               <div class="flex items-center gap-0.5 mb-1.5 text-yellow-400" role="img"

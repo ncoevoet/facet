@@ -1488,9 +1488,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  'over' drawer hides the stack entirely, so the countdown waits and starts
    *  afresh when it closes. A stack that leaves the DOM fires no pointerleave,
    *  so it also clears the pointer hold. */
+  private noticeLayoutWide: boolean | undefined;
   private readonly noticeCollapseLifecycle = effect(() => {
     const signature = this.noticesSignature();
     const drawerOpen = this.overDrawerOpen();
+    const wide = this.isDesktop();
+    const becameNarrow = !wide && this.noticeLayoutWide !== false;
+    this.noticeLayoutWide = wide;
     untracked(() => {
       const previous = this.noticeSignatureSeen;
       const drawerWasOpen = this.noticeDrawerSeen;
@@ -1507,9 +1511,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
         return;
       }
       this.noticeSignatureSeen = signature;
-      if (signature !== previous) {
-        this.noticesCollapsed.set(false);
-        this.armNoticeCollapse();
+      if (signature !== previous || becameNarrow) {
+        this.noticesCollapsed.set(!wide);
+        if (wide) this.armNoticeCollapse(); else this.disarmNoticeCollapse();
       } else if (drawerWasOpen && !this.noticesCollapsed()) {
         this.armNoticeCollapse();
       }

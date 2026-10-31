@@ -3007,7 +3007,7 @@
       "cancelled": "Export cancelled",
       "failed": "Export failed",
       "interrupted": "Export interrupted",
-      "progress": "{processed} / {total} files processed",
+      "progress": "Processed: {processed} / {total}",
       "counts": "{written} written · {skipped} skipped · {errors} errors",
       "close": "Close",
       "close_hint": "The export continues if you close this dialog. Reopen it to find recent exports.",
