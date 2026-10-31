@@ -4,11 +4,15 @@
 
 El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descartar y gestionar tus fotos.
 
-En escritorio, la barra superior separa los destinos de los controles de página. Navegación muestra u oculta una barra lateral compacta. El puntero o el foco la amplían sobre las fotos; Fijar la mantiene abierta y reserva espacio. En teléfonos, Navegación abre un menú con nombres. Los detalles identifican su foto; Cerrar conserva la selección.
+El menú de hamburguesa contiene todos los destinos y los modos Oculta, Compacta y Fija. No hay un botón Fijar separado ni una fila duplicada de destinos. La barra lateral visible sustituye a la barra superior en escritorio y sitúa la cuenta al pie. Compacta se amplía con el puntero o el foco sobre las fotos sin reservar más anchura. Si está oculta y en teléfonos, el menú ofrece todos los destinos. Las herramientas permanecen junto al contenido.
 
-La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos. Orden, dirección, Filtros, información de foto y presentación forman un único grupo de colección en escritorio y teléfono. Cuenta, Edición y escaneo permitido permanecen en la barra de aplicación; la galería no duplica una barra inferior. Abrir una foto cierra los menús de colección y pausa sus comandos hasta volver.
+La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos. Orden, dirección, Filtros, información de foto y presentación forman un único grupo de colección en escritorio y teléfono. Cuenta, Edición y escaneo permitido permanecen en el área de navegación global; la galería no duplica una barra inferior. Abrir una foto cierra los menús de colección y pausa sus comandos hasta volver.
 
 **Vistas de trabajo.** Vista → Explorar usa un mosaico compacto con información al pasar el puntero (por clic en pantallas estrechas). Revisar usa tarjetas más grandes con detalles e inspección por clic (panel lateral si hay espacio). Organizar usa una cuadrícula más densa con detalles e información por clic. Solo cambian diseño, tamaño, detalles e inspección; consulta, orden, álbum, selección y página cargada se mantienen. Restablecer vista predeterminada recupera la presentación configurada sin restablecer filtros. Si los ajustes manuales ya no coinciden, ninguna vista queda marcada.
+
+**Criterios de la colección.** Los criterios de metadatos y búsqueda visual permanecen bajo la consulta al cerrar el panel. Quitar tiene un nombre accesible; borrar un rango quita ambos límites a la vez. La búsqueda visual explica cómo combina similitud, filtros y orden. Favoritos mantiene los demás criterios. Los filtros de decisión salen de la búsqueda visual; Sin decidir ordena por fecha de captura, de más antigua a más reciente, como se explica antes de elegir. Las reglas de visibilidad muestran la ocultación y los representantes de grupos efectivos; las reglas anuladas por un filtro Solo no aparecen activas. Las listas fijas indican que hay que volver a la vista habitual para cambiar criterios.
+
+Escape vuelve desde una foto abierta en la galería mediante el historial, conservando el contexto. Una foto abierta directamente vuelve a la consulta guardada en vez de salir de la aplicación. Un diálogo o editor abierto recibe Escape primero.
 
 ## Contenido
 
@@ -547,7 +551,7 @@ Inicia un escaneo desde el navegador. El botón Escanear aparece cuando se cumpl
 
 En una instalación abierta de un solo usuario (`viewer.edition_password` vacío, el valor predeterminado), nadie puede escanear desde el navegador. Excepción: con `viewer.trusted_local_editing`, una sesión de navegador local de confianza, o un asistente local con un token de edición completa, puede escanear sin `show_scan_button` ni contraseña de edición.
 
-La galería vacía ofrece **Escanea fotos para empezar**. **Buscar fotos nuevas** también está en la barra de aplicación a cualquier anchura. Ambos abren el lanzador de escaneo:
+La galería vacía ofrece **Escanea fotos para empezar**. **Buscar fotos nuevas** también está en el área de navegación global a cualquier anchura. Ambos abren el lanzador de escaneo:
 
 - Elige un directorio de la lista e inicia el escaneo.
 - El progreso en vivo y las líneas de salida se muestran en el diálogo. La galería se actualiza cuando termina el escaneo.

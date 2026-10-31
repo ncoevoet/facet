@@ -359,12 +359,14 @@ export function loadActiveTab(): SidebarTabId {
             <button type="button" mat-tab-link [active]="tab.active" (click)="selectTab(tab.id)"
                [matTooltip]="tab.labelKey | translate"
                [attr.aria-label]="tab.count ? (I18N.gallery.sidebar.tabs.active_count | translate:{ label: (tab.labelKey | translate), count: tab.count }) : (tab.labelKey | translate)">
-              <span class="relative inline-flex flex-col items-center gap-0.5 min-w-0">
+              <span class="inline-flex flex-col items-center gap-0.5 min-w-0 py-1">
+                <span class="inline-flex h-6 items-center justify-center gap-1">
                 <mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon>
-                <span data-filter-tab-label class="max-w-12 truncate text-[11px] leading-4">{{ tab.labelKey | translate }}</span>
                 @if (tab.count) {
-                  <span data-filter-tab-count aria-hidden="true" class="absolute -top-1 -right-2 text-[0.625rem] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ tab.count }}</span>
+                  <span data-filter-tab-count aria-hidden="true" class="text-[0.625rem] rounded-full min-w-4 h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ tab.count }}</span>
                 }
+                </span>
+                <span data-filter-tab-label class="max-w-12 truncate text-[11px] leading-4">{{ tab.labelKey | translate }}</span>
               </span>
             </button>
           }

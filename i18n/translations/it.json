@@ -1026,6 +1026,9 @@
     "read_only_hint": "Sola lettura: imposta viewer.edition_password in scoring_config.json per abilitare valutazione, selezione e modifica, poi riavvia il viewer."
   },
   "nav": {
+    "sidebar_hidden": "Nascondi barra laterale",
+    "sidebar_compact": "Barra laterale compatta",
+    "sidebar_pinned": "Barra laterale fissa",
     "gallery": "Galleria",
     "gallery_tooltip": "Galleria (doppio clic per reimpostare i filtri)",
     "stats": "Statistiche",
@@ -1056,6 +1059,18 @@
     "user_menu": "Menu utente"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "I filtri di decisione escono dalla ricerca visiva. Da decidere ordina per data di scatto, dalla più vecchia.",
+      "label": "Criteri attivi",
+      "visibility": "Regole di visibilità ({count})",
+      "remove": "Rimuovi {label}",
+      "ranked": "Ricerca per somiglianza visiva",
+      "ranked_help": "Candidati per somiglianza; i filtri esatti restringono i risultati. L’ordinamento determina l’ordine visualizzato.",
+      "exact": "Filtri dei metadati",
+      "pinned": "Questo è un elenco fisso di foto. Torna alla vista abituale prima di modificare i criteri.",
+      "similarity": "Soglia di somiglianza",
+      "no_location": "Senza posizione"
+    },
     "presentation": {
       "label": "Vista",
       "help": "Scegli un layout di lavoro. Filtri, ordinamento, album e selezione restano invariati.",

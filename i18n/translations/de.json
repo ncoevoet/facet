@@ -1026,6 +1026,9 @@
     "read_only_hint": "Nur Lesezugriff: Setzen Sie viewer.edition_password in scoring_config.json, um Bewerten, Aussortieren und Bearbeiten zu aktivieren, und starten Sie den Viewer anschließend neu."
   },
   "nav": {
+    "sidebar_hidden": "Seitenleiste ausblenden",
+    "sidebar_compact": "Kompakte Seitenleiste",
+    "sidebar_pinned": "Angeheftete Seitenleiste",
     "gallery": "Galerie",
     "gallery_tooltip": "Galerie (Doppelklick zum Zurücksetzen der Filter)",
     "stats": "Statistiken",
@@ -1056,6 +1059,18 @@
     "user_menu": "Benutzermenü"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Entscheidungsfilter verlassen die visuelle Suche. Unentschieden verwendet das Aufnahmedatum, älteste zuerst.",
+      "label": "Aktive Kriterien",
+      "visibility": "Sichtbarkeitsregeln ({count})",
+      "remove": "{label} entfernen",
+      "ranked": "Visuelle Ähnlichkeitssuche",
+      "ranked_help": "Kandidaten nach Ähnlichkeit; exakte Filter grenzen sie ein. Die Sortierung bestimmt die angezeigte Reihenfolge.",
+      "exact": "Metadatenfilter",
+      "pinned": "Dies ist eine feste Fotoliste. Vor dem Ändern der Kriterien zur üblichen Ansicht zurückkehren.",
+      "similarity": "Ähnlichkeitsschwelle",
+      "no_location": "Ohne Standort"
+    },
     "presentation": {
       "label": "Ansicht",
       "help": "Aufgabenlayout wählen. Filter, Sortierung, Album und Auswahl bleiben gleich.",

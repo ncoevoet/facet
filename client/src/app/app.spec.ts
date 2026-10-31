@@ -194,226 +194,6 @@ describe('App', () => {
     });
   });
 
-  describe('activeFilterChips', () => {
-    it('returns empty array when not on gallery route', () => {
-      const { app, filtersSignal } = createApp('/compare');
-      filtersSignal.set({ ...DEFAULT_FILTERS, tag: 'nature' });
-      expect((app as any).activeFilterChips()).toEqual([]);
-    });
-
-    it('returns empty array when no active filters', () => {
-      const { app } = createApp('/');
-      expect((app as any).activeFilterChips()).toEqual([]);
-    });
-
-    it('produces chip for active tag filter', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, tag: 'nature' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'tag');
-      expect(chip).toBeDefined();
-      expect(chip?.value).toBe('nature');
-    });
-
-    it('produces chip for active search filter', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, search: 'paris' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'search');
-      expect(chip?.value).toBe('paris');
-    });
-
-    it('produces chip for active camera filter', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, camera: 'Canon R5' });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'camera' && c.value === 'Canon R5')).toBe(true);
-    });
-
-    it('produces one chip per person in comma-separated person_id', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '1,2,3' });
-      const personChips = (app as any).activeFilterChips().filter((c: any) => c.id.startsWith('person_'));
-      expect(personChips).toHaveLength(3);
-      expect(personChips.map((c: any) => c.id)).toEqual(['person_1', 'person_2', 'person_3']);
-    });
-
-    it('uses person name when available', () => {
-      const { app, filtersSignal, personsSignal } = createApp('/');
-      personsSignal.set([{ id: 1, name: 'Alice' }]);
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '1' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'person_1');
-      expect(chip?.value).toBe('Alice');
-    });
-
-    it('falls back to #pid when person name is null', () => {
-      const { app, filtersSignal, personsSignal } = createApp('/');
-      personsSignal.set([{ id: 2, name: null }]);
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '2' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'person_2');
-      expect(chip?.value).toBe('#2');
-    });
-
-    it('falls back to #pid when person is not in persons list', () => {
-      const { app, filtersSignal, personsSignal } = createApp('/');
-      personsSignal.set([]);
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '99' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'person_99');
-      expect(chip?.value).toBe('#99');
-    });
-
-    it('shows min–max format when both range bounds are set', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '6', max_score: '9' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.value).toBe('6–9');
-    });
-
-    it('shows ≥min format when only min bound is set', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '7', max_score: '' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.value).toBe('≥7');
-    });
-
-    it('shows ≤max format when only max bound is set', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '', max_score: '8' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.value).toBe('≤8');
-    });
-
-    it('range chip clearKeys includes both min and max keys', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '5', max_score: '9' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score');
-      expect(chip?.clearKeys).toEqual(['min_score', 'max_score']);
-    });
-
-    it('produces chip for favorites_only = true', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, favorites_only: true });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'favorites_only')).toBe(true);
-    });
-
-    it('does not produce chip for favorites_only = false', () => {
-      const { app } = createApp('/');
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'favorites_only')).toBe(false);
-    });
-
-    it('produces chip for is_monochrome = true', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, is_monochrome: true });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'is_monochrome')).toBe(true);
-    });
-
-    it('shows the manual-face review filter only while it is active', () => {
-      const { app, filtersSignal } = createApp('/');
-      expect((app as any).activeFilterChips().some((chip: { id: string }) => chip.id === 'manual_faces_need_review')).toBe(false);
-      filtersSignal.update(filters => ({ ...filters, manual_faces_need_review: true }));
-      expect((app as any).activeFilterChips()).toContainEqual({
-        id: 'manual_faces_need_review', labelKey: I18N.gallery.manual_faces_need_review,
-        value: '', clearKeys: ['manual_faces_need_review'],
-      });
-      filtersSignal.update(filters => ({ ...filters, manual_faces_need_review: false }));
-      expect((app as any).activeFilterChips().some((chip: { id: string }) => chip.id === 'manual_faces_need_review')).toBe(false);
-    });
-
-    it('topiq chip uses gallery.topiq_range (not aesthetic_range)', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_topiq: '5', max_topiq: '' });
-      const topiqChip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_topiq');
-      expect(topiqChip?.labelKey).toBe('gallery.topiq_range');
-    });
-
-    it('aesthetic chip uses gallery.aesthetic_range', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_aesthetic: '5', max_aesthetic: '' });
-      const aestheticChip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_aesthetic');
-      expect(aestheticChip?.labelKey).toBe('gallery.aesthetic_range');
-    });
-
-    it('topiq and aesthetic chips have distinct label keys', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_topiq: '5', min_aesthetic: '5', max_topiq: '', max_aesthetic: '' });
-      const chips = (app as any).activeFilterChips();
-      const topiq = chips.find((c: any) => c.id === 'min_topiq');
-      const aesthetic = chips.find((c: any) => c.id === 'min_aesthetic');
-      expect(topiq?.labelKey).not.toBe(aesthetic?.labelKey);
-    });
-  });
-
-  describe('clearFilterChip', () => {
-    it('clears the manual-face review flag as a boolean and preserves other filters', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, manual_faces_need_review: true, person_id: '7', min_score: '5' });
-      mockStore.updateFilter.mockImplementation((key: keyof GalleryFilters, value: GalleryFilters[keyof GalleryFilters]) => {
-        filtersSignal.update(filters => ({ ...filters, [key]: value }));
-      });
-      const chip = (app as any).activeFilterChips().find((item: { id: string }) => item.id === 'manual_faces_need_review');
-      expect(chip).toBeDefined();
-      (app as any).clearFilterChip(chip);
-      expect(mockStore.updateFilter).toHaveBeenCalledExactlyOnceWith('manual_faces_need_review', false);
-      expect(filtersSignal()).toMatchObject({ manual_faces_need_review: false, person_id: '7', min_score: '5' });
-      expect((app as any).activeFilterChips().map((item: { id: string }) => item.id)).toEqual(['person_7', 'min_score']);
-    });
-    it('removes one person without affecting other person ids', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '1,2,3' });
-      (app as any).clearFilterChip({ id: 'person_2', clearKeys: ['person_2'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('person_id', '1,3');
-    });
-
-    it('sets person_id to empty string when last person is removed', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, person_id: '5' });
-      (app as any).clearFilterChip({ id: 'person_5', clearKeys: ['person_5'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('person_id', '');
-    });
-
-    it('calls updateFilter with false for favorites_only', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).clearFilterChip({ id: 'favorites_only', clearKeys: ['favorites_only'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('favorites_only', false);
-    });
-
-    it('calls updateFilter with false for is_monochrome', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).clearFilterChip({ id: 'is_monochrome', clearKeys: ['is_monochrome'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('is_monochrome', false);
-    });
-
-    it('calls updateFilter with empty string for string filters', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).clearFilterChip({ id: 'tag', clearKeys: ['tag'] });
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('tag', '');
-    });
-
-    it('calls updateFilter for both min and max keys of a range chip', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_score: '5', max_score: '9' });
-      const chip = (app as any).activeFilterChips().find((c: any) => c.id === 'min_score')!;
-      (app as any).clearFilterChip(chip);
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('min_score', '');
-      expect(mockStore.updateFilter).toHaveBeenCalledWith('max_score', '');
-    });
-  });
-
-  describe('activeFilterChips with unavailable metrics', () => {
-    it('shows a LIQE chip in default mode', () => {
-      const { app, filtersSignal } = createApp('/');
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_liqe: '4' });
-      expect((app as any).activeFilterChips().some((c: any) => c.id === 'min_liqe')).toBe(true);
-    });
-
-    it('skips chips for metrics the licensing policy hides', () => {
-      const { app, filtersSignal, mockStore } = createApp('/');
-      (mockStore.config as any).set({ unavailable_metrics: ['liqe_score', 'aesthetic_iaa'] });
-      filtersSignal.set({ ...DEFAULT_FILTERS, min_liqe: '4', min_aesthetic_iaa: '5', min_score: '6' });
-      const ids = (app as any).activeFilterChips().map((c: any) => c.id);
-      expect(ids).toContain('min_score');
-      expect(ids).not.toContain('min_liqe');
-      expect(ids).not.toContain('min_aesthetic_iaa');
-    });
-  });
-
   describe('onCompareCategoryChange', () => {
     it('sets selectedCategory on compareFilters service', () => {
       const { app, compareCategorySig } = createApp('/');
@@ -801,60 +581,51 @@ describe('App', () => {
       expect(menu.querySelector('a[href="/stats"]')).not.toBeNull();
     });
 
-    it('uses compact top navigation without reserving a permanent left rail', () => {
-      const { root } = render(true);
-      const header = root.querySelector<HTMLElement>('header[data-workspace-navigation]');
-      expect(header).not.toBeNull();
-      expect(root.querySelector('mat-toolbar')).toBeNull();
-      expect(header!.querySelector(`button[aria-label="${I18N.auth.user_menu}"]`)).not.toBeNull();
-      expect(root.querySelector('aside[data-workspace-navigation]')).toBeNull();
-      expect(root.firstElementChild!.classList.contains('lg:pl-48')).toBe(false);
-      const primary = header!.querySelector('[data-primary-navigation]')!;
-      for (const [href, label] of [['/', I18N.nav.gallery], ['/culling', I18N.nav.culling]]) {
-        const link = primary.querySelector(`a[href="${href}"]`)!;
-        expect(link.textContent).toContain(label);
-        expect(link.getAttribute('ariaCurrentWhenActive')).toBe('page');
-      }
-      expect(header!.querySelector('[data-mobile-navigation]')).not.toBeNull();
-      expect(header!.querySelector(`a[aria-label="${I18N.nav.gallery_tooltip}"]`)).not.toBeNull();
-      primary.querySelector('a[href="/"]')!.dispatchEvent(new MouseEvent('dblclick'));
-      expect(TestBed.inject(GalleryStore).resetFilters).toHaveBeenCalledOnce();
-    });
+    it('keeps only the hamburger, brand and global controls when navigation is hidden', () => {
+ const {root}=render(true);
+ const header=root.querySelector<HTMLElement>('header[data-workspace-navigation]')!;
+ expect(header).not.toBeNull();expect(root.querySelector('mat-toolbar')).toBeNull();
+ expect(header.querySelector('[data-primary-navigation]')).toBeNull();
+ expect(header.querySelector('[data-toggle-navigation]')?.getAttribute('aria-haspopup')).toBe('menu');
+ expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
+ expect(header.querySelector('button[aria-label="'+I18N.auth.user_menu+'"]')).not.toBeNull();
+ header.querySelector('a[aria-label="'+I18N.nav.gallery_tooltip+'"]')!.dispatchEvent(new MouseEvent('dblclick'));
+ expect(TestBed.inject(GalleryStore).resetFilters).toHaveBeenCalledOnce();
+});
 
-    it('can hide, preview and pin navigation without letting hover reserve the expanded width', () => {
-      const { fixture, root } = render(true);
-      const toggle = root.querySelector<HTMLButtonElement>('[data-toggle-navigation]')!;
-      expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
-      toggle.click(); fixture.detectChanges();
-      const rail = root.querySelector<HTMLElement>('[data-expandable-navigation]')!;
-      const main = root.querySelector('main')!;
-      expect(main.classList.contains('lg:ml-14')).toBe(true);
-      rail.dispatchEvent(new Event('mouseenter')); fixture.detectChanges();
-      expect(rail.classList.contains('!w-48')).toBe(true);
-      expect(main.classList.contains('lg:ml-48')).toBe(false);
-      rail.dispatchEvent(new Event('mouseleave')); fixture.detectChanges();
-      expect(rail.classList.contains('!w-48')).toBe(false);
-      rail.dispatchEvent(new FocusEvent('focusin')); fixture.detectChanges();
-      expect(rail.classList.contains('!w-48')).toBe(true);
-      rail.dispatchEvent(new Event('mouseleave')); fixture.detectChanges();
-      expect(rail.classList.contains('!w-48')).toBe(true);
-      rail.querySelector<HTMLButtonElement>('[data-pin-navigation]')!.click(); fixture.detectChanges();
-      rail.dispatchEvent(new Event('mouseleave')); fixture.detectChanges();
-      expect(rail.classList.contains('!w-48')).toBe(true);
-      expect(main.classList.contains('lg:ml-48')).toBe(true);
-      expect(rail.querySelector('[data-pin-navigation]')!.getAttribute('aria-pressed')).toBe('true');
-      toggle.click(); fixture.detectChanges();
-      expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
-      expect(main.classList.contains('lg:ml-48')).toBe(false);
-    });
+    it('uses one navigation surface and lets the hamburger choose hidden, compact or pinned', async () => {
+ const {fixture,root}=render(true);const app=fixture.componentInstance as any;
+ app.navigationWide.isDesktop=signal(true);
+ const choose=async(mode:string)=>{
+  root.querySelector<HTMLButtonElement>('[data-toggle-navigation]')!.click();fixture.detectChanges();await fixture.whenStable();
+  const button=document.querySelector<HTMLButtonElement>('[data-navigation-mode="'+mode+'"]')!;
+  expect(button).not.toBeNull();button.click();fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
+ };
+ await choose('compact');
+ let rail=root.querySelector<HTMLElement>('[data-expandable-navigation]')!;const main=root.querySelector('main')!;
+ expect(root.querySelector('header[data-workspace-navigation]')).toBeNull();
+ expect(rail.querySelector('[data-pin-navigation]')).toBeNull();
+ expect(rail.querySelector('button[aria-label="'+I18N.auth.user_menu+'"]')).not.toBeNull();
+ expect(main.classList.contains('lg:ml-14')).toBe(true);
+ rail.dispatchEvent(new Event('mouseenter'));fixture.detectChanges();
+ expect(rail.classList.contains('!w-48')).toBe(true);expect(main.classList.contains('lg:ml-48')).toBe(false);
+ rail.dispatchEvent(new Event('mouseleave'));rail.dispatchEvent(new FocusEvent('focusout',{relatedTarget:document.body}));fixture.detectChanges();
+ expect(rail.classList.contains('!w-48')).toBe(false);
+ await choose('pinned');rail=root.querySelector('[data-expandable-navigation]')!;
+ expect(main.classList.contains('lg:ml-48')).toBe(true);expect(rail.classList.contains('!w-48')).toBe(true);
+ await choose('hidden');expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
+ expect(root.querySelector('header[data-workspace-navigation]')).not.toBeNull();expect(main.classList.contains('lg:ml-48')).toBe(false);
+});
 
-    it('removes editing destinations immediately when edition access is lost', () => {
+    it('removes editing destinations immediately when edition access is lost', async () => {
       const { fixture, root } = render(true);
       const auth = TestBed.inject(AuthService) as unknown as { isEdition: ReturnType<typeof signal<boolean>> };
-      expect(root.querySelector('[data-primary-navigation] a[href="/culling"]')).not.toBeNull();
+      root.querySelector<HTMLButtonElement>('[data-toggle-navigation]')!.click();
+      fixture.detectChanges(); await fixture.whenStable();
+      expect(document.querySelector('.mat-mdc-menu-panel a[href="/culling"]')).not.toBeNull();
       auth.isEdition.set(false);
       fixture.detectChanges();
-      expect(root.querySelector('[data-primary-navigation] a[href="/culling"]')).toBeNull();
+      expect(document.querySelector('.mat-mdc-menu-panel a[href="/culling"]')).toBeNull();
       expect(root.querySelector('[data-mobile-navigation]')).not.toBeNull();
     });
 

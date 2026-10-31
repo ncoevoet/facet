@@ -1026,6 +1026,9 @@
     "read_only_hint": "只读：请在 scoring_config.json 中设置 viewer.edition_password，以启用评分、筛选和编辑，然后重启查看器。"
   },
   "nav": {
+    "sidebar_hidden": "隐藏侧栏",
+    "sidebar_compact": "紧凑侧栏",
+    "sidebar_pinned": "固定侧栏",
     "gallery": "照片库",
     "gallery_tooltip": "照片库（双击重置筛选条件）",
     "stats": "统计",
@@ -1056,6 +1059,18 @@
     "user_menu": "用户菜单"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "决定筛选会退出视觉搜索。“未决定”按拍摄日期从早到晚排序。",
+      "label": "当前条件",
+      "visibility": "可见性规则（{count}）",
+      "remove": "移除{label}",
+      "ranked": "视觉相似性搜索",
+      "ranked_help": "按相似性查找候选；精确筛选进一步缩小结果。排序控制显示顺序。",
+      "exact": "元数据筛选",
+      "pinned": "这是固定照片列表。更改条件前请返回常用视图。",
+      "similarity": "相似性阈值",
+      "no_location": "无位置"
+    },
     "presentation": {
       "label": "显示",
       "help": "选择任务布局。筛选、排序、相册和选择保持不变。",

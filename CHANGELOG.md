@@ -14,19 +14,25 @@ All notable changes to Facet are documented in this file.
 ### Changed
 
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+- The hamburger controls hidden, compact and pinned sidebar modes. A visible desktop sidebar replaces the destination top bar and carries account controls, removing the separate Pin button and duplicated navigation row. Filter-tab counts sit within the icon row instead of overlapping its divider.
+
+- Active criteria and similarity controls belong to the collection header. Review, type, location and clipping criteria are visible; paired range bounds clear in one update. Quick filters disclose the existing visual-search and review-sort transitions, effective visibility rules are inspectable, and fixed lists explain their query restrictions.
+
 - Floating gallery actions release a closed inspector’s reserved width when switching to a narrow screen. The drawer container no longer scrolls horizontally when a focused control moves during resizing.
 
 - The selection bar discloses selected photos outside loaded tiles and whole-view exclusions. Comparison refuses partial or oversized selections instead of silently opening only some selected photos.
 
-- Gallery sort, filters, inspection and slideshow use one collection-owned control group at every width. Account and scan actions sit in the application bar; the duplicate gallery toolbar and mobile bottom bar are removed. Collection menus close and reject stale commands while a photo page parks the gallery.
+- Gallery sort, filters, inspection and slideshow use one collection-owned control group at every width. Account and scan actions follow global navigation; the duplicate gallery toolbar and mobile bottom bar are removed. Collection menus close and reject stale commands while a photo page parks the gallery.
 - Comparison has a thumbnail candidate strip, independent active-pane marking, view-only removal and restore. Two-pane comparison stacks vertically on narrow screens; command chrome follows the selected theme.
 - Grid cards with details fit whole images into equal 4:3 frames. Moving focus preserves other photos’ brightness while retaining separate current-photo and selection markers.
-- Application destinations use a compact top bar with an optional desktop icon sidebar: show/hide, hover or focus to expand, and pin to reserve space. Card metadata follows the selected light or dark theme.
+- Application destinations use one hideable sidebar, with compact hover/focus expansion and optional pinning controlled by the hamburger menu. Card metadata follows the selected light or dark theme.
 - The gallery owns its collection title, counts, Grid/Mosaic controls and exact text search at every width. The selection bar keeps Clear, Compare and review decisions visible, with labeled secondary commands in Actions. Small screens retain a navigation menu and Actions sheet; filter tabs show their names.
 - Light and dark workspace surfaces use neutral colors across the accent themes, keeping color emphasis on active controls and the photos.
 - The gallery details panel names its owning photo and can be closed without clearing the batch selection.
 
 ### Fixed
+
+- Escape on a directly opened photo returns to the saved gallery query instead of leaving the application through browser history. Gallery-opened photos retain normal history return.
 
 - Preserve the gallery view when returning from the stack editor, support Escape as Back, and clear the committed selection after a successful stack save.
 - Refresh photo face boxes after saving, editing or removing a manual face, without reopening the photo.

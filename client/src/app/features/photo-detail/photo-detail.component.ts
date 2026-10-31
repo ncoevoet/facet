@@ -596,6 +596,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private memberRequest = 0;
   private memberPhoto: { photo: Photo; owner: string } | null = null;
   private readonly viewerOwner = this.auth.identity();
+  /** Only gallery-opened entries own an in-app Back destination. Direct links
+   *  must not send Escape to an unrelated page or about:blank. */
+  private readonly openedFromGallery = !!history.state?.['photo'];
 
   readonly photo = signal<Photo | null>(null);
   protected readonly photoMissing = signal(false);
@@ -888,7 +891,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   @HostListener('document:keydown.escape', ['$event'])
   protected goBack(event?: Event): void {
     if (event && this.shortcutBlocked(event)) return;
-    this.location.back();
+    event?.preventDefault();
+    if (this.openedFromGallery) this.location.back();
+    else void this.router.navigate(['/'], { queryParams: this.store.readGallerySessionQuery() ?? undefined, replaceUrl: true });
   }
 
   @HostListener('document:keydown.arrowleft', ['$event'])

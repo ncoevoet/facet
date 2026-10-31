@@ -1026,6 +1026,9 @@
     "read_only_hint": "Solo lectura: defina viewer.edition_password en scoring_config.json para activar la valoración, la selección y la edición, y reinicie el visor."
   },
   "nav": {
+    "sidebar_hidden": "Ocultar barra lateral",
+    "sidebar_compact": "Barra lateral compacta",
+    "sidebar_pinned": "Barra lateral fija",
     "gallery": "Galería",
     "gallery_tooltip": "Galería (doble clic para restablecer filtros)",
     "stats": "Estadísticas",
@@ -1056,6 +1059,18 @@
     "user_menu": "Menú de usuario"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Los filtros de decisión salen de la búsqueda visual. Sin decidir ordena por fecha de captura, de más antigua a más reciente.",
+      "label": "Criterios activos",
+      "visibility": "Reglas de visibilidad ({count})",
+      "remove": "Quitar {label}",
+      "ranked": "Búsqueda por similitud visual",
+      "ranked_help": "Candidatos por similitud; los filtros exactos acotan los resultados. El orden controla su presentación.",
+      "exact": "Filtros de metadatos",
+      "pinned": "Esta es una lista fija de fotos. Vuelve a tu vista habitual antes de cambiar los criterios.",
+      "similarity": "Umbral de similitud",
+      "no_location": "Sin ubicación"
+    },
     "presentation": {
       "label": "Vista",
       "help": "Elige un diseño de trabajo. Los filtros, el orden, el álbum y la selección se mantienen.",

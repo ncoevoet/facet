@@ -1,4 +1,5 @@
 import { GalleryViewControlsComponent } from './gallery-view-controls.component';
+import { GalleryCriteriaComponent } from './gallery-criteria.component';
 import { StackActionsService } from './stack-actions.service';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import {
@@ -130,7 +131,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
     PhotoTooltipComponent,
     SlideshowComponent,
     GalleryFilterSidebarComponent,
-    GalleryViewControlsComponent,
+    GalleryViewControlsComponent, GalleryCriteriaComponent,
     PhotoCardComponent,
     GalleryPhotoMenuComponent,
     PhotoSkeletonComponent,
@@ -272,10 +273,10 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
-        <header data-collection-header class="border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] px-3 py-3 md:px-4">
+        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] px-3 py-3 md:px-4">
           <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-2">
           <div class="min-w-0 flex-1">
-          <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] break-words">
+          <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
           <p class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
@@ -305,6 +306,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex items-center gap-2">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
+          <app-gallery-criteria />
         </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
@@ -973,6 +975,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
   private readonly viewControls = viewChild(GalleryViewControlsComponent);
+  private readonly criteria = viewChild(GalleryCriteriaComponent);
   private readonly liveAnnouncer = inject(LiveAnnouncer);
   private readonly toolbarSearch = viewChild<ElementRef<HTMLInputElement>>('toolbarSearch');
 
@@ -1840,6 +1843,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private setGalleryChrome(active: boolean): void {
     this.pageHelp.setDescription(active ? I18N.gallery.help : null);
     this.viewControls()?.setActive(active);
+    this.criteria()?.setActive(active);
   }
 
   private refreshSideData(): void {

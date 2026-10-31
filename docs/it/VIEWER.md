@@ -4,11 +4,15 @@
 
 La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare e gestire le tue foto.
 
-Sul desktop, la barra superiore separa le destinazioni dai comandi della pagina. Navigazione mostra o nasconde una barra laterale compatta. Il puntatore o il focus la espandono sopra le foto; Fissa la mantiene aperta riservando spazio. Sul telefono Navigazione apre un menu con etichette. I dettagli indicano la foto; Chiudi conserva la selezione.
+Il menu hamburger contiene tutte le destinazioni e le modalità Nascosta, Compatta e Fissa. Non ci sono un pulsante Fissa separato o una riga duplicata di destinazioni. La barra laterale visibile sostituisce quella superiore sul desktop e ospita i comandi dell’account in basso. Compatta si espande al passaggio del puntatore o al focus sopra le foto senza riservare altra larghezza. Quando è nascosta e sui telefoni, il menu offre tutte le destinazioni. Gli strumenti restano con il contenuto.
 
-L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate. Ordinamento, direzione, Filtri, informazioni foto e presentazione formano un unico gruppo della raccolta su desktop e telefono. Account, Modifica e scansione autorizzata restano nella barra dell’applicazione; la galleria non duplica una barra inferiore. Aprire una foto chiude i menu della raccolta e sospende i comandi fino al ritorno.
+L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate. Ordinamento, direzione, Filtri, informazioni foto e presentazione formano un unico gruppo della raccolta su desktop e telefono. Account, Modifica e scansione autorizzata restano nell’area di navigazione globale; la galleria non duplica una barra inferiore. Aprire una foto chiude i menu della raccolta e sospende i comandi fino al ritorno.
 
 **Viste di lavoro.** Vista → Sfoglia usa un mosaico compatto con informazioni al passaggio del puntatore (al clic sugli schermi stretti). Rivedi usa riquadri più grandi con dettagli e ispezione al clic (pannello laterale sugli schermi ampi). Organizza usa una griglia più densa con dettagli e informazioni al clic. Cambiano solo layout, dimensioni, dettagli e ispezione; query, ordinamento, album, selezione e pagina caricata restano invariati. Ripristina la vista predefinita ripristina la presentazione configurata senza azzerare i filtri. Nessuna vista è selezionata se le regolazioni manuali non corrispondono più.
+
+**Criteri della raccolta.** I criteri dei metadati e della ricerca visiva restano sotto la query quando il pannello viene chiuso. Ogni rimozione ha un nome accessibile; cancellare un intervallo rimuove entrambi i limiti insieme. La ricerca visiva spiega la combinazione di somiglianza, filtri e ordinamento. Preferiti conserva gli altri criteri. I filtri di decisione escono dalla ricerca visiva; Da decidere ordina per data di scatto, dalla più vecchia, come spiegato prima della scelta. Le regole di visibilità mostrano esclusioni e rappresentanti dei gruppi effettivi; quelle annullate da un filtro Solo non risultano attive. Gli elenchi fissi richiedono di tornare alla vista abituale prima di cambiare i criteri.
+
+Esc torna tramite cronologia da una foto aperta nella galleria, mantenendo il contesto. Una foto aperta direttamente torna alla query salvata invece di uscire dall’app. Un dialogo o editor aperto gestisce Esc per primo.
 
 ## Contenuti
 
@@ -544,7 +548,7 @@ Avvia una scansione dal browser. Il pulsante Scansione compare quando **entrambe
 
 Su un'installazione aperta a utente singolo (`viewer.edition_password` vuota, il valore predefinito), nessuno può avviare scansioni dal browser. Eccezione: con `viewer.trusted_local_editing`, una sessione del browser locale fidata, o un assistente locale con un token di modifica completa, può avviare una scansione senza `show_scan_button` né password di modifica.
 
-La galleria vuota offre **Scansiona le foto per iniziare**. **Scansiona nuove foto** è disponibile anche nella barra dell’applicazione a ogni larghezza. Entrambi aprono l’avvio scansione:
+La galleria vuota offre **Scansiona le foto per iniziare**. **Scansiona nuove foto** è disponibile anche nell’area di navigazione globale a ogni larghezza. Entrambi aprono l’avvio scansione:
 
 - Scegli una directory dall'elenco e avvia la scansione.
 - Avanzamento in tempo reale e righe di output scorrono nella finestra. La galleria si aggiorna al termine della scansione.

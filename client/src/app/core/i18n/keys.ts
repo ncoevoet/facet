@@ -1040,6 +1040,9 @@ export const I18N = {
     read_only_hint: "edition.read_only_hint",
   },
   nav: {
+    sidebar_hidden: "nav.sidebar_hidden",
+    sidebar_compact: "nav.sidebar_compact",
+    sidebar_pinned: "nav.sidebar_pinned",
     gallery: "nav.gallery",
     gallery_tooltip: "nav.gallery_tooltip",
     stats: "nav.stats",
@@ -1070,6 +1073,18 @@ export const I18N = {
     user_menu: "auth.user_menu",
   },
   gallery: {
+    criteria: {
+      quick_help: "gallery.criteria.quick_help",
+      label: "gallery.criteria.label",
+      visibility: "gallery.criteria.visibility",
+      remove: "gallery.criteria.remove",
+      ranked: "gallery.criteria.ranked",
+      ranked_help: "gallery.criteria.ranked_help",
+      exact: "gallery.criteria.exact",
+      pinned: "gallery.criteria.pinned",
+      similarity: "gallery.criteria.similarity",
+      no_location: "gallery.criteria.no_location",
+    },
     presentation: {
       label: "gallery.presentation.label",
       help: "gallery.presentation.help",

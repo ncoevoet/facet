@@ -4,11 +4,15 @@
 
 Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, Aussortieren und Verwalten Ihrer Fotos.
 
-Am Desktop trennt die obere Leiste Ziele von Seitenbefehlen. Navigation zeigt oder verbirgt eine kompakte Symbolleiste. Zeiger oder Tastaturfokus erweitern sie über den Fotos; Anheften hält sie offen und reserviert Platz. Am Telefon öffnet Navigation ein beschriftetes Menü. Die Details nennen ihr Foto; Schließen erhält die Auswahl.
+Das Hamburger-Menü enthält alle Ziele und die Seitenleistenmodi Ausgeblendet, Kompakt und Angeheftet. Es gibt weder eine separate Anheften-Taste noch eine doppelte Zielzeile. Die sichtbare Desktop-Seitenleiste ersetzt die obere Anwendungsleiste; Kontobefehle stehen unten. Kompakt erweitert sich bei Zeiger oder Fokus über den Fotos ohne zusätzlichen Platzbedarf. Bei ausgeblendeter Leiste und auf dem Telefon enthält das Menü alle Ziele. Seitenwerkzeuge bleiben beim Inhalt.
 
-Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten. Sortierung, Richtung, Filter, Fotoinformationen und Diashow bilden eine Sammlungssteuerung am Desktop und Telefon. Konto, Bearbeitungsmodus und erlaubte Scan-Aktionen bleiben in der Anwendungsleiste; die Galerie hat keine doppelte untere Leiste. Beim Öffnen eines Fotos schließen sich Sammlungsmenüs und ihre Befehle pausieren bis zur Rückkehr.
+Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten. Sortierung, Richtung, Filter, Fotoinformationen und Diashow bilden eine Sammlungssteuerung am Desktop und Telefon. Konto, Bearbeitungsmodus und erlaubte Scan-Aktionen bleiben im globalen Navigationsbereich; die Galerie hat keine doppelte untere Leiste. Beim Öffnen eines Fotos schließen sich Sammlungsmenüs und ihre Befehle pausieren bis zur Rückkehr.
 
 **Anzeigevorgaben.** Ansicht → Durchsehen verwendet ein kompaktes Mosaik mit Informationen beim Überfahren (auf schmalen Bildschirmen per Klick). Prüfen zeigt größere Rasterkarten mit Details und klickgesteuerter Inspektion (bei ausreichender Breite als Seitenpanel). Organisieren zeigt ein dichteres Raster mit Details und Klickinformationen. Nur Layout, Kartengröße, Detailanzeige und Inspektion ändern sich; Abfrage, Sortierung, Album, Auswahl und geladene Seite bleiben erhalten. Anzeige auf Standard zurücksetzen stellt die konfigurierte Darstellung ohne Filterreset wieder her. Bei abweichenden manuellen Einstellungen ist keine Vorgabe markiert.
+
+**Sammlungskriterien.** Metadaten- und Suchkriterien bleiben unter der Sammlungsabfrage sichtbar, wenn das Filterpanel geschlossen wird. Entfernen ist beschriftet; ein Bereich wird mit beiden Grenzen gemeinsam gelöscht. Die visuelle Suche erklärt Ähnlichkeitskandidaten, Metadatenfilter und Sortierung. Favoriten behält andere Kriterien. Entscheidungsfilter verlassen die visuelle Suche; Unentschieden sortiert nach Aufnahmedatum, älteste zuerst. Dies wird vor der Auswahl erläutert. Sichtbarkeitsregeln zeigen wirksame Ausblendungen und Gruppenrepräsentanten; durch einen Nur-Filter unterdrückte Regeln werden nicht als aktiv angezeigt. Feste Fotolisten verlangen vor Kriterienänderungen die Rückkehr zur üblichen Ansicht.
+
+Escape kehrt von einem aus der Galerie geöffneten Foto über den Verlauf zur Sammlung zurück. Ein direkt geöffnetes Foto führt zur gespeicherten Galerieabfrage statt aus der Anwendung. Ein offener Dialog oder Editor behandelt Escape zuerst.
 
 ## Inhalt
 
@@ -545,7 +549,7 @@ Starten Sie einen Scan im Browser. Die Scan-Schaltfläche erscheint, wenn **beid
 
 Auf einer offenen Einzelbenutzer-Installation (leeres `viewer.edition_password`, der Standard) kann niemand im Browser scannen. Ausnahme: Unter `viewer.trusted_local_editing` kann eine vertrauenswürdige lokale Browsersitzung oder ein lokaler Assistent mit Token für volle Bearbeitung ohne `show_scan_button` oder Bearbeitungspasswort scannen.
 
-Die leere Galerie bietet **Fotos scannen, um zu beginnen**. **Nach neuen Fotos suchen** steht außerdem bei jeder Breite in der Anwendungsleiste. Beide öffnen den Scan-Starter:
+Die leere Galerie bietet **Fotos scannen, um zu beginnen**. **Nach neuen Fotos suchen** steht außerdem bei jeder Breite im globalen Navigationsbereich. Beide öffnen den Scan-Starter:
 
 - Wählen Sie ein Verzeichnis aus der Liste und starten Sie den Scan.
 - Live-Fortschritt und Ausgabezeilen erscheinen im Dialog. Die Galerie aktualisiert sich, wenn der Scan endet.

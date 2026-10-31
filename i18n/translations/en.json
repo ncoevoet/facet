@@ -1026,6 +1026,9 @@
     "read_only_hint": "Read-only: set viewer.edition_password in scoring_config.json to enable rating, culling and editing, then restart the viewer."
   },
   "nav": {
+    "sidebar_hidden": "Sidebar hidden",
+    "sidebar_compact": "Compact sidebar",
+    "sidebar_pinned": "Pinned sidebar",
     "gallery": "Gallery",
     "gallery_tooltip": "Gallery (double-click to reset filters)",
     "stats": "Statistics",
@@ -1056,6 +1059,18 @@
     "user_menu": "User menu"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Decision filters leave visual search. Undecided uses capture-date order, oldest first.",
+      "label": "Active criteria",
+      "visibility": "Visibility rules ({count})",
+      "remove": "Remove {label}",
+      "ranked": "Visual similarity search",
+      "ranked_help": "Similarity-based candidates; exact filters narrow the results. Sort controls their displayed order.",
+      "exact": "Metadata filters",
+      "pinned": "This is a fixed photo list. Return to your usual view before changing criteria.",
+      "similarity": "Similarity threshold",
+      "no_location": "Without location"
+    },
     "presentation": {
       "label": "Display",
       "help": "Choose a task layout. Filters, sort, album and selection stay the same.",

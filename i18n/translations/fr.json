@@ -1026,6 +1026,9 @@
     "read_only_hint": "Lecture seule : définissez viewer.edition_password dans scoring_config.json pour activer la notation, le tri et l'édition, puis redémarrez la visionneuse."
   },
   "nav": {
+    "sidebar_hidden": "Masquer la barre latérale",
+    "sidebar_compact": "Barre latérale compacte",
+    "sidebar_pinned": "Barre latérale épinglée",
     "gallery": "Galerie",
     "gallery_tooltip": "Galerie (double-clic pour réinitialiser les filtres)",
     "stats": "Statistiques",
@@ -1056,6 +1059,18 @@
     "user_menu": "Menu utilisateur"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Les filtres de décision quittent la recherche visuelle. Indécis trie par date de prise de vue, de la plus ancienne à la plus récente.",
+      "label": "Critères actifs",
+      "visibility": "Règles de visibilité ({count})",
+      "remove": "Retirer {label}",
+      "ranked": "Recherche par similarité visuelle",
+      "ranked_help": "Candidats par similarité ; les filtres exacts affinent les résultats. Le tri détermine leur ordre d’affichage.",
+      "exact": "Filtres de métadonnées",
+      "pinned": "Cette liste de photos est fixe. Revenez à votre vue habituelle avant de modifier les critères.",
+      "similarity": "Seuil de similarité",
+      "no_location": "Sans localisation"
+    },
     "presentation": {
       "label": "Affichage",
       "help": "Choisissez une disposition. Filtres, tri, album et sélection sont conservés.",

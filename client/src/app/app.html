@@ -1,28 +1,13 @@
 <div class="flex flex-col h-dvh">
-  @if (auth.isAuthenticated() && !isSharedRoute()) {
-    <header [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null" data-workspace-navigation class="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2 sm:px-4">
-      <button mat-icon-button data-toggle-navigation class="!hidden lg:!inline-flex" [attr.aria-expanded]="navigationVisible()" [attr.aria-label]="I18N.nav.navigation | translate" (click)="toggleNavigation()"><mat-icon>menu</mat-icon></button>
-      <a routerLink="/" class="flex shrink-0 items-center gap-2 px-2 text-sm font-medium text-[var(--mat-sys-on-surface)] no-underline" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon><span class="hidden sm:inline">Facet</span></a>
-      <nav data-primary-navigation class="hidden sm:flex min-w-0 items-center gap-1" [attr.aria-label]="I18N.nav.navigation | translate">
-        <a mat-button routerLink="/" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="{exact:true}" class="!min-w-0 !text-[var(--mat-sys-on-surface)]" (dblclick)="resetAllFilters()">{{ I18N.nav.gallery | translate }}</a>
-        @if (store.config()?.features?.show_albums) {
-          <a mat-button routerLink="/albums" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" class="hidden sm:!inline-flex !min-w-0 !text-[var(--mat-sys-on-surface)]">{{ I18N.nav.albums | translate }}</a>
-        }
-        @if (auth.isEdition()) {
-          <a mat-button routerLink="/culling" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" class="!min-w-0 !text-[var(--mat-sys-on-surface)]">{{ I18N.nav.culling | translate }}</a>
-        }
-      </nav>
-      <div class="flex-1"></div>
-      @if (auth.isEdition()) {
-        <nav><button mat-icon-button (click)="openOrganizationHistory()" [matTooltip]="I18N.organization_history.title | translate" [attr.aria-label]="I18N.organization_history.title | translate"><mat-icon>history</mat-icon></button></nav>
-      }
-      @if (auth.isAuthenticated()) {
-        <nav class="shrink-0 lg:hidden" [attr.aria-label]="I18N.nav.navigation | translate">
-          <button mat-button data-mobile-navigation class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
-                  [matMenuTriggerFor]="mobileNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate">
-            <mat-icon>menu</mat-icon>{{ I18N.nav.navigation | translate }}
-          </button>
-          <mat-menu #mobileNavigationMenu="matMenu">
+<mat-menu #applicationNavigationMenu="matMenu">
+<ng-template matMenuContent>
+ @if (navigationWide.isDesktop()) {
+  @for (mode of navigationModes; track mode.id) {
+   <button mat-menu-item role="menuitemradio" [attr.aria-checked]="navigationMode() === mode.id" [attr.data-navigation-mode]="mode.id" (click)="setNavigationMode(mode.id)"><mat-icon>{{ navigationMode() === mode.id ? 'check' : mode.icon }}</mat-icon>{{ mode.label | translate }}</button>
+  }
+  <mat-divider />
+ }
+
           <a mat-menu-item  routerLink="/" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon><span >{{ I18N.nav.gallery | translate }}</span>
           </a>
@@ -82,9 +67,18 @@
               <mat-icon>history</mat-icon><span >{{ I18N.organization_history.title | translate }}</span>
             </button>
           }
+          </ng-template>
           </mat-menu>
-        </nav>
+  @if (auth.isAuthenticated() && !isSharedRoute() && !desktopNavigation()) {
+    <header [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null" data-workspace-navigation class="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2 sm:px-4">
+      <button mat-icon-button data-toggle-navigation data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button>
+      <a routerLink="/" class="flex shrink-0 items-center gap-2 px-2 text-sm font-medium text-[var(--mat-sys-on-surface)] no-underline" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon><span class="hidden sm:inline">Facet</span></a>
+
+      <div class="flex-1"></div>
+      @if (auth.isEdition()) {
+        <nav><button mat-icon-button (click)="openOrganizationHistory()" [matTooltip]="I18N.organization_history.title | translate" [attr.aria-label]="I18N.organization_history.title | translate"><mat-icon>history</mat-icon></button></nav>
       }
+
 
 
 <app-assistant-activity-chip />
@@ -100,11 +94,9 @@
 </header>
   }
 
-  @if (auth.isAuthenticated() && !isSharedRoute() && navigationVisible()) {
-    <aside tabindex="-1" data-expandable-navigation [class.!w-48]="navigationExpanded()" (mouseenter)="navigationHover.set(true)" (mouseleave)="navigationHover.set(false)" (focusin)="navigationFocused.set(true)" (focusout)="onNavigationFocusOut($event)" (keydown.escape)="collapseNavigationPreview()" class="hidden lg:flex fixed top-12 bottom-0 left-0 z-40 w-14 overflow-hidden flex-col border-r border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)]">
-      <div class="flex h-12 shrink-0 items-center justify-center">
-        <button mat-icon-button data-pin-navigation [attr.aria-pressed]="navigationPinned()" [attr.aria-label]="(navigationPinned() ? I18N.nav.unpin_navigation : I18N.nav.pin_navigation) | translate" [matTooltip]="(navigationPinned() ? I18N.nav.unpin_navigation : I18N.nav.pin_navigation) | translate" (click)="toggleNavigationPin()"><mat-icon [class.text-[var(--mat-sys-primary)]]="navigationPinned()">push_pin</mat-icon></button>
-      </div>
+  @if (auth.isAuthenticated() && !isSharedRoute() && desktopNavigation()) {
+    <aside tabindex="-1" data-expandable-navigation [class.!w-48]="navigationExpanded()" (mouseenter)="navigationHover.set(true)" (mouseleave)="navigationHover.set(false)" (focusin)="navigationFocused.set(true)" (focusout)="onNavigationFocusOut($event)" (keydown.escape)="collapseNavigationPreview()" class="hidden lg:flex fixed top-0 bottom-0 left-0 z-40 w-14 overflow-hidden flex-col border-r border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)]">
+<div class="flex h-12 shrink-0 items-center px-1"><button mat-icon-button data-toggle-navigation data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button></div>
       <nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4" [attr.aria-label]="I18N.nav.navigation | translate">
           <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.gallery | translate }}</span>
@@ -166,6 +158,14 @@
             </button>
           }
       </nav>
+      <div class="mt-auto flex shrink-0 flex-col items-start gap-1 px-1 py-2 border-t border-[var(--mat-sys-outline-variant)]"><app-assistant-activity-chip />@if (isGalleryRoute()) { @if (myTasteBadge(); as taste) {
+          <button type="button"
+                  class="inline-flex items-center shrink-0 p-1 rounded-full text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                  [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
+                  [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">auto_awesome</mat-icon>
+          </button>
+        } }<ng-container [ngTemplateOutlet]="accountControls" /></div>
     </aside>
   }
 
@@ -175,7 +175,9 @@
        library, and the only prior signal was a small amber shield among ten
        icons. The bar is there from unlock until lock, sitting exactly on the
        border the toolbar already draws, in the selected theme's accent. -->
-  <mat-toolbar class="shrink-0 !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
+  <mat-toolbar class="shrink-0 !w-auto !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
+               [class.lg:ml-14]="auth.isAuthenticated() && desktopNavigation() && !navigationPinned()"
+               [class.lg:ml-48]="auth.isAuthenticated() && desktopNavigation() && navigationPinned()"
                [class.!border-b-2]="auth.isEdition()"
                [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
     <div class="flex items-center gap-3 w-full">
@@ -278,69 +280,7 @@
 
 
   <!-- Active filter chips bar (gallery route only, when filters are active) -->
-  @if (auth.isAuthenticated() && isGalleryRoute() && !pinned() && (activeFilterChips().length || store.filters().similar_to)) {
-    <div class="flex items-center gap-2 flex-wrap px-2 lg:px-4 py-2 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
-      @if (store.filters().similar_to) {
-        <div class="inline-flex items-center gap-1.5 pl-1 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
-          <img [src]="store.filters().similar_to | thumbnailUrl:48"
-               class="w-7 h-7 rounded-full object-cover shrink-0"
-               alt="" />
-          <!-- Mode toggle buttons -->
-          <div class="inline-flex items-center rounded-full overflow-hidden border border-[var(--mat-sys-outline-variant)]">
-            @for (m of SIMILARITY_MODES; track m.id) {
-              <button
-                class="inline-flex items-center justify-center w-6 h-6 transition-colors"
-                [class.bg-[var(--mat-sys-primary)]]="store.filters().similarity_mode === m.id"
-                [class.text-[var(--mat-sys-on-primary)]]="store.filters().similarity_mode === m.id"
-                [class.hover:bg-black/10]="store.filters().similarity_mode !== m.id"
-                [matTooltip]="'similar.mode_' + m.id | translate"
-                (click)="onSimilarityModeChange(m.id)"
-              >
-                <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">{{ m.icon }}</mat-icon>
-              </button>
-            }
-          </div>
-          @if (store.filters().similarity_mode !== 'person') {
-            <mat-slider class="!w-24 !min-w-0" [min]="0" [max]="90" [step]="5" [discrete]="true">
-              <input matSliderThumb
-                     [value]="similaritySliderValue()"
-                     (valueChange)="onSimilarityFilterChange($event)" />
-            </mat-slider>
-            <span class="font-medium w-8 text-right shrink-0">{{ similaritySliderValue() }}%</span>
-          }
-          <button
-            class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
-            (click)="clearSimilarFilter()"
-          >
-            <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
-          </button>
-        </div>
-      }
-      @for (chip of activeFilterChips(); track chip.id) {
-        @if (chip.personId) {
-          <app-person-filter-chip [personId]="chip.personId" [canEdit]="auth.isEdition()" (remove)="clearFilterChip(chip)" />
-        } @else {
-          <div class="inline-flex items-center gap-1 pl-2.5 pr-1 py-0.5 rounded-full bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
-            <span class="opacity-70">{{ chip.labelKey | translate }}</span>
-            @if (chip.value) {
-              <span class="mx-0.5">{{ chip.value }}</span>
-            }
-            <button
-              class="inline-flex items-center justify-center w-4 h-4 rounded-full hover:bg-black/20 transition-colors"
-              (click)="clearFilterChip(chip)"
-            >
-              <mat-icon class="!text-sm !w-3.5 !h-3.5 !leading-[14px]">close</mat-icon>
-            </button>
-          </div>
-        }
-      }
-      @if (activeFilterChips().length > 1) {
-        <button class="text-xs opacity-60 hover:opacity-100 transition-opacity ml-auto shrink-0" (click)="store.resetFilters()">
-          {{ I18N.gallery.reset_filters | translate }}
-        </button>
-      }
-    </div>
-  }
+
 
   <!-- Main content -->
   <main [class.lg:ml-14]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && !navigationPinned()" [class.lg:ml-48]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && navigationPinned()" class="flex-1 min-h-0 overflow-auto lg:pb-0" [class.pb-14]="isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute()">

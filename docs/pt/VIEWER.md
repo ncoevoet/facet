@@ -4,11 +4,15 @@
 
 O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar, fazer a triagem e gerenciar suas fotos.
 
-No computador, a barra superior separa destinos de comandos da página. Navegação mostra ou oculta uma barra lateral compacta. O ponteiro ou o foco a expandem sobre as fotos; Fixar mantém a barra aberta e reserva espaço. No telefone, Navegação abre um menu com nomes. Os detalhes identificam a foto; Fechar preserva a seleção.
+O menu de hambúrguer contém todos os destinos e os modos Oculta, Compacta e Fixa. Não há botão Fixar separado nem linha de destinos duplicada. A barra lateral visível substitui a barra superior no computador e coloca a conta em baixo. Compacta expande-se com o ponteiro ou foco sobre as fotos sem reservar mais largura. Quando oculta e no telefone, o menu oferece todos os destinos. As ferramentas ficam junto ao conteúdo.
 
-O cabeçalho reúne nome, contagens de fotos correspondentes e grupos exibidos, Grade/Mosaico e busca textual em qualquer largura. A seleção oferece Limpar, Comparar e, com edição, Manter/Rejeitar. Ações revela comandos secundários nomeados no computador; no telefone permanece o painel Ações. Alvos e permissões são preservados. Ordenação, direção, Filtros, informações da foto e apresentação formam um único grupo da coleção no computador e telefone. Conta, Edição e análise permitida ficam na barra da aplicação; a galeria não duplica uma barra inferior. Abrir uma foto fecha os menus da coleção e pausa os comandos até voltar.
+O cabeçalho reúne nome, contagens de fotos correspondentes e grupos exibidos, Grade/Mosaico e busca textual em qualquer largura. A seleção oferece Limpar, Comparar e, com edição, Manter/Rejeitar. Ações revela comandos secundários nomeados no computador; no telefone permanece o painel Ações. Alvos e permissões são preservados. Ordenação, direção, Filtros, informações da foto e apresentação formam um único grupo da coleção no computador e telefone. Conta, Edição e análise permitida ficam na área de navegação global; a galeria não duplica uma barra inferior. Abrir uma foto fecha os menus da coleção e pausa os comandos até voltar.
 
 **Vistas de trabalho.** Vista → Explorar usa um mosaico compacto com informação ao passar o ponteiro (por clique em ecrãs estreitos). Rever usa cartões maiores com detalhes e inspeção por clique (painel lateral quando há espaço). Organizar usa uma grelha mais densa com detalhes e informação por clique. Só mudam disposição, tamanho, detalhes e inspeção; consulta, ordenação, álbum, seleção e página carregada mantêm-se. Repor a vista predefinida restaura a apresentação configurada sem repor os filtros. Uma vista deixa de estar marcada quando os ajustes manuais já não correspondem.
+
+**Critérios da coleção.** Os critérios de metadados e pesquisa visual ficam sob a consulta quando o painel fecha. Cada remoção tem um nome acessível; limpar um intervalo remove ambos os limites em conjunto. A pesquisa visual explica a combinação de semelhança, filtros e ordenação. Favoritos mantém os outros critérios. Os filtros de decisão saem da pesquisa visual; Por decidir ordena por data de captura, da mais antiga, como explicado antes da escolha. As regras de visibilidade mostram exclusões e representantes de grupos efetivos; as anuladas por um filtro Apenas não aparecem ativas. As listas fixas pedem o regresso à vista habitual antes de alterar critérios.
+
+Escape regressa pelo histórico de uma foto aberta na galeria, preservando o contexto. Uma foto aberta diretamente regressa à consulta guardada em vez de sair da aplicação. Um diálogo ou editor aberto trata Escape primeiro.
 
 ## Conteúdo
 
@@ -542,7 +546,7 @@ Inicie uma varredura pelo navegador. O botão Varrer aparece quando **ambas** as
 
 Em uma instalação aberta de usuário único (`viewer.edition_password` vazio, o padrão), ninguém pode varrer pelo navegador. Exceção: sob `viewer.trusted_local_editing`, uma sessão de navegador local confiável, ou um assistente local com token de Edição completa, pode varrer sem `show_scan_button` nem senha de edição.
 
-A galeria vazia oferece **Escaneie as fotos para começar**. **Procurar novas fotos** também está na barra da aplicação em qualquer largura. Ambos abrem o iniciador de varredura:
+A galeria vazia oferece **Escaneie as fotos para começar**. **Procurar novas fotos** também está na área de navegação global em qualquer largura. Ambos abrem o iniciador de varredura:
 
 - Escolha um diretório da lista e inicie a varredura.
 - O progresso ao vivo e as linhas de saída chegam ao diálogo. A galeria é atualizada quando a varredura termina.

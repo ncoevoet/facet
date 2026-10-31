@@ -44,7 +44,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
           <button mat-button data-collection-sort class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
             @let currentIcon = store.filters().sort | sortOptionIcon;
             <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center max-md:!m-0" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          <span class="hidden md:inline">{{ currentSortLabelKey() | translate }}</span></button>
+          <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span></button>
           <button
             class=""
             mat-icon-button
@@ -82,7 +82,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
             : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
             : 'chat_bubble_outline'
           }}</mat-icon>
-        <span class="hidden md:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span></button>
+        <span class="hidden @[1120px]:inline">{{ I18N.gallery.tooltip_mode.label | translate }}</span></button>
 <button
           class=""
           mat-icon-button

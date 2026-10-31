@@ -4,11 +4,15 @@
 
 The viewer is a FastAPI + Angular web app for browsing, filtering, culling and managing your photos.
 
-On desktop, the top bar separates application destinations from page controls. Its Navigation button shows or hides a compact icon sidebar. Hovering or focusing that sidebar expands it over the photos; Pin keeps it open and reserves space. On phones, Navigation opens a labeled menu. The details panel names its photo; Close hides it without clearing the selection.
+The hamburger owns all application navigation and the Hidden, Compact and Pinned sidebar modes. There is no separate Pin button or duplicate Gallery/Albums/Culling destination row. A visible desktop sidebar replaces the application top bar and holds account controls at its foot; Compact expands over photos on hover or focus without reserving extra width. When hidden, and on phones, the hamburger menu provides all destinations. Page tools stay with their content.
 
-The collection header contains its name, matching-photo and displayed-group counts, Grid/Mosaic and exact text search at every width. The selection bar exposes Clear, Compare and, with editing access, Keep/Reject. Desktop Actions reveals labeled secondary commands; phones retain the Actions sheet. Targets and permissions remain unchanged. Sort, direction, Filters, photo information and slideshow now form one collection control group on desktop and phone. Account, Edition and permitted scan actions stay in the application bar; the gallery has no duplicate bottom toolbar. Opening a photo closes collection menus and pauses their commands until you return.
+The collection header contains its name, matching-photo and displayed-group counts, Grid/Mosaic and exact text search at every width. The selection bar exposes Clear, Compare and, with editing access, Keep/Reject. Desktop Actions reveals labeled secondary commands; phones retain the Actions sheet. Targets and permissions remain unchanged. Sort, direction, Filters, photo information and slideshow now form one collection control group on desktop and phone. Account, Edition and permitted scan actions stay in the global navigation area; the gallery has no duplicate bottom toolbar. Opening a photo closes collection menus and pauses their commands until you return.
 
 **Display presets.** Display → Browse uses a compact mosaic with hover information (click information on narrow screens). Review uses larger grid cards with details and click-owned inspection (a docked panel where the screen is wide enough). Organize uses a denser grid with details and click information. These presets change only layout, card size, detail visibility and inspection behavior: they preserve the query, sort, album, selection and loaded page. Reset display to defaults restores the configured presentation without resetting filters. Manual adjustments leave a preset unchecked when its settings no longer match.
+
+**Collection criteria.** Metadata and visual-search criteria now stay below the collection query when the filter panel closes. Each chip has a named Remove action; clearing a range removes both bounds together. Visual search states how similarity candidates combine with metadata filters and the chosen sort. Favorites retains the other criteria. Decision filters leave visual search; Undecided uses capture-date order, oldest first, as explained before choosing. Visibility rules disclose the effective hiding/grouping settings, including best-of-burst and bracket/panorama representatives; rules suppressed by an Only filter are not shown as active. Fixed photo lists explain that you must return to the usual view before changing criteria.
+
+Escape returns from a gallery-opened photo using history, preserving the collection context. A directly opened photo returns to the saved gallery query instead of leaving the app. An open dialog or editor handles Escape first.
 
 ## Contents
 
@@ -545,7 +549,7 @@ Start a scan from the browser. The Scan button appears when **both** hold:
 
 On an open single-user install (empty `viewer.edition_password`, the default), nobody can scan from the browser. Exception: under `viewer.trusted_local_editing`, a trusted-local browser session, or a local assistant with a Full-editing token, can scan without `show_scan_button` or an edition password.
 
-The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the application bar at every width. Both open the scan launcher:
+The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the global navigation area at every width. Both open the scan launcher:
 
 - Pick a directory from the list and start the scan.
 - Live progress and output lines stream into the dialog. The gallery refreshes when the scan ends.

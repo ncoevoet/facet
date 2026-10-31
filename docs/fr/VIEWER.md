@@ -4,11 +4,15 @@
 
 La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer, trier et gérer vos photos.
 
-Sur ordinateur, la barre supérieure sépare les destinations des commandes de page. Navigation affiche ou masque une barre latérale compacte. Le survol ou le focus la développe au-dessus des photos ; Épingler la maintient ouverte en réservant sa place. Sur téléphone, Navigation ouvre un menu nommé. Le panneau de détails nomme sa photo ; Fermer le masque sans effacer la sélection.
+Le menu hamburger regroupe les destinations et les modes Masquée, Compacte et Épinglée. Il n’y a ni bouton Épingler séparé ni rangée de destinations dupliquée. La barre latérale visible remplace la barre supérieure sur ordinateur et place le compte en bas. Compacte se développe au survol ou au focus au-dessus des photos sans réserver plus de largeur. Masquée et sur téléphone, toutes les destinations restent dans le menu. Les outils restent avec leur contenu.
 
-L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques. Tri, sens, Filtres, informations photo et diaporama forment un seul groupe de collection sur ordinateur et téléphone. Compte, Édition et analyse autorisée restent dans la barre d’application ; la galerie n’a plus de barre inférieure en double. Ouvrir une photo ferme les menus de collection et suspend leurs commandes jusqu’au retour.
+L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques. Tri, sens, Filtres, informations photo et diaporama forment un seul groupe de collection sur ordinateur et téléphone. Compte, Édition et analyse autorisée restent dans la zone de navigation globale ; la galerie n’a plus de barre inférieure en double. Ouvrir une photo ferme les menus de collection et suspend leurs commandes jusqu’au retour.
 
 **Dispositions de travail.** Affichage → Parcourir utilise une mosaïque compacte avec informations au survol (au clic sur les écrans étroits). Examiner utilise de grandes vignettes en grille avec détails et inspection au clic (panneau latéral si la largeur le permet). Organiser utilise une grille plus dense avec détails et informations au clic. Seuls disposition, taille, détails et inspection changent ; requête, tri, album, sélection et page chargée restent identiques. Rétablir l’affichage par défaut restaure la présentation configurée sans réinitialiser les filtres. Une disposition n’est plus cochée si des réglages manuels ne lui correspondent plus.
+
+**Critères de la collection.** Les critères de métadonnées et de recherche visuelle restent sous la requête lorsque le panneau est fermé. Chaque retrait est nommé ; effacer une plage retire ses deux bornes ensemble. La recherche visuelle explique la combinaison similarité, filtres et tri. Favoris conserve les autres critères. Les filtres de décision quittent la recherche visuelle ; Indécis trie par date de prise de vue, les plus anciennes d’abord, comme indiqué avant le choix. Les règles de visibilité indiquent les masquages et représentants de groupes effectifs ; celles neutralisées par un filtre Uniquement ne sont pas présentées comme actives. Une liste fixe demande de revenir à la vue habituelle avant de modifier les critères.
+
+Échap revient par l’historique depuis une photo ouverte dans la galerie, en conservant le contexte. Une photo ouverte directement revient à la requête enregistrée au lieu de quitter l’application. Un dialogue ou éditeur ouvert traite Échap en premier.
 
 ## Sommaire
 
@@ -544,7 +548,7 @@ Lancez un scan depuis le navigateur. Le bouton Scan apparaît quand **les deux**
 
 Sur une installation mono-utilisateur ouverte (`viewer.edition_password` vide, valeur par défaut), personne ne peut lancer de scan depuis le navigateur. Exception : avec `viewer.trusted_local_editing`, une session de navigateur local de confiance, ou un assistant local avec un jeton Édition complète, peut lancer un scan sans `show_scan_button` ni mot de passe d'édition.
 
-La galerie vide propose **Lancer un scan pour commencer**. **Scanner de nouvelles photos** est aussi disponible dans la barre d’application à toute largeur. Les deux ouvrent le lanceur de scan :
+La galerie vide propose **Lancer un scan pour commencer**. **Scanner de nouvelles photos** est aussi disponible dans la zone de navigation globale à toute largeur. Les deux ouvrent le lanceur de scan :
 
 - Choisissez un répertoire dans la liste et lancez le scan.
 - La progression en direct et les lignes de sortie défilent dans la boîte de dialogue. La galerie se rafraîchit à la fin du scan.
