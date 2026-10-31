@@ -66,3 +66,32 @@ async def attach_ai_edit_sources_async(conn, photos: list[dict]) -> None:
     for photo in photos:
         if photo['path'] in found:
             photo['ai_edit_of'] = found[photo['path']]
+
+
+
+def apply_ai_edit_captions(conn) -> int:
+    """Caption each newly scanned AI edit: the original's caption, then "AI: <note>".
+
+    Runs after a scan has saved its rows (a plain UPDATE, so the FTS update trigger
+    keeps the search index in step). Each edit is captioned once (``captioned``); an
+    edit without a note is only marked. Returns how many captions were written.
+    Does not commit."""
+    try:
+        rows = conn.execute(
+            "SELECT e.edit_path, e.note, o.caption FROM photo_ai_edits e "
+            "JOIN photos p ON p.path = e.edit_path LEFT JOIN photos o ON o.path = e.source_path "
+            "WHERE e.captioned = 0").fetchall()
+    except sqlite3.OperationalError:
+        # A database not yet upgraded has no table or column: nothing to caption.
+        return 0
+    written = 0
+    for edit_path, note, original_caption in rows:
+        note = ' '.join((note or '').split())
+        if note:
+            base = (original_caption or '').strip().rstrip('.')
+            caption = f'{base}. AI: {note}' if base else f'AI: {note}'
+            conn.execute('UPDATE photos SET caption = ?, caption_translated = NULL WHERE path = ?',
+                         (caption, edit_path))
+            written += 1
+        conn.execute('UPDATE photo_ai_edits SET captioned = 1 WHERE edit_path = ?', (edit_path,))
+    return written

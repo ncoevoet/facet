@@ -153,7 +153,7 @@ def _edit_photo(args: dict, visible: frozenset) -> str:
         "differs. Show the user the result and wait for their approval.",
         "Call `import_ai_edit` with the original's path, your edit's absolute path as the source, mode \"move\" "
         "(\"copy\" only if the user wants to keep the work file), the model you used, a one-line note of what "
-        "changed, and as `tool` the name that matches you: " + (tools or "none is configured; tell the user")
+        "changed (the edit's caption becomes the original's caption plus \"AI: \" and the note), and as `tool` the name that matches you: " + (tools or "none is configured; tell the user")
         + ". Facet places the file beside the original as name_tag_revision with the source's extension, never "
         "over an existing file, links it to the original and scans it.",
         "Report the new path and revision. If the scan did not start, say the file is placed and linked and will "

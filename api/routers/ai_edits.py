@@ -3,7 +3,8 @@
 The import places the file beside the original as ``{stem}_{suffix}_{revision}{ext}``
 (the suffix comes from ``ai_edits.tool_suffixes``, keyed by the tool's name), copies
 it and checks the copy byte for byte, deletes the source only for ``mode: move``,
-records the link in ``photo_ai_edits`` and scans the one new file. An existing file
+records the link in ``photo_ai_edits`` (after the scan, the edit's caption becomes the original's
+caption followed by "AI: <note>") and scans the one new file. An existing file
 is never overwritten. Reads follow photo visibility; the import is edition-gated.
 """
 

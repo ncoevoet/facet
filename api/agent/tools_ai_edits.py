@@ -38,5 +38,7 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
         'an unknown name is refused with the configured list); the file lands beside the original as `{name}_{suffix}_{revision}{ext}`, '
         'never over an existing file. The new file is scanned when scanning is enabled (`scan.started`); '
         'otherwise it appears after the next scan. `get_photo` on the edit returns `ai_edit_of`. '
+        '`note` is one line on what changed (e.g. "removed watch from left wrist"); once scanned, the edit\'s '
+        'caption is the original\'s caption followed by "AI: <note>". '
         'Not idempotent: each call adds a revision.',
         IMPORT_ANNOTATIONS, WRITE_TOOL_LEVELS['import_ai_edit'])

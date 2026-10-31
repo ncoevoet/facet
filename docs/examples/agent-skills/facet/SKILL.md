@@ -72,7 +72,9 @@ setting this skill needs. It names no server address and no library path.
      | Claude | `anthropic-claude` | `_ant_` |
 
    - `model`: the image model you used.
-   - `note`: one line on what changed.
+   - `note`: one line on what changed, for example "removed watch from left
+     wrist". Once scanned, the edit's caption is the original's caption followed
+     by `AI: removed watch from left wrist`.
 
    Facet saves the file beside the original as `{name}_{tag}_{revision}{ext}`,
    for example `IMG_3533_agy_2.JPG`. It never overwrites an existing file. It

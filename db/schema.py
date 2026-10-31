@@ -606,6 +606,9 @@ PHOTO_AI_EDITS_COLUMNS = [
     ('model', 'TEXT'),
     ('note', 'TEXT'),
     ('revision', 'INTEGER NOT NULL'),
+    # 1 once the post-scan step has captioned the edit (original's caption + "AI: <note>");
+    # applied once, so a caption the user changes or clears later is left alone.
+    ('captioned', 'INTEGER NOT NULL DEFAULT 0'),
     ('created_by', 'TEXT'),
     ('created_at', "TEXT DEFAULT (datetime('now'))"),
 ]

@@ -7,7 +7,7 @@ import pytest
 from PIL import Image
 
 from api.routers import ai_edits as ai_edits_router
-from db.ai_edits import edit_file_name, next_revision
+from db.ai_edits import apply_ai_edit_captions, edit_file_name, next_revision
 from tests.conftest import _TEST_DB_FILE
 
 
@@ -145,3 +145,32 @@ def test_file_names_and_revisions():
     assert next_revision(r'\\nas\p\IMG_1.JPG', 'agy', names, []) == 5
     assert next_revision('/p/IMG_1.JPG', 'agy', [], [2, 7]) == 8
     assert next_revision('/p/IMG_1.JPG', 'agy', [], []) == 1
+
+
+def test_the_edit_is_captioned_with_the_original_caption_and_the_note(edition_client, library, seed_photos_prefix):
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        conn.execute('UPDATE photos SET caption = ? WHERE path = ?', ('Two kids on a beach.', library['original']))
+    target = _import(edition_client, library, _jpeg(library['work'] / 'cap.jpg')).json()['edit_path']
+    seed_photos_prefix(str(library['folder']) + os.sep + 'IMG_1_agy', [{
+        'path': target, 'filename': os.path.basename(target), 'aggregate': 5.0,
+        'category': 'default', 'date_taken': '2026:02:01 10:00:00'}])
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        assert apply_ai_edit_captions(conn) == 1
+        caption = conn.execute('SELECT caption FROM photos WHERE path = ?', (target,)).fetchone()[0]
+        # Applied once: the next scan's pass leaves the user's later caption alone.
+        conn.execute('UPDATE photos SET caption = ? WHERE path = ?', ('mine', target))
+        assert apply_ai_edit_captions(conn) == 0
+        kept = conn.execute('SELECT caption FROM photos WHERE path = ?', (target,)).fetchone()[0]
+    assert caption == 'Two kids on a beach. AI: brighten faces'
+    assert kept == 'mine'
+
+
+def test_an_original_without_a_caption_gives_just_the_ai_line(edition_client, library, seed_photos_prefix):
+    target = _import(edition_client, library, _jpeg(library['work'] / 'nocap.jpg')).json()['edit_path']
+    seed_photos_prefix(str(library['folder']) + os.sep + 'IMG_1_agy', [{
+        'path': target, 'filename': os.path.basename(target), 'aggregate': 5.0,
+        'category': 'default', 'date_taken': '2026:02:01 10:00:00'}])
+    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
+        apply_ai_edit_captions(conn)
+        caption = conn.execute('SELECT caption FROM photos WHERE path = ?', (target,)).fetchone()[0]
+    assert caption == 'AI: brighten faces'
