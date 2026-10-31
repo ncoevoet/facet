@@ -41,6 +41,7 @@ describe('ShortcutsDialogComponent', () => {
   it('lists the gallery-only Stack shortcut with its edition-only label', () => {
     const sections = rowsBySection();
     expect(sections['shortcuts.section_gallery']).toContain('shortcuts.stack=S');
+    expect(sections['shortcuts.section_gallery']).toContain('shortcuts.quick_stack=⌘/Ctrl Shift S');
     expect(sections['shortcuts.section_detail'].some(row => row.startsWith('shortcuts.stack='))).toBe(false);
   });
 

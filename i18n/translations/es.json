@@ -2919,6 +2919,7 @@
     "key_in_use": "Esa tecla ya está asignada",
     "key_reserved": "Esa tecla está reservada",
     "stack": "Apilar fotos seleccionadas (solo edición)",
+    "quick_stack": "Apilar rápidamente la selección (las pilas existentes abren el editor)",
     "unassigned": "Sin asignar",
     "stack_hint": "Apilar fotos ({key})",
     "keymap_title": "Personalizar atajos"

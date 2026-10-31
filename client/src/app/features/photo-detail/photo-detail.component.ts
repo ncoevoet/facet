@@ -1010,7 +1010,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (this.destroyRef.destroyed || this.photo()?.path !== path) return;
     this.dialog.open(ManualFaceDialogComponent, {
       width: '800px', maxWidth: '96vw',
-      data: { path, filename: p.filename, onCommitted: () => this.refreshPeople(path) },
+      data: { path, filename: p.filename, onCommitted: () => this.onPersonMenuChanged(path) },
     });
   }
 
@@ -1176,7 +1176,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected async onPersonMenuChanged(path: string): Promise<void> {
-    await this.faceLayer()?.load(path);
+    if (!this.destroyRef.destroyed && this.photo()?.path === path) {
+      await this.faceLayer()?.load(path);
+    }
     await this.refreshPeople(path);
   }
 

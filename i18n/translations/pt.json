@@ -2919,6 +2919,7 @@
     "key_in_use": "Essa tecla já está em uso",
     "key_reserved": "Essa tecla é reservada",
     "stack": "Empilhar fotos selecionadas (apenas edição)",
+    "quick_stack": "Empilhar rapidamente a seleção (pilhas existentes abrem o editor)",
     "unassigned": "Não atribuído",
     "stack_hint": "Empilhar fotos ({key})",
     "keymap_title": "Personalizar atalhos"

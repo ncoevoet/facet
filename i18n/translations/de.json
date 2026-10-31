@@ -2919,6 +2919,7 @@
     "key_in_use": "Diese Taste ist bereits belegt",
     "key_reserved": "Diese Taste ist reserviert",
     "stack": "Ausgewählte Fotos stapeln (nur mit Bearbeitungsrechten)",
+    "quick_stack": "Auswahl schnell stapeln (vorhandene Stapel öffnen den Editor)",
     "unassigned": "Nicht zugewiesen",
     "stack_hint": "Fotos stapeln ({key})",
     "keymap_title": "Tastenkürzel anpassen"
