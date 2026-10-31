@@ -1523,7 +1523,10 @@
         "manual_fallback": "This crop could not be framed reliably. Wait for the image or use manual zoom and pan.",
         "review_link": "Independent framing applied. Check alignment, then Link. Fit restores the whole frame.",
         "keyboard": "Pane keys: +/− zoom, arrows pan, Shift moves farther, F/Home fits. Z toggles the loupe at Fit. On touch, use zoom buttons and drag. Escape closes comparison."
-      }
+      },
+      "assign_target": "Choose which side to replace",
+      "assign_hint": "Choose a thumbnail to use as {target}.",
+      "assign_photo": "Use {name} as {target}"
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",
@@ -2561,7 +2564,12 @@
       "out_of_date": "The assistant's plan is out of date - ask it to preview again",
       "replan_flips_dropped": "{count} of your changes no longer match a group and were dropped."
     },
-    "stack_group": "Stack this group, focused frame as cover"
+    "stack_group": "Stack this group, focused frame as cover",
+    "comparison": {
+      "choose_pane": "Choose pane {pane}: {name}",
+      "assign_hint": "Choose a pane above, then a thumbnail below to replace pane {pane}.",
+      "assign_photo": "Show {name} in pane {pane}"
+    }
   },
   "scenes": {
     "title": "Scenes",

@@ -368,6 +368,26 @@ describe('CompareSelectedDialogComponent', () => {
     previous.click(); fixture.detectChanges();
     expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
   });
+  it('assigns any thumbnail to reference or candidate explicitly without review writes', () => {
+    const { fixture, api } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const thumbs = () => root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]');
+    const frames = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    root.querySelector<HTMLButtonElement>('[data-compare-target="reference"]')!.click(); fixture.detectChanges();
+    thumbs()[2].click(); fixture.detectChanges();
+    expect(frames()).toEqual(['/c.jpg', '/b.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-compare-target="candidate"]')!.click(); fixture.detectChanges();
+    thumbs()[3].click(); fixture.detectChanges();
+    expect(frames()).toEqual(['/c.jpg', '/d.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-compare-target="reference"]')!.click(); fixture.detectChanges();
+    thumbs()[3].click(); fixture.detectChanges();
+    expect(frames()).toEqual(['/d.jpg', '/c.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-compare-target="candidate"]')!.click(); fixture.detectChanges();
+    thumbs()[3].click(); fixture.detectChanges();
+    expect(frames()).toEqual(['/c.jpg', '/d.jpg']);
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
   it('shows a thumbnail queue and opens a chosen candidate without promoting it', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
     const root = fixture.nativeElement as HTMLElement;

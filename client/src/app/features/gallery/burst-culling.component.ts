@@ -24,6 +24,7 @@ import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { AssessmentValuePipe } from '../../shared/pipes/assessment-value.pipe';
 import { PhotoAssessmentComponent } from '../../shared/components/photo-assessment/photo-assessment.component';
 import { ThumbnailUrlPipe, FaceThumbnailUrlPipe, ImageUrlPipe, STORED_THUMBNAIL_EDGE, RENDERED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
+import { assignComparisonSlot } from './comparison-slots.util';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
 import { SwipeDecisionDirective } from '../../shared/directives/swipe-decision.directive';
 import { I18nService } from '../../core/services/i18n.service';
@@ -947,7 +948,7 @@ interface SceneSummary {
              it stayed legible through the darkroom's own controls. -->
         <div data-darkroom-header class="flex min-w-0 shrink-0 flex-wrap items-center gap-1 px-2 py-1 text-white text-sm bg-neutral-950">
           <div class="opacity-70 shrink-0">
-            {{ lightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
+            {{ effectiveLightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
           </div>
           @if (legendVisible()) {
             <div class="order-last flex w-full max-h-24 flex-wrap items-center gap-x-4 gap-y-1.5 overflow-y-auto py-2 text-sm">
@@ -1017,7 +1018,7 @@ interface SceneSummary {
                       (click)="stackGroup(lbGroup)"><mat-icon>layers</mat-icon></button>
             }
             @if (stacksMode()) {
-              <button mat-icon-button data-stack-reject class="!text-white" aria-keyshortcuts="R" [disabled]="cull.stackBusy() || !!cull.stackExcluded()[lbGroup.photos[lightboxIndex()]?.path ?? '']"
+              <button mat-icon-button data-stack-reject class="!text-white" aria-keyshortcuts="R" [disabled]="cull.stackBusy() || !!cull.stackExcluded()[lbGroup.photos[effectiveLightboxIndex()]?.path ?? '']"
                       [matTooltip]="I18N.stacks.reject_focused | translate" [attr.aria-label]="I18N.stacks.reject_focused | translate" (click)="rejectStackPhoto(lbGroup)"><mat-icon aria-hidden="true">block</mat-icon></button>
               <button mat-button class="!text-white" [disabled]="cull.stackBusy()" (click)="editSuggestion(lbGroup)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
               <button mat-button class="!text-white" [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(lbGroup)">{{ I18N.stacks.suggestion_skip | translate }}</button>
@@ -1098,7 +1099,7 @@ interface SceneSummary {
           }
         </ng-template>
         <!-- Image -->
-        @if (lbGroup.photos[lightboxIndex()]; as lbPhoto) {
+        @if (lbGroup.photos[effectiveLightboxIndex()]; as lbPhoto) {
           <div class="shrink-0 px-4 text-white bg-neutral-950" role="presentation"
                (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" (keydown.escape)="closeLightbox()">
             <app-photo-assessment [photo]="lbPhoto" [groupPick]="lbPhoto.path === lbGroup.best_path" />
@@ -1185,8 +1186,9 @@ interface SceneSummary {
                  role="presentation"
                  (click)="$event.stopPropagation()"
                  (keydown)="onDarkroomKeydown($event)">
-              @for (photo of compareFrames(); track photo.path) {
-                <div class="relative flex w-full h-full min-h-0 flex-col rounded overflow-hidden">
+              @for (photo of compareFrames(); track photo.path; let paneIndex = $index) {
+                <div data-darkroom-pane [attr.data-path]="photo.path" class="relative flex w-full h-full min-h-0 flex-col rounded overflow-hidden">
+                  <button type="button" data-comparison-slot class="flex min-h-11 shrink-0 items-center gap-2 px-2 text-left text-xs text-white bg-neutral-900 focus-visible:outline-2 focus-visible:outline-amber-400" [class.!bg-amber-950]="comparisonSlot() === paneIndex" [attr.aria-pressed]="comparisonSlot() === paneIndex" [attr.aria-label]="I18N.culling.comparison.choose_pane | translate:{ pane: comparisonSlotLabels[paneIndex], name: photo.filename }" (click)="selectComparisonSlot(paneIndex)"><span class="font-semibold">{{ comparisonSlotLabels[paneIndex] }}</span><span class="min-w-0 truncate">{{ photo.filename }}</span><mat-icon class="ml-auto !text-base !w-4 !h-4 shrink-0">{{ comparisonSlot() === paneIndex ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon></button>
                   <div class="relative min-h-0 flex-1">
                   <app-synced-zoom #pane class="w-full h-full min-h-0"
                                    [src]="photo.path | thumbnailUrl:darkroomThumbSize:photo.preview_revision"
@@ -1259,20 +1261,24 @@ interface SceneSummary {
             @if (cull.stackDrafts()[lbKey].excludedCount; as count) {
               <p data-stack-excluded role="status" class="shrink-0 text-white text-sm px-3 py-1">{{ I18N.stacks.reject_count | translate:{ count } }} @if (cull.stackDrafts()[lbKey].paths.length < 2) { {{ I18N.stacks.regroup_minimum | translate }} }</p>
             }
+          }
+          @if (compareMode() !== 'single') {
+            <p data-comparison-assignment class="m-0 shrink-0 px-3 pt-2 text-xs text-white/70">{{ I18N.culling.comparison.assign_hint | translate:{ pane: comparisonSlotLabels[comparisonSlot()] } }}</p>
+          }
             <div class="shrink-0 flex gap-2 overflow-x-auto border-t border-white/10 px-3 py-2" data-stack-filmstrip
                  role="presentation" (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
               @for (photo of lbGroup.photos; track photo.path; let index = $index) {
                 <button type="button" class="shrink-0 rounded border-2 border-transparent overflow-hidden cursor-pointer"
-                        [class.!border-amber-400]="index === lightboxIndex()" [class.opacity-40]="cull.stackExcluded()[photo.path]"
-                        [attr.aria-current]="index === lightboxIndex() ? 'true' : null"
-                        [attr.aria-label]="photo.filename" (click)="focusPhotoInLightbox(index)">
+                        [class.!border-amber-400]="index === effectiveLightboxIndex()" [class.opacity-40]="cull.stackExcluded()[photo.path]"
+                        [attr.aria-current]="index === effectiveLightboxIndex() ? 'true' : null"
+                        [attr.aria-label]="compareMode() === 'single' ? photo.filename : (I18N.culling.comparison.assign_photo | translate:{ pane: comparisonSlotLabels[comparisonSlot()], name: photo.filename })" (click)="focusPhotoInLightbox(index)">
                   <img class="h-16 w-auto max-w-32 object-contain" loading="lazy"
                        [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" [alt]="photo.filename" />
                   @if (cull.stackExcluded()[photo.path]) { <span class="text-xs text-white block">{{ I18N.rating.rejected_badge | translate }}</span> }
                 </button>
               }
             </div>
-          } @else {
+          @if (!stacksMode()) {
           <!-- Footer status -->
           <div class="px-4 py-3 text-center"
                role="presentation"
@@ -1358,8 +1364,8 @@ interface SceneSummary {
                        is outlined around its whole column instead. -->
                   <div class="flex flex-col items-center gap-1 flex-shrink-0 rounded outline-offset-2"
                        [attr.data-face-frame]="pIdx"
-                       [class.outline-2]="photo.path === lbGroup.photos[lightboxIndex()]?.path"
-                       [class.outline-amber-400]="photo.path === lbGroup.photos[lightboxIndex()]?.path">
+                       [class.outline-2]="photo.path === lbGroup.photos[effectiveLightboxIndex()]?.path"
+                       [class.outline-amber-400]="photo.path === lbGroup.photos[effectiveLightboxIndex()]?.path">
                     <div class="flex gap-1">
                       @for (face of photo.path | facesForPath:faceMap(); track face.id) {
                         <div class="relative">
@@ -1440,7 +1446,7 @@ interface SceneSummary {
                         <img [src]="subject.crop"
                              class="w-24 h-24 rounded object-cover ring-2 ring-inset"
                              [ngClass]="subject | subjectRingClass"
-                             [class.!ring-amber-400]="photo.path === lbGroup.photos[lightboxIndex()]?.path"
+                             [class.!ring-amber-400]="photo.path === lbGroup.photos[effectiveLightboxIndex()]?.path"
                              [alt]="photo.filename" loading="lazy" />
                         @if (subject.crop_sharpness_score !== null) {
                           <div class="absolute top-0 right-0 bg-black/60 text-white/80 text-[9px] leading-none px-1 py-0.5 rounded-bl">
@@ -1861,13 +1867,13 @@ export class BurstCullingComponent implements OnDestroy {
     if (!group || this.compareMode() !== 'single' || this.activeStyle()) return [];
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
     if (connection?.saveData) return [];
-    const idx = this.lightboxIndex();
+    const idx = this.effectiveLightboxIndex();
     return [group.photos[idx - 1]?.path, group.photos[idx + 1]?.path].filter((p): p is string => !!p);
   }, { equal: (a, b) => a.length === b.length && a.every((p, i) => p === b[i]) });
 
   /** Path of the frame the single pane shows. A string, so a new group object
    *  holding the same frame does not notify the prefetch effects. */
-  private readonly currentPath = computed(() => this.lightboxGroup()?.photos[this.lightboxIndex()]?.path);
+  private readonly currentPath = computed(() => this.lightboxGroup()?.photos[this.effectiveLightboxIndex()]?.path);
   /** Each frame's preview revision, so the URLs built here match the ones the template binds. */
   private readonly frameRevisions = computed(() =>
     new Map((this.lightboxGroup()?.photos ?? []).map(photo => [photo.path, photo.preview_revision] as const)));
@@ -1938,26 +1944,49 @@ export class BurstCullingComponent implements OnDestroy {
     const group = this.lightboxGroup();
     if (!group) return [];
     if (this.compareMode() !== 'single') return this.compareFrames().map(p => p.path);
-    const photo = group.photos[this.lightboxIndex()];
+    const photo = group.photos[this.effectiveLightboxIndex()];
     return photo ? [photo.path] : [];
   });
 
   /** The frames shown in compare mode: N photos from the current index, clamped. */
+  protected readonly effectiveLightboxIndex = computed(() => {
+    const group = this.lightboxGroup();
+    if (group && this.compareMode() !== 'single' && this.comparisonPaths().length) {
+      const path = this.compareFrames()[this.comparisonSlot()]?.path;
+      const index = group.photos.findIndex(photo => photo.path === path);
+      if (index >= 0) return index;
+    }
+    return this.lightboxIndex();
+  });
+  protected readonly comparisonSlotLabels = ['A', 'B', 'C', 'D'];
+  private readonly comparisonSlotIndex = signal(0);
+  protected readonly comparisonSlot = computed(() => Math.min(this.comparisonSlotIndex(), Math.max(0, this.compareFrames().length - 1)));
+  private readonly comparisonPaths = signal<string[]>([]);
   protected readonly compareFrames = computed(() => {
     const group = this.lightboxGroup();
     if (!group) return [];
     const count = this.compareMode() === '4up' ? 4 : 2;
     const start = Math.min(this.lightboxIndex(), Math.max(0, group.photos.length - count));
-    return group.photos.slice(start, start + count);
+    const byPath = new Map(group.photos.map(photo => [photo.path, photo]));
+    const order = [...this.comparisonPaths(), ...group.photos.slice(start).map(photo => photo.path), ...group.photos.map(photo => photo.path)];
+    return [...new Set(order)].filter(path => byPath.has(path)).slice(0, count).map(path => byPath.get(path)!);
   });
 
   protected setCompareMode(mode: 'single' | '2up' | '4up'): void {
     const previous = this.compareMode();
+    const focusedIndex = this.effectiveLightboxIndex();
     if (mode !== previous) {
       // Single/compare recreate their panes; 2-up/4-up retain shared panes.
       if (mode === 'single' || previous === 'single') this.failedRenderPaths.set(new Set());
       this.sharpPath.set(null);
+      const frames = previous === 'single' ? [] : this.compareFrames().map(photo => photo.path);
+      this.comparisonPaths.set(frames);
+      this.comparisonSlotIndex.set(0);
+      if (mode === 'single') this.lightboxIndex.set(focusedIndex);
       this.compareMode.set(mode);
+      if (mode !== 'single') this.comparisonPaths.set(this.compareFrames().map(photo => photo.path));
+      const first = mode === 'single' ? null : this.compareFrames()[0];
+      if (first) this.lightboxIndex.set(this.lightboxGroup()!.photos.findIndex(photo => photo.path === first.path));
     }
     this.zoom.set(FIT_ZOOM);
   }
@@ -2382,7 +2411,7 @@ export class BurstCullingComponent implements OnDestroy {
     });
     // Mirror the lightbox photo for `ui_get_context`; no lightbox, or leaving the page, means none.
     effect(() => {
-      this.journal.darkroomFocus.set(this.lightboxGroup()?.photos[this.lightboxIndex()]?.path ?? null);
+      this.journal.darkroomFocus.set(this.lightboxGroup()?.photos[this.effectiveLightboxIndex()]?.path ?? null);
     });
     inject(DestroyRef).onDestroy(() => this.journal.darkroomFocus.set(null));
     // The auto-cull confirm is a custom modal MatDialog cannot see; the lightbox is the page's working surface and is not one.
@@ -2396,7 +2425,7 @@ export class BurstCullingComponent implements OnDestroy {
       if (group === null) return;
       untracked(() => {
         if (group.photos.length === 0) this.lightboxGroupId.set(null);
-        else if (this.lightboxIndex() >= group.photos.length) this.lightboxIndex.set(group.photos.length - 1);
+        else if (this.effectiveLightboxIndex() >= group.photos.length) this.lightboxIndex.set(group.photos.length - 1);
       });
     });
     this.coarsePointer.setup();
@@ -2484,7 +2513,7 @@ export class BurstCullingComponent implements OnDestroy {
     effect(onCleanup => {
       const style = this.activeStyle();
       const group = this.lightboxGroup();
-      const idx = this.lightboxIndex();
+      const idx = this.effectiveLightboxIndex();
       const single = this.compareMode() === 'single';
       const photo = group?.photos[idx];
       if (!style || !photo || !single) {
@@ -2579,7 +2608,7 @@ export class BurstCullingComponent implements OnDestroy {
     const isStale = () =>
       !this.pageAlive || this.pageNavigating || this.destroyRef.destroyed || epoch !== this.pageEpoch
       || this.auth.identity() !== this.pageOwner || !this.auth.isEdition() || this.compareMode() !== 'single'
-      || path !== this.lightboxGroup()?.photos[this.lightboxIndex()]?.path
+      || path !== this.lightboxGroup()?.photos[this.effectiveLightboxIndex()]?.path
       || style !== this.activeStyle() || url !== this.developedPreviewUrl();
     img.onload = () => {
       if (isStale()) return;
@@ -2885,6 +2914,7 @@ export class BurstCullingComponent implements OnDestroy {
   // --- Lightbox handlers ---
 
   protected openLightbox(group: CullingGroup, index: number): void {
+    this.comparisonPaths.set([]); this.comparisonSlotIndex.set(0);
     this.displayedRenditions.set(new Map());
     this.developedFailure.set(null);
     this.zoom.set(FIT_ZOOM);  // never inherit a prior session's zoom/pan
@@ -2899,9 +2929,23 @@ export class BurstCullingComponent implements OnDestroy {
   /** Jump the darkroom's main view to a group photo (subject-strip click). */
   protected focusPhotoInLightbox(index: number): void {
     const group = this.lightboxGroup();
-    if (!group) return;
-    this.lightboxIndex.set(this.clampIndex(index, group.photos.length));
+    if (!group?.photos.length || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()) return;
+    const target = this.clampIndex(index, group.photos.length);
+    if (this.compareMode() !== 'single') {
+      this.comparisonPaths.set(assignComparisonSlot(this.compareFrames().map(photo => photo.path), this.comparisonSlot(), group.photos[target].path));
+    }
+    this.lightboxIndex.set(target);
     this.zoom.set(FIT_ZOOM);
+  }
+
+  protected selectComparisonSlot(slot: number): void {
+    const frames = this.compareFrames();
+    const photo = frames[slot];
+    const group = this.lightboxGroup();
+    if (!photo || !group || !this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()) return;
+    this.comparisonPaths.set(frames.map(frame => frame.path));
+    this.comparisonSlotIndex.set(slot);
+    this.lightboxIndex.set(group.photos.findIndex(frame => frame.path === photo.path));
   }
 
   /**
@@ -3106,8 +3150,7 @@ export class BurstCullingComponent implements OnDestroy {
   /** Step the darkroom one frame and drop back to fit. The single advance the
    *  arrow keys and a committed swipe both go through, so they cannot drift. */
   private stepLightbox(group: CullingGroup, delta: number): void {
-    this.lightboxIndex.update(i => this.clampIndex(i + delta, group.photos.length));
-    this.zoom.set(FIT_ZOOM);
+    this.focusPhotoInLightbox(this.clampIndex(this.effectiveLightboxIndex() + delta, group.photos.length));
   }
 
   private shortcutsBlocked(event: Event): boolean {
@@ -3210,7 +3253,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private setCurrentLightboxPhotoKept(group: CullingGroup, keep: boolean): void {
-    const photo = group.photos[this.lightboxIndex()];
+    const photo = group.photos[this.effectiveLightboxIndex()];
     if (!photo) return;
     this.cull.setPhotoKept(group, photo.path, keep);
   }
@@ -3226,10 +3269,10 @@ export class BurstCullingComponent implements OnDestroy {
    */
   protected onSwipeDecision(group: CullingGroup, keep: boolean): void {
     if (this.stacksMode()) return;
-    const photo = group.photos[this.lightboxIndex()];
+    const photo = group.photos[this.effectiveLightboxIndex()];
     if (!photo) return;
     const previousKept = new Set(this.cull.selectionsMap().get(this.cull.groupKey(group)) ?? []);
-    const previousIndex = this.lightboxIndex();
+    const previousIndex = this.effectiveLightboxIndex();
     this.setCurrentLightboxPhotoKept(group, keep);
     this.stepLightbox(group, 1);
     this.undoService.register({
@@ -3257,7 +3300,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   protected async stackGroup(group: CullingGroup): Promise<void> {
-    const cover = this.stacksMode() && this.lightboxGroupId() !== this.cull.groupKey(group) ? group.best_path : group.photos[this.lightboxIndex()]?.path;
+    const cover = this.stacksMode() && this.lightboxGroupId() !== this.cull.groupKey(group) ? group.best_path : group.photos[this.effectiveLightboxIndex()]?.path;
     if (this.stacksMode()) {
       if (cover && await this.cull.stackSuggestion(group, cover)) this.afterSuggestion(group);
       return;
@@ -3291,10 +3334,10 @@ export class BurstCullingComponent implements OnDestroy {
   protected async rejectStackPhoto(group: CullingGroup): Promise<void> {
     const current = this.pageSession();
     if (!this.stacksMode() || !current() || this.cull.stackBusy() || this.lightboxGroupId() !== this.cull.groupKey(group)) return;
-    const index = this.lightboxIndex(); const path = group.photos[index]?.path;
+    const index = this.effectiveLightboxIndex(); const path = group.photos[index]?.path;
     if (!path) return;
     if (await this.cull.rejectStackPhoto(group, path) && current() && this.lightboxGroupId() === this.cull.groupKey(group)
-      && this.lightboxGroup()?.photos[this.lightboxIndex()]?.path === path) {
+      && this.lightboxGroup()?.photos[this.effectiveLightboxIndex()]?.path === path) {
       const next = group.photos.slice(index + 1).find(photo => !this.cull.stackExcluded()[photo.path])
         ?? group.photos.slice(0, index).reverse().find(photo => !this.cull.stackExcluded()[photo.path]);
       if (next) this.focusPhotoInLightbox(group.photos.indexOf(next));
@@ -3322,7 +3365,7 @@ export class BurstCullingComponent implements OnDestroy {
     const { SKIP_SUGGESTION } = await import('./stack-editor-host');
     if (!current() || this.dialog.openDialogs.length || !this.cull.groups().includes(group)) return;
     const focused = this.lightboxGroupId() === this.cull.groupKey(group)
-      ? group.photos[this.lightboxIndex()]?.path : group.photos[this.selectedPhotoIndex()]?.path;
+      ? group.photos[this.effectiveLightboxIndex()]?.path : group.photos[this.selectedPhotoIndex()]?.path;
     const onUndone = () => { if (current()) this.cull.restoreStackSuggestion(group); };
     const ref = this.dialog.open(StackDialogComponent, stackDialogConfig({
       paths: group.photos.map(photo => photo.path), reviewDraft: this.cull.reviewDraft(group), activePath: focused, skippable: true, onUndone,

@@ -1538,6 +1538,9 @@ export const I18N = {
         review_link: "gallery.compare.inspection.review_link",
         keyboard: "gallery.compare.inspection.keyboard",
       },
+      assign_target: "gallery.compare.assign_target",
+      assign_hint: "gallery.compare.assign_hint",
+      assign_photo: "gallery.compare.assign_photo",
     },
     clipping: {
       badge_highlight: "gallery.clipping.badge_highlight",
@@ -2576,6 +2579,11 @@ export const I18N = {
       replan_flips_dropped: "culling.plan.replan_flips_dropped",
     },
     stack_group: "culling.stack_group",
+    comparison: {
+      choose_pane: "culling.comparison.choose_pane",
+      assign_hint: "culling.comparison.assign_hint",
+      assign_photo: "culling.comparison.assign_photo",
+    },
   },
   scenes: {
     title: "scenes.title",
