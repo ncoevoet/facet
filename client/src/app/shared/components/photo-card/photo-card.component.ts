@@ -13,7 +13,7 @@ import { CARD_ACTION_META, CardActionId, CardActionsConfig, CardSetKind, DEFAULT
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
-import { ScoreClassPipe, SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
+import { SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
 import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
 import { closeOverlayDirectives } from '../../utils/overlays';
 import { MetricDistribution, topPercentOf } from '../../utils/metric-distribution';
@@ -126,7 +126,6 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     FixedPipe,
     CaptureDatePipe,
     ShutterSpeedPipe,
-    ScoreClassPipe,
     SortScorePipe,
     SortPersonsPipe,
   ],
@@ -425,7 +424,6 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
               }
               <span
                 class="px-1.5 py-0.5 rounded-sm text-xs font-medium tabular-nums !bg-[var(--mat-sys-surface-container-high)] !text-[var(--mat-sys-on-surface)]"
-                [class]="(photo() | sortScore:currentSort()) | scoreClass:config()"
                 [matTooltip]="(currentSort() === 'aggregate' ? ('gallery.aggregate_score' | translate) : ('gallery.sort_score' | translate) + ' (' + currentSort() + ')')
                   + (badgeTopPercent() === null ? '' : ' · ' + ('photo_detail.distribution.top' | translate:{ pct: badgeTopPercent()! }))"
               >{{ (photo() | sortScore:currentSort()) | fixed:1 }}</span>

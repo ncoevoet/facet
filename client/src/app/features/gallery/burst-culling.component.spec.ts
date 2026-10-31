@@ -4230,19 +4230,22 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     expect(keptPaths()).toEqual(['/c1.jpg']);
   });
 
-  it('marks the decided pane with the solid badge the tiles use', () => {
+  it('separates decided pane state in its heading from Keep and Reject actions', () => {
     openCompare();
     store.selectionsMap.set(new Map([['1_burst', new Set(['/c1.jpg'])]]));
     fixture.detectChanges();
 
     const host: HTMLElement = fixture.nativeElement;
-    expect(host.querySelectorAll('[aria-label="culling.lightbox.kept"].bg-green-600')).toHaveLength(1);
-    expect(host.querySelectorAll('[aria-label="culling.lightbox.rejected"].bg-red-600')).toHaveLength(1);
+    const headings = host.querySelectorAll('[data-comparison-slot]');
+    expect(headings[0].textContent).toContain('culling.lightbox.kept');
+    expect(headings[1].textContent).toContain('culling.lightbox.rejected');
+    expect(buttonFor('c1.jpg, culling.lightbox.keep')!.getAttribute('aria-pressed')).toBe('true');
+    expect(buttonFor('c1.jpg, culling.lightbox.reject')!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttonFor('c2.jpg, culling.lightbox.keep')!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttonFor('c2.jpg, culling.lightbox.reject')!.getAttribute('aria-pressed')).toBe('true');
   });
 
-  // The chrome traces the rendered photo, so it must be inset by whatever the
-  // pane letterboxed away -- not pinned to the cell corner.
-  it('insets the per-frame chrome by the letterbox of its pane', () => {
+  it('keeps decision controls in the pane heading outside the letterboxed image', () => {
     openCompare();
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
     const pane = panes[0].componentInstance as SyncedZoomComponent;
@@ -4258,9 +4261,12 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     fixture.detectChanges();
 
     expect(pane.fitInsetY()).toBe(200);
-    const chrome = buttonFor('c1.jpg, culling.lightbox.keep')!.closest('div[style]') as HTMLElement;
-    expect(chrome.style.top).toBe('200px');
-    expect(chrome.style.left).toBe('0px');
+    const action = buttonFor('c1.jpg, culling.lightbox.keep')!;
+    const frame = action.closest('[data-darkroom-pane]')!;
+    expect(frame.querySelector('app-synced-zoom')).toBe(host);
+    expect(host.contains(action)).toBe(false);
+    expect(frame.firstElementChild!.contains(action)).toBe(true);
+    expect(frame.firstElementChild!.contains(frame.querySelector('[data-comparison-slot]'))).toBe(true);
   });
 
   it('names the frame the footer status is about while a grid is shown', () => {

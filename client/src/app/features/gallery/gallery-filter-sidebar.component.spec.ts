@@ -789,13 +789,15 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(close.getAttribute('aria-label')).toBe('dialog.close');
         expect(close.querySelector('mat-icon')!.textContent!.trim()).toBe('close');
         expect(close.textContent!.trim()).toBe('close');
-        expect(close.classList.contains('md:hidden')).toBe(true);
+        expect(close.classList.contains('md:hidden')).toBe(false);
         expect(header().lastElementChild).toBe(close);
         const tips = fixture.debugElement.queryAll(By.directive(MatTooltip)).map(d => d.injector.get(MatTooltip).message);
         expect(tips).toContain('gallery.sidebar.reset_tooltip');
         expect(tips).toContain('dialog.close');
         reset.click();
         expect(store['resetFilters']).toHaveBeenCalledOnce();
+        close.click();
+        expect(store['setFilterDrawerOpen']).toHaveBeenCalledWith(false);
       });
 
       it('shows no Reset and no badge without active filters, but keeps Close', () => {

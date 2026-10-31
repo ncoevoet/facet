@@ -1202,7 +1202,7 @@ interface SceneSummary {
                             [class.bg-[var(--mat-sys-secondary-container)]]="comparisonSlot() === paneIndex" [class.text-[var(--mat-sys-on-secondary-container)]]="comparisonSlot() === paneIndex"
                             [attr.aria-pressed]="comparisonSlot() === paneIndex" [attr.aria-label]="I18N.culling.comparison.choose_pane | translate:{ pane: comparisonSlotLabels[paneIndex], name: photo.filename }" (click)="selectComparisonSlot(paneIndex)">
                       <span class="font-semibold">{{ comparisonSlotLabels[paneIndex] }}</span><span class="min-w-0 truncate">{{ photo.filename }}</span>
-                      @if (!stacksMode() && (photo.path | isDecided:cull.selectionsMap():lbKey)) {
+                      @if (!stacksMode() && ((photo.path | isKept:cull.selectionsMap():lbKey) || (photo.path | isDecided:cull.selectionsMap():lbKey))) {
                         <span class="ml-auto shrink-0">{{ ((photo.path | isKept:cull.selectionsMap():lbKey) ? I18N.culling.lightbox.kept : I18N.culling.lightbox.rejected) | translate }}</span>
                       }
                       <mat-icon class="ml-auto !text-base !w-4 !h-4 shrink-0">{{ comparisonSlot() === paneIndex ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>

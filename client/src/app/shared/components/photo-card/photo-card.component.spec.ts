@@ -210,19 +210,20 @@ describe('PhotoCardComponent', () => {
     expect(card.photo().aggregate).toBe(9.0);
   });
 
-  it('accepts a null aggregate (an unscored row): blank badge, lowest-bucket class, no throw', () => {
+  it('accepts a null aggregate (an unscored row): blank neutral badge, never scored zero', () => {
     // The wire type: a row the scoring pass hasn't reached yet sends
     // `aggregate: null`, not a number -- see photo.model.ts. Sorting by
     // 'aggregate' (the default) routes it through SortScorePipe ->
-    // ScoreClassPipe -> FixedPipe; null must render as BLANK, never "0.0" --
+    // FixedPipe; null must render as BLANK, never "0.0" --
     // that would turn "not scored yet" into "scored zero".
     fixture.componentInstance.photo.set(makePhoto({ aggregate: null }));
     fixture.detectChanges();
     const card = getCard();
     expect(card.photo().aggregate).toBeNull();
-    const badge = fixture.nativeElement.querySelector('span.text-xs.font-bold') as HTMLElement;
+    const badge = fixture.nativeElement.querySelector('span.tabular-nums') as HTMLElement;
     expect(badge.textContent?.trim()).toBe('');
-    expect(badge.className).toContain('bg-red-600');
+    expect(badge.className).toContain('!bg-[var(--mat-sys-surface-container-high)]');
+    expect(badge.className).not.toContain('bg-red-600');
   });
 
   describe('cycleStarRating', () => {
