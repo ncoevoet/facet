@@ -268,6 +268,8 @@ Wählen Sie in der Galerie **Auswahlstatus → Zu prüfen**, um unentschiedene F
 
 Wählen Sie **2–1000 konkrete Fotos**, dann **Fotos stapeln** in der Auswahlleiste oder drücken Sie **S**, um den ganzseitigen Editor unter `/stacks/edit` zu öffnen. Eine Gesamtauswahl der Ansicht erstellt keinen Stapel. S öffnet nur die Vorschau und speichert nicht. Benutzermenü → **Tastenkürzel anpassen** ändert die Galeriebelegung; Tooltip, Hilfe und `?` zeigen die aktuelle Taste. Belegt eine ältere gespeicherte Einstellung bereits S, bleibt sie erhalten und Stapeln ist **Nicht zugewiesen**, bis Sie eine freie Taste wählen. Bearbeitungsrechte sind erforderlich. Jedes Foto gehört je Eigentümer höchstens einem Stapel. Die Seite zeigt mittig eine zoombare Vorschau über einem dauerhaften Miniaturstreifen. Klicken Sie auf eine Miniatur oder verwenden Sie `←`/`→`, um ein Foto zu fokussieren; die zugehörigen Schaltflächen wählen das Titelbild, ändern die Reihenfolge oder entfernen es. Zoomtaste, Mausrad oder Doppelklick zeigen Details.
 
+Mit **Cmd+Umschalt+S** oder **Strg+Umschalt+S** stapeln Sie ausdrücklich ausgewählte, ungestapelte Fotos sofort in Auswahlreihenfolge; das erste wird Titelbild. Vorhandene Stapelmitglieder öffnen den Editor. Erfolg hebt die gespeicherte Auswahl auf, Rückgängig stellt sie wieder her; Abbruch oder Fehler behalten sie. Escape im Editor kehrt ohne Speichern zur ursprünglichen Galerie zurück.
+
 **Beim Stapeln ablehnen.** Fokussieren Sie im Seiteneditor oder Stapeldialog ein Foto und wählen Sie **Ablehnen** oder **R**. Das aktive Foto in der Dunkelkammer der Stapelvorschläge bietet dieselbe Aktion; öffnen Sie diese zuerst zur Auswahl. Ablehnen speichert sofort die gewöhnliche Sichtungsentscheidung, löscht Behalten, Favorit und Sterne und schließt nur dieses Foto aus dem vorgeschlagenen Stapel aus. Originaldateien werden weder gelöscht noch verändert. Zähler und abgedunkelte Miniaturen zeigen Ausschlüsse. Rückgängig stellt vorherige Werte und weiterhin relevante Entwurfsmitgliedschaft wieder her, ohne spätere Reihenfolge oder Titelbildwahl zu ersetzen; spätere Sichtungsänderungen können Rückgängig verhindern. Bereits abgelehnte Fotos bleiben bis zum ausdrücklichen Ausschluss enthalten, ohne weitere Sichtungsentscheidung. Gruppierung wartet auf Speichern; Verlassen ohne Speichern macht Ablehnen nicht rückgängig.
 
 Gehören ausgewählte Fotos bereits zu Stapeln, ist **Stapel zusammenführen** die Vorgabe: Die Vorschau nimmt deren übrige Mitglieder hinzu. **Nur ausgewählte Fotos** verschiebt nur die konkrete Auswahl. Der Editor zeigt Auswahl- und Ergebnisanzahl, zusätzliche Mitglieder und eine Zusammenfassung der Folgen; klappen Sie die Details für jeden Quellstapel auf. Mindestens zwei zurückbleibende Mitglieder behalten ihren Stapel; ein einzelnes wird unabhängig und eine leere Quelle verschwindet. Aus dem neuen Stapel ausgeschlossene Fotos bleiben nach denselben Regeln in ihrer Quelle. Zielstapel und insgesamt betroffene Fotos sind jeweils auf 1000 begrenzt; nicht verfügbare oder teilweise sichtbare Quellen werden abgelehnt. Beim Moduswechsel bleiben weiterhin passende Reihenfolge, Titelbild und Ausschlüsse erhalten.
@@ -515,6 +517,8 @@ In der Fotoansicht erscheint ein Rahmen um jedes erkannte Gesicht, solange der Z
 ### Ein übersehenes Gesicht markieren
 
 Öffnen Sie im Bearbeitungsmodus ein Foto und wählen Sie **Fehlendes Gesicht markieren**, auch wenn keine Gesichter erkannt wurden. Zeichnen Sie ein Rechteck (oder geben Sie die Koordinaten ein), wählen Sie eine bestehende Person oder geben Sie einen neuen Namen ein und wählen Sie dann **Speichern**. Abbrechen speichert nichts.
+
+Beim Speichern, Bearbeiten oder Entfernen eines manuellen Gesichts werden die Gesichtsrahmen und Personen aktualisiert, ohne das Foto erneut zu öffnen.
 
 - Mit demselben Editor passen Sie eine manuelle Markierung an, weisen sie neu zu oder entfernen sie.
 - Manuelle Markierungen bleiben über erneute Scans und die Viewer-Synchronisierung mit ihrer Person verknüpft. Sie trainieren die Erkennung nicht und ändern keine Gesichtsqualitätswerte.
@@ -1136,6 +1140,7 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 | `X` oder `0` | Das fokussierte Foto ablehnen / Ablehnung aufheben (Bearbeitungsmodus; springt automatisch weiter) |
 | `/` | Die Suche der Symbolleiste fokussieren (ab 1360 px Breite sichtbar); schmaler öffnet es die Suche der Filter-Seitenleiste |
 | `S` | Den Stapel-Editor für die ausdrückliche Auswahl öffnen (Bearbeitungsmodus; umbelegbar, kann unbelegt bleiben) |
+| `Strg+Umschalt+S` / `Cmd+Umschalt+S` | Die ausdrückliche, ungestapelte Auswahl sofort in Auswahlreihenfolge stapeln, das erste Foto als Titelbild (Bearbeitungsmodus; vorhandene Stapelmitglieder öffnen den Editor) |
 | `B` | Die Filter-Seitenleiste ein-/ausblenden |
 | `V` | Zwischen Raster- und Mosaiklayout wechseln |
 | `?` | Die Tastenkürzel-Referenz anzeigen (auf jeder Seite; auch unter Benutzermenü → Hilfe) |

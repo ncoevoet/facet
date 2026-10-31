@@ -63,6 +63,8 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 | `embeddings` | CLIP ViT-L-14 或 SigLIP 2 NaFlex | 用于相似度和标签标注的 `clip_embedding` | 4-5 GB |
 | `saliency` | BiRefNet_dynamic | `subject_sharpness`、`subject_prominence`、`subject_placement`、`bg_separation` | 约 3 GB |
 
+多遍扫描使用单调时钟。EXIF 批处理耗时和回退读取的工作线程累计秒数已包含在解码耗时中；并行回退可能重叠。聚合、缩略图生成（包括源文件读取）和不含缩略图的保存分别计时；保存包括结果准备和提交，不仅是 SQL。受限遍次跳过聚合和照片缩略图。现有解码与模型加载的重叠以及嵌套的图像平面重建计时保持不变：请勿累加所有计时，也不要将 EXIF 工作线程秒数解释为总耗时百分比。单遍扫描不在本次计时范围内。收集基线时，将固定的 500 张 RAW/JPEG 副本扫描到临时数据库，保留最终摘要，并记录版本、配置档、工作线程数、分块大小、存储和缓存条件。在相同条件下重复以进行比较。未提供参考照片集或前后基准测试；不声称速度提升。
+
 ## 预览与导出
 
 | 命令 | 说明 |
@@ -274,7 +276,7 @@ Facet 会记录每次扫描（状态、模式、目录、计数器）以及每�
 - **失败的照片**会记录一条 ERROR 且不写入任何内容。从未评分的照片保持 NULL，并会被下一次 `--recompute-saliency` 选中；已有显著性的照片保留其值，即使使用 `--recompute-saliency --force`。完整重新扫描（例如 `python facet.py --force`）则会为其存入 NULL。
 - **没有主体的照片**存入 NULL 的清晰度、位置和分离度，突出程度为 0.0，`subject_bbox` 为 NULL（构图步骤中的 `power_point_score` 也为 NULL）。这是最终结果，不会再次测量。
 - **较旧的行**存的是中性的 5.0。`--recompute-saliency` 和 `--recompute-composition-cpu` 会将其重写。`--recompute-saliency` 还会选取 `subject_bbox` 出现之前评分的照片。
-- NULL 指标在综合评分中按中性计分。见[主体显著性维度](SCORING.md#主体显著性维度)。
+- 可选指标为 NULL 时不参与综合评分，其权重重新分配给存在的指标；仅当全部缺失时，综合评分才采用中性值 5.0。见[评分系统](SCORING.md)。
 
 ### 标签模型
 

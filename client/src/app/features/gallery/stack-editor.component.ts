@@ -19,7 +19,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { GalleryStore } from './gallery.store';
 import { StackActionsService } from './stack-actions.service';
 import { BY_PATHS_MAX } from './gallery-filters.util';
-import { isTypingContext } from '../../shared/utils/keyboard';
+import { isPageShortcutBlocked, isTypingContext } from '../../shared/utils/keyboard';
 import { reconcileRegroupDraft, regroupSourceEffects } from './stack-regroup-state';
 import { STACK_EDITOR_HOST } from './stack-editor-host';
 import { SyncedZoomComponent, FIT_ZOOM } from './synced-zoom.component';
@@ -351,7 +351,7 @@ export class StackEditorComponent implements OnInit {
     if (this.current() && !this.saving() && this.paths().includes(path)) this.focused.set(path);
   }
   private onKeydown(event: KeyboardEvent): void {
-    if (!this.current() || this.saving() || event.defaultPrevented || isTypingContext(event)
+    if (!this.current() || this.saving() || event.defaultPrevented || isTypingContext(event) || this.page && isPageShortcutBlocked(event)
       || event.repeat || this.page && this.pageContext.overlays().length > 0
       || event.isComposing || event.keyCode === 229 || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey
       || !['ArrowLeft', 'ArrowRight', 'r', 'R'].includes(event.key)

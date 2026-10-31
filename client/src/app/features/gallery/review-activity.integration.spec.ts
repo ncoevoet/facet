@@ -132,10 +132,10 @@ describe('manual activity from rendered gallery menus and stacks', () => {
     await routed.fixture.whenStable(); routed.detectChanges();
     expect(journal.since(cursor).items.filter(item => item.kind === 'stack')).toEqual([expect.objectContaining({ kind: 'stack', paths: selected.map(photo => photo.path), value: 'create' })]);
     expect(routed.routeNativeElement!.textContent).toContain('stacks.totals');
-    expect(store.selectedPaths().size).toBe(3);
+    expect(store.selectedPaths().size).toBe(0);
     expect(routed.routeNativeElement!.textContent).not.toContain('gallery.selection.view_scope_offer');
     const cards = [...(routed.routeNativeElement as HTMLElement).querySelectorAll('app-photo-card [role=button]')];
-    expect(cards.map(card => card.getAttribute('aria-pressed'))).toEqual(['true', 'false']);
+    expect(cards.map(card => card.getAttribute('aria-pressed'))).toEqual(['false', 'false']);
     routed.fixture.destroy();
   });
 

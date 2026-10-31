@@ -102,7 +102,7 @@ describe('App', () => {
       (app as any).openHelpDialog();
       const open = TestBed.inject(MatDialog).open as unknown as ReturnType<typeof vi.fn>;
       const sections = open.mock.calls[0][1].data.shortcutSections;
-      expect(sections).toEqual([{ titleKey: 'stacks.create', rows: [{ keys: ['R'], labelKey: 'stacks.reject_focused' }, { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' }] }]);
+      expect(sections).toEqual([{ titleKey: 'stacks.create', rows: [{ keys: ['Esc'], labelKey: 'stacks.back_gallery' }, { keys: ['R'], labelKey: 'stacks.reject_focused' }, { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' }] }]);
     });
 
     it('lists the remapped reject key on a gallery route, not the default', () => {

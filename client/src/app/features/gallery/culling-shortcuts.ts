@@ -48,6 +48,7 @@ export const STACK_SHORTCUT_SECTIONS = [
 ];
 
 export const MANUAL_STACK_SHORTCUT_SECTIONS = [{ titleKey: 'stacks.create', rows: [
+  { keys: ['Esc'], labelKey: 'stacks.back_gallery' },
   { keys: ['R'], labelKey: 'stacks.reject_focused' },
   { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' },
 ] }];
