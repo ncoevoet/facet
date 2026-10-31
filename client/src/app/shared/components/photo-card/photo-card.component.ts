@@ -391,6 +391,11 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         </div>
 
         <!-- Selection checkmark -->
+        @if (showSelectionIndicators() && !isSelected()) {
+          <span data-selection-affordance class="pointer-events-none absolute top-1.5 left-1.5 z-20 flex h-7 w-7 items-center justify-center rounded bg-[var(--facet-image-canvas)] text-[var(--facet-image-ink)]" aria-hidden="true">
+            <mat-icon class="!text-xl !w-5 !h-5">check_box_outline_blank</mat-icon>
+          </span>
+        }
         @if (isSelected()) {
           <div class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[var(--mat-sys-primary)] flex items-center justify-center z-20" aria-hidden="true">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
@@ -622,6 +627,7 @@ export class PhotoCardComponent {
 
   // Display state
   readonly isSelected = input(false);
+  readonly showSelectionIndicators = input(false);
   /** Whether this card is the one the grid's keyboard cursor is standing on.
    *
    *  Independent of `isSelected`: a card can be both, and the two say different

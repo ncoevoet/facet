@@ -296,6 +296,10 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
           <div class="flex shrink-0 items-center gap-0.5 rounded p-0.5 bg-[var(--mat-sys-surface-container)]">
+            <button mat-button data-mobile-select class="md:!hidden !min-h-11 !min-w-0 !px-2"
+                    [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
+              {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
+            </button>
             <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
                     [attr.aria-pressed]="store.galleryMode() === 'grid'"
@@ -397,6 +401,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [config]="store.config()"
                     [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
+                    [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
                     [isActive]="row.startIndex + i === activeIndex()"
                     [gridHasActiveCard]="hasActivePhoto()"
                     [currentSort]="store.filters().sort"
@@ -404,7 +409,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [thumbSize]="thumbSize()"
                     [isEditionMode]="auth.isEdition()"
                     [personFilterId]="store.filters().person_id"
-                    [tooltipMode]="tooltipMode()"
+                    [tooltipMode]="selectingPhotos() && !isDesktop() ? 'off' : tooltipMode()"
                     [panelActivation]="panelActivation()"
                     (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                     (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -454,6 +459,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [attr.data-pidx]="i"
                   [config]="store.config()"
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
+                  [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
                   [hideDetails]="effectiveHideDetails()"
@@ -462,7 +468,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [thumbSize]="thumbSize()"
                   [isEditionMode]="auth.isEdition()"
                   [personFilterId]="store.filters().person_id"
-                  [tooltipMode]="tooltipMode()"
+                  [tooltipMode]="selectingPhotos() && !isDesktop() ? 'off' : tooltipMode()"
                       [panelActivation]="panelActivation()"
                   [style.content-visibility]="'auto'"
                   [style.contain-intrinsic-size]="'auto ' + (cardWidth() + 80) + 'px'"
@@ -522,6 +528,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       [mosaicMode]="true"
                       [config]="store.config()"
                       [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
+                      [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
                       [isActive]="row.startIndex + i === activeIndex()"
                       [gridHasActiveCard]="hasActivePhoto()"
                       [currentSort]="store.filters().sort"
@@ -529,7 +536,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       [thumbSize]="thumbSize()"
                       [isEditionMode]="auth.isEdition()"
                       [personFilterId]="store.filters().person_id"
-                      [tooltipMode]="tooltipMode()"
+                      [tooltipMode]="selectingPhotos() && !isDesktop() ? 'off' : tooltipMode()"
                       [panelActivation]="panelActivation()"
                       (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -1115,6 +1122,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  long-press behaviour is kept. Read once, unlike the looser `(hover: none)`
    *  behind `isTouchDevice`, which only steers the tooltip. */
   protected readonly touchOnly = signal(false);
+  protected readonly selectionAffordance = signal(false);
+  protected readonly selectingPhotos = computed(() => this.selectionAffordance() || this.selectionCount() > 0);
   /** Grid index of the card the photo menu was opened on, for focus hand-back. */
   private photoMenuIndex = -1;
 
@@ -2012,7 +2021,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   protected clearSelection(): void {
     this.store.clearSelection();
+    this.selectionAffordance.set(false);
     this.restoreCursorFocus();
+  }
+
+  protected toggleMobileSelection(): void {
+    if (this.parked || this.router.currentNavigation?.() || this.overDrawerOpen() || this.dialog.openDialogs.length || this.store.slideshowActive()) return;
+    if (this.selectingPhotos()) {
+      this.store.clearSelection();
+      this.selectionAffordance.set(false);
+    } else {
+      this.selectionAffordance.set(true);
+    }
   }
 
   /** Keep DOM focus wherever the marker is, so that a drawn marker always means

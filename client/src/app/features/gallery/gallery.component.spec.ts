@@ -371,6 +371,56 @@ describe('GalleryComponent', () => {
     fixture.destroy();
   });
 
+  it('offers explicit mobile Select and Cancel without changing the collection or writing metadata', () => {
+    mockAuth['isEdition'] = vi.fn(() => false);
+    mockStore.galleryMode.set('grid');
+    mockStore.photos.set([makePhoto({ path: '/a.jpg' }), makePhoto({ path: '/b.jpg' })]);
+    mockStore.clearSelection.mockImplementation(() => {
+      mockStore.selectedPaths.set(new Set());
+      mockStore.selectionCount.set(0);
+    });
+    const filters = mockStore.filters();
+    const fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
+    Object.defineProperty(fixture.debugElement.injector.get(MatDialog), 'openDialogs', { value: [] });
+    fixture.componentInstance['containerWidth'].set(375);
+    fixture.detectChanges();
+    const button = fixture.nativeElement.querySelector('[data-mobile-select]') as HTMLButtonElement;
+    expect(button.textContent).toContain(I18N.gallery.selection.select);
+    button.click();
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(button.textContent).toContain(I18N.ui.buttons.cancel);
+    expect(fixture.nativeElement.querySelectorAll('[data-selection-affordance]')).toHaveLength(2);
+    expect(fixture.debugElement.queryAll(By.directive(PhotoCardComponent))
+      .every(card => card.componentInstance.tooltipMode() === 'off')).toBe(true);
+    expect(mockStore.selectAll).not.toHaveBeenCalled();
+    expect(mockStore.selectedPaths().size).toBe(0);
+    mockStore.selectedPaths.set(new Set(['/a.jpg']));
+    mockStore.selectionCount.set(1);
+    fixture.detectChanges();
+    button.click();
+    fixture.detectChanges();
+    expect(mockStore.selectedPaths().size).toBe(0);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(fixture.nativeElement.querySelector('[data-selection-affordance]')).toBeNull();
+    expect(mockStore.filters()).toBe(filters);
+    expect(mockApi.post).not.toHaveBeenCalled();
+    fixture.destroy();
+  });
+
+  it('does not let a parked mobile Select control clear a later selection', () => {
+    mockStore.selectedPaths.set(new Set(['/later.jpg']));
+    mockStore.selectionCount.set(1);
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    (fixture.componentInstance as any).parked = true;
+    fixture.nativeElement.querySelector('[data-mobile-select]').click();
+    expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    expect([...mockStore.selectedPaths()]).toEqual(['/later.jpg']);
+    fixture.destroy();
+  });
+
   it('renders the translated reason a similar search cannot run instead of a silent empty gallery', () => {
     mockStore.loadError.set(true);
     mockStore.loadErrorKey.set(I18N.similar.no_visual_features);

@@ -3817,6 +3817,22 @@ describe('BurstCullingComponent modals (rendered)', () => {
     expect(document.activeElement).toBe(summary);
   });
 
+  it('leaves native Inspect activation keys alone in stack mode instead of stacking', () => {
+    openDarkroom();
+    store.mode.set('stacks');
+    fixture.detectChanges();
+    const summary = fixture.nativeElement.querySelector('[data-darkroom-tools] summary') as HTMLElement;
+    const stack = vi.spyOn(component, 'stackGroup');
+    summary.focus();
+    for (const key of [' ', 'Enter']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      summary.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(stack).not.toHaveBeenCalled();
+    expect(component['lightboxGroup']()).not.toBeNull();
+  });
+
   // Escape is acted on at the shield rather than let through it: the page's cull
   // shortcuts must still not see a single key pressed inside the darkroom.
   it('keeps shielding the page from keys pressed inside the darkroom', () => {

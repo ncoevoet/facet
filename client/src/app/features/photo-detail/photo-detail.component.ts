@@ -40,6 +40,7 @@ import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-c
 import { DownloadOption } from '../../core/api/types';
 import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
+import { aspectOf } from '../gallery/gallery-rows.util';
 import { setScopePatch } from '../gallery/gallery-filters.util';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
@@ -251,7 +252,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
       <div class="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 lg:overflow-hidden">
         <!-- Image panel -->
         <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:!aspect-auto lg:max-h-none lg:min-h-0 lg:flex-1"
-             [style.aspect-ratio]="p.image_width && p.image_height ? p.image_width / p.image_height : (p.image_aspect || 4 / 3)">
+             [style.aspect-ratio]="photoAspect()">
         <div [appZoomPan]="p.path" #zoom="zoomPan" class="group/photo flex flex-1 min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab">
           <img
             [src]="thumbnailImageUrl()"
@@ -583,6 +584,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 })
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly I18N = i18nKeys();
+  protected readonly photoAspect = computed(() => {
+    const photo = this.photo();
+    return photo ? aspectOf(photo) : null;
+  });
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
