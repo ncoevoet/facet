@@ -246,6 +246,60 @@ describe('PhotoDetailComponent', () => {
     return view;
   }
 
+  it('refreshes rendered face boxes after every committed manual edit', async () => {
+    let faces: object[] = [];
+    mockApi.get.mockImplementation((url: string) => {
+      if (url === '/photo/faces') return of({ faces });
+      if (url === '/photo') return of(samplePhoto);
+      return of({});
+    });
+    const view = renderDetail();
+    vi.spyOn(TestBed.inject(GalleryStore), 'reloadPersonOptions').mockResolvedValue();
+    view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path, image_width: 6000, image_height: 4000 }));
+    view.detectChanges();
+    await view.whenStable();
+    (view.componentInstance as any).dialog = mockDialog;
+    await (view.componentInstance as any).openManualFaces(view.componentInstance.photo());
+    const committed = mockDialog.open.mock.calls.at(-1)![1].data.onCommitted;
+    expect(view.nativeElement.querySelectorAll('[data-face]')).toHaveLength(0);
+    for (const box of [[0.1, 0.2, 0.3, 0.4], [0.2, 0.3, 0.5, 0.6]]) {
+      faces = [{ id: 42, person_id: 1, person_name: 'Alice', box }];
+      await committed();
+      view.detectChanges();
+      const rect = view.nativeElement.querySelector('[data-face]');
+      expect(rect).not.toBeNull();
+      expect(Number(rect.getAttribute('x'))).toBe(box[0] * 6000);
+      expect(view.nativeElement.querySelector('app-photo-face-layer text').textContent).toContain('Alice');
+    }
+    faces = [];
+    await committed();
+    view.detectChanges();
+    expect(view.nativeElement.querySelectorAll('[data-face]')).toHaveLength(0);
+  });
+
+  it.each(['navigate', 'destroy'] as const)('does not reload obsolete face boxes after %s', async (leave) => {
+    mockApi.get.mockImplementation((url: string) => url === '/photo/faces' ? of({ faces: [] }) : of(samplePhoto));
+    const view = renderDetail();
+    vi.spyOn(TestBed.inject(GalleryStore), 'reloadPersonOptions').mockResolvedValue();
+    view.componentInstance.photo.set(makePhoto({ path: samplePhoto.path }));
+    view.detectChanges();
+    await view.whenStable();
+    (view.componentInstance as any).dialog = mockDialog;
+    await (view.componentInstance as any).openManualFaces(view.componentInstance.photo());
+    const committed = mockDialog.open.mock.calls.at(-1)![1].data.onCommitted;
+    if (leave === 'destroy') {
+      view.destroy();
+    } else {
+      view.componentInstance.photo.set(makePhoto({ path: '/other.jpg' }));
+      view.detectChanges();
+      await view.whenStable();
+    }
+    mockApi.get.mockClear();
+    await committed();
+    expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/faces')).toEqual([]);
+    expect(mockApi.get).toHaveBeenCalledWith('/photo', { path: samplePhoto.path });
+  });
+
   it('ranks each score that has a library distribution, and only those', () => {
     localStorage.setItem('facet_photo_detail_tab', 'quality');
     const view = renderDetail();

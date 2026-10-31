@@ -10,6 +10,7 @@ import {
 const ALBUM_PATH = 'album/:albumId';
 export const GALLERY_PATHS: readonly string[] = ['', ALBUM_PATH];
 export const PHOTO_PATH = 'photo';
+const STACK_EDITOR_PATH = 'stacks/edit';
 
 const isGallery = (route: ActivatedRouteSnapshot) => GALLERY_PATHS.includes(route.routeConfig?.path ?? '-');
 
@@ -33,7 +34,8 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
 
   override shouldDetach(route: ActivatedRouteSnapshot): boolean {
     const next = this.router.currentNavigation()?.finalUrl;
-    return isGallery(route) && next?.root.children['primary']?.segments[0]?.path === PHOTO_PATH;
+    const segments = next?.root.children['primary']?.segments.map(segment => segment.path) ?? [];
+    return isGallery(route) && (segments[0] === PHOTO_PATH || segments.join('/') === STACK_EDITOR_PATH);
   }
 
   override store(route: ActivatedRouteSnapshot, handle: DetachedRouteHandle | null): void {
@@ -49,7 +51,7 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
     if (!this.kept) return false;
     if (isGallery(route) && this.isBackToKept(route)) return true;
     // Activation asks about the photo immediately after storing the gallery.
-    if (route.routeConfig?.path !== PHOTO_PATH) this.drop();
+    if (![PHOTO_PATH, STACK_EDITOR_PATH].includes(route.routeConfig?.path ?? '')) this.drop();
     return false;
   }
 
@@ -58,7 +60,10 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
   }
 
   private isBackToKept(route: ActivatedRouteSnapshot): boolean {
-    return this.router.currentNavigation()?.trigger === 'popstate' && this.keyOf(route) === this.kept?.key;
+    const navigation = this.router.currentNavigation();
+    const previous = navigation?.previousNavigation?.finalUrl?.root.children['primary']?.segments.map(segment => segment.path).join('/');
+    return (navigation?.trigger === 'popstate' || previous === STACK_EDITOR_PATH)
+      && this.keyOf(route) === this.kept?.key;
   }
 
   private keyOf(route: ActivatedRouteSnapshot): string {

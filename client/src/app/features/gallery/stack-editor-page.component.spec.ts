@@ -30,18 +30,19 @@ describe('manual stack workspace with Router, HTTP and Material', () => {
   let harness: RouterTestingHarness;
   let identity: ReturnType<typeof signal<string>>;
   let edition: ReturnType<typeof signal<boolean>>;
+  let selection: { clear: ReturnType<typeof vi.fn>; restore: ReturnType<typeof vi.fn> };
   const root = () => harness.routeNativeElement!;
   const button = (selector: string) => root().querySelector<HTMLButtonElement>(selector)!;
   async function render() { harness.detectChanges(); await Promise.resolve(); await Promise.resolve(); TestBed.inject(ApplicationRef).tick(); harness.detectChanges(); }
   beforeEach(async () => {
-    identity = signal('alice'); edition = signal(true);
+    identity = signal('alice'); edition = signal(true); selection = { clear: vi.fn(), restore: vi.fn() };
     TestBed.configureTestingModule({ providers: [provideHttpClient(withXhr()), provideHttpClientTesting(),
       provideRouter([{ path: 'stacks/edit', component: StackEditorPageComponent }, { path: '', component: GalleryOrigin },
         { path: 'album/:albumId', component: GalleryOrigin }, { path: 'blocked', component: GalleryOrigin, canActivate: [() => false] },
         { path: 'broken', loadComponent: () => Promise.reject(new Error('load failed')) }]),
       { provide: AuthService, useValue: { identity, isEdition: edition } },
       { provide: I18nService, useValue: { translations: signal({}), t: (key: string) => key } },
-      { provide: GalleryStore, useValue: { pinnedPaths: signal(null), refreshPaths: vi.fn(async () => undefined), restoreSelection: vi.fn() } },
+      { provide: GalleryStore, useValue: { captureSelectionClear: vi.fn(() => selection), pinnedPaths: signal(null), refreshPaths: vi.fn(async () => undefined), restoreSelection: vi.fn() } },
     ] });
     http = TestBed.inject(HttpTestingController); harness = await RouterTestingHarness.create();
   });
@@ -95,6 +96,70 @@ describe('manual stack workspace with Router, HTTP and Material', () => {
     expect(TestBed.inject(GalleryStore).refreshPaths).not.toHaveBeenCalled();
     expect(document.querySelector('mat-snack-bar-container')).toBeNull();
     http.expectNone('/api/photos/batch_review');
+  });
+  it('returns from the empty workspace on Escape', async () => {
+    await open(null); await render();
+    button('[data-stack-back]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(TestBed.inject(Router).url).toBe('/');
+  });
+  it.each(['empty', 'loaded'])('keeps Escape out of typing, overlays and controls in the %s workspace', async workspace => {
+    if (workspace === 'empty') { await open(null); await render(); } else await ready();
+    const navigate = vi.spyOn(TestBed.inject(Router), 'navigateByUrl');
+    const target = button('[data-stack-back]');
+    const menu = document.createElement('div'); menu.setAttribute('role', 'menu'); root().append(menu);
+    menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); menu.remove();
+    const slider = document.createElement('div'); slider.setAttribute('role', 'slider'); root().append(slider);
+    slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); slider.remove();
+    for (const kind of ['dialog', 'bottom_sheet', 'slideshow'] as const) {
+      const clear = TestBed.inject(PageContextService).registerOverlay(kind);
+      target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); clear();
+    }
+    for (const init of [{ isComposing: true }, { keyCode: 229 }, { repeat: true }, { shiftKey: true }, { ctrlKey: true }]) {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, ...init }));
+    }
+    expect(navigate).not.toHaveBeenCalled();
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(navigate).toHaveBeenCalledTimes(1);
+  });
+  it('clears the committed selection only on save and restores it on Undo', async () => {
+    await ready();
+    const page = harness.routeDebugElement!.componentInstance as StackEditorPageComponent;
+    page.finish('skip'); expect(selection.clear).not.toHaveBeenCalled();
+    page.finish('saved'); expect(selection.clear).toHaveBeenCalledTimes(1);
+    page.onUndone(); expect(selection.restore).toHaveBeenCalledTimes(1);
+    await render(); http.match('/api/stacks/regroup/preview').forEach(request => request.flush(preview));
+  });
+  it('keeps Escape out of typing, overlays and in-flight saves', async () => {
+    await ready();
+    const target = button('[data-stack-back]');
+    const menu = document.createElement('div'); menu.setAttribute('role', 'menu'); root().append(menu);
+    menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); menu.remove();
+    const input = document.createElement('input'); root().append(input);
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); input.remove();
+    for (const kind of ['dialog', 'bottom_sheet', 'slideshow'] as const) {
+      const clear = TestBed.inject(PageContextService).registerOverlay(kind);
+      target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); clear();
+    }
+    for (const init of [{ isComposing: true }, { keyCode: 229 }, { repeat: true }, { shiftKey: true }]) {
+      target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, ...init }));
+    }
+    expect(TestBed.inject(Router).url).toBe('/stacks/edit');
+    button('[data-stack-save]').click();
+    const write = http.expectOne('/api/stacks/regroup/apply');
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(TestBed.inject(Router).url).toBe('/stacks/edit');
+    write.flush({}, { status: 409, statusText: 'Conflict' }); await render();
+    target.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    await TestBed.inject(ApplicationRef).whenStable();
+    expect(TestBed.inject(Router).url).toBe('/album/17?sort=date#position');
+  });
+  it('returns to the originating album on Escape without saving', async () => {
+    await ready();
+    button('[data-stack-back]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await TestBed.inject(ApplicationRef).whenStable(); await render();
+    expect(TestBed.inject(Router).url).toBe('/album/17?sort=date#position');
+    http.expectNone('/api/stacks/regroup/apply');
   });
   it('authorizes history before exposing private names and uses a real page zoom workspace', async () => {
     await open(); expect(root().textContent).not.toContain('a.jpg'); expect(root().querySelector('img')).toBeNull();

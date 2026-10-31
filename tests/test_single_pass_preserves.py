@@ -98,6 +98,7 @@ def _processor(facet, pass_groups, restricted=True):
     proc.restricted = restricted
     proc.pass_groups = pass_groups
     proc.on_error = None
+    proc.metrics = {'thumbnail_time': 0.0}
     return proc
 
 
