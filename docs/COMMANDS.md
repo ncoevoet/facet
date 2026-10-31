@@ -12,6 +12,7 @@
 |---------|-------------|
 | `python facet.py /path` | Scan a directory (multi-pass, auto VRAM detection) |
 | `python facet.py /path --force` | Re-scan files already processed |
+| `python facet.py <file> --ai-edit` | Score only these imported AI edits, put each in its original's burst and caption it; skips the library-wide passes (the AI-edit import runs this) |
 | `python facet.py /path --single-pass` | Load all models at once; `legacy`/`8gb` only (see [Processing Modes](#processing-modes)) |
 | `python facet.py /path --pass quality` | Run TOPIQ quality scoring only |
 | `python facet.py /path --pass quality-iaa` | Run TOPIQ IAA aesthetic merit scoring only |

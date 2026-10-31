@@ -95,3 +95,35 @@ def apply_ai_edit_captions(conn) -> int:
             written += 1
         conn.execute('UPDATE photo_ai_edits SET captioned = 1 WHERE edit_path = ?', (edit_path,))
     return written
+
+
+def join_ai_edits_to_original_sets(conn, edit_paths) -> int:
+    """Put each scanned AI edit in its original's burst, as a non-lead frame.
+
+    An edit is a version of its original, so there is nothing to detect: it joins the
+    original's burst, or starts one with the original as lead when the original stands
+    alone. The edit takes the original's tags when its own scoring produced none. The
+    next full scan's burst pass regroups the library as usual. Returns how many edits
+    were placed. Does not commit."""
+    from db.tags import sync_photo_tags
+
+    placed = 0
+    for edit_path in edit_paths:
+        row = conn.execute(
+            "SELECT o.path, o.burst_group_id, o.tags, p.tags FROM photo_ai_edits e "
+            "JOIN photos o ON o.path = e.source_path JOIN photos p ON p.path = e.edit_path "
+            "WHERE e.edit_path = ?", (edit_path,)).fetchone()
+        if row is None:
+            continue
+        original, group, original_tags, edit_tags = row
+        if group is None:
+            group = conn.execute("SELECT COALESCE(MAX(burst_group_id), 0) + 1 FROM photos").fetchone()[0]
+            conn.execute("UPDATE photos SET burst_group_id = ?, is_burst_lead = 1 WHERE path = ?",
+                         (group, original))
+        conn.execute("UPDATE photos SET burst_group_id = ?, is_burst_lead = 0 WHERE path = ?",
+                     (group, edit_path))
+        if not (edit_tags or '').strip() and (original_tags or '').strip():
+            conn.execute("UPDATE photos SET tags = ? WHERE path = ?", (original_tags, edit_path))
+            sync_photo_tags(conn, [edit_path])
+        placed += 1
+    return placed

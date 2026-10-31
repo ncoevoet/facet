@@ -80,6 +80,10 @@ Configuration:
     scan_group = parser.add_argument_group('Scanning options')
     scan_group.add_argument('--force', action='store_true',
                         help='Re-scan already processed files (ignores existing DB entries)')
+    scan_group.add_argument('--ai-edit', action='store_true',
+                        help='Scan only the given imported AI edits: score them, put each in its '
+                             "original's burst, caption it, and skip the library-wide passes "
+                             '(bursts, sequences, tagging, moments, junk). Used by the AI-edit import')
     scan_group.add_argument('--single-pass', action='store_true',
                         help='Force single-pass mode (load all models at once, requires more VRAM). '
                              'Applies to profiles scored with the CLIP+MLP head (legacy, 8gb); '
