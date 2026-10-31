@@ -7,7 +7,7 @@ import pytest
 from PIL import Image
 
 from api.routers import ai_edits as ai_edits_router
-from db.ai_edits import ai_edit_tag, edit_file_name, next_revision
+from db.ai_edits import edit_file_name, next_revision
 from tests.conftest import _TEST_DB_FILE
 
 
@@ -35,10 +35,10 @@ def library(tmp_path, seed_photos_prefix, monkeypatch):
         conn.execute('DELETE FROM photo_ai_edits WHERE edit_path LIKE ?', (prefix + '%',))
 
 
-def _import(client, lib, source, mode='copy', tool='antigravity-gemini', **extra):
+def _import(client, lib, source, mode='copy', tool='antigravity-gemini'):
     return client.post('/api/photo/ai_edits/import', json={
         'original_path': lib['original'], 'source_file': source, 'mode': mode, 'tool': tool,
-        'model': 'gemini-2.5-flash-image', 'note': 'brighten faces', **extra})
+        'model': 'gemini-2.5-flash-image', 'note': 'brighten faces'})
 
 
 def test_copy_places_the_edit_beside_the_original_and_scans_it(edition_client, library):
@@ -47,7 +47,7 @@ def test_copy_places_the_edit_beside_the_original_and_scans_it(edition_client, l
     assert r.status_code == 200, r.text
     body = r.json()
     target = str(library['folder'] / 'IMG_1_agy_1.JPG')
-    assert body == {'edit_path': target, 'revision': 1, 'tag': None, 'mode': 'copy', 'source_removed': False,
+    assert body == {'edit_path': target, 'revision': 1, 'mode': 'copy', 'source_removed': False,
                     'scan': {'started': True, 'detail': None}}
     assert os.path.exists(source) and open(target, 'rb').read() == open(source, 'rb').read()
     assert library['scans'] == [[target]]
@@ -145,27 +145,3 @@ def test_file_names_and_revisions():
     assert next_revision(r'\\nas\p\IMG_1.JPG', 'agy', names, []) == 5
     assert next_revision('/p/IMG_1.JPG', 'agy', [], [2, 7]) == 8
     assert next_revision('/p/IMG_1.JPG', 'agy', [], []) == 1
-
-
-def test_the_tag_lands_on_the_edit_when_the_scan_inserts_it(edition_client, library, seed_photos_prefix):
-    body = _import(edition_client, library, _jpeg(library['work'] / 't.jpg'),
-                   tag="Removed  watch on Ray's wrist").json()
-    assert body['tag'] == "ai: removed watch on ray's wrist"
-    target = body['edit_path']
-    seed_photos_prefix(str(library['folder']) + os.sep + 'IMG_1_agy', [{
-        'path': target, 'filename': os.path.basename(target), 'aggregate': 5.0,
-        'category': 'default', 'date_taken': '2026:02:01 10:00:00'}])
-    with sqlite3.connect(_TEST_DB_FILE.name) as conn:
-        tags = [r[0] for r in conn.execute('SELECT tag FROM photo_manual_tags WHERE photo_path = ?', (target,))]
-    assert tags == ["ai: removed watch on ray's wrist"]
-
-
-def test_a_tag_that_cannot_be_a_tag_is_refused_before_anything_is_written(edition_client, library):
-    r = _import(edition_client, library, _jpeg(library['work'] / 'c.jpg'), tag='watch, strap')
-    assert r.status_code == 422 and 'comma' in r.text
-    assert sorted(os.listdir(library['folder'])) == ['IMG_1.JPG'] and library['scans'] == []
-
-
-def test_ai_edit_tag_prefixes_once():
-    assert ai_edit_tag('AI: Removed watch') == 'ai: removed watch'
-    assert ai_edit_tag('removed watch') == 'ai: removed watch'

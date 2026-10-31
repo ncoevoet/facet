@@ -605,9 +605,6 @@ PHOTO_AI_EDITS_COLUMNS = [
     ('tool', 'TEXT NOT NULL'),
     ('model', 'TEXT'),
     ('note', 'TEXT'),
-    # Normalized manual tag ("ai: ...") for the edit; the ai_edit_tag_on_scan trigger
-    # writes it to photo_manual_tags when the scan first inserts the edit's photo row.
-    ('tag', 'TEXT'),
     ('revision', 'INTEGER NOT NULL'),
     ('created_by', 'TEXT'),
     ('created_at', "TEXT DEFAULT (datetime('now'))"),
@@ -1629,8 +1626,6 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
 
         from db.metadata_edits import create_review_edit_triggers
         create_review_edit_triggers(conn)
-        from db.ai_edits import create_ai_edit_tag_trigger
-        create_ai_edit_tag_trigger(conn)
 
         # Run the version ladder (no-op today) and stamp PRAGMA user_version.
         _run_migration_ladder(conn, is_fresh)

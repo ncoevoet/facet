@@ -5240,8 +5240,6 @@ export interface components {
             revision: number;
             /** Source Path */
             source_path: string;
-            /** Tag */
-            tag?: string | null;
             /** Tool */
             tool: string;
         };
@@ -5263,8 +5261,6 @@ export interface components {
             original_path: string;
             /** Source File */
             source_file: string;
-            /** Tag */
-            tag?: string | null;
             /** Tool */
             tool: string;
         };
@@ -5282,8 +5278,6 @@ export interface components {
             scan: components["schemas"]["AiEditScan"];
             /** Source Removed */
             source_removed: boolean;
-            /** Tag */
-            tag?: string | null;
         };
         /** AiEditScan */
         AiEditScan: {

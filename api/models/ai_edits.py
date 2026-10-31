@@ -16,8 +16,6 @@ class AiEditImport(BaseModel):
     tool: str = Field(min_length=1, max_length=64)
     model: Optional[str] = Field(default=None, max_length=200)
     note: Optional[str] = Field(default=None, max_length=1000)
-    # A few words on what changed; stored on the edit as the manual tag "ai: <tag>".
-    tag: Optional[str] = Field(default=None, max_length=64)
 
 
 class AiEditScan(BaseModel):
@@ -29,8 +27,6 @@ class AiEditScan(BaseModel):
 class AiEditImportResponse(BaseModel):
     edit_path: str
     revision: int
-    # The manual tag the edit gets once scanned ("ai: ..."), or None.
-    tag: Optional[str] = None
     mode: Literal['move', 'copy']
     # False only for a move whose source could not be deleted after the verified copy.
     source_removed: bool
@@ -43,7 +39,6 @@ class AiEdit(BaseModel):
     tool: str
     model: Optional[str] = None
     note: Optional[str] = None
-    tag: Optional[str] = None
     revision: int
     created_at: Optional[str] = None
 

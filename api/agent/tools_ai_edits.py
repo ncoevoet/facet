@@ -20,12 +20,11 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
     async def import_ai_edit(ctx: Context, original_path: ImportPath, source_file: ImportPath,
                              mode: Literal['move', 'copy'], tool: Annotated[str, Field(min_length=1, max_length=64)],
                              model: Annotated[Optional[str], Field(max_length=200)] = None,
-                             note: Annotated[Optional[str], Field(max_length=1000)] = None,
-                             tag: Annotated[Optional[str], Field(max_length=64)] = None) -> CallToolResult:
+                             note: Annotated[Optional[str], Field(max_length=1000)] = None) -> CallToolResult:
         async def handler(grant, resolved, settings):
             return await client.call(grant, 'import_ai_edit', json={
                 'original_path': original_path, 'source_file': source_file, 'mode': mode,
-                'tool': tool, 'model': model, 'note': note, 'tag': tag,
+                'tool': tool, 'model': model, 'note': note,
             }, timeout=settings['call_timeout_s'])
         return await run_tool(ctx, 'import_ai_edit', handler, write=True)
 
@@ -39,7 +38,5 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
         'an unknown name is refused with the configured list); the file lands beside the original as `{name}_{suffix}_{revision}{ext}`, '
         'never over an existing file. The new file is scanned when scanning is enabled (`scan.started`); '
         'otherwise it appears after the next scan. `get_photo` on the edit returns `ai_edit_of`. '
-        '`tag` is a few words on what changed (e.g. "removed watch from left wrist"); the edit gets it as the '
-        'manual tag "ai: <tag>" (lowercase, no comma, at most 64 characters with the prefix) once scanned. '
         'Not idempotent: each call adds a revision.',
         IMPORT_ANNOTATIONS, WRITE_TOOL_LEVELS['import_ai_edit'])
