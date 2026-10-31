@@ -1597,7 +1597,7 @@ Affichage et comportement de la galerie web.
 | `max_tags` | `20` | Nombre maximal d'étiquettes |
 | `min_photos_for_person` | `10` | Masquer du menu déroulant les personnes ayant moins de photos |
 | **persons** | | |
-| `needs_naming_min_faces` | `5` | Nombre minimal de visages pour qu'un groupe apparaisse sous « À nommer » dans `/persons` |
+| `needs_naming_min_faces` | `5` | Nombre minimal de visages pour qu'un groupe apparaisse sous « À nommer » dans `/persons` ; `1` liste toutes les personnes non nommées |
 | **raw_processor** | | |
 | `darktable.executable` | `"darktable-cli"` | Nom du binaire darktable-cli ou chemin absolu |
 | `darktable.profiles` | `[]` | Tableau de profils d'export darktable nommés (voir ci-dessous) |
@@ -2532,7 +2532,7 @@ Expose les outils décrits dans [Agents IA (MCP)](AGENTS.md) sur `POST /mcp` : 
 
 Sur une installation ouverte (sans `viewer.password`) :
 - `/mcp` ne sert qu'une clé anonyme en lecture seule, qui ne montre rien que l'`/api` ouverte ne montre déjà.
-- Un nouveau jeton est `readonly`, sauf si `viewer.trusted_local_editing` autorise un jeton Édition complète pour les requêtes de la même machine.
+- Un nouveau jeton est `readonly`, sauf si `viewer.trusted_local_editing` est activé ou si la session est connectée avec `viewer.edition_password` : l'un comme l'autre peut créer un jeton Édition complète, qui ne modifie que pour les requêtes de la même machine.
 - Les jetons ne peuvent être créés, listés et révoqués que depuis l'ordinateur qui exécute Facet (ou dans une session d'édition lorsque `viewer.edition_password` est défini).
 
 ```json

@@ -227,3 +227,62 @@ describe('PhotoCritiqueDialogComponent current calculation DOM', () => {
     expect(text).toContain('critique.penalty.skin_tone');
   });
 });
+
+describe('PhotoCritiqueDialogComponent VLM generation', () => {
+  const base = {
+    category: 'default', category_reason: { reason_key: 'default', category: 'default', details: [] },
+    aggregate: 5, breakdown: [], strengths: [], weaknesses: [], suggestions: [], penalties: {},
+  };
+  async function setup(getResponse: Record<string, unknown>, edition = true) {
+    const { of } = await import('rxjs');
+    const api = {
+      get: vi.fn(() => of({ ...base, ...getResponse })),
+      post: vi.fn(() => of({ ...base, vlm_critique: 'Generated.', vlm_source: 'generated' })),
+    };
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [
+        PhotoCritiqueDialogComponent,
+        { provide: ApiService, useValue: api },
+        { provide: AuthService, useValue: { hasFeature: vi.fn(() => false), isEdition: () => edition } },
+        { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'fr' } },
+        { provide: MatSnackBar, useValue: { open: vi.fn() } },
+        { provide: MAT_DIALOG_DATA, useValue: { photoPath: '/p/x.jpg', vlmAvailable: true } },
+      ],
+    });
+    const component: any = TestBed.inject(PhotoCritiqueDialogComponent);
+    await component.ngOnInit();
+    return { api, component };
+  }
+
+  it('reads with GET on open and generates through POST when nothing is stored', async () => {
+    const { api, component } = await setup({ vlm_available: true });
+    expect(api.get).toHaveBeenCalledWith('/critique', { path: '/p/x.jpg', mode: 'vlm', lang: 'fr' });
+    expect(api.post).toHaveBeenCalledWith('/critique/vlm', { path: '/p/x.jpg', lang: 'fr', refresh: false });
+    expect(component.critique().vlm_critique).toBe('Generated.');
+    expect(component.loading()).toBe(false);
+  });
+
+  it('does not POST when a critique is stored or generation is unavailable', async () => {
+    const stored = await setup({ vlm_critique: 'Stored.', vlm_source: 'cached' });
+    expect(stored.api.post).not.toHaveBeenCalled();
+    const unavailable = await setup({ vlm_available: false });
+    expect(unavailable.api.post).not.toHaveBeenCalled();
+  });
+
+  it('POSTs to translate a stored critique only for an edition user when the flag is set', async () => {
+    const stored = { vlm_critique: 'Stored.', vlm_source: 'cached', vlm_translation_missing: true };
+    const editor = await setup(stored);
+    expect(editor.api.post).toHaveBeenCalledWith('/critique/vlm', { path: '/p/x.jpg', lang: 'fr', refresh: false });
+    const reader = await setup(stored, false);
+    expect(reader.api.post).not.toHaveBeenCalled();
+    const done = await setup({ ...stored, vlm_translation_missing: false });
+    expect(done.api.post).not.toHaveBeenCalled();
+  });
+
+  it('refreshVlm POSTs with refresh true', async () => {
+    const { api, component } = await setup({ vlm_critique: 'Stored.', vlm_source: 'cached' });
+    await component.refreshVlm();
+    expect(api.post).toHaveBeenCalledWith('/critique/vlm', { path: '/p/x.jpg', lang: 'fr', refresh: true });
+  });
+});

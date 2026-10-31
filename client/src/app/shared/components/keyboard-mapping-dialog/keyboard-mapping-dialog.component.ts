@@ -18,35 +18,35 @@ import { KEYMAP_ACTIONS, KeymapConfig, KeyboardMappingService } from '../../../c
   imports: [MatButtonModule, MatDialogModule, MatIconModule, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <div class="px-6 pt-5">
-      <div class="flex items-center gap-3 mb-1">
-        <div class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
-          <mat-icon class="!text-base !w-5 !h-5 !leading-5 text-[var(--mat-sys-on-primary-container)]">keyboard</mat-icon>
-        </div>
-        <h2 mat-dialog-title class="!text-base !font-semibold !m-0 !p-0">{{ I18N.shortcuts.keymap_title | translate }}</h2>
-      </div>
-    </div>
-    <mat-dialog-content class="!px-6">
-      <p class="text-xs opacity-60 mt-0 mb-3">{{ I18N.shortcuts.keymap_hint | translate }}</p>
-      <div class="flex flex-col gap-1">
+    <h2 mat-dialog-title class="!flex !items-center !gap-3 !text-base !font-semibold !m-0 !px-6 !pt-5 !pb-0 before:!content-none">
+      <span class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
+        <mat-icon aria-hidden="true" class="!text-xl !leading-none !w-5 !h-5 text-[var(--mat-sys-on-primary-container)]">keyboard</mat-icon>
+      </span>
+      {{ I18N.shortcuts.keymap_title | translate }}
+    </h2>
+    <mat-dialog-content class="!px-6 !pb-1 !overflow-hidden">
+      <p class="text-xs opacity-60 mt-4 mb-4">{{ I18N.shortcuts.keymap_hint | translate }}</p>
+      <div class="flex flex-col gap-0.5">
         @for (action of KEYMAP_ACTIONS; track action.id) {
-          <div class="flex items-center gap-3 py-0.5">
-            <span [id]="'keymap-label-' + action.id" class="flex-1 text-sm">{{ action.labelKey | translate }}</span>
-            <button
-              type="button"
-              mat-stroked-button
-              [id]="'keymap-key-' + action.id"
-              [attr.aria-labelledby]="'keymap-label-' + action.id + ' keymap-key-' + action.id"
-              class="!min-w-[3.5rem] !px-3 !py-0.5 !rounded-md font-mono text-xs"
-              [class.!border-[var(--mat-sys-primary)]]="capturing() === action.id"
-              (click)="startCapture(action.id, $event)">
-              @if (capturing() === action.id) {
+          <button type="button" data-keymap-row
+                  class="w-full flex items-center gap-3 px-2.5 py-1.5 rounded-lg text-left transition-colors hover:bg-[var(--mat-sys-surface-container)]"
+                  [class.!bg-[var(--mat-sys-surface-container)]]="capturing() === action.id"
+                  (click)="startCapture(action.id, $event)">
+            <span class="flex-1 text-sm">{{ action.labelKey | translate }}</span>
+            @if (capturing() === action.id) {
+              <kbd class="px-2 py-1 rounded-md border border-[var(--mat-sys-primary)] bg-[var(--mat-sys-surface-container-high)] font-mono text-xs text-[var(--mat-sys-primary)] min-w-[3.5rem] text-center animate-pulse">
                 {{ I18N.shortcuts.press_key | translate }}
-              } @else {
-                {{ keyLabels()[action.id] }}
-              }
-            </button>
-          </div>
+              </kbd>
+            } @else {
+              <kbd class="px-2 py-1 rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] font-mono text-xs min-w-[3.5rem] text-center">
+                @if (keyLabels()[action.id]) {
+                  {{ keyLabels()[action.id] }}
+                } @else {
+                  {{ I18N.shortcuts.unassigned | translate }}
+                }
+              </kbd>
+            }
+          </button>
         }
       </div>
       <p role="status" class="text-xs text-[var(--mat-sys-error)] mb-0" [class.mt-2]="error()">

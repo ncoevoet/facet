@@ -5,6 +5,7 @@ from PIL import Image
 
 from api import config
 from api.database import get_db
+from tests.conftest import symlink_or_skip
 
 
 def test_registered_symlink_cannot_escape_allowed_roots(edition_client, tmp_path, monkeypatch, seed_photos_prefix):
@@ -15,14 +16,14 @@ def test_registered_symlink_cannot_escape_allowed_roots(edition_client, tmp_path
     inside = allowed / 'inside.jpg'
     Image.new('RGB', (40, 40), 'red').save(inside)
     linked = allowed / 'link.jpg'
-    linked.symlink_to(inside)
+    symlink_or_skip(linked, inside)
     path = str(linked)
     seed_photos_prefix(str(allowed), [{'path': path, 'filename': 'link.jpg'}])
     monkeypatch.setattr(config, '_FULL_CONFIG', {'users': {'test': {'directories': [str(allowed)]}}})
     safe_frame = edition_client.get('/api/photo/manual-face-frame', params={'path': path})
     assert safe_frame.status_code == 200
     linked.unlink()
-    linked.symlink_to(hidden)
+    symlink_or_skip(linked, hidden)
     assert edition_client.get('/image', params={'path': path}).status_code == 404
     assert edition_client.get('/api/photo/manual-face-frame', params={'path': path}).status_code == 404
     body = {'path': path, 'frame_token': safe_frame.json()['frame_token'], 'bbox': [0.1, 0.1, 0.9, 0.9],

@@ -18,9 +18,16 @@ import { CardActionsService } from './card-actions.service';
   imports: [MatButtonModule, MatCheckboxModule, MatIconModule, MatDialogModule, MatTooltipModule, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <h2 mat-dialog-title>{{ I18N.gallery.card_actions.title | translate }}</h2>
-    <mat-dialog-content>
-      <p class="text-sm opacity-70 mb-3">{{ I18N.gallery.card_actions.hint | translate }}</p>
+    <h2 mat-dialog-title class="!flex !items-center !gap-3 !m-0 !px-6 !pt-5 !pb-4 before:!content-none">
+      <span class="w-9 h-9 rounded-lg bg-[var(--mat-sys-primary-container)] flex items-center justify-center shrink-0">
+        <mat-icon aria-hidden="true" class="!text-xl !leading-none !w-5 !h-5 text-[var(--mat-sys-on-primary-container)]">tune</mat-icon>
+      </span>
+      <span class="flex flex-col">
+        <span class="!text-base !font-semibold">{{ I18N.gallery.card_actions.title | translate }}</span>
+        <span class="!text-xs !font-normal opacity-60 mt-0.5">{{ I18N.gallery.card_actions.hint | translate }}</span>
+      </span>
+    </h2>
+    <mat-dialog-content class="!px-6 !pb-1">
       <div class="flex flex-col gap-1">
         @for (id of order(); track id; let i = $index) {
           <div class="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--mat-sys-surface-container-high)]">
@@ -48,7 +55,7 @@ import { CardActionsService } from './card-actions.service';
         }
       </div>
     </mat-dialog-content>
-    <mat-dialog-actions align="end">
+    <mat-dialog-actions class="!px-6" align="end">
       <button mat-button (click)="reset()">{{ I18N.gallery.card_actions.reset | translate }}</button>
       <button mat-button (click)="ref.close()">{{ I18N.ui.buttons.cancel | translate }}</button>
       <button mat-flat-button color="primary" (click)="save()">{{ I18N.ui.buttons.save | translate }}</button>

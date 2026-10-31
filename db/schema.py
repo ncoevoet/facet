@@ -161,7 +161,7 @@ PHOTOS_COLUMNS = [
     ('caption', 'TEXT'),
     ('caption_translated', 'TEXT'),
 
-    # VLM critique cache (regenerated on demand via /api/critique?refresh=true)
+    # VLM critique cache (generated and regenerated through POST /api/critique/vlm)
     ('vlm_critique', 'TEXT'),
     ('vlm_critique_translated', 'TEXT'),
 

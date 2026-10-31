@@ -410,6 +410,15 @@ export class PhotoCritiqueDialogComponent implements OnInit {
         }),
       );
       this.critique.set(res);
+      // GET only reads the stored text; an edition user with nothing stored generates it here
+      // (the dialog keeps its loading spinner meanwhile, as it did when GET generated).
+      if (mode === 'vlm' && !res.vlm_critique && res.vlm_available) {
+        await this.requestVlm(false);
+      } else if (mode === 'vlm' && res.vlm_translation_missing && this.auth.isEdition()) {
+        // A stored critique with no translation in this locale: the POST translates and
+        // stores the cached text without regenerating it.
+        await this.requestVlm(false);
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : this.i18n.t(I18N.critique.error_fallback);
       this.error.set(message);
@@ -419,17 +428,21 @@ export class PhotoCritiqueDialogComponent implements OnInit {
   }
 
   protected async refreshVlm(): Promise<void> {
+    await this.requestVlm(true);
+  }
+
+  private async requestVlm(refresh: boolean): Promise<void> {
     if (this.vlmRefreshing()) return;
     this.vlmRefreshing.set(true);
     try {
       const res = await firstValueFrom(
-        this.api.get<CritiqueResponse>('/critique', {
-          path: this.data.photoPath, mode: 'vlm', lang: this.i18n.locale(), refresh: 'true',
+        this.api.post<CritiqueResponse>('/critique/vlm', {
+          path: this.data.photoPath, lang: this.i18n.locale(), refresh,
         }),
       );
       this.critique.set(res);
     } catch {
-      // Keep the previous critique visible when regeneration fails.
+      // Keep the previous critique visible when generation fails.
     } finally {
       this.vlmRefreshing.set(false);
     }

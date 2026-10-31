@@ -25,6 +25,8 @@ import { KeyboardMappingService } from '../../../core/services/keyboard-mapping.
                   <span class="flex gap-1 shrink-0">
                     @for (key of row.keys; track key) {
                       <kbd class="px-1.5 py-0.5 rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-high)] text-xs font-mono">{{ key }}</kbd>
+                    } @empty {
+                      {{ I18N.shortcuts.unassigned | translate }}
                     }
                   </span>
                 </div>

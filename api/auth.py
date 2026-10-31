@@ -314,7 +314,7 @@ def _trusted_local_editing(request: Request) -> bool:
 
 
 class _HttpView:
-    """The three request attributes ``_trusted_local_editing`` reads, with a WebSocket's scheme mapped."""
+    """The three request attributes ``request_is_local`` reads, with a WebSocket's scheme mapped."""
 
     __slots__ = ('headers', 'client', 'url')
 
@@ -324,17 +324,22 @@ class _HttpView:
         self.url = connection.url.replace(scheme={'ws': 'http', 'wss': 'https'}.get(connection.url.scheme, connection.url.scheme))
 
 
-def trusted_local_for(request) -> bool:
-    """``_trusted_local_editing`` for anything that carries the request's headers, peer and URL.
+def request_is_local_for(request) -> bool:
+    """:func:`request_is_local` for anything that carries the request's headers, peer and URL.
 
     Accepts a ``Request``, a ``WebSocket`` or an ASGI scope's ``Request``. A WebSocket handshake
     addresses ``ws://`` or ``wss://``, which ``_local_target_origin`` would refuse outright, so the
     scheme is mapped to its HTTP twin first. Fails closed on anything it cannot read.
     """
     try:
-        return _trusted_local_editing(cast(Request, _HttpView(request)))
+        return request_is_local(cast(Request, _HttpView(request)))
     except (AttributeError, TypeError, ValueError):
         return False
+
+
+def trusted_local_for(request) -> bool:
+    """``_trusted_local_editing`` for anything :func:`request_is_local_for` accepts."""
+    return _trusted_local_editing_enabled() and request_is_local_for(request)
 
 
 class CurrentUser:

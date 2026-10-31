@@ -419,9 +419,11 @@ próprios diretórios ou dos compartilhados. API: `POST /api/persons` (veja [API
 
 ### Precisa de nome
 
-A página Gerenciar pessoas lista os clusters grandes sem nome em uma seção
+A página Gerenciar pessoas lista os clusters grandes sem nome em uma aba
 **Precisa de nome**, cada um com um campo de nome. Um cluster aparece ali quando tem pelo menos
 `viewer.persons.needs_naming_min_faces` rostos (padrão `5`).
+
+Sem nome significa sem nome ou com um nome em branco, venha o cluster do agrupamento ou de uma divisão; pessoas ocultas (ignoradas) ficam de fora. A aba aparece só no modo de edição, ao lado de **Com nome**, que lista só as pessoas com nome, de modo que cada pessoa aparece uma vez; a página abre em **Com nome**.
 
 ### Página Sugestões de mesclagem
 

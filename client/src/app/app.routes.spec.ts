@@ -7,7 +7,7 @@ import { GALLERY_PATHS, GalleryReuseStrategy, PHOTO_PATH } from './core/gallery-
 import { GalleryComponent } from './features/gallery/gallery.component';
 
 describe('route table', () => {
-  const EDITION_PAGES = ['compare', 'culling', 'junk', 'merge-suggestions'];
+  const EDITION_PAGES = ['compare', 'culling', 'junk', 'merge-suggestions', 'stacks/edit'];
 
   it.each(EDITION_PAGES)('/%s carries authGuard then editionGuard', path => {
     const route = routes.find(r => r.path === path);

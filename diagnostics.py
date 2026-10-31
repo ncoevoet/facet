@@ -372,15 +372,14 @@ def _report_cuda_session(ort, torch_cuda):
 
 def _report_onnx_runtime_cuda(ort, torch_cuda):
     """CUDA checks, for a runtime device of ``cuda`` only."""
-    from utils.onnx_runtime import cuda_major, repair_hint
+    from utils.onnx_runtime import cuda_mismatch, repair_hint
     if not torch_cuda:
         _info("ONNX Runtime CUDA", "not applicable: this PyTorch build reports no CUDA version")
         return
-    ort_cuda = getattr(ort, "cuda_version", None)
     # No attribute or an empty string is the CPU wheel (or an old build): nothing to compare.
-    ort_major = cuda_major(ort_cuda)
-    if ort_major is not None and ort_major != cuda_major(torch_cuda):
-        _warn("ONNX Runtime CUDA build", f"onnxruntime is built for CUDA {ort_cuda} but PyTorch uses CUDA {torch_cuda}")
+    mismatch = cuda_mismatch(getattr(ort, "cuda_version", None), torch_cuda)
+    if mismatch:
+        _warn("ONNX Runtime CUDA build", mismatch)
         _log_fix(repair_hint(torch_cuda))
     if _CUDA_PROVIDER not in ort.get_available_providers():
         _warn(_CUDA_PROVIDER, "missing - InsightFace runs on the CPU although Facet uses CUDA")

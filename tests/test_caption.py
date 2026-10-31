@@ -8,7 +8,7 @@ handler); they are patched with plain stubs. The PUT endpoint stays sync.
 """
 
 import sqlite3
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from unittest import mock
 
 import aiosqlite
@@ -136,7 +136,7 @@ class TestCaptionEndpoint:
             mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
             mock.patch("api.routers.caption._generate_caption", return_value=None),
         ):
-            resp = edition_session_client.get("/api/caption", params={"path": "/photos/test.jpg"})
+            resp = edition_session_client.post("/api/caption", json={"path": "/photos/test.jpg"})
 
         assert resp.status_code == 503
         assert "unavailable" in resp.json()["detail"].lower()
@@ -154,7 +154,7 @@ class TestCaptionEndpoint:
             mock.patch("api.routers.caption.get_existing_columns", return_value={"caption", "path"}),
             mock.patch("api.routers.caption._generate_caption", return_value="A golden retriever playing in a park"),
         ):
-            resp = edition_session_client.get("/api/caption", params={"path": "/photos/test.jpg"})
+            resp = edition_session_client.post("/api/caption", json={"path": "/photos/test.jpg"})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -176,7 +176,7 @@ class TestCaptionEndpoint:
             mock.patch("api.routers.caption.get_existing_columns", return_value={"path", "aggregate"}),
             mock.patch("api.routers.caption._generate_caption", return_value="Generated caption"),
         ):
-            resp = edition_session_client.get("/api/caption", params={"path": "/photos/test.jpg"})
+            resp = edition_session_client.post("/api/caption", json={"path": "/photos/test.jpg"})
 
         assert resp.status_code == 200
         body = resp.json()
@@ -210,11 +210,10 @@ class TestCaptionEditionGate:
                 mock.patch("api.routers.caption._generate_caption", gen),
                 mock.patch("api.auth.is_multi_user_enabled", return_value=True),
             ):
-                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+                resp = client.post("/api/caption", json={"path": "/photos/test.jpg"})
         finally:
             app.dependency_overrides.clear()
-        assert resp.status_code == 200
-        assert resp.json()["source"] == "edition_required"
+        assert resp.status_code in (401, 403)
         gen.assert_not_called()
         assert _read_caption(db, "/photos/test.jpg") is None
 
@@ -251,7 +250,7 @@ class TestCaptionEditionGate:
                 mock.patch("api.routers.caption._generate_caption", return_value="fresh caption"),
                 mock.patch("api.auth.is_multi_user_enabled", return_value=True),
             ):
-                resp = client.get("/api/caption", params={"path": "/photos/test.jpg"})
+                resp = client.post("/api/caption", json={"path": "/photos/test.jpg"})
         finally:
             app.dependency_overrides.clear()
         assert resp.status_code == 200
@@ -334,10 +333,10 @@ class TestGenerateCaption:
         mock_load.assert_called_once()
 
 
-class TestCaptionOpenInstallIsReadOnly:
-    """An open install (anonymous, no edition password) never writes a caption."""
+class TestCaptionGetIsReadOnly:
+    """GET /api/caption never generates, translates or writes, for any caller."""
 
-    def _get(self, client, db, **params):
+    def _get(self, client, db, gen, translate, **params):
         with (
             mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
             mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
@@ -346,26 +345,141 @@ class TestCaptionOpenInstallIsReadOnly:
                 "api.routers.caption.get_existing_columns",
                 return_value={"caption", "caption_translated", "path"},
             ),
-            mock.patch("api.routers.caption._generate_caption", return_value="generated"),
-            mock.patch("api.routers.caption.translate_text", return_value="traduit"),
+            mock.patch("api.routers.caption._generate_caption", gen),
+            mock.patch("api.routers.caption.translate_text", translate),
+            mock.patch("api.routers.caption.translation_target", lambda lang: "fr" if lang else None),
         ):
             return client.get("/api/caption", params={"path": "/photos/test.jpg", **params})
 
-    def test_generation_is_refused_and_nothing_is_written(self, client, tmp_path):
+    def _stored(self, db):
+        conn = sqlite3.connect(db)
+        row = conn.execute("SELECT caption, caption_translated FROM photos").fetchone()
+        conn.close()
+        return row
+
+    def test_nothing_cached_is_not_generated_even_for_an_edition_caller(self, edition_session_client, tmp_path):
         db = str(tmp_path / "caption.db")
         _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
-        resp = self._get(client, db)
+        gen, translate = mock.Mock(return_value="generated"), mock.Mock(return_value="traduit")
+        resp = self._get(edition_session_client, db, gen, translate, lang="fr")
         assert resp.status_code == 200
-        assert resp.json() == {"caption": None, "source": "edition_required"}
-        assert _read_caption(db, "/photos/test.jpg") is None
+        assert resp.json() == {"caption": None, "source": "none"}
+        gen.assert_not_called()
+        translate.assert_not_called()
+        assert self._stored(db) == (None, None)
 
-    def test_translation_of_a_cached_caption_is_served_but_not_persisted(self, client, tmp_path):
+    def test_a_missing_translation_is_not_made_or_persisted(self, edition_session_client, tmp_path):
         db = str(tmp_path / "caption.db")
         _make_db(db, [{"path": "/photos/test.jpg", "caption": "cached text"}])
-        resp = self._get(client, db, lang="fr")
-        assert resp.status_code == 200
-        assert resp.json()["caption"] == "traduit"
+        gen, translate = mock.Mock(), mock.Mock(return_value="traduit")
+        resp = self._get(edition_session_client, db, gen, translate, lang="fr")
+        assert resp.json() == {"caption": "cached text", "source": "cached"}
+        translate.assert_not_called()
+        assert self._stored(db) == ("cached text", None)
+
+    def test_a_stored_translation_is_served(self, client, tmp_path):
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": "cached text", "caption_translated": "texte"}])
+        resp = self._get(client, db, mock.Mock(), mock.Mock(), lang="fr")
+        assert resp.json() == {"caption": "texte", "source": "cached", "lang": "fr"}
+
+
+class TestCaptionPost:
+    """POST /api/caption: edition only, translates and persists, deduplicates."""
+
+    @staticmethod
+    @contextmanager
+    def _patched(db, gen, translate=None):
+        with (
+            mock.patch("api.routers.caption.VIEWER_CONFIG", {"features": {"show_captions": True}}),
+            mock.patch("api.routers.caption.get_async_db", _async_conn_factory(db)),
+            mock.patch("api.routers.caption.get_visibility_clause", _fake_vis),
+            mock.patch(
+                "api.routers.caption.get_existing_columns",
+                return_value={"caption", "caption_translated", "path"},
+            ),
+            mock.patch("api.routers.caption._generate_caption", gen),
+            mock.patch("api.routers.caption.translate_text", translate or mock.Mock(return_value="traduit")),
+            mock.patch("api.routers.caption.translation_target", lambda lang: "fr" if lang else None),
+        ):
+            yield
+
+    def _post(self, client, db, gen, translate=None, **body):
+        with self._patched(db, gen, translate):
+            return client.post("/api/caption", json={"path": "/photos/test.jpg", **body})
+
+    def test_requires_edition(self, anonymous_client, regular_client):
+        for denied in (anonymous_client, regular_client):
+            resp = denied.post("/api/caption", json={"path": "/photos/test.jpg"})
+            assert resp.status_code in (401, 403), resp.text
+
+    def test_generates_translates_and_persists_both(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
+        resp = self._post(edition_session_client, db, mock.Mock(return_value="generated"), lang="fr")
+        assert resp.json() == {"caption": "traduit", "source": "translated", "lang": "fr"}
         conn = sqlite3.connect(db)
-        stored = conn.execute("SELECT caption_translated FROM photos").fetchone()[0]
+        assert conn.execute("SELECT caption, caption_translated FROM photos").fetchone() == ("generated", "traduit")
         conn.close()
-        assert stored is None
+
+    def test_translates_a_stored_caption_without_regenerating(self, edition_session_client, tmp_path):
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": "cached text"}])
+        gen = mock.Mock()
+        resp = self._post(edition_session_client, db, gen, lang="fr")
+        assert resp.json()["caption"] == "traduit"
+        gen.assert_not_called()
+        conn = sqlite3.connect(db)
+        assert conn.execute("SELECT caption_translated FROM photos").fetchone()[0] == "traduit"
+        conn.close()
+
+    def test_concurrent_posts_share_one_generation(self, edition_session_client, tmp_path):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        db = str(tmp_path / "caption.db")
+        _make_db(db, [{"path": "/photos/test.jpg", "caption": None}])
+        from api.routers import caption as cap
+        calls, entered = [], threading.Event()
+        gate = cap._caption_flights
+
+        def slow(path):
+            calls.append(path)
+            entered.set()
+            # Hold the leader until the second request is awaiting its flight.
+            assert _wait_for_joiner(gate)
+            return "shared"
+
+        def post():
+            return edition_session_client.post("/api/caption", json={"path": "/photos/test.jpg"})
+
+        # Patch once, outside the threads: nested patches of one attribute from
+        # two threads restore each other's mocks and leak into later tests.
+        with (
+            self._patched(db, slow),
+            ThreadPoolExecutor(max_workers=2) as pool,
+        ):
+            first = pool.submit(post)
+            assert entered.wait(10)
+            second = pool.submit(post)
+            responses = [first.result(timeout=30), second.result(timeout=30)]
+        assert [r.status_code for r in responses] == [200, 200]
+        assert {r.json()["caption"] for r in responses} == {"shared"}
+        assert len(calls) == 1
+
+
+def _wait_for_joiner(gate, timeout=10.0):
+    """Block until a second caller is awaiting the in-flight future.
+
+    ``asyncio.wrap_future`` registers a done-callback on the shared future, so a
+    callback there proves the joiner already holds the leader's flight and can
+    no longer become a leader itself.
+    """
+    import time
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        with gate._lock:
+            flights = list(gate._flights.values())
+        if any(f._done_callbacks for f in flights):
+            return True
+        time.sleep(0.005)
+    return False

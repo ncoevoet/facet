@@ -186,8 +186,44 @@ def find_companion_raw(disk_path: str) -> str | None:
     return _find_companion_raw_cached(p.stem, str(p.parent), RAW_EXTENSIONS)
 
 
+def windows_entry_path(candidate: str | os.PathLike) -> str:
+    """Return *candidate* with its leaf spelled as the directory entry is on disk.
+
+    NTFS finds ``r1.cr2`` through ``r1.CR2``, so a probe spelling must not be taken
+    for the file's name. The supplied parent is kept as given, symlinks are not
+    resolved. Raises ``FileNotFoundError`` when the entry is gone; any other lookup
+    failure (over-MAX_PATH, SMB oddities) keeps the supplied spelling. Other
+    platforms return the path unchanged.
+    """
+    path = os.fspath(candidate)
+    if sys.platform != 'win32':
+        return path
+
+    import ctypes
+    from ctypes import wintypes
+
+    get_long_path_name = ctypes.WinDLL('kernel32', use_last_error=True).GetLongPathNameW
+    get_long_path_name.argtypes = (wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD)
+    get_long_path_name.restype = wintypes.DWORD
+    size = 1024
+    for _ in range(2):
+        buffer = ctypes.create_unicode_buffer(size)
+        length = get_long_path_name(path, buffer, size)
+        if length == 0:
+            error = ctypes.get_last_error()
+            if error in (2, 3):  # ERROR_FILE_NOT_FOUND, ERROR_PATH_NOT_FOUND
+                raise FileNotFoundError(error, 'companion entry not found', path)
+            return path
+        if length < size:
+            return str(Path(path).with_name(os.path.basename(buffer.value)))
+        size = length + 1  # too small: the result is `length` characters long, including the NUL
+    return path
+
+
 def _companion_entry_path(candidate: Path) -> str:
     """Keep the directory-entry spelling instead of a case-insensitive alias."""
+    if sys.platform == 'win32':
+        return windows_entry_path(candidate)
     if sys.platform != 'darwin':
         return str(candidate)
 

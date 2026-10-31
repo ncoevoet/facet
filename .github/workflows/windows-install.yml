@@ -1,0 +1,259 @@
+name: Windows install (MSI)
+
+# The native Windows install end to end on a hosted runner, without a GPU: build the MSI,
+# install it per user, set up the CPU environment, start and stop the viewer, scan the
+# LFW face-test library and check its report against testdb/README.md's CPU baseline,
+# then reinstall and uninstall. It is its own workflow, so a Windows-only failure never
+# blocks the face gate (face-gate.yml).
+#
+# Pull requests that touch the installer scan with the face pass only; the weekly run and
+# a manual run with full_scan scan with the whole pipeline.
+on:
+  pull_request:
+    paths:
+      - "installer/**"
+      - "scripts/rewrite_db_paths.py"
+      - "tests/test_rewrite_db_paths.py"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/windows-install.yml"
+  push:
+    branches: [master]
+    paths:
+      - "installer/**"
+      - "scripts/rewrite_db_paths.py"
+      - "tests/test_rewrite_db_paths.py"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - ".github/workflows/windows-install.yml"
+  schedule:
+    - cron: "41 3 * * 2"
+  workflow_dispatch:
+    inputs:
+      full_scan:
+        description: Run the whole scoring pipeline instead of the face pass only
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-install-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FACET_VRAM_PROFILE: legacy
+  DEPTH: ${{ (github.event_name == 'schedule' || inputs.full_scan) && 'full' || 'faces' }}
+
+jobs:
+  library:
+    name: Build the LFW test library
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: LFW download (cached; the source is slow and sometimes down)
+        uses: actions/cache@v6
+        with:
+          path: ~/lfw-data
+          key: lfw-funneled-v1
+      - name: Library and references
+        run: |
+          pip install -c requirements.lock.txt scikit-learn pillow
+          python -c "from sklearn.datasets import fetch_lfw_people; fetch_lfw_people(data_home='$HOME/lfw-data', min_faces_per_person=10)"
+          lfw="$HOME/lfw-data/lfw_home/lfw_funneled"
+          python testdb/make_lfw_subset.py --lfw "$lfw" --out library/photos
+          python testdb/make_references.py --lfw "$lfw" --photos library/photos --out library/references
+      - uses: actions/upload-artifact@v7
+        with:
+          name: face-library
+          path: library/
+
+  windows:
+    name: Windows, MSI install
+    needs: library
+    runs-on: windows-latest
+    timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.full_scan) && 180 || 60 }}
+    defaults:
+      run:
+        shell: powershell
+    env:
+      WIX_URL: https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip
+      WIX_SHA256: 6AC824E1642D6F7277D0ED7EA09411A508F6116BA6FAE0AA5F2C7DAA2FF43D31
+      PORT: "5000"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+          cache: "npm"
+          cache-dependency-path: client/package-lock.json
+      - uses: actions/download-artifact@v8
+        with:
+          name: face-library
+          path: library
+      - name: Build the client
+        working-directory: client
+        run: |
+          npm ci --no-audit --no-fund
+          npm run build
+          if ($LASTEXITCODE) { throw 'client build failed' }
+      - name: Build the MSI (WiX 3.14, checksum pinned)
+        run: |
+          python -m pip install uv==0.10.7
+          $zip = Join-Path $env:RUNNER_TEMP 'wix.zip'
+          Invoke-WebRequest $env:WIX_URL -OutFile $zip -UseBasicParsing
+          if ((Get-FileHash $zip -Algorithm SHA256).Hash -ne $env:WIX_SHA256) { throw 'WiX download failed its checksum' }
+          Expand-Archive $zip (Join-Path $env:RUNNER_TEMP 'wix')
+          & .\installer\build-msi.ps1 -WixDir (Join-Path $env:RUNNER_TEMP 'wix') -Uv (Get-Command uv).Source
+          "MSI=$((Get-ChildItem installer\out\*.msi).FullName)" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - uses: actions/upload-artifact@v7
+        with:
+          name: facet-msi
+          path: installer/out/*.msi
+
+      - name: Install the MSI (per user, no admin, setup deferred)
+        run: |
+          $p = Start-Process msiexec -ArgumentList '/i', "`"$env:MSI`"", '/qn', '/l*v', "`"$env:RUNNER_TEMP\install.log`"", 'FACET_SKIP_SETUP=1' -Wait -PassThru
+          if ($p.ExitCode) { throw "msiexec /i exited $($p.ExitCode)" }
+          $app = Join-Path $env:LOCALAPPDATA 'Facet\app'
+          foreach ($f in 'viewer.py', 'facet.py', 'installer\Start-Facet.ps1', 'installer\bin\uv.exe', 'client\dist\client\browser\index.html') {
+            if (-not (Test-Path (Join-Path $app $f))) { throw "missing after install: $f" }
+          }
+          $menu = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\Facet'
+          if ((Get-ChildItem $menu -Filter *.lnk).Count -ne 3) { throw 'expected 3 Start-menu shortcuts' }
+          # Remembered so an upgrade keeps a custom INSTALLDIR.
+          $remembered = (Get-ItemProperty 'HKCU:\Software\Facet' -Name InstallDir).InstallDir.TrimEnd('\')
+          if ($remembered -ne $app) { throw "install folder not remembered: '$remembered'" }
+          "FACET_APP=$app" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Setup (CPU path, no NVIDIA driver), then a second setup that does nothing
+        run: |
+          & "$env:FACET_APP\installer\Setup-Facet.ps1"
+          . "$env:FACET_APP\installer\Facet-Env.ps1"
+          & $FacetPython -c "import torch; assert not torch.cuda.is_available(); assert '+cpu' in torch.__version__, torch.__version__; print(torch.__version__)"
+          if ($LASTEXITCODE) { throw 'torch check failed' }
+          $ver = & (Join-Path $FacetExifTool 'exiftool.exe') -ver
+          if ($ver -ne '13.55') { throw "exiftool is $ver, expected 13.55" }
+          $out = & "$env:FACET_APP\installer\Setup-Facet.ps1" *>&1 | Out-String
+          if ($out -notmatch 'already set up') { throw "second setup did work:`n$out" }
+      - name: A changed lock file makes the setup stale
+        run: |
+          . "$env:FACET_APP\installer\Facet-Env.ps1"
+          if (-not (Test-FacetReady)) { throw 'fresh setup reads as stale' }
+          $lock = Join-Path $FacetApp 'requirements.lock.txt'
+          $saved = [IO.File]::ReadAllBytes($lock)
+          try {
+            Add-Content $lock '# changed' -Encoding ascii
+            if (Test-FacetReady) { throw 'a changed lock file still reads as set up' }
+          } finally { [IO.File]::WriteAllBytes($lock, $saved) }
+          if (-not (Test-FacetReady)) { throw 'restored lock file reads as stale' }
+      - name: Start, health, idempotent start, port guard, LAN needs a password
+        run: |
+          & "$env:FACET_APP\installer\Start-Facet.ps1" -Port $env:PORT -NoBrowser
+          Invoke-RestMethod "http://127.0.0.1:$env:PORT/health" | ConvertTo-Json -Compress
+          if ((Invoke-WebRequest "http://127.0.0.1:$env:PORT/" -UseBasicParsing).StatusCode -ne 200) { throw 'client not served' }
+          & "$env:FACET_APP\installer\Start-Facet.ps1" -Port $env:PORT -NoBrowser
+          $l = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 5010); $l.Start()
+          try {
+            $refused = $false
+            try { & "$env:FACET_APP\installer\Start-Facet.ps1" -Port 5010 -NoBrowser } catch { $refused = $_.Exception.Message -match 'already in use' }
+            if (-not $refused) { throw 'Start-Facet did not refuse a port held by another program' }
+          } finally { $l.Stop() }
+          $refused = $false
+          try { & "$env:FACET_APP\installer\Start-Facet.ps1" -Port 5020 -Lan -NoBrowser } catch { $refused = $_.Exception.Message -match 'viewer.password' }
+          if (-not $refused) { throw 'Start-Facet -Lan started without a viewer password' }
+
+      - name: Scan (a folder with a space, passed with a trailing backslash), group, name
+        run: |
+          . "$env:FACET_APP\installer\Facet-Env.ps1"
+          $photos = 'C:\data\test photos'
+          New-Item -ItemType Directory -Force (Split-Path $photos) | Out-Null
+          Copy-Item -Recurse library\photos $photos
+          $pass = if ($env:DEPTH -eq 'faces') { @('--pass', 'faces') } else { @() }
+          & "$env:FACET_APP\installer\Scan-Facet.ps1" "$photos\" @pass
+          if ($LASTEXITCODE) { throw "scan exited $LASTEXITCODE" }
+          $stored = & $FacetPython -c "import os, sqlite3; print(sqlite3.connect(os.environ['DB_PATH']).execute('SELECT count(*) FROM photos').fetchone()[0])"
+          if ($stored -ne '200') { throw "expected 200 photos stored, found $stored" }
+          Push-Location $FacetApp
+          try {
+            & $FacetPython facet.py --cluster-faces-incremental
+            if ($LASTEXITCODE) { throw "clustering exited $LASTEXITCODE" }
+          } finally { Pop-Location }
+          & $FacetPython testdb\seed_names.py --db $env:DB_PATH --people "$photos\people.csv" --apply
+          if ($LASTEXITCODE) { throw "seed_names exited $LASTEXITCODE" }
+          New-Item -ItemType Directory -Force reports | Out-Null
+          # cmd redirects bytes; Windows PowerShell's > would write UTF-16.
+          cmd /c "`"$FacetPython`" testdb\ci_report.py --db `"$env:DB_PATH`" --people `"$photos\people.csv`" --refs library\references > reports\windows.txt"
+          if ($LASTEXITCODE) { throw "ci_report exited $LASTEXITCODE" }
+          & $FacetPython testdb\ci_compare.py --baseline testdb\README.md reports\windows.txt
+          if ($LASTEXITCODE) { throw 'the Windows report is below the README baseline' }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: report-windows
+          path: reports/
+      - name: The viewer serves the scanned library
+        run: |
+          # The runner ends a step's child processes when the step finishes, so start again.
+          & "$env:FACET_APP\installer\Start-Facet.ps1" -Port $env:PORT -NoBrowser
+          $page = Invoke-RestMethod "http://127.0.0.1:$env:PORT/api/photos?per_page=5"
+          ($page | ConvertTo-Json -Depth 2 -Compress).Substring(0, 200)
+      - name: Path rewrite tests with the installed environment
+        run: |
+          . "$env:FACET_APP\installer\Facet-Env.ps1"
+          & $FacetUv pip install --python $FacetPython pytest pytest-asyncio pytest-timeout==2.4.0
+          & $FacetPython -m pytest tests/test_rewrite_db_paths.py -v --tb=short -p no:cacheprovider
+          if ($LASTEXITCODE) { throw 'rewrite tests failed' }
+      - name: Stop leaves nothing running
+        run: |
+          & "$env:FACET_APP\installer\Start-Facet.ps1" -Port $env:PORT -NoBrowser
+          . "$env:FACET_APP\installer\Facet-Env.ps1"
+          if (-not (Test-PortOpen ([int]$env:PORT))) { throw 'viewer did not start' }
+          & "$env:FACET_APP\installer\Stop-Facet.ps1"
+          if ($LASTEXITCODE) { throw "Stop-Facet exited $LASTEXITCODE" }
+          Start-Sleep -Seconds 2
+          if (Test-PortOpen ([int]$env:PORT)) { throw 'port still open after Stop-Facet' }
+          if (@(Get-FacetProcesses).Count) { throw 'Facet processes left after Stop-Facet' }
+      - name: A second build of the same version replaces the first, and keeps the environment
+        run: |
+          # Each build gets a new product code; the upgrade code ties them together.
+          Move-Item $env:MSI (Join-Path $env:RUNNER_TEMP 'first.msi')
+          & .\installer\build-msi.ps1 -WixDir (Join-Path $env:RUNNER_TEMP 'wix') -Uv (Get-Command uv).Source
+          $second = (Get-ChildItem installer\out\*.msi).FullName
+          $p = Start-Process msiexec -ArgumentList '/i', "`"$second`"", '/qn', 'FACET_SKIP_SETUP=1' -Wait -PassThru
+          if ($p.ExitCode) { throw "msiexec /i of the second build exited $($p.ExitCode)" }
+          $installed = @((New-Object -ComObject WindowsInstaller.Installer).RelatedProducts('{6C1E5D2A-7F3B-4C8E-9A41-2B7D0F6E9C13}'))
+          if ($installed.Count -ne 1) { throw "expected one installed Facet, found $($installed.Count)" }
+          . "$env:FACET_APP\installer\Facet-Env.ps1"
+          if (-not (Test-FacetReady)) { throw 'the upgrade made the environment stale' }
+          "PRODUCT=$($installed[0])" | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+      - name: Uninstall removes the program and its environment, keeps the data
+        run: |
+          $p = Start-Process msiexec -ArgumentList '/x', $env:PRODUCT, '/qn' -Wait -PassThru
+          if ($p.ExitCode) { throw "msiexec /x exited $($p.ExitCode)" }
+          if (Test-Path (Join-Path $env:FACET_APP 'viewer.py')) { throw 'program files left after uninstall' }
+          if (Test-Path (Join-Path $env:LOCALAPPDATA 'Facet\venv')) { throw 'Python environment left after uninstall' }
+          if (-not (Test-Path (Join-Path $env:LOCALAPPDATA 'Facet\data\photo_scores_pro.db'))) { throw 'uninstall removed the database' }
+          $log = Join-Path $env:LOCALAPPDATA 'Facet\data\logs\uninstall.log'
+          if (-not (Test-Path $log)) { throw 'uninstall did not run Remove-Environment.ps1 (no uninstall.log)' }
+          Get-Content $log
+          if (Select-String -Path $log -Pattern 'LEFT BEHIND' -Quiet) { throw 'uninstall left files behind' }
+      - name: Collect logs
+        if: always()
+        run: |
+          New-Item -ItemType Directory -Force ci-logs | Out-Null
+          Copy-Item "$env:RUNNER_TEMP\install.log" ci-logs -ErrorAction SilentlyContinue
+          Copy-Item "$env:LOCALAPPDATA\Facet\data\logs\*" ci-logs -ErrorAction SilentlyContinue
+          exit 0
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: windows-logs
+          path: ci-logs/
+          if-no-files-found: ignore

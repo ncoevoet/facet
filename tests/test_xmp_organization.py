@@ -1,4 +1,5 @@
 """Portable organization metadata survives explicit export/import."""
+import os
 import sqlite3
 from pathlib import Path
 import pytest
@@ -22,7 +23,7 @@ def test_roundtrip_decision_gps(tmp_path, decision):
     rating = XmpRating.from_row(dict(star_rating=4, is_favorite=1,
         is_kept=decision == 'kept', is_rejected=decision == 'rejected',
         gps_manually_set=1, gps_latitude=-33.25, gps_longitude=151.5))
-    sidecar.write_text(build_xmp(rating))
+    sidecar.write_text(build_xmp(rating), encoding='utf-8')
     parsed = parse_sidecar(str(sidecar))
     assert parsed['review_decision'] == decision
     assert parsed['gps'] == (-33.25, 151.5)
@@ -38,7 +39,7 @@ def test_roundtrip_decision_gps(tmp_path, decision):
 
 def test_manual_clear_and_conflict_policy(tmp_path):
     image = tmp_path / 'image.jpg'
-    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row({'gps_manually_set': 1})))
+    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row({'gps_manually_set': 1})), encoding='utf-8')
     conn = database(tmp_path)
     conn.execute('INSERT INTO photos(path,gps_latitude,gps_longitude,gps_manually_set) VALUES (?,1,2,1)', (str(image),))
     import_sidecars(conn)
@@ -49,7 +50,7 @@ def test_manual_clear_and_conflict_policy(tmp_path):
 
 def test_scanned_coordinates_are_not_exported(tmp_path):
     sidecar = tmp_path / 'photo.xmp'
-    sidecar.write_text(build_xmp(XmpRating.from_row({'gps_latitude': 10, 'gps_longitude': 20})))
+    sidecar.write_text(build_xmp(XmpRating.from_row({'gps_latitude': 10, 'gps_longitude': 20})), encoding='utf-8')
     assert parse_sidecar(str(sidecar))['gps'] is None
 
 
@@ -69,7 +70,7 @@ def test_real_exiftool_preserves_foreign_metadata_and_original(tmp_path):
         parsed = parse_sidecar(str(sidecar))
         assert parsed['review_decision'] == decision
         assert parsed['gps'] == (-33.25, 151.5)
-        assert 'Foreign artist' in sidecar.read_text()
+        assert 'Foreign artist' in sidecar.read_text(encoding='utf-8')
         assert image.read_bytes() == original
 
 
@@ -78,7 +79,14 @@ def test_fallback_repeated_export_import(tmp_path, monkeypatch):
     image = tmp_path / 'fallback.jpg'
     image.write_bytes(b'original')
     write_metadata(str(image), XmpRating.from_row({'is_kept': 1}))
+    first = Path(str(image) + '.xmp')
+    # Back-to-back writes can share an mtime, and the importer breaks that tie toward
+    # the older sidecar; give the second write a distinctly newer one.
+    os.utime(first, ns=(1_500_000_000 * 10**9,) * 2)
     write_metadata(str(image), XmpRating.from_row({'is_kept': 0, 'gps_manually_set': 1}))
+    second = [p for p in tmp_path.glob('fallback.jpg*.xmp') if p != first]
+    assert len(second) == 1
+    os.utime(second[0], ns=(1_600_000_000 * 10**9,) * 2)
     conn = database(tmp_path)
     conn.execute('INSERT INTO photos(path,is_kept,gps_latitude,gps_longitude) VALUES (?,1,1,2)', (str(image),))
     import_sidecars(conn)
@@ -131,12 +139,12 @@ def test_user_decision_is_private_and_absent_fields_preserve_state(tmp_path, mon
     conn.execute('INSERT INTO photos(path,is_rejected,gps_latitude,gps_longitude,gps_manually_set) VALUES (?,1,1,2,1)', (str(image),))
     conn.execute('INSERT INTO user_preferences(user_id,photo_path,is_kept) VALUES (?,?,1)', ('bob', str(image)))
     sidecar = Path(str(image) + '.xmp')
-    sidecar.write_text(build_xmp(XmpRating.from_row({'is_kept': 1, 'star_rating': 3})))
+    sidecar.write_text(build_xmp(XmpRating.from_row({'is_kept': 1, 'star_rating': 3})), encoding='utf-8')
     import_sidecars(conn, user_id='alice')
     assert tuple(conn.execute('SELECT is_kept,star_rating FROM user_preferences WHERE user_id="alice"').fetchone()) == (1,3)
     assert conn.execute('SELECT is_kept FROM user_preferences WHERE user_id="bob"').fetchone()[0] == 1
     assert tuple(conn.execute('SELECT is_rejected,gps_latitude FROM photos').fetchone()) == (1,1)
-    sidecar.write_text('<x xmlns="adobe:ns:meta/"/>')
+    sidecar.write_text('<x xmlns="adobe:ns:meta/"/>', encoding='utf-8')
     import_sidecars(conn, user_id='alice')
     assert conn.execute('SELECT is_kept FROM user_preferences WHERE user_id="alice"').fetchone()[0] == 1
 
@@ -152,7 +160,7 @@ def test_named_user_import_export_cannot_touch_hidden_photos(tmp_path, monkeypat
     for image in (visible / 'yes.jpg', tmp_path / 'hidden.jpg'):
         image.write_bytes(b'original')
         conn.execute('INSERT INTO photos(path) VALUES (?)', (str(image),))
-        Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row({'is_kept': 1, 'gps_manually_set': 1, 'gps_latitude': 1, 'gps_longitude': 2})))
+        Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row({'is_kept': 1, 'gps_manually_set': 1, 'gps_latitude': 1, 'gps_longitude': 2})), encoding='utf-8')
     assert import_sidecars(conn, root=str(tmp_path), user_id='alice')['updated'] == 1
     assert conn.execute('SELECT gps_manually_set FROM photos WHERE path=?', (str(tmp_path / 'hidden.jpg'),)).fetchone()[0] == 0
     monkeypatch.setattr('processing.xmp_export.exiftool_available', lambda: False)
@@ -196,7 +204,7 @@ def test_sidecar_source_uses_file_mtime_not_metadata_date(tmp_path):
     conn = database(tmp_path)
     conn.execute('INSERT INTO photos(path) VALUES (?)', (str(image),))
     primary = Path(str(image) + '.xmp')
-    primary.write_text(build_xmp(XmpRating.from_row({'is_kept': 1})))
+    primary.write_text(build_xmp(XmpRating.from_row({'is_kept': 1})), encoding='utf-8')
     fallback = Path(str(image) + '.facet.xmp')
     tree = ET.fromstring(build_xmp(XmpRating(tags=['foreign keyword'])))
     tree.find(f'.//{{{NS_RDF}}}Description').set(f'{{{NS_XMP}}}MetadataDate', '2000-01-01T00:00:00Z')
@@ -220,10 +228,10 @@ def test_decision_only_import_preserves_stars_favorite(tmp_path):
     conn = database(tmp_path)
     conn.execute('INSERT INTO photos(path,star_rating,is_favorite,is_kept) VALUES (?,4,1,1)', (str(image),))
     sidecar = Path(str(image) + '.xmp')
-    sidecar.write_text('<x xmlns:facet="https://github.com/ncoevoet/facet/ns/1.0/" facet:ReviewDecision="undecided"/>')
+    sidecar.write_text('<x xmlns:facet="https://github.com/ncoevoet/facet/ns/1.0/" facet:ReviewDecision="undecided"/>', encoding='utf-8')
     import_sidecars(conn)
     assert tuple(conn.execute('SELECT star_rating,is_favorite,is_kept,is_rejected FROM photos').fetchone()) == (4,1,0,0)
-    sidecar.write_text('<x xmlns:facet="https://github.com/ncoevoet/facet/ns/1.0/" facet:ReviewDecision="rejected"/>')
+    sidecar.write_text('<x xmlns:facet="https://github.com/ncoevoet/facet/ns/1.0/" facet:ReviewDecision="rejected"/>', encoding='utf-8')
     import_sidecars(conn)
     assert tuple(conn.execute('SELECT star_rating,is_favorite,is_kept,is_rejected FROM photos').fetchone()) == (0,0,0,1)
 
@@ -321,7 +329,7 @@ def test_exported_clear_external_coordinates_import(tmp_path, monkeypatch, latit
 ])
 def test_stale_export_does_not_revert_a_later_facet_decision(tmp_path, exported):
     image = tmp_path / 'stale.jpg'
-    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row(exported)))
+    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row(exported)), encoding='utf-8')
     conn = database(tmp_path)
     # Un-rejected / kept and rated in Facet after a scan newer than the export.
     conn.execute('INSERT INTO photos(path,star_rating,is_favorite,is_kept,scanned_at) VALUES (?,4,1,1,?)',
@@ -332,7 +340,7 @@ def test_stale_export_does_not_revert_a_later_facet_decision(tmp_path, exported)
 
 def test_export_restores_decision_into_a_rescanned_library(tmp_path):
     image = tmp_path / 'restore.jpg'
-    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row({'is_kept': 1})))
+    Path(str(image) + '.xmp').write_text(build_xmp(XmpRating.from_row({'is_kept': 1})), encoding='utf-8')
     conn = database(tmp_path)
     conn.execute('INSERT INTO photos(path,scanned_at) VALUES (?,?)', (str(image), '2099-01-01T00:00:00Z'))
     import_sidecars(conn)

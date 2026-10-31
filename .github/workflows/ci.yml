@@ -188,6 +188,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.scope == 'full'
     runs-on: windows-latest
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -198,20 +199,23 @@ jobs:
         run: |
           choco install exiftool --yes --no-progress
           exiftool -ver
+      - name: ExifTool is new enough
+        # 13.23 to 13.27 corrupt darktable XMP sidecars and Facet refuses to write with them.
+        shell: bash
+        run: python -c "import subprocess,sys; v=tuple(map(int,subprocess.check_output(['exiftool','-ver'],text=True).strip().split('.')[:2])); sys.exit(0 if v>=(13,28) else 1)"
       - name: Install test dependencies
-        # Same list as python-tests-shard: the files below import tifffile, imagecodecs
-        # and lupa, and jsonschema keeps tests/test_config_schema.py from skipping.
-        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt mcp==2.3.0 websockets pillow pillow-heif numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog send2trash tifffile imagecodecs lupa jsonschema==4.26.0 pytest-timeout==2.4.0
-      - name: Run the Windows-green suites
-        # Deliberately NOT the whole suite yet: the files listed here are the
-        # ones kept green on Windows, and the rest of the suite is not run on
-        # this platform. A file is added to this list in the PR that makes it
-        # green there. tests/test_scan.py (the library lock picks a different
-        # backend here: native LockFileEx shared/exclusive byte-range locks) and
-        # tests/test_device.py (CUDA/MPS/CPU resolution) are the original
-        # platform surface; the others cover path, permission, symlink and
-        # subprocess handling that differs on Windows.
-        run: python -m pytest tests/test_scan.py tests/test_device.py tests/test_auto_cull_cli.py tests/test_config_merge.py tests/test_config_path_env.py tests/test_config_writes.py tests/test_manifest_builder.py tests/test_system_memory.py tests/test_weight_optimizer_sources.py tests/test_xmp_export.py tests/test_exiftool_process.py tests/test_xmp_keyword_ownership.py tests/test_xmp_face_ownership.py tests/test_visibility_fail_open.py tests/test_cull.py tests/test_raw_decode.py tests/test_config_schema.py tests/test_sidecar_job_receipts.py tests/test_embedding_revision.py tests/test_jpegxl.py tests/test_jpegxl_headers.py tests/test_jpegxl_basic_info.py -q --tb=short
+        # Same list as python-tests-shard, plus pytest-xdist: the suite imports tifffile,
+        # imagecodecs and lupa, and jsonschema keeps tests/test_config_schema.py from skipping.
+        run: pip install pytest pytest-asyncio pytest-cov fastapi[standard] httpx pyjwt mcp==2.3.0 websockets pillow pillow-heif numpy scipy scikit-learn opencv-python-headless tqdm aiosqlite sqlite-vec imagehash psutil watchdog send2trash tifffile imagecodecs lupa jsonschema==4.26.0 pytest-timeout==2.4.0 pytest-xdist==3.8.0
+      - name: Show the text encoding under test
+        # PYTHONUTF8 is deliberately not set: the runner's cp1252 default is what the
+        # suite must survive, so the log proves it is exercised.
+        run: python -c "import locale,sys; print(locale.getpreferredencoding(False), sys.flags.utf8_mode)"
+      - name: Run the whole suite
+        # Everything, as on Linux. Under pytest-timeout's Windows `thread` method a timeout
+        # kills the xdist worker instead of failing one test, so read a crashed-worker
+        # report as a timeout.
+        run: python -m pytest -n 4 --durations=30 --tb=short -q --timeout=600
 
   lock-resolve:
     name: Dependency locks resolve (${{ matrix.lock }})
@@ -243,12 +247,14 @@ jobs:
         # swap torch for another build, which the Dockerfile's torch guard
         # refuses: setuptools 84.1.0 against torch 2.11.0's `setuptools<82`
         # broke the v1.23.0 cuda image after every CI gate had passed. The torch
-        # version is read from docker-publish.yml, so the two cannot drift.
+        # version is read from docker-publish.yml, so the two cannot drift. Only
+        # the entries that keep their base torch (strip_torch "1") count: the
+        # CPU image installs its torch from the CPU index instead.
         env:
           LOCK: ${{ matrix.lock }}
         run: |
           python -m pip install --quiet pyyaml
-          torch=$(python -c 'import os, yaml; entries = yaml.safe_load(open(".github/workflows/docker-publish.yml"))["jobs"]["build-and-push"]["strategy"]["matrix"]["include"]; found = [e["expect_torch"].split("+")[0] for e in entries if e["requirements_lock"] == os.environ["LOCK"] and e["expect_torch"]]; assert len(found) == 1, found; print(found[0])')
+          torch=$(python -c 'import os, yaml; entries = yaml.safe_load(open(".github/workflows/docker-publish.yml"))["jobs"]["build-and-push"]["strategy"]["matrix"]["include"]; found = [e["expect_torch"].split("+")[0] for e in entries if e["requirements_lock"] == os.environ["LOCK"] and e["strip_torch"] == "1"]; assert len(found) == 1, found; print(found[0])')
           echo "Resolving $LOCK and ${LOCK%.lock.txt}.restricted.lock.txt on torch==$torch"
           python -m pip install --dry-run --ignore-installed --quiet -r "$LOCK" -r "${LOCK%.lock.txt}.restricted.lock.txt" "torch==$torch"
 
@@ -464,7 +470,7 @@ jobs:
               exit 1
             fi
           done
-          assert_ignore_list pip "* mpmath pydantic-core sympy tokenizers"
+          assert_ignore_list pip "* mpmath pyarrow pydantic-core sympy tokenizers"
           assert_ignore_list docker "* pytorch/pytorch"
           echo "dependabot.yml: pip and docker ignore lists and all four ecosystems intact."
       - name: Translation bundles agree with en.json

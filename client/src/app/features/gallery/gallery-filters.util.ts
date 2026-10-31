@@ -554,9 +554,25 @@ export function activeFilterKeys(f: GalleryFilters): (keyof GalleryFilters)[] {
   return [...stringKeys, ...flagKeys].filter(key => !!f[key]);
 }
 
-/** Count the number of active (non-default) filters for the badge. */
+/**
+ * The control a filter key belongs to: `min_x` and `max_x` are one range
+ * slider (`x`), and the four geolocation keys are one location filter (`gps`).
+ * Every other key is its own control.
+ */
+export function filterUnit(key: string): string {
+  if (key.startsWith('min_') || key.startsWith('max_')) return key.slice(4);
+  if (key === 'no_gps' || key.startsWith('gps_')) return 'gps';
+  return key;
+}
+
+/** The distinct controls with an active filter, in `activeFilterKeys` order. */
+export function activeFilterUnits(f: GalleryFilters): string[] {
+  return [...new Set(activeFilterKeys(f).map(filterUnit))];
+}
+
+/** Count the number of active (non-default) filters for the badge: a range or the location counts once. */
 export function countActiveFilters(f: GalleryFilters): number {
-  return activeFilterKeys(f).length;
+  return activeFilterUnits(f).length;
 }
 
 /** Apply URL query params over a base filter state. */

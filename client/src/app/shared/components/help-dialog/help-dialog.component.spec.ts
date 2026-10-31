@@ -27,7 +27,10 @@ describe('HelpDialogComponent', () => {
 
   it('titles the dialog with the Help label so it has an accessible name', () => {
     const title = render({ key: null }).querySelector('h2[mat-dialog-title]');
-    expect(title?.textContent?.trim()).toBe(I18N.nav.help);
+    // The decorative icon lives inside the title but is aria-hidden, so the
+    // accessible name stays the Help label alone; textContent still shows both.
+    expect(title?.textContent?.trim()).toContain(I18N.nav.help);
+    expect(title?.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
   });
 
   it('falls back to the no-help text when the page set none', () => {
@@ -38,6 +41,14 @@ describe('HelpDialogComponent', () => {
     const root = render({ key: I18N.culling.help_text, note: { key: I18N.culling.my_taste_learning, params: { count: 12 } } });
     expect(root.querySelector('li')?.textContent?.trim()).toBe(I18N.culling.help_text);
     expect(root.textContent).toContain(`${I18N.culling.my_taste_learning}:12`);
+  });
+
+  it('renders the actual Stack mapping or its unassigned status in gallery Help', () => {
+    const section = galleryShortcutSection({ ...DEFAULT_KEYMAP, stack: '' });
+    const root = render({ key: I18N.gallery.help, shortcutSections: [section] });
+    const label = Array.from(root.querySelectorAll('span')).find(node => node.textContent?.trim() === I18N.shortcuts.stack)!;
+    expect(label.parentElement!.textContent).toContain(I18N.shortcuts.unassigned);
+    expect(label.parentElement!.querySelector('kbd')).toBeNull();
   });
 
   it('renders the keyboard sections the opener passed', () => {

@@ -7,6 +7,7 @@ import {
   type ViewFilterParams,
   anyHideToggleActive,
   applyQueryParams,
+  filterUnit,
   buildApiParams,
   buildByPathsFilters,
   BY_PATHS_MAX,
@@ -20,6 +21,7 @@ import {
   reviewStatusPatch,
   setScopePatch,
   activeFilterKeys,
+  activeFilterUnits,
   countActiveFilters,
   loadDisplayOptionsFromStorage,
   saveDisplayOptionsToStorage,
@@ -58,6 +60,17 @@ describe('activeFilterKeys', () => {
 });
 
 describe('countActiveFilters', () => {
+  it('counts a min/max range and the location keys once', () => {
+    expect(countActiveFilters(filters({ min_score: '5', max_score: '9' }))).toBe(1);
+    expect(countActiveFilters(filters({ gps_lat: '1', gps_lng: '2', gps_radius_km: '5' }))).toBe(1);
+    expect(activeFilterUnits(filters({ min_score: '5', max_score: '9', camera: 'Canon' }))).toEqual(['camera', 'score']);
+  });
+  it.each([
+    ['min_score', 'score'], ['max_score', 'score'], ['gps_lat', 'gps'], ['gps_lng', 'gps'], ['gps_radius_km', 'gps'],
+    ['no_gps', 'gps'], ['camera', 'camera'], ['semanticQuery', 'semanticQuery'],
+  ])('maps the filter key %s to the control %s', (key, unit) => {
+    expect(filterUnit(key)).toBe(unit);
+  });
   it('returns 0 for defaults', () => {
     expect(countActiveFilters(DEFAULT_FILTERS)).toBe(0);
   });

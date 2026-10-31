@@ -57,7 +57,8 @@ def suggestions(conn, owner, source, where, params):
         # unexplained residual group or give the same photo multiple suggestions.
         if used.intersection(paths) or len(used) + len(paths) > MAX_RETURNED_MEMBERS:
             continue
-        result.append(dict(key=suggestion_key(kind, paths), kind=kind, paths=paths, cover_path=paths[0]))
+        result.append(dict(key=suggestion_key(kind, paths), kind=kind, group_id=group_id,
+                           paths=paths, cover_path=paths[0], photos=None))
         used.update(paths)
         if len(result) == MAX_SUGGESTIONS:
             break

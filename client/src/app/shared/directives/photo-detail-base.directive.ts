@@ -2,6 +2,7 @@ import { Directive, computed, effect, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Photo, hasExifFields } from '../models/photo.model';
 import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 
 /**
@@ -13,6 +14,7 @@ import { I18nService } from '../../core/services/i18n.service';
 export abstract class PhotoDetailBase {
   protected readonly api = inject(ApiService);
   protected readonly i18n = inject(I18nService);
+  private readonly editionAuth = inject(AuthService);
 
   /** Each subclass defines how the photo is loaded and stored. */
   abstract readonly photo: ReturnType<typeof signal<Photo | null>>;
@@ -50,7 +52,11 @@ export abstract class PhotoDetailBase {
     this.translatingCaption.set(true);
     const requestPath = p.path;
     const isStale = () => this.photo()?.path !== requestPath || this.i18n.locale() !== locale;
+    // GET only reads a stored translation; producing one runs a model, so an edition user POSTs for it.
     firstValueFrom(this.api.get<{ caption: string; lang?: string }>('/caption', { path: p.path, lang: locale }))
+      .then(res => res.lang || !this.editionAuth.isEdition()
+        ? res
+        : firstValueFrom(this.api.post<{ caption: string; lang?: string }>('/caption', { path: requestPath, lang: locale })))
       .then(res => {
         if (isStale()) return;
         if (res.lang) {

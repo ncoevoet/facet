@@ -20,13 +20,13 @@ TARGET = ROOT / "client" / "src" / "app" / "core" / "agent" / "ui-tools.schema.j
 def main(argv: list[str]) -> int:
     rendered = render_client_json()
     if "--check" in argv:
-        current = TARGET.read_text() if TARGET.exists() else ""
+        current = TARGET.read_text(encoding="utf-8") if TARGET.exists() else ""
         if current != rendered:
             print(f"{TARGET} is stale; run scripts/dump_ui_tools.py", file=sys.stderr)
             return 1
         return 0
     TARGET.parent.mkdir(parents=True, exist_ok=True)
-    TARGET.write_text(rendered)
+    TARGET.write_text(rendered, encoding="utf-8")
     print(f"wrote {TARGET}")
     return 0
 

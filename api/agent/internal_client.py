@@ -118,7 +118,7 @@ ROUTE_ALLOWLIST: Mapping[str, RouteSpec] = MappingProxyType({
     "scan_directories": RouteSpec("GET", "/api/scan/directories", "edition"),
     "scoring_contexts": RouteSpec("GET", "/api/config/scoring_contexts", "readonly"),
     # Scoring explanations and the weight preview: reads and a dry computation, nothing is stored. ``critique``
-    # is always called with mode=rule (the VLM mode needs a GPU and caches its text into ``photos``).
+    # is always called with mode=rule (``POST /api/critique/vlm`` generates the VLM text and is not an agent route).
     "critique": RouteSpec("GET", "/api/critique", "readonly"),
     "category_weights": RouteSpec("GET", "/api/comparison/category_weights", "edition"),
     "preview_score": RouteSpec("POST", "/api/comparison/preview_score", "edition"),

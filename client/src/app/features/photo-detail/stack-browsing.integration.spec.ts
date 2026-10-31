@@ -42,6 +42,8 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     http.match(request => request.url === '/api/photo/set').forEach(request => request.flush({ kind: null, members: [] }));
     // The object layer asks for each photo's marked objects.
     http.match(request => request.url === '/api/photo/objects').forEach(request => request.flush({ objects: [] }));
+    // The face layer loads alongside each stack member; keep other requests strict.
+    http.match(request => request.url === '/api/photo/faces').forEach(request => request.flush({ faces: [] }));
   };
   const render = async () => {
     harness.detectChanges();
@@ -606,7 +608,7 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     const opened = vi.spyOn(navigatorElement.injector.get(MatDialog), 'open');
     button('[data-stack-manage]').click(); await manage.mock.results[0].value;
     harness.detectChanges(); http.expectOne('/api/stacks/s1').flush(stack); await render();
-    const editor = opened.mock.results[0].value.componentInstance;
+    const editor = opened.mock.results[0].value.componentInstance.editor();
     const opening = vi.spyOn(editor, 'openMember');
     const release = new Subject<boolean>();
     let entered!: () => void;
@@ -614,6 +616,8 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     const route = router.config.find(route => route.path === 'photo')!;
     route.canActivate = [() => { entered(); return release; }];
     route.runGuardsAndResolvers = 'always';
+    document.querySelector<HTMLButtonElement>('app-stack-dialog button[data-stack-focus="/c.jpg"]')!.click();
+    await render();
     document.querySelector<HTMLButtonElement>('app-stack-dialog button[aria-label="stacks.open_member /c.jpg"]')!.click();
     http.expectOne(request => request.url === '/api/photo').flush(makePhoto({ path: paths[2] }));
     await guardEntered;

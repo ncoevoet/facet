@@ -17,31 +17,24 @@ from fastapi.testclient import TestClient
 from api import create_app
 from api.auth import CurrentUser, require_auth, require_authenticated, require_edition
 from api.types import JUNK_NOT_JUNK
+from db.schema import init_database
 
 _HELPERS = "api.db_helpers"
 
 ALICE_PHOTO = "/photos/alice/a.jpg"
 BOB_PHOTO = "/photos/bob/b.jpg"
 
-_SCHEMA = """
-    CREATE TABLE photos (path TEXT PRIMARY KEY, aggregate REAL, junk_kind TEXT);
-    CREATE TABLE persons (id INTEGER PRIMARY KEY, name TEXT);
-    CREATE TABLE faces (id INTEGER PRIMARY KEY, photo_path TEXT, face_index INTEGER,
-                        person_id INTEGER, bbox_x1 REAL, bbox_y1 REAL,
-                        bbox_x2 REAL, bbox_y2 REAL);
-"""
-
-
 @pytest.fixture()
 def db_path(tmp_path):
     path = str(tmp_path / "faces_vis.db")
+    init_database(path)
     conn = sqlite3.connect(path)
-    conn.executescript(_SCHEMA)
-    conn.executemany("INSERT INTO photos VALUES (?, ?, ?)",
-                     [(ALICE_PHOTO, 9.0, "screenshot"), (BOB_PHOTO, 3.0, "screenshot")])
-    conn.executemany("INSERT INTO persons VALUES (?, ?)", [(1, "Alice"), (2, "Bob")])
+    conn.executemany("INSERT INTO photos (path, filename, aggregate, junk_kind) VALUES (?, ?, ?, ?)",
+                     [(ALICE_PHOTO, "a.jpg", 9.0, "screenshot"), (BOB_PHOTO, "b.jpg", 3.0, "screenshot")])
+    conn.executemany("INSERT INTO persons (id, name) VALUES (?, ?)", [(1, "Alice"), (2, "Bob")])
     conn.executemany(
-        "INSERT INTO faces VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO faces (id, photo_path, face_index, person_id, bbox_x1, bbox_y1, bbox_x2, bbox_y2, embedding) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, x'00')",
         [(1, ALICE_PHOTO, 0, 1, 0, 0, 5, 5),
          (2, BOB_PHOTO, 0, 2, 0, 0, 5, 5)],
     )

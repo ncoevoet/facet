@@ -420,8 +420,10 @@ own or shared directories. API: `POST /api/persons` (see [API.md](API.md)).
 ### Needs Naming
 
 The Manage Persons page lists large unnamed clusters in a **Needs naming**
-section, each with a name field. A cluster appears there when it has at least
+tab, each with a name field. A cluster appears there when it has at least
 `viewer.persons.needs_naming_min_faces` faces (default `5`).
+
+Unnamed means no name or a blank one, whether the cluster came from clustering or a split; hidden (ignored) persons are left out. The tab is shown in edition mode only, beside **Named**, which lists named persons only, so each person appears once; **Named** is the tab the page opens on.
 
 ### Merge Suggestions Page
 

@@ -7,10 +7,19 @@ block. The [Advanced](#advanced) part is only for when you need it.
 
 ## Which install is for me?
 
+Both routes run the same Facet; they trade simplicity of installation against
+performance. Pick the one that fits you.
+
+| | Docker | Without Docker |
+|---|---|---|
+| Installing | One command: everything comes in the image | `install.sh` (Linux, macOS) or the Windows installer builds a Python environment on the machine |
+| Updating | Pull the new image | Update the code and run `install.sh` again, or install the new Windows installer |
+| Performance | A container sits between Facet and your files and graphics card; on Windows it runs inside WSL2 | Facet uses the machine's graphics card and files directly |
+
 | Your situation | Go to |
 |----------------|-------|
-| Windows, macOS or Linux, and you just want it running | [Install with Docker](#install-with-docker) |
-| Linux or macOS, and you prefer no containers | [Install without Docker](#install-without-docker) |
+| Windows, macOS or Linux, in a container | [Install with Docker](#install-with-docker) |
+| Windows, macOS or Linux, without containers | [Install without Docker](#install-without-docker) |
 | A NAS, or a server you want to reach from other machines | [Deployment](DEPLOYMENT.md) |
 
 ## Which profile fits my hardware?
@@ -159,8 +168,75 @@ Open <http://localhost:5000>.
 
 ### Windows
 
-Use [Docker](#install-with-docker). For an NVIDIA card, follow the
-[WSL2 guide](DEPLOYMENT.md#windows-wsl2-with-an-nvidia-gpu), the tested path.
+A per-user installer (MSI) sets Facet up without administrator rights:
+
+| Folder | What it holds |
+|---|---|
+| `%LOCALAPPDATA%\Facet\app` | the program, replaced on upgrade |
+| `%LOCALAPPDATA%\Facet\venv` | the Python environment, built when the installer finishes |
+| `%LOCALAPPDATA%\Facet\data` | the database (`photo_scores_pro.db`) and logs |
+| `%LOCALAPPDATA%\Facet\config` | `scoring_config.json` |
+
+**Getting the installer.** No release ships one yet. Build it from a clone with
+`installer\build-msi.ps1` (it needs WiX 3.14, `uv` and a built client, and says where to get
+WiX), or download the `facet-msi` artifact of a *Windows install (MSI)* workflow run. Building
+needs Node.js 22.22.3 or newer for the client (22.14 fails `npm run build`).
+
+**First start.** The installer starts the Python environment setup as soon as it finishes. The environment is about 6 GB, and uv's download cache
+(`%LOCALAPPDATA%\uv\cache`) takes about as much again. The *Facet* Start-menu entry runs setup
+if it never completed, and again after an upgrade that changes Facet's dependencies. It picks
+the PyTorch build for your NVIDIA card and driver the way `install.sh` does, or the CPU build
+without an NVIDIA card. If the GPU build it installed cannot reach the card, setup stops and
+says so: update the driver, or run `Setup-Facet.ps1 -Force -Cpu`.
+
+If the viewer cannot start (port in use, setup failure, no answer after 90 s), the Start-menu
+window shows the error and waits for Enter. After 90 s without an answer the viewer is left
+running and may still come up.
+
+**Every day:**
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app\installer"
+.\Scan-Facet.ps1 "\\NAS\Photos"   # score photos; extra arguments go to facet.py
+.\Start-Facet.ps1                # the gallery, at http://localhost:5000
+.\Stop-Facet.ps1                 # stop the gallery and any scan
+```
+
+The gallery answers on this computer only. `Start-Facet.ps1 -Lan` opens it to other
+devices, and refuses to start until `viewer.password` is set in the config.
+
+**One spelling per folder.** Facet stores each photo under the path it was scanned by, so
+`\\NAS\Photos` and the same share mapped as `Z:\` are two different folders to it: scanning
+both adds every photo twice. Pick one and keep it.
+
+**Managed computers.** The shortcuts run Facet's unsigned PowerShell scripts with `-ExecutionPolicy Bypass`. An execution policy set by Group Policy overrides that, so on a managed PC the scripts may not run; ask its administrator to allow them.
+
+**Uninstalling** (Settings, Apps) stops Facet and removes the program, its shortcuts, the Python
+environment and ExifTool (under a custom `FACET_HOME` too), and keeps `data` and `config`.
+Anything it cannot delete is listed in `data\logs\uninstall.log`. uv's download cache
+(`%LOCALAPPDATA%\uv\cache`) and the downloaded models stay (`.cache`, `.insightface` in your
+user folder). An upgrade keeps a custom install folder, and sets the environment up again only
+when Facet's dependencies changed.
+
+**Moving a library from Docker.** The database stores each photo's full path, and the
+Windows install sees the same photos under another one (`\\NAS\Photos\...` rather than
+`/data/photos/...`). Copy the database into `data`, stop Facet, then rewrite the paths,
+with a dry run first:
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app"
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos" --dry-run
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos"
+```
+
+It keeps a copy of the database (`photo_scores_pro.db.before-rewrite-<time>`), refuses to merge
+a photo already scanned under the new path, and empties the vector index, which
+`..\venv\Scripts\python.exe database.py --db ..\data\photo_scores_pro.db --populate-vec`
+rebuilds. Undo history from before the move no longer applies. These commands assume the
+default install folder. An old and a new prefix where one lies inside the other (for example
+`D:\Photos` to `D:\Photos\new`) are refused; go through a temporary prefix.
+
+Docker works on Windows too; for an NVIDIA card, follow the [WSL2 guide](DEPLOYMENT.md#windows-wsl2-with-an-nvidia-gpu).
 
 ## First run: what to expect
 

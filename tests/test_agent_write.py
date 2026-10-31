@@ -388,7 +388,7 @@ def _disk_library(edition, seed_photos_prefix, tmp_path, monkeypatch, subdir, ro
     for name, data in extra_files:
         with open(os.path.join(src, name), "wb") as handle:
             handle.write(data)
-    seed_photos_prefix(src + "/", seeded)
+    seed_photos_prefix(src + os.sep, seeded)
     monkeypatch.setattr("api.routers.export._allowed_export_roots", lambda: [root])
     monkeypatch.setitem(api_config.VIEWER_CONFIG, "cull", {"allow_trash": True})
     monkeypatch.setattr("send2trash.send2trash", os.remove)
@@ -597,7 +597,7 @@ class TestCullApply:
 
 class TestDeletePhotos:
     def count(self, lib):
-        return db_row("SELECT COUNT(*) FROM photos WHERE path LIKE ?", lib.src + "/%")[0]
+        return db_row("SELECT COUNT(*) FROM photos WHERE path LIKE ?", lib.src + os.sep + "%")[0]
 
     def test_dry_run_deletes_nothing_then_apply_deletes_exactly_the_confirmed_set(self, library):
         def call(**kw):

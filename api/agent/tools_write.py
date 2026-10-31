@@ -714,7 +714,9 @@ def register_write_tools(server: MCPServer, client: InternalClient, registry: Ta
         "`configured_directories`). State the directories to the user first: a scan can run for hours and uses the "
         "GPU. It is additive and is refused while another scan or library job runs (`conflict`). "
         "It needs viewer.features.show_scan_button and a locked install (a superadmin key in multi-user mode), "
-        "or a Full-editing local token under viewer.trusted_local_editing. "
+        "or a Full-editing token used from the computer running Facet on an open install (with "
+        "viewer.features.show_scan_button when it was minted under viewer.edition_password; under "
+        "viewer.trusted_local_editing it needs no flag). "
         "Syncing with Immich stays on the command line.", requires=scan_available)
     add(scan_status, "scan_status",
         f"The running or last scan: running, exit code, progress, the last `lines` (<={SCAN_LINES_CAP}) log lines "

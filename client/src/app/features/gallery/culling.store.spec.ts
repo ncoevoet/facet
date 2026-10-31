@@ -1,3 +1,10 @@
+import { provideHttpClient } from '@angular/common/http';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import { signal } from '@angular/core';
+import { Router, NavigationStart } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
+import { UndoService, type UndoableCommand } from '../../core/services/undo.service';
+import { GalleryStore } from './gallery.store';
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { Subject, of, throwError } from 'rxjs';
@@ -1698,5 +1705,552 @@ describe('CullingStore', () => {
         expect(store.groups().map(g => store.groupKey(g))).toEqual(['5_burst', '5_similar']);
       });
     });
+  });
+});
+
+
+describe('CullingStore suggested stacks HTTP isolation', () => {
+  let store: CullingStore;
+  let http: HttpTestingController;
+  let identity: ReturnType<typeof signal<string>>;
+  let edition: ReturnType<typeof signal<boolean>>;
+  let commands: UndoableCommand[];
+  let events: Subject<NavigationStart>;
+  let stackJournal: Mock;
+  let stackRefresh: Mock;
+  const firstBase = makeGroup(7, 'duplicate', ['/b.jpg', '/a.jpg'], '/a.jpg');
+  const first = { ...firstBase, suggestionKey: 'dup-members', photos: firstBase.photos.map(photo => ({
+    ...photo, is_blink: null, is_burst_lead: null, eyes_open_score: null, expression_score: 0.4,
+    is_rejected: 1, is_kept: 0, is_favorite: 1, star_rating: 3, preview_revision: 'preview-member',
+  })) };
+  const second = { ...makeGroup(7, 'burst', ['/d.jpg', '/c.jpg'], '/c.jpg'), suggestionKey: 'burst-members' };
+  const response = (groups: CullingGroup[] = [first, second]) => ({ suggestions: groups.map(g => ({
+    group_id: g.group_id, kind: g.type, key: g.suggestionKey, paths: g.photos.map(p => p.path),
+    cover_path: g.best_path, photos: g.photos,
+  })) });
+  const filters = { album_id: '42', camera: 'Camera & Lens' };
+  const flushBatch = async (groups: CullingGroup[] = [first, second]) => {
+    const request = http.expectOne('/api/stacks/suggestions');
+    expect(request.request.body).toEqual({ filters, include_photos: true });
+    request.flush(response(groups));
+    await Promise.resolve(); await Promise.resolve();
+  };
+  const enter = async (groups: CullingGroup[] = [first, second]) => {
+    store.enterStackMode(filters);
+    const pending = store.loadGroups();
+    await flushBatch(groups); await pending;
+  };
+  beforeEach(() => {
+    localStorage.clear(); commands = []; events = new Subject();
+    identity = signal('owner'); edition = signal(true);
+    stackJournal = vi.fn(); stackRefresh = vi.fn(async () => undefined);
+    TestBed.configureTestingModule({ providers: [provideHttpClient(), provideHttpClientTesting(),
+      { provide: Router, useValue: { events, url: '/culling?mode=stacks' } },
+      { provide: AuthService, useValue: { identity, isEdition: edition } },
+      { provide: I18nService, useValue: { t: (key: string) => key } },
+      { provide: GalleryStore, useValue: { refreshPaths: stackRefresh } },
+      { provide: UserActivityJournal, useValue: { record: stackJournal } },
+      { provide: UndoService, useValue: { register: (command: UndoableCommand) => commands.push(command) } },
+    ] });
+    store = TestBed.inject(CullingStore); http = TestBed.inject(HttpTestingController);
+  });
+  afterEach(() => {
+    try { store.clearAllPassTimers(); http.verify(); }
+    finally { vi.restoreAllMocks(); vi.useRealTimers(); TestBed.resetTestingModule(); }
+  });
+
+  it('loads exact ordered rows, keeps the assistant pin, and never auto-selects or pages culling', async () => {
+    const plan = TestBed.inject(AssistantCullPlanService);
+    const pin = { digest: 'held', request: { group_by: 'burst' as const } };
+    plan.setPin(pin);
+    await enter();
+    expect(plan.pin()).toEqual(pin);
+    expect(store.groups()).toEqual([first, second]);
+    expect(store.selectionsMap().size).toBe(0);
+    store.totalPages.set(5);
+    expect(store.hasMore()).toBe(false);
+    await store.loadMore();
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it('keeps refill work bounded after many completed batches replace the single Undo slot', async () => {
+    const groups = (batch: number) => Array.from({ length: 4 }, (_, index) => {
+      const id = batch * 4 + index;
+      return { ...makeGroup(id, 'duplicate', [`/${id}-a.jpg`, `/${id}-b.jpg`], `/${id}-a.jpg`), suggestionKey: `batch-${id}` };
+    });
+    await enter(groups(0));
+    const identities = vi.spyOn(store as unknown as { suggestionIdentity: (group: CullingGroup) => string }, 'suggestionIdentity');
+    for (let batch = 0; batch < 6; batch++) {
+      for (const group of [...store.groups()]) {
+        const skipped = store.skipSuggestion(group);
+        http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await skipped;
+        commands.splice(0, commands.length - 1); // UndoService retains one command.
+      }
+      expect(store.groups()).toHaveLength(0);
+      identities.mockClear();
+      await flushBatch(batch < 5 ? groups(batch + 1) : []);
+      expect(identities.mock.calls.length).toBeLessThanOrEqual(4);
+    }
+    commands.length = 0; // The last Undo expires.
+    identities.mockClear(); store.resetForReload(); await flushBatch([]);
+    expect(identities.mock.calls.length).toBe(0);
+  });
+
+  it('suppresses a restored group completed again while a pre-write batch is pending', async () => {
+    await enter(); const [one, two] = store.groups();
+    store.completeStackSuggestion(one); store.completeStackSuggestion(two);
+    const request = http.expectOne('/api/stacks/suggestions');
+    store.restoreStackSuggestion(two); expect(store.groups()).toEqual([two]);
+    store.completeStackSuggestion(two);
+    request.flush(response([second])); await Promise.resolve(); await Promise.resolve();
+    expect(store.groups()).toHaveLength(0);
+    await flushBatch([]); // Completing during the pending refill schedules a fresh read.
+    expect(store.groups()).toHaveLength(0);
+    store.restoreStackSuggestion(two); expect(store.groups()).toEqual([two]);
+  });
+
+  it('stacks the explicit second group and focused cover, skips full first membership, and undoes across batches', async () => {
+    await enter();
+    const stacked = store.stackSuggestion(store.groups()[1], '/d.jpg');
+    const create = http.expectOne('/api/stacks');
+    expect(create.request.body).toEqual({ paths: ['/d.jpg', '/c.jpg'], cover_path: '/d.jpg' });
+    create.flush({ undo: { entry_id: 23 } }); expect(await stacked).toBe(true);
+    expect(store.groups()).toEqual([first]);
+    expect(http.match('/api/stacks/suggestions')).toHaveLength(0);
+    const skipped = store.skipSuggestion(store.groups()[0]);
+    const dismiss = http.expectOne('/api/stacks/suggestions/dismissals');
+    expect(dismiss.request.body).toEqual({ kind: 'duplicate', paths: ['/b.jpg', '/a.jpg'] });
+    dismiss.flush(null); await skipped;
+    expect(store.groups()).toEqual([]);
+    const next = http.expectOne('/api/stacks/suggestions');
+    const undoSkip = commands[1].undo();
+    http.expectOne('/api/stacks/suggestions/dismissals/dup-members').flush(null);
+    await undoSkip;
+    expect(store.groups()).toEqual([first]);
+    next.flush(response([first])); await Promise.resolve(); await Promise.resolve();
+    expect(store.groups()).toEqual([first]);
+    const undoStack = commands[0].undo();
+    http.expectOne('/api/organization_history/23/revert').flush({}); await undoStack;
+    expect(store.groups()).toEqual([second, first]);
+    expect(store.selectionsMap().size).toBe(0);
+  });
+
+  it.each(['stack', 'skip'])('completes %s once across same-membership HTTP mark refreshes and restores fresh rows on Undo', async action => {
+    await enter(); const captured = store.groups()[0];
+    const pending = action === 'stack' ? store.stackSuggestion(captured, '/a.jpg') : store.skipSuggestion(captured);
+    const write = http.expectOne(action === 'stack' ? '/api/stacks' : '/api/stacks/suggestions/dismissals');
+    for (const rating of [4, 5]) {
+      const refresh = store.applyExternalChanges(['/a.jpg']);
+      await Promise.resolve(); await Promise.resolve();
+      http.expectOne('/api/photos/by_paths').flush({ photos: [{ path: '/a.jpg', star_rating: rating, is_favorite: 1 }] });
+      await refresh;
+    }
+    const fresh = store.groups()[0];
+    expect(fresh).not.toBe(captured);
+    expect(await store.skipSuggestion({ ...fresh })).toBe(false);
+    expect(await store.skipSuggestion(fresh)).toBe(false); // Still one decision in flight.
+    write.flush(action === 'stack' ? { undo: { entry_id: 88 } } : null);
+    expect(await pending).toBe(true);
+    expect(store.groups()).toEqual([second]); expect(commands).toHaveLength(1);
+    expect(store.completeStackSuggestion(captured)).toBe(false);
+    const undoing = commands[0].undo();
+    http.expectOne(action === 'stack' ? '/api/organization_history/88/revert' : '/api/stacks/suggestions/dismissals/dup-members').flush({});
+    await undoing;
+    expect(store.groups()).toEqual([fresh, second]);
+    expect(store.groups()[0].photos.find(photo => photo.path === '/a.jpg')?.star_rating).toBe(5);
+    store.restoreStackSuggestion(captured); expect(store.groups()).toHaveLength(2);
+    expect(stackJournal).toHaveBeenCalledTimes(action === 'stack' ? 2 : 0);
+  });
+
+  it('refuses captured and replacement handles after missing membership, and recovers only through a fresh batch', async () => {
+    await enter(); const captured = store.groups()[0];
+    const pending = store.stackSuggestion(captured, '/a.jpg');
+    const write = http.expectOne('/api/stacks');
+    const refresh = store.applyExternalChanges(['/a.jpg']); await Promise.resolve(); await Promise.resolve();
+    http.expectOne('/api/photos/by_paths').flush({ photos: [] }); await refresh;
+    const changed = store.groups()[0]; expect(changed.photos.map(photo => photo.path)).toEqual(['/b.jpg']);
+    write.flush({ undo: { entry_id: 89 } }); expect(await pending).toBe(false);
+    expect(store.completeStackSuggestion(captured)).toBe(false);
+    const refused = store.skipSuggestion(changed);
+    const unexpected = http.match('/api/stacks/suggestions/dismissals');
+    for (const request of unexpected) request.flush({}, { status: 409, statusText: 'stale membership' });
+    expect(await refused).toBe(false); expect(unexpected).toHaveLength(0);
+    const undoing = commands[0].undo(); http.expectOne('/api/organization_history/89/revert').flush({}); await undoing;
+    expect(store.groups()[0]).toBe(changed); // Undo cannot restore a deleted member from stale rows.
+    store.resetForReload(); await flushBatch();
+    expect(await store.skipSuggestion(captured)).toBe(false);
+    expect(store.completeStackSuggestion(store.groups()[0])).toBe(true);
+    expect(store.groups()).toEqual([second]);
+  });
+
+  it('keeps failed decisions retryable and refuses repeated, stale, wrong-cover and foreign membership decisions', async () => {
+    await enter(); const group = store.groups()[0];
+    const cloned = store.skipSuggestion({ ...group });
+    const forgedWrites = http.match('/api/stacks/suggestions/dismissals');
+    for (const request of forgedWrites) request.flush({}, { status: 409, statusText: 'unloaded clone' });
+    expect(await cloned).toBe(false); expect(forgedWrites).toHaveLength(0);
+    await store.stackSuggestion(group, '/foreign.jpg');
+    await store.skipSuggestion({ ...group, suggestionKey: 'other-members' });
+    expect(http.match(() => true)).toHaveLength(0);
+    const failed = store.skipSuggestion(group);
+    await store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush({}, { status: 500, statusText: 'failed' });
+    expect(await failed).toBe(false); expect(store.groups()).toEqual([first, second]);
+    const retry = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await retry;
+    expect(store.groups()).toEqual([second]);
+    await store.skipSuggestion(group);
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it.each(['account', 'navigation', 'edition', 'new visit'])('refuses %s changes before async completion and Undo', async change => {
+    await enter(); const pending = store.stackSuggestion(store.groups()[0], '/a.jpg');
+    const refresh = store.applyExternalChanges(['/a.jpg']); await Promise.resolve(); await Promise.resolve();
+    http.expectOne('/api/photos/by_paths').flush({ photos: [{ path: '/a.jpg', star_rating: 5 }] }); await refresh;
+    if (change === 'account') identity.set('other');
+    if (change === 'navigation') events.next(new NavigationStart(2, '/'));
+    if (change === 'edition') edition.set(false);
+    if (change === 'new visit') store.enterStackMode({ album_id: 'other' });
+    http.expectOne('/api/stacks').flush({ undo: { entry_id: 2 } }); expect(await pending).toBe(false);
+    expect(commands).toHaveLength(0);
+    expect(stackJournal).not.toHaveBeenCalled(); expect(stackRefresh).not.toHaveBeenCalled();
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it.each(['kind', 'group', 'key', 'membership'])('refuses a loaded handle whose %s was changed', async field => {
+    await enter(); const captured = store.groups()[0];
+    if (field === 'kind') captured.type = 'burst';
+    if (field === 'group') captured.group_id++;
+    if (field === 'key') captured.suggestionKey = 'forged';
+    if (field === 'membership') captured.photos = captured.photos.slice(1);
+    expect(await store.skipSuggestion(captured)).toBe(false);
+    expect(store.completeStackSuggestion(captured)).toBe(false);
+    expect(http.match(() => true)).toHaveLength(0);
+    expect(store.groups()).toHaveLength(2);
+  });
+
+  it('editor save and Undo use exact captured groups and refill only after exhaustion', async () => {
+    await enter(); const group = store.groups()[1];
+    store.completeStackSuggestion(group);
+    expect(store.groups()).toEqual([first]);
+    store.restoreStackSuggestion(group); store.restoreStackSuggestion(group);
+    expect(store.groups()).toEqual([second, first]);
+    store.completeStackSuggestion(group);
+    expect(store.groups()).toEqual([first]);
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it('drops superseded load responses and retries failed batches without culling reads', async () => {
+    store.enterStackMode(filters); const old = store.loadGroups();
+    const late = http.expectOne('/api/stacks/suggestions');
+    store.enterStackMode({ album_id: 'new' });
+    late.flush(response()); await old;
+    expect(store.groups()).toEqual([]);
+    const fail = store.loadGroups();
+    http.expectOne('/api/stacks/suggestions').flush({}, { status: 500, statusText: 'failed' }); await fail;
+    expect(store.loading()).toBe(false);
+    const retry = store.loadGroups(); http.expectOne('/api/stacks/suggestions').flush(response()); await retry;
+    expect(store.groups()).toHaveLength(2);
+  });
+
+
+
+  it('does not refill a retained batch or resurrect a restored-and-decided group from a stale next batch', async () => {
+    await enter([first]);
+    const retainedLoad = store.loadGroups();
+    const redundant = http.match(() => true);
+    for (const request of redundant) request.flush(response([first]));
+    await retainedLoad;
+    expect(redundant).toHaveLength(0);
+    const group = store.groups()[0];
+    const skipped = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await skipped;
+    const next = http.expectOne('/api/stacks/suggestions');
+    const undone = commands[0].undo();
+    http.expectOne('/api/stacks/suggestions/dismissals/dup-members').flush(null); await undone;
+    const again = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await again;
+    next.flush(response([first, second])); await Promise.resolve(); await Promise.resolve();
+    expect(store.groups()).toEqual([second]);
+  });
+
+  it.each(['stack', 'skip'])('refuses a registered %s Undo after a new same-URL visit', async action => {
+    await enter(); const group = store.groups()[0];
+    const operation = action === 'stack' ? store.stackSuggestion(group, '/a.jpg') : store.skipSuggestion(group);
+    http.expectOne(action === 'stack' ? '/api/stacks' : '/api/stacks/suggestions/dismissals')
+      .flush(action === 'stack' ? { undo: { entry_id: 77 } } : null);
+    await operation;
+    stackJournal.mockClear(); stackRefresh.mockClear();
+    store.enterStackMode(filters);
+    await expect(commands[0].undo()).rejects.toThrow('Stack session expired');
+    expect(stackJournal).not.toHaveBeenCalled(); expect(stackRefresh).not.toHaveBeenCalled();
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it('does not report culling decisions to the assistant while in stacks', () => {
+    const plan = TestBed.inject(AssistantCullPlanService);
+    store.groups.set([makeGroup(1, 'burst', ['/a.jpg', '/b.jpg'], '/a.jpg')]);
+    store.touchedGroups.set(new Set(['1_burst']));
+    expect(plan.hasUnsavedDecisions()).toBe(true);
+    store.mode.set('stacks');
+    expect(plan.hasUnsavedDecisions()).toBe(false);
+  });
+
+
+  it('keeps Undo retryable after revert failure and restores across a failed next batch', async () => {
+    await enter([first]); const group = store.groups()[0];
+    const operation = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await operation;
+    http.expectOne('/api/stacks/suggestions').flush({}, { status: 500, statusText: 'failed' });
+    await Promise.resolve(); await Promise.resolve();
+    const failed = commands[0].undo();
+    http.expectOne('/api/stacks/suggestions/dismissals/dup-members').flush({}, { status: 500, statusText: 'failed' });
+    await expect(failed).rejects.toThrow(); expect(store.groups()).toEqual([]);
+    const retry = commands[0].undo();
+    http.expectOne('/api/stacks/suggestions/dismissals/dup-members').flush(null); await retry;
+    expect(store.groups()).toEqual([first]);
+  });
+
+  it('drops old cull helper responses after a stack visit and return to cull mode', async () => {
+    const pendingStats = store.refreshComparisonStats();
+    const pendingRanker = store.refreshRankerStatus();
+    const pendingProfile = store.fetchProfileSuggestion('old');
+    const stats = http.expectOne('/api/comparison/stats');
+    const ranker = http.expectOne('/api/ranker/status');
+    const profile = http.expectOne('/api/culling/suggest_profile');
+    store.enterStackMode(filters); store.leaveStackMode();
+    stats.flush({ category_breakdown: [{ category: 'old', count: 100 }] });
+    ranker.flush({ trained: true, comparison_count: 100 });
+    profile.flush({ profile: 'sports', confidence: 1 });
+    await Promise.all([pendingStats, pendingRanker, pendingProfile]);
+    expect(store.comparisonStats()).toBe(null); expect(store.rankerTrained()).toBe(false);
+    expect(store.profileSuggestion()).toBe(null);
+  });
+
+  it('does not run a cull apply completion after stack mode takes ownership', async () => {
+    store.autoCullRequest.set({ group_by: 'all', strictness: 100, dry_run: true, trim_brackets: false, highlights_album: 'Highlights' });
+    const onApplied = vi.fn(); const operation = store.confirmAutoCull(onApplied);
+    const apply = http.expectOne('/api/culling/auto');
+    store.enterStackMode(filters);
+    apply.flush(PREVIEW); await operation;
+    expect(onApplied).not.toHaveBeenCalled();
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+
+  it.each(['groups', 'photos'])('marks a batch full at the %s cap', async cap => {
+    const groups = cap === 'groups' ? Array.from({ length: 20 }, (_, i) => ({ ...first, group_id: i, suggestionKey: `members-${i}` }))
+      : [first, second].map((group, index) => ({ ...group, best_path: `/frame-${index}-0.jpg`, count: 1000, photos: Array.from({ length: 1000 }, (_, i) => ({ ...group.photos[0], path: `/frame-${index}-${i}.jpg` })) }));
+    await enter(groups);
+    expect(store.batchFull()).toBe(true);
+  });
+
+
+  it('distinguishes an invalid filter payload from a retryable transport failure', async () => {
+    store.enterStackMode(filters);
+    const invalid = store.loadGroups();
+    http.expectOne('/api/stacks/suggestions').flush({}, { status: 422, statusText: 'invalid' }); await invalid;
+    expect(store.stackScopeInvalid()).toBe(true);
+    store.enterStackMode(filters);
+    expect(store.stackScopeInvalid()).toBe(false);
+    const failed = store.loadGroups();
+    http.expectOne('/api/stacks/suggestions').flush({}, { status: 500, statusText: 'failed' }); await failed;
+    expect(store.stackScopeInvalid()).toBe(false);
+    expect(store.mode()).toBe('stacks');
+  });
+
+
+  it('refills after a consumed stale duplicate reveals an overlapping two-member burst', async () => {
+    const burst = { ...second, photos: [first.photos[0], second.photos[1]] };
+    await enter([first]); const group = store.groups()[0];
+    const skipped = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); expect(await skipped).toBe(true);
+    const stale = http.expectOne('/api/stacks/suggestions');
+    const undone = commands[0].undo();
+    http.expectOne('/api/stacks/suggestions/dismissals/dup-members').flush(null); await undone;
+    const again = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); expect(await again).toBe(true);
+    expect(http.match('/api/stacks/suggestions')).toHaveLength(0);
+    stale.flush(response([first])); await Promise.resolve(); await Promise.resolve();
+    const refresh = http.match('/api/stacks/suggestions');
+    for (const request of refresh) request.flush(response([burst]));
+    await Promise.resolve(); await Promise.resolve();
+    expect(refresh).toHaveLength(1);
+    expect(store.groups()).toEqual([burst]);
+    expect(store.batchFull()).toBe(false);
+    expect(store.loading()).toBe(false);
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it('stops after a fresh genuinely empty refill instead of looping', async () => {
+    await enter([first]);
+    const skipped = store.skipSuggestion(store.groups()[0]);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await skipped;
+    http.expectOne('/api/stacks/suggestions').flush(response([]));
+    await Promise.resolve(); await Promise.resolve();
+    expect(store.groups()).toEqual([]); expect(store.loading()).toBe(false);
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it('bounds a stale exhausted refill with a fresh empty result', async () => {
+    await enter([first]); const group = store.groups()[0];
+    const skipped = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await skipped;
+    const stale = http.expectOne('/api/stacks/suggestions');
+    const undone = commands[0].undo();
+    http.expectOne('/api/stacks/suggestions/dismissals/dup-members').flush(null); await undone;
+    const again = store.skipSuggestion(group);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await again;
+    stale.flush(response([first])); await Promise.resolve(); await Promise.resolve();
+    const refresh = http.match('/api/stacks/suggestions');
+    for (const request of refresh) request.flush(response([]));
+    await Promise.resolve(); await Promise.resolve();
+    expect(refresh).toHaveLength(1);
+    expect(store.groups()).toEqual([]); expect(store.loading()).toBe(false);
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it.each(['old first', 'new first'])('resetForReload replaces the pending stack batch, with %s completion', async order => {
+    store.enterStackMode(filters); const old = store.loadGroups();
+    const stale = http.expectOne('/api/stacks/suggestions');
+    store.resetForReload();
+    const requests = http.match('/api/stacks/suggestions');
+    expect(requests).toHaveLength(1);
+    const fresh = requests[0];
+    const joined = store.loadGroups();
+    expect(http.match('/api/stacks/suggestions')).toHaveLength(0);
+    if (order === 'old first') {
+      stale.flush(response([first])); await old;
+      expect(store.groups()).toEqual([]); expect(store.loading()).toBe(true);
+      const rejoined = store.loadGroups();
+      expect(http.match('/api/stacks/suggestions')).toHaveLength(0);
+      fresh.flush(response([second])); await rejoined;
+    } else {
+      fresh.flush(response([second])); await joined;
+      stale.flush(response([first])); await old;
+    }
+    await joined;
+    expect(store.groups()).toEqual([second]); expect(store.loading()).toBe(false);
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  it('resetFeed releases the superseded stack promise so an explicit retry can load', async () => {
+    store.enterStackMode(filters); const old = store.loadGroups();
+    const stale = http.expectOne('/api/stacks/suggestions');
+    store.resetFeed();
+    stale.flush(response([first])); await old;
+    expect(store.groups()).toEqual([]); expect(store.loading()).toBe(false);
+    const retry = store.loadGroups();
+    const requests = http.match('/api/stacks/suggestions');
+    for (const request of requests) request.flush(response([second]));
+    expect(requests).toHaveLength(1); await retry;
+    expect(store.groups()).toEqual([second]); expect(store.loading()).toBe(false);
+  });
+
+  it('preserves visit Undo across explicit reload and merges it into the replacement batch', async () => {
+    await enter([first]);
+    const skipped = store.skipSuggestion(store.groups()[0]);
+    http.expectOne('/api/stacks/suggestions/dismissals').flush(null); await skipped;
+    const stale = http.expectOne('/api/stacks/suggestions');
+    store.resetForReload();
+    const replacements = http.match('/api/stacks/suggestions');
+    expect(replacements).toHaveLength(1);
+    const undone = commands[0].undo();
+    http.expectOne('/api/stacks/suggestions/dismissals/dup-members').flush(null); await undone;
+    replacements[0].flush(response([first, second])); await Promise.resolve(); await Promise.resolve();
+    stale.flush(response([])); await Promise.resolve(); await Promise.resolve();
+    expect(store.groups()).toEqual([first, second]); expect(store.loading()).toBe(false);
+    expect(http.match(() => true)).toHaveLength(0);
+  });
+
+  const guardCases: { name: string; run: (s: CullingStore, g: CullingGroup) => unknown }[] = [
+    { name: 'loadMore', run: s => s.loadMore() },
+    { name: 'enterPlan', run: s => s.enterPlan({ digest: 'guard-plan', request: { group_by: 'burst' } }) },
+    { name: 'scheduleReplan', run: s => s.scheduleReplan() },
+    { name: 'replan', run: s => s.replan() },
+    { name: 'fetchCullProfiles', run: s => s.fetchCullProfiles() },
+    { name: 'loadCullProfiles', run: s => s.loadCullProfiles() },
+    { name: 'fetchProfileSuggestion', run: s => s.fetchProfileSuggestion('guard-scope') },
+    { name: 'refreshComparisonStats', run: s => s.refreshComparisonStats() },
+    { name: 'refreshRankerStatus', run: s => s.refreshRankerStatus() },
+    { name: 'confirmGroup', run: (s, g) => s.confirmGroup(g) },
+    { name: 'confirmAllRemaining', run: (s, g) => s.confirmAllRemaining([g]) },
+    { name: 'setPhotoKept', run: (s, g) => s.setPhotoKept(g, '/a.jpg', false) },
+    { name: 'toggleSelection', run: (s, g) => s.toggleSelection('/a.jpg', g) },
+    { name: 'selectExclusive', run: (s, g) => s.selectExclusive('/b.jpg', g) },
+    { name: 'restoreSelection', run: (s, g) => s.restoreSelection(g, new Set(['/b.jpg'])) },
+    { name: 'acceptSuggestion', run: (s, g) => s.acceptSuggestion(g, '/a.jpg', 'reject') },
+    { name: 'reselectFromStrictness', run: s => { s.planActive.set(false); s.reselectFromStrictness(); } },
+    { name: 'skipGroup', run: (s, g) => s.skipGroup(g) },
+    { name: 'patchOverrides', run: s => s.patchOverrides(['/a.jpg'], 'bracket') },
+    { name: 'restoreOverrides', run: s => s.restoreOverrides(new Map([['/a.jpg', 'bracket']])) },
+    { name: 'openAutoCull', run: s => s.openAutoCull() },
+    { name: 'confirmAutoCull', run: s => s.confirmAutoCull(() => undefined) },
+    { name: 'onTrimBracketsChange', run: s => s.onTrimBracketsChange(true) },
+    { name: 'applyProfile', run: s => s.applyProfile({ id: 'sports', label_key: 'sports', strictness: 50, similarity_threshold: null, eyes_closed_max: null, poor_expression_min: null, keep_min_per_group: 1 }) },
+    { name: 'applySuggestedProfile', run: s => s.applySuggestedProfile() },
+  ];
+
+  // Each case first traverses the real valid cull branch. Stack mode then receives exactly the same
+  // preconditions, including stale UI state, and must refuse before transport or local decisions.
+  it.each(guardCases)('cull isolation guard $name has a valid positive cull branch', async ({ name, run }) => {
+    vi.useFakeTimers();
+    const group = makeGroup(1, 'burst', ['/a.jpg', '/b.jpg'], '/a.jpg');
+    const plan = TestBed.inject(AssistantCullPlanService);
+    const prepare = () => {
+      store.groups.set([structuredClone(group)]);
+      store.selectionsMap.set(new Map([['1_burst', new Set(['/a.jpg'])]]));
+      store.confirmedGroups.set(new Set()); store.passingGroups.set(new Map());
+      store.touchedGroups.set(new Set()); store.hiddenGroups.set(new Set());
+      store.profileChosen.set(name !== 'applySuggestedProfile');
+      store.planActive.set(['enterPlan', 'scheduleReplan', 'replan', 'acceptSuggestion'].includes(name));
+      store.planDigest.set('guard-plan');
+      plan.setPin({ digest: 'guard-plan', request: { group_by: 'burst' } });
+      store.totalPages.set(2); store.currentPage.set(1);
+      store.autoCullRequest.set({ group_by: 'all', strictness: 100, dry_run: true, trim_brackets: false, highlights_album: 'Highlights' });
+      store.autoCullPreview.set(null); store.trimBrackets.set(false);
+      store.cullProfiles.set([{ id: 'sports', label_key: 'sports', strictness: 50, similarity_threshold: null, eyes_closed_max: null, poor_expression_min: null, keep_min_per_group: 1 }]);
+      store.selectedProfile.set(''); store.resetProfileSuggestion();
+      // A stale hasMore read must not defeat loadMore's independent guard.
+      if (name === 'loadMore') vi.spyOn(store, 'hasMore').mockReturnValue(true);
+      if (name === 'reselectFromStrictness') store.selectionsMap.set(new Map());
+    };
+    const snapshot = () => JSON.stringify({
+      groups: store.groups(), selections: [...store.selectionsMap()].map(([k, v]) => [k, [...v]]),
+      touched: [...store.touchedGroups()], passing: [...store.passingGroups()], confirmed: [...store.confirmedGroups()],
+      strictness: store.strictness(), profile: store.selectedProfile(), loading: store.autoCullLoading(),
+      trim: store.trimBrackets(),
+    });
+    const drain = async (operation: unknown, collect: string[]) => {
+      let done = false;
+      const pending = Promise.resolve(operation).finally(() => { done = true; });
+      for (let turn = 0; turn < 30; turn++) {
+        await Promise.resolve();
+        await vi.advanceTimersByTimeAsync(turn === 0 ? 8000 : 0);
+        const requests = http.match(() => true);
+        for (const request of requests) {
+          collect.push(request.request.url);
+          const url = request.request.url;
+          request.flush(url.endsWith('/culling-groups') ? GROUPS_RESPONSE
+            : url.endsWith('/culling/plan') ? { ...GROUPS_RESPONSE, plan_digest: 'guard-plan', oversize_groups: 0, truncated: false }
+            : url.endsWith('/culling/profiles') ? { profiles: store.cullProfiles(), default: 'sports' }
+            : url.endsWith('/culling/suggest_profile') ? { profile: 'sports', confidence: 1 }
+            : url.endsWith('/culling/auto') ? PREVIEW : {});
+        }
+        if (done && requests.length === 0) break;
+      }
+      await pending;
+    };
+    prepare();
+    const before = snapshot(); const cullRequests: string[] = [];
+    await drain(run(store, store.groups()[0]), cullRequests);
+    expect(cullRequests.length > 0 || snapshot() !== before).toBe(true);
+    store.clearAllPassTimers(); store.closeAutoCull();
+    prepare(); store.mode.set('stacks');
+    const stackedBefore = snapshot(); const forbidden: string[] = [];
+    await drain(run(store, store.groups()[0]), forbidden);
+    expect(forbidden).toEqual([]);
+    expect(snapshot()).toBe(stackedBefore);
+    vi.restoreAllMocks(); vi.useRealTimers();
   });
 });

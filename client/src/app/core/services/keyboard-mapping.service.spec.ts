@@ -10,6 +10,31 @@ describe('KeyboardMappingService', () => {
     expect(TestBed.inject(KeyboardMappingService).keymap()).toEqual(DEFAULT_KEYMAP);
   });
 
+  it('gives new installs the Stack shortcut S', () => {
+    expect(TestBed.inject(KeyboardMappingService).keymap().stack).toBe('s');
+  });
+
+  it.each(['favourite', 'reject', 'keep', 'focusSearch', 'toggleSidebar', 'swapLayout'] as const)('preserves an older valid map assigning S to %s', action => {
+    const older: Partial<typeof DEFAULT_KEYMAP> = { ...DEFAULT_KEYMAP };
+    delete older.stack;
+    const saved = { ...older, [action]: 's' };
+    localStorage.setItem(KEYMAP_STORAGE_KEY, JSON.stringify(saved));
+    const service = TestBed.inject(KeyboardMappingService);
+    expect(service.keymap()).toEqual({ ...saved, stack: '' });
+    expect(service.matches(new KeyboardEvent('keydown', { key: 's' }), 'stack')).toBe(false);
+    expect(service.setKey('stack', 's')).toBe('in_use');
+    expect(service.setKey('stack', 'g')).toBeNull();
+    expect(stored()).toEqual({ ...saved, stack: 'g' });
+  });
+
+  it('keeps an explicitly unassigned Stack action after another preference is saved', () => {
+    localStorage.setItem(KEYMAP_STORAGE_KEY, JSON.stringify({ ...DEFAULT_KEYMAP, stack: '', focusSearch: 's' }));
+    const service = TestBed.inject(KeyboardMappingService);
+    expect(service.keymap().stack).toBe('');
+    service.setKey('focusSearch', 'g');
+    expect(stored()).toEqual({ ...DEFAULT_KEYMAP, stack: '', focusSearch: 'g' });
+  });
+
   it('lowercases a captured key and persists it per browser', () => {
     const service = TestBed.inject(KeyboardMappingService);
     service.setKey('reject', 'R');

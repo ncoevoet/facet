@@ -43,7 +43,7 @@ from api.db_helpers import (
 from api.models.scan import CullApplyResponse, PhotoDeleteResponse
 from api.models.sidecar_jobs import SidecarJobStatus
 from api.path_validation import PhotoFileMissing, resolve_photo_disk_path
-from api.raw_processing import find_companion_raw
+from api.raw_processing import find_companion_raw, windows_entry_path
 from db.maintenance import delete_photo_rows
 from processing.xmp_export import (
     FaceRegion,
@@ -591,8 +591,13 @@ def _companion_files(disk_path):
     if raw and raw != disk_path:
         out.append(raw)
     for sidecar in (disk_path + ".xmp", os.path.splitext(disk_path)[0] + ".xmp"):
-        if os.path.exists(sidecar) and sidecar not in out:
-            out.append(sidecar)
+        if os.path.exists(sidecar):
+            try:
+                sidecar = windows_entry_path(sidecar)
+            except FileNotFoundError:
+                continue
+            if sidecar not in out:
+                out.append(sidecar)
     return out
 
 

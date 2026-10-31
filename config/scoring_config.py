@@ -1687,7 +1687,7 @@ class ScoringConfig:
             return []
         schema_path = os.path.join(os.path.dirname(__file__), 'scoring_config.schema.json')
         try:
-            with open(schema_path) as f:
+            with open(schema_path, encoding="utf-8") as f:
                 schema = json.load(f)
         except (OSError, ValueError) as ex:
             logger.warning("Could not load config schema: %s", ex)

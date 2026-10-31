@@ -512,13 +512,12 @@ export interface paths {
         };
         /**
          * Api Caption
-         * @description Get an AI-generated caption for a photo.
+         * @description Get the stored AI caption for a photo. Strictly read-only.
          *
-         *     Returns a cached caption if available, otherwise generates one via VLM.
-         *     Returns 503 if no cached caption exists and VLM is unavailable.
-         *
-         *     If ``lang`` matches the configured ``target_language``, returns the
-         *     translated caption (generating and caching it on-demand if needed).
+         *     Never generates, translates or writes. With ``lang`` matching the configured
+         *     ``target_language`` the stored translation is returned when there is one,
+         *     otherwise the stored caption. ``source`` is ``none`` when no caption is
+         *     stored; ``POST /api/caption`` produces one.
          */
         get: operations["api_caption_api_caption_get"];
         /**
@@ -528,7 +527,15 @@ export interface paths {
          *     Clears the cached translation so it gets regenerated on next request.
          */
         put: operations["api_update_caption_api_caption_put"];
-        post?: never;
+        /**
+         * Api Generate Caption
+         * @description Generate and store the AI caption for a photo (edition mode required).
+         *
+         *     A stored caption is kept as is. Concurrent requests for the same photo share
+         *     one generation. When ``lang`` matches the configured ``target_language`` the
+         *     caption is also translated and the translation stored.
+         */
+        post: operations["api_generate_caption_api_caption_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1147,18 +1154,42 @@ export interface paths {
         };
         /**
          * Api Critique
-         * @description Get AI critique for a photo's score.
+         * @description Get AI critique for a photo's score. Strictly read-only.
          *
          *     Modes:
          *       - rule: Fast rule-based analysis (always available)
-         *       - vlm: VLM-powered natural language critique (requires GPU + a profile
-         *         with a VLM tagging model). The generated text is cached per photo;
-         *         ``refresh=true`` regenerates it. When ``lang`` matches the configured
-         *         ``translation.target_language``, the critique is translated.
+         *       - vlm: the rule critique plus the VLM critique already cached for the
+         *         photo (and its stored translation when ``lang`` selects one). Nothing is generated,
+         *         translated or written here: ``vlm_available`` tells the client whether
+         *         ``POST /api/critique/vlm`` can produce one for this caller.
          */
         get: operations["api_critique_api_critique_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/critique/vlm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Generate Vlm Critique
+         * @description Generate (or, with ``refresh``, regenerate) and store the VLM critique.
+         *
+         *     Edition only. Concurrent requests for the same photo share one generation.
+         *     When ``lang`` matches ``translation.target_language`` the critique is also
+         *     translated and the translation stored.
+         */
+        post: operations["api_generate_vlm_critique_api_critique_vlm_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1680,6 +1711,32 @@ export interface paths {
          * @description Assign a face to a person.
          */
         post: operations["api_assign_face_api_face__face_id__assign_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/face/{face_id}/unassign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Unassign Face
+         * @description Detach one face from its person.
+         *
+         *     ``/api/photo/unassign_person`` drops the person from every face in a photo;
+         *     this acts on the face the user clicked alone, so "Not X" on one of two
+         *     faces wrongly grouped as X leaves the other one where it is. A person left
+         *     with no face is deleted, as ``/api/photo/unassign_person`` does; the
+         *     response still names it in ``person_id``.
+         */
+        post: operations["api_unassign_face_api_face__face_id__unassign_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2412,6 +2469,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/person/{person_id}/face_boxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Person Face Boxes
+         * @description The person's normalised face boxes for a batch of photos.
+         *
+         *     The gallery outlines the focused person on every tile once it is filtered to
+         *     one person; asking ``GET /api/photo/faces`` per tile made one request per
+         *     thumbnail. Only faces assigned to ``person_id`` are returned. A path the
+         *     caller cannot see, an unknown one, and a photo with no trustworthy box for
+         *     the person are all omitted alike.
+         */
+        post: operations["api_person_face_boxes_api_person__person_id__face_boxes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/person/{person_id}/faces": {
         parameters: {
             query?: never;
@@ -2442,6 +2525,12 @@ export interface paths {
         /**
          * Api Person Possible Faces
          * @description Faces most like ``person_id``'s centroid, best first (same embedding model only).
+         *
+         *     Besides the faces, the response says why the list looks the way it does: ``counts`` of
+         *     the qualifying faces per owner class, ``best_similarity`` over everything scanned (so an
+         *     empty list can say how close the closest face came), and ``similar_groups``, other persons
+         *     whose centroid is close enough to merge wholesale. With ``per_owner`` the ``limit`` caps each
+         *     owner class separately, so one scan can serve a client that filters by owner.
          */
         get: operations["api_person_possible_faces_api_person__person_id__possible_faces_get"];
         put?: never;
@@ -2471,6 +2560,11 @@ export interface paths {
          *     confer no visibility: hidden (even with include_hidden), deleted and
          *     inaccessible candidates stay out. In assignment order, ``face_count`` is
          *     computed from visible photos; other orders return the stored library count.
+         *     ``named_only=true`` leaves out persons without a name, which the needs-naming
+         *     list already shows.
+         *     ``hidden_only=true`` returns the hidden ones alone (the persons page's Ignored
+         *     section). It is ignored under ``sort=assignment``: the assignment rule wins,
+         *     so hidden persons never become assignment candidates.
          */
         get: operations["list_persons_api_persons_get"];
         put?: never;
@@ -2598,7 +2692,10 @@ export interface paths {
         };
         /**
          * Api Persons Needs Naming
-         * @description List unnamed auto-clustered persons with face_count >= min_faces (default from config).
+         * @description List unnamed, non-hidden persons with face_count >= min_faces (default from config).
+         *
+         *     Unnamed means no name or a blank one, whether the person came from clustering or
+         *     from a split, so every person still waiting for a name is listed here once.
          */
         get: operations["api_persons_needs_naming_api_persons_needs_naming_get"];
         put?: never;
@@ -2681,6 +2778,13 @@ export interface paths {
         /**
          * Rename Person
          * @description Rename a person (set or update their name).
+         *
+         *     ``face_count`` is this person's own stored count, the same measure as each
+         *     entry of ``same_name_persons``, so the viewer picks the largest merge target
+         *     like with like. ``same_name_persons`` lists the other visible, non-hidden persons whose name is
+         *     the same ignoring case and surrounding spaces, largest first, so the viewer can
+         *     offer to merge clusters of one person that clustering split apart. Nothing is
+         *     merged here: two different people may share a name.
          */
         post: operations["rename_person_api_persons__person_id__rename_post"];
         delete?: never;
@@ -4441,6 +4545,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/stacks/regroup/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Stack Regroup */
+        post: operations["apply_stack_regroup_api_stacks_regroup_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/stacks/regroup/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Stack Regroup */
+        post: operations["preview_stack_regroup_api_stacks_regroup_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/stacks/suggestions": {
         parameters: {
             query?: never;
@@ -5586,12 +5724,17 @@ export interface components {
             /** Photo Paths */
             photo_paths?: string[] | null;
         };
-        /** BatchUpdateResponse */
-        BatchUpdateResponse: {
+        /** BatchReviewResponse */
+        BatchReviewResponse: {
             /** Count */
             count: number;
             /** Success */
             success: boolean;
+            /**
+             * Undo Entry Id
+             * @description Revision-protected review Undo receipt for a changed single-photo Reject.
+             */
+            undo_entry_id?: number | null;
         };
         /** BurstGroup */
         BurstGroup: {
@@ -5733,6 +5876,13 @@ export interface components {
             per_page: number;
             /** Total */
             total: number;
+        };
+        /** CaptionGenerate */
+        CaptionGenerate: {
+            /** Lang */
+            lang?: string | null;
+            /** Path */
+            path: string;
         };
         /** CaptionUpdate */
         CaptionUpdate: {
@@ -6014,6 +6164,18 @@ export interface components {
             cover_path: string;
             /** Paths */
             paths: string[];
+        };
+        /** CritiqueVlmRequest */
+        CritiqueVlmRequest: {
+            /** Lang */
+            lang?: string | null;
+            /** Path */
+            path: string;
+            /**
+             * Refresh
+             * @default false
+             */
+            refresh?: boolean;
         };
         /** CullApplyRequest */
         CullApplyRequest: {
@@ -7102,6 +7264,8 @@ export interface components {
             vlm_critique?: string | null;
             /** Vlm Source */
             vlm_source?: string | null;
+            /** Vlm Translation Missing */
+            vlm_translation_missing?: boolean | null;
             /**
              * Weaknesses
              * @default []
@@ -7430,6 +7594,28 @@ export interface components {
             id: number;
             /** Photo Path */
             photo_path: string;
+        };
+        /** PersonFaceBoxesRequest */
+        PersonFaceBoxesRequest: {
+            /** Paths */
+            paths: string[];
+        };
+        /**
+         * PersonFaceBoxesResponse
+         * @description ``POST /api/person/{person_id}/face_boxes``.
+         *
+         *     Keyed by photo path. A path the caller cannot see, an unknown path, and a
+         *     photo where none of the person's faces has a trustworthy box are all absent
+         *     alike, so the map is no existence oracle.
+         */
+        PersonFaceBoxesResponse: {
+            /**
+             * Boxes
+             * @description Photo path -> the person's faces in it, each [x1, y1, x2, y2] normalised to the frame (0..1).
+             */
+            boxes: {
+                [key: string]: number[][];
+            };
         };
         /** PersonFacesResponse */
         PersonFacesResponse: {
@@ -7839,6 +8025,11 @@ export interface components {
             bbox_y1?: number | null;
             /** Bbox Y2 */
             bbox_y2?: number | null;
+            /**
+             * Box
+             * @description [x1, y1, x2, y2] normalised to the frame (0..1); null when the stored dimensions cannot be trusted for this face.
+             */
+            box?: number[] | null;
             /** Face Index */
             face_index: number;
             /** Id */
@@ -8173,6 +8364,12 @@ export interface components {
             distance: number;
             /** Face Id */
             face_id: number;
+            /**
+             * Owner
+             * @description In no group, in a group nobody has named, or in a named person.
+             * @enum {string}
+             */
+            owner: "ungrouped" | "unnamed_group" | "named";
             /** Person Id */
             person_id?: number | null;
             /** Person Name */
@@ -8182,13 +8379,31 @@ export interface components {
             /** Similarity */
             similarity: number;
         };
+        /**
+         * PossibleFaceCounts
+         * @description Scanned faces at or above ``min_similarity`` per owner class, whatever ``owners`` says.
+         */
+        PossibleFaceCounts: {
+            /** Named */
+            named: number;
+            /** Ungrouped */
+            ungrouped: number;
+            /** Unnamed Group */
+            unnamed_group: number;
+        };
         /** PossibleFacesResponse */
         PossibleFacesResponse: {
+            /**
+             * Best Similarity
+             * @description Highest similarity among every scanned face, below the threshold included; null when nothing was scanned.
+             */
+            best_similarity: number | null;
             /**
              * Candidates
              * @description Index count of faces in scope that the caller can see, before the embedding-dimension check.
              */
             candidates: number;
+            counts: components["schemas"]["PossibleFaceCounts"];
             /** Faces */
             faces: components["schemas"]["PossibleFace"][];
             /**
@@ -8196,6 +8411,11 @@ export interface components {
              * @description Rows actually scored against the centroid (after the embedding-dimension check).
              */
             faces_scanned: number;
+            /**
+             * Similar Groups
+             * @description Up to 10 visible, non-hidden persons of the same embedding model whose centroid is at least min_similarity alike, best first.
+             */
+            similar_groups: components["schemas"]["SimilarGroup"][];
         };
         /** PreviewScoreBody */
         PreviewScoreBody: {
@@ -8300,6 +8520,26 @@ export interface components {
              */
             name?: string;
         };
+        /**
+         * RenamePersonResponse
+         * @description ``POST /api/persons/{person_id}/rename``.
+         */
+        RenamePersonResponse: {
+            /**
+             * Face Count
+             * @description The renamed person's own stored face count.
+             */
+            face_count: number;
+            /** Name */
+            name: string;
+            /**
+             * Same Name Persons
+             * @description Other visible, non-hidden persons with the same name ignoring case and surrounding spaces, largest first. Nothing is merged.
+             */
+            same_name_persons: components["schemas"]["SameNamePerson"][];
+            /** Success */
+            success: boolean;
+        };
         /** RenderMigrationStatus */
         RenderMigrationStatus: {
             /** Pending */
@@ -8337,6 +8577,15 @@ export interface components {
             total: number;
             /** Undecided */
             undecided: number;
+        };
+        /** SameNamePerson */
+        SameNamePerson: {
+            /** Face Count */
+            face_count: number;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
         };
         /** SaveSnapshotBody */
         SaveSnapshotBody: {
@@ -8688,6 +8937,23 @@ export interface components {
             written: number;
         };
         /**
+         * SimilarGroup
+         * @description Another person whose centroid looks like this person's.
+         */
+        SimilarGroup: {
+            /** Face Count */
+            face_count: number;
+            /**
+             * Name
+             * @description Null for a group nobody has named.
+             */
+            name?: string | null;
+            /** Person Id */
+            person_id: number;
+            /** Similarity */
+            similarity: number;
+        };
+        /**
          * SimilarPhotosResponse
          * @description One page of ``GET /api/similar_photos/{path}``.
          *
@@ -8762,10 +9028,71 @@ export interface components {
             stack: components["schemas"]["PhotoStack"] | null;
             undo: components["schemas"]["StackUndo"] | null;
         };
+        /** StackRegroupApply */
+        StackRegroupApply: {
+            /** Cover Path */
+            cover_path: string;
+            /** Expected State */
+            expected_state: string;
+            /**
+             * Mode
+             * @default combine
+             * @enum {string}
+             */
+            mode?: "combine" | "selected";
+            /** Paths */
+            paths: string[];
+            /** Selected Paths */
+            selected_paths: string[];
+        };
+        /** StackRegroupMutation */
+        StackRegroupMutation: {
+            /** Affected Paths */
+            affected_paths: string[];
+            /** Changed */
+            changed: boolean;
+            stack: components["schemas"]["PhotoStack"] | null;
+            undo: components["schemas"]["StackUndo"] | null;
+        };
+        /** StackRegroupPreview */
+        StackRegroupPreview: {
+            /** Affected Paths */
+            affected_paths: string[];
+            /** Cover Path */
+            cover_path: string;
+            /** Expected State */
+            expected_state: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "combine" | "selected";
+            /** Paths */
+            paths: string[];
+            /** Selected Paths */
+            selected_paths: string[];
+            /** Source Stacks */
+            source_stacks: components["schemas"]["PhotoStack"][];
+            /** Unstacked Paths */
+            unstacked_paths: string[];
+        };
+        /** StackRegroupPreviewRequest */
+        StackRegroupPreviewRequest: {
+            /**
+             * Mode
+             * @default combine
+             * @enum {string}
+             */
+            mode?: "combine" | "selected";
+            /** Selected Paths */
+            selected_paths: string[];
+        };
         /** StackSuggestion */
         StackSuggestion: {
             /** Cover Path */
             cover_path: string;
+            /** Group Id */
+            group_id: number;
             /** Key */
             key: string;
             /**
@@ -8775,6 +9102,8 @@ export interface components {
             kind: "duplicate" | "burst";
             /** Paths */
             paths: string[];
+            /** Photos */
+            photos: components["schemas"]["StackSuggestionPhoto"][] | null;
         };
         /** StackSuggestionDismissal */
         StackSuggestionDismissal: {
@@ -8786,12 +9115,55 @@ export interface components {
             /** Paths */
             paths: string[];
         };
+        /**
+         * StackSuggestionPhoto
+         * @description Darkroom rows in detector order, with the caller's current marks.
+         */
+        StackSuggestionPhoto: {
+            /** Aesthetic */
+            aesthetic: number | null;
+            /** Aggregate */
+            aggregate: number | null;
+            /** Burst Score */
+            burst_score: number;
+            /** Date Taken */
+            date_taken: string | null;
+            /** Expression Score */
+            expression_score: number | null;
+            /** Eyes Open Score */
+            eyes_open_score: number | null;
+            /** Filename */
+            filename: string;
+            /** Is Blink */
+            is_blink: number | null;
+            /** Is Burst Lead */
+            is_burst_lead: number | null;
+            /** Is Favorite */
+            is_favorite: number | null;
+            /** Is Kept */
+            is_kept: number | null;
+            /** Is Rejected */
+            is_rejected: number | null;
+            /** Path */
+            path: string;
+            /** Preview Revision */
+            preview_revision: string | null;
+            /** Star Rating */
+            star_rating: number | null;
+            /** Tech Sharpness */
+            tech_sharpness: number | null;
+        };
         /** StackSuggestionsRequest */
         StackSuggestionsRequest: {
             /** Filters */
             filters?: {
                 [key: string]: string | number | boolean;
             };
+            /**
+             * Include Photos
+             * @default false
+             */
+            include_photos?: boolean;
         };
         /** StackSuggestionsResponse */
         StackSuggestionsResponse: {
@@ -9191,6 +9563,21 @@ export interface components {
             is_rejected: boolean;
             /** Star Rating */
             star_rating?: number | null;
+            /** Success */
+            success: boolean;
+        };
+        /**
+         * UnassignFaceResponse
+         * @description ``POST /api/face/{face_id}/unassign``.
+         */
+        UnassignFaceResponse: {
+            /** Face Id */
+            face_id: number;
+            /**
+             * Person Id
+             * @description The person the face was detached from; null when it had none.
+             */
+            person_id?: number | null;
             /** Success */
             success: boolean;
         };
@@ -10356,6 +10743,39 @@ export interface operations {
             };
         };
     };
+    api_generate_caption_api_caption_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CaptionGenerate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaCaptionResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     report_client_error_api_client_errors_post: {
         parameters: {
             query?: never;
@@ -11236,13 +11656,45 @@ export interface operations {
                 path: string;
                 mode?: string;
                 lang?: string | null;
-                refresh?: boolean;
             };
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MediaCritiqueResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_generate_vlm_critique_api_critique_vlm_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CritiqueVlmRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -11888,6 +12340,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_unassign_face_api_face__face_id__unassign_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                face_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnassignFaceResponse"];
                 };
             };
             /** @description Validation Error */
@@ -12964,6 +13447,41 @@ export interface operations {
             };
         };
     };
+    api_person_face_boxes_api_person__person_id__face_boxes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                person_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PersonFaceBoxesRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PersonFaceBoxesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_person_faces_api_person__person_id__faces_get: {
         parameters: {
             query?: never;
@@ -12998,12 +13516,16 @@ export interface operations {
     api_person_possible_faces_api_person__person_id__possible_faces_get: {
         parameters: {
             query?: {
-                scope?: "unassigned" | "other_persons" | "all";
+                scope?: "unassigned" | "unnamed" | "other_persons" | "all";
                 min_similarity?: number;
                 limit?: number;
                 path_prefix?: string | null;
                 date_from?: string | null;
                 date_to?: string | null;
+                /** @description Comma list drawn from ungrouped, unnamed_group, named: keep only faces with such an owner. Applied before the limit; counts ignore it. */
+                owners?: string | null;
+                /** @description Apply ``limit`` to each owner class (ungrouped, unnamed_group, named) instead of to the whole list: up to ``limit`` faces of each class, the combined list sorted by similarity, descending. ``owners`` still selects the classes. */
+                per_owner?: boolean;
             };
             header?: never;
             path: {
@@ -13056,6 +13578,8 @@ export interface operations {
                 sort?: string;
                 include_hidden?: boolean;
                 recent_ids?: string;
+                named_only?: boolean;
+                hidden_only?: boolean;
             };
             header?: never;
             path?: never;
@@ -13429,7 +13953,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["RenamePersonResponse"];
                 };
             };
             /** @description Validation Error */
@@ -14714,7 +15238,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BatchUpdateResponse"];
+                    "application/json": components["schemas"]["BatchReviewResponse"];
                 };
             };
             /** @description Validation Error */
@@ -15962,6 +16486,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PhotoStack"] | null;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    apply_stack_regroup_api_stacks_regroup_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StackRegroupApply"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackRegroupMutation"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_stack_regroup_api_stacks_regroup_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StackRegroupPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StackRegroupPreview"];
                 };
             };
             /** @description Validation Error */

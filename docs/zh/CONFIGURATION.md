@@ -1594,7 +1594,7 @@ python facet.py --recompute-tags-vlm   # 用 VLM 标签模型重新打标签
 | `max_tags` | `20` | 最多的标签数 |
 | `min_photos_for_person` | `10` | 照片数少于此值的人物不在下拉菜单中显示 |
 | **persons** | | |
-| `needs_naming_min_faces` | `5` | 聚类要出现在 `/persons` 的“待命名”下所需的最少人脸数 |
+| `needs_naming_min_faces` | `5` | 聚类要出现在 `/persons` 的“待命名”下所需的最少人脸数；`1` 会列出所有未命名的人物 |
 | **raw_processor** | | |
 | `darktable.executable` | `"darktable-cli"` | darktable-cli 的可执行文件名或绝对路径 |
 | `darktable.profiles` | `[]` | 具名的 darktable 导出配置数组（见下文） |
@@ -2529,7 +2529,7 @@ python facet.py --recompute-text   # 重新读取整个图库
 
 在开放安装（没有 `viewer.password`）上：
 - `/mcp` 只提供一个只读匿名密钥，它不会展示开放的 `/api` 本来没有展示的任何内容。
-- 新令牌为 `readonly`，除非 `viewer.trusted_local_editing` 允许为来自同一台机器的请求使用完全编辑令牌。
+- 新令牌为 `readonly`，除非已开启 `viewer.trusted_local_editing`，或会话已用 `viewer.edition_password` 登录：两者都可创建完全编辑令牌，但该令牌仅对来自同一台机器的请求具有编辑权限。
 - 令牌只能在运行 Facet 的电脑上创建、列出和吊销（设置了 `viewer.edition_password` 时，也可在编辑会话中进行）。
 
 ```json

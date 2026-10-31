@@ -11,6 +11,7 @@ const def: AdditionalFilterDef = {
   sliderMax: 6400,
   step: 100,
   spanWidth: 'col-span-2',
+  helpKey: 'gallery.sidebar.metric_help.iso_range',
 };
 
 describe('computeRangeFilterUpdate', () => {

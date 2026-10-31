@@ -107,7 +107,7 @@ def test_real_read_only_connection_and_version(local_db):
     (503, b'private-provider-text', 'unreachable'),
     (302, b'', 'unreachable'),
     (200, b'not-json private-api-key', 'invalid_response'),
-    (200, b'x' * 65537, 'invalid_response'),
+    pytest.param(200, b'x' * 65537, 'invalid_response', id='oversized-body'),
     (200, {'major': True, 'minor': 1, 'patch': 0}, 'invalid_response'),
 ])
 def test_remote_errors_are_safe_and_release_admission(local_db, code, payload, expected):

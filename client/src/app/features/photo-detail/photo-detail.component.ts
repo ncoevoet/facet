@@ -49,12 +49,18 @@ import { KeyboardMappingService } from '../../core/services/keyboard-mapping.ser
 import type { CategoryOverrideResult } from './category-override-dialog.component';
 import { StackNavigatorComponent } from './stack-navigator.component';
 import { PhotoStackService } from '../../core/services/photo-stack.service';
+import { PhotoFaceLayerComponent } from './photo-face-layer.component';
+import { PersonFaceMenuComponent } from '../persons/person-face-menu.component';
+import {
+  FaceBoxMode, FACE_BOX_MODE_ICONS, FACE_BOX_MODE_LABELS, nextFaceBoxMode, readFaceBoxMode, writeFaceBoxMode,
+} from './face-box-mode';
 
 const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   saliency: I18N.social_export.source.saliency,
   faces: I18N.social_export.source.faces,
   center: I18N.social_export.source.center,
 };
+
 
 @Component({
   selector: 'app-photo-detail',
@@ -64,6 +70,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
     PhotoObjectLayerComponent,
     MetricRankComponent,
     PhotoMetricsTabsComponent,
+    PhotoFaceLayerComponent,
+    PersonFaceMenuComponent,
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
@@ -124,6 +132,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             <mat-icon>category</mat-icon>
           </button>
         }
+
+        <button mat-icon-button (click)="cycleFaceBoxMode()"
+          data-face-box-mode
+          [matTooltip]="faceBoxModeLabel() | translate"
+          [attr.aria-label]="faceBoxModeLabel() | translate">
+          <mat-icon>{{ faceBoxModeIcon() }}</mat-icon>
+        </button>
 
         @if (auth.isEdition()) {
           <button mat-icon-button class="max-md:!hidden" (click)="openManualFaces(p)"
@@ -236,7 +251,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
       <!-- Main content: image + info -->
       <div class="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 lg:overflow-hidden">
         <!-- Image panel -->
-        <div appZoomPan #zoom="zoomPan" class="shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative overflow-hidden cursor-grab">
+        <div appZoomPan #zoom="zoomPan" class="group/photo shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative overflow-hidden cursor-grab">
           <img
             [src]="p.path | thumbnailUrl:640:p.preview_revision"
             [alt]="p.filename"
@@ -252,6 +267,16 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             (load)="onFullImageLoad()"
             [style.transform]="zoom.transform()"
           />
+          <app-photo-face-layer
+            [path]="p.path"
+            [imageWidth]="p.image_width"
+            [imageHeight]="p.image_height"
+            [transform]="zoom.transform()"
+            [canEdit]="auth.isEdition()"
+            [mode]="faceBoxMode()"
+            [focusPersonIds]="focusPersonIds()"
+            (changed)="refreshPeople(p.path)" />
+          <app-person-face-menu [path]="p.path" [canEdit]="auth.isEdition()" (changed)="onPersonMenuChanged(p.path)" />
           <app-photo-object-layer
             [path]="p.path"
             [imageWidth]="p.image_width"
@@ -491,7 +516,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <div class="flex gap-3 flex-wrap">
                 @for (person of p.persons; track person.id) {
                   <button class="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
-                          (click)="navigateToGallery('person_id', person.id)">
+                          data-person-avatar aria-haspopup="menu"
+                          (click)="openPersonMenu(person, $event)">
                     <img
                       [src]="person.id | personThumbnailUrl"
                       [alt]="person.name"
@@ -573,6 +599,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly keymap = inject(KeyboardMappingService);
   private readonly stacks = inject(PhotoStackService);
   private readonly stackNavigator = viewChild(StackNavigatorComponent);
+  private readonly faceLayer = viewChild(PhotoFaceLayerComponent);
+  private readonly personMenu = viewChild(PersonFaceMenuComponent);
   private memberRequest = 0;
   private memberPhoto: { photo: Photo; owner: string } | null = null;
   private readonly viewerOwner = this.auth.identity();
@@ -590,6 +618,21 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly explainerOpen = signal(false);
   protected readonly explainerCategories = signal<string[]>([]);
   protected readonly explainerTargetCategory = signal<string | null>(null);
+
+  // Face boxes: off, on hover, or always shown. Remembered per browser.
+  protected readonly faceBoxMode = signal<FaceBoxMode>(readFaceBoxMode());
+  protected readonly faceBoxModeIcon = computed(() => FACE_BOX_MODE_ICONS[this.faceBoxMode()]);
+  protected readonly faceBoxModeLabel = computed(() => FACE_BOX_MODE_LABELS[this.faceBoxMode()]);
+  /** The gallery's person filter: those persons' faces stay boxed while browsing them. */
+  protected readonly focusPersonIds = computed(() =>
+    (this.store.filters().person_id || '').split(',').map(Number).filter((n) => Number.isInteger(n) && n > 0));
+
+  /** Hover, then always, then off, then hover again. */
+  protected cycleFaceBoxMode(): void {
+    const next = nextFaceBoxMode(this.faceBoxMode());
+    this.faceBoxMode.set(next);
+    writeFaceBoxMode(next);
+  }
 
   // Download options
   private downloadOptionsEffect = effect(() => {
@@ -977,19 +1020,31 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     if (this.destroyRef.destroyed || this.photo()?.path !== path) return;
     this.dialog.open(ManualFaceDialogComponent, {
       width: '800px', maxWidth: '96vw',
-      data: { path, filename: p.filename, onCommitted: async () => {
-        const actual = await firstValueFrom(this.api.get<Photo>('/photo', { path }));
-        const patch = { persons: actual.persons, unassigned_faces: actual.unassigned_faces };
-        this.store.patchPhoto(path, patch);
-        if (!this.destroyRef.destroyed && this.photo()?.path === path) {
-          this.photo.update(current => current ? { ...current, ...patch } : current);
-        }
-        await this.store.reloadPersonOptions();
-        if (this.store.filters().person_id || this.store.filters().manual_faces_need_review || this.store.filters().faces_need_names) {
-          await this.store.refreshPaths([path]);
-        }
-      }, onObjectsChanged: () => this.objectsRevision.update(n => n + 1) },
+      data: { path, filename: p.filename, onCommitted: () => this.onPersonMenuChanged(path),
+        onObjectsChanged: () => this.objectsRevision.update(n => n + 1) },
     });
+  }
+
+  /**
+   * Re-read a photo's people from the server after a face changed hands, from the
+   * manual-face editor or the face layer. The server's answer replaces the store's
+   * optimistic patch, which cannot know whether a moved face emptied its old person.
+   */
+  protected async refreshPeople(path: string): Promise<void> {
+    try {
+      const actual = await firstValueFrom(this.api.get<Photo>('/photo', { path }));
+      const patch = { persons: actual.persons, unassigned_faces: actual.unassigned_faces };
+      this.store.patchPhoto(path, patch);
+      if (!this.destroyRef.destroyed && this.photo()?.path === path) {
+        this.photo.update(current => current ? { ...current, ...patch } : current);
+      }
+      await this.store.reloadPersonOptions();
+      if (this.store.filters().person_id || this.store.filters().manual_faces_need_review || this.store.filters().faces_need_names) {
+        await this.store.refreshPaths([path]);
+      }
+    } catch {
+      // The edit itself is saved; a failed re-read leaves the optimistic state until the next load.
+    }
   }
 
   private applyConfirmed(p: Photo, confirmed: Partial<Photo>): void {
@@ -1104,7 +1159,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected async generateCaption(path: string): Promise<void> {
     this.generatingCaption.set(true);
     try {
-      const res = await firstValueFrom(this.api.get<{ caption: string }>('/caption', { path }));
+      const res = await firstValueFrom(this.api.post<{ caption: string }>('/caption', { path }));
       const p = this.photo();
       // Generation is slow enough to outlive the photo that started it, and the
       // store write now carries a mis-targeted apply out to the grid as well --
@@ -1120,6 +1175,22 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     } finally {
       this.generatingCaption.set(false);
     }
+  }
+
+  /**
+   * The Persons list opens the same menu as the photo's faces, on this photo's face
+   * of that person (its largest when several), so it works with the boxes off too.
+   */
+  protected openPersonMenu(person: { id: number; name: string | null }, event: Event): void {
+    const face = this.faceLayer()?.faceOf(person.id) ?? null;
+    this.personMenu()?.openBelow({ person: { id: person.id, name: person.name }, face }, event.currentTarget as HTMLElement);
+  }
+
+  protected async onPersonMenuChanged(path: string): Promise<void> {
+    if (!this.destroyRef.destroyed && this.photo()?.path === path) {
+      await this.faceLayer()?.load(path);
+    }
+    await this.refreshPeople(path);
   }
 
   protected navigateToGallery(filter: string, value: string | number): void {

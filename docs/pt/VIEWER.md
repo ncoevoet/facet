@@ -68,7 +68,7 @@ Duas senhas controlam o acesso:
 - **`viewer.password`** decide quem pode *navegar*. Vazia, qualquer pessoa navega por toda a biblioteca. Definida, os usuários precisam se autenticar antes.
 - **`viewer.edition_password`** é necessária para qualquer edição: avaliações, favoritos e rejeições, triagem, álbuns, gerenciamento de pessoas e rostos, modo de comparação, mudanças de pesos e prioridades e exportações. Vazia (o padrão distribuído), a instalação fica **somente leitura**: toda edição é recusada com `403` ("Set viewer.edition_password to enable editing").
 
-A geração por IA sob demanda (legendas, críticas VLM) também exige a senha de edição. Sem ela, você recebe apenas o que já está em cache (`source: "edition_required"` ou `vlm_available: false`). Sem senha de edição, a galeria também oculta os emblemas existentes de estrelas, favoritos e rejeições, como faz para visualizadores sem edição em uma instalação protegida por senha.
+A geração por IA sob demanda (legendas, críticas VLM) também exige a senha de edição. Sem ela, você recebe apenas o que já está em cache (`source: "none"` ou `vlm_available: false`). Sem senha de edição, a galeria também oculta os emblemas existentes de estrelas, favoritos e rejeições, como faz para visualizadores sem edição em uma instalação protegida por senha.
 
 Reinicie o visualizador depois de definir `viewer.edition_password`: a configuração não é recarregada a quente.
 
@@ -139,8 +139,26 @@ python database.py --migrate-user-preferences --user alice
 
 A pesquisa de texto da galeria preserva palavras Unicode e trata a pontuação dos nomes de arquivo como abas de palavras. `IMG_0042.JPG` pesquisa os prefixos `IMG`, `0042` e `JPG` em conjunto. Termos em cirílico e CJK funcionam. Operadores FTS como `OR` são tratados como palavras literais.
 
+### Abas da barra lateral
+
+A barra lateral de filtros agrupa as suas seções em cinco abas, mostradas como ícones (passe o mouse para ver o nome). Um pequeno emblema num ícone conta os filtros ativos da aba, e a aba mantém o nome para leitores de tela (“Explorar, 2 ativos”). A última aba usada fica guardada neste navegador (`facet_sidebar_tab`). Explorar, Qualidade e Assunto têm painéis recolhíveis, e cada um lembra se está aberto; Revisão e Visualização não os têm.
+
+| Aba | Seções |
+|-----|--------|
+| **Explorar** | Busca semântica, Pessoas, Período, Conteúdo, Álbuns, Localização, Pasta, Equipamento |
+| **Revisão** | Uma linha de menu cada para a decisão e depois para rajadas, duplicatas, piscadas, brackets, panorâmicas e rejeitadas, uma avaliação por estrelas, os interruptores Favoritos e Monocromático e, para editores, *Rostos manuais a rever* e *Correções de panorama* |
+| **Qualidade** | Qualidade, Cor e qualidade, Qualidade estendida, Técnico, Exposição e amplitude (quão boa é a imagem) |
+| **Assunto** | Métricas de rosto, Composição, Saliência do sujeito, Momentos (o que está no enquadramento) |
+| **Visualização** | Vista (tamanho dos cartões, layout, rolagem rápida, ações dos cartões) |
+
+O cabeçalho, **Encontrar um filtro**, o aviso de álbum inteligente e a busca por nome de arquivo ficam acima das abas em todas elas, por isso `/` funciona a partir de qualquer uma. Digitar em **Encontrar um filtro** oculta as abas e lista os controles correspondentes de todas.
+
+O número junto a **Filtros** é o total de todos os filtros ativos. Um intervalo mín./máx. conta uma vez, assim como o filtro de localização. A busca por nome de arquivo e *Semelhante a* não têm seção e são contados apenas neste total, assim como um filtro sobre uma métrica que esta instalação oculta, para que **Redefinir filtros** ainda possa limpá-lo. **Redefinir filtros** (com dica) aparece junto ao número enquanto houver pelo menos um filtro ativo; o simples **X** no extremo direito apenas fecha a barra lateral em telas estreitas.
+
+Na aba Revisão, a decisão e cada grupo (por exemplo Duplicatas) é uma linha que mostra o valor atual (como Ocultos, Mostrados ou Só estes) e abre um menu de opções, cada uma com uma explicação de uma linha. Uma linha deixada no valor padrão não conta no emblema da aba nem do cabeçalho. *Só* e *Ocultos* excluem-se mutuamente. Enquanto uma decisão está escolhida, Rejeitadas fica bloqueada, e a dica explica o motivo. O botão de estrela define uma avaliação mínima: cada clique a aumenta em um, e o clique depois de 5, ou depois de um máximo vindo de um link, a limpa. Ele divide uma linha com os interruptores Favoritos e Monocromático, só com ícone e com dicas. Nas abas Qualidade e Assunto, passar o mouse sobre o nome de uma configuração explica o que é pontuado e por qual modelo, e os controles de Revisão também têm dicas.
+
 <details><summary>Barra lateral de filtros completa — todas as seções expandidas (clique para ver)</summary>
-<p align="center"><img src="screenshots/filter-sidebar-full.jpg" alt="Filter sidebar with every section expanded" width="360"></p>
+<p align="center"><img src="../screenshots/filter-sidebar-full.jpg" alt="As cinco abas da barra lateral de filtros lado a lado: Explorar, Revisão, Qualidade, Assunto e Visualização" width="900"></p>
 </details>
 
 ### Filtros Primários
@@ -248,13 +266,19 @@ Use **Estado de revisão → Precisa de revisão** na galeria para percorrer fot
 
 ### Pilhas de fotos manuais
 
-Agrupe fotos relacionadas sob um cartão de capa. Selecione **2–1000 fotos** explicitamente, escolha **Empilhar fotos** na barra de seleção e confirme a capa. Uma seleção de toda a visualização não pode criar uma pilha.
+Selecione **2–1000 fotos explícitas** e escolha **Empilhar fotos** na barra ou prima **S** para abrir o editor de página inteira em `/stacks/edit`. Selecionar toda a visualização não cria pilhas. S abre uma pré-visualização, sem guardar diretamente. Menu do utilizador → **Personalizar atalhos** muda a tecla da galeria; a dica, a Ajuda e a referência `?` mostram a tecla atual. Se uma configuração anterior já usa S, é preservada e Empilhar fica **Não atribuído** até escolher uma tecla livre. São necessárias permissões de edição. Cada foto pertence a uma pilha por proprietário. A página centra uma pré-visualização com zoom sobre uma faixa de miniaturas permanente. Clique numa miniatura ou use `←`/`→` para focar uma foto e os seus controlos de capa, ordem ou remoção da pilha. O botão de zoom, a roda ou um duplo clique permitem examinar detalhes.
 
-- Uma foto pertence a uma pilha manual por proprietário. As pilhas nunca são fundidas automaticamente.
-- Abra o indicador de contagem ou uma foto empilhada para navegar pelos seus membros no visualizador. As setas e a tira seguem a ordem da pilha e ficam dentro dela.
-- **Gerir pilha** permite escolher a capa, reordenar e adicionar ou remover fotos. Remover a capa escolhe o primeiro membro restante. Menos de dois membros dissolve a pilha, assim como **Desempilhar**.
+Use **Cmd+Shift+S** ou **Ctrl+Shift+S** para empilhar fotos explícitas sem pilha pela ordem de seleção, com a primeira como capa. Membros de pilhas existentes abrem o editor. O sucesso limpa a seleção guardada e Desfazer repõe-na; cancelar ou falhar mantém-na. Escape no editor regressa à galeria de origem sem guardar.
+
+**Rejeitar ao empilhar.** Foque uma foto no editor de página inteira ou no diálogo e use **Rejeitar** ou **R**. A foto ativa na câmara escura das pilhas sugeridas tem a mesma ação; abra-a primeiro para escolher a foto. Rejeitar guarda imediatamente a decisão habitual, limpa Manter, favorito e estrelas, e exclui só essa foto da pilha proposta. Não apaga nem modifica ficheiros originais. O contador e as miniaturas esbatidas mostram as exclusões. Desfazer restaura os valores anteriores e a pertença ao rascunho relevante sem substituir escolhas posteriores de ordem ou capa; alterações de revisão posteriores podem impedir Desfazer. Fotos já rejeitadas ficam até serem excluídas explicitamente, sem outra decisão. O agrupamento espera por Guardar; sair sem guardar não desfaz Rejeitar.
+
+Se as fotos selecionadas já pertencem a pilhas, **Combinar pilhas** é a opção inicial: a pré-visualização inclui os outros membros. **Apenas fotos selecionadas** move apenas a seleção explícita. O editor mostra as contagens selecionada e final, membros adicionais e um resumo dos efeitos; expanda os detalhes para cada pilha de origem. Dois ou mais membros restantes conservam a pilha; um só fica sem pilha e uma origem vazia desaparece. Excluir uma foto da nova pilha deixa-a na origem segundo as mesmas regras. A pilha final e o total de fotos afetadas têm um limite de 1000 cada; origens indisponíveis ou parcialmente visíveis são recusadas. Mudar de modo conserva a ordem, a capa e as exclusões ainda aplicáveis.
+
+Reveja a pré-visualização atualizada pelo servidor e escolha **Empilhar fotos** para guardar. A página continua aberta para examinar o resultado; a notificação oferece **Desfazer** enquanto estiver disponível e as revisões corresponderem. **Continuar a editar** obtém uma nova pré-visualização antes de guardar outra vez. **Voltar à galeria** regressa à galeria ou ao álbum de origem com o URL exato e faz expirar o Desfazer anterior. Sair sem guardar descarta o agrupamento; uma rejeição explícita persiste. Recarregar o navegador restaura a seleção apenas para a mesma conta, após nova autorização; abrir o URL sem seleção válida oferece uma forma de voltar.
+
+O indicador ou uma foto empilhada abre o visualizador com miniaturas, botões anterior/seguinte e contador na ordem guardada. As setas permanecem na pilha. **Gerir pilha** abre uma janela de diálogo secundária: clique numa miniatura ou use Esquerda/Direita para a pré-visualização grande, escolha **Capa**, reordene com os botões de seta ou remova membros. Abri-lo por si só mantém a edição normal: membros removidos ficam sem pilha, remover a capa escolhe o primeiro membro restante e menos de dois membros ou **Desempilhar** dissolve a pilha. **Adicionar fotos selecionadas** de outra pilha ativa explicitamente a pré-visualização de reagrupamento e os dois modos. Alterações de agrupamento preservam ficheiros e valores de revisão; Rejeitar explicitamente muda os valores de revisão imediatamente.
+
 - Ações de avaliação, Manter/Rejeitar, metadados, download, álbum e exclusão nunca ampliam uma pilha implicitamente.
-- As edições de pilha nunca tocam arquivos, metadados, avaliações ou decisões Manter/Rejeitar. Desfaça-as pelo [Histórico de organização](#histórico-de-organização) enquanto nada tiver mudado desde então; edições posteriores causam conflito.
 
 **Na galeria.** Uma pilha se recolhe em um cartão; **Expandir todas as pilhas** é uma preferência salva. Filtros e álbuns se aplicam às fotos individuais: a capa aparece se corresponder, senão o primeiro membro correspondente. A navegação por pilha ignora o ocultamento automático de rajadas/duplicatas. Linha do tempo e mapa exibem fotos individuais.
 
@@ -268,15 +292,14 @@ Agrupe fotos relacionadas sob um cartão de capa. Selecione **2–1000 fotos** e
 - As exportações completas do banco de dados do visualizador omitem as pilhas e os álbuns inteligentes cujos filtros indicam uma pilha privada, além dos álbuns inteligentes com filtros ilegíveis (JSON inválido, aninhamento excessivo ou mais de 1 MiB). As atualizações incrementais preservam os álbuns e pilhas do próprio destino.
 - A [importação/envio de pilhas Immich](IMMICH.md#importar-e-enviar-pilhas-manuais) é uma operação de CLI separada.
 
-**Pilhas sugeridas** revisa, um de cada vez, os grupos de duplicatas e rajadas existentes dentro dos filtros atuais. Ignora o ocultamento de rajadas/duplicatas para que você veja cada membro.
+**Pilhas sugeridas** abre a revisão de página inteira em `/culling?mode=stacks`, com os filtros atuais e o regresso à galeria ou ao álbum de origem. Requer permissões de edição. Revê grupos de duplicados e rajadas existentes sem ocultar os seus membros.
 
-- O quadro em foco aparece em grande e passa a ser a capa. `←`/`→` movem o foco.
-- **`S`** (ou **Empilhar com esta capa**) empilha o grupo; **`X`** (ou **Pular**) passa à frente. Ambas oferecem Desfazer. **Editar membros** abre antes o editor de pilhas.
-- Um "pular" é salvo por conta e dura até os membros do grupo mudarem.
-- Grupos com fotos já empilhadas ou com quadros de bracketing/panorâmica são ignorados. Grupos sobrepostos são ignorados por inteiro, com preferência pelos grupos de duplicatas.
-- Cada lote tem no máximo 20 propostas e 2000 fotos (1000 por grupo). **Recarregar** obtém o lote seguinte.
-- Não é oferecido em listas fixadas, Fotos semelhantes nem na busca semântica. Usuários somente leitura podem ver, mas não empilhar nem pular.
-- As sugestões nunca rejeitam uma foto nem alteram um arquivo.
+- Na grelha, `↑`/`↓` selecionam um grupo, **Enter** abre a câmara escura e **S** empilha-o com a capa proposta. Na câmara escura, `←`/`→` focam uma foto e **S** ou **Enter** empilham com essa capa. **X** ignora o grupo; empilhar e ignorar oferecem Desfazer.
+- **Rejeitar** ou **R** na câmara escura exclui a foto ativa. Empilhar guarda as fotos restantes e exige pelo menos duas. Ignorar descarta a proposta original. Com poucas fotos pode examinar as excluídas, mudar de grupo, desfazer, ignorar ou voltar. A rejeição continua guardada após concluir uma proposta. Desfazer Empilhar ou Ignorar restaura as suas exclusões; uma sugestão posterior inicia um novo rascunho.
+- A câmara escura conserva a pré-visualização grande com zoom, a lupa, a comparação e a faixa de miniaturas. **Z** alterna o zoom, **P** o realce de foco, **F** o ecrã inteiro; **G** percorre as grelhas de composição; **Escape** regressa à grelha dos grupos. **Editar membros** abre uma janela secundária; reduzir a sugestão a uma foto oferece **Ignorar esta pilha**.
+- Os grupos ignorados são guardados por conta até os seus membros mudarem. São excluídos grupos com fotos já empilhadas ou imagens de bracketing/panorama; grupos sobrepostos são excluídos por inteiro, dando prioridade aos duplicados.
+- O cabeçalho conta sugestões carregadas, não o total da biblioteca. Cada lote contém no máximo 20 propostas e 2000 fotos (1000 por grupo). O seguinte só carrega automaticamente depois de empilhar ou ignorar todas as sugestões carregadas. **Recarregar sugestões** recarrega o mesmo âmbito; **Voltar à galeria** regressa à origem.
+- Indisponível em listas fixadas, Fotos semelhantes ou pesquisa semântica. Empilhar e Ignorar não alteram decisões de revisão nem originais. Só Rejeitar explicitamente muda os valores de revisão.
 
 ### Cartões de Foto
 
@@ -341,7 +364,7 @@ Quando um assistente ligado através de [Agentes de IA (MCP)](AGENTS.md) lhe mos
 - **Toda execução começa como simulação.** Você vê uma prévia antes de qualquer gravação; mover/descartar só rodam com um `dry_run=false` explícito.
 - **O servidor escolhe os arquivos a partir do estado de cada foto.** Copiar age apenas sobre as mantidas, mover/descartar apenas sobre as rejeitadas. Tudo o mais é reportado como `excluded_by_state`. O cliente não pode entregar uma lista de arquivos a excluir.
 - **Os acompanhantes são opcionais.** Rejeitar um JPEG não leva o seu RAW, a menos que você marque **Incluir RAW/XMP acompanhante** (`include_companions`).
-- No macOS, os arquivos RAW acompanhantes mantêm os nomes no disco, incluindo extensões em maiúsculas.
+- No macOS e no Windows, os arquivos RAW acompanhantes mantêm os nomes no disco, incluindo extensões em maiúsculas; no Windows, os sidecars `.xmp` também.
 
 **Disponibilidade de "Descartar rejeitadas".** A opção "Descartar rejeitadas" só aparece com `viewer.cull.allow_trash` ligado *e* o pacote `send2trash` instalado (`/api/config` informa `cull.trash_available: true`). Caso contrário, o diálogo diz por quê: "o pacote `send2trash` não está instalado" ou "um administrador desativou a lixeira".
 
@@ -390,7 +413,7 @@ Campos de resposta e códigos de status: [API.md](../API.md).
 - **Melhor do bracketing** — mostra apenas a exposição base de cada bracketing. **Ligado por padrão.** Independente de Melhor da rajada, porque o líder de rajada de um bracketing nem sempre é a sua exposição base.
 - **Melhor do panorama** — mostra apenas o quadro central de cada conjunto de panorâmica ou panorâmica HDR. **Ligado por padrão.**
 - **Rolagem Infinita** — as fotos carregam conforme você rola
-- **Rolagem Rápida (virtualizada)** — renderiza apenas as linhas próximas à janela de visualização, então a rolagem profunda continua rápida. Ligada por padrão. Desligue-a na seção Exibição da barra lateral se tiver problemas de layout. O modo grade com detalhes visíveis sempre renderiza tudo. Salvo no localStorage (`facet_virtual_scroll`).
+- **Rolagem Rápida (virtualizada)** — renderiza apenas as linhas próximas à janela de visualização, então a rolagem profunda continua rápida. Ligada por padrão. Desligue-a na aba Exibição da barra lateral se tiver problemas de layout. O modo grade com detalhes visíveis sempre renderiza tudo. Salvo no localStorage (`facet_virtual_scroll`).
 
 ### Fotos Semelhantes
 
@@ -446,7 +469,7 @@ Os quadros de uma panorâmica se destinam a ser unidos e os de um bracketing a s
 - Se um quadro marcado desaparece ou perde os dados de exposição ou de data, toda a série espera até que todos os membros voltem a qualificar.
 - **A marcação prevalece sobre a detecção de panorâmica**: uma panorâmica detectada que contém quadros marcados é descartada na próxima execução.
 
-**As correções se aplicam na próxima execução de detecção.** Uma correção é salva na hora e mostrada como pendente: um emblema de relógio no cartão da galeria, um chip *Correção pendente* na triagem. A página de triagem mostra um banner com o botão **Executar a detecção de novo**. O filtro *Correções de panorâmica* da barra lateral (só edição, em Refinar) lista as correções pendentes em toda a biblioteca. *Descartar a correção* remove uma depois.
+**As correções se aplicam na próxima execução de detecção.** Uma correção é salva na hora e mostrada como pendente: um emblema de relógio no cartão da galeria, um chip *Correção pendente* na triagem. A página de triagem mostra um banner com o botão **Executar a detecção de novo**. O filtro *Correções de panorâmica* da barra lateral (só edição, na aba Revisão) lista as correções pendentes em toda a biblioteca. *Descartar a correção* remove uma depois.
 
 **Ajuste.** A aba Panorâmicas em Comparar salva os limiares calibrados: mínimo de quadros, varredura mínima, maior intervalo e dispersão de exposição HDR. Salvá-los não muda nada até você executar a detecção de novo (o botão fica ao lado de Salvar). Veja [CONFIGURATION.md](CONFIGURATION.md#detecção-de-panorâmicas).
 
@@ -460,9 +483,13 @@ O menu suspenso lista as pessoas com miniaturas de rostos. Clique em uma para fi
 
 ### Galeria de Pessoa
 
-Clique no nome de uma pessoa para ver todas as suas fotos em `/person/<id>`.
+Clique no nome de uma pessoa para ver todas as suas fotos em `/person/<id>`. Na página Gerenciar pessoas, um clique duplo em um cartão (com nome, sem nome em "Precisa de nome" ou ignorado) abre a galeria com as fotos dessa pessoa; cliques duplos no campo de nome, na caixa de seleção e nos botões continuam com eles.
+
+**Nomear pela galeria.** Quando a galeria está filtrada por uma pessoa (`?person_id=95`), a etiqueta dela na linha de filtros ativos mostra o rosto e o nome, ou **Sem nome**, contornado como lembrete; o × dela (**Remover do filtro**) tira a pessoa do filtro. Para usuários de edição há dois botões antes do ×. **Renomear** (o lápis) renomeia a pessoa ali mesmo: o campo de nome mostra "Quem é? Digite ou escolha um nome" para uma pessoa sem nome e "Renomear ou mesclar em…" para uma com nome, as sugestões mostram o rosto, o nome e o número de fotos de cada pessoa, e **Salvar** ou **Cancelar** o fecha (Esc também cancela). O nome é sempre salvo primeiro (`POST /api/persons/{id}/rename`); se outros grupos já o usam (sem diferenciar maiúsculas e espaços, estejam ou não entre as sugestões), a etiqueta oferece em seguida a mesma mesclagem da página Gerenciar pessoas (veja **Renomear** abaixo), e após uma mesclagem a galeria passa para a pessoa mantida. **Mais** (⋮) abre o menu da pessoa: **Ver todas as fotos de {name}**, **Encontrar mais rostos de {name}** e **Ignorar** (**Restaurar** para uma pessoa ignorada). Quando as opções de ocultação da galeria deixam algumas fotos da pessoa fora de vista, os avisos da galeria informam quantas, divididas em fotos de rajada, de piscada, duplicadas, de bracketing e de panorama, para que você as mostre antes de nomear.
 
 ### Página Gerenciar Pessoas
+
+No modo de edição a página tem duas abas, **Com nome (N)** e **Precisa de nome (N)**, e sempre abre em **Com nome**. **Precisa de nome** lista os clusters sem nome, cada um com um campo de nome; **Com nome** reúne as pessoas nomeadas, com as ignoradas numa seção recolhível **Ignoradas** no fim. Usuários somente leitura veem apenas a grade de pessoas com nome. As sugestões de nome, aqui como na etiqueta de pessoa da galeria e no menu de rostos da foto, mostram o rosto, o nome e o número de fotos de cada pessoa. Em **Precisa de nome** o menu de ordenação oferece **Número de rostos** e **Mais recentes**. Quando não resta ninguém para nomear, a aba mostra "Todos têm nome. Os novos rostos que precisarem de nome aparecerão aqui."
 
 Abra-a pelo botão no cabeçalho ou por `/persons`:
 
@@ -470,13 +497,18 @@ Abra-a pelo botão no cabeçalho ou por `/persons`:
 |--------|--------|
 | **Mesclar** | Selecione a pessoa de origem, clique no destino, confirme |
 | **Excluir** | Clique no botão excluir no cartão da pessoa |
-| **Renomear** | Clique no nome da pessoa para editar na própria linha |
+| **Renomear** | Clique no nome da pessoa para editar na própria linha. Se outros grupos já usam esse nome (sem diferenciar maiúsculas e espaços ao redor), uma confirmação mostra um bloco por pessoa (rosto, nome, número de rostos), todos selecionados, com a pessoa que será mantida marcada: a maior entre as selecionadas, que mantém a grafia dela. Desmarque um homônimo, ou cancele, para mantê-lo separado. Uma mesclagem não pode ser desfeita |
 | **Dividir** | Abra os rostos de uma pessoa, selecione um subconjunto e divida-o em uma nova pessoa |
-| **Ocultar** | Oculte um grupo da lista de pessoas, dos filtros e das sugestões de mesclagem (reversível) |
+| **Encontrar mais rostos** | O botão de busca no cartão de uma pessoa, ou **Encontrar mais rostos de {name}** num menu de pessoa, lista os rostos parecidos com ela, os mais parecidos primeiro, comparados com o centroide da pessoa (`GET /api/person/{id}/possible_faces`). Em **Quais rostos incluir**, três chips mostram cada um sua contagem: **Sem grupo** e **Grupos sem nome**, ativados por padrão, e **Pessoas com nome**, desativado. Um rosto que pertence a uma pessoa com nome leva um selo **de {name}**, e marcar um mostra um aviso de que adicioná-lo o move para esta pessoa. Acima dos rostos, **Grupos parecidos** lista outros clusters cujo centroide se parece com o dessa pessoa (os sem nome, mais os com nome enquanto **Pessoas com nome** estiver ativado); cada um mostra a foto, o nome ou **Grupo sem nome**, o número de rostos e **{percent}% parecido**, com **Mesclar tudo** para incorporar o grupo inteiro a essa pessoa. Mesclar um grupo com nome pede confirmação, e uma mesclagem não pode ser desfeita. Cada rosto leva **Forte** (50 % de semelhança ou mais) ou **Possível**, com a porcentagem, e **Quão parecido** define o limite: um botão de barras de sinal que mostra `≥NN%` e abre o menu de níveis, com cinco níveis, **Muito estrito** 60 %, **Rigoroso** 50 %, **Normal** 35 % (padrão), **Amplo** 25 % e **Muito amplo** 20 %. Quando nenhum rosto atinge o limite, o diálogo mostra "Nenhum rosto se parece com {name} (o mais próximo: N%)." e oferece **Tentar Amplo** ou **Incluir pessoas com nome**. Quando uma busca teria de comparar rostos demais, ela procura só entre os rostos sem grupo; se ainda forem demais, pede um **Ano** em que procurar. **Selecionar os fortes**, Shift+clique para um intervalo e Espaço no rosto em foco agilizam a marcação, e o botão Adicionar mostra quantos estão marcados. Adicionar recalcula o centroide, então a próxima rodada é ordenada pelo que você acabou de confirmar; rostos deixados desmarcados não são oferecidos de novo enquanto o diálogo estiver aberto |
+| **Ignorar** | Ignorar um cluster (equipe, desconhecidos): o botão ⊘ de um cartão, também nos cartões "Precisa de nome". Pessoas ignoradas saem da lista, de "Precisa de nome", dos filtros, das sugestões de mesclagem e da busca de rostos, e aparecem na seção recolhível **Ignoradas** no fim da aba **Com nome**, com **Restaurar** (`GET /api/persons?hidden_only=true`). Usa o mesmo sinalizador `is_hidden` de antes. Ignorar vale na hora e mostra por 10 segundos uma notificação com **Desfazer**, aqui e em cada menu de pessoa. |
 
 ### Marcar um rosto esquecido
+### Rostos na foto
+Na visualização da foto, aparece um quadro em volta de cada rosto detectado enquanto o ponteiro está sobre a foto, e passar sobre um rosto mostra o nome (quadro vermelho: ainda sem nome). Os quadros acompanham o zoom e o deslocamento, e arrastar ou clicar duas vezes sobre um rosto continua deslocando a vista ou redefinindo o zoom. O quadro de um rosto sem nome também é tracejado, para não depender só da cor, e todo quadro tem um contorno escuro para continuar visível em qualquer fundo. A menos que os quadros estejam em **Desativado**, pelo teclado Tab passa de um rosto a outro, cada um anunciado pelo nome (ou como rosto desconhecido), e Enter ou Espaço abre o menu dele. Em uma tela sensível ao toque, um toque abre o menu de um rosto só enquanto os quadros estão visíveis (os quadros estão em **Sempre**, ou, exceto em **Desativado**, o rosto é da pessoa pela qual a galeria está filtrada); caso contrário, tocar na foto não faz nada com o rosto. No modo de edição, clicar em um rosto abre um menu: **Trocar pessoa…** (ou **Nomear este rosto…**) para escolher uma pessoa existente ou digitar um novo nome, **Encontrar mais rostos de …** para essa pessoa e **Não é …** para tirar só esse rosto dessa pessoa (`POST /api/face/{id}/unassign`); os outros rostos dela na foto continuam atribuídos a ela. Rostos cujas dimensões salvas não são confiáveis não são desenhados. Os quadros vêm de `GET /api/photo/faces`, que retorna o `box` de cada rosto normalizado ao enquadramento. Todo rosto que pertence a uma pessoa, com ou sem nome, também oferece **Ver todas as fotos de …** (ou **Ver todas as fotos deste grupo**), que abre a galeria filtrada por essa pessoa; isso funciona também no modo somente leitura. Um botão da barra alterna os quadros entre três estados, lembrados por navegador: **Desativado** (sem quadros, e os rostos não podem ser clicados nem focados), **Ao passar o ponteiro** (o padrão, como descrito acima) e **Sempre** (todos os quadros e nomes ficam visíveis). Quando a galeria está filtrada por uma pessoa, os rostos dela continuam com um quadro de traço mais grosso, a menos que os quadros estejam em **Desativado**. **Usar como foto de …** torna o rosto clicado a foto do cartão da pessoa; uma pessoa que recebe rostos sem ter foto ganha automaticamente o mais confiável. Na galeria filtrada por uma pessoa, cada miniatura contorna o rosto dela em vermelho, para ver de qual rosto um cluster trata antes de nomeá-lo. Na lista **Pessoas** do painel direito, clicar no avatar de uma pessoa abre o mesmo menu que clicar no quadro desse rosto, mesmo com os quadros em **Desativado**; **Ver todas as fotos de …** nesse menu abre a galeria.
 
 No modo de edição, abra uma foto e escolha **Marcar um rosto ausente**, mesmo quando nenhum rosto foi detectado. Desenhe um retângulo (ou digite as coordenadas), escolha uma pessoa existente ou digite um novo nome, e então **Salvar**. Cancelar não salva nada.
+
+Salvar, editar ou remover um rosto manual atualiza as caixas e as pessoas da foto sem reabri-la.
 
 - Use o mesmo editor para ajustar, reatribuir ou remover uma marca manual.
 - As marcas manuais continuam ligadas à sua pessoa através de novas varreduras e da sincronização do visualizador. Não treinam o reconhecimento nem alteram as pontuações de qualidade do rosto.
@@ -618,17 +650,17 @@ O diálogo também distingue uma foto *ainda não pontuada* de uma cuja *pontua�
 
 ### Crítica por VLM `[GPU]` `[16gb/24gb]`
 
-Usa o VLM configurado (Qwen3.5-2B ou Qwen3.5-4B) para uma crítica sensível ao contexto. Exige o perfil 16gb ou 24gb, `viewer.features.show_vlm_critique` como `true` (o padrão) e uma sessão de edição para gerar. Sem edição, apenas uma crítica em cache é mostrada e `vlm_available` é `false`.
+Usa o VLM configurado (Qwen3.5-2B ou Qwen3.5-4B) para uma crítica sensível ao contexto. Exige o perfil 16gb ou 24gb, `viewer.features.show_vlm_critique` como `true` (o padrão) e uma sessão de edição para gerar. Sem edição, apenas uma crítica em cache é mostrada e `vlm_available` é `false`. A caixa de diálogo gera por `POST /api/critique/vlm` (somente edição; requisições simultâneas para uma mesma foto compartilham uma única geração); `GET /api/critique` apenas lê o cache e nunca gera, traduz nem grava.
 
 - O prompt (`critique.vlm`) inclui o detalhamento da pontuação, as pontuações armazenada e recalculada, as condições detectadas e o EXIF.
-- A resposta se lê como **Observação / Avaliação / Sugestões**. É salva em cache por foto (`photos.vlm_critique`), traduzida sob demanda, e **Regenerar** a recalcula.
+- A resposta se lê como **Observação / Avaliação / Sugestões**. É salva em cache por foto (`photos.vlm_critique`), traduzida quando uma sessão de edição a abre no idioma de destino (depois salva e servida como está), e **Regenerar** a recalcula. Sem uma sessão de edição você vê o texto sem tradução, a menos que já exista uma tradução salva.
 - Roda sobre a miniatura armazenada, então arquivos RAW funcionam.
 
 **Sobreposição visual "por que esta pontuação".** Com `viewer.features.show_saliency_overlay` ligado (padrão `true`), o diálogo de crítica tem **Mostrar sobreposição**. Ela desenha o mapa de saliência do BiRefNet como mapa de calor (`GET /api/saliency_overlay`), além de caixas de rostos e marcadores de olhos a partir dos pontos de referência armazenados (`GET /api/photo/face_markers`). As caixas são verdes para olhos abertos e âmbar para piscada. O mapa de calor tem a resolução da miniatura, então é aproximado. O botão se oculta em perfis que não conseguem produzir uma máscara de saliência.
 
 ## Legendagem por IA `[GPU]` `[16gb/24gb]` `[Edition]`
 
-Obtenha uma legenda em linguagem natural para qualquer foto. Uma sessão de edição a gera na primeira requisição; depois fica em cache na coluna `caption`. Edite as legendas no detalhe da foto (modo de edição). Uma instalação aberta, somente leitura, nunca gera uma.
+Obtenha uma legenda em linguagem natural para qualquer foto. Uma sessão de edição a gera na primeira requisição; depois fica em cache na coluna `caption`. Edite as legendas no detalhe da foto (modo de edição). Uma instalação aberta, somente leitura, nunca gera uma. `POST /api/caption` a gera (e traduz); `GET /api/caption` apenas devolve a legenda ou a tradução salva e nunca gera, traduz nem grava.
 
 Geração e tradução em lote pela CLI:
 
@@ -1099,11 +1131,13 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 | `F` | Favorita / desfavorita a foto em foco (modo de edição) |
 | `X` ou `0` | Rejeita / desfaz a rejeição da foto em foco (modo de edição; avança sozinho) |
 | `/` | Foca a busca da barra de ferramentas (mostrada a partir de 1360 px de largura); em larguras menores, abre a busca da barra lateral de filtros |
+| `S` | Abre o editor de pilhas para a seleção explícita (modo de edição; remapeável, pode ficar sem atribuição) |
+| `Ctrl+Shift+S` / `Cmd+Shift+S` | Empilha de imediato a seleção explícita sem pilha pela ordem de seleção, com a primeira foto como capa (modo de edição; membros de pilhas existentes abrem o editor) |
 | `B` | Mostra / oculta a barra lateral de filtros |
 | `V` | Alterna entre o layout em grade e em mosaico |
 | `?` | Mostra a referência de atalhos de teclado (em todas as páginas; também no menu do usuário → Ajuda) |
 
-**Remapear teclas.** `K`, `F`, `X`, `/`, `B` e `V` são padrões. Menu do usuário → **Personalizar atalhos** permite clicar em uma ação e pressionar uma nova tecla (`Esc` ou `Tab` cancela). Dígitos, `Space` e `?` são reservados, e uma tecla já em uso é recusada. **Restaurar tudo** restaura os padrões. O mapeamento é salvo por navegador (`localStorage`). A página da foto usa as mesmas teclas, e a referência `?` sempre mostra as teclas em vigor.
+**Remapear teclas.** `K`, `F`, `X`, `/`, `B`, `V` e `S` são padrões. Menu do usuário → **Personalizar atalhos** permite clicar em uma ação e pressionar uma nova tecla (`Esc` ou `Tab` cancela). Dígitos, `Space` e `?` são reservados, e uma tecla já em uso é recusada. **Restaurar tudo** restaura os padrões. O mapeamento é salvo por navegador (`localStorage`). A página da foto usa as mesmas teclas, e a referência `?` sempre mostra as teclas em vigor.
 
 **Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões esmaecem para 50%. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
 
@@ -1393,7 +1427,7 @@ O Facet varre JPEG XL (`.jxl`) com a dependência principal `imagecodecs`, inclu
 
 ### Revisar rostos manuais salvos
 
-Encontre fotos cujos retângulos de rosto salvos precisam de verificação. Nos filtros Refinar da galeria, ative **Rostos manuais precisam de revisão** (editores). Abra o editor de rostos de uma foto e ajuste e salve, ou exclua, cada retângulo sinalizado. A foto então sai da lista. O filtro funciona em álbuns inteligentes e em seleções de toda a visualização, e aparece como um chip removível.
+Encontre fotos cujos retângulos de rosto salvos precisam de verificação. Na aba Revisão da barra lateral da galeria, ative **Rostos manuais a rever** (editores). Abra o editor de rostos de uma foto e ajuste e salve, ou exclua, cada retângulo sinalizado. A foto então sai da lista. O filtro funciona em álbuns inteligentes e em seleções de toda a visualização, e aparece como um chip removível.
 
 - A lista reflete a última varredura ou verificação do editor, não uma observação ao vivo de arquivos. As varreduras verificam fotos com marcas manuais mesmo com a detecção de rostos desligada.
 - Abrir o editor reverifica o original e é a palavra final.

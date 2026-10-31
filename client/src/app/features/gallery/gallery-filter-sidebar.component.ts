@@ -9,7 +9,11 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
+import { HelpTooltipDirective } from '../../shared/directives/help-tooltip.directive';
 import { MatExpansionModule } from '@angular/material/expansion';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
+import { MatRippleModule } from '@angular/material/core';
 import { MatDatepickerModule, MatDatepickerInputEvent } from '@angular/material/datepicker';
 import { toIsoDateString } from '../../shared/utils/date-format';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
@@ -23,7 +27,7 @@ import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
 import { MOBILE_MIN_CARD_WIDTH_PX } from './gallery-rows.util';
-import { SEARCH_THRESHOLD_MAX, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
+import { GalleryFilters, SEARCH_THRESHOLD_MAX, activeFilterUnits, countActiveFilters, filterUnit, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -37,57 +41,57 @@ import { MetricSparklineComponent } from '../../shared/components/metric-sparkli
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   // Quality
-  { id: 'score_range', labelKey: 'gallery.score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_score', maxKey: 'max_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'aesthetic_range', labelKey: 'gallery.aesthetic_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_aesthetic', maxKey: 'max_aesthetic', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'quality_score_range', labelKey: 'gallery.quality_score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_quality_score', maxKey: 'max_quality_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'score_range', labelKey: 'gallery.score_range', helpKey: 'gallery.sidebar.metric_help.score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_score', maxKey: 'max_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'aesthetic_range', labelKey: 'gallery.aesthetic_range', helpKey: 'gallery.sidebar.metric_help.aesthetic_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_aesthetic', maxKey: 'max_aesthetic', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'quality_score_range', labelKey: 'gallery.quality_score_range', helpKey: 'gallery.sidebar.metric_help.quality_score_range', sectionKey: 'gallery.sidebar.quality', minKey: 'min_quality_score', maxKey: 'max_quality_score', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   // Extended Quality
-  { id: 'aesthetic_iaa_range', labelKey: 'gallery.aesthetic_iaa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'face_quality_iqa_range', labelKey: 'gallery.face_quality_iqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'liqe_range', labelKey: 'gallery.liqe_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_liqe', maxKey: 'max_liqe', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'qrealign_range', labelKey: 'gallery.qrealign_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_qrealign', maxKey: 'max_qrealign', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'aesthetic_v25_range', labelKey: 'gallery.aesthetic_v25_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_v25', maxKey: 'max_aesthetic_v25', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'deqa_range', labelKey: 'gallery.deqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_deqa', maxKey: 'max_deqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'aesthetic_iaa_range', labelKey: 'gallery.aesthetic_iaa_range', helpKey: 'gallery.sidebar.metric_help.aesthetic_iaa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_iaa', maxKey: 'max_aesthetic_iaa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'face_quality_iqa_range', labelKey: 'gallery.face_quality_iqa_range', helpKey: 'gallery.sidebar.metric_help.face_quality_iqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_face_quality_iqa', maxKey: 'max_face_quality_iqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'liqe_range', labelKey: 'gallery.liqe_range', helpKey: 'gallery.sidebar.metric_help.liqe_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_liqe', maxKey: 'max_liqe', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'qrealign_range', labelKey: 'gallery.qrealign_range', helpKey: 'gallery.sidebar.metric_help.qrealign_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_qrealign', maxKey: 'max_qrealign', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'aesthetic_v25_range', labelKey: 'gallery.aesthetic_v25_range', helpKey: 'gallery.sidebar.metric_help.aesthetic_v25_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_aesthetic_v25', maxKey: 'max_aesthetic_v25', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'deqa_range', labelKey: 'gallery.deqa_range', helpKey: 'gallery.sidebar.metric_help.deqa_range', sectionKey: 'gallery.sidebar.extended_quality', minKey: 'min_deqa', maxKey: 'max_deqa', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   // Face Metrics
-  { id: 'face_count_range', labelKey: 'gallery.face_count_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_count', maxKey: 'max_face_count', sliderMin: 0, sliderMax: 20, step: 1, spanWidth: 'w-16' },
-  { id: 'face_quality_range', labelKey: 'gallery.face_quality_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_quality', maxKey: 'max_face_quality', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'eye_sharpness_range', labelKey: 'gallery.eye_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_eye_sharpness', maxKey: 'max_eye_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'face_sharpness_range', labelKey: 'gallery.face_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_sharpness', maxKey: 'max_face_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'face_ratio_range', labelKey: 'gallery.face_ratio_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_ratio', maxKey: 'max_face_ratio', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  { id: 'face_confidence_range', labelKey: 'gallery.face_confidence_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_confidence', maxKey: 'max_face_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'face_count_range', labelKey: 'gallery.face_count_range', helpKey: 'gallery.sidebar.metric_help.face_count_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_count', maxKey: 'max_face_count', sliderMin: 0, sliderMax: 20, step: 1, spanWidth: 'w-16' },
+  { id: 'face_quality_range', labelKey: 'gallery.face_quality_range', helpKey: 'gallery.sidebar.metric_help.face_quality_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_quality', maxKey: 'max_face_quality', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'eye_sharpness_range', labelKey: 'gallery.eye_sharpness_range', helpKey: 'gallery.sidebar.metric_help.eye_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_eye_sharpness', maxKey: 'max_eye_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'face_sharpness_range', labelKey: 'gallery.face_sharpness_range', helpKey: 'gallery.sidebar.metric_help.face_sharpness_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_sharpness', maxKey: 'max_face_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'face_ratio_range', labelKey: 'gallery.face_ratio_range', helpKey: 'gallery.sidebar.metric_help.face_ratio_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_ratio', maxKey: 'max_face_ratio', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'face_confidence_range', labelKey: 'gallery.face_confidence_range', helpKey: 'gallery.sidebar.metric_help.face_confidence_range', sectionKey: 'gallery.sidebar.face', minKey: 'min_face_confidence', maxKey: 'max_face_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
   // Composition
-  { id: 'composition_range', labelKey: 'gallery.composition_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_composition', maxKey: 'max_composition', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'power_point_range', labelKey: 'gallery.power_point_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_power_point', maxKey: 'max_power_point', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'leading_lines_range', labelKey: 'gallery.leading_lines_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_leading_lines', maxKey: 'max_leading_lines', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'isolation_range', labelKey: 'gallery.isolation_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_isolation', maxKey: 'max_isolation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'composition_range', labelKey: 'gallery.composition_range', helpKey: 'gallery.sidebar.metric_help.composition_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_composition', maxKey: 'max_composition', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'power_point_range', labelKey: 'gallery.power_point_range', helpKey: 'gallery.sidebar.metric_help.power_point_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_power_point', maxKey: 'max_power_point', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'leading_lines_range', labelKey: 'gallery.leading_lines_range', helpKey: 'gallery.sidebar.metric_help.leading_lines_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_leading_lines', maxKey: 'max_leading_lines', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'isolation_range', labelKey: 'gallery.isolation_range', helpKey: 'gallery.sidebar.metric_help.isolation_range', sectionKey: 'gallery.sidebar.composition', minKey: 'min_isolation', maxKey: 'max_isolation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   // Subject Saliency
-  { id: 'subject_sharpness_range', labelKey: 'gallery.subject_sharpness_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_sharpness', maxKey: 'max_subject_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'subject_prominence_range', labelKey: 'gallery.subject_prominence_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_prominence', maxKey: 'max_subject_prominence', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'subject_placement_range', labelKey: 'gallery.subject_placement_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_placement', maxKey: 'max_subject_placement', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'bg_separation_range', labelKey: 'gallery.bg_separation_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_bg_separation', maxKey: 'max_bg_separation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'subject_sharpness_range', labelKey: 'gallery.subject_sharpness_range', helpKey: 'gallery.sidebar.metric_help.subject_sharpness_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_sharpness', maxKey: 'max_subject_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'subject_prominence_range', labelKey: 'gallery.subject_prominence_range', helpKey: 'gallery.sidebar.metric_help.subject_prominence_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_prominence', maxKey: 'max_subject_prominence', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'subject_placement_range', labelKey: 'gallery.subject_placement_range', helpKey: 'gallery.sidebar.metric_help.subject_placement_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_subject_placement', maxKey: 'max_subject_placement', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'bg_separation_range', labelKey: 'gallery.bg_separation_range', helpKey: 'gallery.sidebar.metric_help.bg_separation_range', sectionKey: 'gallery.sidebar.saliency', minKey: 'min_bg_separation', maxKey: 'max_bg_separation', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
 
-  { id: 'moment_confidence_range', labelKey: 'gallery.moment_confidence_range', sectionKey: 'gallery.sidebar.moments', minKey: 'min_moment_confidence', maxKey: 'max_moment_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'moment_confidence_range', labelKey: 'gallery.moment_confidence_range', helpKey: 'gallery.sidebar.metric_help.moment_confidence_range', sectionKey: 'gallery.sidebar.moments', minKey: 'min_moment_confidence', maxKey: 'max_moment_confidence', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
   // Technical
-  { id: 'sharpness_range', labelKey: 'gallery.sharpness_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_sharpness', maxKey: 'max_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'exposure_range', labelKey: 'gallery.exposure_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_exposure', maxKey: 'max_exposure', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'color_range', labelKey: 'gallery.color_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_color', maxKey: 'max_color', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'contrast_range', labelKey: 'gallery.contrast_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_contrast', maxKey: 'max_contrast', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
-  { id: 'saturation_range', labelKey: 'gallery.saturation_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_saturation', maxKey: 'max_saturation', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  { id: 'noise_range', labelKey: 'gallery.noise_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_noise', maxKey: 'max_noise', sliderMin: 0, sliderMax: 20, step: 0.5, spanWidth: 'w-16' },
+  { id: 'sharpness_range', labelKey: 'gallery.sharpness_range', helpKey: 'gallery.sidebar.metric_help.sharpness_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_sharpness', maxKey: 'max_sharpness', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'exposure_range', labelKey: 'gallery.exposure_range', helpKey: 'gallery.sidebar.metric_help.exposure_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_exposure', maxKey: 'max_exposure', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'color_range', labelKey: 'gallery.color_range', helpKey: 'gallery.sidebar.metric_help.color_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_color', maxKey: 'max_color', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'contrast_range', labelKey: 'gallery.contrast_range', helpKey: 'gallery.sidebar.metric_help.contrast_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_contrast', maxKey: 'max_contrast', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'saturation_range', labelKey: 'gallery.saturation_range', helpKey: 'gallery.sidebar.metric_help.saturation_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_saturation', maxKey: 'max_saturation', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'noise_range', labelKey: 'gallery.noise_range', helpKey: 'gallery.sidebar.metric_help.noise_range', sectionKey: 'gallery.sidebar.technical', minKey: 'min_noise', maxKey: 'max_noise', sliderMin: 0, sliderMax: 20, step: 0.5, spanWidth: 'w-16' },
   // Exposure & Range
-  { id: 'dynamic_range', labelKey: 'gallery.dynamic_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_dynamic_range', maxKey: 'max_dynamic_range', sliderMin: 0, sliderMax: 15, step: 0.5, displaySuffix: ' EV', spanWidth: 'w-16' },
-  { id: 'luminance_range', labelKey: 'gallery.luminance_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_luminance', maxKey: 'max_luminance', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
-  { id: 'histogram_range', labelKey: 'gallery.histogram_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_histogram_spread', maxKey: 'max_histogram_spread', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
+  { id: 'dynamic_range', labelKey: 'gallery.dynamic_range', helpKey: 'gallery.sidebar.metric_help.dynamic_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_dynamic_range', maxKey: 'max_dynamic_range', sliderMin: 0, sliderMax: 15, step: 0.5, displaySuffix: ' EV', spanWidth: 'w-16' },
+  { id: 'luminance_range', labelKey: 'gallery.luminance_range', helpKey: 'gallery.sidebar.metric_help.luminance_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_luminance', maxKey: 'max_luminance', sliderMin: 0, sliderMax: 1, step: 0.01, spanWidth: 'w-16' },
+  { id: 'histogram_range', labelKey: 'gallery.histogram_range', helpKey: 'gallery.sidebar.metric_help.histogram_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_histogram_spread', maxKey: 'max_histogram_spread', sliderMin: 0, sliderMax: 10, step: 0.5, spanWidth: 'w-16' },
   // Percent of pixels, worst of R/G/B. Capped at 25 rather than 100: over 28
   // sampled photos the worst highlight clipping seen was 12.7% and the worst
   // shadow 30.4%, so a 0-100 slider would spend nine tenths of its travel on
   // values no photo has.
-  { id: 'channel_clip_highlight_range', labelKey: 'gallery.channel_clip_highlight_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_highlight', maxKey: 'max_channel_clip_highlight', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
-  { id: 'channel_clip_shadow_range', labelKey: 'gallery.channel_clip_shadow_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_shadow', maxKey: 'max_channel_clip_shadow', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
-  { id: 'iso_range', labelKey: 'gallery.iso_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_iso', maxKey: 'max_iso', sliderMin: 50, sliderMax: 25600, step: 50, spanWidth: 'w-20' },
-  { id: 'aperture_range', labelKey: 'gallery.aperture_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_aperture', maxKey: 'max_aperture', sliderMin: 0.7, sliderMax: 64, step: 0.1, displayPrefix: 'f/', spanWidth: 'w-20' },
-  { id: 'focal_range', labelKey: 'gallery.focal_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_focal_length', maxKey: 'max_focal_length', sliderMin: 1, sliderMax: 1200, step: 1, displaySuffix: 'mm', spanWidth: 'w-24' },
+  { id: 'channel_clip_highlight_range', labelKey: 'gallery.channel_clip_highlight_range', helpKey: 'gallery.sidebar.metric_help.channel_clip_highlight_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_highlight', maxKey: 'max_channel_clip_highlight', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
+  { id: 'channel_clip_shadow_range', labelKey: 'gallery.channel_clip_shadow_range', helpKey: 'gallery.sidebar.metric_help.channel_clip_shadow_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_channel_clip_shadow', maxKey: 'max_channel_clip_shadow', sliderMin: 0, sliderMax: 25, step: 0.5, displaySuffix: '%', spanWidth: 'w-16' },
+  { id: 'iso_range', labelKey: 'gallery.iso_range', helpKey: 'gallery.sidebar.metric_help.iso_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_iso', maxKey: 'max_iso', sliderMin: 50, sliderMax: 25600, step: 50, spanWidth: 'w-20' },
+  { id: 'aperture_range', labelKey: 'gallery.aperture_range', helpKey: 'gallery.sidebar.metric_help.aperture_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_aperture', maxKey: 'max_aperture', sliderMin: 0.7, sliderMax: 64, step: 0.1, displayPrefix: 'f/', spanWidth: 'w-20' },
+  { id: 'focal_range', labelKey: 'gallery.focal_range', helpKey: 'gallery.sidebar.metric_help.focal_range', sectionKey: 'gallery.sidebar.exposure_range', minKey: 'min_focal_length', maxKey: 'max_focal_length', sliderMin: 1, sliderMax: 1200, step: 1, displaySuffix: 'mm', spanWidth: 'w-24' },
   // User Ratings
-  { id: 'star_rating_range', labelKey: 'gallery.star_rating_range', sectionKey: 'gallery.sidebar.ratings', minKey: 'min_star_rating', maxKey: 'max_star_rating', sliderMin: 0, sliderMax: 5, step: 1, spanWidth: 'w-16' },
+  { id: 'star_rating_range', labelKey: 'gallery.star_rating_range', helpKey: 'gallery.sidebar.metric_help.star_rating_range', sectionKey: 'gallery.sidebar.ratings', minKey: 'min_star_rating', maxKey: 'max_star_rating', sliderMin: 0, sliderMax: 5, step: 1, spanWidth: 'w-16' },
 ];
 
 export const COMMON_SECTION_ORDER = [
@@ -129,22 +133,128 @@ export const SECTION_ICONS: Record<string, string> = {
   'gallery.sidebar.ratings': 'grade',
 };
 
+/** Panels that are not metric sections (those come from `SECTION_ORDER`). */
+export const BROWSE_PANELS = ['semantic', 'persons', 'date', 'content', 'albums', 'location', 'folder', 'equipment'] as const;
+
+export type SidebarTabId = 'browse' | 'review' | 'quality' | 'subject' | 'display';
+
+/** Which panels each tab holds, in render order. Every panel is in exactly one tab. */
+export const TAB_SECTIONS: Record<SidebarTabId, readonly string[]> = {
+  browse: BROWSE_PANELS,
+  review: ['refine', 'gallery.sidebar.ratings'],
+  quality: ['gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality', 'gallery.sidebar.technical', 'gallery.sidebar.exposure_range'],
+  subject: ['gallery.sidebar.face', 'gallery.sidebar.composition', 'gallery.sidebar.saliency', 'gallery.sidebar.moments'],
+  display: ['view'],
+};
+
+export const TAB_IDS = Object.keys(TAB_SECTIONS) as SidebarTabId[];
+
+export const TAB_ICONS: Record<SidebarTabId, string> = {
+  browse: 'travel_explore',
+  review: 'rule',
+  quality: 'high_quality',
+  subject: 'center_focus_strong',
+  display: 'display_settings',
+};
+
+const DEFAULT_TAB: SidebarTabId = 'browse';
+
+export type SegmentRowId = 'decision' | 'rejected' | 'bursts' | 'duplicates' | 'blinks' | 'brackets' | 'panoramas';
+
+/**
+ * The filter keys each segment of a Review row writes. "Only" clears the matching "hide" toggle (the
+ * server suspends the hide toggles while an "only" flag is set), and a hide clears its "only", so a row
+ * is always one of its segments. The rejected row reads the same keys as the old pair of checkboxes.
+ */
+export const SEGMENT_PATCHES: Record<Exclude<SegmentRowId, 'decision'>, Record<string, Partial<GalleryFilters>>> = {
+  rejected: {
+    hide: { hide_rejected: true, show_rejected: false },
+    show: { hide_rejected: false, show_rejected: false },
+    only: { hide_rejected: false, show_rejected: true },
+  },
+  bursts: { best: { hide_bursts: true }, all: { hide_bursts: false } },
+  duplicates: {
+    hide: { hide_duplicates: true, duplicates_only: false },
+    all: { hide_duplicates: false, duplicates_only: false },
+    only: { hide_duplicates: false, duplicates_only: true },
+  },
+  blinks: {
+    hide: { hide_blinks: true, blinks_only: false },
+    all: { hide_blinks: false, blinks_only: false },
+    only: { hide_blinks: false, blinks_only: true },
+  },
+  brackets: { base: { hide_brackets: true }, all: { hide_brackets: false } },
+  panoramas: { lead: { hide_panoramas: true }, all: { hide_panoramas: false } },
+};
+
+/** One choice of a Review row: a short value label, and the sentence that says what it does. */
+export interface SegmentOption { value: string; labelKey: string; descKey: string }
+export interface SegmentRow {
+  id: SegmentRowId;
+  icon: string;
+  labelKey: string;
+  helpKey: string;
+  value: string;
+  /** The label of the option `value` selects, shown on the row and in its accessible name. */
+  valueLabelKey: string;
+  disabled: boolean;
+  options: SegmentOption[];
+}
+
+/**
+ * The panel a filter control (see `filterUnit`) is counted under. One map feeds the
+ * panel badges, the tab badges and the header total, so a range counts once everywhere.
+ * A unit absent from the map (the filename search, `similar_to`, the unexposed `topiq`
+ * range) lives outside the tabs and is counted by the header only.
+ */
+export const UNIT_PANEL: Record<string, string> = {
+  person_id: 'persons', faces_need_names: 'persons',
+  date_from: 'date', date_to: 'date',
+  type: 'content', tag: 'content', composition_pattern: 'content',
+  camera: 'equipment', lens: 'equipment',
+  review_status: 'refine', favorites_only: 'refine', is_monochrome: 'refine', show_rejected: 'refine',
+  blinks_only: 'refine', duplicates_only: 'refine', sequence_override: 'refine', manual_faces_need_review: 'refine',
+  path_prefix: 'folder',
+  gps: 'location',
+  color_temp: 'color_quality', hue_bucket: 'color_quality', quality_tier: 'color_quality',
+  semanticQuery: 'semantic',
+  ...Object.fromEntries(ADDITIONAL_FILTERS.map(d => [filterUnit(d.minKey), d.sectionKey])),
+};
+
 const SIDEBAR_SECTIONS_KEY = 'facet_sidebar_sections';
+const SIDEBAR_TAB_KEY = 'facet_sidebar_tab';
 // One-time cleanup of legacy localStorage key from v3.x.
 try { localStorage.removeItem('facet_active_filters'); } catch { /* ignore */ }
 
+function readStored(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch { /* ignore */ }
+  return null;
+}
+
+function writeStored(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch { /* ignore */ }
+}
+
 function loadSectionStates(): Record<string, boolean> {
   try {
-    const raw = localStorage.getItem(SIDEBAR_SECTIONS_KEY);
+    const raw = readStored(SIDEBAR_SECTIONS_KEY);
     if (raw) return JSON.parse(raw) as Record<string, boolean>;
   } catch { /* ignore */ }
   return {};
 }
 
 function saveSectionStates(states: Record<string, boolean>): void {
-  try {
-    localStorage.setItem(SIDEBAR_SECTIONS_KEY, JSON.stringify(states));
-  } catch { /* ignore */ }
+  writeStored(SIDEBAR_SECTIONS_KEY, JSON.stringify(states));
+}
+
+/** The stored tab id, or the default for a missing or unknown one. */
+export function loadActiveTab(): SidebarTabId {
+  const raw = readStored(SIDEBAR_TAB_KEY);
+  return TAB_IDS.find(id => id === raw) ?? DEFAULT_TAB;
 }
 
 @Component({
@@ -164,8 +274,12 @@ function saveSectionStates(states: Record<string, boolean>): void {
     MatCheckboxModule,
     MatInputModule,
     MatTooltipModule,
+    HelpTooltipDirective,
     MatAutocompleteModule,
     MatExpansionModule,
+    MatTabsModule,
+    MatMenuModule,
+    MatRippleModule,
     MatDatepickerModule,
     MatDialogModule,
     TranslatePipe,
@@ -174,23 +288,54 @@ function saveSectionStates(states: Record<string, boolean>): void {
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-<div data-scroll class="flex-1 min-h-0 overflow-y-auto px-2 pb-4">
+<div class="shrink-0 px-2">
 
-      <div class="sticky top-0 z-20 -mx-2 px-2 pt-3 pb-2 bg-[var(--mat-sys-surface)] flex items-center gap-2">
-        <span class="text-sm font-medium opacity-80 flex-1">{{ I18N.gallery.filters | translate }}</span>
-        @if (store.activeFilterCount()) {
-          <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ store.activeFilterCount() }}</span>
-          <button mat-button class="!ml-auto !min-w-0 !px-2 !text-xs" (click)="store.resetFilters()">
-            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">close</mat-icon>
+      <div class="pt-3 pb-2 flex items-center gap-2">
+        <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
+        @if (totalActiveCount()) {
+          <span data-test="active-count" class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ totalActiveCount() }}</span>
+        }
+        <span class="flex-1"></span>
+        @if (totalActiveCount()) {
+          <button mat-button data-test="reset" class="!min-w-0 !px-2 !text-xs"
+            [matTooltip]="I18N.gallery.sidebar.reset_tooltip | translate"
+            (click)="store.resetFilters()">
+            <mat-icon class="!text-base !w-4 !h-4 !leading-4 mr-1">restart_alt</mat-icon>
             {{ I18N.gallery.reset_filters | translate }}
           </button>
         }
-        <button mat-icon-button class="md:hidden !w-8 !h-8 !p-0 !min-w-0 shrink-0"
+        <button mat-icon-button data-test="close" class="md:hidden !w-8 !h-8 !p-0 !min-w-0 shrink-0"
           [matTooltip]="I18N.dialog.close | translate"
           [attr.aria-label]="I18N.dialog.close | translate"
           (click)="store.setFilterDrawerOpen(false)">
           <mat-icon class="!text-lg !w-5 !h-5 !leading-5">close</mat-icon>
         </button>
+      </div>
+
+      <!-- Smart album filter notice -->
+      @if (store.currentAlbum()?.is_smart && auth.isEdition()) {
+        <div class="flex items-start gap-2 rounded-lg bg-[var(--mat-sys-tertiary-container)] text-[var(--mat-sys-on-tertiary-container)] text-xs px-3 py-2 mb-2">
+          <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0 mt-0.5">info</mat-icon>
+          <span>{{ I18N.gallery.sidebar.smart_album_filter_notice | translate }}</span>
+        </div>
+      }
+
+      <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
+      <div class="2xl:!hidden mb-1">
+        <mat-form-field subscriptSizing="dynamic" class="w-full">
+          <mat-label>{{ I18N.ui.filters.search | translate }}</mat-label>
+          <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
+          <input matInput #sidebarSearch
+            [placeholder]="I18N.gallery.search_placeholder | translate"
+            [value]="store.filters().search"
+            (input)="onSidebarSearchChange($event)"
+            (keyup.enter)="onSidebarSearchCommit($event)" />
+          @if (store.filters().search) {
+            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('search', '')" [attr.aria-label]="I18N.gallery.clear_search | translate">
+              <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
+            </button>
+          }
+        </mat-form-field>
       </div>
 
       <!-- Find a filter -->
@@ -206,6 +351,29 @@ function saveSectionStates(states: Record<string, boolean>): void {
         }
       </mat-form-field>
 
+      @if (!filterQuery().trim()) {
+        <nav mat-tab-nav-bar mat-stretch-tabs="true" animationDuration="0ms" [tabPanel]="tabPanel"
+             [attr.aria-label]="I18N.gallery.sidebar.tabs.aria_label | translate"
+             class="[&_.mdc-tab]:!min-w-0 [&_.mdc-tab]:!px-2 [&_.mdc-tab--active_mat-icon]:!text-[var(--mat-sys-primary)]">
+          @for (tab of tabItems(); track tab.id) {
+            <button type="button" mat-tab-link [active]="tab.active" (click)="selectTab(tab.id)"
+               [matTooltip]="tab.labelKey | translate"
+               [attr.aria-label]="tab.count ? (I18N.gallery.sidebar.tabs.active_count | translate:{ label: (tab.labelKey | translate), count: tab.count }) : (tab.labelKey | translate)">
+              <span class="relative inline-flex">
+                <mat-icon aria-hidden="true">{{ tab.icon }}</mat-icon>
+                @if (tab.count) {
+                  <span aria-hidden="true" class="absolute -top-1 -right-2 text-[0.625rem] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ tab.count }}</span>
+                }
+              </span>
+            </button>
+          }
+        </nav>
+      }
+    </div>
+
+    <mat-tab-nav-panel #tabPanel class="flex-1 min-h-0 flex flex-col [--mat-expansion-header-collapsed-state-height:40px] [--mat-expansion-header-expanded-state-height:44px] [&_.mat-expansion-panel-body]:!px-4">
+    <div data-scroll #scrollArea class="flex-1 min-h-0 overflow-y-auto px-2 pt-3 pb-4">
+
       @if (filterQuery().trim()) {
         @if (noFilterMatches()) {
           <p class="text-xs opacity-50 px-2 py-3">{{ I18N.gallery.sidebar.no_filters_match | translate }}</p>
@@ -213,7 +381,7 @@ function saveSectionStates(states: Record<string, boolean>): void {
         @for (group of metricFilterGroups(); track group.sectionKey) {
           <div class="px-1 pt-2 pb-1">
             <div class="flex items-center gap-2 text-xs font-medium opacity-70 mb-1">
-              <mat-icon class="!text-base !w-4 !h-4 !leading-4 opacity-60">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
               {{ group.sectionKey | translate }}
             </div>
             @for (def of group.filters; track def.id) {
@@ -222,16 +390,17 @@ function saveSectionStates(states: Record<string, boolean>): void {
           </div>
         }
       } @else {
-
+        @switch (activeTab()) {
+          @case ('browse') {
       <!-- Semantic Search (top of sidebar) -->
       @if (store.config()?.features?.show_semantic_search) {
         <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['semantic'] === true"
                              (opened)="onSectionToggle('semantic', true)"
                              (closed)="onSectionToggle('semantic', false)"
                              [style.background-color]="sectionStates()['semantic'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
+          <mat-expansion-panel-header class="!px-4">
             <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">image_search</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">image_search</mat-icon>
               {{ I18N.gallery.sidebar.semantic_search | translate }}
             </mat-panel-title>
           </mat-expansion-panel-header>
@@ -266,40 +435,14 @@ function saveSectionStates(states: Record<string, boolean>): void {
         </mat-expansion-panel>
       }
 
-      <!-- Smart album filter notice -->
-      @if (store.currentAlbum()?.is_smart && auth.isEdition()) {
-        <div class="flex items-start gap-2 rounded-lg bg-[var(--mat-sys-tertiary-container)] text-[var(--mat-sys-on-tertiary-container)] text-xs px-3 py-2 mb-2">
-          <mat-icon class="!text-base !w-4 !h-4 !leading-4 shrink-0 mt-0.5">info</mat-icon>
-          <span>{{ I18N.gallery.sidebar.smart_album_filter_notice | translate }}</span>
-        </div>
-      }
-
-      <!-- Search (visible below 2xl, hidden on 2xl+ where header search is shown) -->
-      <div class="2xl:!hidden mt-4 mb-1">
-        <mat-form-field subscriptSizing="dynamic" class="w-full">
-          <mat-label>{{ I18N.ui.filters.search | translate }}</mat-label>
-          <mat-icon matPrefix class="mr-1 opacity-60">search</mat-icon>
-          <input matInput #sidebarSearch
-            [placeholder]="I18N.gallery.search_placeholder | translate"
-            [value]="store.filters().search"
-            (input)="onSidebarSearchChange($event)"
-            (keyup.enter)="onSidebarSearchCommit($event)" />
-          @if (store.filters().search) {
-            <button matSuffix mat-icon-button class="!w-6 !h-6 !p-0" (click)="store.updateFilter('search', '')" [attr.aria-label]="I18N.gallery.clear_search | translate">
-              <mat-icon class="!text-sm !w-4 !h-4">close</mat-icon>
-            </button>
-          }
-        </mat-form-field>
-      </div>
-
       <!-- Persons -->
         <mat-expansion-panel class="!mb-1 mt-1" [expanded]="sectionStates()['persons'] !== false"
                              (opened)="onSectionToggle('persons', true)"
                              (closed)="onSectionToggle('persons', false)"
                              [style.background-color]="sectionStates()['persons'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
+          <mat-expansion-panel-header class="!px-4">
             <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">people</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">people</mat-icon>
               {{ I18N.gallery.sidebar.persons | translate }}
               @if (sectionActiveCounts()['persons']) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['persons'] }}</span>
@@ -358,9 +501,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
                            (opened)="onSectionToggle('date', true)"
                            (closed)="onSectionToggle('date', false)"
                            [style.background-color]="sectionStates()['date'] !== false ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header>
+        <mat-expansion-panel-header class="!px-4">
           <mat-panel-title class="flex items-center gap-2">
-            <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">calendar_today</mat-icon>
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">calendar_today</mat-icon>
             {{ I18N.gallery.sidebar.date | translate }}
             @if (sectionActiveCounts()['date']) {
               <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['date'] }}</span>
@@ -389,9 +532,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
                              (opened)="onSectionToggle('content', true)"
                              (closed)="onSectionToggle('content', false)"
                              [style.background-color]="sectionStates()['content'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
+          <mat-expansion-panel-header class="!px-4">
             <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">label</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">label</mat-icon>
               {{ I18N.gallery.sidebar.content | translate }}
               @if (sectionActiveCounts()['content']) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['content'] }}</span>
@@ -436,60 +579,106 @@ function saveSectionStates(states: Record<string, boolean>): void {
         </mat-expansion-panel>
       }
 
-      <!-- Color & Quality tier -->
-      @if (store.colorTemps().length || store.hueBuckets().length || qualityTiers.length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['color_quality'] === true"
-                             (opened)="onSectionToggle('color_quality', true)"
-                             (closed)="onSectionToggle('color_quality', false)"
-                             [style.background-color]="sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
+      <!-- Albums -->
+      @if (store.config()?.features?.show_albums && albums().length) {
+        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['albums'] === true"
+                             (opened)="onSectionToggle('albums', true)"
+                             (closed)="onSectionToggle('albums', false)"
+                             [style.background-color]="sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header class="!px-4">
             <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">palette</mat-icon>
-              {{ I18N.gallery.sidebar.color_quality | translate }}
-              @if (colorQualityActiveCount()) {
-                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ colorQualityActiveCount() }}</span>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_album</mat-icon>
+              {{ I18N.albums.title | translate }}
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="flex flex-col gap-2 pb-2">
+            <mat-form-field subscriptSizing="dynamic" class="w-full">
+              <mat-label>{{ I18N.albums.title | translate }}</mat-label>
+              <mat-select [value]="store.filters().album_id" (selectionChange)="store.updateFilter('album_id', $event.value)">
+                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
+                @for (a of albums(); track a.id) {
+                  <mat-option [value]="'' + a.id">{{ a.name }} ({{ a.photo_count }})</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+          </div>
+        </mat-expansion-panel>
+      }
+
+      <!-- Location filter -->
+      <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['location'] === true"
+                           (opened)="onSectionToggle('location', true)"
+                           (closed)="onSectionToggle('location', false)"
+                           [style.background-color]="sectionStates()['location'] === true ? 'var(--mat-sys-surface-container)' : null">
+        <mat-expansion-panel-header class="!px-4">
+          <mat-panel-title class="flex items-center gap-2">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">place</mat-icon>
+            {{ I18N.gallery.sidebar.location | translate }}
+            @if (sectionActiveCounts()['location']) {
+              <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['location'] }}</span>
+            }
+          </mat-panel-title>
+        </mat-expansion-panel-header>
+        <div class="flex flex-col gap-2 pb-2">
+          <mat-checkbox [checked]="!!store.filters().no_gps" (change)="store.updateFilter('no_gps', $event.checked ? '1' : '')">
+            {{ I18N.gallery.no_geolocation | translate }}
+          </mat-checkbox>
+          @if (store.filters().gps_lat) {
+            <div class="text-xs opacity-60 px-1">
+              @if (store.gpsLocationName()) {
+                {{ store.gpsLocationName() }} — {{ store.filters().gps_radius_km }} km
+              } @else {
+                {{ +store.filters().gps_lat | number:'1.4-4' }}, {{ +store.filters().gps_lng | number:'1.4-4' }}
+                — {{ store.filters().gps_radius_km }} km
+              }
+            </div>
+            <button mat-stroked-button class="w-full" (click)="clearGpsFilter()">
+              <mat-icon>close</mat-icon>
+              {{ I18N.gallery.gps_clear | translate }}
+            </button>
+          }
+          @if (store.config()?.features?.show_map) {
+            <button mat-stroked-button class="w-full" (click)="openGpsFilterMap()">
+              <mat-icon>map</mat-icon>
+              {{ I18N.gallery.select_on_map | translate }}
+            </button>
+          }
+        </div>
+      </mat-expansion-panel>
+
+      <!-- Folder filter -->
+      @if (store.config()?.features?.show_folders || store.filters().path_prefix) {
+        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['folder'] === true"
+                             (opened)="onSectionToggle('folder', true)"
+                             (closed)="onSectionToggle('folder', false)"
+                             [style.background-color]="sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header class="!px-4">
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">folder</mat-icon>
+              {{ I18N.gallery.sidebar.folder | translate }}
+              @if (sectionActiveCounts()['folder']) {
+                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['folder'] }}</span>
               }
             </mat-panel-title>
           </mat-expansion-panel-header>
           <div class="flex flex-col gap-2 pb-2">
-            <!-- Quality tier -->
-            <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ I18N.gallery.quality_tier | translate }}</mat-label>
-              <mat-select [value]="store.filters().quality_tier" (selectionChange)="store.updateFilter('quality_tier', $event.value)">
-                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
-                @for (t of qualityTiers; track t) {
-                  <mat-option [value]="t">{{ ('gallery.quality_tiers.' + t) | translate }}</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-            <!-- Color temperature -->
-            @if (store.colorTemps().length) {
-              <mat-form-field subscriptSizing="dynamic" class="w-full">
-                <mat-label>{{ I18N.gallery.color_temp | translate }}</mat-label>
-                <mat-select [value]="store.filters().color_temp" (selectionChange)="store.updateFilter('color_temp', $event.value)">
-                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
-                  @for (c of store.colorTemps(); track c.value) {
-                    <mat-option [value]="c.value">{{ ('gallery.color_temps.' + c.value) | translate }} ({{ c.count }})</mat-option>
-                  }
-                </mat-select>
-              </mat-form-field>
-            }
-            <!-- Hue buckets as colour chips -->
-            @if (store.hueBuckets().length) {
-              <span class="text-xs opacity-60 px-1">{{ I18N.gallery.hue | translate }}</span>
-              <div class="flex flex-wrap gap-1.5">
-                @for (h of store.hueBuckets(); track h.value) {
-                  <button type="button"
-                    class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)] cursor-pointer"
-                    [class.!border-[var(--mat-sys-primary)]]="store.filters().hue_bucket === h.value"
-                    [class.bg-[var(--mat-sys-primary-container)]]="store.filters().hue_bucket === h.value"
-                    [matTooltip]="('gallery.hue_buckets.' + h.value | translate) + ' (' + h.count + ')'"
-                    (click)="toggleHueBucket(h.value)">
-                    <span class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10" [style.background-color]="hueSwatches[h.value]"></span>
-                    {{ ('gallery.hue_buckets.' + h.value) | translate }}
-                  </button>
-                }
+            @if (store.filters().path_prefix) {
+              <div class="flex items-center gap-1">
+                <button mat-stroked-button class="flex-1 min-w-0 !justify-start" [matTooltip]="store.filters().path_prefix"
+                        [attr.aria-label]="I18N.gallery.choose_folder | translate" (click)="openFolderPicker()">
+                  <mat-icon>folder</mat-icon>
+                  <span class="truncate">{{ currentFolderName() }}</span>
+                </button>
+                <button mat-icon-button [matTooltip]="I18N.gallery.folder_clear | translate"
+                        [attr.aria-label]="I18N.gallery.folder_clear | translate" (click)="clearFolderFilter()">
+                  <mat-icon>close</mat-icon>
+                </button>
               </div>
+            } @else {
+              <button mat-stroked-button class="w-full" (click)="openFolderPicker()">
+                <mat-icon>folder_open</mat-icon>
+                {{ I18N.gallery.choose_folder | translate }}
+              </button>
             }
           </div>
         </mat-expansion-panel>
@@ -501,9 +690,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
                              (opened)="onSectionToggle('equipment', true)"
                              (closed)="onSectionToggle('equipment', false)"
                              [style.background-color]="sectionStates()['equipment'] !== false ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
+          <mat-expansion-panel-header class="!px-4">
             <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">photo_camera</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">photo_camera</mat-icon>
               {{ I18N.gallery.sidebar.equipment | translate }}
               @if (sectionActiveCounts()['equipment']) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['equipment'] }}</span>
@@ -536,118 +725,186 @@ function saveSectionStates(states: Record<string, boolean>): void {
           </div>
         </mat-expansion-panel>
       }
-
-      <!-- Refine (result-affecting filters) -->
-      <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['refine'] !== false"
-                           (opened)="onSectionToggle('refine', true)"
-                           (closed)="onSectionToggle('refine', false)"
-                           [style.background-color]="sectionStates()['refine'] !== false ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header>
-          <mat-panel-title class="flex items-center gap-2">
-            <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">filter_alt</mat-icon>
-            {{ I18N.gallery.sidebar.refine | translate }}
-            @if (sectionActiveCounts()['refine']) {
-              <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['refine'] }}</span>
+          }
+          @case ('review') {
+      <div data-section="review" class="flex flex-col gap-2 px-1 pt-1 pb-2">
+        <div class="flex flex-col">
+          @for (row of reviewRows(); track row.id) {
+            @if ($index === 1) {
+              <span class="text-xs uppercase opacity-60 mt-2 mb-1 px-2">{{ I18N.gallery.sidebar.review.sets | translate }}</span>
             }
-          </mat-panel-title>
-        </mat-expansion-panel-header>
-        <div class="flex flex-col gap-2 pb-2">
-          <mat-checkbox
-            [checked]="store.filters().hide_blinks"
-            (change)="store.updateFilter('hide_blinks', $event.checked)"
-          >{{ I18N.gallery.hide_blinks | translate }}</mat-checkbox>
-          <mat-checkbox
-            [checked]="store.filters().hide_bursts"
-            (change)="store.updateFilter('hide_bursts', $event.checked)"
-          >{{ I18N.gallery.hide_bursts | translate }}</mat-checkbox>
-          <mat-checkbox
-            [checked]="store.filters().hide_duplicates"
-            (change)="store.updateFilter('hide_duplicates', $event.checked)"
-          >{{ I18N.gallery.hide_duplicates | translate }}</mat-checkbox>
-          <mat-checkbox
-            [checked]="store.filters().hide_brackets"
-            (change)="store.updateFilter('hide_brackets', $event.checked)"
-          >{{ I18N.gallery.hide_brackets | translate }}</mat-checkbox>
-          <mat-checkbox
-            [checked]="store.filters().hide_panoramas"
-            (change)="store.updateFilter('hide_panoramas', $event.checked)"
-          >{{ I18N.gallery.hide_panoramas | translate }}</mat-checkbox>
-          <mat-form-field class="w-full">
-            <mat-label>{{ I18N.review.status | translate }}</mat-label>
-            <mat-select [value]="store.filters().review_status"
-                        (selectionChange)="store.updateFilter('review_status', $event.value)">
-              <mat-option value="">{{ I18N.review.all | translate }}</mat-option>
-              <mat-option value="undecided">{{ I18N.review.needs_review | translate }}</mat-option>
-              <mat-option value="kept">{{ I18N.review.kept | translate }}</mat-option>
-              <mat-option value="rejected">{{ I18N.review.rejected | translate }}</mat-option>
+            <button type="button" matRipple class="flex w-full min-h-10 items-center gap-3 rounded-md px-2 py-1 text-left hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] aria-disabled:opacity-50"
+              [attr.data-row]="row.id" aria-haspopup="menu"
+              [matMenuTriggerFor]="row.disabled ? null : menu" [attr.aria-disabled]="row.disabled || null"
+              [attr.aria-label]="I18N.gallery.sidebar.review.value_aria | translate:{ label: (row.labelKey | translate), value: (row.valueLabelKey | translate) }"
+              [appHelpTip]="(row.disabled ? I18N.gallery.sidebar.review.rejected_locked : row.helpKey) | translate">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-80">{{ row.icon }}</mat-icon>
+              <span class="flex-1 min-w-0 text-sm break-words">{{ row.labelKey | translate }}</span>
+              <span class="shrink-0 text-xs opacity-70" data-value>{{ row.valueLabelKey | translate }}</span>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 shrink-0 opacity-70">expand_more</mat-icon>
+            </button>
+            <mat-menu #menu="matMenu">
+              <ng-template matMenuContent>
+              @for (option of row.options; track option.value) {
+                <button type="button" mat-menu-item role="menuitemradio" [attr.data-option]="option.value"
+                  [attr.aria-checked]="option.value === row.value"
+                  [appHelpTip]="option.descKey | translate"
+                  (click)="onSegment(row.id, option.value)">
+                  <mat-icon [class.invisible]="option.value !== row.value">check</mat-icon>
+                  <span class="flex flex-col py-1">
+                    <span class="text-sm">{{ option.labelKey | translate }}</span>
+                    <span class="text-xs opacity-70 whitespace-normal leading-snug">{{ option.descKey | translate }}</span>
+                  </span>
+                </button>
+              }
+              </ng-template>
+            </mat-menu>
+          }
+        </div>
+
+        <div class="flex items-center gap-2 mt-1" role="group" [attr.aria-label]="I18N.gallery.sidebar.review.quick | translate" data-row="quick">
+          <span class="relative inline-flex">
+            <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-row="rating"
+              [class.!bg-[var(--mat-sys-primary-container)]]="ratingMin() > 0"
+              [attr.aria-label]="ratingKey() | translate:ratingVars()"
+              [appHelpTip]="ratingKey() | translate:ratingVars()"
+              (click)="cycleRating()">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">{{ ratingMin() > 0 ? 'star' : 'star_border' }}</mat-icon>
+            </button>
+            @if (ratingMin() > 0) {
+              <span aria-hidden="true" data-test="rating-badge" class="pointer-events-none absolute -top-1.5 -right-1.5 text-[0.625rem] rounded-full min-w-[1rem] h-4 px-1 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ ratingMin() }}</span>
+            }
+          </span>
+          <span class="sr-only" aria-live="polite" data-test="rating-status">{{ ratingKey() | translate:ratingVars() }}</span>
+          @if (ratingMaxLabel()) {
+            <span class="text-xs opacity-70" data-test="rating-max">{{ ratingMaxLabel() }}</span>
+          }
+          <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-toggle="favorites_only"
+            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().favorites_only"
+            [attr.aria-pressed]="store.filters().favorites_only"
+            [attr.aria-label]="I18N.gallery.favorites_only | translate"
+            [appHelpTip]="I18N.gallery.sidebar.refine_help.favorites_only | translate"
+            (click)="store.updateFilter('favorites_only', !store.filters().favorites_only)">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">favorite</mat-icon>
+          </button>
+          <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-toggle="is_monochrome"
+            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().is_monochrome"
+            [attr.aria-pressed]="store.filters().is_monochrome"
+            [attr.aria-label]="I18N.gallery.monochrome_only | translate"
+            [appHelpTip]="I18N.gallery.sidebar.refine_help.monochrome_only | translate"
+            (click)="store.updateFilter('is_monochrome', !store.filters().is_monochrome)">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !m-0">contrast</mat-icon>
+          </button>
+        </div>
+
+        <!-- A correction is invisible in the labels until the detector runs
+             again, so without this the only record of one still pending is
+             the user's memory. Edition-only: nobody else can make one. -->
+        @if (auth.isEdition()) {
+          <span class="text-xs uppercase opacity-60 mt-2">{{ I18N.gallery.sidebar.review.edition | translate }}</span>
+          <button type="button" mat-stroked-button class="!min-w-0 !h-8 !text-xs !justify-start" data-toggle="manual_faces_need_review"
+            [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().manual_faces_need_review"
+            [attr.aria-pressed]="store.filters().manual_faces_need_review"
+            [appHelpTip]="I18N.gallery.sidebar.refine_help.manual_faces_need_review | translate"
+            (click)="store.updateFilter('manual_faces_need_review', !store.filters().manual_faces_need_review)">
+            {{ I18N.gallery.manual_faces_need_review | translate }}
+          </button>
+          @if (store.filters().manual_faces_need_review) {
+            <p class="text-xs text-gray-500 dark:text-gray-400">{{ I18N.gallery.manual_faces_review_hint | translate }}</p>
+          }
+          <mat-form-field subscriptSizing="dynamic" class="w-full">
+            <mat-label>{{ I18N.gallery.sequence_override.label | translate }}</mat-label>
+            <mat-select [value]="store.filters().sequence_override"
+                        [appHelpTip]="I18N.gallery.sidebar.refine_help.sequence_override | translate"
+                        (selectionChange)="store.updateFilter('sequence_override', $event.value)">
+              <mat-option value="">{{ I18N.gallery.sequence_override.all | translate }}</mat-option>
+              <mat-option value="any">{{ I18N.gallery.sequence_override.any | translate }}</mat-option>
+              <mat-option value="suppressed">{{ I18N.gallery.sequence_override.suppressed | translate }}</mat-option>
+              <mat-option value="forced">{{ I18N.gallery.sequence_override.forced | translate }}</mat-option>
             </mat-select>
           </mat-form-field>
-          <!-- The positive counterpart of the toggles above: "only X" views.
-               The server suppresses the hide toggles while either is set, so
-               every member of what they name is listed. -->
-          <mat-checkbox
-            [checked]="store.filters().blinks_only"
-            (change)="store.updateFilter('blinks_only', $event.checked)"
-          >{{ I18N.gallery.blinks_only | translate }}</mat-checkbox>
-          <mat-checkbox
-            [checked]="store.filters().duplicates_only"
-            (change)="store.updateFilter('duplicates_only', $event.checked)"
-          >{{ I18N.gallery.duplicates_only | translate }}</mat-checkbox>
-          <mat-checkbox
-            [disabled]="!!store.filters().review_status"
-            [checked]="store.filters().hide_rejected"
-            (change)="store.updateFilter('hide_rejected', $event.checked)"
-          >{{ I18N.gallery.hide_rejected | translate }}</mat-checkbox>
-          <mat-checkbox
-            [disabled]="!!store.filters().review_status"
-            [checked]="store.filters().show_rejected"
-            (change)="store.updateFilter('show_rejected', $event.checked)"
-          >{{ I18N.rating.show_rejected | translate }}</mat-checkbox>
-          <!-- A correction is invisible in the labels until the detector runs
-               again, so without this the only record of one still pending is
-               the user's memory. Edition-only: nobody else can make one. -->
-          @if (auth.isEdition()) {
-            <mat-checkbox
-              [checked]="store.filters().manual_faces_need_review"
-              (change)="store.updateFilter('manual_faces_need_review', $event.checked)"
-            >{{ I18N.gallery.manual_faces_need_review | translate }}</mat-checkbox>
-            @if (store.filters().manual_faces_need_review) {
-              <p class="text-xs text-gray-500 dark:text-gray-400">{{ I18N.gallery.manual_faces_review_hint | translate }}</p>
-            }
+        }
+      </div>
+          }
+          @case ('quality') {
+      @for (group of qualityGroups(); track group.sectionKey) {
+        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+      }
+
+      <!-- Color & Quality tier -->
+      @if (store.colorTemps().length || store.hueBuckets().length || qualityTiers.length) {
+        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['color_quality'] === true"
+                             (opened)="onSectionToggle('color_quality', true)"
+                             (closed)="onSectionToggle('color_quality', false)"
+                             [style.background-color]="sectionStates()['color_quality'] === true ? 'var(--mat-sys-surface-container)' : null">
+          <mat-expansion-panel-header class="!px-4">
+            <mat-panel-title class="flex items-center gap-2">
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">palette</mat-icon>
+              {{ I18N.gallery.sidebar.color_quality | translate }}
+              @if (sectionActiveCounts()['color_quality']) {
+                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['color_quality'] }}</span>
+              }
+            </mat-panel-title>
+          </mat-expansion-panel-header>
+          <div class="flex flex-col gap-2 pb-2">
+            <!-- Quality tier -->
             <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ I18N.gallery.sequence_override.label | translate }}</mat-label>
-              <mat-select [value]="store.filters().sequence_override"
-                          (selectionChange)="store.updateFilter('sequence_override', $event.value)">
-                <mat-option value="">{{ I18N.gallery.sequence_override.all | translate }}</mat-option>
-                <mat-option value="any">{{ I18N.gallery.sequence_override.any | translate }}</mat-option>
-                <mat-option value="suppressed">{{ I18N.gallery.sequence_override.suppressed | translate }}</mat-option>
-                <mat-option value="forced">{{ I18N.gallery.sequence_override.forced | translate }}</mat-option>
+              <mat-label [appHelpTip]="I18N.gallery.sidebar.metric_help.quality_tier | translate">{{ I18N.gallery.quality_tier | translate }}</mat-label>
+              <mat-select [value]="store.filters().quality_tier" aria-describedby="metric-help-quality_tier" (selectionChange)="store.updateFilter('quality_tier', $event.value)">
+                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
+                @for (t of qualityTiers; track t) {
+                  <mat-option [value]="t">{{ ('gallery.quality_tiers.' + t) | translate }}</mat-option>
+                }
               </mat-select>
             </mat-form-field>
-          }
-          <mat-checkbox
-            [checked]="store.filters().favorites_only"
-            (change)="store.updateFilter('favorites_only', $event.checked)"
-          >{{ I18N.gallery.favorites_only | translate }}</mat-checkbox>
-          <mat-checkbox
-            [checked]="store.filters().is_monochrome"
-            (change)="store.updateFilter('is_monochrome', $event.checked)"
-          >{{ I18N.gallery.monochrome_only | translate }}</mat-checkbox>
-        </div>
-      </mat-expansion-panel>
+            <span class="sr-only" id="metric-help-quality_tier">{{ I18N.gallery.sidebar.metric_help.quality_tier | translate }}</span>
+            <!-- Color temperature -->
+            @if (store.colorTemps().length) {
+              <mat-form-field subscriptSizing="dynamic" class="w-full">
+                <mat-label [appHelpTip]="I18N.gallery.sidebar.metric_help.color_temp | translate">{{ I18N.gallery.color_temp | translate }}</mat-label>
+                <mat-select [value]="store.filters().color_temp" aria-describedby="metric-help-color_temp" (selectionChange)="store.updateFilter('color_temp', $event.value)">
+                  <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
+                  @for (c of store.colorTemps(); track c.value) {
+                    <mat-option [value]="c.value">{{ ('gallery.color_temps.' + c.value) | translate }} ({{ c.count }})</mat-option>
+                  }
+                </mat-select>
+              </mat-form-field>
+              <span class="sr-only" id="metric-help-color_temp">{{ I18N.gallery.sidebar.metric_help.color_temp | translate }}</span>
+            }
+            <!-- Hue buckets as colour chips -->
+            @if (store.hueBuckets().length) {
+              <span class="text-xs opacity-60 px-1" [appHelpTip]="I18N.gallery.sidebar.metric_help.hue_bucket | translate">{{ I18N.gallery.hue | translate }}</span>
+              <span class="sr-only" id="metric-help-hue_bucket">{{ I18N.gallery.sidebar.metric_help.hue_bucket | translate }}</span>
+              <div class="flex flex-wrap gap-1.5" role="group" [attr.aria-label]="I18N.gallery.hue | translate" aria-describedby="metric-help-hue_bucket">
+                @for (h of store.hueBuckets(); track h.value) {
+                  <button type="button"
+                    class="flex items-center gap-1.5 rounded-full pl-1.5 pr-2.5 py-1 text-xs border border-[var(--mat-sys-outline-variant)] cursor-pointer"
+                    [class.!border-[var(--mat-sys-primary)]]="store.filters().hue_bucket === h.value"
+                    [class.bg-[var(--mat-sys-primary-container)]]="store.filters().hue_bucket === h.value"
+                    [matTooltip]="('gallery.hue_buckets.' + h.value | translate) + ' (' + h.count + ')'"
+                    (click)="toggleHueBucket(h.value)">
+                    <span class="w-3.5 h-3.5 rounded-full shrink-0 border border-black/10" [style.background-color]="hueSwatches[h.value]"></span>
+                    {{ ('gallery.hue_buckets.' + h.value) | translate }}
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </mat-expansion-panel>
+      }
 
-      <!-- View (display preferences, not filters) -->
-      <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['view'] !== false"
-                           (opened)="onSectionToggle('view', true)"
-                           (closed)="onSectionToggle('view', false)"
-                           [style.background-color]="sectionStates()['view'] !== false ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header>
-          <mat-panel-title class="flex items-center gap-2">
-            <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">display_settings</mat-icon>
-            {{ I18N.gallery.sidebar.view | translate }}
-          </mat-panel-title>
-        </mat-expansion-panel-header>
-        <div class="flex flex-col gap-2 pb-2">
+      @for (group of qualityAdvancedGroups(); track group.sectionKey) {
+        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+      }
+          }
+          @case ('subject') {
+      @for (group of subjectGroups(); track group.sectionKey) {
+        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
+      }
+          }
+          @case ('display') {
+      <!-- View (display preferences, not filters): the tab's only section, so no panel around it -->
+        <div data-section="view" class="flex flex-col gap-2 px-4 pt-1 pb-2">
           @if (store.galleryMode() !== 'mosaic') {
             <mat-checkbox
               [checked]="store.filters().hide_details"
@@ -691,118 +948,8 @@ function saveSectionStates(states: Record<string, boolean>): void {
             </div>
           }
         </div>
-      </mat-expansion-panel>
-
-      <!-- Metric filter sections (collapsed by default) -->
-      <!-- Albums -->
-      @if (store.config()?.features?.show_albums && albums().length) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['albums'] === true"
-                             (opened)="onSectionToggle('albums', true)"
-                             (closed)="onSectionToggle('albums', false)"
-                             [style.background-color]="sectionStates()['albums'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
-            <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">photo_album</mat-icon>
-              {{ I18N.albums.title | translate }}
-            </mat-panel-title>
-          </mat-expansion-panel-header>
-          <div class="flex flex-col gap-2 pb-2">
-            <mat-form-field subscriptSizing="dynamic" class="w-full">
-              <mat-label>{{ I18N.albums.title | translate }}</mat-label>
-              <mat-select [value]="store.filters().album_id" (selectionChange)="store.updateFilter('album_id', $event.value)">
-                <mat-option value="">{{ I18N.gallery.all | translate }}</mat-option>
-                @for (a of albums(); track a.id) {
-                  <mat-option [value]="'' + a.id">{{ a.name }} ({{ a.photo_count }})</mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
-          </div>
-        </mat-expansion-panel>
-      }
-
-      <!-- Location filter -->
-      <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['location'] === true"
-                           (opened)="onSectionToggle('location', true)"
-                           (closed)="onSectionToggle('location', false)"
-                           [style.background-color]="sectionStates()['location'] === true ? 'var(--mat-sys-surface-container)' : null">
-        <mat-expansion-panel-header>
-          <mat-panel-title class="flex items-center gap-2">
-            <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">place</mat-icon>
-            {{ I18N.gallery.sidebar.location | translate }}
-            @if (store.filters().gps_lat || store.filters().no_gps) {
-              <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">1</span>
-            }
-          </mat-panel-title>
-        </mat-expansion-panel-header>
-        <div class="flex flex-col gap-2 pb-2">
-          <mat-checkbox [checked]="!!store.filters().no_gps" (change)="store.updateFilter('no_gps', $event.checked ? '1' : '')">
-            {{ I18N.gallery.no_geolocation | translate }}
-          </mat-checkbox>
-          @if (store.filters().gps_lat) {
-            <div class="text-xs opacity-60 px-1">
-              @if (store.gpsLocationName()) {
-                {{ store.gpsLocationName() }} — {{ store.filters().gps_radius_km }} km
-              } @else {
-                {{ +store.filters().gps_lat | number:'1.4-4' }}, {{ +store.filters().gps_lng | number:'1.4-4' }}
-                — {{ store.filters().gps_radius_km }} km
-              }
-            </div>
-            <button mat-stroked-button class="w-full" (click)="clearGpsFilter()">
-              <mat-icon>close</mat-icon>
-              {{ I18N.gallery.gps_clear | translate }}
-            </button>
           }
-          @if (store.config()?.features?.show_map) {
-            <button mat-stroked-button class="w-full" (click)="openGpsFilterMap()">
-              <mat-icon>map</mat-icon>
-              {{ I18N.gallery.select_on_map | translate }}
-            </button>
-          }
-        </div>
-      </mat-expansion-panel>
-
-      <!-- Folder filter -->
-      @if (store.config()?.features?.show_folders || store.filters().path_prefix) {
-        <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['folder'] === true"
-                             (opened)="onSectionToggle('folder', true)"
-                             (closed)="onSectionToggle('folder', false)"
-                             [style.background-color]="sectionStates()['folder'] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
-            <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">folder</mat-icon>
-              {{ I18N.gallery.sidebar.folder | translate }}
-              @if (sectionActiveCounts()['folder']) {
-                <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()['folder'] }}</span>
-              }
-            </mat-panel-title>
-          </mat-expansion-panel-header>
-          <div class="flex flex-col gap-2 pb-2">
-            @if (store.filters().path_prefix) {
-              <div class="flex items-center gap-1">
-                <button mat-stroked-button class="flex-1 min-w-0 !justify-start" [matTooltip]="store.filters().path_prefix"
-                        [attr.aria-label]="I18N.gallery.choose_folder | translate" (click)="openFolderPicker()">
-                  <mat-icon>folder</mat-icon>
-                  <span class="truncate">{{ currentFolderName() }}</span>
-                </button>
-                <button mat-icon-button [matTooltip]="I18N.gallery.folder_clear | translate"
-                        [attr.aria-label]="I18N.gallery.folder_clear | translate" (click)="clearFolderFilter()">
-                  <mat-icon>close</mat-icon>
-                </button>
-              </div>
-            } @else {
-              <button mat-stroked-button class="w-full" (click)="openFolderPicker()">
-                <mat-icon>folder_open</mat-icon>
-                {{ I18N.gallery.choose_folder | translate }}
-              </button>
-            }
-          </div>
-        </mat-expansion-panel>
-      }
-
-      <!-- Metric filter sections, common then advanced, all top-level and collapsed by default -->
-      @for (group of metricFilterGroups(); track group.sectionKey) {
-        <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
-      }
+        }
       }
 
       <ng-template #metricPanel let-group>
@@ -810,9 +957,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
                              (opened)="onSectionToggle(group.sectionKey, true)"
                              (closed)="onSectionToggle(group.sectionKey, false)"
                              [style.background-color]="sectionStates()[group.sectionKey] === true ? 'var(--mat-sys-surface-container)' : null">
-          <mat-expansion-panel-header>
+          <mat-expansion-panel-header class="!px-4">
             <mat-panel-title class="flex items-center gap-2">
-              <mat-icon class="!text-base !w-5 !h-5 !leading-5 opacity-60">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
+              <mat-icon class="!text-xl !w-5 !h-5 !leading-none opacity-80">{{ sectionIcons[group.sectionKey] || 'tune' }}</mat-icon>
               {{ group.sectionKey | translate }}
               @if (sectionActiveCounts()[group.sectionKey]) {
                 <span class="text-xs rounded-full min-w-[1.25rem] h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-primary)] text-[var(--mat-sys-on-primary)] leading-none">{{ sectionActiveCounts()[group.sectionKey] }}</span>
@@ -828,8 +975,9 @@ function saveSectionStates(states: Record<string, boolean>): void {
       </ng-template>
 
       <ng-template #metricRow let-def>
-        <div class="flex flex-col gap-0">
-          <span class="text-xs opacity-60 px-1">{{ def.labelKey | translate }}</span>
+        <div class="flex flex-col gap-0" [attr.data-metric]="def.id">
+          <span class="text-xs opacity-60 px-1" [appHelpTip]="def.helpKey | translate">{{ def.labelKey | translate }}</span>
+          <span class="sr-only" [id]="'metric-help-' + def.id">{{ def.helpKey | translate }}</span>
           <div class="flex items-center gap-1">
             <div class="flex-1 flex flex-col">
               @if (store.metricRanges()[def.minKey]; as range) {
@@ -839,11 +987,11 @@ function saveSectionStates(states: Record<string, boolean>): void {
                 <input matSliderStartThumb
                   [value]="$any(store.filters())[def.minKey] ? +$any(store.filters())[def.minKey] : def.sliderMin"
                   (valueChange)="onDynamicRangeChange(def, 'min', $event)"
-                  [attr.aria-label]="(def.labelKey | translate) + ' min'" />
+                  [attr.aria-label]="(def.labelKey | translate) + ' min'" [attr.aria-describedby]="'metric-help-' + def.id" />
                 <input matSliderEndThumb
                   [value]="$any(store.filters())[def.maxKey] ? +$any(store.filters())[def.maxKey] : def.sliderMax"
                   (valueChange)="onDynamicRangeChange(def, 'max', $event)"
-                  [attr.aria-label]="(def.labelKey | translate) + ' max'" />
+                  [attr.aria-label]="(def.labelKey | translate) + ' max'" [attr.aria-describedby]="'metric-help-' + def.id" />
               </mat-slider>
             </div>
             <span class="text-xs opacity-60 text-right" [class]="def.spanWidth">
@@ -857,11 +1005,13 @@ function saveSectionStates(states: Record<string, boolean>): void {
         </div>
       </ng-template>
     </div>
+    </mat-tab-nav-panel>
+
 
     <!-- Save as smart album (pinned footer, shown only when relevant) -->
     @if (store.config()?.features?.show_albums && auth.isEdition() && store.activeFilterCount() > 0 && !store.filters().album_id) {
       <div class="shrink-0 px-2 py-2 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
-        <button mat-stroked-button class="w-full" (click)="saveAsSmartAlbum()">
+        <button mat-stroked-button class="w-full" [matTooltip]="I18N.albums.save_smart_tooltip | translate" (click)="saveAsSmartAlbum()">
           <mat-icon>bookmark_add</mat-icon>
           {{ I18N.albums.save_smart | translate }}
         </button>
@@ -877,6 +1027,8 @@ export class GalleryFilterSidebarComponent {
   private albumService = inject(AlbumService);
   readonly albums = signal<Album[]>([]);
   readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
+  readonly activeTab = signal<SidebarTabId>(loadActiveTab());
+  private readonly scrollArea = viewChild<ElementRef<HTMLElement>>('scrollArea');
   private readonly coarsePointer = useCoarsePointerSignal();
   readonly sliderConfig = computed(() => this.store.config()?.display?.thumbnail_slider ?? null);
 
@@ -987,10 +1139,6 @@ export class GalleryFilterSidebarComponent {
     cyan: '#00acc1', blue: '#1e88e5', purple: '#8e24aa', magenta: '#d81b60',
   };
 
-  readonly colorQualityActiveCount = computed(() => {
-    const f = this.store.filters();
-    return (f.color_temp ? 1 : 0) + (f.hue_bucket ? 1 : 0) + (f.quality_tier ? 1 : 0);
-  });
 
   toggleHueBucket(value: string): void {
     const current = this.store.filters().hue_bucket;
@@ -1059,27 +1207,167 @@ export class GalleryFilterSidebarComponent {
   readonly metricFilterGroups = computed(() => [...this.commonFilterGroups(), ...this.advancedFilterGroups()]);
   readonly noFilterMatches = computed(() => !!this.filterQuery().trim() && this.metricFilterGroups().length === 0);
 
-  readonly sectionActiveCounts = computed((): Record<string, number> => {
+  readonly qualityAdvancedGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.quality.includes(g.sectionKey)));
+  readonly subjectGroups = computed(() => this.advancedFilterGroups().filter(g => TAB_SECTIONS.subject.includes(g.sectionKey)));
+  readonly ratingMin = computed(() => Number(this.store.filters().min_star_rating) || 0);
+  private readonly ratingMax = computed(() => Number(this.store.filters().max_star_rating) || 0);
+  /** The minimum the next click sets: one more star, and nothing (off) after 5 or after a max bound. */
+  private readonly ratingNext = computed(() => {
+    const next = Math.floor(this.ratingMin()) + 1;
+    if (next > 5 || (this.ratingMax() && next > this.ratingMax())) return 0;
+    return next;
+  });
+  /** "≤ 4" when a max bound came in from a link or smart album (the button only sets the min). */
+  readonly ratingMaxLabel = computed(() => this.ratingMax() ? `≤ ${this.ratingMax()}` : '');
+  /** The sentence for the button's tooltip and accessible name: the current state, and what a click does. */
+  readonly ratingKey = computed(() => {
+    const rv = this.I18N.gallery.sidebar.review;
+    if (this.ratingMin() === 0) return rv.rating_off;
+    if (this.ratingNext() === 0) return rv.rating_last;
+    return rv.rating_step;
+  });
+  readonly ratingVars = computed(() => ({ count: this.ratingMin(), next: this.ratingNext() }));
+
+  /**
+   * The Review tab's menu rows: the decision first, then the sets. A stale "hide"
+   * and "only" together read as "only", as the server treats them.
+   */
+  readonly reviewRows = computed((): SegmentRow[] => {
     const f = this.store.filters();
-    const counts: Record<string, number> = {
-      date: (f.date_from ? 1 : 0) + (f.date_to ? 1 : 0),
-      content: (f.type ? 1 : 0) + (f.tag ? 1 : 0) + (f.composition_pattern ? 1 : 0),
-      equipment: (f.camera ? 1 : 0) + (f.lens ? 1 : 0),
-      persons: (f.person_id ? f.person_id.split(',').length : 0) + (f.faces_need_names ? 1 : 0),
-      refine: (f.review_status ? 1 : 0) + (f.favorites_only ? 1 : 0) + (f.is_monochrome ? 1 : 0) + (f.hide_rejected ? 1 : 0)
-        + (f.show_rejected ? 1 : 0) + (f.blinks_only ? 1 : 0) + (f.duplicates_only ? 1 : 0)
-        + (f.sequence_override ? 1 : 0) + (f.manual_faces_need_review ? 1 : 0),
-      folder: f.path_prefix ? 1 : 0,
+    const I18N = this.I18N;
+    const rv = I18N.gallery.sidebar.review;
+    const vals = rv.values;
+    const desc = rv.desc;
+    const help = I18N.gallery.sidebar.refine_help;
+    const triState = (only: boolean, hide: boolean, fallback: string): string => {
+      if (only) return 'only';
+      if (hide) return 'hide';
+      return fallback;
     };
-    const fAny = f as Record<string, any>;
+    const rows: Omit<SegmentRow, 'valueLabelKey'>[] = [
+      {
+        id: 'decision', icon: 'rule', labelKey: rv.decision, helpKey: help.review_status,
+        value: f.review_status || 'all', disabled: false,
+        options: [
+          { value: 'all', labelKey: vals.all, descKey: desc.decision_all },
+          { value: 'undecided', labelKey: vals.undecided, descKey: desc.decision_undecided },
+          { value: 'kept', labelKey: vals.kept, descKey: desc.decision_kept },
+          { value: 'rejected', labelKey: vals.rejected, descKey: desc.decision_rejected },
+        ],
+      },
+      {
+        id: 'bursts', icon: 'burst_mode', labelKey: rv.bursts, helpKey: help.hide_bursts,
+        value: f.hide_bursts ? 'best' : 'all', disabled: false,
+        options: [
+          { value: 'best', labelKey: vals.best_frame, descKey: desc.bursts_best },
+          { value: 'all', labelKey: vals.all_frames, descKey: desc.bursts_all },
+        ],
+      },
+      {
+        id: 'duplicates', icon: 'content_copy', labelKey: rv.duplicates, helpKey: help.hide_duplicates,
+        value: triState(f.duplicates_only, f.hide_duplicates, 'all'), disabled: false,
+        options: [
+          { value: 'hide', labelKey: vals.hidden, descKey: desc.duplicates_hide },
+          { value: 'all', labelKey: vals.shown, descKey: desc.duplicates_show },
+          { value: 'only', labelKey: vals.only_these, descKey: desc.duplicates_only },
+        ],
+      },
+      {
+        id: 'blinks', icon: 'visibility_off', labelKey: rv.blinks, helpKey: help.hide_blinks,
+        value: triState(f.blinks_only, f.hide_blinks, 'all'), disabled: false,
+        options: [
+          { value: 'hide', labelKey: vals.hidden, descKey: desc.blinks_hide },
+          { value: 'all', labelKey: vals.shown, descKey: desc.blinks_show },
+          { value: 'only', labelKey: vals.only_these, descKey: desc.blinks_only },
+        ],
+      },
+      {
+        id: 'brackets', icon: 'exposure', labelKey: rv.brackets, helpKey: help.hide_brackets,
+        value: f.hide_brackets ? 'base' : 'all', disabled: false,
+        options: [
+          { value: 'base', labelKey: vals.base_exposure, descKey: desc.brackets_base },
+          { value: 'all', labelKey: vals.all_frames, descKey: desc.brackets_all },
+        ],
+      },
+      {
+        id: 'panoramas', icon: 'panorama', labelKey: rv.panoramas, helpKey: help.hide_panoramas,
+        value: f.hide_panoramas ? 'lead' : 'all', disabled: false,
+        options: [
+          { value: 'lead', labelKey: vals.middle_frame, descKey: desc.panoramas_middle },
+          { value: 'all', labelKey: vals.all_frames, descKey: desc.panoramas_all },
+        ],
+      },
+      {
+        id: 'rejected', icon: 'block', labelKey: rv.rejected, helpKey: help.hide_rejected,
+        value: triState(f.show_rejected, f.hide_rejected, 'show'), disabled: !!f.review_status,
+        options: [
+          { value: 'hide', labelKey: vals.hidden, descKey: desc.rejected_hide },
+          { value: 'show', labelKey: vals.shown, descKey: desc.rejected_show },
+          { value: 'only', labelKey: vals.only_rejected, descKey: desc.rejected_only },
+        ],
+      },
+    ];
+    return rows.map(row => ({ ...row, valueLabelKey: row.options.find(o => o.value === row.value)?.labelKey ?? row.options[0].labelKey }));
+  });
+
+
+  onSegment(row: SegmentRowId, value: string): void {
+    if (row === 'decision') void this.store.updateFilter('review_status', value === 'all' ? '' : value as GalleryFilters['review_status']);
+    else void this.store.updateFilters(SEGMENT_PATCHES[row][value]);
+  }
+
+  /** Each click raises the minimum star rating by one; the click after 5 clears it. */
+  cycleRating(): void {
+    const next = this.ratingNext();
+    void this.store.updateFilter('min_star_rating', next ? String(next) : '');
+  }
+
+  readonly qualityGroups = computed(() => this.commonFilterGroups().filter(g => g.sectionKey === 'gallery.sidebar.quality'));
+
+  /** Active controls per panel, from `UNIT_PANEL`; a range counts once. Hidden metrics never count. */
+  readonly sectionActiveCounts = computed((): Record<string, number> => {
     const bySection = this.filtersBySection();
-    for (const sectionKey of SECTION_ORDER) {
-      counts[sectionKey] = bySection[sectionKey].filter(
-        def => fAny[def.minKey] || fAny[def.maxKey]
-      ).length;
+    const counts: Record<string, number> = {};
+    for (const panels of Object.values(TAB_SECTIONS)) for (const panel of panels) counts[panel] = 0;
+    for (const unit of activeFilterUnits(this.store.filters())) {
+      const panel = UNIT_PANEL[unit];
+      if (!panel) continue;
+      if (bySection[panel] && !bySection[panel].some(d => filterUnit(d.minKey) === unit)) continue;
+      counts[panel]++;
     }
     return counts;
   });
+
+  /** Each tab's badge: the sum of its panels' counts. */
+  readonly tabActiveCounts = computed((): Record<SidebarTabId, number> => {
+    const counts = this.sectionActiveCounts();
+    return Object.fromEntries(
+      TAB_IDS.map(id => [id, TAB_SECTIONS[id].reduce((sum, panel) => sum + (counts[panel] ?? 0), 0)]),
+    ) as Record<SidebarTabId, number>;
+  });
+
+  /** Active controls outside every panel (the filename search, similar-to): header-only. */
+  readonly fixedAreaCount = computed(() => activeFilterUnits(this.store.filters()).filter(unit => !UNIT_PANEL[unit]).length);
+
+  /** The header badge and Reset: every active control, a hidden metric's included, so Reset can always clear it. */
+  readonly totalActiveCount = computed(() => countActiveFilters(this.store.filters()));
+
+  readonly tabItems = computed(() => TAB_IDS.map(id => ({
+    id,
+    icon: TAB_ICONS[id],
+    labelKey: this.I18N.gallery.sidebar.tabs[id],
+    count: this.tabActiveCounts()[id],
+    active: this.activeTab() === id,
+  })));
+
+  selectTab(id: SidebarTabId): void {
+    if (id === this.activeTab()) return;
+    this.activeTab.set(id);
+    writeStored(SIDEBAR_TAB_KEY, id);
+    this.sidebarPersonQuery.set('');
+    const el = this.scrollArea()?.nativeElement;
+    if (el) el.scrollTop = 0;
+  }
 
   onSectionToggle(sectionId: string, isOpen: boolean): void {
     this.sectionStates.update(s => {
@@ -1127,6 +1415,7 @@ export class GalleryFilterSidebarComponent {
 
   private readonly tooltips = viewChildren(MatTooltip);
   private readonly selects = viewChildren(MatSelect);
+  private readonly menuTriggers = viewChildren(MatMenuTrigger);
 
   /** Hide every tooltip the sidebar owns, for a gallery parking behind a photo page. */
   hideTooltips(): void {
@@ -1135,7 +1424,7 @@ export class GalleryFilterSidebarComponent {
 
   /** Close overlays before the gallery parks behind a photo. */
   closeOverlays(): void {
-    closeOverlayDirectives(this.tooltips(), [], this.selects());
+    closeOverlayDirectives(this.tooltips(), this.menuTriggers(), this.selects());
   }
 
   cancelPendingSearch(): void {

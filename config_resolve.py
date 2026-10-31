@@ -118,7 +118,7 @@ def load_defaults():
     """
     path = defaults_path()
     try:
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError:
         raise FileNotFoundError(
@@ -273,7 +273,7 @@ def load_resolved(path=None, named=None):
                 f"install with no overrides. Fix the path, or omit it to run on "
                 f"the shipped defaults.")
         return defaults
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         override = json.load(f)
     require_override_mapping(override, path)
     _merge_into(defaults, override)

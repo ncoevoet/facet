@@ -72,6 +72,38 @@ INTERFACE_SOURCES = {
     'ReleaseCheck': CLIENT_SRC / 'app.ts',
 }
 
+
+class TestStackSuggestionPhotoContract:
+    def test_integer_flags_and_nullable_fields_match_the_explicit_photo_schema(self, edition_client, seed_photos_prefix):
+        seed_photos_prefix('/apicontract-suggestion/', [dict(
+            path=f'/apicontract-suggestion/{n}.jpg', filename=f'{n}.jpg',
+            duplicate_group_id=940001, is_blink=1, is_burst_lead=0,
+        ) for n in range(2)])
+        response = edition_client.post('/api/stacks/suggestions', json={
+            'filters': {'path_prefix': '/apicontract-suggestion/'}, 'include_photos': True})
+        assert response.status_code == 200, response.text
+        [group] = response.json()['suggestions']
+        assert type(group['group_id']) is int
+        for photo in group['photos']:
+            assert photo['is_blink'] == 1 and type(photo['is_blink']) is int
+            assert photo['is_burst_lead'] == 0 and type(photo['is_burst_lead']) is int
+            for field in ('is_rejected', 'is_kept', 'is_favorite', 'star_rating'):
+                assert type(photo[field]) is int
+            for field in ('aggregate', 'aesthetic', 'tech_sharpness', 'date_taken',
+                          'eyes_open_score', 'expression_score', 'preview_revision'):
+                assert photo[field] is None
+            assert type(photo['burst_score']) is float
+        schema = edition_client.app.openapi()['components']['schemas']['StackSuggestionPhoto']
+        for field in ('is_blink', 'is_burst_lead', 'is_rejected', 'is_kept', 'is_favorite', 'star_rating'):
+            assert schema['properties'][field]['anyOf'] == [{'type': 'integer'}, {'type': 'null'}]
+        # External/older databases can contain non-integer affinity values.
+        from api.models.stacks import StackSuggestionPhoto
+        coerced = StackSuggestionPhoto.model_validate({**photo, 'is_blink': 0.6,
+            'is_burst_lead': 0.4, 'is_rejected': '1', 'is_kept': '0',
+            'is_favorite': 'Auto', 'star_rating': 3.6}).model_dump()
+        assert [coerced[k] for k in ('is_blink', 'is_burst_lead', 'is_rejected', 'is_kept',
+                                    'is_favorite', 'star_rating')] == [1, 0, 1, 0, None, 4]
+
 # Captures the field name, the ``?`` optional marker, and the declared type —
 # everything between the ``:`` and the line's trailing ``;``. Every field in
 # the interfaces above is declared on a single line, so this is enough; a

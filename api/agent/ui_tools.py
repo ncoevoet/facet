@@ -37,7 +37,7 @@ MAX_QUERY_ENTRIES = 20
 # checked against it.
 TAB_ERROR_CODES = frozenset({
     "invalid_input", "not_found", "forbidden_level", "no_active_view", "upstream_error", "too_large",
-    "unsaved_decisions", "navigation_refused", "plan_changed", "plan_load_failed", "no_plan", "modal_open",
+    "unsaved_decisions", "navigation_refused", "plan_changed", "plan_load_failed", "no_plan", "modal_open", "stack_mode_active",
 })
 # Appended to every non-read-only tool's description, in the tab's descriptor AND the MCP registration, so an
 # external client sees it. The tab enforces it in the dispatcher on `annotations.readOnlyHint`.
@@ -420,12 +420,13 @@ UI_TOOLS: tuple[UiTool, ...] = (
            "(`search`, `sort`, `type`), /stats (`tab` index, `category`, `date_from`, `date_to`), /map (`date_from`, "
            "`date_to`), /timeline (`date_from`, `date_to`, `sort`), /scenes (`album_id`, `total`) and /compare "
            "(`tab`: snapshots, ab, suggestions, weights, context or panorama; `category`, `strategy`, `pair_a`, `pair_b`, `pair_loading`; the pair is null when the A/B tab is not "
-           "shown), else null. An older tab omits both keys.",
+           "shown), and /culling (`mode`: cull or stacks), else null. An older tab omits both keys.",
            UiGetContext, True),
     UiTool("ui_next_page", "Load the next page of the gallery in the user's tab (infinite scroll).",
            UiNextPage, False),
     UiTool("ui_show_culling_group",
            "Open the darkroom (/culling) and focus one group, identified by (type, group_id). "
+           "Refused with `stack_mode_active` during Suggested stacks review. "
            "Refused with `unsaved_decisions` when it would leave /culling while the user holds unconfirmed decisions; `navigation_refused` when the tab declines. "
            "Edition accounts only.",
            UiShowCullingGroup, False),
@@ -436,6 +437,7 @@ UI_TOOLS: tuple[UiTool, ...] = (
            "The same `plan_digest` as the plan already shown only moves the focus. A different one replaces "
            "the plan and is refused with `unsaved_decisions` while the user holds decisions they have not "
            "confirmed; `plan_changed` means the library moved since the preview (preview again); "
+           "`stack_mode_active` refuses culling view tools while Suggested stacks is active. "
            "`plan_load_failed` means the tab could not load the plan for any other reason; `navigation_refused` means the tab declined to open /culling. "
            "Edition accounts only.",
            UiShowCullingPlan, False),

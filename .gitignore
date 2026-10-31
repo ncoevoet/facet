@@ -122,3 +122,6 @@ photos_all/
 bench/results/*.json
 .claude/loop/
 
+
+# MSI build output (installer/build-msi.ps1)
+installer/out/

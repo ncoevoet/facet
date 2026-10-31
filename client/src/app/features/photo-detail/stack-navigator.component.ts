@@ -1,3 +1,4 @@
+import { stackDialogConfig } from '../gallery/stack-dialog.config';
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationCancel, NavigationEnd, NavigationError, NavigationStart, Router } from '@angular/router';
@@ -191,8 +192,7 @@ export class StackNavigatorComponent {
     const context = this.stacks.context();
     const { StackDialogComponent } = await import('../gallery/stack-dialog.component');
     if (this.destroyRef.destroyed || !context() || !this.auth.isEdition() || this.stack() !== group) return;
-    const ref = this.dialog.open(StackDialogComponent, { width: '900px', maxWidth: '96vw',
-      data: { stackId: group.id, selectedPaths: this.store.viewScopeSelected() ? [] : [...this.store.selectedPaths()] } });
+    const ref = this.dialog.open(StackDialogComponent, stackDialogConfig({ stackId: group.id, selectedPaths: this.store.viewScopeSelected() ? [] : [...this.store.selectedPaths()] }));
     ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
       if (context()) this.retry();
     });

@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Thin per-user installer: app code + built client + uv + launchers. The Python
+     environment (~6 GB) is built on first run by Setup-Facet.ps1, models download on
+     first scan. Build with installer\build-msi.ps1. -->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Product Id="*" Name="Facet" Language="1033" Version="$(var.Version)"
+           Manufacturer="Facet (local build)" UpgradeCode="6C1E5D2A-7F3B-4C8E-9A41-2B7D0F6E9C13">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perUser" InstallPrivileges="limited"
+             Description="Facet photo scoring (native Windows)" />
+    <!-- Every build has a new product code, so two builds of one version would otherwise
+         install side by side; AllowSameVersionUpgrades makes the later one replace it. -->
+    <MajorUpgrade DowngradeErrorMessage="A newer Facet is already installed." AllowSameVersionUpgrades="yes" />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <!-- An upgrade keeps a custom INSTALLDIR: the folder is remembered in the registry and
+         restored unless a new one is given on the command line. -->
+    <Property Id="REMEMBERED_INSTALLDIR">
+      <RegistrySearch Id="RememberedInstallDir" Root="HKCU" Key="Software\Facet" Name="InstallDir" Type="raw" />
+    </Property>
+    <SetDirectory Id="INSTALLDIR" Value="[REMEMBERED_INSTALLDIR]" Sequence="both">REMEMBERED_INSTALLDIR AND NOT INSTALLDIR</SetDirectory>
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="LocalAppDataFolder">
+        <Directory Id="FacetRootDir" Name="Facet">
+          <Directory Id="INSTALLDIR" Name="app" />
+        </Directory>
+      </Directory>
+      <Directory Id="ProgramMenuFolder">
+        <Directory Id="FacetMenuDir" Name="Facet" />
+      </Directory>
+    </Directory>
+
+    <DirectoryRef Id="FacetMenuDir">
+      <Component Id="Shortcuts" Guid="9B0E8C61-3D2A-4F57-8E1B-5A6C7D8E9F20">
+        <Shortcut Id="StartShortcut" Name="Facet" Description="Start the Facet viewer"
+                  Target="[System64Folder]WindowsPowerShell\v1.0\powershell.exe"
+                  Arguments="-NoProfile -ExecutionPolicy Bypass -WindowStyle Minimized -File &quot;[INSTALLDIR]installer\Start-Facet.ps1&quot; -PauseOnError"
+                  WorkingDirectory="INSTALLDIR" />
+        <Shortcut Id="StopShortcut" Name="Stop Facet" Description="Stop the Facet viewer and scans"
+                  Target="[System64Folder]WindowsPowerShell\v1.0\powershell.exe"
+                  Arguments="-NoProfile -ExecutionPolicy Bypass -File &quot;[INSTALLDIR]installer\Stop-Facet.ps1&quot;"
+                  WorkingDirectory="INSTALLDIR" />
+        <Shortcut Id="SetupShortcut" Name="Facet Setup (repair)" Description="Rebuild the Facet Python environment"
+                  Target="[System64Folder]WindowsPowerShell\v1.0\powershell.exe"
+                  Arguments="-NoProfile -ExecutionPolicy Bypass -NoExit -File &quot;[INSTALLDIR]installer\Setup-Facet.ps1&quot; -Force"
+                  WorkingDirectory="INSTALLDIR" />
+        <RemoveFolder Id="RemoveFacetMenuDir" On="uninstall" />
+        <RemoveFolder Id="RemoveFacetRootDir" Directory="FacetRootDir" On="uninstall" />
+        <RemoveFolder Id="RemoveInstallDir" Directory="INSTALLDIR" On="uninstall" />
+        <RegistryValue Root="HKCU" Key="Software\Facet" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+        <RegistryValue Root="HKCU" Key="Software\Facet" Name="InstallDir" Type="string" Value="[INSTALLDIR]" />
+      </Component>
+    </DirectoryRef>
+
+    <!-- Fresh install only, not an upgrade (each build has a new product code, so "NOT
+         Installed" alone is true on upgrades too): open a console that builds the Python
+         environment. After an upgrade the Start shortcut sets up again only if the
+         dependencies changed (Test-FacetReady). -->
+    <CustomAction Id="RunSetup" Directory="INSTALLDIR" Return="asyncNoWait" Impersonate="yes" Execute="immediate"
+                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -ExecutionPolicy Bypass -NoExit -File &quot;[INSTALLDIR]installer\Setup-Facet.ps1&quot;" />
+    <!-- A real uninstall (not the removal step of an upgrade) also deletes what setup built,
+         through the install's own script while it still exists: it stops Facet, resolves the
+         environment like the launchers do (FACET_HOME included) and logs anything left behind
+         to data\logs\uninstall.log. The database and settings in data\ and config\ stay, as do
+         downloaded models in the user's cache folders. -->
+    <CustomAction Id="RemoveEnvironment" Directory="INSTALLDIR" Return="ignore" Impersonate="yes" Execute="deferred"
+                  ExeCommand="&quot;[System64Folder]WindowsPowerShell\v1.0\powershell.exe&quot; -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File &quot;[INSTALLDIR]installer\Remove-Environment.ps1&quot;" />
+    <InstallExecuteSequence>
+      <Custom Action="RunSetup" After="InstallFinalize">NOT Installed AND NOT REMOVE AND NOT WIX_UPGRADE_DETECTED AND NOT FACET_SKIP_SETUP</Custom>
+      <Custom Action="RemoveEnvironment" Before="RemoveFiles">REMOVE="ALL" AND NOT UPGRADINGPRODUCTCODE</Custom>
+    </InstallExecuteSequence>
+
+    <Feature Id="Main" Title="Facet" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="Shortcuts" />
+    </Feature>
+  </Product>
+</Wix>

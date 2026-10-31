@@ -54,7 +54,8 @@ class _NoModelsFaceAnalysis:
         pass
 
 
-def _install_fakes(monkeypatch, face_analysis, torch_cuda='12.6'):
+def _install_fakes(monkeypatch, face_analysis, torch_cuda='12.6', ort_cuda='12.6'):
+    """``ort_cuda=None`` fakes a CPU wheel (no ``cuda_version``); ``'absent'`` removes onnxruntime."""
     insightface = types.ModuleType('insightface')
     app = types.ModuleType('insightface.app')
     app.FaceAnalysis = face_analysis
@@ -64,6 +65,12 @@ def _install_fakes(monkeypatch, face_analysis, torch_cuda='12.6'):
     monkeypatch.setitem(sys.modules, 'insightface', insightface)
     monkeypatch.setitem(sys.modules, 'insightface.app', app)
     monkeypatch.setitem(sys.modules, 'torch', torch)
+    # Never read the box's real onnxruntime: its CUDA major decides whether the clause appears.
+    if ort_cuda == 'absent':
+        monkeypatch.setitem(sys.modules, 'onnxruntime', None)
+    else:
+        runtime = types.SimpleNamespace() if ort_cuda is None else types.SimpleNamespace(cuda_version=ort_cuda)
+        monkeypatch.setitem(sys.modules, 'onnxruntime', runtime)
 
 
 @pytest.fixture(autouse=True)
@@ -148,3 +155,30 @@ class TestCpuSessionWarning:
         assert 'aarch64' in message
         assert '<1.27' not in message
         assert 'pip install' not in message
+
+
+class TestCudaMajorMismatchClause:
+    """Why the CPU fallback happened, when the cause is the wheel's CUDA major."""
+
+    def test_a_cuda_13_wheel_under_cuda_12_torch_names_both_versions(self, monkeypatch, warnings_logged):
+        _install_fakes(monkeypatch, _fake_face_analysis(CPU_ONLY, []), torch_cuda='12.8', ort_cuda='13.0')
+        FaceAnalyzer(device='cuda')
+        (record,) = warnings_logged()
+        message = record.getMessage()
+        assert 'built for CUDA 13.0' in message
+        assert 'PyTorch uses CUDA 12.8' in message
+        assert REPAIR_COMMAND in message
+
+    @pytest.mark.parametrize('ort_cuda', ['12.8', None])
+    def test_a_matching_or_absent_cuda_version_adds_no_clause(self, monkeypatch, warnings_logged, ort_cuda):
+        _install_fakes(monkeypatch, _fake_face_analysis(CPU_ONLY, []), torch_cuda='12.8', ort_cuda=ort_cuda)
+        FaceAnalyzer(device='cuda')
+        (record,) = warnings_logged()
+        assert 'built for CUDA' not in record.getMessage()
+
+    def test_a_missing_onnxruntime_still_logs_the_warning_without_the_clause(self, monkeypatch, warnings_logged):
+        _install_fakes(monkeypatch, _fake_face_analysis(CPU_ONLY, []), torch_cuda='12.8', ort_cuda='absent')
+        FaceAnalyzer(device='cuda')
+        (record,) = warnings_logged()
+        assert 'built for CUDA' not in record.getMessage()
+        assert REPAIR_COMMAND in record.getMessage()

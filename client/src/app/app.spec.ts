@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { Router, provideRouter } from '@angular/router';
+import { DefaultUrlSerializer, Router, provideRouter } from '@angular/router';
 import { Provider, signal } from '@angular/core';
 import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
@@ -45,7 +45,7 @@ function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
     showAllHidden: vi.fn(),
   };
 
-  const mockRouter = { url: routerUrl, events: NEVER, navigate: vi.fn() };
+  const mockRouter = { url: routerUrl, events: NEVER, navigate: vi.fn(), parseUrl: (url: string) => new DefaultUrlSerializer().parse(url) };
 
   TestBed.configureTestingModule({
     providers: [
@@ -81,6 +81,28 @@ describe('App', () => {
     afterEach(() => {
       TestBed.inject(KeyboardMappingService).resetAll();
       localStorage.removeItem(KEYMAP_STORAGE_KEY);
+    });
+
+    it('shows only stack review decisions in Suggested stacks help', () => {
+      const { app } = createApp('/culling?mode=stacks&filters=%7B%7D');
+      (app as any).openHelpDialog();
+      const open = TestBed.inject(MatDialog).open as unknown as ReturnType<typeof vi.fn>;
+      const sections = open.mock.calls[0][1].data.shortcutSections as { rows: { keys: string[]; labelKey: string }[] }[];
+      const rows = sections.flatMap(section => section.rows);
+      expect(rows.some(row => row.keys.includes('S') && row.labelKey === 'stacks.stack_cover')).toBe(true);
+      expect(rows.some(row => row.keys.includes('X'))).toBe(true);
+      expect(rows.some(row => row.keys.includes('R') && row.labelKey === 'stacks.reject_focused')).toBe(true);
+      expect(rows.map(row => row.labelKey)).not.toContain('culling.shortcuts.keep');
+      expect(rows.map(row => row.labelKey)).not.toContain('culling.shortcuts.reject');
+      expect(rows.map(row => row.labelKey)).not.toContain('culling.shortcuts.toggle');
+    });
+
+    it('shows manual editor navigation and explicit Reject without culling decisions', () => {
+      const { app } = createApp('/stacks/edit');
+      (app as any).openHelpDialog();
+      const open = TestBed.inject(MatDialog).open as unknown as ReturnType<typeof vi.fn>;
+      const sections = open.mock.calls[0][1].data.shortcutSections;
+      expect(sections).toEqual([{ titleKey: 'stacks.create', rows: [{ keys: ['Esc'], labelKey: 'stacks.back_gallery' }, { keys: ['R'], labelKey: 'stacks.reject_focused' }, { keys: ['←', '→'], labelKey: 'culling.shortcuts.navigate' }] }]);
     });
 
     it('lists the remapped reject key on a gallery route, not the default', () => {
@@ -1093,6 +1115,11 @@ describe('App', () => {
       expect(labels.at(-3)).toContain(I18N.gallery.card_actions.title);
       expect(labels.at(-2)).toContain(I18N.shortcuts.keymap_title);
       expect(labels.at(-1)).toContain(I18N.nav.help);
+      // The customisation group is separated from Help by a divider.
+      const content = document.querySelector('.mat-mdc-menu-panel .mat-mdc-menu-content')!;
+      const children = [...content.children];
+      const helpIndex = children.findIndex(c => c.tagName === 'BUTTON' && c.textContent!.includes(I18N.nav.help));
+      expect(children[helpIndex - 1].tagName).toBe('MAT-DIVIDER');
       items.at(-3)!.click();
       expect(openCardActions).toHaveBeenCalledOnce();
       items.at(-2)!.click();

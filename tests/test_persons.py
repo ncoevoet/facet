@@ -5,6 +5,7 @@ that file for why dependency_overrides is the only pattern that works for
 FastAPI Depends() chains.
 """
 
+import os
 import sqlite3
 from contextlib import asynccontextmanager, contextmanager
 from unittest import mock
@@ -206,48 +207,46 @@ class TestMergeBatch:
 class TestRenamePerson:
     """Tests for POST /api/persons/{id}/rename."""
 
-    def test_rename_person(self, client):
-        """Renaming sets the name on the person row."""
-        mock_conn = mock.MagicMock()
+    def test_rename_person(self, edition_client, seed_people):
+        """Renaming stores the trimmed name on the person row and touches nothing else."""
+        path = seed_people.photo("/test_persons_rename/", "a.jpg")
+        person_id = seed_people.person()
+        other_id = seed_people.person("Untouched")
+        seed_people.face(path, person_id)
+        seed_people.face(path, person_id)
+        seed_people.face(path, other_id)
 
-        with mock.patch(
-            "api.routers.persons.get_db", lambda: _cm(mock_conn)
-        ):
-            resp = client.post(
-                "/api/persons/1/rename", json={"name": "Alice"}
-            )
-
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["success"] is True
-        assert body["name"] == "Alice"
-
-        mock_conn.execute.assert_called_once_with(
-            "UPDATE persons SET name = ? WHERE id = ?", ("Alice", 1)
-        )
-        mock_conn.commit.assert_called_once()
-
-
-    def test_rename_person_clear(self, client):
-        """Renaming with empty string sets name to NULL."""
-        mock_conn = mock.MagicMock()
-
-        with mock.patch(
-            "api.routers.persons.get_db", lambda: _cm(mock_conn)
-        ):
-            resp = client.post(
-                "/api/persons/1/rename", json={"name": ""}
-            )
+        resp = edition_client.post(f"/api/persons/{person_id}/rename", json={"name": "  Alice "})
 
         assert resp.status_code == 200
-        body = resp.json()
-        assert body["success"] is True
-        assert body["name"] == "Person 1"
+        # face_count is the renamed person's own, not the other person's.
+        assert resp.json() == {"success": True, "name": "Alice", "face_count": 2,
+                               "same_name_persons": []}
+        conn = sqlite3.connect(os.environ["DB_PATH"])
+        try:
+            names = dict(conn.execute(
+                "SELECT id, name FROM persons WHERE id IN (?, ?)", (person_id, other_id)).fetchall())
+        finally:
+            conn.close()
+        assert names == {person_id: "Alice", other_id: "Untouched"}
 
-        # Empty string stripped becomes falsy, so NULL is passed
-        mock_conn.execute.assert_called_once_with(
-            "UPDATE persons SET name = ? WHERE id = ?", (None, 1)
-        )
+    def test_rename_person_clear(self, edition_client, seed_people):
+        """Renaming with an empty string stores NULL and answers the placeholder name."""
+        path = seed_people.photo("/test_persons_rename/", "b.jpg")
+        person_id = seed_people.person("Alice")
+        seed_people.face(path, person_id)
+
+        resp = edition_client.post(f"/api/persons/{person_id}/rename", json={"name": "  "})
+
+        assert resp.status_code == 200
+        assert resp.json() == {"success": True, "name": f"Person {person_id}",
+                               "face_count": 1, "same_name_persons": []}
+        conn = sqlite3.connect(os.environ["DB_PATH"])
+        try:
+            name = conn.execute("SELECT name FROM persons WHERE id = ?", (person_id,)).fetchone()[0]
+        finally:
+            conn.close()
+        assert name is None
 
 
 class TestDeletePerson:
@@ -401,11 +400,51 @@ class TestListPersons:
         assert returned_ids == {42, 7}
 
 
+class TestListPersonsNamedOnly:
+    """GET /api/persons?named_only=true leaves out persons still waiting for a name."""
+
+    def test_named_only(self, client, tmp_path):
+        db = str(tmp_path / "persons_named.db")
+        _make_persons_db(db, persons=[
+            {"id": 1, "name": "Alice", "face_count": 25},
+            {"id": 2, "name": None, "face_count": 30},
+            {"id": 3, "name": "  ", "face_count": 9},
+            {"id": 4, "name": "Bob", "face_count": 3},
+        ])
+        with mock.patch("api.routers.persons.get_async_db", _async_conn_factory(db)):
+            named = client.get("/api/persons", params={"named_only": True}).json()
+            everyone = client.get("/api/persons").json()
+
+        assert [p["id"] for p in named["persons"]] == [1, 4]
+        assert named["total"] == 2
+        assert everyone["total"] == 4
+
+
+class TestListPersonsHiddenOnly:
+    """GET /api/persons?hidden_only=true lists the hidden (ignored) persons alone."""
+
+    def test_hidden_only(self, client, tmp_path):
+        db = str(tmp_path / "persons_hidden.db")
+        _make_persons_db(db, persons=[
+            {"id": 1, "name": "Alice", "face_count": 25, "is_hidden": 0},
+            {"id": 2, "name": "Waiter", "face_count": 6, "is_hidden": 1},
+            {"id": 3, "name": None, "face_count": 3, "is_hidden": 1},
+            {"id": 4, "name": "Bob", "face_count": 3},
+        ])
+        with mock.patch("api.routers.persons.get_async_db", _async_conn_factory(db)):
+            hidden = client.get("/api/persons", params={"hidden_only": True}).json()
+            default = client.get("/api/persons").json()
+
+        assert [p["id"] for p in hidden["persons"]] == [2, 3]
+        assert hidden["total"] == 2
+        assert [p["id"] for p in default["persons"]] == [1, 4]
+
+
 class TestNeedsNaming:
     """Tests for GET /api/persons/needs_naming (async, real temp DB)."""
 
     def test_needs_naming_filters(self, client, tmp_path):
-        """Returns only unnamed auto-clustered persons over the min_faces threshold."""
+        """Every unnamed, visible person over the min_faces threshold, largest first."""
         db = str(tmp_path / "persons.db")
         _make_persons_db(
             db,
@@ -415,10 +454,14 @@ class TestNeedsNaming:
                 {"id": 2, "name": None, "face_count": 6, "auto_clustered": 1},
                 # Named → excluded
                 {"id": 3, "name": "Alice", "face_count": 20, "auto_clustered": 1},
-                # Not auto-clustered → excluded
+                # Unnamed from a split (not auto-clustered) → still waiting for a name
                 {"id": 4, "name": None, "face_count": 8, "auto_clustered": 0},
                 # Below threshold → excluded
                 {"id": 5, "name": None, "face_count": 2, "auto_clustered": 1},
+                # Blank name counts as unnamed
+                {"id": 6, "name": "  ", "face_count": 7, "auto_clustered": 1},
+                # Hidden → excluded
+                {"id": 7, "name": None, "face_count": 30, "auto_clustered": 1, "is_hidden": 1},
             ],
         )
         with mock.patch(
@@ -429,6 +472,15 @@ class TestNeedsNaming:
         assert resp.status_code == 200
         body = resp.json()
         assert body["min_faces"] == 5
-        assert body["total"] == 2
-        # Ordered by face_count DESC → id 1 (10 faces) before id 2 (6 faces)
-        assert [p["id"] for p in body["persons"]] == [1, 2]
+        assert body["total"] == 4
+        assert [p["id"] for p in body["persons"]] == [1, 4, 6, 2]
+
+    def test_min_faces_one_lists_every_unnamed_person(self, client, tmp_path):
+        db = str(tmp_path / "persons_all.db")
+        _make_persons_db(db, persons=[
+            {"id": 1, "name": None, "face_count": 1, "auto_clustered": 1},
+            {"id": 2, "name": "Bob", "face_count": 1, "auto_clustered": 1},
+        ])
+        with mock.patch("api.routers.persons.get_async_db", _async_conn_factory(db)):
+            body = client.get("/api/persons/needs_naming", params={"min_faces": 1}).json()
+        assert [p["id"] for p in body["persons"]] == [1]

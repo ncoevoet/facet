@@ -1,6 +1,7 @@
 """Real SQLite regression coverage for the NumPy fallback matrix cache."""
 import asyncio
 import sqlite3
+import sys
 import threading
 
 import aiosqlite
@@ -228,6 +229,7 @@ async def test_empty_matrix_is_reused_until_embedding_appears(tmp_path, monkeypa
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows refuses to replace a database file an open reader holds; the scenario is POSIX-only")
 async def test_atomic_replacement_old_reader_cannot_poison_new_file(tmp_path):
     path = tmp_path / 'photos.db'
     replacement_path = tmp_path / 'replacement.db'
@@ -394,6 +396,7 @@ async def test_distinct_cohorts_replace_single_matrix_and_recheck_visibility_bef
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows refuses to replace a database file an open reader holds; the scenario is POSIX-only")
 async def test_replaced_database_uses_fresh_visibility_not_old_request_handle(tmp_path):
     path = tmp_path / 'replace-acl.db'
     old = await database(path)
@@ -461,6 +464,7 @@ async def test_shutdown_cancelling_builder_never_publishes_matrix(tmp_path, monk
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(sys.platform == "win32", reason="Windows refuses to replace a database file an open reader holds; the scenario is POSIX-only")
 async def test_replacement_between_matrix_and_visibility_keeps_one_snapshot(tmp_path, monkeypatch):
     path, replacement_path = tmp_path / 'live.db', tmp_path / 'replacement.db'
     old, replacement = await database(path), await database(replacement_path)

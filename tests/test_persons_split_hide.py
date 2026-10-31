@@ -119,6 +119,52 @@ class TestSplitPerson:
             ids = [9300] + ([new_id] if new_id else [])
             _cleanup(ids, prefix)
 
+    def test_split_gives_the_new_person_a_picture(self, edition_client):
+        """A person made by a split gets a representative face, so its card is not blank."""
+        prefix = "split_picture/"
+        new_id = None
+        try:
+            conn = _db()
+            fids = _seed_person(conn, 9310, [prefix + f"{i}.jpg" for i in range(4)])
+            conn.execute("UPDATE faces SET confidence = 0.5 WHERE id = ?", (fids[0],))
+            conn.execute("UPDATE faces SET confidence = 0.9 WHERE id = ?", (fids[1],))
+            conn.commit()
+            conn.close()
+
+            resp = edition_client.post("/api/persons/9310/split", json={"face_ids": fids[:2], "name": "Pierre"})
+            assert resp.status_code == 200, resp.text
+            new_id = resp.json()["new_person_id"]
+
+            conn = _db()
+            rep = conn.execute(
+                "SELECT representative_face_id FROM persons WHERE id = ?", (new_id,)).fetchone()[0]
+            conn.close()
+            # The more confident of the two moved faces.
+            assert rep == fids[1]
+        finally:
+            _cleanup([9310] + ([new_id] if new_id else []), prefix)
+
+    def test_adding_faces_keeps_an_existing_picture(self, edition_client):
+        prefix = "keep_picture/"
+        try:
+            conn = _db()
+            a = _seed_person(conn, 9320, [prefix + "a0.jpg", prefix + "a1.jpg"])
+            b = _seed_person(conn, 9321, [prefix + "b0.jpg", prefix + "b1.jpg"])
+            conn.execute("UPDATE persons SET representative_face_id = ? WHERE id = 9320", (a[1],))
+            conn.execute("UPDATE faces SET confidence = 0.99 WHERE id = ?", (b[0],))
+            conn.commit()
+            conn.close()
+
+            resp = edition_client.post("/api/persons/9320/assign_faces", json={"face_ids": [b[0]]})
+            assert resp.status_code == 200, resp.text
+
+            conn = _db()
+            rep = conn.execute("SELECT representative_face_id FROM persons WHERE id = 9320").fetchone()[0]
+            conn.close()
+            assert rep == a[1]
+        finally:
+            _cleanup([9320, 9321], prefix)
+
     def test_split_deletes_emptied_source(self, edition_client):
         prefix = "split_all/"
         new_id = None

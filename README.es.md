@@ -72,7 +72,7 @@ Pasa el cursor sobre cualquier foto para ver el desglose de la puntuación y los
 </tr></table>
 
 <details><summary>Barra lateral de filtros — todas las secciones desplegadas (haz clic para ver)</summary>
-<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Barra lateral de filtros con todas las opciones desplegadas" width="380"></p>
+<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Las cinco pestañas de la barra lateral de filtros, una al lado de otra: Explorar, Revisión, Calidad, Sujeto y Visualización" width="900"></p>
 </details>
 
 **Consejos de flujo de trabajo:**

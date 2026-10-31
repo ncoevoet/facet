@@ -13,7 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from api.auth import CurrentUser, require_authenticated
 from api.database import get_db
-from api.db_helpers import get_visibility_clause, person_visibility_exists, select_in_chunks
+from api.db_helpers import (
+    get_visibility_clause, is_unnamed, person_unnamed_clause, person_visibility_exists, select_in_chunks)
 from api.models.culling import PossibleFacesResponse
 from db.embedding_space import ARCFACE_MODEL, expected_dim, tag_matches
 from db.schema import person_not_hidden_clause
@@ -32,10 +33,16 @@ DEFAULT_MIN_SIMILARITY = 0.30
 DEFAULT_LIMIT = 30
 MAX_LIMIT = 100
 FLOAT_BYTES = 4
-SCOPES = ("unassigned", "other_persons", "all")
+SCOPES = ("unassigned", "unnamed", "other_persons", "all")
+# Who owns a candidate face: in no group, in a group nobody has named, or in a named person.
+OWNERS = ("ungrouped", "unnamed_group", "named")
+MAX_SIMILAR_GROUPS = 10
 
+# ``unnamed`` is every face without a name: in no cluster, or in a cluster nobody has named
+# yet. ``unassigned`` is the narrower "in no cluster at all".
 _SCOPE_SQL = {
     "unassigned": "f.person_id IS NULL",
+    "unnamed": f"(f.person_id IS NULL OR (f.person_id != ? AND {person_unnamed_clause('pe')}))",
     "other_persons": "f.person_id IS NOT NULL AND f.person_id != ?",
     "all": "(f.person_id IS NULL OR f.person_id != ?)",
 }
@@ -74,14 +81,49 @@ def _candidate_filter(person_id: int, scope: str, user_id, path_prefix: Optional
     return from_sql, " AND ".join(clauses), params
 
 
+def _named_person_ids(conn) -> np.ndarray:
+    """Ids of every person with a non-blank name: the ``named`` owner class."""
+    return np.fromiter(
+        (row[0] for row in conn.execute(
+            f"SELECT id FROM persons WHERE NOT {person_unnamed_clause('persons')}")),
+        dtype=np.int64)
+
+
+def _owner_codes(person_ids: np.ndarray, named_ids: np.ndarray) -> np.ndarray:
+    """Index into ``OWNERS`` per face; a NULL ``person_id`` arrives as -1."""
+    codes = np.where(person_ids < 0, 0, 1)
+    codes[np.isin(person_ids, named_ids)] = 2
+    return codes
+
+
+def _top_indices(sims: np.ndarray, indices: np.ndarray, keep: int) -> np.ndarray:
+    """The ``keep`` entries of ``indices`` with the highest ``sims``."""
+    if len(indices) <= keep:
+        return indices
+    return indices[np.argpartition(-sims[indices], keep - 1)[:keep]]
+
+
 def _scan(conn, from_sql: str, where_sql: str, params: list, centroid: np.ndarray, dim: int,
-          min_similarity: float, keep: int) -> tuple[int, np.ndarray, np.ndarray]:
-    """Stream the candidates; return ``(scanned, face_ids, similarities)`` of the best ``keep``."""
+          min_similarity: float, keep: int, owners: frozenset = frozenset(OWNERS), per_owner: bool = False) -> dict:
+    """Stream the candidates and score them against ``centroid``.
+
+    Returns ``scanned``, the best ``keep`` ``ids`` / ``sims`` among faces whose owner is in
+    ``owners`` (filtered here, before the keep cut, so a narrow owner set is never starved by
+    better faces it excludes; with ``per_owner`` the cut is ``keep`` per owner class instead of
+    overall), the per-owner ``counts`` over every scanned face at or above
+    ``min_similarity`` whatever ``owners`` says, and ``best``, the top similarity of all.
+    """
+    named_ids = _named_person_ids(conn)
+    allowed = np.array([OWNERS.index(o) for o in owners], dtype=np.int64)
     cursor = conn.execute(
-        f"SELECT f.id, f.embedding FROM {from_sql} WHERE {where_sql} AND length(f.embedding) = ?",
+        f"SELECT f.id, f.embedding, f.person_id FROM {from_sql} WHERE {where_sql} "
+        "AND length(f.embedding) = ?",
         [*params, dim * FLOAT_BYTES])
     best_ids = np.empty(0, dtype=np.int64)
     best_sims = np.empty(0, dtype=np.float32)
+    best_codes = np.empty(0, dtype=np.int64)
+    counts = np.zeros(len(OWNERS), dtype=np.int64)
+    best = None
     scanned = 0
     while True:
         chunk = cursor.fetchmany(CHUNK_ROWS)
@@ -89,15 +131,64 @@ def _scan(conn, from_sql: str, where_sql: str, params: list, centroid: np.ndarra
             break
         scanned += len(chunk)
         ids = np.fromiter((row[0] for row in chunk), dtype=np.int64, count=len(chunk))
+        person_ids = np.fromiter((-1 if row[2] is None else row[2] for row in chunk),
+                                 dtype=np.int64, count=len(chunk))
         matrix = np.frombuffer(b"".join(row[1] for row in chunk), dtype=np.float32).reshape(len(chunk), dim)
         sims = (matrix @ centroid) / (np.linalg.norm(matrix, axis=1) + 1e-10)
-        hit = sims >= min_similarity
+        chunk_best = float(sims.max())
+        best = chunk_best if best is None else max(best, chunk_best)
+        codes = _owner_codes(person_ids, named_ids)
+        above = sims >= min_similarity
+        counts += np.bincount(codes[above], minlength=len(OWNERS))
+        hit = above & np.isin(codes, allowed)
         best_ids = np.concatenate([best_ids, ids[hit]])
         best_sims = np.concatenate([best_sims, sims[hit].astype(np.float32)])
-        if len(best_ids) > keep:
+        best_codes = np.concatenate([best_codes, codes[hit]])
+        if per_owner:
+            kept = np.concatenate([_top_indices(best_sims, np.flatnonzero(best_codes == code), keep)
+                                   for code in allowed]).astype(np.int64)
+            best_ids, best_sims, best_codes = best_ids[kept], best_sims[kept], best_codes[kept]
+        elif len(best_ids) > keep:
             top = np.argpartition(-best_sims, keep - 1)[:keep]
-            best_ids, best_sims = best_ids[top], best_sims[top]
-    return scanned, best_ids, best_sims
+            best_ids, best_sims, best_codes = best_ids[top], best_sims[top], best_codes[top]
+    return {"scanned": scanned, "ids": best_ids, "sims": best_sims,
+            "counts": dict(zip(OWNERS, (int(c) for c in counts))), "best": best}
+
+
+def _parse_owners(owners: Optional[str]) -> frozenset:
+    if owners is None:
+        return frozenset(OWNERS)
+    tokens = [token.strip() for token in owners.split(",")]
+    if not tokens or any(token not in OWNERS for token in tokens):
+        raise HTTPException(status_code=422, detail=f"owners must be a comma list drawn from {', '.join(OWNERS)}")
+    return frozenset(tokens)
+
+
+def _similar_groups(conn, person_id: int, user_id, model: str, dim: int,
+                    centroid: np.ndarray, min_similarity: float) -> list[dict]:
+    """Other visible, non-hidden persons whose centroid looks like this one's, best first.
+
+    Centroid against centroid, read from ``persons`` alone, so it costs one row per person
+    rather than one per face. Only centroids of the same embedding model compare.
+    """
+    fragment, params = person_visibility_exists(user_id, 'p.id')
+    rows = conn.execute(
+        "SELECT p.id, p.name, p.face_count, p.centroid, p.centroid_model FROM persons p "
+        f"WHERE p.id != ? AND p.centroid IS NOT NULL AND length(p.centroid) = ? "
+        f"AND {person_not_hidden_clause('p')}" + (f" AND {fragment}" if fragment else ""),
+        [person_id, dim * FLOAT_BYTES, *params]).fetchall()
+    groups = []
+    for row in rows:
+        if (row[4] or ARCFACE_MODEL) != model:
+            continue
+        other = np.frombuffer(row[3], dtype=np.float32)
+        similarity = float(other @ centroid / (np.linalg.norm(other) + 1e-10))
+        if similarity >= min_similarity:
+            name = None if is_unnamed(row[1]) else row[1].strip()
+            groups.append({"person_id": row[0], "name": name, "face_count": row[2] or 0,
+                           "similarity": round(similarity, 4)})
+    groups.sort(key=lambda group: (-group["similarity"], group["person_id"]))
+    return groups[:MAX_SIMILAR_GROUPS]
 
 
 @router.get("/api/person/{person_id}/possible_faces", response_model=PossibleFacesResponse,
@@ -106,15 +197,32 @@ def _scan(conn, from_sql: str, where_sql: str, params: list, centroid: np.ndarra
                        412: {"description": "No usable centroid, or the scan is over MAX_FACE_SCAN faces"}})
 def api_person_possible_faces(
     person_id: int,
-    scope: Literal["unassigned", "other_persons", "all"] = "unassigned",
+    scope: Literal["unassigned", "unnamed", "other_persons", "all"] = "unassigned",
     min_similarity: float = Query(DEFAULT_MIN_SIMILARITY, ge=0.0, le=1.0),
     limit: int = Query(DEFAULT_LIMIT, ge=1, le=MAX_LIMIT),
     path_prefix: Optional[str] = Query(None, max_length=4096),
     date_from: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
     date_to: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    owners: Optional[str] = Query(
+        None, max_length=64,
+        description="Comma list drawn from ungrouped, unnamed_group, named: keep only faces with "
+                    "such an owner. Applied before the limit; counts ignore it."),
+    per_owner: bool = Query(
+        False,
+        description="Apply ``limit`` to each owner class (ungrouped, unnamed_group, named) instead "
+                    "of to the whole list: up to ``limit`` faces of each class, the combined list "
+                    "sorted by similarity, descending. ``owners`` still selects the classes."),
     user: CurrentUser = Depends(require_authenticated),
 ):
-    """Faces most like ``person_id``'s centroid, best first (same embedding model only)."""
+    """Faces most like ``person_id``'s centroid, best first (same embedding model only).
+
+    Besides the faces, the response says why the list looks the way it does: ``counts`` of
+    the qualifying faces per owner class, ``best_similarity`` over everything scanned (so an
+    empty list can say how close the closest face came), and ``similar_groups``, other persons
+    whose centroid is close enough to merge wholesale. With ``per_owner`` the ``limit`` caps each
+    owner class separately, so one scan can serve a client that filters by owner.
+    """
+    owner_set = _parse_owners(owners)
     user_id = user.user_id if user else None
     started = time.monotonic()
     with get_db() as conn:
@@ -145,14 +253,26 @@ def api_person_possible_faces(
                 status_code=status.HTTP_412_PRECONDITION_FAILED,
                 detail=(f"{candidates} faces would be scanned, over the ceiling of {MAX_FACE_SCAN}; "
                         "narrow the scan with scope, path_prefix, date_from or date_to"))
-        scanned, ids, sims = _scan(conn, from_sql, where_sql, params, centroid, dim,
-                                   min_similarity, KEEP_FACTOR * limit)
-        similarity = {int(i): float(s) for i, s in zip(ids, sims)}
+        scan = _scan(conn, from_sql, where_sql, params, centroid, dim,
+                     min_similarity, KEEP_FACTOR * limit, owner_set, per_owner)
+        similarity = {int(i): float(s) for i, s in zip(scan["ids"], scan["sims"])}
         faces = _resolve(conn, model, similarity)
+        similar_groups = _similar_groups(conn, person_id, user_id, model, dim, centroid, min_similarity)
     faces.sort(key=lambda face: -face["similarity"])
-    logger.info("possible_faces person=%d scanned=%d kept=%d ms=%d", person_id, scanned, len(faces),
+    if per_owner:
+        taken = dict.fromkeys(OWNERS, 0)
+        capped = []
+        for face in faces:
+            if taken[face["owner"]] < limit:
+                taken[face["owner"]] += 1
+                capped.append(face)
+        faces = capped
+    logger.info("possible_faces person=%d scanned=%d kept=%d ms=%d", person_id, scan["scanned"], len(faces),
                 (time.monotonic() - started) * 1000)
-    return {"faces": faces[:limit], "faces_scanned": scanned, "candidates": candidates}
+    best = scan["best"]
+    return {"faces": faces if per_owner else faces[:limit], "faces_scanned": scan["scanned"], "candidates": candidates,
+            "counts": scan["counts"], "best_similarity": None if best is None else round(best, 4),
+            "similar_groups": similar_groups}
 
 
 def _resolve(conn, model: str, similarity: dict[int, float]) -> list[dict]:
@@ -166,5 +286,13 @@ def _resolve(conn, model: str, similarity: dict[int, float]) -> list[dict]:
         f"WHERE f.id IN ({{placeholders}}) AND (pe.id IS NULL OR {person_not_hidden_clause('pe')})",
         list(similarity)))
     return [{"face_id": r[0], "photo_path": r[1], "person_id": r[2], "person_name": r[4],
+             "owner": _owner_of(r[2], r[4]),
              "similarity": round(similarity[r[0]], 4), "distance": round(1.0 - similarity[r[0]], 4)}
             for r in rows if tag_matches(r[3], model)]
+
+
+def _owner_of(person_id, name) -> str:
+    """The ``OWNERS`` class of one resolved face; the same rule as ``_owner_codes``."""
+    if person_id is None:
+        return "ungrouped"
+    return "unnamed_group" if is_unnamed(name) else "named"

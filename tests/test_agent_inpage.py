@@ -415,7 +415,7 @@ def trash_library(agent_app, tmp_path, seed_photos_prefix, monkeypatch):
         with open(os.path.join(src, name + ".jpg"), "wb") as handle:
             handle.write(b"JPG")
         rows.append({"path": os.path.join(src, name + ".jpg"), "filename": name + ".jpg"})
-    seed_photos_prefix(src + "/", rows)
+    seed_photos_prefix(src + os.sep, rows)
     monkeypatch.setitem(api_config.VIEWER_CONFIG, "cull", {"allow_trash": True})
     monkeypatch.setattr("send2trash.send2trash", os.remove)
     return env, [r["path"] for r in rows]

@@ -1,4 +1,5 @@
 """Relinking is a reviewed database rewrite, never a file move or identity guess."""
+from contextlib import closing
 import json
 import os
 import sqlite3
@@ -11,6 +12,7 @@ from PIL import Image
 from db import relink
 from db.connection import HAS_SQLITE_VEC, load_sqlite_vec
 from db.schema import init_database
+from tests.conftest import symlink_or_skip
 from utils import manual_face_frame
 
 
@@ -32,10 +34,11 @@ def library(tmp_path):
     Image.new('RGB', (40, 30), 'blue').save(new)
     db = str(root / 'library.db')
     init_database(db)
-    with sqlite3.connect(db) as conn:
+    with closing(sqlite3.connect(db)) as conn:
         conn.execute('PRAGMA foreign_keys=ON')
         conn.execute('INSERT INTO photos(path,filename,image_width,image_height,thumbnail,star_rating,is_kept) '
                      'VALUES (?,?,?,?,?,?,?)', (old, 'a.jpg', 40, 30, b'thumbnail', 5, 1))
+        conn.commit()
     config = {'viewer': {'scan_directories': [str(root)]}, 'users': {}}
     return db, old, new, config
 
@@ -128,7 +131,7 @@ def test_all_current_associations_survive_and_manual_marks_require_review(librar
         assert conn.execute('SELECT representative_face_id FROM persons WHERE id=3').fetchone()[0] == 7
         assert conn.execute('SELECT override_group_key FROM photo_sequence_overrides').fetchone()[0] == old
         assert conn.execute('SELECT path FROM scan_failures').fetchone()[0] == old  # historical location
-        assert old in conn.execute("SELECT value FROM stats_cache WHERE key='immich_synced_paths:global'").fetchone()[0]
+        assert old in json.loads(conn.execute("SELECT value FROM stats_cache WHERE key='immich_synced_paths:global'").fetchone()[0])
         assert conn.execute("SELECT value FROM stats_cache WHERE key='auto_retrain_pending:alice'").fetchone()[0] == '9'
         assert conn.execute("SELECT 1 FROM stats_cache WHERE key='count_all'").fetchone() is None
     assert Path(new).is_file() and not Path(old).exists()
@@ -210,7 +213,7 @@ def test_ambiguous_or_unconfined_mapping_is_refused(library, bad, reason):
             conn.execute('INSERT INTO photos(path) VALUES (?)', (new,))
     elif bad == 'symlink':
         link = Path(new).with_name('link.jpg')
-        link.symlink_to(new)
+        symlink_or_skip(link, new)
         mapping[0]['new'] = str(link)
     elif bad == 'path_mapping':
         config['viewer']['path_mapping'] = {'/other': str(Path(new).parent)}
@@ -399,7 +402,7 @@ def test_atomic_database_replacement_invalidates_review_plan(library):
     db, old, _, _ = library
     plan = preview(library)
     replacement = str(Path(db).with_name('replacement.db'))
-    with sqlite3.connect(db) as source, sqlite3.connect(replacement) as target:
+    with closing(sqlite3.connect(db)) as source, closing(sqlite3.connect(replacement)) as target:
         source.backup(target)
     Path(replacement).replace(db)
     with pytest.raises(ValueError, match='stale'):
@@ -796,6 +799,16 @@ def test_oversized_generated_plan_is_refused_by_its_real_size(library, monkeypat
     with pytest.raises(ValueError, match='Generated plan exceeds the 2 MiB input limit'):
         preview(library)
     assert _photo_rows(db) == before
+
+
+def test_a_destination_whose_times_were_set_after_creation_is_accepted(library):
+    # Copies that preserve times leave a creation time that fstat and stat(path)
+    # report differently on NTFS; the receipt must not mistake that for a change.
+    db, old, new, _ = library
+    past = 1_500_000_000 * 10**9
+    os.utime(new, ns=(past, past))
+    plan = preview(library)
+    assert plan['entries'][0]['identity'] == 'original_bytes_unknown'
 
 
 def test_destination_changing_while_hashed_is_refused(library, monkeypatch):

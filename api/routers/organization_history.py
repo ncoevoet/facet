@@ -22,13 +22,8 @@ router = APIRouter(tags=['organization_history'])
 
 def _visible(conn: sqlite3.Connection, user: CurrentUser, changes: list[dict[str, Any]]) -> bool:
     clause, params = get_visibility_clause(user.user_id)
-    for start in range(0, len(changes), 400):
-        paths = [change['path'] for change in changes[start:start + 400]]
-        marks = ','.join('?' for _ in paths)
-        count = conn.execute(f'SELECT COUNT(*) FROM photos WHERE path IN ({marks}) AND {clause}', [*paths, *params]).fetchone()[0]
-        if count != len(paths):
-            return False
-    return True
+    paths = [change['path'] for change in changes]
+    return len(stacks.visible_paths(conn, paths, clause, params)) == len(paths)
 
 
 @router.get('/api/organization_history', response_model=OrganizationHistory)

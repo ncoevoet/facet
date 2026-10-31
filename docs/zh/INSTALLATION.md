@@ -7,10 +7,18 @@ Facet 在你自己的机器上运行。挑选与你的情况相符的章节，�
 
 ## 我该选哪种安装方式？
 
+两种方式运行的是同一个 Facet，区别在于安装的简便程度与性能之间的取舍。请选择适合你的那一种。
+
+| | Docker | 不使用 Docker |
+|---|---|---|
+| 安装 | 一条命令：所有内容都在镜像里 | `install.sh`（Linux、macOS）或 Windows 安装程序在本机建立 Python 环境 |
+| 更新 | 拉取新镜像 | 更新代码后重新运行 `install.sh`，或安装新的 Windows 安装程序 |
+| 性能 | Facet 与你的文件和显卡之间隔着一层容器；在 Windows 上它运行在 WSL2 里 | Facet 直接使用本机的显卡和文件 |
+
 | 你的情况 | 前往 |
 |----------------|-------|
-| Windows、macOS 或 Linux，只想让它跑起来 | [使用 Docker 安装](#使用-docker-安装) |
-| Linux 或 macOS，且不想用容器 | [不使用 Docker 安装](#不使用-docker-安装) |
+| Windows、macOS 或 Linux，使用容器 | [使用 Docker 安装](#使用-docker-安装) |
+| Windows、macOS 或 Linux，不使用容器 | [不使用 Docker 安装](#不使用-docker-安装) |
 | NAS，或一台希望从其他机器访问的服务器 | [部署](DEPLOYMENT.md) |
 
 ## 哪种配置档适合我的硬件？
@@ -158,8 +166,69 @@ python viewer.py                       # 启动照片库
 
 ### Windows
 
-请使用 [Docker](#使用-docker-安装)。对于 NVIDIA 显卡，请按
-[WSL2 指南](DEPLOYMENT.md#windowswsl2搭配-nvidia-gpu)操作，那是经过验证的路径。
+按用户安装的安装程序（MSI）无需管理员权限即可安装 Facet：
+
+| 文件夹 | 内容 |
+|---|---|
+| `%LOCALAPPDATA%\Facet\app` | 程序本身，每次升级时替换 |
+| `%LOCALAPPDATA%\Facet\venv` | Python 环境，安装程序完成时建立 |
+| `%LOCALAPPDATA%\Facet\data` | 数据库（`photo_scores_pro.db`）和日志 |
+| `%LOCALAPPDATA%\Facet\config` | `scoring_config.json` |
+
+**获取安装程序。** 目前还没有发布版本附带它。可以在克隆的仓库中用 `installer\build-msi.ps1`
+构建（需要 WiX 3.14、`uv` 和已构建的前端，脚本会说明从哪里获取 WiX），或从
+*Windows install (MSI)* 工作流的一次运行中下载 `facet-msi` 产物。
+构建时，前端需要 Node.js 22.22.3 或更新版本（22.14 会使 `npm run build` 失败）。
+
+**首次启动。** 安装程序一结束就会开始建立 Python 环境。
+环境约 6 GB，uv 的下载缓存（`%LOCALAPPDATA%\uv\cache`）还要再占用差不多同样的空间。
+如果从未完成，或升级更改了 Facet 的依赖，开始菜单中的 *Facet* 会运行这一步。
+它会像 `install.sh` 一样根据你的 NVIDIA 显卡及其
+驱动选择 PyTorch 版本，没有 NVIDIA 显卡时则选择 CPU 版本。如果装好的 GPU 版本无法使用显卡，
+安装会停止并说明原因：请更新驱动，或运行 `Setup-Facet.ps1 -Force -Cpu`。
+
+如果图库无法启动（端口被占用、安装失败、90 秒内无响应），开始菜单窗口会显示错误并等待回车。
+90 秒内无响应时，图库会继续运行，之后仍可能启动成功。
+
+**日常使用：**
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app\installer"
+.\Scan-Facet.ps1 "\\NAS\Photos"   # 为照片评分；其余参数会传给 facet.py
+.\Start-Facet.ps1                # 图库，地址 http://localhost:5000
+.\Stop-Facet.ps1                 # 停止图库和正在进行的扫描
+```
+
+图库只在本机上响应。`Start-Facet.ps1 -Lan` 会向其他设备开放，在配置中设置 `viewer.password`
+之前它会拒绝启动。
+
+**每个文件夹只用一种写法。** Facet 按扫描时使用的路径保存每张照片，所以 `\\NAS\Photos` 和映射为
+`Z:\` 的同一个共享对它来说是两个不同的文件夹：两个都扫描会让每张照片出现两次。请选定一种写法并一直使用。
+
+**受管理的计算机。** 快捷方式以 `-ExecutionPolicy Bypass` 运行 Facet 未签名的 PowerShell 脚本。通过组策略设置的执行策略优先于此参数，因此在受管理的电脑上这些脚本可能无法运行；请联系管理员允许它们运行。
+
+**卸载**（设置 → 应用）会停止 Facet，移除程序、快捷方式、Python 环境和 ExifTool（自定义的
+`FACET_HOME` 下同样会移除），保留 `data` 和 `config`。无法删除的内容会记录在
+`data\logs\uninstall.log` 中。uv 的下载缓存（`%LOCALAPPDATA%\uv\cache`）和已下载的模型会保留
+（用户文件夹中的 `.cache`、`.insightface`）。升级会保留自定义的安装文件夹，只有在 Facet 的依赖
+发生变化时才会重新建立环境。
+
+**从 Docker 迁移图库。** 数据库保存每张照片的完整路径，而 Windows 安装看到的是另一个路径下的
+同一批照片（`\\NAS\Photos\...` 而不是 `/data/photos/...`）。把数据库复制到 `data`，停止 Facet，
+然后改写路径，先做一次试运行：
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app"
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos" --dry-run
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos"
+```
+
+该工具会保留数据库副本（`photo_scores_pro.db.before-rewrite-<时间>`），拒绝合并已在新路径下扫描过
+的照片，并清空向量索引，可用 `..\venv\Scripts\python.exe database.py --db ..\data\photo_scores_pro.db --populate-vec` 重建。迁移之前的撤销历史之后
+不再适用。
+这些命令假定使用默认安装文件夹。旧前缀和新前缀若一个位于另一个之内（例如 `D:\Photos` 改为 `D:\Photos\new`），会被拒绝；请经由一个临时前缀中转。
+
+Docker 同样可以在 Windows 上使用；如需使用 NVIDIA 显卡，请按 [WSL2 指南](DEPLOYMENT.md#windowswsl2搭配-nvidia-gpu)操作。
 
 ## 首次运行会遇到什么
 

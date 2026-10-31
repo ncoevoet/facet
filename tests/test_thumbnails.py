@@ -139,7 +139,7 @@ class TestThumbnailRenderedFromOriginal:
             path = tmp_path / name
             if original is not None:
                 path.write_bytes(original)
-            seed_photos_prefix(str(tmp_path) + "/", [{
+            seed_photos_prefix(str(tmp_path) + os.sep, [{
                 "path": str(path), "filename": name,
                 "thumbnail": _make_jpeg_bytes(stored), "sequence_kind": sequence_kind,
             }])
@@ -450,7 +450,7 @@ class TestThumbnailRenderedFromOriginal:
         jpeg = tmp_path / 'ready.jpg'
         for path in [*raws, jpeg]:
             path.write_bytes(_make_jpeg_bytes((8, 8)))
-        seed_photos_prefix(str(tmp_path) + '/', [
+        seed_photos_prefix(str(tmp_path) + os.sep, [
             {'path': str(path), 'filename': path.name, 'thumbnail': _make_jpeg_bytes(self.STORED)}
             for path in [*raws, jpeg]])
         slots = threading.BoundedSemaphore(thumbnails._RENDER_SLOTS)

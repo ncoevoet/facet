@@ -22,6 +22,7 @@ import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { GalleryStore } from '../gallery/gallery.store';
+import { PersonFaceBoxesService } from '../../shared/components/photo-card/person-face-boxes.service';
 import type { MergeSuggestionsResponse } from '../../core/api/types';
 
 type MergeSuggestion = MergeSuggestionsResponse['suggestions'][number];
@@ -189,6 +190,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
   protected readonly canEdit = inject(AuthService).isEdition;
   private readonly i18n = inject(I18nService);
   private readonly store = inject(GalleryStore);
+  private readonly faceBoxes = inject(PersonFaceBoxesService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
   private readonly headerSlot = inject(HeaderSlotService);
@@ -265,6 +267,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
       await firstValueFrom(
         this.api.post('/persons/merge', { source_id: sourceId, target_id: target.id }),
       );
+      this.faceBoxes.clear();
 
       this.journal.record('person', [], { action: 'merge', count: 1, pairs: [[sourceId, target.id]] });
       this.removeSuggestion(suggestion);
@@ -321,6 +324,7 @@ export class MergeSuggestionsComponent implements OnInit, OnDestroy {
       });
 
       const res = await firstValueFrom(this.api.post<{ merged_count: number }>('/persons/merge_batch', { merges }));
+      this.faceBoxes.clear();
       if (res.merged_count > 0) {
         // Never `partial`: the endpoint is one transaction (a failure throws), and it folds overlapping pairs into fewer merges.
         this.journal.record('person', [], { action: 'merge', count: res.merged_count });

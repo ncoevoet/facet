@@ -1,0 +1,193 @@
+name: Face test (LFW)
+
+# The testdb/ face regression gate on hosted runners, without a GPU: one job builds the
+# LFW library once, each machine scans it on CPU with the legacy profile, groups faces,
+# names the reference groups and reports both scores; the compare job requires every
+# report to be identical and checks each against testdb/README.md's CPU baseline.
+#
+# Two depths, so the cost matches what each run protects:
+# - faces (pull requests and pushes that touch face code, ~5 min per job): the scan runs
+#   only the face pass (`--pass faces`); the report depends only on InsightFace, so it is
+#   the same as a full scan's.
+# - full (weekly, or by hand with full_scan): the whole scoring pipeline, which proves the
+#   full scan still produces the same faces (~1.5 h per job).
+on:
+  pull_request:
+    paths:
+      - "testdb/**"
+      - ".github/workflows/face-gate.yml"
+      - "facet.py"
+      - "analyzers/face*.py"
+      - "faces/**"
+      - "utils/onnx_runtime.py"
+      - "cli_args.py"
+      - "processing/**"
+      - "models/**"
+      - "db/**"
+      - "config/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "Dockerfile"
+  push:
+    branches: [master]
+    paths:
+      - "testdb/**"
+      - ".github/workflows/face-gate.yml"
+      - "facet.py"
+      - "analyzers/face*.py"
+      - "faces/**"
+      - "utils/onnx_runtime.py"
+      - "cli_args.py"
+      - "processing/**"
+      - "models/**"
+      - "db/**"
+      - "config/**"
+      - "requirements*.txt"
+      - "pyproject.toml"
+      - "Dockerfile"
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+    inputs:
+      full_scan:
+        description: Run the whole scoring pipeline instead of the face pass only
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: face-gate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  FACET_VRAM_PROFILE: legacy
+  DEPTH: ${{ (github.event_name == 'schedule' || inputs.full_scan) && 'full' || 'faces' }}
+
+jobs:
+  library:
+    name: Build the LFW test library
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: LFW download (cached; the source is slow and sometimes down)
+        uses: actions/cache@v6
+        with:
+          path: ~/lfw-data
+          key: lfw-funneled-v1
+      - name: Library and references
+        run: |
+          pip install -c requirements.lock.txt scikit-learn pillow
+          python -c "from sklearn.datasets import fetch_lfw_people; fetch_lfw_people(data_home='$HOME/lfw-data', min_faces_per_person=10)"
+          lfw="$HOME/lfw-data/lfw_home/lfw_funneled"
+          python testdb/make_lfw_subset.py --lfw "$lfw" --out library/photos
+          python testdb/make_references.py --lfw "$lfw" --photos library/photos --out library/references
+      - uses: actions/upload-artifact@v7
+        with:
+          name: face-library
+          path: library/
+
+  linux:
+    name: Linux, direct install
+    needs: library
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.full_scan) && 180 || 30 }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v8
+        with:
+          name: face-library
+          path: library
+      - name: Install Facet (CPU torch from its own index, then the locks from PyPI only)
+        run: |
+          sudo apt-get update && sudo apt-get install --yes libimage-exiftool-perl
+          pip install uv==0.10.7
+          uv pip install --system torch==2.11.0 torchvision==0.26.0 --index-url https://download.pytorch.org/whl/cpu
+          # The locks omit torch; the constraint keeps the CPU build just installed.
+          printf 'torch==2.11.0\ntorchvision==0.26.0\n' > "$RUNNER_TEMP/torch.txt"
+          uv pip install --system -c "$RUNNER_TEMP/torch.txt" \
+            -r requirements.lock.txt -r requirements.restricted.lock.txt
+      - name: Runner CPU (a byte diff between the two reports may be a kernel difference, not a regression)
+        run: lscpu | grep -E '^(Vendor ID|Model name|Flags)' | sed -E 's/^(Flags:).*/\1 '"$(grep -ow -m1 -E 'avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'
+      - name: Scan, group, name
+        run: |
+          sudo mkdir -p /data && sudo cp -r library/photos /data/photos && sudo chown -R "$USER" /data
+          export DB_PATH="$RUNNER_TEMP/facet/photo_scores_pro.db"
+          mkdir -p "$(dirname "$DB_PATH")"
+          if [ "$DEPTH" = faces ]; then python facet.py /data/photos --pass faces; else python facet.py /data/photos; fi
+          python facet.py --cluster-faces-incremental
+          python testdb/seed_names.py --db "$DB_PATH" --people /data/photos/people.csv --apply
+          mkdir -p reports
+          python testdb/ci_report.py --db "$DB_PATH" --people /data/photos/people.csv \
+            --refs library/references > reports/linux.txt
+          cat reports/linux.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: report-linux
+          path: reports/
+
+  docker:
+    name: Docker, CPU image
+    needs: library
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.full_scan) && 180 || 30 }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          name: face-library
+          path: library
+      - name: Reclaim runner disk
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost
+      - name: Build the CPU image (docker-publish.yml's cpu variant)
+        run: >
+          docker build -t facet:ci
+          --build-arg BASE_IMAGE=python:3.12-slim
+          --build-arg STRIP_TORCH=0
+          --build-arg INSTALL_CUML=0 .
+      - name: Runner CPU (a byte diff between the two reports may be a kernel difference, not a regression)
+        run: lscpu | grep -E '^(Vendor ID|Model name|Flags)' | sed -E 's/^(Flags:).*/\1 '"$(grep -ow -m1 -E 'avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'
+      - name: Scan, group, name
+        run: |
+          mkdir -p "$RUNNER_TEMP/data" "$RUNNER_TEMP/config" reports
+          # The scan runs as the image's facet user (uid 1000), not the runner's.
+          sudo chown 1000:1000 "$RUNNER_TEMP/data" "$RUNNER_TEMP/config"
+          # An idle container: the scan and the reports are the only processes in it.
+          docker run -d --name facet --entrypoint sleep \
+            -e DB_PATH=/app/data/photo_scores_pro.db -e FACET_VRAM_PROFILE \
+            -v "$RUNNER_TEMP/data:/app/data" -v "$RUNNER_TEMP/config:/config" \
+            -v "$PWD/library/photos:/data/photos:ro" -v "$PWD/library/references:/refs:ro" \
+            -v "$PWD/testdb:/tool:ro" facet:ci infinity
+          run() { docker exec -u facet facet "$@"; }
+          if [ "$DEPTH" = faces ]; then run python facet.py /data/photos --pass faces; else run python facet.py /data/photos; fi
+          run python facet.py --cluster-faces-incremental
+          run python /tool/seed_names.py --db /app/data/photo_scores_pro.db --people /data/photos/people.csv --apply
+          run python /tool/ci_report.py --db /app/data/photo_scores_pro.db --people /data/photos/people.csv \
+            --refs /refs > reports/docker.txt
+          cat reports/docker.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: report-docker
+          path: reports/
+
+  compare:
+    name: Same result everywhere, no line below the baseline
+    needs: [linux, docker]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: report-*
+          merge-multiple: true
+          path: reports
+      - run: python3 testdb/ci_compare.py --baseline testdb/README.md reports/linux.txt reports/docker.txt

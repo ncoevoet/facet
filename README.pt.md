@@ -72,7 +72,7 @@ Passe o cursor sobre qualquer foto para ver o detalhamento da pontuação e os d
 </tr></table>
 
 <details><summary>Barra lateral de filtros completa — todas as seções expandidas (clique para ver)</summary>
-<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="Barra lateral de filtros com todas as opções expandidas" width="380"></p>
+<p align="center"><img src="docs/screenshots/filter-sidebar-full.jpg" alt="As cinco abas da barra lateral de filtros lado a lado: Explorar, Revisão, Qualidade, Assunto e Visualização" width="900"></p>
 </details>
 
 **Dicas de fluxo de trabalho:**

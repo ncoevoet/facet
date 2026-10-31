@@ -43,10 +43,10 @@ def begin(conn: sqlite3.Connection, user_id: str | None, kind: str, paths: list[
 
 
 def finish(conn: sqlite3.Connection, user_id: str | None, kind: str,
-           before: tuple[str, dict[str, dict[str, Any]]]) -> None:
+           before: tuple[str, dict[str, dict[str, Any]]]) -> list[int]:
     from fastapi import HTTPException
     try:
-        record(conn, user_id or '', kind, *before)
+        return record(conn, user_id or '', kind, *before)
     except (ValueError, TypeError) as exc:
         conn.rollback()
         raise HTTPException(422, 'Organization history cannot represent this edit') from exc

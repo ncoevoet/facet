@@ -1,4 +1,5 @@
 import {
+  CULLING_GROUP_TYPES, CullGroupIconPipe, CullGroupLabelPipe,
   IsKeptPipe, IsDecidedPipe, IsConfirmedPipe, IsPassingPipe, PassCountdownPipe,
   FacesForPathPipe, FacePoorExpressionPipe, FaceRingClassPipe, FaceDimmedPipe,
   WeightRemainingPipe, SortIconPipe, CategoryIconPipe, CullProfileIconPipe,
@@ -474,7 +475,7 @@ describe('CanMarkBracketPipe', () => {
   });
 
   it('hides the trigger for a group the detector already named whole', () => {
-    expect(pipe.transform(group(['panorama', 'panorama', 'panorama'], 'panorama'))).toBe(false);
+    expect(pipe.transform(group(['panorama', 'panorama_photosphere', 'panorama'], 'panorama'))).toBe(false);
   });
 });
 
@@ -994,5 +995,29 @@ describe('ScopeDatePipe', () => {
     expect(pipe.transform('2026:07:31 23:59:59')).toEqual(new Date(2026, 6, 31));
     expect(pipe.transform(null)).toBeNull();
     expect(pipe.transform('soon')).toBeNull();
+  });
+});
+
+
+describe('suggested-stack group presentation', () => {
+  const icons = new CullGroupIconPipe();
+  const labels = new CullGroupLabelPipe();
+  it.each([
+    ['all', 'dashboard', 'culling.group_by.all'],
+    ['burst', 'burst_mode', 'culling.group_by.bursts'],
+    ['similar', 'filter_none', 'culling.group_by.similar'],
+    ['scene', 'movie_filter', 'culling.group_by.scenes'],
+    ['bracket', 'hdr_on', 'culling.group_by.brackets'],
+    ['panorama', 'panorama_photosphere', 'culling.group_by.panoramas'],
+    ['hdr_panorama', 'vrpano', 'culling.group_by.hdr_panoramas'],
+    ['duplicate', 'content_copy', 'stacks.suggestion_duplicate'],
+  ])('maps %s to its explicit icon and label', (kind, icon, label) => {
+    expect(icons.transform(kind)).toBe(icon); expect(labels.transform(kind)).toBe(label);
+  });
+  it('keeps duplicates out of the cull group-by options', () => {
+    expect(CULLING_GROUP_TYPES).toEqual(['burst', 'similar', 'scene', 'bracket', 'panorama', 'hdr_panorama']);
+  });
+  it.each(['unknown', '__proto__', 'constructor', 'toString'])('uses safe fallbacks for %s', kind => {
+    expect(icons.transform(kind)).toBe('dashboard'); expect(labels.transform(kind)).toBe('');
   });
 });

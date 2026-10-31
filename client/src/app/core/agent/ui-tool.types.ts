@@ -8,7 +8,7 @@
 /** The only error codes the bridge protocol lets a tab report; the server maps any other to `upstream_error`. */
 export const UI_TOOL_ERROR_CODES = [
   'invalid_input', 'not_found', 'forbidden_level', 'no_active_view', 'upstream_error', 'too_large',
-  'unsaved_decisions', 'navigation_refused', 'plan_changed', 'plan_load_failed', 'no_plan', 'modal_open',
+  'unsaved_decisions', 'navigation_refused', 'plan_changed', 'plan_load_failed', 'no_plan', 'modal_open', 'stack_mode_active',
 ] as const;
 
 export type UiToolErrorCode = (typeof UI_TOOL_ERROR_CODES)[number];

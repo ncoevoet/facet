@@ -1,6 +1,6 @@
 import { SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
 import { Component, DestroyRef, inject, signal, linkedSignal, computed, effect, untracked, viewChild, ElementRef, OnDestroy, HostListener, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
-import { NavigationStart, Router, ActivatedRoute } from '@angular/router';
+import { NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, NavigationError, NavigationSkipped, Router, ActivatedRoute } from '@angular/router';
 import { ViewActionRegistry } from '../../core/agent/view-action-registry.service';
 import { UiToolError } from '../../core/agent/ui-tool.types';
 import { HttpErrorResponse } from '@angular/common/http';
@@ -40,14 +40,16 @@ import { PanoramaSettingsService } from '../comparison/panorama-settings.service
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
 import { UndoService } from '../../core/services/undo.service';
 import { StackActionsService } from './stack-actions.service';
+import { stackEditorReturnUrl } from './stack-editor-history';
+import { stackDialogConfig } from './stack-dialog.config';
 import { SequenceKindLabelPipe, SUPPRESSED_OVERRIDE } from '../../shared/pipes/sequence-kind.pipe';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AssistantChangesService } from '../../core/agent/assistant-changes.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
-import { PageContextService } from '../../core/agent/page-context.service';
+import { PageContextService, registerPageContext } from '../../core/agent/page-context.service';
 import { AssistantCullPlanService, type CullPlanPin } from '../../core/agent/assistant-cull-plan.service';
 import { firstValueFrom } from 'rxjs';
-import { DARKROOM_SHORTCUTS } from './culling-shortcuts';
+import { DARKROOM_SHORTCUTS, STACK_DARKROOM_SHORTCUTS } from './culling-shortcuts';
 import {
   CullingStore, RunGeneration, GroupBy, GROUP_BY_VALUES,
   CULL_GROUP_BY_KEY, CULL_SORT_KEY, CULL_SORT_DIR_KEY, updateMapSignal,
@@ -80,6 +82,14 @@ const CULL_FACE_SIZE_KEY = 'facet_culling_face_size';
 const CULL_LEGEND_KEY = 'facet_culling_legend';
 const CULL_DARKROOM_LOUPE_KEY = 'facet_culling_darkroom_loupe';
 const CULL_SWIPE_HINT_KEY = 'facet_culling_swipe_hint';
+
+/** The gallery payload is JSON of string-valued API filters, independent of its return URL. */
+function parseStackReviewFilters(raw: string | null): Record<string, string> {
+  const filters: unknown = raw ? JSON.parse(raw) : null;
+  if (!filters || typeof filters !== 'object' || Array.isArray(filters)
+    || Object.entries(filters).some(([key, value]) => !key || typeof value !== 'string')) throw new Error('Invalid stack scope');
+  return filters as Record<string, string>;
+}
 
 /** Stored face-panel slider value (0-10); 0 = highlight filter off. */
 function readStoredFaceMin(key: string): number {
@@ -213,6 +223,14 @@ interface SceneSummary {
         <ng-container [ngTemplateOutlet]="cullToolbar" />
       </div>
       <ng-template #cullToolbar>
+        @if (stacksMode()) {
+          <div class="flex flex-wrap items-center gap-2 py-2" data-testid="stack-review-header">
+            <button mat-button (click)="backToGallery()"><mat-icon>arrow_back</mat-icon>{{ I18N.stacks.back_gallery | translate }}</button>
+            <span>{{ I18N.stacks.loaded | translate:{ count: visibleGroups().length } }}</span>
+            @if (cull.batchFull()) { <span class="text-xs opacity-70">{{ I18N.stacks.more_may_follow | translate }}</span> }
+            <button mat-button (click)="cull.resetForReload()">{{ I18N.stacks.suggestions_reload | translate }}</button>
+          </div>
+        } @else {
         <div class="flex items-center gap-3 md:gap-4 min-w-0
                     max-lg:fixed max-lg:bottom-0 max-lg:left-0 max-lg:right-0 max-lg:z-40
                     max-lg:px-3 max-lg:py-2
@@ -475,20 +493,24 @@ interface SceneSummary {
               <mat-icon>delete_sweep</mat-icon>
             </button>
           }
-          @if (unconfirmedCount() > 0) {
+          @if (!stacksMode() && unconfirmedCount() > 0) {
             <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="cull.confirming() || cull.replanning()" class="!hidden lg:!inline-flex !rounded-md shrink-0">
               <mat-icon>done_all</mat-icon>
               {{ I18N.culling.confirm_all | translate }} ({{ unconfirmedCount() }})
             </button>
           }
         </div>
+        }
       </ng-template>
 
 
+      @if (stackNotice()) {
+        <p role="status" data-testid="stack-scope-notice">{{ I18N.stacks.invalid_scope | translate }}</p>
+      }
       <!-- Corrections change nothing until the detector runs again, and that run
            is a whole-library batch pass -- far too expensive to fire once per
            click. So they accumulate and the run is offered here, once. -->
-      @if (cull.rerunNeeded() > 0) {
+      @if (!stacksMode() && cull.rerunNeeded() > 0) {
         <div class="shrink-0 flex flex-wrap items-center gap-3 p-3 mb-3 rounded-lg bg-[var(--mat-sys-surface-container)]" role="status">
           <mat-icon class="!text-base !w-5 !h-5 !leading-5 text-amber-500" aria-hidden="true">schedule</mat-icon>
           <span class="text-sm">{{ I18N.culling.panorama.rerun_banner | translate:{ count: cull.rerunNeeded() } }}</span>
@@ -511,7 +533,7 @@ interface SceneSummary {
         </div>
       }
 
-      @if (cull.planActive()) {
+      @if (!stacksMode() && cull.planActive()) {
         <div role="status" data-testid="cull-plan-banner" class="shrink-0 flex flex-wrap items-center gap-3 rounded-lg border border-[var(--mat-sys-primary)]/40 bg-[var(--mat-sys-primary)]/10 px-4 py-2 mb-2 text-sm">
           <mat-icon class="!text-base !w-5 !h-5 !leading-5 text-[var(--mat-sys-primary)]" aria-hidden="true">smart_toy</mat-icon>
           <span class="font-medium">{{ I18N.culling.plan.banner | translate:{ confirmed: cull.confirmedGroups().size, total: cull.totalGroups() } }}</span>
@@ -556,7 +578,7 @@ interface SceneSummary {
                  [ngClass]="i === selectedGroupIndex()
                    ? 'bg-[var(--mat-sys-surface-container-high)] border-[var(--mat-sys-surface-container-high)]'
                    : 'bg-[var(--mat-sys-surface-container)] border-[var(--mat-sys-surface-container)]'">
-              @if (group.plan; as plan) {
+              @if (!stacksMode() && group.plan; as plan) {
                 <div data-testid="cull-plan-chip" class="flex flex-wrap items-center gap-2 px-4 pt-2 text-xs">
                   <span class="font-bold">#{{ plan.number }}</span>
                   @if (group | cullPlanGroupReason; as reason) {
@@ -611,7 +633,7 @@ interface SceneSummary {
                    can only ever read as pending here -- saying otherwise would
                    claim a set had changed while the feed still groups it the
                    old way. -->
-              @if (group | groupOverridePending; as pending) {
+              @if (!stacksMode() && (group | groupOverridePending); as pending) {
                 <div class="flex flex-wrap items-center gap-2 px-4 pt-2 text-xs">
                   <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300"
                         [matTooltip]="I18N.culling.panorama.pending_tooltip | translate">
@@ -639,39 +661,41 @@ interface SceneSummary {
                        [class.border-transparent]="!(photo.path | isDecided:cull.selectionsMap():groupKey)"
                        role="button"
                        tabindex="0"
-                       [attr.aria-label]="photo.filename + ', ' + (
+                       [attr.aria-label]="stacksMode() ? photo.filename : photo.filename + ', ' + (
                          (photo.path | isKept:cull.selectionsMap():groupKey)
                            ? (I18N.culling.lightbox.kept | translate)
                            : (photo.path | isDecided:cull.selectionsMap():groupKey)
                              ? (I18N.culling.lightbox.rejected | translate)
                              : (I18N.culling.lightbox.undecided | translate))"
-                       [attr.aria-pressed]="photo.path | isKept:cull.selectionsMap():groupKey"
-                       (click)="cull.tileClick(photo.path, group)"
-                       (keydown.enter)="cull.toggleSelection(photo.path, group); $event.stopPropagation()"
-                       (keydown.space)="cull.toggleSelection(photo.path, group); $event.stopPropagation(); $event.preventDefault()"
-                       (dblclick)="cull.tileDoubleClick(photo.path, group); $event.stopPropagation()">
+                       [attr.aria-pressed]="stacksMode() ? null : (photo.path | isKept:cull.selectionsMap():groupKey)"
+                       (click)="stacksMode() ? openLightbox(group, pIdx) : cull.tileClick(photo.path, group)"
+                       (keydown.enter)="stacksMode() ? openLightbox(group, pIdx) : cull.toggleSelection(photo.path, group); $event.stopPropagation()"
+                       (keydown.space)="stacksMode() ? openLightbox(group, pIdx) : cull.toggleSelection(photo.path, group); $event.stopPropagation(); $event.preventDefault()"
+                       (dblclick)="stacksMode() ? openLightbox(group, pIdx) : cull.tileDoubleClick(photo.path, group); $event.stopPropagation()">
                     <img [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision"
                          [appLoupe]="photo.path | imageUrl:true:photo.preview_revision"
                          [loupeActive]="loupeActive()"
                          [loupeZoom]="loupeZoom()"
                          class="block h-72 md:h-96 w-auto object-cover" [alt]="photo.filename" loading="lazy" />
-                    @if (photo.path === group.best_path) {
-                      <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
-                        {{ I18N.culling.auto_best | translate }}
-                      </div>
-                    } @else if (photo.cull_reason; as reason) {
-                      <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium max-w-[160px] truncate">
-                        {{ reason | cullReason }}
-                      </div>
-                    }
-                    @if (photo.path | isKept:cull.selectionsMap():groupKey) {
-                      <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
-                      </div>
-                    } @else if (photo.path | isDecided:cull.selectionsMap():groupKey) {
-                      <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
-                      </div>
+                    @if (!stacksMode()) {
+                      @if (photo.path === group.best_path) {
+                        <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-green-600 text-white text-xs font-bold">
+                          {{ I18N.culling.auto_best | translate }}
+                        </div>
+                      } @else if (photo.cull_reason; as reason) {
+                        <div class="absolute top-2 left-2 px-2 py-0.5 rounded bg-black/70 text-white text-xs font-medium max-w-[160px] truncate">
+                          {{ reason | cullReason }}
+                        </div>
+                      }
+                      @if (photo.path | isKept:cull.selectionsMap():groupKey) {
+                        <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center">
+                          <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
+                        </div>
+                      } @else if (photo.path | isDecided:cull.selectionsMap():groupKey) {
+                        <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center">
+                          <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
+                        </div>
+                      }
                     }
                     @if (photo.path | planDiffers:group:cull.selectionsMap()) {
                       @let accepted = photo.path | planAccepted:group:cull.selectionsMap():cull.suggestions().photos;
@@ -702,15 +726,16 @@ interface SceneSummary {
                       <span class="px-2 py-0.5 rounded bg-black/60 text-white text-xs font-medium">
                         {{ photo.aggregate | number:'1.1-1' }}
                       </span>
-                      @if (photo.is_rejected) {
-                        <span data-testid="reject-marker" class="px-2 py-0.5 rounded bg-red-700 text-white text-xs font-bold">
-                          {{ I18N.rating.rejected_badge | translate }}
-                        </span>
-                      }
-                      @if (photo.is_kept && !photo.is_rejected) {
-                        <span data-testid="kept-marker" class="px-2 py-0.5 rounded bg-green-700 text-white text-xs font-bold">
-                          {{ I18N.review.kept | translate }}
-                        </span>
+                      @if (!stacksMode()) {
+                        @if (photo.is_rejected) {
+                          <span data-testid="reject-marker" class="px-2 py-0.5 rounded bg-red-700 text-white text-xs font-bold">
+                            {{ I18N.rating.rejected_badge | translate }}
+                          </span>
+                        } @else if (photo.is_kept) {
+                          <span data-testid="kept-marker" class="px-2 py-0.5 rounded bg-green-700 text-white text-xs font-bold">
+                            {{ I18N.review.kept | translate }}
+                          </span>
+                        }
                       }
                       @if (photo.sequence_kind === 'bracket') {
                         <span class="px-2 py-0.5 rounded bg-amber-600 text-white text-xs font-bold">
@@ -741,6 +766,15 @@ interface SceneSummary {
                           [matTooltip]="group.type | cullGroupLabel | translate"
                           [attr.aria-label]="group.type | cullGroupLabel | translate">{{ group.type | cullGroupIcon }}</mat-icon>
                 <span class="text-xs opacity-50">{{ group.count }} {{ I18N.culling.photos | translate }}</span>
+                @if (stacksMode()) {
+                  @if (cull.stackDrafts()[groupKey].excludedCount; as count) { <span data-stack-excluded role="status" class="text-xs">{{ I18N.stacks.reject_count | translate:{ count } }}</span> }
+                  <div class="flex flex-wrap gap-2 ml-auto">
+                    <button mat-button (click)="openLightbox(group, 0)">{{ I18N.culling.darkroom | translate }}</button>
+                    <button mat-button [disabled]="cull.stackBusy()" (click)="editSuggestion(group)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
+                    <button mat-button [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(group)">{{ I18N.stacks.suggestion_skip | translate }}</button>
+                    <button mat-flat-button [disabled]="cull.stackBusy() || cull.stackDrafts()[groupKey].paths.length < 2" (click)="stackGroup(group)">{{ I18N.stacks.stack_cover | translate }}</button>
+                  </div>
+                } @else {
                 @if (group.category; as category) {
                   @if (cull.comparisonStats(); as stats) {
                     @if ((category | weightRemaining:stats); as remaining) {
@@ -860,6 +894,7 @@ interface SceneSummary {
                     </button>
                   }
                 </div>
+                }
               </div>
             </div>
           }
@@ -879,7 +914,7 @@ interface SceneSummary {
       <!-- Sticky footer (small screens only): on lg+ the action moves into the top toolbar.
            On small screens the toolbar is fixed to the viewport bottom, so this bar clears
            its height (max-lg:mb-16) to avoid stacking under the fixed icon bar. -->
-      @if (unconfirmedCount() > 0) {
+      @if (!stacksMode() && unconfirmedCount() > 0) {
         <div class="lg:!hidden shrink-0 flex justify-center py-1.5 max-lg:mb-14 border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)]">
           <button mat-flat-button (click)="confirmAllRemaining()" [disabled]="cull.confirming() || cull.replanning()" class="!px-6 !rounded-md !h-9">
             <mat-icon>done_all</mat-icon>
@@ -913,7 +948,7 @@ interface SceneSummary {
           </div>
           @if (legendVisible()) {
             <div class="flex flex-wrap items-center justify-center gap-x-4 gap-y-1.5 text-sm">
-              @for (row of darkroomShortcuts; track row.labelKey) {
+              @for (row of darkroomShortcuts(); track row.labelKey) {
                 <span class="inline-flex items-center gap-1.5">
                   <span class="flex gap-1">
                     @for (k of row.keys; track k) {
@@ -925,7 +960,8 @@ interface SceneSummary {
               }
             </div>
           }
-          <div class="flex items-center gap-1 shrink-0" role="presentation"
+          <div class="flex items-center gap-1 [&>button]:shrink-0" [class.shrink-0]="!stacksMode()"
+               [class.min-w-0]="stacksMode()" [class.flex-1]="stacksMode()" [class.overflow-x-auto]="stacksMode()" role="presentation"
                (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
             <button mat-icon-button [class.!text-white]="!legendVisible()"
                     [class.!text-[var(--mat-sys-primary)]]="legendVisible()"
@@ -968,13 +1004,19 @@ interface SceneSummary {
                     (click)="toggleDarkroomLoupe()">
               <mat-icon>{{ darkroomLoupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
             </button>
-            @if (auth.isEdition() && (lbGroup | canStackGroup)) {
-              <button mat-icon-button class="!text-white" aria-keyshortcuts="S"
+            @if (auth.isEdition() && (stacksMode() || (lbGroup | canStackGroup))) {
+              <button mat-icon-button class="!text-white" aria-keyshortcuts="S" [disabled]="stacksMode() && (cull.stackBusy() || cull.stackDrafts()[lbKey].paths.length < 2)"
                       [matTooltip]="I18N.culling.stack_group | translate"
                       [attr.aria-label]="I18N.culling.stack_group | translate"
                       (click)="stackGroup(lbGroup)"><mat-icon>layers</mat-icon></button>
             }
-            @if (cullStyleCapable() && compareMode() === 'single') {
+            @if (stacksMode()) {
+              <button mat-icon-button data-stack-reject class="!text-white" aria-keyshortcuts="R" [disabled]="cull.stackBusy() || !!cull.stackExcluded()[lbGroup.photos[lightboxIndex()]?.path ?? '']"
+                      [matTooltip]="I18N.stacks.reject_focused | translate" [attr.aria-label]="I18N.stacks.reject_focused | translate" (click)="rejectStackPhoto(lbGroup)"><mat-icon aria-hidden="true">block</mat-icon></button>
+              <button mat-button class="!text-white" [disabled]="cull.stackBusy()" (click)="editSuggestion(lbGroup)">{{ I18N.stacks.suggestion_edit_members | translate }}</button>
+              <button mat-button class="!text-white" [disabled]="cull.stackBusy()" (click)="skipStackSuggestion(lbGroup)">{{ I18N.stacks.suggestion_skip | translate }}</button>
+            }
+            @if (!stacksMode() && cullStyleCapable() && compareMode() === 'single') {
               <button mat-icon-button [matMenuTriggerFor]="cullStyleMenu"
                       [class.!text-white]="activeStyle() === ''"
                       [class.!text-[var(--mat-sys-primary)]]="activeStyle() !== ''"
@@ -1035,16 +1077,18 @@ interface SceneSummary {
              white glyph, which survives any frame under it. The bare tinted icon
              this replaced was unreadable over a busy photo. -->
         <ng-template #frameState let-kept="kept" let-decided="decided">
-          @if (kept) {
-            <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow"
-                 [attr.aria-label]="I18N.culling.lightbox.kept | translate">
-              <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
-            </div>
-          } @else if (decided) {
-            <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center shadow"
-                 [attr.aria-label]="I18N.culling.lightbox.rejected | translate">
-              <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
-            </div>
+          @if (!stacksMode()) {
+            @if (kept) {
+              <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow"
+                   [attr.aria-label]="I18N.culling.lightbox.kept | translate">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
+              </div>
+            } @else if (decided) {
+              <div class="absolute top-2 right-2 w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center shadow"
+                   [attr.aria-label]="I18N.culling.lightbox.rejected | translate">
+                <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
+              </div>
+            }
           }
         </ng-template>
         <!-- Image -->
@@ -1162,6 +1206,7 @@ interface SceneSummary {
                     <!-- The ↑ / ↓ keys only ever reach the focused frame, so a
                          compare grid needs a way to decide the pane the user is
                          actually looking at. Same write as those keys. -->
+                    @if (!stacksMode()) {
                     <div class="absolute bottom-2 right-2 flex items-center gap-2 pointer-events-auto">
                       <button type="button"
                               class="w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100 cursor-pointer"
@@ -1182,11 +1227,30 @@ interface SceneSummary {
                         <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
                       </button>
                     </div>
+                    }
                   </div>
                 </div>
               }
             </div>
           }
+          @if (stacksMode()) {
+            @if (cull.stackDrafts()[lbKey].excludedCount; as count) {
+              <p data-stack-excluded role="status" class="shrink-0 text-white text-sm px-3 py-1">{{ I18N.stacks.reject_count | translate:{ count } }} @if (cull.stackDrafts()[lbKey].paths.length < 2) { {{ I18N.stacks.regroup_minimum | translate }} }</p>
+            }
+            <div class="shrink-0 flex gap-2 overflow-x-auto border-t border-white/10 px-3 py-2" data-stack-filmstrip
+                 role="presentation" (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
+              @for (photo of lbGroup.photos; track photo.path; let index = $index) {
+                <button type="button" class="shrink-0 rounded border-2 border-transparent overflow-hidden cursor-pointer"
+                        [class.!border-amber-400]="index === lightboxIndex()" [class.opacity-40]="cull.stackExcluded()[photo.path]"
+                        [attr.aria-current]="index === lightboxIndex() ? 'true' : null"
+                        [attr.aria-label]="photo.filename" (click)="focusPhotoInLightbox(index)">
+                  <img class="h-16 w-auto max-w-32 object-contain" loading="lazy"
+                       [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" [alt]="photo.filename" />
+                  @if (cull.stackExcluded()[photo.path]) { <span class="text-xs text-white block">{{ I18N.rating.rejected_badge | translate }}</span> }
+                </button>
+              }
+            </div>
+          } @else {
           <!-- Footer status -->
           <div class="px-4 py-3 text-center"
                role="presentation"
@@ -1222,10 +1286,11 @@ interface SceneSummary {
               </div>
             }
           </div>
+          }
         }
 
         <!-- Face / expression close-up grid -->
-        @if (faceGridHasFaces()) {
+        @if (!stacksMode() && faceGridHasFaces()) {
           <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
                role="presentation"
                (click)="$event.stopPropagation()"
@@ -1324,7 +1389,7 @@ interface SceneSummary {
                     </div>
                     @if (photo.path === lbGroup.best_path) {
                       <span class="text-green-400 text-[10px] font-bold">{{ I18N.culling.auto_best | translate }}</span>
-                    } @else if (photo.cull_reason; as reason) {
+                    } @else if (!stacksMode() && photo.cull_reason; as reason) {
                       <span class="text-white/60 text-[10px] truncate" [style.max-width.px]="faceSize()">{{ reason | cullReason }}</span>
                     }
                   </div>
@@ -1335,7 +1400,7 @@ interface SceneSummary {
         }
 
         <!-- Subject close-up grid (non-face groups with a saliency subject box) -->
-        @if (subjectStripVisible()) {
+        @if (!stacksMode() && subjectStripVisible()) {
           <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
                role="presentation"
                (click)="$event.stopPropagation()"
@@ -1364,7 +1429,7 @@ interface SceneSummary {
                       </div>
                       @if (photo.path === lbGroup.best_path) {
                         <span class="text-green-400 text-[10px] font-bold">{{ I18N.culling.auto_best | translate }}</span>
-                      } @else if (photo.cull_reason; as reason) {
+                      } @else if (!stacksMode() && photo.cull_reason; as reason) {
                         <span class="text-white/60 text-[10px] max-w-[96px] truncate">{{ reason | cullReason }}</span>
                       }
                     </button>
@@ -1490,6 +1555,7 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly auth = inject(AuthService);
   protected readonly store = inject(GalleryStore);
   private readonly dialog = inject(MatDialog);
+  private readonly pageContext = inject(PageContextService);
   private readonly destroyRef = inject(DestroyRef);
   private trashOpening = false;
   private trashNavigation = 0;
@@ -1513,6 +1579,7 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly datePresets = CULL_DATE_PRESETS;
   /** Why the feed is empty: the wording follows what narrowed it. */
   protected readonly emptyKey = computed(() => {
+    if (this.stacksMode()) return this.I18N.stacks.suggestions_empty;
     const dated = this.cull.dateRangeActive();
     // Only a feed or plan that loaded no group at all: one whose groups were all confirmed or hidden is "done".
     const loadedNone = this.cull.groups().length === 0;
@@ -1587,7 +1654,7 @@ export class BurstCullingComponent implements OnDestroy {
    * any given drag.
    */
   protected readonly swipeEnabled = computed(
-    () => this.coarsePointer.isCoarsePointer()
+    () => !this.stacksMode() && this.coarsePointer.isCoarsePointer()
       && this.compareMode() === 'single'
       && this.zoom().scale <= SyncedZoomComponent.MIN_SCALE,
   );
@@ -1931,9 +1998,10 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Measure a frame once, for the composition grid's viewBox. */
   private async ensureFrameSize(path: string): Promise<void> {
+    const current = this.pageSession();
     if (this.frameSizes().has(path)) return;
     const size = await this.measureFrame(this.frameSource(path, false));
-    if (size) updateMapSignal(this.frameSizes, path, size);
+    if (size && current()) updateMapSignal(this.frameSizes, path, size);
   }
 
   /** Seam over the image load, for the same reason as renderPeaking. */
@@ -2038,7 +2106,7 @@ export class BurstCullingComponent implements OnDestroy {
   /** Groups visible in the UI (excludes hidden groups + honors the category filter). */
   protected readonly visibleGroups = computed(() => {
     const hidden = this.cull.hiddenGroups();
-    const cat = this.categoryFilter();
+    const cat = this.stacksMode() ? '' : this.categoryFilter();
     return this.cull.groups().filter(g => !hidden.has(this.cull.groupKey(g)) && (!cat || g.category === cat));
   });
 
@@ -2082,15 +2150,139 @@ export class BurstCullingComponent implements OnDestroy {
     return [...set].sort();
   });
 
-  protected readonly darkroomShortcuts = DARKROOM_SHORTCUTS;
+  protected readonly stacksMode = computed(() => this.cull.mode() === 'stacks');
+  protected readonly darkroomShortcuts = computed(() => this.stacksMode() ? STACK_DARKROOM_SHORTCUTS : DARKROOM_SHORTCUTS);
+  protected readonly stackNotice = signal(false);
+  private stackReturnUrl = '/';
+  private pageEpoch = 0;
+  private pageAlive = true;
+  private pageNavigating = false;
+  private pageOwner = this.auth.identity();
+  private secondaryEditor: { close: () => void } | null = null;
+  private stackNavigationSource: { owner: string; filters: Record<string, string> | null } | null = null;
+  private detectionGeneration = 0;
+
+  private clearStackView(): void {
+    this.secondaryEditor?.close();
+    this.secondaryEditor = null;
+    this.closeLightbox();
+    this.faceMap.set(new Map());
+    this.subjectMap.set(new Map());
+    this.keySubjectMap.set(new Map());
+    this.frameSizes.set(new Map());
+    this.failedRenderPaths.set(new Set());
+    this.sharpPath.set(null);
+    this.clearPeaking();
+    this.abortPrefetch(this.neighbourThumbs);
+    this.abortPrefetch(this.neighbourRenders);
+  }
+
+  private setStackReturnUrl(target: string): void {
+    this.stackReturnUrl = stackEditorReturnUrl(this.router, target);
+  }
+
+  private loadCullingAuxiliaryState(): void {
+    void this.loadAlbums();
+    void this.cull.loadCullProfiles();
+    void this.cull.refreshComparisonStats();
+    void this.cull.refreshRankerStatus();
+  }
+
+  /** A cancelled visit has a new root navigation context; old decisions and Undo must stay expired. */
+  private recoverStackVisit(): void {
+    const source = this.stackNavigationSource;
+    this.stackNavigationSource = null;
+    if (!source || !this.pageAlive || this.destroyRef.destroyed) return;
+    const tree = this.router.parseUrl(this.router.url);
+    const segments = tree.root.children['primary']?.segments;
+    if (segments?.length !== 1 || segments[0].path !== 'culling') return;
+    if (tree.queryParamMap.get('mode') !== 'stacks' && source.filters === null) return;
+    if (this.auth.identity() !== source.owner || !this.auth.isEdition()) { this.leaveStacks(); return; }
+    if (tree.queryParamMap.get('mode') !== 'stacks') {
+      this.cull.leaveStackMode();
+      if (!this.planService.pin()) void this.cull.loadGroups();
+      this.loadCullingAuxiliaryState();
+      return;
+    }
+    try {
+      const filters = parseStackReviewFilters(tree.queryParamMap.get('filters'));
+      this.stopDetectionPolling();
+      this.clearStackView();
+      this.cull.enterStackMode(filters);
+      this.setStackReturnUrl(tree.queryParamMap.get('return') ?? '/');
+      void this.cull.loadGroups();
+    } catch { this.leaveStacks(); }
+  }
+
+  private pageSession(): () => boolean {
+    const epoch = this.pageEpoch;
+    const owner = this.auth.identity();
+    const mode = this.cull.mode();
+    return () => this.pageAlive && !this.pageNavigating && !this.destroyRef.destroyed && epoch === this.pageEpoch
+      && this.auth.identity() === this.pageOwner
+      && this.auth.identity() === owner && this.auth.isEdition() && this.cull.mode() === mode;
+  }
+
+  private leaveStacks(): void {
+    this.pageEpoch++;
+    this.stopDetectionPolling();
+    this.stackNavigationSource = null;
+    this.clearStackView();
+    this.cull.leaveStackMode();
+    this.pageOwner = this.auth.identity();
+    this.stackNotice.set(true);
+    void this.router.navigate(['/culling'], { replaceUrl: true });
+    void this.cull.loadGroups();
+    this.loadCullingAuxiliaryState();
+  }
+
+  protected backToGallery(): void { void this.router.navigateByUrl(this.stackReturnUrl); }
+
 
   constructor() {
-    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
-      if (event instanceof NavigationStart) this.trashNavigation++;
+    const qp = this.route.snapshot.queryParamMap;
+    if (qp.get('mode') === 'stacks') {
+      try {
+        if (!this.auth.isEdition()) throw new Error('Invalid stack session');
+        this.cull.enterStackMode(parseStackReviewFilters(qp.get('filters')));
+        this.setStackReturnUrl(qp.get('return') ?? '/');
+      } catch {
+        this.stackNotice.set(true);
+        void this.router.navigate(['/culling'], { replaceUrl: true });
+      }
+    }
+    const owner = this.auth.identity();
+    effect(() => {
+      const identity = this.auth.identity();
+      const edition = this.auth.isEdition();
+      const invalid = this.cull.stackScopeInvalid();
+      if (this.stacksMode() && (identity !== owner || !edition || invalid)) untracked(() => this.leaveStacks());
     });
-    this.pageHelp.setDescription(this.I18N.culling.help_text);
+    registerPageContext('culling', () => ({ mode: this.cull.mode() }));
+    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (event instanceof NavigationStart) {
+        this.pageNavigating = true;
+        this.trashNavigation++;
+        this.pageEpoch++;
+        this.stackNavigationSource ??= { owner: this.pageOwner, filters: this.stacksMode() ? { ...this.cull.stackFilters() } : null };
+        if (this.stacksMode()) {
+          this.clearStackView();
+          // Invalidate the old visit without ever enabling cull writes beneath a stack URL.
+          this.cull.enterStackMode(this.stackNavigationSource.filters ?? {});
+          this.cull.loading.set(true);
+        } else this.secondaryEditor?.close();
+      } else if (event instanceof NavigationEnd || event instanceof NavigationCancel
+        || event instanceof NavigationError || event instanceof NavigationSkipped) {
+        if (event instanceof NavigationCancel && (event.code === NavigationCancellationCode.Redirect
+          || event.code === NavigationCancellationCode.SupersededByNewNavigation)) return;
+        this.pageNavigating = false;
+        this.recoverStackVisit();
+      }
+    });
+    effect(() => this.pageHelp.setDescription(this.stacksMode() ? this.I18N.stacks.review_help : this.I18N.culling.help_text));
     // The help dialog's My Taste line: how many comparisons the ranker has.
     effect(() => {
+      if (this.stacksMode()) { this.pageHelp.note.set(null); return; }
       const count = this.cull.rankerComparisons();
       const key = this.cull.rankerTrained() ? this.I18N.culling.my_taste_trained : this.I18N.culling.my_taste_learning;
       this.pageHelp.note.set(count === null ? null : { key, params: { count } });
@@ -2108,7 +2300,7 @@ export class BurstCullingComponent implements OnDestroy {
     });
     inject(DestroyRef).onDestroy(() => this.journal.darkroomFocus.set(null));
     // The auto-cull confirm is a custom modal MatDialog cannot see; the lightbox is the page's working surface and is not one.
-    const pageContext = inject(PageContextService);
+    const pageContext = this.pageContext;
     effect(onCleanup => {
       if (this.cull.autoCullPreview()) onCleanup(pageContext.registerOverlay('dialog'));
     });
@@ -2125,7 +2317,6 @@ export class BurstCullingComponent implements OnDestroy {
     inject(DestroyRef).onDestroy(
       inject(ViewActionRegistry).register('ui_show_culling_group', args => this.showGroupForAgent(args)),
     );
-    const qp = this.route.snapshot.queryParamMap;
     this.cull.scopeAlbum.set(qp.get('album'));
     this.cull.scopeFrom.set(qp.get('from'));
     this.cull.scopeTo.set(qp.get('to'));
@@ -2137,22 +2328,21 @@ export class BurstCullingComponent implements OnDestroy {
       const from = this.cull.scopeFrom();
       const to = this.cull.scopeTo();
       const scene = this.cull.scopeScene();
-      untracked(() => this.mirrorScopeToUrl(album, from, to, scene));
+      if (!this.stacksMode() && !this.pageNavigating) untracked(() => this.mirrorScopeToUrl(album, from, to, scene));
     });
     const gb = qp.get('group_by');
     // Validated against the shared list, not a repeated literal union: the
     // hand-written one silently dropped every granularity added after it.
     if (gb && (GROUP_BY_VALUES as readonly string[]).includes(gb)) this.cull.groupBy.set(gb as GroupBy);
     // A held plan wins over the URL-driven feed: the effect below enters it with its own scope and granularity.
-    if (!this.planService.pin()) void this.cull.loadGroups();
+    if (this.stacksMode() || !this.planService.pin()) void this.cull.loadGroups();
     effect(() => {
       const pin = this.planService.pin();
-      if (pin) untracked(() => { void this.followPin(pin); });
+      if (pin && !this.stacksMode() && !this.pageNavigating) untracked(() => { void this.followPin(pin); });
     });
-    void this.loadAlbums();
-    void this.cull.loadCullProfiles();
-    void this.cull.refreshComparisonStats();
-    void this.cull.refreshRankerStatus();
+    if (!this.stacksMode()) {
+      this.loadCullingAuxiliaryState();
+    }
     // Keep the keyboard selection in bounds as groups load / get hidden, preserving
     // the identity of the highlighted group when an earlier one drops out of the list.
     let previousVisibleKeys: string[] = [];
@@ -2315,6 +2505,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.pageAlive = false; this.pageEpoch++; this.secondaryEditor?.close();
     this.pageHelp.setDescription(null);
     this.coarsePointer.cleanup();
     this.cull.clearAllPassTimers();
@@ -2330,6 +2521,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Enter the assistant's plan when the pin is a new one, then land on the group it asked for. */
   private async followPin(pin: CullPlanPin): Promise<void> {
+    if (this.stacksMode()) return;
     if (this.cull.planDigest() !== pin.digest) {
       this.selectedGroupIndex.set(0);
       if (await this.cull.enterPlan(pin) !== 'landed') return;
@@ -2567,6 +2759,9 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** `ui_show_culling_group`: open the lightbox on the group identified by (type, group_id), paging in more groups if needed. */
   private async showGroupForAgent(args: Record<string, unknown>): Promise<unknown> {
+    const current = this.pageSession();
+    if (this.stacksMode()) throw new UiToolError('stack_mode_active', 'Suggested stacks is active.');
+    if (!current()) throw new UiToolError('no_active_view', 'The darkroom session changed.');
     const type = args['type'];
     const groupId = args['group_id'];
     const find = () => this.cull.groups().find(g => g.type === type && g.group_id === groupId);
@@ -2581,6 +2776,8 @@ export class BurstCullingComponent implements OnDestroy {
       await this.cull.loadMore();
       if (this.cull.currentPage() === before) break;
     }
+    if (this.stacksMode()) throw new UiToolError('stack_mode_active', 'Suggested stacks is active.');
+    if (!current()) throw new UiToolError('no_active_view', 'The darkroom session changed.');
     const group = find();
     if (!group) throw new UiToolError('not_found', `No ${String(type)} group ${String(groupId)} in the darkroom's current scope.`);
     this.openLightbox(group, 0);
@@ -2596,7 +2793,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.lightboxIndex.set(index);
     const gi = this.visibleGroups().findIndex(g => this.cull.groupKey(g) === this.cull.groupKey(group));
     if (gi >= 0) this.selectedGroupIndex.set(gi);
-    void this.loadCloseupsForGroup(group);
+    if (!this.stacksMode()) void this.loadCloseupsForGroup(group);
   }
 
   /** Jump the darkroom's main view to a group photo (subject-strip click). */
@@ -2618,6 +2815,20 @@ export class BurstCullingComponent implements OnDestroy {
    */
   protected onDarkroomKeydown(event: KeyboardEvent): void {
     event.stopPropagation();
+    if (this.stacksMode()) {
+      if (this.shortcutsBlocked(event)) return;
+      if (event.key === 'Enter' && isControlActivation(event)) return;
+      if (event.key === ' ' && !isControlActivation(event) && !isTypingContext(event)) event.preventDefault();
+      if (event.key === 's' || event.key === 'S' || event.key === 'Enter') this.onStackKey(event);
+      else if (event.key === 'x' || event.key === 'X') this.onSkipSuggestionKey(event);
+      else if (event.key.toLowerCase() === 'r') this.onRejectStackKey(event);
+      else if (event.key === 'ArrowLeft') this.onArrowLeft(event);
+      else if (event.key === 'ArrowRight') this.onArrowRight(event);
+      else if (event.key.toLowerCase() === 'z') this.onZoomToggle(event);
+      else if (event.key.toLowerCase() === 'p') this.onPeakingKey(event);
+      else if (event.key.toLowerCase() === 'g') this.onGridKey(event);
+      else if (event.key.toLowerCase() === 'f') this.onFullscreenToggle(event);
+    }
     if (event.key === 'Escape') this.closeLightbox();
   }
 
@@ -2643,6 +2854,8 @@ export class BurstCullingComponent implements OnDestroy {
    * faceMap; already-loaded paths are skipped.
    */
   private async loadFacesForGroup(group: CullingGroup): Promise<void> {
+    const current = this.pageSession();
+    if (this.stacksMode() || !current()) return;
     const missing = group.photos.filter(p => !this.faceMap().has(p.path));
     if (missing.length === 0) return;
     try {
@@ -2651,6 +2864,7 @@ export class BurstCullingComponent implements OnDestroy {
           '/culling-group/faces', { paths: missing.map(p => p.path), profile: this.cull.selectedProfile() || undefined },
         ),
       );
+      if (!current()) return;
       if (data.thresholds) this.faceThresholds.set(data.thresholds);
       const byPath = data.faces_by_path ?? {};
       this.faceMap.update(m => {
@@ -2659,6 +2873,7 @@ export class BurstCullingComponent implements OnDestroy {
         return next;
       });
     } catch {
+      if (!current()) return;
       // Best-effort: record empty results so we don't refetch on every open.
       this.faceMap.update(m => {
         const next = new Map(m);
@@ -2679,8 +2894,12 @@ export class BurstCullingComponent implements OnDestroy {
    * one as much as a portrait does.
    */
   private async loadCloseupsForGroup(group: CullingGroup): Promise<void> {
+    const current = this.pageSession();
+    if (this.stacksMode() || !current()) return;
     await this.loadFacesForGroup(group);
+    if (!current()) return;
     await this.loadKeySubjectsForGroup(group);
+    if (!current()) return;
     const hasFaces = group.photos.some(p => (this.faceMap().get(p.path)?.length ?? 0) > 0);
     if (!hasFaces) await this.loadSubjectsForGroup(group);
   }
@@ -2694,6 +2913,8 @@ export class BurstCullingComponent implements OnDestroy {
    * call is not retried on every open.
    */
   private async loadKeySubjectsForGroup(group: CullingGroup): Promise<void> {
+    const current = this.pageSession();
+    if (this.stacksMode() || !current()) return;
     const missing = group.photos.filter(p => !this.keySubjectMap().has(p.path));
     if (missing.length === 0) return;
     try {
@@ -2702,9 +2923,10 @@ export class BurstCullingComponent implements OnDestroy {
           '/photos/key_subjects', { paths: missing.map(p => p.path) },
         ),
       );
+      if (!current()) return;
       this.applyKeySubjects(missing, data.key_subjects_by_path ?? {});
     } catch {
-      this.applyKeySubjects(missing);
+      if (current()) this.applyKeySubjects(missing);
     }
   }
 
@@ -2739,6 +2961,8 @@ export class BurstCullingComponent implements OnDestroy {
    * appear in the strip.
    */
   private async loadSubjectsForGroup(group: CullingGroup): Promise<void> {
+    const current = this.pageSession();
+    if (this.stacksMode() || !current()) return;
     const missing = group.photos.filter(p => !this.subjectMap().has(p.path));
     if (missing.length === 0) return;
     try {
@@ -2747,9 +2971,10 @@ export class BurstCullingComponent implements OnDestroy {
           '/culling-group/subjects', { paths: missing.map(p => p.path) },
         ),
       );
+      if (!current()) return;
       this.applySubjects(missing, data.subjects_by_path ?? {});
     } catch {
-      this.applySubjects(missing);
+      if (current()) this.applySubjects(missing);
     }
   }
 
@@ -2784,7 +3009,12 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private shortcutsBlocked(event: Event): boolean {
-    return event.defaultPrevented || this.dialog.openDialogs.length > 0;
+    if (event.defaultPrevented || this.dialog.openDialogs.length > 0) return true;
+    if (!this.stacksMode()) return false;
+    const key = event as KeyboardEvent;
+    return this.pageNavigating || this.cull.stackBusy() || isTypingContext(event) || key.shiftKey || key.ctrlKey || key.metaKey || key.altKey
+      || key.isComposing || key.keyCode === 229 || key.repeat || this.pageContext.overlays().length > 0
+      || !!(event.target instanceof HTMLElement ? event.target : null)?.closest('[role="slider"], [role="radiogroup"]');
   }
 
   @HostListener('document:keydown.arrowleft', ['$event'])
@@ -2893,6 +3123,7 @@ export class BurstCullingComponent implements OnDestroy {
    * was made on are both restored from the snackbar.
    */
   protected onSwipeDecision(group: CullingGroup, keep: boolean): void {
+    if (this.stacksMode()) return;
     const photo = group.photos[this.lightboxIndex()];
     if (!photo) return;
     const previousKept = new Set(this.cull.selectionsMap().get(this.cull.groupKey(group)) ?? []);
@@ -2917,14 +3148,18 @@ export class BurstCullingComponent implements OnDestroy {
   @HostListener('document:keydown.s', ['$event'])
   protected onStackKey(event: Event): void {
     if (this.shortcutsBlocked(event)) return;
-    const group = this.lightboxGroup();
+    const group = this.lightboxGroup() ?? (this.stacksMode() ? this.visibleGroups()[this.selectedGroupIndex()] : null);
     if (!group || isTypingContext(event)) return;
     event.preventDefault();
     void this.stackGroup(group);
   }
 
   protected async stackGroup(group: CullingGroup): Promise<void> {
-    const cover = group.photos[this.lightboxIndex()]?.path;
+    const cover = this.stacksMode() && this.lightboxGroupId() !== this.cull.groupKey(group) ? group.best_path : group.photos[this.lightboxIndex()]?.path;
+    if (this.stacksMode()) {
+      if (cover && await this.cull.stackSuggestion(group, cover)) this.afterSuggestion(group);
+      return;
+    }
     if (!cover || !canStackGroup(group) || !this.auth.isEdition() || this.stacking) return;
     this.stacking = true;
     try {
@@ -2937,6 +3172,67 @@ export class BurstCullingComponent implements OnDestroy {
     }
   }
 
+  private afterSuggestion(group: CullingGroup): void {
+    if (this.lightboxGroupId() !== this.cull.groupKey(group)) return;
+    const next = this.visibleGroups()[this.selectedGroupIndex()] ?? this.visibleGroups()[0];
+    if (next) this.openLightbox(next, 0); else this.closeLightbox();
+  }
+
+  @HostListener('document:keydown.r', ['$event'])
+  protected onRejectStackKey(event: Event): void {
+    if (!this.stacksMode() || this.shortcutsBlocked(event)) return;
+    const group = this.lightboxGroup();
+    if (!group) return;
+    event.preventDefault(); void this.rejectStackPhoto(group);
+  }
+
+  protected async rejectStackPhoto(group: CullingGroup): Promise<void> {
+    const current = this.pageSession();
+    if (!this.stacksMode() || !current() || this.cull.stackBusy() || this.lightboxGroupId() !== this.cull.groupKey(group)) return;
+    const index = this.lightboxIndex(); const path = group.photos[index]?.path;
+    if (!path) return;
+    if (await this.cull.rejectStackPhoto(group, path) && current() && this.lightboxGroupId() === this.cull.groupKey(group)
+      && this.lightboxGroup()?.photos[this.lightboxIndex()]?.path === path) {
+      const next = group.photos.slice(index + 1).find(photo => !this.cull.stackExcluded()[photo.path])
+        ?? group.photos.slice(0, index).reverse().find(photo => !this.cull.stackExcluded()[photo.path]);
+      if (next) this.focusPhotoInLightbox(group.photos.indexOf(next));
+    }
+  }
+
+  protected async skipStackSuggestion(group: CullingGroup): Promise<void> {
+    if (!this.stacksMode()) return;
+    if (await this.cull.skipSuggestion(group)) this.afterSuggestion(group);
+  }
+
+  @HostListener('document:keydown.x', ['$event'])
+  protected onSkipSuggestionKey(event: Event): void {
+    if (!this.stacksMode() || this.shortcutsBlocked(event) || isTypingContext(event)) return;
+    const group = this.lightboxGroup() ?? this.visibleGroups()[this.selectedGroupIndex()];
+    if (!group) return;
+    event.preventDefault();
+    void this.skipStackSuggestion(group);
+  }
+
+  protected async editSuggestion(group: CullingGroup): Promise<void> {
+    if (!this.stacksMode() || this.cull.stackBusy() || !this.auth.isEdition() || this.secondaryEditor || !this.cull.groups().includes(group)) return;
+    const current = this.pageSession();
+    const { StackDialogComponent } = await import('./stack-dialog.component');
+    const { SKIP_SUGGESTION } = await import('./stack-editor-host');
+    if (!current() || this.dialog.openDialogs.length || !this.cull.groups().includes(group)) return;
+    const focused = this.lightboxGroupId() === this.cull.groupKey(group)
+      ? group.photos[this.lightboxIndex()]?.path : group.photos[this.selectedPhotoIndex()]?.path;
+    const onUndone = () => { if (current()) this.cull.restoreStackSuggestion(group); };
+    const ref = this.dialog.open(StackDialogComponent, stackDialogConfig({
+      paths: group.photos.map(photo => photo.path), reviewDraft: this.cull.reviewDraft(group), activePath: focused, skippable: true, onUndone,
+    }));
+    this.secondaryEditor = ref;
+    const result = await firstValueFrom(ref.afterClosed());
+    if (this.secondaryEditor === ref) this.secondaryEditor = null;
+    if (!current()) return;
+    if (result === SKIP_SUGGESTION) await this.skipStackSuggestion(group);
+    else if (result === true && this.cull.completeStackSuggestion(group)) this.afterSuggestion(group);
+  }
+
   /** True when the event originates from a text/slider control we must not hijack. */
   @HostListener('document:keydown.arrowup', ['$event'])
   protected onArrowUp(event: Event): void {
@@ -2944,7 +3240,7 @@ export class BurstCullingComponent implements OnDestroy {
     const group = this.lightboxGroup();
     if (group) {
       event.preventDefault();
-      this.setCurrentLightboxPhotoKept(group, true);
+      if (!this.stacksMode()) this.setCurrentLightboxPhotoKept(group, true);
       return;
     }
     if (isTypingContext(event)) return;
@@ -2958,7 +3254,7 @@ export class BurstCullingComponent implements OnDestroy {
     const group = this.lightboxGroup();
     if (group) {
       event.preventDefault();
-      this.setCurrentLightboxPhotoKept(group, false);
+      if (!this.stacksMode()) this.setCurrentLightboxPhotoKept(group, false);
       return;
     }
     if (isTypingContext(event)) return;
@@ -2968,9 +3264,11 @@ export class BurstCullingComponent implements OnDestroy {
 
   @HostListener('document:keydown.enter', ['$event'])
   protected onEnter(event: Event): void {
-    if (this.shortcutsBlocked(event)) return;
-    if (this.lightboxGroup()) return;
-    if (isTypingContext(event) || isControlActivation(event)) return;
+    if (this.shortcutsBlocked(event) || isTypingContext(event) || isControlActivation(event)) return;
+    if (this.lightboxGroup()) {
+      if (this.stacksMode()) this.onStackKey(event);
+      return;
+    }
     const group = this.visibleGroups()[this.selectedGroupIndex()];
     if (!group) return;
     event.preventDefault();
@@ -2990,6 +3288,10 @@ export class BurstCullingComponent implements OnDestroy {
 
   @HostListener('document:keydown.space', ['$event'])
   protected onSpace(event: Event): void {
+    if (this.stacksMode()) {
+      if (!this.shortcutsBlocked(event) && !isControlActivation(event)) event.preventDefault();
+      return;
+    }
     if (this.shortcutsBlocked(event)) return;
     const group = this.lightboxGroup();
     if (group) {
@@ -3018,6 +3320,10 @@ export class BurstCullingComponent implements OnDestroy {
   /** List: confirm the selected group and move the selection to the next one. */
   @HostListener('document:keydown.shift.space', ['$event'])
   protected onShiftSpace(event: Event): void {
+    if (this.stacksMode()) {
+      if (!this.shortcutsBlocked(event) && !isControlActivation(event)) event.preventDefault();
+      return;
+    }
     if (this.shortcutsBlocked(event)) return;
     if (this.lightboxGroup()) return;
     if (isTypingContext(event) || isControlActivation(event)) return;
@@ -3058,11 +3364,14 @@ export class BurstCullingComponent implements OnDestroy {
    * a suppressed set is still served here until that run.
    */
   protected async correctSequence(group: CullingGroup, kind?: SequenceKind): Promise<void> {
+    const current = this.pageSession();
+    if (this.stacksMode() || !current()) return;
     const paths = group.photos.map(p => p.path);
     const previous = new Map(group.photos.map(p => [p.path, p.sequence_override ?? null]));
     try {
       await this.sequenceOverrides.setAsync(paths, kind);
     } catch (error) {
+      if (!current()) return;
       const notALadder = isBracketLadderRejection(kind, error);
       this.snackBar.open(
         this.i18n.t(notALadder ? I18N.culling.bracket.not_a_ladder : I18N.culling.panorama.correction_failed),
@@ -3070,12 +3379,14 @@ export class BurstCullingComponent implements OnDestroy {
       );
       return;
     }
+    if (!current()) return;
     this.cull.patchOverrides(paths, kind ?? 'suppressed');
     this.undoService.register({
       labelKey: I18N.culling.panorama.corrected,
       undo: async () => {
-        await this.restoreOverridesOnServer(previous);
-        this.cull.restoreOverrides(previous);
+        if (!current()) return;
+        await this.restoreOverridesOnServer(previous, current);
+        if (current()) this.cull.restoreOverrides(previous);
       },
     });
   }
@@ -3089,13 +3400,15 @@ export class BurstCullingComponent implements OnDestroy {
    * then re-apply the very misread they had fixed, while the badge still
    * claimed a correction the server no longer held.
    */
-  private async restoreOverridesOnServer(previous: Map<string, string | null>): Promise<void> {
+  private async restoreOverridesOnServer(previous: Map<string, string | null>, current = this.pageSession()): Promise<void> {
+    if (this.stacksMode() || !current()) return;
     const byValue = new Map<string | null, string[]>();
     for (const [path, value] of previous) {
       const bucket = byValue.get(value);
       if (bucket) bucket.push(path); else byValue.set(value, [path]);
     }
     for (const [value, paths] of byValue) {
+      if (!current()) return;
       if (value === null) await this.sequenceOverrides.clearAsync(paths);
       else if (value === SUPPRESSED_OVERRIDE) await this.sequenceOverrides.setAsync(paths);
       else await this.sequenceOverrides.setAsync(paths, value as SequenceKind);
@@ -3104,6 +3417,8 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Hand this set back to the detector, dropping the pending correction. */
   protected async clearCorrection(group: CullingGroup): Promise<void> {
+    const current = this.pageSession();
+    if (this.stacksMode() || !current()) return;
     const paths = group.photos.map(p => p.path);
     // An already-applied correction left the forced set in `photos`; dropping
     // it here only clears the override row, so the re-run banner must be told
@@ -3112,10 +3427,12 @@ export class BurstCullingComponent implements OnDestroy {
     try {
       await this.sequenceOverrides.clearAsync(paths);
     } catch {
+      if (!current()) return;
       this.snackBar.open(this.i18n.t(I18N.culling.panorama.correction_failed), '',
                          { duration: 3000, horizontalPosition: 'right', verticalPosition: 'bottom' });
       return;
     }
+    if (!current()) return;
     this.cull.patchOverrides(paths, null);
     if (hadApplied) {
       const key = this.cull.groupKey(group);
@@ -3131,29 +3448,38 @@ export class BurstCullingComponent implements OnDestroy {
    * already holds it.
    */
   protected async rerunDetection(): Promise<void> {
-    if (this.detecting()) return;
+    if (this.stacksMode() || !this.pageSession()() || this.detecting()) return;
+    const owner = this.auth.identity();
+    const generation = ++this.detectionGeneration;
+    // The whole-library start survives cancelled navigation, but never a new owner or stack visit.
+    const current = () => this.pageAlive && !this.destroyRef.destroyed && generation === this.detectionGeneration
+      && this.auth.identity() === owner && owner === this.pageOwner && this.auth.isEdition() && !this.stacksMode();
     this.detecting.set(true);
     this.detectFailed.set(false);
     this.detectMessage.set('');
     try {
       await firstValueFrom(this.panoramaSettings.redetect());
     } catch (error: unknown) {
+      if (!current()) return;
       this.detecting.set(false);
       this.detectFailed.set(true);
       const busy = error instanceof HttpErrorResponse && error.status === 409;
       this.detectMessage.set(busy ? I18N.culling.panorama.rerun_busy : I18N.culling.panorama.rerun_failed);
       return;
     }
+    if (!current()) return;
     this.detectMessage.set(I18N.culling.panorama.rerun_running);
     this.detectPollTimer = setInterval(() => void this.pollDetection(), 2000);
   }
 
   private async pollDetection(): Promise<void> {
+    const current = this.pageSession();
+    if (this.stacksMode() || !current()) return;
     try {
       const status = await firstValueFrom(
         this.api.get<{ running: boolean; kind: string | null; exit_code: number | null }>(
           '/scan/recompute_status'));
-      if (status.running) return;
+      if (!current() || status.running) return;
       this.stopDetectionPolling();
       const failed = status.exit_code !== 0 && status.exit_code !== null;
       this.detectFailed.set(failed);
@@ -3162,6 +3488,7 @@ export class BurstCullingComponent implements OnDestroy {
       // held, so the applied-drops this session no longer need a re-run.
       if (!failed) this.cull.droppedApplied.set(new Set());
     } catch {
+      if (!current()) return;
       this.stopDetectionPolling();
       this.detectFailed.set(true);
       this.detectMessage.set(I18N.culling.panorama.rerun_failed);
@@ -3169,6 +3496,7 @@ export class BurstCullingComponent implements OnDestroy {
   }
 
   private stopDetectionPolling(): void {
+    this.detectionGeneration++;
     this.detecting.set(false);
     if (this.detectPollTimer !== null) {
       clearInterval(this.detectPollTimer);

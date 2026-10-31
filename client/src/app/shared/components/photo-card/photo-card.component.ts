@@ -17,6 +17,7 @@ import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
 import { closeOverlayDirectives } from '../../utils/overlays';
 import { MetricDistribution, topPercentOf } from '../../utils/metric-distribution';
 import { KeyboardMappingService } from '../../../core/services/keyboard-mapping.service';
+import { FaceFocusOverlayComponent } from './face-focus-overlay.component';
 
 interface AppConfig {
   quality_thresholds?: { excellent: number; great: number; good: number };
@@ -112,6 +113,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     '[class.opacity-50]': 'isDimmed()',
   },
   imports: [
+    FaceFocusOverlayComponent,
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
@@ -168,6 +170,14 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           [style.opacity]="imageLoaded() ? (isEditionMode() && photo().is_rejected ? '0.6' : '1') : '0'"
           (load)="imageLoaded.set(true)"
         />
+        @if (personFilterId()) {
+          <app-face-focus-overlay
+            [path]="photo().path"
+            [personId]="personFilterId()"
+            [imageWidth]="photo().image_width"
+            [imageHeight]="photo().image_height"
+            [cover]="mosaicMode() || hideDetails()" />
+        }
 
         <!-- Persistent badges.
              Each one occupies the EXACT box of the hover-bar control it stands

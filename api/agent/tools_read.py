@@ -354,7 +354,7 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
     async def possible_faces(
         ctx: Context,
         person_id: Annotated[int, Field(ge=1)],
-        scope: Literal["unassigned", "other_persons", "all"] = "unassigned",
+        scope: Literal["unassigned", "unnamed", "other_persons", "all"] = "unassigned",
         min_similarity: Annotated[float, Field(ge=0.0, le=1.0)] = 0.30,
         limit: Annotated[int, Field(ge=1, le=100)] = 30,
         path_prefix: Annotated[Optional[str], Field(max_length=4096)] = None,
@@ -635,9 +635,10 @@ def register_read_tools(server: MCPServer, client: InternalClient, status_extra,
         + READ_SELECTION_RULE.format(what="`paths`", how=f"at most {MAX_SHEET_PATHS} photos"))
     add(possible_faces, "possible_faces",
         "Faces that look like one recognised person (cosine similarity to the person's centroid, best "
-        "first; same embedding model only). `scope` is unassigned (default), other_persons or all; "
-        "`min_similarity` defaults to 0.30; `limit` max 100. Rows carry face_id, photo_path, "
-        "person_id/person_name (current owner), similarity and distance. A scan over 192000 faces is "
+        "first; same embedding model only). `scope` is unassigned (default), unnamed (faces in no group or in a "
+        "group nobody has named), other_persons or all; `min_similarity` defaults to 0.30; `limit` max 100. "
+        "Rows carry face_id, photo_path, person_id/person_name (current owner), owner (ungrouped, "
+        "unnamed_group or named), similarity and distance. A scan over 192000 faces is "
         "refused with too_large: narrow it with scope, path_prefix, date_from or date_to. "
         "`candidates` is the count of faces in scope you can see, before the embedding-dimension "
         "check; `faces_scanned` is the number of rows actually scored. "

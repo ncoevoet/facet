@@ -30,7 +30,7 @@ from pydantic import BaseModel, Field
 from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api.config import VIEWER_CONFIG
 from api.database import get_db
-from api.db_helpers import FACE_FRAME_TOLERANCE, get_visibility_clause, select_in_chunks
+from api.db_helpers import get_visibility_clause, normalized_face_box, select_in_chunks
 from api.models.media import MediaFaceMarkersResponse
 from api.subject_bbox import parse_subject_bbox
 from db.schema import person_not_hidden_clause
@@ -133,7 +133,7 @@ def api_face_markers(
 
     faces = []
     for r in rows:
-        bbox = _normalized_face_box(r["bbox_x1"], r["bbox_y1"], r["bbox_x2"],
+        bbox = normalized_face_box(r["bbox_x1"], r["bbox_y1"], r["bbox_x2"],
                                     r["bbox_y2"], width, height)
         # The stored score first: it is the one the rest of the app shows, and the only one
         # an SFace face has (no 106-point landmarks). Landmark geometry is the fallback.
@@ -220,37 +220,6 @@ class KeySubjectsBody(BaseModel):
     paths: list[str] = Field(max_length=1000)
 
 
-def _normalized_face_box(x1, y1, x2, y2, width, height):
-    """Normalise a pixel face box to the frame, or None when it can't be trusted.
-
-    Returns None for a missing/degenerate box, for a photo with no stored
-    dimensions, and for a box that overshoots the frame past
-    ``FACE_FRAME_TOLERANCE``. InsightFace does not clip its boxes, so a face at
-    the edge overhangs a little and a legitimate overhang is clamped to the
-    frame; past that bound it is not an overhang but a coordinate-space mismatch
-    — the stored dimensions are not the frame the detector saw (see
-    ``repair_thumbnail_dimensions`` in api.db_helpers, which clears the ones a
-    former startup hook filled from the 640px thumbnail). Such a face is dropped
-    rather than clamped: clamping would pin the "key subject" to a frame edge
-    and point the zoom at nothing.
-    """
-    if None in (x1, y1, x2, y2) or not width or not height:
-        return None
-    if width <= 0 or height <= 0 or x2 <= x1 or y2 <= y1:
-        return None
-    overhang = FACE_FRAME_TOLERANCE - 1.0
-    if (x2 > width * FACE_FRAME_TOLERANCE or y2 > height * FACE_FRAME_TOLERANCE
-            or x1 < -width * overhang or y1 < -height * overhang):
-        return None
-    box = [
-        max(0.0, min(1.0, x1 / width)), max(0.0, min(1.0, y1 / height)),
-        max(0.0, min(1.0, x2 / width)), max(0.0, min(1.0, y2 / height)),
-    ]
-    if box[2] <= box[0] or box[3] <= box[1]:
-        return None
-    return box
-
-
 def _box_centre(box):
     return [(box[0] + box[2]) / 2, (box[1] + box[3]) / 2]
 
@@ -266,7 +235,7 @@ def _best_face(faces, width, height):
     """Rank a photo's faces and return the winner's geometry, or None."""
     candidates = []
     for row in faces:
-        box = _normalized_face_box(
+        box = normalized_face_box(
             row["bbox_x1"], row["bbox_y1"], row["bbox_x2"], row["bbox_y2"], width, height
         )
         if box is None:

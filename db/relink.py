@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 import sqlite3
 import stat
+import sys
 import unicodedata
 
 from db.connection import load_sqlite_vec
@@ -129,6 +130,19 @@ def _stat_stamp(value):
     return [value.st_dev, value.st_ino, value.st_size, value.st_mtime_ns, value.st_ctime_ns]
 
 
+def _path_stamp(path):
+    # On NTFS, stat(path) and fstat(fd) report different ctime for a file whose times were
+    # set after creation (every time-preserving copy), so the second stamp must come from
+    # the same API as the first. POSIX keeps stat(path).
+    if sys.platform != 'win32':
+        return _stat_stamp(os.stat(path))
+    descriptor = os.open(path, os.O_RDONLY | os.O_BINARY)
+    try:
+        return _stat_stamp(os.fstat(descriptor))
+    finally:
+        os.close(descriptor)
+
+
 def _file_receipt(old, new, policy):
     _canonical(old)
     _canonical(new)
@@ -145,7 +159,7 @@ def _file_receipt(old, new, policy):
         digest = hashlib.sha256()
         while block := handle.read(1024 * 1024):
             digest.update(block)
-        if _stat_stamp(before) != _stat_stamp(os.fstat(handle.fileno())) or _stat_stamp(before) != _stat_stamp(os.stat(new)):
+        if _stat_stamp(before) != _stat_stamp(os.fstat(handle.fileno())) or _stat_stamp(before) != _path_stamp(new):
             raise ValueError('Destination changed while hashing')
     return {'old': old, 'new': new, 'sha256': digest.hexdigest(),
             'stat': _stat_stamp(before)}
@@ -372,7 +386,7 @@ def _build_plan(conn, db_path, mapping, config, user):
         dimensions = conn.execute('SELECT image_width,image_height FROM photos WHERE path=?', (old,)).fetchone()
         if all(dimensions) and list(dimensions) != [frame['w'], frame['h']]:
             raise ValueError('Destination canonical dimensions differ from the stored photo')
-        if file_receipts[0]['stat'] != _stat_stamp(os.stat(new)):
+        if file_receipts[0]['stat'] != _path_stamp(new):
             raise ValueError('Destination changed while decoding')
         receipts.append({'old': old, 'new': new, 'source_digest': _row_digest(row),
                          'identity': 'original_bytes_unknown', 'target_dimensions': [frame['w'], frame['h']],

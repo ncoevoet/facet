@@ -50,6 +50,11 @@ export const routes: Routes = [
     ...EDITION_ONLY,
   },
   {
+    path: 'stacks/edit',
+    loadComponent: () => import('./features/gallery/stack-editor-page.component').then(m => m.StackEditorPageComponent),
+    ...EDITION_ONLY,
+  },
+  {
     path: 'scenes',
     loadComponent: () =>
       import('./features/scenes/scenes.component').then(m => m.ScenesComponent),

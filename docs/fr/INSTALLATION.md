@@ -7,10 +7,19 @@ situation et copiez le bloc. La partie [Avancé](#avancé) ne sert que si vous e
 
 ## Quelle installation me convient ?
 
+Les deux voies font tourner le même Facet ; elles échangent la simplicité d'installation
+contre les performances. Choisissez celle qui vous convient.
+
+| | Docker | Sans Docker |
+|---|---|---|
+| Installation | Une commande : tout est dans l'image | `install.sh` (Linux, macOS) ou l'installeur Windows crée un environnement Python sur la machine |
+| Mise à jour | Récupérer la nouvelle image | Mettre à jour le code et relancer `install.sh`, ou installer le nouvel installeur Windows |
+| Performances | Un conteneur se place entre Facet et vos fichiers et votre carte graphique ; sous Windows il tourne dans WSL2 | Facet utilise directement la carte graphique et les fichiers de la machine |
+
 | Votre situation | Aller à |
 |----------------|-------|
-| Windows, macOS ou Linux, et vous voulez juste que ça tourne | [Installer avec Docker](#installer-avec-docker) |
-| Linux ou macOS, et vous préférez éviter les conteneurs | [Installer sans Docker](#installer-sans-docker) |
+| Windows, macOS ou Linux, dans un conteneur | [Installer avec Docker](#installer-avec-docker) |
+| Windows, macOS ou Linux, sans conteneur | [Installer sans Docker](#installer-sans-docker) |
 | Un NAS, ou un serveur que vous voulez atteindre depuis d'autres machines | [Déploiement](DEPLOYMENT.md) |
 
 ## Quel profil correspond à mon matériel ?
@@ -159,8 +168,81 @@ Ouvrez <http://localhost:5000>.
 
 ### Windows
 
-Utilisez [Docker](#installer-avec-docker). Pour une carte NVIDIA, suivez le
-[guide WSL2](DEPLOYMENT.md#windows-wsl2-avec-un-gpu-nvidia), le chemin testé.
+Un installeur par utilisateur (MSI) installe Facet sans droits d'administrateur :
+
+| Dossier | Contenu |
+|---|---|
+| `%LOCALAPPDATA%\Facet\app` | le programme, remplacé à chaque mise à jour |
+| `%LOCALAPPDATA%\Facet\venv` | l'environnement Python, créé à la fin de l'installation |
+| `%LOCALAPPDATA%\Facet\data` | la base de données (`photo_scores_pro.db`) et les journaux |
+| `%LOCALAPPDATA%\Facet\config` | `scoring_config.json` |
+
+**Obtenir l'installeur.** Aucune version publiée n'en fournit encore. Construisez-le depuis un
+clone avec `installer\build-msi.ps1` (il faut WiX 3.14, `uv` et le client construit ; le script
+indique où trouver WiX), ou téléchargez l'artefact `facet-msi` d'une exécution du workflow
+*Windows install (MSI)*. La construction demande Node.js 22.22.3 ou plus récent pour le client
+(22.14 échoue sur `npm run build`).
+
+**Premier démarrage.** L'installeur lance la création de l'environnement Python dès qu'il a
+terminé. L'environnement pèse environ 6 Go, et le cache de
+téléchargement d'uv (`%LOCALAPPDATA%\uv\cache`) en prend à peu près autant. L'entrée *Facet* du
+menu Démarrer lance la configuration si elle n'a jamais abouti, et de nouveau après une mise à
+jour qui change les dépendances de Facet. Elle choisit la version de PyTorch adaptée à votre
+carte NVIDIA et à son pilote comme le fait `install.sh`, ou la version CPU sans carte NVIDIA.
+Si la version GPU installée n'atteint pas la carte, l'installation s'arrête et l'explique :
+mettez le pilote à jour, ou lancez `Setup-Facet.ps1 -Force -Cpu`.
+
+Si la galerie ne peut pas démarrer (port occupé, échec de la configuration, aucune réponse
+après 90 s), la fenêtre de l'entrée du menu Démarrer affiche l'erreur et attend Entrée. Après
+90 s sans réponse, la galerie reste lancée et peut encore démarrer.
+
+**Au quotidien :**
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app\installer"
+.\Scan-Facet.ps1 "\\NAS\Photos"   # noter les photos ; les arguments en plus vont à facet.py
+.\Start-Facet.ps1                # la galerie, sur http://localhost:5000
+.\Stop-Facet.ps1                 # arrêter la galerie et tout scan
+```
+
+La galerie ne répond que sur cet ordinateur. `Start-Facet.ps1 -Lan` l'ouvre aux autres
+appareils et refuse de démarrer tant que `viewer.password` n'est pas défini dans la
+configuration.
+
+**Une seule écriture par dossier.** Facet enregistre chaque photo sous le chemin par lequel elle a
+été scannée : `\\NAS\Photos` et le même partage monté en `Z:\` sont pour lui deux dossiers
+différents, et scanner les deux ajoute chaque photo deux fois. Choisissez-en un et gardez-le.
+
+**Ordinateurs gérés.** Les raccourcis lancent les scripts PowerShell non signés de Facet avec `-ExecutionPolicy Bypass`. Une stratégie d'exécution définie par stratégie de groupe l'emporte, si bien que sur un PC géré les scripts peuvent ne pas s'exécuter ; demandez à son administrateur de les autoriser.
+
+**La désinstallation** (Paramètres, Applications) arrête Facet et supprime le programme, les
+raccourcis, l'environnement Python et ExifTool (y compris sous un `FACET_HOME` personnalisé),
+et conserve `data` et `config`. Ce qu'elle ne peut pas supprimer est listé dans
+`data\logs\uninstall.log`. Le cache de téléchargement d'uv (`%LOCALAPPDATA%\uv\cache`) et les
+modèles téléchargés restent (`.cache`, `.insightface` dans votre dossier utilisateur). Une mise à
+jour garde un dossier d'installation personnalisé et ne recrée l'environnement que si les
+dépendances de Facet ont changé.
+
+**Déplacer une bibliothèque depuis Docker.** La base enregistre le chemin complet de chaque
+photo, et l'installation Windows voit les mêmes photos sous un autre chemin
+(`\\NAS\Photos\...` au lieu de `/data/photos/...`). Copiez la base dans `data`, arrêtez
+Facet, puis réécrivez les chemins, d'abord à blanc :
+
+```powershell
+cd "$env:LOCALAPPDATA\Facet\app"
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos" --dry-run
+..\venv\Scripts\python.exe scripts\rewrite_db_paths.py ..\data\photo_scores_pro.db /data/photos "\\NAS\Photos"
+```
+
+L'outil garde une copie de la base (`photo_scores_pro.db.before-rewrite-<heure>`), refuse de
+fusionner une photo déjà scannée sous le nouveau chemin et vide l'index vectoriel, que
+`..\venv\Scripts\python.exe database.py --db ..\data\photo_scores_pro.db --populate-vec`
+reconstruit. L'historique d'annulation d'avant le déplacement ne s'applique plus. Ces commandes
+supposent le dossier d'installation par défaut. Un ancien et un nouveau préfixe dont l'un est
+dans l'autre (par exemple `D:\Photos` vers `D:\Photos\new`) sont refusés ; passez par un
+préfixe temporaire.
+
+Docker fonctionne aussi sous Windows ; pour une carte NVIDIA, suivez le [guide WSL2](DEPLOYMENT.md#windows-wsl2-avec-un-gpu-nvidia).
 
 ## Premier lancement : à quoi s'attendre
 

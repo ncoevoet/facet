@@ -39,15 +39,16 @@ import { CapsuleFiltersService } from './features/capsules/capsule-filters.servi
 import { TranslatePipe } from './shared/pipes/translate.pipe';
 import { CardActionsDialogComponent } from './features/gallery/card-actions-dialog.component';
 import { HelpDialogComponent } from './shared/components/help-dialog/help-dialog.component';
-import { CULLING_SHORTCUT_SECTIONS } from './features/gallery/culling-shortcuts';
-import { galleryShortcutSection } from './features/gallery/gallery-shortcuts';
+import { CULLING_SHORTCUT_SECTIONS, STACK_SHORTCUT_SECTIONS, MANUAL_STACK_SHORTCUT_SECTIONS } from './features/gallery/culling-shortcuts';
+import { galleryShortcutSection, ShortcutSection } from './features/gallery/gallery-shortcuts';
 import { KeyboardMappingDialogComponent } from './shared/components/keyboard-mapping-dialog/keyboard-mapping-dialog.component';
 import { KeyboardMappingService } from './core/services/keyboard-mapping.service';
 import { AssistantActivityChipComponent } from './features/agent/assistant-activity-chip.component';
+import { PersonFilterChipComponent } from './features/gallery/person-filter-chip.component';
 import { CONNECT_ASSISTANT_DIALOG_ID } from './core/agent/page-context.service';
 import { SortOptionIconPipe } from './shared/pipes/sort-option-icon.pipe';
 import { SortGroupKeyPipe } from './shared/pipes/sort-group-key.pipe';
-import { PersonThumbnailUrlPipe, ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
+import { ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 import { SlideshowComponent } from './features/gallery/slideshow.component';
 import { Photo, normalisePhotoFlagsAll } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
@@ -130,6 +131,7 @@ export class EditionDialogComponent {
   imports: [
     DecimalPipe,
     AssistantActivityChipComponent,
+    PersonFilterChipComponent,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
@@ -148,7 +150,6 @@ export class EditionDialogComponent {
     TranslatePipe,
     SortGroupKeyPipe,
     SortOptionIconPipe,
-    PersonThumbnailUrlPipe,
     ThumbnailUrlPipe,
     MatSliderModule,
     NgTemplateOutlet,
@@ -205,13 +206,20 @@ export class App implements OnInit {
    *  not read router state itself, because its construction timing is not
    *  guaranteed to see the active route. */
   protected openHelpDialog(): void {
-    const shortcuts = this.url().split('?')[0].startsWith('/culling')
-      ? CULLING_SHORTCUT_SECTIONS
-      : this.isGalleryRoute() ? [galleryShortcutSection(this.keymap.keymap())] : [];
+    const shortcuts = this.helpSections();
     this.dialog.open(HelpDialogComponent, {
       width: '32rem', autoFocus: false,
       data: { key: this.pageHelp.descriptionKey(), note: this.pageHelp.note(), shortcutSections: shortcuts },
     });
+  }
+  private helpSections(): ShortcutSection[] {
+    const url = this.url();
+    const path = url.split(/[?#]/)[0];
+    if (path.startsWith('/culling')) {
+      return this.router.parseUrl(url).queryParams['mode'] === 'stacks' ? STACK_SHORTCUT_SECTIONS : CULLING_SHORTCUT_SECTIONS;
+    }
+    if (path === '/stacks/edit') return MANUAL_STACK_SHORTCUT_SECTIONS;
+    return this.isGalleryRoute() ? [galleryShortcutSection(this.keymap.keymap())] : [];
   }
   protected readonly headerSlot = inject(HeaderSlotService);
   protected readonly store = inject(GalleryStore);

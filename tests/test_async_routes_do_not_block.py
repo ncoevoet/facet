@@ -134,6 +134,18 @@ def offline_place_search(monkeypatch):
     monkeypatch.setattr(place_search, '_fetch', lambda *_: {'type': 'FeatureCollection', 'features': []})
 
 
+@pytest.fixture(autouse=True)
+def pinned_vram_profile(monkeypatch):
+    """Resolve the CPU profile whatever GPU the machine has, as CI does.
+
+    On a 16 GB box 'auto' selects a VLM profile: ``/api/caption`` then reaches the
+    file lookup (404 instead of 503) and ``/api/critique/vlm`` and ``/api/search``
+    load real models.
+    """
+    from api import model_cache
+    monkeypatch.setattr(model_cache, '_resolved_profile', 'legacy')
+
+
 def _user_app(user):
     app = create_app()
     for dep in (require_edition, require_auth, require_authenticated, require_superadmin,
@@ -215,6 +227,11 @@ def _drive(requests, statuses=None):
             preview = client.post('/api/photos/capture_date/preview', json=draft)
             assert preview.status_code == 200, preview.text
             body = {**draft, 'preview_token': preview.json()['preview_token']}
+        if path == '/api/stacks/regroup/apply':
+            preview = client.post('/api/stacks/regroup/preview', json={
+                'selected_paths': body['selected_paths'], 'mode': body['mode']})
+            assert preview.status_code == 200, preview.text
+            body = {**body, 'expected_state': preview.json()['expected_state']}
         _cold_caches()
         with loop_guard() as hits:
             resp = client.request(method, path, params=params, json=body)
@@ -254,6 +271,11 @@ EXPECTED_NON_2XX = {
     # A relative path (no leading slash) names no photo; the absolute form of the
     # same route is driven by PARAMETERISED_ROUTES and answers 200.
     ('GET', '/api/similar_photos/conftest-seeded/a.jpg'): 404,
+    # The route-coverage request names a face id that does not exist, so the
+    # handler's visibility check answers 404 after the body has started.
+    ('POST', '/api/face/987654321/unassign'): 404,
+    # VLM unavailable: the pinned legacy profile has no captioner.
+    ('POST', '/api/caption'): 503,
 }
 
 
@@ -308,6 +330,10 @@ def _bind(requests, photo_path, album_id, history_id, job_id, stack_paths=None):
             path = path.replace('/not-a-job', '/' + job_id, 1)
         if method == 'POST' and path == '/api/stacks' and stack_paths:
             body = {'paths': stack_paths, 'cover_path': stack_paths[0]}
+        if method == 'POST' and path.startswith('/api/stacks/regroup/') and stack_paths:
+            body = {'selected_paths': stack_paths, 'mode': 'combine',
+                    'paths': list(reversed(stack_paths)), 'cover_path': stack_paths[0],
+                    'expected_state': '0' * 64}
         if method == 'POST' and path == '/api/export/sidecar_jobs':
             body = {'paths': [photo_path]}
         if path == '/api/organization_history/1/revert':

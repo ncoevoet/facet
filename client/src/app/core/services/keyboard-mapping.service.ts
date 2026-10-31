@@ -11,6 +11,8 @@ export interface KeymapConfig {
   focusSearch: string;
   toggleSidebar: string;
   swapLayout: string;
+  /** Empty when a saved binding already owns the new default. */
+  stack: string;
 }
 
 export const DEFAULT_KEYMAP: KeymapConfig = {
@@ -20,6 +22,7 @@ export const DEFAULT_KEYMAP: KeymapConfig = {
   focusSearch: '/',
   toggleSidebar: 'b',
   swapLayout: 'v',
+  stack: 's',
 };
 
 /** The remappable actions, labelled with the same strings the keyboard
@@ -32,6 +35,7 @@ export const KEYMAP_ACTIONS: { id: keyof KeymapConfig; labelKey: string }[] = [
   { id: 'focusSearch', labelKey: I18N.shortcuts.focus_search },
   { id: 'toggleSidebar', labelKey: I18N.shortcuts.toggle_filters },
   { id: 'swapLayout', labelKey: I18N.shortcuts.toggle_layout },
+  { id: 'stack', labelKey: I18N.shortcuts.stack },
 ];
 
 export const KEYMAP_STORAGE_KEY = 'facet_keymap';
@@ -52,7 +56,8 @@ export function assignableKey(key: string): string | null {
 /** A saved key that is reserved or that two actions share (a hand edit, or an
  *  older save meeting a newer rule) falls back to that action's default, so
  *  one keystroke never fires two actions. If that default is itself already
- *  taken by another saved key, nothing short of the full defaults is safe. */
+ *  taken by another saved key, restore the full defaults. A newly introduced
+ *  Stack default yields to an older saved binding by staying unassigned. */
 function load(): KeymapConfig {
   try {
     const raw = localStorage.getItem(KEYMAP_STORAGE_KEY);
@@ -68,7 +73,13 @@ function load(): KeymapConfig {
       const k = keys[i];
       if (k && keys.indexOf(k) === keys.lastIndexOf(k)) out[action] = k;
     });
-    return new Set(Object.values(out)).size === actions.length ? out : { ...DEFAULT_KEYMAP };
+    // Adding a default must not reset an older valid map that already uses S.
+    // Keep an explicitly unassigned action unassigned on subsequent saves too.
+    if (saved.stack === '' || (saved.stack === undefined && actions.some(action => action !== 'stack' && out[action] === out.stack))) {
+      out.stack = '';
+    }
+    const assigned = Object.values(out).filter(Boolean);
+    return new Set(assigned).size === assigned.length ? out : { ...DEFAULT_KEYMAP };
   } catch {
     return { ...DEFAULT_KEYMAP };
   }
@@ -103,6 +114,7 @@ export class KeyboardMappingService {
 
   /** Whether `event` is the key currently mapped to `action`. */
   matches(event: KeyboardEvent, action: keyof KeymapConfig): boolean {
-    return event.key.toLowerCase() === this.keymap()[action];
+    const key = this.keymap()[action];
+    return !!key && event.key.toLowerCase() === key;
   }
 }

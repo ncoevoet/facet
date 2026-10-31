@@ -2,7 +2,9 @@
 from pathlib import Path
 import shutil
 import sqlite3
+import sys
 import threading
+import time
 
 import pytest
 
@@ -68,6 +70,12 @@ def test_receipts_are_private_and_path_ids_cannot_escape(library):
         jobs.cancel(library, state['id'], 'bob')
     with pytest.raises(LookupError):
         jobs.status(library, '../../secret', 'alice')
+
+
+@pytest.mark.skipif(sys.platform == 'win32', reason='POSIX permission bits do not apply on Windows')
+def test_receipts_are_owner_only(library):
+    state = jobs.start(library, 'alice', [], lambda path: None)
+    _done(library, state['id'])
     assert jobs._path(library, state['id']).stat().st_mode & 0o077 == 0
 
 
@@ -95,6 +103,77 @@ def test_dead_receipt_is_interrupted_without_trusting_a_recycled_pid(library):
     jobs._write(path, state)
     assert jobs.status(library, job_id, 'alice')['state'] == 'interrupted'
     assert jobs._read(path) == state  # poll cannot race-write over a terminal receipt
+
+
+def _poll_during(library, job_id, disturb):
+    """Run ``status`` on a thread while ``disturb`` makes the receipt unreadable."""
+    outcome = []
+
+    def poll():
+        try:
+            outcome.append(jobs.status(library, job_id, 'alice'))
+        except BaseException as ex:
+            outcome.append(ex)
+
+    poller = threading.Thread(target=poll)
+    disturb(poller)
+    poller.join(5)
+    assert not poller.is_alive()
+    return outcome[0]
+
+
+@pytest.fixture
+def finished_job(library):
+    from uuid import uuid4
+    job_id = str(uuid4())
+    path = jobs._path(library, job_id)
+    jobs._write(path, {'id': job_id, 'owner': 'alice', 'state': 'completed', 'started_at': 0,
+                       'total': 1, 'processed': 1, 'written': 1, 'skipped': 0, 'errors': 0,
+                       'first_error': None, 'retry': []})
+    return job_id, path
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='receipt retry exists on Windows only')
+def test_status_survives_the_receipt_being_republished(library, finished_job):
+    job_id, path = finished_job
+    saved = path.read_bytes()
+
+    def republish_after_a_gap(poller):
+        path.unlink()
+        poller.start()
+        time.sleep(0.02)
+        path.write_bytes(saved)
+
+    result = _poll_during(library, job_id, republish_after_a_gap)
+    assert not isinstance(result, BaseException), result
+    assert result['id'] == job_id
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='receipt retry exists on Windows only')
+def test_status_survives_the_receipt_being_briefly_held_exclusively(library, finished_job):
+    import ctypes
+    from ctypes import wintypes
+
+    job_id, path = finished_job
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+                                   wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    # GENERIC_READ with share mode 0: every other open, ReadFile's own included, is refused.
+    held = kernel.CreateFileW(str(path), 0x80000000, 0, None, 3, 0x80, None)
+    assert held != wintypes.HANDLE(-1).value
+
+    def release_after_a_gap(poller):
+        try:
+            poller.start()
+            time.sleep(0.02)
+        finally:
+            kernel.CloseHandle(held)
+
+    result = _poll_during(library, job_id, release_after_a_gap)
+    assert not isinstance(result, BaseException), result
+    assert result['id'] == job_id
 
 
 def test_prune_retains_twenty_receipts_and_other_principals(library):

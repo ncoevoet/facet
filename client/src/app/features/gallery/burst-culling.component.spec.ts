@@ -105,6 +105,59 @@ describe('BurstCullingComponent', () => {
     component.ngOnDestroy();
   });
 
+  describe('stack mode transport isolation', () => {
+    it('refuses direct sequence correction and clear calls', async () => {
+      await store.loadGroups();
+      const group = store.groups()[0];
+      store.enterStackMode({ album_id: '42' });
+      mockApi.post.mockClear();
+      const redetect = vi.spyOn(component['panoramaSettings'], 'redetect');
+      await component['correctSequence'](group, 'bracket');
+      await component['clearCorrection'](group);
+      await component['restoreOverridesOnServer'](new Map([['/photo1.jpg', null]]));
+      await component['rerunDetection']();
+      expect(mockApi.post).not.toHaveBeenCalled();
+      expect(redetect).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('correction completion lifetime', () => {
+    it('refuses a late correction result after an account switch before effects run', async () => {
+      await store.loadGroups();
+      const group = store.groups()[0];
+      const response = new Subject<unknown>();
+      mockApi.post.mockReturnValue(response);
+      const register = vi.spyOn(component['undoService'], 'register');
+      const patch = vi.spyOn(store, 'patchOverrides');
+      const work = component['correctSequence'](group, 'bracket');
+      (TestBed.inject(AuthService) as unknown as { identity: () => string }).identity = () => 'other';
+      response.next({}); response.complete(); await work;
+      expect(patch).not.toHaveBeenCalled();
+      expect(register).not.toHaveBeenCalled();
+    });
+
+    it('refuses a captured correction Undo after entering stack mode', async () => {
+      await store.loadGroups();
+      const register = vi.spyOn(component['undoService'], 'register');
+      await component['correctSequence'](store.groups()[0], 'bracket');
+      const command = register.mock.calls[0][0];
+      store.enterStackMode({}); mockApi.post.mockClear();
+      await command.undo();
+      expect(mockApi.post).not.toHaveBeenCalled();
+    });
+
+    it('refuses a deferred detection result after edition is lost before effects run', async () => {
+      const response = new Subject<{ message?: string }>();
+      const redetect = vi.spyOn(component['panoramaSettings'], 'redetect').mockReturnValue(response);
+      const work = component['rerunDetection']();
+      expect(redetect).toHaveBeenCalledOnce();
+      (TestBed.inject(AuthService) as unknown as { isEdition: () => boolean }).isEdition = () => false;
+      response.next({}); response.complete(); await work;
+      expect(component['detectMessage']()).not.toBe('culling.panorama.rerun_running');
+      expect(component['detectPollTimer']).toBeNull();
+    });
+  });
+
   describe('overlays', () => {
     it('reports the auto-cull confirm as a dialog while it is shown, and nothing once it is closed', () => {
       const context = TestBed.inject(PageContextService);
@@ -1505,7 +1558,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => config } },
-          { provide: AuthService, useValue: { isEdition: () => isEdition } },
+          { provide: AuthService, useValue: { isEdition: () => isEdition, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
