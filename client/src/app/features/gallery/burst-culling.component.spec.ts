@@ -2897,9 +2897,10 @@ describe('BurstCullingComponent', () => {
       component['setCompareMode']('2up');
       await settle();
 
-      component['lightboxIndex'].set(1);
+      component['selectComparisonSlot'](1);
+      component['focusPhotoInLightbox'](2);
       await settle();
-      component['lightboxIndex'].set(0);
+      component['focusPhotoInLightbox'](1);
       await settle();
 
       expect(renderPooledPeaking).toHaveBeenCalledTimes(3);
@@ -4580,7 +4581,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     component['setCompareMode']('4up');
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(pooled).toHaveBeenLastCalledWith([render('/p0.jpg'), render('/p1.jpg'), thumb('/p2.jpg')], expect.any(Number));
+    expect(pooled).toHaveBeenLastCalledWith([render('/p1.jpg'), thumb('/p2.jpg'), render('/p0.jpg')], expect.any(Number));
     component['setCompareMode']('2up');
     fixture.detectChanges();
 

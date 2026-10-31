@@ -107,6 +107,7 @@ describe('GalleryComponent', () => {
       filterDrawerOpen: signal(false),
       reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(),
       currentAlbum: signal(null),
+      temporaryReviewQueue: signal(false),
       initializing: signal(false),
       galleryMounts: signal(0),
       galleryMode: signal('mosaic'),
@@ -1582,6 +1583,8 @@ describe('GalleryComponent', () => {
   describe('floating advisory notices', () => {
     function render(): HTMLElement {
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -1637,6 +1640,7 @@ describe('GalleryComponent', () => {
     it('stacks the migration notice below the hidden notice and its close removes only it', () => {
       mockStore.config.set({ render_migration: { pending: 12 } });
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const cards = Array.from(stack(html)!.querySelectorAll('[role="status"]'));
@@ -1652,6 +1656,7 @@ describe('GalleryComponent', () => {
 
     it('closes the hidden-photos notice without touching the filters, and reopens it when the hidden count changes', () => {
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const before = mockStore.filters();
@@ -1668,6 +1673,7 @@ describe('GalleryComponent', () => {
 
     it('keeps each scope\'s closed notice closed on return, and ignores re-sorting', () => {
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       closeFor(html, I18N.gallery.hidden_banner.message).click();
@@ -1692,6 +1698,7 @@ describe('GalleryComponent', () => {
       mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
       mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       closeFor(html, I18N.gallery.review_progress.browser).click();
@@ -1714,6 +1721,7 @@ describe('GalleryComponent', () => {
       });
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const before = mockStore.filters();
@@ -1744,6 +1752,7 @@ describe('GalleryComponent', () => {
       });
       try {
         const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
         Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true) });
         mockStore.filterDrawerOpen.set(true);
         fixture.detectChanges();
@@ -1770,6 +1779,7 @@ describe('GalleryComponent', () => {
       };
       const renderFixture = () => {
         const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
         fixture.detectChanges();
         return fixture;
       };
@@ -5281,7 +5291,7 @@ describe('GalleryComponent', () => {
   describe('review-progress banner (rendered)', () => {
     let fixture: ComponentFixture<GalleryComponent>;
 
-    function render(): HTMLElement {
+    function render(wide = true): HTMLElement {
       mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
       fixture = TestBed.createComponent(GalleryComponent);
       fixture.detectChanges();
@@ -5363,9 +5373,10 @@ describe('GalleryComponent', () => {
   describe('notice stack auto-collapse (rendered)', () => {
     let fixture: ComponentFixture<GalleryComponent>;
 
-    function render(): HTMLElement {
+    function render(wide = true): HTMLElement {
       mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
       fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(wide), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -5509,7 +5520,8 @@ describe('GalleryComponent', () => {
     });
 
     it('waits while the mobile drawer covers the stack and starts afresh when it closes', () => {
-      const host = render();
+      const host = render(false);
+      pill(host)!.click(); fixture.detectChanges();
       vi.advanceTimersByTime(3000);
       mockStore.filterDrawerOpen.set(true);
       fixture.detectChanges();

@@ -164,7 +164,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     const closeEditor = async () => {
       TestBed.inject(MatDialog).closeAll();
       routed.fixture.destroy();
-      await fixture.whenStable();
+      fixture.destroy();
     };
     afterEach(async () => { await closeEditor(); });
 
