@@ -1230,7 +1230,15 @@
       "download_confirm_title": "Download {count} photos?",
       "download_confirm_message": "Each photo is downloaded as a separate file. {count} of them will take a while and may overwhelm the browser.",
       "mark_bracket": "Mark as one bracket",
-      "marked_bracket": "{count} photos marked as one bracket"
+      "marked_bracket": "{count} photos marked as one bracket",
+      "targets": {
+        "title": "Targets",
+        "explicit": "Commands affect the explicitly selected photos. Selecting one folded tile does not select its other members.",
+        "view": "Commands affect matching photos, including folded stack members, minus your exclusions. Matching membership is evaluated when the command runs.",
+        "loaded": "Loaded group context: {shown} / {total}. Offscreen selections are not summarized here.",
+        "manual": "Manual stack",
+        "stack_count": "Matching: {matching} · Permitted: {total}"
+      }
     },
     "keep_top": {
       "label": "Keep top %",

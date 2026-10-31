@@ -43,6 +43,7 @@ import { UndoService } from '../../core/services/undo.service';
 import { SequenceKind } from '../../core/services/sequence-override.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { makePhoto } from '../../../testing/photo.fixture';
 
 @Component({ template: 'Photo route' })
 class MenuPhotoRoute {}
@@ -3358,6 +3359,43 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('selection target disclosure', () => {
+    it('shows permitted matching stack counts and other group kinds without widening selection', () => {
+      const grouped = makePhoto({ path: '/a.jpg', stack_id: 'manual', stack_count: 2, stack_total_count: 4, sequence_kind: 'bracket', sequence_group_id: 0, burst_group_id: 0 });
+      mockStore.photos.set([grouped]);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/offscreen.jpg']));
+      mockStore.selectionCount.set(2);
+      vi.mocked(TestBed.inject(I18nService).t).mockImplementation((key, vars) => key + (vars ? JSON.stringify(vars) : ''));
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const disclosure = root.querySelector<HTMLDetailsElement>('[data-selection-targets]')!;
+      expect(disclosure.textContent).toContain('gallery.selection.targets.explicit');
+      expect(disclosure.textContent).toContain('"matching":2,"total":4');
+      expect(disclosure.textContent).toContain('gallery.selection.targets.manual');
+      expect(disclosure.textContent).toContain('culling.type_burst');
+      expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg', '/offscreen.jpg']);
+      disclosure.open = true;
+      disclosure.querySelector('summary')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(disclosure.open).toBe(false);
+      expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg', '/offscreen.jpg']);
+      expect(TestBed.inject(ApiService).post).not.toHaveBeenCalled();
+      fixture.destroy();
+    });
+
+    it('describes whole-view matching membership without presenting tile observations as the whole target', () => {
+      mockStore.viewScopeSelected.set(true);
+      mockStore.selectionCount.set(40);
+      mockStore.photos.set([makePhoto({ path: '/a.jpg', stack_id: 'manual', stack_count: 2, stack_total_count: 4 })]);
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const disclosure = (fixture.nativeElement as HTMLElement).querySelector('[data-selection-targets]')!;
+      expect(disclosure.textContent).toContain('gallery.selection.targets.view');
+      expect(disclosure.textContent).not.toContain('gallery.selection.targets.stack_count');
+      fixture.destroy();
+    });
+  });
+
   describe('whole-view selection', () => {
     const photo = (path: string) => ({ path, filename: path.slice(1) });
 
@@ -3507,6 +3545,7 @@ describe('GalleryComponent', () => {
       let snackOpen: Mock;
 
       beforeEach(() => {
+        mockAuth['isEdition'] = vi.fn(() => true);
         mockStore.photos.set(['/a.jpg', '/b.jpg'].map(photo));
         mockStore.total.set(650);
         mockStore.viewScopeSelected.set(true);
@@ -3537,6 +3576,50 @@ describe('GalleryComponent', () => {
         await favorite();
 
         expect(mockStore.batchFavorite).not.toHaveBeenCalled();
+      });
+
+      it.each(['exclusions', 'criteria'] as const)('refuses changed %s while the target count is pending', async change => {
+        let resolve!: (count: number) => void;
+        mockStore.countInView.mockReturnValue(new Promise<number>(done => { resolve = done; }));
+        mockStore.filterPayload = vi.fn(() => ({ tag: mockStore.filters().tag }));
+        const pending = favorite();
+        if (change === 'exclusions') mockStore.excludedPaths.set(new Set(['/a.jpg']));
+        else mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tag: 'new' }));
+        resolve(650); await pending;
+        expect(dialog.open).not.toHaveBeenCalled();
+        expect(mockStore.batchFavorite).not.toHaveBeenCalled();
+      });
+
+      it.each(['selection', 'edition', 'navigation'] as const)('refuses changed %s after the confirmation opened', async change => {
+        const closed = new Subject<boolean>();
+        let didOpen!: () => void;
+        const opened = new Promise<void>(resolve => { didOpen = resolve; });
+        (dialog.open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+        const pending = favorite(); await opened;
+        if (change === 'selection') {
+          mockStore.viewScopeSelected.set(false);
+          mockStore.selectedPaths.set(new Set(['/new.jpg']));
+        } else if (change === 'edition') mockAuth['isEdition'] = vi.fn(() => false);
+        else {
+          const router = TestBed.inject(Router);
+          router.resetConfig([{ path: 'photo', component: MenuPhotoRoute }]);
+          await router.navigateByUrl('/photo?path=%2Fa.jpg');
+        }
+        closed.next(true); await pending;
+        expect(mockStore.batchFavorite).not.toHaveBeenCalled();
+      });
+
+      it('retains a newer explicit selection after the accepted batch finishes', async () => {
+        mockStore.viewScopeSelected.set(false);
+        mockStore.selectedPaths.set(new Set(['/a.jpg']));
+        let resolve!: (result: unknown) => void;
+        mockStore.batchFavorite.mockReturnValue(new Promise(done => { resolve = done; }));
+        const pending = favorite();
+        expect(mockStore.batchFavorite).toHaveBeenCalledWith(['/a.jpg']);
+        mockStore.selectedPaths.set(new Set(['/b.jpg']));
+        resolve({ snapshot: new Map(), targeted: 1, count: 1 }); await pending;
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+        expect([...mockStore.selectedPaths()]).toEqual(['/b.jpg']);
       });
 
       it('writes nothing when the count cannot be fetched', async () => {
@@ -3602,6 +3685,7 @@ describe('GalleryComponent', () => {
     let snackOpen: Mock;
 
     beforeEach(() => {
+      mockAuth['isEdition'] = vi.fn(() => true);
       undoRegister = vi.fn();
       vi.spyOn(TestBed.inject(UndoService), 'register').mockImplementation(undoRegister);
       snackOpen = TestBed.inject(MatSnackBar).open as Mock;

@@ -1245,6 +1245,14 @@ export const I18N = {
       download_confirm_message: "gallery.selection.download_confirm_message",
       mark_bracket: "gallery.selection.mark_bracket",
       marked_bracket: "gallery.selection.marked_bracket",
+      targets: {
+        title: "gallery.selection.targets.title",
+        explicit: "gallery.selection.targets.explicit",
+        view: "gallery.selection.targets.view",
+        loaded: "gallery.selection.targets.loaded",
+        manual: "gallery.selection.targets.manual",
+        stack_count: "gallery.selection.targets.stack_count",
+      },
     },
     keep_top: {
       label: "gallery.keep_top.label",
