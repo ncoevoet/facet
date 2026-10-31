@@ -1453,7 +1453,11 @@
       "two_up": "双图",
       "previous_candidate": "上一个候选",
       "next_candidate": "下一个候选",
-      "candidate_position": "候选 {current}/{total}"
+      "candidate_position": "候选 {current}/{total}",
+      "remove_pane": "仅从比较视图移除 {name}",
+      "restore": "恢复已移除的照片",
+      "queue": "候选（不含参考照片）：{count}",
+      "queue_label": "比较照片"
     },
     "clipping": {
       "badge_highlight": "高光溢出：{percent}% 的像素",

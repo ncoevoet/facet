@@ -1453,7 +1453,11 @@
       "two_up": "Zwei Ansichten",
       "previous_candidate": "Vorheriger Kandidat",
       "next_candidate": "Nächster Kandidat",
-      "candidate_position": "Kandidat {current} von {total}"
+      "candidate_position": "Kandidat {current} von {total}",
+      "remove_pane": "{name} nur aus dem Vergleich entfernen",
+      "restore": "Entfernte Fotos wiederherstellen",
+      "queue": "Kandidaten (ohne Referenz): {count}",
+      "queue_label": "Vergleichsfotos"
     },
     "clipping": {
       "badge_highlight": "Beschnittene Lichter: {percent}% der Pixel",

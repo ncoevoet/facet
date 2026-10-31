@@ -180,4 +180,46 @@ describe('CompareSelectedDialogComponent', () => {
     previous.click(); fixture.detectChanges();
     expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
   });
+  it('shows a thumbnail queue and opens a chosen candidate without promoting it', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const queue = root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]');
+    expect(queue).toHaveLength(4);
+    queue[3].click(); fixture.detectChanges();
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    expect(panes.map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/d.jpg']);
+    expect(root.querySelector('[data-reference="true"]')!.textContent).toContain('a.jpg');
+    expect(root.querySelector('[data-candidate-thumbnail][aria-pressed="true"]')!.getAttribute('data-path')).toBe('/d.jpg');
+  });
+
+  it('removes the reference from this view only, chooses a surviving reference and can restore the original set', () => {
+    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const data = TestBed.inject(MAT_DIALOG_DATA);
+    data.photos[0].is_rejected = false;
+    data.photos[1].is_kept = true;
+    const before = JSON.stringify(data.photos);
+    const root = fixture.nativeElement as HTMLElement;
+    root.querySelector<HTMLButtonElement>('[data-remove-pane]')!.click(); fixture.detectChanges();
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/b.jpg', '/c.jpg']);
+    expect(root.querySelector('[data-reference="true"]')!.textContent).toContain('b.jpg');
+    expect(root.querySelectorAll('[data-candidate-thumbnail]')).toHaveLength(2);
+    root.querySelector<HTMLButtonElement>('[data-restore-comparison]')!.click(); fixture.detectChanges();
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/b.jpg', '/c.jpg']);
+    expect(JSON.stringify(data.photos)).toBe(before);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it('advances after removing a candidate and keeps one remaining photo inspectable', () => {
+    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[1].click(); fixture.detectChanges();
+    root.querySelectorAll<HTMLButtonElement>('[data-remove-pane]')[1].click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/c.jpg']);
+    root.querySelectorAll<HTMLButtonElement>('[data-remove-pane]')[1].click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg']);
+    expect(root.querySelector<HTMLButtonElement>('[data-remove-pane]')!.disabled).toBe(true);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
 });

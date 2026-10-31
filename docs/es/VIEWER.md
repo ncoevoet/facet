@@ -319,6 +319,8 @@ En el detalle de la foto, las métricas se organizan en pestañas con icono: dat
 
 Haz clic en las fotos para seleccionarlas; Shift+clic selecciona un rango. Abajo a la izquierda aparece una barra de acciones con botones de icono (pasa el cursor para ver las etiquetas). Las acciones masivas requieren el modo de edición.
 
+La tira de miniaturas identifica la referencia y permite elegir una candidata directamente. El panel activo se destaca por separado. Quitar de la comparación solo cambia esta vista, nunca Conservar/Rechazar ni la selección de galería; Restaurar devuelve las fotos quitadas. Una foto restante sigue disponible para inspección. La cuadrícula con detalles encaja la foto completa en un marco uniforme 4:3; Mosaico mantiene filas justificadas.
+
 - **Favorito**: marca todas como favoritas (borra el rechazo)
 - **Rechazar**: marca todas como rechazadas (borra el favorito y la valoración)
 - **Calificar**: define o borra una valoración de 1–5 estrellas
@@ -1145,7 +1147,7 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 
 **Reasignar teclas.** `K`, `F`, `X`, `/`, `B`, `V` y `S` son valores por defecto. Menú de usuario → **Personalizar atajos** te permite hacer clic en una acción y pulsar una tecla nueva (`Esc` o `Tab` cancela). Los dígitos, `Space` y `?` están reservados, y una tecla ya en uso se rechaza. **Restablecer todo** restaura los valores por defecto. La asignación se guarda por navegador (`localStorage`). La página de la foto usa las mismas teclas, y la referencia `?` siempre muestra las teclas en vigor.
 
-**Foto actual.** La foto sobre la que actúan las teclas de valoración, favorito y rechazo tiene un contorno de 4 px; las demás tarjetas se atenúan al 50 %. No se marca nada hasta que te mueves a una foto. Hacer clic en una foto mueve el marcador a ella. Volver desde una foto deja el marcador en la última que viste. La pista de la tarjeta enfocada aparece solo en modo de edición con `viewer.features.show_rating_controls` activado.
+**Foto actual.** La foto sobre la que actúan las teclas de valoración, favorito y rechazo tiene un contorno de 4 px; las demás tarjetas conservan su luminosidad normal. No se marca nada hasta que te mueves a una foto. Hacer clic en una foto mueve el marcador a ella. Volver desde una foto deja el marcador en la última que viste. La pista de la tarjeta enfocada aparece solo en modo de edición con `viewer.features.show_rating_controls` activado.
 
 **En la página de la foto**, `1`–`5`, la tecla de favorito y la de rechazo (`F` y `X` por defecto; `0` también rechaza) actúan sobre la foto abierta, en modo de edición con `viewer.features.show_rating_controls` activado. No avanzan; usa `←` `→`. La referencia `?` los lista en *Vista de foto*.
 

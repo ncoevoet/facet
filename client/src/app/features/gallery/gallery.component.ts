@@ -753,7 +753,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
             @if (downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
           </button>
-          <details #selectionMore data-selection-more class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+          <details #selectionMore data-selection-more tabindex="-1" class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
             <summary #selectionMoreSummary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
             <div class="absolute bottom-full left-0 mb-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {

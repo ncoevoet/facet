@@ -1453,7 +1453,11 @@
       "two_up": "Two-up",
       "previous_candidate": "Previous candidate",
       "next_candidate": "Next candidate",
-      "candidate_position": "Candidate {current} of {total}"
+      "candidate_position": "Candidate {current} of {total}",
+      "remove_pane": "Remove {name} from comparison only",
+      "restore": "Restore removed photos",
+      "queue": "Candidates (excluding reference): {count}",
+      "queue_label": "Comparison photos"
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",

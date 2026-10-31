@@ -1453,7 +1453,11 @@
       "two_up": "Due viste",
       "previous_candidate": "Candidata precedente",
       "next_candidate": "Candidata successiva",
-      "candidate_position": "Candidata {current} di {total}"
+      "candidate_position": "Candidata {current} di {total}",
+      "remove_pane": "Rimuovi {name} solo dal confronto",
+      "restore": "Ripristina le foto rimosse",
+      "queue": "Candidate (riferimento escluso): {count}",
+      "queue_label": "Foto di confronto"
     },
     "clipping": {
       "badge_highlight": "Alte luci tagliate: {percent}% dei pixel",

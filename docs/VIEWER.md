@@ -319,6 +319,8 @@ In photo detail, metrics sit in icon tabs: EXIF data (when present), Quality, Co
 
 Click photos to select; Shift+Click selects a range. An action bar appears at the bottom-left with icon buttons (hover for labels). Bulk actions need edition mode.
 
+The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
+
 - **Favorite** — mark all as favorite (clears rejected)
 - **Reject** — mark all as rejected (clears favorite and rating)
 - **Rate** — set or clear a 1–5 star rating
@@ -1143,7 +1145,7 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 
 **Remap keys.** `K`, `F`, `X`, `/`, `B`, `V` and `S` are defaults. User menu → **Customize shortcuts** lets you click an action and press a new key (`Esc` or `Tab` cancels). Digits, `Space` and `?` are reserved, and a key already in use is refused. **Reset all** restores the defaults. The mapping is stored per browser (`localStorage`). The photo page uses the same keys, and the `?` reference always shows the keys in effect.
 
-**Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards dim to 50%. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
+**Current photo.** The photo that rating, favorite and reject keys act on has a 4px outline; other cards retain their normal brightness. Nothing is marked until you move onto a photo. Clicking a photo moves the marker to it. Returning from a photo leaves the marker on the last one you viewed. The focused-card hint appears only in edition mode with `viewer.features.show_rating_controls` on.
 
 **On the photo page**, `1`–`5`, the favourite key and the reject key (`F` and `X` by default; `0` also rejects) act on the open photo, in edition mode with `viewer.features.show_rating_controls` on. They do not advance; use `←` `→`. The `?` reference lists them under *Photo view*.
 

@@ -995,9 +995,9 @@ describe('PhotoCardComponent current-photo marker', () => {
       .toBe(false);
   });
 
-  it('dims a card that is not the current one', () => {
+  it('keeps other photos at full strength when the current photo changes', () => {
     const fixture = createCard({ isActive: false, gridHasActiveCard: true });
-    expect(host(fixture).classList.contains('opacity-50')).toBe(true);
+    expect(host(fixture).classList.contains('opacity-50')).toBe(false);
     expect(host(fixture).classList.contains('outline-4')).toBe(false);
   });
 
@@ -1053,16 +1053,19 @@ describe('PhotoCardComponent current-photo marker', () => {
     expect(classes.contains('scroll-mt-2')).toBe(true);
   });
 
-  it('carries the class that cancels the dimming under "reduce transparency"', () => {
-    // jsdom cannot evaluate `prefers-reduced-transparency`, so this only proves
-    // the class is BOUND to the host, not that the media query wins the
-    // cascade at runtime -- that is proven separately against the built
-    // production stylesheet, where `.reduce-transparency\:opacity-100` (inside
-    // the `@media (prefers-reduced-transparency: reduce)` block) must appear
-    // AFTER the plain `.opacity-50` rule, since both are single-class
-    // selectors and source order, not specificity, decides which wins.
-    const classes = host(createCard({ isActive: false, gridHasActiveCard: true })).classList;
-    expect(classes.contains('reduce-transparency:opacity-100')).toBe(true);
+  it('keeps mixed orientations in an uncropped fixed frame when details are shown', () => {
+    const fixture = createCard();
+    fixture.componentRef.setInput('hideDetails', false);
+    fixture.componentRef.setInput('mosaicMode', false);
+    fixture.detectChanges();
+    const image = host(fixture).querySelector('img')!;
+    expect(image.parentElement!.classList.contains('aspect-[4/3]')).toBe(true);
+    expect(image.classList.contains('object-contain')).toBe(true);
+    expect(image.classList.contains('object-cover')).toBe(false);
+    fixture.componentRef.setInput('mosaicMode', true);
+    fixture.detectChanges();
+    expect(image.parentElement!.classList.contains('aspect-[4/3]')).toBe(false);
+    expect(image.classList.contains('object-cover')).toBe(true);
   });
 
 });

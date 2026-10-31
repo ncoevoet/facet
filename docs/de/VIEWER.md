@@ -319,6 +319,8 @@ In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern
 
 Klicken Sie Fotos zum Auswählen an; Umschalt+Klick wählt einen Bereich. Unten links erscheint eine Aktionsleiste mit Symbolschaltflächen (Maus darüber für die Beschriftung). Sammelaktionen erfordern den Bearbeitungsmodus.
 
+Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidatenwahl. Das aktive Fenster ist unabhängig markiert. Aus Vergleich entfernen ändert nur diese Ansicht, nie Behalten/Ablehnen oder die Galerieauswahl; Wiederherstellen bringt entfernte Fotos zurück. Ein einzelnes verbleibendes Foto bleibt prüfbar. Rasterkarten mit Details zeigen das ganze Foto in einem einheitlichen 4:3-Rahmen; Mosaik behält justierte Zeilen.
+
 - **Favorit** — Alle als Favorit markieren (hebt Ablehnung auf)
 - **Ablehnen** — Alle als abgelehnt markieren (hebt Favorit und Bewertung auf)
 - **Bewerten** — Sternebewertung (1–5) setzen oder löschen
@@ -1143,7 +1145,7 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 
 **Tasten umbelegen.** `K`, `F`, `X`, `/`, `B`, `V` und `S` sind Standardwerte. Unter Benutzermenü → **Tastenkürzel anpassen** klicken Sie eine Aktion an und drücken eine neue Taste (`Esc` oder `Tab` bricht ab). Ziffern, `Space` und `?` sind reserviert, und eine bereits verwendete Taste wird abgelehnt. **Alle zurücksetzen** stellt die Standardwerte wieder her. Die Belegung wird pro Browser gespeichert (`localStorage`). Die Fotoseite verwendet dieselben Tasten, und die Referenz unter `?` zeigt immer die geltenden Tasten.
 
-**Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten werden auf 50 % abgedunkelt. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
+**Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten behalten ihre normale Helligkeit. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
 
 **Auf der Fotoseite** wirken `1`–`5`, die Favoriten-Taste und die Ablehnen-Taste (standardmäßig `F` und `X`; `0` lehnt ebenfalls ab) auf das geöffnete Foto, im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`. Sie springen nicht weiter; nutzen Sie `←` `→`. Die Referenz unter `?` listet sie unter *Fotoansicht*.
 

@@ -319,6 +319,8 @@ Dans le détail de la photo, les métriques sont réparties en onglets à icône
 
 Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage. Une barre d'actions apparaît en bas à gauche avec des boutons à icônes (survolez pour voir les libellés). Les actions groupées nécessitent le mode édition.
 
+La bande de miniatures identifie la référence et permet de choisir directement une candidate. Le volet actif est signalé séparément. Retirer de la comparaison ne change que cette vue, jamais Garder/Rejeter ni la sélection de galerie ; Restaurer rétablit les photos retirées. Une photo restante reste consultable. Avec détails, la grille ajuste toute la photo dans un cadre uniforme 4:3 ; Mosaïque conserve ses rangées justifiées.
+
 - **Favori** — marque toutes les photos comme favorites (efface le rejet)
 - **Rejeter** — marque toutes les photos comme rejetées (efface le favori et la note)
 - **Noter** — définit ou efface une note de 1 à 5 étoiles
@@ -1143,7 +1145,7 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 
 **Réassigner les touches.** `K`, `F`, `X`, `/`, `B`, `V` et `S` sont les valeurs par défaut. Menu utilisateur → **Personnaliser les raccourcis** vous permet de cliquer sur une action et d'appuyer sur une nouvelle touche (`Esc` ou `Tab` annule). Les chiffres, `Space` et `?` sont réservés, et une touche déjà utilisée est refusée. **Tout réinitialiser** restaure les valeurs par défaut. L'association est enregistrée par navigateur (`localStorage`). La page de photo utilise les mêmes touches, et la référence `?` montre toujours les touches en vigueur.
 
-**Photo courante.** La photo sur laquelle agissent les touches de note, de favori et de rejet a un contour de 4 px ; les autres cartes sont atténuées à 50 %. Rien n'est marqué tant que vous ne vous placez pas sur une photo. Cliquer sur une photo y déplace le repère. Revenir d'une photo laisse le repère sur la dernière consultée. L'indication de carte ciblée n'apparaît qu'en mode édition avec `viewer.features.show_rating_controls` activé.
+**Photo courante.** La photo sur laquelle agissent les touches de note, de favori et de rejet a un contour de 4 px ; les autres cartes conservent leur luminosité normale. Rien n'est marqué tant que vous ne vous placez pas sur une photo. Cliquer sur une photo y déplace le repère. Revenir d'une photo laisse le repère sur la dernière consultée. L'indication de carte ciblée n'apparaît qu'en mode édition avec `viewer.features.show_rating_controls` activé.
 
 **Sur la page de photo**, `1`–`5`, la touche de favori et la touche de rejet (`F` et `X` par défaut ; `0` rejette aussi) agissent sur la photo ouverte, en mode édition avec `viewer.features.show_rating_controls` activé. Elles n'avancent pas ; utilisez `←` `→`. La référence `?` les liste sous *Vue photo*.
 

@@ -319,6 +319,8 @@ Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se 
 
 Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a sinistra compare una barra delle azioni con pulsanti a icona (passaci sopra per le etichette). Le azioni di gruppo richiedono la modalità di modifica.
 
+La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
+
 - **Preferito** — segna tutte come preferite (cancella lo scarto)
 - **Rifiuta** — segna tutte come scartate (cancella preferito e valutazione)
 - **Valuta** — imposta o cancella una valutazione da 1 a 5 stelle
@@ -1143,7 +1145,7 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 
 **Rimappare i tasti.** `K`, `F`, `X`, `/`, `B`, `V` e `S` sono valori predefiniti. Menu utente → **Personalizza le scorciatoie** permette di cliccare un'azione e premere un nuovo tasto (`Esc` o `Tab` annulla). Cifre, `Space` e `?` sono riservati, e un tasto già in uso viene rifiutato. **Ripristina tutto** ripristina i valori predefiniti. La mappatura è memorizzata per browser (`localStorage`). La pagina della foto usa gli stessi tasti, e il riferimento `?` mostra sempre i tasti in vigore.
 
-**Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede si attenuano al 50%. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
+**Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede mantengono la luminosità normale. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
 
 **Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, in modalità di modifica con `viewer.features.show_rating_controls` attivo. Non avanzano; usa `←` `→`. Il riferimento `?` li elenca sotto *Photo view*.
 

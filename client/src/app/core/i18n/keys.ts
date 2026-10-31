@@ -1468,6 +1468,10 @@ export const I18N = {
       previous_candidate: "gallery.compare.previous_candidate",
       next_candidate: "gallery.compare.next_candidate",
       candidate_position: "gallery.compare.candidate_position",
+      remove_pane: "gallery.compare.remove_pane",
+      restore: "gallery.compare.restore",
+      queue: "gallery.compare.queue",
+      queue_label: "gallery.compare.queue_label",
     },
     clipping: {
       badge_highlight: "gallery.clipping.badge_highlight",

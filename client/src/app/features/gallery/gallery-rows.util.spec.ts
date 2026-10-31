@@ -162,11 +162,11 @@ describe('buildGridRows', () => {
     expect(rows[0].widths).toEqual(Array(5).fill(Math.floor(cellW)));
   });
 
-  it('details-on rows add the estimate to the tallest image', () => {
+  it('details-on rows align mixed orientations in equal 4:3 frames plus metadata', () => {
     const tallAndWide = [photo(0, 1000, 2000), photo(1, 2000, 1000)];
     const rows = buildGridRows(tallAndWide, 1000, 400, 8, false);
     const cellW = (1000 - 8) / 2;
-    expect(rows[0].height).toBe(Math.round(cellW / 0.5) + DETAILS_ESTIMATE_PX);
+    expect(rows[0].height).toBe(Math.round(cellW / (4 / 3)) + DETAILS_ESTIMATE_PX);
   });
 
   it('a single natural column uses aspect-ratio height', () => {

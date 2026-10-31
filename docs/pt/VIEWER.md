@@ -319,6 +319,8 @@ No detalhe da foto, as métricas ficam em abas com ícone: dados EXIF (se houver
 
 Clique nas fotos para selecionar; Shift+Clique seleciona um intervalo. Uma barra de ações aparece no canto inferior esquerdo com botões de ícone (passe o cursor para ver os rótulos). As ações em lote exigem o modo de edição.
 
+A faixa de miniaturas identifica a referência e permite escolher uma candidata diretamente. O painel ativo é destacado separadamente. Remover da comparação altera apenas esta vista, nunca Manter/Rejeitar nem a seleção da galeria; Restaurar devolve as fotos removidas. Uma foto restante continua disponível para inspeção. A grade com detalhes encaixa a foto inteira numa moldura uniforme 4:3; Mosaico mantém linhas justificadas.
+
 - **Favoritar** — marca todas como favoritas (limpa rejeição)
 - **Rejeitar** — marca todas como rejeitadas (limpa favorito e avaliação)
 - **Avaliar** — define ou limpa uma avaliação de 1–5 estrelas
@@ -1141,7 +1143,7 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 
 **Remapear teclas.** `K`, `F`, `X`, `/`, `B`, `V` e `S` são padrões. Menu do usuário → **Personalizar atalhos** permite clicar em uma ação e pressionar uma nova tecla (`Esc` ou `Tab` cancela). Dígitos, `Space` e `?` são reservados, e uma tecla já em uso é recusada. **Restaurar tudo** restaura os padrões. O mapeamento é salvo por navegador (`localStorage`). A página da foto usa as mesmas teclas, e a referência `?` sempre mostra as teclas em vigor.
 
-**Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões esmaecem para 50%. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
+**Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões mantêm o brilho normal. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
 
 **Na página da foto**, `1`–`5`, a tecla de favorito e a tecla de rejeição (`F` e `X` por padrão; `0` também rejeita) agem sobre a foto aberta, no modo de edição com `viewer.features.show_rating_controls` ligado. Não avançam; use `←` `→`. A referência `?` as lista em *Visão da foto*.
 
