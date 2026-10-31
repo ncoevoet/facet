@@ -982,9 +982,9 @@ interface SceneSummary {
                     [attr.aria-label]="I18N.culling.compare['4up'] | translate"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
             <details #darkroomTools tabindex="-1" class="relative shrink-0" data-darkroom-tools
-                     (keydown)="$event.stopPropagation()"
                      (keydown.escape)="darkroomTools.open = false; darkroomToolsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #darkroomToolsSummary class="flex h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-2 rounded px-2 hover:bg-white/10"
+                       (keydown.enter)="$event.stopPropagation()" (keydown.space)="$event.stopPropagation()"
                        [attr.aria-label]="I18N.gallery.compare.inspection.title | translate">
                 <mat-icon aria-hidden="true">tune</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span>
               </summary>

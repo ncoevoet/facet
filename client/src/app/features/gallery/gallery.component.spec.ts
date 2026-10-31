@@ -379,18 +379,23 @@ describe('GalleryComponent', () => {
       mockStore.selectedPaths.set(new Set());
       mockStore.selectionCount.set(0);
     });
-    const filters = mockStore.filters();
     const fixture = TestBed.createComponent(GalleryComponent);
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
     Object.defineProperty(fixture.debugElement.injector.get(MatDialog), 'openDialogs', { value: [] });
     fixture.componentInstance['containerWidth'].set(375);
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tooltip_mode: 'click' }));
+    fixture.componentInstance['tooltipPhoto'].set(mockStore.photos()[0]);
     fixture.detectChanges();
+    const query = mockStore.filters();
+    expect(fixture.componentInstance.tooltipDisabled()).toBe(false);
     const button = fixture.nativeElement.querySelector('[data-mobile-select]') as HTMLButtonElement;
     expect(button.textContent).toContain(I18N.gallery.selection.select);
     button.click();
     fixture.detectChanges();
     expect(button.getAttribute('aria-pressed')).toBe('true');
     expect(button.textContent).toContain(I18N.ui.buttons.cancel);
+    expect(fixture.componentInstance['tooltipPhoto']()).toBeNull();
+    expect(fixture.componentInstance.tooltipDisabled()).toBe(true);
     expect(fixture.nativeElement.querySelectorAll('[data-selection-affordance]')).toHaveLength(2);
     expect(fixture.debugElement.queryAll(By.directive(PhotoCardComponent))
       .every(card => card.componentInstance.tooltipMode() === 'off')).toBe(true);
@@ -404,7 +409,8 @@ describe('GalleryComponent', () => {
     expect(mockStore.selectedPaths().size).toBe(0);
     expect(button.getAttribute('aria-pressed')).toBe('false');
     expect(fixture.nativeElement.querySelector('[data-selection-affordance]')).toBeNull();
-    expect(mockStore.filters()).toBe(filters);
+    expect(mockStore.filters()).toBe(query);
+    expect(fixture.componentInstance.tooltipDisabled()).toBe(false);
     expect(mockApi.post).not.toHaveBeenCalled();
     fixture.destroy();
   });

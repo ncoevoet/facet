@@ -409,7 +409,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [thumbSize]="thumbSize()"
                     [isEditionMode]="auth.isEdition()"
                     [personFilterId]="store.filters().person_id"
-                    [tooltipMode]="selectingPhotos() && !isDesktop() ? 'off' : tooltipMode()"
+                    [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
                     [panelActivation]="panelActivation()"
                     (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                     (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -468,7 +468,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [thumbSize]="thumbSize()"
                   [isEditionMode]="auth.isEdition()"
                   [personFilterId]="store.filters().person_id"
-                  [tooltipMode]="selectingPhotos() && !isDesktop() ? 'off' : tooltipMode()"
+                  [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
                       [panelActivation]="panelActivation()"
                   [style.content-visibility]="'auto'"
                   [style.contain-intrinsic-size]="'auto ' + (cardWidth() + 80) + 'px'"
@@ -536,7 +536,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       [thumbSize]="thumbSize()"
                       [isEditionMode]="auth.isEdition()"
                       [personFilterId]="store.filters().person_id"
-                      [tooltipMode]="selectingPhotos() && !isDesktop() ? 'off' : tooltipMode()"
+                      [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
                       [panelActivation]="panelActivation()"
                       (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -1183,7 +1183,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Which gesture(s) retarget the docked panel — only meaningful when tooltipMode is 'panel'. */
   readonly panelActivation = computed(() => this.store.filters().panel_activation);
   /** Whether tooltip is fully disabled (off mode) — used for skipping rendering and hover handlers */
-  readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off');
+  readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off' || (this.selectionAffordance() && !this.isDesktop()));
 
   /** Docked rail needs real width, not merely "not a phone". */
   readonly panelMode = computed(() => this.tooltipMode() === 'panel' && this.railWide.isDesktop());
@@ -2031,6 +2031,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.store.clearSelection();
       this.selectionAffordance.set(false);
     } else {
+      this.tooltipPhoto.set(null);
       this.selectionAffordance.set(true);
     }
   }
