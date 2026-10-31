@@ -3,12 +3,12 @@
 <ng-template matMenuContent>
  @if (navigationWide.isDesktop()) {
   @for (mode of navigationModes; track mode.id) {
-   <button mat-menu-item role="menuitemradio" [attr.aria-checked]="navigationMode() === mode.id" [attr.data-navigation-mode]="mode.id" (click)="setNavigationMode(mode.id)"><mat-icon>{{ navigationMode() === mode.id ? 'check' : mode.icon }}</mat-icon>{{ mode.label | translate }}</button>
+   <button mat-menu-item role="menuitemradio" [attr.aria-checked]="navigationMode() === mode.id" [attr.data-navigation-mode]="mode.id" (click)="setNavigationMode(mode.id, $event)"><mat-icon>{{ navigationMode() === mode.id ? 'check' : mode.icon }}</mat-icon>{{ mode.label | translate }}</button>
   }
   <mat-divider />
  }
 
-          <a mat-menu-item  routerLink="/" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
+          <a mat-menu-item  routerLink="/"     [style.color]="isGalleryRoute() ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [class.!bg-[var(--mat-sys-secondary-container)]]="isGalleryRoute()" [attr.aria-current]="isGalleryRoute() ? 'page' : null" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon><span >{{ I18N.nav.gallery | translate }}</span>
           </a>
           @if (store.config()?.features?.show_albums) {
@@ -98,7 +98,7 @@
     <aside tabindex="-1" data-expandable-navigation [class.!w-48]="navigationExpanded()" (mouseenter)="navigationHover.set(true)" (mouseleave)="navigationHover.set(false)" (focusin)="navigationFocused.set(true)" (focusout)="onNavigationFocusOut($event)" (keydown.escape)="collapseNavigationPreview()" class="hidden lg:flex fixed top-0 bottom-0 left-0 z-40 w-14 overflow-hidden flex-col border-r border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)]">
 <div class="flex h-12 shrink-0 items-center px-1"><button mat-icon-button data-toggle-navigation data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button></div>
       <nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4" [attr.aria-label]="I18N.nav.navigation | translate">
-          <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlGallery="routerLinkActive" [routerLinkActiveOptions]="{exact:true}" [style.color]="rlGallery.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
+          <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/"     [style.color]="isGalleryRoute() ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [class.!bg-[var(--mat-sys-secondary-container)]]="isGalleryRoute()" [attr.aria-current]="isGalleryRoute() ? 'page' : null" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon>diamond</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.gallery | translate }}</span>
           </a>
           @if (store.config()?.features?.show_albums) {

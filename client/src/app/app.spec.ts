@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { DefaultUrlSerializer, Router, provideRouter } from '@angular/router';
-import { Provider, signal } from '@angular/core';
+import { Component, Provider, signal } from '@angular/core';
 import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
 import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
@@ -20,6 +20,9 @@ import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
 
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from './core/services/keyboard-mapping.service';
+
+@Component({ selector: 'app-navigation-fixture-page', template: '' })
+class NavigationFixturePage {}
 
 function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
   const filtersSignal = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
@@ -579,6 +582,42 @@ describe('App', () => {
       expect(menu.querySelector('a[href="/culling"]') !== null).toBe(edition);
       expect(menu.querySelector('a[href="/compare"]') !== null).toBe(edition);
       expect(menu.querySelector('a[href="/stats"]')).not.toBeNull();
+    });
+
+    it('marks the gallery workspace current across real query and album navigation', async () => {
+      const { fixture, root } = render(false);
+      const app = fixture.componentInstance as any;
+      app.navigationWide.isDesktop = signal(true);
+      app.setNavigationMode('pinned');
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: '', component: NavigationFixturePage }, { path: 'album/:albumId', component: NavigationFixturePage }, { path: 'other', component: NavigationFixturePage }]);
+      await router.navigateByUrl('/?search=single'); fixture.detectChanges();
+      const link = root.querySelector<HTMLAnchorElement>('[data-expandable-navigation] a[href="/"]')!;
+      expect(link.getAttribute('aria-current')).toBe('page');
+      await router.navigateByUrl('/album/17?tag=trip'); fixture.detectChanges();
+      expect(link.getAttribute('aria-current')).toBe('page');
+      await router.navigateByUrl('/other'); fixture.detectChanges();
+      expect(link.getAttribute('aria-current')).toBeNull();
+    });
+
+    it('restores keyboard focus across navigation owners without latching pointer focus', () => {
+      const { fixture, root } = render(false);
+      const app = fixture.componentInstance as any;
+      app.navigationWide.isDesktop = signal(true);
+      const callbacks: FrameRequestCallback[] = [];
+      const frame = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(callback => { callbacks.push(callback); return 1; });
+      try {
+        app.setNavigationMode('compact', new MouseEvent('click', { detail: 0 }));
+        const restoreFocus = callbacks.at(-1)!;
+        fixture.detectChanges();
+        restoreFocus(0);
+        expect(document.activeElement).toBe(root.querySelector('[data-toggle-navigation]'));
+        const beforePointer = callbacks.length;
+        app.setNavigationMode('hidden', new MouseEvent('click', { detail: 1 }));
+        fixture.detectChanges();
+        for (const callback of callbacks.slice(beforePointer)) callback(0);
+        expect(document.activeElement).not.toBe(root.querySelector('[data-toggle-navigation]'));
+      } finally { frame.mockRestore(); }
     });
 
     it('keeps only the hamburger, brand and global controls when navigation is hidden', () => {

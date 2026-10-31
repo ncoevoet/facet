@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "sunset at the beach...",
     "clear_search": "Clear search",
     "clear_semantic_search": "Clear semantic search",
+    "photo_count_one": "{count} photo",
     "photo_count": "{count} photos",
     "no_photos": "No photos found",
     "load_error": {
@@ -2816,6 +2817,24 @@
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "Target at opening · photos: {count}",
+      "ownership": "Manual tags are library metadata shared across accounts. AI tags stay unchanged.",
+      "view_scope": "Captured filters, exclusions: {count}. Matches are resolved at Apply time and may differ from the opening count.",
+      "explicit_scope": "Only the captured photo list changes. Folded group members and companion files are not included.",
+      "more": "More items: {count}",
+      "observed": "Tag presence in loaded selected photos: {loaded}/{count}",
+      "complete": "All target photos are represented in this loaded snapshot; ratios show shared and mixed values.",
+      "sample": "Only loaded photos are represented. Other selected photos are unknown.",
+      "preview": "Change preview",
+      "add_preview": "Add “{tag}” to this target. Existing tags are kept.",
+      "remove_preview": "Remove manual tag “{tag}” from this target. Other tags are kept.",
+      "progress": "Confirmed batches: {done}/{total} · confirmed changes: {count}",
+      "uncertain": "A response was lost or failed. The server may already have applied that batch. Retry repeats only remaining batches with the same tag and operation.",
+      "edit": "Edit change",
+      "saving": "Applying…",
+      "retry": "Retry remaining"
+    },
     "title": "Edit tags",
     "tag_label": "Tag",
     "hint": "Manual tags stay with the photo through rescans and are written as keywords on export.",

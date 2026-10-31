@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "Sonnenuntergang am Strand...",
     "clear_search": "Suche löschen",
     "clear_semantic_search": "Semantische Suche löschen",
+    "photo_count_one": "{count} Foto",
     "photo_count": "{count} Fotos",
     "no_photos": "Keine Fotos gefunden",
     "load_error": {
@@ -2816,6 +2817,24 @@
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "Ziel beim Öffnen · Fotos: {count}",
+      "ownership": "Manuelle Tags sind kontenübergreifende Bibliotheksmetadaten. KI-Tags bleiben unverändert.",
+      "view_scope": "Erfasste Filter, Ausschlüsse: {count}. Treffer werden beim Anwenden ermittelt und können von der anfänglichen Anzahl abweichen.",
+      "explicit_scope": "Nur die erfasste Fotoliste ändert sich. Verborgene Gruppenmitglieder und Begleitdateien sind nicht eingeschlossen.",
+      "more": "Weitere Einträge: {count}",
+      "observed": "Tag-Vorkommen in geladenen ausgewählten Fotos: {loaded}/{count}",
+      "complete": "Alle Zielfotos sind in diesem geladenen Stand enthalten; die Anteile zeigen gemeinsame und gemischte Werte.",
+      "sample": "Nur geladene Fotos sind enthalten. Andere ausgewählte Fotos sind unbekannt.",
+      "preview": "Änderungsvorschau",
+      "add_preview": "„{tag}“ zu diesem Ziel hinzufügen. Vorhandene Tags bleiben erhalten.",
+      "remove_preview": "Manuellen Tag „{tag}“ aus diesem Ziel entfernen. Andere Tags bleiben erhalten.",
+      "progress": "Bestätigte Stapel: {done}/{total} · bestätigte Änderungen: {count}",
+      "uncertain": "Eine Antwort ging verloren oder schlug fehl. Der Server hat den Stapel möglicherweise bereits angewendet. Wiederholen verarbeitet nur die verbleibenden Stapel mit demselben Tag und Vorgang.",
+      "edit": "Änderung bearbeiten",
+      "saving": "Wird angewendet…",
+      "retry": "Verbleibende wiederholen"
+    },
     "title": "Schlagwörter bearbeiten",
     "tag_label": "Schlagwort",
     "hint": "Manuelle Schlagwörter bleiben dem Foto auch nach erneutem Scannen erhalten und werden beim Export als Keywords geschrieben.",

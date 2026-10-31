@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "atardecer en la playa...",
     "clear_search": "Limpiar búsqueda",
     "clear_semantic_search": "Limpiar búsqueda semántica",
+    "photo_count_one": "{count} foto",
     "photo_count": "{count} fotos",
     "no_photos": "No se encontraron fotos",
     "load_error": {
@@ -2816,6 +2817,24 @@
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "Destino al abrir · fotos: {count}",
+      "ownership": "Las etiquetas manuales son metadatos de biblioteca compartidos entre cuentas. Las etiquetas de IA no cambian.",
+      "view_scope": "Filtros capturados, exclusiones: {count}. Las coincidencias se resuelven al aplicar y pueden diferir del recuento inicial.",
+      "explicit_scope": "Solo cambia la lista capturada. No se incluyen miembros de grupos plegados ni archivos acompañantes.",
+      "more": "Más elementos: {count}",
+      "observed": "Presencia de etiquetas en fotos seleccionadas cargadas: {loaded}/{count}",
+      "complete": "Todas las fotos de destino están en esta captura cargada; las proporciones muestran valores comunes y mixtos.",
+      "sample": "Solo se representan fotos cargadas. Las demás seleccionadas son desconocidas.",
+      "preview": "Vista previa del cambio",
+      "add_preview": "Añadir «{tag}» a este destino. Se conservan las etiquetas existentes.",
+      "remove_preview": "Quitar la etiqueta manual «{tag}» de este destino. Se conservan las demás.",
+      "progress": "Lotes confirmados: {done}/{total} · cambios confirmados: {count}",
+      "uncertain": "Se perdió o falló una respuesta. El servidor podría haber aplicado el lote. Reintentar repite solo los lotes pendientes con la misma etiqueta y operación.",
+      "edit": "Editar cambio",
+      "saving": "Aplicando…",
+      "retry": "Reintentar pendientes"
+    },
     "title": "Editar etiquetas",
     "tag_label": "Etiqueta",
     "hint": "Las etiquetas manuales se conservan en la foto tras un nuevo escaneo y se escriben como palabras clave al exportar.",

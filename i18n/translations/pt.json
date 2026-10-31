@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "pôr do sol na praia...",
     "clear_search": "Limpar pesquisa",
     "clear_semantic_search": "Limpar pesquisa semântica",
+    "photo_count_one": "{count} foto",
     "photo_count": "{count} fotos",
     "no_photos": "Nenhuma foto encontrada",
     "load_error": {
@@ -2816,6 +2817,24 @@
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "Destino ao abrir · fotos: {count}",
+      "ownership": "As etiquetas manuais são metadados da biblioteca partilhados entre contas. As etiquetas de IA mantêm-se.",
+      "view_scope": "Filtros capturados, exclusões: {count}. As correspondências são resolvidas ao aplicar e podem diferir da contagem inicial.",
+      "explicit_scope": "Só muda a lista capturada. Membros de grupos recolhidos e ficheiros associados não estão incluídos.",
+      "more": "Mais itens: {count}",
+      "observed": "Presença de etiquetas nas fotos selecionadas carregadas: {loaded}/{count}",
+      "complete": "Todas as fotos de destino estão nesta captura carregada; as proporções mostram valores comuns e mistos.",
+      "sample": "Só se representam fotos carregadas. As outras selecionadas são desconhecidas.",
+      "preview": "Pré-visualização da alteração",
+      "add_preview": "Adicionar «{tag}» a este destino. As etiquetas existentes mantêm-se.",
+      "remove_preview": "Remover a etiqueta manual «{tag}» deste destino. As outras mantêm-se.",
+      "progress": "Lotes confirmados: {done}/{total} · alterações confirmadas: {count}",
+      "uncertain": "Uma resposta perdeu-se ou falhou. O servidor pode já ter aplicado o lote. Repetir processa apenas os lotes restantes com a mesma etiqueta e operação.",
+      "edit": "Editar alteração",
+      "saving": "A aplicar…",
+      "retry": "Repetir restantes"
+    },
     "title": "Editar etiquetas",
     "tag_label": "Etiqueta",
     "hint": "As etiquetas manuais permanecem na foto após uma nova análise e são gravadas como palavras-chave ao exportar.",

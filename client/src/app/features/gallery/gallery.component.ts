@@ -1,5 +1,7 @@
 import { GalleryViewControlsComponent } from './gallery-view-controls.component';
 import { GalleryCriteriaComponent } from './gallery-criteria.component';
+import { observeManualTags } from './manual-tag-observation.util';
+import type { ManualTagsDialogData, ManualTagsDialogResult } from './manual-tags-dialog.component';
 import { StackActionsService } from './stack-actions.service';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import {
@@ -283,7 +285,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
-              {{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
+              {{ (pinned() ? store.total() : store.photoTotal()) | pluralKey:I18N.gallery.photo_count_one:I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
             }
           </p>
           </div>
@@ -2639,26 +2641,45 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  refetched afterwards because a photo opened in the detail view carries the
    *  grid row's `manual_tags`, which a bulk write has just made stale. */
   async openManualTagsDialog(): Promise<void> {
+    if (!this.auth.isEdition() || !this.selectionCount()) return;
+    const owner = this.auth.identity();
     const viewScoped = this.viewScoped();
-    const paths = [...this.selectedPaths()];
+    const paths = viewScoped ? [] : [...this.selectedPaths()];
     if (!viewScoped && !paths.length) return;
-    const { ManualTagsDialogComponent } = await import('./manual-tags-dialog.component');
-    const ref = this.dialog.open(ManualTagsDialogComponent, {
-      width: '95vw',
-      maxWidth: '500px',
-      data: {
-        paths,
-        filters: viewScoped ? this.store.filterPayload() : null,
-        exclude: viewScoped ? [...this.excludedPaths()] : [],
-        count: this.selectionCount(),
-      },
-    });
-    const written = await firstValueFrom(ref.afterClosed());
-    if (!written) return;
-    this.journal.record('tags', paths, { count: written });
-    const kept = viewScoped ? new Set(this.excludedPaths()) : new Set(this.selectedPaths());
-    await this.store.reloadPhotos();
-    this.restoreSelectionWithout(viewScoped, kept, []);
+    const selected = new Set(paths);
+    const repaired = new WeakSet<ManualTagsDialogResult>();
+    const repair = async (result: ManualTagsDialogResult): Promise<void> => {
+      if (this.auth.identity() !== owner || repaired.has(result) || !result.confirmedCount && !result.uncertain) return;
+      repaired.add(result);
+      // Tag/text membership may gain offscreen rows. The store retains parked
+      // repair debt and respects the currently authorized view without selection reset.
+      const filters = this.store.filters();
+      const membershipMayChange = this.store.pinnedPaths() === null
+        && (viewScoped || !!filters.tag || !!filters.search || !!this.store.currentAlbum()?.is_smart);
+      await this.store.refreshPaths(membershipMayChange ? null : paths);
+    };
+    const data: ManualTagsDialogData = {
+      paths,
+      filters: viewScoped ? structuredClone(this.store.filterPayload()) : null,
+      exclude: viewScoped ? [...this.excludedPaths()] : [],
+      count: this.selectionCount(),
+      observation: viewScoped ? null : observeManualTags(this.store.photos().filter(photo => selected.has(photo.path))),
+      onSettled: result => { void repair(result); },
+    };
+    const liveness = this.staleness.create(this.destroyRef, { track: 'status' });
+    try {
+      const { ManualTagsDialogComponent } = await import('./manual-tags-dialog.component');
+      if (!liveness.current()) return;
+      const ref = this.dialog.open<InstanceType<typeof ManualTagsDialogComponent>, ManualTagsDialogData, ManualTagsDialogResult>(ManualTagsDialogComponent, {
+        width: '95vw', maxWidth: '600px', closeOnNavigation: false, data,
+      });
+      const written = await firstValueFrom(ref.afterClosed());
+      // An accepted operation can finish after navigation parked this gallery.
+      // Queue its repair debt for the same principal; never restore old selection.
+      if (!written || this.auth.identity() !== owner || !written.confirmedCount && !written.uncertain) return;
+      this.journal.record('tags', paths, { ...written, count: written.confirmedCount });
+      await repair(written);
+    } finally { liveness.dispose(); }
   }
 
   async openCullDialog(explicitPaths?: string[]): Promise<void> {

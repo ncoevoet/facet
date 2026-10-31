@@ -2572,11 +2572,118 @@ describe('GalleryComponent', () => {
   });
 
   describe('openManualTagsDialog', () => {
+    beforeEach(() => { mockAuth['isEdition'] = vi.fn(() => true); mockStore.refreshPaths = vi.fn(() => Promise.resolve()); });
     const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
     function select(paths: string[]) {
       mockStore.selectedPaths.set(new Set(paths));
       mockStore.selectionCount.set(paths.length);
     }
+
+    it('captures view filters, exclusions and count before loading the dialog', async () => {
+      mockStore.viewScopeSelected.set(true);
+      const filters = { tag: 'old' };
+      mockStore.filterPayload = vi.fn(() => filters);
+      mockStore.excludedPaths.set(new Set(['/old-skip']));
+      mockStore.selectionCount.set(650);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+      const pending = open();
+      filters.tag = 'new';
+      mockStore.excludedPaths.set(new Set(['/new-skip']));
+      mockStore.selectionCount.set(1);
+      await pending;
+      expect((dialog.open as Mock).mock.calls[0][1].data).toMatchObject({ filters: { tag: 'old' }, exclude: ['/old-skip'], count: 650, observation: null });
+    });
+
+    it('refuses a late launch after edition access is lost', async () => {
+      select(['/a.jpg']);
+      const pending = open();
+      mockAuth['isEdition'] = vi.fn(() => false);
+      await pending;
+      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
+    });
+
+    it('repairs a sent write that settles after the dialog has already closed', async () => {
+      select(['/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+      await open();
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      data.onSettled({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: true, uncertain: false });
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      const status = mockAuth['status'] as WritableSignal<Record<string, unknown>>;
+      status.set({ ...status(), user_id: 'other' });
+      data.onSettled({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: true, uncertain: false });
+      expect(mockStore.refreshPaths).toHaveBeenCalledTimes(1);
+    });
+
+    it('repairs a settlement once when both writer and dialog close deliver it', async () => {
+      select(['/a.jpg']);
+      const result = { confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false };
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation((_component, config) => {
+        config.data.onSettled(result);
+        return { afterClosed: () => of(result) };
+      });
+      await open();
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+    });
+
+    it('refreshes the captured paths without restoring over a newer selection', async () => {
+      select(['/a.jpg']);
+      const closed = new Subject<unknown>();
+      let didOpen!: () => void;
+      const opened = new Promise<void>(resolve => { didOpen = resolve; });
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+      const pending = open();
+      await opened;
+      select(['/new.jpg']);
+      closed.next({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false });
+      await pending;
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      expect([...mockStore.selectedPaths()]).toEqual(['/new.jpg']);
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+    });
+
+    it('keeps accepted-write refresh debt after real photo navigation parks the gallery', async () => {
+      select(['/a.jpg']);
+      const closed = new Subject<unknown>();
+      let didOpen!: () => void;
+      const opened = new Promise<void>(resolve => { didOpen = resolve; });
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+      const pending = open();
+      await opened;
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: 'photo', component: MenuPhotoRoute }]);
+      await router.navigateByUrl('/photo?path=%2Fa.jpg');
+      closed.next({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false });
+      await pending;
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+    });
+
+    it('does not refresh a different principal after an accepted write completes', async () => {
+      select(['/a.jpg']);
+      const closed = new Subject<unknown>();
+      let didOpen!: () => void;
+      const opened = new Promise<void>(resolve => { didOpen = resolve; });
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+      const pending = open();
+      await opened;
+      const status = mockAuth['status'] as WritableSignal<Record<string, unknown>>;
+      status.set({ ...status(), user_id: 'other' });
+      closed.next({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false });
+      await pending;
+      expect(mockStore.refreshPaths).not.toHaveBeenCalled();
+    });
+
+    it('repairs tag-dependent membership even when a lost response confirms no count', async () => {
+      select(['/a.jpg']);
+      mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, search: 'trip' }));
+      (TestBed.inject(MatDialog).open as Mock).mockReturnValue({ afterClosed: () => of({ confirmedCount: 0, tag: 'trip', action: 'add', incomplete: true, uncertain: true }) });
+      await open();
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(null);
+      expect(mockStore.reloadPhotos).not.toHaveBeenCalled();
+    });
 
     // The dialog owns its request (its own spec); this is the wiring.
     it('opens the manual-tags dialog with the selected paths', async () => {
@@ -2620,12 +2727,13 @@ describe('GalleryComponent', () => {
     it('refetches the list after a write, so the detail view gets fresh manual tags', async () => {
       select(['/a.jpg']);
       const dialog = TestBed.inject(MatDialog);
-      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(1) });
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of({ confirmedCount: 1, action: 'add', tag: 'trip', incomplete: false, uncertain: false }) });
 
       await open();
 
-      expect(mockStore.reloadPhotos).toHaveBeenCalledTimes(1);
-      expect(mockStore.restoreSelection).toHaveBeenCalledWith(['/a.jpg']);
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      expect(mockStore.reloadPhotos).not.toHaveBeenCalled();
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
     });
 
     it('leaves the list alone when the dialog is cancelled', async () => {

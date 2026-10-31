@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "tramonto in spiaggia...",
     "clear_search": "Cancella ricerca",
     "clear_semantic_search": "Cancella ricerca semantica",
+    "photo_count_one": "{count} foto",
     "photo_count": "{count} foto",
     "no_photos": "Nessuna foto trovata",
     "load_error": {
@@ -2816,6 +2817,24 @@
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "Destinazione all’apertura · foto: {count}",
+      "ownership": "I tag manuali sono metadati della libreria condivisi tra account. I tag IA restano invariati.",
+      "view_scope": "Filtri acquisiti, esclusioni: {count}. Le corrispondenze sono risolte all’applicazione e possono differire dal conteggio iniziale.",
+      "explicit_scope": "Cambia solo l’elenco acquisito. Membri dei gruppi chiusi e file associati non sono inclusi.",
+      "more": "Altri elementi: {count}",
+      "observed": "Presenza dei tag nelle foto selezionate caricate: {loaded}/{count}",
+      "complete": "Tutte le foto di destinazione sono in questa istantanea caricata; i rapporti mostrano valori comuni e misti.",
+      "sample": "Sono rappresentate solo foto caricate. Le altre selezionate sono sconosciute.",
+      "preview": "Anteprima della modifica",
+      "add_preview": "Aggiungi “{tag}” a questa destinazione. I tag esistenti sono conservati.",
+      "remove_preview": "Rimuovi il tag manuale “{tag}” da questa destinazione. Gli altri sono conservati.",
+      "progress": "Lotti confermati: {done}/{total} · modifiche confermate: {count}",
+      "uncertain": "Una risposta è stata persa o non è riuscita. Il server potrebbe aver già applicato il lotto. Riprova ripete solo i lotti rimanenti con lo stesso tag e operazione.",
+      "edit": "Modifica il cambiamento",
+      "saving": "Applicazione…",
+      "retry": "Riprova rimanenti"
+    },
     "title": "Modifica tag",
     "tag_label": "Tag",
     "hint": "I tag manuali restano associati alla foto dopo una nuova scansione e vengono scritti come parole chiave all’esportazione.",

@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "海边的日落…",
     "clear_search": "清空搜索",
     "clear_semantic_search": "清空语义搜索",
+    "photo_count_one": "{count} 张照片",
     "photo_count": "{count} 张照片",
     "no_photos": "未找到照片",
     "load_error": {
@@ -2816,6 +2817,24 @@
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "打开时的目标 · 照片数：{count}",
+      "ownership": "手动标签是跨账户共享的图库元数据。AI 标签保持不变。",
+      "view_scope": "已捕获筛选，排除数量：{count}。匹配照片在应用时确定，可能与打开时的数量不同。",
+      "explicit_scope": "仅更改已捕获的照片列表，不包含折叠组的其他成员或伴随文件。",
+      "more": "更多项目：{count}",
+      "observed": "已加载选择中的标签出现情况：{loaded}/{count}",
+      "complete": "所有目标照片均包含在此已加载快照中；比例显示共同和混合值。",
+      "sample": "仅包含已加载照片，其他已选照片的值未知。",
+      "preview": "更改预览",
+      "add_preview": "向此目标添加“{tag}”，保留现有标签。",
+      "remove_preview": "从此目标移除手动标签“{tag}”，保留其他标签。",
+      "progress": "已确认批次：{done}/{total} · 已确认更改：{count}",
+      "uncertain": "响应丢失或失败，服务器可能已应用该批次。重试仅处理剩余批次，并使用相同标签和操作。",
+      "edit": "编辑更改",
+      "saving": "正在应用…",
+      "retry": "重试剩余批次"
+    },
     "title": "编辑标签",
     "tag_label": "标签",
     "hint": "手动标签在重新扫描后仍保留在照片上，导出时会写为关键词。",
