@@ -6,7 +6,7 @@ Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, A
 
 Am Desktop trennt die obere Leiste Ziele von Seitenbefehlen. Navigation zeigt oder verbirgt eine kompakte Symbolleiste. Zeiger oder Tastaturfokus erweitern sie über den Fotos; Anheften hält sie offen und reserviert Platz. Am Telefon öffnet Navigation ein beschriftetes Menü. Die Details nennen ihr Foto; Schließen erhält die Auswahl.
 
-Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten.
+Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten. Sortierung, Richtung, Filter, Fotoinformationen und Diashow bilden eine Sammlungssteuerung am Desktop und Telefon. Konto, Bearbeitungsmodus und erlaubte Scan-Aktionen bleiben in der Anwendungsleiste; die Galerie hat keine doppelte untere Leiste. Beim Öffnen eines Fotos schließen sich Sammlungsmenüs und ihre Befehle pausieren bis zur Rückkehr.
 
 ## Inhalt
 
@@ -328,7 +328,10 @@ Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidaten
 - **Schlagwörter bearbeiten** — Ein [manuelles Tag](#manuelle-tags) zu jedem ausgewählten Foto hinzufügen oder daraus entfernen
 - **Alle auswählen** — Bei leerer Auswahl wird jedes Foto gewählt, auf das die Filter zutreffen, nicht nur die geladenen Seiten. Sind bereits Fotos gewählt, kommen die geladenen Fotos hinzu, und es wird angeboten, auf die ganze Ansicht zu erweitern. Aktionen für die ganze Ansicht bestätigen zuerst die genaue Fotozahl.
 - **Umkehren** — Die Auswahl gegen ihr Komplement tauschen. Bei leerer Auswahl ist das die ganze Ansicht. Bei nicht leerer Auswahl bleibt es auf geladene Fotos begrenzt: erst die Behalte-Kandidaten wählen, umkehren, ablehnen.
-- **Vergleichen** — öffnet 2–4 ausgewählte Fotos nebeneinander. Die Stecknadel ändert die gekennzeichnete Referenz, niemals Bewertungen oder Entscheidungen. Die Ansicht ist zunächst gekoppelt; entkoppeln erlaubt individuelles Ausrichten. Erneutes Koppeln setzt alle Ansichten zurück. Scrollen zum Zoomen, Ziehen zum Verschieben, Doppelklick zum Zurücksetzen. Gekoppelte Bewegungen richten keine Motive aus. Jedes Fenster zeigt Laden, Bereitschaft oder Fehler der Detailvorschau (die Miniatur bleibt erhalten); Zoomen kann volle Auflösung anfordern. Bei drei oder vier Fotos hält Zwei Ansichten die Referenz fest, während Vorheriger/Nächster die Kandidaten durchläuft. Eine neue Referenz tauscht die bisherige in das Kandidatenfenster. Ausschalten zeigt wieder alle ausgewählten Bilder.
+
+Die Auswahlleiste zählt ausgewählte Fotos außerhalb der geladenen Kacheln; Stapelaktionen betreffen die gesamte ausdrückliche Auswahl. Ausschlüsse der ganzen Ansicht werden getrennt angezeigt. Vergleichen benötigt 2–4 ausdrücklich ausgewählte, geladene Fotos und öffnet nie stillschweigend nur einen Teil.
+
+- **Vergleichen** — öffnet 2–4 ausgewählte Fotos nebeneinander. Die Stecknadel ändert die gekennzeichnete Referenz, niemals Bewertungen oder Entscheidungen. Die Ansicht ist zunächst gekoppelt; entkoppeln erlaubt individuelles Ausrichten. Erneutes Koppeln erhält jeden Ausschnitt. Gekoppelte Gesten wenden denselben Zoomfaktor und dieselbe Pixelverschiebung auf alle Kandidaten an, auch außerhalb von Zwei Ansichten. Die erste Zoomgrenze stoppt die Gruppe. Zurücksetzen passt jedes Foto ein. Scrollen zum Zoomen, Ziehen zum Verschieben, Doppelklick zum Umschalten der Vergrößerung. Zurücksetzen passt den gesamten Vergleich ein. Gekoppelte Bewegungen richten keine Motive aus. Jedes Fenster zeigt Laden, Bereitschaft oder Fehler der Detailvorschau (die Miniatur bleibt erhalten); Zoomen kann volle Auflösung anfordern. Bei drei oder vier Fotos hält Zwei Ansichten die Referenz fest, während Vorheriger/Nächster die Kandidaten durchläuft. Eine neue Referenz tauscht die bisherige in das Kandidatenfenster. Ausschalten zeigt wieder alle ausgewählten Bilder.
 - **Dateinamen kopieren** — Dateinamen in die Zwischenablage kopieren. Ein Kopieren der ganzen Ansicht bestätigt zuerst; über 10 000 Fotos wird abgelehnt.
 - **Exportieren** — XMP-Sidecars neben die Dateien schreiben (siehe [Editor-Export](#editor-export))
 - **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))
@@ -540,7 +543,7 @@ Starten Sie einen Scan im Browser. Die Scan-Schaltfläche erscheint, wenn **beid
 
 Auf einer offenen Einzelbenutzer-Installation (leeres `viewer.edition_password`, der Standard) kann niemand im Browser scannen. Ausnahme: Unter `viewer.trusted_local_editing` kann eine vertrauenswürdige lokale Browsersitzung oder ein lokaler Assistent mit Token für volle Bearbeitung ohne `show_scan_button` oder Bearbeitungspasswort scannen.
 
-Die Schaltfläche sitzt in der leeren Galerie (**Fotos scannen, um zu beginnen**) und am Ende der Kopfzeile (**Nach neuen Fotos suchen**; untere Leiste auf kleinen Bildschirmen). Beide öffnen den Scan-Starter:
+Die leere Galerie bietet **Fotos scannen, um zu beginnen**. **Nach neuen Fotos suchen** steht außerdem bei jeder Breite in der Anwendungsleiste. Beide öffnen den Scan-Starter:
 
 - Wählen Sie ein Verzeichnis aus der Liste und starten Sie den Scan.
 - Live-Fortschritt und Ausgabezeilen erscheinen im Dialog. Die Galerie aktualisiert sich, wenn der Scan endet.

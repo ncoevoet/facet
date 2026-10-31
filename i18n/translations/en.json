@@ -1165,6 +1165,9 @@
     "active_filters": "{count} active filters",
     "unknown_person": "Unknown",
     "selection": {
+      "outside_loaded": "Selected outside loaded tiles: {count}. Actions apply to the entire selection.",
+      "compare_loaded": "Compare needs 2–4 explicitly selected photos present in the loaded tiles.",
+      "exclusions": "Whole-view exclusions: {count}.",
       "count": "{count} selected",
       "clear": "Clear",
       "copy_filenames": "Copy filenames",
@@ -1443,7 +1446,7 @@
       "reset_zoom": "Reset zoom",
       "linked": "Linked",
       "independent": "Independent",
-      "link_help": "Unlink to frame each image separately. Linking again resets all framing.",
+      "link_help": "Unlink to align each crop, then link to keep that alignment. Linked gestures apply the same zoom ratio and pixel pan to all candidates; they do not match subjects. Reset fits every photo.",
       "reference": "Reference",
       "candidate": "Candidate",
       "promote": "Use {name} as reference",

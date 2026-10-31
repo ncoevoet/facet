@@ -1165,6 +1165,9 @@
     "active_filters": "{count} filtros activos",
     "unknown_person": "Desconocido",
     "selection": {
+      "outside_loaded": "Selección fuera de los elementos cargados: {count}. Las acciones se aplican a toda la selección.",
+      "compare_loaded": "Comparar requiere 2–4 fotos seleccionadas explícitamente presentes en los elementos cargados.",
+      "exclusions": "Exclusiones de toda la vista: {count}.",
       "count": "{count} seleccionados",
       "clear": "Limpiar",
       "copy_filenames": "Copiar nombres",
@@ -1443,7 +1446,7 @@
       "reset_zoom": "Restablecer zoom",
       "linked": "Vinculadas",
       "independent": "Independientes",
-      "link_help": "Desvincula para encuadrar cada imagen por separado. Volver a vincular restablece los encuadres.",
+      "link_help": "Desvincula para alinear cada encuadre y vuelve a vincular para conservarlo. Los gestos vinculados aplican la misma proporción de zoom y desplazamiento en píxeles a todos los candidatos; no identifican sujetos. Restablecer encaja todas las fotos.",
       "reference": "Referencia",
       "candidate": "Candidata",
       "promote": "Usar {name} como referencia",

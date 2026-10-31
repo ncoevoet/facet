@@ -1165,6 +1165,9 @@
     "active_filters": "{count} filtres actifs",
     "unknown_person": "Inconnu",
     "selection": {
+      "outside_loaded": "Sélection hors des vignettes chargées : {count}. Les actions concernent toute la sélection.",
+      "compare_loaded": "Comparer nécessite 2 à 4 photos explicitement sélectionnées parmi les vignettes chargées.",
+      "exclusions": "Exclusions de toute la vue : {count}.",
       "count": "{count} sélectionné(s)",
       "clear": "Effacer",
       "copy_filenames": "Copier les noms",
@@ -1443,7 +1446,7 @@
       "reset_zoom": "Réinitialiser le zoom",
       "linked": "Liées",
       "independent": "Indépendantes",
-      "link_help": "Déliez pour cadrer chaque image séparément. Relier réinitialise tous les cadrages.",
+      "link_help": "Déliez pour aligner chaque cadrage, puis reliez pour le conserver. Les gestes liés appliquent le même rapport de zoom et déplacement en pixels à tous les candidats, sans correspondance des sujets. Réinitialiser ajuste chaque photo au cadre.",
       "reference": "Référence",
       "candidate": "Candidate",
       "promote": "Utiliser {name} comme référence",

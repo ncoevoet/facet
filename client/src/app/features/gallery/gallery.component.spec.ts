@@ -1,6 +1,6 @@
 import type { Mock } from 'vitest';
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
-import { ApplicationRef, ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signal, TemplateRef, WritableSignal } from '@angular/core';
+import { ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signal, WritableSignal } from '@angular/core';
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -242,6 +242,38 @@ describe('GalleryComponent', () => {
       ],
     }).compileComponents();
     component = TestBed.runInInjectionContext(() => new GalleryComponent());
+  });
+
+  it('owns matching/group counts and shows exact item totals for an assistant-pinned list', () => {
+    vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation((key, params) => {
+      if (key === I18N.gallery.photo_count) return `${params?.['count']} photos`;
+      if (key === I18N.stacks.totals) return `${params?.['photos']} photos / ${params?.['items']} groups`;
+      return key;
+    });
+    mockStore.total.set(2);
+    mockStore.photoTotal = signal(4);
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    const header = fixture.nativeElement.querySelector('[data-collection-header]') as HTMLElement;
+    expect(header.textContent).toContain('4 photos / 2 groups');
+    mockStore.pinnedPaths.set(['/a.jpg', '/b.jpg']);
+    fixture.detectChanges();
+    expect(header.textContent).toContain('2 photos');
+    expect(header.textContent).not.toContain('4 photos');
+    fixture.destroy();
+  });
+
+  it('keeps stack expansion available locally to read-only users without filtering an exact pinned list', () => {
+    mockAuth['isEdition'] = vi.fn(() => false);
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    const query = fixture.nativeElement.querySelector('[data-collection-query]') as HTMLElement;
+    query.querySelector<HTMLButtonElement>('[data-stack-collapse]')!.click();
+    expect(mockStore.toggleStackCollapse).toHaveBeenCalledOnce();
+    mockStore.pinnedPaths.set(['/a.jpg']);
+    fixture.detectChanges();
+    expect(query.querySelector('[data-stack-collapse]')).toBeNull();
+    fixture.destroy();
   });
 
   it('switches layout from the collection header without changing filters or batch selection', () => {
@@ -1334,12 +1366,7 @@ describe('GalleryComponent', () => {
     });
 
     function toolbarView(): HTMLElement {
-      const tpl = (fixture!.componentInstance as unknown as { galleryToolbar(): TemplateRef<unknown> }).galleryToolbar();
-      const view = tpl.createEmbeddedView({});
-      view.detectChanges();
-      const host = document.createElement('div');
-      view.rootNodes.forEach((n: Node) => host.appendChild(n));
-      return host;
+      return fixture!.nativeElement.querySelector('[data-collection-query]');
     }
     const hasTypeAndSearch = (host: HTMLElement) =>
       host.textContent?.includes(I18N.ui.filters.type) === true
@@ -2237,7 +2264,9 @@ describe('GalleryComponent', () => {
         expect(c.canCompareSelection()).toBe(false);
       }
       for (let n = 2; n <= MAX_COMPARE_PANES; n++) {
-        select(Array.from({ length: n }, (_, i) => `/p${i}.jpg`));
+        const paths = Array.from({ length: n }, (_, i) => `/p${i}.jpg`);
+        mockStore.photos.set(paths.map(photo));
+        select(paths);
         expect(c.canCompareSelection()).toBe(true);
       }
       select(Array.from({ length: MAX_COMPARE_PANES + 1 }, (_, i) => `/p${i}.jpg`));
@@ -2255,7 +2284,7 @@ describe('GalleryComponent', () => {
       expect(data.photos.map((p: { path: string }) => p.path)).toEqual(['/a.jpg', '/c.jpg']);
     });
 
-    it('caps the panes even if more photos are somehow selected', async () => {
+    it('refuses an oversized selection instead of silently comparing a subset', async () => {
       const paths = Array.from({ length: MAX_COMPARE_PANES + 2 }, (_, i) => `/p${i}.jpg`);
       mockStore.photos.set(paths.map(photo));
       select(paths);
@@ -2263,7 +2292,27 @@ describe('GalleryComponent', () => {
 
       await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
 
-      expect((dialog.open as Mock).mock.calls[0][1].data.photos.length).toBe(MAX_COMPARE_PANES);
+      expect(dialog.open).not.toHaveBeenCalled();
+    });
+
+    it('discloses unloaded selected paths and refuses partial comparison until all selected photos load', async () => {
+      mockStore.photos.set([photo('/a.jpg'), photo('/b.jpg')]);
+      select(['/a.jpg', '/b.jpg', '/elsewhere.jpg']);
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('[data-selection-outside]')?.textContent).toContain(I18N.gallery.selection.outside_loaded);
+      expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.selection.outside_loaded, { count: 1 });
+      const button = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.selection.compare}"]`)!;
+      expect(button.disabled).toBe(true);
+      expect(button.getAttribute('aria-describedby')).toBe('compare-selection-requirements');
+      await component['compareSelection']();
+      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
+      mockStore.photos.set([photo('/a.jpg'), photo('/b.jpg'), photo('/elsewhere.jpg')]);
+      fixture.detectChanges();
+      expect(root.querySelector('[data-selection-outside]')).toBeNull();
+      expect(button.disabled).toBe(false);
+      fixture.destroy();
     });
 
     it('does nothing when fewer than two selected photos are loaded', async () => {
@@ -5431,12 +5480,11 @@ describe('GalleryComponent', () => {
       mockStore.loadTypeCounts.mockClear();
       mockStore.loadFilterOptions.mockClear();
       outletMock.attachEvents.next({});
-      expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
       expect(mockStore.loadTypeCounts).not.toHaveBeenCalled();
       expect(mockStore.loadFilterOptions).not.toHaveBeenCalled();
       expect(mockStore.resumeListingReads).not.toHaveBeenCalled();
       outletMock.attachEvents.next(gallery);
-      expect(TestBed.inject(HeaderSlotService).template()).not.toBeNull();
+      expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
       expect(mockStore.loadTypeCounts).toHaveBeenCalledOnce();
       expect(mockStore.loadFilterOptions).toHaveBeenCalledOnce();
       expect(mockStore.resumeListingReads).toHaveBeenCalledOnce();
@@ -5454,13 +5502,14 @@ describe('GalleryComponent', () => {
       expect(destroy).toHaveBeenCalledOnce();
     });
 
-    it('hands the header toolbar back while a photo is open, and takes it again on return', () => {
+    it('keeps collection controls local while help and controls follow gallery parking', () => {
       const header = TestBed.inject(HeaderSlotService);
-      expect(header.template()).not.toBeNull();
+      expect(header.template()).toBeNull();
+      expect(fixture.nativeElement.querySelector('app-gallery-view-controls')).not.toBeNull();
       openPhoto(1);
       expect(header.template()).toBeNull();
       outletMock.attachEvents.next(gallery);
-      expect(header.template()).not.toBeNull();
+      expect(header.template()).toBeNull();
     });
 
     it('returns to the scroll position and the card the photo was opened from', () => {
@@ -5571,23 +5620,13 @@ describe('GalleryComponent', () => {
       expect(trigger.menuOpen).toBe(false);
     });
 
-    it('closes the toolbar type select when the gallery parks', () => {
-      const view = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView({});
-      TestBed.inject(ApplicationRef).attachView(view);
-      try {
-        view.detectChanges();
-        fixture.detectChanges();
-        const type = (gallery as unknown as { selects(): MatSelect[] }).selects().at(0)!;
-        expect(type).toBeTruthy();
-        type.open();
-        fixture.detectChanges();
-        expect(type.panelOpen).toBe(true);
-        openPhoto(1);
-        expect(type.panelOpen).toBe(false);
-      } finally {
-        TestBed.inject(ApplicationRef).detachView(view);
-        view.destroy();
-      }
+    it('closes the local collection type select when the gallery parks', () => {
+      const type = (gallery as unknown as { selects(): MatSelect[] }).selects().at(0)!;
+      expect(type).toBeTruthy();
+      type.open(); fixture.detectChanges();
+      expect(type.panelOpen).toBe(true);
+      openPhoto(1);
+      expect(type.panelOpen).toBe(false);
     });
 
     it('does not override a pointer press made before the anchor frame', () => {
@@ -5803,9 +5842,10 @@ describe('GalleryComponent', () => {
     });
 
     it('ignores another gallery being detached', () => {
-      const header = TestBed.inject(HeaderSlotService);
+      mockStore.parkListingReads.mockClear();
       outletMock.detachEvents.next({});
-      expect(header.template()).not.toBeNull();
+      expect(mockStore.parkListingReads).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.querySelector('app-gallery-view-controls')).not.toBeNull();
     });
   });
 

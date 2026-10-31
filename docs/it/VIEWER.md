@@ -6,7 +6,7 @@ La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare
 
 Sul desktop, la barra superiore separa le destinazioni dai comandi della pagina. Navigazione mostra o nasconde una barra laterale compatta. Il puntatore o il focus la espandono sopra le foto; Fissa la mantiene aperta riservando spazio. Sul telefono Navigazione apre un menu con etichette. I dettagli indicano la foto; Chiudi conserva la selezione.
 
-L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate.
+L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate. Ordinamento, direzione, Filtri, informazioni foto e presentazione formano un unico gruppo della raccolta su desktop e telefono. Account, Modifica e scansione autorizzata restano nella barra dell’applicazione; la galleria non duplica una barra inferiore. Aprire una foto chiude i menu della raccolta e sospende i comandi fino al ritorno.
 
 ## Contenuti
 
@@ -321,6 +321,8 @@ Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a
 
 La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
 
+La barra conta le foto selezionate fuori dalle miniature caricate; le azioni riguardano l’intera selezione esplicita. Le esclusioni dell’intera vista sono mostrate separatamente. Confronta richiede 2–4 foto selezionate esplicitamente e tutte caricate, senza aprire solo una parte della selezione.
+
 - **Preferito** — segna tutte come preferite (cancella lo scarto)
 - **Rifiuta** — segna tutte come scartate (cancella preferito e valutazione)
 - **Valuta** — imposta o cancella una valutazione da 1 a 5 stelle
@@ -328,7 +330,7 @@ La striscia di miniature identifica il riferimento e permette di scegliere una c
 - **Modifica tag** — aggiungi o rimuovi un [tag manuale](#tag-manuali) su ogni foto selezionata
 - **Seleziona tutto** — con una selezione vuota, seleziona ogni foto che i filtri trovano, non solo le pagine caricate. Con foto già selezionate, aggiunge quelle caricate e propone di estendere all'intera vista. Le azioni sull'intera vista confermano prima il numero esatto di foto.
 - **Inverti** — sostituisce la selezione con il suo complemento. Da una selezione vuota è l'intera vista. Da una selezione non vuota resta tra le foto caricate: scegli le foto da conservare, inverti, rifiuta.
-- **Confronta** — apre 2–4 foto selezionate affiancate. Il pulsante puntina cambia il riferimento senza modificare valutazioni o decisioni. Le viste sono inizialmente collegate; scollega per inquadrare ogni riquadro separatamente. Ricollegare ripristina tutte le inquadrature. Scorri per ingrandire, trascina per spostare, doppio clic per ripristinare. Il movimento collegato non allinea i soggetti. Ogni riquadro indica caricamento, disponibilità o errore dell’anteprima dettagliata (mantenendo la miniatura); lo zoom può richiedere la piena risoluzione. Con tre o quattro foto, Due viste mantiene il riferimento mentre Precedente/Successiva scorre le candidate. Promuovere una candidata sposta il riferimento precedente nel riquadro candidato. Disattivare Due viste ripristina tutti i riquadri.
+- **Confronta** — apre 2–4 foto selezionate affiancate. Il pulsante puntina cambia il riferimento senza modificare valutazioni o decisioni. Le viste sono inizialmente collegate; scollega per inquadrare ogni riquadro separatamente. Ricollegare conserva ogni inquadratura. I gesti collegati applicano lo stesso rapporto di zoom e spostamento in pixel a tutte le candidate, anche fuori da Due viste; il primo limite ferma il gruppo. Ripristina adatta tutte le foto al riquadro. Scorri per ingrandire, trascina per spostare, doppio clic per alternare lo zoom. Ripristina adatta l’intero confronto al riquadro. Il movimento collegato non allinea i soggetti. Ogni riquadro indica caricamento, disponibilità o errore dell’anteprima dettagliata (mantenendo la miniatura); lo zoom può richiedere la piena risoluzione. Con tre o quattro foto, Due viste mantiene il riferimento mentre Precedente/Successiva scorre le candidate. Promuovere una candidata sposta il riferimento precedente nel riquadro candidato. Disattivare Due viste ripristina tutti i riquadri.
 - **Copia nomi file** — copia i nomi file negli appunti. Una copia dell'intera vista chiede prima conferma; oltre 10 000 foto viene rifiutata.
 - **Esporta** — scrive sidecar XMP accanto ai file (vedi [Esportazione per editor](#esportazione-per-editor))
 - **Scarta in cartella** — copia le foto conservate, o sposta/cestina quelle scartate, in una cartella (vedi [Scarta in cartella](#scarta-in-cartella))
@@ -540,7 +542,7 @@ Avvia una scansione dal browser. Il pulsante Scansione compare quando **entrambe
 
 Su un'installazione aperta a utente singolo (`viewer.edition_password` vuota, il valore predefinito), nessuno può avviare scansioni dal browser. Eccezione: con `viewer.trusted_local_editing`, una sessione del browser locale fidata, o un assistente locale con un token di modifica completa, può avviare una scansione senza `show_scan_button` né password di modifica.
 
-Il pulsante si trova nella galleria vuota (**Scansiona le foto per iniziare**) e in fondo all'intestazione (**Scansiona nuove foto**; barra inferiore sugli schermi piccoli). Entrambi aprono l'avvio scansione:
+La galleria vuota offre **Scansiona le foto per iniziare**. **Scansiona nuove foto** è disponibile anche nella barra dell’applicazione a ogni larghezza. Entrambi aprono l’avvio scansione:
 
 - Scegli una directory dall'elenco e avvia la scansione.
 - Avanzamento in tempo reale e righe di output scorrono nella finestra. La galleria si aggiorna al termine della scansione.

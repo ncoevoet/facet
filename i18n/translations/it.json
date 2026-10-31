@@ -1165,6 +1165,9 @@
     "active_filters": "{count} filtri attivi",
     "unknown_person": "Sconosciuto",
     "selection": {
+      "outside_loaded": "Selezione fuori dalle miniature caricate: {count}. Le azioni riguardano l’intera selezione.",
+      "compare_loaded": "Confronta richiede 2–4 foto selezionate esplicitamente presenti nelle miniature caricate.",
+      "exclusions": "Esclusioni dall’intera vista: {count}.",
       "count": "{count} selezionati",
       "clear": "Cancella",
       "copy_filenames": "Copia nomi file",
@@ -1443,7 +1446,7 @@
       "reset_zoom": "Reimposta lo zoom",
       "linked": "Collegate",
       "independent": "Indipendenti",
-      "link_help": "Scollega per inquadrare ogni immagine separatamente. Ricollegare ripristina tutte le inquadrature.",
+      "link_help": "Scollega per allineare ogni inquadratura, poi ricollega per conservarla. I gesti collegati applicano lo stesso rapporto di zoom e spostamento in pixel a tutti i candidati; non associano i soggetti. Ripristina adatta ogni foto al riquadro.",
       "reference": "Riferimento",
       "candidate": "Candidata",
       "promote": "Usa {name} come riferimento",

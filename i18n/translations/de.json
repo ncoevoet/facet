@@ -1165,6 +1165,9 @@
     "active_filters": "{count} aktive Filter",
     "unknown_person": "Unbekannt",
     "selection": {
+      "outside_loaded": "Außerhalb der geladenen Kacheln ausgewählt: {count}. Aktionen gelten für die gesamte Auswahl.",
+      "compare_loaded": "Vergleichen benötigt 2–4 ausdrücklich ausgewählte Fotos in den geladenen Kacheln.",
+      "exclusions": "Ausschlüsse aus der gesamten Ansicht: {count}.",
       "count": "{count} ausgewahlt",
       "clear": "Loschen",
       "copy_filenames": "Dateinamen kopieren",
@@ -1443,7 +1446,7 @@
       "reset_zoom": "Zoom zurücksetzen",
       "linked": "Gekoppelt",
       "independent": "Unabhängig",
-      "link_help": "Entkoppeln, um jedes Bild einzeln auszurichten. Erneutes Koppeln setzt alle Ansichten zurück.",
+      "link_help": "Entkoppeln, jeden Ausschnitt ausrichten und wieder koppeln: Die Ausrichtung bleibt erhalten. Gekoppelte Gesten wenden denselben Zoomfaktor und dieselbe Pixelverschiebung auf alle Kandidaten an; Motive werden nicht zugeordnet. Zurücksetzen passt jedes Foto ein.",
       "reference": "Referenz",
       "candidate": "Kandidat",
       "promote": "{name} als Referenz verwenden",

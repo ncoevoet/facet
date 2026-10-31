@@ -6,7 +6,7 @@ El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descar
 
 En escritorio, la barra superior separa los destinos de los controles de página. Navegación muestra u oculta una barra lateral compacta. El puntero o el foco la amplían sobre las fotos; Fijar la mantiene abierta y reserva espacio. En teléfonos, Navegación abre un menú con nombres. Los detalles identifican su foto; Cerrar conserva la selección.
 
-La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos.
+La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos. Orden, dirección, Filtros, información de foto y presentación forman un único grupo de colección en escritorio y teléfono. Cuenta, Edición y escaneo permitido permanecen en la barra de aplicación; la galería no duplica una barra inferior. Abrir una foto cierra los menús de colección y pausa sus comandos hasta volver.
 
 ## Contenido
 
@@ -328,7 +328,10 @@ La tira de miniaturas identifica la referencia y permite elegir una candidata di
 - **Editar etiquetas**: añade o quita un [tag manual](#tags-manuales) en cada foto seleccionada
 - **Seleccionar todo**: con una selección vacía, selecciona todas las fotos que coinciden con los filtros, no solo las páginas cargadas. Con fotos ya seleccionadas, añade las cargadas y ofrece ampliar a toda la vista. Las acciones sobre toda la vista confirman antes el número exacto de fotos.
 - **Invertir**: cambia la selección por su complemento. Desde una selección vacía es toda la vista. Desde una selección no vacía se queda dentro de las fotos cargadas: elige las que conservas, invierte, rechaza.
-- **Comparar** — abre 2–4 fotos seleccionadas en paralelo. El botón de chincheta cambia la referencia sin modificar valoraciones ni decisiones. La inspección empieza vinculada; desvincula para encuadrar cada panel por separado. Volver a vincular restablece los encuadres. Desplaza para ampliar, arrastra para mover y haz doble clic para restablecer. El movimiento vinculado no alinea sujetos. Cada panel indica carga, disponibilidad o fallo de la vista detallada (conservando la miniatura); ampliar puede solicitar resolución completa. Con tres o cuatro fotos, Dos vistas mantiene la referencia mientras Anterior/Siguiente recorre las candidatas. Promover una candidata coloca la referencia anterior en el panel candidato. Desactivar Dos vistas restaura todos los paneles.
+
+La barra cuenta las fotos seleccionadas fuera de los elementos cargados; las acciones afectan a toda la selección explícita. Las exclusiones de toda la vista aparecen por separado. Comparar requiere 2–4 fotos seleccionadas explícitamente y cargadas; nunca abre solo una parte sin avisar.
+
+- **Comparar** — abre 2–4 fotos seleccionadas en paralelo. El botón de chincheta cambia la referencia sin modificar valoraciones ni decisiones. La inspección empieza vinculada; desvincula para encuadrar cada panel por separado. Volver a vincular conserva cada encuadre. Los gestos vinculados aplican la misma proporción de zoom y desplazamiento en píxeles a todos los candidatos, incluso fuera de Dos vistas; el primer límite detiene al grupo. Restablecer encaja todas las fotos. Desplaza para ampliar, arrastra para mover y haz doble clic para alternar el aumento. Restablecer encaja toda la comparación. El movimiento vinculado no alinea sujetos. Cada panel indica carga, disponibilidad o fallo de la vista detallada (conservando la miniatura); ampliar puede solicitar resolución completa. Con tres o cuatro fotos, Dos vistas mantiene la referencia mientras Anterior/Siguiente recorre las candidatas. Promover una candidata coloca la referencia anterior en el panel candidato. Desactivar Dos vistas restaura todos los paneles.
 - **Copiar nombres**: copia los nombres de archivo al portapapeles. Una copia de toda la vista pide confirmación antes; más de 10 000 fotos se rechaza.
 - **Exportar**: escribe sidecars XMP junto a los archivos (ver [Exportación al editor](#exportación-al-editor))
 - **Descartar a carpeta**: copia las conservadas, o mueve/envía a la papelera las rechazadas, a una carpeta (ver [Descartar a carpeta](#descartar-a-carpeta))
@@ -542,7 +545,7 @@ Inicia un escaneo desde el navegador. El botón Escanear aparece cuando se cumpl
 
 En una instalación abierta de un solo usuario (`viewer.edition_password` vacío, el valor predeterminado), nadie puede escanear desde el navegador. Excepción: con `viewer.trusted_local_editing`, una sesión de navegador local de confianza, o un asistente local con un token de edición completa, puede escanear sin `show_scan_button` ni contraseña de edición.
 
-El botón está en la galería vacía (**Escanea fotos para empezar**) y al final de la cabecera (**Buscar fotos nuevas**; barra inferior en pantallas pequeñas). Ambos abren el lanzador de escaneo:
+La galería vacía ofrece **Escanea fotos para empezar**. **Buscar fotos nuevas** también está en la barra de aplicación a cualquier anchura. Ambos abren el lanzador de escaneo:
 
 - Elige un directorio de la lista e inicia el escaneo.
 - El progreso en vivo y las líneas de salida se muestran en el diálogo. La galería se actualiza cuando termina el escaneo.

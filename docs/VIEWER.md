@@ -6,7 +6,7 @@ The viewer is a FastAPI + Angular web app for browsing, filtering, culling and m
 
 On desktop, the top bar separates application destinations from page controls. Its Navigation button shows or hides a compact icon sidebar. Hovering or focusing that sidebar expands it over the photos; Pin keeps it open and reserves space. On phones, Navigation opens a labeled menu. The details panel names its photo; Close hides it without clearing the selection.
 
-The collection header contains its name, matching-photo and displayed-group counts, Grid/Mosaic and exact text search at every width. The selection bar exposes Clear, Compare and, with editing access, Keep/Reject. Desktop Actions reveals labeled secondary commands; phones retain the Actions sheet. Targets and permissions remain unchanged.
+The collection header contains its name, matching-photo and displayed-group counts, Grid/Mosaic and exact text search at every width. The selection bar exposes Clear, Compare and, with editing access, Keep/Reject. Desktop Actions reveals labeled secondary commands; phones retain the Actions sheet. Targets and permissions remain unchanged. Sort, direction, Filters, photo information and slideshow now form one collection control group on desktop and phone. Account, Edition and permitted scan actions stay in the application bar; the gallery has no duplicate bottom toolbar. Opening a photo closes collection menus and pauses their commands until you return.
 
 ## Contents
 
@@ -328,7 +328,10 @@ The comparison thumbnail strip identifies the reference and lets you choose a ca
 - **Edit tags** — add or remove a [manual tag](#manual-tags) on every selected photo
 - **Select all** — with an empty selection, selects every photo the filters match, not just loaded pages. With photos already selected, it adds the loaded photos and offers to widen to the whole view. Whole-view actions confirm the exact photo count first.
 - **Invert** — swap the selection for its complement. From an empty selection that is the whole view. From a non-empty selection it stays within loaded photos: pick keepers, invert, reject.
-- **Compare** — open 2–4 selected photos side by side. A labeled reference can be changed with the pin button; this changes only the comparison, never ratings or review decisions. Inspection starts linked; unlink to frame each pane independently. Relinking resets all framing. Scroll to zoom, drag to pan and double-click to reset. Linked movement does not align subjects. Each pane reports sharp-preview loading, readiness or failure (with the stored thumbnail retained); zooming can request full resolution. For three or four selected photos, Two-up keeps the reference visible while Previous/Next moves through candidates. Promoting a candidate swaps the former reference into the candidate slot. Turning Two-up off restores all selected panes.
+
+The selection bar counts selected photos outside the loaded tiles; batch actions still target the entire explicit selection. Whole-view exclusions appear separately. Compare needs 2–4 explicitly selected, loaded photos and never silently opens only part of a selection.
+
+- **Compare** — open 2–4 selected photos side by side. A labeled reference can be changed with the pin button; this changes only the comparison, never ratings or review decisions. Inspection starts linked; unlink to frame each pane independently. Relinking preserves each crop. Linked gestures apply the same magnification ratio and pixel pan to all candidates, including those outside Two-up; the first scale limit stops the group. Reset fits every photo. Scroll to zoom, drag to pan and double-click to toggle magnification. Use Reset to fit the entire comparison. Linked movement does not align subjects. Each pane reports sharp-preview loading, readiness or failure (with the stored thumbnail retained); zooming can request full resolution. For three or four selected photos, Two-up keeps the reference visible while Previous/Next moves through candidates. Promoting a candidate swaps the former reference into the candidate slot. Turning Two-up off restores all selected panes.
 - **Copy filenames** — copy filenames to the clipboard. A whole-view copy confirms first; over 10 000 photos is refused.
 - **Export** — write XMP sidecars next to the files (see [Editor Export](#editor-export))
 - **Cull to folder** — copy keeps, or move/trash rejects, to a folder (see [Cull to folder](#cull-to-folder))
@@ -540,7 +543,7 @@ Start a scan from the browser. The Scan button appears when **both** hold:
 
 On an open single-user install (empty `viewer.edition_password`, the default), nobody can scan from the browser. Exception: under `viewer.trusted_local_editing`, a trusted-local browser session, or a local assistant with a Full-editing token, can scan without `show_scan_button` or an edition password.
 
-The button sits on the empty gallery (**Scan photos to get started**) and at the end of the header (**Scan for new photos**; bottom bar on small screens). Both open the scan launcher:
+The empty gallery offers **Scan photos to get started**. **Scan for new photos** is also available in the application bar at every width. Both open the scan launcher:
 
 - Pick a directory from the list and start the scan.
 - Live progress and output lines stream into the dialog. The gallery refreshes when the scan ends.

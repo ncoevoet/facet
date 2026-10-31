@@ -6,7 +6,7 @@ La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer
 
 Sur ordinateur, la barre supérieure sépare les destinations des commandes de page. Navigation affiche ou masque une barre latérale compacte. Le survol ou le focus la développe au-dessus des photos ; Épingler la maintient ouverte en réservant sa place. Sur téléphone, Navigation ouvre un menu nommé. Le panneau de détails nomme sa photo ; Fermer le masque sans effacer la sélection.
 
-L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques.
+L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques. Tri, sens, Filtres, informations photo et diaporama forment un seul groupe de collection sur ordinateur et téléphone. Compte, Édition et analyse autorisée restent dans la barre d’application ; la galerie n’a plus de barre inférieure en double. Ouvrir une photo ferme les menus de collection et suspend leurs commandes jusqu’au retour.
 
 ## Sommaire
 
@@ -321,6 +321,8 @@ Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage
 
 La bande de miniatures identifie la référence et permet de choisir directement une candidate. Le volet actif est signalé séparément. Retirer de la comparaison ne change que cette vue, jamais Garder/Rejeter ni la sélection de galerie ; Restaurer rétablit les photos retirées. Une photo restante reste consultable. Avec détails, la grille ajuste toute la photo dans un cadre uniforme 4:3 ; Mosaïque conserve ses rangées justifiées.
 
+La barre compte les photos sélectionnées hors des vignettes chargées ; les actions concernent toute la sélection explicite. Les exclusions de toute la vue apparaissent séparément. Comparer nécessite 2 à 4 photos explicitement sélectionnées et toutes chargées, sans ouvrir silencieusement une sélection partielle.
+
 - **Favori** — marque toutes les photos comme favorites (efface le rejet)
 - **Rejeter** — marque toutes les photos comme rejetées (efface le favori et la note)
 - **Noter** — définit ou efface une note de 1 à 5 étoiles
@@ -328,7 +330,7 @@ La bande de miniatures identifie la référence et permet de choisir directement
 - **Modifier les mots-clés** — ajoute ou retire un [tag manuel](#tags-manuels) sur chaque photo sélectionnée
 - **Tout sélectionner** — avec une sélection vide, sélectionne toutes les photos que les filtres retiennent, pas seulement les pages chargées. Avec des photos déjà sélectionnées, ajoute les photos chargées et propose d'élargir à toute la vue. Les actions sur toute la vue confirment d'abord le nombre exact de photos.
 - **Inverser** — remplace la sélection par son complément. À partir d'une sélection vide, c'est toute la vue. À partir d'une sélection non vide, cela reste dans les photos chargées : choisissez les gardées, inversez, rejetez.
-- **Comparer** — ouvre 2 à 4 photos sélectionnées côte à côte. Le bouton épingle change la référence sans modifier les notes ni les décisions. L’inspection est liée au départ ; déliez pour cadrer chaque volet séparément. Relier réinitialise tous les cadrages. Molette pour zoomer, glisser pour déplacer, double-clic pour réinitialiser. Le mouvement lié n’aligne pas les sujets. Chaque volet indique le chargement, la disponibilité ou l’échec de l’aperçu détaillé (la miniature est conservée) ; le zoom peut demander la pleine résolution. Avec trois ou quatre photos, Deux vues garde la référence visible tandis que Précédente/Suivante parcourt les candidates. Promouvoir une candidate place l’ancienne référence dans le volet candidat. Désactiver Deux vues rétablit tous les volets.
+- **Comparer** — ouvre 2 à 4 photos sélectionnées côte à côte. Le bouton épingle change la référence sans modifier les notes ni les décisions. L’inspection est liée au départ ; déliez pour cadrer chaque volet séparément. Relier conserve chaque cadrage. Les gestes liés appliquent le même rapport de zoom et déplacement en pixels à toutes les candidates, même hors de Deux vues ; la première limite arrête le groupe. Réinitialiser ajuste toutes les photos au cadre. Molette pour zoomer, glisser pour déplacer, double-clic pour basculer le grossissement. Réinitialiser ajuste toute la comparaison au cadre. Le mouvement lié n’aligne pas les sujets. Chaque volet indique le chargement, la disponibilité ou l’échec de l’aperçu détaillé (la miniature est conservée) ; le zoom peut demander la pleine résolution. Avec trois ou quatre photos, Deux vues garde la référence visible tandis que Précédente/Suivante parcourt les candidates. Promouvoir une candidate place l’ancienne référence dans le volet candidat. Désactiver Deux vues rétablit tous les volets.
 - **Copier les noms** — copie les noms de fichiers dans le presse-papiers. Une copie de toute la vue demande d'abord confirmation ; au-delà de 10 000 photos, elle est refusée.
 - **Exporter** — écrit des sidecars XMP à côté des fichiers (voir [Export vers éditeur](#export-vers-éditeur))
 - **Trier vers un dossier** — copie les gardées, ou déplace/met à la corbeille les rejetées, vers un dossier (voir [Trier vers un dossier](#trier-vers-un-dossier))
@@ -540,7 +542,7 @@ Lancez un scan depuis le navigateur. Le bouton Scan apparaît quand **les deux**
 
 Sur une installation mono-utilisateur ouverte (`viewer.edition_password` vide, valeur par défaut), personne ne peut lancer de scan depuis le navigateur. Exception : avec `viewer.trusted_local_editing`, une session de navigateur local de confiance, ou un assistant local avec un jeton Édition complète, peut lancer un scan sans `show_scan_button` ni mot de passe d'édition.
 
-Le bouton se trouve sur la galerie vide (**Lancer un scan pour commencer**) et à la fin de l'en-tête (**Scanner de nouvelles photos** ; barre du bas sur petits écrans). Les deux ouvrent le lanceur de scan :
+La galerie vide propose **Lancer un scan pour commencer**. **Scanner de nouvelles photos** est aussi disponible dans la barre d’application à toute largeur. Les deux ouvrent le lanceur de scan :
 
 - Choisissez un répertoire dans la liste et lancez le scan.
 - La progression en direct et les lignes de sortie défilent dans la boîte de dialogue. La galerie se rafraîchit à la fin du scan.

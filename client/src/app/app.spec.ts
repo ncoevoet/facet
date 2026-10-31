@@ -1,9 +1,9 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { TestBed } from '@angular/core/testing';
 import { DefaultUrlSerializer, Router, provideRouter } from '@angular/router';
 import { Provider, signal } from '@angular/core';
 import { NEVER, Subject, of } from 'rxjs';
 import { App } from './app';
-import { GalleryStore, GalleryFilters, DEFAULT_FILTERS, ViewerConfig } from './features/gallery/gallery.store';
+import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './features/gallery/gallery.store';
 import { AuthService } from './core/services/auth.service';
 import { ApiService } from './core/services/api.service';
 import { I18nService } from './core/services/i18n.service';
@@ -18,7 +18,7 @@ import { I18N } from './core/i18n/keys';
 import { ScanService } from './core/services/scan.service';
 import { By } from '@angular/platform-browser';
 import { MatTooltip } from '@angular/material/tooltip';
-import { MatMenuTrigger } from '@angular/material/menu';
+
 import { KeyboardMappingService, KEYMAP_STORAGE_KEY } from './core/services/keyboard-mapping.service';
 
 function createApp(routerUrl = '/', extraProviders: Provider[] = []) {
@@ -170,22 +170,11 @@ describe('App', () => {
   });
 
   describe('mobile bottom bar vs selection (issue #73)', () => {
-    it('shows the gallery bottom bar when nothing is selected', () => {
-      const { app } = createApp('/');
-      expect((app as any).mobileGalleryBarVisible()).toBe(true);
-    });
+    ;
 
-    it('hides the gallery bottom bar while photos are selected', () => {
-      const { app, selectionCountSignal } = createApp('/');
-      selectionCountSignal.set(3);
-      expect((app as any).mobileGalleryBarVisible()).toBe(false);
-    });
+    ;
 
-    it('hides the gallery bottom bar on an album route while photos are selected', () => {
-      const { app, selectionCountSignal } = createApp('/album/12');
-      selectionCountSignal.set(1);
-      expect((app as any).mobileGalleryBarVisible()).toBe(false);
-    });
+    ;
 
     it('shows the persons bottom bar when nothing is selected', () => {
       const { app } = createApp('/persons');
@@ -433,14 +422,7 @@ describe('App', () => {
     });
   });
 
-  describe('onSortChange', () => {
-    it('goes through setUserSort, the one path that remembers the sort', () => {
-      const { app, mockStore } = createApp('/');
-      (app as any).onSortChange('date_taken');
-      expect(mockStore.setUserSort).toHaveBeenCalledExactlyOnceWith('date_taken');
-      expect(mockStore.updateFilter).not.toHaveBeenCalledWith('sort', 'date_taken');
-    });
-  });
+  ;
 
   describe('resetAllFilters', () => {
     it('navigates to / and calls store.resetFilters', () => {
@@ -696,42 +678,25 @@ describe('App', () => {
       return { fixture, root, buttons, store, openLauncher };
     }
 
-    it('announces matching photo totals in the gallery header and exact item totals for pinned lists', () => {
-      const { fixture, root, store } = render(false);
-      vi.mocked(TestBed.inject(I18nService).t).mockImplementation((key, params) =>
-        key === I18N.gallery.photo_count ? `${params?.['count']} photos` : key);
-      store.total.set(2); store.photoTotal.set(4); fixture.detectChanges();
-      expect(root.textContent).toContain('4 photos');
-      store.pinnedPaths.set(['/a.jpg', '/b.jpg']); fixture.detectChanges();
-      expect(root.textContent).toContain('2 photos');
-    });
+    ;
 
-    it('renders one desktop button just before the account menu, in the tonal colour', () => {
+    it('renders one scan button in the application bar immediately before the account menu', () => {
       const { buttons } = render(true);
-      const desktop = buttons.filter((b) => b.classList.contains('lg:!inline-flex'));
+      const desktop = buttons;
       expect(desktop).toHaveLength(1);
       expect(desktop[0].nextElementSibling?.getAttribute('aria-label')).toBe(I18N.auth.user_menu);
-      expect(desktop[0].classList.contains('!hidden')).toBe(true);
+      expect(desktop[0].closest('[data-workspace-navigation]')).not.toBeNull();
       for (const cls of TONAL) expect(desktop[0].classList.contains(cls)).toBe(true);
     });
 
-    it('renders the mobile-bar copy pushed to the far right of the bar', () => {
-      const { buttons } = render(true);
-      const mobile = buttons.filter((b) => !b.classList.contains('lg:!inline-flex'));
-      expect(mobile).toHaveLength(1);
-      expect(mobile[0].nextElementSibling).toBeNull();
-      expect(mobile[0].previousElementSibling?.getAttribute('aria-label')).toBe(I18N.slideshow.start);
-      expect(mobile[0].classList.contains('ml-auto')).toBe(true);
-      expect(mobile[0].closest('.lg\\:hidden')).not.toBeNull();
-      for (const cls of TONAL) expect(mobile[0].classList.contains(cls)).toBe(true);
-    });
+    ;
 
     it('labels the button with the scan action (tooltip message and aria-label)', () => {
       const { fixture, buttons } = render(true);
-      expect(buttons.length).toBe(2);
+      expect(buttons.length).toBe(1);
       const tooltips = fixture.debugElement.queryAll(By.directive(MatTooltip))
         .filter((d) => buttons.includes(d.nativeElement as HTMLButtonElement));
-      expect(tooltips).toHaveLength(2);
+      expect(tooltips).toHaveLength(1);
       for (const d of tooltips) expect(d.injector.get(MatTooltip).message).toBe(I18N.gallery.scan_action);
       for (const b of buttons) {
         expect(b.getAttribute('aria-label')).toBe(I18N.gallery.scan_action);
@@ -739,13 +704,7 @@ describe('App', () => {
       }
     });
 
-    it('opens the launcher from the mobile-bar copy too', async () => {
-      const { buttons, store, openLauncher } = render(true, true);
-      const mobile = buttons.find((b) => !b.classList.contains('lg:!inline-flex'));
-      mobile?.click();
-      await vi.waitFor(() => expect(store.reloadPhotos).toHaveBeenCalledTimes(1));
-      expect(openLauncher).toHaveBeenCalledTimes(1);
-    });
+    ;
 
     it('reloads the type counts and the photos when the launcher reports a completed scan', async () => {
       const { buttons, store, openLauncher } = render(true, true);
@@ -771,243 +730,7 @@ describe('App', () => {
     });
   });
 
-  describe('filter bar while an assistant-pinned list is shown', () => {
-    function render(config: { features?: { show_my_taste?: boolean }; sort_options_grouped?: ViewerConfig['sort_options_grouped'] } | null = null) {
-      const store = {
-        filters: signal({ ...DEFAULT_FILTERS }), persons: signal([]), selectionCount: signal(0), config: signal(config),
-        types: signal([]), total: signal(0), photoTotal: signal(0), loadTypeCounts: vi.fn(() => Promise.resolve()), reloadPhotos: vi.fn(), loadConfig: vi.fn(),
-        viewFilterParams: signal({}), activeFilterCount: signal(0), filterDrawerOpen: signal(true), hiddenFiltersStash: signal(null),
-        reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(),
-        collapseStacks: signal(true), toggleStackCollapse: vi.fn(),
-        slideshowActive: signal(false), pinnedPaths: signal<string[] | null>(null), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(),
-        setUserSort: vi.fn(() => Promise.resolve()), resetFilters: vi.fn(), restoreHidden: vi.fn(), showAllHidden: vi.fn(),
-      };
-      TestBed.configureTestingModule({
-        providers: [
-          provideRouter([]),
-          { provide: GalleryStore, useValue: store },
-          { provide: ScanService, useValue: { canLaunch: signal(true), openLauncher: vi.fn() } },
-          { provide: AuthService, useValue: { identity: () => '0|', isAuthenticated: signal(true), isReadOnlyInstall: signal(false), features: signal({}), user: signal(null), logout: vi.fn(), isEdition: signal(false), status: signal(null), editionPasswordRequired: signal(false), isMultiUser: signal(false), isInstallAdmin: signal(false), loginPasswordRequired: signal(false), checkStatus: vi.fn(() => Promise.resolve()) } },
-          { provide: I18nService, useValue: { load: vi.fn(() => Promise.resolve()), loadLanguages: vi.fn(() => Promise.resolve()), languages: signal([]), t: vi.fn((k: string, vars?: Record<string, string | number>) => vars ? `${k}(${Object.values(vars).join(',')})` : k), translations: signal({}) } },
-          { provide: StatsFiltersService, useValue: { filterCategory: signal(''), dateFrom: signal(''), dateTo: signal('') } },
-          { provide: CompareFiltersService, useValue: { selectedCategory: signal('') } },
-          { provide: MatDialog, useValue: { open: vi.fn() } },
-          { provide: ApiService, useValue: { get: vi.fn(() => NEVER), post: vi.fn(() => NEVER) } },
-          { provide: ThemeService, useValue: { theme: signal(''), darkMode: signal(true), THEMES: [], setTheme: vi.fn(), toggleDarkMode: vi.fn(), accentColor: signal('#ff6600'), complementaryColor: signal('#0099ff') } },
-        ],
-      });
-      const fixture = TestBed.createComponent(App);
-      fixture.detectChanges();
-      return { fixture, root: fixture.nativeElement as HTMLElement, store };
-    }
-
-    const sortButtons = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="menu"]'))
-      .filter(el => el.getAttribute('aria-label')?.startsWith(`${I18N.gallery.sort_current}(`));
-    const sortLabel = (key: string) => `${I18N.gallery.sort_current}(${key})`;
-    const byLabel = (root: HTMLElement, key: string) => root.querySelectorAll(`button[aria-label="${key}"]`);
-    const menuItems = () => Array.from(document.querySelectorAll<HTMLElement>('.mat-mdc-menu-panel [role="menuitemradio"]'));
-    const iconOf = (el: Element) => el.querySelector('mat-icon')?.textContent?.trim();
-    const openMenu = async (fixture: ComponentFixture<App>, button: HTMLButtonElement) => {
-      button.click();
-      fixture.detectChanges();
-      await fixture.whenStable();
-      fixture.detectChanges();
-    };
-
-    it('offers stack expansion in the mobile bar to read-only users and hides it for exact pinned lists', () => {
-      const { fixture, root, store } = render();
-      const button = root.querySelector<HTMLButtonElement>('[data-stack-collapse-mobile]');
-      expect(button).not.toBeNull();
-      expect(button?.closest('.lg\\:hidden')).not.toBeNull();
-      expect(button?.getAttribute('aria-label')).toBe(I18N.stacks.expand_all);
-      expect(button?.hasAttribute('aria-pressed')).toBe(false);
-      button?.click();
-      expect(store.toggleStackCollapse).toHaveBeenCalledOnce();
-      store.collapseStacks.set(false); fixture.detectChanges();
-      expect(button?.getAttribute('aria-label')).toBe(I18N.stacks.collapse);
-      expect(button?.hasAttribute('aria-pressed')).toBe(false);
-      store.pinnedPaths.set(['/a.jpg']); fixture.detectChanges();
-      expect(root.querySelector('[data-stack-collapse-mobile]')).toBeNull();
-      store.pinnedPaths.set(null); fixture.detectChanges();
-      expect(root.querySelector('[data-stack-collapse-mobile]')).not.toBeNull();
-    });
-
-    it('shows the sort button, sort direction and filter toggle (header and mobile bar) otherwise', () => {
-      const { root } = render();
-      expect(sortButtons(root)).toHaveLength(2);
-      expect(byLabel(root, I18N.gallery.sort_desc)).toHaveLength(2);
-      expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
-      expect(byLabel(root, I18N.ui.buttons.filters)).toHaveLength(1);
-      expect(byLabel(root, I18N.ui.filters.search)).toHaveLength(1);
-    });
-
-    it('puts the direction toggle, then the filter toggle, right after the sort button in both layouts', () => {
-      const { root } = render();
-      const [desktop, mobile] = sortButtons(root);
-      for (const [button, filtersLabel] of [[desktop, I18N.gallery.filters], [mobile, I18N.ui.buttons.filters]] as const) {
-        expect(button.nextElementSibling?.getAttribute('aria-label')).toBe(I18N.gallery.sort_desc);
-        expect(button.nextElementSibling?.nextElementSibling?.getAttribute('aria-label')).toBe(filtersLabel);
-      }
-    });
-
-    it('shows the current sort icon and labels the button "Sort by: <current label>"', () => {
-      const { fixture, root, store } = render();
-      for (const button of sortButtons(root)) {
-        expect(iconOf(button)).toBe('leaderboard');
-        expect(button.getAttribute('aria-label')).toBe(sortLabel(I18N.gallery.sort_aggregate));
-      }
-      store.filters.update(filters => ({ ...filters, sort: 'aesthetic_iaa' }));
-      fixture.detectChanges();
-      for (const button of sortButtons(root)) {
-        expect(iconOf(button)).toBe('IAA');
-        expect(button.querySelector('mat-icon')?.classList.contains('!font-sans')).toBe(true);
-        expect(button.getAttribute('aria-label')).toBe(sortLabel('sort_options.aesthetic_iaa'));
-      }
-    });
-
-    it.each(['constructor', 'toString', '__proto__'])('keeps an unknown %s sort label a string rather than reading Object.prototype', sort => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, sort }));
-      fixture.detectChanges();
-      for (const button of sortButtons(root)) {
-        expect(button.getAttribute('aria-label')).toBe(sortLabel(`sort_options.${sort}`));
-      }
-    });
-
-    it('gives current model labels the same width as their menu markers in both layouts', () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, sort: 'deqa_score' }));
-      fixture.detectChanges();
-      for (const button of sortButtons(root)) {
-        const icon = button.querySelector('mat-icon')!;
-        expect(icon.textContent?.trim()).toBe('DeQA');
-        expect(icon.classList.contains('!w-8')).toBe(true);
-        expect(icon.classList.contains('text-center')).toBe(true);
-        expect(icon.classList.contains('-mx-1')).toBe(true);
-        expect(icon.getAttribute('aria-hidden')).toBe('true');
-        expect(button.getAttribute('aria-label')).toBe(sortLabel('sort_options.deqa_score'));
-      }
-    });
-
-    it('lists the fallback sorts with icons, marks the current one and runs the saved-sort handler on click', async () => {
-      const { fixture, root, store } = render();
-      await openMenu(fixture, sortButtons(root)[0]);
-      const items = menuItems();
-      expect(items.map(item => item.textContent?.replace(iconOf(item) ?? '', '').replace('check', '').trim())).toEqual([
-        I18N.gallery.sort_aggregate, I18N.gallery.sort_aesthetic, I18N.gallery.sort_date,
-      ]);
-      expect(items.map(item => iconOf(item))).toEqual(['leaderboard', 'auto_awesome', 'event']);
-      expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false']);
-      expect(items.map(item => !!Array.from(item.querySelectorAll('mat-icon')).find(i => i.textContent?.trim() === 'check'))).toEqual([true, false, false]);
-      items[2].click();
-      expect(store.setUserSort).toHaveBeenLastCalledWith('date_taken');
-      fixture.detectChanges();
-      await fixture.whenStable();
-      expect(menuItems()).toHaveLength(0);
-    });
-
-    it('labels a sort the menu does not list with its own label, never a raw sort_options key', () => {
-      const { fixture, root, store } = render();
-      for (const [sort, labelKey] of [
-        ['top_picks_score', I18N.photo_types.top_picks],
-        ['learned_score', I18N.gallery.sort_my_taste],
-        ['relevance', I18N.gallery.sort_relevance],
-      ] as const) {
-        store.filters.update(filters => ({ ...filters, sort }));
-        fixture.detectChanges();
-        for (const button of sortButtons(root)) expect(button.getAttribute('aria-label')).toBe(sortLabel(labelKey));
-      }
-    });
-
-    it('moves the check to the current sort', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, sort: 'aesthetic' }));
-      fixture.detectChanges();
-      await openMenu(fixture, sortButtons(root)[1]);
-      expect(menuItems().map(item => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-    });
-
-    it('does not reload when the already-current sort is picked again', async () => {
-      const { fixture, root, store } = render();
-      await openMenu(fixture, sortButtons(root)[0]);
-      menuItems()[0].click();
-      expect(store.setUserSort).not.toHaveBeenCalled();
-    });
-
-    it('lists configured groups under non-interactive headers, with conditional sorts and model labels', async () => {
-      const { fixture, root, store } = render({
-        features: { show_my_taste: true },
-        sort_options_grouped: {
-          General: [
-            { column: 'date_taken', label: 'Date Taken' },
-            { column: 'aesthetic_iaa', label: 'Aesthetic IAA' },
-            { column: 'qrealign_score', label: 'Q-ReAlign' },
-          ],
-          'Face Metrics': [{ column: 'future_metric', label: 'Future metric' }],
-        },
-      });
-      store.filters.update(filters => ({ ...filters, semanticQuery: 'sunset' }));
-      fixture.detectChanges();
-      await openMenu(fixture, sortButtons(root)[1]);
-      const items = menuItems();
-      expect(items.map(item => iconOf(item))).toEqual(['search', 'psychology', 'event', 'IAA', 'Q-R', 'sort']);
-      const panel = items[0].closest('.mat-mdc-menu-panel')!;
-      const groups = Array.from(panel.querySelectorAll('[role="group"]'));
-      const headers = groups.map(group => document.getElementById(group.getAttribute('aria-labelledby')!)?.textContent?.trim());
-      expect(headers).toEqual(['sort_groups.general', 'sort_groups.face_metrics']);
-      expect(groups.map(group => group.querySelectorAll('[role="menuitemradio"]').length)).toEqual([3, 1]);
-      for (const item of items) expect(item.querySelector('mat-icon')?.getAttribute('aria-hidden')).toBe('true');
-      items[3].click();
-      expect(store.setUserSort).toHaveBeenLastCalledWith('aesthetic_iaa');
-    });
-
-    it('offers the tooltip modes as one shared radio menu with the current mode checked', async () => {
-      const { fixture, root, store } = render();
-      store.filters.update(filters => ({ ...filters, tooltip_mode: 'click' }));
-      fixture.detectChanges();
-      const triggers = Array.from(byLabel(root, I18N.gallery.tooltip_mode.label)) as HTMLButtonElement[];
-      expect(triggers).toHaveLength(2);
-      const menus = fixture.debugElement.queryAll(By.directive(MatMenuTrigger))
-        .filter(d => triggers.includes(d.nativeElement as HTMLButtonElement))
-        .map(d => d.injector.get(MatMenuTrigger).menu);
-      expect(menus[0]).toBe(menus[1]);
-      await openMenu(fixture, triggers[1]);
-      const items = menuItems();
-      expect(items.map(item => item.getAttribute('aria-checked'))).toEqual(['false', 'true', 'false']);
-      expect(items.map(item => item.textContent?.includes('check'))).toEqual([false, true, false]);
-      items[2].click();
-      expect(store.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
-    });
-
-    it('is one shared menu for both triggers', () => {
-      const { fixture, root } = render();
-      const buttons = sortButtons(root);
-      const menus = fixture.debugElement.queryAll(By.directive(MatMenuTrigger))
-        .filter(d => buttons.includes(d.nativeElement as HTMLButtonElement))
-        .map(d => d.injector.get(MatMenuTrigger).menu);
-      expect(menus).toHaveLength(2);
-      expect(menus[0]).toBe(menus[1]);
-    });
-
-    it('hides them all while pinned, and brings them back when the pin clears', () => {
-      const { fixture, root, store } = render();
-      store.pinnedPaths.set(['/a.jpg']);
-      fixture.detectChanges();
-      expect(sortButtons(root)).toHaveLength(0);
-      expect(byLabel(root, I18N.gallery.sort_desc)).toHaveLength(0);
-      expect(byLabel(root, I18N.gallery.filters)).toHaveLength(0);
-      expect(byLabel(root, I18N.ui.buttons.filters)).toHaveLength(0);
-      expect(byLabel(root, I18N.ui.filters.search)).toHaveLength(0);
-      expect(byLabel(root, I18N.gallery.scan_action).length).toBeGreaterThan(0);
-      expect(byLabel(root, I18N.slideshow.start).length).toBeGreaterThan(0);
-      expect(byLabel(root, I18N.gallery.tooltip_mode.label).length).toBeGreaterThan(0);
-      store.pinnedPaths.set(null);
-      fixture.detectChanges();
-      expect(sortButtons(root)).toHaveLength(2);
-      expect(byLabel(root, I18N.gallery.filters)).toHaveLength(1);
-      expect(store.setFilterDrawerOpen).not.toHaveBeenCalled();
-    });
-  });
+  ;
 
 
   describe('lockEdition', () => {
@@ -1082,6 +805,8 @@ describe('App', () => {
       const { root } = render(true);
       const header = root.querySelector<HTMLElement>('header[data-workspace-navigation]');
       expect(header).not.toBeNull();
+      expect(root.querySelector('mat-toolbar')).toBeNull();
+      expect(header!.querySelector(`button[aria-label="${I18N.auth.user_menu}"]`)).not.toBeNull();
       expect(root.querySelector('aside[data-workspace-navigation]')).toBeNull();
       expect(root.firstElementChild!.classList.contains('lg:pl-48')).toBe(false);
       const primary = header!.querySelector('[data-primary-navigation]')!;
@@ -1091,6 +816,9 @@ describe('App', () => {
         expect(link.getAttribute('ariaCurrentWhenActive')).toBe('page');
       }
       expect(header!.querySelector('[data-mobile-navigation]')).not.toBeNull();
+      expect(header!.querySelector(`a[aria-label="${I18N.nav.gallery_tooltip}"]`)).not.toBeNull();
+      primary.querySelector('a[href="/"]')!.dispatchEvent(new MouseEvent('dblclick'));
+      expect(TestBed.inject(GalleryStore).resetFilters).toHaveBeenCalledOnce();
     });
 
     it('can hide, preview and pin navigation without letting hover reserve the expanded width', () => {
@@ -1163,7 +891,7 @@ describe('App', () => {
 
     it.each([[true], [false]])('draws the theme-accent 2px underline exactly while edition is %s', (edition) => {
       const { root } = render(edition);
-      const bar = root.querySelector<HTMLElement>('mat-toolbar')!;
+      const bar = root.querySelector<HTMLElement>('[data-workspace-navigation]')!;
       expect(bar.style.borderBottomColor).toBe(edition ? 'var(--facet-accent)' : '');
       expect(bar.classList.contains('!border-b-2')).toBe(edition);
     });

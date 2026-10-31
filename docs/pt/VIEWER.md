@@ -6,7 +6,7 @@ O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar
 
 No computador, a barra superior separa destinos de comandos da página. Navegação mostra ou oculta uma barra lateral compacta. O ponteiro ou o foco a expandem sobre as fotos; Fixar mantém a barra aberta e reserva espaço. No telefone, Navegação abre um menu com nomes. Os detalhes identificam a foto; Fechar preserva a seleção.
 
-O cabeçalho reúne nome, contagens de fotos correspondentes e grupos exibidos, Grade/Mosaico e busca textual em qualquer largura. A seleção oferece Limpar, Comparar e, com edição, Manter/Rejeitar. Ações revela comandos secundários nomeados no computador; no telefone permanece o painel Ações. Alvos e permissões são preservados.
+O cabeçalho reúne nome, contagens de fotos correspondentes e grupos exibidos, Grade/Mosaico e busca textual em qualquer largura. A seleção oferece Limpar, Comparar e, com edição, Manter/Rejeitar. Ações revela comandos secundários nomeados no computador; no telefone permanece o painel Ações. Alvos e permissões são preservados. Ordenação, direção, Filtros, informações da foto e apresentação formam um único grupo da coleção no computador e telefone. Conta, Edição e análise permitida ficam na barra da aplicação; a galeria não duplica uma barra inferior. Abrir uma foto fecha os menus da coleção e pausa os comandos até voltar.
 
 ## Conteúdo
 
@@ -321,6 +321,8 @@ Clique nas fotos para selecionar; Shift+Clique seleciona um intervalo. Uma barra
 
 A faixa de miniaturas identifica a referência e permite escolher uma candidata diretamente. O painel ativo é destacado separadamente. Remover da comparação altera apenas esta vista, nunca Manter/Rejeitar nem a seleção da galeria; Restaurar devolve as fotos removidas. Uma foto restante continua disponível para inspeção. A grade com detalhes encaixa a foto inteira numa moldura uniforme 4:3; Mosaico mantém linhas justificadas.
 
+A barra conta fotos selecionadas fora das miniaturas carregadas; as ações abrangem toda a seleção explícita. As exclusões de toda a vista aparecem separadamente. Comparar requer 2–4 fotos selecionadas explicitamente e todas carregadas, sem abrir apenas parte silenciosamente.
+
 - **Favoritar** — marca todas como favoritas (limpa rejeição)
 - **Rejeitar** — marca todas como rejeitadas (limpa favorito e avaliação)
 - **Avaliar** — define ou limpa uma avaliação de 1–5 estrelas
@@ -328,7 +330,7 @@ A faixa de miniaturas identifica a referência e permite escolher uma candidata 
 - **Editar etiquetas** — adiciona ou remove uma [tag manual](#tags-manuais) em todas as fotos selecionadas
 - **Selecionar todas** — com uma seleção vazia, seleciona todas as fotos que os filtros encontram, não só as páginas carregadas. Com fotos já selecionadas, acrescenta as carregadas e oferece ampliar para toda a visualização. As ações de toda a visualização confirmam antes a contagem exata de fotos.
 - **Inverter** — troca a seleção pelo seu complemento. A partir de uma seleção vazia, é toda a visualização. A partir de uma seleção não vazia, permanece entre as fotos carregadas: escolha as que ficam, inverta, rejeite.
-- **Comparar** — abre 2–4 fotos selecionadas lado a lado. O botão de alfinete muda a referência sem alterar classificações ou decisões. A inspeção começa ligada; desligue para enquadrar cada painel separadamente. Voltar a ligar repõe todos os enquadramentos. Desloque para ampliar, arraste para mover e clique duas vezes para repor. O movimento ligado não alinha sujeitos. Cada painel indica carregamento, disponibilidade ou falha da pré-visualização detalhada (mantendo a miniatura); ampliar pode pedir resolução completa. Com três ou quatro fotos, Duas vistas mantém a referência enquanto Anterior/Seguinte percorre as candidatas. Promover uma candidata coloca a referência anterior no painel candidato. Desativar Duas vistas repõe todos os painéis.
+- **Comparar** — abre 2–4 fotos selecionadas lado a lado. O botão de alfinete muda a referência sem alterar classificações ou decisões. A inspeção começa ligada; desligue para enquadrar cada painel separadamente. Voltar a ligar mantém cada enquadramento. Os gestos ligados aplicam a mesma proporção de zoom e deslocamento em píxeis a todas as candidatas, mesmo fora de Duas vistas; o primeiro limite para o grupo. Repor ajusta todas as fotos ao painel. Desloque para ampliar, arraste para mover e clique duas vezes para alternar a ampliação. Repor ajusta toda a comparação aos painéis. O movimento ligado não alinha sujeitos. Cada painel indica carregamento, disponibilidade ou falha da pré-visualização detalhada (mantendo a miniatura); ampliar pode pedir resolução completa. Com três ou quatro fotos, Duas vistas mantém a referência enquanto Anterior/Seguinte percorre as candidatas. Promover uma candidata coloca a referência anterior no painel candidato. Desativar Duas vistas repõe todos os painéis.
 - **Copiar nomes de arquivo** — copia os nomes de arquivo para a área de transferência. Uma cópia de toda a visualização pede confirmação antes; acima de 10 000 fotos é recusada.
 - **Exportar** — grava sidecars XMP ao lado dos arquivos (veja [Exportação para Editor](#exportação-para-editor))
 - **Selecionar para pasta** — copia as mantidas, ou move/descarta as rejeitadas, para uma pasta (veja [Selecionar para pasta](#selecionar-para-pasta))
@@ -538,7 +540,7 @@ Inicie uma varredura pelo navegador. O botão Varrer aparece quando **ambas** as
 
 Em uma instalação aberta de usuário único (`viewer.edition_password` vazio, o padrão), ninguém pode varrer pelo navegador. Exceção: sob `viewer.trusted_local_editing`, uma sessão de navegador local confiável, ou um assistente local com token de Edição completa, pode varrer sem `show_scan_button` nem senha de edição.
 
-O botão fica na galeria vazia (**Escaneie as fotos para começar**) e no fim do cabeçalho (**Procurar novas fotos**; barra inferior em telas pequenas). Ambos abrem o iniciador de varredura:
+A galeria vazia oferece **Escaneie as fotos para começar**. **Procurar novas fotos** também está na barra da aplicação em qualquer largura. Ambos abrem o iniciador de varredura:
 
 - Escolha um diretório da lista e inicie a varredura.
 - O progresso ao vivo e as linhas de saída chegam ao diálogo. A galeria é atualizada quando a varredura termina.

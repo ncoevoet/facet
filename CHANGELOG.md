@@ -6,12 +6,15 @@ All notable changes to Facet are documented in this file.
 
 ### Added
 
-- Gallery comparison labels a reference photo, allows deliberate reference promotion and independent framing, and reports sharp-preview readiness per pane. Two-up keeps a stable reference while stepping through selected candidates. Relinking inspection resets framing without changing review decisions.
+- Gallery comparison labels a reference photo, allows deliberate reference promotion and independent framing, and reports sharp-preview readiness per pane. Two-up keeps a stable reference while stepping through selected candidates. Relinking preserves manually aligned crops; linked gestures apply relative zoom and pan across candidates, while Reset fits every photo without changing review decisions.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
 
 ### Changed
 
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+- The selection bar discloses selected photos outside loaded tiles and whole-view exclusions. Comparison refuses partial or oversized selections instead of silently opening only some selected photos.
+
+- Gallery sort, filters, inspection and slideshow use one collection-owned control group at every width. Account and scan actions sit in the application bar; the duplicate gallery toolbar and mobile bottom bar are removed. Collection menus close and reject stale commands while a photo page parks the gallery.
 - Comparison has a thumbnail candidate strip, independent active-pane marking, view-only removal and restore. Two-pane comparison stacks vertically on narrow screens; command chrome follows the selected theme.
 - Grid cards with details fit whole images into equal 4:3 frames. Moving focus preserves other photos’ brightness while retaining separate current-photo and selection markers.
 - Application destinations use a compact top bar with an optional desktop icon sidebar: show/hide, hover or focus to expand, and pin to reserve space. Card metadata follows the selected light or dark theme.

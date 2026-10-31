@@ -1179,6 +1179,9 @@ export const I18N = {
     active_filters: "gallery.active_filters",
     unknown_person: "gallery.unknown_person",
     selection: {
+      outside_loaded: "gallery.selection.outside_loaded",
+      compare_loaded: "gallery.selection.compare_loaded",
+      exclusions: "gallery.selection.exclusions",
       count: "gallery.selection.count",
       clear: "gallery.selection.clear",
       copy_filenames: "gallery.selection.copy_filenames",

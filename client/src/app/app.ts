@@ -46,23 +46,17 @@ import { KeyboardMappingService } from './core/services/keyboard-mapping.service
 import { AssistantActivityChipComponent } from './features/agent/assistant-activity-chip.component';
 import { PersonFilterChipComponent } from './features/gallery/person-filter-chip.component';
 import { CONNECT_ASSISTANT_DIALOG_ID } from './core/agent/page-context.service';
-import { SortOptionIconPipe } from './shared/pipes/sort-option-icon.pipe';
-import { SortGroupKeyPipe } from './shared/pipes/sort-group-key.pipe';
 import { ThumbnailUrlPipe } from './shared/pipes/thumbnail-url.pipe';
 import { SlideshowComponent } from './features/gallery/slideshow.component';
 import { Photo, normalisePhotoFlagsAll } from './shared/models/photo.model';
 import { DateRangeFilterComponent } from './shared/components/date-range-filter/date-range-filter.component';
 import { I18N, i18nKeys } from './core/i18n/keys';
 import { folderDisplayName } from './features/folders/folders.util';
-import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from './shared/utils/media-query';
 import { isUnavailableKey, unavailableSet } from './shared/utils/unavailable-metrics';
 
 /** When the "a newer Facet is out" notice was last shown, so it stays weekly. */
 const RELEASE_NOTICE_KEY = 'facet_release_notice_shown';
 const RELEASE_NOTICE_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
-
-/** Translation key of a configured sort column's label. */
-const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 
 /** Response of GET /api/updates/check. */
 interface ReleaseCheck {
@@ -148,8 +142,6 @@ export class EditionDialogComponent {
     MatBadgeModule,
     MatDividerModule,
     TranslatePipe,
-    SortGroupKeyPipe,
-    SortOptionIconPipe,
     ThumbnailUrlPipe,
     MatSliderModule,
     NgTemplateOutlet,
@@ -256,8 +248,6 @@ export class App implements OnInit {
       this.navigationFocused.set(false);
     }
   }
-
-  protected readonly mobileSearchOpen = signal(false);
   protected readonly mobileAlbumsSearchOpen = signal(false);
   protected readonly mobilePersonsSearchOpen = signal(false);
   protected readonly hasBurstGroups = signal(false);
@@ -309,6 +299,11 @@ export class App implements OnInit {
   protected readonly isTimelineRoute = computed(() => this.url().split('?')[0].startsWith('/timeline'));
   protected readonly isSharedRoute = computed(() => this.url().split('?')[0].startsWith('/shared/'));
 
+  /** A route gets a second bar only when it actually supplies page controls. */
+  protected readonly showPageToolbar = computed(() => !this.auth.isAuthenticated()
+    || this.isCompareRoute() || this.headerSlot.template() !== null
+    || (this.isStatsRoute() && !!this.statsFilters.overview()));
+
   /** Mirrors TimelineComponent.anyHiddenByFilters for the mobile bottom bar's
    *  own copy of the affordance — same GalleryStore signal, same shared
    *  predicate, only the markup is duplicated (matches the mobile gallery bar's
@@ -319,59 +314,7 @@ export class App implements OnInit {
 
   /** An assistant-pinned list is on screen: the filter bar is hidden so no filter edit can drop it. */
   protected readonly pinned = computed(() => this.store.pinnedPaths() !== null);
-
-  /** On mobile the selection action bar replaces the route's bottom bar rather than
-   *  stacking on top of it, so the two can never overlap (issue #73). */
-  protected readonly mobileGalleryBarVisible = computed(() => this.isGalleryRoute() && !this.store.selectionCount());
   protected readonly mobilePersonsBarVisible = computed(() => this.isPersonsRoute() && !this.personsFilters.selectedIds().size);
-
-  protected readonly sortGroups = computed(() => {
-    const grouped = this.store.config()?.sort_options_grouped;
-    if (!grouped) return null;
-    return Object.entries(grouped);
-  });
-
-  /** The sort menu's entries in display order: the conditional sorts, then each configured group
-   *  (header is the raw group name, keyed by `sortGroupKey` in the template) or the three fallbacks. */
-  protected readonly sortMenuSections = computed(() => {
-    const filters = this.store.filters();
-    const sections: { header: string | null; options: { column: string; labelKey: string }[] }[] = [];
-    if (filters.semanticQuery) sections.push({ header: null, options: [{ column: 'relevance', labelKey: I18N.gallery.sort_relevance }] });
-    if (this.store.config()?.features?.show_my_taste) sections.push({ header: null, options: [{ column: 'learned_score', labelKey: I18N.gallery.sort_my_taste }] });
-    const groups = this.sortGroups();
-    if (groups) {
-      for (const [name, options] of groups) {
-        sections.push({
-          header: name,
-          options: options.map(opt => ({ column: opt.column, labelKey: sortOptionLabelKey(opt.column) })),
-        });
-      }
-    } else {
-      sections.push({ header: null, options: [
-        { column: 'aggregate', labelKey: I18N.gallery.sort_aggregate },
-        { column: 'aesthetic', labelKey: I18N.gallery.sort_aesthetic },
-        { column: 'date_taken', labelKey: I18N.gallery.sort_date },
-      ] });
-    }
-    return sections;
-  });
-
-  /** Labels of sorts the menu may not list: a restored or assistant-set sort the current
-   *  config hides, and top picks, which has no menu entry. */
-  private static readonly SORT_LABELS_OUTSIDE_MENU: Record<string, string> = {
-    relevance: I18N.gallery.sort_relevance,
-    learned_score: I18N.gallery.sort_my_taste,
-    top_picks_score: I18N.photo_types.top_picks,
-  };
-
-  /** Translation key of the active sort's label, for the sort button's tooltip and aria-label. */
-  protected readonly currentSortLabelKey = computed(() => {
-    const sort = this.store.filters().sort;
-    const match = this.sortMenuSections().flatMap(section => section.options).find(opt => opt.column === sort);
-    const outsideLabel = Object.hasOwn(App.SORT_LABELS_OUTSIDE_MENU, sort)
-      ? App.SORT_LABELS_OUTSIDE_MENU[sort] : undefined;
-    return match?.labelKey ?? outsideLabel ?? sortOptionLabelKey(sort);
-  });
 
   private static readonly RANGE_CHIPS: { minKey: string; maxKey: string; labelKey: string }[] = [
     { minKey: 'min_score', maxKey: 'max_score', labelKey: 'gallery.score_range' },
@@ -614,18 +557,7 @@ export class App implements OnInit {
     });
   }
 
-  /**
-   * Whether the viewport can host the docked details rail.
-   *
-   * Gates the tooltip menu's "Side panel" entry: below this width the rail is
-   * not rendered, so offering the mode would let the user pick a setting that
-   * silently does nothing but fall back to the floating tooltip.
-   */
-  private readonly railCapable = useDesktopSignal({ breakpointPx: DETAILS_RAIL_MIN_WIDTH_PX });
-  protected readonly canDockDetails = this.railCapable.isDesktop;
-
   async ngOnInit(): Promise<void> {
-    this.railCapable.setup();
     this.setupUpdateNotifications();
     await this.i18n.loadLanguages();
     await this.i18n.load();
@@ -669,28 +601,6 @@ export class App implements OnInit {
     } catch {
       // Auth check failed — guard will redirect if needed
     }
-  }
-
-
-  protected onSortChange(sort: string): void {
-    if (sort === this.store.filters().sort) return;
-    void this.store.setUserSort(sort);
-  }
-
-  protected toggleSortDirection(): void {
-    const current = this.store.filters().sort_direction;
-    this.store.updateFilter('sort_direction', current === 'DESC' ? 'ASC' : 'DESC');
-  }
-
-  protected onSearchChange(event: Event): void {
-    const value = (event.target as HTMLInputElement).value;
-    if (value !== this.store.filters().search) {
-      this.store.updateFilter('search', value);
-    }
-  }
-
-  protected clearSearch(): void {
-    this.store.updateFilter('search', '');
   }
 
 

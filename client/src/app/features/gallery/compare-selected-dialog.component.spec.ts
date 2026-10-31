@@ -90,7 +90,7 @@ describe('CompareSelectedDialogComponent', () => {
     expect(dialogRef.close).toHaveBeenCalled();
   });
 
-  it('can inspect panes independently and deliberately reset them when relinking', () => {
+  it('preserves manual alignment when relinking and applies relative gestures until an explicit reset', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg']);
     const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
     const toggle = fixture.nativeElement.querySelector('[data-link-inspection]');
@@ -104,7 +104,58 @@ describe('CompareSelectedDialogComponent', () => {
     expect(panes()[1].componentInstance.zoom()).toEqual(next);
     toggle.click();
     fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([FIT_ZOOM, next]);
+    panes()[1].componentInstance.zoomChange.emit({ scale: 6, tx: 29, ty: -12 });
+    fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([
+      { scale: 2, tx: -5, ty: -4 }, { scale: 6, tx: 29, ty: -12 },
+    ]);
+    fixture.nativeElement.querySelector('button[aria-label="gallery.compare.reset_zoom"]').click();
+    fixture.detectChanges();
     expect(panes().map(p => p.componentInstance.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
+  });
+
+  it('bounds linked magnification together and retains aligned candidates while cycling two-up', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const toggle = root.querySelector<HTMLButtonElement>('[data-link-inspection]')!;
+    toggle.click(); fixture.detectChanges();
+    panes()[0].componentInstance.zoomChange.emit({ scale: 2, tx: 10, ty: -4 });
+    panes()[1].componentInstance.zoomChange.emit({ scale: 4, tx: -20, ty: 8 });
+    fixture.detectChanges();
+    toggle.click(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click(); fixture.detectChanges();
+    const oldCandidate = panes()[1].componentInstance as SyncedZoomComponent;
+    root.querySelector<HTMLButtonElement>('[data-candidate-next]')!.click(); fixture.detectChanges();
+    oldCandidate.zoomChange.emit({ scale: 8, tx: 900, ty: 900 });
+    panes()[0].componentInstance.zoomChange.emit({ scale: 8, tx: 15, ty: -2 });
+    fixture.detectChanges();
+    // The hidden candidate reaches 8x first, so the group stops at a 2x ratio.
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([
+      { scale: 4, tx: 15, ty: -2 }, { scale: 2, tx: -5, ty: 6 },
+    ]);
+    root.querySelector<HTMLButtonElement>('[data-candidate-previous]')!.click(); fixture.detectChanges();
+    expect(panes()[1].componentInstance.zoom()).toEqual({ scale: 8, tx: -45, ty: 22 });
+    expect(panes().every(p => Number.isFinite(p.componentInstance.zoom().scale))).toBe(true);
+  });
+
+  it('keeps manually aligned points together when linked panes have different scales and offsets', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const toggle = fixture.nativeElement.querySelector('[data-link-inspection]');
+    toggle.click(); fixture.detectChanges();
+    panes()[0].componentInstance.zoomChange.emit({ scale: 2, tx: -100, ty: -40 });
+    panes()[1].componentInstance.zoomChange.emit({ scale: 4, tx: -200, ty: -80 });
+    fixture.detectChanges();
+    toggle.click(); fixture.detectChanges();
+    panes()[0].componentInstance.zoomChange.emit({ scale: 4, tx: -100, ty: -40 });
+    fixture.detectChanges();
+    const frames = panes().map(p => p.componentInstance.zoom());
+    // The same measured feature was at the center in both manually framed panes.
+    // It may move with the gesture, but must keep its relative alignment.
+    const positions = frames.map(frame => ({ x: 50 * frame.scale + frame.tx, y: 20 * frame.scale + frame.ty }));
+    expect(positions).toEqual([{ x: 100, y: 40 }, { x: 100, y: 40 }]);
   });
 
   it('promotes a reference without changing pane membership or writing a review decision', () => {

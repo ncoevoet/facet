@@ -1165,6 +1165,9 @@
     "active_filters": "{count} 个筛选条件已生效",
     "unknown_person": "未知",
     "selection": {
+      "outside_loaded": "已加载图块以外的选择：{count}。操作适用于整个选择。",
+      "compare_loaded": "比较需要明确选中 2–4 张已加载图块中的照片。",
+      "exclusions": "整个视图的排除数量：{count}。",
       "count": "已选 {count} 张",
       "clear": "清除",
       "copy_filenames": "复制文件名",
@@ -1443,7 +1446,7 @@
       "reset_zoom": "重置缩放",
       "linked": "联动",
       "independent": "独立",
-      "link_help": "取消联动可单独调整每张图像。重新联动会重置所有视图。",
+      "link_help": "取消联动以分别对齐各个取景，再次联动会保留对齐。联动手势对所有候选应用相同的缩放比例和像素平移，不会匹配主体。重置使所有照片完整适应窗格。",
       "reference": "参考照片",
       "candidate": "候选照片",
       "promote": "将 {name} 用作参考照片",

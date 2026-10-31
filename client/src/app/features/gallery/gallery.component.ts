@@ -1,3 +1,4 @@
+import { GalleryViewControlsComponent } from './gallery-view-controls.component';
 import { StackActionsService } from './stack-actions.service';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import {
@@ -15,7 +16,6 @@ import {
   untracked,
   DestroyRef,
   Injector,
-  TemplateRef,
   ElementRef,
   NgZone,
   ChangeDetectionStrategy
@@ -89,7 +89,6 @@ import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
-import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 
@@ -131,6 +130,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
     PhotoTooltipComponent,
     SlideshowComponent,
     GalleryFilterSidebarComponent,
+    GalleryViewControlsComponent,
     PhotoCardComponent,
     GalleryPhotoMenuComponent,
     PhotoSkeletonComponent,
@@ -141,7 +141,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
          Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="w-36 sm:w-44 shrink-0" subscriptSizing="dynamic">
+        <mat-form-field class="w-28 sm:w-44 shrink-0" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -152,7 +152,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
         </mat-form-field>
 
         <!-- Exact text search commits through the existing debounced handler. -->
-        <mat-form-field class="min-w-0 flex-1 basis-44" subscriptSizing="dynamic">
+        <mat-form-field class="min-w-0 flex-1" subscriptSizing="dynamic">
           <mat-label>{{ I18N.gallery.search_placeholder | translate }}</mat-label>
           <input
             #toolbarSearch
@@ -273,18 +273,19 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
         <header data-collection-header class="border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] px-3 py-3 md:px-4">
-          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-3">
+          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-2">
+          <div class="min-w-0 flex-1">
           <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] break-words">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
-          <div class="flex flex-wrap items-center gap-3">
           <p class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
-            @if (store.photoTotal() !== store.total()) {
+            @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
-              {{ I18N.gallery.photo_count | translate:{ count: store.photoTotal() } }}
+              {{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
             }
           </p>
+          </div>
           <div class="flex items-center gap-1 border border-[var(--mat-sys-outline-variant)] rounded-lg p-0.5">
             <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
@@ -299,9 +300,9 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               <mat-icon>auto_awesome_mosaic</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
             </button>
           </div>
+          <app-gallery-view-controls class="max-md:w-full" />
           </div>
-          </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex flex-wrap items-center gap-2">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex items-center gap-2">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
         </header>
@@ -740,11 +741,19 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           }
           @if (viewScoped()) {
             <p class="text-xs basis-full opacity-80">{{ I18N.stacks.folded_scope | translate }}</p>
+            @if (excludedPaths().size) {
+              <p data-selection-exclusions class="text-xs basis-full m-0">{{ I18N.gallery.selection.exclusions | translate:{ count: excludedPaths().size } }}</p>
+            }
+          } @else if (selectionOutsideLoaded()) {
+            <p data-selection-outside class="text-xs basis-full m-0" aria-live="polite">{{ I18N.gallery.selection.outside_loaded | translate:{ count: selectionOutsideLoaded() } }}</p>
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
           <button mat-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon>{{ I18N.gallery.selection.clear | translate }}</button>
-          @if (canCompareSelection()) {
-            <button mat-button disabledInteractive (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate"><mat-icon>compare</mat-icon>{{ I18N.gallery.selection.compare | translate }}</button>
+          @if (selectionCount() >= 2 && selectionCount() <= comparePaneLimit) {
+            <button mat-button [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon>compare</mat-icon>{{ I18N.gallery.selection.compare | translate }}</button>
+            @if (!canCompareSelection()) {
+              <span id="compare-selection-requirements" class="text-xs basis-full">{{ I18N.gallery.selection.compare_loaded | translate }}</span>
+            }
           }
           @if (auth.isEdition()) {
             <button mat-button data-selection-keep [matTooltip]="I18N.review.keep | translate" (click)="batchReview('kept')" [attr.aria-label]="I18N.review.keep | translate"><mat-icon>check_circle</mat-icon>{{ I18N.review.keep | translate }}</button>
@@ -963,9 +972,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private returnTo: ReturnTarget | null = null;
   private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
-  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly viewControls = viewChild(GalleryViewControlsComponent);
   private readonly liveAnnouncer = inject(LiveAnnouncer);
-  private readonly galleryToolbar = viewChild<TemplateRef<unknown>>('galleryToolbar');
   private readonly toolbarSearch = viewChild<ElementRef<HTMLInputElement>>('toolbarSearch');
 
   // Album options for "Add to album" menu
@@ -1014,6 +1022,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly selectedPaths = this.store.selectedPaths;
   protected readonly excludedPaths = this.store.excludedPaths;
   protected readonly selectionCount = this.store.selectionCount;
+  protected readonly comparePaneLimit = MAX_COMPARE_PANES;
+  protected readonly selectionOutsideLoaded = computed(() => {
+    if (this.viewScoped()) return 0;
+    const loaded = new Set(this.store.photos().map(photo => photo.path));
+    return [...this.selectedPaths()].filter(path => !loaded.has(path)).length;
+  });
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
 
@@ -1590,12 +1604,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.setupScrollTracking();
     });
 
-    // Publish the collection toolbar for parked-route lifecycle ownership; the gallery renders it locally.
-    effect(() => {
-      const t = this.galleryToolbar();
-      if (t) this.headerSlot.set(t);
-    });
-
     // Capture before the outlet detaches the DOM and loses scroll and focus.
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(() => {
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
@@ -1826,11 +1834,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   private setGalleryChrome(active: boolean): void {
     this.pageHelp.setDescription(active ? I18N.gallery.help : null);
-    const toolbar = this.galleryToolbar();
-    if (toolbar) {
-      if (active) this.headerSlot.set(toolbar);
-      else this.headerSlot.clear(toolbar);
-    }
+    this.viewControls()?.setActive(active);
   }
 
   private refreshSideData(): void {
@@ -2034,10 +2038,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Two panes is the smallest useful compare; past four they are too small to read. */
   protected readonly canCompareSelection = computed(
-    () => this.selectionCount() >= 2 && this.selectionCount() <= MAX_COMPARE_PANES,
+    () => !this.viewScoped() && this.selectionCount() >= 2 && this.selectionCount() <= MAX_COMPARE_PANES
+      && this.selectionOutsideLoaded() === 0,
   );
 
   protected async compareSelection(): Promise<void> {
+    if (!this.canCompareSelection()) return;
     const selected = new Set(this.store.selectedLoadedPaths());
     // Keep the grid's order rather than selection order: comparing left-to-right
     // as they are laid out is what the user is already looking at.

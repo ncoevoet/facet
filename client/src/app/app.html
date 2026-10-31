@@ -1,10 +1,10 @@
 <div class="flex flex-col h-dvh">
   @if (auth.isAuthenticated() && !isSharedRoute()) {
-    <header data-workspace-navigation class="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2 sm:px-4">
+    <header [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null" data-workspace-navigation class="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2 sm:px-4">
       <button mat-icon-button data-toggle-navigation class="!hidden lg:!inline-flex" [attr.aria-expanded]="navigationVisible()" [attr.aria-label]="I18N.nav.navigation | translate" (click)="toggleNavigation()"><mat-icon>menu</mat-icon></button>
-      <a routerLink="/" class="flex shrink-0 items-center gap-2 px-2 text-sm font-medium text-[var(--mat-sys-on-surface)] no-underline"><mat-icon aria-hidden="true">diamond</mat-icon><span class="hidden sm:inline">Facet</span></a>
+      <a routerLink="/" class="flex shrink-0 items-center gap-2 px-2 text-sm font-medium text-[var(--mat-sys-on-surface)] no-underline" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon><span class="hidden sm:inline">Facet</span></a>
       <nav data-primary-navigation class="hidden sm:flex min-w-0 items-center gap-1" [attr.aria-label]="I18N.nav.navigation | translate">
-        <a mat-button routerLink="/" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="{exact:true}" class="!min-w-0 !text-[var(--mat-sys-on-surface)]">{{ I18N.nav.gallery | translate }}</a>
+        <a mat-button routerLink="/" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="{exact:true}" class="!min-w-0 !text-[var(--mat-sys-on-surface)]" (dblclick)="resetAllFilters()">{{ I18N.nav.gallery | translate }}</a>
         @if (store.config()?.features?.show_albums) {
           <a mat-button routerLink="/albums" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" class="hidden sm:!inline-flex !min-w-0 !text-[var(--mat-sys-on-surface)]">{{ I18N.nav.albums | translate }}</a>
         }
@@ -86,7 +86,18 @@
         </nav>
       }
 
-    </header>
+
+<app-assistant-activity-chip />
+@if (isGalleryRoute()) { @if (myTasteBadge(); as taste) {
+          <button type="button"
+                  class="inline-flex items-center shrink-0 p-1 rounded-full text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
+                  [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
+                  [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">auto_awesome</mat-icon>
+          </button>
+        } }
+<ng-container [ngTemplateOutlet]="accountControls" />
+</header>
   }
 
   @if (auth.isAuthenticated() && !isSharedRoute() && navigationVisible()) {
@@ -159,7 +170,7 @@
   }
 
   <!-- Toolbar (hidden on shared routes) -->
-  @if (!isSharedRoute()) {
+  @if (!isSharedRoute() && showPageToolbar()) {
   <!-- The edition-active underline: an unlocked edit session can write to the
        library, and the only prior signal was a small amber shield among ten
        icons. The bar is there from unlock until lock, sitting exactly on the
@@ -193,9 +204,7 @@
 
       <div class="flex-1"></div>
 
-      @if (auth.isAuthenticated()) {
-        <app-assistant-activity-chip />
-      }
+
 
       <!-- Stats overview (right side, lg+ only) -->
       @if (auth.isAuthenticated() && isStatsRoute() && statsFilters.overview(); as ov) {
@@ -219,185 +228,11 @@
         </span>
       }
 
-      <!-- Gallery: photo count + active filters + filter toggle (right side, lg+ only) -->
-      @if (auth.isAuthenticated() && isGalleryRoute()) {
-        <span class="!hidden min-[1360px]:!inline text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}</span>
 
-        @if (!pinned()) {
-          @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-          <button mat-icon-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
-            @let currentIcon = store.filters().sort | sortOptionIcon;
-            <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          </button>
-          <button
-            class="!hidden lg:!inline-flex"
-            mat-icon-button
-            (click)="toggleSortDirection()"
-            [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-            [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-          >
-            <mat-icon>{{
-              store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
-            }}</mat-icon>
-          </button>
-          <button
-            class="!hidden lg:!inline-flex"
-            mat-icon-button
-            (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
-            [matBadge]="store.activeFilterCount() || null"
-            matBadgeColor="primary"
-            matBadgeSize="small"
-            [matTooltip]="I18N.gallery.filters | translate"
-            [attr.aria-label]="I18N.gallery.filters | translate"
-          >
-            <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
-          </button>
-        }
 
-        <!-- "My Taste" confidence indicator — held-out accuracy of the personal ranker.
-             A button, not a bare icon: the accuracy lives only in the tooltip, which a
-             keyboard or screen-reader user can only reach through a focusable host. -->
-        @if (myTasteBadge(); as taste) {
-          <button type="button"
-                  class="inline-flex items-center shrink-0 p-1 rounded-full text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
-                  [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
-                  [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">auto_awesome</mat-icon>
-          </button>
-        }
 
-        <!-- Tooltip-mode menu — first item in the gallery icon cluster -->
-        <button
-          class="!hidden lg:!inline-flex"
-          mat-icon-button
-          [matMenuTriggerFor]="tooltipModeMenu"
-          [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
-          [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate"
-        >
-          <mat-icon>{{
-            store.filters().tooltip_mode === 'click' ? 'touch_app'
-            : store.filters().tooltip_mode === 'off' ? 'visibility_off'
-            : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
-            : 'chat_bubble_outline'
-          }}</mat-icon>
-        </button>
 
-        <button
-          class="!hidden lg:!inline-flex"
-          mat-icon-button
-          (click)="store.slideshowActive.set(!store.slideshowActive())"
-          [matTooltip]="I18N.slideshow.start | translate"
-          [attr.aria-label]="I18N.slideshow.start | translate"
-        >
-          <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
-        </button>
-      }
 
-      <!-- Scan for new photos (gallery only), last before the account menu. -->
-      @if (auth.isAuthenticated() && isGalleryRoute() && scan.canLaunch()) {
-        <button mat-icon-button class="!hidden lg:!inline-flex !bg-[var(--mat-sys-primary-container)] !text-[var(--mat-sys-on-primary-container)]" (click)="openScanLauncher()" [matTooltip]="I18N.gallery.scan_action | translate" [attr.aria-label]="I18N.gallery.scan_action | translate">
-          <mat-icon>add_photo_alternate</mat-icon>
-        </button>
-      }
-
-      <!-- User menu (authenticated: account + language + edition + logout).
-           Help lives in this menu too (opens the page-help dialog) — the
-           standalone header button was removed when it moved here. -->
-      @if (auth.isAuthenticated()) {
-        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (auth.isEdition() && auth.editionPasswordRequired() ? (I18N.edition.lock_title | translate) : (I18N.auth.user_menu | translate))" [attr.aria-label]="auth.status()?.display_name || (auth.isEdition() && auth.editionPasswordRequired() ? (I18N.edition.lock_title | translate) : (I18N.auth.user_menu | translate))">
-          <mat-icon [class.!text-amber-400]="auth.isEdition()">{{ auth.isEdition() ? 'admin_panel_settings' : 'account_circle' }}</mat-icon>
-        </button>
-        <mat-menu #userMenu="matMenu">
-          @if (auth.status()?.display_name) {
-            <div class="px-4 py-2 text-sm opacity-70">{{ auth.status()?.display_name }}</div>
-          }
-          @if (!auth.isMultiUser() && auth.status()?.edition_enabled && auth.editionPasswordRequired()) {
-            @if (auth.isEdition()) {
-              <button mat-menu-item (click)="lockEdition()" [matTooltip]="I18N.edition.lock_title | translate">
-                <mat-icon class="!text-amber-400">lock_open</mat-icon>
-                {{ I18N.edition.label | translate }}
-              </button>
-            } @else {
-              <button mat-menu-item (click)="showEditionDialog()" [matTooltip]="I18N.edition.unlock_title | translate">
-                <mat-icon>lock</mat-icon>
-                {{ I18N.edition.label | translate }}
-              </button>
-            }
-            <mat-divider />
-          }
-          <button mat-menu-item [matMenuTriggerFor]="langMenu">
-            <mat-icon>language</mat-icon>
-            {{ I18N.ui.switch_language | translate }}
-          </button>
-          <button mat-menu-item (click)="themeService.toggleDarkMode()">
-            <mat-icon>{{ themeService.darkMode() ? 'light_mode' : 'dark_mode' }}</mat-icon>
-            {{ (themeService.darkMode() ? 'ui.light_mode' : 'ui.dark_mode') | translate }}
-          </button>
-          <button mat-menu-item [matMenuTriggerFor]="themeMenu">
-            <mat-icon>palette</mat-icon>
-            {{ I18N.ui.theme | translate }}
-          </button>
-          @if (auth.features()['mcp']) {
-            <button mat-menu-item (click)="showConnectAssistantDialog()">
-              <mat-icon>smart_toy</mat-icon>
-              {{ I18N.dialog.connect_assistant.menu | translate }}
-            </button>
-          }
-          <mat-divider />
-          <button mat-menu-item (click)="store.setReviewProgressVisible(!store.reviewProgressVisible())">
-            <mat-icon>{{ store.reviewProgressVisible() ? 'visibility' : 'visibility_off' }}</mat-icon>
-            {{ (store.reviewProgressVisible() ? I18N.gallery.review_progress.hide_from_menu : I18N.gallery.review_progress.show_from_menu) | translate }}
-          </button>
-          <button mat-menu-item (click)="openCardActionsDialog()">
-            <mat-icon>tune</mat-icon>
-            {{ I18N.gallery.card_actions.title | translate }}
-          </button>
-          <button mat-menu-item (click)="openKeymapDialog()">
-            <mat-icon>keyboard</mat-icon>
-            {{ I18N.shortcuts.keymap_title | translate }}
-          </button>
-          @if (auth.isInstallAdmin()) {
-            <button mat-menu-item (click)="openImmichDiagnostics()">
-              <mat-icon>sync</mat-icon>
-              {{ I18N.immich_diagnostics.title | translate }}
-            </button>
-          }
-          <mat-divider />
-          <button mat-menu-item (click)="openHelpDialog()">
-            <mat-icon>help_outline</mat-icon>
-            {{ I18N.nav.help | translate }}
-          </button>
-          @if (store.config()?.version; as version) {
-            <mat-divider />
-            <div class="px-4 py-2 text-xs opacity-60">
-              {{ I18N.ui.version | translate: { version: version } }}
-              @if (store.config()?.build; as build) {
-                <div class="font-mono break-all">{{ build }}</div>
-              }
-            </div>
-          }
-          @if (auth.isMultiUser() || auth.loginPasswordRequired()) {
-            <mat-divider />
-            <button mat-menu-item (click)="logout()">
-              <mat-icon>logout</mat-icon>
-              {{ I18N.auth.logout | translate }}
-            </button>
-          }
-        </mat-menu>
-        <mat-menu #langMenu="matMenu">
-          @for (lang of i18n.languages(); track lang.code) {
-            <button mat-menu-item (click)="switchLang(lang.code)">{{ lang.name }}</button>
-          }
-        </mat-menu>
-        <mat-menu #themeMenu="matMenu">
-          @for (t of themeService.THEMES; track t.id) {
-            <button mat-menu-item (click)="themeService.setTheme(t.id)">
-              <span class="inline-block w-4 h-4 rounded-full mr-2 align-middle" [style.background]="t.swatch"></span>
-              {{ t.label }}
-            </button>
-          }
-        </mat-menu>
-      }
 
       <!-- Language menu (not authenticated) -->
       @if (!auth.isAuthenticated()) {
@@ -440,7 +275,7 @@
     >{{ I18N.edition.read_only_hint | translate }}</a>
   }
 
-  <!-- Mobile search bar is rendered as the first row of the gallery bottom stack -->
+
 
   <!-- Active filter chips bar (gallery route only, when filters are active) -->
   @if (auth.isAuthenticated() && isGalleryRoute() && !pinned() && (activeFilterChips().length || store.filters().similar_to)) {
@@ -508,97 +343,12 @@
   }
 
   <!-- Main content -->
-  <main [class.lg:ml-14]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && !navigationPinned()" [class.lg:ml-48]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && navigationPinned()" class="flex-1 min-h-0 overflow-auto lg:pb-0" [class.pb-14]="mobileGalleryBarVisible() || isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute()">
+  <main [class.lg:ml-14]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && !navigationPinned()" [class.lg:ml-48]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && navigationPinned()" class="flex-1 min-h-0 overflow-auto lg:pb-0" [class.pb-14]="isAlbumsRoute() || isPersonsRoute() || isMapRoute() || isCapsuleRoute() || isTimelineRoute()">
     <router-outlet />
   </main>
 
-  <!-- Mobile gallery bottom bars (search row stacks over the toolbar) -->
-  @if (auth.isAuthenticated() && mobileGalleryBarVisible()) {
-    <div class="lg:hidden fixed bottom-0 left-0 right-0 z-50 flex flex-col bg-[var(--mat-sys-surface-container)] safe-area-pb">
-      @if (mobileSearchOpen() && !pinned()) {
-        <div class="px-4 py-1 border-t border-[var(--mat-sys-outline-variant)]">
-          <mat-form-field class="w-full" subscriptSizing="dynamic" appearance="outline">
-            <input matInput
-                   [value]="store.filters().search"
-                   (keyup.enter)="onSearchChange($event); mobileSearchOpen.set(false)"
-                   (blur)="onSearchChange($event)"
-                   [placeholder]="I18N.gallery.search_placeholder | translate"
-                   />
-            <mat-icon matPrefix class="opacity-60">search</mat-icon>
-            <button matSuffix mat-icon-button (click)="clearSearch(); mobileSearchOpen.set(false)" [attr.aria-label]="I18N.gallery.clear_search | translate">
-              <mat-icon>close</mat-icon>
-            </button>
-          </mat-form-field>
-        </div>
-      }
-      <div class="flex items-center gap-0.5 px-2 py-1 border-t border-[var(--mat-sys-outline-variant)]">
-        @if (!pinned()) {
-          <!-- Search toggle -->
-          <button mat-icon-button class="!w-9 !h-9 shrink-0" (click)="mobileSearchOpen.set(!mobileSearchOpen())" [matTooltip]="I18N.ui.filters.search | translate" [attr.aria-label]="I18N.ui.filters.search | translate">
-            <mat-icon>search</mat-icon>
-          </button>
-        }
 
-        @if (!pinned()) {
-          @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-          <!-- Sort: icon button opening the shared sort menu -->
-          <button mat-icon-button class="!w-9 !h-9 shrink-0" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
-            @let currentIcon = store.filters().sort | sortOptionIcon;
-            <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
-          </button>
-          <!-- Sort direction toggle -->
-          <button mat-icon-button class="!w-9 !h-9 shrink-0" (click)="toggleSortDirection()"
-            [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
-            [attr.aria-label]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)">
-            <mat-icon>{{ store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward' }}</mat-icon>
-          </button>
-          <!-- Filter drawer toggle -->
-          <button
-            mat-icon-button class="!w-9 !h-9 shrink-0"
-            (click)="store.setFilterDrawerOpen(!store.filterDrawerOpen())"
-            [matTooltip]="I18N.ui.buttons.filters | translate"
-            [attr.aria-label]="I18N.ui.buttons.filters | translate"
-            [matBadge]="store.activeFilterCount() || null"
-            matBadgeColor="primary"
-            matBadgeSize="small"
-          >
-            <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
-          </button>
-          <button mat-icon-button class="!w-9 !h-9 shrink-0" data-stack-collapse-mobile
-                  (click)="store.toggleStackCollapse()"
-                  [matTooltip]="(store.collapseStacks() ? I18N.stacks.expand_all : I18N.stacks.collapse) | translate"
-                  [attr.aria-label]="(store.collapseStacks() ? I18N.stacks.expand_all : I18N.stacks.collapse) | translate">
-            <mat-icon>{{ store.collapseStacks() ? 'unfold_more' : 'unfold_less' }}</mat-icon>
-          </button>
-        }
 
-        <!-- Tooltip-mode menu (mobile, first in icon cluster) -->
-        <button mat-icon-button class="!w-9 !h-9 shrink-0"
-                [matMenuTriggerFor]="tooltipModeMenu"
-                [matTooltip]="I18N.gallery.tooltip_mode.label | translate"
-                [attr.aria-label]="I18N.gallery.tooltip_mode.label | translate">
-          <mat-icon>{{
-            store.filters().tooltip_mode === 'click' ? 'touch_app'
-            : store.filters().tooltip_mode === 'off' ? 'visibility_off'
-            : store.filters().tooltip_mode === 'panel' ? 'view_sidebar'
-            : 'chat_bubble_outline'
-          }}</mat-icon>
-        </button>
-
-        <!-- Slideshow toggle -->
-        <button mat-icon-button class="!w-9 !h-9 shrink-0" (click)="store.slideshowActive.set(!store.slideshowActive())" [matTooltip]="I18N.slideshow.start | translate" [attr.aria-label]="I18N.slideshow.start | translate">
-          <mat-icon [style.color]="store.slideshowActive() ? 'var(--mat-sys-primary)' : ''">slideshow</mat-icon>
-        </button>
-
-        <!-- Scan for new photos: far right of the bar -->
-        @if (scan.canLaunch()) {
-          <button mat-icon-button class="!w-9 !h-9 shrink-0 ml-auto !bg-[var(--mat-sys-primary-container)] !text-[var(--mat-sys-on-primary-container)]" (click)="openScanLauncher()" [matTooltip]="I18N.gallery.scan_action | translate" [attr.aria-label]="I18N.gallery.scan_action | translate">
-            <mat-icon>add_photo_alternate</mat-icon>
-          </button>
-        }
-      </div>
-    </div>
-  }
 
   <!-- Mobile albums bottom bars (search row stacks over the toolbar) -->
   @if (auth.isAuthenticated() && isAlbumsRoute()) {
@@ -774,108 +524,117 @@
       [transitionType]="'kenburns'"
       (closed)="closeMemories()" />
   }
-  <!-- Tooltip-mode and panel-activation menus shared by the header and mobile-bar triggers -->
-  <mat-menu #tooltipModeMenu="matMenu">
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'hover'" (click)="store.updateFilter('tooltip_mode', 'hover')">
-      <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.hover | translate }}</span>
-        @if (store.filters().tooltip_mode === 'hover') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'click'" (click)="store.updateFilter('tooltip_mode', 'click')">
-      <mat-icon aria-hidden="true">touch_app</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.click | translate }}</span>
-        @if (store.filters().tooltip_mode === 'click') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    @if (canDockDetails()) {
-      <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'panel'" (click)="store.updateFilter('tooltip_mode', 'panel')">
-        <mat-icon aria-hidden="true">view_sidebar</mat-icon>
-        <span class="flex items-center gap-4">
-          <span class="grow">{{ I18N.gallery.tooltip_mode.panel | translate }}</span>
-          @if (store.filters().tooltip_mode === 'panel') {
-            <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-          }
-        </span>
-      </button>
-      @if (store.filters().tooltip_mode === 'panel') {
-        <button mat-menu-item [matMenuTriggerFor]="panelActivationMenu">
-          <mat-icon aria-hidden="true">{{
-            store.filters().panel_activation === 'hover' ? 'chat_bubble_outline'
-            : store.filters().panel_activation === 'click' ? 'touch_app'
-            : 'swap_horiz'
-          }}</mat-icon>
-          {{ I18N.gallery.panel_activation.label | translate }}
+
+
+
+
+
+
+
+<ng-template #accountControls>
+@if (auth.isAuthenticated() && isGalleryRoute() && scan.canLaunch()) {
+        <button mat-icon-button class="!bg-[var(--mat-sys-primary-container)] !text-[var(--mat-sys-on-primary-container)]" (click)="openScanLauncher()" [matTooltip]="I18N.gallery.scan_action | translate" [attr.aria-label]="I18N.gallery.scan_action | translate">
+          <mat-icon>add_photo_alternate</mat-icon>
         </button>
       }
-    }
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().tooltip_mode === 'off'" (click)="store.updateFilter('tooltip_mode', 'off')">
-      <mat-icon aria-hidden="true">visibility_off</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.tooltip_mode.off | translate }}</span>
-        @if (store.filters().tooltip_mode === 'off') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-  </mat-menu>
-  <mat-menu #panelActivationMenu="matMenu">
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'hover'" (click)="store.updateFilter('panel_activation', 'hover')">
-      <mat-icon aria-hidden="true">chat_bubble_outline</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.hover | translate }}</span>
-        @if (store.filters().panel_activation === 'hover') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'click'" (click)="store.updateFilter('panel_activation', 'click')">
-      <mat-icon aria-hidden="true">touch_app</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.click | translate }}</span>
-        @if (store.filters().panel_activation === 'click') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-    <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().panel_activation === 'both'" (click)="store.updateFilter('panel_activation', 'both')">
-      <mat-icon aria-hidden="true">swap_horiz</mat-icon>
-      <span class="flex items-center gap-4">
-        <span class="grow">{{ I18N.gallery.panel_activation.both | translate }}</span>
-        @if (store.filters().panel_activation === 'both') {
-          <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-        }
-      </span>
-    </button>
-  </mat-menu>
 
-  <!-- Sort menu shared by the desktop and mobile sort buttons -->
-  <mat-menu #sortMenu="matMenu">
-    @for (section of sortMenuSections(); track section.header ?? section.options[0].column) {
-      @let headerId = 'sort-menu-group-' + $index;
-      <div [attr.role]="section.header ? 'group' : 'none'" [attr.aria-labelledby]="section.header ? headerId : null">
-        @if (section.header) {
-          <div [id]="headerId" class="px-4 pt-2 pb-1 text-xs font-medium uppercase opacity-70">{{ ('sort_groups.' + (section.header | sortGroupKey)) | translate }}</div>
-        }
-        @for (opt of section.options; track opt.column) {
-          @let optionIcon = opt.column | sortOptionIcon;
-          <button mat-menu-item role="menuitemradio" [attr.aria-checked]="store.filters().sort === opt.column" (click)="onSortChange(opt.column)">
-            <mat-icon aria-hidden="true" class="!w-8 text-center" [class]="optionIcon.classes">{{ optionIcon.text }}</mat-icon>
-            <span class="flex items-center gap-4">
-              <span class="grow">{{ opt.labelKey | translate }}</span>
-              @if (store.filters().sort === opt.column) {
-                <span class="flex"><mat-icon aria-hidden="true">check</mat-icon></span>
-              }
-            </span>
+      <!-- User menu (authenticated: account + language + edition + logout).
+           Help lives in this menu too (opens the page-help dialog) — the
+           standalone header button was removed when it moved here. -->
+      @if (auth.isAuthenticated()) {
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (auth.isEdition() && auth.editionPasswordRequired() ? (I18N.edition.lock_title | translate) : (I18N.auth.user_menu | translate))" [attr.aria-label]="auth.status()?.display_name || (auth.isEdition() && auth.editionPasswordRequired() ? (I18N.edition.lock_title | translate) : (I18N.auth.user_menu | translate))">
+          <mat-icon [class.!text-amber-400]="auth.isEdition()">{{ auth.isEdition() ? 'admin_panel_settings' : 'account_circle' }}</mat-icon>
+        </button>
+        <mat-menu #userMenu="matMenu">
+          @if (auth.status()?.display_name) {
+            <div class="px-4 py-2 text-sm opacity-70">{{ auth.status()?.display_name }}</div>
+          }
+          @if (!auth.isMultiUser() && auth.status()?.edition_enabled && auth.editionPasswordRequired()) {
+            @if (auth.isEdition()) {
+              <button mat-menu-item (click)="lockEdition()" [matTooltip]="I18N.edition.lock_title | translate">
+                <mat-icon class="!text-amber-400">lock_open</mat-icon>
+                {{ I18N.edition.label | translate }}
+              </button>
+            } @else {
+              <button mat-menu-item (click)="showEditionDialog()" [matTooltip]="I18N.edition.unlock_title | translate">
+                <mat-icon>lock</mat-icon>
+                {{ I18N.edition.label | translate }}
+              </button>
+            }
+            <mat-divider />
+          }
+          <button mat-menu-item [matMenuTriggerFor]="langMenu">
+            <mat-icon>language</mat-icon>
+            {{ I18N.ui.switch_language | translate }}
           </button>
-        }
-      </div>
-    }
-  </mat-menu>
+          <button mat-menu-item (click)="themeService.toggleDarkMode()">
+            <mat-icon>{{ themeService.darkMode() ? 'light_mode' : 'dark_mode' }}</mat-icon>
+            {{ (themeService.darkMode() ? 'ui.light_mode' : 'ui.dark_mode') | translate }}
+          </button>
+          <button mat-menu-item [matMenuTriggerFor]="themeMenu">
+            <mat-icon>palette</mat-icon>
+            {{ I18N.ui.theme | translate }}
+          </button>
+          @if (auth.features()['mcp']) {
+            <button mat-menu-item (click)="showConnectAssistantDialog()">
+              <mat-icon>smart_toy</mat-icon>
+              {{ I18N.dialog.connect_assistant.menu | translate }}
+            </button>
+          }
+          <mat-divider />
+          <button mat-menu-item (click)="store.setReviewProgressVisible(!store.reviewProgressVisible())">
+            <mat-icon>{{ store.reviewProgressVisible() ? 'visibility' : 'visibility_off' }}</mat-icon>
+            {{ (store.reviewProgressVisible() ? I18N.gallery.review_progress.hide_from_menu : I18N.gallery.review_progress.show_from_menu) | translate }}
+          </button>
+          <button mat-menu-item (click)="openCardActionsDialog()">
+            <mat-icon>tune</mat-icon>
+            {{ I18N.gallery.card_actions.title | translate }}
+          </button>
+          <button mat-menu-item (click)="openKeymapDialog()">
+            <mat-icon>keyboard</mat-icon>
+            {{ I18N.shortcuts.keymap_title | translate }}
+          </button>
+          @if (auth.isInstallAdmin()) {
+            <button mat-menu-item (click)="openImmichDiagnostics()">
+              <mat-icon>sync</mat-icon>
+              {{ I18N.immich_diagnostics.title | translate }}
+            </button>
+          }
+          <mat-divider />
+          <button mat-menu-item (click)="openHelpDialog()">
+            <mat-icon>help_outline</mat-icon>
+            {{ I18N.nav.help | translate }}
+          </button>
+          @if (store.config()?.version; as version) {
+            <mat-divider />
+            <div class="px-4 py-2 text-xs opacity-60">
+              {{ I18N.ui.version | translate: { version: version } }}
+              @if (store.config()?.build; as build) {
+                <div class="font-mono break-all">{{ build }}</div>
+              }
+            </div>
+          }
+          @if (auth.isMultiUser() || auth.loginPasswordRequired()) {
+            <mat-divider />
+            <button mat-menu-item (click)="logout()">
+              <mat-icon>logout</mat-icon>
+              {{ I18N.auth.logout | translate }}
+            </button>
+          }
+        </mat-menu>
+        <mat-menu #langMenu="matMenu">
+          @for (lang of i18n.languages(); track lang.code) {
+            <button mat-menu-item (click)="switchLang(lang.code)">{{ lang.name }}</button>
+          }
+        </mat-menu>
+        <mat-menu #themeMenu="matMenu">
+          @for (t of themeService.THEMES; track t.id) {
+            <button mat-menu-item (click)="themeService.setTheme(t.id)">
+              <span class="inline-block w-4 h-4 rounded-full mr-2 align-middle" [style.background]="t.swatch"></span>
+              {{ t.label }}
+            </button>
+          }
+        </mat-menu>
+      }
+</ng-template>
 </div>

@@ -163,15 +163,14 @@ export class CompareSelectedDialogComponent {
   protected readonly storedEdge = STORED_EDGE;
   protected readonly renderedEdge = RENDERED_EDGE;
 
-  /** Pan/zoom shared by every pane, so a gesture on one moves them all in lockstep. */
-  protected readonly zoom = signal<ZoomState>({ ...FIT_ZOOM });
+  /** Each photo retains its own framing, including candidates outside two-up. */
   protected readonly linked = signal(true);
   protected readonly referencePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly twoUp = signal(false);
   protected readonly activePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly removedPaths = signal(new Set<string>());
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
-  private readonly independentZoom = signal(new Map<string, ZoomState>());
+  private readonly paneZoom = signal(new Map<string, ZoomState>());
   private readonly readiness = signal(new Map<string, 'loading' | 'ready' | 'failed'>());
 
   /** Extra selected photos are dropped rather than shrunk past usefulness. */
@@ -187,11 +186,12 @@ export class CompareSelectedDialogComponent {
 
   protected readonly paneStates = computed(() => this.visiblePhotos().map(photo => ({
     photo,
-    zoom: this.linked() ? this.zoom() : this.independentZoom().get(photo.path) ?? this.zoom(),
+    zoom: this.paneZoom().get(photo.path) ?? FIT_ZOOM,
     statusKey: { loading: this.I18N.gallery.compare.preview_loading, ready: this.I18N.gallery.compare.preview_ready, failed: this.I18N.gallery.compare.preview_failed }[this.readiness().get(photo.path) ?? 'loading'],
   })));
 
-  protected readonly zoomed = computed(() => this.paneStates().some(pane => pane.zoom.scale > FIT_ZOOM.scale));
+  protected readonly zoomed = computed(() => [...this.paneZoom().values()].some(frame =>
+    frame.scale !== FIT_ZOOM.scale || frame.tx !== 0 || frame.ty !== 0));
 
   protected promote(path: string): void {
     if (!this.panes().some(photo => photo.path === path)) return;
@@ -233,7 +233,7 @@ export class CompareSelectedDialogComponent {
       this.candidatePath.set(available[Math.min(candidateIndex, available.length - 1)]?.path ?? null);
     }
     if (path === this.activePath()) this.activePath.set(this.candidatePath() ?? this.referencePath());
-    this.independentZoom.update(values => { const next = new Map(values); next.delete(path); return next; });
+    this.paneZoom.update(values => { const next = new Map(values); next.delete(path); return next; });
     this.readiness.update(values => { const next = new Map(values); next.delete(path); return next; });
     afterNextRender(() => {
       if (this.document.activeElement !== this.document.body && this.document.activeElement !== focusBefore) return;
@@ -246,19 +246,33 @@ export class CompareSelectedDialogComponent {
   }
 
   protected onZoom(path: string, state: ZoomState): void {
-    if (!this.panes().some(photo => photo.path === path)) return;
-    if (this.linked()) this.zoom.set(state);
-    else this.independentZoom.update(values => new Map(values).set(path, state));
+    // A hidden two-up candidate may still finish an old gesture after unmounting.
+    if (!this.visiblePhotos().some(photo => photo.path === path)) return;
+    if (![state.scale, state.tx, state.ty].every(Number.isFinite) ||
+        state.scale < SyncedZoomComponent.MIN_SCALE || state.scale > SyncedZoomComponent.MAX_SCALE) return;
+    const frames = this.paneZoom();
+    if (!this.linked()) {
+      this.paneZoom.set(new Map(frames).set(path, { ...state }));
+      return;
+    }
+    const source = frames.get(path) ?? FIT_ZOOM;
+    const members = this.panes().map(photo => ({ path: photo.path, frame: frames.get(photo.path) ?? FIT_ZOOM }));
+    // Compose the same affine gesture over every crop: scale existing offsets,
+    // then add the source gesture's residual pan. Corresponding manually aligned
+    // points therefore move together, even when panes started at different scales.
+    // Stop the whole group at the first scale limit, preserving relative scales.
+    const minimum = Math.max(...members.map(({ frame }) => SyncedZoomComponent.MIN_SCALE / frame.scale));
+    const maximum = Math.min(...members.map(({ frame }) => SyncedZoomComponent.MAX_SCALE / frame.scale));
+    const ratio = Math.max(minimum, Math.min(maximum, state.scale / source.scale));
+    this.paneZoom.set(new Map(members.map(({ path: memberPath, frame }) => [memberPath, {
+      scale: frame.scale * ratio,
+      tx: frame.tx * ratio + state.tx - source.tx * ratio,
+      ty: frame.ty * ratio + state.ty - source.ty * ratio,
+    }])));
   }
 
   protected toggleLinked(): void {
-    if (this.linked()) {
-      this.independentZoom.set(new Map(this.panes().map(photo => [photo.path, { ...this.zoom() }])));
-      this.linked.set(false);
-    } else {
-      this.resetZoom();
-      this.linked.set(true);
-    }
+    this.linked.update(linked => !linked);
   }
 
   protected setReadiness(path: string, state: 'loading' | 'ready' | 'failed'): void {
@@ -267,8 +281,7 @@ export class CompareSelectedDialogComponent {
   }
 
   protected resetZoom(): void {
-    this.zoom.set({ ...FIT_ZOOM });
-    this.independentZoom.set(new Map());
+    this.paneZoom.set(new Map());
   }
 
   protected close(): void {
