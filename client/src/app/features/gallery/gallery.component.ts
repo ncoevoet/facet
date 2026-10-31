@@ -2308,7 +2308,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (!Number.isInteger(rating) || rating < 0 || rating > 5) return;
     const target = this.captureSelectionContext();
     const token = this.auth.token;
-    const guard = this.staleness.create(this.destroyRef, { track: 'status' });
+    let closePreview = () => {};
+    const guard = this.staleness.create(this.destroyRef, { track: 'status', onNavigate: () => closePreview() });
     try {
       if (!guard.current()) return;
       const paths = await this.resolveSelectionPaths(null);
@@ -2329,7 +2330,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const ref = this.dialog.open(BatchRatingDialogComponent, { width: '95vw', maxWidth: '540px', data: {
         paths, rating, loaded, wholeView: target.viewScoped, observed: [...observed].map(([rating, count]) => ({ rating, count })),
       } });
-      const chosen = await firstValueFrom(ref.afterClosed());
+      closePreview = () => ref.close();
+      const watch = effect(() => {
+        if (!guard.current() || this.auth.token !== token) ref.close();
+      }, { injector: this.injector });
+      let chosen: number | undefined;
+      try { chosen = await firstValueFrom(ref.afterClosed()); }
+      finally { watch.destroy(); }
       if (chosen === undefined || !Number.isInteger(chosen) || chosen < 0 || chosen > 5 || !guard.current() || this.auth.token !== token) return;
       const result = await this.store.batchRatingPaths(paths, chosen);
       if (!result || !guard.current()) return;

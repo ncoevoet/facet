@@ -16,8 +16,9 @@ import { aspectOf } from './gallery-rows.util';
 import { GalleryStore } from './gallery.store';
 import { HISTOGRAM_TOOLTIP_HEIGHT } from '../../shared/components/histogram/histogram.component';
 import { HistogramMode } from '../../shared/utils/histogram';
-import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
 import { PhotoMetricsTabsComponent } from '../../shared/components/photo-metrics-tabs/photo-metrics-tabs.component';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { PhotoAssessmentComponent } from '../../shared/components/photo-assessment/photo-assessment.component';
 
 /** How long the pointer must rest on a photo before the tooltip fetches the
  *  frame count + EV span for its set. Kind and this frame's own EV offset are
@@ -55,7 +56,7 @@ export class CategoryLabelPipe implements PipeTransform {
   imports: [
     MatIconModule, NgTemplateOutlet, FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe, PersonThumbnailUrlPipe,
     CategoryLabelPipe, PhotoSetKindIconPipe, PhotoSetKindLabelPipe, EvOffsetPipe,
-    MomentLabelPipe, MetricRankComponent, PhotoMetricsTabsComponent,
+    MomentLabelPipe, PhotoMetricsTabsComponent, CaptureDatePipe, PhotoAssessmentComponent,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
@@ -96,7 +97,7 @@ export class CategoryLabelPipe implements PipeTransform {
             [class.self-center]="docked()"
             [class.max-h-[40vh]]="!isLandscape() && !docked()"
             [class.max-h-[28vh]]="isLandscape() && !docked()"
-            [class.max-h-[75vh]]="docked()"
+            [class.max-h-[32dvh]]="docked()"
           />
 
           <!-- Scoring panel -->
@@ -116,7 +117,7 @@ export class CategoryLabelPipe implements PipeTransform {
               @if (p.date_taken) {
                 <span class="text-[var(--facet-tooltip-text-muted)] text-[11px] font-normal shrink-0"
                   [class.block]="!isLandscape()"
-                >{{ p.date_taken }}</span>
+                data-capture-date>{{ p.date_taken | captureDate }}</span>
               }
             </div>
 
@@ -124,11 +125,8 @@ export class CategoryLabelPipe implements PipeTransform {
                with the stars on their own line. -->
             <div class="flex items-center gap-2 mt-1 mb-1.5">
               <span class="px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] truncate">{{ p.category | categoryLabel }}</span>
-              <span class="ml-auto flex items-center gap-2 shrink-0">
-                @if (store.metricRangesByColumn()['aggregate']; as range) {<app-metric-rank class="w-24" [range]="range" [value]="p.aggregate" />}
-                <span class="text-lg font-semibold leading-tight tabular-nums text-[var(--mat-sys-primary)]"><span class="sr-only">{{ 'gallery.aggregate_score' | translate }} </span>{{ p.aggregate | fixed:1 }}</span>
-              </span>
             </div>
+            @if (!docked()) { <app-photo-assessment [photo]="p" [range]="store.metricRangesByColumn()['aggregate']" /> }
             @if (p.star_rating) {
               <div class="flex items-center gap-0.5 mb-1.5 text-yellow-400" role="img"
                    [attr.aria-label]="'rating.stars_out_of_five' | translate:{ stars: p.star_rating }">

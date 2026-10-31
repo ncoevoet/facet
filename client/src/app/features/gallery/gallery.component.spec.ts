@@ -260,6 +260,22 @@ describe('GalleryComponent', () => {
     component = TestBed.runInInjectionContext(() => new GalleryComponent());
   });
 
+  it.each(['navigation', 'edition'] as const)('closes the captured rating preview after %s invalidates it without applying', async ending => {
+    (mockAuth['isEdition'] as Mock).mockReturnValue(true);
+    mockStore.selectedPaths.set(new Set(['/rating.jpg'])); mockStore.selectionCount.set(1);
+    mockStore.photos.set([{ path: '/rating.jpg', filename: 'rating.jpg', star_rating: 0 }]);
+    mockStore.batchRatingPaths = vi.fn();
+    const closed = new Subject<number | undefined>();
+    const ref = { afterClosed: () => closed, close: vi.fn(() => { closed.next(undefined); closed.complete(); }) };
+    const open = TestBed.inject(MatDialog).open as Mock; open.mockReturnValue(ref);
+    const operation = component['batchRate'](3);
+    await vi.waitFor(() => expect(open).toHaveBeenCalled()); TestBed.tick();
+    if (ending === 'navigation') (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(22, '/albums'));
+    else { (mockAuth['isEdition'] as Mock).mockReturnValue(false); (mockAuth['status'] as WritableSignal<unknown>).update(value => ({ ...(value as object), edition_authenticated: false })); TestBed.tick(); }
+    await operation;
+    expect(ref.close).toHaveBeenCalled(); expect(mockStore.batchRatingPaths).not.toHaveBeenCalled();
+  });
+
   it('owns matching/group counts and shows exact item totals for an assistant-pinned list', () => {
     vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation((key, params) => {
       if (key === I18N.gallery.photo_count) return `${params?.['count']} photos`;
