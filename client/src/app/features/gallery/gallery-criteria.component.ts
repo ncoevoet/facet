@@ -14,10 +14,12 @@ import { AuthService } from '../../core/services/auth.service';
 import { folderDisplayName } from '../folders/folders.util';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.OnPush,
- imports:[MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe],
+ imports:[MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent],
  host:{class:'block'}, template:`
+ @if (store.currentAlbum()) { <app-gallery-album-rules [active]="canAct()" /> }
  @if (pinned()) {
    <p data-criteria-pinned class="text-xs my-2 text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.pinned | translate }}</p>
  } @else {

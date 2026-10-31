@@ -1268,7 +1268,7 @@
       "location": "Location",
       "folder": "Folder",
       "persons": "Persons",
-      "smart_album_filter_notice": "Smart album — filter changes are saved automatically.",
+      "smart_album_filter_notice": "Filter changes are temporary. Review and save album rules from the collection criteria to keep them.",
       "virtual_scroll": "Fast scrolling (virtualized)",
       "any": "Any",
       "find_filter": "Find a filter…",
@@ -2143,6 +2143,28 @@
       "recompute_failed": "Recompute failed.",
       "recompute_busy": "A job is already running. Try again later.",
       "close": "Close"
+    },
+    "rules": {
+      "smart": "Smart album",
+      "manual": "Manual album",
+      "temporary": "Temporary rule changes",
+      "saved": "Saved rules",
+      "working": "Current view",
+      "any": "Any",
+      "smart_hint": "Filters change this view only. Saved rules change only when you review and save them.",
+      "manual_hint": "Membership is a hand-picked set. Filters narrow this view without adding or removing photos.",
+      "presentation": "Display settings and hidden-frame rules remain temporary. Saving rules does not edit photo metadata.",
+      "unsupported": "Visual search, GPS-radius, grouped-frame views and review queues stay temporary. Exit those modes before saving or resetting rule changes.",
+      "invalid": "These saved rules are unavailable or unsupported. Reload the album before editing its rules.",
+      "reset": "Reset rule changes",
+      "preview": "Review rule changes…",
+      "confirm": "Update saved rules for “{name}”? Changed fields: {count}. Future visits will use these rules.",
+      "save": "Save album rules",
+      "conflict": "Saved rules changed since this view opened. Reload them and review your changes again.",
+      "success": "Album rules saved.",
+      "failed": "Could not read the saved rules. Your current view is unchanged.",
+      "uncertain": "The save could not be confirmed. Reload saved rules before trying again.",
+      "reload": "Reload saved rules"
     }
   },
   "critique": {
