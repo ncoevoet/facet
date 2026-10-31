@@ -171,21 +171,48 @@ describe('CompareSelectedDialogComponent', () => {
     expect(dialogRef.close).not.toHaveBeenCalled();
   });
 
-  it('keeps sharp-preview readiness owned by its pane, including failure then recovery', () => {
+  it('reports actual displayed source loading and failure independently of preview preload', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg']);
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    panes[1].componentInstance.zoomChange.emit({ scale: 2, tx: 0, ty: 0 });
+    fixture.detectChanges();
     panes[0].componentInstance.sharpFailed.emit('/a-preview');
     panes[1].componentInstance.sharpLoaded.emit('/b-preview');
+    panes[0].componentInstance.renditionChange.emit({ kind: 'thumbnail', phase: 'ready', width: 640, height: 480 });
+    panes[1].componentInstance.renditionChange.emit({ kind: 'source', phase: 'loading' });
     fixture.detectChanges();
     const statuses = () => Array.from(fixture.nativeElement.querySelectorAll('[data-preview-status]') as NodeListOf<HTMLElement>).map(p => p.textContent);
-    expect(statuses()[0]).toContain('gallery.compare.preview_failed');
-    expect(statuses()[1]).toContain('gallery.compare.preview_ready');
-    panes[0].componentInstance.sharpPending.emit('/a-preview');
+    expect(statuses()[0]).toContain('gallery.compare.rendition.fallback');
+    expect(statuses()[1]).toContain('gallery.compare.rendition.source');
+    expect(statuses()[1]).toContain('gallery.compare.rendition.loading');
+    panes[1].componentInstance.renditionChange.emit({ kind: 'source', phase: 'failed' });
     fixture.detectChanges();
-    expect(statuses()[0]).toContain('gallery.compare.preview_loading');
-    panes[0].componentInstance.sharpLoaded.emit('/a-preview');
+    const renderer = panes[1].componentInstance as SyncedZoomComponent;
+    const retry = vi.spyOn(renderer, 'retry');
+    fixture.nativeElement.querySelectorAll('[data-retry-pane]')[1].click();
+    expect(retry).toHaveBeenCalledOnce();
+    expect(statuses()[1]).toContain('gallery.compare.rendition.failed');
     fixture.detectChanges();
-    expect(statuses()[0]).toContain('gallery.compare.preview_ready');
+    renderer.renditionChange.emit({ kind: 'source', phase: 'ready', width: 4000, height: 3000 });
+    fixture.detectChanges();
+    expect(statuses()[1]).toContain('4000 × 3000');
+    expect(renderer.fullResSrc()).not.toContain('fallback');
+  });
+
+  it('offers explicit zoom and Fit for linked and independently aligned panes', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance as SyncedZoomComponent);
+    root.querySelector<HTMLButtonElement>('[data-zoom-in]')!.click(); fixture.detectChanges();
+    expect(panes.map(p => p.zoom().scale)).toEqual([1.5, 1.5]);
+    root.querySelector<HTMLButtonElement>('[data-link-inspection]')!.click(); fixture.detectChanges();
+    root.querySelectorAll<HTMLButtonElement>('[data-zoom-in]')[1].click(); fixture.detectChanges();
+    expect(panes.map(p => p.zoom().scale)).toEqual([1.5, 2.25]);
+    root.querySelectorAll<HTMLButtonElement>('[data-fit-pane]')[1].click(); fixture.detectChanges();
+    expect(panes.map(p => p.zoom().scale)).toEqual([1.5, 1]);
+    root.querySelector<HTMLButtonElement>('[data-link-inspection]')!.click(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-fit-pane]')!.click(); fixture.detectChanges();
+    expect(panes.map(p => p.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
   });
 
   it('cycles only candidates in two-up mode and swaps the old reference back into the candidate slot on promotion', () => {

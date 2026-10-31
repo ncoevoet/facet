@@ -1,5 +1,5 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { SyncedZoomComponent, ZoomState, FIT_ZOOM, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS } from './synced-zoom.component';
+import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM, LoadedSources, SHARP_PRELOAD_DEBOUNCE_MS } from './synced-zoom.component';
 
 describe('SyncedZoomComponent', () => {
   function make(zoom: ZoomState = FIT_ZOOM): ComponentFixture<SyncedZoomComponent> {
@@ -61,6 +61,35 @@ describe('SyncedZoomComponent', () => {
   it('uses the thumbnail at fit scale and the full-res past it', () => {
     expect(api(make(FIT_ZOOM)).effectiveSrc()).toBe('/thumb.jpg');
     expect(api(make({ scale: 1.5, tx: 0, ty: 0 })).effectiveSrc()).toBe('/full.jpg');
+  });
+
+  it('tracks displayed source settlement and ignores a stale preview load while zoomed', () => {
+    const fixture = make();
+    const states: DisplayedRendition[] = [];
+    fixture.componentInstance.renditionChange.subscribe(state => states.push(state));
+    const img = (fixture.nativeElement as HTMLElement).querySelector('img')!;
+    let current = new URL('/thumb.jpg', document.baseURI).href;
+    Object.defineProperties(img, {
+      complete: { configurable: true, value: true },
+      currentSrc: { configurable: true, get: () => current },
+      naturalWidth: { configurable: true, value: 4000 },
+      naturalHeight: { configurable: true, value: 3000 },
+    });
+    apply(fixture, { scale: 2, tx: 10, ty: 20 });
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'loading' });
+    img.dispatchEvent(new Event('load'));
+    expect(states.at(-1)?.phase).toBe('loading');
+    current = new URL('/full.jpg', document.baseURI).href;
+    img.dispatchEvent(new Event('load'));
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'ready', width: 4000, height: 3000 });
+    img.dispatchEvent(new Event('error'));
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'failed' });
+    fixture.componentInstance.retry(); fixture.detectChanges();
+    expect(new URL(api(fixture).effectiveSrc()).searchParams.get('facet_retry')).toMatch(/-1$/);
+    expect(fixture.componentInstance.zoom()).toEqual({ scale: 2, tx: 10, ty: 20 });
+    expect(states.at(-1)).toEqual({ kind: 'source', phase: 'loading' });
+    img.dispatchEvent(new Event('load'));
+    expect(states.at(-1)?.phase).toBe('loading');
   });
 
   it('zooms in on wheel up and clamps to the max', () => {
@@ -303,6 +332,8 @@ describe('SyncedZoomComponent', () => {
     function browserLoaded(f: ComponentFixture<SyncedZoomComponent>, url: string): void {
       const img = imgEl(f);
       Object.defineProperty(img, 'complete', { value: true, configurable: true });
+      Object.defineProperty(img, 'naturalWidth', { value: 640, configurable: true });
+      Object.defineProperty(img, 'naturalHeight', { value: 480, configurable: true });
       Object.defineProperty(img, 'currentSrc', { value: new URL(url, document.baseURI).href, configurable: true });
       img.dispatchEvent(new Event('load'));
       f.detectChanges();

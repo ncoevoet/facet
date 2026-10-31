@@ -176,14 +176,19 @@ describe('PhotoCardComponent', () => {
     expect(img.parentElement!.classList.contains('h-full')).toBe(true);
   });
 
-  it('leaves the image at its natural height below md outside mosaic', () => {
+  it('fills hidden-details tiles below md without changing the uncropped details view', () => {
     const cardFixture = TestBed.createComponent(PhotoCardComponent);
     cardFixture.componentRef.setInput('photo', makePhoto());
     cardFixture.componentRef.setInput('hideDetails', true);
     cardFixture.detectChanges();
     const img = (cardFixture.nativeElement as HTMLElement).querySelector('img')!;
-    expect(img.classList.contains('h-full')).toBe(false);
+    expect(img.classList.contains('h-full')).toBe(true);
+    expect(img.classList.contains('object-cover')).toBe(true);
+    expect((cardFixture.nativeElement as HTMLElement).querySelector('[role="button"]')!.classList.contains('aspect-square')).toBe(true);
+    cardFixture.componentRef.setInput('hideDetails', false);
+    cardFixture.detectChanges();
     expect(img.classList.contains('object-cover')).toBe(false);
+    expect(img.classList.contains('object-contain')).toBe(true);
   });
 
   it('never asks for a thumbnail above the stored 640 px', () => {

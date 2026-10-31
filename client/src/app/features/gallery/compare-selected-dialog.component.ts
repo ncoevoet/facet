@@ -8,7 +8,7 @@ import { i18nKeys } from '../../core/i18n/keys';
 import { Photo } from '../../shared/models/photo.model';
 import { ThumbnailUrlPipe, ImageUrlPipe, STORED_THUMBNAIL_EDGE, RENDERED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
-import { SyncedZoomComponent, ZoomState, FIT_ZOOM, MAX_COMPARE_PANES } from './synced-zoom.component';
+import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM, MAX_COMPARE_PANES } from './synced-zoom.component';
 
 // Module-level consts, not direct class-field initializers: Vite's test transform
 // snapshots an imported binding used as a field initializer before a
@@ -79,7 +79,7 @@ export interface CompareSelectedData {
            [class.grid-rows-2]="visiblePhotos().length > 2">
         @for (pane of paneStates(); track pane.photo.path) {
           @let photo = pane.photo;
-          <div class="relative flex flex-col w-full h-full min-h-0 overflow-hidden border border-neutral-700" [class.border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
+          <div class="@container/pane relative flex flex-col w-full h-full min-h-0 overflow-hidden border border-neutral-700" [class.border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
             <div class="flex items-center gap-2 px-2 py-1 text-white text-xs bg-neutral-900 min-h-10">
               <mat-icon class="!text-base !w-4 !h-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
               <span class="shrink-0">{{ (referencePath() === photo.path ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate }}</span>
@@ -95,19 +95,33 @@ export interface CompareSelectedData {
                       [matTooltip]="I18N.gallery.compare.remove_pane | translate:{ name: photo.filename }"
                       (click)="removePane(photo.path)"><mat-icon>close</mat-icon></button>
             </div>
-            <app-synced-zoom class="w-full h-full min-h-0"
+            <app-synced-zoom #imagePane class="w-full h-full min-h-0"
                              [src]="photo.path | thumbnailUrl:renderedEdge:photo.preview_revision"
                              [placeholderSrc]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision"
                              [frameKey]="photo.path"
-                             [fullResSrc]="photo.path | imageUrl:true:photo.preview_revision"
+                             [fullResSrc]="photo.path | imageUrl:false:photo.preview_revision"
                              [zoom]="pane.zoom"
                              (zoomChange)="onZoom(photo.path, $event)"
                              (sharpPending)="setReadiness(photo.path, 'loading')"
                              (sharpLoaded)="setReadiness(photo.path, 'ready')"
                              (sharpFailed)="setReadiness(photo.path, 'failed')"
+                             (renditionChange)="setRendition(photo.path, $event)"
                              [alt]="photo.filename" />
-            <div data-preview-status class="absolute bottom-1 left-1 right-1 px-2 py-1 rounded bg-black/75 text-white text-xs truncate">
-              {{ pane.statusKey | translate }}
+            <div class="absolute bottom-1 left-1 right-1 flex flex-wrap items-center gap-x-1 rounded bg-black/85 text-white px-1">
+              <div class="flex w-full @[320px]/pane:w-auto @[320px]/pane:flex-1 min-w-0 items-center">
+              <span data-preview-status role="status" class="min-w-0 flex-1 truncate text-xs" [title]="I18N.gallery.compare.rendition.limit | translate">
+                {{ pane.kindKey | translate }} · {{ pane.phaseKey | translate }}
+                @if (pane.rendition?.phase === 'ready') { {{ pane.rendition.width }} × {{ pane.rendition.height }} }
+              </span>
+              @if (pane.rendition?.phase === 'failed' || pane.previewFailed) {
+                <button mat-icon-button data-retry-pane class="!text-white" [attr.aria-label]="I18N.gallery.load_error.retry | translate" (click)="imagePane.retry()"><mat-icon>refresh</mat-icon></button>
+              }
+              </div>
+              <div class="flex w-full @[320px]/pane:w-auto min-w-0 items-center justify-center">
+              <button mat-icon-button data-zoom-out class="!text-white" [disabled]="pane.zoom.scale <= 1" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_out | translate" (click)="stepZoom(photo.path, -1)"><mat-icon>remove</mat-icon></button>
+              <button mat-button data-fit-pane class="!text-white !min-w-10 !px-1" [attr.aria-label]="I18N.gallery.compare.rendition.fit | translate" [matTooltip]="I18N.gallery.compare.rendition.scale_help | translate" (click)="fitPane(photo.path)">@if (pane.fitted) { {{ I18N.gallery.compare.rendition.fit_short | translate }} } @else { {{ pane.scaleLabel }} }</button>
+              <button mat-icon-button data-zoom-in class="!text-white" [disabled]="pane.zoom.scale >= 8" [attr.aria-label]="I18N.gallery.compare.rendition.zoom_in | translate" (click)="stepZoom(photo.path, 1)"><mat-icon>add</mat-icon></button>
+              </div>
             </div>
           </div>
         }
@@ -147,6 +161,7 @@ export interface CompareSelectedData {
       </div>
       <div class="px-3 pb-2 text-center text-[var(--mat-sys-on-surface-variant)] text-xs shrink-0">
         {{ I18N.gallery.compare.hint | translate }}
+        <details class="text-left"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p class="m-0">{{ I18N.gallery.compare.rendition.limit | translate }}</p><p class="m-0">{{ I18N.gallery.compare.rendition.scale_help | translate }}</p></details>
       </div>
     </div>
   `,
@@ -172,6 +187,7 @@ export class CompareSelectedDialogComponent {
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
   private readonly paneZoom = signal(new Map<string, ZoomState>());
   private readonly readiness = signal(new Map<string, 'loading' | 'ready' | 'failed'>());
+  private readonly renditions = signal(new Map<string, DisplayedRendition>());
 
   /** Extra selected photos are dropped rather than shrunk past usefulness. */
   protected readonly panes = computed(() => (this.data.photos ?? []).slice(0, MAX_COMPARE_PANES).filter(photo => !this.removedPaths().has(photo.path)));
@@ -184,11 +200,17 @@ export class CompareSelectedDialogComponent {
     return [reference, candidate].filter((photo): photo is Photo => !!photo);
   });
 
-  protected readonly paneStates = computed(() => this.visiblePhotos().map(photo => ({
-    photo,
-    zoom: this.paneZoom().get(photo.path) ?? FIT_ZOOM,
-    statusKey: { loading: this.I18N.gallery.compare.preview_loading, ready: this.I18N.gallery.compare.preview_ready, failed: this.I18N.gallery.compare.preview_failed }[this.readiness().get(photo.path) ?? 'loading'],
-  })));
+  protected readonly paneStates = computed(() => this.visiblePhotos().map(photo => {
+    const zoom = this.paneZoom().get(photo.path) ?? FIT_ZOOM;
+    const rendition = this.renditions().get(photo.path);
+    return {
+      photo, zoom, rendition, fitted: zoom.scale === 1 && zoom.tx === 0 && zoom.ty === 0,
+      previewFailed: this.readiness().get(photo.path) === 'failed',
+      kindKey: this.I18N.gallery.compare.rendition[rendition?.kind ?? 'thumbnail'],
+      phaseKey: this.readiness().get(photo.path) === 'failed' && rendition?.kind === 'thumbnail' ? this.I18N.gallery.compare.rendition.fallback : this.I18N.gallery.compare.rendition[rendition?.phase ?? 'loading'],
+      scaleLabel: `${Number(zoom.scale.toFixed(1))}×`,
+    };
+  }));
 
   protected readonly zoomed = computed(() => [...this.paneZoom().values()].some(frame =>
     frame.scale !== FIT_ZOOM.scale || frame.tx !== 0 || frame.ty !== 0));
@@ -235,6 +257,7 @@ export class CompareSelectedDialogComponent {
     if (path === this.activePath()) this.activePath.set(this.candidatePath() ?? this.referencePath());
     this.paneZoom.update(values => { const next = new Map(values); next.delete(path); return next; });
     this.readiness.update(values => { const next = new Map(values); next.delete(path); return next; });
+    this.renditions.update(values => { const next = new Map(values); next.delete(path); return next; });
     afterNextRender(() => {
       if (this.document.activeElement !== this.document.body && this.document.activeElement !== focusBefore) return;
       this.candidateButtons().find(button => button.nativeElement.dataset['path'] === this.activePath())?.nativeElement.focus();
@@ -273,6 +296,22 @@ export class CompareSelectedDialogComponent {
 
   protected toggleLinked(): void {
     this.linked.update(linked => !linked);
+  }
+
+  protected setRendition(path: string, rendition: DisplayedRendition): void {
+    if (!this.visiblePhotos().some(photo => photo.path === path)) return;
+    this.renditions.update(values => new Map(values).set(path, rendition));
+  }
+
+  protected stepZoom(path: string, direction: number): void {
+    const frame = this.paneZoom().get(path) ?? FIT_ZOOM;
+    this.onZoom(path, { ...frame, scale: Math.max(1, Math.min(8, frame.scale * (direction > 0 ? 1.5 : 1 / 1.5))) });
+  }
+
+  protected fitPane(path: string): void {
+    if (!this.visiblePhotos().some(photo => photo.path === path)) return;
+    if (this.linked()) this.resetZoom();
+    else this.paneZoom.update(values => new Map(values).set(path, { ...FIT_ZOOM }));
   }
 
   protected setReadiness(path: string, state: 'loading' | 'ready' | 'failed'): void {

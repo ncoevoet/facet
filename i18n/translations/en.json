@@ -1484,7 +1484,23 @@
       "remove_pane": "Remove {name} from comparison only",
       "restore": "Restore removed photos",
       "queue": "Candidates (excluding reference): {count}",
-      "queue_label": "Comparison photos"
+      "queue_label": "Comparison photos",
+      "rendition": {
+        "thumbnail": "Stored thumbnail",
+        "preview": "Preview",
+        "source": "Source image",
+        "loading": "Loading…",
+        "ready": "Ready",
+        "failed": "Unavailable",
+        "fit": "Fit image",
+        "zoom_in": "Zoom in",
+        "zoom_out": "Zoom out",
+        "scale_help": "Magnification relative to Fit, not source pixels. Fit restores the whole frame; linked Fit resets all panes.",
+        "limit": "Preview requests can fall back to stored thumbnails. Source images may be converted for browser display; this is not a RAW editor or a sensor-clipping assessment.",
+        "fit_short": "Fit",
+        "sources": "Image sources and magnification",
+        "fallback": "Preview unavailable"
+      }
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",

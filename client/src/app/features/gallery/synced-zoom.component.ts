@@ -7,6 +7,13 @@ export interface ZoomState {
   ty: number;
 }
 
+export interface DisplayedRendition {
+  kind: 'thumbnail' | 'preview' | 'source';
+  phase: 'loading' | 'ready' | 'failed';
+  width?: number;
+  height?: number;
+}
+
 export const FIT_ZOOM: ZoomState = { scale: 1, tx: 0, ty: 0 };
 
 /** Largest side-by-side grid the panes stay readable in. Lives here rather than
@@ -114,6 +121,8 @@ export class SyncedZoomComponent {
   readonly sharpPending = output<string>();
   /** The render failed; the pane keeps its stored thumbnail. */
   readonly sharpFailed = output<string>();
+  /** Actual displayed image state, independent of the background preview preload. */
+  readonly renditionChange = output<DisplayedRendition>();
 
   /** Hover loupe over this pane. `loupeSrc` defaults to the pane's own
    *  effective source (so a caller need not track full-res separately);
@@ -147,6 +156,9 @@ export class SyncedZoomComponent {
   /** The `src` whose preload has finished; the pane shows the placeholder until
    *  it equals the current `src`. */
   private readonly readySrc = signal<string | null>(null);
+  private readonly retryAttempt = signal(0);
+  private readonly retrySession = crypto.randomUUID();
+  private readonly requestedPreview = computed(() => this.retryUrl(this.src()));
   /** The frame whose own image last finished loading in this pane. */
   private readonly paintedKey = signal<string | null>(null);
 
@@ -157,7 +169,7 @@ export class SyncedZoomComponent {
 
   constructor() {
     effect(onCleanup => {
-      const src = this.src();
+      const src = this.requestedPreview();
       // Read for its dependency only: re-run the preload on a frame change even when src is unchanged.
       this.frameKey();
       if (!this.placeholderSrc()) return;
@@ -173,14 +185,14 @@ export class SyncedZoomComponent {
           let settled = false;
           // A cache hint skips the debounce, never the browser's load check.
           preloader.onload = () => {
-            if (!active || settled || this.src() !== src) return;
+            if (!active || settled || this.requestedPreview() !== src) return;
             settled = true;
             loaded?.add(src);
             this.readySrc.set(src);
             this.sharpLoaded.emit(src);
           };
           preloader.onerror = () => {
-            if (!active || settled || this.src() !== src) return;
+            if (!active || settled || this.requestedPreview() !== src) return;
             settled = true;
             this.sharpFailed.emit(src);
           };
@@ -200,6 +212,11 @@ export class SyncedZoomComponent {
         });
       });
     });
+    effect(() => {
+      this.effectiveSrc();
+      this.frameKey();
+      this.renditionChange.emit({ kind: this.displayedKind(), phase: 'loading' });
+    });
     // A step onto an image the browser already holds (memory cache) has it
     // complete as soon as the new `src` is applied, but its `load` event only
     // fires later, which would keep the pane `opacity-0` for a frame or two.
@@ -215,6 +232,7 @@ export class SyncedZoomComponent {
       untracked(() => {
         if (img.complete && img.naturalWidth > 0 && img.currentSrc === new URL(src, document.baseURI).href) {
           this.paintedKey.set(key);
+          this.renditionChange.emit({ kind: this.displayedKind(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
         }
       });
     });
@@ -243,15 +261,19 @@ export class SyncedZoomComponent {
     const img = this.frame()?.nativeElement;
     // A `load` for a URL the pane has already moved on from must not mark the
     // new frame painted.
-    if (img?.complete && img.currentSrc === new URL(this.effectiveSrc(), document.baseURI).href) {
+    if (img?.complete && img.naturalWidth > 0 && img.currentSrc === new URL(this.effectiveSrc(), document.baseURI).href) {
       this.paintedKey.set(this.frameKey());
+      this.renditionChange.emit({ kind: this.displayedKind(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
     }
   }
 
   /** A broken image of the right frame is shown as such rather than leaving the
    *  pane hidden forever. */
   protected onFrameError(): void {
+    const img = this.frame()?.nativeElement;
+    if (!img || (img.currentSrc || img.src) !== new URL(this.effectiveSrc(), document.baseURI).href) return;
     this.paintedKey.set(this.frameKey());
+    this.renditionChange.emit({ kind: this.displayedKind(), phase: 'failed' });
   }
 
   /** The `object-contain` fit scale: how much `content` (natural image size)
@@ -302,10 +324,27 @@ export class SyncedZoomComponent {
     const full = this.fullResSrc();
     // Past the fit scale the render is too soft to judge sharpness; swap to
     // the full-res source for the actual pixel peek.
-    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return full;
+    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return this.retryUrl(full);
     const placeholder = this.placeholderSrc();
-    return placeholder && this.readySrc() !== this.src() ? placeholder : this.src();
+    return placeholder && this.readySrc() !== this.requestedPreview() ? this.retryUrl(placeholder) : this.requestedPreview();
   });
+
+  private readonly displayedKind = computed<DisplayedRendition['kind']>(() => {
+    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && this.fullResSrc()) return 'source';
+    return this.placeholderSrc() && this.readySrc() !== this.requestedPreview() ? 'thumbnail' : 'preview';
+  });
+
+  private retryUrl(src: string): string {
+    const attempt = this.retryAttempt();
+    if (!attempt) return src;
+    const url = new URL(src, document.baseURI);
+    url.searchParams.set('facet_retry', `${this.retrySession}-${attempt}`);
+    url.searchParams.set('ngsw-bypass', '1');
+    return url.href;
+  }
+
+  /** Repeat this pane's reads only; framing and the selected photo stay intact. */
+  retry(): void { this.retryAttempt.update(attempt => attempt + 1); }
 
   private clampScale(scale: number): number {
     return Math.max(SyncedZoomComponent.MIN_SCALE, Math.min(SyncedZoomComponent.MAX_SCALE, scale));
