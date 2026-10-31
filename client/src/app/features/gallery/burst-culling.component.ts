@@ -934,7 +934,7 @@ interface SceneSummary {
       <!-- cdkTrapFocus without auto-capture: the effect below focuses the container
            itself, so Space/arrows reach the darkroom shortcuts instead of whichever
            toolbar button auto-capture would have landed on. -->
-      <div #lightboxDialog class="fixed inset-0 z-[100] bg-black/95 flex flex-col"
+      <div #lightboxDialog class="fixed inset-0 z-[100] bg-[var(--facet-image-canvas)] flex flex-col"
            role="dialog"
            aria-modal="true"
            tabindex="-1"
@@ -946,8 +946,8 @@ interface SceneSummary {
              acts on Escape through onDarkroomKeydown() instead. -->
         <!-- Header. Opaque, not a tint: at bg-black/70 the gallery toolbar behind
              it stayed legible through the darkroom's own controls. -->
-        <div data-darkroom-header class="flex min-w-0 shrink-0 flex-wrap items-center gap-1 px-2 py-1 text-white text-sm bg-neutral-950">
-          <div class="opacity-70 shrink-0">
+        <div data-darkroom-header class="flex min-w-0 shrink-0 flex-wrap items-center gap-1 border-b border-[var(--facet-image-rule)] px-2 py-1 text-[var(--facet-image-ink)] text-sm bg-[var(--facet-image-chrome)]">
+          <div class="opacity-80 shrink-0 tabular-nums text-xs">
             {{ effectiveLightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
           </div>
           @if (legendVisible()) {
@@ -964,14 +964,8 @@ interface SceneSummary {
               }
             </div>
           }
-          <div class="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [&>button]:shrink-0" role="presentation"
+          <div class="flex min-w-0 flex-1 items-center gap-1 [&>button]:shrink-0" role="presentation"
                (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
-            <button mat-icon-button [class.!text-white]="!legendVisible()"
-                    [class.!text-[var(--mat-sys-primary)]]="legendVisible()"
-                    [attr.aria-pressed]="legendVisible()"
-                    [matTooltip]="I18N.culling.legend.tooltip | translate"
-                    [attr.aria-label]="I18N.culling.legend.label | translate"
-                    (click)="toggleLegend()"><mat-icon>keyboard</mat-icon></button>
             <button mat-icon-button [class.!text-white]="compareMode() !== 'single'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
                     [matTooltip]="I18N.culling.compare.single | translate"
@@ -987,6 +981,19 @@ interface SceneSummary {
                     [matTooltip]="I18N.culling.compare['4up'] | translate"
                     [attr.aria-label]="I18N.culling.compare['4up'] | translate"
                     (click)="setCompareMode('4up')"><mat-icon>grid_view</mat-icon></button>
+            <details #darkroomTools tabindex="-1" class="relative shrink-0" data-darkroom-tools
+                     (keydown.escape)="darkroomTools.open = false; darkroomToolsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+              <summary #darkroomToolsSummary class="flex h-11 min-w-11 cursor-pointer list-none items-center justify-center gap-2 rounded px-2 hover:bg-white/10"
+                       [attr.aria-label]="I18N.gallery.compare.inspection.title | translate">
+                <mat-icon aria-hidden="true">tune</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span>
+              </summary>
+              <div class="fixed top-14 left-2 right-2 z-[120] flex max-h-[70dvh] flex-wrap items-center gap-2 overflow-y-auto rounded border border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] p-3 text-[var(--facet-image-ink)] sm:left-auto sm:right-28 sm:max-w-lg">
+                <button mat-icon-button [class.!text-white]="!legendVisible()"
+                        [class.!text-[var(--mat-sys-primary)]]="legendVisible()"
+                        [attr.aria-pressed]="legendVisible()"
+                        [matTooltip]="I18N.culling.legend.tooltip | translate"
+                        [attr.aria-label]="I18N.culling.legend.label | translate"
+                        (click)="toggleLegend()"><mat-icon>keyboard</mat-icon></button>
             <button mat-icon-button [class.!text-white]="!peakingActive()"
                     [class.!text-[var(--mat-sys-primary)]]="peakingActive()"
                     [attr.aria-pressed]="peakingActive()"
@@ -1042,6 +1049,8 @@ interface SceneSummary {
                 }
               </mat-menu>
             }
+              </div>
+            </details>
           </div>
           <button mat-icon-button
                   [matTooltip]="I18N.slideshow.fullscreen | translate"
@@ -1188,7 +1197,35 @@ interface SceneSummary {
                  (keydown)="onDarkroomKeydown($event)">
               @for (photo of compareFrames(); track photo.path; let paneIndex = $index) {
                 <div data-darkroom-pane [attr.data-path]="photo.path" class="relative flex w-full h-full min-h-0 flex-col rounded overflow-hidden">
-                  <button type="button" data-comparison-slot class="flex min-h-11 shrink-0 items-center gap-2 px-2 text-left text-xs text-white bg-neutral-900 focus-visible:outline-2 focus-visible:outline-amber-400" [class.!bg-amber-950]="comparisonSlot() === paneIndex" [attr.aria-pressed]="comparisonSlot() === paneIndex" [attr.aria-label]="I18N.culling.comparison.choose_pane | translate:{ pane: comparisonSlotLabels[paneIndex], name: photo.filename }" (click)="selectComparisonSlot(paneIndex)"><span class="font-semibold">{{ comparisonSlotLabels[paneIndex] }}</span><span class="min-w-0 truncate">{{ photo.filename }}</span><mat-icon class="ml-auto !text-base !w-4 !h-4 shrink-0">{{ comparisonSlot() === paneIndex ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon></button>
+                  <div class="flex shrink-0 min-w-0 items-center gap-1 bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)]">
+                    <button type="button" data-comparison-slot class="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-2 text-left text-xs focus-visible:outline-2"
+                            [class.bg-[var(--mat-sys-secondary-container)]]="comparisonSlot() === paneIndex" [class.text-[var(--mat-sys-on-secondary-container)]]="comparisonSlot() === paneIndex"
+                            [attr.aria-pressed]="comparisonSlot() === paneIndex" [attr.aria-label]="I18N.culling.comparison.choose_pane | translate:{ pane: comparisonSlotLabels[paneIndex], name: photo.filename }" (click)="selectComparisonSlot(paneIndex)">
+                      <span class="font-semibold">{{ comparisonSlotLabels[paneIndex] }}</span><span class="min-w-0 truncate">{{ photo.filename }}</span>
+                      @if (!stacksMode() && (photo.path | isDecided:cull.selectionsMap():lbKey)) {
+                        <span class="ml-auto shrink-0">{{ ((photo.path | isKept:cull.selectionsMap():lbKey) ? I18N.culling.lightbox.kept : I18N.culling.lightbox.rejected) | translate }}</span>
+                      }
+                      <mat-icon class="ml-auto !text-base !w-4 !h-4 shrink-0">{{ comparisonSlot() === paneIndex ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                    </button>
+                    @if (!stacksMode()) {
+                      <div class="flex shrink-0 items-center">
+                        <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-white/10"
+                                [attr.aria-pressed]="photo.path | isKept:cull.selectionsMap():lbKey"
+                                [matTooltip]="I18N.culling.lightbox.keep | translate"
+                                [attr.aria-label]="photo.filename + ', ' + (I18N.culling.lightbox.keep | translate)"
+                                (click)="cull.setPhotoKept(lbGroup, photo.path, true)">
+                          <mat-icon class="!text-base !w-4 !h-4 !leading-4">check</mat-icon>
+                        </button>
+                        <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-white/10"
+                                [attr.aria-pressed]="(photo.path | isDecided:cull.selectionsMap():lbKey) && !(photo.path | isKept:cull.selectionsMap():lbKey)"
+                                [matTooltip]="I18N.culling.lightbox.reject | translate"
+                                [attr.aria-label]="photo.filename + ', ' + (I18N.culling.lightbox.reject | translate)"
+                                (click)="cull.setPhotoKept(lbGroup, photo.path, false)">
+                          <mat-icon class="!text-base !w-4 !h-4 !leading-4">close</mat-icon>
+                        </button>
+                      </div>
+                    }
+                  </div>
                   <div class="relative min-h-0 flex-1">
                   <app-synced-zoom #pane class="w-full h-full min-h-0"
                                    [src]="photo.path | thumbnailUrl:darkroomThumbSize:photo.preview_revision"
@@ -1219,35 +1256,6 @@ interface SceneSummary {
                        [class.ring-2]="photo.path === lbPhoto.path"
                        [class.ring-inset]="photo.path === lbPhoto.path"
                        [class.ring-amber-400]="photo.path === lbPhoto.path">
-                    <ng-container [ngTemplateOutlet]="frameState"
-                                  [ngTemplateOutletContext]="{
-                                    kept: (photo.path | isKept:cull.selectionsMap():lbKey),
-                                    decided: (photo.path | isDecided:cull.selectionsMap():lbKey) }" />
-                    <!-- The ↑ / ↓ keys only ever reach the focused frame, so a
-                         compare grid needs a way to decide the pane the user is
-                         actually looking at. Same write as those keys. -->
-                    @if (!stacksMode()) {
-                    <div class="absolute bottom-2 right-2 flex items-center gap-2 pointer-events-auto">
-                      <button type="button"
-                              class="w-7 h-7 rounded-full bg-green-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100 cursor-pointer"
-                              [class.opacity-70]="!(photo.path | isKept:cull.selectionsMap():lbKey)"
-                              [attr.aria-pressed]="photo.path | isKept:cull.selectionsMap():lbKey"
-                              [matTooltip]="I18N.culling.lightbox.keep | translate"
-                              [attr.aria-label]="photo.filename + ', ' + (I18N.culling.lightbox.keep | translate)"
-                              (click)="cull.setPhotoKept(lbGroup, photo.path, true)">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">check</mat-icon>
-                      </button>
-                      <button type="button"
-                              class="w-7 h-7 rounded-full bg-red-600 inline-flex items-center justify-center shadow transition-opacity hover:opacity-100 cursor-pointer"
-                              [class.opacity-70]="!(photo.path | isDecided:cull.selectionsMap():lbKey)"
-                              [attr.aria-pressed]="photo.path | isDecided:cull.selectionsMap():lbKey"
-                              [matTooltip]="I18N.culling.lightbox.reject | translate"
-                              [attr.aria-label]="photo.filename + ', ' + (I18N.culling.lightbox.reject | translate)"
-                              (click)="cull.setPhotoKept(lbGroup, photo.path, false)">
-                        <mat-icon class="!text-base !w-4 !h-4 !leading-4 !text-white">close</mat-icon>
-                      </button>
-                    </div>
-                    }
                   </div>
                   </div>
                   <div class="shrink-0 bg-neutral-950 p-1 text-white" role="presentation" (click)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">

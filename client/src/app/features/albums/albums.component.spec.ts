@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { of, throwError } from 'rxjs';
 import { Router, provideRouter } from '@angular/router';
 import { MatDialog } from '@angular/material/dialog';
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { AlbumService } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -158,7 +159,7 @@ describe('AlbumsComponent', () => {
 
     expect(mockDialog.open).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ disableClose: true }),
+      expect.objectContaining({ disableClose: true, restoreFocus: '#album-actions-1' }),
     );
     expect(internals().albums().find((a: { id: number }) => a.id === album.id)?.scoring_context).toBe('party_event');
   });
@@ -170,6 +171,8 @@ describe('AlbumsComponent', () => {
   // gate entirely and would pass even with the bug present.
   it('renders the scoring-context button for a smart album', async () => {
     const fixture = TestBed.createComponent(AlbumsComponent);
+    const dialogOpen = vi.spyOn(fixture.debugElement.injector.get(MatDialog), 'open')
+      .mockReturnValue({ afterClosed: () => of(undefined) } as any);
     fixture.detectChanges();
     await fixture.whenStable();
     fixture.detectChanges();
@@ -178,7 +181,21 @@ describe('AlbumsComponent', () => {
       .find((a: any) => a.textContent.includes('Smart')) as HTMLElement;
     expect(smartCard).toBeTruthy();
 
-    const icons = Array.from(smartCard.querySelectorAll('mat-icon')).map((i: any) => i.textContent.trim());
+    expect(smartCard.querySelector('button')).toBeNull();
+    const article = smartCard.closest('article')!;
+    article.querySelector('button')!.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const icons = Array.from(overlay.querySelectorAll('mat-icon')).map((i: any) => i.textContent.trim());
     expect(icons).toContain('tune');
+
+    const action = Array.from(overlay.querySelectorAll('button'))
+      .find(button => button.textContent?.includes('albums.scoring_context.action'))!;
+    action.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(dialogOpen).toHaveBeenCalled();
+    expect(overlay.querySelector('[role="menu"]')).toBeNull();
   });
 });

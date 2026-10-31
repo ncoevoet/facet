@@ -46,8 +46,9 @@ export interface ManualTagsDialogResult {
   imports: [MatDialogModule, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <h2 mat-dialog-title class="flex items-center gap-2"><mat-icon aria-hidden="true">sell</mat-icon>{{ I18N.manual_tags.title | translate }}</h2>
-    <mat-dialog-content>
+    <h2 mat-dialog-title class="flex items-center gap-2 !text-lg"><mat-icon aria-hidden="true">sell</mat-icon>{{ I18N.manual_tags.title | translate }}</h2>
+    <mat-dialog-content class="!text-sm !leading-6">
+      <div class="border-b border-[var(--mat-sys-outline-variant)] pb-3 mb-3">
       <p data-tag-target class="text-sm font-medium">{{ I18N.manual_tags.batch.target | translate:{ count: data.count } }}</p>
       <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.manual_tags.batch.ownership | translate }}</p>
       @if (data.fromWholeView) {
@@ -59,6 +60,7 @@ export interface ManualTagsDialogResult {
           @for (name of targetNames; track $index) { <span class="max-w-full truncate rounded bg-[var(--mat-sys-surface-container)] px-2 py-1 text-xs" [title]="name">{{ name }}</span> }
           @if (data.paths.length > targetNames.length) { <span class="text-xs py-1">{{ I18N.manual_tags.batch.more | translate:{ count: data.paths.length - targetNames.length } }}</span> }
         </div>
+      </div>
       @if (data.observation; as observed) {
         <details class="mb-3">
           <summary class="cursor-pointer text-sm py-2">{{ I18N.manual_tags.batch.observed | translate:{ loaded: observed.photos, count: data.count } }}</summary>
@@ -72,7 +74,7 @@ export interface ManualTagsDialogResult {
         </details>
       }
       @if (plan(); as preview) {
-        <section data-tag-preview class="border border-[var(--mat-sys-outline-variant)] rounded-lg p-3 my-3">
+        <section data-tag-preview class="bg-[var(--mat-sys-surface-container-low)] rounded p-3 my-3">
           <h3 class="m-0 text-base font-medium">{{ I18N.manual_tags.batch.preview | translate }}</h3>
           <p class="mb-0 break-words">{{ (preview.action === 'add' ? I18N.manual_tags.batch.add_preview : preview.action === 'delete' ? I18N.manual_tags.batch.remove_preview : preview.action === 'replace' ? I18N.manual_tags.batch.replace_preview : I18N.manual_tags.batch.clear_preview) | translate:{ tag: preview.tag, count: data.count } }}</p>
           @if (preview.action === 'replace') {
@@ -93,6 +95,12 @@ export interface ManualTagsDialogResult {
           <textarea matInput rows="3" maxlength="3300" [value]="tag()" (input)="onInput($event)"></textarea>
           <mat-hint>{{ I18N.manual_tags.batch.tag_list_hint | translate }}</mat-hint>
         </mat-form-field>
+        <div class="mt-4 flex flex-wrap items-center gap-2 border-t border-[var(--mat-sys-outline-variant)] pt-3">
+          <button mat-button (click)="preview('add')" [disabled]="values().length !== 1">{{ I18N.manual_tags.add_action | translate }}</button>
+          <button mat-button (click)="preview('delete')" [disabled]="values().length !== 1">{{ I18N.manual_tags.remove_action | translate }}</button>
+          <button mat-flat-button data-replace-tags (click)="preview('replace')" [disabled]="!values().length || values().length > 50">{{ I18N.manual_tags.batch.replace | translate }}</button>
+          <button mat-button data-clear-tags (click)="preview('clear')">{{ I18N.manual_tags.batch.clear | translate }}</button>
+        </div>
       }
       @if (failed()) {
         <p class="text-sm text-[var(--mat-sys-error)] mt-3" role="alert">{{ I18N.manual_tags.error | translate }}</p>
@@ -104,11 +112,6 @@ export interface ManualTagsDialogResult {
       @if (plan()) {
         @if (!failed() && !confirmed()) { <button mat-button [disabled]="saving()" (click)="edit()">{{ I18N.manual_tags.batch.edit | translate }}</button> }
         <button mat-flat-button data-apply-tags [disabled]="saving() || uncertain() && (plan()?.action === 'replace' || plan()?.action === 'clear')" (click)="apply()">{{ (saving() ? I18N.manual_tags.batch.saving : failed() ? I18N.manual_tags.batch.retry : I18N.ui.buttons.apply) | translate }}</button>
-      } @else {
-        <button mat-button data-clear-tags (click)="preview('clear')">{{ I18N.manual_tags.batch.clear | translate }}</button>
-        <button mat-button (click)="preview('delete')" [disabled]="values().length !== 1">{{ I18N.manual_tags.remove_action | translate }}</button>
-        <button mat-button (click)="preview('add')" [disabled]="values().length !== 1">{{ I18N.manual_tags.add_action | translate }}</button>
-        <button mat-flat-button data-replace-tags (click)="preview('replace')" [disabled]="!values().length || values().length > 50">{{ I18N.manual_tags.batch.replace | translate }}</button>
       }
     </mat-dialog-actions>
   `,

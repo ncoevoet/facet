@@ -49,6 +49,8 @@ export function aspectOf(photo: Photo): number {
 /** Minimum grid columns enforced off desktop so a narrow viewport never
  * degrades to one photo per screen (comparable gallery apps default to 3-4). */
 export const MOBILE_MIN_COLUMNS = 3;
+/** Filename/date/rating details need a wider cell than image-only browsing. */
+export const MOBILE_DETAILS_MIN_COLUMNS = 2;
 
 /**
  * Smallest card the thumbnail slider may ask for on a touch device.
@@ -64,10 +66,10 @@ export const MOBILE_MIN_CARD_WIDTH_PX = 72;
 
 /** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces,
  * floored to MOBILE_MIN_COLUMNS when isDesktop is false. */
-export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true): number {
-  if (width <= 0) return isDesktop ? 1 : MOBILE_MIN_COLUMNS;
+export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true, mobileMinimum = MOBILE_MIN_COLUMNS): number {
+  if (width <= 0) return isDesktop ? 1 : mobileMinimum;
   const cols = Math.max(1, Math.floor((width + gap) / (cardMinW + gap)));
-  return isDesktop ? cols : Math.max(MOBILE_MIN_COLUMNS, cols);
+  return isDesktop ? cols : Math.max(mobileMinimum, cols);
 }
 
 /**
@@ -86,7 +88,7 @@ export function buildGridRows(
   isDesktop = true,
 ): GalleryRow[] {
   if (!photos.length || width <= 0) return [];
-  const cols = gridColumnCount(width, cardMinW, gap, isDesktop);
+  const cols = gridColumnCount(width, cardMinW, gap, isDesktop, hideDetails ? MOBILE_MIN_COLUMNS : MOBILE_DETAILS_MIN_COLUMNS);
   const cellW = (width - (cols - 1) * gap) / cols;
 
   const rows: GalleryRow[] = [];

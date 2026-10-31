@@ -81,7 +81,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
 import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import {
   GalleryRow, aspectOf, buildGridRows, buildMosaicRows,
-  gridColumnCount, totalRowsHeight, windowRange,
+  gridColumnCount, totalRowsHeight, windowRange, MOBILE_MIN_COLUMNS, MOBILE_DETAILS_MIN_COLUMNS,
 } from './gallery-rows.util';
 import { noticeLiftPx } from './selection-bar-layout.util';
 import { GalleryFilters, activeFilterKeys, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage } from './gallery-filters.util';
@@ -3315,7 +3315,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */
   private gridColumns(): number {
     const width = this.containerWidth() - (this.isDesktop() ? 32 : 16);
-    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP, this.isDesktop());
+    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP, this.isDesktop(), this.effectiveHideDetails() ? MOBILE_MIN_COLUMNS : MOBILE_DETAILS_MIN_COLUMNS);
   }
 
   /** Vertical step for the active index: grid = ±columns, mosaic = same offset in adjacent row. */

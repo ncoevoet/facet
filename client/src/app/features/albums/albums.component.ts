@@ -8,6 +8,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatMenuModule } from '@angular/material/menu';
 import { firstValueFrom } from 'rxjs';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -36,7 +37,7 @@ import { onPageQuery } from '../../shared/utils/page-query';
   imports: [
     RouterLink, MatButtonModule, MatIconModule, MatFormFieldModule, MatInputModule,
     MatSelectModule, MatDialogModule, MatTooltipModule,
-    MatProgressSpinnerModule,
+    MatProgressSpinnerModule, MatMenuModule,
     TranslatePipe, ThumbnailUrlPipe, InfiniteScrollDirective,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -70,6 +71,7 @@ import { onPageQuery } from '../../shared/utils/page-query';
       }
     </ng-template>
 
+    <h1 class="m-0 mb-4 text-lg font-medium text-[var(--mat-sys-on-surface)]">{{ 'albums.title' | translate }}</h1>
     @if (loading() && albums().length === 0) {
       <div class="flex justify-center py-16">
         <mat-spinner diameter="48" [attr.aria-label]="'ui.labels.loading' | translate" />
@@ -83,103 +85,103 @@ import { onPageQuery } from '../../shared/utils/page-query';
       </div>
     }
 
-    <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+    <div class="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5">
       @for (album of albums(); track album.id) {
+        <article class="min-w-0">
         <a [routerLink]="['/album', album.id]"
-           class="group flex flex-col rounded-xl overflow-hidden bg-[var(--mat-sys-surface-container)] hover:shadow-lg transition-shadow cursor-pointer">
+           class="group block min-w-0 rounded-sm overflow-hidden cursor-pointer text-[var(--mat-sys-on-surface)]">
           @if (album.first_photo_path) {
             <div class="relative w-full aspect-[4/3] overflow-hidden">
               <img [src]="album.first_photo_path | thumbnailUrl:320:album.preview_revision"
                    [alt]="album.name"
-                   class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
-              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
-                <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
-                @if (album.is_smart) {
-                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
-                            [matTooltip]="'albums.smart_tooltip' | translate"
-                            [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
-                }
-              </div>
+                   class="w-full h-full object-cover" />
             </div>
           } @else {
             <div class="relative w-full aspect-[4/3] flex items-center justify-center bg-[var(--mat-sys-surface-container-high)]">
               <mat-icon class="!text-4xl !w-10 !h-10 opacity-30">photo_library</mat-icon>
-              <div class="absolute inset-x-0 top-0 z-[5] flex items-start gap-1 bg-gradient-to-b from-black/70 to-transparent px-2 pt-1.5 pb-4 pointer-events-none">
-                <span class="text-white text-xs font-medium truncate">{{ album.name }}</span>
-                @if (album.is_smart) {
-                  <mat-icon class="!text-xs !w-3 !h-3 !leading-3 text-white/80 shrink-0 pointer-events-auto"
-                            [matTooltip]="'albums.smart_tooltip' | translate"
-                            [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
-                }
-              </div>
             </div>
           }
-          <div class="p-3 flex items-start gap-1">
+          <div class="pt-2 flex items-start gap-2">
             <div class="flex-1 min-w-0">
+              <h2 class="m-0 truncate text-sm font-medium" [title]="album.name">{{ album.name }}</h2>
               @if (album.description) {
-                <div class="text-xs opacity-60 truncate">{{ album.description }}</div>
+                <div class="text-xs text-[var(--mat-sys-on-surface-variant)] truncate">{{ album.description }}</div>
               }
             </div>
-            <div class="flex items-center shrink-0">
+            @if (album.is_smart) {
+              <mat-icon class="!text-base !w-4 !h-4 shrink-0 text-[var(--mat-sys-on-surface-variant)]"
+                        [matTooltip]="'albums.smart_tooltip' | translate"
+                        [attr.aria-label]="'albums.smart_tooltip' | translate">auto_awesome</mat-icon>
+            }
+          </div>
+        </a>
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs tabular-nums text-[var(--mat-sys-on-surface-variant)]">{{ 'albums.photos_count' | translate:{ count: album.photo_count } }}</span>
+              @if (!album.is_smart || auth.isEdition()) {
+                <button mat-icon-button [matMenuTriggerFor]="albumActions"
+                        [id]="'album-actions-' + album.id"
+                        [attr.aria-label]="('nav.more' | translate) + ': ' + album.name"><mat-icon>more_horiz</mat-icon></button>
+              }
+            </div>
+            <mat-menu #albumActions="matMenu">
               @if (!album.is_smart) {
-                <button mat-icon-button
+                <button mat-menu-item
                         [matTooltip]="'albums.scenes' | translate"
                         [attr.aria-label]="'albums.scenes' | translate"
                         (click)="openScoped($event, '/scenes', album)">
-                  <mat-icon class="opacity-60">movie_filter</mat-icon>
+                  <mat-icon>movie_filter</mat-icon>{{ 'albums.scenes' | translate }}
                 </button>
               }
               @if (auth.isEdition()) {
                 @if (!album.is_smart && proofingEnabled()) {
-                  <button mat-icon-button
+                  <button mat-menu-item
                           [matTooltip]="'proofing.client_picks' | translate"
                           [attr.aria-label]="'proofing.client_picks' | translate"
                           (click)="openClientPicks($event, album)">
-                    <mat-icon class="opacity-60">how_to_vote</mat-icon>
+                    <mat-icon>how_to_vote</mat-icon>{{ 'proofing.client_picks' | translate }}
                   </button>
                 }
-                <button mat-icon-button
+                <button mat-menu-item
                         [matTooltip]="'albums.cull' | translate"
                         [attr.aria-label]="'albums.cull' | translate"
                         (click)="openScoped($event, '/culling', album)">
-                  <mat-icon class="opacity-60">auto_delete</mat-icon>
+                  <mat-icon>auto_delete</mat-icon>{{ 'albums.cull' | translate }}
                 </button>
                 @if (!album.is_smart && portfolioEnabled()) {
-                  <button mat-icon-button
+                  <button mat-menu-item
                           [matTooltip]="'albums.portfolio' | translate"
                           [attr.aria-label]="'albums.portfolio' | translate"
                           (click)="exportPortfolio($event, album)">
-                    <mat-icon class="opacity-60">web</mat-icon>
+                    <mat-icon>web</mat-icon>{{ 'albums.portfolio' | translate }}
                   </button>
                 }
-                <button mat-icon-button
+                <button mat-menu-item
                         [matTooltip]="'albums.scoring_context.action' | translate"
                         [attr.aria-label]="'albums.scoring_context.action' | translate"
                         (click)="openScoringContext($event, album)">
-                  <mat-icon class="opacity-60">tune</mat-icon>
+                  <mat-icon>tune</mat-icon>{{ 'albums.scoring_context.action' | translate }}
                 </button>
-                <button mat-icon-button
+                <button mat-menu-item
                         [matTooltip]="'albums.edit' | translate"
                         [attr.aria-label]="'albums.edit' | translate"
                         (click)="editAlbum($event, album)">
-                  <mat-icon class="opacity-60">edit</mat-icon>
+                  <mat-icon>edit</mat-icon>{{ 'albums.edit' | translate }}
                 </button>
-                <button mat-icon-button
+                <button mat-menu-item
                         [matTooltip]="'albums.share' | translate"
                         [attr.aria-label]="'albums.share' | translate"
                         (click)="shareAlbum($event, album)">
-                  <mat-icon class="opacity-60">{{ album.is_shared ? 'link' : 'share' }}</mat-icon>
+                  <mat-icon>{{ album.is_shared ? 'link' : 'share' }}</mat-icon>{{ 'albums.share' | translate }}
                 </button>
-                <button mat-icon-button
+                <button mat-menu-item
                         [matTooltip]="'albums.delete' | translate"
                         [attr.aria-label]="'albums.delete' | translate"
                         (click)="deleteAlbum($event, album)">
-                  <mat-icon class="opacity-60">delete</mat-icon>
+                  <mat-icon>delete</mat-icon>{{ 'albums.delete' | translate }}
                 </button>
               }
-            </div>
-          </div>
-        </a>
+            </mat-menu>
+        </article>
       }
     </div>
 
@@ -300,15 +302,14 @@ export class AlbumsComponent {
   /** Open scenes/culling scoped to this album (card is an anchor — stop its nav). */
   protected openScoped(event: Event, path: string, album: Album): void {
     event.preventDefault();
-    event.stopPropagation();
     void this.router.navigate([path], { queryParams: { album: album.id } });
   }
 
   protected async editAlbum(event: Event, album: Album): Promise<void> {
     event.preventDefault();
-    event.stopPropagation();
     const updated = await firstValueFrom(this.dialog.open(EditAlbumDialogComponent, {
       data: { album },
+      restoreFocus: `#album-actions-${album.id}`,
       width: '400px',
     }).afterClosed());
     if (updated) {
@@ -318,8 +319,8 @@ export class AlbumsComponent {
 
   protected async deleteAlbum(event: Event, album: Album): Promise<void> {
     event.preventDefault();
-    event.stopPropagation();
     const ref = this.dialog.open(ConfirmDialogComponent, {
+      restoreFocus: `#album-actions-${album.id}`,
       data: {
         title: this.i18n.t('albums.confirm_delete_title'),
         message: this.i18n.t('albums.confirm_delete_message', { name: album.name }),
@@ -335,8 +336,8 @@ export class AlbumsComponent {
 
   protected async openScoringContext(event: Event, album: Album): Promise<void> {
     event.preventDefault();
-    event.stopPropagation();
     const newContext: string | null | undefined = await firstValueFrom(this.dialog.open(AlbumScoringContextDialogComponent, {
+      restoreFocus: `#album-actions-${album.id}`,
       data: { albumId: album.id, albumName: album.name, currentContext: album.scoring_context } satisfies AlbumScoringContextDialogData,
       width: '95vw',
       maxWidth: '32rem',
@@ -349,8 +350,8 @@ export class AlbumsComponent {
 
   protected exportPortfolio(event: Event, album: Album): void {
     event.preventDefault();
-    event.stopPropagation();
     this.dialog.open(PortfolioExportDialogComponent, {
+      restoreFocus: `#album-actions-${album.id}`,
       data: { albumId: album.id, albumName: album.name } satisfies PortfolioExportDialogData,
       width: '460px',
     });
@@ -358,8 +359,8 @@ export class AlbumsComponent {
 
   protected openClientPicks(event: Event, album: Album): void {
     event.preventDefault();
-    event.stopPropagation();
     this.dialog.open(ClientPicksDialogComponent, {
+      restoreFocus: `#album-actions-${album.id}`,
       data: { albumId: album.id, albumName: album.name } satisfies ClientPicksDialogData,
       width: '480px',
     });
@@ -367,8 +368,8 @@ export class AlbumsComponent {
 
   protected async shareAlbum(event: Event, album: Album): Promise<void> {
     event.preventDefault();
-    event.stopPropagation();
     await firstValueFrom(this.dialog.open(ShareDialogComponent, {
+      restoreFocus: `#album-actions-${album.id}`,
       data: {
         entityType: 'album',
         entityId: album.id,

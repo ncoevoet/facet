@@ -3793,14 +3793,28 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
   it('closes the darkroom on Escape from the header controls', () => {
     openDarkroom();
-    const legendButton: HTMLElement = fixture.debugElement
-      .query(By.css('[aria-label="culling.legend.label"]')).nativeElement;
-    legendButton.focus();
+    const viewButton: HTMLElement = fixture.debugElement
+      .query(By.css('[aria-label="culling.compare.single"]')).nativeElement;
+    viewButton.focus();
 
-    legendButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    viewButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
 
     expect(component['lightboxGroup']()).toBeNull();
+  });
+
+  it('closes Inspect before the darkroom on Escape and returns focus to its summary', () => {
+    openDarkroom();
+    const tools = fixture.nativeElement.querySelector('[data-darkroom-tools]') as HTMLDetailsElement;
+    const summary = tools.querySelector('summary')!;
+    tools.open = true;
+    const legend = tools.querySelector('[aria-label="culling.legend.label"]') as HTMLButtonElement;
+    legend.focus();
+    legend.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(tools.open).toBe(false);
+    expect(component['lightboxGroup']()).not.toBeNull();
+    expect(document.activeElement).toBe(summary);
   });
 
   // Escape is acted on at the shield rather than let through it: the page's cull

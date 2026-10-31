@@ -15,6 +15,7 @@ describe('BatchRatingDialogComponent', () => {
     data.paths.push('/later');
     expect(fixture.componentInstance.data.paths).toEqual(['/a', '/b', '/offscreen']);
     const select: HTMLSelectElement = fixture.nativeElement.querySelector('select');
+    expect(select.value).toBe('4');
     select.value = '0'; select.dispatchEvent(new Event('change')); fixture.detectChanges();
     expect(fixture.nativeElement.querySelector('[data-rating-plan]').textContent).toContain('clear_plan');
     expect(close).not.toHaveBeenCalled();
