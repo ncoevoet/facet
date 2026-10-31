@@ -235,9 +235,13 @@ export class ExportEditorDialogComponent {
     this.destroyRef.onDestroy(() => this.detach());
     this.dialogRef.beforeClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => this.detach());
     effect(() => {
+      // Status revalidation can rotate a token without changing identity or
+      // edition. Retire this captured session instead of leaving busy controls
+      // behind when current() rejects its pending completions.
+      this.auth.status();
       const identity = this.auth.identity();
       const edition = this.auth.isEdition();
-      if (identity !== this.owner || !edition) untracked(() => {
+      if (identity !== this.owner || !edition || this.auth.token !== this.token) untracked(() => {
         this.job.set(null);
         this.recentJobs.set([]);
         this.errorDetail.set(null);

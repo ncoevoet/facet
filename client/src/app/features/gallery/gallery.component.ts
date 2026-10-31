@@ -281,7 +281,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
-          <p class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
+          <p role="status" class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
             @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
@@ -329,7 +329,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
         <!-- Pinned-list chip: the assistant's ui_show_photos list replaces the filtered
              view; this is the way back to it (any filter change drops the list too). -->
         @if (store.pinnedPaths() !== null) {
-          <div role="status" class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <div data-pinned-summary role="status" class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <mat-icon class="opacity-70 !text-base !w-5 !h-5">auto_awesome</mat-icon>
             <span class="min-w-[12rem] flex-1">
               {{ store.total() | pluralKey:I18N.gallery.pinned.chip:I18N.gallery.pinned.chip_plural | translate:{ count: store.total() } }}

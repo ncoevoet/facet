@@ -27,7 +27,7 @@ describe('ExportEditorDialogComponent', () => {
     TestBed.configureTestingModule({
       providers: [
         { provide: ExportService, useValue: { exportAlbum, startSidecarJob, recentSidecarJobs: () => of([]) } },
-        { provide: AuthService, useValue: { identity: () => 'alice', isEdition: () => true } },
+        { provide: AuthService, useValue: { status: signal(null), identity: () => 'alice', isEdition: () => true } },
         { provide: Router, useValue: { url: '/', events: NEVER } },
         { provide: ApiService, useValue: { post: apiPost } },
         { provide: MatSnackBar, useValue: { open: snackBarOpen } },

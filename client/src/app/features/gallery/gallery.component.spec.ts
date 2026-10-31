@@ -277,6 +277,45 @@ describe('GalleryComponent', () => {
     expect(ref.close).toHaveBeenCalled(); expect(mockStore.batchRatingPaths).not.toHaveBeenCalled();
   });
 
+  it('applies captured rating membership and wires rating-only Undo while preserving a newer selection', async () => {
+    (mockAuth['isEdition'] as Mock).mockReturnValue(true);
+    const paths = ['/rating-a.jpg', '/rating-b.jpg'];
+    mockStore.selectedPaths.set(new Set(paths)); mockStore.selectionCount.set(2);
+    mockStore.photos.set(paths.map((path, index) => ({ path, filename: path, star_rating: index * 4 })));
+    const snapshot = new Map(paths.map((path, index) => [path, {
+      is_favorite: false, is_rejected: false, is_kept: false, star_rating: index * 4,
+    }]));
+    let completeWrite!: (result: { snapshot: typeof snapshot; targeted: number; count: number }) => void;
+    mockStore.batchRatingPaths = vi.fn(() => new Promise(resolve => { completeWrite = resolve; }));
+    mockStore.restoreRatingSnapshot = vi.fn().mockResolvedValue(true);
+    const register = vi.spyOn(TestBed.inject(UndoService), 'register').mockImplementation(() => {});
+    const closed = new Subject<number | undefined>();
+    const open = TestBed.inject(MatDialog).open as Mock;
+    open.mockReturnValue({ afterClosed: () => closed, close: vi.fn() });
+
+    const operation = component['batchRate'](3);
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    expect(open.mock.calls[0][1].data).toEqual(expect.objectContaining({
+      paths, rating: 3, loaded: 2, wholeView: false,
+      observed: [{ rating: 0, count: 1 }, { rating: 4, count: 1 }],
+    }));
+    expect(mockStore.batchRatingPaths).not.toHaveBeenCalled();
+    closed.next(3); closed.complete();
+    await vi.waitFor(() => expect(mockStore.batchRatingPaths).toHaveBeenCalledWith(paths, 3));
+    mockStore.selectedPaths.set(new Set(['/newer.jpg'])); mockStore.selectionCount.set(1);
+    completeWrite({ snapshot, targeted: 2, count: 2 }); await operation;
+
+    expect(mockStore.selectedPaths()).toEqual(new Set(['/newer.jpg']));
+    expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
+      labelKey: 'gallery.selection.batch_rated', labelParams: { count: 2, rating: 3 },
+    }));
+    await register.mock.calls[0][0].undo();
+    expect(mockStore.restoreRatingSnapshot).toHaveBeenCalledWith(snapshot, 3);
+    expect([...mockStore.restoreSelection.mock.calls[0][0]]).toEqual(paths);
+    expect(mockStore.restoreSnapshot).not.toHaveBeenCalled();
+  });
+
   it('owns matching/group counts and shows exact item totals for an assistant-pinned list', () => {
     vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation((key, params) => {
       if (key === I18N.gallery.photo_count) return `${params?.['count']} photos`;
@@ -289,10 +328,14 @@ describe('GalleryComponent', () => {
     fixture.detectChanges();
     const header = fixture.nativeElement.querySelector('[data-collection-header]') as HTMLElement;
     expect(header.textContent).toContain('4 photos / 2 groups');
+    const status = header.querySelector('[role="status"]');
+    expect(status?.textContent).toContain('4 photos / 2 groups');
     mockStore.pinnedPaths.set(['/a.jpg', '/b.jpg']);
     fixture.detectChanges();
     expect(header.textContent).toContain('2 photos');
     expect(header.textContent).not.toContain('4 photos');
+    expect(header.querySelector('[role="status"]')).toBe(status);
+    expect(status?.textContent).toContain('2 photos');
     fixture.destroy();
   });
 
@@ -1498,7 +1541,7 @@ describe('GalleryComponent', () => {
       mockAuth['hasFeature'] = vi.fn(() => false);
       fixture = TestBed.createComponent(GalleryComponent);
       fixture.detectChanges();
-      const chip = (fixture.nativeElement as HTMLElement).querySelector('[role="status"]')!;
+      const chip = (fixture.nativeElement as HTMLElement).querySelector('[data-pinned-summary][role="status"]')!;
       expect(chip.querySelectorAll('button')).toHaveLength(1);
       expect(chip.querySelector('[data-testid="pinned-review-legend"], [data-testid="copy-for-assistant"], [data-testid="apply-my-marks"], [data-testid="applied-menu"]')).toBeNull();
     });
@@ -5339,7 +5382,7 @@ describe('GalleryComponent', () => {
     it('renders the decision counts and completion for the scope', () => {
       mockStore.reviewProgress.set({ total: 10, undecided: 6, kept: 3, rejected: 1 });
       mockStore.reviewPercent.set(40);
-      const status = render().querySelector('[role="status"]') as HTMLElement;
+      const status = render().querySelector('[data-review-progress] [role="status"]') as HTMLElement;
       expect(status.textContent).toContain(`${I18N.gallery.review_progress.counts} ${JSON.stringify({ undecided: 6, kept: 3, rejected: 1 })}`);
       expect(status.textContent).toContain(`${I18N.gallery.review_progress.complete} ${JSON.stringify({ percent: 40, total: 10 })}`);
     });

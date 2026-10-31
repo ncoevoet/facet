@@ -39,7 +39,7 @@ describe('Export editor background jobs with HttpClient', () => {
     close = vi.fn(); snack = vi.fn();
     TestBed.configureTestingModule({ imports: [ExportEditorDialogComponent], providers: [
       ApiService, ExportService, provideHttpClient(withXhr()), provideHttpClientTesting(),
-      { provide: AuthService, useValue: { get token() { return token; }, identity: computed(() => session().user), isEdition: computed(() => session().edition) } },
+      { provide: AuthService, useValue: { status: session, get token() { return token; }, identity: computed(() => session().user), isEdition: computed(() => session().edition) } },
       { provide: Router, useValue: { url: '/', events } },
       { provide: MAT_DIALOG_DATA, useValue: data },
       { provide: MatDialogRef, useValue: { close, beforeClosed: () => beforeClosed } },
@@ -105,6 +105,22 @@ describe('Export editor background jobs with HttpClient', () => {
     await retry; fixture!.detectChanges();
     expect(component.job()?.id).toBe('repair');
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it('closes a pending receipts read after same-owner token rotation, but retains stable-token revalidation', async () => {
+    build({ receiptsOnly: true }, false);
+    const request = http.expectOne('/api/export/sidecar_jobs');
+    session.update(value => ({ ...value, revision: 2 })); TestBed.tick();
+    expect(close).not.toHaveBeenCalled();
+    expect(request.cancelled).toBe(false);
+    token = 'session-b';
+    session.update(value => ({ ...value, revision: 3 })); TestBed.tick();
+    await flushMicrotasks(2);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(request.cancelled).toBe(true);
+    expect(component.recentLoading()).toBe(false);
+    await component.loadRecent(); await component.run();
+    http.expectNone('/api/export/sidecar_jobs');
   });
 
   it('captures export scope and refuses a retry after same-owner token rotation', async () => {
