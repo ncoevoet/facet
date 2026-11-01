@@ -326,7 +326,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           </div>
           </div>
           <div class="mt-1 flex flex-wrap items-center justify-between gap-x-1 gap-y-1 md:gap-x-4">
-            <app-gallery-criteria #collectionCriteria [portShortcuts]="!isDesktop()" class="order-3 w-full min-w-0 flex-1 md:order-none md:w-auto" />
+            <app-gallery-criteria #collectionCriteria [portShortcuts]="!isDesktop()" class="order-3 w-full min-w-0 flex-none md:order-none md:w-auto md:flex-1" />
             @if (!isDesktop()) {
               <div data-mobile-collection-controls class="flex min-w-0 flex-1 items-center gap-0.5">
                 <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />

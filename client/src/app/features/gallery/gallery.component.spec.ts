@@ -320,17 +320,23 @@ describe('GalleryComponent', () => {
   it('owns matching/group counts and shows exact item totals for an assistant-pinned list', () => {
     vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation((key, params) => {
       if (key === I18N.gallery.photo_count) return `${params?.['count']} photos`;
+      if (key === I18N.gallery.collection_totals_compact) return `${params?.['photos']} matching, ${params?.['items']} displayed`;
       if (key === I18N.stacks.totals) return `${params?.['photos']} photos / ${params?.['items']} groups`;
       return key;
     });
     mockStore.total.set(2);
     mockStore.photoTotal = signal(4);
     const fixture = TestBed.createComponent(GalleryComponent);
+    const desktop = signal(true);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: desktop });
     fixture.detectChanges();
     const header = fixture.nativeElement.querySelector('[data-collection-header]') as HTMLElement;
     expect(header.textContent).toContain('4 photos / 2 groups');
     const status = header.querySelector('[role="status"]');
     expect(status?.textContent).toContain('4 photos / 2 groups');
+    desktop.set(false); fixture.detectChanges();
+    expect(status?.textContent).toContain('4 matching, 2 displayed');
+    expect(header.querySelector('[role="status"]')).toBe(status);
     mockStore.pinnedPaths.set(['/a.jpg', '/b.jpg']);
     fixture.detectChanges();
     expect(header.textContent).toContain('2 photos');

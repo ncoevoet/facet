@@ -131,7 +131,8 @@ describe('manual activity from rendered gallery menus and stacks', () => {
     await refresh.mock.results[0].value;
     await routed.fixture.whenStable(); routed.detectChanges();
     expect(journal.since(cursor).items.filter(item => item.kind === 'stack')).toEqual([expect.objectContaining({ kind: 'stack', paths: selected.map(photo => photo.path), value: 'create' })]);
-    expect(routed.routeNativeElement!.textContent).toContain('stacks.totals');
+    expect(routed.routeNativeElement!.textContent).toContain('gallery.collection_totals_compact {"photos":4,"items":2}');
+    expect(store.photoTotal()).toBe(4); expect(store.total()).toBe(2);
     expect(store.selectedPaths().size).toBe(0);
     expect(routed.routeNativeElement!.textContent).not.toContain('gallery.selection.view_scope_offer');
     const cards = [...(routed.routeNativeElement as HTMLElement).querySelectorAll('app-photo-card [role=button]')];
