@@ -4,6 +4,16 @@
 
 La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer, trier et gérer vos photos.
 
+Le menu hamburger regroupe les destinations et les modes Masquée, Compacte et Épinglée. Il n’y a ni bouton Épingler séparé ni rangée de destinations dupliquée. La barre latérale visible remplace la barre supérieure sur ordinateur et place le compte en bas. Compacte se développe au survol ou au focus au-dessus des photos sans réserver plus de largeur. Masquée et sur téléphone, toutes les destinations restent dans le menu. Les outils restent avec leur contenu.
+
+L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques. Tri, sens, Filtres, informations photo et diaporama forment un seul groupe de collection sur ordinateur et téléphone. Compte, Édition et analyse autorisée restent dans la zone de navigation globale ; la galerie n’a plus de barre inférieure en double. Ouvrir une photo ferme les menus de collection et suspend leurs commandes jusqu’au retour.
+
+**Dispositions de travail.** Affichage → Parcourir utilise une mosaïque compacte avec informations au survol (au clic sur les écrans étroits). Examiner utilise de grandes vignettes en grille avec détails et inspection au clic (panneau latéral si la largeur le permet). Organiser utilise une grille plus dense avec détails et informations au clic. Seuls disposition, taille, détails et inspection changent ; requête, tri, album, sélection et page chargée restent identiques. Rétablir l’affichage par défaut restaure la présentation configurée sans réinitialiser les filtres. Une disposition n’est plus cochée si des réglages manuels ne lui correspondent plus.
+
+**Critères de la collection.** Les critères de métadonnées et de recherche visuelle restent sous la requête lorsque le panneau est fermé. Chaque retrait est nommé ; effacer une plage retire ses deux bornes ensemble. La recherche visuelle explique la combinaison similarité, filtres et tri. Favoris conserve les autres critères. Les filtres de décision quittent la recherche visuelle ; Indécis trie par date de prise de vue, les plus anciennes d’abord, comme indiqué avant le choix. Les règles de visibilité indiquent les masquages et représentants de groupes effectifs ; celles neutralisées par un filtre Uniquement ne sont pas présentées comme actives. Une liste fixe demande de revenir à la vue habituelle avant de modifier les critères.
+
+Échap revient par l’historique depuis une photo ouverte dans la galerie, en conservant le contexte. Une photo ouverte directement revient à la requête enregistrée au lieu de quitter l’application. Un dialogue ou éditeur ouvert traite Échap en premier.
+
 ## Sommaire
 
 - [Démarrer la visionneuse](#démarrer-la-visionneuse) · [Authentification](#authentification) · [Options de filtrage](#options-de-filtrage) · [Tri](#tri) · [Décisions de tri](#décisions-de-tri) · [Fonctionnalités de la galerie](#fonctionnalités-de-la-galerie)
@@ -141,7 +151,7 @@ La recherche textuelle de la galerie conserve les mots Unicode et traite la ponc
 
 ### Onglets de la barre latérale
 
-La barre latérale de filtres regroupe ses sections en cinq onglets, affichés sous forme d'icônes (survolez pour voir le nom). Un petit badge sur une icône compte les filtres actifs de l'onglet, et l'onglet garde son nom pour les lecteurs d'écran (« Parcourir, 2 actif(s) »). Le dernier onglet utilisé est mémorisé dans ce navigateur (`facet_sidebar_tab`). Parcourir, Qualité et Sujet ont des panneaux repliables, chacun mémorisant s'il est ouvert ; Tri et Affichage n'en ont pas.
+La barre latérale de filtres regroupe ses sections en cinq onglets, affichés avec icônes et libellés (survolez pour voir le nom complet). Un petit badge sur une icône compte les filtres actifs de l'onglet, et l'onglet garde son nom pour les lecteurs d'écran (« Parcourir, 2 actif(s) »). Le dernier onglet utilisé est mémorisé dans ce navigateur (`facet_sidebar_tab`). Parcourir, Qualité et Sujet ont des panneaux repliables, chacun mémorisant s'il est ouvert ; Tri et Affichage n'en ont pas.
 
 | Onglet | Sections |
 |--------|----------|
@@ -315,6 +325,10 @@ Dans le détail de la photo, les métriques sont réparties en onglets à icône
 
 Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage. Une barre d'actions apparaît en bas à gauche avec des boutons à icônes (survolez pour voir les libellés). Les actions groupées nécessitent le mode édition.
 
+La bande de miniatures identifie la référence et permet de choisir directement une candidate. Le volet actif est signalé séparément. Retirer de la comparaison ne change que cette vue, jamais Garder/Rejeter ni la sélection de galerie ; Restaurer rétablit les photos retirées. Une photo restante reste consultable. Avec détails, la grille ajuste toute la photo dans un cadre uniforme 4:3 ; Mosaïque conserve ses rangées justifiées.
+
+La barre compte les photos sélectionnées hors des vignettes chargées ; les actions concernent toute la sélection explicite. Les exclusions de toute la vue apparaissent séparément. Comparer nécessite 2 à 4 photos explicitement sélectionnées et toutes chargées, sans ouvrir silencieusement une sélection partielle.
+
 - **Favori** — marque toutes les photos comme favorites (efface le rejet)
 - **Rejeter** — marque toutes les photos comme rejetées (efface le favori et la note)
 - **Noter** — définit ou efface une note de 1 à 5 étoiles
@@ -322,7 +336,7 @@ Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage
 - **Modifier les mots-clés** — ajoute ou retire un [tag manuel](#tags-manuels) sur chaque photo sélectionnée
 - **Tout sélectionner** — avec une sélection vide, sélectionne toutes les photos que les filtres retiennent, pas seulement les pages chargées. Avec des photos déjà sélectionnées, ajoute les photos chargées et propose d'élargir à toute la vue. Les actions sur toute la vue confirment d'abord le nombre exact de photos.
 - **Inverser** — remplace la sélection par son complément. À partir d'une sélection vide, c'est toute la vue. À partir d'une sélection non vide, cela reste dans les photos chargées : choisissez les gardées, inversez, rejetez.
-- **Comparer** — ouvre 2 à 4 photos côte à côte avec panoramique et zoom synchronisés (molette pour zoomer, glisser pour déplacer, double-clic pour réinitialiser). Les volets passent en pleine résolution au zoom.
+- **Comparer** — ouvre 2 à 4 photos sélectionnées côte à côte. Le bouton épingle change la référence sans modifier les notes ni les décisions. L’inspection est liée au départ ; déliez pour cadrer chaque volet séparément. Relier conserve chaque cadrage. Les gestes liés appliquent le même rapport de zoom et déplacement en pixels à toutes les candidates, même hors de Deux vues ; la première limite arrête le groupe. Réinitialiser ajuste toutes les photos au cadre. Molette pour zoomer, glisser pour déplacer, double-clic pour basculer le grossissement. Réinitialiser ajuste toute la comparaison au cadre. Le mouvement lié n’aligne pas les sujets. Chaque volet indique le chargement, la disponibilité ou l’échec de l’aperçu détaillé (la miniature est conservée) ; le zoom peut demander la pleine résolution. Avec trois ou quatre photos, Deux vues garde la référence visible tandis que Précédente/Suivante parcourt les candidates. Promouvoir une candidate place l’ancienne référence dans le volet candidat. Désactiver Deux vues rétablit tous les volets.
 - **Copier les noms** — copie les noms de fichiers dans le presse-papiers. Une copie de toute la vue demande d'abord confirmation ; au-delà de 10 000 photos, elle est refusée.
 - **Exporter** — écrit des sidecars XMP à côté des fichiers (voir [Export vers éditeur](#export-vers-éditeur))
 - **Trier vers un dossier** — copie les gardées, ou déplace/met à la corbeille les rejetées, vers un dossier (voir [Trier vers un dossier](#trier-vers-un-dossier))
@@ -534,7 +548,7 @@ Lancez un scan depuis le navigateur. Le bouton Scan apparaît quand **les deux**
 
 Sur une installation mono-utilisateur ouverte (`viewer.edition_password` vide, valeur par défaut), personne ne peut lancer de scan depuis le navigateur. Exception : avec `viewer.trusted_local_editing`, une session de navigateur local de confiance, ou un assistant local avec un jeton Édition complète, peut lancer un scan sans `show_scan_button` ni mot de passe d'édition.
 
-Le bouton se trouve sur la galerie vide (**Lancer un scan pour commencer**) et à la fin de l'en-tête (**Scanner de nouvelles photos** ; barre du bas sur petits écrans). Les deux ouvrent le lanceur de scan :
+La galerie vide propose **Lancer un scan pour commencer**. **Scanner de nouvelles photos** est aussi disponible dans la zone de navigation globale à toute largeur. Les deux ouvrent le lanceur de scan :
 
 - Choisissez un répertoire dans la liste et lancez le scan.
 - La progression en direct et les lignes de sortie défilent dans la boîte de dialogue. La galerie se rafraîchit à la fin du scan.
@@ -1139,7 +1153,7 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 
 **Réassigner les touches.** `K`, `F`, `X`, `/`, `B`, `V` et `S` sont les valeurs par défaut. Menu utilisateur → **Personnaliser les raccourcis** vous permet de cliquer sur une action et d'appuyer sur une nouvelle touche (`Esc` ou `Tab` annule). Les chiffres, `Space` et `?` sont réservés, et une touche déjà utilisée est refusée. **Tout réinitialiser** restaure les valeurs par défaut. L'association est enregistrée par navigateur (`localStorage`). La page de photo utilise les mêmes touches, et la référence `?` montre toujours les touches en vigueur.
 
-**Photo courante.** La photo sur laquelle agissent les touches de note, de favori et de rejet a un contour de 4 px ; les autres cartes sont atténuées à 50 %. Rien n'est marqué tant que vous ne vous placez pas sur une photo. Cliquer sur une photo y déplace le repère. Revenir d'une photo laisse le repère sur la dernière consultée. L'indication de carte ciblée n'apparaît qu'en mode édition avec `viewer.features.show_rating_controls` activé.
+**Photo courante.** La photo sur laquelle agissent les touches de note, de favori et de rejet a un contour de 4 px ; les autres cartes conservent leur luminosité normale. Rien n'est marqué tant que vous ne vous placez pas sur une photo. Cliquer sur une photo y déplace le repère. Revenir d'une photo laisse le repère sur la dernière consultée. L'indication de carte ciblée n'apparaît qu'en mode édition avec `viewer.features.show_rating_controls` activé.
 
 **Sur la page de photo**, `1`–`5`, la touche de favori et la touche de rejet (`F` et `X` par défaut ; `0` rejette aussi) agissent sur la photo ouverte, en mode édition avec `viewer.features.show_rating_controls` activé. Elles n'avancent pas ; utilisez `←` `→`. La référence `?` les liste sous *Vue photo*.
 

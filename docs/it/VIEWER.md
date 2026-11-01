@@ -4,6 +4,16 @@
 
 La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare e gestire le tue foto.
 
+Il menu hamburger contiene tutte le destinazioni e le modalità Nascosta, Compatta e Fissa. Non ci sono un pulsante Fissa separato o una riga duplicata di destinazioni. La barra laterale visibile sostituisce quella superiore sul desktop e ospita i comandi dell’account in basso. Compatta si espande al passaggio del puntatore o al focus sopra le foto senza riservare altra larghezza. Quando è nascosta e sui telefoni, il menu offre tutte le destinazioni. Gli strumenti restano con il contenuto.
+
+L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate. Ordinamento, direzione, Filtri, informazioni foto e presentazione formano un unico gruppo della raccolta su desktop e telefono. Account, Modifica e scansione autorizzata restano nell’area di navigazione globale; la galleria non duplica una barra inferiore. Aprire una foto chiude i menu della raccolta e sospende i comandi fino al ritorno.
+
+**Viste di lavoro.** Vista → Sfoglia usa un mosaico compatto con informazioni al passaggio del puntatore (al clic sugli schermi stretti). Rivedi usa riquadri più grandi con dettagli e ispezione al clic (pannello laterale sugli schermi ampi). Organizza usa una griglia più densa con dettagli e informazioni al clic. Cambiano solo layout, dimensioni, dettagli e ispezione; query, ordinamento, album, selezione e pagina caricata restano invariati. Ripristina la vista predefinita ripristina la presentazione configurata senza azzerare i filtri. Nessuna vista è selezionata se le regolazioni manuali non corrispondono più.
+
+**Criteri della raccolta.** I criteri dei metadati e della ricerca visiva restano sotto la query quando il pannello viene chiuso. Ogni rimozione ha un nome accessibile; cancellare un intervallo rimuove entrambi i limiti insieme. La ricerca visiva spiega la combinazione di somiglianza, filtri e ordinamento. Preferiti conserva gli altri criteri. I filtri di decisione escono dalla ricerca visiva; Da decidere ordina per data di scatto, dalla più vecchia, come spiegato prima della scelta. Le regole di visibilità mostrano esclusioni e rappresentanti dei gruppi effettivi; quelle annullate da un filtro Solo non risultano attive. Gli elenchi fissi richiedono di tornare alla vista abituale prima di cambiare i criteri.
+
+Esc torna tramite cronologia da una foto aperta nella galleria, mantenendo il contesto. Una foto aperta direttamente torna alla query salvata invece di uscire dall’app. Un dialogo o editor aperto gestisce Esc per primo.
+
 ## Contenuti
 
 - [Avvio della galleria](#avvio-della-galleria) · [Autenticazione](#autenticazione) · [Opzioni di filtraggio](#opzioni-di-filtraggio) · [Ordinamento](#ordinamento) · [Decisioni di revisione](#decisioni-di-revisione) · [Funzionalità della galleria](#funzionalità-della-galleria)
@@ -141,7 +151,7 @@ La ricerca testuale della galleria conserva le parole Unicode e tratta la punteg
 
 ### Schede della barra laterale
 
-La barra laterale dei filtri raggruppa le sue sezioni in cinque schede, mostrate come icone (passa il mouse per vedere il nome). Un piccolo badge su un'icona conta i filtri attivi della scheda, e la scheda mantiene il suo nome per gli screen reader («Sfoglia, 2 attivi»). L'ultima scheda usata viene ricordata in questo browser (`facet_sidebar_tab`). Sfoglia, Qualità e Soggetto hanno pannelli comprimibili, ciascuno dei quali ricorda se è aperto; Revisione e Visualizzazione non ne hanno.
+La barra laterale dei filtri raggruppa le sue sezioni in cinque schede, mostrate con icone ed etichette (passa il mouse per il nome completo). Un piccolo badge su un'icona conta i filtri attivi della scheda, e la scheda mantiene il suo nome per gli screen reader («Sfoglia, 2 attivi»). L'ultima scheda usata viene ricordata in questo browser (`facet_sidebar_tab`). Sfoglia, Qualità e Soggetto hanno pannelli comprimibili, ciascuno dei quali ricorda se è aperto; Revisione e Visualizzazione non ne hanno.
 
 | Scheda | Sezioni |
 |--------|---------|
@@ -315,6 +325,10 @@ Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se 
 
 Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a sinistra compare una barra delle azioni con pulsanti a icona (passaci sopra per le etichette). Le azioni di gruppo richiedono la modalità di modifica.
 
+La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
+
+La barra conta le foto selezionate fuori dalle miniature caricate; le azioni riguardano l’intera selezione esplicita. Le esclusioni dell’intera vista sono mostrate separatamente. Confronta richiede 2–4 foto selezionate esplicitamente e tutte caricate, senza aprire solo una parte della selezione.
+
 - **Preferito** — segna tutte come preferite (cancella lo scarto)
 - **Rifiuta** — segna tutte come scartate (cancella preferito e valutazione)
 - **Valuta** — imposta o cancella una valutazione da 1 a 5 stelle
@@ -322,7 +336,7 @@ Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a
 - **Modifica tag** — aggiungi o rimuovi un [tag manuale](#tag-manuali) su ogni foto selezionata
 - **Seleziona tutto** — con una selezione vuota, seleziona ogni foto che i filtri trovano, non solo le pagine caricate. Con foto già selezionate, aggiunge quelle caricate e propone di estendere all'intera vista. Le azioni sull'intera vista confermano prima il numero esatto di foto.
 - **Inverti** — sostituisce la selezione con il suo complemento. Da una selezione vuota è l'intera vista. Da una selezione non vuota resta tra le foto caricate: scegli le foto da conservare, inverti, rifiuta.
-- **Confronta** — apri 2–4 foto affiancate con pan e zoom sincronizzati (scorri per fare zoom, trascina per spostare, doppio clic per reimpostare). I riquadri passano alla piena risoluzione quando ingranditi.
+- **Confronta** — apre 2–4 foto selezionate affiancate. Il pulsante puntina cambia il riferimento senza modificare valutazioni o decisioni. Le viste sono inizialmente collegate; scollega per inquadrare ogni riquadro separatamente. Ricollegare conserva ogni inquadratura. I gesti collegati applicano lo stesso rapporto di zoom e spostamento in pixel a tutte le candidate, anche fuori da Due viste; il primo limite ferma il gruppo. Ripristina adatta tutte le foto al riquadro. Scorri per ingrandire, trascina per spostare, doppio clic per alternare lo zoom. Ripristina adatta l’intero confronto al riquadro. Il movimento collegato non allinea i soggetti. Ogni riquadro indica caricamento, disponibilità o errore dell’anteprima dettagliata (mantenendo la miniatura); lo zoom può richiedere la piena risoluzione. Con tre o quattro foto, Due viste mantiene il riferimento mentre Precedente/Successiva scorre le candidate. Promuovere una candidata sposta il riferimento precedente nel riquadro candidato. Disattivare Due viste ripristina tutti i riquadri.
 - **Copia nomi file** — copia i nomi file negli appunti. Una copia dell'intera vista chiede prima conferma; oltre 10 000 foto viene rifiutata.
 - **Esporta** — scrive sidecar XMP accanto ai file (vedi [Esportazione per editor](#esportazione-per-editor))
 - **Scarta in cartella** — copia le foto conservate, o sposta/cestina quelle scartate, in una cartella (vedi [Scarta in cartella](#scarta-in-cartella))
@@ -534,7 +548,7 @@ Avvia una scansione dal browser. Il pulsante Scansione compare quando **entrambe
 
 Su un'installazione aperta a utente singolo (`viewer.edition_password` vuota, il valore predefinito), nessuno può avviare scansioni dal browser. Eccezione: con `viewer.trusted_local_editing`, una sessione del browser locale fidata, o un assistente locale con un token di modifica completa, può avviare una scansione senza `show_scan_button` né password di modifica.
 
-Il pulsante si trova nella galleria vuota (**Scansiona le foto per iniziare**) e in fondo all'intestazione (**Scansiona nuove foto**; barra inferiore sugli schermi piccoli). Entrambi aprono l'avvio scansione:
+La galleria vuota offre **Scansiona le foto per iniziare**. **Scansiona nuove foto** è disponibile anche nell’area di navigazione globale a ogni larghezza. Entrambi aprono l’avvio scansione:
 
 - Scegli una directory dall'elenco e avvia la scansione.
 - Avanzamento in tempo reale e righe di output scorrono nella finestra. La galleria si aggiorna al termine della scansione.
@@ -1139,7 +1153,7 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 
 **Rimappare i tasti.** `K`, `F`, `X`, `/`, `B`, `V` e `S` sono valori predefiniti. Menu utente → **Personalizza le scorciatoie** permette di cliccare un'azione e premere un nuovo tasto (`Esc` o `Tab` annulla). Cifre, `Space` e `?` sono riservati, e un tasto già in uso viene rifiutato. **Ripristina tutto** ripristina i valori predefiniti. La mappatura è memorizzata per browser (`localStorage`). La pagina della foto usa gli stessi tasti, e il riferimento `?` mostra sempre i tasti in vigore.
 
-**Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede si attenuano al 50%. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
+**Foto corrente.** La foto su cui agiscono i tasti di valutazione, preferito e rifiuto ha un contorno di 4px; le altre schede mantengono la luminosità normale. Nulla è segnato finché non ti sposti su una foto. Cliccare una foto sposta il segnaposto su di essa. Tornando da una foto, il segnaposto resta sull'ultima visualizzata. Il suggerimento della scheda a fuoco compare solo in modalità di modifica con `viewer.features.show_rating_controls` attivo.
 
 **Nella pagina della foto**, `1`–`5`, il tasto preferito e il tasto rifiuta (`F` e `X` per impostazione predefinita; anche `0` rifiuta) agiscono sulla foto aperta, in modalità di modifica con `viewer.features.show_rating_controls` attivo. Non avanzano; usa `←` `→`. Il riferimento `?` li elenca sotto *Photo view*.
 

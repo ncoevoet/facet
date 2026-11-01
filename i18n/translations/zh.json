@@ -1026,6 +1026,9 @@
     "read_only_hint": "只读：请在 scoring_config.json 中设置 viewer.edition_password，以启用评分、筛选和编辑，然后重启查看器。"
   },
   "nav": {
+    "sidebar_hidden": "隐藏侧栏",
+    "sidebar_compact": "紧凑侧栏",
+    "sidebar_pinned": "固定侧栏",
     "gallery": "照片库",
     "gallery_tooltip": "照片库（双击重置筛选条件）",
     "stats": "统计",
@@ -1040,7 +1043,10 @@
     "capsules": "照片胶囊",
     "junk_sweep": "废片清理",
     "help": "帮助",
-    "more": "更多"
+    "more": "更多",
+    "navigation": "导航",
+    "pin_navigation": "固定展开导航",
+    "unpin_navigation": "取消固定导航"
   },
   "auth": {
     "logout": "退出登录",
@@ -1053,6 +1059,26 @@
     "user_menu": "用户菜单"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "决定筛选会退出视觉搜索。“未决定”按拍摄日期从早到晚排序。",
+      "label": "当前条件",
+      "visibility": "可见性规则（{count}）",
+      "remove": "移除{label}",
+      "ranked": "视觉相似性搜索",
+      "ranked_help": "按相似性查找候选；精确筛选进一步缩小结果。排序控制显示顺序。",
+      "exact": "元数据筛选",
+      "pinned": "这是固定照片列表。更改条件前请返回常用视图。",
+      "similarity": "相似性阈值",
+      "no_location": "无位置"
+    },
+    "presentation": {
+      "label": "显示",
+      "help": "选择任务布局。筛选、排序、相册和选择保持不变。",
+      "browse": "浏览",
+      "review": "审阅",
+      "organize": "整理",
+      "reset": "重置为默认显示"
+    },
     "help": "按评分、日期或个人偏好排序\n用侧栏筛选：人物、标签、相机、类别等\n搜索框按文件名或描述查找",
     "hidden_banner": {
       "message": "当前筛选条件隐藏了 {n} 张照片",
@@ -1133,7 +1159,8 @@
       "panel": "侧边面板",
       "off": "关闭",
       "panel_empty": "将鼠标悬停在照片上或点击照片，即可在此查看详情",
-      "panel_deselect": "取消选择"
+      "panel_deselect": "取消选择",
+      "details": "照片详情"
     },
     "panel_activation": {
       "label": "面板触发方式",
@@ -1161,6 +1188,9 @@
     "active_filters": "{count} 个筛选条件已生效",
     "unknown_person": "未知",
     "selection": {
+      "outside_loaded": "已加载图块以外的选择：{count}。操作适用于整个选择。",
+      "compare_loaded": "比较需要明确选中 2–4 张已加载图块中的照片。",
+      "exclusions": "整个视图的排除数量：{count}。",
       "count": "已选 {count} 张",
       "clear": "清除",
       "copy_filenames": "复制文件名",
@@ -1435,8 +1465,25 @@
     "moment_confidence_range": "时刻分组置信度",
     "compare": {
       "title": "正在对比 {count} 张照片",
-      "hint": "滚轮缩放，拖动平移，所有窗格同步移动。双击重置。",
-      "reset_zoom": "重置缩放"
+      "hint": "滚动缩放，拖动平移。联动仅共享移动，不会对齐主体。双击重置。",
+      "reset_zoom": "重置缩放",
+      "linked": "联动",
+      "independent": "独立",
+      "link_help": "取消联动以分别对齐各个取景，再次联动会保留对齐。联动手势对所有候选应用相同的缩放比例和像素平移，不会匹配主体。重置使所有照片完整适应窗格。",
+      "reference": "参考照片",
+      "candidate": "候选照片",
+      "promote": "将 {name} 用作参考照片",
+      "preview_loading": "正在加载清晰预览…",
+      "preview_ready": "清晰预览已就绪",
+      "preview_failed": "清晰预览不可用；显示缩略图",
+      "two_up": "双图",
+      "previous_candidate": "上一个候选",
+      "next_candidate": "下一个候选",
+      "candidate_position": "候选 {current}/{total}",
+      "remove_pane": "仅从比较视图移除 {name}",
+      "restore": "恢复已移除的照片",
+      "queue": "候选（不含参考照片）：{count}",
+      "queue_label": "比较照片"
     },
     "clipping": {
       "badge_highlight": "高光溢出：{percent}% 的像素",

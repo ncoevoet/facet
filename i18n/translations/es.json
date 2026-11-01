@@ -1026,6 +1026,9 @@
     "read_only_hint": "Solo lectura: defina viewer.edition_password en scoring_config.json para activar la valoración, la selección y la edición, y reinicie el visor."
   },
   "nav": {
+    "sidebar_hidden": "Ocultar barra lateral",
+    "sidebar_compact": "Barra lateral compacta",
+    "sidebar_pinned": "Barra lateral fija",
     "gallery": "Galería",
     "gallery_tooltip": "Galería (doble clic para restablecer filtros)",
     "stats": "Estadísticas",
@@ -1040,7 +1043,10 @@
     "capsules": "Cápsulas",
     "junk_sweep": "Limpieza",
     "help": "Ayuda",
-    "more": "Más"
+    "more": "Más",
+    "navigation": "Navegación",
+    "pin_navigation": "Fijar la navegación abierta",
+    "unpin_navigation": "Desfijar la navegación"
   },
   "auth": {
     "logout": "Cerrar sesión",
@@ -1053,6 +1059,26 @@
     "user_menu": "Menú de usuario"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Los filtros de decisión salen de la búsqueda visual. Sin decidir ordena por fecha de captura, de más antigua a más reciente.",
+      "label": "Criterios activos",
+      "visibility": "Reglas de visibilidad ({count})",
+      "remove": "Quitar {label}",
+      "ranked": "Búsqueda por similitud visual",
+      "ranked_help": "Candidatos por similitud; los filtros exactos acotan los resultados. El orden controla su presentación.",
+      "exact": "Filtros de metadatos",
+      "pinned": "Esta es una lista fija de fotos. Vuelve a tu vista habitual antes de cambiar los criterios.",
+      "similarity": "Umbral de similitud",
+      "no_location": "Sin ubicación"
+    },
+    "presentation": {
+      "label": "Vista",
+      "help": "Elige un diseño de trabajo. Los filtros, el orden, el álbum y la selección se mantienen.",
+      "browse": "Explorar",
+      "review": "Revisar",
+      "organize": "Organizar",
+      "reset": "Restablecer vista predeterminada"
+    },
     "help": "Ordena por puntuación, fecha o tu gusto personal\nFiltra con la barra lateral: personas, etiquetas, cámara, categorías\nBusca por nombre de archivo o descripción",
     "hidden_banner": {
       "message": "{n} fotos ocultas por los filtros actuales",
@@ -1133,7 +1159,8 @@
       "panel": "Panel lateral",
       "off": "Desactivado",
       "panel_empty": "Pasa el cursor sobre una foto o haz clic en ella para ver aquí sus detalles",
-      "panel_deselect": "Deseleccionar"
+      "panel_deselect": "Deseleccionar",
+      "details": "Detalles de la foto"
     },
     "panel_activation": {
       "label": "Activación del panel",
@@ -1161,6 +1188,9 @@
     "active_filters": "{count} filtros activos",
     "unknown_person": "Desconocido",
     "selection": {
+      "outside_loaded": "Selección fuera de los elementos cargados: {count}. Las acciones se aplican a toda la selección.",
+      "compare_loaded": "Comparar requiere 2–4 fotos seleccionadas explícitamente presentes en los elementos cargados.",
+      "exclusions": "Exclusiones de toda la vista: {count}.",
       "count": "{count} seleccionados",
       "clear": "Limpiar",
       "copy_filenames": "Copiar nombres",
@@ -1435,8 +1465,25 @@
     "moment_confidence_range": "Confianza del momento",
     "compare": {
       "title": "Comparando {count} fotos",
-      "hint": "Rueda para ampliar, arrastra para desplazar: todos los paneles se mueven juntos. Doble clic para restablecer.",
-      "reset_zoom": "Restablecer zoom"
+      "hint": "Desplázate para ampliar y arrastra para mover. La vinculación comparte movimientos, no alinea sujetos. Haz doble clic para restablecer.",
+      "reset_zoom": "Restablecer zoom",
+      "linked": "Vinculadas",
+      "independent": "Independientes",
+      "link_help": "Desvincula para alinear cada encuadre y vuelve a vincular para conservarlo. Los gestos vinculados aplican la misma proporción de zoom y desplazamiento en píxeles a todos los candidatos; no identifican sujetos. Restablecer encaja todas las fotos.",
+      "reference": "Referencia",
+      "candidate": "Candidata",
+      "promote": "Usar {name} como referencia",
+      "preview_loading": "Cargando vista detallada…",
+      "preview_ready": "Vista detallada lista",
+      "preview_failed": "Vista detallada no disponible; se muestra la miniatura",
+      "two_up": "Dos vistas",
+      "previous_candidate": "Candidata anterior",
+      "next_candidate": "Candidata siguiente",
+      "candidate_position": "Candidata {current} de {total}",
+      "remove_pane": "Quitar {name} solo de la comparación",
+      "restore": "Restaurar las fotos quitadas",
+      "queue": "Candidatas (sin referencia): {count}",
+      "queue_label": "Fotos de comparación"
     },
     "clipping": {
       "badge_highlight": "Altas luces recortadas: {percent}% de los píxeles",

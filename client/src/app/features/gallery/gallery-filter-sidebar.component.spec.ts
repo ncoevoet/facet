@@ -647,25 +647,26 @@ describe('GalleryFilterSidebarComponent', () => {
         expect(links().map(t => t.getAttribute('aria-selected'))).toEqual(['false', 'true', 'false', 'false', 'false']);
       });
 
-      it('shows icons only, each with a tooltip carrying the tab name and an aria-label naming it', () => {
+      it('shows named tabs with icons, matching tooltips and accessible labels', () => {
         const items = links();
         expect(items.map(l => l.querySelector('mat-icon')!.textContent!.trim()))
           .toEqual(['travel_explore', 'rule', 'high_quality', 'center_focus_strong', 'display_settings']);
         const tooltips = fixture.debugElement.queryAll(By.css('[mat-tab-link]')).map(d => d.injector.get(MatTooltip).message);
         expect(tooltips).toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
         expect(items.map(l => l.getAttribute('aria-label'))).toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
-        for (const link of items) expect(link.textContent!.replace(link.querySelector('mat-icon')!.textContent!, '').trim()).toBe('');
+        expect(items.map(link => link.querySelector('[data-filter-tab-label]')!.textContent!.trim()))
+          .toEqual(['Browse', 'Review', 'Quality', 'Subject', 'Display']);
       });
 
       it('names a tab with its active count and puts the count on the icon as a corner badge', () => {
         setFilters({ camera: 'Sony', lens: 'FE' });
         const browse = links()[0];
         expect(browse.getAttribute('aria-label')).toBe('Browse, 2 active');
-        const badge = browse.querySelector('mat-icon')!.nextElementSibling!;
+        const badge = browse.querySelector('[data-filter-tab-count]')!;
         expect(badge.textContent!.trim()).toBe('2');
         expect(badge.getAttribute('aria-hidden')).toBe('true');
         expect(links()[1].getAttribute('aria-label')).toBe('Review');
-        expect(links()[1].querySelector('mat-icon')!.nextElementSibling).toBeNull();
+        expect(links()[1].querySelector('[data-filter-tab-count]')).toBeNull();
       });
 
       it('hides the tab bar while a filter query is typed', () => {

@@ -1026,6 +1026,9 @@
     "read_only_hint": "Lecture seule : définissez viewer.edition_password dans scoring_config.json pour activer la notation, le tri et l'édition, puis redémarrez la visionneuse."
   },
   "nav": {
+    "sidebar_hidden": "Masquer la barre latérale",
+    "sidebar_compact": "Barre latérale compacte",
+    "sidebar_pinned": "Barre latérale épinglée",
     "gallery": "Galerie",
     "gallery_tooltip": "Galerie (double-clic pour réinitialiser les filtres)",
     "stats": "Statistiques",
@@ -1040,7 +1043,10 @@
     "capsules": "Capsules",
     "junk_sweep": "Nettoyage",
     "help": "Aide",
-    "more": "Plus"
+    "more": "Plus",
+    "navigation": "Navigation",
+    "pin_navigation": "Épingler la navigation ouverte",
+    "unpin_navigation": "Désépingler la navigation"
   },
   "auth": {
     "logout": "Se déconnecter",
@@ -1053,6 +1059,26 @@
     "user_menu": "Menu utilisateur"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Les filtres de décision quittent la recherche visuelle. Indécis trie par date de prise de vue, de la plus ancienne à la plus récente.",
+      "label": "Critères actifs",
+      "visibility": "Règles de visibilité ({count})",
+      "remove": "Retirer {label}",
+      "ranked": "Recherche par similarité visuelle",
+      "ranked_help": "Candidats par similarité ; les filtres exacts affinent les résultats. Le tri détermine leur ordre d’affichage.",
+      "exact": "Filtres de métadonnées",
+      "pinned": "Cette liste de photos est fixe. Revenez à votre vue habituelle avant de modifier les critères.",
+      "similarity": "Seuil de similarité",
+      "no_location": "Sans localisation"
+    },
+    "presentation": {
+      "label": "Affichage",
+      "help": "Choisissez une disposition. Filtres, tri, album et sélection sont conservés.",
+      "browse": "Parcourir",
+      "review": "Examiner",
+      "organize": "Organiser",
+      "reset": "Rétablir l’affichage par défaut"
+    },
     "help": "Triez par score, date ou votre goût personnel\nFiltrez avec la barre latérale : personnes, tags, appareil, catégories\nRecherchez par nom de fichier ou description",
     "hidden_banner": {
       "message": "{n} photos masquées par les filtres actuels",
@@ -1133,7 +1159,8 @@
       "panel": "Panneau latéral",
       "off": "Désactivée",
       "panel_empty": "Survolez une photo ou cliquez dessus pour voir ses détails ici",
-      "panel_deselect": "Désélectionner"
+      "panel_deselect": "Désélectionner",
+      "details": "Détails de la photo"
     },
     "panel_activation": {
       "label": "Activation du panneau",
@@ -1161,6 +1188,9 @@
     "active_filters": "{count} filtres actifs",
     "unknown_person": "Inconnu",
     "selection": {
+      "outside_loaded": "Sélection hors des vignettes chargées : {count}. Les actions concernent toute la sélection.",
+      "compare_loaded": "Comparer nécessite 2 à 4 photos explicitement sélectionnées parmi les vignettes chargées.",
+      "exclusions": "Exclusions de toute la vue : {count}.",
       "count": "{count} sélectionné(s)",
       "clear": "Effacer",
       "copy_filenames": "Copier les noms",
@@ -1435,8 +1465,25 @@
     "moment_confidence_range": "Confiance du moment",
     "compare": {
       "title": "Comparaison de {count} photos",
-      "hint": "Molette pour zoomer, glisser pour déplacer : tous les volets bougent ensemble. Double-clic pour réinitialiser.",
-      "reset_zoom": "Réinitialiser le zoom"
+      "hint": "Défilez pour zoomer, faites glisser pour déplacer. Le lien partage les mouvements, pas l’alignement du sujet. Double-cliquez pour réinitialiser.",
+      "reset_zoom": "Réinitialiser le zoom",
+      "linked": "Liées",
+      "independent": "Indépendantes",
+      "link_help": "Déliez pour aligner chaque cadrage, puis reliez pour le conserver. Les gestes liés appliquent le même rapport de zoom et déplacement en pixels à tous les candidats, sans correspondance des sujets. Réinitialiser ajuste chaque photo au cadre.",
+      "reference": "Référence",
+      "candidate": "Candidate",
+      "promote": "Utiliser {name} comme référence",
+      "preview_loading": "Chargement de l’aperçu détaillé…",
+      "preview_ready": "Aperçu détaillé prêt",
+      "preview_failed": "Aperçu détaillé indisponible ; miniature affichée",
+      "two_up": "Deux vues",
+      "previous_candidate": "Candidate précédente",
+      "next_candidate": "Candidate suivante",
+      "candidate_position": "Candidate {current} sur {total}",
+      "remove_pane": "Retirer {name} de la comparaison uniquement",
+      "restore": "Restaurer les photos retirées",
+      "queue": "Candidates (hors référence) : {count}",
+      "queue_label": "Photos de comparaison"
     },
     "clipping": {
       "badge_highlight": "Hautes lumières écrêtées : {percent} % des pixels",

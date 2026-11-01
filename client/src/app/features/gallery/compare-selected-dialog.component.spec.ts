@@ -89,4 +89,188 @@ describe('CompareSelectedDialogComponent', () => {
     fixture.debugElement.nativeElement.querySelector('button[aria-label="dialog.close"]').click();
     expect(dialogRef.close).toHaveBeenCalled();
   });
+
+  it('preserves manual alignment when relinking and applies relative gestures until an explicit reset', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const toggle = fixture.nativeElement.querySelector('[data-link-inspection]');
+    expect(toggle).not.toBeNull();
+    toggle.click();
+    fixture.detectChanges();
+    const next = { scale: 3, tx: 17, ty: -4 };
+    panes()[1].componentInstance.zoomChange.emit(next);
+    fixture.detectChanges();
+    expect(panes()[0].componentInstance.zoom()).toEqual(FIT_ZOOM);
+    expect(panes()[1].componentInstance.zoom()).toEqual(next);
+    toggle.click();
+    fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([FIT_ZOOM, next]);
+    panes()[1].componentInstance.zoomChange.emit({ scale: 6, tx: 29, ty: -12 });
+    fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([
+      { scale: 2, tx: -5, ty: -4 }, { scale: 6, tx: 29, ty: -12 },
+    ]);
+    fixture.nativeElement.querySelector('button[aria-label="gallery.compare.reset_zoom"]').click();
+    fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([FIT_ZOOM, FIT_ZOOM]);
+  });
+
+  it('bounds linked magnification together and retains aligned candidates while cycling two-up', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const toggle = root.querySelector<HTMLButtonElement>('[data-link-inspection]')!;
+    toggle.click(); fixture.detectChanges();
+    panes()[0].componentInstance.zoomChange.emit({ scale: 2, tx: 10, ty: -4 });
+    panes()[1].componentInstance.zoomChange.emit({ scale: 4, tx: -20, ty: 8 });
+    fixture.detectChanges();
+    toggle.click(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click(); fixture.detectChanges();
+    const oldCandidate = panes()[1].componentInstance as SyncedZoomComponent;
+    root.querySelector<HTMLButtonElement>('[data-candidate-next]')!.click(); fixture.detectChanges();
+    oldCandidate.zoomChange.emit({ scale: 8, tx: 900, ty: 900 });
+    panes()[0].componentInstance.zoomChange.emit({ scale: 8, tx: 15, ty: -2 });
+    fixture.detectChanges();
+    // The hidden candidate reaches 8x first, so the group stops at a 2x ratio.
+    expect(panes().map(p => p.componentInstance.zoom())).toEqual([
+      { scale: 4, tx: 15, ty: -2 }, { scale: 2, tx: -5, ty: 6 },
+    ]);
+    root.querySelector<HTMLButtonElement>('[data-candidate-previous]')!.click(); fixture.detectChanges();
+    expect(panes()[1].componentInstance.zoom()).toEqual({ scale: 8, tx: -45, ty: 22 });
+    expect(panes().every(p => Number.isFinite(p.componentInstance.zoom().scale))).toBe(true);
+  });
+
+  it('keeps manually aligned points together when linked panes have different scales and offsets', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    const toggle = fixture.nativeElement.querySelector('[data-link-inspection]');
+    toggle.click(); fixture.detectChanges();
+    panes()[0].componentInstance.zoomChange.emit({ scale: 2, tx: -100, ty: -40 });
+    panes()[1].componentInstance.zoomChange.emit({ scale: 4, tx: -200, ty: -80 });
+    fixture.detectChanges();
+    toggle.click(); fixture.detectChanges();
+    panes()[0].componentInstance.zoomChange.emit({ scale: 4, tx: -100, ty: -40 });
+    fixture.detectChanges();
+    const frames = panes().map(p => p.componentInstance.zoom());
+    // The same measured feature was at the center in both manually framed panes.
+    // It may move with the gesture, but must keep its relative alignment.
+    const positions = frames.map(frame => ({ x: 50 * frame.scale + frame.tx, y: 20 * frame.scale + frame.ty }));
+    expect(positions).toEqual([{ x: 100, y: 40 }, { x: 100, y: 40 }]);
+  });
+
+  it('promotes a reference without changing pane membership or writing a review decision', () => {
+    const paths = ['/a.jpg', '/b.jpg', '/c.jpg'];
+    const { fixture, dialogRef } = build(paths);
+    const reference = () => fixture.nativeElement.querySelector('[data-reference="true"]');
+    expect(reference()).not.toBeNull();
+    expect(reference().textContent).toContain('a.jpg');
+    fixture.nativeElement.querySelectorAll('[data-promote-reference]')[0].click();
+    fixture.detectChanges();
+    expect(reference().textContent).toContain('b.jpg');
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(paths);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it('keeps sharp-preview readiness owned by its pane, including failure then recovery', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg']);
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    panes[0].componentInstance.sharpFailed.emit('/a-preview');
+    panes[1].componentInstance.sharpLoaded.emit('/b-preview');
+    fixture.detectChanges();
+    const statuses = () => Array.from(fixture.nativeElement.querySelectorAll('[data-preview-status]') as NodeListOf<HTMLElement>).map(p => p.textContent);
+    expect(statuses()[0]).toContain('gallery.compare.preview_failed');
+    expect(statuses()[1]).toContain('gallery.compare.preview_ready');
+    panes[0].componentInstance.sharpPending.emit('/a-preview');
+    fixture.detectChanges();
+    expect(statuses()[0]).toContain('gallery.compare.preview_loading');
+    panes[0].componentInstance.sharpLoaded.emit('/a-preview');
+    fixture.detectChanges();
+    expect(statuses()[0]).toContain('gallery.compare.preview_ready');
+  });
+
+  it('cycles only candidates in two-up mode and swaps the old reference back into the candidate slot on promotion', () => {
+    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    expect(root.querySelector('[data-two-up]')).not.toBeNull();
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
+    expect(root.querySelector<HTMLButtonElement>('[data-candidate-previous]')!.disabled).toBe(true);
+    root.querySelector<HTMLButtonElement>('[data-candidate-next]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/c.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-promote-reference]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/c.jpg', '/a.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
+    fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it('moves candidates backward and stops at both boundaries without changing the reference', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
+    fixture.detectChanges();
+    const previous = root.querySelector<HTMLButtonElement>('[data-candidate-previous]')!;
+    const next = root.querySelector<HTMLButtonElement>('[data-candidate-next]')!;
+    next.click(); fixture.detectChanges();
+    next.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/d.jpg']);
+    expect(next.disabled).toBe(true);
+    next.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/d.jpg']);
+    previous.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/c.jpg']);
+    previous.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
+    expect(previous.disabled).toBe(true);
+    previous.click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/b.jpg']);
+  });
+  it('shows a thumbnail queue and opens a chosen candidate without promoting it', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const queue = root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]');
+    expect(queue).toHaveLength(4);
+    queue[3].click(); fixture.detectChanges();
+    const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    expect(panes.map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/d.jpg']);
+    expect(root.querySelector('[data-reference="true"]')!.textContent).toContain('a.jpg');
+    expect(root.querySelector('[data-candidate-thumbnail][aria-pressed="true"]')!.getAttribute('data-path')).toBe('/d.jpg');
+  });
+
+  it('removes the reference from this view only, chooses a surviving reference and can restore the original set', () => {
+    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const data = TestBed.inject(MAT_DIALOG_DATA);
+    data.photos[0].is_rejected = false;
+    data.photos[1].is_kept = true;
+    const before = JSON.stringify(data.photos);
+    const root = fixture.nativeElement as HTMLElement;
+    root.querySelector<HTMLButtonElement>('[data-remove-pane]')!.click(); fixture.detectChanges();
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/b.jpg', '/c.jpg']);
+    expect(root.querySelector('[data-reference="true"]')!.textContent).toContain('b.jpg');
+    expect(root.querySelectorAll('[data-candidate-thumbnail]')).toHaveLength(2);
+    root.querySelector<HTMLButtonElement>('[data-restore-comparison]')!.click(); fixture.detectChanges();
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/b.jpg', '/c.jpg']);
+    expect(JSON.stringify(data.photos)).toBe(before);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it('advances after removing a candidate and keeps one remaining photo inspectable', () => {
+    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const root = fixture.nativeElement as HTMLElement;
+    const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[1].click(); fixture.detectChanges();
+    root.querySelectorAll<HTMLButtonElement>('[data-remove-pane]')[1].click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg', '/c.jpg']);
+    root.querySelectorAll<HTMLButtonElement>('[data-remove-pane]')[1].click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/a.jpg']);
+    expect(root.querySelector<HTMLButtonElement>('[data-remove-pane]')!.disabled).toBe(true);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
 });

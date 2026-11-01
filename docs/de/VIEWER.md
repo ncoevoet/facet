@@ -4,6 +4,16 @@
 
 Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, Aussortieren und Verwalten Ihrer Fotos.
 
+Das Hamburger-Menü enthält alle Ziele und die Seitenleistenmodi Ausgeblendet, Kompakt und Angeheftet. Es gibt weder eine separate Anheften-Taste noch eine doppelte Zielzeile. Die sichtbare Desktop-Seitenleiste ersetzt die obere Anwendungsleiste; Kontobefehle stehen unten. Kompakt erweitert sich bei Zeiger oder Fokus über den Fotos ohne zusätzlichen Platzbedarf. Bei ausgeblendeter Leiste und auf dem Telefon enthält das Menü alle Ziele. Seitenwerkzeuge bleiben beim Inhalt.
+
+Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten. Sortierung, Richtung, Filter, Fotoinformationen und Diashow bilden eine Sammlungssteuerung am Desktop und Telefon. Konto, Bearbeitungsmodus und erlaubte Scan-Aktionen bleiben im globalen Navigationsbereich; die Galerie hat keine doppelte untere Leiste. Beim Öffnen eines Fotos schließen sich Sammlungsmenüs und ihre Befehle pausieren bis zur Rückkehr.
+
+**Anzeigevorgaben.** Ansicht → Durchsehen verwendet ein kompaktes Mosaik mit Informationen beim Überfahren (auf schmalen Bildschirmen per Klick). Prüfen zeigt größere Rasterkarten mit Details und klickgesteuerter Inspektion (bei ausreichender Breite als Seitenpanel). Organisieren zeigt ein dichteres Raster mit Details und Klickinformationen. Nur Layout, Kartengröße, Detailanzeige und Inspektion ändern sich; Abfrage, Sortierung, Album, Auswahl und geladene Seite bleiben erhalten. Anzeige auf Standard zurücksetzen stellt die konfigurierte Darstellung ohne Filterreset wieder her. Bei abweichenden manuellen Einstellungen ist keine Vorgabe markiert.
+
+**Sammlungskriterien.** Metadaten- und Suchkriterien bleiben unter der Sammlungsabfrage sichtbar, wenn das Filterpanel geschlossen wird. Entfernen ist beschriftet; ein Bereich wird mit beiden Grenzen gemeinsam gelöscht. Die visuelle Suche erklärt Ähnlichkeitskandidaten, Metadatenfilter und Sortierung. Favoriten behält andere Kriterien. Entscheidungsfilter verlassen die visuelle Suche; Unentschieden sortiert nach Aufnahmedatum, älteste zuerst. Dies wird vor der Auswahl erläutert. Sichtbarkeitsregeln zeigen wirksame Ausblendungen und Gruppenrepräsentanten; durch einen Nur-Filter unterdrückte Regeln werden nicht als aktiv angezeigt. Feste Fotolisten verlangen vor Kriterienänderungen die Rückkehr zur üblichen Ansicht.
+
+Escape kehrt von einem aus der Galerie geöffneten Foto über den Verlauf zur Sammlung zurück. Ein direkt geöffnetes Foto führt zur gespeicherten Galerieabfrage statt aus der Anwendung. Ein offener Dialog oder Editor behandelt Escape zuerst.
+
 ## Inhalt
 
 - [Galerie starten](#galerie-starten) · [Authentifizierung](#authentifizierung) · [Filteroptionen](#filteroptionen) · [Sortierung](#sortierung) · [Sichtungsentscheidungen](#sichtungsentscheidungen) · [Galeriefunktionen](#galeriefunktionen)
@@ -141,7 +151,7 @@ Die Textsuche der Galerie behält Unicode-Wörter bei und behandelt Satzzeichen 
 
 ### Tabs der Seitenleiste
 
-Die Filter-Seitenleiste gruppiert ihre Abschnitte in fünf Tabs, die als Symbole angezeigt werden (Name per Mouseover). Ein kleines Abzeichen am Symbol zählt die aktiven Filter im Tab, und der Tab behält seinen Namen für Screenreader („Durchsuchen, 2 aktiv“). Der zuletzt verwendete Tab wird in diesem Browser gespeichert (`facet_sidebar_tab`). Durchsuchen, Qualität und Motiv haben einklappbare Bereiche, die sich jeweils merken, ob sie geöffnet sind; Prüfen und Anzeige haben keine.
+Die Filter-Seitenleiste gruppiert ihre Abschnitte in fünf Tabs, die Symbole und Beschriftungen zeigen (voller Name per Mouseover). Ein kleines Abzeichen am Symbol zählt die aktiven Filter im Tab, und der Tab behält seinen Namen für Screenreader („Durchsuchen, 2 aktiv“). Der zuletzt verwendete Tab wird in diesem Browser gespeichert (`facet_sidebar_tab`). Durchsuchen, Qualität und Motiv haben einklappbare Bereiche, die sich jeweils merken, ob sie geöffnet sind; Prüfen und Anzeige haben keine.
 
 | Tab | Abschnitte |
 |-----|-----------|
@@ -315,6 +325,8 @@ In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern
 
 Klicken Sie Fotos zum Auswählen an; Umschalt+Klick wählt einen Bereich. Unten links erscheint eine Aktionsleiste mit Symbolschaltflächen (Maus darüber für die Beschriftung). Sammelaktionen erfordern den Bearbeitungsmodus.
 
+Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidatenwahl. Das aktive Fenster ist unabhängig markiert. Aus Vergleich entfernen ändert nur diese Ansicht, nie Behalten/Ablehnen oder die Galerieauswahl; Wiederherstellen bringt entfernte Fotos zurück. Ein einzelnes verbleibendes Foto bleibt prüfbar. Rasterkarten mit Details zeigen das ganze Foto in einem einheitlichen 4:3-Rahmen; Mosaik behält justierte Zeilen.
+
 - **Favorit** — Alle als Favorit markieren (hebt Ablehnung auf)
 - **Ablehnen** — Alle als abgelehnt markieren (hebt Favorit und Bewertung auf)
 - **Bewerten** — Sternebewertung (1–5) setzen oder löschen
@@ -322,7 +334,10 @@ Klicken Sie Fotos zum Auswählen an; Umschalt+Klick wählt einen Bereich. Unten 
 - **Schlagwörter bearbeiten** — Ein [manuelles Tag](#manuelle-tags) zu jedem ausgewählten Foto hinzufügen oder daraus entfernen
 - **Alle auswählen** — Bei leerer Auswahl wird jedes Foto gewählt, auf das die Filter zutreffen, nicht nur die geladenen Seiten. Sind bereits Fotos gewählt, kommen die geladenen Fotos hinzu, und es wird angeboten, auf die ganze Ansicht zu erweitern. Aktionen für die ganze Ansicht bestätigen zuerst die genaue Fotozahl.
 - **Umkehren** — Die Auswahl gegen ihr Komplement tauschen. Bei leerer Auswahl ist das die ganze Ansicht. Bei nicht leerer Auswahl bleibt es auf geladene Fotos begrenzt: erst die Behalte-Kandidaten wählen, umkehren, ablehnen.
-- **Vergleichen** — 2–4 Fotos nebeneinander öffnen, mit synchronisiertem Schwenken und Zoomen (Scrollen zum Zoomen, Ziehen zum Schwenken, Doppelklick zum Zurücksetzen). Beim Zoomen wechseln die Fenster auf volle Auflösung.
+
+Die Auswahlleiste zählt ausgewählte Fotos außerhalb der geladenen Kacheln; Stapelaktionen betreffen die gesamte ausdrückliche Auswahl. Ausschlüsse der ganzen Ansicht werden getrennt angezeigt. Vergleichen benötigt 2–4 ausdrücklich ausgewählte, geladene Fotos und öffnet nie stillschweigend nur einen Teil.
+
+- **Vergleichen** — öffnet 2–4 ausgewählte Fotos nebeneinander. Die Stecknadel ändert die gekennzeichnete Referenz, niemals Bewertungen oder Entscheidungen. Die Ansicht ist zunächst gekoppelt; entkoppeln erlaubt individuelles Ausrichten. Erneutes Koppeln erhält jeden Ausschnitt. Gekoppelte Gesten wenden denselben Zoomfaktor und dieselbe Pixelverschiebung auf alle Kandidaten an, auch außerhalb von Zwei Ansichten. Die erste Zoomgrenze stoppt die Gruppe. Zurücksetzen passt jedes Foto ein. Scrollen zum Zoomen, Ziehen zum Verschieben, Doppelklick zum Umschalten der Vergrößerung. Zurücksetzen passt den gesamten Vergleich ein. Gekoppelte Bewegungen richten keine Motive aus. Jedes Fenster zeigt Laden, Bereitschaft oder Fehler der Detailvorschau (die Miniatur bleibt erhalten); Zoomen kann volle Auflösung anfordern. Bei drei oder vier Fotos hält Zwei Ansichten die Referenz fest, während Vorheriger/Nächster die Kandidaten durchläuft. Eine neue Referenz tauscht die bisherige in das Kandidatenfenster. Ausschalten zeigt wieder alle ausgewählten Bilder.
 - **Dateinamen kopieren** — Dateinamen in die Zwischenablage kopieren. Ein Kopieren der ganzen Ansicht bestätigt zuerst; über 10 000 Fotos wird abgelehnt.
 - **Exportieren** — XMP-Sidecars neben die Dateien schreiben (siehe [Editor-Export](#editor-export))
 - **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))
@@ -534,7 +549,7 @@ Starten Sie einen Scan im Browser. Die Scan-Schaltfläche erscheint, wenn **beid
 
 Auf einer offenen Einzelbenutzer-Installation (leeres `viewer.edition_password`, der Standard) kann niemand im Browser scannen. Ausnahme: Unter `viewer.trusted_local_editing` kann eine vertrauenswürdige lokale Browsersitzung oder ein lokaler Assistent mit Token für volle Bearbeitung ohne `show_scan_button` oder Bearbeitungspasswort scannen.
 
-Die Schaltfläche sitzt in der leeren Galerie (**Fotos scannen, um zu beginnen**) und am Ende der Kopfzeile (**Nach neuen Fotos suchen**; untere Leiste auf kleinen Bildschirmen). Beide öffnen den Scan-Starter:
+Die leere Galerie bietet **Fotos scannen, um zu beginnen**. **Nach neuen Fotos suchen** steht außerdem bei jeder Breite im globalen Navigationsbereich. Beide öffnen den Scan-Starter:
 
 - Wählen Sie ein Verzeichnis aus der Liste und starten Sie den Scan.
 - Live-Fortschritt und Ausgabezeilen erscheinen im Dialog. Die Galerie aktualisiert sich, wenn der Scan endet.
@@ -1139,7 +1154,7 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 
 **Tasten umbelegen.** `K`, `F`, `X`, `/`, `B`, `V` und `S` sind Standardwerte. Unter Benutzermenü → **Tastenkürzel anpassen** klicken Sie eine Aktion an und drücken eine neue Taste (`Esc` oder `Tab` bricht ab). Ziffern, `Space` und `?` sind reserviert, und eine bereits verwendete Taste wird abgelehnt. **Alle zurücksetzen** stellt die Standardwerte wieder her. Die Belegung wird pro Browser gespeichert (`localStorage`). Die Fotoseite verwendet dieselben Tasten, und die Referenz unter `?` zeigt immer die geltenden Tasten.
 
-**Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten werden auf 50 % abgedunkelt. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
+**Aktuelles Foto.** Das Foto, auf das die Tasten für Bewertung, Favorit und Ablehnung wirken, hat eine 4px-Kontur; andere Karten behalten ihre normale Helligkeit. Nichts ist markiert, bis Sie sich auf ein Foto bewegen. Ein Klick auf ein Foto verschiebt die Markierung darauf. Die Rückkehr von einem Foto lässt die Markierung auf dem zuletzt betrachteten. Der Hinweis zur fokussierten Karte erscheint nur im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`.
 
 **Auf der Fotoseite** wirken `1`–`5`, die Favoriten-Taste und die Ablehnen-Taste (standardmäßig `F` und `X`; `0` lehnt ebenfalls ab) auf das geöffnete Foto, im Bearbeitungsmodus bei aktivem `viewer.features.show_rating_controls`. Sie springen nicht weiter; nutzen Sie `←` `→`. Die Referenz unter `?` listet sie unter *Fotoansicht*.
 

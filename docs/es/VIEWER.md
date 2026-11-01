@@ -4,6 +4,16 @@
 
 El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descartar y gestionar tus fotos.
 
+El menú de hamburguesa contiene todos los destinos y los modos Oculta, Compacta y Fija. No hay un botón Fijar separado ni una fila duplicada de destinos. La barra lateral visible sustituye a la barra superior en escritorio y sitúa la cuenta al pie. Compacta se amplía con el puntero o el foco sobre las fotos sin reservar más anchura. Si está oculta y en teléfonos, el menú ofrece todos los destinos. Las herramientas permanecen junto al contenido.
+
+La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos. Orden, dirección, Filtros, información de foto y presentación forman un único grupo de colección en escritorio y teléfono. Cuenta, Edición y escaneo permitido permanecen en el área de navegación global; la galería no duplica una barra inferior. Abrir una foto cierra los menús de colección y pausa sus comandos hasta volver.
+
+**Vistas de trabajo.** Vista → Explorar usa un mosaico compacto con información al pasar el puntero (por clic en pantallas estrechas). Revisar usa tarjetas más grandes con detalles e inspección por clic (panel lateral si hay espacio). Organizar usa una cuadrícula más densa con detalles e información por clic. Solo cambian diseño, tamaño, detalles e inspección; consulta, orden, álbum, selección y página cargada se mantienen. Restablecer vista predeterminada recupera la presentación configurada sin restablecer filtros. Si los ajustes manuales ya no coinciden, ninguna vista queda marcada.
+
+**Criterios de la colección.** Los criterios de metadatos y búsqueda visual permanecen bajo la consulta al cerrar el panel. Quitar tiene un nombre accesible; borrar un rango quita ambos límites a la vez. La búsqueda visual explica cómo combina similitud, filtros y orden. Favoritos mantiene los demás criterios. Los filtros de decisión salen de la búsqueda visual; Sin decidir ordena por fecha de captura, de más antigua a más reciente, como se explica antes de elegir. Las reglas de visibilidad muestran la ocultación y los representantes de grupos efectivos; las reglas anuladas por un filtro Solo no aparecen activas. Las listas fijas indican que hay que volver a la vista habitual para cambiar criterios.
+
+Escape vuelve desde una foto abierta en la galería mediante el historial, conservando el contexto. Una foto abierta directamente vuelve a la consulta guardada en vez de salir de la aplicación. Un diálogo o editor abierto recibe Escape primero.
+
 ## Contenido
 
 - [Iniciar el visor](#iniciar-el-visor) · [Autenticación](#autenticación) · [Opciones de filtrado](#opciones-de-filtrado) · [Ordenación](#ordenación) · [Decisiones de revisión](#decisiones-de-revisión) · [Funciones de la galería](#funciones-de-la-galería)
@@ -141,7 +151,7 @@ La búsqueda de texto de la galería conserva las palabras Unicode y trata la pu
 
 ### Pestañas de la barra lateral
 
-La barra lateral de filtros agrupa sus secciones en cinco pestañas, mostradas como iconos (pasa el ratón para ver el nombre). Una pequeña insignia en un icono cuenta los filtros activos de la pestaña, y la pestaña conserva su nombre para los lectores de pantalla («Explorar, 2 activos»). La última pestaña usada se recuerda en este navegador (`facet_sidebar_tab`). Explorar, Calidad y Sujeto tienen paneles plegables, cada uno recuerda si está abierto; Revisión y Visualización no los tienen.
+La barra lateral de filtros agrupa sus secciones en cinco pestañas, mostradas con iconos y etiquetas (pasa el ratón para ver el nombre completo). Una pequeña insignia en un icono cuenta los filtros activos de la pestaña, y la pestaña conserva su nombre para los lectores de pantalla («Explorar, 2 activos»). La última pestaña usada se recuerda en este navegador (`facet_sidebar_tab`). Explorar, Calidad y Sujeto tienen paneles plegables, cada uno recuerda si está abierto; Revisión y Visualización no los tienen.
 
 | Pestaña | Secciones |
 |---------|-----------|
@@ -315,6 +325,8 @@ En el detalle de la foto, las métricas se organizan en pestañas con icono: dat
 
 Haz clic en las fotos para seleccionarlas; Shift+clic selecciona un rango. Abajo a la izquierda aparece una barra de acciones con botones de icono (pasa el cursor para ver las etiquetas). Las acciones masivas requieren el modo de edición.
 
+La tira de miniaturas identifica la referencia y permite elegir una candidata directamente. El panel activo se destaca por separado. Quitar de la comparación solo cambia esta vista, nunca Conservar/Rechazar ni la selección de galería; Restaurar devuelve las fotos quitadas. Una foto restante sigue disponible para inspección. La cuadrícula con detalles encaja la foto completa en un marco uniforme 4:3; Mosaico mantiene filas justificadas.
+
 - **Favorito**: marca todas como favoritas (borra el rechazo)
 - **Rechazar**: marca todas como rechazadas (borra el favorito y la valoración)
 - **Calificar**: define o borra una valoración de 1–5 estrellas
@@ -322,7 +334,10 @@ Haz clic en las fotos para seleccionarlas; Shift+clic selecciona un rango. Abajo
 - **Editar etiquetas**: añade o quita un [tag manual](#tags-manuales) en cada foto seleccionada
 - **Seleccionar todo**: con una selección vacía, selecciona todas las fotos que coinciden con los filtros, no solo las páginas cargadas. Con fotos ya seleccionadas, añade las cargadas y ofrece ampliar a toda la vista. Las acciones sobre toda la vista confirman antes el número exacto de fotos.
 - **Invertir**: cambia la selección por su complemento. Desde una selección vacía es toda la vista. Desde una selección no vacía se queda dentro de las fotos cargadas: elige las que conservas, invierte, rechaza.
-- **Comparar**: abre de 2 a 4 fotos en paralelo con desplazamiento y zoom sincronizados (rueda para el zoom, arrastrar para desplazar, doble clic para restablecer). Los paneles pasan a resolución completa al ampliar.
+
+La barra cuenta las fotos seleccionadas fuera de los elementos cargados; las acciones afectan a toda la selección explícita. Las exclusiones de toda la vista aparecen por separado. Comparar requiere 2–4 fotos seleccionadas explícitamente y cargadas; nunca abre solo una parte sin avisar.
+
+- **Comparar** — abre 2–4 fotos seleccionadas en paralelo. El botón de chincheta cambia la referencia sin modificar valoraciones ni decisiones. La inspección empieza vinculada; desvincula para encuadrar cada panel por separado. Volver a vincular conserva cada encuadre. Los gestos vinculados aplican la misma proporción de zoom y desplazamiento en píxeles a todos los candidatos, incluso fuera de Dos vistas; el primer límite detiene al grupo. Restablecer encaja todas las fotos. Desplaza para ampliar, arrastra para mover y haz doble clic para alternar el aumento. Restablecer encaja toda la comparación. El movimiento vinculado no alinea sujetos. Cada panel indica carga, disponibilidad o fallo de la vista detallada (conservando la miniatura); ampliar puede solicitar resolución completa. Con tres o cuatro fotos, Dos vistas mantiene la referencia mientras Anterior/Siguiente recorre las candidatas. Promover una candidata coloca la referencia anterior en el panel candidato. Desactivar Dos vistas restaura todos los paneles.
 - **Copiar nombres**: copia los nombres de archivo al portapapeles. Una copia de toda la vista pide confirmación antes; más de 10 000 fotos se rechaza.
 - **Exportar**: escribe sidecars XMP junto a los archivos (ver [Exportación al editor](#exportación-al-editor))
 - **Descartar a carpeta**: copia las conservadas, o mueve/envía a la papelera las rechazadas, a una carpeta (ver [Descartar a carpeta](#descartar-a-carpeta))
@@ -536,7 +551,7 @@ Inicia un escaneo desde el navegador. El botón Escanear aparece cuando se cumpl
 
 En una instalación abierta de un solo usuario (`viewer.edition_password` vacío, el valor predeterminado), nadie puede escanear desde el navegador. Excepción: con `viewer.trusted_local_editing`, una sesión de navegador local de confianza, o un asistente local con un token de edición completa, puede escanear sin `show_scan_button` ni contraseña de edición.
 
-El botón está en la galería vacía (**Escanea fotos para empezar**) y al final de la cabecera (**Buscar fotos nuevas**; barra inferior en pantallas pequeñas). Ambos abren el lanzador de escaneo:
+La galería vacía ofrece **Escanea fotos para empezar**. **Buscar fotos nuevas** también está en el área de navegación global a cualquier anchura. Ambos abren el lanzador de escaneo:
 
 - Elige un directorio de la lista e inicia el escaneo.
 - El progreso en vivo y las líneas de salida se muestran en el diálogo. La galería se actualiza cuando termina el escaneo.
@@ -1141,7 +1156,7 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 
 **Reasignar teclas.** `K`, `F`, `X`, `/`, `B`, `V` y `S` son valores por defecto. Menú de usuario → **Personalizar atajos** te permite hacer clic en una acción y pulsar una tecla nueva (`Esc` o `Tab` cancela). Los dígitos, `Space` y `?` están reservados, y una tecla ya en uso se rechaza. **Restablecer todo** restaura los valores por defecto. La asignación se guarda por navegador (`localStorage`). La página de la foto usa las mismas teclas, y la referencia `?` siempre muestra las teclas en vigor.
 
-**Foto actual.** La foto sobre la que actúan las teclas de valoración, favorito y rechazo tiene un contorno de 4 px; las demás tarjetas se atenúan al 50 %. No se marca nada hasta que te mueves a una foto. Hacer clic en una foto mueve el marcador a ella. Volver desde una foto deja el marcador en la última que viste. La pista de la tarjeta enfocada aparece solo en modo de edición con `viewer.features.show_rating_controls` activado.
+**Foto actual.** La foto sobre la que actúan las teclas de valoración, favorito y rechazo tiene un contorno de 4 px; las demás tarjetas conservan su luminosidad normal. No se marca nada hasta que te mueves a una foto. Hacer clic en una foto mueve el marcador a ella. Volver desde una foto deja el marcador en la última que viste. La pista de la tarjeta enfocada aparece solo en modo de edición con `viewer.features.show_rating_controls` activado.
 
 **En la página de la foto**, `1`–`5`, la tecla de favorito y la de rechazo (`F` y `X` por defecto; `0` también rechaza) actúan sobre la foto abierta, en modo de edición con `viewer.features.show_rating_controls` activado. No avanzan; usa `←` `→`. La referencia `?` los lista en *Vista de foto*.
 

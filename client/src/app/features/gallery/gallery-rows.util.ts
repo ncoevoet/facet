@@ -74,8 +74,8 @@ export function gridColumnCount(width: number, cardMinW: number, gap: number, is
  * Row-chunk the photos the way the CSS grid lays them out.
  *
  * With hideDetails (the default) cards are aspect-square, so heights are
- * exact. With details shown, the height is an estimate refined by the
- * tallest image in the row plus DETAILS_ESTIMATE_PX.
+ * exact. With details shown, all photos fit without cropping into the same
+ * 4:3 frame (matching PhotoCardComponent), plus DETAILS_ESTIMATE_PX.
  */
 export function buildGridRows(
   photos: Photo[],
@@ -94,14 +94,12 @@ export function buildGridRows(
   for (let start = 0; start < photos.length; start += cols) {
     const rowPhotos = photos.slice(start, start + cols);
     let height: number;
-    if (cols === 1) {
-      height = Math.round(cellW / aspectOf(rowPhotos[0]))
-        + (hideDetails ? 0 : DETAILS_ESTIMATE_PX);
-    } else if (hideDetails) {
-      height = Math.round(cellW);
+    if (!hideDetails) {
+      height = Math.round(cellW / (4 / 3)) + DETAILS_ESTIMATE_PX;
+    } else if (cols === 1) {
+      height = Math.round(cellW / aspectOf(rowPhotos[0]));
     } else {
-      const maxImgH = Math.max(...rowPhotos.map(p => cellW / aspectOf(p)));
-      height = Math.round(maxImgH) + DETAILS_ESTIMATE_PX;
+      height = Math.round(cellW);
     }
     const widths = rowPhotos.map(() => Math.floor(cellW));
     rows.push({ photos: rowPhotos, widths, height, offset, startIndex: start });

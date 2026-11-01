@@ -34,7 +34,10 @@ let PhotoDetailComponent: typeof import('./photo-detail.component').PhotoDetailC
 
 describe('PhotoDetailComponent', () => {
   // The open metric tab is remembered across tests otherwise.
-  afterEach(() => localStorage.removeItem('facet_photo_detail_tab'));
+  afterEach(() => {
+    localStorage.removeItem('facet_photo_detail_tab');
+    history.replaceState(null, '', location.href);
+  });
 
    
   let component: any;
@@ -773,7 +776,7 @@ describe('PhotoDetailComponent', () => {
 
       (view.nativeElement.querySelector('button') as HTMLButtonElement).click();
 
-      expect(mockLocation.back).toHaveBeenCalled();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], expect.objectContaining({ replaceUrl: true }));
     });
 
     it('a fetch that fails after the URL moved on leaves the photo shown alone', async () => {
@@ -936,7 +939,7 @@ describe('PhotoDetailComponent', () => {
       mockApi.get.mockImplementation(() => throwError(() => ({ status: 404 })));
       changes$.next({ paths: [samplePhoto.path] });
       await flushAsync();
-      expect(mockLocation.back).toHaveBeenCalled();
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], expect.objectContaining({ replaceUrl: true }));
     });
 
     it('stays on the page on a 500', async () => {
@@ -972,13 +975,25 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('goBack', () => {
+    it('returns a directly opened photo to the saved gallery query instead of leaving the app', () => {
+      history.replaceState({}, '', location.href);
+      createComponent();
+      vi.spyOn(TestBed.inject(GalleryStore), 'readGallerySessionQuery').mockReturnValue({ search: 'saved' });
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
+      component.goBack(escape);
+      expect(mockLocation.back).not.toHaveBeenCalled();
+      expect(mockRouter.navigate).toHaveBeenCalledExactlyOnceWith(['/'], { queryParams: { search: 'saved' }, replaceUrl: true });
+      expect(escape.defaultPrevented).toBe(true);
+    });
     it('should call location.back()', () => {
+      history.replaceState({ photo: samplePhoto }, '', location.href);
       createComponent();
       component.goBack();
       expect(mockLocation.back).toHaveBeenCalled();
     });
 
     it('goes back on Escape, but not on one a dialog already handled', () => {
+      history.replaceState({ photo: samplePhoto }, '', location.href);
       createComponent();
       const handled = new KeyboardEvent('keydown', { key: 'Escape', cancelable: true });
       handled.preventDefault();

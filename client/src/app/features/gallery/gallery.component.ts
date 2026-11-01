@@ -1,3 +1,5 @@
+import { GalleryViewControlsComponent } from './gallery-view-controls.component';
+import { GalleryCriteriaComponent } from './gallery-criteria.component';
 import { StackActionsService } from './stack-actions.service';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import {
@@ -15,7 +17,6 @@ import {
   untracked,
   DestroyRef,
   Injector,
-  TemplateRef,
   ElementRef,
   NgZone,
   ChangeDetectionStrategy
@@ -89,16 +90,12 @@ import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
-import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { MAX_COMPARE_PANES } from './synced-zoom.component';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 
 function assertNever(action: never): never {
   throw new Error(`Unhandled photo menu action: ${JSON.stringify(action)}`);
 }
-
-/** Width from which the toolbar search is shown (its `min-[1360px]:` class). */
-const TOOLBAR_SEARCH_QUERY = '(min-width: 1360px)';
 
 /** Where the focused card sat in the viewport when the gallery parked. */
 interface ReturnAnchor { offset: number; width: number; height: number }
@@ -134,17 +131,18 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
     PhotoTooltipComponent,
     SlideshowComponent,
     GalleryFilterSidebarComponent,
+    GalleryViewControlsComponent, GalleryCriteriaComponent,
     PhotoCardComponent,
     GalleryPhotoMenuComponent,
     PhotoSkeletonComponent,
     InfiniteScrollDirective,
   ],
   template: `
-    <!-- Header-slot toolbar: the app shell renders this in the global header on lg+.
-         Type filter + semantic search, rebound to the gallery store. -->
+    <!-- Collection controls stay with the photo workspace at every width.
+         Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="!hidden lg:!inline-flex w-44 ml-2 shrink-0" subscriptSizing="dynamic">
+        <mat-form-field class="w-28 sm:w-44 shrink-0" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -154,12 +152,9 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           </mat-select>
         </mat-form-field>
 
-        <!-- Search. Visible from 1360 px up — the same threshold as the count
-             label, below which the toolbar has no room for it — and filters as
-             you type (400 ms debounce; Enter and leaving the box commit, so
-             clicking a photo never drops typed text). flex-1 fills whatever
-             the type dropdown and the buttons leave. -->
-        <mat-form-field class="!hidden min-[1360px]:!inline-flex min-w-48 flex-1 mr-2" subscriptSizing="dynamic">
+        <!-- Exact text search commits through the existing debounced handler. -->
+        <mat-form-field class="min-w-0 flex-1" subscriptSizing="dynamic">
+          <mat-label>{{ I18N.gallery.search_placeholder | translate }}</mat-label>
           <input
             #toolbarSearch
             matInput
@@ -225,7 +220,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
     </ng-template>
 
     <div #noticeHost class="relative h-full">
-    <mat-sidenav-container class="h-full">
+    <mat-sidenav-container class="h-full !overflow-clip">
       <!-- One end drawer, two occupants. Material allows a single drawer per
            side, which is also the behaviour we want: the details rail and the
            filters compete for the same strip, so opening the filters hides the
@@ -238,6 +233,16 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                background covers the whole rail instead of a rounded card. -->
           <div class="flex flex-col h-full bg-[var(--facet-tooltip-bg)]" data-details-rail tabindex="-1" (keydown.escape)="onRailEscape($event)"
                (focusout)="onGridFocusOut($event)">
+            <header class="flex items-center gap-2 px-4 py-2 border-b border-[var(--mat-sys-outline-variant)] shrink-0">
+              <div class="min-w-0 flex-1">
+                <h2 class="m-0 text-sm font-medium text-[var(--mat-sys-on-surface)]">{{ I18N.gallery.tooltip_mode.details | translate }}</h2>
+                @if (panelPhoto(); as owner) {
+                  <p data-inspector-owner class="m-0 truncate text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="owner.filename">{{ owner.filename }}</p>
+                }
+              </div>
+              <button mat-icon-button data-close-inspector [attr.aria-label]="I18N.dialog.close | translate"
+                      (click)="store.updateFilter('tooltip_mode', 'off')"><mat-icon>close</mat-icon></button>
+            </header>
             @if (hasActivePhoto()) {
               <button mat-button class="!min-w-0 shrink-0 self-start mx-2 mt-2" (click)="releasePanel()">
                 <mat-icon>arrow_back</mat-icon> {{ I18N.gallery.tooltip_mode.panel_deselect | translate }}
@@ -268,9 +273,41 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
-        @if (store.photoTotal() !== store.total()) {
-          <p role="status" class="text-sm opacity-80 px-3 py-2">{{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}</p>
-        }
+        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] px-3 py-3 md:px-4">
+          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-2">
+          <div class="min-w-0 flex-1">
+          <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
+            {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
+          </h1>
+          <p class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
+            @if (!pinned() && store.photoTotal() !== store.total()) {
+              {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
+            } @else {
+              {{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
+            }
+          </p>
+          </div>
+          <div class="flex items-center gap-1 border border-[var(--mat-sys-outline-variant)] rounded-lg p-0.5">
+            <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
+                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
+                    [attr.aria-pressed]="store.galleryMode() === 'grid'"
+                    [attr.aria-label]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
+              <mat-icon>grid_view</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_grid | translate }}</span>
+            </button>
+            <button mat-button data-gallery-layout="mosaic" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
+                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'mosaic'"
+                    [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
+                    [attr.aria-label]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
+              <mat-icon>auto_awesome_mosaic</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
+            </button>
+          </div>
+          <app-gallery-view-controls class="max-md:w-full" />
+          </div>
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex items-center gap-2">
+            <ng-container [ngTemplateOutlet]="galleryToolbar" />
+          </div>
+          <app-gallery-criteria />
+        </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
              Never reflected in the URL (sequence_group_id is renumbered on every
@@ -692,7 +729,8 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
            container is its own stacking context and a z-20 card would paint over it. -->
       @if (selectionCount() && !overDrawerOpen()) {
         <div #selectionBar data-selection-bar
-             class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit flex flex-wrap items-center gap-1 px-2 py-1 rounded-2xl bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-outline-variant)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
+             role="region" [attr.aria-label]="(viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() }"
+             class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-primary)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
              [style.right.px]="noticeRightPx()">
           <!-- Every loaded photo is selected, but the view runs past the pages
                fetched so far. Offer the rest explicitly on its own line (w-full
@@ -705,38 +743,51 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           }
           @if (viewScoped()) {
             <p class="text-xs basis-full opacity-80">{{ I18N.stacks.folded_scope | translate }}</p>
+            @if (excludedPaths().size) {
+              <p data-selection-exclusions class="text-xs basis-full m-0">{{ I18N.gallery.selection.exclusions | translate:{ count: excludedPaths().size } }}</p>
+            }
+          } @else if (selectionOutsideLoaded()) {
+            <p data-selection-outside class="text-xs basis-full m-0" aria-live="polite">{{ I18N.gallery.selection.outside_loaded | translate:{ count: selectionOutsideLoaded() } }}</p>
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
-          <button mat-icon-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon></button>
+          <button mat-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon>{{ I18N.gallery.selection.clear | translate }}</button>
+          @if (selectionCount() >= 2 && selectionCount() <= comparePaneLimit) {
+            <button mat-button [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon>compare</mat-icon>{{ I18N.gallery.selection.compare | translate }}</button>
+            @if (!canCompareSelection()) {
+              <span id="compare-selection-requirements" class="text-xs basis-full">{{ I18N.gallery.selection.compare_loaded | translate }}</span>
+            }
+          }
+          @if (auth.isEdition()) {
+            <button mat-button data-selection-keep [matTooltip]="I18N.review.keep | translate" (click)="batchReview('kept')" [attr.aria-label]="I18N.review.keep | translate"><mat-icon>check_circle</mat-icon>{{ I18N.review.keep | translate }}</button>
+            <button mat-button data-selection-reject [matTooltip]="I18N.gallery.selection.reject | translate" (click)="batchReject()" [attr.aria-label]="I18N.gallery.selection.reject | translate"><mat-icon>thumb_down</mat-icon>{{ I18N.gallery.selection.reject | translate }}</button>
+          }
+          <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
+            @if (downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
+          </button>
+          <details #selectionMore data-selection-more tabindex="-1" class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+            <summary #selectionMoreSummary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
+            <div class="absolute bottom-full left-0 mb-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {
-            <button mat-icon-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon></button>
+            <button mat-button disabledInteractive (click)="selectAll()" [matTooltip]="I18N.gallery.selection.select_all | translate" [attr.aria-label]="I18N.gallery.selection.select_all | translate"><mat-icon>select_all</mat-icon><span>{{ I18N.gallery.selection.select_all | translate }}</span></button>
           }
-          <button mat-icon-button disabledInteractive (click)="invertSelection()" [matTooltip]="I18N.gallery.selection.invert | translate" [attr.aria-label]="I18N.gallery.selection.invert | translate"><mat-icon>flip</mat-icon></button>
-          @if (canCompareSelection()) {
-            <button mat-icon-button disabledInteractive (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate"><mat-icon>compare</mat-icon></button>
-          }
+          <button mat-button disabledInteractive (click)="invertSelection()" [matTooltip]="I18N.gallery.selection.invert | translate" [attr.aria-label]="I18N.gallery.selection.invert | translate"><mat-icon>flip</mat-icon><span>{{ I18N.gallery.selection.invert | translate }}</span></button>
           @if (auth.isEdition()) {
             <button mat-icon-button [disabled]="viewScoped() || selectionCount() > MAX_REFRESH_PATHS" (click)="refreshSelectedPhotos()"
               [matTooltip]="I18N.photo_refresh.title | translate" [attr.aria-label]="I18N.photo_refresh.title | translate"><mat-icon>refresh</mat-icon></button>
           }
           <!-- Mobile: single Actions trigger opening a touch-friendly bottom sheet -->
           @if (auth.isEdition()) {
-            <button mat-icon-button data-create-stack (click)="createStack()" [disabled]="!canCreateStack()"
+            <button mat-button data-create-stack (click)="createStack()" [disabled]="!canCreateStack()"
               [matTooltip]="(canCreateStack() ? (stackShortcut() ? I18N.shortcuts.stack_hint : I18N.stacks.create) : I18N.stacks.explicit_only) | translate:{ key: stackShortcut() }"
-              [attr.aria-label]="I18N.stacks.create | translate"><mat-icon>photo_library</mat-icon></button>
+              [attr.aria-label]="I18N.stacks.create | translate"><mat-icon>photo_library</mat-icon><span>{{ I18N.stacks.create | translate }}</span></button>
           }
-          <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
-            @if (downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
-          </button>
-          <!-- Desktop actions (below md they live in the Actions sheet) -->
-          <div class="contents max-md:hidden">
+
+
             @if (auth.isEdition()) {
               <span aria-hidden="true" class="w-px h-6 mx-1 bg-[var(--mat-sys-outline-variant)]"></span>
-              <button mat-icon-button disabledInteractive (click)="batchFavorite()" [matTooltip]="I18N.gallery.selection.favorite | translate" [attr.aria-label]="I18N.gallery.selection.favorite | translate"><mat-icon>favorite</mat-icon></button>
-              <button mat-icon-button disabledInteractive (click)="batchReview('kept')" [matTooltip]="I18N.review.keep | translate" [attr.aria-label]="I18N.review.keep | translate"><mat-icon>check_circle</mat-icon></button>
-              <button mat-icon-button disabledInteractive (click)="batchReview('undecided')" [matTooltip]="I18N.review.reset | translate" [attr.aria-label]="I18N.review.reset | translate"><mat-icon>restart_alt</mat-icon></button>
-              <button mat-icon-button disabledInteractive (click)="batchReject()" [matTooltip]="I18N.gallery.selection.reject | translate" [attr.aria-label]="I18N.gallery.selection.reject | translate"><mat-icon>thumb_down</mat-icon></button>
-              <button mat-icon-button disabledInteractive [matMenuTriggerFor]="rateMenu" [matTooltip]="I18N.gallery.selection.rate | translate" [attr.aria-label]="I18N.gallery.selection.rate | translate"><mat-icon>star</mat-icon></button>
+              <button mat-button disabledInteractive (click)="batchFavorite()" [matTooltip]="I18N.gallery.selection.favorite | translate" [attr.aria-label]="I18N.gallery.selection.favorite | translate"><mat-icon>favorite</mat-icon><span>{{ I18N.gallery.selection.favorite | translate }}</span></button>
+              <button mat-button disabledInteractive (click)="batchReview('undecided')" [matTooltip]="I18N.review.reset | translate" [attr.aria-label]="I18N.review.reset | translate"><mat-icon>restart_alt</mat-icon><span>{{ I18N.review.reset | translate }}</span></button>
+              <button mat-button disabledInteractive [matMenuTriggerFor]="rateMenu" [matTooltip]="I18N.gallery.selection.rate | translate" [attr.aria-label]="I18N.gallery.selection.rate | translate"><mat-icon>star</mat-icon><span>{{ I18N.gallery.selection.rate | translate }}</span></button>
               <mat-menu #rateMenu="matMenu">
                 @for (star of [1, 2, 3, 4, 5]; track star) {
                   <button mat-menu-item (click)="batchRate(star)">
@@ -749,7 +800,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               </mat-menu>
             }
             @if (auth.isEdition() && store.config()?.features?.show_albums) {
-              <button mat-icon-button disabledInteractive [matMenuTriggerFor]="albumMenu" [matTooltip]="I18N.albums.add_photos | translate" [attr.aria-label]="I18N.albums.add_photos | translate"><mat-icon>photo_library</mat-icon></button>
+              <button mat-button disabledInteractive [matMenuTriggerFor]="albumMenu" [matTooltip]="I18N.albums.add_photos | translate" [attr.aria-label]="I18N.albums.add_photos | translate"><mat-icon>photo_library</mat-icon><span>{{ I18N.albums.add_photos | translate }}</span></button>
               <mat-menu #albumMenu="matMenu">
                 @for (album of albumOptions(); track album.id) {
                   <button mat-menu-item (click)="addToAlbum(album.id)">{{ album.name }}</button>
@@ -764,7 +815,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                  set the detector found, and an undetected sweep appears in no
                  culling group at all. Here the frames are in front of the user. -->
             @if (auth.isEdition()) {
-              <button mat-icon-button disabledInteractive [matMenuTriggerFor]="sequenceMenu" [matTooltip]="I18N.gallery.selection.mark_sequence | translate" [attr.aria-label]="I18N.gallery.selection.mark_sequence | translate"><mat-icon>panorama_photosphere</mat-icon></button>
+              <button mat-button disabledInteractive [matMenuTriggerFor]="sequenceMenu" [matTooltip]="I18N.gallery.selection.mark_sequence | translate" [attr.aria-label]="I18N.gallery.selection.mark_sequence | translate"><mat-icon>panorama_photosphere</mat-icon><span>{{ I18N.gallery.selection.mark_sequence | translate }}</span></button>
               <mat-menu #sequenceMenu="matMenu">
                 <button mat-menu-item (click)="markAsPanorama('panorama')">
                   <mat-icon>{{ 'panorama' | sequenceKindIcon }}</mat-icon>
@@ -781,13 +832,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               </mat-menu>
             }
             <span aria-hidden="true" class="w-px h-6 mx-1 bg-[var(--mat-sys-outline-variant)]"></span>
-            <button mat-icon-button disabledInteractive (click)="copyPaths()" [matTooltip]="I18N.gallery.selection.copy_filenames | translate" [attr.aria-label]="I18N.gallery.selection.copy_filenames | translate"><mat-icon>content_copy</mat-icon></button>
+            <button mat-button disabledInteractive (click)="copyPaths()" [matTooltip]="I18N.gallery.selection.copy_filenames | translate" [attr.aria-label]="I18N.gallery.selection.copy_filenames | translate"><mat-icon>content_copy</mat-icon><span>{{ I18N.gallery.selection.copy_filenames | translate }}</span></button>
             @if (auth.isEdition()) {
-              <button mat-icon-button (click)="openCaptureDateDialog()" [matTooltip]="I18N.capture_date.title | translate" [attr.aria-label]="I18N.capture_date.title | translate"><mat-icon>edit_calendar</mat-icon></button>
-              <button mat-icon-button disabledInteractive (click)="openBatchGpsDialog()" [matTooltip]="I18N.photo_detail.gps.batch_title | translate" [attr.aria-label]="I18N.photo_detail.gps.batch_title | translate"><mat-icon>location_on</mat-icon></button>
-              <button mat-icon-button disabledInteractive (click)="openManualTagsDialog()" [matTooltip]="I18N.gallery.selection.edit_tags | translate" [attr.aria-label]="I18N.gallery.selection.edit_tags | translate"><mat-icon>sell</mat-icon></button>
-              <button mat-icon-button disabledInteractive (click)="openExportDialog()" [matTooltip]="I18N.export.action | translate" [attr.aria-label]="I18N.export.action | translate"><mat-icon>drive_file_move</mat-icon></button>
-              <button mat-icon-button disabledInteractive (click)="openCullDialog()" [matTooltip]="I18N.cull.action | translate" [attr.aria-label]="I18N.cull.action | translate"><mat-icon>folder_move</mat-icon></button>
+              <button mat-button (click)="openCaptureDateDialog()" [matTooltip]="I18N.capture_date.title | translate" [attr.aria-label]="I18N.capture_date.title | translate"><mat-icon>edit_calendar</mat-icon><span>{{ I18N.capture_date.title | translate }}</span></button>
+              <button mat-button disabledInteractive (click)="openBatchGpsDialog()" [matTooltip]="I18N.photo_detail.gps.batch_title | translate" [attr.aria-label]="I18N.photo_detail.gps.batch_title | translate"><mat-icon>location_on</mat-icon><span>{{ I18N.photo_detail.gps.batch_title | translate }}</span></button>
+              <button mat-button disabledInteractive (click)="openManualTagsDialog()" [matTooltip]="I18N.gallery.selection.edit_tags | translate" [attr.aria-label]="I18N.gallery.selection.edit_tags | translate"><mat-icon>sell</mat-icon><span>{{ I18N.gallery.selection.edit_tags | translate }}</span></button>
+              <button mat-button disabledInteractive (click)="openExportDialog()" [matTooltip]="I18N.export.action | translate" [attr.aria-label]="I18N.export.action | translate"><mat-icon>drive_file_move</mat-icon><span>{{ I18N.export.action | translate }}</span></button>
+              <button mat-button disabledInteractive (click)="openCullDialog()" [matTooltip]="I18N.cull.action | translate" [attr.aria-label]="I18N.cull.action | translate"><mat-icon>folder_move</mat-icon><span>{{ I18N.cull.action | translate }}</span></button>
               @if (store.config()?.cull?.trash_available) {
                 <button mat-icon-button disabledInteractive (click)="deleteSelected()"
                         [disabled]="viewScoped()"
@@ -809,7 +860,8 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             } @else {
               <button mat-icon-button (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="(downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate" [attr.aria-label]="(downloading() ? I18N.photo_detail.downloading : I18N.gallery.selection.download) | translate">@if (downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
             }
-          </div>
+            </div>
+          </details>
         </div>
       }
     </div>
@@ -922,9 +974,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private returnTo: ReturnTarget | null = null;
   private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
-  private readonly headerSlot = inject(HeaderSlotService);
+  private readonly viewControls = viewChild(GalleryViewControlsComponent);
+  private readonly criteria = viewChild(GalleryCriteriaComponent);
   private readonly liveAnnouncer = inject(LiveAnnouncer);
-  private readonly galleryToolbar = viewChild<TemplateRef<unknown>>('galleryToolbar');
   private readonly toolbarSearch = viewChild<ElementRef<HTMLInputElement>>('toolbarSearch');
 
   // Album options for "Add to album" menu
@@ -973,6 +1025,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   protected readonly selectedPaths = this.store.selectedPaths;
   protected readonly excludedPaths = this.store.excludedPaths;
   protected readonly selectionCount = this.store.selectionCount;
+  protected readonly comparePaneLimit = MAX_COMPARE_PANES;
+  protected readonly selectionOutsideLoaded = computed(() => {
+    if (this.viewScoped()) return 0;
+    const loaded = new Set(this.store.photos().map(photo => photo.path));
+    return [...this.selectedPaths()].filter(path => !loaded.has(path)).length;
+  });
   /** True while the selection means "the whole filtered view", not a path list. */
   protected readonly viewScoped = this.store.viewScopeSelected;
 
@@ -1184,7 +1242,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly noticeInsetPx = signal(0);
 
   /** Right offset of the floating notices: a margin (16px md+, 8px below) plus the drawer/scrollbar gap. */
-  protected readonly noticeRightPx = computed(() => this.noticeInsetPx() + this.floatMarginPx());
+  protected readonly noticeRightPx = computed(() => {
+    // ResizeObserver can retain the previous side-drawer inset after a viewport
+    // or presentation change. An over drawer never reserves photo-canvas width.
+    const reservesSpace = this.isDesktop() && (this.store.filterDrawerOpen() || this.detailsRailVisible());
+    return (reservesSpace ? this.noticeInsetPx() : 0) + this.floatMarginPx();
+  });
 
   /** Re-measure the drawer/scrollbar gap whenever the host or the content box resizes. */
   private readonly trackNoticeInset = effect(onCleanup => {
@@ -1549,12 +1612,6 @@ export class GalleryComponent implements OnInit, OnDestroy {
       this.setupScrollTracking();
     });
 
-    // Project the gallery toolbar into the global header slot (rendered lg-only by the shell)
-    effect(() => {
-      const t = this.galleryToolbar();
-      if (t) this.headerSlot.set(t);
-    });
-
     // Capture before the outlet detaches the DOM and loses scroll and focus.
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(() => {
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
@@ -1785,11 +1842,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   private setGalleryChrome(active: boolean): void {
     this.pageHelp.setDescription(active ? I18N.gallery.help : null);
-    const toolbar = this.galleryToolbar();
-    if (toolbar) {
-      if (active) this.headerSlot.set(toolbar);
-      else this.headerSlot.clear(toolbar);
-    }
+    this.viewControls()?.setActive(active);
+    this.criteria()?.setActive(active);
   }
 
   private refreshSideData(): void {
@@ -1993,10 +2047,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Two panes is the smallest useful compare; past four they are too small to read. */
   protected readonly canCompareSelection = computed(
-    () => this.selectionCount() >= 2 && this.selectionCount() <= MAX_COMPARE_PANES,
+    () => !this.viewScoped() && this.selectionCount() >= 2 && this.selectionCount() <= MAX_COMPARE_PANES
+      && this.selectionOutsideLoaded() === 0,
   );
 
   protected async compareSelection(): Promise<void> {
+    if (!this.canCompareSelection()) return;
     const selected = new Set(this.store.selectedLoadedPaths());
     // Keep the grid's order rather than selection order: comparing left-to-right
     // as they are laid out is what the user is already looking at.
@@ -2916,14 +2972,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const search = this.toolbarSearch()?.nativeElement;
       if (!search) return;
       event.preventDefault();
-      if (window.matchMedia(TOOLBAR_SEARCH_QUERY).matches) {
-        search.focus();
-        search.select();
-        return;
-      }
-      // Below 1360 px the toolbar search is hidden; the sidebar carries its own.
-      this.store.setFilterDrawerOpen(true);
-      afterNextRender(() => this.filterSidebar()?.focusSearch(), { injector: this.injector });
+      search.focus();
+      search.select();
       return;
     }
     if (this.keymap.matches(event, 'toggleSidebar')) {

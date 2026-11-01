@@ -4,6 +4,16 @@
 
 O visualizador é uma aplicação web em FastAPI + Angular para navegar, filtrar, fazer a triagem e gerenciar suas fotos.
 
+O menu de hambúrguer contém todos os destinos e os modos Oculta, Compacta e Fixa. Não há botão Fixar separado nem linha de destinos duplicada. A barra lateral visível substitui a barra superior no computador e coloca a conta em baixo. Compacta expande-se com o ponteiro ou foco sobre as fotos sem reservar mais largura. Quando oculta e no telefone, o menu oferece todos os destinos. As ferramentas ficam junto ao conteúdo.
+
+O cabeçalho reúne nome, contagens de fotos correspondentes e grupos exibidos, Grade/Mosaico e busca textual em qualquer largura. A seleção oferece Limpar, Comparar e, com edição, Manter/Rejeitar. Ações revela comandos secundários nomeados no computador; no telefone permanece o painel Ações. Alvos e permissões são preservados. Ordenação, direção, Filtros, informações da foto e apresentação formam um único grupo da coleção no computador e telefone. Conta, Edição e análise permitida ficam na área de navegação global; a galeria não duplica uma barra inferior. Abrir uma foto fecha os menus da coleção e pausa os comandos até voltar.
+
+**Vistas de trabalho.** Vista → Explorar usa um mosaico compacto com informação ao passar o ponteiro (por clique em ecrãs estreitos). Rever usa cartões maiores com detalhes e inspeção por clique (painel lateral quando há espaço). Organizar usa uma grelha mais densa com detalhes e informação por clique. Só mudam disposição, tamanho, detalhes e inspeção; consulta, ordenação, álbum, seleção e página carregada mantêm-se. Repor a vista predefinida restaura a apresentação configurada sem repor os filtros. Uma vista deixa de estar marcada quando os ajustes manuais já não correspondem.
+
+**Critérios da coleção.** Os critérios de metadados e pesquisa visual ficam sob a consulta quando o painel fecha. Cada remoção tem um nome acessível; limpar um intervalo remove ambos os limites em conjunto. A pesquisa visual explica a combinação de semelhança, filtros e ordenação. Favoritos mantém os outros critérios. Os filtros de decisão saem da pesquisa visual; Por decidir ordena por data de captura, da mais antiga, como explicado antes da escolha. As regras de visibilidade mostram exclusões e representantes de grupos efetivos; as anuladas por um filtro Apenas não aparecem ativas. As listas fixas pedem o regresso à vista habitual antes de alterar critérios.
+
+Escape regressa pelo histórico de uma foto aberta na galeria, preservando o contexto. Uma foto aberta diretamente regressa à consulta guardada em vez de sair da aplicação. Um diálogo ou editor aberto trata Escape primeiro.
+
 ## Conteúdo
 
 - [Iniciando o Visualizador](#iniciando-o-visualizador) · [Autenticação](#autenticação) · [Opções de Filtragem](#opções-de-filtragem) · [Ordenação](#ordenação) · [Decisões de revisão](#decisões-de-revisão) · [Recursos da Galeria](#recursos-da-galeria)
@@ -141,7 +151,7 @@ A pesquisa de texto da galeria preserva palavras Unicode e trata a pontuação d
 
 ### Abas da barra lateral
 
-A barra lateral de filtros agrupa as suas seções em cinco abas, mostradas como ícones (passe o mouse para ver o nome). Um pequeno emblema num ícone conta os filtros ativos da aba, e a aba mantém o nome para leitores de tela (“Explorar, 2 ativos”). A última aba usada fica guardada neste navegador (`facet_sidebar_tab`). Explorar, Qualidade e Assunto têm painéis recolhíveis, e cada um lembra se está aberto; Revisão e Visualização não os têm.
+A barra lateral de filtros agrupa as suas seções em cinco abas, mostradas com ícones e rótulos (passe o mouse para ver o nome completo). Um pequeno emblema num ícone conta os filtros ativos da aba, e a aba mantém o nome para leitores de tela (“Explorar, 2 ativos”). A última aba usada fica guardada neste navegador (`facet_sidebar_tab`). Explorar, Qualidade e Assunto têm painéis recolhíveis, e cada um lembra se está aberto; Revisão e Visualização não os têm.
 
 | Aba | Seções |
 |-----|--------|
@@ -315,6 +325,10 @@ No detalhe da foto, as métricas ficam em abas com ícone: dados EXIF (se houver
 
 Clique nas fotos para selecionar; Shift+Clique seleciona um intervalo. Uma barra de ações aparece no canto inferior esquerdo com botões de ícone (passe o cursor para ver os rótulos). As ações em lote exigem o modo de edição.
 
+A faixa de miniaturas identifica a referência e permite escolher uma candidata diretamente. O painel ativo é destacado separadamente. Remover da comparação altera apenas esta vista, nunca Manter/Rejeitar nem a seleção da galeria; Restaurar devolve as fotos removidas. Uma foto restante continua disponível para inspeção. A grade com detalhes encaixa a foto inteira numa moldura uniforme 4:3; Mosaico mantém linhas justificadas.
+
+A barra conta fotos selecionadas fora das miniaturas carregadas; as ações abrangem toda a seleção explícita. As exclusões de toda a vista aparecem separadamente. Comparar requer 2–4 fotos selecionadas explicitamente e todas carregadas, sem abrir apenas parte silenciosamente.
+
 - **Favoritar** — marca todas como favoritas (limpa rejeição)
 - **Rejeitar** — marca todas como rejeitadas (limpa favorito e avaliação)
 - **Avaliar** — define ou limpa uma avaliação de 1–5 estrelas
@@ -322,7 +336,7 @@ Clique nas fotos para selecionar; Shift+Clique seleciona um intervalo. Uma barra
 - **Editar etiquetas** — adiciona ou remove uma [tag manual](#tags-manuais) em todas as fotos selecionadas
 - **Selecionar todas** — com uma seleção vazia, seleciona todas as fotos que os filtros encontram, não só as páginas carregadas. Com fotos já selecionadas, acrescenta as carregadas e oferece ampliar para toda a visualização. As ações de toda a visualização confirmam antes a contagem exata de fotos.
 - **Inverter** — troca a seleção pelo seu complemento. A partir de uma seleção vazia, é toda a visualização. A partir de uma seleção não vazia, permanece entre as fotos carregadas: escolha as que ficam, inverta, rejeite.
-- **Comparar** — abre 2 a 4 fotos lado a lado com deslocamento e zoom sincronizados (role para ampliar, arraste para deslocar, duplo clique para restaurar). Os painéis passam à resolução total quando ampliados.
+- **Comparar** — abre 2–4 fotos selecionadas lado a lado. O botão de alfinete muda a referência sem alterar classificações ou decisões. A inspeção começa ligada; desligue para enquadrar cada painel separadamente. Voltar a ligar mantém cada enquadramento. Os gestos ligados aplicam a mesma proporção de zoom e deslocamento em píxeis a todas as candidatas, mesmo fora de Duas vistas; o primeiro limite para o grupo. Repor ajusta todas as fotos ao painel. Desloque para ampliar, arraste para mover e clique duas vezes para alternar a ampliação. Repor ajusta toda a comparação aos painéis. O movimento ligado não alinha sujeitos. Cada painel indica carregamento, disponibilidade ou falha da pré-visualização detalhada (mantendo a miniatura); ampliar pode pedir resolução completa. Com três ou quatro fotos, Duas vistas mantém a referência enquanto Anterior/Seguinte percorre as candidatas. Promover uma candidata coloca a referência anterior no painel candidato. Desativar Duas vistas repõe todos os painéis.
 - **Copiar nomes de arquivo** — copia os nomes de arquivo para a área de transferência. Uma cópia de toda a visualização pede confirmação antes; acima de 10 000 fotos é recusada.
 - **Exportar** — grava sidecars XMP ao lado dos arquivos (veja [Exportação para Editor](#exportação-para-editor))
 - **Selecionar para pasta** — copia as mantidas, ou move/descarta as rejeitadas, para uma pasta (veja [Selecionar para pasta](#selecionar-para-pasta))
@@ -532,7 +546,7 @@ Inicie uma varredura pelo navegador. O botão Varrer aparece quando **ambas** as
 
 Em uma instalação aberta de usuário único (`viewer.edition_password` vazio, o padrão), ninguém pode varrer pelo navegador. Exceção: sob `viewer.trusted_local_editing`, uma sessão de navegador local confiável, ou um assistente local com token de Edição completa, pode varrer sem `show_scan_button` nem senha de edição.
 
-O botão fica na galeria vazia (**Escaneie as fotos para começar**) e no fim do cabeçalho (**Procurar novas fotos**; barra inferior em telas pequenas). Ambos abrem o iniciador de varredura:
+A galeria vazia oferece **Escaneie as fotos para começar**. **Procurar novas fotos** também está na área de navegação global em qualquer largura. Ambos abrem o iniciador de varredura:
 
 - Escolha um diretório da lista e inicie a varredura.
 - O progresso ao vivo e as linhas de saída chegam ao diálogo. A galeria é atualizada quando a varredura termina.
@@ -1137,7 +1151,7 @@ Os atalhos de uma tecla ficam inativos enquanto o foco está em um campo de text
 
 **Remapear teclas.** `K`, `F`, `X`, `/`, `B`, `V` e `S` são padrões. Menu do usuário → **Personalizar atalhos** permite clicar em uma ação e pressionar uma nova tecla (`Esc` ou `Tab` cancela). Dígitos, `Space` e `?` são reservados, e uma tecla já em uso é recusada. **Restaurar tudo** restaura os padrões. O mapeamento é salvo por navegador (`localStorage`). A página da foto usa as mesmas teclas, e a referência `?` sempre mostra as teclas em vigor.
 
-**Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões esmaecem para 50%. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
+**Foto atual.** A foto sobre a qual agem as teclas de avaliação, favorito e rejeição tem um contorno de 4px; os outros cartões mantêm o brilho normal. Nada é marcado até você passar para uma foto. Clicar em uma foto leva o marcador até ela. Voltar de uma foto deixa o marcador na última que você viu. A dica do cartão em foco aparece apenas no modo de edição com `viewer.features.show_rating_controls` ligado.
 
 **Na página da foto**, `1`–`5`, a tecla de favorito e a tecla de rejeição (`F` e `X` por padrão; `0` também rejeita) agem sobre a foto aberta, no modo de edição com `viewer.features.show_rating_controls` ligado. Não avançam; use `←` `→`. A referência `?` as lista em *Visão da foto*.
 

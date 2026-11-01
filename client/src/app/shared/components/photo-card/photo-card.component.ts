@@ -11,6 +11,7 @@ import { SequenceOverrideBadgeKeyPipe } from '../../pipes/sequence-kind.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindBestLabelPipe } from '../../pipes/photo-set-kind.pipe';
 import { CARD_ACTION_META, CardActionId, CardActionsConfig, CardSetKind, DEFAULT_CARD_ACTIONS } from './card-actions';
 import { FixedPipe } from '../../pipes/fixed.pipe';
+import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { ScoreClassPipe, SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
 import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
@@ -87,8 +88,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     // detection that would have to apply a conditional class. The top asks for
     // nothing but that same outline kept off the scrollport's edge, since
     // nothing in the shell is fixed or sticky above the grid.
-    class: 'scroll-mt-2 scroll-mb-48 reduce-transparency:opacity-100',
-    // The current-photo marker, and the dimming of every card that is not it.
+    class: 'scroll-mt-2 scroll-mb-48',
+    // The current-photo marker stays separate from batch selection.
     // Both sit on the host rather than on the tile below, because the host's
     // own `content-visibility: auto` brings paint containment with it, and that
     // clips whatever a descendant draws outside the card's box -- the tile's
@@ -107,10 +108,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     // The hosts are flex/grid items, so this applies without positioning them.
     // Well under the action bar (z-50) and the scroll-to-top button (z-40).
     '[class.z-10]': 'isActive()',
-    // Users who set "reduce transparency" get the outline and aria-current
-    // above without this large-area translucency: the static
-    // reduce-transparency:opacity-100 class cancels it back to full opacity.
-    '[class.opacity-50]': 'isDimmed()',
+    // Keep every photo at its true display strength while moving focus.
+    // Selection/current markers carry state without simulating exposure changes.
   },
   imports: [
     FaceFocusOverlayComponent,
@@ -125,6 +124,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     PhotoSetKindBestLabelPipe,
     PersonThumbnailUrlPipe,
     FixedPipe,
+    CaptureDatePipe,
     ShutterSpeedPipe,
     ScoreClassPipe,
     SortScorePipe,
@@ -154,7 +154,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       <!-- Image wrapper with hover overlay scoped to image only -->
       <div class="group/img relative"
            [class.md:h-full]="hideDetails()"
-           [class.h-full]="mosaicMode()">
+           [class.h-full]="mosaicMode()"
+           [class.aspect-[4/3]]="!mosaicMode() && !hideDetails()">
         <img
           [src]="photo().path | thumbnailUrl:thumbSize():photo().preview_revision"
           [alt]="photo().caption || photo().filename"
@@ -163,7 +164,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           class="w-full bg-[var(--mat-sys-surface-container)] transition-opacity duration-500"
           [class.md:h-full]="hideDetails()"
           [class.md:object-cover]="hideDetails()"
-          [class.h-full]="mosaicMode()"
+          [class.h-full]="mosaicMode() || !hideDetails()"
+          [class.object-contain]="!mosaicMode() && !hideDetails()"
           [class.object-cover]="mosaicMode()"
           [class.grayscale]="isEditionMode() && photo().is_rejected"
           [class.opacity-60]="isEditionMode() && photo().is_rejected"
@@ -415,9 +417,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
 
       <!-- Details below photo -->
       @if (!hideDetails()) {
-        <div class="pt-1 text-xs text-neutral-300 leading-snug">
+        <div class="px-2 py-2 text-xs text-[var(--mat-sys-on-surface-variant)] leading-snug">
           <div class="flex items-center gap-1">
-            <span class="font-medium text-neutral-200 truncate">{{ photo().filename }}</span>
+            <span class="font-medium text-[var(--mat-sys-on-surface)] truncate">{{ photo().filename }}</span>
             <span class="ml-auto flex items-center gap-1 shrink-0">
               @if (showsBestBadge()) {
                 <span class="px-1 py-0.5 rounded text-[10px] font-bold bg-[var(--facet-accent-dim)] text-white">{{ 'ui.badges.best' | translate }}</span>
@@ -434,9 +436,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             </span>
           </div>
           @if (photo().date_taken) {
-            <div class="text-neutral-500">{{ photo().date_taken }}</div>
+            <div class="text-[var(--mat-sys-on-surface-variant)]">{{ photo().date_taken | captureDate }}</div>
           }
-          <div class="text-neutral-500">
+          <div class="text-[var(--mat-sys-on-surface-variant)]">
             @if (photo().focal_length) { {{ photo().focal_length }}mm }
             @if (photo().f_stop) { f/{{ photo().f_stop }} }
             @if (photo().shutter_speed) { {{ photo().shutter_speed | shutterSpeed }} }
@@ -663,7 +665,6 @@ export class PhotoCardComponent {
    *  a line drawn at the tile's own edge competes with whatever the photo puts
    *  there, whereas a grid where one tile alone is at full strength reads from
    *  across the room. */
-  protected readonly isDimmed = computed(() => this.gridHasActiveCard() && !this.isActive());
 
   // Edition mode
   readonly isEditionMode = input(false);

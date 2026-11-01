@@ -19,6 +19,7 @@ import { I18N } from '../../core/i18n/keys';
 import { reviewQueueClearVersion } from '../../core/services/review-queue.storage';
 import { readReviewQueue, saveReviewQueue } from './review-queue.util';
 import { REVIEW_PROGRESS_VISIBLE_KEY, readReviewProgressVisible } from './review-progress-dismiss.util';
+import { GalleryDisplayPreset, galleryPresentation } from './gallery-presentation.util';
 import type { components } from '../../core/api/schema';
 import {
   type GalleryFilters, type GalleryMode, type TooltipMode, type PanelActivation, type DisplayOptions,
@@ -1840,6 +1841,26 @@ export class GalleryStore {
   setGalleryMode(mode: GalleryMode): void {
     this.galleryMode.set(mode);
     try { localStorage.setItem(GALLERY_MODE_KEY, mode); } catch { /* ignore */ }
+  }
+
+  /** Switch task presentation without changing membership, paging or selection. */
+  async applyDisplayPreset(preset: GalleryDisplayPreset | 'default', dockDetails: boolean): Promise<void> {
+    const config = this.config();
+    const presentation = preset === 'default' ? {
+      mode: config?.defaults.gallery_mode ?? 'grid',
+      cardWidth: config?.display.thumbnail_slider?.default_px ?? config?.display.card_width_px ?? 168,
+      hide_details: config?.defaults.hide_details ?? true,
+      tooltip_mode: config?.defaults.tooltip_mode ?? 'panel',
+      panel_activation: config?.defaults.panel_activation ?? 'both',
+    } : galleryPresentation(preset, dockDetails);
+    this.setGalleryMode(presentation.mode);
+    if (preset === 'default') this.resetCardWidth();
+    else this.setCardWidth(presentation.cardWidth);
+    await this.updateFilters({
+      hide_details: presentation.hide_details,
+      tooltip_mode: presentation.tooltip_mode,
+      panel_activation: presentation.panel_activation,
+    });
   }
 
   setVirtualScroll(enabled: boolean): void {

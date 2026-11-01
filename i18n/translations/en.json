@@ -1026,6 +1026,9 @@
     "read_only_hint": "Read-only: set viewer.edition_password in scoring_config.json to enable rating, culling and editing, then restart the viewer."
   },
   "nav": {
+    "sidebar_hidden": "Sidebar hidden",
+    "sidebar_compact": "Compact sidebar",
+    "sidebar_pinned": "Pinned sidebar",
     "gallery": "Gallery",
     "gallery_tooltip": "Gallery (double-click to reset filters)",
     "stats": "Statistics",
@@ -1040,7 +1043,10 @@
     "capsules": "Capsules",
     "junk_sweep": "Junk Sweep",
     "help": "Help",
-    "more": "More"
+    "more": "More",
+    "navigation": "Navigation",
+    "pin_navigation": "Pin navigation open",
+    "unpin_navigation": "Unpin navigation"
   },
   "auth": {
     "logout": "Log out",
@@ -1053,6 +1059,26 @@
     "user_menu": "User menu"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Decision filters leave visual search. Undecided uses capture-date order, oldest first.",
+      "label": "Active criteria",
+      "visibility": "Visibility rules ({count})",
+      "remove": "Remove {label}",
+      "ranked": "Visual similarity search",
+      "ranked_help": "Similarity-based candidates; exact filters narrow the results. Sort controls their displayed order.",
+      "exact": "Metadata filters",
+      "pinned": "This is a fixed photo list. Return to your usual view before changing criteria.",
+      "similarity": "Similarity threshold",
+      "no_location": "Without location"
+    },
+    "presentation": {
+      "label": "Display",
+      "help": "Choose a task layout. Filters, sort, album and selection stay the same.",
+      "browse": "Browse",
+      "review": "Review",
+      "organize": "Organize",
+      "reset": "Reset display to defaults"
+    },
     "help": "Sort by score, date or your personal taste\nFilter with the sidebar: people, tags, camera, categories\nSearch by filename or description",
     "hidden_banner": {
       "message": "{n} photos hidden by current filters",
@@ -1133,7 +1159,8 @@
       "panel": "Side panel",
       "off": "Off",
       "panel_empty": "Hover or click a photo to see its details here",
-      "panel_deselect": "Deselect"
+      "panel_deselect": "Deselect",
+      "details": "Photo details"
     },
     "panel_activation": {
       "label": "Panel activation",
@@ -1161,6 +1188,9 @@
     "active_filters": "{count} active filters",
     "unknown_person": "Unknown",
     "selection": {
+      "outside_loaded": "Selected outside loaded tiles: {count}. Actions apply to the entire selection.",
+      "compare_loaded": "Compare needs 2–4 explicitly selected photos present in the loaded tiles.",
+      "exclusions": "Whole-view exclusions: {count}.",
       "count": "{count} selected",
       "clear": "Clear",
       "copy_filenames": "Copy filenames",
@@ -1435,8 +1465,25 @@
     "moment_confidence_range": "Moment Confidence",
     "compare": {
       "title": "Comparing {count} photos",
-      "hint": "Scroll to zoom, drag to pan — every pane moves together. Double-click to reset.",
-      "reset_zoom": "Reset zoom"
+      "hint": "Scroll to zoom, drag to pan. Linked inspection shares movement, not subject alignment. Double-click to reset.",
+      "reset_zoom": "Reset zoom",
+      "linked": "Linked",
+      "independent": "Independent",
+      "link_help": "Unlink to align each crop, then link to keep that alignment. Linked gestures apply the same zoom ratio and pixel pan to all candidates; they do not match subjects. Reset fits every photo.",
+      "reference": "Reference",
+      "candidate": "Candidate",
+      "promote": "Use {name} as reference",
+      "preview_loading": "Loading sharp preview…",
+      "preview_ready": "Sharp preview ready",
+      "preview_failed": "Sharp preview unavailable; thumbnail shown",
+      "two_up": "Two-up",
+      "previous_candidate": "Previous candidate",
+      "next_candidate": "Next candidate",
+      "candidate_position": "Candidate {current} of {total}",
+      "remove_pane": "Remove {name} from comparison only",
+      "restore": "Restore removed photos",
+      "queue": "Candidates (excluding reference): {count}",
+      "queue_label": "Comparison photos"
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",

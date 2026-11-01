@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
-import { ApplicationRef, ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, inject, signal, TemplateRef, WritableSignal } from '@angular/core';
-import { Location, NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signal, WritableSignal } from '@angular/core';
+import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { GalleryReuseStrategy } from '../../core/gallery-reuse.strategy';
@@ -64,6 +64,21 @@ describe('GalleryComponent', () => {
   let routeMock: { snapshot: { paramMap: { get: Mock }; queryParams: Record<string, string> } };
   let outletMock: { attachEvents: Subject<unknown>; detachEvents: Subject<unknown> };
 
+  it('releases a stale side-drawer inset for mobile or a closed desktop drawer', () => {
+    const desktop = signal(true);
+    Object.defineProperty(component, 'isDesktop', { value: desktop });
+    const geometry = component as unknown as { noticeInsetPx: WritableSignal<number>; noticeRightPx: () => number };
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tooltip_mode: 'hover' }));
+    mockStore.filterDrawerOpen.set(true);
+    geometry.noticeInsetPx.set(320);
+    expect(geometry.noticeRightPx()).toBe(336);
+    desktop.set(false);
+    expect(geometry.noticeRightPx()).toBe(8);
+    desktop.set(true);
+    mockStore.filterDrawerOpen.set(false);
+    expect(geometry.noticeRightPx()).toBe(16);
+  });
+
   beforeEach(async () => {
     mockStore = {
       filters: signal<GalleryFilters>({ ...DEFAULT_FILTERS }),
@@ -94,6 +109,7 @@ describe('GalleryComponent', () => {
       initializing: signal(false),
       galleryMounts: signal(0),
       galleryMode: signal('mosaic'),
+      setGalleryMode: vi.fn((mode: string) => mockStore.galleryMode.set(mode)),
       cardWidth: signal(300),
       virtualScroll: signal(false),
       setFilterDrawerOpen: vi.fn(),
@@ -241,6 +257,57 @@ describe('GalleryComponent', () => {
       ],
     }).compileComponents();
     component = TestBed.runInInjectionContext(() => new GalleryComponent());
+  });
+
+  it('owns matching/group counts and shows exact item totals for an assistant-pinned list', () => {
+    vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation((key, params) => {
+      if (key === I18N.gallery.photo_count) return `${params?.['count']} photos`;
+      if (key === I18N.stacks.totals) return `${params?.['photos']} photos / ${params?.['items']} groups`;
+      return key;
+    });
+    mockStore.total.set(2);
+    mockStore.photoTotal = signal(4);
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    const header = fixture.nativeElement.querySelector('[data-collection-header]') as HTMLElement;
+    expect(header.textContent).toContain('4 photos / 2 groups');
+    mockStore.pinnedPaths.set(['/a.jpg', '/b.jpg']);
+    fixture.detectChanges();
+    expect(header.textContent).toContain('2 photos');
+    expect(header.textContent).not.toContain('4 photos');
+    fixture.destroy();
+  });
+
+  it('keeps stack expansion available locally to read-only users without filtering an exact pinned list', () => {
+    mockAuth['isEdition'] = vi.fn(() => false);
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    const query = fixture.nativeElement.querySelector('[data-collection-query]') as HTMLElement;
+    query.querySelector<HTMLButtonElement>('[data-stack-collapse]')!.click();
+    expect(mockStore.toggleStackCollapse).toHaveBeenCalledOnce();
+    mockStore.pinnedPaths.set(['/a.jpg']);
+    fixture.detectChanges();
+    expect(query.querySelector('[data-stack-collapse]')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('switches layout from the collection header without changing filters or batch selection', () => {
+    mockStore.selectedPaths.set(new Set(['/selected.jpg']));
+    const filters = mockStore.filters();
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const grid = root.querySelector<HTMLButtonElement>('[data-gallery-layout="grid"]')!;
+    const mosaic = root.querySelector<HTMLButtonElement>('[data-gallery-layout="mosaic"]')!;
+    expect(mosaic.getAttribute('aria-pressed')).toBe('true');
+    grid.click();
+    fixture.detectChanges();
+    expect(mockStore.setGalleryMode).toHaveBeenCalledWith('grid');
+    expect(grid.getAttribute('aria-pressed')).toBe('true');
+    expect(mosaic.getAttribute('aria-pressed')).toBe('false');
+    expect(mockStore.filters()).toBe(filters);
+    expect([...mockStore.selectedPaths()]).toEqual(['/selected.jpg']);
+    fixture.destroy();
   });
 
   it('renders the translated reason a similar search cannot run instead of a silent empty gallery', () => {
@@ -1314,12 +1381,7 @@ describe('GalleryComponent', () => {
     });
 
     function toolbarView(): HTMLElement {
-      const tpl = (fixture!.componentInstance as unknown as { galleryToolbar(): TemplateRef<unknown> }).galleryToolbar();
-      const view = tpl.createEmbeddedView({});
-      view.detectChanges();
-      const host = document.createElement('div');
-      view.rootNodes.forEach((n: Node) => host.appendChild(n));
-      return host;
+      return fixture!.nativeElement.querySelector('[data-collection-query]');
     }
     const hasTypeAndSearch = (host: HTMLElement) =>
       host.textContent?.includes(I18N.ui.filters.type) === true
@@ -1664,7 +1726,11 @@ describe('GalleryComponent', () => {
         return this.tagName === 'MAT-SIDENAV-CONTENT' ? 683 : 0;
       });
       try {
-        const notices = stack(render())!;
+        const fixture = TestBed.createComponent(GalleryComponent);
+        Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true) });
+        mockStore.filterDrawerOpen.set(true);
+        fixture.detectChanges();
+        const notices = stack(fixture.nativeElement as HTMLElement)!;
         expect(notices.classList.contains('left-2')).toBe(false);
         // 1000 - (0 + 683) = 317 (drawer + scrollbar) plus the margin.
         expect(parseFloat(notices.style.right)).toBeGreaterThanOrEqual(317 + 8);
@@ -2012,6 +2078,27 @@ describe('GalleryComponent', () => {
           key: 'Escape', code: 'Escape', keyCode: 27, bubbles: true, cancelable: true,
         }));
 
+        it('names the inspector owner and closes the panel without dispatching a deselection', () => {
+          expect(rail.querySelector('[data-inspector-owner]')?.textContent).toContain('a.jpg');
+          mockStore.selectedPaths.set(new Set(['/a.jpg', '/offscreen.jpg']));
+          mockStore.selectionCount.set(2);
+          mockStore.updateFilter.mockImplementationOnce((key: string, value: string) => {
+            expect(key).toBe('tooltip_mode');
+            mockStore.filters.set({ ...mockStore.filters(), tooltip_mode: value });
+          });
+          fixture.detectChanges();
+          mockStore.toggleSelection.mockClear();
+          mockStore.clearSelection.mockClear();
+          rail.querySelector<HTMLButtonElement>('[data-close-inspector]')!.click();
+          fixture.detectChanges();
+          expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+          expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg', '/offscreen.jpg']);
+          expect(mockStore.selectionCount()).toBe(2);
+          expect(mockStore.updateFilter).toHaveBeenCalledWith('tooltip_mode', 'off');
+          expect(mockStore.toggleSelection).not.toHaveBeenCalled();
+          expect(mockStore.clearSelection).not.toHaveBeenCalled();
+        });
+
         it('Escape releases the photo and the drawer is not closed (rendered)', () => {
           // MatDrawer closes itself on an Escape from inside it unless disableClose is set;
           // the open/close effect would then reopen it, so the rail would flicker.
@@ -2196,7 +2283,9 @@ describe('GalleryComponent', () => {
         expect(c.canCompareSelection()).toBe(false);
       }
       for (let n = 2; n <= MAX_COMPARE_PANES; n++) {
-        select(Array.from({ length: n }, (_, i) => `/p${i}.jpg`));
+        const paths = Array.from({ length: n }, (_, i) => `/p${i}.jpg`);
+        mockStore.photos.set(paths.map(photo));
+        select(paths);
         expect(c.canCompareSelection()).toBe(true);
       }
       select(Array.from({ length: MAX_COMPARE_PANES + 1 }, (_, i) => `/p${i}.jpg`));
@@ -2214,7 +2303,7 @@ describe('GalleryComponent', () => {
       expect(data.photos.map((p: { path: string }) => p.path)).toEqual(['/a.jpg', '/c.jpg']);
     });
 
-    it('caps the panes even if more photos are somehow selected', async () => {
+    it('refuses an oversized selection instead of silently comparing a subset', async () => {
       const paths = Array.from({ length: MAX_COMPARE_PANES + 2 }, (_, i) => `/p${i}.jpg`);
       mockStore.photos.set(paths.map(photo));
       select(paths);
@@ -2222,7 +2311,27 @@ describe('GalleryComponent', () => {
 
       await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
 
-      expect((dialog.open as Mock).mock.calls[0][1].data.photos.length).toBe(MAX_COMPARE_PANES);
+      expect(dialog.open).not.toHaveBeenCalled();
+    });
+
+    it('discloses unloaded selected paths and refuses partial comparison until all selected photos load', async () => {
+      mockStore.photos.set([photo('/a.jpg'), photo('/b.jpg')]);
+      select(['/a.jpg', '/b.jpg', '/elsewhere.jpg']);
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.querySelector('[data-selection-outside]')?.textContent).toContain(I18N.gallery.selection.outside_loaded);
+      expect(mockI18n.t).toHaveBeenCalledWith(I18N.gallery.selection.outside_loaded, { count: 1 });
+      const button = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.selection.compare}"]`)!;
+      expect(button.disabled).toBe(true);
+      expect(button.getAttribute('aria-describedby')).toBe('compare-selection-requirements');
+      await component['compareSelection']();
+      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
+      mockStore.photos.set([photo('/a.jpg'), photo('/b.jpg'), photo('/elsewhere.jpg')]);
+      fixture.detectChanges();
+      expect(root.querySelector('[data-selection-outside]')).toBeNull();
+      expect(button.disabled).toBe(false);
+      fixture.destroy();
     });
 
     it('does nothing when fewer than two selected photos are loaded', async () => {
@@ -2853,7 +2962,7 @@ describe('GalleryComponent', () => {
     });
   });
 
-  // The selection bar is a floating, icon-only card inside the gallery host (not a
+  // The selection bar is a floating contextual command bar inside the gallery host (not a
   // fixed full-width strip): placement, label reachability and the notice baseline.
   describe('floating selection card (rendered)', () => {
     let fixture: ComponentFixture<GalleryComponent> | null = null;
@@ -2894,14 +3003,14 @@ describe('GalleryComponent', () => {
       const el = bar(f)!;
       expect(el.closest('.relative.h-full')).not.toBeNull();
       expect(el.classList.contains('absolute')).toBe(true);
-      expect(el.classList.contains('rounded-2xl')).toBe(true);
+      expect(el.classList.contains('rounded-lg')).toBe(true);
       expect(el.classList.contains('fixed')).toBe(false);
       expect(el.classList.contains('left-2')).toBe(true);
       expect(el.classList.contains('md:left-4')).toBe(true);
       expect(el.classList.contains('md:bottom-4')).toBe(true);
     });
 
-    it('gives every edition action an icon button with matching tooltip and aria-label', () => {
+    it('preserves every edition action with matching tooltip and accessible name', () => {
       const f = render();
       const keys = [
         I18N.gallery.selection.clear, I18N.gallery.selection.select_all, I18N.gallery.selection.invert,
@@ -2913,18 +3022,34 @@ describe('GalleryComponent', () => {
       for (const key of keys) {
         const button = labelled(f, key);
         expect(button, key).not.toBeNull();
-        expect(button!.classList.contains('mat-mdc-icon-button'), key).toBe(true);
+        expect(button!.querySelector('mat-icon'), key).not.toBeNull();
         const tooltip = f.debugElement.queryAll(By.directive(MatTooltip)).find(d => d.nativeElement === button);
         expect(tooltip?.injector.get(MatTooltip).message, key).toBe(key);
       }
     });
 
-    it('shows no text in the buttons other than the icon ligature', () => {
+    it('keeps review commands visible and secondary commands inside a closed Actions disclosure', () => {
       const f = render();
-      for (const button of Array.from(bar(f)!.querySelectorAll('button'))) {
-        if (button.closest('.w-full')) continue;
-        expect(button.textContent!.trim()).toMatch(/^[a-z_]*$/);
+      const disclosure = bar(f)!.querySelector<HTMLDetailsElement>('[data-selection-more]')!;
+      expect(disclosure.open).toBe(false);
+      expect(disclosure.querySelector('summary')!.textContent).toContain(I18N.gallery.selection.actions);
+      for (const label of [I18N.gallery.selection.clear, I18N.review.keep, I18N.gallery.selection.reject]) {
+        const button = labelled(f, label)!;
+        expect(button.textContent).toContain(label);
+        expect(button.closest('details')).toBeNull();
       }
+      for (const label of [I18N.gallery.selection.edit_tags, I18N.gallery.selection.rate, I18N.gallery.selection.favorite]) {
+        const button = labelled(f, label)!;
+        expect(button.closest('details')).toBe(disclosure);
+        expect(button.textContent).toContain(label);
+      }
+      disclosure.querySelector('summary')!.click();
+      expect(disclosure.open).toBe(true);
+      const escape = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });
+      disclosure.querySelector('summary')!.dispatchEvent(escape);
+      expect(disclosure.open).toBe(false);
+      expect(escape.defaultPrevented).toBe(true);
+      expect(mockStore.selectionCount()).toBe(2);
     });
 
     it('keeps the tooltip on the disabled delete button (disabledInteractive)', () => {
@@ -5374,12 +5499,11 @@ describe('GalleryComponent', () => {
       mockStore.loadTypeCounts.mockClear();
       mockStore.loadFilterOptions.mockClear();
       outletMock.attachEvents.next({});
-      expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
       expect(mockStore.loadTypeCounts).not.toHaveBeenCalled();
       expect(mockStore.loadFilterOptions).not.toHaveBeenCalled();
       expect(mockStore.resumeListingReads).not.toHaveBeenCalled();
       outletMock.attachEvents.next(gallery);
-      expect(TestBed.inject(HeaderSlotService).template()).not.toBeNull();
+      expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
       expect(mockStore.loadTypeCounts).toHaveBeenCalledOnce();
       expect(mockStore.loadFilterOptions).toHaveBeenCalledOnce();
       expect(mockStore.resumeListingReads).toHaveBeenCalledOnce();
@@ -5397,13 +5521,14 @@ describe('GalleryComponent', () => {
       expect(destroy).toHaveBeenCalledOnce();
     });
 
-    it('hands the header toolbar back while a photo is open, and takes it again on return', () => {
+    it('keeps collection controls local while help and controls follow gallery parking', () => {
       const header = TestBed.inject(HeaderSlotService);
-      expect(header.template()).not.toBeNull();
+      expect(header.template()).toBeNull();
+      expect(fixture.nativeElement.querySelector('app-gallery-view-controls')).not.toBeNull();
       openPhoto(1);
       expect(header.template()).toBeNull();
       outletMock.attachEvents.next(gallery);
-      expect(header.template()).not.toBeNull();
+      expect(header.template()).toBeNull();
     });
 
     it('returns to the scroll position and the card the photo was opened from', () => {
@@ -5514,23 +5639,13 @@ describe('GalleryComponent', () => {
       expect(trigger.menuOpen).toBe(false);
     });
 
-    it('closes the toolbar type select when the gallery parks', () => {
-      const view = TestBed.inject(HeaderSlotService).template()!.createEmbeddedView({});
-      TestBed.inject(ApplicationRef).attachView(view);
-      try {
-        view.detectChanges();
-        fixture.detectChanges();
-        const type = (gallery as unknown as { selects(): MatSelect[] }).selects().at(0)!;
-        expect(type).toBeTruthy();
-        type.open();
-        fixture.detectChanges();
-        expect(type.panelOpen).toBe(true);
-        openPhoto(1);
-        expect(type.panelOpen).toBe(false);
-      } finally {
-        TestBed.inject(ApplicationRef).detachView(view);
-        view.destroy();
-      }
+    it('closes the local collection type select when the gallery parks', () => {
+      const type = (gallery as unknown as { selects(): MatSelect[] }).selects().at(0)!;
+      expect(type).toBeTruthy();
+      type.open(); fixture.detectChanges();
+      expect(type.panelOpen).toBe(true);
+      openPhoto(1);
+      expect(type.panelOpen).toBe(false);
     });
 
     it('does not override a pointer press made before the anchor frame', () => {
@@ -5746,20 +5861,19 @@ describe('GalleryComponent', () => {
     });
 
     it('ignores another gallery being detached', () => {
-      const header = TestBed.inject(HeaderSlotService);
+      mockStore.parkListingReads.mockClear();
       outletMock.detachEvents.next({});
-      expect(header.template()).not.toBeNull();
+      expect(mockStore.parkListingReads).not.toHaveBeenCalled();
+      expect(fixture.nativeElement.querySelector('app-gallery-view-controls')).not.toBeNull();
     });
   });
 
   describe('toolbar search and view shortcuts (rendered)', () => {
-    // Stands in for the shell, which renders the gallery's header-slot template
-    // through a template outlet in the global toolbar.
+    // Independent overlays exercise shortcut guards beside the real collection controls.
     @Component({
       selector: 'app-toolbar-host',
-      imports: [NgTemplateOutlet, MatMenuModule, MatSelectModule],
+      imports: [MatMenuModule, MatSelectModule],
       template: `
-        <ng-container [ngTemplateOutlet]="template()" />
         <button data-testid="keyboard-test-menu" [matMenuTriggerFor]="menu">Menu</button>
         <mat-menu #menu="matMenu">
           <button mat-menu-item>Berries</button>
@@ -5774,7 +5888,7 @@ describe('GalleryComponent', () => {
       `,
     })
     class ToolbarHostComponent {
-      readonly template = inject(HeaderSlotService).template;
+
     }
 
     let fixture: ComponentFixture<GalleryComponent>;
@@ -5790,13 +5904,15 @@ describe('GalleryComponent', () => {
       host = TestBed.createComponent(ToolbarHostComponent);
       host.detectChanges();
       document.body.appendChild(host.nativeElement);
-      search = host.nativeElement.querySelector(`input[placeholder="${I18N.gallery.search_placeholder}"]`) as HTMLInputElement;
+      document.body.appendChild(fixture.nativeElement);
+      search = fixture.nativeElement.querySelector(`input[placeholder="${I18N.gallery.search_placeholder}"]`) as HTMLInputElement;
       mockStore.updateFilter.mockClear();
       vi.useFakeTimers();
     });
 
     afterEach(() => {
       vi.useRealTimers();
+      (fixture.nativeElement as HTMLElement).remove();
       host.destroy();
       (host.nativeElement as HTMLElement).remove();
       if (!fixture.componentRef.hostView.destroyed) fixture.destroy();
@@ -5827,13 +5943,15 @@ describe('GalleryComponent', () => {
         mockStore.filterPayload.mockImplementation(() => GalleryStore.prototype.filterPayload.call(mockStore));
         (mockAuth as { isEdition: unknown }).isEdition = () => edition();
         edition.set(true);
+        fixture.detectChanges();
         host.detectChanges();
       });
 
       it('withholds discovery and refuses direct launch without edition rights', async () => {
         edition.set(false);
+        fixture.detectChanges();
         host.detectChanges();
-        expect(host.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
         const dialog = dialogForSuggestions();
         await (gallery as unknown as { openStackSuggestions(): Promise<void> }).openStackSuggestions();
         expect(dialog.open).not.toHaveBeenCalled();
@@ -5845,9 +5963,10 @@ describe('GalleryComponent', () => {
       ])('withholds discovery and refuses direct launch for %j', async search => {
         mockStore.filters.set({ ...DEFAULT_FILTERS, ...search });
         mockStore.canScopeSelectionToView.set(false);
+        fixture.detectChanges();
         host.detectChanges();
         expect(mockStore.filterPayload()).toBeNull();
-        expect(host.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
+        expect(fixture.nativeElement.querySelector('[data-stack-suggestions]')).toBeNull();
         const dialog = dialogForSuggestions();
         await (gallery as unknown as { openStackSuggestions(): Promise<void> }).openStackSuggestions();
         expect(dialog.open).not.toHaveBeenCalled();
@@ -5860,7 +5979,7 @@ describe('GalleryComponent', () => {
         const router = TestBed.inject(Router);
         const navigate = vi.spyOn(router, 'navigate').mockResolvedValue(true);
         vi.spyOn(router, 'url', 'get').mockReturnValue('/album/42?sort=date&tag=a%20b#focused');
-        const button = host.nativeElement.querySelector('[data-stack-suggestions]') as HTMLButtonElement;
+        const button = fixture.nativeElement.querySelector('[data-stack-suggestions]') as HTMLButtonElement;
         button.click();
         expect(navigate).toHaveBeenCalledWith(['/culling'], { queryParams: {
           mode: 'stacks', filters: JSON.stringify(filters), return: '/album/42?sort=date&tag=a%20b#focused',
@@ -5945,18 +6064,11 @@ describe('GalleryComponent', () => {
         expect(search.selectionEnd).toBe(3);
       });
 
-      it('/ opens the sidebar and focuses its search below 1360 px, where the toolbar search is hidden', async () => {
+      it('/ focuses the collection search on narrow screens without opening another panel', () => {
         stubWide(false);
-        const [sidebarBlock] = await fixture.getDeferBlocks();
-        await sidebarBlock.render(DeferBlockState.Complete);
-        const focusSearch = vi.spyOn(GalleryFilterSidebarComponent.prototype, 'focusSearch').mockImplementation(() => undefined);
         expect(key({ key: '/' }).defaultPrevented).toBe(true);
-        expect(document.activeElement).not.toBe(search);
-        expect(mockStore.setFilterDrawerOpen).toHaveBeenCalledWith(true);
-        expect(gallery['filterSidebar']()).toBeTruthy();
-        fixture.detectChanges();
-        await fixture.whenStable();
-        expect(focusSearch).toHaveBeenCalledOnce();
+        expect(document.activeElement).toBe(search);
+        expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
       });
 
       it.each(['b', 'B'])('%s toggles the filter sidebar', k => {
@@ -6051,6 +6163,7 @@ describe('GalleryComponent', () => {
         vi.useRealTimers();
         const trigger = host.debugElement.query(By.css('[data-testid="keyboard-test-menu"]')).injector.get(MatMenuTrigger);
         trigger.openMenu();
+        fixture.detectChanges();
         host.detectChanges();
         await host.whenStable();
         const menu = TestBed.inject(OverlayContainer).getContainerElement().querySelector('[role="menu"]')!;
@@ -6059,6 +6172,7 @@ describe('GalleryComponent', () => {
         vi.useFakeTimers();
         key({ key: letter, keyCode: letter === '/' ? 191 : letter.toUpperCase().charCodeAt(0) }, item);
         vi.runOnlyPendingTimers();
+        fixture.detectChanges();
         host.detectChanges();
         expect(trigger.menuOpen).toBe(true);
         expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
@@ -6071,6 +6185,7 @@ describe('GalleryComponent', () => {
         vi.useRealTimers();
         const select = host.debugElement.query(By.css('mat-select[aria-label="Test selector"]')).componentInstance as MatSelect;
         select.open();
+        fixture.detectChanges();
         host.detectChanges();
         await host.whenStable();
         expect(select.panelOpen).toBe(true);
@@ -6079,6 +6194,7 @@ describe('GalleryComponent', () => {
         vi.useFakeTimers();
         key({ key: letter, keyCode: letter === '/' ? 191 : letter.toUpperCase().charCodeAt(0) }, panel);
         vi.runOnlyPendingTimers();
+        fixture.detectChanges();
         host.detectChanges();
         expect(select.panelOpen).toBe(true);
         expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
@@ -6096,6 +6212,7 @@ describe('GalleryComponent', () => {
         element.focus();
         key({ key: letter, keyCode: letter === '/' ? 191 : letter.toUpperCase().charCodeAt(0) }, element);
         vi.runOnlyPendingTimers();
+        fixture.detectChanges();
         host.detectChanges();
         expect(select.panelOpen).toBe(false);
         expect(select.value).toBe(letter === '/' ? 's' : letter);

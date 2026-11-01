@@ -467,7 +467,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     expect(store.photos()).toEqual([photo]);
   });
 
-  it.each(['grid', 'mosaic'] as const)('expands and collapses %s via the mobile shell button through HTTP without losing photo totals or paging', async mode => {
+  it.each(['grid', 'mosaic'] as const)('expands and collapses %s via collection controls through HTTP without losing photo totals or paging', async mode => {
     store.setGalleryMode(mode);
     store.filters.update(filters => ({ ...filters, per_page: 2 }));
     fixture.componentInstance['containerWidth'].set(768);
@@ -485,10 +485,11 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
     const shell = TestBed.createComponent(App);
     shell.detectChanges(); startup.mockRestore();
     try {
-      const root = shell.nativeElement as HTMLElement;
-      const button = root.querySelector<HTMLButtonElement>('[data-stack-collapse-mobile]');
+      expect(shell.nativeElement.querySelector('mat-toolbar')).toBeNull();
+      const root = fixture.nativeElement as HTMLElement;
+      const button = root.querySelector<HTMLButtonElement>('[data-collection-query] [data-stack-collapse]');
       expect(button).not.toBeNull();
-      expect(button?.closest('.lg\\:hidden')).not.toBeNull();
+      expect(button?.closest('[data-collection-query]')).not.toBeNull();
       expect(fixture.componentInstance.effectiveGalleryMode()).toBe(mode);
       expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
       button!.click();
@@ -520,7 +521,7 @@ describe('stack representative repairs through rendered gallery and HTTP', () =>
       expect(store.photos().map(photo => photo.path)).toEqual(['/a.jpg', '/d.jpg']);
       expect((fixture.nativeElement as HTMLElement).querySelectorAll('app-photo-card')).toHaveLength(2);
       expect(button!.hasAttribute('aria-pressed')).toBe(false);
-      // Existing bottom-bar actions remain reachable alongside the new control.
+      // The collection-owned slideshow remains reachable alongside stack expansion.
       const slideshow = root.querySelector<HTMLButtonElement>('button[aria-label^="slideshow.start"]');
       expect(slideshow).not.toBeNull(); slideshow!.click();
       expect(store.slideshowActive()).toBe(true);

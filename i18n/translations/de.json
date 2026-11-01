@@ -1026,6 +1026,9 @@
     "read_only_hint": "Nur Lesezugriff: Setzen Sie viewer.edition_password in scoring_config.json, um Bewerten, Aussortieren und Bearbeiten zu aktivieren, und starten Sie den Viewer anschließend neu."
   },
   "nav": {
+    "sidebar_hidden": "Seitenleiste ausblenden",
+    "sidebar_compact": "Kompakte Seitenleiste",
+    "sidebar_pinned": "Angeheftete Seitenleiste",
     "gallery": "Galerie",
     "gallery_tooltip": "Galerie (Doppelklick zum Zurücksetzen der Filter)",
     "stats": "Statistiken",
@@ -1040,7 +1043,10 @@
     "capsules": "Kapseln",
     "junk_sweep": "Aufräumen",
     "help": "Hilfe",
-    "more": "Mehr"
+    "more": "Mehr",
+    "navigation": "Navigation",
+    "pin_navigation": "Navigation geöffnet anheften",
+    "unpin_navigation": "Navigation lösen"
   },
   "auth": {
     "logout": "Abmelden",
@@ -1053,6 +1059,26 @@
     "user_menu": "Benutzermenü"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Entscheidungsfilter verlassen die visuelle Suche. Unentschieden verwendet das Aufnahmedatum, älteste zuerst.",
+      "label": "Aktive Kriterien",
+      "visibility": "Sichtbarkeitsregeln ({count})",
+      "remove": "{label} entfernen",
+      "ranked": "Visuelle Ähnlichkeitssuche",
+      "ranked_help": "Kandidaten nach Ähnlichkeit; exakte Filter grenzen sie ein. Die Sortierung bestimmt die angezeigte Reihenfolge.",
+      "exact": "Metadatenfilter",
+      "pinned": "Dies ist eine feste Fotoliste. Vor dem Ändern der Kriterien zur üblichen Ansicht zurückkehren.",
+      "similarity": "Ähnlichkeitsschwelle",
+      "no_location": "Ohne Standort"
+    },
+    "presentation": {
+      "label": "Ansicht",
+      "help": "Aufgabenlayout wählen. Filter, Sortierung, Album und Auswahl bleiben gleich.",
+      "browse": "Durchsehen",
+      "review": "Prüfen",
+      "organize": "Organisieren",
+      "reset": "Anzeige auf Standard zurücksetzen"
+    },
     "help": "Nach Bewertung, Datum oder deinem Geschmack sortieren\nMit der Seitenleiste filtern: Personen, Tags, Kamera, Kategorien\nSuche nach Dateiname oder Beschreibung",
     "hidden_banner": {
       "message": "{n} Fotos durch aktuelle Filter ausgeblendet",
@@ -1133,7 +1159,8 @@
       "panel": "Seitenleiste",
       "off": "Aus",
       "panel_empty": "Fahre über ein Foto oder klicke es an, um seine Details hier zu sehen",
-      "panel_deselect": "Auswahl aufheben"
+      "panel_deselect": "Auswahl aufheben",
+      "details": "Fotodetails"
     },
     "panel_activation": {
       "label": "Panel-Aktivierung",
@@ -1161,6 +1188,9 @@
     "active_filters": "{count} aktive Filter",
     "unknown_person": "Unbekannt",
     "selection": {
+      "outside_loaded": "Außerhalb der geladenen Kacheln ausgewählt: {count}. Aktionen gelten für die gesamte Auswahl.",
+      "compare_loaded": "Vergleichen benötigt 2–4 ausdrücklich ausgewählte Fotos in den geladenen Kacheln.",
+      "exclusions": "Ausschlüsse aus der gesamten Ansicht: {count}.",
       "count": "{count} ausgewahlt",
       "clear": "Loschen",
       "copy_filenames": "Dateinamen kopieren",
@@ -1435,8 +1465,25 @@
     "moment_confidence_range": "Moment-Konfidenz",
     "compare": {
       "title": "{count} Fotos im Vergleich",
-      "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben – alle Bereiche bewegen sich gemeinsam. Doppelklick setzt zurück.",
-      "reset_zoom": "Zoom zurücksetzen"
+      "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben. Kopplung teilt Bewegungen, nicht die Motivausrichtung. Doppelklick zum Zurücksetzen.",
+      "reset_zoom": "Zoom zurücksetzen",
+      "linked": "Gekoppelt",
+      "independent": "Unabhängig",
+      "link_help": "Entkoppeln, jeden Ausschnitt ausrichten und wieder koppeln: Die Ausrichtung bleibt erhalten. Gekoppelte Gesten wenden denselben Zoomfaktor und dieselbe Pixelverschiebung auf alle Kandidaten an; Motive werden nicht zugeordnet. Zurücksetzen passt jedes Foto ein.",
+      "reference": "Referenz",
+      "candidate": "Kandidat",
+      "promote": "{name} als Referenz verwenden",
+      "preview_loading": "Detailvorschau wird geladen…",
+      "preview_ready": "Detailvorschau bereit",
+      "preview_failed": "Detailvorschau nicht verfügbar; Miniatur wird angezeigt",
+      "two_up": "Zwei Ansichten",
+      "previous_candidate": "Vorheriger Kandidat",
+      "next_candidate": "Nächster Kandidat",
+      "candidate_position": "Kandidat {current} von {total}",
+      "remove_pane": "{name} nur aus dem Vergleich entfernen",
+      "restore": "Entfernte Fotos wiederherstellen",
+      "queue": "Kandidaten (ohne Referenz): {count}",
+      "queue_label": "Vergleichsfotos"
     },
     "clipping": {
       "badge_highlight": "Beschnittene Lichter: {percent}% der Pixel",

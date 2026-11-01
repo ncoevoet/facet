@@ -1026,6 +1026,9 @@
     "read_only_hint": "Somente leitura: defina viewer.edition_password em scoring_config.json para ativar a avaliação, a seleção e a edição, e reinicie o visualizador."
   },
   "nav": {
+    "sidebar_hidden": "Ocultar barra lateral",
+    "sidebar_compact": "Barra lateral compacta",
+    "sidebar_pinned": "Barra lateral fixa",
     "gallery": "Galeria",
     "gallery_tooltip": "Galeria (clique duplo para redefinir os filtros)",
     "stats": "Estatísticas",
@@ -1040,7 +1043,10 @@
     "capsules": "Cápsulas",
     "junk_sweep": "Limpeza",
     "help": "Ajuda",
-    "more": "Mais"
+    "more": "Mais",
+    "navigation": "Navegação",
+    "pin_navigation": "Fixar a navegação aberta",
+    "unpin_navigation": "Desafixar a navegação"
   },
   "auth": {
     "logout": "Sair",
@@ -1053,6 +1059,26 @@
     "user_menu": "Menu do usuário"
   },
   "gallery": {
+    "criteria": {
+      "quick_help": "Os filtros de decisão saem da pesquisa visual. Por decidir ordena por data de captura, da mais antiga.",
+      "label": "Critérios ativos",
+      "visibility": "Regras de visibilidade ({count})",
+      "remove": "Remover {label}",
+      "ranked": "Pesquisa por semelhança visual",
+      "ranked_help": "Candidatas por semelhança; os filtros exatos restringem os resultados. A ordenação determina a ordem apresentada.",
+      "exact": "Filtros de metadados",
+      "pinned": "Esta é uma lista fixa de fotos. Volte à vista habitual antes de alterar os critérios.",
+      "similarity": "Limiar de semelhança",
+      "no_location": "Sem localização"
+    },
+    "presentation": {
+      "label": "Vista",
+      "help": "Escolha uma disposição de trabalho. Filtros, ordenação, álbum e seleção mantêm-se.",
+      "browse": "Explorar",
+      "review": "Rever",
+      "organize": "Organizar",
+      "reset": "Repor a vista predefinida"
+    },
     "help": "Ordene por pontuação, data ou seu gosto pessoal\nFiltre com a barra lateral: pessoas, tags, câmera, categorias\nBusque por nome de arquivo ou descrição",
     "hidden_banner": {
       "message": "{n} fotos ocultadas pelos filtros atuais",
@@ -1133,7 +1159,8 @@
       "panel": "Painel lateral",
       "off": "Desligado",
       "panel_empty": "Passe o cursor sobre uma foto ou clique nela para ver aqui os seus detalhes",
-      "panel_deselect": "Desmarcar"
+      "panel_deselect": "Desmarcar",
+      "details": "Detalhes da foto"
     },
     "panel_activation": {
       "label": "Ativação do painel",
@@ -1161,6 +1188,9 @@
     "active_filters": "{count} filtros ativos",
     "unknown_person": "Desconhecido",
     "selection": {
+      "outside_loaded": "Seleção fora das miniaturas carregadas: {count}. As ações aplicam-se a toda a seleção.",
+      "compare_loaded": "Comparar requer 2–4 fotos selecionadas explicitamente presentes nas miniaturas carregadas.",
+      "exclusions": "Exclusões de toda a vista: {count}.",
       "count": "{count} selecionadas",
       "clear": "Limpar",
       "copy_filenames": "Copiar nomes dos arquivos",
@@ -1435,8 +1465,25 @@
     "moment_confidence_range": "Confiança do momento",
     "compare": {
       "title": "A comparar {count} fotos",
-      "hint": "Roda para ampliar, arraste para deslocar — todos os painéis se movem juntos. Duplo clique para repor.",
-      "reset_zoom": "Repor o zoom"
+      "hint": "Desloque para ampliar e arraste para mover. A ligação partilha movimentos, não alinha os sujeitos. Clique duas vezes para repor.",
+      "reset_zoom": "Repor o zoom",
+      "linked": "Ligadas",
+      "independent": "Independentes",
+      "link_help": "Desligue para alinhar cada enquadramento e volte a ligar para o manter. Os gestos ligados aplicam a mesma proporção de zoom e deslocamento em píxeis a todos os candidatos; não identificam sujeitos. Repor ajusta todas as fotos ao painel.",
+      "reference": "Referência",
+      "candidate": "Candidata",
+      "promote": "Usar {name} como referência",
+      "preview_loading": "A carregar pré-visualização detalhada…",
+      "preview_ready": "Pré-visualização detalhada pronta",
+      "preview_failed": "Pré-visualização detalhada indisponível; miniatura apresentada",
+      "two_up": "Duas vistas",
+      "previous_candidate": "Candidata anterior",
+      "next_candidate": "Candidata seguinte",
+      "candidate_position": "Candidata {current} de {total}",
+      "remove_pane": "Remover {name} apenas da comparação",
+      "restore": "Restaurar as fotos removidas",
+      "queue": "Candidatas (sem referência): {count}",
+      "queue_label": "Fotos da comparação"
     },
     "clipping": {
       "badge_highlight": "Altas luzes cortadas: {percent}% dos pixels",
