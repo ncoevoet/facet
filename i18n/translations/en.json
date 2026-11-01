@@ -1984,7 +1984,34 @@
     "start_unconfirmed": "The scan start could not be confirmed. Check its status before starting another scan.",
     "stopped": "Scan is not running",
     "last_observed_output": "Last observed output",
-    "status_unknown": "Status unknown"
+    "status_unknown": "Status unknown",
+    "history": {
+      "title": "Recorded scans",
+      "help": "Scanner bookkeeping, not proof that every enrichment finished. Running is the last recorded state, not proof a process is still live. Dates are UTC; — means not recorded.",
+      "refresh": "Reload records",
+      "older": "Older records",
+      "read_error": "Could not read scan history. Last loaded records may be out of date.",
+      "empty": "No recorded scan runs.",
+      "counts": "{processed} / {total} processed · {failed} recorded failures",
+      "retained": "{count} retained failure records",
+      "completed_failures": "Completed with recorded failures",
+      "unknown": "Recorded state unavailable",
+      "states": {
+        "running": "Recorded running",
+        "completed": "Recorded completed",
+        "interrupted": "Recorded interrupted",
+        "failed": "Recorded failed"
+      },
+      "stages": {
+        "load": "File loading",
+        "decode_timeout": "Decode timeout",
+        "score": "Scoring",
+        "save": "Saving",
+        "composition": "Composition analysis",
+        "embedding": "Embedding analysis",
+        "other": "Other stage"
+      }
+    }
   },
   "persons": {
     "help": "People detected by face recognition. Name unnamed clusters, merge duplicates, set an avatar, or hide a person. Click a person to see their photos.",

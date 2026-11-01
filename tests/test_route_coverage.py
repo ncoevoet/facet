@@ -159,6 +159,7 @@ SUPERADMIN_ROUTES = [
     '/api/immich/diagnostics',
     '/api/scan/status',
     '/api/scan/directories',
+    '/api/scan/runs',
 ]
 
 

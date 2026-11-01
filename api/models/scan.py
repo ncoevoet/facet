@@ -36,6 +36,30 @@ class ScanStreamTokenResponse(BaseModel):
     token: str
 
 
+class ScanFailureStage(BaseModel):
+    stage: str
+    count: int
+
+
+class RecordedScanRun(BaseModel):
+    id: int
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    heartbeat_at: Optional[str] = None
+    status: str
+    mode: Optional[str] = None
+    total_files: Optional[int] = None
+    processed_files: Optional[int] = None
+    failed_files: Optional[int] = None
+    retained_failure_records: int
+    failure_stages: list[ScanFailureStage]
+
+
+class ScanRunHistoryResponse(BaseModel):
+    runs: list[RecordedScanRun]
+    next_before: Optional[int] = None
+
+
 class ScanDirectoryEntry(BaseModel):
     path: str
     owner: str

@@ -6,6 +6,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { ScanService, ScanDirectory } from '../../core/services/scan.service';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
+import { ScanHistoryComponent } from './scan-history.component';
 
 /**
  * Superadmin-only dialog to pick a configured directory and launch + watch a
@@ -16,7 +17,7 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
 @Component({
   selector: 'app-scan-launcher',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe],
+  imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe, ScanHistoryComponent],
   template: `
     <h2 mat-dialog-title>{{ I18N.scan.title | translate }}</h2>
     <mat-dialog-content class="!pt-2 min-w-0 w-full max-w-[34rem]">
@@ -74,6 +75,7 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
         }
         <pre class="mt-3 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto opacity-70 bg-[var(--mat-sys-surface-container)] rounded p-2">{{ outputTail() }}</pre>
       }
+      <app-scan-history />
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>{{ I18N.scan.close | translate }}</button>

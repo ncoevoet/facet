@@ -3,6 +3,10 @@ import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { ApiService } from './api.service';
 import { AuthService, AuthStatus } from './auth.service';
+import type { components } from '../api/schema';
+
+export type ScanRunHistory = components['schemas']['ScanRunHistoryResponse'];
+export type RecordedScanRun = components['schemas']['RecordedScanRun'];
 
 export interface ScanProgress {
   phase: string;
@@ -136,6 +140,16 @@ export class ScanService implements OnDestroy {
     const res = await firstValueFrom(this.api.get<{ directories: ScanDirectory[] }>('/scan/directories'));
     if (!this.authCurrent(session)) throw new Error('Scan session changed');
     return res.directories;
+  }
+
+  async loadHistory(before?: number): Promise<ScanRunHistory> {
+    const session = this.capture();
+    if (!this.authCurrent(session)) throw new Error('Scan session changed');
+    const response = await firstValueFrom(this.api.get<ScanRunHistory>('/scan/runs', {
+      limit: 20, ...(before === undefined ? {} : { before }),
+    }));
+    if (!this.authCurrent(session)) throw new Error('Scan session changed');
+    return response;
   }
 
   async connect(retainSameSession = true): Promise<void> {

@@ -417,6 +417,18 @@ describe('ScanService', () => {
     });
   });
 
+  it('reads bounded history and refuses a late result from another session', async () => {
+    const history = service.loadHistory(42);
+    const request = httpTesting.expectOne(r => r.url === '/api/scan/runs');
+    expect(request.request.method).toBe('GET');
+    expect(request.request.params.get('limit')).toBe('20');
+    expect(request.request.params.get('before')).toBe('42');
+    TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'other' });
+    request.flush({ runs: [], next_before: null });
+    await expect(history).rejects.toThrow('Scan session changed');
+    httpTesting.expectNone('/api/scan/start');
+  });
+
   describe('loadDirectories()', () => {
     it('should fetch configured directories', async () => {
       const promise = service.loadDirectories();

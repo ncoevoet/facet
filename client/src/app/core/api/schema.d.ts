@@ -4171,6 +4171,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recorded Scan Runs
+         * @description Bounded scanner bookkeeping, not a claim that a process is still live.
+         *
+         *     Never return args_json, failure paths or free-form error text. These may
+         *     contain private filenames or command arguments unrelated to this overview.
+         *     Reads never migrate, reconcile or change a recorded status.
+         */
+        get: operations["recorded_scan_runs_api_scan_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scan/start": {
         parameters: {
             query?: never;
@@ -8500,6 +8524,31 @@ export interface components {
             /** Started At */
             started_at?: number | null;
         };
+        /** RecordedScanRun */
+        RecordedScanRun: {
+            /** Failed Files */
+            failed_files?: number | null;
+            /** Failure Stages */
+            failure_stages: components["schemas"]["ScanFailureStage"][];
+            /** Finished At */
+            finished_at?: string | null;
+            /** Heartbeat At */
+            heartbeat_at?: string | null;
+            /** Id */
+            id: number;
+            /** Mode */
+            mode?: string | null;
+            /** Processed Files */
+            processed_files?: number | null;
+            /** Retained Failure Records */
+            retained_failure_records: number;
+            /** Started At */
+            started_at?: string | null;
+            /** Status */
+            status: string;
+            /** Total Files */
+            total_files?: number | null;
+        };
         /** RejectMergeRequest */
         RejectMergeRequest: {
             /** Person1 Id */
@@ -8635,6 +8684,20 @@ export interface components {
             owner: string;
             /** Path */
             path: string;
+        };
+        /** ScanFailureStage */
+        ScanFailureStage: {
+            /** Count */
+            count: number;
+            /** Stage */
+            stage: string;
+        };
+        /** ScanRunHistoryResponse */
+        ScanRunHistoryResponse: {
+            /** Next Before */
+            next_before?: number | null;
+            /** Runs */
+            runs: components["schemas"]["RecordedScanRun"][];
         };
         /** ScanStartRequest */
         ScanStartRequest: {
@@ -15906,6 +15969,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecomputeStatusResponse"];
+                };
+            };
+        };
+    };
+    recorded_scan_runs_api_scan_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                before?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRunHistoryResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

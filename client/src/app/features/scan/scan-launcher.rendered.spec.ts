@@ -35,7 +35,7 @@ describe('Scan launcher rendered phase labels', () => {
     TestBed.configureTestingModule({ imports: [ScanLauncherComponent], providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(),
       { provide: ScanService, useValue: {
-        status, connected: signal(true), statusKnown, observationError, connect: reconnect,
+        status, canLaunch: () => true, connected: signal(true), statusKnown, observationError, connect: reconnect,
         loadDirectories: vi.fn(async () => [{ path: '/fixture/photos', owner: '' }]),
         startScan,
       } },

@@ -6,6 +6,7 @@ Scan router — trigger and monitor photo scanning.
 import asyncio
 import json
 import logging
+import sqlite3
 import subprocess
 import sys
 import threading
@@ -21,6 +22,7 @@ from starlette.responses import StreamingResponse
 from api.auth import CurrentUser, _trusted_local_editing_enabled, create_access_token, decode_access_token, require_edition, require_scan_access, scan_feature_enabled, trusted_local_for
 from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, invalidate_stats_cache, server_scoring_config, _photo_types_cache
 from api.models.scan import (
+    ScanRunHistoryResponse,
     LibraryJobStartResponse,
     RecomputeStatusResponse,
     ScanDirectoriesResponse,
@@ -29,6 +31,7 @@ from api.models.scan import (
     ScanStreamTokenResponse,
 )
 from processing.progress import parse_progress_line
+from api.database import get_db
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
 logger = logging.getLogger(__name__)
@@ -254,6 +257,59 @@ def scan_status(
         raise HTTPException(status_code=403, detail=refusal)
 
     return _build_scan_snapshot(lines)
+
+
+@router.get('/runs', response_model=ScanRunHistoryResponse)
+def recorded_scan_runs(
+    limit: int = Query(20, ge=1, le=50),
+    before: Optional[int] = Query(None, ge=1),
+    user: CurrentUser = Depends(require_scan_access),
+):
+    """Bounded scanner bookkeeping, not a claim that a process is still live.
+
+    Never return args_json, failure paths or free-form error text. These may
+    contain private filenames or command arguments unrelated to this overview.
+    Reads never migrate, reconcile or change a recorded status.
+    """
+    if refusal := scan_feature_refusal(user):
+        raise HTTPException(status_code=403, detail=refusal)
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN')
+            where = 'WHERE id < ?' if before is not None else ''
+            args = [before] if before is not None else []
+            rows = conn.execute(
+                "SELECT id, strftime('%Y-%m-%dT%H:%M:%SZ', started_at) AS started_at, "
+                "strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) AS finished_at, "
+                "strftime('%Y-%m-%dT%H:%M:%SZ', heartbeat_at) AS heartbeat_at, "
+                "status, substr(mode, 1, 120) AS mode, total_files, processed_files, failed_files "
+                f'FROM scan_runs {where} ORDER BY id DESC LIMIT ?',
+                [*args, limit + 1],
+            ).fetchall()
+            more = len(rows) > limit
+            runs = [dict(row) for row in rows[:limit]]
+            if runs:
+                ids = [row['id'] for row in runs]
+                placeholders = ','.join('?' for _ in ids)
+                # A small vocabulary keeps unexpected diagnostic strings out
+                # of this overview and bounds the number of stage groups.
+                stages = conn.execute(
+                    "SELECT scan_run_id, CASE WHEN stage IN "
+                    "('load','decode_timeout','score','save','composition','embedding') "
+                    "THEN stage ELSE 'other' END AS stage, COUNT(*) AS count "
+                    f'FROM scan_failures WHERE scan_run_id IN ({placeholders}) '
+                    'GROUP BY scan_run_id, 2 ORDER BY scan_run_id DESC, stage', ids,
+                ).fetchall()
+                by_run = {run['id']: [] for run in runs}
+                for stage in stages:
+                    by_run[stage['scan_run_id']].append({'stage': stage['stage'], 'count': stage['count']})
+                for run in runs:
+                    run['failure_stages'] = by_run[run['id']]
+                    run['retained_failure_records'] = sum(stage['count'] for stage in run['failure_stages'])
+            return {'runs': runs, 'next_before': runs[-1]['id'] if more else None}
+    except sqlite3.Error:
+        logger.exception('Could not read recorded scan runs')
+        raise HTTPException(status_code=503, detail='Recorded scan history is unavailable') from None
 
 
 @router.get("/stream_token", response_model=ScanStreamTokenResponse, response_model_exclude_unset=True)
