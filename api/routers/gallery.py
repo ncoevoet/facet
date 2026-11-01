@@ -44,6 +44,7 @@ from api.types import (
     SEQUENCE_OVERRIDE_FORCED, SEQUENCE_OVERRIDE_SUPPRESSED, SEQUENCE_OVERRIDE_VALUES,
 )
 from metric_columns import SCORE_RANGE_COLUMNS
+from score_presence import score_presence_policies
 from api.visual_similarity import find_visual_page
 from db.preview_versions import attach_preview_versions_async
 from utils.histogram import unpack_histogram
@@ -549,8 +550,24 @@ EXIF_RANGE_COLUMNS = [
 
 def _apply_score_range_filters(where_clauses, sql_params, params):
     """Apply all score/metric range filters."""
+    try:
+        policies = score_presence_policies(params.get('score_presence', ''))
+    except (ValueError, TypeError):
+        where_clauses.append('0=1')
+        return
     for column, min_key, max_key, is_float in SCORE_RANGE_COLUMNS:
-        _add_range_filter(where_clauses, sql_params, params, column, min_key, max_key, is_float=is_float)
+        policy = policies.get(min_key)
+        if policy == 'missing_only':
+            where_clauses.append(f'{column} IS NULL')
+            continue
+        ranges = []
+        _add_range_filter(ranges, sql_params, params, column, min_key, max_key, is_float=is_float)
+        if policy == 'include_missing' and ranges:
+            where_clauses.append(f"({column} IS NULL OR ({' AND '.join(ranges)}))")
+        else:
+            where_clauses.extend(ranges)
+            if policy == 'measured_only':
+                where_clauses.append(f'{column} IS NOT NULL')
 
 
 def _apply_exif_range_filters(where_clauses, sql_params, params):

@@ -616,6 +616,16 @@ describe('UI tool registry and handlers', () => {
   });
 
   describe('ui_set_gallery_filters', () => {
+    it('applies measurement policies read-only, rejects an invalid patch atomically and clears only the policy', async () => {
+      const raw = '{"min_sharpness":"include_missing"}';
+      expect(await run('ui_set_gallery_filters', { patch: { score_presence: raw, camera: 'Camera' } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ score_presence: raw, camera: 'Camera' });
+      await expect(direct()['ui_set_gallery_filters']({ patch: { camera: 'Retarget', score_presence: '{"min_star_rating":"missing_only"}' } })).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(store.filters()).toMatchObject({ score_presence: raw, camera: 'Camera' });
+      expect(await run('ui_set_gallery_filters', { patch: { score_presence: null } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ score_presence: '', camera: 'Camera' });
+    });
+
     it('applies literal tag groups read-only, refuses malformed rules and clears only that field', async () => {
       const raw = '{"any":["coast,ridge","夜景"],"none":["OR"]}';
       expect(await run('ui_set_gallery_filters', { patch: { tag_groups: raw, camera: 'Camera' } })).toMatchObject({ ok: true });

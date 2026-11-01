@@ -14,6 +14,7 @@ import {
   SEGMENT_PATCHES, TAB_SECTIONS, UNIT_PANEL, loadActiveTab,
 } from './gallery-filter-sidebar.component';
 import { DEFAULT_FILTERS, GalleryFilters, activeFilterUnits, countActiveFilters } from './gallery-filters.util';
+import { SCORE_PRESENCE_KEYS } from './score-presence.util';
 import { I18N } from '../../core/i18n/keys';
 import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -94,6 +95,13 @@ describe('GalleryFilterSidebarComponent', () => {
 
   it('should create', () => {
     expect(component).toBeTruthy();
+  });
+
+  it('counts measurement availability in the Quality tab even with no measured range', () => {
+    expect(new Set((component as any).scorePresenceMetrics.map((metric: { minKey: string }) => metric.minKey))).toEqual(SCORE_PRESENCE_KEYS);
+    (mockStore['filters'] as ReturnType<typeof signal<GalleryFilters>>).update(current => ({ ...current, score_presence: '{"min_sharpness":"missing_only"}' }));
+    expect(component.tabActiveCounts()['quality']).toBe(1);
+    expect(component.totalActiveCount()).toBe(1);
   });
 
   it('switches missing capture date and explicit bounds atomically', () => {

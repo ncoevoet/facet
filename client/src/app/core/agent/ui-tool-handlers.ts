@@ -1,4 +1,5 @@
 import { parseTagQuery, serializeTagQuery } from '../../features/gallery/tag-query.util';
+import { parseScorePresence, serializeScorePresence } from '../../features/gallery/score-presence.util';
 import { LEVEL_RANK, agentLevel } from './agent-level';
 import { NavigationExtras, Router } from '@angular/router';
 import { pathOf } from '../../shared/utils/url-path';
@@ -310,6 +311,11 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
           : filterDefault(clientKey);
       } else if (FRACTION_KEYS.has(contractKey)) {
         updates[clientKey] = fractionToPercent(contractKey, value);
+      } else if (clientKey === 'score_presence') {
+        if (typeof value !== 'string') throw new UiToolError('invalid_input', 'score_presence must be a JSON string.');
+        const policies = parseScorePresence(value);
+        if (!policies) throw new UiToolError('invalid_input', 'Invalid measurement policies.');
+        updates[clientKey] = serializeScorePresence(policies);
       } else if (clientKey === 'tag_groups') {
         if (typeof value !== 'string') throw new UiToolError('invalid_input', 'tag_groups must be a JSON string.');
         const groups = parseTagQuery(value);

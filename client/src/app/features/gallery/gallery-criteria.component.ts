@@ -1,4 +1,5 @@
 import { parseTagQuery, TAG_QUERY_GROUPS } from './tag-query.util';
+import { parseScorePresence } from './score-presence.util';
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -366,6 +367,14 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
     if (f.sequence_override) chips.push({ id: 'sequence_override', labelKey: I18N.gallery.sequence_override.label, value: this.i18n.t('gallery.sequence_override.' + f.sequence_override), clearKeys: ['sequence_override'] });
     if (f.no_gps) chips.push({ id: 'no_gps', labelKey: I18N.gallery.sidebar.location, value: this.i18n.t(I18N.gallery.criteria.no_location), clearKeys: ['no_gps'] });
     if (f.no_capture_date) chips.push({ id: 'no_capture_date', labelKey: I18N.gallery.sidebar.date, value: this.i18n.t(I18N.gallery.no_capture_date), clearKeys: ['no_capture_date'] });
+    const scorePolicies = parseScorePresence(f.score_presence ?? '');
+    if (f.score_presence) {
+      const value = scorePolicies ? Object.entries(scorePolicies).map(([key, mode]) => {
+        const metric = GalleryCriteriaComponent.RANGE_CHIPS.find(row => row.minKey === key);
+        return `${this.i18n.t(metric?.labelKey ?? key)}: ${this.i18n.t(I18N.gallery.measurements[mode])}`;
+      }).join('; ') : this.i18n.t(I18N.gallery.measurements.invalid);
+      chips.push({ id: 'score_presence', labelKey: I18N.gallery.measurements.title, value, clearKeys: ['score_presence'] });
+    }
 
     // Simple string/select filters
     if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });
@@ -416,6 +425,7 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
     const hiddenMetrics = unavailableSet(this.store.config()?.unavailable_metrics);
     for (const { minKey, maxKey, labelKey } of GalleryCriteriaComponent.RANGE_CHIPS) {
       if (isUnavailableKey(minKey, hiddenMetrics)) continue;
+      if (scorePolicies?.[minKey] === 'missing_only') continue;
       const rawMin = (f as unknown as Record<string, string>)[minKey];
       const rawMax = (f as unknown as Record<string, string>)[maxKey];
       const min = minKey === 'date_from' ? this.date.transform(rawMin) : rawMin;

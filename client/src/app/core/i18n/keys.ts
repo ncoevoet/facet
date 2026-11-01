@@ -1663,6 +1663,18 @@ export const I18N = {
       clear: "gallery.tag_groups.clear",
     },
     no_capture_date: "gallery.no_capture_date",
+    measurements: {
+      title: "gallery.measurements.title",
+      help: "gallery.measurements.help",
+      metric: "gallery.measurements.metric",
+      policy: "gallery.measurements.policy",
+      default: "gallery.measurements.default",
+      include_missing: "gallery.measurements.include_missing",
+      missing_only: "gallery.measurements.missing_only",
+      measured_only: "gallery.measurements.measured_only",
+      invalid: "gallery.measurements.invalid",
+      clear: "gallery.measurements.clear",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",

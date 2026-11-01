@@ -1648,7 +1648,19 @@
       "remove": "Remove rule for {name}",
       "clear": "Clear tag rules"
     },
-    "no_capture_date": "No capture date"
+    "no_capture_date": "No capture date",
+    "measurements": {
+      "title": "Measurement availability",
+      "help": "Ranges exclude missing values by default. Include missing keeps those photos alongside matching values. Missing only pauses that measurement’s range. Other filters still apply. Missing means no stored value; its cause is unknown.",
+      "metric": "Measurement",
+      "policy": "Show",
+      "default": "Default range behavior",
+      "include_missing": "Range matches + missing",
+      "missing_only": "Missing only",
+      "measured_only": "Measured values only",
+      "invalid": "These measurement policies are invalid. Clear them to recover.",
+      "clear": "Clear measurement policies"
+    }
   },
   "composition_patterns": {
     "none": "None",

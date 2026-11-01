@@ -1579,6 +1579,18 @@
                   "null"
                 ]
               },
+              "score_presence": {
+                "anyOf": [
+                  {
+                    "maxLength": 5000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "JSON map from min_metric keys to include_missing, missing_only or measured_only; null clears."
+              },
               "search": {
                 "description": "Gallery filter `search`.",
                 "type": [
@@ -2186,5 +2198,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "75edffd0fe831041"
+  "version": "0cdd1181a441cc1e"
 }

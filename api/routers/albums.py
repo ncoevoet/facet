@@ -29,6 +29,7 @@ from api.models.albums import AlbumPhotosResponse, SharedAlbumResponse
 from api.models.gallery import BY_PATHS_MISSING_CAP
 from api.top_picks import get_top_picks_score_sql, with_top_picks_alias
 from db.stats_cache import cache_stats_best_effort
+from metric_columns import SCORE_RANGE_COLUMNS
 from api.types import (
     VALID_SORT_COLS, available_sort_options, normalize_params, order_by_clause,
     populated_gated_cols_async,
@@ -76,7 +77,7 @@ def _normalize_smart_filters(filters):
     # A malformed literal rule is a restriction that must fail closed, rather
     # than disappear and broaden a saved album (including a public share).
     result = {key: ('1' if value is True else value) for key, value in filters.items()
-              if key == 'tag_groups' or (value is not None and value is not False and value != '')}
+              if key in ('tag_groups', 'score_presence') or (value is not None and value is not False and value != '')}
     if 'person_id' in result:
         result['person'] = result.pop('person_id')
     if isinstance(result.get('sort_direction'), str):
@@ -1209,47 +1210,30 @@ async def get_shared_album(
         filters = None
         if is_manual:
             _FILTER_KEYS = (
-                'camera', 'lens', 'tag', 'tag_groups', 'date_from', 'date_to', 'no_capture_date',
-                'hide_blinks', 'hide_bursts', 'hide_duplicates',
-                'composition_pattern', 'category', 'is_monochrome',
-                # Color facet + on-the-fly quality tier
-                'color_temp', 'hue_bucket', 'quality_tier',
-                # Range filters (quality, face, composition, saliency, technical, exposure, ratings)
-                'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
-                'min_quality_score', 'max_quality_score',
-                'min_aesthetic_iaa', 'max_aesthetic_iaa',
-                'min_face_quality_iqa', 'max_face_quality_iqa',
-                'min_liqe', 'max_liqe',
-                'min_qrealign', 'max_qrealign',
-                'min_aesthetic_v25', 'max_aesthetic_v25',
-                'min_deqa', 'max_deqa',
-                'min_face_count', 'max_face_count',
-                'min_face_quality', 'max_face_quality',
-                'min_eye_sharpness', 'max_eye_sharpness',
-                'min_face_sharpness', 'max_face_sharpness',
-                'min_face_ratio', 'max_face_ratio',
-                'min_face_confidence', 'max_face_confidence',
-                'min_composition', 'max_composition',
-                'min_power_point', 'max_power_point',
-                'min_leading_lines', 'max_leading_lines',
-                'min_isolation', 'max_isolation',
-                'min_subject_sharpness', 'max_subject_sharpness',
-                'min_subject_prominence', 'max_subject_prominence',
-                'min_subject_placement', 'max_subject_placement',
-                'min_bg_separation', 'max_bg_separation',
-                'min_sharpness', 'max_sharpness',
-                'min_exposure', 'max_exposure',
-                'min_color', 'max_color',
-                'min_contrast', 'max_contrast',
-                'min_saturation', 'max_saturation',
-                'min_noise', 'max_noise',
-                'min_dynamic_range', 'max_dynamic_range',
-                'min_luminance', 'max_luminance',
-                'min_histogram_spread', 'max_histogram_spread',
-                'min_iso', 'max_iso',
-                'min_aperture', 'max_aperture',
-                'min_focal_length', 'max_focal_length',
-                'min_star_rating', 'max_star_rating',
+                'camera',
+                'lens',
+                'tag',
+                'tag_groups',
+                'score_presence',
+                'date_from',
+                'date_to',
+                'no_capture_date',
+                'hide_blinks',
+                'hide_bursts',
+                'hide_duplicates',
+                'composition_pattern',
+                'category',
+                'is_monochrome',
+                'color_temp',
+                'hue_bucket',
+                'quality_tier',
+                'min_iso',
+                'max_iso',
+                'min_aperture',
+                'max_aperture',
+                'min_focal_length',
+                'max_focal_length',
+                *(key for _, minimum, maximum, _ in SCORE_RANGE_COLUMNS for key in (minimum, maximum)),
             )
             filters = {k: qp[k] for k in _FILTER_KEYS if qp.get(k)}
 

@@ -1,4 +1,5 @@
 import { hasTagQuery, parseTagQuery, serializeTagQuery } from './tag-query.util';
+import { parseScorePresence, serializeScorePresence } from './score-presence.util';
 /**
  * Pure filter logic for the gallery: types, defaults, and the URL/API/storage
  * codec. Extracted from gallery.store.ts so it can be unit-tested in isolation
@@ -44,6 +45,7 @@ export interface GalleryFilters {
   lens: string;
   tag: string;
   tag_groups: string;
+  score_presence: string;
   person_id: string;
   person_match: 'all' | 'any';
   // Score ranges
@@ -297,7 +299,8 @@ export function applySavedAlbumFilters(current: GalleryFilters, savedJson: strin
   const saved = JSON.parse(savedJson) as Partial<GalleryFilters>;
   if (saved.person_match !== undefined && !['all', 'any'].includes(saved.person_match)) throw new Error('Invalid person match');
   if (saved.tag_groups !== undefined && !parseTagQuery(saved.tag_groups)) throw new Error('Invalid tag groups');
-  return { ...current, person_match: 'all', tag_groups: '', ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
+  if (saved.score_presence !== undefined && !parseScorePresence(saved.score_presence)) throw new Error('Invalid measurement policies');
+  return { ...current, person_match: 'all', tag_groups: '', score_presence: '', ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
 }
 
 /** The store's mutual-exclusion rule: "hide rejected" and "favourites only" cannot both hold, so
@@ -365,7 +368,7 @@ export function setScopePatch(
 
 /** Common string-typed filter keys shared across URL sync, API params, and filter counting. */
 export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
-  'type', 'camera', 'lens', 'tag', 'tag_groups', 'person_id', 'person_match', 'composition_pattern', 'search',
+  'type', 'camera', 'lens', 'tag', 'tag_groups', 'score_presence', 'person_id', 'person_match', 'composition_pattern', 'search',
   'color_temp', 'hue_bucket', 'quality_tier', 'sequence_override', 'review_status',
   'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
   'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
@@ -405,6 +408,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   lens: '',
   tag: '',
   tag_groups: '',
+  score_presence: '',
   person_id: '',
   person_match: 'all',
   min_score: '',
@@ -608,6 +612,10 @@ export function applyQueryParams(
     const groups = parseTagQuery(params['tag_groups']);
     result.tag_groups = groups ? serializeTagQuery(groups) : params['tag_groups'];
   }
+  if (Object.hasOwn(params, 'score_presence')) {
+    const policy = parseScorePresence(params['score_presence']);
+    result.score_presence = policy ? serializeScorePresence(policy) : params['score_presence'];
+  }
   if (Object.hasOwn(params, 'person_id')) result.person_id = params['person_id'];
   for (const key of ['date_from', 'date_to'] as const) {
     if (Object.hasOwn(params, key)) result[key] = params[key];
@@ -702,6 +710,7 @@ export function buildSyncParams(
     params['person_match'] = f.person_match;
   }
   if (f.album_id || hasTagQuery(f.tag_groups)) params['tag_groups'] = f.tag_groups;
+  if (f.album_id || f.score_presence) params['score_presence'] = f.score_presence;
   if (f.album_id) {
     params['no_capture_date'] = f.no_capture_date;
     params['date_from'] = f.date_from;

@@ -222,7 +222,7 @@ ignore_missing_imports = true
 warn_unused_ignores = false
 
 [tool.setuptools]
-py-modules = ["facet", "cli_args", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics", "config_resolve", "int_affinity", "licensing", "metric_columns"]
+py-modules = ["facet", "cli_args", "viewer", "database", "tag_existing", "calibrate", "validate_db", "diagnostics", "config_resolve", "int_affinity", "licensing", "metric_columns", "tag_query", "score_presence"]
 
 [tool.setuptools.packages.find]
 include = [

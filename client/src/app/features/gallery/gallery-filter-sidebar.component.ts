@@ -39,6 +39,8 @@ import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
 import { TagGroupsComponent } from './tag-groups.component';
+import { ScorePresenceComponent } from './score-presence.component';
+import { SCORE_PRESENCE_KEYS } from './score-presence.util';
 import { FilterPinsService, FILTER_PIN_LIMIT } from './filter-pins.service';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
@@ -144,7 +146,7 @@ export type SidebarTabId = 'browse' | 'review' | 'quality' | 'subject' | 'displa
 export const TAB_SECTIONS: Record<SidebarTabId, readonly string[]> = {
   browse: BROWSE_PANELS,
   review: ['refine', 'gallery.sidebar.ratings'],
-  quality: ['gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality', 'gallery.sidebar.technical', 'gallery.sidebar.exposure_range'],
+  quality: ['score_presence', 'gallery.sidebar.quality', 'color_quality', 'gallery.sidebar.extended_quality', 'gallery.sidebar.technical', 'gallery.sidebar.exposure_range'],
   subject: ['gallery.sidebar.face', 'gallery.sidebar.composition', 'gallery.sidebar.saliency', 'gallery.sidebar.moments'],
   display: ['view'],
 };
@@ -210,6 +212,7 @@ export interface SegmentRow {
  * range) lives outside the tabs and is counted by the header only.
  */
 export const UNIT_PANEL: Record<string, string> = {
+  score_presence: 'score_presence',
   person_id: 'persons', faces_need_names: 'persons',
   date_from: 'date', date_to: 'date', no_capture_date: 'date',
   type: 'content', tag: 'content', composition_pattern: 'content',
@@ -287,6 +290,7 @@ export function loadActiveTab(): SidebarTabId {
     TranslatePipe,
     FilterDisplayPipe,
     TagGroupsComponent,
+    ScorePresenceComponent,
     PersonThumbnailUrlPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -861,6 +865,7 @@ export function loadActiveTab(): SidebarTabId {
       </div>
           }
           @case ('quality') {
+      <app-score-presence [metrics]="scorePresenceMetrics" />
       @for (group of qualityGroups(); track group.sectionKey) {
         <ng-container [ngTemplateOutlet]="metricPanel" [ngTemplateOutletContext]="{ $implicit: group }" />
       }
@@ -1064,6 +1069,10 @@ export function loadActiveTab(): SidebarTabId {
   `,
 })
 export class GalleryFilterSidebarComponent {
+  protected readonly scorePresenceMetrics = [
+    ...ADDITIONAL_FILTERS.filter(def => SCORE_PRESENCE_KEYS.has(def.minKey)),
+    { minKey: 'min_topiq', labelKey: 'gallery.topiq_range' },
+  ];
   protected readonly I18N = i18nKeys();
   readonly store = inject(GalleryStore);
   readonly auth = inject(AuthService);

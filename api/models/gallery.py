@@ -6,8 +6,10 @@ from typing import Any, Literal, Optional, Union
 
 from api.models.common import CoercedInt, PaginationEnvelope
 from tag_query import TAG_QUERY_JSON_LIMIT, validated_tag_query
+from score_presence import SCORE_PRESENCE_JSON_LIMIT, validated_score_presence
 
 TagQuery = Annotated[str, Field(max_length=TAG_QUERY_JSON_LIMIT), AfterValidator(validated_tag_query)]
+ScorePresence = Annotated[str, Field(max_length=SCORE_PRESENCE_JSON_LIMIT), AfterValidator(validated_score_presence)]
 
 
 class PhotoPerson(BaseModel):
@@ -289,6 +291,7 @@ class GalleryParams(BaseModel):
         return value
 
     # Score ranges
+    score_presence: ScorePresence = ''
     min_score: str = ''
     max_score: str = ''
     min_aesthetic: str = ''
