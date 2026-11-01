@@ -8,11 +8,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { i18nKeys } from '../../core/i18n/keys';
-import { Photo } from '../../shared/models/photo.model';
 import { ThumbnailUrlPipe, ImageUrlPipe, STORED_THUMBNAIL_EDGE, RENDERED_THUMBNAIL_EDGE } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { SyncedZoomComponent, ZoomState, DisplayedRendition, FIT_ZOOM } from './synced-zoom.component';
-import { MAX_COMPARE_PANES } from './comparison-slots.util';
+import { MAX_COMPARE_PANES, assignComparisonSlot } from './comparison-slots.util';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { StalenessGuardFactory } from '../../core/services/staleness-guard.service';
@@ -50,9 +49,9 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
         <mat-icon class="!text-base !w-5 !h-5 !leading-5">compare</mat-icon>
         <h1 class="m-0 flex-1 truncate text-sm font-semibold">{{ I18N.gallery.compare.title | translate:{ count: visiblePhotos().length } }}</h1>
         <button mat-button data-inspection-toggle class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-expanded]="inspectionOpen()" aria-controls="comparison-inspection" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate" (click)="toggleInspection()"><mat-icon>manage_search</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span></button>
-        @if (panes().length > 2) {
+        @if (queue().length > 2) {
           <button mat-button data-two-up class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-pressed]="twoUp()"
-                  [attr.aria-label]="I18N.gallery.compare.two_up | translate" (click)="twoUp.set(!twoUp())">
+                  [attr.aria-label]="I18N.gallery.compare.two_up | translate" (click)="toggleLayout()">
             <mat-icon>view_column_2</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.two_up | translate }}</span>
           </button>
         }
@@ -88,7 +87,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
           <div class="@container/pane relative flex flex-col w-full h-full min-h-0 overflow-hidden border border-[var(--facet-image-rule)]" [class.border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
             <div class="flex shrink-0 items-center gap-2 px-2 text-[var(--facet-image-ink)] text-xs bg-[var(--facet-image-chrome)] min-h-10">
               <mat-icon class="!text-base !w-4 !h-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
-              <span class="shrink-0">{{ (referencePath() === photo.path ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate }}</span>
+              <span class="shrink-0 font-semibold" aria-hidden="true">{{ pane.slotLabel }}</span><span class="sr-only @[320px]/pane:not-sr-only">{{ (referencePath() === photo.path ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate }}</span>
               <span class="truncate min-w-0 flex-1">{{ photo.filename }}</span>
               @if (referencePath() !== photo.path) {
                 <button mat-icon-button data-promote-reference class="!text-white shrink-0"
@@ -175,7 +174,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
       </div>
       <div class="shrink-0 border-t border-[var(--mat-sys-outline-variant)] px-3 py-2">
         <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
-          @if (twoUp() && candidates().length) {
+          @if (twoUp() && candidates().length && candidateIndex() >= 0) {
         <div class="flex items-center gap-1 min-w-0">
           <button mat-icon-button data-candidate-previous class="!text-[var(--mat-sys-on-surface)] disabled:!text-[var(--mat-sys-outline)]"
                   [disabled]="candidateIndex() <= 0" [attr.aria-label]="I18N.gallery.compare.previous_candidate | translate"
@@ -186,25 +185,31 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
                   (click)="moveCandidate(1)"><mat-icon>chevron_right</mat-icon></button>
         </div>
       }
-          <span class="sr-only">{{ I18N.gallery.compare.queue | translate:{ count: candidates().length } }}</span>
-          <div class="flex shrink-0 gap-1" role="group" [attr.aria-label]="I18N.gallery.compare.assign_target | translate">
+          <span data-queue-count>{{ I18N.gallery.compare.queue_total | translate:{ count: queue().length } }}</span>
+          <div class="hidden sm:flex shrink-0 gap-1" role="group" [attr.aria-label]="I18N.gallery.compare.assign_target | translate">
             <button type="button" data-compare-target="reference" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'reference'" [attr.aria-pressed]="assignmentTarget() === 'reference'" (click)="assignmentTarget.set('reference')">{{ I18N.gallery.compare.reference | translate }}</button>
             <button type="button" data-compare-target="candidate" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'candidate'" [attr.aria-pressed]="assignmentTarget() === 'candidate'" (click)="assignmentTarget.set('candidate')">{{ I18N.gallery.compare.candidate | translate }}</button>
+            @if (!twoUp() && panes().length >= 2 && queue().length > 2) {
+              <button type="button" data-compare-target="third" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [attr.aria-pressed]="assignmentTarget() === 'third'" (click)="assignmentTarget.set('third')">{{ I18N.gallery.compare.pane_c | translate }}</button>
+            }
+            @if (!twoUp() && panes().length >= 3 && queue().length > 3) {
+              <button type="button" data-compare-target="fourth" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [attr.aria-pressed]="assignmentTarget() === 'fourth'" (click)="assignmentTarget.set('fourth')">{{ I18N.gallery.compare.pane_d | translate }}</button>
+            }
           </div>
           @if (removedPaths().size) {
             <button mat-button data-restore-comparison (click)="restorePanes()">{{ I18N.gallery.compare.restore | translate }}</button>
           }
         </div>
-        <p class="sr-only" data-comparison-assignment>{{ I18N.gallery.compare.assign_hint | translate:{ target: ((assignmentTarget() === 'reference' ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate) } }}</p>
+        <p class="m-0 pb-2 text-xs sm:sr-only" data-comparison-assignment>{{ I18N.gallery.compare.assign_pane_hint | translate:{ target: (assignmentLabelKey() | translate) } }}</p>
         <div class="flex gap-2 overflow-x-auto" role="group" [attr.aria-label]="I18N.gallery.compare.queue_label | translate">
-          @for (photo of panes(); track photo.path) {
+          @for (photo of queue(); track photo.path) {
             <button #candidateButton type="button" data-candidate-thumbnail [attr.data-path]="photo.path"
                     class="flex w-24 shrink-0 flex-col gap-1 rounded border border-[var(--mat-sys-outline-variant)] p-1 text-left focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                     [class.bg-[var(--mat-sys-secondary-container)]]="activePath() === photo.path"
                     [attr.aria-pressed]="activePath() === photo.path"
-                    [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: ((assignmentTarget() === 'reference' ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate), name: photo.filename }"
+                    [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: (assignmentLabelKey() | translate), name: photo.filename }"
                     (click)="chooseCandidate(photo.path)">
-              <img [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-12 w-full object-contain bg-neutral-950" />
+              <img loading="lazy" decoding="async" [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-12 w-full object-contain bg-neutral-950" />
               <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-sm !w-4 !h-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="truncate">{{ photo.filename }}</span></span>
             </button>
           }
@@ -227,6 +232,8 @@ export class ComparisonWorkspaceComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly cancelled = new Subject<void>();
+  private readonly inspectionCancelled = new Subject<void>();
+  private inspectionVersion = 0;
   private closing = false;
   private readonly token = this.auth.token;
   private readonly owner = this.auth.identity();
@@ -250,8 +257,12 @@ export class ComparisonWorkspaceComponent {
   /** Each photo retains its own framing, including candidates outside two-up. */
   protected readonly linked = signal(true);
   protected readonly referencePath = signal(this.data.photos?.[0]?.path ?? null);
-  protected readonly twoUp = signal(false);
-  protected readonly assignmentTarget = signal<'reference' | 'candidate'>('candidate');
+  protected readonly twoUp = signal(this.data.photos.length > MAX_COMPARE_PANES);
+  private readonly assignedPaths = signal(this.data.photos.slice(0, MAX_COMPARE_PANES).map(photo => photo.path));
+  protected readonly assignmentTarget = signal<'reference' | 'candidate' | 'third' | 'fourth'>('candidate');
+  protected readonly assignmentLabelKey = computed(() => this.assignmentTarget() === 'reference' ? this.I18N.gallery.compare.reference
+    : this.assignmentTarget() === 'candidate' ? this.I18N.gallery.compare.candidate
+    : this.assignmentTarget() === 'third' ? this.I18N.gallery.compare.pane_c : this.I18N.gallery.compare.pane_d);
   protected readonly activePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly removedPaths = signal(new Set<string>());
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
@@ -288,21 +299,24 @@ export class ComparisonWorkspaceComponent {
   protected toggleInspection(): void {
     if (!this.context.current()) return;
     this.inspectionOpen.update(open => !open);
-    if (this.inspectionOpen() && this.inspectionState() === 'idle') void this.loadInspection();
+    if (!this.inspectionOpen()) this.cancelInspection();
+    else if (this.inspectionState() === 'idle') void this.loadInspection();
   }
 
   protected async loadInspection(): Promise<void> {
     const context = this.context;
     if (!context.current() || this.inspectionState() === 'loading') return;
+    const version = ++this.inspectionVersion;
+    const membership = JSON.stringify([...this.assignedPaths()].sort());
     this.inspectionState.set('loading');
-    const photos = [...new Map((this.data.photos ?? []).slice(0, MAX_COMPARE_PANES).map(photo => [photo.path, photo])).values()];
+    const photos = this.panes();
     const faces = new Map<string, PhotoFaceRow[]>();
     const suggestions = new Map<string, KeySubject>();
     let failed = false;
     await Promise.all([
       (async () => {
         try {
-          const result = await firstValueFrom(this.api.post<{ key_subjects_by_path: Record<string, KeySubject> }>('/photos/key_subjects', { paths: photos.map(photo => photo.path) }).pipe(takeUntil(this.cancelled), takeUntilDestroyed(this.destroyRef)));
+          const result = await firstValueFrom(this.api.post<{ key_subjects_by_path: Record<string, KeySubject> }>('/photos/key_subjects', { paths: photos.map(photo => photo.path) }).pipe(takeUntil(this.inspectionCancelled), takeUntil(this.cancelled), takeUntilDestroyed(this.destroyRef)));
           for (const photo of photos) {
             const target = result.key_subjects_by_path?.[photo.path];
             if (target?.path === photo.path && (target.kind === 'person' || target.kind === 'subject') && target.coordinate_space === KEY_SUBJECT_COORDINATE_SPACE && normalizedInspectionBox(target.bbox)
@@ -312,14 +326,14 @@ export class ComparisonWorkspaceComponent {
       })(),
       ...photos.map(async photo => {
         try {
-          const result = await firstValueFrom(this.api.get<{ faces: PhotoFaceRow[] }>('/photo/faces', { path: photo.path }).pipe(takeUntil(this.cancelled), takeUntilDestroyed(this.destroyRef)));
+          const result = await firstValueFrom(this.api.get<{ faces: PhotoFaceRow[] }>('/photo/faces', { path: photo.path }).pipe(takeUntil(this.inspectionCancelled), takeUntil(this.cancelled), takeUntilDestroyed(this.destroyRef)));
           // Keep unusable occurrences too: dropping one would make a duplicate
           // saved-person assignment look like an unambiguous correspondence.
           faces.set(photo.path, result.faces ?? []);
         } catch { failed = true; }
       }),
     ]);
-    if (!context.current()) return;
+    if (!context.current() || version !== this.inspectionVersion || membership !== JSON.stringify([...this.assignedPaths()].sort())) return;
     this.faceRows.set(faces); this.suggestions.set(suggestions);
     this.inspectionState.set(failed ? 'partial' : 'ready');
   }
@@ -334,6 +348,7 @@ export class ComparisonWorkspaceComponent {
       event.preventDefault(); event.stopPropagation();
       if (this.inspectionOpen()) {
         this.inspectionOpen.set(false);
+        this.cancelInspection();
         this.host.nativeElement.querySelector<HTMLButtonElement>('[data-inspection-toggle]')?.focus();
       } else this.close();
       return;
@@ -383,22 +398,23 @@ export class ComparisonWorkspaceComponent {
     this.inspectionNotice.set(this.I18N.gallery.compare.inspection.review_link);
   }
 
-  /** Extra selected photos are dropped rather than shrunk past usefulness. */
-  protected readonly panes = computed(() => (this.data.photos ?? []).slice(0, MAX_COMPARE_PANES).filter(photo => !this.removedPaths().has(photo.path)));
-  protected readonly candidates = computed(() => this.panes().filter(photo => photo.path !== this.referencePath()));
-  protected readonly candidateIndex = computed(() => Math.max(0, this.candidates().findIndex(photo => photo.path === this.candidatePath())));
-  protected readonly visiblePhotos = computed(() => {
-    if (!this.twoUp()) return this.panes();
-    const reference = this.panes().find(photo => photo.path === this.referencePath());
-    const candidate = this.candidates()[this.candidateIndex()];
-    return [reference, candidate].filter((photo): photo is Photo => !!photo);
+  /** The captured queue is independent of the bounded set of assigned image panes. */
+  protected readonly queue = computed(() => this.data.photos.filter(photo => !this.removedPaths().has(photo.path)));
+  protected readonly panes = computed(() => {
+    const byPath = new Map(this.queue().map(photo => [photo.path, photo]));
+    return this.assignedPaths().flatMap(path => byPath.has(path) ? [byPath.get(path)!] : []);
   });
+  protected readonly candidates = computed(() => this.queue().filter(photo => photo.path !== this.referencePath()));
+  protected readonly candidateIndex = computed(() => this.candidates().findIndex(photo => photo.path === this.candidatePath()));
+  protected readonly visiblePhotos = computed(() => this.twoUp()
+    ? this.panes().filter(photo => photo.path === this.referencePath() || photo.path === this.candidatePath())
+    : this.panes());
 
   protected readonly paneStates = computed(() => this.visiblePhotos().map(photo => {
     const zoom = this.paneZoom().get(photo.path) ?? FIT_ZOOM;
     const rendition = this.renditions().get(photo.path);
     return {
-      photo, zoom, rendition, fitted: zoom.scale === 1 && zoom.tx === 0 && zoom.ty === 0,
+      photo, slotLabel: String.fromCharCode(65 + this.panes().findIndex(item => item.path === photo.path)), zoom, rendition, fitted: zoom.scale === 1 && zoom.tx === 0 && zoom.ty === 0,
       faces: (this.faceRows().get(photo.path) ?? []).filter(face => normalizedInspectionBox(face.box) && Number.isInteger(face.id) && Number.isInteger(face.face_index)), suggestion: this.suggestions().get(photo.path),
       zoomOutDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale <= 1) : zoom.scale <= 1,
       zoomInDisabled: this.linked() ? this.panes().some(p => (this.paneZoom().get(p.path) ?? FIT_ZOOM).scale >= 8) : zoom.scale >= 8,
@@ -413,73 +429,95 @@ export class ComparisonWorkspaceComponent {
     frame.scale !== FIT_ZOOM.scale || frame.tx !== 0 || frame.ty !== 0));
 
   protected promote(path: string): void {
-    if (!this.panes().some(photo => photo.path === path)) return;
+    if (!this.context.current() || !this.panes().some(photo => photo.path === path)) return;
     const previous = this.referencePath();
-    this.referencePath.set(path);
-    this.candidatePath.set(previous);
-    this.activePath.set(path);
+    let slots = assignComparisonSlot(this.assignedPaths(), 0, path);
+    if (previous && previous !== path) slots = assignComparisonSlot(slots, 1, previous);
+    this.setAssignments(slots);
+    this.activate(path);
+  }
+
+  protected toggleLayout(): void {
+    if (!this.context.current()) return;
+    const twoUp = !this.twoUp();
+    this.twoUp.set(twoUp);
+    if (twoUp && (this.assignmentTarget() === 'third' || this.assignmentTarget() === 'fourth')) this.assignmentTarget.set('candidate');
+    if (!twoUp) this.setAssignments([...new Set([...this.assignedPaths(), ...this.queue().map(photo => photo.path)])].slice(0, MAX_COMPARE_PANES));
   }
 
   protected moveCandidate(direction: number): void {
+    if (!this.context.current()) return;
     const next = this.candidates()[this.candidateIndex() + direction];
-    if (next) { this.candidatePath.set(next.path); this.activePath.set(next.path); }
+    if (next) this.assignQueuePhoto(next.path, 1);
   }
 
   protected activate(path: string): void {
-    if (this.panes().some(photo => photo.path === path)) this.activePath.set(path);
+    const index = this.panes().findIndex(photo => photo.path === path);
+    if (index < 0) return;
+    this.activePath.set(path);
+    this.assignmentTarget.set((['reference', 'candidate', 'third', 'fourth'] as const)[index]);
   }
 
   protected chooseCandidate(path: string): void {
-    if (!this.context.current() || !this.panes().some(photo => photo.path === path)) return;
-    if (this.assignmentTarget() === 'reference') {
-      const previous = this.referencePath();
-      if (path === this.candidatePath()) this.candidatePath.set(previous);
-      this.referencePath.set(path);
-      this.activePath.set(path);
-      this.twoUp.set(true);
-      return;
+    if (!this.context.current() || !this.queue().some(photo => photo.path === path)) return;
+    const slot = this.assignmentTarget() === 'reference' ? 0 : this.assignmentTarget() === 'candidate' ? 1 : this.assignmentTarget() === 'third' ? 2 : 3;
+    this.assignQueuePhoto(path, slot);
+  }
+
+  private assignQueuePhoto(path: string, slot: number): void {
+    const paths = this.assignedPaths();
+    if (slot > paths.length || slot >= MAX_COMPARE_PANES) return;
+    if (slot === paths.length && paths.includes(path)) return;
+    const next = slot === paths.length ? [...paths, path] : assignComparisonSlot(paths, slot, path);
+    if (slot >= 2) this.twoUp.set(false);
+    this.setAssignments(next);
+    this.activate(path);
+  }
+
+  private setAssignments(paths: string[]): void {
+    const membership = JSON.stringify([...this.assignedPaths()].sort());
+    this.assignedPaths.set(paths);
+    this.referencePath.set(paths[0] ?? null);
+    this.candidatePath.set(paths[1] ?? null);
+    if ((this.assignmentTarget() === 'third' && (paths.length < 2 || this.queue().length < 3))
+      || (this.assignmentTarget() === 'fourth' && (paths.length < 3 || this.queue().length < 4))) this.assignmentTarget.set('candidate');
+    if (this.inspectionOpen() && membership !== JSON.stringify([...paths].sort())) {
+      this.cancelInspection();
+      this.faceRows.set(new Map()); this.suggestions.set(new Map());
+      void this.loadInspection();
     }
-    this.activePath.set(path);
-    if (path === this.referencePath()) {
-      const candidate = this.candidates()[this.candidateIndex()];
-      if (candidate) {
-        this.referencePath.set(candidate.path);
-        this.candidatePath.set(path);
-        this.twoUp.set(true);
-      }
-      return;
-    }
-    if (path !== this.referencePath()) {
-      this.candidatePath.set(path);
-      this.twoUp.set(true);
-    }
+  }
+
+  private cancelInspection(): void {
+    this.inspectionVersion++;
+    this.inspectionCancelled.next();
+    this.inspectionState.set('idle');
   }
 
   /** Membership here is presentation state; the gallery selection and decisions never change. */
   protected removePane(path: string): void {
     const current = this.panes();
-    if (current.length < 2 || !current.some(photo => photo.path === path)) return;
+    if (!this.context.current() || current.length < 2 || !current.some(photo => photo.path === path)) return;
     const focusBefore = this.document.activeElement;
-    const nextCandidates = this.candidates().filter(photo => photo.path !== path);
-    const candidateIndex = this.candidateIndex();
     this.removedPaths.update(paths => new Set(paths).add(path));
-    if (path === this.referencePath()) this.referencePath.set(this.panes()[0].path);
-    if (path === this.candidatePath() || this.candidatePath() === this.referencePath()) {
-      const available = nextCandidates.filter(photo => photo.path !== this.referencePath());
-      this.candidatePath.set(available[Math.min(candidateIndex, available.length - 1)]?.path ?? null);
-    }
-    if (path === this.activePath()) this.activePath.set(this.candidatePath() ?? this.referencePath());
+    this.setAssignments(this.assignedPaths().filter(member => member !== path));
+    const active = path === this.activePath() ? this.candidatePath() ?? this.referencePath() : this.activePath();
+    if (active) this.activate(active);
     this.paneZoom.update(values => { const next = new Map(values); next.delete(path); return next; });
     this.readiness.update(values => { const next = new Map(values); next.delete(path); return next; });
     this.renditions.update(values => { const next = new Map(values); next.delete(path); return next; });
     afterNextRender(() => {
-      if (this.document.activeElement !== this.document.body && this.document.activeElement !== focusBefore) return;
+      if (!this.context.current() || (this.document.activeElement !== this.document.body && this.document.activeElement !== focusBefore)) return;
       this.candidateButtons().find(button => button.nativeElement.dataset['path'] === this.activePath())?.nativeElement.focus();
     }, { injector: this.injector });
   }
 
   protected restorePanes(): void {
+    if (!this.context.current()) return;
     this.removedPaths.set(new Set());
+    const preferred = [...new Set([this.referencePath(), this.candidatePath(), ...this.assignedPaths(), ...this.data.photos.map(photo => photo.path)])]
+      .filter((path): path is string => !!path);
+    this.setAssignments(preferred.slice(0, MAX_COMPARE_PANES));
   }
 
   protected onZoom(path: string, state: ZoomState): void {
@@ -501,11 +539,11 @@ export class ComparisonWorkspaceComponent {
     const minimum = Math.max(...members.map(({ frame }) => SyncedZoomComponent.MIN_SCALE / frame.scale));
     const maximum = Math.min(...members.map(({ frame }) => SyncedZoomComponent.MAX_SCALE / frame.scale));
     const ratio = Math.max(minimum, Math.min(maximum, state.scale / source.scale));
-    this.paneZoom.set(new Map(members.map(({ path: memberPath, frame }) => [memberPath, {
+    this.paneZoom.set(new Map([...frames, ...members.map<[string, ZoomState]>(({ path: memberPath, frame }) => [memberPath, {
       scale: frame.scale * ratio,
       tx: frame.tx * ratio + state.tx - source.tx * ratio,
       ty: frame.ty * ratio + state.ty - source.ty * ratio,
-    }])));
+    }])]));
   }
 
   protected toggleLinked(): void {
@@ -529,7 +567,7 @@ export class ComparisonWorkspaceComponent {
   }
 
   protected setReadiness(path: string, state: 'loading' | 'ready' | 'failed'): void {
-    if (!this.panes().some(photo => photo.path === path)) return;
+    if (!this.visiblePhotos().some(photo => photo.path === path)) return;
     this.readiness.update(values => new Map(values).set(path, state));
   }
 

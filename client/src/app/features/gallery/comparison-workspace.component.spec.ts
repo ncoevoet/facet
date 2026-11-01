@@ -44,6 +44,81 @@ function build(paths: string[]) {
 describe('ComparisonWorkspaceComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
+  it('keeps a larger queue while decoding only assigned panes and chooses a distant candidate', () => {
+    const { fixture, api } = build(Array.from({ length: 12 }, (_, i) => `/queue-${i}.jpg`));
+    const root = fixture.nativeElement as HTMLElement;
+    expect(root.querySelectorAll('[data-candidate-thumbnail]')).toHaveLength(12);
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    expect(panes()).toHaveLength(2);
+    (root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[11]).click(); fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.frameKey())).toEqual(['/queue-0.jpg', '/queue-11.jpg']);
+    expect(api.post).not.toHaveBeenCalled();
+  });
+
+  it('keeps inspection bounded and accepts an in-flight answer after a role-only swap', async () => {
+    const { fixture, api } = build(Array.from({ length: 12 }, (_, i) => `/q${i}.jpg`));
+    const faces = new Subject<{ faces: [] }>();
+    const subjects = new Subject<{ key_subjects_by_path: object }>();
+    api.get.mockReturnValue(faces); api.post.mockReturnValue(subjects);
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledTimes(4);
+    expect(api.post).toHaveBeenCalledExactlyOnceWith('/photos/key_subjects', { paths: ['/q0.jpg', '/q1.jpg', '/q2.jpg', '/q3.jpg'] });
+    fixture.nativeElement.querySelector('[data-promote-reference]').click(); fixture.detectChanges();
+    faces.next({ faces: [] }); subjects.next({ key_subjects_by_path: {} });
+    await fixture.whenStable(); fixture.detectChanges();
+    const component = fixture.componentInstance as unknown as { inspectionState(): string };
+    expect(component.inspectionState()).toBe('ready');
+    expect(api.get).toHaveBeenCalledTimes(4);
+  });
+
+  it('assigns distant queue photos to four panes and retains independent framing when revisiting', () => {
+    const { fixture } = build(Array.from({ length: 12 }, (_, i) => `/q${i}.jpg`));
+    const root = fixture.nativeElement as HTMLElement;
+    const panes = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
+    root.querySelector<HTMLButtonElement>('[data-link-inspection]')!.click(); fixture.detectChanges();
+    panes()[1].componentInstance.zoomChange.emit({ scale: 3, tx: -12, ty: 5 }); fixture.detectChanges();
+    const thumbs = () => root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]');
+    thumbs()[11].click(); fixture.detectChanges();
+    thumbs()[1].click(); fixture.detectChanges();
+    expect(panes()[1].componentInstance.zoom()).toEqual({ scale: 3, tx: -12, ty: 5 });
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click(); fixture.detectChanges();
+    panes()[2].nativeElement.parentElement.dispatchEvent(new Event('pointerdown', { bubbles: true })); fixture.detectChanges();
+    thumbs()[10].click(); fixture.detectChanges();
+    expect(panes().map(p => p.componentInstance.frameKey())).toEqual(['/q0.jpg', '/q1.jpg', '/q10.jpg', '/q3.jpg']);
+  });
+
+  it('cancels obsolete inspection membership and keeps the newer answer', async () => {
+    const { fixture, api } = build(Array.from({ length: 12 }, (_, i) => `/q${i}.jpg`));
+    const stale = new Subject<{ faces: [] }>();
+    api.get.mockReturnValue(stale); api.post.mockReturnValue(stale);
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    api.get.mockReturnValue(of({ faces: [] }));
+    api.post.mockReturnValue(of({ key_subjects_by_path: {} }));
+    fixture.nativeElement.querySelectorAll('[data-candidate-thumbnail]')[11].click(); fixture.detectChanges();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(stale.observed).toBe(false);
+    expect(api.get).toHaveBeenCalledTimes(8);
+    expect(api.post).toHaveBeenLastCalledWith('/photos/key_subjects', { paths: ['/q0.jpg', '/q11.jpg', '/q2.jpg', '/q3.jpg'] });
+    const component = fixture.componentInstance as unknown as { inspectionState(): string };
+    expect(component.inspectionState()).toBe('ready');
+    stale.next({ faces: [] });
+    await fixture.whenStable();
+    expect(component.inspectionState()).toBe('ready');
+  });
+
+  it('preserves four-up while replacing reference or candidate from the larger queue', () => {
+    const { fixture } = build(Array.from({ length: 12 }, (_, i) => `/q${i}.jpg`));
+    const root = fixture.nativeElement as HTMLElement;
+    const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click(); fixture.detectChanges();
+    root.querySelector<HTMLButtonElement>('[data-compare-target="reference"]')!.click();
+    root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[11].click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/q11.jpg', '/q1.jpg', '/q2.jpg', '/q3.jpg']);
+    root.querySelector<HTMLButtonElement>('[data-compare-target="candidate"]')!.click();
+    root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[10].click(); fixture.detectChanges();
+    expect(paths()).toEqual(['/q11.jpg', '/q10.jpg', '/q2.jpg', '/q3.jpg']);
+  });
+
   it('renders one synced pane per selected photo', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg']);
     const panes = fixture.debugElement.nativeElement.querySelectorAll('app-synced-zoom');
@@ -64,11 +139,12 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(fixture.debugElement.nativeElement.querySelectorAll('app-synced-zoom').length).toBe(4);
   });
 
-  it('drops photos beyond the pane cap rather than shrinking them all', () => {
+  it('keeps every queue member and starts large comparisons with two decoders', () => {
     const paths = Array.from({ length: MAX_COMPARE_PANES + 3 }, (_, i) => `/p${i}.jpg`);
     const { fixture } = build(paths);
     expect(fixture.debugElement.nativeElement.querySelectorAll('app-synced-zoom').length)
-      .toBe(MAX_COMPARE_PANES);
+      .toBe(2);
+    expect(fixture.nativeElement.querySelectorAll('[data-candidate-thumbnail]')).toHaveLength(paths.length);
   });
 
   it('gives each pane its own stored thumbnail as placeholder, keyed by its frame', () => {
@@ -332,7 +408,7 @@ describe('ComparisonWorkspaceComponent', () => {
     fixture.nativeElement.querySelectorAll('[data-promote-reference]')[0].click();
     fixture.detectChanges();
     expect(reference().textContent).toContain('b.jpg');
-    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(paths);
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/b.jpg', '/a.jpg', '/c.jpg']);
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
@@ -397,7 +473,7 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(paths()).toEqual(['/c.jpg', '/a.jpg']);
     root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
     fixture.detectChanges();
-    expect(paths()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    expect(paths()).toEqual(['/c.jpg', '/a.jpg', '/b.jpg', '/d.jpg']);
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
@@ -427,6 +503,7 @@ describe('ComparisonWorkspaceComponent', () => {
     const { fixture, api } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
     const root = fixture.nativeElement as HTMLElement;
     const thumbs = () => root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]');
+    root.querySelector<HTMLButtonElement>('[data-two-up]')!.click(); fixture.detectChanges();
     const frames = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
     root.querySelector<HTMLButtonElement>('[data-compare-target="reference"]')!.click(); fixture.detectChanges();
     thumbs()[2].click(); fixture.detectChanges();
@@ -450,7 +527,7 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(queue).toHaveLength(4);
     queue[3].click(); fixture.detectChanges();
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
-    expect(panes.map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/d.jpg']);
+    expect(panes.map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/d.jpg', '/c.jpg', '/b.jpg']);
     expect(root.querySelector('[data-reference="true"]')!.textContent).toContain('a.jpg');
     expect(root.querySelector('[data-candidate-thumbnail][aria-pressed="true"]')!.getAttribute('data-path')).toBe('/d.jpg');
   });
@@ -467,7 +544,8 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(root.querySelector('[data-reference="true"]')!.textContent).toContain('b.jpg');
     expect(root.querySelectorAll('[data-candidate-thumbnail]')).toHaveLength(2);
     root.querySelector<HTMLButtonElement>('[data-restore-comparison]')!.click(); fixture.detectChanges();
-    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/b.jpg', '/c.jpg']);
+    expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/b.jpg', '/c.jpg', '/a.jpg']);
+    expect(root.querySelector('[data-reference="true"]')!.textContent).toContain('b.jpg');
     expect(JSON.stringify(data.photos)).toBe(before);
     expect(router.navigateByUrl).not.toHaveBeenCalled();
   });

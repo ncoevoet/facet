@@ -1261,6 +1261,8 @@ export const I18N = {
         manual: "gallery.selection.targets.manual",
         stack_count: "gallery.selection.targets.stack_count",
       },
+      compare_queue_limit: "gallery.selection.compare_queue_limit",
+      compare_queue_requirements: "gallery.selection.compare_queue_requirements",
     },
     keep_top: {
       label: "gallery.keep_top.label",
@@ -1549,6 +1551,10 @@ export const I18N = {
       assign_target: "gallery.compare.assign_target",
       assign_hint: "gallery.compare.assign_hint",
       assign_photo: "gallery.compare.assign_photo",
+      queue_total: "gallery.compare.queue_total",
+      pane_c: "gallery.compare.pane_c",
+      pane_d: "gallery.compare.pane_d",
+      assign_pane_hint: "gallery.compare.assign_pane_hint",
     },
     clipping: {
       badge_highlight: "gallery.clipping.badge_highlight",

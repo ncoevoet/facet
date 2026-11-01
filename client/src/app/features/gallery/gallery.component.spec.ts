@@ -38,7 +38,7 @@ import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.componen
 import { SlideshowComponent } from './slideshow.component';
 import { I18N } from '../../core/i18n/keys';
 import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
-import { MAX_COMPARE_PANES } from './comparison-slots.util';
+import { MAX_COMPARE_QUEUE } from './comparison-slots.util';
 import { gridColumnCount } from './gallery-rows.util';
 import { ScanService } from '../../core/services/scan.service';
 import { UndoService } from '../../core/services/undo.service';
@@ -2566,19 +2566,20 @@ describe('GalleryComponent', () => {
     }
 
     // The workspace owns its own tests; this checks captured membership and entry.
-    it('is offered from two photos up to the pane limit', () => {
+    it('is offered from two photos up to the queue limit', () => {
       const c = component as unknown as { canCompareSelection: () => boolean };
       for (const n of [0, 1]) {
         select(Array.from({ length: n }, (_, i) => `/p${i}.jpg`));
         expect(c.canCompareSelection()).toBe(false);
       }
-      for (let n = 2; n <= MAX_COMPARE_PANES; n++) {
+      for (const n of [2, 4, 12, MAX_COMPARE_QUEUE]) {
         const paths = Array.from({ length: n }, (_, i) => `/p${i}.jpg`);
         mockStore.photos.set(paths.map(photo));
         select(paths);
         expect(c.canCompareSelection()).toBe(true);
       }
-      select(Array.from({ length: MAX_COMPARE_PANES + 1 }, (_, i) => `/p${i}.jpg`));
+      const oversized = Array.from({ length: MAX_COMPARE_QUEUE + 1 }, (_, i) => `/p${i}.jpg`);
+      mockStore.photos.set(oversized.map(photo)); select(oversized);
       expect(c.canCompareSelection()).toBe(false);
     });
 
@@ -2595,7 +2596,7 @@ describe('GalleryComponent', () => {
     });
 
     it('refuses an oversized selection instead of silently comparing a subset', async () => {
-      const paths = Array.from({ length: MAX_COMPARE_PANES + 2 }, (_, i) => `/p${i}.jpg`);
+      const paths = Array.from({ length: MAX_COMPARE_QUEUE + 2 }, (_, i) => `/p${i}.jpg`);
       mockStore.photos.set(paths.map(photo));
       select(paths);
       const dialog = TestBed.inject(MatDialog);

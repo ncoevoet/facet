@@ -94,7 +94,7 @@ import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
-import { MAX_COMPARE_PANES } from './comparison-slots.util';
+import { MAX_COMPARE_QUEUE } from './comparison-slots.util';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 
 function assertNever(action: never): never {
@@ -818,10 +818,10 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             </details>
           }
           <button mat-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon>{{ I18N.gallery.selection.clear | translate }}</button>
-          @if (selectionCount() >= 2 && selectionCount() <= comparePaneLimit) {
+          @if (selectionCount() >= 2) {
             <button mat-button [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon>compare</mat-icon>{{ I18N.gallery.selection.compare | translate }}</button>
             @if (!canCompareSelection()) {
-              <span id="compare-selection-requirements" class="text-xs basis-full">{{ I18N.gallery.selection.compare_loaded | translate }}</span>
+              <span id="compare-selection-requirements" class="text-xs basis-full">{{ (selectionCount() > compareQueueLimit ? I18N.gallery.selection.compare_queue_limit : I18N.gallery.selection.compare_queue_requirements) | translate:{ max: compareQueueLimit } }}</span>
             }
           }
           @if (auth.isEdition()) {
@@ -1111,7 +1111,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   });
   protected readonly excludedPaths = this.store.excludedPaths;
   protected readonly selectionCount = this.store.selectionCount;
-  protected readonly comparePaneLimit = MAX_COMPARE_PANES;
+  protected readonly compareQueueLimit = MAX_COMPARE_QUEUE;
   protected readonly selectionOutsideLoaded = computed(() => {
     if (this.viewScoped()) return 0;
     const loaded = new Set(this.store.photos().map(photo => photo.path));
@@ -2153,9 +2153,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
     this.announceSelectionStatus();
   }
 
-  /** Two panes is the smallest useful compare; past four they are too small to read. */
+  /** Capture only a bounded explicit loaded queue; the workspace separately limits visible panes. */
   protected readonly canCompareSelection = computed(
-    () => !this.viewScoped() && this.selectionCount() >= 2 && this.selectionCount() <= MAX_COMPARE_PANES
+    () => !this.viewScoped() && this.selectionCount() >= 2 && this.selectionCount() <= MAX_COMPARE_QUEUE
       && this.selectionOutsideLoaded() === 0,
   );
 
@@ -2164,7 +2164,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const selected = new Set(this.store.selectedLoadedPaths());
     // Keep the grid's order rather than selection order: comparing left-to-right
     // as they are laid out is what the user is already looking at.
-    const photos = this.store.photos().filter(p => selected.has(p.path)).slice(0, MAX_COMPARE_PANES);
+    const photos = this.store.photos().filter(p => selected.has(p.path));
     if (photos.length < 2) return;
     if (this.parked || this.router.currentNavigation?.() || !this.comparisonSession.start(photos, this.router.url)) return;
     if (!await this.router.navigateByUrl('/photo-compare')) this.comparisonSession.clear();

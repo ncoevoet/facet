@@ -1,4 +1,6 @@
 export const MAX_COMPARE_PANES = 4;
+/** Captured metadata/thumbnail membership, independently bounded from image decoders. */
+export const MAX_COMPARE_QUEUE = 100;
 
 /** Assign a frame to one pane without duplicating a frame already in another. */
 export function assignComparisonSlot(paths: readonly string[], slot: number, path: string): string[] {

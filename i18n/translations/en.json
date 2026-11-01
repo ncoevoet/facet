@@ -1246,7 +1246,9 @@
         "loaded": "Loaded group context: {shown} / {total}. Offscreen selections are not summarized here.",
         "manual": "Manual stack",
         "stack_count": "Matching: {matching} · Permitted: {total}"
-      }
+      },
+      "compare_queue_limit": "Select at most {max} photos for comparison.",
+      "compare_queue_requirements": "Compare needs 2–{max} explicitly selected photos present in the loaded tiles."
     },
     "keep_top": {
       "label": "Keep top %",
@@ -1534,7 +1536,11 @@
       },
       "assign_target": "Choose which side to replace",
       "assign_hint": "Choose a thumbnail to use as {target}.",
-      "assign_photo": "Use {name} as {target}"
+      "assign_photo": "Use {name} as {target}",
+      "queue_total": "{count} photos in this comparison",
+      "pane_c": "Pane C",
+      "pane_d": "Pane D",
+      "assign_pane_hint": "Choose a pane, then a thumbnail. Assigning: {target}."
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",

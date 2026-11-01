@@ -33,6 +33,16 @@ describe('ComparisonSessionService', () => {
     first.photos.pop(); expect(service.snapshot().photos).toHaveLength(2);
     expect(service.start(photos, '//external.example')).toBe(false);
   });
+  it('captures the full bounded queue without silently truncating to the visible-pane count', () => {
+    const service = TestBed.inject(ComparisonSessionService);
+    const queue = Array.from({ length: 100 }, (_, i) => ({ path: `/q${i}.jpg`, filename: `${i}.jpg` } as Photo));
+    expect(service.start(queue, '/?tag=review')).toBe(true);
+    expect(service.snapshot().photos).toEqual(queue);
+    expect(service.start([...queue, { path: '/overflow.jpg' } as Photo], '/')).toBe(false);
+    expect(service.snapshot().photos).toEqual(queue);
+    expect(service.start([queue[0], queue[0]], '/')).toBe(false);
+  });
+
   it('refuses expired credentials before cleanup runs and clears foreign membership', () => {
     const service = TestBed.inject(ComparisonSessionService);
     expect(service.start(photos, '/')).toBe(true);
