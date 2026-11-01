@@ -12,7 +12,7 @@ from typing import NoReturn, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import ValidationError
 
-from api.auth import CurrentUser, get_optional_user
+from api.auth import CurrentUser, get_optional_user, require_authenticated
 from api import database as _database
 from api import stack_gallery
 from api.change_token import db_change_token
@@ -25,6 +25,7 @@ from api.models.gallery import (
     ReviewProgressResponse, SimilarPhotosResponse, gallery_filter_keys, person_filter_ids, query_value,
 )
 from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, ViewerConfigResponse
+from api.models.provenance import PhotoProvenance
 from api.db_helpers import (
     CAPTURE_DATE_MISSING_SQL,
     get_existing_columns, get_cached_count_async,
@@ -47,6 +48,7 @@ from metric_columns import SCORE_RANGE_COLUMNS
 from score_presence import score_presence_policies
 from api.visual_similarity import find_visual_page
 from db.preview_versions import attach_preview_versions_async
+from db.metadata_provenance import photo_provenance
 from utils.histogram import unpack_histogram
 from utils.sequence import BRACKET as BRACKET_KIND
 
@@ -58,6 +60,41 @@ except ImportError:
 
 router = APIRouter(tags=["gallery"])
 logger = logging.getLogger(__name__)
+
+
+@router.get('/api/photo/provenance', response_model=PhotoProvenance)
+def api_photo_provenance(
+    path: str = Query(...),
+    token: str | None = Query(None),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Current own review receipts and shared manual-tag origin, not history.
+
+    A synchronous route keeps SQLite work off the async request loop. Never
+    expose sidecar paths, tag creator IDs, or provenance through share tokens.
+    """
+    if token is not None:
+        raise HTTPException(404, 'Photo not found')
+    source, source_params = get_photos_from_clause(user.user_id)
+    visibility, visibility_params = get_visibility_clause(user.user_id)
+    preferences = get_preference_columns(user.user_id)
+    columns = [f'{expression} AS {field}' for field, expression in preferences.items()]
+    columns += ['photos.date_manually_set', 'photos.gps_manually_set']
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN')
+            row = conn.execute(
+                f"SELECT {','.join(columns)} FROM {source} WHERE photos.path=? AND {visibility}",
+                [*source_params, path, *visibility_params],
+            ).fetchone()
+            if row is None:
+                raise HTTPException(404, 'Photo not found')
+            personal = source != 'photos'
+            return photo_provenance(conn, path, review_user_id=user.user_id if personal else None,
+                                    values=row, personal=personal)
+    except sqlite3.Error:
+        logger.exception('Failed to read photo provenance')
+        raise HTTPException(503, 'Metadata sources could not be read') from None
 
 
 

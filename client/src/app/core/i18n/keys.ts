@@ -3824,6 +3824,23 @@ export const I18N = {
     refresh: "immich_diagnostics.refresh",
     test: "immich_diagnostics.test",
   },
+  metadata_sources: {
+    title: "metadata_sources.title",
+    personal: "metadata_sources.personal",
+    catalog: "metadata_sources.catalog",
+    local: "metadata_sources.local",
+    xmp: "metadata_sources.xmp",
+    unrecorded: "metadata_sources.unrecorded",
+    typed: "metadata_sources.typed",
+    shared_tags: "metadata_sources.shared_tags",
+    no_tags: "metadata_sources.no_tags",
+    date_override: "metadata_sources.date_override",
+    gps_override: "metadata_sources.gps_override",
+    tag_limit: "metadata_sources.tag_limit",
+    failed: "metadata_sources.failed",
+    help_title: "metadata_sources.help_title",
+    help: "metadata_sources.help",
+  },
 } as const;
 
 /** Returns {@link I18N}; use it to initialize class fields -- see the header comment above. */

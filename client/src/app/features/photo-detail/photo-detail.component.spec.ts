@@ -505,6 +505,9 @@ describe('PhotoDetailComponent', () => {
     expect(info.open).toBe(true);
     expect(info.textContent).toContain('X100V');
     expect(info.textContent).toContain('200');
+    expect(info.querySelector('[data-photo-provenance]')).not.toBeNull();
+    expect(info.querySelector<HTMLDetailsElement>('[data-photo-provenance]')!.open).toBe(false);
+    expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/provenance')).toHaveLength(0);
     expect(root.querySelector('[role="tab"]')).toBeNull();
     expect(root.querySelector('[data-photo-people]')?.textContent).toContain('Alice');
     expect(root.querySelector('[data-photo-people]')?.textContent).toContain('photo_detail.unassigned_faces');

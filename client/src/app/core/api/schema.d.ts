@@ -3349,6 +3349,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photo/provenance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Photo Provenance
+         * @description Current own review receipts and shared manual-tag origin, not history.
+         *
+         *     A synchronous route keeps SQLite work off the async request loop. Never
+         *     expose sidecar paths, tag creator IDs, or provenance through share tokens.
+         */
+        get: operations["api_photo_provenance_api_photo_provenance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photo/set": {
         parameters: {
             query?: never;
@@ -7499,6 +7522,16 @@ export interface components {
             /** Tag */
             tag: string;
         };
+        /** ManualTagSource */
+        ManualTagSource: {
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "user" | "xmp" | "unrecorded";
+            /** Tag */
+            tag: string;
+        };
         /** MapCluster */
         MapCluster: {
             /** Count */
@@ -8666,6 +8699,24 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** PhotoProvenance */
+        PhotoProvenance: {
+            /** Capture Date Override */
+            capture_date_override: boolean;
+            /** Gps Override */
+            gps_override: boolean;
+            /** Manual Tags */
+            manual_tags: components["schemas"]["ManualTagSource"][];
+            /** Manual Tags Truncated */
+            manual_tags_truncated: boolean;
+            /** Review */
+            review: components["schemas"]["ReviewFieldSource"][];
+            /**
+             * Review Scope
+             * @enum {string}
+             */
+            review_scope: "personal" | "catalog";
+        };
         /** PhotoRefreshFailure */
         PhotoRefreshFailure: {
             /** Path */
@@ -9137,6 +9188,25 @@ export interface components {
             };
             /** Success */
             success: boolean;
+        };
+        /** ReviewFieldSource */
+        ReviewFieldSource: {
+            /** Changed At */
+            changed_at: string | null;
+            /**
+             * Field
+             * @enum {string}
+             */
+            field: "star_rating" | "is_favorite" | "is_rejected" | "is_kept";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "local" | "xmp" | "unrecorded";
+            /** Source At */
+            source_at: string | null;
+            /** Value */
+            value: number;
         };
         /**
          * ReviewProgressResponse
@@ -15503,6 +15573,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ManualTagDeleteResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_photo_provenance_api_photo_provenance_get: {
+        parameters: {
+            query: {
+                path: string;
+                token?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoProvenance"];
                 };
             };
             /** @description Validation Error */

@@ -1,4 +1,5 @@
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
+import { PhotoProvenanceComponent } from './photo-provenance.component';
 import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
@@ -70,7 +71,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [ContextHelpComponent, PhotoAnalysisComponent,
+  imports: [ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoMetricSectionComponent, AssessmentValuePipe,
@@ -409,6 +410,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               @if (hasExif()) {
                 <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
               }
+              <app-photo-provenance [photo]="p" />
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">

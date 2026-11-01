@@ -3809,5 +3809,22 @@
     "failed": "Could not load diagnostics. Retry or check administrator access.",
     "refresh": "Refresh status",
     "test": "Test connection"
+  },
+  "metadata_sources": {
+    "title": "Metadata sources",
+    "personal": "Your review fields",
+    "catalog": "Catalog review fields",
+    "local": "Local change · writer unknown",
+    "xmp": "Imported XMP",
+    "unrecorded": "Source not recorded",
+    "typed": "Manually added",
+    "shared_tags": "Shared manual tags",
+    "no_tags": "No manual tags",
+    "date_override": "Protected capture-date override",
+    "gps_override": "Protected location override",
+    "tag_limit": "Showing the first 50 manual tags.",
+    "failed": "Metadata sources could not be loaded.",
+    "help_title": "About these sources",
+    "help": "These are current recorded sources, not a full edit history. Local changes do not identify a person. Missing records do not mean a value is unchanged. Manual tags are shared; review fields follow the scope shown above. Capture-date and location overrides may also come from imports."
   }
 }
