@@ -2026,6 +2026,12 @@ export const I18N = {
         other: "scan.history.stages.other",
       },
     },
+    stop_button: "scan.stop_button",
+    stop_confirm: "scan.stop_confirm",
+    stop_consequence: "scan.stop_consequence",
+    stop_unconfirmed: "scan.stop_unconfirmed",
+    stopping: "scan.stopping",
+    ended_after_stop: "scan.ended_after_stop",
   },
   persons: {
     help: "persons.help",

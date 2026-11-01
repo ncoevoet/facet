@@ -95,6 +95,49 @@ describe('ScanService', () => {
     });
   });
 
+  describe('owned scan stopping', () => {
+    const job = '1'.repeat(32);
+    async function observe() {
+      const connected = service.connect(); flushMint(); await connected;
+      MockEventSource.instances.at(-1)!.simulateMessage({ ...mockStatus, job_id: job, kind: 'scan', cancel_requested: false });
+      expect(service.canCancel()).toBe(true);
+    }
+
+    it('acknowledges only a stop request and keeps running until an observed exit', async () => {
+      await observe();
+      const stop = service.cancelScan(job);
+      const request = httpTesting.expectOne('/api/scan/cancel');
+      expect(request.request.method).toBe('POST');
+      expect(request.request.body).toEqual({ job_id: job, confirm: true });
+      request.flush({ job_id: job, stop_requested: true }); await stop;
+      expect(service.status().running).toBe(true);
+      expect(service.status().cancel_requested).toBe(true);
+      expect(service.canCancel()).toBe(false);
+    });
+
+    it('does not apply a late receipt to a newer job or submit old observation under a new account', async () => {
+      await observe();
+      const stop = service.cancelScan(job);
+      const request = httpTesting.expectOne('/api/scan/cancel');
+      const newer = '2'.repeat(32);
+      MockEventSource.instances.at(-1)!.simulateMessage({ ...mockStatus, job_id: newer, kind: 'scan', cancel_requested: false });
+      request.flush({ job_id: job, stop_requested: true }); await stop;
+      expect(service.status().job_id).toBe(newer);
+      expect(service.status().cancel_requested).toBe(false);
+      TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'other' });
+      // Before Angular has run the auth cleanup effect, the old observation is already invalid.
+      await expect(service.cancelScan(newer)).rejects.toThrow('context changed');
+      httpTesting.expectNone('/api/scan/cancel');
+    });
+
+    it('refuses malformed job metadata rather than exposing a stop command', async () => {
+      await observe();
+      MockEventSource.instances.at(-1)!.simulateMessage({ ...mockStatus, job_id: 'not-a-job', kind: 'scan' });
+      expect(service.observationError()).toBe(true);
+      expect(service.canCancel()).toBe(false);
+    });
+  });
+
   describe('connect()', () => {
     it('should mint a stream token then create an EventSource with it', async () => {
       const connectPromise = service.connect();

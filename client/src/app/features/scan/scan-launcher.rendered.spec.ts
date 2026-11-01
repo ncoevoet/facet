@@ -1,7 +1,7 @@
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { signal, computed } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { I18nService } from '../../core/services/i18n.service';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
@@ -12,6 +12,9 @@ const translations = {
     checking_status: 'Checking scan status…', status_unavailable: 'Status unavailable', retry_status: 'Read scan status again', failed: 'Scan ended with an error',
     title: 'Scan Photos', close: 'Close', start_button: 'Start Scan', running: 'Running',
     pick_directory: 'Pick a directory', eta: 'ETA',
+    stop_button: 'Stop scan', stop_confirm: 'Stop this scan?', stop_consequence: 'Saved results stay.',
+    stopping: 'Stop requested', ended_after_stop: 'Scan ended after a stop request',
+    stop_unconfirmed: 'Stop request unconfirmed',
     phase: { scoring: 'Scoring', moments: 'Detecting moments', junk: 'Detecting junk', recompute: 'Recomputing scores' },
   },
   // These are real translation namespaces, not displayable phase labels.
@@ -27,19 +30,24 @@ describe('Scan launcher rendered phase labels', () => {
   let observationError: ReturnType<typeof signal<boolean>>;
   let reconnect: ReturnType<typeof vi.fn>;
   let startScan: ReturnType<typeof vi.fn>;
+  let cancelScan: ReturnType<typeof vi.fn>;
+  let close: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     status = signal<ScanStatus>({ running: false, directories: [], output: [], elapsed_seconds: null, exit_code: null });
     statusKnown = signal(true); observationError = signal(false); reconnect = vi.fn(async () => undefined);
     startScan = vi.fn(async () => { statusKnown.set(false); });
+    cancelScan = vi.fn(async () => { status.update(s => ({ ...s, cancel_requested: true })); });
+    close = vi.fn();
     TestBed.configureTestingModule({ imports: [ScanLauncherComponent], providers: [
       provideHttpClient(withXhr()), provideHttpClientTesting(),
       { provide: ScanService, useValue: {
         status, canLaunch: () => true, connected: signal(true), statusKnown, observationError, connect: reconnect,
         loadDirectories: vi.fn(async () => [{ path: '/fixture/photos', owner: '' }]),
         startScan,
+        cancelScan, canCancel: computed(() => statusKnown() && !observationError() && status().running && !!status().job_id && !status().cancel_requested),
       } },
-      { provide: MatDialogRef, useValue: { close: vi.fn() } },
+      { provide: MatDialogRef, useValue: { close } },
     ] });
     http = TestBed.inject(HttpTestingController);
     const i18n = TestBed.inject(I18nService);
@@ -116,6 +124,42 @@ describe('Scan launcher rendered phase labels', () => {
     statusKnown.set(true); status.set({ ...status(), running: false, exit_code: 1 }); await settle();
     expect(root.textContent).toContain('Scan ended with an error');
     expect(root.querySelector('mat-progress-bar')).toBeNull();
+  });
+
+  it('requires a captured stop confirmation and does not auto-close a zero exit after stopping', async () => {
+    await progress('scoring');
+    const job = '1'.repeat(32);
+    status.update(s => ({ ...s, job_id: job, kind: 'scan' })); await settle();
+    const button = (label: string) => [...root.querySelectorAll<HTMLButtonElement>('button')]
+      .find(element => element.textContent?.trim() === label)!;
+    button('Stop scan').click(); await settle();
+    expect(cancelScan).not.toHaveBeenCalled();
+    expect(root.textContent).toContain('Saved results stay.');
+    button('Stop this scan?').click(); await settle();
+    expect(cancelScan).toHaveBeenCalledExactlyOnceWith(job);
+    expect(root.textContent).toContain('Stop requested');
+    expect(root.textContent).not.toContain('12s');
+    status.update(s => ({ ...s, running: false, exit_code: 0 })); await settle();
+    expect(root.textContent).toContain('Scan ended after a stop request');
+    expect(close).not.toHaveBeenCalled();
+    button('Close').click(); await settle();
+    expect(close).toHaveBeenCalledWith(true); // caller refreshes already committed scan results
+  });
+
+  it('recovers an uncertain stop using status only and clears the alert when observation confirms it', async () => {
+    await progress('scoring');
+    status.update(s => ({ ...s, job_id: '1'.repeat(32), kind: 'scan' })); await settle();
+    cancelScan.mockRejectedValueOnce(new Error('connection lost'));
+    const button = (label: string) => [...root.querySelectorAll<HTMLButtonElement>('button')]
+      .find(element => element.textContent?.trim() === label)!;
+    button('Stop scan').click(); await settle();
+    button('Stop this scan?').click(); await settle();
+    expect(cancelScan).toHaveBeenCalledTimes(1);
+    expect(reconnect).toHaveBeenCalledTimes(2);
+    expect(root.textContent).toContain('Stop request unconfirmed');
+    status.update(s => ({ ...s, cancel_requested: true })); await settle();
+    expect(root.textContent).not.toContain('Stop request unconfirmed');
+    expect(root.textContent).toContain('Stop requested');
   });
 
   it('updates translated phase labels when the language changes', async () => {

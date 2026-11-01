@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { signal } from '@angular/core';
+import { signal, computed } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
 import { ScanLauncherComponent } from './scan-launcher.component';
@@ -18,6 +18,8 @@ describe('ScanLauncherComponent', () => {
     statusKnown: ReturnType<typeof signal<boolean>>;
     observationError: ReturnType<typeof signal<boolean>>;
     connect: ReturnType<typeof vi.fn>;
+    cancelScan: ReturnType<typeof vi.fn>;
+    canCancel: ReturnType<typeof computed<boolean>>;
   };
   let dialogClose: ReturnType<typeof vi.fn>;
 
@@ -30,6 +32,8 @@ describe('ScanLauncherComponent', () => {
       startScan: vi.fn(() => Promise.resolve()),
       status: signal<ScanStatus>(idleStatus()),
       connected: signal(false), statusKnown: signal(true), observationError: signal(false), connect: vi.fn(async () => undefined),
+      cancelScan: vi.fn(async () => undefined),
+      canCancel: computed(() => mockScan.status().running && !!mockScan.status().job_id && !mockScan.status().cancel_requested),
     };
     dialogClose = vi.fn();
 

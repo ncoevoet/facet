@@ -23,6 +23,9 @@ export interface ScanStatus {
   elapsed_seconds: number | null;
   exit_code: number | null;
   progress?: ScanProgress | null;
+  job_id?: string | null;
+  kind?: string | null;
+  cancel_requested?: boolean;
 }
 
 export interface ScanDirectory {
@@ -49,6 +52,9 @@ function isScanStatus(value: unknown): value is ScanStatus {
   const finiteOrNull = (v: unknown) => v === null || (typeof v === 'number' && Number.isFinite(v));
   if (typeof data['running'] !== 'boolean' || !textList(data['directories']) || !textList(data['output'])
     || !finiteOrNull(data['elapsed_seconds']) || !finiteOrNull(data['exit_code'])) return false;
+  if (data['job_id'] != null && (typeof data['job_id'] !== 'string' || !/^[0-9a-f]{32}$/.test(data['job_id']))) return false;
+  if (data['kind'] != null && typeof data['kind'] !== 'string') return false;
+  if (data['cancel_requested'] !== undefined && typeof data['cancel_requested'] !== 'boolean') return false;
   const progress = data['progress'];
   if (progress == null) return true;
   if (typeof progress !== 'object' || typeof (progress as Record<string, unknown>)['phase'] !== 'string') return false;
@@ -76,6 +82,10 @@ export class ScanService implements OnDestroy {
   readonly connected = signal(false);
   readonly statusKnown = signal(false);
   readonly observationError = signal(false);
+  readonly canCancel = computed(() => this.canLaunch() && this.statusKnown() && !this.observationError()
+    && !!this.session && this.authCurrent(this.session)
+    && this.status().running && this.status().kind === 'scan' && !!this.status().job_id
+    && !this.status().cancel_requested);
 
   readonly canLaunch = computed(() => {
     const flagged = this.auth.hasFeature('show_scan_button') && (this.auth.isMultiUser()
@@ -132,6 +142,22 @@ export class ScanService implements OnDestroy {
     await firstValueFrom(this.api.post<{ success: boolean }>('/scan/start', { directories: [...directories] }));
     // An accepted start belongs to its captured session, never the new account.
     if (this.authCurrent(session)) await this.connect(false);
+  }
+
+  async cancelScan(jobId: string): Promise<void> {
+    const session = this.capture();
+    if (!this.session || !this.authCurrent(this.session) || !this.authCurrent(session)
+      || !this.canCancel() || this.status().job_id !== jobId) {
+      throw new Error('Scan stop context changed');
+    }
+    const result = await firstValueFrom(this.api.post<components['schemas']['ScanCancelResponse']>(
+      '/scan/cancel', { job_id: jobId, confirm: true },
+    ));
+    if (!this.authCurrent(session)) return;
+    if (result.job_id !== jobId || result.stop_requested !== true) throw new Error('Invalid scan stop acknowledgement');
+    // Receipt means only requested, never running:false or a completed scan.
+    this.status.update(current => this.statusKnown() && current.job_id === jobId
+      ? { ...current, cancel_requested: true } : current);
   }
 
   async loadDirectories(): Promise<ScanDirectory[]> {

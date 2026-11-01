@@ -6,6 +6,7 @@ Scan router — trigger and monitor photo scanning.
 import asyncio
 import json
 import logging
+import secrets
 import sqlite3
 import subprocess
 import sys
@@ -27,6 +28,8 @@ from api.models.scan import (
     RecomputeStatusResponse,
     ScanDirectoriesResponse,
     ScanStartResponse,
+    ScanCancelRequest,
+    ScanCancelResponse,
     ScanStatusResponse,
     ScanStreamTokenResponse,
 )
@@ -58,6 +61,8 @@ _scan_state: dict[str, Any] = {
     'progress': None,
     # What a recompute was asked for: 'all' or 'category:<name>' (None for any other job).
     'scope': None,
+    'job_id': None,
+    'cancel_requested': False,
 }
 
 
@@ -123,13 +128,19 @@ def _read_scan_output(proc):
     for line in proc.stdout:
         line = line.rstrip('\n')
         event = parse_progress_line(line)
-        if event is not None:
-            _scan_state['progress'] = event
-        else:
-            _scan_state['output_lines'].append(line)
+        with _scan_lock:
+            if _scan_state.get('process') is not proc:
+                continue
+            if event is not None:
+                _scan_state['progress'] = event
+            else:
+                _scan_state['output_lines'].append(line)
     proc.wait()
-    _scan_state['exit_code'] = proc.returncode
-    _scan_state['running'] = False
+    with _scan_lock:
+        if _scan_state.get('process') is not proc:
+            return
+        _scan_state['exit_code'] = proc.returncode
+        _scan_state['running'] = False
     # Invalidate caches after scan adds/updates photos; a finished recompute changed every score it touched,
     # so the category counts and score distributions must stop serving the old values.
     _photo_types_cache['expires'] = 0
@@ -226,6 +237,8 @@ def start_scan(
         _scan_state['exit_code'] = None
         _scan_state['progress'] = None
         _scan_state['scope'] = None
+        _scan_state['job_id'] = secrets.token_hex(16)
+        _scan_state['cancel_requested'] = False
 
         reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
         reader.start()
@@ -235,6 +248,7 @@ def start_scan(
             'message': 'Scan spawned; poll /api/scan/status to see it run',
             'directories': directories,
             'pid': proc.pid,
+            'job_id': _scan_state['job_id'],
         }
 
     except HTTPException:
@@ -245,6 +259,33 @@ def start_scan(
         raise HTTPException(status_code=500, detail='Scan failed to start')
     finally:
         _scan_lock.release()
+
+
+@router.post('/cancel', response_model=ScanCancelResponse)
+def cancel_scan(body: ScanCancelRequest, user: CurrentUser = Depends(require_scan_access)):
+    """Request stop of this worker's matching owned scan only.
+
+    This acknowledges a signal, not completion or rollback. Keep the process
+    running until its own reader observes exit; never infer a PID from history.
+    """
+    if refusal := scan_feature_refusal(user):
+        raise HTTPException(status_code=403, detail=refusal)
+    if not body.confirm:
+        raise HTTPException(status_code=400, detail='Stopping a scan requires confirmation')
+    with _scan_lock:
+        proc = _scan_state.get('process')
+        if (_scan_state.get('kind') != JOB_KIND_SCAN or not _scan_state['running']
+                or _scan_state.get('job_id') != body.job_id or proc is None
+                or proc.poll() is not None):
+            raise HTTPException(status_code=409, detail='This scan is no longer controlled by this viewer worker')
+        if not _scan_state.get('cancel_requested'):
+            try:
+                proc.terminate()
+            except OSError:
+                logger.exception('Could not request scan stop')
+                raise HTTPException(status_code=503, detail='Scan stop could not be confirmed') from None
+            _scan_state['cancel_requested'] = True
+        return {'job_id': body.job_id, 'stop_requested': True}
 
 
 @router.get("/status", response_model=ScanStatusResponse, response_model_exclude_unset=True)
@@ -341,18 +382,22 @@ def _verify_scan_stream_token(token: Optional[str]) -> dict:
 
 
 def _build_scan_snapshot(lines: int) -> dict:
-    output_lines = list(_scan_state['output_lines'])[-lines:]
-    elapsed = None
-    if _scan_state['started_at']:
-        elapsed = round(time.time() - _scan_state['started_at'], 1)
-    return {
-        'running': _scan_state['running'],
-        'directories': _scan_state['directories'],
-        'output': output_lines,
-        'elapsed_seconds': elapsed,
-        'exit_code': _scan_state['exit_code'],
-        'progress': _scan_state.get('progress'),
-    }
+    with _scan_lock:
+        output_lines = list(_scan_state['output_lines'])[-lines:]
+        elapsed = None
+        if _scan_state['started_at']:
+            elapsed = round(time.time() - _scan_state['started_at'], 1)
+        return {
+            'running': _scan_state['running'],
+            'directories': _scan_state['directories'],
+            'output': output_lines,
+            'elapsed_seconds': elapsed,
+            'exit_code': _scan_state['exit_code'],
+            'progress': _scan_state.get('progress'),
+            'job_id': _scan_state.get('job_id'),
+            'kind': _scan_state.get('kind'),
+            'cancel_requested': bool(_scan_state.get('cancel_requested')),
+        }
 
 
 @router.get("/stream")
@@ -372,8 +417,7 @@ async def scan_stream(
 
     async def event_generator():
         import time as _time
-        last_output_len = -1
-        last_progress = None
+        last_snapshot = None
         was_running = None
         # Emit a comment-line heartbeat every HEARTBEAT_SECONDS so reverse
         # proxies (nginx, Cloudflare, ingress controllers) don't close the
@@ -384,18 +428,16 @@ async def scan_stream(
         HEARTBEAT_SECONDS = 15
         last_heartbeat = _time.monotonic()
         while True:
-            snapshot = _build_scan_snapshot(lines)
-            current_output_len = len(_scan_state['output_lines'])
-            current_progress = _scan_state.get('progress')
+            snapshot = await asyncio.to_thread(_build_scan_snapshot, lines)
+            # One captured state, including stop requests/job changes and ring
+            # buffer rotation. Elapsed time alone does not generate an event.
+            comparable = {key: value for key, value in snapshot.items() if key != 'elapsed_seconds'}
             current_running = snapshot['running']
             now = _time.monotonic()
-            changed = (current_output_len != last_output_len
-                       or current_progress != last_progress
-                       or current_running != was_running)
+            changed = comparable != last_snapshot
             if changed:
                 yield f"data: {json.dumps(snapshot)}\n\n"
-                last_output_len = current_output_len
-                last_progress = current_progress
+                last_snapshot = comparable
                 if not current_running and was_running in (True, None):
                     break
                 was_running = current_running
@@ -525,6 +567,8 @@ def _spawn_fixed_library_job(body, flag, kind, message, flag_args=(), scope=None
         _scan_state['exit_code'] = None
         _scan_state['progress'] = None
         _scan_state['scope'] = scope
+        _scan_state['job_id'] = secrets.token_hex(16)
+        _scan_state['cancel_requested'] = False
 
         reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
         reader.start()

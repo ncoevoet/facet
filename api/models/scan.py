@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 
 class ScanStartResponse(BaseModel):
@@ -12,6 +12,19 @@ class ScanStartResponse(BaseModel):
     message: str
     directories: list[str]
     pid: int
+    job_id: str
+
+
+class ScanCancelRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+
+    job_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    confirm: bool
+
+
+class ScanCancelResponse(BaseModel):
+    job_id: str
+    stop_requested: bool
 
 
 class ScanStatusResponse(BaseModel):
@@ -28,6 +41,9 @@ class ScanStatusResponse(BaseModel):
     elapsed_seconds: Optional[float] = None
     exit_code: Optional[int] = None
     progress: Optional[dict] = None
+    job_id: Optional[str] = None
+    kind: Optional[str] = None
+    cancel_requested: bool = False
 
 
 class ScanStreamTokenResponse(BaseModel):

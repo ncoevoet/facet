@@ -813,7 +813,7 @@ class TestRecompute:
         proc = mock.MagicMock()
         proc.stdout = iter([])
         proc.returncode = 0
-        scan_router._scan_state.update({"kind": scan_router.JOB_KIND_RECOMPUTE})
+        scan_router._scan_state.update({"kind": scan_router.JOB_KIND_RECOMPUTE, "process": proc})
         generation = api_config._stats_cache_generation
         scan_router._read_scan_output(proc)
         assert api_config._stats_cache_generation == generation + 1

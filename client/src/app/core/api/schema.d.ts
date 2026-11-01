@@ -4039,6 +4039,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel Scan
+         * @description Request stop of this worker's matching owned scan only.
+         *
+         *     This acknowledges a signal, not completion or rollback. Keep the process
+         *     running until its own reader observes exit; never infer a PID from history.
+         */
+        post: operations["cancel_scan_api_scan_cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scan/detect_panoramas": {
         parameters: {
             query?: never;
@@ -8738,6 +8761,20 @@ export interface components {
             /** Use Count */
             use_count: number;
         };
+        /** ScanCancelRequest */
+        ScanCancelRequest: {
+            /** Confirm */
+            confirm: boolean;
+            /** Job Id */
+            job_id: string;
+        };
+        /** ScanCancelResponse */
+        ScanCancelResponse: {
+            /** Job Id */
+            job_id: string;
+            /** Stop Requested */
+            stop_requested: boolean;
+        };
         /**
          * ScanDirectoriesResponse
          * @description ``GET /api/scan/directories`` success payload.
@@ -8782,6 +8819,8 @@ export interface components {
         ScanStartResponse: {
             /** Directories */
             directories: string[];
+            /** Job Id */
+            job_id: string;
             /** Message */
             message: string;
             /** Pid */
@@ -8798,12 +8837,21 @@ export interface components {
          *     phase, so it stays an untyped passthrough rather than a nested model.
          */
         ScanStatusResponse: {
+            /**
+             * Cancel Requested
+             * @default false
+             */
+            cancel_requested?: boolean;
             /** Directories */
             directories: string[];
             /** Elapsed Seconds */
             elapsed_seconds?: number | null;
             /** Exit Code */
             exit_code?: number | null;
+            /** Job Id */
+            job_id?: string | null;
+            /** Kind */
+            kind?: string | null;
             /** Output */
             output: string[];
             /** Progress */
@@ -15955,6 +16003,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_scan_api_scan_cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanCancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanCancelResponse"];
                 };
             };
             /** @description Validation Error */

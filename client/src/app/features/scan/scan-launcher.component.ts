@@ -30,6 +30,7 @@ import { ScanHistoryComponent } from './scan-history.component';
       @if (startError()) {
         <p role="alert" class="text-sm">{{ I18N.scan.start_unconfirmed | translate }}</p>
       }
+      @if (stopError()) { <p role="alert" class="text-sm">{{ I18N.scan.stop_unconfirmed | translate }}</p> }
       @if (!started()) {
         @if (loadingDirs()) {
           <p class="opacity-60 text-sm py-4">{{ I18N.scan.loading_directories | translate }}</p>
@@ -76,9 +77,19 @@ import { ScanHistoryComponent } from './scan-history.component';
         <pre class="mt-3 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto opacity-70 bg-[var(--mat-sys-surface-container)] rounded p-2">{{ outputTail() }}</pre>
       }
       <app-scan-history />
+      @if (pendingStopId()) {
+        <section class="mt-3 border-t border-[var(--mat-sys-outline-variant)] pt-2" [attr.aria-label]="I18N.scan.stop_confirm | translate">
+          <p class="text-sm">{{ I18N.scan.stop_consequence | translate }}</p>
+          <button mat-button (click)="pendingStopId.set(null)" [disabled]="stopping()">{{ I18N.ui.buttons.cancel | translate }}</button>
+          <button mat-stroked-button (click)="confirmStop()" [disabled]="stopping()">{{ I18N.scan.stop_confirm | translate }}</button>
+        </section>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button mat-dialog-close>{{ I18N.scan.close | translate }}</button>
+      <button mat-button [mat-dialog-close]="sawRunning && statusKnown() && !observationError() && !status().running && status().exit_code !== null">{{ I18N.scan.close | translate }}</button>
+      @if (canCancel() && !pendingStopId()) {
+        <button mat-button (click)="askStop()" [disabled]="stopping()">{{ I18N.scan.stop_button | translate }}</button>
+      }
       @if (!started()) {
         <button mat-flat-button color="primary"
                 [disabled]="!selectedDir() || !statusKnown() || observationError() || status().running"
@@ -100,6 +111,10 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly dirLoadError = signal(false);
   protected readonly started = signal(false);
   protected readonly startError = signal(false);
+  protected readonly stopError = signal(false);
+  protected readonly stopping = signal(false);
+  protected readonly pendingStopId = signal<string | null>(null);
+  protected readonly canCancel = this.scan.canCancel;
 
   protected readonly status = this.scan.status;
   protected readonly connected = this.scan.connected;
@@ -107,7 +122,8 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly observationError = this.scan.observationError;
   // ScanService is a root singleton; its status can still hold a prior run's
   // {running:false, exit_code:0}. Only auto-close once THIS run was seen live.
-  private sawRunning = false;
+  protected sawRunning = false;
+  private stopTargetId: string | null = null;
 
   protected readonly progressValue = computed(() => {
     const p = this.status().progress;
@@ -117,6 +133,7 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly phaseLabelKey = computed(() => {
     if (this.observationError()) return I18N.scan.status_unknown;
     if (!this.statusKnown()) return I18N.scan.checking_status;
+    if (this.status().cancel_requested) return this.status().running ? I18N.scan.stopping : I18N.scan.ended_after_stop;
     if (!this.status().running && this.status().exit_code !== null && this.status().exit_code !== 0) return I18N.scan.failed;
     if (!this.status().running) return this.status().exit_code === 0 ? I18N.scan.completed : I18N.scan.stopped;
     const phase = this.status().progress?.phase;
@@ -124,7 +141,7 @@ export class ScanLauncherComponent implements OnInit {
     return Object.hasOwn(I18N.scan.phase, phase)
       ? (I18N.scan.phase as Record<string, string>)[phase] : null;
   });
-  protected readonly eta = computed(() => this.statusKnown() && !this.observationError() && this.status().running
+  protected readonly eta = computed(() => this.statusKnown() && !this.observationError() && this.status().running && !this.status().cancel_requested
     ? this.status().progress?.eta_seconds ?? null : null);
   protected readonly outputTail = computed(() => this.status().output.slice(-20).join('\n'));
 
@@ -133,12 +150,14 @@ export class ScanLauncherComponent implements OnInit {
     // cleanly — guarding against a stale prior-run success in the shared signal.
     effect(() => {
       const s = this.status();
+      if (this.pendingStopId() && (!this.canCancel() || this.pendingStopId() !== s.job_id)) this.pendingStopId.set(null);
       if (!this.statusKnown() || this.observationError()) return;
+      if (this.stopError() && s.job_id && (s.job_id !== this.stopTargetId || s.cancel_requested)) this.stopError.set(false);
       if (s.running) this.started.set(true);
       if (!this.started()) return;
       if (s.running) {
         this.sawRunning = true;
-      } else if (this.sawRunning && s.exit_code === 0) {
+      } else if (this.sawRunning && s.exit_code === 0 && !s.cancel_requested) {
         this.dialogRef.close(true);
       }
     });
@@ -170,4 +189,24 @@ export class ScanLauncherComponent implements OnInit {
   }
 
   protected retryStatus(): void { void this.scan.connect(); }
+
+  protected askStop(): void {
+    if (this.canCancel()) this.pendingStopId.set(this.status().job_id!);
+  }
+
+  protected async confirmStop(): Promise<void> {
+    const jobId = this.pendingStopId();
+    if (!jobId || !this.canCancel() || this.status().job_id !== jobId || this.stopping()) {
+      this.pendingStopId.set(null); return;
+    }
+    this.stopTargetId = jobId;
+    this.stopping.set(true); this.stopError.set(false);
+    try {
+      await this.scan.cancelScan(jobId);
+      this.pendingStopId.set(null);
+    } catch {
+      this.stopError.set(true);
+      await this.scan.connect(); // Observe only; never repeat the stop POST automatically.
+    } finally { this.stopping.set(false); }
+  }
 }

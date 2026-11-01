@@ -2011,7 +2011,13 @@
         "embedding": "Embedding analysis",
         "other": "Other stage"
       }
-    }
+    },
+    "stop_button": "Stop scan",
+    "stop_confirm": "Stop this scan?",
+    "stop_consequence": "Already saved results stay. Current work may be interrupted and finalization may not finish.",
+    "stop_unconfirmed": "The stop request could not be confirmed. Read status before trying again.",
+    "stopping": "Stop requested; waiting for the process to exit…",
+    "ended_after_stop": "Scan ended; a stop was requested."
   },
   "persons": {
     "help": "People detected by face recognition. Name unnamed clusters, merge duplicates, set an avatar, or hide a person. Click a person to see their photos.",
