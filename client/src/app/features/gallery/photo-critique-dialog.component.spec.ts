@@ -1,11 +1,16 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { MatSnackBar } from '@angular/material/snack-bar';
-import { MAT_DIALOG_DATA } from '@angular/material/dialog';
+import { signal } from '@angular/core';
+import { Router } from '@angular/router';
+import { Subject, of } from 'rxjs';
 import { I18nService } from '../../core/services/i18n.service';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
-import { MismatchReasonPipe, PhotoCritiqueDialogComponent } from './photo-critique-dialog.component';
+import { MismatchReasonPipe, PhotoAnalysisComponent } from './photo-analysis.component';
+
+const authFixture = (edition = true, overlay = false) => ({ identity: signal('fixture'), status: signal({ user_id: 'fixture' }), token: 'fixture-token', isEdition: signal(edition), hasFeature: vi.fn(() => overlay) });
+const routerFixture = () => ({ url: '/photo', events: new Subject() });
 
 describe('MismatchReasonPipe', () => {
   let pipe: MismatchReasonPipe;
@@ -103,25 +108,27 @@ describe('MismatchReasonPipe', () => {
   });
 });
 
-describe('PhotoCritiqueDialogComponent overlay error handling', () => {
+describe('PhotoAnalysisComponent overlay error handling', () => {
   it('reverts the overlay toggle and notifies when the overlay image fails to load', () => {
-    const mockApi = { get: vi.fn() };
-    const mockAuth = { hasFeature: vi.fn(() => true) };
-    const mockI18n = { t: vi.fn((key: string) => key), locale: vi.fn(() => 'en') };
+    const mockApi = { get: vi.fn(() => of({ penalties: {}, category_reason: {} })) };
+    const mockAuth = authFixture(true, true);
+    const mockI18n = { t: vi.fn((key: string) => key), locale: vi.fn(() => 'en'), translations: () => ({}) };
     const mockSnack = { open: vi.fn() };
 
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
-        PhotoCritiqueDialogComponent,
+        PhotoAnalysisComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
+        { provide: Router, useValue: routerFixture() },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatSnackBar, useValue: mockSnack },
-        { provide: MAT_DIALOG_DATA, useValue: { photoPath: '/p/x.jpg', vlmAvailable: false } },
       ],
     });
-    const component: any = TestBed.inject(PhotoCritiqueDialogComponent);
+    const fixture = TestBed.createComponent(PhotoAnalysisComponent);
+    fixture.componentRef.setInput('photoPath', '/p/x.jpg'); fixture.detectChanges();
+    const component: any = fixture.componentInstance;
     component.overlayOn.set(true);
 
     component.onOverlayError();
@@ -131,7 +138,7 @@ describe('PhotoCritiqueDialogComponent overlay error handling', () => {
   });
 });
 
-describe('PhotoCritiqueDialogComponent current calculation DOM', () => {
+describe('PhotoAnalysisComponent current calculation DOM', () => {
   async function render(overrides: Record<string, unknown> = {}) {
     const { of } = await import('rxjs');
     const response = {
@@ -143,16 +150,17 @@ describe('PhotoCritiqueDialogComponent current calculation DOM', () => {
     };
     TestBed.resetTestingModule();
     await TestBed.configureTestingModule({
-      imports: [PhotoCritiqueDialogComponent],
+      imports: [PhotoAnalysisComponent],
       providers: [
         { provide: ApiService, useValue: { get: vi.fn(() => of(response)) } },
-        { provide: AuthService, useValue: { hasFeature: vi.fn(() => false) } },
+        { provide: AuthService, useValue: authFixture() },
+        { provide: Router, useValue: routerFixture() },
         { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'en', translations: () => ({}) } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
-        { provide: MAT_DIALOG_DATA, useValue: { photoPath: '/synthetic', vlmAvailable: false } },
       ],
     }).compileComponents();
-    const fixture = TestBed.createComponent(PhotoCritiqueDialogComponent);
+    const fixture = TestBed.createComponent(PhotoAnalysisComponent);
+    fixture.componentRef.setInput('photoPath', '/synthetic');
     fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
     return fixture;
   }
@@ -228,7 +236,7 @@ describe('PhotoCritiqueDialogComponent current calculation DOM', () => {
   });
 });
 
-describe('PhotoCritiqueDialogComponent VLM generation', () => {
+describe('PhotoAnalysisComponent VLM generation', () => {
   const base = {
     category: 'default', category_reason: { reason_key: 'default', category: 'default', details: [] },
     aggregate: 5, breakdown: [], strengths: [], weaknesses: [], suggestions: [], penalties: {},
@@ -242,22 +250,26 @@ describe('PhotoCritiqueDialogComponent VLM generation', () => {
     TestBed.resetTestingModule();
     TestBed.configureTestingModule({
       providers: [
-        PhotoCritiqueDialogComponent,
+        PhotoAnalysisComponent,
         { provide: ApiService, useValue: api },
-        { provide: AuthService, useValue: { hasFeature: vi.fn(() => false), isEdition: () => edition } },
-        { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'fr' } },
+        { provide: AuthService, useValue: authFixture(edition) },
+        { provide: Router, useValue: routerFixture() },
+        { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'fr', translations: () => ({}) } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
-        { provide: MAT_DIALOG_DATA, useValue: { photoPath: '/p/x.jpg', vlmAvailable: true } },
       ],
     });
-    const component: any = TestBed.inject(PhotoCritiqueDialogComponent);
-    await component.ngOnInit();
-    return { api, component };
+    const fixture = TestBed.createComponent(PhotoAnalysisComponent);
+    fixture.componentRef.setInput('photoPath', '/p/x.jpg'); fixture.componentRef.setInput('vlmAvailable', true);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const component: any = fixture.componentInstance;
+    return { api, component, fixture };
   }
 
-  it('reads with GET on open and generates through POST when nothing is stored', async () => {
+  it('only reads on opening and generates missing commentary on explicit request', async () => {
     const { api, component } = await setup({ vlm_available: true });
     expect(api.get).toHaveBeenCalledWith('/critique', { path: '/p/x.jpg', mode: 'vlm', lang: 'fr' });
+    expect(api.post).not.toHaveBeenCalled();
+    await component.requestCommentary();
     expect(api.post).toHaveBeenCalledWith('/critique/vlm', { path: '/p/x.jpg', lang: 'fr', refresh: false });
     expect(component.critique().vlm_critique).toBe('Generated.');
     expect(component.loading()).toBe(false);
@@ -270,11 +282,14 @@ describe('PhotoCritiqueDialogComponent VLM generation', () => {
     expect(unavailable.api.post).not.toHaveBeenCalled();
   });
 
-  it('POSTs to translate a stored critique only for an edition user when the flag is set', async () => {
+  it('translates stored commentary only on explicit edition-user request', async () => {
     const stored = { vlm_critique: 'Stored.', vlm_source: 'cached', vlm_translation_missing: true };
     const editor = await setup(stored);
+    expect(editor.api.post).not.toHaveBeenCalled();
+    await editor.component.requestCommentary();
     expect(editor.api.post).toHaveBeenCalledWith('/critique/vlm', { path: '/p/x.jpg', lang: 'fr', refresh: false });
     const reader = await setup(stored, false);
+    await reader.component.requestCommentary();
     expect(reader.api.post).not.toHaveBeenCalled();
     const done = await setup({ ...stored, vlm_translation_missing: false });
     expect(done.api.post).not.toHaveBeenCalled();

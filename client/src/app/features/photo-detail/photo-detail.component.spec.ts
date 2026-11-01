@@ -421,6 +421,45 @@ describe('PhotoDetailComponent', () => {
     localStorage.removeItem('facet_face_box_mode');
   });
 
+  it('opens integrated Analysis without a dialog or automatic generation and closes it before page Escape', async () => {
+    const view = renderDetail();
+    TestBed.inject(GalleryStore).config.set({ features: { show_critique: true, show_vlm_critique: true } } as never);
+    Object.assign(mockAuth, { hasFeature: () => false, token: 'fixture' });
+    mockApi.get.mockImplementation((url: string) => of(url === '/critique' ? {
+      aggregate: 8, category_reason: { reason_key: 'default' }, breakdown: [], penalties: {}, vlm_available: true,
+    } : url === '/photo' ? makePhoto() : {}));
+    view.componentInstance.photo.set(makePhoto());
+    view.detectChanges(); await view.whenStable(); view.detectChanges();
+    document.body.appendChild(view.nativeElement);
+    const root = view.nativeElement as HTMLElement;
+    const section = root.querySelector<HTMLDetailsElement>('[data-photo-analysis]')!;
+    section.scrollIntoView = vi.fn();
+    const button = root.querySelector<HTMLButtonElement>('button[aria-label="photo_detail.analysis"]')!;
+    expect(section.open).toBe(false);
+    expect(root.querySelector('app-photo-analysis')).toBeNull();
+    expect((view.componentInstance as any).analysisSection()?.nativeElement).toBe(section);
+    const action = vi.spyOn(view.componentInstance as any, 'openCritique');
+    button.click();
+    expect(action).toHaveBeenCalled();
+    expect((action.mock.calls[0][0] as { path: string }).path).toBe(view.componentInstance.photo()?.path);
+    expect(mockRouter.currentNavigation()).toBeNull();
+    expect(section.open).toBe(true);
+    view.detectChanges(); await view.whenStable(); view.detectChanges();
+    expect(root.querySelector('[data-photo-analysis]')).toBe(section);
+    expect(section.open).toBe(true);
+    expect(root.querySelector('app-photo-analysis')).not.toBeNull();
+    expect(section.textContent).toContain('8.00');
+    expect(mockDialog.open).not.toHaveBeenCalled();
+    expect(mockApi.post.mock.calls.filter(([url]) => url === '/critique/vlm')).toHaveLength(0);
+    section.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    view.detectChanges();
+    expect(section.open).toBe(false);
+    expect(root.querySelector('app-photo-analysis')).toBeNull();
+    expect(document.activeElement).toBe(button);
+    expect(mockLocation.back).not.toHaveBeenCalled();
+    view.destroy(); root.remove();
+  });
+
   it('renders NULL and zero extended metrics in the actual detail template', () => {
     localStorage.setItem('facet_photo_detail_tab', 'quality');
     const view = renderDetail();

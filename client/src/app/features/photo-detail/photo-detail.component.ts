@@ -1,3 +1,4 @@
+import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Location } from '@angular/common';
@@ -66,7 +67,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [ContextHelpComponent,
+  imports: [ContextHelpComponent, PhotoAnalysisComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoMetricsTabsComponent,
@@ -114,8 +115,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
         }
 
         @if (store.config()?.features?.show_critique) {
-          <button mat-icon-button (click)="openCritique(p)"
-            [matTooltip]="I18N.critique.title | translate" [attr.aria-label]="I18N.critique.title | translate">
+          <button #analysisToggle mat-icon-button (click)="openCritique(p)"
+            [matTooltip]="I18N.photo_detail.analysis | translate" [attr.aria-label]="I18N.photo_detail.analysis | translate">
             <mat-icon>analytics</mat-icon>
           </button>
         }
@@ -428,7 +429,17 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
           </div>
 
-          <!-- Metric tabs: EXIF | Quality | Composition | Technical | Histogram -->
+          @if (store.config()?.features?.show_critique) {
+          <details #analysisSection data-photo-analysis tabindex="-1" (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)] pt-2">
+            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true">analytics</mat-icon>{{ I18N.photo_detail.analysis | translate }}</summary>
+            @if (analysisOpen()) {
+              @for (path of [p.path]; track path) { <app-photo-analysis [photoPath]="path" [vlmAvailable]="!!store.config()?.features?.show_vlm_critique" /> }
+            }
+          </details>
+
+          }
+
+          <!-- Detailed measurements remain available while their consolidation follows. -->
           <app-photo-metrics-tabs [photo]="p" [ranges]="store.metricRangesByColumn()"
                                   [populated]="store.config()?.populated_scores"
                                   [histogramHeight]="HISTOGRAM_PANEL_HEIGHT"
@@ -592,6 +603,17 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 })
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly I18N = i18nKeys();
+  protected readonly analysisOpen = signal(false);
+  private readonly analysisSection = viewChild<ElementRef<HTMLDetailsElement>>('analysisSection');
+  private readonly analysisToggle = viewChild<unknown, ElementRef<HTMLButtonElement>>('analysisToggle', { read: ElementRef });
+
+  protected closeAnalysis(event: Event): void {
+    event.preventDefault(); event.stopPropagation();
+    const section = this.analysisSection()?.nativeElement;
+    if (section) section.open = false;
+    this.analysisOpen.set(false);
+    this.analysisToggle()?.nativeElement.focus();
+  }
   protected readonly photoAspect = computed(() => {
     const photo = this.photo();
     return photo ? aspectOf(photo) : null;
@@ -1285,7 +1307,13 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   protected openCritique(photo: Photo): void {
-    this.photoActions.openCritique(photo);
+    if (this.photo()?.path !== photo.path || this.router.currentNavigation?.()) return;
+    const section = this.analysisSection()?.nativeElement;
+    if (!section) return;
+    section.open = true;
+    this.analysisOpen.set(true);
+    section.focus();
+    section.scrollIntoView({ block: 'nearest' });
   }
 
   /**

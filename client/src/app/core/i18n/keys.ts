@@ -2507,6 +2507,8 @@ export const I18N = {
       persisted_percentiles: "critique.normalization_basis.persisted_percentiles",
       stored_metrics: "critique.normalization_basis.stored_metrics",
     },
+    generate_action: "critique.generate_action",
+    translate_action: "critique.translate_action",
   },
   culling: {
     compare: {
@@ -3123,6 +3125,7 @@ export const I18N = {
       confirm: "photo_detail.remove_catalog.confirm",
       result: "photo_detail.remove_catalog.result",
     },
+    analysis: "photo_detail.analysis",
   },
   manual_tags: {
     batch: {
