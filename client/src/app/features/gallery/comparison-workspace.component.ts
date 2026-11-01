@@ -47,7 +47,7 @@ const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
           <mat-icon>arrow_back</mat-icon>
         </button>
         <mat-icon class="!text-base !w-5 !h-5 !leading-5">compare</mat-icon>
-        <h1 class="m-0 flex-1 truncate text-sm font-semibold">{{ I18N.gallery.compare.title | translate:{ count: panes().length } }}</h1>
+        <h1 class="m-0 flex-1 truncate text-sm font-semibold">{{ I18N.gallery.compare.title | translate:{ count: visiblePhotos().length } }}</h1>
         <button mat-button data-inspection-toggle class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-expanded]="inspectionOpen()" aria-controls="comparison-inspection" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate" (click)="toggleInspection()"><mat-icon>manage_search</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span></button>
         @if (panes().length > 2) {
           <button mat-button data-two-up class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-pressed]="twoUp()"

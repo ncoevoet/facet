@@ -1124,6 +1124,7 @@ export const I18N = {
       clear: "gallery.pinned.clear",
     },
     all_photos: "gallery.all_photos",
+    collection_controls: "gallery.collection_controls",
     sort: "gallery.sort",
     sort_current: "gallery.sort_current",
     sort_aggregate: "gallery.sort_aggregate",

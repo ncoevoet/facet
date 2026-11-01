@@ -353,6 +353,29 @@ describe('GalleryComponent', () => {
     fixture.destroy();
   });
 
+  it('keeps one collection controls owner and closes only the narrow-screen disclosure on Escape', () => {
+    const fixture = TestBed.createComponent(GalleryComponent);
+    const desktop = signal(false);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: desktop });
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const disclosure = root.querySelector<HTMLDetailsElement>('[data-collection-options]')!;
+    const summary = disclosure.querySelector('summary')!;
+    const controls = disclosure.querySelector('app-gallery-view-controls');
+    expect(disclosure.open).toBe(false);
+    expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
+    disclosure.open = true;
+    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(disclosure.open).toBe(false);
+    desktop.set(true); fixture.detectChanges();
+    expect(disclosure.open).toBe(true);
+    expect(summary.classList.contains('hidden')).toBe(true);
+    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(disclosure.open).toBe(true);
+    expect(disclosure.querySelector('app-gallery-view-controls')).toBe(controls);
+    fixture.destroy();
+  });
+
   it('switches layout from the collection header without changing filters or batch selection', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg']));
     const filters = mockStore.filters();

@@ -145,7 +145,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
          Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="w-24 sm:w-40 shrink-0" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden md:!inline-flex md:w-40 shrink-0" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -285,7 +285,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
-          <p role="status" class="m-0 text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
+          <p role="status" class="m-0 truncate text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
             @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
@@ -317,7 +317,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           </div>
           <div class="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
             <app-gallery-criteria class="min-w-0 flex-1" />
-            <app-gallery-view-controls class="shrink-0 max-md:w-full" />
+            <details #collectionOptions data-collection-options class="relative shrink-0" [open]="isDesktop()"
+                     (keydown.escape)="!isDesktop() && (collectionOptions.open = false); !isDesktop() && collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+              <summary #collectionOptionsSummary class="cursor-pointer rounded border border-[var(--mat-sys-outline-variant)] px-3 py-2 text-xs" [class.hidden]="isDesktop()">{{ I18N.gallery.collection_controls | translate }}</summary>
+              <div class="z-30" [class.w-80]="!isDesktop()" [class.max-w-[calc(100vw-2rem)]]="!isDesktop()" [class.absolute]="!isDesktop()" [class.right-0]="!isDesktop()" [class.top-full]="!isDesktop()" [class.bg-[var(--mat-sys-surface-container)]]="!isDesktop()" [class.shadow-lg]="!isDesktop()" [class.p-2]="!isDesktop()">
+                <app-gallery-view-controls class="shrink-0" />
+              </div>
+            </details>
           </div>
         </header>
 

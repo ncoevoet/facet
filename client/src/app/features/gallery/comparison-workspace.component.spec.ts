@@ -49,6 +49,15 @@ describe('ComparisonWorkspaceComponent', () => {
     expect(panes.length).toBe(2);
   });
 
+  it('counts visible comparison panes after switching a four-photo set to two-up', () => {
+    const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const i18n = TestBed.inject(I18nService);
+    const translate = vi.spyOn(i18n, 't');
+    fixture.nativeElement.querySelector('[data-two-up]').click(); fixture.detectChanges();
+    expect(translate).toHaveBeenCalledWith('gallery.compare.title', { count: 2 });
+    expect(fixture.nativeElement.querySelectorAll('[data-candidate-thumbnail]')).toHaveLength(4);
+  });
+
   it('renders a 2x2 grid for four photos', () => {
     const { fixture } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
     expect(fixture.debugElement.nativeElement.querySelectorAll('app-synced-zoom').length).toBe(4);
