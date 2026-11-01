@@ -921,10 +921,8 @@ describe('PhotoCardComponent current-photo marker', () => {
     return fixture;
   }
 
-  /** The marker is asserted on the HOST, not on the tile inside it. The host
-   *  carries `content-visibility: auto`, whose paint containment clips whatever
-   *  a descendant draws outside the card -- so only the host's own outline
-   *  reaches the gutter. */
+  /** The marker belongs to the HOST so it reaches the gutter outside the
+   *  overflow-hidden tile. */
   function host(fixture: ComponentFixture<PhotoCardComponent>): HTMLElement {
     return fixture.nativeElement as HTMLElement;
   }

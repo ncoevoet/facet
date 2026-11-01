@@ -69,7 +69,9 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   standalone: true,
   host: {
     role: 'gridcell',
-    style: 'content-visibility: auto; contain-intrinsic-size: auto 300px',
+    // Detailed flow cards must retain their real layout height off-screen.
+    // An estimated intrinsic placeholder makes browser scroll anchoring move
+    // the gallery as cards become visible. Fixed-size modes use row windowing.
     // Room for the scrollIntoView the grid's keyboard cursor performs on the
     // card it lands on. That call asks for `block: 'nearest'`, which is the
     // least scrolling that brings an edge of the card to an edge of the
@@ -90,11 +92,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     // nothing in the shell is fixed or sticky above the grid.
     class: 'min-w-0 scroll-mt-2 scroll-mb-48',
     // The current-photo marker stays separate from batch selection.
-    // Both sit on the host rather than on the tile below, because the host's
-    // own `content-visibility: auto` brings paint containment with it, and that
-    // clips whatever a descendant draws outside the card's box -- the tile's
-    // focus-visible outline included. The host's own outline is the one that
-    // still reaches the 8px gutter, and the gutter is the only place a frame is
+    // Both sit on the host rather than on the overflow-hidden tile below. The
+    // host's outline reaches the 8px gutter, the only place a frame is
     // not competing with the photograph for contrast: a line on the tile's edge
     // loses to skin tones and blurred background, which is what the 2px
     // selection ring already demonstrates. offset-2 plus 4px lands it entirely
@@ -159,7 +158,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           [alt]="photo().caption || photo().filename"
           loading="lazy"
           decoding="async"
-          class="w-full h-full bg-[var(--mat-sys-surface-container)] transition-opacity duration-500"
+          class="w-full h-full bg-[var(--mat-sys-surface-container)]"
           [class.object-contain]="!mosaicMode() && !hideDetails()"
           [class.object-cover]="mosaicMode() || hideDetails()"
           [class.grayscale]="isEditionMode() && photo().is_rejected"

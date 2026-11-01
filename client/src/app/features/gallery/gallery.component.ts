@@ -421,6 +421,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [attr.data-pidx]="row.startIndex + i"
                     [style.width.px]="row.widths[i]"
                     [style.height.px]="row.height"
+                      [style.content-visibility]="'auto'"
                     class="shrink-0"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
@@ -495,8 +496,6 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [personFilterId]="store.filters().person_id"
                   [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
                       [panelActivation]="panelActivation()"
-                  [style.content-visibility]="'auto'"
-                  [style.contain-intrinsic-size]="'auto ' + (cardWidth() + 80) + 'px'"
                   (selectionChange)="toggleSelection($event.photo, $event.event, i)"
                   (tooltipShow)="showTooltip($event.event, $event.photo)"
                   (tooltipHide)="hideTooltip()"
@@ -534,12 +533,8 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               (focusout)="onGridFocusOut($event)"
             >
               @for (row of mosaicRows(); track row.photos[0]?.path ?? $index) {
-                <!-- No content-visibility on the row: it comes with paint
-                     containment, which clipped the current photo's marker off
-                     at the row's top and bottom edge. Each card below still
-                     declares its own, so what is given up is only the
-                     row-level grouping of the skip -- and only here, in the
-                     branch that keeps every row in the DOM. -->
+                <!-- Fixed row dimensions retain the layout; the current-photo
+                     marker stays on the card host outside its clipped tile. -->
                 <div class="flex gap-2">
                   @for (photo of row.photos; track photo.path; let i = $index) {
                     <app-photo-card
@@ -549,6 +544,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       [attr.data-pidx]="row.startIndex + i"
                       [style.width.px]="row.widths[i]"
                       [style.height.px]="row.height"
+                      [style.content-visibility]="'auto'"
                       [hideDetails]="true"
                       [mosaicMode]="true"
                       [config]="store.config()"
@@ -3528,7 +3524,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const host = document.querySelector(`[data-pidx="${index}"]`) as HTMLElement | null;
     if (host) {
       const focusable = (host.querySelector('[tabindex]') as HTMLElement | null) ?? host;
-      focusable.focus({ preventScroll: !scroll });
+      // Native focus scrolls toward the center first. Own the scroll once,
+      // below, so moving the cursor cannot jump out and back into position.
+      focusable.focus({ preventScroll: true });
       if (scroll) host.scrollIntoView({ block: 'nearest' });
       return;
     }

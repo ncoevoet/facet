@@ -997,6 +997,14 @@ describe('GalleryComponent', () => {
       expect(tileAt(2).scrollIntoView).not.toHaveBeenCalled();
     });
 
+    it('moves the keyboard cursor with one explicit nearest-edge scroll instead of a browser focus scroll first', () => {
+      const focus = vi.spyOn(tileAt(2), 'focus');
+      click({ path: '/c.jpg' }, 2);
+      expect(document.activeElement).toBe(tileAt(2));
+      expect(focus).toHaveBeenCalledExactlyOnceWith({ preventScroll: true });
+      expect(cardAt(2).scrollIntoView).toHaveBeenCalledExactlyOnceWith({ block: 'nearest' });
+    });
+
     it('hands focus back to the marked photo when the selection is cleared', () => {
       click({ path: '/b.jpg' }, 1);
       bar.focus();
