@@ -1743,6 +1743,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/faces/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Review Unassigned Faces
+         * @description Global review of truly unassigned faces; no clustering or assignment writes.
+         *
+         *     Suggestions use centroids derived only from this caller's visible faces in
+         *     one read snapshot. Stored library-wide centroids, hidden people and foreign
+         *     model vectors do not influence them. The bounded reference scan refuses
+         *     instead of silently omitting people; unassigned browsing remains available
+         *     without suggestions. Keyset pagination is a live view, not a frozen batch.
+         */
+        get: operations["review_unassigned_faces_api_faces_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/filter_options/apertures": {
         parameters: {
             query?: never;
@@ -6726,6 +6752,50 @@ export interface components {
             overwrite?: boolean;
             /** Path */
             path: string;
+        };
+        /** FaceReviewItem */
+        FaceReviewItem: {
+            /**
+             * Embedding State
+             * @enum {string}
+             */
+            embedding_state: "ready" | "unavailable" | "incompatible";
+            /** Face Id */
+            face_id: number;
+            /** Photo Path */
+            photo_path: string;
+            /** Suggestions */
+            suggestions: components["schemas"]["FaceReviewSuggestion"][];
+        };
+        /** FaceReviewResponse */
+        FaceReviewResponse: {
+            /** Compared People */
+            compared_people: number;
+            /** Faces */
+            faces: components["schemas"]["FaceReviewItem"][];
+            /** Model */
+            model: string;
+            /** Next After Id */
+            next_after_id: number | null;
+            /** Suggestions Requested */
+            suggestions_requested: boolean;
+            /**
+             * Total Unassigned
+             * @description All visible faces without any person assignment, not unnamed clusters.
+             */
+            total_unassigned: number;
+        };
+        /** FaceReviewSuggestion */
+        FaceReviewSuggestion: {
+            /** Name */
+            name: string;
+            /** Person Id */
+            person_id: number;
+            /**
+             * Similarity
+             * @description Cosine similarity, not an identity probability.
+             */
+            similarity: number;
         };
         /** FolderEntry */
         FolderEntry: {
@@ -12717,6 +12787,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UnassignFaceResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_unassigned_faces_api_faces_review_get: {
+        parameters: {
+            query?: {
+                after_id?: number;
+                limit?: number;
+                suggest?: boolean;
+                min_similarity?: number;
+                target_person_id?: number | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceReviewResponse"];
                 };
             };
             /** @description Validation Error */

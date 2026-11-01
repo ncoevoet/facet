@@ -307,6 +307,28 @@ class PossibleFacesResponse(BaseModel):
         description="Index count of faces in scope that the caller can see, before the embedding-dimension check.")
 
 
+class FaceReviewSuggestion(BaseModel):
+    person_id: int
+    name: str
+    similarity: float = Field(description="Cosine similarity, not an identity probability.")
+
+
+class FaceReviewItem(BaseModel):
+    face_id: int
+    photo_path: str
+    suggestions: list[FaceReviewSuggestion]
+    embedding_state: Literal['ready', 'unavailable', 'incompatible']
+
+
+class FaceReviewResponse(BaseModel):
+    faces: list[FaceReviewItem]
+    total_unassigned: int = Field(description="All visible faces without any person assignment, not unnamed clusters.")
+    next_after_id: int | None
+    model: str
+    compared_people: int
+    suggestions_requested: bool
+
+
 class PhotoFace(BaseModel):
     """A face row as ``GET /api/photo/faces`` emits it, with its assignment."""
 

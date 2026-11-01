@@ -15,8 +15,8 @@ from api.auth import CurrentUser, require_authenticated
 from api.database import get_db
 from api.db_helpers import (
     get_visibility_clause, is_unnamed, person_unnamed_clause, person_visibility_exists, select_in_chunks)
-from api.models.culling import PossibleFacesResponse
-from db.embedding_space import ARCFACE_MODEL, expected_dim, tag_matches
+from api.models.culling import FaceReviewResponse, PossibleFacesResponse
+from db.embedding_space import ARCFACE_MODEL, active_embedding_model, expected_dim, model_filter_sql, tag_matches
 from db.schema import person_not_hidden_clause
 
 logger = logging.getLogger(__name__)
@@ -37,6 +37,8 @@ SCOPES = ("unassigned", "unnamed", "other_persons", "all")
 # Who owns a candidate face: in no group, in a group nobody has named, or in a named person.
 OWNERS = ("ungrouped", "unnamed_group", "named")
 MAX_SIMILAR_GROUPS = 10
+MAX_REVIEW_REFERENCE_FACES = 20000
+MAX_REVIEW_PEOPLE = 1000
 
 # ``unnamed`` is every face without a name: in no cluster, or in a cluster nobody has named
 # yet. ``unassigned`` is the narrower "in no cluster at all".
@@ -296,3 +298,99 @@ def _owner_of(person_id, name) -> str:
     if person_id is None:
         return "ungrouped"
     return "unnamed_group" if is_unnamed(name) else "named"
+
+
+def _review_vector(blob, dim):
+    """A malformed embedding is unavailable evidence, not a failed review page."""
+    if not isinstance(blob, bytes) or len(blob) != dim * FLOAT_BYTES:
+        return None
+    vector = np.frombuffer(blob, dtype=np.float32).astype(np.float64)
+    norm = float(np.linalg.norm(vector))
+    if not np.isfinite(vector).all() or not np.isfinite(norm) or norm <= 1e-10:
+        return None
+    return vector / norm
+
+
+@router.get('/api/faces/review', response_model=FaceReviewResponse)
+def review_unassigned_faces(
+    after_id: int = Query(0, ge=0, le=9007199254740991),
+    limit: int = Query(48, ge=1, le=100),
+    suggest: bool = Query(True),
+    min_similarity: float = Query(0.35, ge=0, le=1),
+    target_person_id: int | None = Query(None, ge=1, le=9007199254740991),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Global review of truly unassigned faces; no clustering or assignment writes.
+
+    Suggestions use centroids derived only from this caller's visible faces in
+    one read snapshot. Stored library-wide centroids, hidden people and foreign
+    model vectors do not influence them. The bounded reference scan refuses
+    instead of silently omitting people; unassigned browsing remains available
+    without suggestions. Keyset pagination is a live view, not a frozen batch.
+    """
+    user_id = user.user_id if user else None
+    model = active_embedding_model()
+    dim = expected_dim(model)
+    visibility, vis_params = get_visibility_clause(user_id, 'ph')
+    scope = f'faces f JOIN photos ph ON ph.path = f.photo_path WHERE f.person_id IS NULL AND {visibility}'
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        total = conn.execute(f'SELECT COUNT(*) FROM {scope}', vis_params).fetchone()[0]
+        rows = conn.execute(
+            f'SELECT f.id, f.photo_path, f.embedding, f.embedding_model FROM {scope} '
+            'AND f.id > ? ORDER BY f.id LIMIT ?', [*vis_params, after_id, limit + 1]).fetchall()
+        people = []
+        matrix = None
+        if suggest and rows:
+            model_sql, model_params = model_filter_sql(model, 'f.embedding_model')
+            target_model_sql, target_model_params = model_filter_sql(model, 'pe.centroid_model')
+            reference = (
+                'faces f JOIN photos ph ON ph.path = f.photo_path JOIN persons pe ON pe.id = f.person_id '
+                f'WHERE {visibility} AND {person_not_hidden_clause("pe")} '
+                f'AND NOT {person_unnamed_clause("pe")} AND {model_sql} '
+                f'AND (pe.centroid IS NULL OR length(pe.centroid)=0 OR {target_model_sql})')
+            params = [*vis_params, *model_params, *target_model_params]
+            if target_person_id is not None:
+                reference += ' AND pe.id = ?'
+                params.append(target_person_id)
+            count, targets = conn.execute(
+                f'SELECT COUNT(*), COUNT(DISTINCT pe.id) FROM {reference}', params).fetchone()
+            if count > MAX_REVIEW_REFERENCE_FACES or targets > MAX_REVIEW_PEOPLE:
+                raise HTTPException(412, 'Review reference scope is too large; choose a person or browse without suggestions')
+            sums = {}
+            names = {}
+            for person_id, name, blob in conn.execute(
+                f'SELECT pe.id, pe.name, f.embedding FROM {reference} ORDER BY pe.id, f.id', params):
+                vector = _review_vector(blob, dim)
+                if vector is None:
+                    continue
+                if person_id not in sums:
+                    sums[person_id] = np.zeros(dim, dtype=np.float64)
+                    names[person_id] = name.strip()
+                sums[person_id] += vector
+            vectors = []
+            for person_id, value in sums.items():
+                norm = float(np.linalg.norm(value))
+                if not np.isfinite(norm) or norm <= 1e-10:
+                    continue
+                people.append((person_id, names[person_id]))
+                vectors.append(value / norm)
+            if vectors:
+                matrix = np.stack(vectors)
+        faces = []
+        for face_id, path, blob, tag in rows[:limit]:
+            compatible = tag_matches(tag, model)
+            vector = _review_vector(blob, dim) if compatible else None
+            suggestions = []
+            if vector is not None and matrix is not None:
+                similarities = matrix @ vector
+                # Deterministic ties: people are visited by ascending ID.
+                indices = np.argsort(-similarities, kind='stable')[:3]
+                suggestions = [
+                    {'person_id': people[index][0], 'name': people[index][1],
+                     'similarity': round(float(np.clip(similarities[index], -1, 1)), 4)}
+                    for index in indices if similarities[index] >= min_similarity]
+            faces.append({'face_id': face_id, 'photo_path': path, 'suggestions': suggestions,
+                          'embedding_state': 'incompatible' if not compatible else 'ready' if vector is not None else 'unavailable'})
+        return {'faces': faces, 'total_unassigned': total, 'next_after_id': rows[limit - 1][0] if len(rows) > limit else None,
+                'model': model, 'compared_people': len(people), 'suggestions_requested': suggest}

@@ -15,7 +15,7 @@ from api.config import VIEWER_CONFIG, invalidate_stats_cache
 from api.database import get_async_db, get_db
 from api.db_helpers import (
     assert_faces_visible, get_visibility_clause, reassign_faces_to_person, person_visibility_exists,
-    person_unnamed_clause, select_in_chunks,
+    person_unnamed_clause, select_in_chunks, is_locked_error, retry_on_locked,
 )
 from db import person_not_hidden_clause
 from db.embedding_space import ARCFACE_MODEL, active_embedding_model, tag_matches
@@ -670,6 +670,7 @@ def _assign_tolerant(conn, user_id, person_id, body):
 
 
 @router.post("/api/persons/{person_id}/assign_faces")
+@retry_on_locked()
 def api_assign_faces_batch(
     person_id: int,
     body: AssignFacesRequest,
@@ -678,6 +679,10 @@ def api_assign_faces_batch(
     """Bulk-assign a set of faces to a person. Empties old persons are auto-deleted."""
     with get_db() as conn:
         try:
+            # The additive review path must not overwrite an assignment made
+            # between its eligibility read and its first write.
+            if body.only_unassigned:
+                conn.execute('BEGIN IMMEDIATE')
             target = conn.execute(
                 "SELECT id FROM persons WHERE id = ?", (person_id,)
             ).fetchone()
@@ -709,7 +714,9 @@ def api_assign_faces_batch(
             raise HTTPException(status_code=404, detail=str(e))
         except HTTPException:
             raise
-        except sqlite3.Error:
+        except sqlite3.Error as ex:
+            if is_locked_error(ex):
+                raise
             logger.exception("Database error assigning faces to person %d", person_id)
             conn.rollback()
             raise HTTPException(status_code=500, detail='Internal server error')

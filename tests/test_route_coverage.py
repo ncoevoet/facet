@@ -53,6 +53,7 @@ AUTH_ROUTES = [
     '/api/photos/review_progress',
     '/api/type_counts',
     '/api/folders',
+    '/api/faces/review',
     '/api/filter_options/cameras',
     '/api/filter_options/lenses',
     '/api/filter_options/tags',
