@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "coucher de soleil à la plage...",
     "clear_search": "Effacer la recherche",
     "clear_semantic_search": "Effacer la recherche sémantique",
+    "photo_count_one": "{count} photo",
     "photo_count": "{count} photos",
     "no_photos": "Aucune photo trouvée",
     "load_error": {
@@ -2816,6 +2817,24 @@
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "Cible à l’ouverture · photos : {count}",
+      "ownership": "Les étiquettes manuelles sont des métadonnées de bibliothèque partagées entre comptes. Les étiquettes IA restent inchangées.",
+      "view_scope": "Filtres capturés, exclusions : {count}. Les correspondances sont résolues à l’application et peuvent différer du nombre initial.",
+      "explicit_scope": "Seule la liste capturée change. Les membres des groupes repliés et les fichiers compagnons ne sont pas inclus.",
+      "more": "Autres éléments : {count}",
+      "observed": "Présence des étiquettes dans les photos sélectionnées chargées : {loaded}/{count}",
+      "complete": "Toutes les photos cibles figurent dans cet instantané chargé ; les proportions indiquent les valeurs communes et mixtes.",
+      "sample": "Seules les photos chargées sont représentées. Les autres sélections sont inconnues.",
+      "preview": "Aperçu du changement",
+      "add_preview": "Ajouter « {tag} » à cette cible. Les étiquettes existantes sont conservées.",
+      "remove_preview": "Retirer l’étiquette manuelle « {tag} » de cette cible. Les autres sont conservées.",
+      "progress": "Lots confirmés : {done}/{total} · changements confirmés : {count}",
+      "uncertain": "Une réponse a été perdue ou a échoué. Le serveur a peut-être déjà appliqué ce lot. Réessayer ne reprend que les lots restants avec la même étiquette et opération.",
+      "edit": "Modifier le changement",
+      "saving": "Application…",
+      "retry": "Réessayer le reste"
+    },
     "title": "Modifier les mots-clés",
     "tag_label": "Mot-clé",
     "hint": "Les mots-clés manuels restent attachés à la photo après un nouveau scan et sont écrits comme mots-clés à l’export.",

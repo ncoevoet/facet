@@ -43,6 +43,7 @@ import { UndoService } from '../../core/services/undo.service';
 import { SequenceKind } from '../../core/services/sequence-override.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { PageHelpService } from '../../core/services/page-help.service';
+import { makePhoto } from '../../../testing/photo.fixture';
 
 @Component({ template: 'Photo route' })
 class MenuPhotoRoute {}
@@ -2572,11 +2573,118 @@ describe('GalleryComponent', () => {
   });
 
   describe('openManualTagsDialog', () => {
+    beforeEach(() => { mockAuth['isEdition'] = vi.fn(() => true); mockStore.refreshPaths = vi.fn(() => Promise.resolve()); });
     const open = () => (component as unknown as { openManualTagsDialog(): Promise<void> }).openManualTagsDialog();
     function select(paths: string[]) {
       mockStore.selectedPaths.set(new Set(paths));
       mockStore.selectionCount.set(paths.length);
     }
+
+    it('captures view filters, exclusions and count before loading the dialog', async () => {
+      mockStore.viewScopeSelected.set(true);
+      const filters = { tag: 'old' };
+      mockStore.filterPayload = vi.fn(() => filters);
+      mockStore.excludedPaths.set(new Set(['/old-skip']));
+      mockStore.selectionCount.set(650);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+      const pending = open();
+      filters.tag = 'new';
+      mockStore.excludedPaths.set(new Set(['/new-skip']));
+      mockStore.selectionCount.set(1);
+      await pending;
+      expect((dialog.open as Mock).mock.calls[0][1].data).toMatchObject({ filters: { tag: 'old' }, exclude: ['/old-skip'], count: 650, observation: null });
+    });
+
+    it('refuses a late launch after edition access is lost', async () => {
+      select(['/a.jpg']);
+      const pending = open();
+      mockAuth['isEdition'] = vi.fn(() => false);
+      await pending;
+      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
+    });
+
+    it('repairs a sent write that settles after the dialog has already closed', async () => {
+      select(['/a.jpg']);
+      const dialog = TestBed.inject(MatDialog);
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(undefined) });
+      await open();
+      const data = (dialog.open as Mock).mock.calls[0][1].data;
+      data.onSettled({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: true, uncertain: false });
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      const status = mockAuth['status'] as WritableSignal<Record<string, unknown>>;
+      status.set({ ...status(), user_id: 'other' });
+      data.onSettled({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: true, uncertain: false });
+      expect(mockStore.refreshPaths).toHaveBeenCalledTimes(1);
+    });
+
+    it('repairs a settlement once when both writer and dialog close deliver it', async () => {
+      select(['/a.jpg']);
+      const result = { confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false };
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation((_component, config) => {
+        config.data.onSettled(result);
+        return { afterClosed: () => of(result) };
+      });
+      await open();
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+    });
+
+    it('refreshes the captured paths without restoring over a newer selection', async () => {
+      select(['/a.jpg']);
+      const closed = new Subject<unknown>();
+      let didOpen!: () => void;
+      const opened = new Promise<void>(resolve => { didOpen = resolve; });
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+      const pending = open();
+      await opened;
+      select(['/new.jpg']);
+      closed.next({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false });
+      await pending;
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      expect([...mockStore.selectedPaths()]).toEqual(['/new.jpg']);
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+    });
+
+    it('keeps accepted-write refresh debt after real photo navigation parks the gallery', async () => {
+      select(['/a.jpg']);
+      const closed = new Subject<unknown>();
+      let didOpen!: () => void;
+      const opened = new Promise<void>(resolve => { didOpen = resolve; });
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+      const pending = open();
+      await opened;
+      const router = TestBed.inject(Router);
+      router.resetConfig([{ path: 'photo', component: MenuPhotoRoute }]);
+      await router.navigateByUrl('/photo?path=%2Fa.jpg');
+      closed.next({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false });
+      await pending;
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
+    });
+
+    it('does not refresh a different principal after an accepted write completes', async () => {
+      select(['/a.jpg']);
+      const closed = new Subject<unknown>();
+      let didOpen!: () => void;
+      const opened = new Promise<void>(resolve => { didOpen = resolve; });
+      (TestBed.inject(MatDialog).open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+      const pending = open();
+      await opened;
+      const status = mockAuth['status'] as WritableSignal<Record<string, unknown>>;
+      status.set({ ...status(), user_id: 'other' });
+      closed.next({ confirmedCount: 1, tag: 'trip', action: 'add', incomplete: false, uncertain: false });
+      await pending;
+      expect(mockStore.refreshPaths).not.toHaveBeenCalled();
+    });
+
+    it('repairs tag-dependent membership even when a lost response confirms no count', async () => {
+      select(['/a.jpg']);
+      mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, search: 'trip' }));
+      (TestBed.inject(MatDialog).open as Mock).mockReturnValue({ afterClosed: () => of({ confirmedCount: 0, tag: 'trip', action: 'add', incomplete: true, uncertain: true }) });
+      await open();
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(null);
+      expect(mockStore.reloadPhotos).not.toHaveBeenCalled();
+    });
 
     // The dialog owns its request (its own spec); this is the wiring.
     it('opens the manual-tags dialog with the selected paths', async () => {
@@ -2620,12 +2728,13 @@ describe('GalleryComponent', () => {
     it('refetches the list after a write, so the detail view gets fresh manual tags', async () => {
       select(['/a.jpg']);
       const dialog = TestBed.inject(MatDialog);
-      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of(1) });
+      (dialog.open as Mock).mockReturnValue({ afterClosed: () => of({ confirmedCount: 1, action: 'add', tag: 'trip', incomplete: false, uncertain: false }) });
 
       await open();
 
-      expect(mockStore.reloadPhotos).toHaveBeenCalledTimes(1);
-      expect(mockStore.restoreSelection).toHaveBeenCalledWith(['/a.jpg']);
+      expect(mockStore.refreshPaths).toHaveBeenCalledExactlyOnceWith(['/a.jpg']);
+      expect(mockStore.reloadPhotos).not.toHaveBeenCalled();
+      expect(mockStore.restoreSelection).not.toHaveBeenCalled();
     });
 
     it('leaves the list alone when the dialog is cancelled', async () => {
@@ -3250,6 +3359,43 @@ describe('GalleryComponent', () => {
     });
   });
 
+  describe('selection target disclosure', () => {
+    it('shows permitted matching stack counts and other group kinds without widening selection', () => {
+      const grouped = makePhoto({ path: '/a.jpg', stack_id: 'manual', stack_count: 2, stack_total_count: 4, sequence_kind: 'bracket', sequence_group_id: 0, burst_group_id: 0 });
+      mockStore.photos.set([grouped]);
+      mockStore.selectedPaths.set(new Set(['/a.jpg', '/offscreen.jpg']));
+      mockStore.selectionCount.set(2);
+      vi.mocked(TestBed.inject(I18nService).t).mockImplementation((key, vars) => key + (vars ? JSON.stringify(vars) : ''));
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const root = fixture.nativeElement as HTMLElement;
+      const disclosure = root.querySelector<HTMLDetailsElement>('[data-selection-targets]')!;
+      expect(disclosure.textContent).toContain('gallery.selection.targets.explicit');
+      expect(disclosure.textContent).toContain('"matching":2,"total":4');
+      expect(disclosure.textContent).toContain('gallery.selection.targets.manual');
+      expect(disclosure.textContent).toContain('culling.type_burst');
+      expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg', '/offscreen.jpg']);
+      disclosure.open = true;
+      disclosure.querySelector('summary')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(disclosure.open).toBe(false);
+      expect([...mockStore.selectedPaths()]).toEqual(['/a.jpg', '/offscreen.jpg']);
+      expect(TestBed.inject(ApiService).post).not.toHaveBeenCalled();
+      fixture.destroy();
+    });
+
+    it('describes whole-view matching membership without presenting tile observations as the whole target', () => {
+      mockStore.viewScopeSelected.set(true);
+      mockStore.selectionCount.set(40);
+      mockStore.photos.set([makePhoto({ path: '/a.jpg', stack_id: 'manual', stack_count: 2, stack_total_count: 4 })]);
+      const fixture = TestBed.createComponent(GalleryComponent);
+      fixture.detectChanges();
+      const disclosure = (fixture.nativeElement as HTMLElement).querySelector('[data-selection-targets]')!;
+      expect(disclosure.textContent).toContain('gallery.selection.targets.view');
+      expect(disclosure.textContent).not.toContain('gallery.selection.targets.stack_count');
+      fixture.destroy();
+    });
+  });
+
   describe('whole-view selection', () => {
     const photo = (path: string) => ({ path, filename: path.slice(1) });
 
@@ -3399,6 +3545,7 @@ describe('GalleryComponent', () => {
       let snackOpen: Mock;
 
       beforeEach(() => {
+        mockAuth['isEdition'] = vi.fn(() => true);
         mockStore.photos.set(['/a.jpg', '/b.jpg'].map(photo));
         mockStore.total.set(650);
         mockStore.viewScopeSelected.set(true);
@@ -3429,6 +3576,50 @@ describe('GalleryComponent', () => {
         await favorite();
 
         expect(mockStore.batchFavorite).not.toHaveBeenCalled();
+      });
+
+      it.each(['exclusions', 'criteria'] as const)('refuses changed %s while the target count is pending', async change => {
+        let resolve!: (count: number) => void;
+        mockStore.countInView.mockReturnValue(new Promise<number>(done => { resolve = done; }));
+        mockStore.filterPayload = vi.fn(() => ({ tag: mockStore.filters().tag }));
+        const pending = favorite();
+        if (change === 'exclusions') mockStore.excludedPaths.set(new Set(['/a.jpg']));
+        else mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tag: 'new' }));
+        resolve(650); await pending;
+        expect(dialog.open).not.toHaveBeenCalled();
+        expect(mockStore.batchFavorite).not.toHaveBeenCalled();
+      });
+
+      it.each(['selection', 'edition', 'navigation'] as const)('refuses changed %s after the confirmation opened', async change => {
+        const closed = new Subject<boolean>();
+        let didOpen!: () => void;
+        const opened = new Promise<void>(resolve => { didOpen = resolve; });
+        (dialog.open as Mock).mockImplementation(() => { didOpen(); return { afterClosed: () => closed }; });
+        const pending = favorite(); await opened;
+        if (change === 'selection') {
+          mockStore.viewScopeSelected.set(false);
+          mockStore.selectedPaths.set(new Set(['/new.jpg']));
+        } else if (change === 'edition') mockAuth['isEdition'] = vi.fn(() => false);
+        else {
+          const router = TestBed.inject(Router);
+          router.resetConfig([{ path: 'photo', component: MenuPhotoRoute }]);
+          await router.navigateByUrl('/photo?path=%2Fa.jpg');
+        }
+        closed.next(true); await pending;
+        expect(mockStore.batchFavorite).not.toHaveBeenCalled();
+      });
+
+      it('retains a newer explicit selection after the accepted batch finishes', async () => {
+        mockStore.viewScopeSelected.set(false);
+        mockStore.selectedPaths.set(new Set(['/a.jpg']));
+        let resolve!: (result: unknown) => void;
+        mockStore.batchFavorite.mockReturnValue(new Promise(done => { resolve = done; }));
+        const pending = favorite();
+        expect(mockStore.batchFavorite).toHaveBeenCalledWith(['/a.jpg']);
+        mockStore.selectedPaths.set(new Set(['/b.jpg']));
+        resolve({ snapshot: new Map(), targeted: 1, count: 1 }); await pending;
+        expect(mockStore.clearSelection).not.toHaveBeenCalled();
+        expect([...mockStore.selectedPaths()]).toEqual(['/b.jpg']);
       });
 
       it('writes nothing when the count cannot be fetched', async () => {
@@ -3494,6 +3685,7 @@ describe('GalleryComponent', () => {
     let snackOpen: Mock;
 
     beforeEach(() => {
+      mockAuth['isEdition'] = vi.fn(() => true);
       undoRegister = vi.fn();
       vi.spyOn(TestBed.inject(UndoService), 'register').mockImplementation(undoRegister);
       snackOpen = TestBed.inject(MatSnackBar).open as Mock;

@@ -159,6 +159,33 @@ describe('BurstCullingComponent', () => {
   });
 
   describe('overlays', () => {
+    it('keeps assessment disclosure keyboard and clicks inside the darkroom without reviewing or closing', async () => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges();
+      await fixture.whenStable();
+      const rendered = fixture.componentInstance;
+      const cull = fixture.debugElement.injector.get(CullingStore);
+      await cull.loadGroups();
+      rendered['openLightbox'](cull.groups()[0], 0);
+      fixture.detectChanges();
+      const close = vi.spyOn(rendered, 'closeLightbox' as never);
+      const initialSelections = cull.selectionsMap();
+      const details: HTMLDetailsElement = fixture.nativeElement.querySelector('[data-photo-assessment]');
+      const summary = details.querySelector('summary')!;
+      summary.click();
+      expect(details.open).toBe(true);
+      expect(close).not.toHaveBeenCalled();
+      for (const key of [' ', 'Enter', 'ArrowRight']) {
+        const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+        summary.dispatchEvent(event);
+        expect(event.defaultPrevented).toBe(false);
+      }
+      expect(cull.selectionsMap()).toEqual(initialSelections);
+      expect(close).not.toHaveBeenCalled();
+      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      expect(close).toHaveBeenCalledOnce();
+    });
+
     it('reports the auto-cull confirm as a dialog while it is shown, and nothing once it is closed', () => {
       const context = TestBed.inject(PageContextService);
       TestBed.tick();
@@ -1641,6 +1668,11 @@ describe('BurstCullingComponent', () => {
       expect(component['activeStyle']()).toBe('');
       expect(component['previewLoading']()).toBe(false);
       expect(mockSnackBar.open).toHaveBeenCalled();
+      expect(component['developedFailure']()).toEqual({ path: '/photo1.jpg', style: 'velvia' });
+      component['retryDarkroomPane']({ retry: vi.fn(), frameKey: () => '/photo1.jpg' } as unknown as SyncedZoomComponent);
+      expect(component['activeStyle']()).toBe('velvia');
+      expect(component['developedFailure']()).toBeNull();
+      expect(component['developedPreviewUrl']()).toContain('facet_retry=');
     });
 
     it('a stale onerror (user navigated away) neither reverts the style nor toasts', () => {
@@ -1665,6 +1697,20 @@ describe('BurstCullingComponent', () => {
 
       expect(component['previewLoading']()).toBe(true);
     });
+  });
+
+  it('records visible rendition evidence only for this route owner and does not change review state', async () => {
+    await store.loadGroups();
+    component['openLightbox'](store.groups()[0], 0);
+    const selections = store.selectionsMap();
+    component['onDisplayedRendition']({ kind: 'source', phase: 'ready', width: 600, height: 400 }, '/photo1.jpg', '');
+    expect(component['displayedRenditions']().get('/photo1.jpg')?.width).toBe(600);
+    component['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/not-visible.jpg', '');
+    expect(component['displayedRenditions']().has('/not-visible.jpg')).toBe(false);
+    component['pageNavigating'] = true;
+    component['onDisplayedRendition']({ kind: 'source', phase: 'failed' }, '/photo1.jpg', '');
+    expect(component['displayedRenditions']().get('/photo1.jpg')?.phase).toBe('ready');
+    expect(store.selectionsMap()).toEqual(selections);
   });
 
   describe('subject close-up strip (non-face groups)', () => {

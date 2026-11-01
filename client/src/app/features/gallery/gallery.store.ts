@@ -2223,11 +2223,15 @@ export class GalleryStore {
     extraBody: Record<string, unknown> = {},
     useSelectionScope = true,
   ): Promise<BatchResult | null> {
+    if (!this.auth.isEdition()) return null;
     const originSeq = this._loadSeq;
     const originIdentity = this.auth.identity();
+    const originSession = this.auth.status();
+    const originToken = this.auth.token;
     const originKey = this.filterKey();
     const current = this.staleGuard(originSeq, originIdentity, () => originKey === this.filterKey());
     const refreshConfirmed = async () => {
+      if (originIdentity !== this.auth.identity()) return;
       const rebuild = (endpoint === '/photos/batch_rating' && this.ratingShapesView())
         || (endpoint === '/photos/batch_reject' && this.filters().review_status === 'rejected');
       if (current()) await this.refreshReviewResults(rebuild);
@@ -2246,6 +2250,14 @@ export class GalleryStore {
     const persisted = new Set<string>();
     let count = 0;
     for (const body of this.batchBodies(paths, useSelectionScope)) {
+      if (originIdentity !== this.auth.identity() || originSession !== this.auth.status() || originToken !== this.auth.token || !this.auth.isEdition()) {
+        if (current()) this.revertSnapshot(new Map([...snapshot].filter(([path]) => !persisted.has(path))));
+        if (count > 0 && originIdentity === this.auth.identity()) {
+          this.snackBar.open(this.i18n.t(I18N.gallery.selection.batch_partial, { count }), '', { duration: 5000 });
+          await refreshConfirmed();
+        }
+        return null;
+      }
       const chunk = body['photo_paths'] as string[] | undefined;
       try {
         const res = await firstValueFrom(
@@ -2254,6 +2266,7 @@ export class GalleryStore {
         count += res?.count ?? chunk?.length ?? targeted;
         chunk?.forEach(p => persisted.add(p));
       } catch {
+        if (originIdentity !== this.auth.identity()) return null;
         if (current()) this.revertSnapshot(new Map([...snapshot].filter(([p]) => !persisted.has(p))));
         if (count > 0) {
           this.snackBar.open(

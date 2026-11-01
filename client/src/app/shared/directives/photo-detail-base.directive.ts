@@ -4,6 +4,8 @@ import { Photo, hasExifFields } from '../models/photo.model';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
+import { thumbnailUrl } from '../pipes/thumbnail-url.pipe';
+import type { DisplayedRendition } from '../../features/gallery/synced-zoom.component';
 
 /**
  * Abstract base for photo detail components.
@@ -15,11 +17,17 @@ export abstract class PhotoDetailBase {
   protected readonly api = inject(ApiService);
   protected readonly i18n = inject(I18nService);
   private readonly editionAuth = inject(AuthService);
+  private readonly imageOwner = this.editionAuth.identity();
 
   /** Each subclass defines how the photo is loaded and stored. */
   abstract readonly photo: ReturnType<typeof signal<Photo | null>>;
 
   protected readonly fullImageLoaded = signal(false);
+  protected readonly sourceRendition = signal<DisplayedRendition>({ kind: 'source', phase: 'loading' });
+  protected readonly thumbnailRendition = signal<DisplayedRendition>({ kind: 'thumbnail', phase: 'loading' });
+  protected readonly displayedRendition = computed(() => this.fullImageLoaded() ? this.sourceRendition() : this.thumbnailRendition());
+  private readonly imageAttempt = signal(0);
+  private readonly imageSession = crypto.randomUUID();
   protected readonly translatingCaption = signal(false);
   protected readonly translatedCaption = signal<string | null>(null);
 
@@ -29,7 +37,27 @@ export abstract class PhotoDetailBase {
 
   protected readonly fullImageUrl = computed(() => {
     const p = this.photo();
-    return p ? this.api.imageUrl(p.path, p.preview_revision) : '';
+    if (!p) return '';
+    const src = this.api.imageUrl(p.path, p.preview_revision);
+    if (!this.imageAttempt()) return src;
+    const url = new URL(src, document.baseURI);
+    url.searchParams.set('facet_retry', `${this.imageSession}-${this.imageAttempt()}`);
+    url.searchParams.set('ngsw-bypass', '1');
+    return url.href;
+  });
+
+  private readonly imageResetEffect = effect(() => {
+    this.fullImageUrl();
+    this.fullImageLoaded.set(false);
+    this.sourceRendition.set({ kind: 'source', phase: 'loading' });
+  });
+  protected readonly thumbnailImageUrl = computed(() => {
+    const p = this.photo();
+    return p ? thumbnailUrl(p.path, 640, p.preview_revision) : '';
+  });
+  private readonly thumbnailResetEffect = effect(() => {
+    this.thumbnailImageUrl();
+    this.thumbnailRendition.set({ kind: 'thumbnail', phase: 'loading' });
   });
 
   protected readonly hasExif = computed(() => {
@@ -73,7 +101,33 @@ export abstract class PhotoDetailBase {
       });
   });
 
-  protected onFullImageLoad(): void {
+  protected onFullImageLoad(event: Event): void {
+    const img = this.currentImage(event, this.fullImageUrl());
+    if (!img || !img.complete || !img.naturalWidth || !img.naturalHeight) return;
+    this.sourceRendition.set({ kind: 'source', phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
     this.fullImageLoaded.set(true);
+  }
+
+  protected onFullImageError(event: Event): void {
+    if (!this.currentImage(event, this.fullImageUrl())) return;
+    this.fullImageLoaded.set(false);
+    this.sourceRendition.set({ kind: 'source', phase: 'failed' });
+  }
+
+  protected onThumbnailState(event: Event, failed = false): void {
+    const p = this.photo();
+    if (!p) return;
+    const img = this.currentImage(event, this.thumbnailImageUrl());
+    if (!img || !failed && (!img.complete || !img.naturalWidth || !img.naturalHeight)) return;
+    this.thumbnailRendition.set(failed ? { kind: 'thumbnail', phase: 'failed' } : { kind: 'thumbnail', phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
+  }
+
+  private currentImage(event: Event, expected: string): HTMLImageElement | null {
+    const img = event.target;
+    return this.imageOwner === this.editionAuth.identity() && expected && img instanceof HTMLImageElement && (img.currentSrc || img.src) === new URL(expected, document.baseURI).href ? img : null;
+  }
+
+  protected retryFullImage(): void {
+    if (this.imageOwner === this.editionAuth.identity()) this.imageAttempt.update(value => value + 1);
   }
 }

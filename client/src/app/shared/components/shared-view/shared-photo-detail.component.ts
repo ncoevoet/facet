@@ -10,7 +10,9 @@ import { Photo, normalisePhotoFlags } from '../../models/photo.model';
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
 import { TranslatePipe } from '../../pipes/translate.pipe';
-import { ThumbnailUrlPipe } from '../../pipes/thumbnail-url.pipe';
+import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
+import { RenditionReadoutComponent } from '../rendition-readout/rendition-readout.component';
+import { PhotoAssessmentComponent } from '../photo-assessment/photo-assessment.component';
 import { CategoryLabelPipe } from '../../../features/gallery/photo-tooltip.component';
 import { IsLensNamePipe } from '../../pipes/is-lens-name.pipe';
 import { DownloadIconPipe } from '../../pipes/download-icon.pipe';
@@ -24,7 +26,7 @@ import { i18nKeys } from '../../../core/i18n/keys';
   imports: [
     ExtendedQualityComponent,
     MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule,
-    FixedPipe, ShutterSpeedPipe, TranslatePipe, ThumbnailUrlPipe,
+    FixedPipe, ShutterSpeedPipe, TranslatePipe, CaptureDatePipe, RenditionReadoutComponent, PhotoAssessmentComponent,
     CategoryLabelPipe, IsLensNamePipe, DownloadIconPipe,
   ],
   host: { class: 'block h-full overflow-y-auto lg:overflow-y-hidden' },
@@ -67,18 +69,20 @@ import { i18nKeys } from '../../../core/i18n/keys';
         <!-- Image panel -->
         <div class="shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative">
           <img
-            [src]="p.path | thumbnailUrl:640:p.preview_revision"
+            [src]="thumbnailImageUrl()"
             [alt]="p.filename"
             class="w-full lg:max-w-full lg:max-h-full object-contain transition-opacity duration-300"
             [class.opacity-0]="fullImageLoaded()"
+            (load)="onThumbnailState($event)" (error)="onThumbnailState($event, true)"
           />
           <img
             [src]="fullImageUrl()"
             [alt]="p.filename"
             class="absolute inset-0 w-full h-full object-contain transition-opacity duration-300"
             [class.opacity-0]="!fullImageLoaded()"
-            (load)="onFullImageLoad()"
+            (load)="onFullImageLoad($event)" (error)="onFullImageError($event)"
           />
+          <app-rendition-readout class="absolute inset-x-2 bottom-2 rounded bg-black/80 px-2 py-1 text-white" [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" (retry)="retryFullImage()" />
         </div>
 
         <!-- Info panel -->
@@ -87,15 +91,16 @@ import { i18nKeys } from '../../../core/i18n/keys';
           <div>
             <div class="font-semibold text-lg">{{ p.filename }}</div>
             @if (p.date_taken) {
-              <div class="text-[var(--mat-sys-on-surface-variant)] text-xs">{{ p.date_taken }}</div>
+              <div class="text-[var(--mat-sys-on-surface-variant)] text-xs">{{ p.date_taken | captureDate }}</div>
             }
             <div class="flex items-center gap-2 mt-1">
               @if (p.category) {
                 <span class="px-2 py-0.5 bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] rounded-full text-xs font-medium">{{ p.category | categoryLabel }}</span>
               }
-              <span class="text-[var(--mat-sys-primary)] font-semibold ml-auto">{{ p.aggregate | fixed:1 }}</span>
             </div>
           </div>
+          <app-photo-assessment [photo]="p" />
+          <details class="text-xs"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p>{{ I18N.photo_detail.rendition.note | translate }}</p></details>
 
           <!-- Caption (read-only) -->
           @if (displayCaption()) {

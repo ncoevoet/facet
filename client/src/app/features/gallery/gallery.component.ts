@@ -1,5 +1,7 @@
 import { GalleryViewControlsComponent } from './gallery-view-controls.component';
 import { GalleryCriteriaComponent } from './gallery-criteria.component';
+import { observeManualTags } from './manual-tag-observation.util';
+import type { ManualTagsDialogData, ManualTagsDialogResult } from './manual-tags-dialog.component';
 import { StackActionsService } from './stack-actions.service';
 import { STACK_EDITOR_HISTORY } from './stack-editor-history';
 import {
@@ -283,7 +285,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
-              {{ I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
+              {{ (pinned() ? store.total() : store.photoTotal()) | pluralKey:I18N.gallery.photo_count_one:I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
             }
           </p>
           </div>
@@ -729,7 +731,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
            container is its own stacking context and a z-20 card would paint over it. -->
       @if (selectionCount() && !overDrawerOpen()) {
         <div #selectionBar data-selection-bar
-             role="region" [attr.aria-label]="(viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() }"
+             role="region" [attr.aria-label]="(viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() }" [attr.aria-describedby]="viewScoped() ? 'whole-view-target-note' : null"
              class="absolute bottom-2 md:bottom-4 left-2 md:left-4 z-20 w-fit flex flex-wrap items-center gap-1 px-2 py-1 rounded-lg bg-[var(--mat-sys-surface-container)] border border-[var(--mat-sys-primary)] shadow-lg max-md:mb-[env(safe-area-inset-bottom)]"
              [style.right.px]="noticeRightPx()">
           <!-- Every loaded photo is selected, but the view runs past the pages
@@ -742,7 +744,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             </div>
           }
           @if (viewScoped()) {
-            <p class="text-xs basis-full opacity-80">{{ I18N.stacks.folded_scope | translate }}</p>
+            <p id="whole-view-target-note" class="sr-only">{{ I18N.stacks.folded_scope | translate }}</p>
             @if (excludedPaths().size) {
               <p data-selection-exclusions class="text-xs basis-full m-0">{{ I18N.gallery.selection.exclusions | translate:{ count: excludedPaths().size } }}</p>
             }
@@ -750,6 +752,34 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             <p data-selection-outside class="text-xs basis-full m-0" aria-live="polite">{{ I18N.gallery.selection.outside_loaded | translate:{ count: selectionOutsideLoaded() } }}</p>
           }
           <span data-selection-status tabindex="-1" class="text-sm font-medium shrink-0 px-1">{{ (viewScoped() ? I18N.gallery.selection.view_scope_active : I18N.gallery.selection.count) | translate:{ count: selectionCount() } }}</span>
+          @if (viewScoped() || selectionGroupTargets().total) {
+            <details #selectionTargets #selectionDisclosure name="gallery-selection-disclosures" data-selection-targets tabindex="-1"
+              (keydown.escape)="selectionTargets.open = false; targetsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+              <summary #targetsSummary class="flex min-h-10 cursor-pointer list-none items-center gap-1 rounded-md px-2 text-sm focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">ads_click</mat-icon>{{ I18N.gallery.selection.targets.title | translate }}</summary>
+              <div class="absolute bottom-full left-0 mb-3 max-h-[60vh] w-full max-w-160 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg text-sm">
+                <p class="mt-0">{{ (viewScoped() ? I18N.gallery.selection.targets.view : I18N.gallery.selection.targets.explicit) | translate }}</p>
+                @if (!viewScoped()) {
+                  <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.selection.targets.loaded | translate:{ shown: selectionGroupTargets().rows.length, total: selectionGroupTargets().total } }}</p>
+                  @for (target of selectionGroupTargets().rows; track target.photo.path) {
+                    <div class="border-t border-[var(--mat-sys-outline-variant)] py-2">
+                      <div class="font-medium truncate" [title]="target.photo.filename">{{ target.photo.filename }}</div>
+                      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        @if (target.photo.stack_id) {
+                          <button mat-button class="!px-1 !text-xs" (click)="openStack(target.photo)"><mat-icon>layers</mat-icon>{{ I18N.gallery.selection.targets.manual | translate }}</button>
+                          @if (target.photo.stack_count !== null && target.photo.stack_count !== undefined && target.photo.stack_total_count !== null && target.photo.stack_total_count !== undefined) {
+                            <span>{{ I18N.gallery.selection.targets.stack_count | translate:{ matching: target.photo.stack_count, total: target.photo.stack_total_count } }}</span>
+                          }
+                        }
+                        @for (kind of target.kinds; track kind) {
+                          <span class="inline-flex items-center gap-1"><mat-icon class="!text-base !w-4 !h-4" aria-hidden="true">{{ kind | photoSetKindIcon }}</mat-icon>{{ kind | photoSetKindLabel | translate }}</span>
+                        }
+                      </div>
+                    </div>
+                  }
+                }
+              </div>
+            </details>
+          }
           <button mat-button disabledInteractive (click)="clearSelection()" [matTooltip]="I18N.gallery.selection.clear | translate" [attr.aria-label]="I18N.gallery.selection.clear | translate"><mat-icon>close</mat-icon>{{ I18N.gallery.selection.clear | translate }}</button>
           @if (selectionCount() >= 2 && selectionCount() <= comparePaneLimit) {
             <button mat-button [disabled]="!canCompareSelection()" (click)="compareSelection()" [matTooltip]="I18N.gallery.selection.compare | translate" [attr.aria-label]="I18N.gallery.selection.compare | translate" [attr.aria-describedby]="canCompareSelection() ? null : 'compare-selection-requirements'"><mat-icon>compare</mat-icon>{{ I18N.gallery.selection.compare | translate }}</button>
@@ -764,7 +794,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           <button mat-icon-button class="md:!hidden" (click)="openActionsSheet()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.actions | translate" [attr.aria-label]="I18N.gallery.selection.actions | translate">
             @if (downloading()) { <mat-spinner diameter="18" [attr.aria-label]="I18N.ui.labels.loading | translate"></mat-spinner> } @else { <mat-icon>more_horiz</mat-icon> }
           </button>
-          <details #selectionMore data-selection-more tabindex="-1" class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+          <details #selectionMore #selectionDisclosure name="gallery-selection-disclosures" data-selection-more tabindex="-1" class="max-md:hidden" (keydown.escape)="selectionMore.open = false; selectionMoreSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
             <summary #selectionMoreSummary class="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"><mat-icon aria-hidden="true">more_horiz</mat-icon>{{ I18N.gallery.selection.actions | translate }}</summary>
             <div class="absolute bottom-full left-0 mb-3 flex max-h-[60vh] w-full max-w-160 flex-wrap items-center gap-2 overflow-y-auto rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
           @if (!allLoadedSelected()) {
@@ -994,6 +1024,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly filterSidebar = viewChild(GalleryFilterSidebarComponent);
   private readonly filterDrawer = viewChild<MatSidenav>('filterDrawer');
   private readonly selectionBar = viewChild<ElementRef<HTMLElement>>('selectionBar');
+  private readonly selectionDisclosures = viewChildren<ElementRef<HTMLDetailsElement>>('selectionDisclosure');
   private readonly noticeHost = viewChild<ElementRef<HTMLElement>>('noticeHost');
   private readonly destroyRef = inject(DestroyRef);
   private readonly staleness = inject(StalenessGuardFactory);
@@ -1023,6 +1054,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   // Selection state lives in the store (survives navigation, visible to services)
   protected readonly selectedPaths = this.store.selectedPaths;
+  protected readonly selectionGroupTargets = computed(() => {
+    const selected = this.selectedPaths();
+    const rows = this.store.photos().filter(photo => selected.has(photo.path)).map(photo => ({
+      photo,
+      kinds: [
+        ...(photo.sequence_kind && photo.sequence_group_id != null ? [photo.sequence_kind] : []),
+        ...(photo.burst_group_id != null ? ['burst'] : []),
+        ...(photo.duplicate_group_id != null ? ['duplicate'] : []),
+      ],
+    })).filter(row => row.photo.stack_id || row.kinds.length);
+    return { rows: rows.slice(0, 6), total: rows.length };
+  });
   protected readonly excludedPaths = this.store.excludedPaths;
   protected readonly selectionCount = this.store.selectionCount;
   protected readonly comparePaneLimit = MAX_COMPARE_PANES;
@@ -1614,6 +1657,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     // Capture before the outlet detaches the DOM and loses scroll and focus.
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(() => {
+      for (const disclosure of this.selectionDisclosures()) disclosure.nativeElement.open = false;
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
       if (this.parked) return;
       const focus = document.activeElement;
@@ -2100,11 +2144,18 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private async resolveSelectionPaths(
     confirmMessageKey: string | null = I18N.gallery.selection.view_scope_confirm_message,
   ): Promise<string[] | null> {
-    if (!this.viewScoped()) return [...this.selectedPaths()];
-    if (confirmMessageKey !== null && await this.confirmWholeView(confirmMessageKey) === null) {
-      return null;
-    }
-    return this.store.pathsInView();
+    const target = this.captureSelectionContext();
+    const guard = this.staleness.create(this.destroyRef, { track: 'status', requireEdition: false, valid: target.current });
+    try {
+      if (!guard.current()) return null;
+      if (!target.viewScoped) return target.paths;
+      if (confirmMessageKey !== null && await this.confirmWholeView(confirmMessageKey) === null) {
+        return null;
+      }
+      if (!guard.current()) return null;
+      const paths = await this.store.pathsInView();
+      return guard.current() ? paths : null;
+    } finally { guard.dispose(); }
   }
 
   protected async copyPaths(explicitPaths?: string[]): Promise<void> {
@@ -2143,21 +2194,38 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private async confirmWholeView(
     messageKey: string = I18N.gallery.selection.view_scope_confirm_message,
   ): Promise<number | null> {
-    const total = await this.store.countInView();
-    if (total === null) return null;
-    const count = Math.max(0, total - this.excludedPaths().size);
-    if (count === 0) {
-      this.snackBar.open(this.i18n.t(I18N.gallery.selection.view_scope_empty), '', { duration: 3000 });
-      return null;
-    }
-    const ref = this.dialog.open(ConfirmDialogComponent, {
-      data: {
-        title: this.i18n.t(I18N.gallery.selection.view_scope_confirm_title),
-        message: this.i18n.t(messageKey, { count }),
-      },
-    });
-    const confirmed = await firstValueFrom(ref.afterClosed());
-    return confirmed ? count : null;
+    const target = this.captureSelectionContext();
+    const guard = this.staleness.create(this.destroyRef, { track: 'status', requireEdition: false, valid: target.current });
+    try {
+      if (!guard.current()) return null;
+      const total = await this.store.countInView();
+      if (total === null || !guard.current()) return null;
+      const count = Math.max(0, total - target.excluded.size);
+      if (count === 0) {
+        this.snackBar.open(this.i18n.t(I18N.gallery.selection.view_scope_empty), '', { duration: 3000 });
+        return null;
+      }
+      const ref = this.dialog.open(ConfirmDialogComponent, {
+        data: {
+          title: this.i18n.t(I18N.gallery.selection.view_scope_confirm_title),
+          message: this.i18n.t(messageKey, { count }),
+        },
+      });
+      const confirmed = await firstValueFrom(ref.afterClosed());
+      return confirmed && guard.current() ? count : null;
+    } finally { guard.dispose(); }
+  }
+
+  /** Captures command membership independently of hover and later selection changes. */
+  private captureSelectionContext() {
+    const paths = new Set(this.selectedPaths());
+    const excluded = new Set(this.excludedPaths());
+    const viewScoped = this.viewScoped();
+    const query = viewScoped ? JSON.stringify(this.store.filterPayload()) : null;
+    const current = () => !this.parked && !this.router.currentNavigation?.() && this.viewScoped() === viewScoped && (viewScoped
+      ? JSON.stringify(this.store.filterPayload()) === query && this.excludedPaths().size === excluded.size && [...excluded].every(path => this.excludedPaths().has(path))
+      : this.selectedPaths().size === paths.size && [...paths].every(path => this.selectedPaths().has(path)));
+    return { paths: [...paths], excluded, viewScoped, current };
   }
 
   private async executeBatchAction(
@@ -2165,26 +2233,30 @@ export class GalleryComponent implements OnInit, OnDestroy {
     i18nKey: string,
     extraParams?: Record<string, string | number>,
   ): Promise<void> {
-    const viewScoped = this.viewScoped();
-    let announced: number | null = null;
-    if (viewScoped) {
-      announced = await this.confirmWholeView();
-      if (announced === null) return;
-    }
-    const paths = [...this.selectedPaths()];
-    const result = await action(paths);
-    if (result === null) return; // store reverted and notified
-    this.clearSelection();
-    const params = { count: result.count, ...extraParams };
-    this.offerMutationUndo(result, i18nKey, params);
-    // The view can move between the count and the write (another session, a
-    // scan). Say so rather than absorbing it: the user approved a number.
-    if (announced !== null && announced !== result.count) {
-      this.snackBar.open(
-        this.i18n.t(I18N.gallery.selection.view_scope_mismatch, { count: result.count, announced }),
-        '', { duration: 5000 },
-      );
-    }
+    const target = this.captureSelectionContext();
+    const guard = this.staleness.create(this.destroyRef, { track: 'status' });
+    try {
+      if (!guard.current()) return;
+      let announced: number | null = null;
+      if (target.viewScoped) {
+        announced = await this.confirmWholeView();
+        if (announced === null) return;
+      }
+      if (!guard.current() || !target.current()) return;
+      const result = await action(target.paths);
+      if (result === null || !guard.current()) return; // store owns confirmed-write repair
+      if (target.current()) this.clearSelection();
+      const params = { count: result.count, ...extraParams };
+      this.offerMutationUndo(result, i18nKey, params);
+      // The view can move between the count and the write (another session, a
+      // scan). Say so rather than absorbing it: the user approved a number.
+      if (announced !== null && announced !== result.count) {
+        this.snackBar.open(
+          this.i18n.t(I18N.gallery.selection.view_scope_mismatch, { count: result.count, announced }),
+          '', { duration: 5000 },
+        );
+      }
+    } finally { guard.dispose(); }
   }
 
   private offerMutationUndo(
@@ -2429,7 +2501,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected async openStack(photo: Photo): Promise<void> {
-    if (!photo.stack_id) return;
+    if (!photo.stack_id || this.parked || this.router.currentNavigation?.() || this.store.slideshowActive()) return;
     this.downloadPhoto(photo);
   }
 
@@ -2639,26 +2711,45 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  refetched afterwards because a photo opened in the detail view carries the
    *  grid row's `manual_tags`, which a bulk write has just made stale. */
   async openManualTagsDialog(): Promise<void> {
+    if (!this.auth.isEdition() || !this.selectionCount()) return;
+    const owner = this.auth.identity();
     const viewScoped = this.viewScoped();
-    const paths = [...this.selectedPaths()];
+    const paths = viewScoped ? [] : [...this.selectedPaths()];
     if (!viewScoped && !paths.length) return;
-    const { ManualTagsDialogComponent } = await import('./manual-tags-dialog.component');
-    const ref = this.dialog.open(ManualTagsDialogComponent, {
-      width: '95vw',
-      maxWidth: '500px',
-      data: {
-        paths,
-        filters: viewScoped ? this.store.filterPayload() : null,
-        exclude: viewScoped ? [...this.excludedPaths()] : [],
-        count: this.selectionCount(),
-      },
-    });
-    const written = await firstValueFrom(ref.afterClosed());
-    if (!written) return;
-    this.journal.record('tags', paths, { count: written });
-    const kept = viewScoped ? new Set(this.excludedPaths()) : new Set(this.selectedPaths());
-    await this.store.reloadPhotos();
-    this.restoreSelectionWithout(viewScoped, kept, []);
+    const selected = new Set(paths);
+    const repaired = new WeakSet<ManualTagsDialogResult>();
+    const repair = async (result: ManualTagsDialogResult): Promise<void> => {
+      if (this.auth.identity() !== owner || repaired.has(result) || !result.confirmedCount && !result.uncertain) return;
+      repaired.add(result);
+      // Tag/text membership may gain offscreen rows. The store retains parked
+      // repair debt and respects the currently authorized view without selection reset.
+      const filters = this.store.filters();
+      const membershipMayChange = this.store.pinnedPaths() === null
+        && (viewScoped || !!filters.tag || !!filters.search || !!this.store.currentAlbum()?.is_smart);
+      await this.store.refreshPaths(membershipMayChange ? null : paths);
+    };
+    const data: ManualTagsDialogData = {
+      paths,
+      filters: viewScoped ? structuredClone(this.store.filterPayload()) : null,
+      exclude: viewScoped ? [...this.excludedPaths()] : [],
+      count: this.selectionCount(),
+      observation: viewScoped ? null : observeManualTags(this.store.photos().filter(photo => selected.has(photo.path))),
+      onSettled: result => { void repair(result); },
+    };
+    const liveness = this.staleness.create(this.destroyRef, { track: 'status' });
+    try {
+      const { ManualTagsDialogComponent } = await import('./manual-tags-dialog.component');
+      if (!liveness.current()) return;
+      const ref = this.dialog.open<InstanceType<typeof ManualTagsDialogComponent>, ManualTagsDialogData, ManualTagsDialogResult>(ManualTagsDialogComponent, {
+        width: '95vw', maxWidth: '600px', closeOnNavigation: false, data,
+      });
+      const written = await firstValueFrom(ref.afterClosed());
+      // An accepted operation can finish after navigation parked this gallery.
+      // Queue its repair debt for the same principal; never restore old selection.
+      if (!written || this.auth.identity() !== owner || !written.confirmedCount && !written.uncertain) return;
+      this.journal.record('tags', paths, { ...written, count: written.confirmedCount });
+      await repair(written);
+    } finally { liveness.dispose(); }
   }
 
   async openCullDialog(explicitPaths?: string[]): Promise<void> {

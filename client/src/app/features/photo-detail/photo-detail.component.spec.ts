@@ -894,13 +894,47 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('onFullImageLoad', () => {
-    it('should set fullImageLoaded to true', () => {
+    const loadedImage = (src: string, width = 600, height = 400): HTMLImageElement => {
+      const img = document.createElement('img'); img.src = src;
+      Object.defineProperties(img, { complete: { value: true }, naturalWidth: { value: width }, naturalHeight: { value: height } });
+      return img;
+    };
+
+    it('accepts only decoded pixels for the current source and refuses a late former frame', () => {
       createComponent();
+      component.photo.set(samplePhoto); TestBed.tick();
       expect(component.fullImageLoaded()).toBe(false);
-
-      component.onFullImageLoad();
-
+      const img = loadedImage(component.fullImageUrl());
+      component.onFullImageLoad({ target: img });
       expect(component.fullImageLoaded()).toBe(true);
+      expect(component.displayedRendition()).toEqual({ kind: 'source', phase: 'ready', width: 600, height: 400 });
+      component.photo.set({ ...samplePhoto, aggregate: 9 }); TestBed.tick();
+      expect(component.fullImageLoaded()).toBe(true);
+      component.photo.set({ ...samplePhoto, path: '/new.jpg' }); TestBed.tick();
+      component.onFullImageLoad({ target: img });
+      expect(component.fullImageLoaded()).toBe(false);
+      component.onFullImageLoad({ target: loadedImage(component.fullImageUrl(), 0, 0) });
+      expect(component.fullImageLoaded()).toBe(false);
+    });
+
+    it('keeps the measured thumbnail after source failure, retries fresh and rejects a former owner', () => {
+      createComponent(); component.photo.set(samplePhoto); TestBed.tick();
+      component.onThumbnailState({ target: loadedImage(component.thumbnailImageUrl(), 640, 420) });
+      const src = component.fullImageUrl();
+      component.onFullImageError({ target: loadedImage(src, 0, 0) });
+      expect(component.sourceRendition().phase).toBe('failed');
+      expect(component.displayedRendition()).toEqual({ kind: 'thumbnail', phase: 'ready', width: 640, height: 420 });
+      component.retryFullImage(); TestBed.tick();
+      expect(component.fullImageUrl()).not.toBe(src);
+      expect(component.sourceRendition().phase).toBe('loading');
+      component.onFullImageLoad({ target: loadedImage(src) });
+      expect(component.fullImageLoaded()).toBe(false);
+      mockAuth.status.set({ user_id: 'different' });
+      const pending = component.fullImageUrl();
+      component.retryFullImage();
+      expect(component.fullImageUrl()).toBe(pending);
+      component.onFullImageLoad({ target: loadedImage(pending) });
+      expect(component.fullImageLoaded()).toBe(false);
     });
   });
 

@@ -109,7 +109,7 @@ describe('GalleryStore', () => {
           provide: ActivatedRoute,
           useValue: { snapshot: { queryParams } },
         },
-        { provide: AuthService, useValue: { identity: authIdentity, isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity: authIdentity, isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
         { provide: MatSnackBar, useValue: { open: snackOpen } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
@@ -329,6 +329,7 @@ describe('GalleryStore', () => {
     });
 
     it('does not clear a new whole-view selection when an old review write finishes', async () => {
+      vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
       const pending = new Subject<{ count: number }>();
       apiPost.mockReturnValue(pending);
       apiGet.mockReturnValue(of(makePhotosResponse()));
@@ -2391,7 +2392,7 @@ describe('GalleryStore selection', () => {
         { provide: ApiService, useValue: { get: apiGet, post: apiPost } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity: () => '0|', isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
@@ -2691,7 +2692,7 @@ describe('GalleryStore batch mutations by selection scope', () => {
         { provide: ApiService, useValue: { get: vi.fn(() => of(makePhotosResponse())), post: apiPost } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity: () => '0|', isEdition: vi.fn(() => true) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
         { provide: MatSnackBar, useValue: { open: vi.fn() } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
@@ -2710,6 +2711,68 @@ describe('GalleryStore batch mutations by selection scope', () => {
     await store.batchFavorite(['/a.jpg', '/b.jpg']);
 
     expect(apiPost).toHaveBeenCalledWith('/photos/batch_favorite', { photo_paths: ['/a.jpg', '/b.jpg'] });
+  });
+
+  it('refuses a read-only batch before patching photos or sending a write', async () => {
+    vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(false);
+    const before = store.photos();
+    expect(await store.batchFavorite(['/a.jpg'])).toBeNull();
+    expect(store.photos()).toBe(before);
+    expect(apiPost).not.toHaveBeenCalled();
+  });
+
+  it('does not resume an old batch after edition is locked and unlocked during a pending request', async () => {
+    const paths = Array.from({ length: 1001 }, (_, i) => `/p${i}.jpg`);
+    const response = new Subject<{ count: number }>();
+    apiPost.mockReturnValue(response);
+    vi.spyOn(store as unknown as { refreshReviewResults(): Promise<void> }, 'refreshReviewResults').mockResolvedValue();
+    const pending = store.batchFavorite(paths);
+    const auth = TestBed.inject(AuthService);
+    const status = auth.status()!;
+    auth.status.set({ ...status, edition_authenticated: false });
+    auth.status.set({ ...status, edition_authenticated: true });
+    response.next({ count: 1000 });
+    expect(await pending).toBeNull();
+    expect(apiPost).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops on token rotation even while the cached account status is unchanged', async () => {
+    const auth = TestBed.inject(AuthService);
+    let token = 'first-session';
+    Object.defineProperty(auth, 'token', { configurable: true, get: () => token });
+    const response = new Subject<{ count: number }>();
+    apiPost.mockReturnValue(response);
+    vi.spyOn(store as unknown as { refreshReviewResults(): Promise<void> }, 'refreshReviewResults').mockResolvedValue();
+    const pending = store.batchFavorite(Array.from({ length: 1001 }, (_, i) => `/p${i}.jpg`));
+    token = 'other-session';
+    response.next({ count: 1000 });
+    expect(await pending).toBeNull();
+    expect(apiPost).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(['identity', 'edition'] as const)('stops later chunks on %s loss without repairing another principal', async loss => {
+    const paths = ['/a.jpg', ...Array.from({ length: 999 }, (_, i) => `/p${i}.jpg`), '/tail.jpg'];
+    store.photos.set([makePhoto({ path: '/a.jpg', is_favorite: false }), makePhoto({ path: '/tail.jpg', is_favorite: false })]);
+    const response = new Subject<{ count: number }>();
+    apiPost.mockReturnValue(response);
+    const refresh = vi.spyOn(store as unknown as { refreshReviewResults(): Promise<void> }, 'refreshReviewResults').mockResolvedValue();
+    const pending = store.batchFavorite(paths);
+    expect(apiPost).toHaveBeenCalledTimes(1);
+    const auth = TestBed.inject(AuthService);
+    if (loss === 'identity') {
+      vi.spyOn(auth, 'identity').mockReturnValue('1|bob');
+      store.photos.set([makePhoto({ path: '/a.jpg', is_favorite: false })]);
+    } else vi.mocked(auth.isEdition).mockReturnValue(false);
+    response.next({ count: 1000 });
+    expect(await pending).toBeNull();
+    expect(apiPost).toHaveBeenCalledTimes(1);
+    if (loss === 'identity') {
+      expect(store.photos()[0].is_favorite).toBe(false);
+      expect(refresh).not.toHaveBeenCalled();
+    } else {
+      expect(store.photos().map(photo => photo.is_favorite)).toEqual([true, false]);
+      expect(refresh).toHaveBeenCalledOnce();
+    }
   });
 
   it('sends the filter and the exclusions under view scope, never a path list', async () => {
@@ -2871,7 +2934,7 @@ describe('GalleryStore optimistic mutations', () => {
         { provide: ApiService, useValue: { get: vi.fn(), post: apiPost } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity: () => '0|', isEdition: vi.fn(() => true) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
         { provide: MatSnackBar, useValue: { open: snackOpen } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
@@ -3411,7 +3474,7 @@ describe('GalleryStore restoreSnapshot', () => {
         { provide: ApiService, useValue: { get: vi.fn(), post: apiPost } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity: () => '0|', isEdition: vi.fn(() => false) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
         { provide: MatSnackBar, useValue: { open: snackOpen } },
         { provide: I18nService, useValue: { t: (k: string) => k } },
@@ -3587,7 +3650,7 @@ describe('GalleryStore smart-album auto-save', () => {
         { provide: ApiService, useValue: { get: vi.fn(() => of({})), post: vi.fn(() => of({})) } },
         { provide: Router, useValue: { navigate: vi.fn(), events: NEVER } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: vi.fn(() => true) } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity: () => '0|', isEdition: vi.fn(() => true) } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: albumUpdate } },
         { provide: MatSnackBar, useValue: { open: snackOpen } },
         { provide: I18nService, useValue: { t: (k: string) => k } },

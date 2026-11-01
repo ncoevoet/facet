@@ -57,7 +57,7 @@ describe('GalleryStore read cancellation with HttpClient', () => {
     outlet = { attachEvents: new Subject(), detachEvents: new Subject() };
     TestBed.configureTestingModule({ providers: [
       ApiService, provideHttpClient(withXhr()), provideHttpClientTesting(),
-      { provide: AuthService, useValue: { identity, isEdition: () => false } },
+      { provide: AuthService, useValue: { status: signal({ user_id: 'alice', edition_authenticated: true }), identity, isEdition: vi.fn(() => false) } },
       { provide: Router, useValue: { url: '/', events, navigate: vi.fn(), currentNavigation: () => null } },
       { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {}, paramMap: { get: () => null } } } },
       { provide: RouterOutlet, useValue: outlet },
@@ -421,6 +421,7 @@ describe('GalleryStore read cancellation with HttpClient', () => {
   });
 
   it('reloads every loaded page when a grid Keep repair is interrupted before ArrowRight pages past the end', async () => {
+    vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
     store.filters.update(f => ({ ...f, review_status: 'undecided' }));
     const initial = store.loadPhotos();
     request('/photos').flush({ ...EMPTY_PAGE, photos: [makePhoto({ path: '/a.jpg' })], total: 300, has_more: true });
@@ -713,6 +714,7 @@ describe('GalleryStore read cancellation with HttpClient', () => {
   });
 
   it('repairs confirmed Keep membership while parked without rewriting the photo URL', async () => {
+    vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
     store.filters.update(f => ({ ...f, review_status: 'undecided' }));
     const initial = store.loadPhotos();
     request('/photos').flush({ ...EMPTY_PAGE, total: 1, photos: [makePhoto({ path: '/a.jpg' })] });
@@ -756,6 +758,7 @@ describe('GalleryStore read cancellation with HttpClient', () => {
   });
 
   it('retains Undo for a confirmed Keep that removes a photo during the parked refresh', async () => {
+    vi.mocked(TestBed.inject(AuthService).isEdition).mockReturnValue(true);
     store.filters.update(f => ({ ...f, review_status: 'undecided' }));
     const initial = store.loadPhotos();
     request('/photos').flush({ ...EMPTY_PAGE, total: 1, photos: [makePhoto({ path: '/a.jpg' })] });

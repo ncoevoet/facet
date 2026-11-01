@@ -1130,6 +1130,7 @@
     "semantic_search_placeholder": "sunset at the beach...",
     "clear_search": "Clear search",
     "clear_semantic_search": "Clear semantic search",
+    "photo_count_one": "{count} photo",
     "photo_count": "{count} photos",
     "no_photos": "No photos found",
     "load_error": {
@@ -1229,7 +1230,15 @@
       "download_confirm_title": "Download {count} photos?",
       "download_confirm_message": "Each photo is downloaded as a separate file. {count} of them will take a while and may overwhelm the browser.",
       "mark_bracket": "Mark as one bracket",
-      "marked_bracket": "{count} photos marked as one bracket"
+      "marked_bracket": "{count} photos marked as one bracket",
+      "targets": {
+        "title": "Targets",
+        "explicit": "Commands affect the explicitly selected photos. Selecting one folded tile does not select its other members.",
+        "view": "Commands affect matching photos, including folded stack members, minus your exclusions. Matching membership is evaluated when the command runs.",
+        "loaded": "Loaded group context: {shown} / {total}. Offscreen selections are not summarized here.",
+        "manual": "Manual stack",
+        "stack_count": "Matching: {matching} · Permitted: {total}"
+      }
     },
     "keep_top": {
       "label": "Keep top %",
@@ -1483,7 +1492,38 @@
       "remove_pane": "Remove {name} from comparison only",
       "restore": "Restore removed photos",
       "queue": "Candidates (excluding reference): {count}",
-      "queue_label": "Comparison photos"
+      "queue_label": "Comparison photos",
+      "rendition": {
+        "thumbnail": "Stored thumbnail",
+        "preview": "Preview",
+        "source": "Source image",
+        "loading": "Loading…",
+        "ready": "Ready",
+        "failed": "Unavailable",
+        "fit": "Fit image",
+        "zoom_in": "Zoom in",
+        "zoom_out": "Zoom out",
+        "scale_help": "Magnification relative to Fit, not source pixels. Fit restores the whole frame; linked Fit resets all panes.",
+        "limit": "Preview requests can fall back to stored thumbnails. Source images may be converted for browser display; this is not a RAW editor or a sensor-clipping assessment.",
+        "fit_short": "Fit",
+        "sources": "Image sources and magnification",
+        "fallback": "Preview unavailable"
+      },
+      "inspection": {
+        "title": "Inspect",
+        "magnification": "Loupe",
+        "shared_person": "Frame saved person in visible panes…",
+        "partial": "Some stored detection data could not be loaded.",
+        "help": "Framing switches to Independent. Check crops before linking. Saved assignments can be wrong or outdated. Loupe enlarges displayed pixels; zoom in to request the source image.",
+        "no_correspondence": "No unique saved person with usable boxes in every visible pane. Use manual framing; Link shares movement, not identity.",
+        "suggested_face": "Suggested face",
+        "suggested_subject": "Suggested subject",
+        "no_crop": "Crop unavailable",
+        "choose_face": "Choose face…",
+        "manual_fallback": "This crop could not be framed reliably. Wait for the image or use manual zoom and pan.",
+        "review_link": "Independent framing applied. Check alignment, then Link. Fit restores the whole frame.",
+        "keyboard": "Pane keys: +/− zoom, arrows pan, Shift moves farther, F/Home fits. Z toggles the loupe at Fit. On touch, use zoom buttons and drag. Escape closes comparison."
+      }
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",
@@ -2813,9 +2853,46 @@
       "top": "Top {pct}% of the library",
       "range": "Library range {min}–{max}",
       "top_in_range": "Top {pct}% of the library · library range {min}–{max}"
+    },
+    "assessment": {
+      "title": "AI assessment",
+      "score": "AI score",
+      "measurements": "Measurements {available}/{total}",
+      "explanation": "AI measurements support inspection. Your stars and Keep/Reject decisions are separate.",
+      "unavailable": "Unavailable",
+      "unavailable_help": "Unavailable means no usable measurement was returned. It is not a zero or a low score; the reason is not supplied here.",
+      "group_pick": "Suggested in this group",
+      "group_pick_help": "The group suggestion ranks these alternatives. It is not your rating and does not automatically mean Keep."
+    },
+    "rendition": {
+      "edited": "Developed preview",
+      "pending": "Requested rendition loading…",
+      "attempt_failed": "Requested rendition unavailable",
+      "note": "Source image means the display image delivered by the server, not an editable RAW render. Dimensions describe decoded pixels. Zoom is relative to Fit, not 100% sensor pixels. Stored histogram measurements describe the analyzed render; thumbnail estimates and clipping markers do not prove RAW sensor clipping.",
+      "base_render": "Base display render",
+      "edited_failed": "Developed preview unavailable",
+      "source_failed": "Source image unavailable"
     }
   },
   "manual_tags": {
+    "batch": {
+      "target": "Target at opening · photos: {count}",
+      "ownership": "Manual tags are library metadata shared across accounts. AI tags stay unchanged.",
+      "view_scope": "Captured filters, exclusions: {count}. Matches are resolved at Apply time and may differ from the opening count.",
+      "explicit_scope": "Only the captured photo list changes. Folded group members and companion files are not included.",
+      "more": "More items: {count}",
+      "observed": "Tag presence in loaded selected photos: {loaded}/{count}",
+      "complete": "All target photos are represented in this loaded snapshot; ratios show shared and mixed values.",
+      "sample": "Only loaded photos are represented. Other selected photos are unknown.",
+      "preview": "Change preview",
+      "add_preview": "Add “{tag}” to this target. Existing tags are kept.",
+      "remove_preview": "Remove manual tag “{tag}” from this target. Other tags are kept.",
+      "progress": "Confirmed batches: {done}/{total} · confirmed changes: {count}",
+      "uncertain": "A response was lost or failed. The server may already have applied that batch. Retry repeats only remaining batches with the same tag and operation.",
+      "edit": "Edit change",
+      "saving": "Applying…",
+      "retry": "Retry remaining"
+    },
     "title": "Edit tags",
     "tag_label": "Tag",
     "hint": "Manual tags stay with the photo through rescans and are written as keywords on export.",
@@ -3084,6 +3161,11 @@
     "clipping": {
       "shadow": "Shadow clipping: {channels}",
       "highlight": "Highlight clipping: {channels}"
+    },
+    "provenance": {
+      "stored": "Stored render histogram",
+      "thumbnail": "Thumbnail estimate",
+      "note": "This curve describes a rendered image, not RAW sensor values. Clipping markers use stored measurements when available; thumbnail sampling cannot establish sensor clipping."
     }
   },
   "manual_faces": {

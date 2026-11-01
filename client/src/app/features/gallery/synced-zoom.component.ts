@@ -1,10 +1,18 @@
 import { ChangeDetectionStrategy, Component, afterRenderEffect, DestroyRef, ElementRef, computed, effect, inject, input, output, signal, untracked, viewChild } from '@angular/core';
 import { LoupeDirective } from '../../shared/directives/loupe.directive';
+import { normalizedInspectionBox } from './comparison-inspection.util';
 
 export interface ZoomState {
   scale: number;
   tx: number;
   ty: number;
+}
+
+export interface DisplayedRendition {
+  kind: 'thumbnail' | 'preview' | 'source';
+  phase: 'loading' | 'ready' | 'failed';
+  width?: number;
+  height?: number;
 }
 
 export const FIT_ZOOM: ZoomState = { scale: 1, tx: 0, ty: 0 };
@@ -70,7 +78,12 @@ export class LoadedSources {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [LoupeDirective],
   host: {
-    class: 'block relative overflow-hidden bg-black',
+    class: 'block relative overflow-hidden bg-black focus-visible:outline-2 focus-visible:outline-inset focus-visible:outline-white',
+    '[class.touch-none]': 'keyboardInspection()',
+    '[attr.tabindex]': 'keyboardInspection() ? 0 : null',
+    role: 'group',
+    '[attr.aria-label]': 'alt()',
+    '(keydown)': 'onKeydown($event)',
     '(wheel)': 'onWheel($event)',
     '(pointerdown)': 'onPointerDown($event)',
     '(pointermove)': 'onPointerMove($event)',
@@ -98,6 +111,8 @@ export class SyncedZoomComponent {
    *  in past fit; null keeps the frame's own centre. */
   readonly focusPoint = input<[number, number] | null>(null);
   readonly zoomChange = output<ZoomState>();
+  readonly keyboardInspection = input(false);
+  readonly fitRequested = output<void>();
 
   /** Shown until `src` has been fetched by a preloader; null disables the
    *  progressive load entirely (no `Image` is ever constructed). */
@@ -114,6 +129,8 @@ export class SyncedZoomComponent {
   readonly sharpPending = output<string>();
   /** The render failed; the pane keeps its stored thumbnail. */
   readonly sharpFailed = output<string>();
+  /** Actual displayed image state, independent of the background preview preload. */
+  readonly renditionChange = output<DisplayedRendition>();
 
   /** Hover loupe over this pane. `loupeSrc` defaults to the pane's own
    *  effective source (so a caller need not track full-res separately);
@@ -147,6 +164,9 @@ export class SyncedZoomComponent {
   /** The `src` whose preload has finished; the pane shows the placeholder until
    *  it equals the current `src`. */
   private readonly readySrc = signal<string | null>(null);
+  private readonly retryAttempt = signal(0);
+  private readonly retrySession = crypto.randomUUID();
+  private readonly requestedPreview = computed(() => this.retryUrl(this.src()));
   /** The frame whose own image last finished loading in this pane. */
   private readonly paintedKey = signal<string | null>(null);
 
@@ -157,7 +177,7 @@ export class SyncedZoomComponent {
 
   constructor() {
     effect(onCleanup => {
-      const src = this.src();
+      const src = this.requestedPreview();
       // Read for its dependency only: re-run the preload on a frame change even when src is unchanged.
       this.frameKey();
       if (!this.placeholderSrc()) return;
@@ -173,14 +193,14 @@ export class SyncedZoomComponent {
           let settled = false;
           // A cache hint skips the debounce, never the browser's load check.
           preloader.onload = () => {
-            if (!active || settled || this.src() !== src) return;
+            if (!active || settled || this.requestedPreview() !== src) return;
             settled = true;
             loaded?.add(src);
             this.readySrc.set(src);
             this.sharpLoaded.emit(src);
           };
           preloader.onerror = () => {
-            if (!active || settled || this.src() !== src) return;
+            if (!active || settled || this.requestedPreview() !== src) return;
             settled = true;
             this.sharpFailed.emit(src);
           };
@@ -200,6 +220,11 @@ export class SyncedZoomComponent {
         });
       });
     });
+    effect(() => {
+      this.effectiveSrc();
+      this.frameKey();
+      this.renditionChange.emit({ kind: this.displayedKind(), phase: 'loading' });
+    });
     // A step onto an image the browser already holds (memory cache) has it
     // complete as soon as the new `src` is applied, but its `load` event only
     // fires later, which would keep the pane `opacity-0` for a frame or two.
@@ -215,6 +240,7 @@ export class SyncedZoomComponent {
       untracked(() => {
         if (img.complete && img.naturalWidth > 0 && img.currentSrc === new URL(src, document.baseURI).href) {
           this.paintedKey.set(key);
+          this.renditionChange.emit({ kind: this.displayedKind(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
         }
       });
     });
@@ -243,15 +269,19 @@ export class SyncedZoomComponent {
     const img = this.frame()?.nativeElement;
     // A `load` for a URL the pane has already moved on from must not mark the
     // new frame painted.
-    if (img?.complete && img.currentSrc === new URL(this.effectiveSrc(), document.baseURI).href) {
+    if (img?.complete && img.naturalWidth > 0 && img.currentSrc === new URL(this.effectiveSrc(), document.baseURI).href) {
       this.paintedKey.set(this.frameKey());
+      this.renditionChange.emit({ kind: this.displayedKind(), phase: 'ready', width: img.naturalWidth, height: img.naturalHeight });
     }
   }
 
   /** A broken image of the right frame is shown as such rather than leaving the
    *  pane hidden forever. */
   protected onFrameError(): void {
+    const img = this.frame()?.nativeElement;
+    if (!img || (img.currentSrc || img.src) !== new URL(this.effectiveSrc(), document.baseURI).href) return;
     this.paintedKey.set(this.frameKey());
+    this.renditionChange.emit({ kind: this.displayedKind(), phase: 'failed' });
   }
 
   /** The `object-contain` fit scale: how much `content` (natural image size)
@@ -302,10 +332,63 @@ export class SyncedZoomComponent {
     const full = this.fullResSrc();
     // Past the fit scale the render is too soft to judge sharpness; swap to
     // the full-res source for the actual pixel peek.
-    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return full;
+    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && full) return this.retryUrl(full);
     const placeholder = this.placeholderSrc();
-    return placeholder && this.readySrc() !== this.src() ? placeholder : this.src();
+    return placeholder && this.readySrc() !== this.requestedPreview() ? this.retryUrl(placeholder) : this.requestedPreview();
   });
+
+  private readonly displayedKind = computed<DisplayedRendition['kind']>(() => {
+    if (this.zoom().scale > SyncedZoomComponent.MIN_SCALE && this.fullResSrc()) return 'source';
+    return this.placeholderSrc() && this.readySrc() !== this.requestedPreview() ? 'thumbnail' : 'preview';
+  });
+
+  private retryUrl(src: string): string {
+    const attempt = this.retryAttempt();
+    if (!attempt) return src;
+    const url = new URL(src, document.baseURI);
+    url.searchParams.set('facet_retry', `${this.retrySession}-${attempt}`);
+    url.searchParams.set('ngsw-bypass', '1');
+    return url.href;
+  }
+
+  /** Repeat this pane's reads only; framing and the selected photo stay intact. */
+  retry(): void { this.retryAttempt.update(attempt => attempt + 1); }
+
+  /** Compute every pane's proposed crop before the parent commits any of them. */
+  zoomForRegion(value: unknown, expectedAspect?: number): ZoomState | null {
+    const box = normalizedInspectionBox(value);
+    if (!box) return null;
+    this.measurePane();
+    const { w, h } = this.paneSize();
+    const { w: iw, h: ih } = this.naturalSize();
+    if (!w || !h || !iw || !ih || expectedAspect !== undefined && (!Number.isFinite(expectedAspect) || expectedAspect <= 0 || Math.abs(iw / ih / expectedAspect - 1) > 0.03)) return null;
+    const fit = this.containFitScale(w, h, iw, ih);
+    const [x1, y1, x2, y2] = box;
+    const scale = this.clampScale(Math.min(w / ((x2 - x1) * iw * fit * 1.5), h / ((y2 - y1) * ih * fit * 1.5)));
+    if (scale === SyncedZoomComponent.MIN_SCALE) return { ...FIT_ZOOM };
+    return { scale, tx: -scale * ((x1 + x2) / 2 - 0.5) * iw * fit, ty: -scale * ((y1 + y2) / 2 - 0.5) * ih * fit };
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    if (!this.keyboardInspection() || event.ctrlKey || event.metaKey || event.altKey || event.isComposing) return;
+    if (event.key === 'Home' || event.key.toLowerCase() === 'f') {
+      event.preventDefault(); event.stopPropagation(); this.fitRequested.emit(); return;
+    }
+    const z = this.zoom();
+    let next: ZoomState | null = null;
+    const step = event.shiftKey ? 64 : 24;
+    if (event.key === '+' || event.key === '=') next = { ...z, scale: this.clampScale(z.scale * 1.5) };
+    else if (event.key === '-') next = { ...z, scale: this.clampScale(z.scale / 1.5) };
+    else if (z.scale > 1) {
+      const delta: Record<string, [number, number]> = { ArrowLeft: [step, 0], ArrowRight: [-step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] };
+      const pan = delta[event.key];
+      if (pan) next = { scale: z.scale, tx: z.tx + pan[0], ty: z.ty + pan[1] };
+    }
+    if (!next) return;
+    event.preventDefault(); event.stopPropagation();
+    this.markManuallyFramed();
+    this.zoomChange.emit(next);
+  }
 
   private clampScale(scale: number): number {
     return Math.max(SyncedZoomComponent.MIN_SCALE, Math.min(SyncedZoomComponent.MAX_SCALE, scale));
@@ -353,7 +436,7 @@ export class SyncedZoomComponent {
     const z = this.zoom();
     const scale = this.clampScale(z.scale * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
     if (scale === SyncedZoomComponent.MIN_SCALE) {
-      this.zoomChange.emit({ ...FIT_ZOOM });
+      this.zoomChange.emit(this.keyboardInspection() ? { ...z, scale } : { ...FIT_ZOOM });
       return;
     }
     // Only the fit -> zoomed step re-frames. A step taken while already zoomed
@@ -397,6 +480,7 @@ export class SyncedZoomComponent {
   }
 
   protected onDoubleClick(): void {
-    this.toggleZoom();
+    if (this.keyboardInspection() && this.zoom().scale > 1) this.fitRequested.emit();
+    else this.toggleZoom();
   }
 }

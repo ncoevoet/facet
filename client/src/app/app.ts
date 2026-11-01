@@ -230,11 +230,21 @@ export class App implements OnInit {
     { id: 'pinned', icon: 'push_pin', label: I18N.nav.sidebar_pinned },
   ] as const;
 
-  protected setNavigationMode(mode: 'hidden' | 'compact' | 'pinned'): void {
+  protected setNavigationMode(mode: 'hidden' | 'compact' | 'pinned', event?: MouseEvent): void {
+    const focused = document.activeElement;
     this.navigationVisible.set(mode !== 'hidden');
     this.navigationPinned.set(mode === 'pinned');
     this.navigationHover.set(false);
     this.navigationFocused.set(false);
+    // Restoring pointer focus would keep compact navigation expanded after the
+    // mouse leaves. Keyboard/assistive activation needs continuity across owners.
+    if (!event || event.detail !== 0) return;
+    requestAnimationFrame(() => {
+      if (this.destroyRef.destroyed) return;
+      const current = document.activeElement;
+      if (current !== document.body && current !== focused && current?.isConnected) return;
+      document.querySelector<HTMLElement>('[data-toggle-navigation]')?.focus();
+    });
   }
 
   protected collapseNavigationPreview(): void {
