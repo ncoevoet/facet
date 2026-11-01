@@ -1151,7 +1151,7 @@ export class GalleryStore {
   }
 
   /** Load photos based on current filters (replaces list) */
-  async loadPhotos(acceptResult: () => boolean = () => true): Promise<void> {
+  async loadPhotos(acceptResult: () => boolean = () => true, { retainRows = false }: { retainRows?: boolean } = {}): Promise<void> {
     if (this.destroyRef.destroyed) return;
     this.syncReadOwner();
     this.listingReadsActive = true;
@@ -1177,7 +1177,7 @@ export class GalleryStore {
     const bookmarkVersion = reviewQueueClearVersion();
     this.loadedOnce = true;
     void this.loadReviewProgress();
-    this.photos.set([]);
+    if (!retainRows) this.photos.set([]);
     this.loadError.set(false);
     this.loadErrorKey.set(undefined);
     this.loading.set(true);
@@ -2058,17 +2058,35 @@ export class GalleryStore {
   }
 
   /** Set star rating for a photo (0 = clear). Optimistic with revert on error. */
-  async setRating(photoPath: string, rating: number): Promise<void> {
+  async setRating(photoPath: string, rating: number): Promise<boolean> {
+    if (this.toggleInFlight.has(photoPath)) return false;
+    this.toggleInFlight.add(photoPath);
     const isOrigin = this.captureReviewView();
+    const owner = this.auth.identity();
+    const token = this.auth.token;
+    const sameOwner = () => owner === this.auth.identity() && token === this.auth.token;
     const snap = this.snapshotFlags([photoPath]);
     this.patchPhoto(photoPath, { star_rating: rating || null });
     try {
-      await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: photoPath, rating }));
+      try {
+        await firstValueFrom(this.api.post('/photo/set_rating', { photo_path: photoPath, rating }));
+      } catch {
+        if (sameOwner()) {
+          if (isOrigin()) this.revertSnapshot(snap);
+          this.notifyActionFailed();
+        }
+        return false;
+      }
+      if (!sameOwner()) return false;
       this.journal.record('rating', [photoPath], rating);
-      if (isOrigin() && this.ratingShapesView()) await this.refreshReviewResults(true);
-    } catch {
-      if (isOrigin()) this.revertSnapshot(snap);
-      this.notifyActionFailed();
+      // A read repair is not a second write, and cannot roll back an accepted edit.
+      if (isOrigin() && this.ratingShapesView()) {
+        try { await this.refreshReviewResults(true); }
+        catch { if (sameOwner() && isOrigin()) this.loadError.set(true); }
+      }
+      return true;
+    } finally {
+      this.toggleInFlight.delete(photoPath);
     }
   }
 
@@ -2122,15 +2140,17 @@ export class GalleryStore {
   }
 
   /** Toggle rejected flag for a photo. Optimistic, reconciled with server truth. */
-  async toggleRejected(photoPath: string): Promise<void> {
+  async toggleRejected(photoPath: string): Promise<boolean> {
     const isOrigin = this.captureReviewView();
     const identity = this.auth.identity();
-    if (this.toggleInFlight.has(photoPath)) return;
+    const token = this.auth.token;
+    const sameOwner = () => identity === this.auth.identity() && token === this.auth.token;
+    if (this.toggleInFlight.has(photoPath)) return false;
     this.toggleInFlight.add(photoPath);
     try {
       const snap = this.snapshotFlags([photoPath]);
       const prev = snap.get(photoPath);
-      if (!prev) return;
+      if (!prev) return false;
       const next = !prev.is_rejected;
       this.patchPhoto(photoPath, {
         is_rejected: next,
@@ -2143,7 +2163,7 @@ export class GalleryStore {
           this.api.post<{ is_rejected: boolean; star_rating: number | null }>('/photo/toggle_rejected', { photo_path: photoPath }),
         );
         // The write landed: only another principal's view must not see it.
-        if (identity !== this.auth.identity()) return;
+        if (!sameOwner()) return false;
         this.patchPhoto(photoPath, {
           is_rejected: res.is_rejected,
           is_kept: res.is_rejected ? false : prev.is_kept,
@@ -2151,11 +2171,18 @@ export class GalleryStore {
           star_rating: res.star_rating === null ? prev.star_rating : res.star_rating,
         });
         this.journal.record('reject', [photoPath], res.is_rejected);
-        if (isOrigin()) await this.refreshReviewResults(this.filters().review_status === 'rejected');
+        if (isOrigin()) {
+          try { await this.refreshReviewResults(this.filters().review_status === 'rejected'); }
+          catch { if (sameOwner() && isOrigin()) this.loadError.set(true); }
+        }
         else void this.loadReviewProgress();
+        return true;
       } catch {
-        if (isOrigin()) this.revertSnapshot(snap);
-        this.notifyActionFailed();
+        if (sameOwner()) {
+          if (isOrigin()) this.revertSnapshot(snap);
+          this.notifyActionFailed();
+        }
+        return false;
       }
     } finally {
       this.toggleInFlight.delete(photoPath);
@@ -2313,12 +2340,13 @@ export class GalleryStore {
     rebuild ||= this.collapseStacks() && previous.some(photo => !!photo.stack_id
       && (photo.stack_count ?? 0) > 1 && !retainedPaths.has(photo.path));
     // A rebuild delegates its one count request to loadPhotos.
-    if (!rebuild || !f.review_status || this.pinnedPaths() !== null) void this.loadReviewProgress();
-    if (!f.review_status || this.pinnedPaths() !== null) return;
+    const ratingRebuild = rebuild && this.ratingShapesView();
+    if (!rebuild || (!f.review_status && !ratingRebuild) || this.pinnedPaths() !== null) void this.loadReviewProgress();
+    if ((!f.review_status && !ratingRebuild) || this.pinnedPaths() !== null) return;
     this.reviewRefreshOwed = false;
     if (rebuild) {
       const pages = Math.max(1, Math.ceil(previous.length / f.per_page));
-      const loading = this.loadPhotos(current);
+      const loading = this.loadPhotos(current, { retainRows: true });
       seq = this._loadSeq;
       await loading;
       if (!current()) return;

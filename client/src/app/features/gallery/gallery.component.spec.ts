@@ -1,3 +1,4 @@
+import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import type { Mock } from 'vitest';
 import { ComponentFixture, DeferBlockState, TestBed } from '@angular/core/testing';
 import { ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signal, WritableSignal } from '@angular/core';
@@ -596,16 +597,76 @@ describe('GalleryComponent', () => {
       (component as unknown as { onGridKeydown(e: KeyboardEvent): void }).onGridKeydown(ev);
     }
 
-    it('sets the star rating and advances on digit keys', () => {
+    it('does not advance before an unsuccessful rating settles', async () => {
+      mockStore.setRating.mockResolvedValue(false);
       fire(keyEvent('3'));
+      expect(activeIndex()).toBe(0);
+      await Promise.resolve();
+      expect(activeIndex()).toBe(0);
+    });
+
+    it('sets the star rating and advances on digit keys only after accepted opt-in', async () => {
+      TestBed.inject(GalleryReviewNavigationService).setEnabled(true);
+      mockStore.setRating.mockResolvedValue(true);
+      fire(keyEvent('3'));
+      expect(activeIndex()).toBe(0);
+      await Promise.resolve();
       expect(mockStore.setRating).toHaveBeenCalledWith('/a.jpg', 3);
       expect(activeIndex()).toBe(1);
     });
 
-    it('rejects and advances on X', () => {
+    it('rejects and advances on X only after accepted opt-in', async () => {
+      TestBed.inject(GalleryReviewNavigationService).setEnabled(true);
+      mockStore.toggleRejected.mockResolvedValue(true);
       fire(keyEvent('x'));
+      await Promise.resolve();
       expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
       expect(activeIndex()).toBe(1);
+    });
+
+    it('keeps the current photo after a successful rating by default', async () => {
+      mockStore.setRating.mockResolvedValue(true);
+      fire(keyEvent('4'));
+      await Promise.resolve();
+      expect(mockStore.setRating).toHaveBeenCalledWith('/a.jpg', 4);
+      expect(activeIndex()).toBe(0);
+    });
+
+    it.each(['cursor', 'policy', 'navigation', 'account'] as const)('does not steal focus after %s changes while saving', async ending => {
+      const preference = TestBed.inject(GalleryReviewNavigationService);
+      preference.setEnabled(true);
+      const navigation = new Subject<RouterEvent>();
+      if (ending === 'navigation') vi.spyOn(TestBed.inject(Router), 'events', 'get').mockReturnValue(navigation);
+      let accept!: (value: boolean) => void;
+      mockStore.setRating.mockReturnValue(new Promise<boolean>(resolve => { accept = resolve; }));
+      fire(keyEvent('4'));
+      fire(keyEvent('5'));
+      expect(mockStore.setRating).toHaveBeenCalledTimes(1);
+      if (ending === 'cursor') fire(keyEvent('End'));
+      if (ending === 'policy') { preference.setEnabled(false); preference.setEnabled(true); }
+      if (ending === 'navigation') navigation.next(new NavigationStart(99, '/photo/other'));
+      if (ending === 'account') (mockAuth['status'] as { set(value: unknown): void }).set({ user_id: 'other' });
+      accept(true);
+      await Promise.resolve();
+      expect(activeIndex()).toBe(ending === 'cursor' ? 2 : 0);
+    });
+
+    it('keeps the rated photo after a successful rebuild reorders the collection', async () => {
+      let accept!: (value: boolean) => void;
+      mockStore.setRating.mockReturnValue(new Promise<boolean>(resolve => { accept = resolve; }));
+      (component as unknown as { setCursor(index: number): void }).setCursor(0);
+      fire(keyEvent('4'));
+      mockStore.photos.set([{ path: '/b.jpg' }, { path: '/a.jpg' }, { path: '/c.jpg' }]);
+      TestBed.tick();
+      accept(true); await Promise.resolve();
+      expect(activeIndex()).toBe(1);
+      expect(mockStore.focusedPath()).toBe('/a.jpg');
+    });
+
+    it('ignores repeated review keys', () => {
+      const event = new KeyboardEvent('keydown', { key: '3', repeat: true });
+      fire(event);
+      expect(mockStore.setRating).not.toHaveBeenCalled();
     });
 
     it('toggles favorite WITHOUT advancing on F', () => {
@@ -638,9 +699,12 @@ describe('GalleryComponent', () => {
         localStorage.removeItem(KEYMAP_STORAGE_KEY);
       });
 
-      it('rejects with the user-mapped key instead of X', () => {
+      it('rejects with the user-mapped key instead of X', async () => {
+        TestBed.inject(GalleryReviewNavigationService).setEnabled(true);
+        mockStore.toggleRejected.mockResolvedValue(true);
         keymap().setKey('reject', 'r');
         fire(keyEvent('r'));
+        await Promise.resolve();
         expect(mockStore.toggleRejected).toHaveBeenCalledWith('/a.jpg');
         expect(activeIndex()).toBe(1);
       });

@@ -1588,6 +1588,10 @@
       "set_plan": "Attribuer {rating} étoiles personnelles aux {count} photos de la liste figée.",
       "boundary": "Aucun fichier n’est réécrit. Chaque lot est enregistré séparément. L’annulation immédiate se limite aux instantanés chargés et aux conflits connus localement ; l’historique vérifie les conflits côté serveur.",
       "whole_scope": "Cette liste capturée de toute la vue inclut les membres repliés correspondants après exclusions. Aucun autre membre ni fichier compagnon n’est ajouté. Les étiquettes, favoris et décisions Conserver/Rejeter restent inchangés."
+    },
+    "review_navigation": {
+      "advance": "Avancer après enregistrement",
+      "help": "Pour cette session : passer à la photo suivante après une note, un choix Conserver ou Rejeter au clavier enregistré. Les favoris restent affichés."
     }
   },
   "composition_patterns": {

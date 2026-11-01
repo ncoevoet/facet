@@ -3026,6 +3026,24 @@ describe('GalleryStore optimistic mutations', () => {
     expect(record.mock.calls).toEqual([[9, '0|']]);
   });
 
+  it('retains rows during a rating-dependent rebuild without a review predicate', async () => {
+    store.filters.set({ ...DEFAULT_FILTERS, sort: 'star_rating', sort_direction: 'ASC' });
+    const response = new Subject<PhotosResponse>();
+    const get = TestBed.inject(ApiService).get as Mock;
+    get.mockImplementation((url: string) => url === '/photos' ? response : of({}));
+    const pending = store.setRating('/a.jpg', 5);
+    await Promise.resolve();
+    expect(store.loading()).toBe(true);
+    expect(store.photos().map(p => p.path)).toEqual(['/a.jpg', '/b.jpg']);
+    expect(store.photos()[0].star_rating).toBe(5);
+    expect(get).toHaveBeenCalledWith('/photos', expect.objectContaining({ sort: 'star_rating' }));
+    response.next(makePhotosResponse({ photos: [makePhoto({ path: '/b.jpg' }), makePhoto({ path: '/a.jpg', star_rating: 5 })] }));
+    response.complete();
+    expect(await pending).toBe(true);
+    expect(store.loading()).toBe(false);
+    expect(store.photos().map(p => p.path)).toEqual(['/b.jpg', '/a.jpg']);
+  });
+
   it('rebuilds a review queue when a single rating changes its sort order', async () => {
     const all = Array.from({ length: 4 }, (_, i) => makePhoto({ path: `/p${i}.jpg`, star_rating: i + 1 }));
     store.photos.set(all);
@@ -3479,9 +3497,45 @@ describe('GalleryStore optimistic mutations', () => {
     expect(store.photos()[0].star_rating).toBe(3);
   });
 
+  it('reports accepted rating and reject writes, but refuses overlapping edits', async () => {
+    const response = new Subject<unknown>();
+    apiPost.mockReturnValue(response);
+    const first = store.setRating('/a.jpg', 5);
+    expect(await store.toggleRejected('/a.jpg')).toBe(false);
+    expect(apiPost).toHaveBeenCalledTimes(1);
+    response.next({}); response.complete();
+    expect(await first).toBe(true);
+    apiPost.mockReturnValue(of({ is_rejected: true, star_rating: 0 }));
+    expect(await store.toggleRejected('/a.jpg')).toBe(true);
+  });
+
+  it('does not attribute a late single rating to a different account', async () => {
+    const auth = TestBed.inject(AuthService);
+    const identity = signal(auth.identity());
+    vi.spyOn(auth, 'identity').mockImplementation(identity);
+    const response = new Subject<unknown>();
+    apiPost.mockReturnValue(response);
+    const pending = store.setRating('/a.jpg', 5);
+    identity.set('other');
+    response.next({}); response.complete();
+    expect(await pending).toBe(false);
+    expect(TestBed.inject(UserActivityJournal).since().items).toEqual([]);
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+
+  it.each(['rating', 'reject'] as const)('keeps an accepted %s when its read repair fails', async action => {
+    vi.spyOn(store, 'refreshReviewResults').mockRejectedValue(new Error('read failed'));
+    if (action === 'rating') store.filters.update(f => ({ ...f, sort: 'star_rating' }));
+    apiPost.mockReturnValue(of({ is_rejected: true, star_rating: 0 }));
+    expect(await (action === 'rating' ? store.setRating('/a.jpg', 5) : store.toggleRejected('/a.jpg'))).toBe(true);
+    expect(action === 'rating' ? store.photos()[0].star_rating : store.photos()[0].is_rejected).toBe(action === 'rating' ? 5 : true);
+    expect(store.loadError()).toBe(true);
+    expect(snackOpen).not.toHaveBeenCalled();
+  });
+
   it('setRating reverts on error', async () => {
     apiPost.mockReturnValue(throwError(() => new Error('boom')));
-    await store.setRating('/a.jpg', 5);
+    expect(await store.setRating('/a.jpg', 5)).toBe(false);
     expect(store.photos()[0].star_rating).toBe(3);
   });
 

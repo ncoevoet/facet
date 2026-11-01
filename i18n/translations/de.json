@@ -1588,6 +1588,10 @@
       "set_plan": "{rating} persönliche Sterne für {count} erfasste Fotos setzen.",
       "boundary": "Dateien werden nicht neu geschrieben. Jeder Stapel wird separat gespeichert. Das kurz verfügbare Rückgängig berücksichtigt nur geladene Momentaufnahmen und lokal bekannte Konflikte; der Verlauf verwendet serverseitige Konfliktprüfungen.",
       "whole_scope": "Diese erfasste Liste der gesamten Ansicht enthält nach Abzug der Ausschlüsse auch passende eingeklappte Mitglieder. Weitere Mitglieder oder Begleitdateien werden nicht hinzugefügt. Tags, Favoriten und Behalten/Ablehnen bleiben unverändert."
+    },
+    "review_navigation": {
+      "advance": "Nach dem Speichern weiter",
+      "help": "Für diese Sitzung: Nach dem Speichern einer Tastaturbewertung, Behalten- oder Ablehnen-Entscheidung zum nächsten Foto wechseln. Favoriten bleiben geöffnet."
     }
   },
   "composition_patterns": {

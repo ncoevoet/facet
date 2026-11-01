@@ -57,10 +57,10 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
            <summary class="cursor-pointer font-medium">{{ I18N.nav.help | translate }}</summary>
            <p class="m-0 py-2 text-xs">{{ I18N.gallery.criteria.recent_help | translate }}</p>
          </details>
-         @for (visit of history.visits(); track visit.url) {
-           <button type="button" data-recent-visit class="block min-h-11 w-full rounded px-2 py-2 text-left hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" (click)="restoreVisit(visit)">
-             <span class="block font-medium">{{ visit.albumId ? (I18N.gallery.criteria.recent_album | translate:{ id: visit.albumId }) : (I18N.gallery.all_photos | translate) }}</span>
-             <span class="block break-words text-xs text-[var(--mat-sys-on-surface-variant)]">{{ visitDescription(visit) }}</span>
+         @for (row of recentVisits(); track row.visit.url) {
+           <button type="button" data-recent-visit class="block min-h-11 w-full rounded px-2 py-2 text-left hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" (click)="restoreVisit(row.visit)">
+             <span class="block font-medium">{{ row.visit.albumId ? (I18N.gallery.criteria.recent_album | translate:{ id: row.visit.albumId }) : (I18N.gallery.all_photos | translate) }}</span>
+             <span class="block break-words text-xs text-[var(--mat-sys-on-surface-variant)]">{{ row.description }}</span>
            </button>
          }
          <button type="button" class="min-h-11 px-2 font-medium" (click)="clearVisitHistory()">{{ I18N.gallery.criteria.clear_history | translate }}</button>
@@ -235,7 +235,11 @@ export class GalleryCriteriaComponent {
    this.quickSummary()?.nativeElement.focus();
    this.history.clear();
  }
- protected visitDescription(visit:GalleryVisit):string {
+ protected readonly recentVisits=computed(()=>{
+   this.i18n.translations();
+   return this.history.visits().map(visit=>({visit,description:this.describeVisit(visit)}));
+ });
+ private describeVisit(visit:GalleryVisit):string {
    const labels:Record<string,string>={search:I18N.gallery.search_chip,semanticQuery:I18N.gallery.semantic_search_chip,tag:I18N.gallery.tag,camera:I18N.gallery.camera,lens:I18N.gallery.lens};
    const leading=visit.criteria.find(([key])=>key in labels);
    const count=this.i18n.t(I18N.gallery.criteria.recent_filter_count,{count:new Set(visit.criteria.filter(([key])=>key!=='album_id').map(([key])=>filterUnit(key))).size});

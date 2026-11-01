@@ -1,3 +1,5 @@
+import { AuthService } from '../../core/services/auth.service';
+import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { By } from '@angular/platform-browser';
@@ -12,8 +14,9 @@ import { I18N } from '../../core/i18n/keys';
 afterEach(() => TestBed.resetTestingModule());
 
 describe('GalleryViewControlsComponent', () => {
-    function render(config: { features?: { show_my_taste?: boolean }; sort_options_grouped?: ViewerConfig['sort_options_grouped'] } | null = null) {
+    function render(config: { features?: { show_my_taste?: boolean; show_rating_controls?: boolean }; sort_options_grouped?: ViewerConfig['sort_options_grouped'] } | null = null) {
     const navigation = new Subject<Event>();
+    const edition = signal(false);
     const store = {
       filters: signal({ ...DEFAULT_FILTERS }), config: signal(config),
       pinnedPaths: signal<string[] | null>(null), filterDrawerOpen: signal(true), activeFilterCount: signal(0),
@@ -23,6 +26,7 @@ describe('GalleryViewControlsComponent', () => {
     TestBed.configureTestingModule({
       imports: [GalleryViewControlsComponent],
       providers: [
+        { provide: AuthService, useValue: { isEdition: edition, status: signal({ user_id: 'editor' }), identity: () => 'editor', token: 'fixture' } },
         { provide: Router, useValue: { events: navigation } },
         { provide: GalleryStore, useValue: store },
         { provide: I18nService, useValue: { t: vi.fn((k: string, vars?: Record<string, string | number>) => vars ? `${k}(${Object.values(vars).join(',')})` : k), translations: signal({}) } },
@@ -30,7 +34,7 @@ describe('GalleryViewControlsComponent', () => {
     });
     const fixture = TestBed.createComponent(GalleryViewControlsComponent);
     fixture.detectChanges();
-    return { fixture, root: fixture.nativeElement as HTMLElement, store, navigation };
+    return { fixture, root: fixture.nativeElement as HTMLElement, store, navigation, edition };
   }
 
     const sortButtons = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="menu"]'))
@@ -45,6 +49,21 @@ describe('GalleryViewControlsComponent', () => {
       await fixture.whenStable();
       fixture.detectChanges();
     };
+
+    it('owns the session-only review navigation choice without modifying the collection or presets', () => {
+      const { fixture, root, store, edition } = render({ features: { show_rating_controls: true } });
+      expect(root.querySelector('[data-review-advance]')).toBeNull();
+      edition.set(true); fixture.detectChanges();
+      const checkbox = root.querySelector<HTMLInputElement>('[data-review-advance]')!;
+      expect(checkbox.checked).toBe(false);
+      checkbox.click(); fixture.detectChanges();
+      expect(TestBed.inject(GalleryReviewNavigationService).enabled()).toBe(true);
+      expect(store.updateFilter).not.toHaveBeenCalled();
+      expect(store.applyDisplayPreset).not.toHaveBeenCalled();
+      fixture.componentInstance.setActive(false);
+      checkbox.click();
+      expect(TestBed.inject(GalleryReviewNavigationService).enabled()).toBe(true);
+    });
 
     it('offers display-only task presets in pinned lists and blocks captured commands while parked', async () => {
       const { fixture, root, store } = render();

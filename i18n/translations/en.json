@@ -1588,6 +1588,10 @@
       "set_plan": "Set {rating} personal stars on {count} captured photos.",
       "boundary": "No files are rewritten. Batches commit separately. Short Undo is limited to loaded snapshots and locally known conflicts; History uses server-side conflict checks.",
       "whole_scope": "This captured whole-view list includes matching folded members after exclusions. No further members or companion files are added. Tags, favorites and Keep/Reject stay unchanged."
+    },
+    "review_navigation": {
+      "advance": "Advance after saving",
+      "help": "For this session: move to the next photo after a keyboard rating, Keep or Reject is saved. Favorites stay put."
     }
   },
   "composition_patterns": {

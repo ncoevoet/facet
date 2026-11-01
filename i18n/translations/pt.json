@@ -1588,6 +1588,10 @@
       "set_plan": "Definir {rating} estrelas pessoais nas {count} fotos capturadas.",
       "boundary": "Nenhum ficheiro é reescrito. Os lotes são confirmados separadamente. A ação breve Desfazer limita-se às capturas carregadas e aos conflitos conhecidos localmente; o Histórico verifica os conflitos no servidor.",
       "whole_scope": "Esta lista capturada de toda a vista inclui os membros recolhidos correspondentes após as exclusões. Não são adicionados outros membros nem ficheiros associados. As etiquetas, os favoritos e as decisões de Manter/Rejeitar não mudam."
+    },
+    "review_navigation": {
+      "advance": "Avançar após guardar",
+      "help": "Nesta sessão: avançar para a fotografia seguinte após guardar uma classificação, Manter ou Rejeitar pelo teclado. Os favoritos não avançam."
     }
   },
   "composition_patterns": {

@@ -15,6 +15,8 @@ import { useDesktopSignal, DETAILS_RAIL_MIN_WIDTH_PX } from '../../shared/utils/
 import { GalleryFilters, GalleryStore } from './gallery.store';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { GalleryDisplayPreset, galleryPresentation } from './gallery-presentation.util';
+import { AuthService } from '../../core/services/auth.service';
+import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 
 const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 
@@ -25,6 +27,13 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
   imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
   host: { class: 'flex flex-wrap items-center gap-1' },
   template: `
+    @if (auth.isEdition() && store.config()?.features?.show_rating_controls) {
+      <label class="inline-flex min-h-11 cursor-pointer items-center gap-2 px-2 text-xs" [matTooltip]="I18N.gallery.review_navigation.help | translate">
+        <input type="checkbox" data-review-advance [checked]="reviewNavigation.enabled()"
+               (change)="setReviewAdvance($event)" />
+        {{ I18N.gallery.review_navigation.advance | translate }}
+      </label>
+    }
     <button mat-button data-display-presets class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="displayPresetMenu"
             [attr.aria-label]="I18N.gallery.presentation.label | translate"
             [matTooltip]="I18N.gallery.presentation.help | translate">
@@ -231,6 +240,11 @@ export class GalleryViewControlsComponent {
 
   protected applyPreset(preset: GalleryDisplayPreset | 'default'): void {
     if (this.canAct()) void this.store.applyDisplayPreset(preset, this.canDockDetails());
+  }
+  protected readonly auth = inject(AuthService);
+  protected readonly reviewNavigation = inject(GalleryReviewNavigationService);
+  protected setReviewAdvance(event: Event): void {
+    if (this.canAct()) this.reviewNavigation.setEnabled((event.target as HTMLInputElement).checked);
   }
   constructor() {
     afterNextRender(() => this.railCapable.setup());

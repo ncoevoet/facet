@@ -1603,6 +1603,10 @@ export const I18N = {
       boundary: "gallery.rating_preview.boundary",
       whole_scope: "gallery.rating_preview.whole_scope",
     },
+    review_navigation: {
+      advance: "gallery.review_navigation.advance",
+      help: "gallery.review_navigation.help",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",

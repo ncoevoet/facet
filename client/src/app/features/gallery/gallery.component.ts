@@ -1,3 +1,4 @@
+import { GalleryReviewNavigationService } from './gallery-review-navigation.service';
 import { GalleryViewControlsComponent } from './gallery-view-controls.component';
 import { GalleryCriteriaComponent } from './gallery-criteria.component';
 import { observeManualTags } from './manual-tag-observation.util';
@@ -1038,6 +1039,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly changeDetector = inject(ChangeDetectorRef);
   private readonly ngZone = inject(NgZone);
   private parked = false;
+  private readonly reviewNavigation = inject(GalleryReviewNavigationService);
+  private keyboardDecisionPending = false;
+  private cursorRevision = 0;
   private resumeNavigation = 0;
   // Detaching loses the DOM scroll position and focus.
   private returnTo: ReturnTarget | null = null;
@@ -3251,6 +3255,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Move the cursor onto `index`, keeping the photo it means in step with it.
    *  -1 -- or any index past the end -- clears both. */
   private setCursor(index: number): void {
+    this.cursorRevision++;
     const path = this.store.photos()[index]?.path ?? null;
     this.activeIndex.set(index);
     this.activePath.set(path);
@@ -3441,45 +3446,59 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   /** Rate-and-advance shortcuts on the focused card: 1-5 set stars, the mapped
-   *  reject key (or 0) rejects (both auto-advance), the mapped favourite key
+   *  reject key (or 0) rejects (optional success-driven advance), the mapped favourite key
    *  toggles favorite (stays put — a tag-like toggle), the mapped keep key
    *  keeps (review queue). Edition-only and gated on the rating-controls
    *  feature flag, mirroring the card's own template guards. */
   private handleRatingKey(event: KeyboardEvent, photos: Photo[], index: number): void {
-    // Don't hijack modified combos (Ctrl/Cmd+1..5 switch browser tabs).
-    if (event.ctrlKey || event.metaKey || event.altKey) return;
+    if (isPageShortcutBlocked(event) || isImeOrRepeat(event) || this.parked
+      || this.router.currentNavigation?.() || this.store.slideshowActive()) return;
     if (!this.auth.isEdition() || !this.store.config()?.features?.show_rating_controls) return;
     const photo = photos[index];
     if (!photo) return;
-    let advance = false;
+    let write: (() => Promise<unknown>) | null = null;
     if (event.key >= '1' && event.key <= '5') {
-      this.store.setRating(photo.path, Number(event.key));
-      advance = true;
+      write = () => this.store.setRating(photo.path, Number(event.key));
     } else if (this.keymap.matches(event, 'keep')) {
-      event.preventDefault();
-      void this.reviewSingle(photo.path, 'kept').then(result => {
-        if (result) this.focusAfterDecision(photos, index);
-      });
-      return;
+      write = () => this.reviewSingle(photo.path, 'kept');
     } else if (event.key === '0' || this.keymap.matches(event, 'reject')) {
-      if (this.store.filters().review_status) {
-        void this.store.toggleRejected(photo.path).then(() => this.focusAfterDecision(photos, index));
-      } else {
-        this.store.toggleRejected(photo.path);
-        advance = true;
-      }
+      write = () => this.store.toggleRejected(photo.path);
     } else if (this.keymap.matches(event, 'favourite')) {
-      this.store.toggleFavorite(photo.path);
-    } else {
+      event.preventDefault();
+      if (!this.keyboardDecisionPending) void this.store.toggleFavorite(photo.path);
       return;
-    }
-
+    } else return;
     event.preventDefault();
-    if (advance) {
-      const next = Math.min(photos.length - 1, index + 1);
-      this.setCursor(next);
-      this.focusCard(next);
-    }
+    if (this.keyboardDecisionPending || this.store.loading()) return;
+    const token = this.auth.token;
+    const query = () => JSON.stringify({ ...this.store.filters(), page: 1 });
+    const filters = query();
+    const cursor = this.cursorRevision;
+    const focused = this.document.activeElement;
+    const advance = this.reviewNavigation.capture();
+    const guard = this.staleness.create(this.destroyRef, { track: 'status', valid: () =>
+      !this.parked && token === this.auth.token && filters === query()
+      && cursor === this.cursorRevision && (focused === this.document.activeElement
+        || (focused instanceof HTMLElement && !focused.isConnected && this.document.activeElement === this.document.body)) });
+    this.keyboardDecisionPending = true;
+    void this.liveAnnouncer.announce(this.i18n.t(I18N.ui.buttons.saving));
+    void (async () => {
+      try {
+        const accepted = await write();
+        if (!accepted || !guard.current() || this.store.loading() || this.store.loadError()) return;
+        if (advance()) this.focusAfterDecision(photos, index);
+        else {
+          // Keep the rated photo, even after a sort rebuild moved its DOM node.
+          // If filtering removed it, repair at its former position without an extra skip.
+          const at = this.store.photos().findIndex(item => item.path === photo.path);
+          const target = at >= 0 ? at : Math.min(index, this.store.photos().length - 1);
+          if (target >= 0) { this.setCursor(target); this.focusCard(target); }
+        }
+      } finally {
+        this.keyboardDecisionPending = false;
+        guard.dispose();
+      }
+    })();
   }
 
   private focusAfterDecision(photos: Photo[], index: number): void {

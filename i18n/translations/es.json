@@ -1588,6 +1588,10 @@
       "set_plan": "Asignar {rating} estrellas personales a las {count} fotos capturadas.",
       "boundary": "No se reescriben archivos. Los lotes se confirman por separado. La acción breve Deshacer se limita a las capturas cargadas y los conflictos conocidos localmente; el Historial comprueba los conflictos en el servidor.",
       "whole_scope": "Esta lista capturada de toda la vista incluye los miembros contraídos coincidentes tras las exclusiones. No se añaden otros miembros ni archivos acompañantes. Las etiquetas, los favoritos y las decisiones de Mantener/Rechazar no cambian."
+    },
+    "review_navigation": {
+      "advance": "Avanzar al guardar",
+      "help": "En esta sesión: pasar a la siguiente foto tras guardar una puntuación, Conservar o Rechazar con el teclado. Los favoritos no avanzan."
     }
   },
   "composition_patterns": {

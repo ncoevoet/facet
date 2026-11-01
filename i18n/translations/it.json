@@ -1588,6 +1588,10 @@
       "set_plan": "Assegna {rating} stelle personali alle {count} foto acquisite.",
       "boundary": "Nessun file viene riscritto. I lotti vengono confermati separatamente. Annulla rapido è limitato alle istantanee caricate e ai conflitti noti localmente; la Cronologia verifica i conflitti sul server.",
       "whole_scope": "Questo elenco acquisito dell’intera vista include i membri compressi corrispondenti, dopo le esclusioni. Non vengono aggiunti altri membri né file associati. Tag, preferiti e decisioni Conserva/Rifiuta restano invariati."
+    },
+    "review_navigation": {
+      "advance": "Avanza dopo il salvataggio",
+      "help": "Per questa sessione: passa alla foto successiva dopo aver salvato da tastiera una valutazione, Conserva o Rifiuta. I preferiti restano visualizzati."
     }
   },
   "composition_patterns": {
