@@ -1,14 +1,14 @@
 import { TestBed } from '@angular/core/testing';
-import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { ComparisonSessionService } from './comparison-session.service';
 import { By } from '@angular/platform-browser';
 import { vi } from 'vitest';
-import { CompareSelectedDialogComponent } from './compare-selected-dialog.component';
+import { ComparisonWorkspaceComponent } from './comparison-workspace.component';
 import { FIT_ZOOM, MAX_COMPARE_PANES, SyncedZoomComponent } from './synced-zoom.component';
 import { Photo } from '../../shared/models/photo.model';
 import { I18nService } from '../../core/services/i18n.service';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { signal } from '@angular/core';
-import { provideRouter } from '@angular/router';
+import { NavigationCancel, NavigationCancellationCode, NavigationStart, provideRouter, Router } from '@angular/router';
 import { Subject, of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
@@ -17,29 +17,30 @@ import { sharedInspectionPeople } from './comparison-inspection.util';
 const photo = (path: string): Photo => ({ path, filename: path.slice(1) } as Photo);
 
 function build(paths: string[]) {
-  const closed = new Subject<unknown>();
-  const dialogRef = { close: vi.fn(() => closed.next(undefined)), beforeClosed: () => closed };
+  const data = { photos: paths.map(photo), returnUrl: '/?search=captured' };
+  const session = { snapshot: () => data, clear: vi.fn() };
   const authStatus = signal({ user_id: 'alice' });
   const api = { get: vi.fn(), post: vi.fn() };
   api.get.mockReturnValue(of({ faces: [] }));
   api.post.mockReturnValue(of({ key_subjects_by_path: {} }));
   TestBed.configureTestingModule({
-    imports: [CompareSelectedDialogComponent],
+    imports: [ComparisonWorkspaceComponent],
     providers: [
       provideRouter([]),
       { provide: ApiService, useValue: api },
       { provide: AuthService, useValue: { status: authStatus, identity: () => authStatus().user_id, isEdition: () => false, token: null } },
-      { provide: MAT_DIALOG_DATA, useValue: { photos: paths.map(photo) } },
-      { provide: MatDialogRef, useValue: dialogRef },
+      { provide: ComparisonSessionService, useValue: session },
       { provide: I18nService, useValue: { t: (k: string) => k, translations: () => ({}) } },
     ],
   });
-  const fixture = TestBed.createComponent(CompareSelectedDialogComponent);
+  const router = TestBed.inject(Router);
+  vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+  const fixture = TestBed.createComponent(ComparisonWorkspaceComponent);
   fixture.detectChanges();
-  return { fixture, dialogRef, api, authStatus, closed };
+  return { fixture, router, api, authStatus, data, session };
 }
 
-describe('CompareSelectedDialogComponent', () => {
+describe('ComparisonWorkspaceComponent', () => {
   afterEach(() => TestBed.resetTestingModule());
 
   it('renders one synced pane per selected photo', () => {
@@ -98,10 +99,54 @@ describe('CompareSelectedDialogComponent', () => {
     expect(pane.componentInstance.zoom()).toEqual(FIT_ZOOM);
   });
 
-  it('closes through the dialog ref', () => {
-    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg']);
-    fixture.debugElement.nativeElement.querySelector('button[aria-label="dialog.close"]').click();
-    expect(dialogRef.close).toHaveBeenCalled();
+  it('returns to the exact captured collection URL without a dialog', () => {
+    const { fixture, router } = build(['/a.jpg', '/b.jpg']);
+    fixture.debugElement.nativeElement.querySelector('button[aria-label="ui.buttons.back"]').click();
+    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/?search=captured');
+  });
+
+  it('recovers from cancelled navigation without adopting a different account', () => {
+    const { fixture, router, authStatus } = build(['/a.jpg', '/b.jpg']);
+    const events = router.events as Subject<unknown>;
+    events.next(new NavigationStart(2, '/albums'));
+    events.next(new NavigationCancel(2, '/albums', 'cancelled', NavigationCancellationCode.GuardRejected));
+    fixture.detectChanges();
+    fixture.nativeElement.querySelector('[data-link-inspection]').click(); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('[data-link-inspection]').getAttribute('aria-pressed')).toBe('false');
+    events.next(new NavigationStart(3, '/albums'));
+    authStatus.set({ user_id: 'bob' });
+    events.next(new NavigationCancel(3, '/albums', 'cancelled', NavigationCancellationCode.GuardRejected));
+    fixture.detectChanges();
+    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/', { replaceUrl: true });
+  });
+  it('does not let a cancelled inspection overwrite a fresh retry after route cancellation', async () => {
+    const { fixture, router, api } = build(['/a.jpg', '/b.jpg']);
+    const old = new Subject<unknown>();
+    api.get.mockReturnValue(old); api.post.mockReturnValue(old);
+    const component = fixture.componentInstance as unknown as { loadInspection(): Promise<void>; inspectionState(): string };
+    const obsolete = component.loadInspection();
+    const events = router.events as Subject<unknown>;
+    events.next(new NavigationStart(2, '/albums'));
+    events.next(new NavigationCancel(2, '/albums', 'cancelled', NavigationCancellationCode.GuardRejected));
+    const response = new Subject<unknown>();
+    api.get.mockReturnValue(response); api.post.mockReturnValue(response);
+    const retry = component.loadInspection();
+    await obsolete;
+    expect(old.observed).toBe(false);
+    expect(component.inspectionState()).toBe('loading');
+    response.next({ faces: [], key_subjects_by_path: {} });
+    await retry;
+    expect(component.inspectionState()).toBe('ready');
+  });
+
+  it('Escape closes inspection first and then returns to the collection', () => {
+    const { fixture, router } = build(['/a.jpg', '/b.jpg']);
+    fixture.nativeElement.querySelector('[data-inspection-toggle]').click(); fixture.detectChanges();
+    fixture.nativeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('#comparison-inspection')).toBeNull();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
+    fixture.nativeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(router.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/?search=captured');
   });
 
   it('loads bounded stored inspection data only on explicit Inspect and offers retry after failure', async () => {
@@ -122,22 +167,22 @@ describe('CompareSelectedDialogComponent', () => {
   });
 
   it('cancels reads and discards late inspection answers as soon as closing starts', async () => {
-    const { fixture, api, closed } = build(['/a.jpg', '/b.jpg']);
+    const { fixture, api, router } = build(['/a.jpg', '/b.jpg']);
     const response = new Subject<unknown>();
     api.get.mockReturnValue(response); api.post.mockReturnValue(response);
     const component = fixture.componentInstance as unknown as { loadInspection(): Promise<void>; inspectionState(): string };
     const pending = component.loadInspection();
     expect(response.observed).toBe(true);
-    closed.next(undefined);
+    (router.events as Subject<unknown>).next(new NavigationStart(2, '/albums'));
     await pending;
     expect(response.observed).toBe(false);
     expect(component.inspectionState()).toBe('loading');
   });
 
   it('closes a read-only comparison when its account context changes', () => {
-    const { fixture, authStatus, dialogRef } = build(['/a.jpg', '/b.jpg']);
+    const { fixture, authStatus, router } = build(['/a.jpg', '/b.jpg']);
     authStatus.set({ user_id: 'bob' }); fixture.detectChanges();
-    expect(dialogRef.close).toHaveBeenCalledOnce();
+    expect(router.navigateByUrl).toHaveBeenCalledOnce();
   });
 
   it('frames one unambiguous saved person in each visible pane, independently and atomically', async () => {
@@ -270,7 +315,7 @@ describe('CompareSelectedDialogComponent', () => {
 
   it('promotes a reference without changing pane membership or writing a review decision', () => {
     const paths = ['/a.jpg', '/b.jpg', '/c.jpg'];
-    const { fixture, dialogRef } = build(paths);
+    const { fixture, router } = build(paths);
     const reference = () => fixture.nativeElement.querySelector('[data-reference="true"]');
     expect(reference()).not.toBeNull();
     expect(reference().textContent).toContain('a.jpg');
@@ -278,7 +323,7 @@ describe('CompareSelectedDialogComponent', () => {
     fixture.detectChanges();
     expect(reference().textContent).toContain('b.jpg');
     expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(paths);
-    expect(dialogRef.close).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
   it('reports actual displayed source loading and failure independently of preview preload', () => {
@@ -326,7 +371,7 @@ describe('CompareSelectedDialogComponent', () => {
   });
 
   it('cycles only candidates in two-up mode and swaps the old reference back into the candidate slot on promotion', () => {
-    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
+    const { fixture, router } = build(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
     const root = fixture.nativeElement as HTMLElement;
     const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
     expect(root.querySelector('[data-two-up]')).not.toBeNull();
@@ -343,7 +388,7 @@ describe('CompareSelectedDialogComponent', () => {
     root.querySelector<HTMLButtonElement>('[data-two-up]')!.click();
     fixture.detectChanges();
     expect(paths()).toEqual(['/a.jpg', '/b.jpg', '/c.jpg', '/d.jpg']);
-    expect(dialogRef.close).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
   it('moves candidates backward and stops at both boundaries without changing the reference', () => {
@@ -401,8 +446,8 @@ describe('CompareSelectedDialogComponent', () => {
   });
 
   it('removes the reference from this view only, chooses a surviving reference and can restore the original set', () => {
-    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
-    const data = TestBed.inject(MAT_DIALOG_DATA);
+    const { fixture, router } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const data = TestBed.inject(ComparisonSessionService).snapshot();
     data.photos[0].is_rejected = false;
     data.photos[1].is_kept = true;
     const before = JSON.stringify(data.photos);
@@ -414,11 +459,11 @@ describe('CompareSelectedDialogComponent', () => {
     root.querySelector<HTMLButtonElement>('[data-restore-comparison]')!.click(); fixture.detectChanges();
     expect(fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey())).toEqual(['/a.jpg', '/b.jpg', '/c.jpg']);
     expect(JSON.stringify(data.photos)).toBe(before);
-    expect(dialogRef.close).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
   it('advances after removing a candidate and keeps one remaining photo inspectable', () => {
-    const { fixture, dialogRef } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
+    const { fixture, router } = build(['/a.jpg', '/b.jpg', '/c.jpg']);
     const root = fixture.nativeElement as HTMLElement;
     const paths = () => fixture.debugElement.queryAll(By.directive(SyncedZoomComponent)).map(p => p.componentInstance.frameKey());
     root.querySelectorAll<HTMLButtonElement>('[data-candidate-thumbnail]')[1].click(); fixture.detectChanges();
@@ -427,7 +472,7 @@ describe('CompareSelectedDialogComponent', () => {
     root.querySelectorAll<HTMLButtonElement>('[data-remove-pane]')[1].click(); fixture.detectChanges();
     expect(paths()).toEqual(['/a.jpg']);
     expect(root.querySelector<HTMLButtonElement>('[data-remove-pane]')!.disabled).toBe(true);
-    expect(dialogRef.close).not.toHaveBeenCalled();
+    expect(router.navigateByUrl).not.toHaveBeenCalled();
   });
 
 });

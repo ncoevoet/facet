@@ -31,6 +31,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService } from '../../core/services/album.service';
 import { NOTICE_DISMISSALS_KEY } from './notice-dismiss.util';
+import { ComparisonSessionService } from './comparison-session.service';
 import { GalleryComponent } from './gallery.component';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
 import { SlideshowComponent } from './slideshow.component';
@@ -2413,8 +2414,7 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(paths.length);
     }
 
-    // The dialog itself is covered by its own spec; this is the wiring — which
-    // photos it is handed, in which order, and when the action is offered.
+    // The workspace owns its own tests; this checks captured membership and entry.
     it('is offered from two photos up to the pane limit', () => {
       const c = component as unknown as { canCompareSelection: () => boolean };
       for (const n of [0, 1]) {
@@ -2434,12 +2434,13 @@ describe('GalleryComponent', () => {
     it('hands over the grid order, not the order they were picked in', async () => {
       mockStore.photos.set(['/a.jpg', '/b.jpg', '/c.jpg'].map(photo));
       select(['/c.jpg', '/a.jpg']);
-      const dialog = TestBed.inject(MatDialog);
-
-      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
-
-      const data = (dialog.open as Mock).mock.calls[0][1].data;
-      expect(data.photos.map((p: { path: string }) => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      await component['compareSelection']();
+      const data = TestBed.inject(ComparisonSessionService).snapshot();
+      expect(data.photos.map(p => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith('/photo-compare');
+      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
     });
 
     it('refuses an oversized selection instead of silently comparing a subset', async () => {

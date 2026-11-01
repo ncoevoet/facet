@@ -42,6 +42,7 @@ import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom, takeUntil } from 'rxjs';
+import { ComparisonSessionService } from './comparison-session.service';
 import { GalleryStore, BatchResult, REVIEW_RESUME_NAVIGATION } from './gallery.store';
 import { NoticeDismissals, NoticeKind, readNoticeDismissals, saveNoticeDismissals, withDismissal } from './notice-dismiss.util';
 import { Photo } from '../../shared/models/photo.model';
@@ -998,6 +999,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
+  private readonly comparisonSession = inject(ComparisonSessionService);
   private readonly albumService = inject(AlbumService);
   private readonly journal = inject(UserActivityJournal);
   private readonly photoActions = inject(PhotoActionsService);
@@ -2132,14 +2134,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // as they are laid out is what the user is already looking at.
     const photos = this.store.photos().filter(p => selected.has(p.path)).slice(0, MAX_COMPARE_PANES);
     if (photos.length < 2) return;
-    const { CompareSelectedDialogComponent } = await import('./compare-selected-dialog.component');
-    this.dialog.open(CompareSelectedDialogComponent, {
-      data: { photos },
-      width: '96vw',
-      height: '92vh',
-      maxWidth: '96vw',
-      autoFocus: false,
-    });
+    if (this.parked || this.router.currentNavigation?.() || !this.comparisonSession.start(photos, this.router.url)) return;
+    if (!await this.router.navigateByUrl('/photo-compare')) this.comparisonSession.clear();
   }
 
   /** Ctrl+A selects all loaded photos unless focus is in an input or a dialog is open. */

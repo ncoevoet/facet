@@ -2,7 +2,8 @@ import { DOCUMENT } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, effect, inject, signal, ElementRef, Injector, DestroyRef, afterNextRender, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { firstValueFrom, Subject, takeUntil } from 'rxjs';
-import { MAT_DIALOG_DATA, MatDialogRef, MatDialogModule } from '@angular/material/dialog';
+import { NavigationCancel, NavigationError, Router } from '@angular/router';
+import { ComparisonSessionService } from './comparison-session.service';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
@@ -27,33 +28,26 @@ import { PhotoAssessmentComponent } from '../../shared/components/photo-assessme
 const STORED_EDGE = STORED_THUMBNAIL_EDGE;
 const RENDERED_EDGE = RENDERED_THUMBNAIL_EDGE;
 
-export interface CompareSelectedData {
-  photos: Photo[];
-}
-
-/**
- * Side-by-side pixel-peeking over a hand-picked gallery selection.
- *
- * The culling lightbox already compares frames this way, but only ever the ones
- * sitting next to each other in a burst. Deciding between two shots of the same
- * subject taken minutes apart -- or from different folders entirely -- had no
- * surface at all. This reuses `SyncedZoomComponent` wholesale, including its
- * swap to a full-resolution source past the fit scale, so both places pan and
- * zoom identically rather than growing two implementations of the same gesture.
- */
+/** A read-only light table over captured gallery membership, with per-frame inspection. */
 @Component({
-  selector: 'app-compare-selected-dialog',
+  selector: 'app-comparison-workspace',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     PhotoAssessmentComponent,
-    MatDialogModule, MatIconModule, MatButtonModule, MatTooltipModule,
+    MatIconModule, MatButtonModule, MatTooltipModule,
     SyncedZoomComponent, ThumbnailUrlPipe, ImageUrlPipe, TranslatePipe,
   ],
   template: `
-    <div class="flex flex-col h-full bg-[var(--mat-sys-surface)] text-[var(--mat-sys-on-surface)]">
+    <div data-comparison-workspace class="flex flex-col h-full min-h-0 bg-[var(--mat-sys-surface)] text-[var(--mat-sys-on-surface)]">
       <div class="flex flex-wrap items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] px-3 py-2 text-sm shrink-0">
+        <button mat-icon-button class="!text-[var(--mat-sys-on-surface)]"
+                [matTooltip]="I18N.ui.buttons.back | translate"
+                [attr.aria-label]="I18N.ui.buttons.back | translate"
+                (click)="close()">
+          <mat-icon>arrow_back</mat-icon>
+        </button>
         <mat-icon class="!text-base !w-5 !h-5 !leading-5">compare</mat-icon>
-        <span class="flex-1 truncate">{{ I18N.gallery.compare.title | translate:{ count: panes().length } }}</span>
+        <h1 class="m-0 flex-1 truncate text-sm font-semibold">{{ I18N.gallery.compare.title | translate:{ count: panes().length } }}</h1>
         <button mat-button data-inspection-toggle class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-expanded]="inspectionOpen()" aria-controls="comparison-inspection" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate" (click)="toggleInspection()"><mat-icon>manage_search</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span></button>
         @if (panes().length > 2) {
           <button mat-button data-two-up class="!text-[var(--mat-sys-on-surface)] shrink-0" [attr.aria-pressed]="twoUp()"
@@ -77,48 +71,13 @@ export interface CompareSelectedData {
             <mat-icon>zoom_out_map</mat-icon>
           </button>
         }
-        <button mat-icon-button class="!text-[var(--mat-sys-on-surface)]"
-                [matTooltip]="I18N.dialog.close | translate"
-                [attr.aria-label]="I18N.dialog.close | translate"
-                (click)="close()">
-          <mat-icon>close</mat-icon>
-        </button>
+
       </div>
 
-      @if (inspectionOpen()) {
-        <section id="comparison-inspection" class="max-h-40 shrink-0 overflow-y-auto border-b border-[var(--mat-sys-outline-variant)] px-3 py-2 text-xs" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate">
-          <div class="flex flex-wrap items-center gap-2">
-            <button mat-button data-comparison-loupe [attr.aria-pressed]="loupe()" (click)="loupe.set(!loupe())"><mat-icon>search</mat-icon>{{ I18N.culling.loupe | translate }}</button>
-            <label class="inline-flex items-center gap-1">{{ I18N.gallery.compare.inspection.magnification | translate }}<select class="rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" [value]="loupeZoom()" (change)="setLoupeZoom($event)"><option value="2">2×</option><option value="3">3×</option><option value="5">5×</option></select></label>
-            @if (inspectionState() === 'loading') { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
-            @if (inspectionState() === 'partial') { <button mat-button data-inspection-retry (click)="loadInspection()">{{ I18N.gallery.load_error.retry | translate }}</button><span role="status">{{ I18N.gallery.compare.inspection.partial | translate }}</span> }
-            <select data-shared-person [disabled]="!sharedPeople().length" [attr.aria-label]="I18N.gallery.compare.inspection.shared_person | translate" class="max-w-full rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" (change)="frameSharedPerson($event)">
-              <option value="">{{ I18N.gallery.compare.inspection.shared_person | translate }}</option>
-              @for (person of sharedPeople(); track person.id) { <option [value]="person.id">{{ person.name }}</option> }
-            </select>
-          </div>
-          <p class="my-1">{{ I18N.gallery.compare.inspection.help | translate }}</p>
-          <details><summary class="cursor-pointer py-1">{{ I18N.shortcuts.title | translate }}</summary><p class="my-1">{{ I18N.gallery.compare.inspection.keyboard | translate }}</p></details>
-          @if (inspectionNotice()) { <p role="status" class="my-1">{{ inspectionNotice()! | translate }}</p> }
-          @if (!sharedPeople().length && inspectionState() !== 'loading') { <p class="my-1">{{ I18N.gallery.compare.inspection.no_correspondence | translate }}</p> }
-          <div class="grid gap-2 sm:grid-cols-2">
-            @for (pane of paneStates(); track pane.photo.path) {
-              <div class="flex min-w-0 flex-wrap items-center gap-1">
-                <span class="max-w-28 truncate" [title]="pane.photo.filename">{{ pane.photo.filename }}</span>
-                <app-photo-assessment class="w-full" [photo]="pane.photo" />
-                <button mat-button class="!text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ (pane.suggestion?.kind === 'person' ? I18N.gallery.compare.inspection.suggested_face : pane.suggestion?.kind === 'subject' ? I18N.gallery.compare.inspection.suggested_subject : inspectionState() === 'loading' ? I18N.ui.labels.loading : I18N.gallery.compare.inspection.no_crop) | translate }}</button>
-                <select data-frame-face [disabled]="!pane.faces.length" [attr.aria-label]="(I18N.gallery.compare.inspection.choose_face | translate) + ': ' + pane.photo.filename" class="min-w-0 max-w-40 rounded border bg-[var(--mat-sys-surface-container)] px-1 py-1" (change)="frameFace(pane.photo.path, $event)">
-                  <option value="">{{ I18N.gallery.compare.inspection.choose_face | translate }}</option>
-                  @for (face of pane.faces; track face.id) { <option [value]="face.id">{{ face.person_name || (I18N.photo_faces.unknown | translate) }} · {{ face.face_index + 1 }}</option> }
-                </select>
-              </div>
-            }
-          </div>
-        </section>
-      }
       <span id="comparison-inspection-help" class="sr-only">{{ I18N.gallery.compare.inspection.keyboard | translate }}</span>
 
-      <div class="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-1 p-1 bg-[var(--facet-image-canvas)]"
+      <div class="relative flex flex-1 min-h-0 min-w-0">
+      <div data-comparison-canvas class="flex-1 min-w-0 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-1 p-1 bg-[var(--facet-image-canvas)]"
            [class.!grid-cols-1]="visiblePhotos().length < 2"
            [class.!grid-cols-2]="visiblePhotos().length > 2"
            [class.max-sm:grid-rows-2]="visiblePhotos().length === 2"
@@ -177,9 +136,46 @@ export interface CompareSelectedData {
           </div>
         }
       </div>
-
-      @if (twoUp() && candidates().length) {
-        <div class="flex items-center justify-center gap-2 px-3 shrink-0 border-t border-[var(--mat-sys-outline-variant)]">
+      @if (inspectionOpen()) {
+        <section id="comparison-inspection" class="absolute inset-x-0 bottom-0 z-10 max-h-[65%] overflow-y-auto border-t border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 text-xs sm:static sm:max-h-none sm:w-72 sm:shrink-0 sm:border-l sm:border-t-0" [attr.aria-label]="I18N.gallery.compare.inspection.title | translate">
+          <div class="flex flex-wrap items-center gap-2">
+            <button mat-button data-comparison-loupe [attr.aria-pressed]="loupe()" (click)="loupe.set(!loupe())"><mat-icon>search</mat-icon>{{ I18N.culling.loupe | translate }}</button>
+            <label class="inline-flex items-center gap-1">{{ I18N.gallery.compare.inspection.magnification | translate }}<select class="rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" [value]="loupeZoom()" (change)="setLoupeZoom($event)"><option value="2">2×</option><option value="3">3×</option><option value="5">5×</option></select></label>
+            @if (inspectionState() === 'loading') { <span role="status">{{ I18N.ui.labels.loading | translate }}</span> }
+            @if (inspectionState() === 'partial') { <button mat-button data-inspection-retry (click)="loadInspection()">{{ I18N.gallery.load_error.retry | translate }}</button><span role="status">{{ I18N.gallery.compare.inspection.partial | translate }}</span> }
+            <select data-shared-person [disabled]="!sharedPeople().length" [attr.aria-label]="I18N.gallery.compare.inspection.shared_person | translate" class="max-w-full rounded border bg-[var(--mat-sys-surface-container)] px-2 py-1" (change)="frameSharedPerson($event)">
+              <option value="">{{ I18N.gallery.compare.inspection.shared_person | translate }}</option>
+              @for (person of sharedPeople(); track person.id) { <option [value]="person.id">{{ person.name }}</option> }
+            </select>
+          </div>
+          <p class="my-1">{{ I18N.gallery.compare.inspection.help | translate }}</p>
+          <details><summary class="cursor-pointer py-1">{{ I18N.shortcuts.title | translate }}</summary><p class="my-1">{{ I18N.gallery.compare.inspection.keyboard | translate }}</p></details>
+          @if (inspectionNotice()) { <p role="status" class="my-1">{{ inspectionNotice()! | translate }}</p> }
+          @if (!sharedPeople().length && inspectionState() !== 'loading') { <p class="my-1">{{ I18N.gallery.compare.inspection.no_correspondence | translate }}</p> }
+          <div class="grid gap-3">
+            @for (pane of paneStates(); track pane.photo.path) {
+              <div class="flex min-w-0 flex-wrap items-center gap-1">
+                <span class="max-w-28 truncate" [title]="pane.photo.filename">{{ pane.photo.filename }}</span>
+                <app-photo-assessment class="w-full" [photo]="pane.photo" />
+                <button mat-button class="!text-xs" data-frame-suggestion [disabled]="!pane.suggestion" (click)="frameSuggestion(pane.photo.path)">{{ (pane.suggestion?.kind === 'person' ? I18N.gallery.compare.inspection.suggested_face : pane.suggestion?.kind === 'subject' ? I18N.gallery.compare.inspection.suggested_subject : inspectionState() === 'loading' ? I18N.ui.labels.loading : I18N.gallery.compare.inspection.no_crop) | translate }}</button>
+                <select data-frame-face [disabled]="!pane.faces.length" [attr.aria-label]="(I18N.gallery.compare.inspection.choose_face | translate) + ': ' + pane.photo.filename" class="min-w-0 max-w-40 rounded border bg-[var(--mat-sys-surface-container)] px-1 py-1" (change)="frameFace(pane.photo.path, $event)">
+                  <option value="">{{ I18N.gallery.compare.inspection.choose_face | translate }}</option>
+                  @for (face of pane.faces; track face.id) { <option [value]="face.id">{{ face.person_name || (I18N.photo_faces.unknown | translate) }} · {{ face.face_index + 1 }}</option> }
+                </select>
+              </div>
+            }
+          </div>
+      <div class="mt-3 text-xs text-[var(--mat-sys-on-surface-variant)]">
+        {{ I18N.gallery.compare.hint | translate }}
+        <details class="text-left"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p class="m-0">{{ I18N.gallery.compare.rendition.limit | translate }}</p><p class="m-0">{{ I18N.gallery.compare.rendition.scale_help | translate }}</p></details>
+      </div>
+        </section>
+      }
+      </div>
+      <div class="shrink-0 border-t border-[var(--mat-sys-outline-variant)] px-3 py-2">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
+          @if (twoUp() && candidates().length) {
+        <div class="flex items-center gap-1 min-w-0">
           <button mat-icon-button data-candidate-previous class="!text-[var(--mat-sys-on-surface)] disabled:!text-[var(--mat-sys-outline)]"
                   [disabled]="candidateIndex() <= 0" [attr.aria-label]="I18N.gallery.compare.previous_candidate | translate"
                   (click)="moveCandidate(-1)"><mat-icon>chevron_left</mat-icon></button>
@@ -189,9 +185,7 @@ export interface CompareSelectedData {
                   (click)="moveCandidate(1)"><mat-icon>chevron_right</mat-icon></button>
         </div>
       }
-      <div class="shrink-0 border-t border-[var(--mat-sys-outline-variant)] px-3 py-2">
-        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
-          <span>{{ I18N.gallery.compare.queue | translate:{ count: candidates().length } }}</span>
+          <span class="sr-only">{{ I18N.gallery.compare.queue | translate:{ count: candidates().length } }}</span>
           <div class="flex shrink-0 gap-1" role="group" [attr.aria-label]="I18N.gallery.compare.assign_target | translate">
             <button type="button" data-compare-target="reference" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'reference'" [attr.aria-pressed]="assignmentTarget() === 'reference'" (click)="assignmentTarget.set('reference')">{{ I18N.gallery.compare.reference | translate }}</button>
             <button type="button" data-compare-target="candidate" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'candidate'" [attr.aria-pressed]="assignmentTarget() === 'candidate'" (click)="assignmentTarget.set('candidate')">{{ I18N.gallery.compare.candidate | translate }}</button>
@@ -200,11 +194,11 @@ export interface CompareSelectedData {
             <button mat-button data-restore-comparison (click)="restorePanes()">{{ I18N.gallery.compare.restore | translate }}</button>
           }
         </div>
-        <p class="m-0 mb-1 text-xs text-[var(--mat-sys-on-surface-variant)]" data-comparison-assignment>{{ I18N.gallery.compare.assign_hint | translate:{ target: ((assignmentTarget() === 'reference' ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate) } }}</p>
+        <p class="sr-only" data-comparison-assignment>{{ I18N.gallery.compare.assign_hint | translate:{ target: ((assignmentTarget() === 'reference' ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate) } }}</p>
         <div class="flex gap-2 overflow-x-auto" role="group" [attr.aria-label]="I18N.gallery.compare.queue_label | translate">
           @for (photo of panes(); track photo.path) {
             <button #candidateButton type="button" data-candidate-thumbnail [attr.data-path]="photo.path"
-                    class="flex w-24 shrink-0 flex-col gap-1 rounded-md border border-[var(--mat-sys-outline-variant)] p-1 text-left focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+                    class="flex w-24 shrink-0 flex-col gap-1 rounded border border-[var(--mat-sys-outline-variant)] p-1 text-left focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                     [class.bg-[var(--mat-sys-secondary-container)]]="activePath() === photo.path"
                     [attr.aria-pressed]="activePath() === photo.path"
                     [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: ((assignmentTarget() === 'reference' ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate), name: photo.filename }"
@@ -215,30 +209,37 @@ export interface CompareSelectedData {
           }
         </div>
       </div>
-      <div class="px-3 pb-2 text-center text-[var(--mat-sys-on-surface-variant)] text-xs shrink-0">
-        {{ I18N.gallery.compare.hint | translate }}
-        <details class="text-left"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p class="m-0">{{ I18N.gallery.compare.rendition.limit | translate }}</p><p class="m-0">{{ I18N.gallery.compare.rendition.scale_help | translate }}</p></details>
-      </div>
+
     </div>
   `,
-  host: { class: 'block h-full', '(keydown)': 'onInspectionKey($event)' },
+  host: { class: 'block h-full min-h-0', tabindex: '-1', '(keydown)': 'onInspectionKey($event)' },
 })
-export class CompareSelectedDialogComponent {
+export class ComparisonWorkspaceComponent {
   protected readonly I18N = i18nKeys();
-  private readonly dialogRef = inject(MatDialogRef<CompareSelectedDialogComponent>);
-  private readonly data = inject<CompareSelectedData>(MAT_DIALOG_DATA);
+  private readonly router = inject(Router);
+  private readonly session = inject(ComparisonSessionService);
+  private readonly data = this.session.snapshot();
   private readonly injector = inject(Injector);
   private readonly document = inject(DOCUMENT);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly cancelled = new Subject<void>();
   private closing = false;
   private readonly token = this.auth.token;
-  private readonly context = inject(StalenessGuardFactory).create(this.destroyRef, {
-    requireEdition: false, track: 'status', valid: () => !this.closing && this.token === this.auth.token,
-    onNavigate: () => this.dialogRef.close(),
-  });
+  private readonly owner = this.auth.identity();
+  private readonly status = this.auth.status();
+  private readonly guards = inject(StalenessGuardFactory);
+  private readonly navigating = signal(false);
+  private context = this.createContext();
+
+  private createContext() {
+    return this.guards.create(this.destroyRef, {
+      requireEdition: false, track: 'status', valid: () => !this.closing && this.token === this.auth.token && this.owner === this.auth.identity() && this.status === this.auth.status(),
+      onNavigate: () => { this.navigating.set(true); this.cancelled.next(); },
+    });
+  }
   private readonly imagePanes = viewChildren(SyncedZoomComponent);
   private readonly candidateButtons = viewChildren<ElementRef<HTMLButtonElement>>('candidateButton');
 
@@ -266,10 +267,21 @@ export class CompareSelectedDialogComponent {
   protected readonly sharedPeople = computed(() => sharedInspectionPeople(this.visiblePhotos().map(photo => photo.path), this.faceRows()));
 
   constructor() {
-    this.dialogRef.beforeClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      this.closing = true; this.cancelled.next(); this.context.dispose();
+    afterNextRender(() => this.host.nativeElement.focus({ preventScroll: true }));
+    this.destroyRef.onDestroy(() => { this.closing = true; this.cancelled.next(); this.context.dispose(); });
+    this.router.events.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(event => {
+      if (event instanceof NavigationCancel || event instanceof NavigationError) {
+        this.context.dispose(); this.closing = false; this.context = this.createContext(); this.navigating.set(false);
+        if (this.inspectionState() === 'loading') this.inspectionState.set('partial');
+      }
     });
-    effect(() => { const current = this.context.current(); if (!this.closing && !current) this.dialogRef.close(); });
+    effect(() => {
+      const current = this.context.current();
+      if (!this.closing && !this.navigating() && !current) {
+        this.session.clear(); this.closing = true; this.cancelled.next();
+        void this.router.navigateByUrl('/', { replaceUrl: true });
+      }
+    });
   }
 
   protected toggleInspection(): void {
@@ -279,7 +291,8 @@ export class CompareSelectedDialogComponent {
   }
 
   protected async loadInspection(): Promise<void> {
-    if (!this.context.current() || this.inspectionState() === 'loading') return;
+    const context = this.context;
+    if (!context.current() || this.inspectionState() === 'loading') return;
     this.inspectionState.set('loading');
     const photos = [...new Map((this.data.photos ?? []).slice(0, MAX_COMPARE_PANES).map(photo => [photo.path, photo])).values()];
     const faces = new Map<string, PhotoFaceRow[]>();
@@ -305,7 +318,7 @@ export class CompareSelectedDialogComponent {
         } catch { failed = true; }
       }),
     ]);
-    if (!this.context.current()) return;
+    if (!context.current()) return;
     this.faceRows.set(faces); this.suggestions.set(suggestions);
     this.inspectionState.set(failed ? 'partial' : 'ready');
   }
@@ -316,6 +329,14 @@ export class CompareSelectedDialogComponent {
   }
 
   protected onInspectionKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape' && !event.isComposing && !event.repeat) {
+      event.preventDefault(); event.stopPropagation();
+      if (this.inspectionOpen()) {
+        this.inspectionOpen.set(false);
+        this.host.nativeElement.querySelector<HTMLButtonElement>('[data-inspection-toggle]')?.focus();
+      } else this.close();
+      return;
+    }
     if (isTypingContext(event) || event.isComposing || event.repeat || event.ctrlKey || event.metaKey || event.altKey || !this.context.current()) return;
     if (event.key.toLowerCase() === 'z') { event.preventDefault(); event.stopPropagation(); this.loupe.update(active => !active); }
   }
@@ -516,6 +537,8 @@ export class CompareSelectedDialogComponent {
   }
 
   protected close(): void {
-    this.dialogRef.close();
+    if (this.closing || this.navigating()) return;
+    this.closing = true;
+    void this.router.navigateByUrl(this.data.returnUrl);
   }
 }
