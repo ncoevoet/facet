@@ -18,7 +18,7 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
-    <details class="border-b border-[var(--mat-sys-outline-variant)] py-2" (toggle)="toggle($event)" (keydown.escape)="close($event)">
+    <details tabindex="-1" class="border-b border-[var(--mat-sys-outline-variant)] py-2" (toggle)="toggle($event)" (keydown.escape)="close($event)">
       <summary class="min-h-11 cursor-pointer py-3 text-sm">{{ I18N.timeline.density | translate }}</summary>
       @if (open()) {
         <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">

@@ -144,8 +144,10 @@ describe('buildApiParams semantic search', () => {
 });
 
 describe('buildSyncParams', () => {
-  it('carries the sort and explicit All photos type when filters equal defaults', () => {
-    expect(buildSyncParams(DEFAULT_FILTERS, undefined)).toEqual({ sort: 'aggregate', type: '' });
+  it('captures semantic visibility even when it matches this browser defaults', () => {
+    expect(buildSyncParams(DEFAULT_FILTERS, undefined)).toEqual({ sort: 'aggregate', type: '',
+      hide_blinks: 'true', hide_bursts: 'true', hide_duplicates: 'true', hide_brackets: 'true', hide_panoramas: 'true',
+      hide_rejected: 'true', favorites_only: 'false', is_monochrome: 'false' });
   });
   it('writes the sort even when it equals the viewer default, so a remembered sort cannot override a link', () => {
     expect(buildSyncParams(filters({ sort: 'date_taken' }), undefined)['sort']).toBe('date_taken');
@@ -535,6 +537,7 @@ describe('explicit All photos round trip', () => {
     const sync = buildSyncParams(selected, { type: 'top_picks', hide_rejected: true });
     expect(sync).toHaveProperty('type', '');
     expect(applyQueryParams(base, sync).type).toBe('');
+    expect(applyQueryParams(base, sync)).toMatchObject({ hide_rejected: false, favorites_only: false, is_monochrome: false });
     expect(buildApiParams(selected, false, undefined)).toHaveProperty('type', '');
     expect(buildByPathsFilters(selected, false, undefined)).toHaveProperty('type', '');
     const saved = smartAlbumFilterJson(selected);

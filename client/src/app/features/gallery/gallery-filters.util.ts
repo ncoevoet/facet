@@ -685,13 +685,19 @@ export function applyQueryParams(
   return result;
 }
 
-/** Build the query-param map for URL sync — only values that differ from defaults, plus the sort, which is always written. */
+/** URLs capture semantic visibility explicitly; another browser can have
+ * different persisted preferences. Presentation-only options still use defaults. */
 export function buildSyncParams(
   f: GalleryFilters,
   defaults: FilterDefaults | undefined,
   searchThresholdDefault?: number | null,
 ): Record<string, string> {
-  const params: Record<string, string> = { type: f.type };
+  const params: Record<string, string> = { type: f.type,
+    hide_blinks: String(f.hide_blinks), hide_bursts: String(f.hide_bursts),
+    hide_duplicates: String(f.hide_duplicates), hide_brackets: String(f.hide_brackets),
+    hide_panoramas: String(f.hide_panoramas), hide_rejected: String(f.hide_rejected),
+    favorites_only: String(f.favorites_only), is_monochrome: String(f.is_monochrome),
+  };
   // A semantic query implies Relevance (DESC), so that is the only sort left unwritten. Every other
   // sort is written even when it equals the viewer default: a URL without one falls back to the
   // browser's remembered sort (see GalleryStore.loadConfig), so an unwritten default would reopen a
@@ -731,27 +737,13 @@ export function buildSyncParams(
 
   if (f.hide_details !== (defaults?.hide_details ?? true))
     params['hide_details'] = String(f.hide_details);
-  if (f.hide_blinks !== (defaults?.hide_blinks ?? true))
-    params['hide_blinks'] = String(f.hide_blinks);
-  if (f.hide_bursts !== (defaults?.hide_bursts ?? true))
-    params['hide_bursts'] = String(f.hide_bursts);
-  if (f.hide_duplicates !== (defaults?.hide_duplicates ?? true))
-    params['hide_duplicates'] = String(f.hide_duplicates);
-  if (f.hide_brackets !== (defaults?.hide_brackets ?? true))
-    params['hide_brackets'] = String(f.hide_brackets);
-  if (f.hide_panoramas !== (defaults?.hide_panoramas ?? true))
-    params['hide_panoramas'] = String(f.hide_panoramas);
-  if (f.hide_rejected !== (defaults?.hide_rejected ?? true))
-    params['hide_rejected'] = String(f.hide_rejected);
   if (f.tooltip_mode !== (defaults?.tooltip_mode ?? 'panel'))
     params['tooltip_mode'] = f.tooltip_mode;
   if (f.panel_activation !== (defaults?.panel_activation ?? 'both'))
     params['panel_activation'] = f.panel_activation;
-  if (f.favorites_only) params['favorites_only'] = 'true';
   if (f.show_rejected) params['show_rejected'] = 'true';
   if (f.blinks_only) params['blinks_only'] = 'true';
   if (f.duplicates_only) params['duplicates_only'] = 'true';
-  if (f.is_monochrome) params['is_monochrome'] = 'true';
   if (f.manual_faces_need_review) params['manual_faces_need_review'] = 'true';
   if (f.faces_need_names) params['faces_need_names'] = 'true';
 
