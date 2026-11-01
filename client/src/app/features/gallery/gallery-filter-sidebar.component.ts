@@ -211,7 +211,7 @@ export interface SegmentRow {
  */
 export const UNIT_PANEL: Record<string, string> = {
   person_id: 'persons', faces_need_names: 'persons',
-  date_from: 'date', date_to: 'date',
+  date_from: 'date', date_to: 'date', no_capture_date: 'date',
   type: 'content', tag: 'content', composition_pattern: 'content',
   camera: 'equipment', lens: 'equipment',
   review_status: 'refine', favorites_only: 'refine', is_monochrome: 'refine', show_rejected: 'refine',
@@ -540,6 +540,10 @@ export function loadActiveTab(): SidebarTabId {
           </mat-panel-title>
         </mat-expansion-panel-header>
         <div class="flex flex-col gap-2 pb-2">
+          <mat-checkbox [checked]="!!store.filters().no_capture_date"
+                        (change)="onMissingDateChange($event.checked)">
+            {{ I18N.gallery.no_capture_date | translate }}
+          </mat-checkbox>
           <mat-form-field subscriptSizing="dynamic" class="w-full">
             <mat-label>{{ I18N.gallery.date_from | translate }}</mat-label>
             <input matInput [matDatepicker]="fromDp" [value]="store.filters().date_from" (dateChange)="onDateChange('date_from', $event)" />
@@ -1463,7 +1467,13 @@ export class GalleryFilterSidebarComponent {
   }
 
   onDateChange(key: 'date_from' | 'date_to', event: MatDatepickerInputEvent<Date>): void {
-    this.store.updateFilter(key, toIsoDateString(event.value));
+    this.store.updateFilters({ [key]: toIsoDateString(event.value), no_capture_date: '' });
+  }
+
+  onMissingDateChange(checked: boolean): void {
+    this.store.updateFilters(checked
+      ? { no_capture_date: '1', date_from: '', date_to: '' }
+      : { no_capture_date: '' });
   }
 
   private readonly semanticSearchInput = viewChild<ElementRef<HTMLInputElement>>('semanticSearchInput');

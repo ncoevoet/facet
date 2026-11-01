@@ -1209,7 +1209,7 @@ async def get_shared_album(
         filters = None
         if is_manual:
             _FILTER_KEYS = (
-                'camera', 'lens', 'tag', 'tag_groups', 'date_from', 'date_to',
+                'camera', 'lens', 'tag', 'tag_groups', 'date_from', 'date_to', 'no_capture_date',
                 'hide_blinks', 'hide_bursts', 'hide_duplicates',
                 'composition_pattern', 'category', 'is_monochrome',
                 # Color facet + on-the-fly quality tier

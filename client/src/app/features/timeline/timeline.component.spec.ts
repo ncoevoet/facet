@@ -165,6 +165,7 @@ describe('TimelineComponent', () => {
       component.onDaySelected('2024-06-15');
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
         queryParams: {
+          ...Object.fromEntries(Object.keys(noneHidden).map(key => [key, 'false'])),
           date_from: '2024-06-15',
           date_to: '2024-06-15',
           sort: 'date_taken',
@@ -190,5 +191,27 @@ describe('TimelineComponent', () => {
       mockStore.viewFilterParams.set({ ...noneHidden });
       expect(component.anyHiddenByFilters()).toBe(false);
     });
+  });
+});
+
+
+describe('Timeline missing-date and range transitions', () => {
+  it('carries only visibility into the chosen date scope, and resets the timeline window', () => {
+    const navigate = vi.fn();
+    const dateFrom = signal('2026-01-01'); const dateTo = signal('2026-02-01');
+    TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { navigate } },
+      { provide: ActivatedRoute, useValue: { paramMap: of({ get: () => null }) } },
+      { provide: TimelineFiltersService, useValue: { dateFrom, dateTo, sortDirection: signal('older') } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
+    ] });
+    const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    component.viewRange();
+    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { hide_bursts: 'true', date_from: '2026-01-01', date_to: '2026-02-01', sort: 'date_taken', sort_direction: 'DESC' } });
+    component.viewUnknownDates();
+    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { hide_bursts: 'true', no_capture_date: '1', sort: 'filename', sort_direction: 'ASC' } });
+    component.resetDates();
+    expect(dateFrom()).toBe(''); expect(dateTo()).toBe('');
+    expect(navigate).toHaveBeenLastCalledWith(['/timeline']);
   });
 });

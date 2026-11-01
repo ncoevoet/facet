@@ -1647,7 +1647,8 @@
       "invalid": "These tag rules are invalid. Clear them to recover.",
       "remove": "Remove rule for {name}",
       "clear": "Clear tag rules"
-    }
+    },
+    "no_capture_date": "No capture date"
   },
   "composition_patterns": {
     "none": "None",
@@ -2724,7 +2725,11 @@
     "months_title": "Months",
     "all_years": "All Years",
     "no_photos_month": "No photos this month",
-    "photos_count": "photos"
+    "photos_count": "photos",
+    "capture_scope": "Capture dates · visible library",
+    "scope_help": "Counts use capture dates and your visibility settings, across the library. Album, tag and search filters are not applied. Photos without a capture date are listed separately. Opening the gallery also applies its photo-type and review visibility settings, so its count can differ.",
+    "open_range": "Open range in gallery",
+    "all_dates": "All dates"
   },
   "folders": {
     "help": "Browse photos by their on-disk folder structure. Open a folder to see the photos it contains.",

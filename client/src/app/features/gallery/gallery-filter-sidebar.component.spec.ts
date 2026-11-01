@@ -96,6 +96,16 @@ describe('GalleryFilterSidebarComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('switches missing capture date and explicit bounds atomically', () => {
+    component.onMissingDateChange(true);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ no_capture_date: '1', date_from: '', date_to: '' });
+    component.onDateChange('date_from', { value: new Date(2026, 10, 1) } as any);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ date_from: '2026-11-01', no_capture_date: '' });
+    component.onMissingDateChange(false);
+    expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ no_capture_date: '' });
+    expect(UNIT_PANEL['no_capture_date']).toBe('date');
+  });
+
   describe('unavailable metrics (commercial mode)', () => {
     const ids = () => component.advancedFilterGroups().flatMap(g => g.filters.map(f => f.id));
 
@@ -1271,6 +1281,15 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(select.panelOpen).toBe(false);
     });
 
+
+    it('offers missing capture date in the date panel and applies one atomic query change', () => {
+      const labels = Array.from(fixture.nativeElement.querySelectorAll('mat-checkbox')) as HTMLElement[];
+      const control = labels.find(el => el.textContent?.includes('gallery.no_capture_date'))!;
+      expect(control).toBeTruthy();
+      expect(control.closest('mat-expansion-panel')?.textContent).toContain('gallery.sidebar.date');
+      (control.querySelector('input') as HTMLInputElement).click();
+      expect(mockStore['updateFilters']).toHaveBeenLastCalledWith({ no_capture_date: '1', date_from: '', date_to: '' });
+    });
 
     it('offers no geolocation without the map feature and forwards the checkbox', () => {
       const labels = Array.from(fixture.nativeElement.querySelectorAll('mat-checkbox')) as HTMLElement[];

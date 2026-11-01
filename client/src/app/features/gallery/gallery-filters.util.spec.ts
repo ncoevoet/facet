@@ -673,3 +673,26 @@ describe('person group smart-album working override', () => {
     expect(buildApiParams(restoredCleared, true, undefined)).not.toHaveProperty('person_id');
   });
 });
+
+
+describe('missing capture date scope', () => {
+  it('round trips missing-only through URL API and saved rules, with an explicit album clear', () => {
+    const missing = filters({ no_capture_date: '1', album_id: 'album' });
+    expect(buildApiParams(missing, false, undefined)['no_capture_date']).toBe('1');
+    expect(buildByPathsFilters(missing, false, '', undefined)['no_capture_date']).toBe('1');
+    const saved = smartAlbumFilterJson(missing);
+    expect(JSON.parse(saved).no_capture_date).toBe('1');
+    const opened = applySavedAlbumFilters(DEFAULT_FILTERS, saved, 'album');
+    const cleared = { ...opened, no_capture_date: '' };
+    const url = buildSyncParams(cleared, undefined);
+    expect(url['no_capture_date']).toBe('');
+    expect(applyQueryParams(opened, url).no_capture_date).toBe('');
+    expect(applyQueryParams(DEFAULT_FILTERS, { no_capture_date: 'false' }).no_capture_date).toBe('');
+    expect(countActiveFilters(missing)).toBe(1);
+    const datedAlbum = applySavedAlbumFilters(DEFAULT_FILTERS, JSON.stringify({ date_from: '2026-01-01', date_to: '2026-12-31' }), 'album');
+    const missingInstead = { ...datedAlbum, no_capture_date: '1', date_from: '', date_to: '' };
+    const restored = applyQueryParams(datedAlbum, buildSyncParams(missingInstead, undefined));
+    expect(restored).toMatchObject({ no_capture_date: '1', date_from: '', date_to: '' });
+    expect(buildApiParams(restored, true, undefined)).not.toHaveProperty('date_from');
+  });
+});

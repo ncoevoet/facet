@@ -319,6 +319,7 @@ class GalleryParams(BaseModel):
     # Date filters
     date_from: str = ''
     date_to: str = ''
+    no_capture_date: str = ''  # NULL or blank stored capture date, not scan/import time
     # Content flags
     is_monochrome: str = ''
     manual_faces_need_review: str = ''

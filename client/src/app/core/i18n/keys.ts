@@ -1662,6 +1662,7 @@ export const I18N = {
       remove: "gallery.tag_groups.remove",
       clear: "gallery.tag_groups.clear",
     },
+    no_capture_date: "gallery.no_capture_date",
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -2739,6 +2740,10 @@ export const I18N = {
     all_years: "timeline.all_years",
     no_photos_month: "timeline.no_photos_month",
     photos_count: "timeline.photos_count",
+    capture_scope: "timeline.capture_scope",
+    scope_help: "timeline.scope_help",
+    open_range: "timeline.open_range",
+    all_dates: "timeline.all_dates",
   },
   folders: {
     help: "folders.help",

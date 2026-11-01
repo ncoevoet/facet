@@ -461,6 +461,11 @@ HIDDEN_PANORAMA_SQL = (
 DATE_FILTER_EXPR = "DATE(REPLACE(SUBSTR(date_taken,1,10),':','-'))"
 
 
+# Shared by missing-date gallery queries and the complementary timeline scope.
+# Do not treat malformed nonempty metadata as an absent capture date.
+CAPTURE_DATE_MISSING_SQL = "(date_taken IS NULL OR TRIM(date_taken, char(9) || char(10) || char(13) || ' ') = '')"
+
+
 def build_date_range_clauses(date_from, date_to):
     """Build WHERE clauses for date range filtering on EXIF date_taken."""
     clauses, params = [], []

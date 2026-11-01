@@ -116,6 +116,7 @@
   "min_topiq",
   "narrative_moment",
   "no_blink",
+  "no_capture_date",
   "no_gps",
   "page",
   "path_prefix",

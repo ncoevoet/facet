@@ -142,6 +142,7 @@ export interface GalleryFilters {
   // Date range
   date_from: string;
   date_to: string;
+  no_capture_date: string;
   // Content
   composition_pattern: string;
   /** Pending panorama corrections: '' | 'any' | 'suppressed' | 'forced'. */
@@ -389,7 +390,7 @@ export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
   'min_face_ratio', 'max_face_ratio', 'min_face_confidence', 'max_face_confidence',
   'min_star_rating', 'max_star_rating',
   'min_iso', 'max_iso', 'min_aperture', 'max_aperture', 'min_focal_length', 'max_focal_length',
-  'date_from', 'date_to',
+  'date_from', 'date_to', 'no_capture_date',
   'path_prefix',
   'no_gps', 'gps_lat', 'gps_lng', 'gps_radius_km',
 ];
@@ -488,6 +489,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   max_focal_length: '',
   date_from: '',
   date_to: '',
+  no_capture_date: '',
   composition_pattern: '',
   sequence_override: '',
   path_prefix: '',
@@ -607,6 +609,11 @@ export function applyQueryParams(
     result.tag_groups = groups ? serializeTagQuery(groups) : params['tag_groups'];
   }
   if (Object.hasOwn(params, 'person_id')) result.person_id = params['person_id'];
+  for (const key of ['date_from', 'date_to'] as const) {
+    if (Object.hasOwn(params, key)) result[key] = params[key];
+  }
+  if (Object.hasOwn(params, 'no_capture_date')) result.no_capture_date = params['no_capture_date'];
+  result.no_capture_date = ['1', 'true'].includes(result.no_capture_date) ? '1' : '';
   if (!result.person_id || !['all', 'any'].includes(result.person_match)) result.person_match = 'all';
   if (!['', 'undecided', 'kept', 'rejected'].includes(result.review_status)) result.review_status = '';
   if (result.review_status) Object.assign(result, reviewStatusPatch(result, false));
@@ -695,6 +702,11 @@ export function buildSyncParams(
     params['person_match'] = f.person_match;
   }
   if (f.album_id || hasTagQuery(f.tag_groups)) params['tag_groups'] = f.tag_groups;
+  if (f.album_id) {
+    params['no_capture_date'] = f.no_capture_date;
+    params['date_from'] = f.date_from;
+    params['date_to'] = f.date_to;
+  }
   if (f.similar_to && f.min_similarity) params['min_similarity'] = f.min_similarity;
   if (f.similar_to && f.similarity_mode && f.similarity_mode !== 'visual') params['similarity_mode'] = f.similarity_mode;
   // Only when the user moved the slider off the server's own seed -- the same

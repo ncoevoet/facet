@@ -36,10 +36,6 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     <ng-template #timelineToolbar>
-      <app-date-range-filter
-        [from]="filters.dateFrom()" [to]="filters.dateTo()"
-        fromClass="!hidden lg:!inline-flex w-44 ml-2" toClass="!hidden lg:!inline-flex w-44"
-        (fromChange)="filters.dateFrom.set($event)" (toChange)="filters.dateTo.set($event)" />
       @if (anyHiddenByFilters()) {
         <button mat-button class="!min-w-0"
                 [matTooltip]="I18N.gallery.hidden_banner.some_hidden | translate"
@@ -56,6 +52,19 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
         </button>
       }
     </ng-template>
+    <details class="mx-4 mt-3 border-b border-[var(--mat-sys-outline-variant)] pb-2">
+      <summary class="cursor-pointer text-sm leading-6">{{ I18N.timeline.capture_scope | translate }}</summary>
+      <p class="my-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scope_help | translate }}</p>
+      <div class="flex flex-wrap items-center gap-2">
+        <app-date-range-filter
+          [from]="filters.dateFrom()" [to]="filters.dateTo()"
+          fromClass="w-40" toClass="w-40"
+          (fromChange)="filters.dateFrom.set($event)" (toChange)="filters.dateTo.set($event)" />
+        <button mat-button (click)="viewRange()">{{ I18N.timeline.open_range | translate }}</button>
+        <button mat-button (click)="resetDates()">{{ I18N.timeline.all_dates | translate }}</button>
+        <button mat-button (click)="viewUnknownDates()">{{ I18N.gallery.no_capture_date | translate }}</button>
+      </div>
+    </details>
     <!-- Breadcrumb navigation -->
     @if (level() !== 'years') {
     <nav class="sticky top-0 z-10 bg-[var(--mat-sys-surface)] flex items-center gap-1 px-4 pt-4 pb-2 text-sm flex-wrap">
@@ -116,6 +125,10 @@ export class TimelineComponent {
    *  count of 0 for a bucket whose photos are entirely hidden, and timeline-days
    *  makes a count-0 cell non-clickable, so this is the only way to reach it. */
   protected readonly anyHiddenByFilters = computed(() => anyHideToggleActive(this.store.viewFilterParams()));
+  /** Timeline API flags use 1/0; gallery URLs use true/false. */
+  private readonly galleryVisibility = computed(() => Object.fromEntries(
+    Object.entries(this.store.viewFilterParams()).map(([key, value]) => [key, String(value === '1')]),
+  ));
 
   constructor() {
     registerPageContext('timeline', () => ({
@@ -177,11 +190,33 @@ export class TimelineComponent {
   protected onDaySelected(date: string): void {
     this.router.navigate(['/'], {
       queryParams: {
+        ...this.galleryVisibility(),
         date_from: date,
         date_to: date,
         sort: 'date_taken',
         sort_direction: 'DESC',
       },
     });
+  }
+
+  protected viewRange(): void {
+    this.router.navigate(['/'], { queryParams: {
+      ...this.galleryVisibility(),
+      date_from: this.filters.dateFrom(), date_to: this.filters.dateTo(),
+      sort: 'date_taken', sort_direction: 'DESC',
+    } });
+  }
+
+  protected viewUnknownDates(): void {
+    this.router.navigate(['/'], { queryParams: {
+      ...this.galleryVisibility(), no_capture_date: '1',
+      sort: 'filename', sort_direction: 'ASC',
+    } });
+  }
+
+  protected resetDates(): void {
+    this.filters.dateFrom.set('');
+    this.filters.dateTo.set('');
+    this.router.navigate(['/timeline']);
   }
 }

@@ -365,6 +365,7 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
     if (f.review_status) chips.push({ id: 'review_status', labelKey: I18N.gallery.sidebar.review.decision, value: this.i18n.t('gallery.sidebar.review.values.' + f.review_status), clearKeys: ['review_status'] });
     if (f.sequence_override) chips.push({ id: 'sequence_override', labelKey: I18N.gallery.sequence_override.label, value: this.i18n.t('gallery.sequence_override.' + f.sequence_override), clearKeys: ['sequence_override'] });
     if (f.no_gps) chips.push({ id: 'no_gps', labelKey: I18N.gallery.sidebar.location, value: this.i18n.t(I18N.gallery.criteria.no_location), clearKeys: ['no_gps'] });
+    if (f.no_capture_date) chips.push({ id: 'no_capture_date', labelKey: I18N.gallery.sidebar.date, value: this.i18n.t(I18N.gallery.no_capture_date), clearKeys: ['no_capture_date'] });
 
     // Simple string/select filters
     if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });

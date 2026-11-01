@@ -12,6 +12,7 @@ from api.auth import CurrentUser, get_optional_user
 from api.config import VIEWER_CONFIG
 from api.database import get_async_db
 from api.db_helpers import (
+    CAPTURE_DATE_MISSING_SQL,
     build_date_range_clauses,
     build_photo_select_columns, sanitize_float_values,
     split_photo_tags, attach_person_data_async,
@@ -119,7 +120,7 @@ async def api_timeline(
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
             sql_params = list(from_params) + list(vis_params)
 
             where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
@@ -184,7 +185,7 @@ async def api_timeline(
                 else:
                     inner_order = "aggregate DESC, path ASC"
 
-                batch_where = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+                batch_where = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
                 batch_params = list(from_params) + list(vis_params)
                 batch_where.extend(hide_clauses_from_toggles(hide_toggles))
                 batch_where.append(f"{date_expr} IN ({placeholders})")
@@ -266,7 +267,7 @@ async def api_timeline_dates(
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
             sql_params = list(from_params) + list(vis_params)
 
             where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
@@ -323,7 +324,7 @@ async def api_timeline_years(
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''"]
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}"]
             sql_params = list(from_params) + list(vis_params)
 
             where_clauses.extend(hide_clauses_from_toggles(hide_toggles))
@@ -366,7 +367,7 @@ async def api_timeline_months(
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
-            where_clauses = [vis_sql, "date_taken IS NOT NULL", "date_taken != ''",
+            where_clauses = [vis_sql, f"NOT {CAPTURE_DATE_MISSING_SQL}",
                              "SUBSTR(date_taken,1,4) = ?"]
             sql_params = list(from_params) + list(vis_params) + [str(year)]
 

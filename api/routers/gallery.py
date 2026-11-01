@@ -26,6 +26,7 @@ from api.models.gallery import (
 )
 from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, ViewerConfigResponse
 from api.db_helpers import (
+    CAPTURE_DATE_MISSING_SQL,
     get_existing_columns, get_cached_count_async,
     get_cached_hidden_aggregates_async, snapshot_count_token, _add_tag_filter, _add_tag_groups,
     get_art_tags_from_config, build_hide_clauses,
@@ -560,6 +561,8 @@ def _apply_exif_range_filters(where_clauses, sql_params, params):
 
 def _apply_date_album_geo_filters(where_clauses, sql_params, params):
     """Apply date range, album membership, GPS radius, and path prefix filters."""
+    if params.get('no_capture_date') in ('1', 'true'):
+        where_clauses.append(CAPTURE_DATE_MISSING_SQL)
     if params.get('date_from'):
         try:
             date_from = to_exif_date(params['date_from'])

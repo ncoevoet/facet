@@ -1503,6 +1503,16 @@
                   "null"
                 ]
               },
+              "no_capture_date": {
+                "description": "Gallery filter `no_capture_date`.",
+                "type": [
+                  "string",
+                  "integer",
+                  "number",
+                  "boolean",
+                  "null"
+                ]
+              },
               "no_gps": {
                 "description": "Gallery filter `no_gps`.",
                 "type": [
@@ -2176,5 +2186,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "ef5e860d8e5c9db8"
+  "version": "75edffd0fe831041"
 }
