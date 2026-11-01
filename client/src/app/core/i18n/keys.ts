@@ -2672,6 +2672,16 @@ export const I18N = {
       assign_hint: "culling.comparison.assign_hint",
       assign_photo: "culling.comparison.assign_photo",
     },
+    workspace: {
+      clean: "culling.workspace.clean",
+      filmstrip: "culling.workspace.filmstrip",
+      closeups: "culling.workspace.closeups",
+      link: "culling.workspace.link",
+      reject_all: "culling.workspace.reject_all",
+      reject_all_title: "culling.workspace.reject_all_title",
+      reject_all_body: "culling.workspace.reject_all_body",
+      restore: "culling.workspace.restore",
+    },
   },
   scenes: {
     title: "scenes.title",

@@ -2657,6 +2657,16 @@
       "choose_pane": "Choose pane {pane}: {name}",
       "assign_hint": "Choose a pane above, then a thumbnail below to replace pane {pane}.",
       "assign_photo": "Show {name} in pane {pane}"
+    },
+    "workspace": {
+      "clean": "Hide comparison panels",
+      "filmstrip": "Candidate filmstrip",
+      "closeups": "Face and subject close-ups",
+      "link": "Link pan and zoom",
+      "reject_all": "Reject all photos…",
+      "reject_all_title": "Reject every photo in this group?",
+      "reject_all_body": "Mark all {count} photos in this group as rejected. No files are deleted. The pending confirmation can still be cancelled before it is saved.",
+      "restore": "Show comparison panels"
     }
   },
   "scenes": {

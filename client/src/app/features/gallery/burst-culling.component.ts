@@ -675,7 +675,8 @@ interface SceneSummary {
                        [attr.aria-pressed]="stacksMode() ? null : (photo.path | isKept:cull.selectionsMap():groupKey)"
                        (click)="stacksMode() ? openLightbox(group, pIdx) : cull.tileClick(photo.path, group)"
                        (keydown.enter)="stacksMode() ? openLightbox(group, pIdx) : cull.toggleSelection(photo.path, group); $event.stopPropagation()"
-                       (keydown.space)="stacksMode() ? openLightbox(group, pIdx) : cull.toggleSelection(photo.path, group); $event.stopPropagation(); $event.preventDefault()"
+                       data-culling-image-tile
+                       (keydown.space)="onTileContinue($event, group, pIdx); $event.stopPropagation()"
                        (dblclick)="stacksMode() ? openLightbox(group, pIdx) : cull.tileDoubleClick(photo.path, group); $event.stopPropagation()">
                     <img [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision"
                          [appLoupe]="photo.path | imageUrl:true:photo.preview_revision"
@@ -892,6 +893,8 @@ interface SceneSummary {
                             [attr.aria-label]="I18N.culling.skip | translate">
                       <mat-icon>skip_next</mat-icon>
                     </button>
+                    <button mat-icon-button (click)="rejectEntireGroup(group)" [disabled]="cull.replanning() || cull.confirming()"
+                            [matTooltip]="I18N.culling.workspace.reject_all | translate" [attr.aria-label]="I18N.culling.workspace.reject_all | translate"><mat-icon>remove_done</mat-icon></button>
                     <button mat-icon-button (click)="cull.confirmGroup(group)" [disabled]="cull.confirming() || cull.replanning()"
                             [matTooltip]="I18N.culling.confirm_tooltip | translate"
                             [attr.aria-label]="I18N.culling.confirm | translate">
@@ -951,7 +954,7 @@ interface SceneSummary {
           <div class="opacity-80 shrink-0 tabular-nums text-xs">
             {{ effectiveLightboxIndex() + 1 }} / {{ lbGroup.photos.length }}
           </div>
-          @if (legendVisible()) {
+          @if (legendVisible() && !cleanComparison()) {
             <div class="order-last flex w-full max-h-24 flex-wrap items-center gap-x-4 gap-y-1.5 overflow-y-auto py-2 text-sm">
               @for (row of darkroomShortcuts(); track row.labelKey) {
                 <span class="inline-flex items-center gap-1.5">
@@ -965,7 +968,7 @@ interface SceneSummary {
               }
             </div>
           }
-          <div class="flex min-w-0 flex-1 items-center gap-1 [&>button]:shrink-0" role="presentation"
+          <div [class.hidden]="cleanComparison()" class="flex min-w-0 flex-1 items-center gap-1 [&>button]:shrink-0" role="presentation"
                (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
             <button mat-icon-button [class.!text-white]="compareMode() !== 'single'"
                     [class.!text-[var(--mat-sys-primary)]]="compareMode() === 'single'"
@@ -990,6 +993,12 @@ interface SceneSummary {
                 <mat-icon aria-hidden="true">tune</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.compare.inspection.title | translate }}</span>
               </summary>
               <div class="fixed top-14 left-2 right-2 z-[120] flex max-h-[70dvh] flex-wrap items-center gap-2 overflow-y-auto rounded border border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] p-3 text-[var(--facet-image-ink)] sm:left-auto sm:right-28 sm:max-w-lg">
+                <button mat-button [attr.aria-pressed]="filmstripVisible()" (click)="toggleFilmstrip()">{{ I18N.culling.workspace.filmstrip | translate }}</button>
+                <button mat-button [attr.aria-pressed]="inspectionStripsVisible()" (click)="toggleInspectionStrips()">{{ I18N.culling.workspace.closeups | translate }}</button>
+                <button mat-button data-darkroom-link [attr.aria-pressed]="darkroomLinked()" (click)="toggleDarkroomLink()"><mat-icon>{{ darkroomLinked() ? 'link' : 'link_off' }}</mat-icon>{{ I18N.culling.workspace.link | translate }}</button>
+                @if (!stacksMode()) {
+                  <button mat-button data-reject-entire-group (click)="rejectEntireGroup(lbGroup)" [disabled]="cull.replanning() || cull.confirming()">{{ I18N.culling.workspace.reject_all | translate }}</button>
+                }
                 <button mat-icon-button [class.!text-white]="!legendVisible()"
                         [class.!text-[var(--mat-sys-primary)]]="legendVisible()"
                         [attr.aria-pressed]="legendVisible()"
@@ -1016,9 +1025,13 @@ interface SceneSummary {
                     (click)="toggleDarkroomLoupe()">
               <mat-icon>{{ darkroomLoupeActive() ? 'zoom_in' : 'search' }}</mat-icon>
             </button>
-            <details #renditionHelp tabindex="-1" class="shrink-0" (keydown)="$event.stopPropagation()" (keydown.escape)="onRenditionHelpEscape($event, renditionHelp, renditionHelpSummary)">
+            <details #renditionHelp data-rendition-help tabindex="-1" class="shrink-0" (keydown)="$event.stopPropagation()" (keydown.escape)="onRenditionHelpEscape($event, renditionHelp, renditionHelpSummary)">
               <summary #renditionHelpSummary class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full hover:bg-white/15" [attr.aria-label]="I18N.gallery.compare.rendition.sources | translate"><mat-icon aria-hidden="true">info</mat-icon></summary>
-              <p class="fixed inset-x-2 top-14 z-[120] m-0 max-h-40 overflow-y-auto rounded border border-white/30 bg-neutral-900 p-3 text-xs text-white">{{ I18N.photo_detail.rendition.note | translate }}</p>
+              <div class="fixed inset-x-2 top-14 z-[120] flex max-h-40 gap-2 overflow-y-auto rounded border border-white/30 bg-neutral-900 p-3 text-xs text-white">
+                <p class="m-0 flex-1">{{ I18N.photo_detail.rendition.note | translate }}</p>
+                <button type="button" data-rendition-help-close class="min-h-11 min-w-11 self-start" [attr.aria-label]="I18N.dialog.close | translate"
+                        (click)="renditionHelp.open = false; renditionHelpSummary.focus()"><mat-icon>close</mat-icon></button>
+              </div>
             </details>
             @if (auth.isEdition() && (stacksMode() || (lbGroup | canStackGroup))) {
               <button mat-icon-button class="!text-white" aria-keyshortcuts="S" [disabled]="stacksMode() && (cull.stackBusy() || cull.stackDrafts()[lbKey].paths.length < 2)"
@@ -1054,6 +1067,9 @@ interface SceneSummary {
               </div>
             </details>
           </div>
+          <button mat-icon-button data-clean-comparison [attr.aria-pressed]="cleanComparison()"
+                  [matTooltip]="(cleanComparison() ? I18N.culling.workspace.restore : I18N.culling.workspace.clean) | translate" [attr.aria-label]="(cleanComparison() ? I18N.culling.workspace.restore : I18N.culling.workspace.clean) | translate"
+                  (click)="toggleCleanComparison(); $event.stopPropagation()" class="!text-white shrink-0 ml-auto"><mat-icon>{{ cleanComparison() ? 'visibility' : 'hide_source' }}</mat-icon></button>
           <button mat-icon-button
                   [matTooltip]="I18N.slideshow.fullscreen | translate"
                   [attr.aria-label]="I18N.slideshow.fullscreen | translate"
@@ -1073,7 +1089,7 @@ interface SceneSummary {
             <img [src]="overlay" alt="" aria-hidden="true"
                  class="absolute inset-0 w-full h-full object-contain origin-center
                         pointer-events-none opacity-60 will-change-transform"
-                 [style.transform]="frameTransform()" />
+                 [style.transform]="frameTransforms().get(path)" />
           }
           @if (gridMode(); as grid) {
             @if (path | frameViewBox:frameSizes(); as viewBox) {
@@ -1238,11 +1254,11 @@ interface SceneSummary {
                                    (sharpFailed)="onSharpFailed($event, photo.path)"
                                    (sharpPending)="onSharpPending($event, photo.path)"
                                    [fullResSrc]="photo.path | imageUrl:false:photo.preview_revision"
-                                   [zoom]="zoom()"
+                                   [zoom]="paneFrames().get(photo.path) ?? FIT_ZOOM"
                                    [focusPoint]="(photo.path | keySubjectForPath:keySubjectMap())?.center ?? null"
-                                   (zoomChange)="onDarkroomZoom($event)"
+                                   (zoomChange)="onDarkroomZoom($event, photo.path)"
                                    [loupeSrc]="photo.path | imageUrl:false:photo.preview_revision"
-                                   [loupeActive]="darkroomLoupeEffective()"
+                                   [loupeActive]="darkroomLoupeActive() && (paneFrames().get(photo.path)?.scale ?? 1) <= 1"
                                    [loupeZoom]="darkroomLoupeZoom()"
                                    [alt]="photo.filename"
                                    (renditionChange)="onDisplayedRendition($event, photo.path, '')" />
@@ -1261,7 +1277,9 @@ interface SceneSummary {
                   </div>
                   </div>
                   <div class="shrink-0 bg-neutral-950 p-1 text-white" role="presentation" (click)="$event.stopPropagation()" (pointerdown)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
-                    <app-rendition-readout [state]="displayedRenditions().get(photo.path) ?? RENDITION_PENDING" [pending]="pendingRenderPaths().has(photo.path)" [attemptFailed]="failedRenderPaths().has(photo.path)" [failureLabel]="I18N.gallery.compare.rendition.fallback" (retry)="retryDarkroomPane(pane)" [scale]="zoom().scale" (zoomStep)="stepDarkroomZoom($event)" (fit)="fitDarkroom()" />
+                    @if (!cleanComparison()) {
+                    <app-rendition-readout [state]="displayedRenditions().get(photo.path) ?? RENDITION_PENDING" [pending]="pendingRenderPaths().has(photo.path)" [attemptFailed]="failedRenderPaths().has(photo.path)" [failureLabel]="I18N.gallery.compare.rendition.fallback" (retry)="retryDarkroomPane(pane)" [scale]="paneFrames().get(photo.path)?.scale ?? 1" (zoomStep)="stepDarkroomZoom($event, photo.path)" (fit)="fitDarkroom(photo.path)" />
+                    }
                   </div>
                 </div>
               }
@@ -1272,23 +1290,25 @@ interface SceneSummary {
               <p data-stack-excluded role="status" class="shrink-0 text-white text-sm px-3 py-1">{{ I18N.stacks.reject_count | translate:{ count } }} @if (cull.stackDrafts()[lbKey].paths.length < 2) { {{ I18N.stacks.regroup_minimum | translate }} }</p>
             }
           }
-          @if (compareMode() !== 'single') {
+          @if (compareMode() !== 'single' && filmstripVisible() && !cleanComparison()) {
             <p data-comparison-assignment class="m-0 shrink-0 px-3 pt-2 text-xs text-white/70">{{ I18N.culling.comparison.assign_hint | translate:{ pane: comparisonSlotLabels[comparisonSlot()] } }}</p>
           }
-            <div class="shrink-0 flex gap-2 overflow-x-auto border-t border-white/10 px-3 py-2" data-stack-filmstrip
+            @if (filmstripVisible() && !cleanComparison()) {
+            <div class="shrink-0 flex gap-2 overflow-x-auto border-t border-white/10 px-3 py-1" data-stack-filmstrip
                  role="presentation" (click)="$event.stopPropagation()" (keydown)="onDarkroomKeydown($event)">
               @for (photo of lbGroup.photos; track photo.path; let index = $index) {
                 <button type="button" class="shrink-0 rounded border-2 border-transparent overflow-hidden cursor-pointer"
                         [class.!border-amber-400]="index === effectiveLightboxIndex()" [class.opacity-40]="cull.stackExcluded()[photo.path]"
                         [attr.aria-current]="index === effectiveLightboxIndex() ? 'true' : null"
                         [attr.aria-label]="compareMode() === 'single' ? photo.filename : (I18N.culling.comparison.assign_photo | translate:{ pane: comparisonSlotLabels[comparisonSlot()], name: photo.filename })" (click)="focusPhotoInLightbox(index)">
-                  <img class="h-16 w-auto max-w-32 object-contain" loading="lazy"
+                  <img class="h-12 w-auto max-w-24 object-contain" loading="lazy"
                        [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" [alt]="photo.filename" />
                   @if (cull.stackExcluded()[photo.path]) { <span class="text-xs text-white block">{{ I18N.rating.rejected_badge | translate }}</span> }
                 </button>
               }
             </div>
-          @if (!stacksMode()) {
+            }
+          @if (!stacksMode() && !cleanComparison()) {
           <!-- Footer status -->
           <div class="px-4 py-3 text-center"
                role="presentation"
@@ -1328,7 +1348,7 @@ interface SceneSummary {
         }
 
         <!-- Face / expression close-up grid -->
-        @if (!stacksMode() && faceGridHasFaces()) {
+        @if (!stacksMode() && inspectionStripsVisible() && !cleanComparison() && faceGridHasFaces()) {
           <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
                role="presentation"
                (click)="$event.stopPropagation()"
@@ -1438,7 +1458,7 @@ interface SceneSummary {
         }
 
         <!-- Subject close-up grid (non-face groups with a saliency subject box) -->
-        @if (!stacksMode() && subjectStripVisible()) {
+        @if (!stacksMode() && inspectionStripsVisible() && !cleanComparison() && subjectStripVisible()) {
           <div class="border-t border-white/10 px-4 py-3 overflow-x-auto"
                role="presentation"
                (click)="$event.stopPropagation()"
@@ -1715,8 +1735,56 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Compare mode for the darkroom: single view, or a synced 2-up / 4-up grid. */
   protected readonly compareMode = signal<'single' | '2up' | '4up'>('single');
-  /** Pan/zoom transform shared by every compare pane (synced peek). */
-  protected readonly zoom = signal<ZoomState>(FIT_ZOOM);
+  /** Focused frame transform; per-path framing survives independent inspection. */
+  protected readonly zoom = computed(() => this.paneFrames().get(this.currentPath() ?? '') ?? FIT_ZOOM);
+  protected readonly FIT_ZOOM = FIT_ZOOM;
+  protected readonly paneFrames = signal(new Map<string, ZoomState>());
+  protected readonly darkroomLinked = signal(true);
+  protected readonly cleanComparison = signal(false);
+  protected readonly filmstripVisible = signal(true);
+  protected readonly inspectionStripsVisible = signal(false);
+
+  protected toggleCleanComparison(): void {
+    this.cleanComparison.update(value => !value);
+    this.lightboxDialog()?.nativeElement.focus();
+  }
+
+  protected toggleFilmstrip(): void { this.filmstripVisible.update(value => !value); }
+  protected toggleInspectionStrips(): void { this.inspectionStripsVisible.update(value => !value); }
+  protected toggleDarkroomLink(): void { this.darkroomLinked.update(value => !value); }
+
+  protected async rejectEntireGroup(group: CullingGroup): Promise<void> {
+    if (this.stacksMode() || !this.auth.isEdition() || this.pageNavigating || !this.pageAlive || this.cull.replanning()
+      || this.cull.confirmedGroups().has(this.cull.groupKey(group)) || this.dialog.openDialogs.length) return;
+    const captured = structuredClone(group);
+    const owner = this.auth.identity(), status = this.auth.status(), token = this.auth.token, epoch = this.pageEpoch;
+    const current = () => this.pageAlive && !this.pageNavigating && this.pageEpoch === epoch && this.auth.isEdition()
+      && this.auth.identity() === owner && this.auth.status() === status && this.auth.token === token
+      && !this.cull.replanning() && !this.cull.confirmedGroups().has(this.cull.groupKey(captured))
+      && this.visibleGroups().some(item => this.cull.groupKey(item) === this.cull.groupKey(captured)
+        && JSON.stringify(item.photos.map(photo => photo.path)) === JSON.stringify(captured.photos.map(photo => photo.path)));
+    const { ConfirmDialogComponent } = await import('../../shared/components/confirm-dialog/confirm-dialog.component');
+    if (!current()) return;
+    const ref = this.dialog.open(ConfirmDialogComponent, { width: '95vw', maxWidth: '30rem', data: {
+      title: this.i18n.t(I18N.culling.workspace.reject_all_title),
+      message: this.i18n.t(I18N.culling.workspace.reject_all_body, { count: captured.photos.length }),
+      confirmLabel: this.i18n.t(I18N.culling.workspace.reject_all),
+    } });
+    if (!await firstValueFrom(ref.afterClosed()) || !current()) return;
+    if (this.cull.rejectEntireGroup(captured) && this.lightboxGroup()) {
+      const next = this.nextUnconfirmedGroupAfter(captured);
+      if (next) this.openLightbox(next, 0); else this.closeLightbox();
+    }
+  }
+
+  protected onTileContinue(event: Event, group: CullingGroup, indexInGroup: number): void {
+    const key = event as KeyboardEvent;
+    if (this.shortcutsBlocked(event) || key.repeat || key.isComposing || key.keyCode === 229 || key.ctrlKey || key.metaKey || key.altKey) return;
+    if (this.stacksMode()) { this.openLightbox(group, indexInGroup); event.preventDefault(); return; }
+    const index = this.visibleGroups().findIndex(item => this.cull.groupKey(item) === this.cull.groupKey(group));
+    if (index >= 0) this.selectedGroupIndex.set(index);
+    this.continueCullingGroup(event);
+  }
 
   private readonly coarsePointer = useCoarsePointerSignal();
 
@@ -1836,19 +1904,37 @@ export class BurstCullingComponent implements OnDestroy {
     this.displayedRenditions.update(current => new Map([...current].filter(([key]) => this.darkroomFramePaths().includes(key))).set(path, state));
   }
 
-  protected stepDarkroomZoom(direction: number): void {
-    const current = this.zoom();
-    this.onDarkroomZoom({ ...current, scale: Math.max(1, Math.min(8, current.scale * (direction > 0 ? 1.5 : 1 / 1.5))) });
+  protected stepDarkroomZoom(direction: number, path = this.currentPath() ?? ''): void {
+    const current = this.paneFrames().get(path) ?? FIT_ZOOM;
+    this.onDarkroomZoom({ ...current, scale: Math.max(1, Math.min(8, current.scale * (direction > 0 ? 1.5 : 1 / 1.5))) }, path);
   }
 
-  protected onDarkroomZoom(state: ZoomState): void {
+  protected onDarkroomZoom(state: ZoomState, path = this.currentPath() ?? ''): void {
     if (!this.pageAlive || this.pageNavigating || this.auth.identity() !== this.pageOwner || !this.auth.isEdition()
-      || !this.darkroomFramePaths().length || ![state.scale, state.tx, state.ty].every(Number.isFinite)
+      || !this.darkroomFramePaths().includes(path) || ![state.scale, state.tx, state.ty].every(Number.isFinite)
       || state.scale < 1 || state.scale > 8) return;
-    this.zoom.set(state);
+    const frames = this.paneFrames();
+    if (!this.darkroomLinked()) {
+      this.paneFrames.set(new Map(frames).set(path, { ...state }));
+    } else {
+      const source = frames.get(path) ?? FIT_ZOOM;
+      const members = this.darkroomFramePaths().map(path => ({ path, frame: frames.get(path) ?? FIT_ZOOM }));
+      const minimum = Math.max(...members.map(({ frame }) => 1 / frame.scale));
+      const maximum = Math.min(...members.map(({ frame }) => 8 / frame.scale));
+      const ratio = Math.max(minimum, Math.min(maximum, state.scale / source.scale));
+      this.paneFrames.set(new Map([...frames, ...members.map<[string, ZoomState]>(({ path, frame }) => [path, {
+        scale: frame.scale * ratio, tx: frame.tx * ratio + state.tx - source.tx * ratio,
+        ty: frame.ty * ratio + state.ty - source.ty * ratio,
+      }])]));
+    }
   }
 
-  protected fitDarkroom(): void { this.onDarkroomZoom({ ...FIT_ZOOM }); }
+  protected fitDarkroom(path = this.currentPath() ?? ''): void {
+    if (!this.darkroomFramePaths().includes(path) || !this.pageAlive || this.pageNavigating || !this.auth.isEdition() || this.auth.identity() !== this.pageOwner) return;
+    const frames = new Map(this.paneFrames());
+    for (const member of this.darkroomLinked() ? this.darkroomFramePaths() : [path]) frames.set(member, { ...FIT_ZOOM });
+    this.paneFrames.set(frames);
+  }
 
   protected retryDarkroomPane(pane: SyncedZoomComponent): void {
     const path = this.currentPath();
@@ -1973,14 +2059,12 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** The image transform of every pane, shared with the peaking overlay so the
    *  edge map pans and zooms with the frame instead of being recomputed. */
-  protected readonly frameTransform = computed(() => {
-    const z = this.zoom();
-    return `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`;
-  });
+  protected readonly frameTransforms = computed(() => new Map([...this.paneFrames()].map(([path, z]) =>
+    [path, `translate(${z.tx}px, ${z.ty}px) scale(${z.scale})`])));
 
   /** Whether the panes have swapped to their full-resolution source. A computed
    *  boolean, so panning at a fixed scale never re-triggers the peaking pass. */
-  private readonly darkroomHiRes = computed(() => this.zoom().scale > SyncedZoomComponent.MIN_SCALE);
+  private readonly darkroomHiRes = computed(() => this.darkroomFramePaths().some(path => (this.paneFrames().get(path)?.scale ?? 1) > SyncedZoomComponent.MIN_SCALE));
 
   protected readonly gridModeLabel = computed(() => {
     const mode = this.gridMode();
@@ -2038,7 +2122,6 @@ export class BurstCullingComponent implements OnDestroy {
       const first = mode === 'single' ? null : this.compareFrames()[0];
       if (first) this.lightboxIndex.set(this.lightboxGroup()!.photos.findIndex(photo => photo.path === first.path));
     }
-    this.zoom.set(FIT_ZOOM);
   }
 
   // --- Darkroom overlays (focus peaking + composition grid) ---
@@ -2282,7 +2365,7 @@ export class BurstCullingComponent implements OnDestroy {
 
   /** Index of the keyboard-selected group (page-level nav when the lightbox is closed). */
   protected readonly selectedGroupIndex = signal(0);
-  /** The list view's photo cursor inside the selected group: ← / → move it, Space toggles it. Back to the first photo whenever the group changes. */
+  /** The list view's photo cursor: ← / → move it; Space confirms the group. */
   protected readonly selectedPhotoIndex = linkedSignal({ source: this.selectedGroupIndex, computation: () => 0 });
 
   protected readonly sortModes = ['easiest', 'redundant', 'best', 'recent', 'needs_comparisons', 'chronological'] as const;
@@ -2967,7 +3050,7 @@ export class BurstCullingComponent implements OnDestroy {
     this.comparisonPaths.set([]); this.comparisonSlotIndex.set(0);
     this.displayedRenditions.set(new Map());
     this.developedFailure.set(null);
-    this.zoom.set(FIT_ZOOM);  // never inherit a prior session's zoom/pan
+    this.paneFrames.set(new Map()); // never inherit another group's framing
     this.activeStyle.set('');  // each darkroom session starts on the flat Original
     this.lightboxGroupId.set(this.cull.groupKey(group));
     this.lightboxIndex.set(index);
@@ -2985,7 +3068,6 @@ export class BurstCullingComponent implements OnDestroy {
       this.comparisonPaths.set(assignComparisonSlot(this.compareFrames().map(photo => photo.path), this.comparisonSlot(), group.photos[target].path));
     }
     this.lightboxIndex.set(target);
-    this.zoom.set(FIT_ZOOM);
   }
 
   protected selectComparisonSlot(slot: number): void {
@@ -3009,6 +3091,11 @@ export class BurstCullingComponent implements OnDestroy {
    */
   protected onDarkroomKeydown(event: KeyboardEvent): void {
     event.stopPropagation();
+    if (!this.stacksMode() && event.key === ' ' && !isTypingContext(event)
+      && (!isControlActivation(event) || !!(event.target as HTMLElement | null)?.closest('[data-stack-filmstrip]'))) {
+      this.onSpace(event);
+      return;
+    }
     if (this.stacksMode()) {
       if (this.shortcutsBlocked(event)) return;
       if (event.key === 'Enter' && isControlActivation(event)) return;
@@ -3262,7 +3349,7 @@ export class BurstCullingComponent implements OnDestroy {
       pane.toggleZoom();
       return;
     }
-    this.zoom.set(this.zoom().scale > SyncedZoomComponent.MIN_SCALE
+    this.onDarkroomZoom(this.zoom().scale > SyncedZoomComponent.MIN_SCALE
       ? FIT_ZOOM
       : { scale: SyncedZoomComponent.TOGGLE_SCALE, tx: 0, ty: 0 });
   }
@@ -3331,7 +3418,6 @@ export class BurstCullingComponent implements OnDestroy {
       undo: () => {
         this.cull.restoreSelection(group, previousKept);
         this.lightboxIndex.set(previousIndex);
-        this.zoom.set(FIT_ZOOM);
         return Promise.resolve();
       },
     });
@@ -3487,7 +3573,15 @@ export class BurstCullingComponent implements OnDestroy {
       if (!this.shortcutsBlocked(event) && !isControlActivation(event)) event.preventDefault();
       return;
     }
-    if (this.shortcutsBlocked(event)) return;
+    if ((event as KeyboardEvent).shiftKey || this.shortcutsBlocked(event) || isTypingContext(event)) return;
+    if (!this.lightboxGroup() && isControlActivation(event)) return;
+    this.continueCullingGroup(event);
+  }
+
+  private continueCullingGroup(event: Event): void {
+    const key = event as KeyboardEvent;
+    if (this.shortcutsBlocked(event) || isTypingContext(event) || key.repeat || key.isComposing || key.keyCode === 229
+      || key.ctrlKey || key.altKey || key.metaKey || this.pageNavigating || !this.pageAlive) return;
     const group = this.lightboxGroup();
     if (group) {
       // Darkroom: confirm the open group and jump into the next one.
@@ -3502,14 +3596,15 @@ export class BurstCullingComponent implements OnDestroy {
       }
       return;
     }
-    // List: toggle the photo under the cursor. A confirmed group is locked, as it is to the mouse.
-    if (isTypingContext(event) || isControlActivation(event)) return;
     const selected = this.visibleGroups()[this.selectedGroupIndex()];
-    const photo = selected?.photos[this.selectedPhotoIndex()];
-    if (!selected || !photo) return;
+    if (!selected) return;
     event.preventDefault();
-    if (this.cull.confirmedGroups().has(this.cull.groupKey(selected))) return;
-    this.cull.toggleSelection(photo.path, selected);
+    if (this.cull.confirmedGroups().has(this.cull.groupKey(selected)) || !this.cull.confirmGroup(selected)) return;
+    const next = this.nextUnconfirmedGroupAfter(selected);
+    if (next) this.selectedGroupIndex.set(this.visibleGroups().indexOf(next));
+    // The old tile remains in the countdown. Do not leave keyboard focus there
+    // so the next Space targets a just-confirmed group instead of the new cursor.
+    if (event.target instanceof HTMLElement && event.target.closest('[data-culling-image-tile]')) event.target.blur();
   }
 
   /** List: confirm the selected group and move the selection to the next one. */

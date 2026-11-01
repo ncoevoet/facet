@@ -526,6 +526,100 @@ describe('BurstCullingComponent', () => {
       mockApi.post.mockReturnValue(of({}));
     });
 
+    it('culling feedback: Space on a filmstrip button continues without changing the pair', () => {
+      const first = store.groups()[0];
+      component['openLightbox'](first, 0);
+      const strip = document.createElement('div'); strip.setAttribute('data-stack-filmstrip', '');
+      const button = document.createElement('button'); strip.append(button);
+      button.addEventListener('keydown', event => component['onDarkroomKeydown'](event));
+      const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true });
+      button.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+      expect(store.confirmedGroups().has(store.groupKey(first))).toBe(true);
+      expect(component['lightboxGroupId']()).toBe('2_similar');
+    });
+
+    it('culling feedback: independent crops survive relinking and linked gestures preserve their relative framing', () => {
+      component['openLightbox'](store.groups()[0], 0);
+      component['setCompareMode']('2up');
+      component['toggleDarkroomLink']();
+      component['onDarkroomZoom']({ scale: 2, tx: 10, ty: 20 }, '/photo1.jpg');
+      expect(component['paneFrames']().get('/photo2.jpg')).toBeUndefined();
+      component['onDarkroomZoom']({ scale: 3, tx: -5, ty: 7 }, '/photo2.jpg');
+      const before = new Map(component['paneFrames']());
+      component['toggleDarkroomLink']();
+      expect(component['paneFrames']()).toEqual(before);
+      component['onDarkroomZoom']({ scale: 4, tx: 23, ty: 45 }, '/photo1.jpg');
+      expect(component['paneFrames']().get('/photo2.jpg')).toEqual({ scale: 6, tx: -7, ty: 19 });
+      component['fitDarkroom']('/photo1.jpg');
+      expect(component['paneFrames']().get('/photo1.jpg')).toEqual({ scale: 1, tx: 0, ty: 0 });
+      expect(component['paneFrames']().get('/photo2.jpg')).toEqual({ scale: 1, tx: 0, ty: 0 });
+    });
+
+    it('culling feedback: explicit Reject entire burst commits empty keeps only after the cancel window', async () => {
+      vi.useFakeTimers();
+      try {
+        const first = store.groups()[0];
+        expect(store.rejectEntireGroup(first)).toBe(true);
+        expect(store.selectionsMap().get(store.groupKey(first))?.size).toBe(0);
+        expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+        await vi.advanceTimersByTimeAsync(7000);
+        expect(mockApi.post).toHaveBeenCalledWith('/culling-groups/confirm', {
+          group_id: first.group_id, type: first.type, paths: first.photos.map(photo => photo.path), keep_paths: [],
+        });
+      } finally { vi.useRealTimers(); }
+    });
+
+    it('culling feedback: ordinary Continue cannot silently turn an empty selection into Reject all', () => {
+      const first = store.groups()[0];
+      store.selectionsMap.set(new Map([[store.groupKey(first), new Set()]]));
+      expect(store.confirmGroup(first)).toBe(false);
+      expect(store.confirmedGroups().size).toBe(0);
+    });
+
+    it('culling feedback: switching to single view or reselecting its frame preserves decoded-image framing', () => {
+      component['openLightbox'](store.groups()[0], 0);
+      component['setCompareMode']('2up');
+      component['toggleDarkroomLink']();
+      const crop = { scale: 2, tx: 50, ty: 20 };
+      component['onDarkroomZoom'](crop, '/photo1.jpg');
+      component['setCompareMode']('single');
+      expect(component['zoom']()).toEqual(crop);
+      component['focusPhotoInLightbox'](0);
+      expect(component['zoom']()).toEqual(crop);
+      expect(component['paneFrames']().get('/photo1.jpg')).toEqual(crop);
+      component['focusPhotoInLightbox'](1);
+      expect(component['zoom']()).toEqual({ scale: 1, tx: 0, ty: 0 });
+      component['focusPhotoInLightbox'](0);
+      expect(component['zoom']()).toEqual(crop);
+    });
+
+    it('culling feedback: Reject entire burst requires confirmation and refuses changed membership', async () => {
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const first = store.groups()[0];
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      expect(store.confirmedGroups().size).toBe(0);
+      store.groups.update(groups => groups.map(group => group === first ? { ...group, photos: group.photos.slice(1) } : group));
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
+    it('culling feedback: confirming Reject entire burst stages the captured group, not file deletion', async () => {
+      const closed = new Subject<boolean>();
+      const open = vi.spyOn(TestBed.inject(MatDialog), 'open').mockReturnValue({ afterClosed: () => closed } as never);
+      const first = store.groups()[0];
+      const pending = component['rejectEntireGroup'](first);
+      await vi.waitFor(() => expect(open).toHaveBeenCalled());
+      expect(store.confirmedGroups().size).toBe(0);
+      closed.next(true); await pending;
+      expect(store.confirmedGroups().has(store.groupKey(first))).toBe(true);
+      expect(store.selectionsMap().get(store.groupKey(first))?.size).toBe(0);
+      expect(mockApi.post.mock.calls.filter(([url]) => url === '/culling-groups/confirm')).toHaveLength(0);
+    });
+
     it('confirms the open group and opens the next group fullscreen', async () => {
       const [first, second] = store.groups();
       component['openLightbox'](first, 0);
@@ -560,19 +654,16 @@ describe('BurstCullingComponent', () => {
       expect(component['selectedGroupIndex']()).toBe(1);
     });
 
-    it('list mode: Space toggles the photo under the cursor and confirms nothing', () => {
+    it('list mode: Space confirms and advances without toggling the focused photo', () => {
       component['selectedGroupIndex'].set(0);
       component['onArrowRight'](new KeyboardEvent('keydown'));
       const group = store.groups()[0];
-      const wasKept = store.selectionsMap().get('1_burst')?.has('/photo2.jpg') ?? false;
+      const kept = new Set(store.selectionsMap().get('1_burst'));
 
       component['onSpace'](new KeyboardEvent('keydown'));
-      expect(store.selectionsMap().get('1_burst')?.has('/photo2.jpg') ?? false).toBe(!wasKept);
-      component['onSpace'](new KeyboardEvent('keydown'));
-      expect(store.selectionsMap().get('1_burst')?.has('/photo2.jpg') ?? false).toBe(wasKept);
-
-      expect(store.confirmedGroups().size).toBe(0);
-      expect(group.photos[component['selectedPhotoIndex']()].path).toBe('/photo2.jpg');
+      expect(store.selectionsMap().get('1_burst')).toEqual(kept);
+      expect(store.confirmedGroups().has(store.groupKey(group))).toBe(true);
+      expect(component['selectedGroupIndex']()).toBe(1);
     });
 
     it('list mode: Space leaves a confirmed group untouched', () => {
@@ -786,14 +877,16 @@ describe('BurstCullingComponent', () => {
       expect(component['darkroomLoupeActive']()).toBe(false);
     });
 
-    it('is inactive while the darkroom frame is zoomed beyond fit, even when the toggle is on', () => {
+    it('is inactive while the darkroom frame is zoomed beyond fit, even when the toggle is on', async () => {
+      await store.loadGroups();
+      component['openLightbox'](store.groups()[0], 0);
       expect(component['darkroomLoupeActive']()).toBe(true);
       expect(component['darkroomLoupeEffective']()).toBe(true);
 
-      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
       expect(component['darkroomLoupeEffective']()).toBe(false);
 
-      component['zoom'].set({ scale: 1, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 1, tx: 0, ty: 0 });
       expect(component['darkroomLoupeEffective']()).toBe(true);
     });
   });
@@ -1976,6 +2069,8 @@ describe('BurstCullingComponent', () => {
       await flush();
       rendered['cull'].groups.set([grp]);
       rendered['openLightbox'](grp, 0);
+      // These tests inspect the optional close-up strip deliberately.
+      rendered['inspectionStripsVisible'].set(true);
       await flush();
       fixture.detectChanges();
       const teardown = () => {
@@ -1984,6 +2079,35 @@ describe('BurstCullingComponent', () => {
       };
       return { fixture, rendered, teardown };
     };
+
+    it('culling feedback: help can close and clean view restores the same comparison without bottom strips', async () => {
+      const { fixture, rendered, teardown } = await renderDarkroom({ '/k1.jpg': keyPerson() });
+      try {
+        rendered['setCompareMode']('2up');
+        fixture.detectChanges();
+        const root = fixture.nativeElement as HTMLElement;
+        root.querySelector<HTMLDetailsElement>('[data-darkroom-tools]')!.open = true;
+        const help = root.querySelector<HTMLDetailsElement>('[data-rendition-help]')!;
+        const summary = help.querySelector('summary')!;
+        help.open = true;
+        const close = help.querySelector<HTMLButtonElement>('[data-rendition-help-close]')!;
+        close.focus(); close.click();
+        expect(help.open).toBe(false);
+        expect(document.activeElement).toBe(summary);
+        const before = rendered['compareFrames']().map((photo: { path: string }) => photo.path);
+        expect(root.querySelector('[data-stack-filmstrip]')).toBeTruthy();
+        root.querySelector<HTMLButtonElement>('[data-clean-comparison]')!.click();
+        fixture.detectChanges();
+        expect(root.querySelector('[data-stack-filmstrip]')).toBeNull();
+        expect(root.querySelector('[data-face-frame]')).toBeNull();
+        expect(root.querySelector('[data-darkroom-close]')).toBeTruthy();
+        expect(root.querySelectorAll('app-synced-zoom').length).toBe(before.length);
+        root.querySelector<HTMLButtonElement>('[data-clean-comparison]')!.click();
+        fixture.detectChanges();
+        expect(root.querySelector('[data-stack-filmstrip]')).toBeTruthy();
+        expect(rendered['compareFrames']().map((photo: { path: string }) => photo.path)).toEqual(before);
+      } finally { teardown(); }
+    });
 
     /** The browser-less env reports a zero-size pane and an unloaded image. */
     const measurePane = (fixture: ComponentFixture<BurstCullingComponent>) => {
@@ -2773,12 +2897,12 @@ describe('BurstCullingComponent', () => {
       await settle();
       expect(renderPeaking.mock.calls.at(-1)?.[1]).toBe(640);
 
-      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
       await settle();
       expect(renderPeaking.mock.calls.at(-1)?.[1]).toBeUndefined();
 
       component['setCompareMode']('2up');
-      component['zoom'].set({ scale: 1, tx: 0, ty: 0 });
+      component['fitDarkroom']();
       await settle();
       expect(renderPooledPeaking.mock.calls.at(-1)?.[1]).toBe(640);
     });
@@ -2921,11 +3045,11 @@ describe('BurstCullingComponent', () => {
       await settle();
       const afterFit = renderPeaking.mock.calls.length;
 
-      component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+      component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
       await settle();
       const afterZoom = renderPeaking.mock.calls.length;
 
-      component['zoom'].set({ scale: 2, tx: 60, ty: 20 });
+      component['onDarkroomZoom']({ scale: 2, tx: 60, ty: 20 });
       await settle();
 
       expect(afterZoom).toBe(afterFit + 1);
@@ -4086,7 +4210,7 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
     openDarkroom();
     expect((surface().nativeElement as HTMLElement).style.touchAction).toBe('pan-y');
 
-    component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+    component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
     fixture.detectChanges();
 
     expect((surface().nativeElement as HTMLElement).style.touchAction).toBe('');
@@ -4107,7 +4231,7 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
   // one drag below has to move the crop and decide nothing.
   it('stands down while the frame is zoomed, leaving the drag to the pane pan', async () => {
     openDarkroom();
-    component['zoom'].set({ scale: 2, tx: 0, ty: 0 });
+    component['onDarkroomZoom']({ scale: 2, tx: 0, ty: 0 });
     fixture.detectChanges();
     expect(component['swipeEnabled']()).toBe(false);
 

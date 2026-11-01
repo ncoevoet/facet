@@ -1397,13 +1397,30 @@ export class CullingStore {
    * when it elapses, so cancelling within the window fully reverts it. Returns
    * false when the group has nothing kept (nothing to confirm).
    */
-  confirmGroup(group: CullingGroup): boolean {
+  rejectEntireGroup(group: CullingGroup): boolean {
+    if (!this.cullWritesAllowed() || this.replanning() || !group.photos.length
+      || this.confirmedGroups().has(this.groupKey(group))) return false;
+    const key = this.groupKey(group);
+    const previous = this.selectionsMap().get(key);
+    this.selectionsMap.set(new Map(this.selectionsMap()).set(key, new Set()));
+    if (!this.confirmGroup(group, true)) {
+      const restored = new Map(this.selectionsMap());
+      if (previous) restored.set(key, previous); else restored.delete(key);
+      this.selectionsMap.set(restored);
+      return false;
+    }
+    this.reportSelection(key, new Set());
+    return true;
+  }
+
+  confirmGroup(group: CullingGroup, explicitRejectAll = false): boolean {
     if (!this.cullWritesAllowed()) return false;
     // Paused while a re-plan is in flight: the plan it would land on is about to be replaced.
     if (this.replanning()) return false;
     const key = this.groupKey(group);
+    if (this.confirmedGroups().has(key)) return false;
     const kept = this.selectionsMap().get(key);
-    if (!kept || kept.size === 0) return false;
+    if (!kept || (kept.size === 0 && !explicitRejectAll)) return false;
     const keepPaths = [...kept];
     // A commit that lands after the feed was reset (Exit, a scope change) belongs to a feed that is gone:
     // it still reaches the server, but must not hide a same-keyed group of the new feed or journal a confirm.
