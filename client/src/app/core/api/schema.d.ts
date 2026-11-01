@@ -1769,6 +1769,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/faces/review/feedback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reject Face Suggestion
+         * @description Reject a suggestion only for this account; never change assignments.
+         */
+        post: operations["reject_face_suggestion_api_faces_review_feedback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/faces/review/feedback/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Undo Face Suggestion Feedback
+         * @description Undo exactly one receipt, refusing a newer rejection in another tab.
+         */
+        post: operations["undo_face_suggestion_feedback_api_faces_review_feedback_undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/filter_options/apertures": {
         parameters: {
             query?: never;
@@ -6759,6 +6799,24 @@ export interface components {
             /** Path */
             path: string;
         };
+        /** FaceReviewFeedbackRequest */
+        FaceReviewFeedbackRequest: {
+            /** Expected Person Name */
+            expected_person_name: string;
+            /** Face Id */
+            face_id: number;
+            /** Identity Token */
+            identity_token: string;
+            /** Person Id */
+            person_id: number;
+        };
+        /** FaceReviewFeedbackResponse */
+        FaceReviewFeedbackResponse: {
+            /** Receipt Id */
+            receipt_id: string;
+            /** Rejected */
+            rejected: boolean;
+        };
         /** FaceReviewItem */
         FaceReviewItem: {
             /**
@@ -6807,6 +6865,19 @@ export interface components {
              * @description Cosine similarity, not an identity probability.
              */
             similarity: number;
+        };
+        /** FaceReviewUndoRequest */
+        FaceReviewUndoRequest: {
+            /** Expected Person Name */
+            expected_person_name: string;
+            /** Face Id */
+            face_id: number;
+            /** Identity Token */
+            identity_token: string;
+            /** Person Id */
+            person_id: number;
+            /** Receipt Id */
+            receipt_id: string;
         };
         /** FolderEntry */
         FolderEntry: {
@@ -12819,6 +12890,7 @@ export interface operations {
                 suggest?: boolean;
                 min_similarity?: number;
                 target_person_id?: number | null;
+                face_id?: number | null;
             };
             header?: never;
             path?: never;
@@ -12833,6 +12905,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FaceReviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_face_suggestion_api_faces_review_feedback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceReviewFeedbackRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceReviewFeedbackResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_face_suggestion_feedback_api_faces_review_feedback_undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceReviewUndoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceReviewFeedbackResponse"];
                 };
             };
             /** @description Validation Error */

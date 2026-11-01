@@ -2197,8 +2197,8 @@
       "confirm_help": "Only the captured, unchanged, unassigned faces will be added. Existing assignments are preserved. People are applied separately; a later failure can leave earlier groups completed.",
       "confirm": "Assign selected faces",
       "receipt": "Assigned: {assigned} · Skipped: {skipped}",
-      "uncertain": "Some assignments may have completed. Reload faces before continuing.",
-      "changed": "Some faces could not be assigned. See the receipt, then reload before continuing.",
+      "uncertain": "Some changes may have completed. Reload faces before continuing.",
+      "changed": "This review changed or could not be refreshed. Check the receipt, then reload before continuing.",
       "read_error": "Could not load this review. A large reference scope may need a single-person search or browsing without suggestions.",
       "without_matches": "Browse without suggestions",
       "no_suggestion": "No suggested person",
@@ -2218,7 +2218,10 @@
       "already": "Already assigned to this person",
       "missing": "Unavailable or no longer permitted",
       "already_assigned": "Already assigned elsewhere",
-      "face_changed": "Face changed after preview"
+      "face_changed": "Face changed after preview",
+      "not_person": "Not {name}",
+      "feedback_saved": "Hidden as a suggestion for {name} in your account.",
+      "feedback_undo": "Undo feedback"
     }
   },
   "photo_faces": {

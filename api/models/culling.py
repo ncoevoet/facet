@@ -330,6 +330,22 @@ class FaceReviewResponse(BaseModel):
     suggestions_requested: bool
 
 
+class FaceReviewFeedbackRequest(BaseModel):
+    face_id: int = Field(ge=1, le=9007199254740991)
+    person_id: int = Field(ge=1, le=9007199254740991)
+    identity_token: str = Field(pattern=r'^[a-f0-9]{64}$')
+    expected_person_name: str = Field(min_length=1, max_length=1000)
+
+
+class FaceReviewUndoRequest(FaceReviewFeedbackRequest):
+    receipt_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+
+
+class FaceReviewFeedbackResponse(BaseModel):
+    receipt_id: str
+    rejected: bool
+
+
 class PhotoFace(BaseModel):
     """A face row as ``GET /api/photo/faces`` emits it, with its assignment."""
 

@@ -2233,6 +2233,9 @@ export const I18N = {
       missing: "persons.review_queue.missing",
       already_assigned: "persons.review_queue.already_assigned",
       face_changed: "persons.review_queue.face_changed",
+      not_person: "persons.review_queue.not_person",
+      feedback_saved: "persons.review_queue.feedback_saved",
+      feedback_undo: "persons.review_queue.feedback_undo",
     },
   },
   photo_faces: {

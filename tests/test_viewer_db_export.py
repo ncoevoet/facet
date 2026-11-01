@@ -662,3 +662,25 @@ def test_manual_review_cache_survives_viewer_copy_and_local_correction(tmp_path,
     export_viewer_db(src, out, verbose=False)
     with sqlite3.connect(out) as conn:
         assert conn.execute("SELECT manual_review_required,manual_source FROM faces WHERE manual_key='review-cache'").fetchone() == (0, 'viewer-corrected')
+
+
+def test_full_export_omits_face_feedback_and_incremental_preserves_local_feedback(tmp_path):
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        person = conn.execute("INSERT INTO persons(name) VALUES ('Alice')").lastrowid
+        face = conn.execute("INSERT INTO faces(photo_path,face_index,embedding,person_id) VALUES (?,0,X'',NULL)", (_A,)).lastrowid
+        conn.execute('INSERT INTO face_review_feedback VALUES (?,?,?,?,?)',
+                     ('private-source-feedback-owner', face, person, 'a'*64, 'b'*32))
+    export_viewer_db(src, out, verbose=False)
+    assert b'private-source-feedback-owner' not in Path(out).read_bytes()
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM face_review_feedback').fetchone()[0] == 0
+        face = conn.execute('SELECT id FROM faces WHERE photo_path=?', (_A,)).fetchone()[0]
+        person = conn.execute('SELECT id FROM persons').fetchone()[0]
+        conn.execute('INSERT INTO face_review_feedback VALUES (?,?,?,?,?)',
+                     ('viewer-local-owner', face, person, 'c'*64, 'd'*32))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT owner,identity_token,receipt_id FROM face_review_feedback').fetchall() == [('viewer-local-owner', 'c'*64, 'd'*32)]

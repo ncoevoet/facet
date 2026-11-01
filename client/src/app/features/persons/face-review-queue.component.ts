@@ -20,6 +20,7 @@ type Face = components['schemas']['FaceReviewItem'];
 type Response = components['schemas']['FaceReviewResponse'];
 interface Choice { personId: number; name: string }
 interface CapturedFace extends Choice { faceId: number; token: string }
+interface FeedbackReceipt { face: Face; choice: Choice; receiptId: string }
 interface ReceiptReason { name: string; label: string; count: number }
 interface AssignmentReport { assigned_count: number; already: number[]; missing: number[]; skipped_model: number[]; skipped_hidden: number[]; skipped_assigned: number[]; skipped_changed: number[] }
 
@@ -47,6 +48,12 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
     @if (receipt(); as result) {
       <p role="status" data-assignment-receipt class="text-sm">{{ I18N.persons.review_queue.receipt | translate:{ assigned: result.assigned, skipped: result.skipped } }}</p>
       @if (result.reasons.length) { <details data-receipt-reasons class="mb-3 text-xs"><summary class="min-h-11 cursor-pointer">{{ I18N.persons.review_queue.receipt_details | translate }}</summary><ul class="pl-5">@for (reason of result.reasons; track $index) { <li>{{ reason.name }} · {{ reason.label | translate }}: {{ reason.count }}</li> }</ul></details> }
+    }
+    @if (feedbackReceipt(); as result) {
+      <div role="status" data-feedback-receipt class="mb-3 flex flex-wrap items-center gap-2 text-sm">
+        <span>{{ I18N.persons.review_queue.feedback_saved | translate:{name: result.choice.name} }}</span>
+        <button mat-button data-feedback-undo [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" (click)="undoFeedback()">{{ I18N.persons.review_queue.feedback_undo | translate }}</button>
+      </div>
     }
     @if (error()) {
       <div role="alert" class="mb-3 rounded border border-[var(--mat-sys-outline)] p-3 text-sm">
@@ -77,6 +84,9 @@ interface AssignmentReport { assigned_count: number; already: number[]; missing:
                   <button mat-button class="!min-h-11 !px-2" [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" [attr.aria-pressed]="choices().get(face.face_id)?.personId === suggestion.person_id" [attr.aria-label]="I18N.persons.review_queue.similarity_label | translate:{ name: suggestion.name, value: suggestion.similarity * 100 }" (click)="choose(face.face_id, suggestion.person_id, suggestion.name)"><span class="max-w-40 truncate">{{ suggestion.name }}</span> · {{ suggestion.similarity * 100 | fixed:0 }}</button>
                 }
                 <button mat-button [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" (click)="chooseOther(face, $event)">{{ I18N.persons.review_queue.choose_person | translate }}</button>
+                @if (choices().get(face.face_id); as choice) {
+                  <button mat-button data-not-person [disabled]="busy() || !!pending() || uncertain() || changed() || choosing()" (click)="rejectSuggestion(face)">{{ I18N.persons.review_queue.not_person | translate:{name: choice.name} }}</button>
+                }
                 <button mat-button [disabled]="busy() || !!pending() || choosing()" (click)="skip(face.face_id)">{{ I18N.persons.review_queue.skip | translate }}</button>
               </div>
             </article>
@@ -108,6 +118,7 @@ export class FaceReviewQueueComponent {
   private blocked = false;
   private after = 0;
   private planGuard: StalenessGuard | null = null;
+  private feedbackGuard: StalenessGuard | null = null;
   private returnFocus: HTMLElement | null = null;
   protected readonly faces = signal<Face[]>([]);
   protected readonly total = signal(0);
@@ -123,6 +134,7 @@ export class FaceReviewQueueComponent {
   protected readonly withoutSuggestions = signal(false);
   protected readonly pending = signal<readonly CapturedFace[] | null>(null);
   protected readonly receipt = signal<{ assigned: number; skipped: number; reasons: ReceiptReason[] } | null>(null);
+  protected readonly feedbackReceipt = signal<FeedbackReceipt | null>(null);
   protected readonly groups = computed(() => {
     const groups = new Map<number, { id: number; name: string; faces: Face[] }>();
     for (const face of this.faces()) {
@@ -153,7 +165,7 @@ export class FaceReviewQueueComponent {
       this.auth.status(); this.auth.isEdition(); this.auth.identity(); this.mode();
       untracked(() => { this.blocked = !!this.router.currentNavigation() || !this.ownsRoute(); this.reset(); if (this.allowed()) void this.load(0); });
     });
-    this.destroyRef.onDestroy(() => { this.generation++; this.chooser?.close(null); this.planGuard?.dispose(); });
+    this.destroyRef.onDestroy(() => { this.generation++; this.chooser?.close(null); this.planGuard?.dispose(); this.feedbackGuard?.dispose(); });
   }
   private ownsRoute(): boolean {
     const url = this.router.parseUrl(this.router.url);
@@ -167,6 +179,7 @@ export class FaceReviewQueueComponent {
   }
   private reset(): void {
     this.generation++; this.planGuard?.dispose(); this.planGuard = null;
+    this.feedbackGuard?.dispose(); this.feedbackGuard = null; this.feedbackReceipt.set(null);
     this.chooser?.close(null); this.chooser = null; this.choosing.set(false);
     this.total.set(0); this.error.set(false); this.uncertain.set(false); this.changed.set(false);
     this.pending.set(null); this.faces.set([]); this.selected.set(new Set()); this.choices.set(new Map());
@@ -217,6 +230,58 @@ export class FaceReviewQueueComponent {
     if (!this.allowed() || this.busy() || this.pending()) return;
     this.faces.update(value => value.filter(face => face.face_id !== id));
     this.selected.update(value => { const next = new Set(value); next.delete(id); return next; });
+  }
+  protected async rejectSuggestion(face: Face): Promise<void> {
+    const choice = this.choices().get(face.face_id);
+    if (!choice || !this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || this.choosing()) return;
+    if (!this.faces().some(value => value === face)) return;
+    this.feedbackGuard?.dispose();
+    const guard = this.capture(); this.feedbackGuard = guard;
+    this.feedbackReceipt.set(null);
+    await this.writeFeedback({ face, choice, receiptId: '' }, false, guard);
+  }
+  protected async undoFeedback(): Promise<void> {
+    const receipt = this.feedbackReceipt(), guard = this.feedbackGuard;
+    if (!receipt || !guard || !this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || this.choosing()) return;
+    if (!guard.current()) { this.reset(); this.error.set(true); return; }
+    await this.writeFeedback(receipt, true, guard);
+  }
+  private async writeFeedback(captured: FeedbackReceipt, undo: boolean, guard: StalenessGuard): Promise<void> {
+    const generation = this.generation;
+    this.busy.set(true); this.error.set(false);
+    let accepted = false;
+    try {
+      const body = { face_id: captured.face.face_id, person_id: captured.choice.personId,
+        identity_token: captured.face.identity_token, expected_person_name: captured.choice.name };
+      const result = await firstValueFrom(this.api.post<components['schemas']['FaceReviewFeedbackResponse']>(
+        `/faces/review/feedback${undo ? '/undo' : ''}`, undo ? { ...body, receipt_id: captured.receiptId } : body));
+      if (!guard.current()) return;
+      accepted = true;
+      this.feedbackReceipt.set(undo ? null : { ...captured, receiptId: result.receipt_id });
+      const response = await firstValueFrom(this.api.get<Response>('/faces/review', {
+        face_id: captured.face.face_id, limit: 1, suggest: this.mode() === 'matches' && !this.withoutSuggestions(),
+      }));
+      if (!guard.current()) return;
+      const refreshed = response.faces.find(face => face.face_id === captured.face.face_id);
+      this.faces.update(value => value.flatMap(face => face.face_id === captured.face.face_id ? refreshed ? [refreshed] : [] : [face]));
+      this.total.set(response.total_unassigned);
+      this.choices.update(value => {
+        const next = new Map(value); next.delete(captured.face.face_id);
+        const choice = refreshed?.suggestions[0];
+        if (choice) next.set(captured.face.face_id, { personId: choice.person_id, name: choice.name });
+        return next;
+      });
+      // A different suggestion needs a fresh explicit selection. Other faces stay selected.
+      this.selected.update(value => { const next = new Set(value); next.delete(captured.face.face_id); return next; });
+    } catch {
+      if (guard.current()) { this.error.set(true); this.changed.set(accepted); this.uncertain.set(!accepted); }
+    } finally {
+      if (this.generation === generation) {
+        this.busy.set(false);
+        if (!guard.current()) { this.reset(); this.error.set(true); }
+        else afterNextRender(() => { if (guard.current()) this.host.nativeElement.focus(); }, { injector: this.injector });
+      }
+    }
   }
   protected preview(event: Event): void {
     if (!this.allowed() || this.busy() || this.pending() || this.uncertain() || this.changed() || this.choosing()) return;

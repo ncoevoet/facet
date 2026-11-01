@@ -137,6 +137,63 @@ describe('FaceReviewQueueComponent', () => {
     fixture.destroy(); root.remove();
   });
 
+
+  it('persists Not this person, refreshes only that face, and preserves other selections through Undo', async () => {
+    const { fixture, root, api } = await render();
+    select(root); fixture.detectChanges();
+    const changed = { ...response.faces[0], suggestions: [{ person_id: 30, name: 'Carol', similarity: 0.7 }] };
+    api.post.mockReturnValue(of({ receipt_id: 'c'.repeat(32), rejected: true }));
+    api.get.mockReturnValueOnce(of({ ...response, faces: [changed] }));
+    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.post).toHaveBeenLastCalledWith('/faces/review/feedback', {
+      face_id: 1, person_id: 10, identity_token: 'a'.repeat(64), expected_person_name: 'Alice',
+    });
+    expect(api.get).toHaveBeenLastCalledWith('/faces/review', { face_id: 1, limit: 1, suggest: true });
+    expect(root.querySelector('[data-review-face="1"]')?.textContent).toContain('Carol');
+    expect(root.querySelector<HTMLInputElement>('[data-review-face="1"] input')?.checked).toBe(false);
+    expect(root.querySelector<HTMLInputElement>('[data-review-face="2"] input')?.checked).toBe(true);
+    api.get.mockReturnValueOnce(of({ ...response, faces: [response.faces[0]] }));
+    api.post.mockReturnValueOnce(of({ receipt_id: 'c'.repeat(32), rejected: false }));
+    root.querySelector<HTMLButtonElement>('[data-feedback-undo]')!.click();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.post).toHaveBeenLastCalledWith('/faces/review/feedback/undo', {
+      face_id: 1, person_id: 10, identity_token: 'a'.repeat(64), expected_person_name: 'Alice', receipt_id: 'c'.repeat(32),
+    });
+    expect(root.querySelector('[data-review-face="1"]')?.textContent).toContain('Alice');
+    expect(root.querySelector<HTMLInputElement>('[data-review-face="2"] input')?.checked).toBe(true);
+    expect(root.querySelector('[data-feedback-receipt]')).toBeNull();
+    fixture.destroy(); root.remove();
+  });
+
+  it('does not apply a late feedback response or its refresh after token rotation', async () => {
+    const { fixture, root, api, auth } = await render();
+    const write = new Subject(); api.post.mockReturnValueOnce(write);
+    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    const reads = api.get.mock.calls.length;
+    auth.token = 'rotated'; write.next({ receipt_id: 'c'.repeat(32), rejected: true }); write.complete();
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(api.get).toHaveBeenCalledTimes(reads);
+    expect(root.querySelectorAll('[data-review-face]')).toHaveLength(0);
+    expect(root.querySelector('[data-feedback-undo]')).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('[data-queue-reload]')?.disabled).toBe(false);
+    fixture.destroy(); root.remove();
+  });
+
+  it('retains an accepted feedback receipt but blocks edits when its targeted read fails', async () => {
+    const { fixture, root, api } = await render();
+    api.post.mockReturnValueOnce(of({ receipt_id: 'c'.repeat(32), rejected: true }));
+    const read = new Subject(); api.get.mockReturnValueOnce(read);
+    root.querySelector<HTMLButtonElement>('[data-not-person]')!.click();
+    await Promise.resolve(); read.error(new Error('read failed'));
+    await fixture.whenStable(); fixture.detectChanges();
+    expect(root.querySelector('[data-feedback-receipt]')).not.toBeNull();
+    expect(root.textContent).toContain('persons.review_queue.changed');
+    expect(root.querySelector<HTMLButtonElement>('[data-feedback-undo]')?.disabled).toBe(true);
+    expect(api.post).toHaveBeenCalledTimes(1);
+    fixture.destroy(); root.remove();
+  });
+
   it('refuses captured confirmation after navigation starts', async () => {
     const { fixture, root, api } = await render();
     select(root); fixture.detectChanges(); preview(root); fixture.detectChanges();

@@ -1331,6 +1331,16 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))
 
+        # Private per-account suggestion feedback. Geometry/embedding tokens make
+        # feedback obsolete after a face is edited or extracted again.
+        conn.execute('''CREATE TABLE IF NOT EXISTS face_review_feedback (
+            owner TEXT NOT NULL,
+            face_id INTEGER NOT NULL REFERENCES faces(id) ON DELETE CASCADE,
+            person_id INTEGER NOT NULL REFERENCES persons(id) ON DELETE CASCADE,
+            identity_token TEXT NOT NULL,
+            receipt_id TEXT NOT NULL,
+            PRIMARY KEY(owner, face_id, person_id))''')
+
         # Create photo_tags lookup table for fast tag queries
         conn.execute(_build_create_table_sql(
             'photo_tags',

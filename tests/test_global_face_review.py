@@ -211,3 +211,91 @@ def test_captured_name_precondition_refuses_invisible_empty_target(edition_clien
         'expected_person_name': expected_name})
     assert response.status_code == 404
     assert response.json() == {'detail': 'Person not found'}
+
+
+def feedback_fixture(client, seed_people):
+    path = seed_people.photo(ROOT, 'feedback.jpg')
+    people = [seed_people.person(name) for name in ('Alice', 'Bob', 'Carol', 'Dave')]
+    for person in people:
+        seed_people.face(path, person, embedding=vector())
+    face = seed_people.face(path, None, embedding=vector())
+    row = next(row for row in client.get('/api/faces/review').json()['faces'] if row['face_id'] == face)
+    return {'face_id': face, 'person_id': people[0], 'identity_token': row['identity_token'],
+            'expected_person_name': 'Alice'}, people
+
+
+def test_feedback_is_per_user_before_top_three_and_exact_undo(edition_client, regular_client, seed_people):
+    body, people = feedback_fixture(edition_client, seed_people)
+    rejected = edition_client.post('/api/faces/review/feedback', json=body)
+    assert rejected.status_code == 200, rejected.text
+    receipt = rejected.json()
+    assert receipt['rejected'] is True
+    assert edition_client.post('/api/faces/review/feedback', json=body).json() == receipt
+    params = {'face_id': body['face_id']}
+    read = edition_client.get('/api/faces/review', params=params).json()
+    assert [item['person_id'] for item in read['faces'][0]['suggestions']] == people[1:]
+    other = regular_client.get('/api/faces/review', params=params).json()
+    assert [item['person_id'] for item in other['faces'][0]['suggestions']] == people[:3]
+    assert seed_people._conn.execute('SELECT person_id FROM faces WHERE id=?', (body['face_id'],)).fetchone()[0] is None
+    undo = edition_client.post('/api/faces/review/feedback/undo', json={**body, 'receipt_id': receipt['receipt_id']})
+    assert undo.status_code == 200, undo.text
+    assert not undo.json()['rejected']
+    assert edition_client.get('/api/faces/review', params=params).json()['faces'][0]['suggestions'][0]['person_id'] == people[0]
+    newer = edition_client.post('/api/faces/review/feedback', json=body).json()
+    assert newer['receipt_id'] != receipt['receipt_id']
+    assert edition_client.post('/api/faces/review/feedback/undo', json={**body, 'receipt_id': receipt['receipt_id']}).status_code == 409
+    assert seed_people._conn.execute('SELECT receipt_id FROM face_review_feedback').fetchone()[0] == newer['receipt_id']
+
+
+def test_feedback_refuses_changed_or_assigned_face_without_writing(edition_client, seed_people):
+    body, people = feedback_fixture(edition_client, seed_people)
+    seed_people._conn.execute('UPDATE faces SET bbox_x2=bbox_x2+1 WHERE id=?', (body['face_id'],))
+    seed_people._conn.commit()
+    assert edition_client.post('/api/faces/review/feedback', json=body).status_code == 409
+    assert seed_people._conn.execute('SELECT COUNT(*) FROM face_review_feedback WHERE face_id=?', (body['face_id'],)).fetchone()[0] == 0
+    body['identity_token'] = edition_client.get('/api/faces/review', params={'face_id': body['face_id']}).json()['faces'][0]['identity_token']
+    seed_people._conn.execute('UPDATE faces SET person_id=? WHERE id=?', (people[1], body['face_id']))
+    seed_people._conn.commit()
+    assert edition_client.post('/api/faces/review/feedback', json=body).status_code == 409
+    assert seed_people._conn.execute('SELECT person_id FROM faces WHERE id=?', (body['face_id'],)).fetchone()[0] == people[1]
+
+
+def test_feedback_becomes_obsolete_after_face_geometry_changes(edition_client, seed_people):
+    body, people = feedback_fixture(edition_client, seed_people)
+    receipt = edition_client.post('/api/faces/review/feedback', json=body).json()
+    seed_people._conn.execute('UPDATE faces SET bbox_x2=bbox_x2+1 WHERE id=?', (body['face_id'],))
+    seed_people._conn.commit()
+    row = edition_client.get('/api/faces/review', params={'face_id': body['face_id']}).json()['faces'][0]
+    assert row['suggestions'][0]['person_id'] == people[0]
+    assert edition_client.post('/api/faces/review/feedback/undo', json={**body, 'receipt_id': receipt['receipt_id']}).status_code == 409
+
+
+@pytest.mark.parametrize('expected_name', ['Private empty person', 'Wrong'])
+def test_feedback_has_no_foreign_empty_person_name_oracle(edition_client, seed_people, expected_name):
+    body, _ = feedback_fixture(edition_client, seed_people)
+    body['person_id'] = seed_people.person('Private empty person')
+    body['expected_person_name'] = expected_name
+    response = edition_client.post('/api/faces/review/feedback', json=body)
+    assert response.status_code == 404
+    assert response.json() == {'detail': 'Face or person not found'}
+    assert seed_people._conn.execute('SELECT COUNT(*) FROM face_review_feedback WHERE face_id=?', (body['face_id'],)).fetchone()[0] == 0
+
+
+def test_feedback_requires_edition(regular_client):
+    assert regular_client.post('/api/faces/review/feedback', json={
+        'face_id': 1, 'person_id': 1, 'identity_token': 'a'*64, 'expected_person_name': 'Alice'}).status_code == 403
+
+
+def test_feedback_owner_does_not_accept_another_users_undo(edition_client, seed_people):
+    from api.auth import CurrentUser
+    from fastapi.testclient import TestClient
+    from tests.conftest import _make_client_with_user
+    body, _ = feedback_fixture(edition_client, seed_people)
+    receipt = edition_client.post('/api/faces/review/feedback', json=body).json()
+    app = _make_client_with_user(CurrentUser(user_id='u1', role='admin', edition_authenticated=True))
+    try:
+        response = TestClient(app).post('/api/faces/review/feedback/undo', json={**body, 'receipt_id': receipt['receipt_id']})
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 409
+    assert seed_people._conn.execute('SELECT receipt_id FROM face_review_feedback WHERE face_id=?', (body['face_id'],)).fetchone()[0] == receipt['receipt_id']
