@@ -131,7 +131,7 @@ PARAMETERISED_ROUTES = [
 # POST routes with a minimal valid-shaped body naming a photo that does not exist:
 # the handler runs (validation passes) and ends in a 4xx or an empty success.
 POST_ROUTES = [
-    ('/api/scan/faces/start', {'confirm': True, 'expected_model': 'unavailable-fixture-model'}),
+    ('/api/scan/faces/start', {'job_id': '0' * 32, 'confirm': True, 'expected_model': 'unavailable-fixture-model'}),
     ('/api/scan/faces/jobs/' + '0' * 32 + '/cancel', {'confirm': True, 'job_id': '0' * 32}),
     ('/api/faces/review/feedback', {'face_id': 987654321, 'person_id': 987654321,
                                     'identity_token': '0' * 64, 'expected_person_name': 'Absent'}),

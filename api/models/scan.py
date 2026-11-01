@@ -29,6 +29,7 @@ class ScanCancelResponse(BaseModel):
 
 class FaceUpdateStartRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
+    job_id: str = Field(pattern=r'^[0-9a-f]{32}$')
     confirm: bool = Field(strict=True)
     expected_model: str = Field(min_length=1, max_length=64)
 

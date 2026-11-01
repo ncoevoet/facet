@@ -294,25 +294,44 @@ def start_face_update(body: FaceUpdateStartRequest, user: CurrentUser = Depends(
     _require_face_update_access(user)
     if not body.confirm:
         raise HTTPException(400, 'Face update requires confirmation')
+    # A lost Start response can be retried with exactly the same request ID.
+    # It retrieves the original receipt; it never starts a replacement job.
+    def existing_job(conn):
+        row = conn.execute('SELECT owner,model FROM face_update_jobs WHERE job_id=?', (body.job_id,)).fetchone()
+        if row is not None:
+            if row[0] != owner_key(user.user_id):
+                raise HTTPException(404, 'Face update not found')
+            if row[1] != body.expected_model:
+                raise HTTPException(409, 'This request ID belongs to another face-update model')
+        return row is not None
+    with get_db() as conn:
+        exists = existing_job(conn)
+    if exists:
+        return _face_update_record(body.job_id, user)
     model = active_embedding_model(server_scoring_config())
     if body.expected_model != model:
         raise HTTPException(409, 'Recognition model changed; preview again')
     if not _scan_lock.acquire(blocking=False):
         raise HTTPException(409, 'A library job is already running')
-    job_id = secrets.token_hex(16)
+    job_id = body.job_id
     captured = False
     try:
         if _scan_state['running'] or _recompute_conflict_detail():
             raise HTTPException(409, 'A library job is already running')
         with get_db() as conn:
             conn.execute('BEGIN IMMEDIATE')
-            capture_job(conn, job_id, owner_key(user.user_id), model)
+            # A different viewer worker may have captured this request after
+            # the fast read above. Serialize before deciding to spawn.
+            exists = existing_job(conn)
+            if not exists:
+                capture_job(conn, job_id, owner_key(user.user_id), model)
+                captured = True
             conn.commit()
-            captured = True
-        cmd = [sys.executable, FACET_SCRIPT, '--update-faces-job', job_id,
-               '--db', DEFAULT_DB_PATH, '--config', str(_CONFIG_PATH)]
-        _spawn_scan(cmd, [], kind=JOB_KIND_FACES, job_id=job_id,
-                    on_exit=lambda proc: _close_face_update_receipt(job_id, proc))
+        if captured:
+            cmd = [sys.executable, FACET_SCRIPT, '--update-faces-job', job_id,
+                   '--db', DEFAULT_DB_PATH, '--config', str(_CONFIG_PATH)]
+            _spawn_scan(cmd, [], kind=JOB_KIND_FACES, job_id=job_id,
+                        on_exit=lambda proc: _close_face_update_receipt(job_id, proc))
     except HTTPException:
         raise
     except (OSError, RuntimeError, subprocess.SubprocessError, sqlite3.Error):

@@ -7013,6 +7013,8 @@ export interface components {
             confirm: boolean;
             /** Expected Model */
             expected_model: string;
+            /** Job Id */
+            job_id: string;
         };
         /** FolderEntry */
         FolderEntry: {

@@ -172,6 +172,7 @@ export class FaceReviewQueueComponent {
     const segments = url.root.children['primary']?.segments;
     return segments?.length === 1 && segments[0].path === 'persons' && url.queryParams['tab'] === this.mode();
   }
+  reload(): void { void this.load(0); }
   private allowed(): boolean { return !this.destroyRef.destroyed && !this.blocked && this.auth.isEdition() && this.auth.identity() === this.owner; }
   private capture(): StalenessGuard {
     const token = this.auth.token, generation = this.generation;

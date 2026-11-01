@@ -9,11 +9,14 @@ import { By } from '@angular/platform-browser';
 import { PersonCardComponent } from '../../shared/components/person-card/person-card.component';
 import { ApiService } from '../../core/services/api.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
+import { ScanService } from '../../core/services/scan.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { PersonsFiltersService } from './persons-filters.service';
 import { ManagePersonsComponent } from './manage-persons.component';
+import { FaceReviewQueueComponent } from './face-review-queue.component';
+import { FaceUpdateControlComponent } from './face-update-control.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { SameNameMergeDialogComponent } from './same-name-merge.service';
 
@@ -58,6 +61,7 @@ describe('ManagePersonsComponent', () => {
         ManagePersonsComponent,
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: mockAuth },
+        { provide: ScanService, useValue: { canLaunch: signal(false) } },
         { provide: I18nService, useValue: mockI18n },
         { provide: MatDialog, useValue: mockDialog },
         { provide: MatSnackBar, useValue: mockSnackBar },
@@ -902,6 +906,28 @@ describe('ManagePersonsComponent', () => {
         { text: 'persons.review_queue.matches', selected: false },
         { text: 'persons.review_queue.unassigned', selected: false },
       ]);
+    });
+
+    it('reloads captured match choices only after the explicit face-update review action', async () => {
+      withTab('matches');
+      (TestBed.inject(Router) as unknown as { url: string }).url = '/persons?tab=matches';
+      Object.assign(mockAuth, { status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({
+        faces: [{ face_id: 9, photo_path: '/nine.jpg', identity_token: 'a'.repeat(64), embedding_state: 'ready', suggestions: [{ person_id: 1, name: 'Alice', similarity: 0.9 }] }],
+        total_unassigned: 1, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 1, suggestions_requested: true,
+      }) : original(url, params));
+      const fixture = await render();
+      const root = fixture.nativeElement as HTMLElement;
+      root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.click(); fixture.detectChanges();
+      const queue = fixture.debugElement.query(By.directive(FaceReviewQueueComponent)).componentInstance;
+      expect(queue.selected().has(9)).toBe(true);
+      const before = mockApi.get.mock.calls.filter(([url]) => url === '/faces/review').length;
+      fixture.debugElement.query(By.directive(FaceUpdateControlComponent)).componentInstance.reviewRequested.emit();
+      await fixture.whenStable(); fixture.detectChanges();
+      expect(mockApi.get.mock.calls.filter(([url]) => url === '/faces/review')).toHaveLength(before + 1);
+      expect(queue.selected().size).toBe(0);
+      expect(root.querySelector<HTMLInputElement>('app-face-review-queue input[type="checkbox"]')!.checked).toBe(false);
     });
 
     it('exposes global review destinations without duplicating the Named toolbar', async () => {

@@ -158,7 +158,7 @@ def test_api_captures_model_database_membership_and_cooperative_job_cancel(updat
     assert preview.status_code == 200,preview.text
     assert preview.json()['eligible_photos']==3
     model=preview.json()['model']
-    response=client.post('/api/scan/faces/start',json={'confirm':True,'expected_model':model})
+    response=client.post('/api/scan/faces/start',json={'job_id':JOB,'confirm':True,'expected_model':model})
     assert response.status_code==200,response.text
     job=response.json()
     assert job['state']=='queued' and job['total']==3 and job['controlled_by_worker'] is False
@@ -175,7 +175,7 @@ def test_api_captures_model_database_membership_and_cooperative_job_cancel(updat
 
 def test_api_refuses_changed_model_and_foreign_receipts_without_spawning(update_api):
     client,spawned,owner,db,_=update_api
-    assert client.post('/api/scan/faces/start',json={'confirm':True,'expected_model':'wrong'}).status_code==409
+    assert client.post('/api/scan/faces/start',json={'job_id':JOB,'confirm':True,'expected_model':'wrong'}).status_code==409
     assert not spawned
     capture(db)
     owner.user_id='foreign'
@@ -208,7 +208,7 @@ def test_internal_cli_empty_job_is_real_scoped_and_rejects_mixed_commands(librar
 
 
 def test_face_update_processing_requires_real_scan_authority(regular_client):
-    result=regular_client.post('/api/scan/faces/start',json={'confirm':True,'expected_model':ARCFACE_MODEL})
+    result=regular_client.post('/api/scan/faces/start',json={'job_id':JOB,'confirm':True,'expected_model':ARCFACE_MODEL})
     assert result.status_code==403
 
 
@@ -226,3 +226,16 @@ def test_observed_exit_repairs_old_receipt_even_after_new_job_replaces_current(u
     assert record(db)['error_code']=='worker_exited'
     assert scan._scan_state['job_id']=='b'*32
     assert scan._scan_state['running'] is True
+
+
+def test_start_retry_returns_same_receipt_without_spawning_again(update_api):
+    client,spawned,_,_,_=update_api
+    model=client.get('/api/scan/faces/preview').json()['model']
+    body={'job_id':JOB,'confirm':True,'expected_model':model}
+    first=client.post('/api/scan/faces/start',json=body)
+    second=client.post('/api/scan/faces/start',json=body)
+    assert first.status_code==second.status_code==200
+    assert first.json()==second.json()
+    assert len(spawned)==1
+    assert client.post('/api/scan/faces/start',json={**body,'expected_model':'wrong'}).status_code==409
+    assert len(spawned)==1

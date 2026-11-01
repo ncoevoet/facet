@@ -1,0 +1,177 @@
+import { Component, signal } from '@angular/core';
+import { TestBed } from '@angular/core/testing';
+import { HttpErrorResponse } from '@angular/common/http';
+import { provideRouter, Router } from '@angular/router';
+import { of, Subject, throwError } from 'rxjs';
+import type { Mock } from 'vitest';
+import { ApiService } from '../../core/services/api.service';
+import { AuthService } from '../../core/services/auth.service';
+import { ScanService } from '../../core/services/scan.service';
+import { I18nService } from '../../core/services/i18n.service';
+import { FaceUpdateControlComponent } from './face-update-control.component';
+
+@Component({ template: '' }) class OtherPage {}
+const preview = { eligible_photos: 12, model: 'arcface_buffalo_l' };
+const receipt = { job_id: 'a'.repeat(32), model: preview.model, state: 'running', stop_requested: false,
+  total: 12, processed: 3, added_faces: 4, empty: 1, skipped: 0, failed: 0, error_code: null,
+  created_at: '2026-11-01 20:00:00', started_at: '2026-11-01 20:00:01', finished_at: null, controlled_by_worker: false };
+
+describe('FaceUpdateControlComponent', () => {
+  async function render() {
+    const api: { get: Mock; post: Mock } = {
+      get: vi.fn((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [] : receipt)),
+      post: vi.fn((_url: string, body: { job_id: string }) => of({ ...receipt, job_id: body.job_id })),
+    };
+    const auth = { identity: signal('alice'), status: signal({ user_id: 'alice' }), isEdition: signal(true), token: 'token-a' };
+    const scan = { canLaunch: signal(true) };
+    TestBed.configureTestingModule({ imports: [FaceUpdateControlComponent], providers: [
+      provideRouter([{ path: 'persons', component: OtherPage }, { path: 'elsewhere', component: OtherPage }]),
+      { provide: ApiService, useValue: api }, { provide: AuthService, useValue: auth }, { provide: ScanService, useValue: scan },
+      { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
+    ] });
+    await TestBed.inject(Router).navigateByUrl('/persons?tab=matches');
+    const fixture = TestBed.createComponent(FaceUpdateControlComponent);
+    fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement; document.body.appendChild(root);
+    const settle = async () => { await fixture.whenStable(); fixture.detectChanges(); };
+    const open = async () => { root.querySelector<HTMLButtonElement>('[data-update-faces]')!.click(); await settle(); };
+    const dispose = () => { fixture.destroy(); root.remove(); };
+    return { fixture, root, api, auth, scan, open, settle, dispose };
+  }
+
+  it('opens a read-only scope preview and starts exactly the confirmed request without automatic match review', async () => {
+    const { fixture, root, api, open, settle, dispose } = await render();
+    const review = vi.fn(); fixture.componentInstance.reviewRequested.subscribe(review);
+    expect(api.get).not.toHaveBeenCalled(); expect(root.querySelector('section')).toBeNull();
+    await open();
+    expect(root.textContent).toContain('"count":12'); expect(api.post).not.toHaveBeenCalled();
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
+    expect(api.post).toHaveBeenCalledTimes(1);
+    expect(api.post).toHaveBeenCalledWith('/scan/faces/start', { job_id: expect.stringMatching(/^[a-f0-9]{32}$/), expected_model: preview.model, confirm: true });
+    expect(root.querySelector('[data-face-update-receipt]')?.textContent).toContain('"processed":3,"total":12');
+    expect(root.textContent).toContain('persons.face_update.recorded_only'); expect(review).not.toHaveBeenCalled();
+    api.get.mockReturnValueOnce(of({ ...receipt, job_id: api.post.mock.calls[0][1].job_id, state: 'completed', processed: 12 }));
+    root.querySelector<HTMLButtonElement>('[data-read-face-status]')!.click(); await settle();
+    expect(review).not.toHaveBeenCalled();
+    root.querySelector<HTMLButtonElement>('[data-review-updated-faces]')!.click(); expect(review).toHaveBeenCalledOnce();
+    dispose();
+  });
+
+  it('recovers an uncertain start by retrying exactly the same request identity', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    await open(); api.post.mockReturnValueOnce(throwError(() => new Error('response lost')));
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
+    expect(root.textContent).toContain('persons.face_update.start_unknown'); expect(api.post).toHaveBeenCalledTimes(1);
+    expect(root.querySelector('[data-start-faces]')).toBeNull();
+    const body = api.post.mock.calls[0][1];
+    root.querySelector<HTMLButtonElement>('[data-retry-face-start]')!.click(); await settle();
+    expect(api.post).toHaveBeenNthCalledWith(2, '/scan/faces/start', body);
+    expect(root.querySelector('[data-retry-face-start]')).toBeNull(); dispose();
+  });
+
+  it('does not publish a late start or resume its controls after navigation', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    await open(); const pending = new Subject(); api.post.mockReturnValueOnce(pending);
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click();
+    const id = api.post.mock.calls[0][1].job_id;
+    await TestBed.inject(Router).navigateByUrl('/elsewhere');
+    pending.next({ ...receipt, job_id: id }); pending.complete(); await settle();
+    expect(root.querySelector('section')).toBeNull(); expect(api.post).toHaveBeenCalledTimes(1);
+    expect(root.querySelector<HTMLButtonElement>('[data-update-faces]')?.disabled).toBe(true); dispose();
+  });
+
+  it('confirms Stop for the selected job and reads back uncertainty before another stop', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [receipt] : receipt));
+    await open(); root.querySelector<HTMLDetailsElement>('details')!.open = true;
+    root.querySelector<HTMLButtonElement>('details button')!.click(); await settle();
+    root.querySelector<HTMLButtonElement>('[data-stop-faces]')!.click(); await settle();
+    expect(api.post).not.toHaveBeenCalled();
+    api.post.mockReturnValueOnce(throwError(() => new Error('stop response lost')));
+    root.querySelector<HTMLButtonElement>('[data-confirm-stop-faces]')!.click(); await settle();
+    expect(api.post).toHaveBeenCalledWith(`/scan/faces/jobs/${receipt.job_id}/cancel`, { job_id: receipt.job_id, confirm: true });
+    expect(root.textContent).toContain('persons.face_update.stop_unknown');
+    expect(root.querySelector<HTMLButtonElement>('[data-stop-faces]')?.disabled).toBe(true);
+    api.get.mockReturnValueOnce(of({ ...receipt, stop_requested: true }));
+    root.querySelector<HTMLButtonElement>('[data-read-face-status]')!.click(); await settle();
+    expect(root.textContent).toContain('persons.face_update.stop_requested'); expect(root.querySelector('[data-stop-faces]')).toBeNull(); dispose();
+  });
+
+  it('refuses a captured Stop when the token rotates before confirmation', async () => {
+    const { root, api, auth, open, settle, dispose } = await render();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [receipt] : receipt));
+    await open(); root.querySelector<HTMLDetailsElement>('details')!.open = true;
+    root.querySelector<HTMLButtonElement>('details button')!.click(); await settle();
+    root.querySelector<HTMLButtonElement>('[data-stop-faces]')!.click(); await settle();
+    auth.token = 'rotated'; root.querySelector<HTMLButtonElement>('[data-confirm-stop-faces]')!.click(); await settle();
+    expect(api.post).not.toHaveBeenCalled(); dispose();
+  });
+
+  it('closes with Escape and returns focus to the actual Material button element', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    await open();
+    root.querySelector('section')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await settle(); expect(root.querySelector('section')).toBeNull();
+    expect(document.activeElement).toBe(root.querySelector('[data-update-faces]')); expect(api.post).not.toHaveBeenCalled(); dispose();
+  });
+
+  it('exposes a new scope after a known first-request refusal instead of leaving recovery stuck', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    await open(); api.post.mockReturnValueOnce(throwError(() => new HttpErrorResponse({ status: 409 })));
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
+    expect(root.textContent).toContain('persons.face_update.start_refused');
+    expect(root.querySelector('[data-retry-face-start]')).toBeNull();
+    expect(root.querySelector<HTMLButtonElement>('[data-face-update-overview]')?.disabled).toBe(false); dispose();
+  });
+
+
+  it('cancels stop preview with Escape and returns focus without writing', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [receipt] : receipt));
+    await open(); root.querySelector<HTMLDetailsElement>('details')!.open = true;
+    root.querySelector<HTMLButtonElement>('details button')!.click(); await settle();
+    root.querySelector<HTMLButtonElement>('[data-stop-faces]')!.click(); await settle();
+    root.querySelector('section')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await settle(); expect(root.querySelector('[data-stop-faces-preview]')).toBeNull();
+    expect(root.querySelector('section')).not.toBeNull(); expect(document.activeElement).toBe(root.querySelector('[data-stop-faces]'));
+    expect(api.post).not.toHaveBeenCalled(); dispose();
+  });
+
+  it('cleans the owned polling timer and refuses its stale callback after reopening', async () => {
+    const { fixture, root, api, open, settle, dispose } = await render();
+    const timers = vi.spyOn(globalThis, 'setTimeout');
+    const clears = vi.spyOn(globalThis, 'clearTimeout');
+    await open(); api.post.mockImplementationOnce((_url, body) => of({ ...receipt, job_id: body.job_id, controlled_by_worker: true }));
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click();
+    // Do not wait for Zone stability while the deliberately live poll timer is owned.
+    await Promise.resolve(); fixture.detectChanges();
+    const index = timers.mock.calls.findIndex(call => call[1] === 2000);
+    expect(index).toBeGreaterThanOrEqual(0);
+    const callback = timers.mock.calls[index][0] as () => void;
+    const handle = timers.mock.results[index].value;
+    root.querySelector('section')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    await settle(); expect(clears).toHaveBeenCalledWith(handle);
+    await open(); const reads = api.get.mock.calls.length;
+    callback(); await settle(); expect(api.get).toHaveBeenCalledTimes(reads);
+    dispose(); timers.mockRestore(); clears.mockRestore();
+  });
+
+
+  it('opens and starts on an HTTP LAN Crypto surface without randomUUID', async () => {
+    const realCrypto = globalThis.crypto;
+    vi.stubGlobal('crypto', { getRandomValues: (values: Uint8Array<ArrayBuffer>) => realCrypto.getRandomValues(values) });
+    try {
+      const { root, api, open, settle, dispose } = await render();
+      await open(); expect(root.querySelector('[data-start-faces]')).not.toBeNull();
+      root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
+      expect(api.post).toHaveBeenCalledWith('/scan/faces/start', expect.objectContaining({ job_id: expect.stringMatching(/^[a-f0-9]{32}$/) }));
+      dispose();
+    } finally { vi.unstubAllGlobals(); }
+  });
+
+  it('clears private panel state when processing permission is lost', async () => {
+    const { root, scan, open, settle, dispose } = await render();
+    await open(); scan.canLaunch.set(false); await settle();
+    expect(root.querySelector('section')).toBeNull(); expect(root.querySelector('[data-update-faces]')).toBeNull(); dispose();
+  });
+});

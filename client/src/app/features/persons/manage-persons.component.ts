@@ -1,4 +1,5 @@
 import { FaceReviewQueueComponent } from './face-review-queue.component';
+import { FaceUpdateControlComponent } from './face-update-control.component';
 import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
@@ -260,7 +261,7 @@ export type NamingSort = 'faces' | 'recent';
 @Component({
   selector: 'app-manage-persons',
   imports: [
-    FaceReviewQueueComponent, MatButtonModule,
+    FaceReviewQueueComponent, FaceUpdateControlComponent, MatButtonModule,
     MatIconModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -431,6 +432,7 @@ export type NamingSort = 'faces' | 'recent';
     </ng-template>
 
     <div class="px-4 pt-4 pb-4">
+      <app-face-update-control (reviewRequested)="reviewUpdatedFaces()" />
       @if (auth.isEdition()) {
         <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
                        [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
@@ -526,6 +528,13 @@ export class ManagePersonsComponent implements OnInit {
   private readonly faceBoxes = inject(PersonFaceBoxesService);
   private readonly hide = inject(PersonHideService);
   private readonly personsToolbar = viewChild<TemplateRef<unknown>>('personsToolbar');
+  private readonly reviewQueue = viewChild(FaceReviewQueueComponent);
+
+  protected reviewUpdatedFaces(): void {
+    if (!this.auth.isEdition() || this.router.currentNavigation()) return;
+    if (this.tab() === 'matches') this.reviewQueue()?.reload();
+    else this.selectTabIndex(PERSONS_TABS.indexOf('matches'));
+  }
 
   readonly persons = signal<Person[]>([]);
   readonly total = signal(0);
