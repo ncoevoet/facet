@@ -62,7 +62,9 @@ import logging
 import math
 import os
 import re
+import stat
 import subprocess
+import tempfile
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import NamedTuple
@@ -1009,6 +1011,92 @@ def _run_exiftool(target: str, rating: XmpRating, *, timeout: int, reconcile=Fal
             raise RuntimeError(
                 f"exiftool produced malformed XMP for {target} ({ex}); original restored"
             ) from ex
+
+
+def _preview_packet_identity(path: str):
+    try:
+        info = os.lstat(path)
+    except FileNotFoundError:
+        return None
+    if not stat.S_ISREG(info.st_mode):
+        raise MetadataPreconditionError('Metadata target must be an ordinary file')
+    if info.st_size > 16 * 1024 * 1024:
+        raise MetadataPreconditionError('Existing metadata is too large to preview')
+    return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+
+
+def preview_metadata_write(image_path: str, rating: XmpRating, *, overwrite: bool = False,
+                           timeout: int = 60) -> dict:
+    """Validate the actual serializer/merge without writing an export target.
+
+    This is not an apply token: the caller must bind/recheck file identities,
+    metadata and tool policy before writing. Private ExifTool configuration may
+    be prepared just as for a normal metadata read.
+    """
+    try:
+        ET.fromstring(build_xmp(rating))
+    except (ET.ParseError, UnicodeError):
+        raise MetadataPreconditionError('Metadata contains unsupported XML characters') from None
+    if exiftool_available():
+        _refuse_defective_exiftool_version(exiftool_defective_version())
+        target = _contained_sidecar(image_path, '.xmp')
+        before = _preview_packet_identity(target)
+        exe = _require_exiftool()
+        tool_stat = os.stat(exe)
+        tool = (tool_stat.st_dev, tool_stat.st_ino, tool_stat.st_size, tool_stat.st_mtime_ns, tool_stat.st_ctime_ns)
+        _exiftool_write_args(target, rating, exe, timeout=timeout)
+        after = os.stat(exe)
+        if (before != _preview_packet_identity(target)
+                or tool != (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns, after.st_ctime_ns)):
+            raise MetadataPreconditionError('Metadata changed during preview')
+        return {'sidecar': target, 'writer': 'exiftool',
+                'tool_identity': [exe, *tool],
+                'face_regions': (_exiftool_version(exe) or (0, 0)) >= _JSON_REGION_MIN}
+    target = sidecar_path(image_path, overwrite=overwrite)
+    if os.path.islink(target) or os.path.lexists(target + '.tmp'):
+        raise MetadataPreconditionError('Metadata target needs inspection before writing')
+    before = _preview_packet_identity(target)
+    if before != _preview_packet_identity(target):
+        raise MetadataPreconditionError('Metadata changed during preview')
+    return {'sidecar': target, 'writer': 'xml', 'face_regions': False}
+
+
+def write_confirmed_metadata(image_path: str, rating: XmpRating, *, target: str, writer: str,
+                             expected_identity: list[int] | None, timeout: int = 60) -> None:
+    """Write the approved sidecar name without switching writer or fallback.
+
+    Rechecks are not filesystem compare-and-swap: an external writer can still
+    race the final replace/tool invocation. No originals are embedded here.
+    """
+    if target not in {_contained_sidecar(image_path, '.xmp'), _contained_sidecar(image_path, '.facet.xmp')}:
+        raise MetadataPreconditionError('Metadata destination changed')
+    expected = tuple(expected_identity) if expected_identity is not None else None
+    if _preview_packet_identity(target) != expected:
+        raise MetadataPreconditionError('Metadata destination changed')
+    if writer == 'exiftool':
+        if not exiftool_available():
+            raise MetadataPreconditionError('Metadata writer changed')
+        _refuse_defective_exiftool_version(exiftool_defective_version())
+        _run_exiftool(target, rating, timeout=timeout)
+        return
+    if writer != 'xml' or exiftool_available():
+        raise MetadataPreconditionError('Metadata writer changed')
+    xml = build_xmp(rating)
+    ET.fromstring(xml)
+    descriptor, temporary = tempfile.mkstemp(prefix='.facet-export-', suffix='.xmp.tmp', dir=os.path.dirname(target))
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8', newline='\n') as handle:
+            handle.write(xml)
+            handle.flush()
+            os.fsync(handle.fileno())
+        mode_source = target if expected is not None else image_path
+        os.chmod(temporary, os.stat(mode_source).st_mode & 0o666)
+        if _preview_packet_identity(target) != expected:
+            raise MetadataPreconditionError('Metadata destination changed')
+        os.replace(temporary, target)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def write_metadata(image_path: str, rating: XmpRating, *, overwrite: bool = False,

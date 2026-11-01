@@ -3320,7 +3320,7 @@
       "import_failed": "Could not import the Lightroom state file"
     },
     "jobs": {
-      "running": "Exporting sidecars",
+      "running": "Exporting files",
       "completed": "Export completed",
       "cancelled": "Export cancelled",
       "failed": "Export failed",
@@ -3331,23 +3331,49 @@
       "close_hint": "The export continues if you close this dialog. Reopen it to find recent exports.",
       "cancel": "Stop after current file",
       "cancelling": "Stopping after current file…",
-      "cancel_hint": "Completed sidecars remain. The current file may finish before the export stops.",
-      "retry": "Retry unfinished files",
-      "retry_hint": "Retries failed, skipped and unfinished files using current metadata. An interrupted file may be written again if its progress was not saved.",
+      "cancel_hint": "Completed files remain. The current file or validation step may finish before the export stops.",
+      "retry": "Preview unfinished files",
+      "retry_hint": "Inspect current metadata and exact unfinished destinations before confirming. Existing unfinished copies or links require inspection; completed outputs remain.",
       "refresh": "Refresh status",
-      "recent": "Recent sidecar exports",
-      "none": "No recent sidecar exports.",
+      "recent": "Recent exports",
+      "none": "No recent exports.",
       "read_failed": "Could not read export progress. Refresh to check again.",
       "errors": {
         "metadata_repair": "Existing metadata needs repair before exporting.",
         "write_failed": "Could not write metadata. Check the server logs.",
         "exiftool_upgrade": "ExifTool 13.23 to 13.27 corrupts XMP sidecars. Upgrade ExifTool to 13.28 or newer.",
-        "stopped": "Export stopped unexpectedly. Check the server logs and retry the remaining photos."
+        "stopped": "Export stopped unexpectedly. Check the server logs and retry the remaining photos.",
+        "preview_changed": "Export conditions changed. Inspect a fresh preview before continuing."
       },
       "partial": "Completed with unfinished items",
       "workspace_title": "Processing and export receipts",
-      "workspace_hint": "Sidecar receipts for this account. Closing this window leaves jobs running. Start new exports from a photo selection or album.",
-      "receipt_id": "Receipt"
+      "workspace_hint": "Export receipts for this account. Closing this window leaves jobs running. Start new exports from a photo selection or album.",
+      "receipt_id": "Receipt",
+      "validating": "Validating export"
+    },
+    "preview": {
+      "companions": "Include related RAW and sidecar files",
+      "help": "About export options",
+      "guarantees": "Changed files can stop an export. Completed files remain. After an interruption, check the receipt and existing outputs before making another preview. Copies retain embedded metadata; symlinks reference library files.",
+      "title": "Export preview",
+      "summary": "{photos} selected · {ready} ready files · {missing} unavailable",
+      "unavailable": "Unavailable",
+      "existing": "Existing file",
+      "companion": "Related file",
+      "metadata": "Facet metadata",
+      "rating": "XMP rating",
+      "decision": "Decision",
+      "keywords": "Facet keywords",
+      "faces": "Named face regions",
+      "faces_omitted": "Not supported by this writer",
+      "previous": "Previous",
+      "next": "Next",
+      "uncertain": "The confirmation response was lost. Check its receipt before starting another export.",
+      "check_receipt": "Check receipt",
+      "change": "Change options",
+      "confirm": "Confirm export",
+      "action": "Preview export",
+      "color_label": "XMP color label"
     }
   },
   "undo": {

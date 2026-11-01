@@ -22,9 +22,11 @@ METADATA_REPAIR_MESSAGE = 'Existing metadata needs repair before exporting'
 WRITE_FAILURE_MESSAGE = 'Failed to write metadata; check server logs'
 EXIFTOOL_UPGRADE_MESSAGE = 'ExifTool 13.23 to 13.27 corrupts XMP sidecars; upgrade to 13.28 or newer'
 _STOPPED_MESSAGE = 'Export stopped unexpectedly; inspect server logs and retry remaining photos'
+PREVIEW_CHANGED_MESSAGE = 'Export conditions changed; inspect a new preview before continuing'
 # Stable codes the client maps to translated text; the English messages stay for API and agent callers.
 _ERROR_CODES = {METADATA_REPAIR_MESSAGE: 'metadata_repair', WRITE_FAILURE_MESSAGE: 'write_failed',
-                EXIFTOOL_UPGRADE_MESSAGE: 'exiftool_upgrade', _STOPPED_MESSAGE: 'stopped'}
+                EXIFTOOL_UPGRADE_MESSAGE: 'exiftool_upgrade', _STOPPED_MESSAGE: 'stopped',
+                PREVIEW_CHANGED_MESSAGE: 'preview_changed'}
 
 
 _RECEIPT_OPEN_ATTEMPTS = 5
@@ -33,6 +35,18 @@ _RECEIPT_OPEN_RETRY_SECONDS = 0.01
 
 class JobNotFound(LookupError):
     """No export job or plan with this ID belongs to the caller."""
+
+
+class ExportConditionsChanged(RuntimeError):
+    """A confirmed job must stop before writing another changed file."""
+
+
+class ExportCancelled(RuntimeError):
+    """Cooperative validation cancellation, before writing the next file."""
+
+
+class ConfirmationRequired(ValueError):
+    """Confirmed operations require a fresh preview, never legacy blind retry."""
 
 
 def _directory(db_path):
@@ -218,14 +232,30 @@ def _prune(db_path, owner):
         path.with_suffix('.plan').unlink(missing_ok=True)
 
 
-def start(db_path, owner, paths, work, *, overwrite=False):
+def confirmed_status(db_path, job_id, owner, digest):
+    """Read recovery only for the exact signed confirmation, not another job."""
+    path, _ = _owned(db_path, job_id, owner)
+    try:
+        plan = SidecarJobPlan.model_validate(_read(path.with_suffix('.plan')))
+    except ValueError as ex:
+        raise JobNotFound('Confirmed export not found') from ex
+    if plan.owner != owner or plan.confirmation_digest != digest:
+        raise JobNotFound('Confirmed export not found')
+    return status(db_path, job_id, owner)
+
+
+def start(db_path, owner, paths, work, *, overwrite=False, job_id=None,
+          confirmation_digest=None, operation='sidecars', preflight=None, request=None):
     """Admit one bounded job; ``work(path)`` rechecks live visibility each time."""
     from facet import LibraryLock
-    job_id = str(uuid4())
+    job_id = job_id or str(uuid4())
     state = {'id': job_id, 'owner': owner, 'state': 'running',
+             'operation': operation, 'phase': 'validating' if preflight else 'writing',
+             'confirmed': confirmation_digest is not None,
              'started_at': time.time(), 'total': len(paths), 'processed': 0,
              'written': 0, 'skipped': 0, 'errors': 0, 'first_error': None, 'retry': []}
-    initial = _public(state, cancel_requested=False)
+    SidecarJobRecord.model_validate(state)
+    initial = [_public(state, cancel_requested=False)]
     admitted = threading.Event()
     failures = []
 
@@ -235,11 +265,25 @@ def start(db_path, owner, paths, work, *, overwrite=False):
         # to restore a signal handler from the worker during release.
         lock = LibraryLock(db_path, _KIND + job_id, origin='viewer')
         path = None
+        created = False
+        replayed = False
         try:
             lock.acquire()
             path = _path(db_path, job_id)
+            if path.exists():
+                if not path.is_file():
+                    raise OSError('Export receipt storage is obstructed')
+                if confirmation_digest is None:
+                    raise JobNotFound('Export receipt already exists')
+                initial[0] = confirmed_status(db_path, job_id, owner, confirmation_digest)
+                replayed = True
+                lock.release()
+                return
             _prune(db_path, owner)
-            _write(path.with_suffix('.plan'), {'owner': owner, 'paths': list(paths), 'overwrite': overwrite})
+            plan = SidecarJobPlan(owner=owner, paths=list(paths), overwrite=overwrite,
+                                  confirmation_digest=confirmation_digest, operation=operation, request=request)
+            created = True
+            _write(path.with_suffix('.plan'), plan.model_dump())
             _write(path, state)
         except BaseException as ex:
             failures.append(ex)  # Record the failure BEFORE fallible cleanup.
@@ -247,7 +291,7 @@ def start(db_path, owner, paths, work, *, overwrite=False):
                 lock.release()
             except Exception:
                 logger.exception('Could not release failed export admission')
-            if path is not None:
+            if path is not None and created:
                 for leftover in (path, path.with_suffix('.plan')):
                     try:
                         leftover.unlink(missing_ok=True)
@@ -256,20 +300,29 @@ def start(db_path, owner, paths, work, *, overwrite=False):
         finally:
             # A cleanup failure must never strand the HTTP caller on wait().
             admitted.set()
-        if failures:
+        if failures or replayed:
             return
-        _run(path, state, tuple(paths), work, lock)
+        _run(path, state, tuple(paths), work, lock, preflight)
 
     worker = threading.Thread(target=admit_and_run, name='facet-sidecar-export', daemon=True)
     worker.start()
     admitted.wait()  # Only lock admission/receipt IO; never waits for media work.
     if failures:
         raise failures[0]
-    return initial
+    return initial[0]
 
 
-def _run(path, state, paths, work, lock):
+def _run(path, state, paths, work, lock, preflight=None):
     try:
+        if preflight:
+            confirmation = preflight()
+            if confirmation is not None:
+                plan_path = path.with_suffix('.plan')
+                plan = SidecarJobPlan.model_validate(_read(plan_path))
+                plan.confirmation = confirmation
+                _write(plan_path, plan.model_dump())
+            state['phase'] = 'writing'
+            _write(path, state)
         for index, photo in enumerate(paths):
             if path.with_suffix('.cancel').exists():
                 state['state'] = 'cancelled'
@@ -285,11 +338,17 @@ def _run(path, state, paths, work, lock):
             _write(path, state)
         else:
             state['state'] = 'completed'
+    except ExportCancelled:
+        state['state'] = 'cancelled'
+    except ExportConditionsChanged:
+        state['state'] = 'failed'
+        state['first_error'] = PREVIEW_CHANGED_MESSAGE
     except Exception:
         logger.exception('Sidecar export job failed')
         state['state'] = 'failed'
         state['first_error'] = _STOPPED_MESSAGE
     finally:
+        state['phase'] = 'finished'
         try:
             _write(path, state)
         finally:
@@ -315,12 +374,7 @@ def recent(db_path, owner):
     return result
 
 
-def remaining(db_path, job_id, owner):
-    """Explicit retry includes failures/skips plus the unprocessed tail.
-
-    An interrupted file may have finished before its receipt reached disk.
-    Retrying is explicit, uses current metadata and never claims atomic rollback.
-    """
+def _retry_plan(db_path, job_id, owner):
     path, state = _owned(db_path, job_id, owner)
     if status(db_path, job_id, owner)['state'] == 'running':
         raise ValueError('Export is still running')
@@ -333,6 +387,41 @@ def remaining(db_path, job_id, owner):
         raise JobNotFound('Export plan not found') from ex
     if plan.owner != owner or len(plan.paths) != state['total']:
         raise JobNotFound('Export plan not found')
-    paths = plan.paths
-    indices = sorted(set(state['retry']) | set(range(state['processed'], len(paths))))
-    return [paths[index] for index in indices], plan.overwrite
+    indices = sorted(set(state['retry']) | set(range(state['processed'], len(plan.paths))))
+    return state, plan, indices
+
+
+def retry_preview_scope(db_path, job_id, owner):
+    """Recover exact unfinished file units, never re-expand completed companions."""
+    state, plan, indices = _retry_plan(db_path, job_id, owner)
+    if not indices:
+        raise ValueError('No unfinished files remain')
+    if plan.confirmation_digest is None:
+        request = {'paths': [plan.paths[index] for index in indices], 'overwrite': plan.overwrite}
+        units = None
+    else:
+        if plan.request is None:
+            raise JobNotFound('Export request not found')
+        request = dict(plan.request)
+        units = None
+        if plan.confirmation is not None:
+            original = plan.confirmation.get('files', []) + plan.confirmation.get('missing', [])
+            if len(original) != state['total']:
+                raise JobNotFound('Export file plan not found')
+            units = [original[index] for index in indices]
+            request['paths'] = sorted({unit['photo_path'] for unit in units})
+        elif state['processed']:
+            raise JobNotFound('Export file plan not found')
+        request.update(filters=None, album_id=None, exclude=[])
+    request['source_job'] = job_id
+    return {'request': request, 'units': units,
+            'photo_sources': plan.confirmation.get('photo_sources', {}) if plan.confirmation else {},
+            'progress': [state['processed'], state['retry'], plan.confirmation_digest]}
+
+
+def remaining(db_path, job_id, owner):
+    """Legacy retry; confirmed exports require an inspectable fresh preview."""
+    _, plan, indices = _retry_plan(db_path, job_id, owner)
+    if plan.confirmation_digest is not None:
+        raise ConfirmationRequired('Confirmed exports require a fresh preview')
+    return [plan.paths[index] for index in indices], plan.overwrite

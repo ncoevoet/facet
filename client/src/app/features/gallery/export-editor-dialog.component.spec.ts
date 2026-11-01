@@ -6,27 +6,31 @@ import { AuthService } from '../../core/services/auth.service';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { ApiService } from '../../core/services/api.service';
-import { ExportService } from '../../core/services/export.service';
+import { ExportService, ExportPreviewRequest } from '../../core/services/export.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ExportEditorDialogComponent, ExportEditorDialogData } from './export-editor-dialog.component';
 
 describe('ExportEditorDialogComponent', () => {
   let component: ExportEditorDialogComponent;
-  let exportAlbum: ReturnType<typeof vi.fn>;
-  let startSidecarJob: ReturnType<typeof vi.fn>;
+  let previewExport: ReturnType<typeof vi.fn>;
+  let applyExport: ReturnType<typeof vi.fn>;
   let dialogClose: ReturnType<typeof vi.fn>;
   let apiPost: ReturnType<typeof vi.fn>;
   let snackBarOpen: ReturnType<typeof vi.fn>;
 
   function build(data: ExportEditorDialogData = { albumId: 7 }) {
-    exportAlbum = vi.fn(() => of({ ok: true, mode: 'copy', copied: 1, skipped: 0, errors: 0 }));
-    startSidecarJob = vi.fn(() => of({ id: 'job', state: 'completed', started_at: 1, total: 5, processed: 5, written: 5, skipped: 0, errors: 0 }));
+    previewExport = vi.fn((request: ExportPreviewRequest) => of({
+      request, preview_token: 'preview', receipt_id: 'job', expires_at: 9999999999,
+      selected_paths: ['/a.jpg'], items: [], ready: 1, missing: 0,
+      mode: request.mode ?? 'sidecars', target_dir: request.target_dir ?? null, writer: null,
+    }));
+    applyExport = vi.fn(() => of({ id: 'job', state: 'completed', started_at: 1, total: 5, processed: 5, written: 5, skipped: 0, errors: 0 }));
     dialogClose = vi.fn();
     apiPost = vi.fn(() => of({}));
     snackBarOpen = vi.fn();
     TestBed.configureTestingModule({
       providers: [
-        { provide: ExportService, useValue: { exportAlbum, startSidecarJob, recentSidecarJobs: () => of([]) } },
+        { provide: ExportService, useValue: { previewExport, applyExport, recentSidecarJobs: () => of([]) } },
         { provide: AuthService, useValue: { status: signal(null), identity: () => 'alice', isEdition: () => true } },
         { provide: Router, useValue: { url: '/', events: NEVER } },
         { provide: ApiService, useValue: { post: apiPost } },
@@ -45,7 +49,10 @@ describe('ExportEditorDialogComponent', () => {
     build();
     component.mode.set('copy');
     component.targetDir.set('/dest');
-    await component.run();
+    await component.previewExport();
+    expect(dialogClose).not.toHaveBeenCalled();
+    expect(applyExport).not.toHaveBeenCalled();
+    await component.confirmPreview();
     expect(dialogClose).toHaveBeenCalled();
     expect(component.errorDetail()).toBeNull();
   });
@@ -54,10 +61,10 @@ describe('ExportEditorDialogComponent', () => {
     build();
     component.mode.set('copy');
     component.targetDir.set('/dest');
-    exportAlbum.mockReturnValueOnce(throwError(() => ({
+    previewExport.mockReturnValueOnce(throwError(() => ({
       error: { detail: 'target_dir is not an allowed export location. Configure viewer.export.allowed_target_dirs' },
     })));
-    await component.run();
+    await component.previewExport();
     expect(dialogClose).not.toHaveBeenCalled();
     expect(component.errorDetail()).toBe(
       'target_dir is not an allowed export location. Configure viewer.export.allowed_target_dirs',
@@ -68,17 +75,20 @@ describe('ExportEditorDialogComponent', () => {
     build();
     component.mode.set('copy');
     component.targetDir.set('/dest');
-    exportAlbum.mockReturnValueOnce(throwError(() => new Error('boom')));
-    await component.run();
+    previewExport.mockReturnValueOnce(throwError(() => new Error('boom')));
+    await component.previewExport();
     expect(component.errorDetail()).toBeNull();
   });
 
   it('sends a view-scoped selection as filters, never as a path list', async () => {
     build({ filters: { type: 'aerial', hide_bursts: '1' }, exclude: ['a.jpg'], count: 129 });
     component.overwrite.set(true);
-    await component.run();
-    expect(startSidecarJob).toHaveBeenCalledWith({ filters: { type: 'aerial', hide_bursts: '1' }, exclude: ['a.jpg'] }, true);
-    expect(exportAlbum).not.toHaveBeenCalled();
+    await component.previewExport();
+    expect(previewExport).toHaveBeenCalledWith({ filters: { type: 'aerial', hide_bursts: '1' }, exclude: ['a.jpg'], overwrite: true, mode: 'sidecars', target_dir: null, include_companions: false });
+    expect(applyExport).not.toHaveBeenCalled();
+    const captured = component.preview();
+    await component.confirmPreview();
+    expect(applyExport).toHaveBeenCalledWith(captured);
     expect(dialogClose).toHaveBeenCalled();
   });
 
@@ -91,10 +101,10 @@ describe('ExportEditorDialogComponent', () => {
     build();
     component.mode.set('copy');
     component.targetDir.set('/dest');
-    exportAlbum.mockReturnValueOnce(throwError(() => ({
+    previewExport.mockReturnValueOnce(throwError(() => ({
       error: { detail: [{ loc: ['body', 'target_dir'], msg: 'field required' }] },
     })));
-    await component.run();
+    await component.previewExport();
     expect(component.errorDetail()).toBeNull();
   });
 

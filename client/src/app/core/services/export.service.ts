@@ -4,6 +4,8 @@ import { ApiService } from './api.service';
 import type { components } from '../api/schema';
 
 export type SidecarJobStatus = components['schemas']['SidecarJobStatus'];
+export type ExportPreview = components['schemas']['ExportPreviewResponse'];
+export type ExportPreviewRequest = components['schemas']['ExportPreviewRequest'];
 export type SidecarJobScope =
   | { paths: string[]; filters?: never; exclude?: string[] }
   | { filters: Record<string, string>; paths?: never; exclude?: string[] };
@@ -23,6 +25,20 @@ export type AlbumExportMode = 'sidecars' | 'copy' | 'symlink';
 @Injectable({ providedIn: 'root' })
 export class ExportService {
   private api = inject(ApiService);
+
+  previewExport(request: ExportPreviewRequest): Observable<ExportPreview> {
+    return this.api.post('/export/preview', request);
+  }
+
+  previewRetry(id: string): Observable<ExportPreview> {
+    return this.api.post(`/export/sidecar_jobs/${encodeURIComponent(id)}/preview`);
+  }
+
+  applyExport(preview: ExportPreview): Observable<SidecarJobStatus> {
+    return this.api.post('/export/apply', {
+      ...preview.request, preview_token: preview.preview_token, selected_paths: preview.selected_paths,
+    });
+  }
 
   /** Write a single XMP sidecar next to one photo. */
   exportXmp(path: string, overwrite = false): Observable<{ ok: boolean; sidecar: string; overwrote: boolean }> {

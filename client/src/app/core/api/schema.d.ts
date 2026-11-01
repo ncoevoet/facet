@@ -1593,6 +1593,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/export/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Apply Export
+         * @description Admit the exact confirmation; read its receipt for validation/write results.
+         */
+        post: operations["api_apply_export_api_export_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/export/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Export Preview
+         * @description Inspect exact export membership, filenames and effective metadata without target writes.
+         */
+        post: operations["api_export_preview_api_export_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/export/sidecar_jobs": {
         parameters: {
             query?: never;
@@ -1651,6 +1691,26 @@ export interface paths {
          * @description Stop an export between complete files; completed writes are retained.
          */
         post: operations["api_cancel_sidecar_job_api_export_sidecar_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/export/sidecar_jobs/{job_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Api Preview Export Retry
+         * @description Fresh read-only preview of this receipt's exact unfinished file units.
+         */
+        post: operations["api_preview_export_retry_api_export_sidecar_jobs__job_id__preview_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6915,6 +6975,199 @@ export interface components {
             /** Path */
             path: string;
         };
+        /** ExportApplyRequest */
+        ExportApplyRequest: {
+            /** Album Id */
+            album_id?: number | null;
+            /** Exclude */
+            exclude?: string[];
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Include Companions
+             * @default false
+             */
+            include_companions?: boolean;
+            /**
+             * Mode
+             * @default sidecars
+             * @enum {string}
+             */
+            mode?: "sidecars" | "copy" | "symlink";
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite?: boolean;
+            /** Paths */
+            paths?: string[] | null;
+            /** Preview Token */
+            preview_token: string;
+            /** Selected Paths */
+            selected_paths: string[];
+            /** Source Job */
+            source_job?: string | null;
+            /** Target Dir */
+            target_dir?: string | null;
+        };
+        /** ExportFaceRegion */
+        ExportFaceRegion: {
+            /** H */
+            h: number;
+            /** Image Height */
+            image_height: number;
+            /** Image Width */
+            image_width: number;
+            /** Name */
+            name: string;
+            /** W */
+            w: number;
+            /** X */
+            x: number;
+            /** Y */
+            y: number;
+        };
+        /** ExportMetadata */
+        ExportMetadata: {
+            /** Aggregate */
+            aggregate: number | null;
+            /** Ai Tags */
+            ai_tags: string[];
+            /** Caption */
+            caption: string;
+            /** Category */
+            category: string;
+            /** Date Manually Set */
+            date_manually_set: boolean;
+            /** Date Taken */
+            date_taken: string | null;
+            /** Face Regions Supported */
+            face_regions_supported: boolean;
+            /** Gps Latitude */
+            gps_latitude: number | null;
+            /** Gps Longitude */
+            gps_longitude: number | null;
+            /** Gps Manually Set */
+            gps_manually_set: boolean;
+            /** Gps State */
+            gps_state: ("set" | "cleared") | null;
+            /** Is Favorite */
+            is_favorite: boolean;
+            /** Is Kept */
+            is_kept: boolean;
+            /** Is Rejected */
+            is_rejected: boolean;
+            /** Keywords */
+            keywords: string[];
+            /** Manual Date */
+            manual_date: string | null;
+            /** Manual Tags */
+            manual_tags: string[];
+            /** Person Names */
+            person_names: string[];
+            provenance: components["schemas"]["PhotoProvenance"];
+            /** Regions */
+            regions: components["schemas"]["ExportFaceRegion"][];
+            /**
+             * Review Decision
+             * @enum {string}
+             */
+            review_decision: "kept" | "rejected" | "undecided";
+            /**
+             * Review Scope
+             * @enum {string}
+             */
+            review_scope: "personal" | "catalog";
+            /** Star Rating */
+            star_rating: number;
+            /** Tags */
+            tags: string[];
+            /** Xmp Label */
+            xmp_label: string;
+            /** Xmp Rating */
+            xmp_rating: number;
+        };
+        /** ExportPreviewItem */
+        ExportPreviewItem: {
+            /** Companion */
+            companion: boolean;
+            metadata?: components["schemas"]["ExportMetadata"] | null;
+            /** Photo Path */
+            photo_path: string;
+            /** Source Name */
+            source_name: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "missing";
+            /** Target Exists */
+            target_exists: boolean;
+            /** Target Name */
+            target_name: string | null;
+        };
+        /** ExportPreviewRequest */
+        ExportPreviewRequest: {
+            /** Album Id */
+            album_id?: number | null;
+            /** Exclude */
+            exclude?: string[];
+            /** Filters */
+            filters?: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * Include Companions
+             * @default false
+             */
+            include_companions?: boolean;
+            /**
+             * Mode
+             * @default sidecars
+             * @enum {string}
+             */
+            mode?: "sidecars" | "copy" | "symlink";
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite?: boolean;
+            /** Paths */
+            paths?: string[] | null;
+            /** Source Job */
+            source_job?: string | null;
+            /** Target Dir */
+            target_dir?: string | null;
+        };
+        /** ExportPreviewResponse */
+        ExportPreviewResponse: {
+            /** Expires At */
+            expires_at: number;
+            /** Items */
+            items: components["schemas"]["ExportPreviewItem"][];
+            /** Missing */
+            missing: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "sidecars" | "copy" | "symlink";
+            /** Preview Token */
+            preview_token: string;
+            /** Ready */
+            ready: number;
+            /** Receipt Id */
+            receipt_id: string;
+            request: components["schemas"]["ExportPreviewRequest"];
+            /** Selected Paths */
+            selected_paths: string[];
+            /** Target Dir */
+            target_dir: string | null;
+            /** Writer */
+            writer: ("exiftool" | "xml") | null;
+        };
         /** ExportSidecarsRequest */
         ExportSidecarsRequest: {
             /**
@@ -9742,14 +9995,31 @@ export interface components {
              * @default false
              */
             cancel_requested?: boolean;
+            /**
+             * Confirmed
+             * @default false
+             */
+            confirmed?: boolean;
             /** Errors */
             errors: number;
             /** First Error */
             first_error?: string | null;
             /** First Error Code */
-            first_error_code?: ("metadata_repair" | "write_failed" | "exiftool_upgrade" | "stopped") | null;
+            first_error_code?: ("metadata_repair" | "write_failed" | "exiftool_upgrade" | "stopped" | "preview_changed") | null;
             /** Id */
             id: string;
+            /**
+             * Operation
+             * @default sidecars
+             * @enum {string}
+             */
+            operation?: "sidecars" | "copy" | "symlink";
+            /**
+             * Phase
+             * @default writing
+             * @enum {string}
+             */
+            phase?: "validating" | "writing" | "finished";
             /** Processed */
             processed: number;
             /** Skipped */
@@ -12969,6 +13239,72 @@ export interface operations {
             };
         };
     };
+    api_apply_export_api_export_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SidecarJobStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_export_preview_api_export_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     api_recent_sidecar_jobs_api_export_sidecar_jobs_get: {
         parameters: {
             query?: never;
@@ -13071,6 +13407,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SidecarJobStatus"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_preview_export_retry_api_export_sidecar_jobs__job_id__preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportPreviewResponse"];
                 };
             };
             /** @description Validation Error */

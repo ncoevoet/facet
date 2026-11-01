@@ -1,0 +1,324 @@
+"""Confirmed jobs: actual disposable file writes, receipts and no retargeting."""
+
+from pathlib import Path
+import sqlite3
+import threading
+from xml.etree import ElementTree as ET
+
+import pytest
+
+from api import config, sidecar_jobs
+from db import DEFAULT_DB_PATH
+from tests._sidecar_helpers import settle_sidecar_job
+
+
+@pytest.fixture
+def library(tmp_path, seed_photos_prefix, monkeypatch):
+    source = tmp_path / 'photos'
+    source.mkdir()
+    paths = [source / 'alpha.jpg', source / 'beta.jpg']
+    for index, path in enumerate(paths):
+        path.write_bytes(b'photo\r\n\x1a\x00' + bytes([index]))
+    seed_photos_prefix(str(source) + '/', [
+        {'path': str(path), 'filename': path.name, 'star_rating': 4, 'caption': 'Exported caption'} for path in paths
+    ])
+    target = tmp_path / 'delivery'
+    target.mkdir()
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'export', {'allowed_target_dirs': [str(target)]})
+    monkeypatch.setattr('processing.xmp_export.exiftool_available', lambda: False)
+    return paths, target
+
+
+def confirmed_body(client, body):
+    result = client.post('/api/export/preview', json=body)
+    assert result.status_code == 200, result.text
+    preview = result.json()
+    return {**body, 'preview_token': preview['preview_token'], 'selected_paths': preview['selected_paths']}, preview
+
+
+def done(job):
+    return settle_sidecar_job(DEFAULT_DB_PATH, job['id'], 'test')
+
+
+@pytest.mark.parametrize('operation', ['sidecars', 'copy', 'symlink'])
+def test_confirmed_job_writes_exact_outputs_and_replay_returns_same_receipt(edition_client, library, operation):
+    paths, target = library
+    before = {str(path): path.read_bytes() for path in paths}
+    body = {'paths': list(map(str, paths)), 'mode': operation}
+    if operation != 'sidecars':
+        body['target_dir'] = str(target)
+    apply, preview = confirmed_body(edition_client, body)
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 202, response.text
+    assert response.json()['id'] == preview['receipt_id']
+    result = done(response.json())
+    assert result['state'] == 'completed' and result['phase'] == 'finished'
+    assert result['confirmed'] is True and result['operation'] == operation
+    assert result['written'] == result['processed'] == result['total'] == 2
+    for path in paths:
+        assert path.read_bytes() == before[str(path)]
+        if operation == 'sidecars':
+            packet = ET.parse(str(path) + '.xmp')
+            description = packet.find('.//{http://www.w3.org/1999/02/22-rdf-syntax-ns#}Description')
+            assert description is not None
+            assert description.get('{http://ns.adobe.com/xap/1.0/}Rating') == '4'
+        else:
+            output = target / path.name
+            assert output.read_bytes() == before[str(path)]
+            assert output.is_symlink() is (operation == 'symlink')
+    replay = edition_client.post('/api/export/apply', json=apply)
+    assert replay.status_code == 202 and replay.json()['id'] == result['id']
+    assert replay.json()['written'] == 2
+    if operation != 'sidecars':
+        assert sorted(path.name for path in target.iterdir()) == ['alpha.jpg', 'beta.jpg']
+    receipt = edition_client.get('/api/export/sidecar_jobs/' + result['id'])
+    assert receipt.status_code == 200 and 'photos' not in receipt.text and 'preview_token' not in receipt.text
+    retry = edition_client.post('/api/export/sidecar_jobs/' + result['id'] + '/retry')
+    assert retry.status_code == 409 and 'fresh' in retry.text
+
+
+def test_change_before_admission_refuses_entire_scope_before_any_target_write(edition_client, library):
+    paths, target = library
+    apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths))})
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('UPDATE photos SET star_rating=1 WHERE path=?', (str(paths[1]),))
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 202
+    result = done(response.json())
+    assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed'
+    assert result['written'] == result['processed'] == 0
+    assert not list(paths[0].parent.glob('*.xmp')) and not list(target.iterdir())
+    retry = edition_client.post('/api/export/sidecar_jobs/' + result['id'] + '/preview')
+    assert retry.status_code == 200, retry.text
+    captured = retry.json()
+    assert captured['selected_paths'] == list(map(str, paths)) and captured['ready'] == 2
+    assert [item['metadata']['xmp_rating'] for item in captured['items']] == [4, 1]
+    assert not list(paths[0].parent.glob('*.xmp'))
+    applied = edition_client.post('/api/export/apply', json={**captured['request'],
+        'preview_token': captured['preview_token'], 'selected_paths': captured['selected_paths']})
+    assert applied.status_code == 202, applied.text
+    assert done(applied.json())['written'] == 2
+
+
+def test_later_metadata_change_stops_new_files_and_retains_written_prefix(edition_client, library, monkeypatch):
+    from api import export_execution
+    paths, _ = library
+    apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths))})
+    entered, release = threading.Event(), threading.Event()
+    real_write = export_execution.write_confirmed_metadata
+
+    def write_then_pause(*args, **kwargs):
+        result = real_write(*args, **kwargs)
+        entered.set()
+        assert release.wait(5)
+        return result
+
+    monkeypatch.setattr(export_execution, 'write_confirmed_metadata', write_then_pause)
+    response = edition_client.post('/api/export/apply', json=apply)
+    try:
+        assert response.status_code == 202 and entered.wait(3)
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.execute('UPDATE photos SET star_rating=1 WHERE path=?', (str(paths[1]),))
+    finally:
+        release.set()
+    result = done(response.json())
+    assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed'
+    assert result['processed'] == result['written'] == 1
+    assert Path(str(paths[0]) + '.xmp').is_file() and not Path(str(paths[1]) + '.xmp').exists()
+    completed_packet = Path(str(paths[0]) + '.xmp').read_bytes()
+    retry = edition_client.post('/api/export/sidecar_jobs/' + result['id'] + '/preview')
+    assert retry.status_code == 200, retry.text
+    captured = retry.json()
+    assert captured['selected_paths'] == [str(paths[1])] and captured['ready'] == 1
+    assert captured['items'][0]['metadata']['xmp_rating'] == 1
+    applied = edition_client.post('/api/export/apply', json={**captured['request'],
+        'preview_token': captured['preview_token'], 'selected_paths': captured['selected_paths']})
+    assert applied.status_code == 202, applied.text
+    final = done(applied.json())
+    assert final['state'] == 'completed' and final['written'] == 1
+    assert Path(str(paths[0]) + '.xmp').read_bytes() == completed_packet
+
+
+def test_cancellation_keeps_completed_file_and_never_starts_next(edition_client, library, monkeypatch):
+    from api import export_execution
+    paths, target = library
+    apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths)), 'mode': 'copy', 'target_dir': str(target)})
+    entered, release = threading.Event(), threading.Event()
+    real_deliver = export_execution._deliver
+
+    def deliver_then_pause(*args):
+        real_deliver(*args)
+        entered.set()
+        assert release.wait(5)
+
+    monkeypatch.setattr(export_execution, '_deliver', deliver_then_pause)
+    response = edition_client.post('/api/export/apply', json=apply)
+    try:
+        assert response.status_code == 202 and entered.wait(3)
+        sidecar_jobs.cancel(DEFAULT_DB_PATH, response.json()['id'], 'test')
+    finally:
+        release.set()
+    result = done(response.json())
+    assert result['state'] == 'cancelled' and result['written'] == 1
+    assert (target / paths[0].name).read_bytes() == paths[0].read_bytes()
+    assert not (target / paths[1].name).exists()
+
+
+def test_tampered_captured_membership_does_not_start_a_job(edition_client, library):
+    paths, target = library
+    apply, preview = confirmed_body(edition_client, {'paths': list(map(str, paths)), 'mode': 'copy', 'target_dir': str(target)})
+    apply['selected_paths'] = [str(paths[0])]
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 409
+    assert edition_client.get('/api/export/sidecar_jobs/' + preview['receipt_id']).status_code == 404
+    assert not list(target.iterdir())
+
+
+def test_new_packet_owner_after_preflight_stops_the_next_sidecar(edition_client, library, monkeypatch):
+    from api import export_execution
+    paths, _ = library
+    apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths)), 'overwrite': True})
+    entered, release = threading.Event(), threading.Event()
+    real_write = export_execution.write_confirmed_metadata
+
+    def write_then_pause(*args, **kwargs):
+        real_write(*args, **kwargs)
+        entered.set()
+        assert release.wait(5)
+
+    monkeypatch.setattr(export_execution, 'write_confirmed_metadata', write_then_pause)
+    response = edition_client.post('/api/export/apply', json=apply)
+    try:
+        assert entered.wait(3)
+        Path(str(paths[1]) + '.png').write_bytes(b'new photo claiming the packet by basename')
+    finally:
+        release.set()
+    result = done(response.json())
+    assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed'
+    assert result['written'] == result['processed'] == 1
+    assert not Path(str(paths[1]) + '.xmp').exists()
+
+
+@pytest.mark.parametrize('mode', ['copy', 'symlink'])
+@pytest.mark.parametrize('missing_companion', [False, True])
+def test_retry_preview_keeps_unfinished_companions_without_redelivering_completed_photo(edition_client, library, monkeypatch, mode, missing_companion):
+    from api import export_execution
+    paths, target = library
+    packet = Path(str(paths[0]) + '.xmp')
+    packet.write_bytes(b'<x:xmpmeta xmlns:x="adobe:ns:meta/"/>')
+    apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths)), 'mode': mode,
+                                             'target_dir': str(target), 'include_companions': True})
+    entered, release = threading.Event(), threading.Event()
+    real_deliver = export_execution._deliver
+
+    def pause(*args):
+        real_deliver(*args)
+        entered.set()
+        assert release.wait(5)
+
+    monkeypatch.setattr(export_execution, '_deliver', pause)
+    response = edition_client.post('/api/export/apply', json=apply)
+    try:
+        assert response.status_code == 202 and entered.wait(3)
+        sidecar_jobs.cancel(DEFAULT_DB_PATH, response.json()['id'], 'test')
+    finally:
+        release.set()
+    first = done(response.json())
+    assert first['state'] == 'cancelled' and first['processed'] == first['written'] == 1
+    before = {p.name: p.read_bytes() for p in target.iterdir()}
+    packet_bytes = packet.read_bytes()
+    if missing_companion:
+        packet.unlink()
+    retry = edition_client.post('/api/export/sidecar_jobs/' + first['id'] + '/preview')
+    assert retry.status_code == 200, retry.text
+    captured = retry.json()
+    assert captured['ready'] == (1 if missing_companion else 2)
+    assert captured['missing'] == (1 if missing_companion else 0)
+    assert {item['source_name'] for item in captured['items']} == {'alpha.jpg.xmp', 'beta.jpg'}
+    assert {item['target_name'] for item in captured['items']} == {'alpha.jpg.xmp', 'beta.jpg'}
+    assert {p.name: p.read_bytes() for p in target.iterdir()} == before
+    tampered = {**captured['request'], 'paths': [str(paths[1])]}
+    refused = edition_client.post('/api/export/preview', json=tampered)
+    assert refused.status_code == 409
+    applied = edition_client.post('/api/export/apply', json={**captured['request'],
+        'preview_token': captured['preview_token'], 'selected_paths': captured['selected_paths']})
+    assert applied.status_code == 202, applied.text
+    result = done(applied.json())
+    assert result['state'] == 'completed' and result['processed'] == 2
+    assert result['written'] == (1 if missing_companion else 2)
+    if missing_companion:
+        assert result['skipped'] == 1
+        packet.write_bytes(packet_bytes)
+        third = edition_client.post('/api/export/sidecar_jobs/' + result['id'] + '/preview')
+        assert third.status_code == 200, third.text
+        captured = third.json()
+        assert captured['ready'] == 1 and captured['missing'] == 0
+        assert [item['source_name'] for item in captured['items']] == ['alpha.jpg.xmp']
+        assert all('source' not in item and 'target' not in item for item in captured['items'])
+        completed = edition_client.post('/api/export/apply', json={**captured['request'],
+            'preview_token': captured['preview_token'], 'selected_paths': captured['selected_paths']})
+        assert completed.status_code == 202, completed.text
+        result = done(completed.json())
+        assert result['state'] == 'completed' and result['written'] == result['processed'] == 1
+    assert sorted(p.name for p in target.iterdir()) == ['alpha.jpg', 'alpha.jpg.xmp', 'beta.jpg']
+    assert (target / 'alpha.jpg').read_bytes() == before['alpha.jpg']
+    assert (target / 'alpha.jpg.xmp').read_bytes() == packet.read_bytes()
+
+
+def test_retry_preview_refuses_an_occupied_unfinished_destination(edition_client, library, monkeypatch):
+    from api import export_execution
+    paths, target = library
+    apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths)), 'mode': 'copy', 'target_dir': str(target)})
+    entered, release = threading.Event(), threading.Event()
+    real_deliver = export_execution._deliver
+
+    def pause(*args):
+        real_deliver(*args)
+        entered.set()
+        assert release.wait(5)
+
+    monkeypatch.setattr(export_execution, '_deliver', pause)
+    response = edition_client.post('/api/export/apply', json=apply)
+    try:
+        assert entered.wait(3)
+        sidecar_jobs.cancel(DEFAULT_DB_PATH, response.json()['id'], 'test')
+    finally:
+        release.set()
+    first = done(response.json())
+    occupied = target / paths[1].name
+    occupied.write_bytes(b'output requiring manual inspection')
+    retry = edition_client.post('/api/export/sidecar_jobs/' + first['id'] + '/preview')
+    assert retry.status_code == 409, retry.text
+    assert occupied.read_bytes() == b'output requiring manual inspection'
+    assert sorted(p.name for p in target.iterdir()) == ['alpha.jpg', 'beta.jpg']
+
+
+@pytest.mark.parametrize('scope_kind', ['whole_view', 'smart_album'])
+def test_preview_and_apply_keep_folded_matching_members_and_explicit_exclusions(edition_client, library, scope_kind):
+    import json
+    paths, target = library
+    stack = edition_client.post('/api/stacks', json={'paths': list(map(str, paths)), 'cover_path': str(paths[0])})
+    assert stack.status_code == 201, stack.text
+    filters = {'path_prefix': str(paths[0].parent) + '/'}
+    if scope_kind == 'smart_album':
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            album = conn.execute('INSERT INTO albums(name,user_id,is_smart,smart_filter_json) VALUES(?,?,1,?)',
+                                 ('delivery fixture', 'test', json.dumps({'category': 'different-working-rule'}))).lastrowid
+            conn.executemany('INSERT INTO album_photos(album_id,photo_path) VALUES(?,?)', [(album, str(path)) for path in paths])
+        filters['album_id'] = str(album)
+        scope = {'album_id': album}
+    else:
+        scope = {'filters': filters}
+    page = edition_client.get('/api/photos', params={**filters, 'per_page': 1})
+    assert page.status_code == 200, page.text
+    assert len(page.json()['photos']) == 1 and page.json()['photo_total'] == 2
+    assert page.json()['photos'][0]['path'] == str(paths[0])
+    body = {**scope, 'exclude': [str(paths[0])], 'mode': 'copy', 'target_dir': str(target)}
+    apply, captured = confirmed_body(edition_client, body)
+    assert captured['selected_paths'] == [str(paths[1])]
+    assert not list(target.iterdir())
+    result = edition_client.post('/api/export/apply', json=apply)
+    assert result.status_code == 202, result.text
+    assert done(result.json())['written'] == 1
+    assert [p.name for p in target.iterdir()] == [paths[1].name]
+    assert (target / paths[1].name).read_bytes() == paths[1].read_bytes()

@@ -8,12 +8,19 @@ import { NavigationStart, Router } from '@angular/router';
 import { Subject } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
-import { ExportService, SidecarJobStatus } from '../../core/services/export.service';
+import { ExportService, ExportPreview, ExportPreviewRequest, SidecarJobStatus } from '../../core/services/export.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { ExportEditorDialogComponent, ExportEditorDialogData } from './export-editor-dialog.component';
 
 function job(overrides: Partial<SidecarJobStatus> = {}): SidecarJobStatus {
   return { id: 'job', state: 'running', started_at: 1, total: 3, processed: 0, written: 0, skipped: 0, errors: 0, cancel_requested: false, ...overrides };
+}
+
+function preview(request: ExportPreviewRequest): ExportPreview {
+  return { request, preview_token: 'captured-plan', receipt_id: 'job', expires_at: 9999999999,
+    mode: request.mode ?? 'sidecars', target_dir: request.target_dir ?? null,
+    selected_paths: request.paths ?? ['/a.jpg', '/b.jpg', '/c.jpg'],
+    items: [], ready: 3, missing: 0, writer: 'xml' };
 }
 
 /** Lets already-resolved promise continuations (service subscribe -> signal set) run before an assertion. */
@@ -53,12 +60,23 @@ describe('Export editor background jobs with HttpClient', () => {
     if (flushRecent) http.expectOne('/api/export/sidecar_jobs').flush([]);
   }
 
-  function start(status = job()): Promise<void> {
-    const pending = component.run();
-    const request = http.expectOne('/api/export/sidecar_jobs');
+  async function capture(): Promise<ExportPreview> {
+    const pending = component.previewExport();
+    const request = http.expectOne('/api/export/preview');
+    const result = preview(request.request.body);
+    request.flush(result); await pending;
+    http.expectNone('/api/export/apply');
+    return result;
+  }
+
+  async function start(status = job()): Promise<void> {
+    const captured = await capture();
+    const pending = component.confirmPreview();
+    const request = http.expectOne('/api/export/apply');
     expect(request.request.method).toBe('POST');
+    expect(request.request.body).toEqual({ ...captured.request, preview_token: captured.preview_token, selected_paths: captured.selected_paths });
     request.flush(status, { status: 202, statusText: 'Accepted' });
-    return pending;
+    await pending;
   }
 
   afterEach(() => {
@@ -68,19 +86,28 @@ describe('Export editor background jobs with HttpClient', () => {
   });
 
   it.each([
-    [{ paths: ['/a.jpg', '/b.jpg'] }, { paths: ['/a.jpg', '/b.jpg'], overwrite: true }],
-    [{ filters: { camera: 'Canon' }, exclude: ['/skip.jpg'] }, { filters: { camera: 'Canon' }, exclude: ['/skip.jpg'], overwrite: true }],
-    [{ albumId: 7 }, { filters: { album_id: '7' }, overwrite: true }],
-  ] as [ExportEditorDialogData, unknown][])('starts the bounded server job for dialog scope %j', async (data, body) => {
+    [{ paths: ['/a.jpg', '/b.jpg'] }, { paths: ['/a.jpg', '/b.jpg'], exclude: [] }],
+    [{ filters: { camera: 'Canon' }, exclude: ['/skip.jpg'] }, { filters: { camera: 'Canon' }, exclude: ['/skip.jpg'] }],
+    [{ albumId: 7 }, { album_id: 7 }],
+  ] as [ExportEditorDialogData, unknown][])('previews scope without writes and confirms captured membership for %j', async (data, body) => {
     build(data);
     component.overwrite.set(true);
-    const pending = component.run();
-    const request = http.expectOne('/api/export/sidecar_jobs');
-    expect(request.request.body).toEqual(body);
+    const pending = component.previewExport();
+    const request = http.expectOne('/api/export/preview');
+    expect(request.request.body).toEqual({ ...(body as object), overwrite: true, mode: 'sidecars', target_dir: null, include_companions: false });
     http.expectNone('/api/export/sidecars');
     http.expectNone('/api/albums/7/export');
-    request.flush(job());
+    const captured = preview(request.request.body);
+    request.flush(captured);
     await pending;
+    expect(component.running()).toBe(false);
+    expect(component.job()).toBeNull();
+    http.expectNone('/api/export/apply');
+    const confirming = component.confirmPreview();
+    const apply = http.expectOne('/api/export/apply');
+    expect(apply.request.body.selected_paths).toEqual(captured.selected_paths);
+    expect(apply.request.body.preview_token).toBe(captured.preview_token);
+    apply.flush(job()); await confirming;
     expect(component.running()).toBe(true);
     expect(close).not.toHaveBeenCalled();
   });
@@ -91,7 +118,7 @@ describe('Export editor background jobs with HttpClient', () => {
     http.expectOne('/api/export/sidecar_jobs').flush([receipt]);
     await flushMicrotasks(2); fixture!.detectChanges();
     expect(component.canRun()).toBe(false);
-    await component.run();
+    await component.previewExport();
     http.expectNone(request => request.method === 'POST');
     expect(fixture!.nativeElement.querySelector('mat-radio-group')).toBeNull();
     expect(fixture!.nativeElement.textContent).not.toContain('export.lightroom.title');
@@ -101,8 +128,14 @@ describe('Export editor background jobs with HttpClient', () => {
     expect(fixture!.nativeElement.querySelector('[aria-live=polite]')?.textContent).toContain('export.jobs.partial');
     expect(fixture!.nativeElement.querySelector('.font-mono')?.textContent).toBe('export.jobs.receipt_id {}: job');
     const retry = component.retryJob();
-    http.expectOne('/api/export/sidecar_jobs/job/retry').flush(job({ id: 'repair', state: 'completed', total: 1, processed: 1, written: 1 }));
+    http.expectOne('/api/export/sidecar_jobs/job/preview').flush(preview({ paths: ['/a.jpg'], source_job: 'job' }));
     await retry; fixture!.detectChanges();
+    expect(component.job()?.id).toBe('job');
+    expect(fixture!.nativeElement.querySelector('[data-export-confirm]')).not.toBeNull();
+    http.expectNone('/api/export/apply');
+    const confirming = component.confirmPreview();
+    http.expectOne('/api/export/apply').flush(job({ id: 'repair', state: 'completed', total: 1, processed: 1, written: 1 }));
+    await confirming;
     expect(component.job()?.id).toBe('repair');
     expect(close).not.toHaveBeenCalled();
   });
@@ -119,7 +152,7 @@ describe('Export editor background jobs with HttpClient', () => {
     expect(close).toHaveBeenCalledTimes(1);
     expect(request.cancelled).toBe(true);
     expect(component.recentLoading()).toBe(false);
-    await component.loadRecent(); await component.run();
+    await component.loadRecent(); await component.previewExport();
     http.expectNone('/api/export/sidecar_jobs');
   });
 
@@ -129,7 +162,7 @@ describe('Export editor background jobs with HttpClient', () => {
     // start() verified the real request; changing the caller array cannot retarget it.
     expect(component.lightroomScope()).toEqual({ paths: ['/a.jpg'] });
     token = 'session-b';
-    await component.retryJob(); await component.cancelJob(); await component.run();
+    await component.retryJob(); await component.cancelJob(); await component.previewExport();
     http.expectNone(request => request.method === 'POST');
     expect(component.job()?.state).toBe('failed');
   });
@@ -265,10 +298,16 @@ describe('Export editor background jobs with HttpClient', () => {
     expect(close).not.toHaveBeenCalled(); expect(snack).not.toHaveBeenCalled();
     http.expectNone(r => r.method === 'POST');
     const retrying = component.retryJob();
-    const retry = http.expectOne('/api/export/sidecar_jobs/job/retry');
+    const retry = http.expectOne('/api/export/sidecar_jobs/job/preview');
     expect(retry.request.method).toBe('POST');
-    retry.flush(job({ id: 'retry-job', total: 2 }));
+    const captured = preview({ paths: ['/a.jpg'], source_job: 'job' });
+    retry.flush(captured);
     await retrying;
+    expect(component.preview()).toEqual(captured);
+    expect(component.job()?.id).toBe(status.id);
+    http.expectNone('/api/export/apply');
+    const confirming = component.confirmPreview();
+    http.expectOne('/api/export/apply').flush(job({ id: 'retry-job', total: 2 })); await confirming;
     expect(component.job()?.id).toBe('retry-job');
   });
 
@@ -313,8 +352,9 @@ describe('Export editor background jobs with HttpClient', () => {
 
   it.each(['close', 'navigation', 'destroy', 'identity'] as const)('does not abort a submitted job start or apply its late response after %s', async ending => {
     vi.useFakeTimers(); build();
-    const starting = component.run();
-    const mutation = http.expectOne('/api/export/sidecar_jobs');
+    await capture();
+    const starting = component.confirmPreview();
+    const mutation = http.expectOne('/api/export/apply');
     if (ending === 'close') component.close();
     else if (ending === 'navigation') events.next(new NavigationStart(1, '/stats'));
     else if (ending === 'destroy') { fixture!.destroy(); fixture = null; }
@@ -337,7 +377,7 @@ describe('Export editor background jobs with HttpClient', () => {
     const status = http.expectOne('/api/export/sidecar_jobs/job');
     session.update(s => ({ ...s, user: 'bob' }));
     // Method guards refuse mutations even before the scheduled auth effect runs.
-    await component.cancelJob(); await component.retryJob(); await component.run();
+    await component.cancelJob(); await component.retryJob(); await component.previewExport();
     http.expectNone(r => r.method === 'POST');
     TestBed.tick();
     expect(recent.cancelled).toBe(true); expect(status.cancelled).toBe(true);
@@ -356,15 +396,15 @@ describe('Export editor background jobs with HttpClient', () => {
     expect(component.job()?.written).toBe(1);
   });
 
-  it.each(['cancel', 'retry'] as const)('does not abort an explicit %s mutation when the dialog closes', async action => {
+  it('does not abort an explicit cancellation mutation when the dialog closes', async () => {
     vi.useFakeTimers(); build();
-    await start(action === 'cancel' ? job() : job({ state: 'completed', processed: 3, written: 2, errors: 1 }));
+    await start(job());
     const before = component.job();
-    const pending = action === 'cancel' ? component.cancelJob() : component.retryJob();
-    const request = http.expectOne(`/api/export/sidecar_jobs/job/${action}`);
+    const pending = component.cancelJob();
+    const request = http.expectOne('/api/export/sidecar_jobs/job/cancel');
     component.close();
     expect(request.cancelled).toBe(false);
-    request.flush(action === 'cancel' ? job({ state: 'cancelled' }) : job({ id: 'new-job' }));
+    request.flush(job({ state: 'cancelled' }));
     await pending;
     expect(component.job()).toBe(before);
     vi.advanceTimersByTime(3000);
@@ -372,26 +412,39 @@ describe('Export editor background jobs with HttpClient', () => {
     expect(snack).not.toHaveBeenCalled();
   });
 
+  it('cancels an obsolete retry preview on close without starting another export', async () => {
+    build(); await start(job({ state: 'cancelled', processed: 1, written: 1 }));
+    const pending = component.retryJob();
+    const request = http.expectOne('/api/export/sidecar_jobs/job/preview');
+    component.close();
+    expect(request.cancelled).toBe(true);
+    await pending;
+    http.expectNone('/api/export/apply');
+    expect(component.preview()).toBeNull();
+  });
+
   it('blocks mutations while switching receipts so an old visible receipt cannot be retried by mistake', async () => {
     build();
     await start(job({ id: 'old', state: 'completed', processed: 3, written: 2, errors: 1 }));
     const selecting = component.viewJob(job({ id: 'selected', state: 'interrupted' }));
     const status = http.expectOne('/api/export/sidecar_jobs/selected');
-    await component.retryJob(); await component.cancelJob(); await component.run();
+    await component.retryJob(); await component.cancelJob(); await component.previewExport();
     http.expectNone(r => r.method === 'POST');
     status.flush(job({ id: 'selected', state: 'interrupted' }));
     await selecting;
     const retrying = component.retryJob();
-    http.expectOne('/api/export/sidecar_jobs/selected/retry').flush(job({ id: 'retry-selected' }));
+    http.expectOne('/api/export/sidecar_jobs/selected/preview').flush(preview({ paths: ['/a.jpg'], source_job: 'selected' }));
     await retrying;
+    const confirming = component.confirmPreview();
+    http.expectOne('/api/export/apply').flush(job({ id: 'retry-selected' })); await confirming;
     expect(component.job()?.id).toBe('retry-selected');
   });
 
   it('keeps a private-album refusal visible and never claims a successful export', async () => {
     build({ albumId: 7 });
-    const pending = component.run();
-    const request = http.expectOne('/api/export/sidecar_jobs');
-    expect(request.request.body).toEqual({ filters: { album_id: '7' }, overwrite: false });
+    const pending = component.previewExport();
+    const request = http.expectOne('/api/export/preview');
+    expect(request.request.body).toEqual({ album_id: 7, overwrite: false, mode: 'sidecars', target_dir: null, include_companions: false });
     request.flush({ detail: 'Album is not visible to this user' }, { status: 403, statusText: 'Forbidden' });
     await pending;
     expect(component.errorDetail()).toBe('Album is not visible to this user');
@@ -443,5 +496,98 @@ describe('Export editor background jobs with HttpClient', () => {
     vi.advanceTimersByTime(3000);
     http.expectNone('/api/export/sidecar_jobs/job');
     http.expectNone('/api/export/sidecar_jobs/job/cancel');
+  });
+
+  it('invalidates captured preview when options change and refuses a stale confirmation', async () => {
+    build(); await capture();
+    expect(component.canConfirm()).toBe(true);
+    component.overwrite.set(true);
+    // The synchronous guard must work before the scheduled cleanup effect.
+    await component.confirmPreview();
+    http.expectNone('/api/export/apply');
+    TestBed.tick();
+    expect(component.preview()).toBeNull();
+    expect(component.canConfirm()).toBe(false);
+    await capture();
+    expect(component.preview()?.request.overwrite).toBe(true);
+    expect(component.canConfirm()).toBe(true);
+  });
+
+  it('recovers an uncertain confirmation by reading its exact receipt without another apply', async () => {
+    build(); const captured = await capture();
+    const confirming = component.confirmPreview();
+    http.expectOne('/api/export/apply').flush({}, { status: 503, statusText: 'Unavailable' });
+    await confirming; fixture!.detectChanges();
+    expect(component.uncertainReceipt()).toBe(captured.receipt_id);
+    expect(component.canConfirm()).toBe(false);
+    expect(fixture!.nativeElement.textContent).toContain('export.preview.uncertain');
+    await component.confirmPreview(); await component.previewExport();
+    http.expectNone(request => request.method === 'POST');
+    const recovering = component.recoverConfirmation();
+    const read = http.expectOne(`/api/export/sidecar_jobs/${captured.receipt_id}`);
+    expect(read.request.method).toBe('GET');
+    read.flush(job({ state: 'completed', total: 3, processed: 3, written: 3, confirmed: true }));
+    await recovering;
+    expect(component.uncertainReceipt()).toBeNull();
+    expect(component.preview()).toBeNull();
+    expect(component.job()?.written).toBe(3);
+    expect(close).not.toHaveBeenCalled();
+    http.expectNone(request => request.method === 'POST');
+  });
+
+  it('cancels an obsolete preview read on navigation without starting an export', async () => {
+    build(); const pending = component.previewExport();
+    const readOnlyPreview = http.expectOne('/api/export/preview');
+    events.next(new NavigationStart(1, '/albums'));
+    expect(readOnlyPreview.cancelled).toBe(true);
+    await pending;
+    expect(component.preview()).toBeNull();
+    http.expectNone('/api/export/apply');
+  });
+
+  it('pages all captured file rows without extra requests or truncating the confirmed selection', async () => {
+    build(); const pending = component.previewExport();
+    const request = http.expectOne('/api/export/preview');
+    const captured = preview(request.request.body);
+    captured.selected_paths = Array.from({ length: 27 }, (_, i) => `/photo-${i}.jpg`);
+    captured.items = captured.selected_paths.map(path => ({ photo_path: path, source_name: path.slice(1),
+      target_name: path.slice(1) + '.xmp', state: 'ready', companion: false, target_exists: false, metadata: null }));
+    captured.ready = 27;
+    request.flush(captured); await pending; fixture!.detectChanges();
+    expect(fixture!.nativeElement.querySelectorAll('[data-export-preview] > details')).toHaveLength(25);
+    component.previewPage.set(1); fixture!.detectChanges();
+    const text = fixture!.nativeElement.querySelector('[data-export-preview]').textContent;
+    expect(text).toContain('photo-25.jpg'); expect(text).toContain('photo-26.jpg');
+    expect(text).not.toContain('photo-24.jpg');
+    const confirm = component.confirmPreview();
+    const apply = http.expectOne('/api/export/apply');
+    expect(apply.request.body.selected_paths).toEqual(captured.selected_paths);
+    apply.flush(job({ total: 27 })); await confirm;
+    http.expectNone(request => request.method === 'GET');
+  });
+
+  it('renders the actual mapped XMP rating, favorite and color label inside the captured file preview', async () => {
+    build(); const pending = component.previewExport();
+    const request = http.expectOne('/api/export/preview');
+    const captured = preview(request.request.body);
+    captured.items = [{ photo_path: '/a.jpg', source_name: 'a.jpg', target_name: 'a.jpg.xmp',
+      state: 'ready', companion: false, target_exists: false, metadata: {
+        star_rating: 0, is_favorite: true, is_rejected: false, is_kept: true, date_taken: null,
+        date_manually_set: false, gps_manually_set: false, gps_latitude: null, gps_longitude: null,
+        tags: [], ai_tags: [], manual_tags: [], caption: '', category: '', person_names: [], regions: [],
+        aggregate: null, xmp_rating: 0, xmp_label: 'Yellow', review_decision: 'kept', manual_date: null,
+        gps_state: null, review_scope: 'personal', keywords: [], face_regions_supported: false,
+        provenance: { review_scope: 'personal', review: [], manual_tags: [], manual_tags_truncated: false,
+          capture_date_override: false, gps_override: false },
+      } }];
+    request.flush(captured); await pending; fixture!.detectChanges();
+    const details = fixture!.nativeElement.querySelector('[data-export-preview] > details') as HTMLDetailsElement;
+    details.open = true;
+    const values = Array.from(details.querySelectorAll('dl > dt')).map(label => [label.textContent, label.nextElementSibling?.textContent]);
+    expect(values).toContainEqual(['export.preview.rating {}', '0']);
+    expect(values).toContainEqual(['export.preview.color_label {}', 'Yellow']);
+    expect(values).toContainEqual(['rating.favorite {}', 'organization_history.yes {}']);
+    expect(values).toContainEqual(['export.preview.decision {}', 'review.kept {}']);
+    http.expectNone('/api/export/apply');
   });
 });

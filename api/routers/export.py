@@ -23,6 +23,7 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -42,6 +43,7 @@ from api.db_helpers import (
 )
 from api.models.scan import CullApplyResponse, PhotoDeleteResponse
 from api.models.sidecar_jobs import SidecarJobStatus
+from api.models.export_preview import ExportApplyRequest, ExportPreviewRequest, ExportPreviewResponse
 from api.path_validation import PhotoFileMissing, resolve_photo_disk_path
 from api.raw_processing import find_companion_raw, windows_entry_path
 from db.maintenance import delete_photo_rows
@@ -58,6 +60,48 @@ from utils.sequence import BRACKET as BRACKET_KIND
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["export"])
+
+
+@router.post('/api/export/preview', response_model=ExportPreviewResponse)
+def api_export_preview(body: ExportPreviewRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Inspect exact export membership, filenames and effective metadata without target writes."""
+    return _export_preview_response(body, response, user.user_id)
+
+
+def _export_preview_response(body, response, user_id):
+    from api.export_preview import export_preview
+    response.headers['Cache-Control'] = 'no-store'
+    try:
+        with get_db() as conn:
+            conn.execute('PRAGMA query_only=ON')
+            conn.execute('BEGIN')
+            return export_preview(conn, body, user_id)
+    except (MetadataPreconditionError, DefectiveExifToolError):
+        raise HTTPException(409, 'Metadata needs inspection or a supported ExifTool before export') from None
+    except OSError:
+        logger.exception('Export preview filesystem inspection failed')
+        raise HTTPException(503, 'Export files could not be inspected; no export was started') from None
+    except sqlite3.Error:
+        logger.exception('Export preview database inspection failed')
+        raise HTTPException(503, 'Export scope could not be read; no export was started') from None
+    except (ValueError, RuntimeError):
+        logger.exception('Export metadata preview failed')
+        raise HTTPException(422, 'Export metadata could not be validated; no export was started') from None
+
+
+@router.post('/api/export/apply', status_code=202, response_model=SidecarJobStatus)
+def api_apply_export(body: ExportApplyRequest, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Admit the exact confirmation; read its receipt for validation/write results."""
+    from api.export_execution import start_confirmed_export
+    from facet import LibraryLockError, LibraryLockUnusableError
+    with _sidecar_job_request(response) as db_path:
+        try:
+            return start_confirmed_export(db_path, body, user.user_id)
+        except LibraryLockUnusableError:
+            raise HTTPException(503, 'Library lock is unavailable') from None
+        except LibraryLockError:
+            raise HTTPException(503, LIBRARY_BUSY_DETAIL,
+                                headers={'Retry-After': str(LIBRARY_BUSY_RETRY_AFTER_SECONDS)}) from None
 
 # Cap the placeholders in a single IN (...) query so a large selection (paths is
 # bounded at 10000) can never exceed legacy SQLite's SQLITE_MAX_VARIABLE_NUMBER
@@ -1095,9 +1139,23 @@ def api_retry_sidecar_job(job_id: str, response: Response, user: CurrentUser = D
     with _sidecar_job_request(response) as db_path:
         try:
             paths, overwrite = sidecar_jobs.remaining(db_path, job_id, user.user_id)
+        except sidecar_jobs.ConfirmationRequired as ex:
+            raise HTTPException(409, 'Inspect a fresh export preview before retrying this job') from ex
         except ValueError as ex:
             raise HTTPException(409, "Export is still running") from ex
         return _start_sidecar_export_job(db_path, paths, user.user_id, overwrite)
+
+
+@router.post('/api/export/sidecar_jobs/{job_id}/preview', response_model=ExportPreviewResponse)
+def api_preview_export_retry(job_id: str, response: Response, user: CurrentUser = Depends(require_edition)):
+    """Fresh read-only preview of this receipt's exact unfinished file units."""
+    with _sidecar_job_request(response) as db_path:
+        try:
+            scope = sidecar_jobs.retry_preview_scope(db_path, job_id, user.user_id)
+        except ValueError as exc:
+            raise HTTPException(409, 'Export has no retryable terminal scope') from exc
+        body = ExportPreviewRequest.model_validate(scope['request'])
+        return _export_preview_response(body, response, user.user_id)
 
 
 @router.get("/api/export/sidecar_jobs/{job_id}", response_model=SidecarJobStatus)

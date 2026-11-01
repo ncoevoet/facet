@@ -6,6 +6,7 @@ import type { SidecarJobStatus } from '../../core/services/export.service';
 @Pipe({ name: 'sidecarJobLabel' })
 export class SidecarJobLabelPipe implements PipeTransform {
   transform(job: SidecarJobStatus): string {
+    if (job.state === 'running' && job.phase === 'validating') return I18N.export.jobs.validating;
     if (job.state === 'completed' && (job.errors > 0 || job.skipped > 0 || job.processed < job.total)) return I18N.export.jobs.partial;
     return I18N.export.jobs[job.state];
   }
