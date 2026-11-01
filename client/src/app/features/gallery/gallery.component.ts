@@ -93,7 +93,7 @@ import { ExportEditorDialogComponent } from './export-editor-dialog.component';
 import { InfiniteScrollDirective } from '../../shared/directives/infinite-scroll.directive';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
-import { MAX_COMPARE_PANES } from './synced-zoom.component';
+import { MAX_COMPARE_PANES } from './comparison-slots.util';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 
 function assertNever(action: never): never {
@@ -333,7 +333,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                 <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
               </div>
             }
-            <details #collectionOptions data-collection-options class="relative shrink-0" [open]="isDesktop()"
+            <details #collectionOptions data-collection-options tabindex="-1" class="relative shrink-0" [open]="isDesktop()"
                      (keydown.escape)="!isDesktop() && (collectionOptions.open = false); !isDesktop() && collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #collectionOptionsSummary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded text-xs" [class.hidden]="isDesktop()" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon>more_horiz</mat-icon><span class="sr-only">{{ I18N.gallery.collection_controls | translate }}</span></summary>
               <div class="z-30" [class.w-80]="!isDesktop()" [class.max-w-[calc(100vw-2rem)]]="!isDesktop()" [class.absolute]="!isDesktop()" [class.right-0]="!isDesktop()" [class.top-full]="!isDesktop()" [class.bg-[var(--mat-sys-surface-container)]]="!isDesktop()" [class.shadow-lg]="!isDesktop()" [class.p-2]="!isDesktop()">

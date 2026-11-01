@@ -3516,10 +3516,9 @@ export interface paths {
          * Api Batch Manual Tags
          * @description Edit manual tags across named paths or a gallery view in one transaction.
          *
-         *     ``count`` is the rows actually written or removed: unwritable paths are
-         *     dropped, an at-cap photo and a photo whose AI tags already hold the tag are
-         *     skipped inside the INSERT, and a photo that already has the tag is not
-         *     counted.
+         *     On add, unwritable paths are dropped; at-cap photos and existing AI/manual
+         *     tags are skipped. The gallery captures explicit paths before preview;
+         *     other callers may still supply filters, resolved once within this request.
          *
          *     Replace preserves retained tag provenance and leaves AI tags unchanged.
          *     Its matching target is resolved once before removing tags. Clear is a

@@ -1230,7 +1230,16 @@
       "download_confirm_title": "Télécharger {count} photos ?",
       "download_confirm_message": "Chaque photo est téléchargée sous forme de fichier séparé. {count} d'entre elles prendront du temps et pourraient surcharger le navigateur.",
       "mark_bracket": "Marquer comme un seul bracket",
-      "marked_bracket": "{count} photos marquées comme un seul bracket"
+      "marked_bracket": "{count} photos marquées comme un seul bracket",
+      "select": "Sélectionner",
+      "targets": {
+        "title": "Cibles",
+        "explicit": "Les actions concernent les photos explicitement sélectionnées. Sélectionner une vignette repliée ne sélectionne pas les autres membres du groupe.",
+        "view": "Les actions concernent les photos correspondantes, y compris les membres repliés des piles, après déduction de vos exclusions. Les correspondances sont déterminées à l’exécution de l’action.",
+        "loaded": "Contexte de groupe chargé : {shown} / {total}. Les sélections hors de la vue chargée ne sont pas résumées ici.",
+        "manual": "Pile manuelle",
+        "stack_count": "Correspondances : {matching} · Autorisés : {total}"
+      }
     },
     "keep_top": {
       "label": "Garder le top %",
@@ -1260,7 +1269,7 @@
       "location": "Localisation",
       "folder": "Dossier",
       "persons": "Personnes",
-      "smart_album_filter_notice": "Album intelligent — les filtres sont enregistrés automatiquement.",
+      "smart_album_filter_notice": "Les modifications des filtres sont temporaires. Vérifiez et enregistrez les règles de l’album depuis les critères de la collection pour les conserver.",
       "virtual_scroll": "Défilement rapide (virtualisé)",
       "any": "Tous",
       "find_filter": "Rechercher un filtre…",
@@ -1466,7 +1475,7 @@
     "moment_confidence_range": "Confiance du moment",
     "compare": {
       "title": "Comparaison de {count} photos",
-      "hint": "Défilez pour zoomer, faites glisser pour déplacer. Le lien partage les mouvements, pas l’alignement du sujet. Double-cliquez pour réinitialiser.",
+      "hint": "Faites défiler pour zoomer, faites glisser pour déplacer. Les vues liées partagent les mouvements, pas l’alignement du sujet. Double-cliquez pour réinitialiser.",
       "reset_zoom": "Réinitialiser le zoom",
       "linked": "Liées",
       "independent": "Indépendantes",
@@ -1484,7 +1493,41 @@
       "remove_pane": "Retirer {name} de la comparaison uniquement",
       "restore": "Restaurer les photos retirées",
       "queue": "Candidates (hors référence) : {count}",
-      "queue_label": "Photos de comparaison"
+      "queue_label": "Photos de comparaison",
+      "rendition": {
+        "thumbnail": "Miniature enregistrée",
+        "preview": "Aperçu",
+        "source": "Image source",
+        "loading": "Chargement…",
+        "ready": "Prêt",
+        "failed": "Indisponible",
+        "fit": "Ajuster l’image au cadre",
+        "zoom_in": "Agrandir",
+        "zoom_out": "Réduire",
+        "scale_help": "Le grossissement est relatif à la vue ajustée au cadre, pas aux pixels de la source. Ajuster rétablit l’image entière ; avec des vues liées, toutes les vues sont réinitialisées.",
+        "limit": "Si l’aperçu est indisponible, la miniature enregistrée peut être utilisée. Les images sources peuvent être converties pour le navigateur. Il ne s’agit ni d’un éditeur RAW ni d’une évaluation de l’écrêtage du capteur.",
+        "fit_short": "Ajuster",
+        "sources": "Sources des images et grossissement",
+        "fallback": "Aperçu indisponible"
+      },
+      "inspection": {
+        "title": "Inspecter",
+        "magnification": "Loupe",
+        "shared_person": "Cadrer une personne enregistrée dans les vues visibles…",
+        "partial": "Certaines données de détection enregistrées n’ont pas pu être chargées.",
+        "help": "Le cadrage passe les vues en mode Indépendantes. Vérifiez les cadrages avant de lier les vues. Les attributions enregistrées peuvent être erronées ou anciennes. La loupe agrandit les pixels affichés ; zoomez pour demander l’image source.",
+        "no_correspondence": "Aucune personne enregistrée identifiée de façon unique avec des rectangles utilisables dans toutes les vues visibles. Cadrez manuellement ; lier partage les mouvements, sans faire correspondre les identités.",
+        "suggested_face": "Visage suggéré",
+        "suggested_subject": "Sujet suggéré",
+        "no_crop": "Cadrage indisponible",
+        "choose_face": "Choisir un visage…",
+        "manual_fallback": "Ce cadrage n’a pas pu être appliqué de façon fiable. Attendez l’image ou ajustez manuellement le zoom et le déplacement.",
+        "review_link": "Cadrages indépendants appliqués. Vérifiez l’alignement, puis liez les vues. Ajuster rétablit l’image entière.",
+        "keyboard": "Touches des vues : +/− pour zoomer, flèches pour déplacer, Maj pour un déplacement plus grand, F/Début pour ajuster au cadre. Z active ou désactive la loupe dans la vue ajustée. Sur écran tactile, utilisez les boutons de zoom et faites glisser. Échap ferme la comparaison."
+      },
+      "assign_target": "Choisir le côté à remplacer",
+      "assign_hint": "Choisissez une miniature pour {target}.",
+      "assign_photo": "Utiliser {name} comme {target}"
     },
     "clipping": {
       "badge_highlight": "Hautes lumières écrêtées : {percent} % des pixels",
@@ -1525,6 +1568,21 @@
       "named": "Nommé {name}",
       "error": "Impossible d'enregistrer le nom",
       "remove": "Retirer du filtre"
+    },
+    "collection_controls": "Options d’affichage",
+    "collection_totals_compact": "Correspondances : {photos}, affichées : {items}",
+    "rating_preview": {
+      "title": "Modifier la note personnelle",
+      "target": "Cible figée : {count} photos",
+      "scope": "Seules les photos de ces chemins sont modifiées. Les membres des groupes repliés et les fichiers compagnons ne sont pas ajoutés. Les étiquettes, favoris et décisions Conserver/Rejeter restent inchangés.",
+      "observed": "Notes chargées disponibles : {loaded}/{total}",
+      "unknown": "Les proportions décrivent uniquement les photos chargées. Les valeurs hors de la vue chargée sont inconnues ; zéro signifie aucune étoile personnelle.",
+      "operation": "Nouvelle note",
+      "clear": "Effacer les étoiles",
+      "clear_plan": "Effacer les étoiles personnelles des {count} photos de la liste figée.",
+      "set_plan": "Attribuer {rating} étoiles personnelles aux {count} photos de la liste figée.",
+      "boundary": "Aucun fichier n’est réécrit. Chaque lot est enregistré séparément. L’annulation immédiate se limite aux instantanés chargés et aux conflits connus localement ; l’historique vérifie les conflits côté serveur.",
+      "whole_scope": "Cette liste capturée de toute la vue inclut les membres repliés correspondants après exclusions. Aucun autre membre ni fichier compagnon n’est ajouté. Les étiquettes, favoris et décisions Conserver/Rejeter restent inchangés."
     }
   },
   "composition_patterns": {
@@ -2088,6 +2146,28 @@
       "recompute_failed": "Échec du recalcul.",
       "recompute_busy": "Une tâche est déjà en cours. Réessayez plus tard.",
       "close": "Fermer"
+    },
+    "rules": {
+      "smart": "Album intelligent",
+      "manual": "Album manuel",
+      "temporary": "Modifications temporaires des règles",
+      "saved": "Règles enregistrées",
+      "working": "Vue actuelle",
+      "any": "Tous",
+      "smart_hint": "Les filtres ne modifient que cette vue. Les règles enregistrées ne changent qu’après vérification et enregistrement.",
+      "manual_hint": "Les membres sont choisis manuellement. Les filtres restreignent cette vue sans ajouter ni retirer de photos.",
+      "presentation": "Les réglages d’affichage et les règles de masquage des images restent temporaires. Enregistrer les règles ne modifie pas les métadonnées des photos.",
+      "unsupported": "La recherche visuelle, le rayon GPS, les vues d’images groupées et les files de tri restent temporaires. Quittez ces modes avant d’enregistrer ou de réinitialiser les modifications des règles.",
+      "invalid": "Ces règles enregistrées sont indisponibles ou non prises en charge. Rechargez l’album avant de modifier ses règles.",
+      "reset": "Réinitialiser les modifications des règles",
+      "preview": "Vérifier les modifications des règles…",
+      "confirm": "Mettre à jour les règles enregistrées de « {name} » ? Champs modifiés : {count}. Ces règles s’appliqueront aux prochaines visites.",
+      "save": "Enregistrer les règles de l’album",
+      "conflict": "Les règles enregistrées ont changé depuis l’ouverture de cette vue. Rechargez-les et vérifiez à nouveau vos modifications.",
+      "success": "Règles de l’album enregistrées.",
+      "failed": "Impossible de lire les règles enregistrées. Votre vue actuelle reste inchangée.",
+      "uncertain": "L’enregistrement n’a pas pu être confirmé. Rechargez les règles enregistrées avant de réessayer.",
+      "reload": "Recharger les règles enregistrées"
     }
   },
   "critique": {
@@ -2509,7 +2589,12 @@
       "out_of_date": "Le plan de l'assistant est périmé - demandez-lui de le prévisualiser à nouveau",
       "replan_flips_dropped": "{count} de vos modifications ne correspondent plus à aucun groupe et ont été abandonnées."
     },
-    "stack_group": "Empiler ce groupe, image affichée en couverture"
+    "stack_group": "Empiler ce groupe, image affichée en couverture",
+    "comparison": {
+      "choose_pane": "Choisir la vue {pane} : {name}",
+      "assign_hint": "Choisissez une vue ci-dessus, puis une miniature ci-dessous pour remplacer la vue {pane}.",
+      "assign_photo": "Afficher {name} dans la vue {pane}"
+    }
   },
   "scenes": {
     "title": "Scènes",
@@ -2814,6 +2899,25 @@
       "top": "Top {pct} % de la photothèque",
       "range": "Plage de la photothèque {min}–{max}",
       "top_in_range": "Top {pct} % de la photothèque · plage de la photothèque {min}–{max}"
+    },
+    "assessment": {
+      "title": "Évaluation IA",
+      "score": "Score IA",
+      "measurements": "Mesures {available}/{total}",
+      "explanation": "Les mesures IA aident à l’inspection. Vos étoiles et décisions Conserver/Rejeter sont distinctes.",
+      "unavailable": "Indisponible",
+      "unavailable_help": "Indisponible signifie qu’aucune mesure utilisable n’a été renvoyée. Ce n’est ni un zéro ni un score faible ; la raison n’est pas indiquée ici.",
+      "group_pick": "Suggestion dans ce groupe",
+      "group_pick_help": "La suggestion du groupe classe ces alternatives. Ce n’est pas votre note et elle ne signifie pas automatiquement Conserver."
+    },
+    "rendition": {
+      "edited": "Aperçu développé",
+      "pending": "Chargement du rendu demandé…",
+      "attempt_failed": "Rendu demandé indisponible",
+      "note": "Image source désigne l’image d’affichage fournie par le serveur, pas un rendu RAW modifiable. Les dimensions décrivent les pixels décodés. Le zoom est relatif à la vue ajustée au cadre, pas aux pixels du capteur à 100 %. Les mesures d’histogramme enregistrées décrivent le rendu analysé ; les estimations des miniatures et les repères d’écrêtage ne prouvent pas l’écrêtage du capteur RAW.",
+      "base_render": "Rendu d’affichage de base",
+      "edited_failed": "Aperçu développé indisponible",
+      "source_failed": "Image source indisponible"
     }
   },
   "manual_tags": {
@@ -2833,7 +2937,16 @@
       "uncertain": "Une réponse a été perdue ou a échoué. Le serveur a peut-être déjà appliqué ce lot. Réessayer ne reprend que les lots restants avec la même étiquette et opération.",
       "edit": "Modifier le changement",
       "saving": "Application…",
-      "retry": "Réessayer le reste"
+      "retry": "Réessayer le reste",
+      "tag_list": "Étiquettes manuelles",
+      "tag_list_hint": "Une étiquette par ligne, jusqu’à 50. Ajouter/Retirer agit sur une seule étiquette ; Remplacer utilise toute la liste.",
+      "replace": "Tout remplacer",
+      "clear": "Tout effacer",
+      "replace_preview": "Remplacer toutes les étiquettes manuelles des photos cibles par ces étiquettes :",
+      "clear_preview": "Retirer toutes les étiquettes manuelles des photos cibles.",
+      "replace_boundary": "Cette action peut supprimer des étiquettes manuelles importées. Les étiquettes IA et les autres métadonnées restent inchangées. Chaque lot est enregistré intégralement ou pas du tout ; plusieurs lots sont enregistrés séparément. Aucune annulation n’est disponible pour les étiquettes manuelles.",
+      "recheck": "Une réponse à Remplacer/Effacer est incertaine. Fermez, inspectez les photos cibles et créez un nouvel aperçu ; répéter cet ancien plan pourrait écraser des étiquettes plus récentes.",
+      "captured_view_scope": "La liste des photos correspondantes de toute la vue a été capturée après exclusions, y compris les membres repliés correspondants. Les correspondances ultérieures ne sont pas ajoutées. Les fichiers compagnons ne sont pas inclus."
     },
     "title": "Modifier les mots-clés",
     "tag_label": "Mot-clé",
@@ -2897,7 +3010,7 @@
       "cancelled": "Export annulé",
       "failed": "Échec de l’export",
       "interrupted": "Export interrompu",
-      "progress": "{processed} / {total} fichiers traités",
+      "progress": "Traités : {processed} / {total}",
       "counts": "{written} écrits · {skipped} ignorés · {errors} erreurs",
       "close": "Fermer",
       "close_hint": "L’export continue après fermeture. Rouvrez ce dialogue pour retrouver les exports récents.",
@@ -2915,7 +3028,11 @@
         "write_failed": "Impossible d’écrire les métadonnées. Consultez les journaux du serveur.",
         "exiftool_upgrade": "ExifTool 13.23 à 13.27 corrompt les fichiers XMP. Mettez ExifTool à jour en 13.28 ou plus récent.",
         "stopped": "L’export s’est arrêté de façon inattendue. Consultez les journaux du serveur et relancez les photos restantes."
-      }
+      },
+      "partial": "Terminé avec des éléments inachevés",
+      "workspace_title": "Reçus de traitement et d’export",
+      "workspace_hint": "Reçus d’export de sidecars pour ce compte. Fermer cette fenêtre laisse les tâches en cours. Lancez de nouveaux exports depuis une sélection de photos ou un album.",
+      "receipt_id": "Reçu"
     }
   },
   "undo": {
@@ -3103,6 +3220,11 @@
     "clipping": {
       "shadow": "Écrêtage des ombres : {channels}",
       "highlight": "Écrêtage des hautes lumières : {channels}"
+    },
+    "provenance": {
+      "stored": "Histogramme du rendu enregistré",
+      "thumbnail": "Estimation de la miniature",
+      "note": "Cette courbe décrit une image rendue, pas les valeurs RAW du capteur. Les repères d’écrêtage utilisent les mesures enregistrées lorsqu’elles sont disponibles ; l’échantillonnage d’une miniature ne permet pas d’établir l’écrêtage du capteur."
     }
   },
   "manual_faces": {
@@ -3260,7 +3382,13 @@
     "photo_count": "Photos : {count}",
     "field": "Champ",
     "entry_action": "{action} · {kind} · {date} · #{id}",
-    "stack": "Pile de photos"
+    "stack": "Pile de photos",
+    "limits_title": "Ce que l’historique peut rétablir",
+    "limits": "Jusqu’à 50 entrées récentes pour ce compte. Les champs de tri, le lieu, la date de prise de vue et les piles manuelles sont pris en charge. Les étiquettes manuelles, exports et déplacements de fichiers ne sont pas annulés ici. L’annulation immédiate est distincte et limitée à son instantané.",
+    "reload": "Recharger l’historique",
+    "preview_action": "Vérifier le rétablissement…",
+    "restore_preview": "Rétablir cette entrée : {count} photos · partie {part}/{parts}.",
+    "restore_boundary": "Seule cette partie sera rétablie. Le serveur vérifie les valeurs et révisions enregistrées ; en cas de conflit, rien n’est rétabli. Les autres parties nécessitent des actions distinctes."
   },
   "stacks": {
     "review_help": "Examinez les piles suggérées dans la chambre noire. S empile avec la couverture proposée dans la grille ou la photo active dans la chambre noire ; Entrée ouvre un groupe ou empile la photo active. X ignore. Modifier les membres ajuste le groupe avant enregistrement. Les décisions de tri restent inchangées. R rejette immédiatement la photo active et l’exclut du brouillon. Annuler restaure sa décision et son appartenance. Le regroupement attend Enregistrer ; quitter sans enregistrer n’annule pas Rejeter.",
@@ -3312,7 +3440,7 @@
     "saved": "Pile de photos mise à jour",
     "expand_all": "Développer toutes les piles",
     "collapse": "Réduire les piles",
-    "totals": "{photos} photos correspondantes · {items} éléments affichés",
+    "totals": "Photos correspondantes : {photos} · Affichés : {items}",
     "folded_scope": "Les actions sur toute la vue incluent les membres repliés. Une vignette sélectionnée seule ne cible que cette photo.",
     "explicit_only": "Sélectionnez explicitement 2 à 1000 photos pour créer une pile.",
     "badge": "Ouvrir la pile : {count} membres",

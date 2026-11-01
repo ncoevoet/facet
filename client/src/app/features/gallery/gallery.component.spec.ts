@@ -37,7 +37,7 @@ import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.componen
 import { SlideshowComponent } from './slideshow.component';
 import { I18N } from '../../core/i18n/keys';
 import { ScoreClassPipe } from '../../shared/pipes/score.pipes';
-import { MAX_COMPARE_PANES } from './synced-zoom.component';
+import { MAX_COMPARE_PANES } from './comparison-slots.util';
 import { gridColumnCount } from './gallery-rows.util';
 import { ScanService } from '../../core/services/scan.service';
 import { UndoService } from '../../core/services/undo.service';

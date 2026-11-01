@@ -6,9 +6,9 @@ El visor es una aplicación web FastAPI + Angular para explorar, filtrar, descar
 
 El menú de hamburguesa contiene todos los destinos y los modos Oculta, Compacta y Fija. No hay un botón Fijar separado ni una fila duplicada de destinos. La barra lateral visible sustituye a la barra superior en escritorio y sitúa la cuenta al pie. Compacta se amplía con el puntero o el foco sobre las fotos sin reservar más anchura. Si está oculta y en teléfonos, el menú ofrece todos los destinos. Las herramientas permanecen junto al contenido.
 
-La cabecera reúne el nombre, los recuentos de fotos coincidentes y grupos mostrados, Cuadrícula/Mosaico y búsqueda textual a cualquier anchura. La selección ofrece Limpiar, Comparar y, con edición, Conservar/Rechazar. Acciones despliega comandos secundarios con nombres en escritorio; en teléfonos conserva su panel. Se mantienen los destinos y permisos. Orden, dirección, Filtros, información de foto y presentación forman un único grupo de colección en escritorio y teléfono. Cuenta, Edición y escaneo permitido permanecen en el área de navegación global; la galería no duplica una barra inferior. Abrir una foto cierra los menús de colección y pausa sus comandos hasta volver.
+La cabecera de la colección agrupa el nombre, los recuentos de fotos coincidentes y elementos mostrados, la búsqueda de texto exacto y los controles de vista. En teléfonos, la primera fila contiene el título, Buscar y Seleccionar; la segunda contiene Ordenar, dirección, Filtros, Cuadrícula/Mosaico y Opciones de vista. La búsqueda se despliega al solicitarla y la consulta confirmada permanece visible. Opciones de vista contiene las vistas de trabajo, el comportamiento de la información de foto, la presentación, los filtros rápidos y las reglas de visibilidad. Los criterios activos permanecen fuera de ese desplegable. En escritorio, los mismos controles se muestran directamente. La cuenta, el acceso de edición y las acciones de escaneo permitidas permanecen en la navegación global, sin una barra duplicada en la galería.
 
-**Vistas de trabajo.** Vista → Explorar usa un mosaico compacto con información al pasar el puntero (por clic en pantallas estrechas). Revisar usa tarjetas más grandes con detalles e inspección por clic (panel lateral si hay espacio). Organizar usa una cuadrícula más densa con detalles e información por clic. Solo cambian diseño, tamaño, detalles e inspección; consulta, orden, álbum, selección y página cargada se mantienen. Restablecer vista predeterminada recupera la presentación configurada sin restablecer filtros. Si los ajustes manuales ya no coinciden, ninguna vista queda marcada.
+**Vistas de trabajo.** Abre Vista directamente en escritorio, u Opciones de vista → Vista en un teléfono. Explorar usa un mosaico compacto con información al pasar el puntero (por clic en pantallas estrechas). Revisar usa tarjetas más grandes con detalles e inspección por clic (panel lateral si hay espacio). Organizar usa una cuadrícula más densa con detalles e información por clic. Estas vistas solo cambian la presentación: conservan la consulta, el orden, el álbum, la selección y la página cargada. Restablecer vista predeterminada recupera la presentación configurada sin restablecer filtros. Si los ajustes manuales ya no coinciden con una vista, esta deja de estar marcada.
 
 **Criterios de la colección.** Los criterios de metadatos y búsqueda visual permanecen bajo la consulta al cerrar el panel. Quitar tiene un nombre accesible; borrar un rango quita ambos límites a la vez. La búsqueda visual explica cómo combina similitud, filtros y orden. Favoritos mantiene los demás criterios. Los filtros de decisión salen de la búsqueda visual; Sin decidir ordena por fecha de captura, de más antigua a más reciente, como se explica antes de elegir. Las reglas de visibilidad muestran la ocultación y los representantes de grupos efectivos; las reglas anuladas por un filtro Solo no aparecen activas. Las listas fijas indican que hay que volver a la vista habitual para cambiar criterios.
 
@@ -76,7 +76,7 @@ Protege el visor con una contraseña opcional:
 Dos contraseñas controlan el acceso:
 
 - **`viewer.password`** decide quién puede *explorar*. Vacía, cualquiera puede explorar toda la biblioteca. Definida, los usuarios deben iniciar sesión primero.
-- **`viewer.edition_password`** es necesaria para cualquier edición: valoraciones, favoritos y rechazos, descarte, álbumes, gestión de personas y rostros, modo de comparación, cambios de pesos y prioridades, y exportaciones. Vacía (el valor predeterminado distribuido), la instalación queda en **solo lectura**: las ediciones se rechazan con `403` ("Set viewer.edition_password to enable editing").
+- **`viewer.edition_password`** es necesaria para cualquier edición: valoraciones, favoritos y rechazos, descarte, álbumes, gestión de personas y rostros, comparaciones por pares para entrenamiento, cambios de pesos y prioridades, y exportaciones. Vacía (el valor predeterminado distribuido), la instalación queda en **solo lectura**: las ediciones se rechazan con `403` ("Set viewer.edition_password to enable editing"). El espacio de comparación de fotos seleccionadas es de solo lectura y no requiere acceso de edición.
 
 La generación de IA bajo demanda (leyendas, críticas VLM) también necesita la contraseña de edición. Sin ella solo obtienes lo que ya está en caché (`source: "none"` o `vlm_available: false`). Sin contraseña de edición, la galería también oculta las insignias de estrellas, favoritos y rechazos existentes, igual que para los visores sin edición en una instalación protegida con contraseña.
 
@@ -323,7 +323,7 @@ En el detalle de la foto, las métricas se organizan en pestañas con icono: dat
 
 ### Selección múltiple y acciones masivas
 
-Haz clic en las fotos para seleccionarlas; Shift+clic selecciona un rango. Abajo a la izquierda aparece una barra de acciones con botones de icono (pasa el cursor para ver las etiquetas). Las acciones masivas requieren el modo de edición.
+Selecciona fotos con los controles de selección o con Espacio; Mayús+clic selecciona un rango en escritorio. En un teléfono, toca Seleccionar antes de tocar las fotos y Cancelar para salir del modo de selección. La barra contextual identifica sus destinos y ofrece Limpiar y Comparar; el acceso de edición añade Mantener/Rechazar y otras acciones de escritura. Acciones abre comandos secundarios con nombre en escritorio y la hoja de acciones en teléfonos. Los comandos de solo lectura conservan sus controles de acceso habituales.
 
 La tira de miniaturas identifica la referencia y permite elegir una candidata directamente. El panel activo se destaca por separado. Quitar de la comparación solo cambia esta vista, nunca Conservar/Rechazar ni la selección de galería; Restaurar devuelve las fotos quitadas. Una foto restante sigue disponible para inspección. La cuadrícula con detalles encaja la foto completa en un marco uniforme 4:3; Mosaico mantiene filas justificadas.
 
@@ -331,13 +331,13 @@ La tira de miniaturas identifica la referencia y permite elegir una candidata di
 - **Rechazar**: marca todas como rechazadas (borra el favorito y la valoración)
 - **Calificar**: define o borra una valoración de 1–5 estrellas
 - **Añadir al álbum**: añade a un álbum existente o nuevo
-- **Editar etiquetas**: añade o quita un [tag manual](#tags-manuales) en cada foto seleccionada
+- **Editar etiquetas**: previsualiza Añadir/Quitar una [etiqueta manual](#tags-manuales), Reemplazar con una etiqueta por línea o Borrar todas las etiquetas manuales. Se conservan las etiquetas de IA.
 - **Seleccionar todo**: con una selección vacía, selecciona todas las fotos que coinciden con los filtros, no solo las páginas cargadas. Con fotos ya seleccionadas, añade las cargadas y ofrece ampliar a toda la vista. Las acciones sobre toda la vista confirman antes el número exacto de fotos.
 - **Invertir**: cambia la selección por su complemento. Desde una selección vacía es toda la vista. Desde una selección no vacía se queda dentro de las fotos cargadas: elige las que conservas, invierte, rechaza.
 
 La barra cuenta las fotos seleccionadas fuera de los elementos cargados; las acciones afectan a toda la selección explícita. Las exclusiones de toda la vista aparecen por separado. Comparar requiere 2–4 fotos seleccionadas explícitamente y cargadas; nunca abre solo una parte sin avisar.
 
-- **Comparar** — abre 2–4 fotos seleccionadas en paralelo. El botón de chincheta cambia la referencia sin modificar valoraciones ni decisiones. La inspección empieza vinculada; desvincula para encuadrar cada panel por separado. Volver a vincular conserva cada encuadre. Los gestos vinculados aplican la misma proporción de zoom y desplazamiento en píxeles a todos los candidatos, incluso fuera de Dos vistas; el primer límite detiene al grupo. Restablecer encaja todas las fotos. Desplaza para ampliar, arrastra para mover y haz doble clic para alternar el aumento. Restablecer encaja toda la comparación. El movimiento vinculado no alinea sujetos. Cada panel indica carga, disponibilidad o fallo de la vista detallada (conservando la miniatura); ampliar puede solicitar resolución completa. Con tres o cuatro fotos, Dos vistas mantiene la referencia mientras Anterior/Siguiente recorre las candidatas. Promover una candidata coloca la referencia anterior en el panel candidato. Desactivar Dos vistas restaura todos los paneles.
+- **Comparar** — abre entre 2 y 4 fotos seleccionadas explícitamente y cargadas en el espacio dedicado `/photo-compare`. Elige Referencia o Candidata y después una miniatura de la tira para comparar cualquier pareja. La chincheta convierte una candidata en referencia y coloca la referencia anterior en su lugar. Dos vistas mantiene esa referencia mientras Anterior/Siguiente recorre las candidatas; al desactivarlo vuelven todos los paneles restantes. Quitar solo cambia esta vista; Restaurar recupera los paneles quitados. La inspección empieza vinculada. Desvincula para encuadrar las fotos por separado; volver a vincular conserva esos recortes y aplica el zoom y desplazamiento relativos posteriores a todo el conjunto. Restablecer ajusta todas las fotos. Usa los controles visibles de zoom/Ajustar, la rueda, el teclado o el arrastre táctil; Z alterna la lupa de píxeles mostrados. Inspeccionar abre las opciones de recortes guardados de rostros/sujetos y los detalles de evaluación. El movimiento vinculado no alinea sujetos. Volver o Escape regresa a la consulta y selección capturadas de la colección; Escape cierra primero Inspeccionar. La composición se conserva solo en la memoria de esta pestaña, por lo que recargar o abrir la URL directamente sin una sesión válida devuelve a la galería. Este espacio nunca cambia valoraciones, Mantener/Rechazar ni la pertenencia de fotos a la galería.
 - **Copiar nombres**: copia los nombres de archivo al portapapeles. Una copia de toda la vista pide confirmación antes; más de 10 000 fotos se rechaza.
 - **Exportar**: escribe sidecars XMP junto a los archivos (ver [Exportación al editor](#exportación-al-editor))
 - **Descartar a carpeta**: copia las conservadas, o mueve/envía a la papelera las rechazadas, a una carpeta (ver [Descartar a carpeta](#descartar-a-carpeta))
@@ -353,6 +353,14 @@ Haz doble clic en una foto para abrirla.
 - En cualquier otra foto, actúa solo sobre esa foto y añade Abrir foto, Buscar similares, ¿Por qué esta puntuación?, Escribir metadatos en el archivo y Asignar rostro a persona (cuando la foto tiene rostros sin asignar), según sus condiciones.
 - Descartar una foto desde el menú quita de la selección solo esa foto.
 - No se ofrece en dispositivos táctiles (`hover: none` y `pointer: coarse`); usa allí la hoja de Acciones.
+
+### Ediciones capturadas e inspección
+
+Las vistas previas por lotes fijan las rutas de destino antes de Aplicar, incluidos los miembros coincidentes contraídos o fuera de pantalla y excluidas las fotos deseleccionadas en una selección de toda la vista. Distinguen las observaciones cargadas de los valores desconocidos; si el ámbito es demasiado grande, se rechaza en lugar de truncarse. Una selección posterior no cambia los destinos de una edición aceptada. Las solicitudes se confirman en bloques acotados, no en una sola transacción para toda la selección.
+
+La valoración ofrece Asignar o Borrar. Las etiquetas manuales ofrecen Añadir, Quitar, Reemplazar y Borrar; los campos ajenos y las etiquetas de IA no cambian. No se puede reintentar Reemplazar/Borrar a ciegas tras una respuesta incierta: primero recarga e inspecciona el resultado. Los cambios de acceso o de cuenta detienen los bloques nuevos.
+
+La inspección pertenece a la foto mostrada, con independencia del lote seleccionado. Las evaluaciones de IA, las estrellas personales, Mantener/Rechazar y la mejor foto sugerida de un grupo son conceptos separados. Las mediciones ausentes indican No disponible; cero es una medición válida. Las etiquetas de versión informan de la imagen decodificada y sus dimensiones, con estados de carga, fallo y Reintentar. La ampliación y la lupa inspeccionan píxeles mostrados, no datos del sensor RAW. El origen del histograma distingue las imágenes renderizadas almacenadas de las estimaciones de miniaturas. Los recortes guardados de rostros/sujetos pueden ayudar en la inspección manual; si la correspondencia no está disponible o es ambigua, sigue siendo posible encuadrar manualmente. Vincular movimientos no alinea sujetos.
 
 ### Conservar el N% superior
 
@@ -450,7 +458,7 @@ Los tags manuales son etiquetas que escribes tú mismo, guardadas junto a las et
 
 - **Dónde se muestran.** Solo en el **detalle** de la foto, como chips marcados de forma distinta a las etiquetas de IA. Las tarjetas y las informaciones emergentes muestran las etiquetas de IA.
 - **Quién puede editarlas.** Los usuarios de edición. En una instalación sin `viewer.edition_password` son de solo lectura. Las etiquetas de IA no se pueden quitar.
-- **Edición masiva.** Selecciona fotos y usa **Editar etiquetas** (barra de selección, hoja de Acciones móvil o menú contextual) para añadir o quitar una etiqueta. Funcionan las selecciones de toda la vista. Las fotos que ya tienen 50 tags manuales se omiten; `count` informa de las fotos realmente modificadas.
+- **Edición masiva.** Selecciona fotos y usa **Editar etiquetas** (barra de selección, hoja de Acciones móvil o menú contextual). Añadir/Quitar cambia una etiqueta; Reemplazar acepta una etiqueta por línea; Borrar quita todas las etiquetas manuales. Antes de Aplicar, la vista previa muestra los destinos capturados y los valores mixtos conocidos, incluidas las selecciones de toda la vista. Añadir omite las fotos que ya tienen 50 etiquetas manuales; un Reemplazar inválido se rechaza antes de que esa solicitud escriba nada. El `count` de la API informa de las filas de etiquetas modificadas, no del número de fotos. Se conservan las etiquetas de IA. Cada solicitud es atómica, pero un lote con varias solicitudes no lo es; un resultado incierto de Reemplazar/Borrar requiere inspección antes de otro intento.
 - **Formato.** Las etiquetas se recortan, se pasan a minúsculas y se colapsan los espacios (NFC). Máximo 64 caracteres, máximo 50 por foto. Se rechazan las etiquetas vacías, las comas y los caracteres de control. Una etiqueta igual a una de las etiquetas de IA de la foto no se guarda.
 - **La búsqueda y los filtros las ven.** El filtro de etiquetas, la búsqueda de texto, la búsqueda semántica (`/api/search`, salvo el ámbito de texto solo de leyendas), el desplegable de etiquetas, las estadísticas y las exportaciones de sidecar/incrustación/Lightroom usan etiquetas de IA + manuales. La búsqueda de texto encuentra un tag manual como frase completa.
 - **Excepciones.** Las cápsulas cuentan solo las etiquetas de IA. Los tags manuales nunca afectan a las puntuaciones, categorías ni momentos narrativos.
@@ -594,6 +602,8 @@ Crea álbumes y añade fotos desde la galería con la selección múltiple. Los 
 ### Álbumes inteligentes
 
 Guarda una combinación de filtros (cámara, etiqueta, persona, fechas, umbrales de puntuación…) como álbum inteligente. Se actualiza a medida que coinciden fotos nuevas. Los filtros se guardan como JSON en `smart_filter_json`.
+
+Filtrar un álbum abierto solo cambia la vista de trabajo. Su desplegable de reglas distingue la pertenencia manual, los criterios inteligentes guardados y los ajustes temporales. Revisar y Guardar actualizan explícitamente las reglas inteligentes compatibles; Restablecer recupera las reglas guardadas sin cambiar la pertenencia al álbum. Los criterios no compatibles se rechazan en lugar de omitirse silenciosamente. Guardar comprueba primero las reglas actuales del servidor, pero no realiza una comparación y sustitución atómica en el servidor. Los usuarios de solo lectura pueden ajustar y restablecer la vista sin guardar reglas.
 
 ### Contexto de puntuación
 
@@ -1162,10 +1172,12 @@ Los atajos de una sola tecla están inactivos mientras el foco está en un campo
 
 ## Deshacer
 
-Los cambios por lotes de favorito/rechazo/valoración y las confirmaciones de descarte muestran una barra de aviso con **Deshacer** durante ~7 segundos.
+Los cambios por lotes de favorito/rechazo/valoración y las confirmaciones aplazadas de descarte muestran una barra de aviso con **Deshacer** durante ~7 segundos.
 
 - Los cambios de indicadores por lotes se aplican al instante y se deshacen invirtiéndolos (hasta 500 fotos).
+- Deshacer una valoración restaura solo las estrellas y conserva los demás indicadores. Requiere una captura observada completa de un máximo de 500 fotos y comprueba los cambios posteriores conocidos localmente; no es la operación del historial que comprueba conflictos en el servidor.
 - Las confirmaciones de descarte se aplazan: el grupo desaparece al instante, pero no se guarda nada hasta que termina el plazo de deshacer.
+- Cancelar esa confirmación aplazada impide su escritura; no es un Deshacer después de que la escritura se haya confirmado.
 - Las ediciones de [tags manuales](#tags-manuales) no se pueden deshacer.
 
 Para cambios más antiguos, ver [Historial de organización](#historial-de-organización).
@@ -1178,7 +1190,7 @@ Las compilaciones de producción se pueden instalar en la pantalla de inicio. El
 
 ## Móvil
 
-En pantallas pequeñas, la tarjeta de selección flotante conserva el recuento y los botones de borrar, seleccionar todo e invertir, más un botón de **Acciones**. Abre una hoja inferior con todas las operaciones masivas (favorito, rechazar, valorar, álbumes, copiar, descargar). Aparece un botón de comparar cuando la selección cabe en la vista de comparación.
+La colección tiene dos filas compactas: título/Buscar/Seleccionar y, después, Ordenar, dirección, Filtros, Cuadrícula/Mosaico y Opciones de vista. La búsqueda se despliega al solicitarla; la consulta confirmada y los criterios activos permanecen visibles. Opciones de vista contiene controles secundarios de visualización, filtros rápidos y visibilidad. Seleccionar inicia la selección táctil; Cancelar permite salir. La barra contextual de selección ofrece Limpiar, Comparar y las acciones de escritura permitidas, con operaciones adicionales en Acciones. El espacio de comparación tiene controles visibles de Volver y zoom/Ajustar, arrastre táctil y un panel superpuesto opcional de inspección; no depende de pasar el puntero ni de mantener pulsado.
 
 ## Marco de fotos / Quiosco
 
@@ -1474,9 +1486,9 @@ Endpoints: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Historial de organización
 
-Revisa y revierte tus ediciones recientes en toda la biblioteca. En modo de edición, abre **Historial de organización** desde el icono de reloj de la navegación principal (después de En este día). Expande una entrada para ver los valores exactos de antes/después, y luego **Revertir esta entrada**.
+Revisa y revierte las ediciones recientes en toda la biblioteca. En modo de edición, abre **Historial de organización** desde la navegación. Expande una entrada para ver los valores de antes/después, elige Revisar y después Aplicar o Cancelar. Un conflicto se muestra en esa entrada y no escribe nada; si falla la carga, se ofrece Recargar en lugar de aparentar que el historial está vacío.
 
-- **Qué se registra:** GPS, fechas de captura, decisiones de revisión, estrellas, favoritos y pilas manuales. No los archivos ni el reconocimiento facial.
+- **Qué se registra:** GPS, fechas de captura, decisiones de revisión, estrellas, favoritos y pilas manuales. No las etiquetas manuales, los archivos ni el reconocimiento facial.
 - El GPS y las fechas de captura son valores compartidos de la biblioteca. Las decisiones de revisión, estrellas y favoritos son tuyos.
 - La lista corta de Deshacer y la de actividad del asistente son independientes.
 - **Límites.** Las últimas **50 entradas por cuenta**, cada una con hasta **1000 fotos y 1 MiB** de valores. Las acciones de revisión filtradas más grandes se dividen en partes; revertir restaura una parte. Un reemplazo de pilas puede cubrir hasta 2000 fotos en una entrada.
@@ -1484,6 +1496,10 @@ Revisa y revierte tus ediciones recientes en toda la biblioteca. En modo de edic
 - **Revertir es todo o nada.** Se rechaza si el valor de alguna foto ha cambiado desde entonces, aunque se haya vuelto a cambiar. La edición de revisión privada de otra cuenta no bloquea la tuya. Los reescaneos, las importaciones y Deshacer también pueden invalidar entradas más antiguas.
 - Una entrada se oculta cuando una de sus fotos se elimina o deja de ser visible para ti.
 - Una reversión añade su propia entrada y marca la original como revertida.
+
+### Procesamiento y comprobantes
+
+Abre Comprobantes de procesamiento y exportación desde el menú de cuenta para inspeccionar las operaciones en segundo plano compatibles, sus identificadores de comprobante, su estado real y los recuentos de elementos. Las tareas completadas con elementos pendientes siguen indicándolo; no se inventa una posición en la cola. Cancelar surte efecto entre archivos. Reintentar repite la operación compatible para sus elementos fallidos, no una acción ajena. Si falla la lectura del estado, se ofrece recuperación. Las exportaciones de archivos conservan sus propias comprobaciones de vista previa, destino y titularidad; los comprobantes describen escrituras ya intentadas, no prometen que las escrituras separadas de archivos sean atómicas en conjunto.
 
 ## Caras sin nombre
 

@@ -6,9 +6,9 @@ Die Galerie ist eine Web-App aus FastAPI und Angular zum Durchsuchen, Filtern, A
 
 Das Hamburger-Menü enthält alle Ziele und die Seitenleistenmodi Ausgeblendet, Kompakt und Angeheftet. Es gibt weder eine separate Anheften-Taste noch eine doppelte Zielzeile. Die sichtbare Desktop-Seitenleiste ersetzt die obere Anwendungsleiste; Kontobefehle stehen unten. Kompakt erweitert sich bei Zeiger oder Fokus über den Fotos ohne zusätzlichen Platzbedarf. Bei ausgeblendeter Leiste und auf dem Telefon enthält das Menü alle Ziele. Seitenwerkzeuge bleiben beim Inhalt.
 
-Der Sammlungskopf bündelt Name, passende Fotos und angezeigte Gruppen, Raster/Mosaik sowie Textsuche bei jeder Breite. Die Auswahlleiste bietet Leeren, Vergleichen und mit Bearbeitungsrechten Behalten/Ablehnen. Aktionen öffnet beschriftete weitere Befehle am Desktop; am Telefon bleibt das Aktionsblatt. Ziele und Berechtigungen bleiben erhalten. Sortierung, Richtung, Filter, Fotoinformationen und Diashow bilden eine Sammlungssteuerung am Desktop und Telefon. Konto, Bearbeitungsmodus und erlaubte Scan-Aktionen bleiben im globalen Navigationsbereich; die Galerie hat keine doppelte untere Leiste. Beim Öffnen eines Fotos schließen sich Sammlungsmenüs und ihre Befehle pausieren bis zur Rückkehr.
+Der Sammlungskopf bündelt den Namen, die Anzahl passender Fotos und angezeigter Elemente, die Textsuche und die Ansichtssteuerung. Auf dem Telefon enthält die erste Zeile Titel, Suche und Auswählen; die zweite enthält Sortierung, Richtung, Filter, Raster/Mosaik und Ansichtsoptionen. Die Suche wird bei Bedarf aufgeklappt; eine bestätigte Suchabfrage bleibt sichtbar. Ansichtsoptionen enthält Anzeigevorgaben, das Verhalten der Fotoinformationen, Diashow, Schnellfilter und Sichtbarkeitsregeln. Aktive Kriterien bleiben außerhalb dieses aufklappbaren Bereichs. Am Desktop sind dieselben Steuerelemente direkt zugänglich. Konto, Bearbeitungszugang und erlaubte Scan-Aktionen bleiben im globalen Navigationsbereich, ohne doppelte Galeriewerkzeugleiste.
 
-**Anzeigevorgaben.** Ansicht → Durchsehen verwendet ein kompaktes Mosaik mit Informationen beim Überfahren (auf schmalen Bildschirmen per Klick). Prüfen zeigt größere Rasterkarten mit Details und klickgesteuerter Inspektion (bei ausreichender Breite als Seitenpanel). Organisieren zeigt ein dichteres Raster mit Details und Klickinformationen. Nur Layout, Kartengröße, Detailanzeige und Inspektion ändern sich; Abfrage, Sortierung, Album, Auswahl und geladene Seite bleiben erhalten. Anzeige auf Standard zurücksetzen stellt die konfigurierte Darstellung ohne Filterreset wieder her. Bei abweichenden manuellen Einstellungen ist keine Vorgabe markiert.
+**Anzeigevorgaben.** Öffnen Sie Ansicht am Desktop direkt oder auf dem Telefon über Ansichtsoptionen → Ansicht. Durchsehen verwendet ein kompaktes Mosaik mit Informationen beim Überfahren (auf schmalen Bildschirmen per Klick). Prüfen zeigt größere Rasterkarten mit Details und klickgesteuerter Inspektion (bei ausreichender Breite als angedocktes Seitenpanel). Organisieren zeigt ein dichteres Raster mit Details und Klickinformationen. Vorgaben ändern nur die Darstellung: Abfrage, Sortierung, Album, Auswahl und geladene Seite bleiben erhalten. Anzeige auf Standard zurücksetzen stellt die konfigurierte Darstellung ohne Zurücksetzen der Filter wieder her. Bei abweichenden manuellen Einstellungen ist keine Vorgabe markiert.
 
 **Sammlungskriterien.** Metadaten- und Suchkriterien bleiben unter der Sammlungsabfrage sichtbar, wenn das Filterpanel geschlossen wird. Entfernen ist beschriftet; ein Bereich wird mit beiden Grenzen gemeinsam gelöscht. Die visuelle Suche erklärt Ähnlichkeitskandidaten, Metadatenfilter und Sortierung. Favoriten behält andere Kriterien. Entscheidungsfilter verlassen die visuelle Suche; Unentschieden sortiert nach Aufnahmedatum, älteste zuerst. Dies wird vor der Auswahl erläutert. Sichtbarkeitsregeln zeigen wirksame Ausblendungen und Gruppenrepräsentanten; durch einen Nur-Filter unterdrückte Regeln werden nicht als aktiv angezeigt. Feste Fotolisten verlangen vor Kriterienänderungen die Rückkehr zur üblichen Ansicht.
 
@@ -76,7 +76,7 @@ Schützen Sie die Galerie mit einem optionalen Passwort:
 Zwei Passwörter steuern den Zugriff:
 
 - **`viewer.password`** entscheidet, wer *stöbern* darf. Leer heißt: Jeder kann die gesamte Bibliothek durchsuchen. Ist es gesetzt, müssen sich Benutzer zuerst anmelden.
-- **`viewer.edition_password`** ist für jede Bearbeitung erforderlich: Bewertungen, Favoriten und Ablehnungen, Aussortieren, Alben, Personen- und Gesichtsverwaltung, Vergleichsmodus, Gewichts- und Prioritätsänderungen sowie Exporte. Leer (der ausgelieferte Standard) macht die Installation **schreibgeschützt**: Bearbeitungen werden mit `403` abgelehnt („Set viewer.edition_password to enable editing“).
+- **`viewer.edition_password`** ist für jede Bearbeitung erforderlich: Bewertungen, Favoriten und Ablehnungen, Aussortieren, Alben, Personen- und Gesichtsverwaltung, paarweise Trainingsvergleiche, Gewichts- und Prioritätsänderungen sowie Exporte. Leer (der ausgelieferte Standard) macht die Installation **schreibgeschützt**: Bearbeitungen werden mit `403` abgelehnt („Set viewer.edition_password to enable editing“). Der Arbeitsbereich zum Vergleichen ausgewählter Fotos ist schreibgeschützt und erfordert keinen Bearbeitungszugang.
 
 KI-Erzeugung auf Anfrage (Bildbeschreibungen, VLM-Kritiken) braucht ebenfalls das Bearbeitungspasswort. Ohne es erhalten Sie nur, was bereits im Cache liegt (`source: "none"` oder `vlm_available: false`). Ohne Bearbeitungspasswort blendet die Galerie zudem vorhandene Sterne-, Favoriten- und Ablehnungs-Badges aus, wie bei Betrachtern ohne Edition auf einer passwortgeschützten Installation.
 
@@ -323,7 +323,7 @@ In der Fotodetailansicht liegen die Messwerte in Symbol-Tabs: EXIF-Daten (sofern
 
 ### Mehrfachauswahl & Sammelaktionen
 
-Klicken Sie Fotos zum Auswählen an; Umschalt+Klick wählt einen Bereich. Unten links erscheint eine Aktionsleiste mit Symbolschaltflächen (Maus darüber für die Beschriftung). Sammelaktionen erfordern den Bearbeitungsmodus.
+Wählen Sie Fotos über die Auswahlsteuerung oder die Leertaste aus; Umschalt+Klick wählt am Desktop einen Bereich. Tippen Sie auf dem Telefon zuerst auf Auswählen und dann auf die Fotos; Abbrechen beendet den Auswahlmodus. Die kontextbezogene Leiste benennt ihre Zielfotos und bietet Leeren und Vergleichen; mit Bearbeitungszugang kommen Behalten/Ablehnen und weitere Schreibaktionen hinzu. Aktionen öffnet am Desktop beschriftete weitere Befehle und auf dem Telefon das Aktionsblatt. Für lesende Befehle gelten weiterhin ihre üblichen Zugriffsregeln.
 
 Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidatenwahl. Das aktive Fenster ist unabhängig markiert. Aus Vergleich entfernen ändert nur diese Ansicht, nie Behalten/Ablehnen oder die Galerieauswahl; Wiederherstellen bringt entfernte Fotos zurück. Ein einzelnes verbleibendes Foto bleibt prüfbar. Rasterkarten mit Details zeigen das ganze Foto in einem einheitlichen 4:3-Rahmen; Mosaik behält justierte Zeilen.
 
@@ -331,13 +331,13 @@ Der Vergleichsfilmstreifen zeigt die Referenz und erlaubt die direkte Kandidaten
 - **Ablehnen** — Alle als abgelehnt markieren (hebt Favorit und Bewertung auf)
 - **Bewerten** — Sternebewertung (1–5) setzen oder löschen
 - **Zu Album hinzufügen** — Zu einem bestehenden oder neuen Album hinzufügen
-- **Schlagwörter bearbeiten** — Ein [manuelles Tag](#manuelle-tags) zu jedem ausgewählten Foto hinzufügen oder daraus entfernen
+- **Schlagwörter bearbeiten** — Vorschau zum Hinzufügen/Entfernen eines [manuellen Tags](#manuelle-tags), zum Ersetzen mit einem Schlagwort pro Zeile oder zum Löschen aller manuellen Tags. KI-Tags bleiben erhalten.
 - **Alle auswählen** — Bei leerer Auswahl wird jedes Foto gewählt, auf das die Filter zutreffen, nicht nur die geladenen Seiten. Sind bereits Fotos gewählt, kommen die geladenen Fotos hinzu, und es wird angeboten, auf die ganze Ansicht zu erweitern. Aktionen für die ganze Ansicht bestätigen zuerst die genaue Fotozahl.
 - **Umkehren** — Die Auswahl gegen ihr Komplement tauschen. Bei leerer Auswahl ist das die ganze Ansicht. Bei nicht leerer Auswahl bleibt es auf geladene Fotos begrenzt: erst die Behalte-Kandidaten wählen, umkehren, ablehnen.
 
 Die Auswahlleiste zählt ausgewählte Fotos außerhalb der geladenen Kacheln; Stapelaktionen betreffen die gesamte ausdrückliche Auswahl. Ausschlüsse der ganzen Ansicht werden getrennt angezeigt. Vergleichen benötigt 2–4 ausdrücklich ausgewählte, geladene Fotos und öffnet nie stillschweigend nur einen Teil.
 
-- **Vergleichen** — öffnet 2–4 ausgewählte Fotos nebeneinander. Die Stecknadel ändert die gekennzeichnete Referenz, niemals Bewertungen oder Entscheidungen. Die Ansicht ist zunächst gekoppelt; entkoppeln erlaubt individuelles Ausrichten. Erneutes Koppeln erhält jeden Ausschnitt. Gekoppelte Gesten wenden denselben Zoomfaktor und dieselbe Pixelverschiebung auf alle Kandidaten an, auch außerhalb von Zwei Ansichten. Die erste Zoomgrenze stoppt die Gruppe. Zurücksetzen passt jedes Foto ein. Scrollen zum Zoomen, Ziehen zum Verschieben, Doppelklick zum Umschalten der Vergrößerung. Zurücksetzen passt den gesamten Vergleich ein. Gekoppelte Bewegungen richten keine Motive aus. Jedes Fenster zeigt Laden, Bereitschaft oder Fehler der Detailvorschau (die Miniatur bleibt erhalten); Zoomen kann volle Auflösung anfordern. Bei drei oder vier Fotos hält Zwei Ansichten die Referenz fest, während Vorheriger/Nächster die Kandidaten durchläuft. Eine neue Referenz tauscht die bisherige in das Kandidatenfenster. Ausschalten zeigt wieder alle ausgewählten Bilder.
+- **Vergleichen** — öffnet 2–4 ausdrücklich ausgewählte, geladene Fotos im eigenen Arbeitsbereich `/photo-compare`. Wählen Sie Referenz oder Kandidat und dann eine Miniatur im Filmstreifen, um ein beliebiges Paar zu vergleichen. Die Stecknadel macht einen Kandidaten zur Referenz und verschiebt die bisherige Referenz an die Kandidatenposition. Zwei Ansichten behält diese Referenz bei, während Vorheriger/Nächster die Kandidaten durchläuft; beim Ausschalten erscheinen alle verbleibenden Teilansichten wieder. Entfernen ändert nur diese Ansicht; Wiederherstellen bringt entfernte Teilansichten zurück. Die Inspektion beginnt gekoppelt. Entkoppeln erlaubt unabhängiges Ausrichten; erneutes Koppeln erhält die Ausschnitte und überträgt nachfolgende relative Zoom- und Verschiebebewegungen auf den gesamten Satz. Zurücksetzen passt alle Fotos ein. Verwenden Sie die sichtbaren Zoom-/Einpassen-Steuerungen, das Mausrad, die Tastatur oder Ziehen auf dem Touchscreen; Z schaltet die Lupe für angezeigte Pixel um. Prüfen öffnet gespeicherte Gesichts-/Motivausschnitte und Beurteilungsdetails. Gekoppelte Bewegungen richten keine Motive aus. Zurück oder Escape führt zur erfassten Sammlungsabfrage und Auswahl zurück; Escape schließt zuerst Prüfen. Die Mitglieder bleiben nur im Arbeitsspeicher dieses Tabs erhalten. Neuladen oder eine direkte URL ohne gültige Sitzung führt deshalb zur Galerie zurück. Dieser Arbeitsbereich ändert niemals Bewertungen, Behalten/Ablehnen oder die Zusammensetzung der Galerie.
 - **Dateinamen kopieren** — Dateinamen in die Zwischenablage kopieren. Ein Kopieren der ganzen Ansicht bestätigt zuerst; über 10 000 Fotos wird abgelehnt.
 - **Exportieren** — XMP-Sidecars neben die Dateien schreiben (siehe [Editor-Export](#editor-export))
 - **In Ordner aussortieren** — Behaltene kopieren oder Abgelehnte in einen Ordner verschieben/in den Papierkorb legen (siehe [In Ordner aussortieren](#in-ordner-aussortieren))
@@ -353,6 +353,14 @@ Doppelklicken Sie ein Foto, um es zu öffnen.
 - Bei jedem anderen Foto wirkt es nur auf dieses und bietet zusätzlich Foto öffnen, Ähnliche finden, Warum diese Bewertung?, Metadaten in Datei schreiben und Gesicht einer Person zuweisen (wenn das Foto nicht zugewiesene Gesichter hat), jeweils unter ihren Bedingungen.
 - Das Aussortieren eines einzelnen Fotos aus dem Menü nimmt nur dieses Foto aus der Auswahl.
 - Auf Geräten mit Touch-Bedienung (`hover: none` und `pointer: coarse`) nicht angeboten; nutzen Sie dort das Aktionsblatt.
+
+### Erfasste Bearbeitungen und Inspektion
+
+Sammelvorschauen legen vor Anwenden die Zielpfade fest. Bei einer Auswahl der gesamten Ansicht schließen sie passende eingeklappte und außerhalb des Bildschirms liegende Mitglieder ein und abgewählte Fotos aus. Sie unterscheiden geladene Beobachtungen von unbekannten Werten; ein zu großer Umfang wird abgelehnt statt gekürzt. Eine spätere Auswahl kann eine angenommene Bearbeitung nicht auf andere Fotos umlenken. Anfragen werden in begrenzten Teilmengen gespeichert, nicht als eine Transaktion über die gesamte Auswahl.
+
+Bei Bewertungen stehen Setzen und Löschen zur Verfügung. Manuelle Tags bieten Hinzufügen, Entfernen, Ersetzen und Löschen; andere Felder und KI-Tags bleiben unverändert. Ersetzen/Löschen darf nach einer ungewissen Antwort nicht blind wiederholt werden: Laden Sie das Ergebnis neu und prüfen Sie es zuerst. Änderungen an Zugriff oder Konto stoppen neue Teilmengen.
+
+Die Inspektion gehört zum angezeigten Foto, unabhängig von der ausgewählten Sammelbearbeitung. KI-Beurteilungen, persönliche Sterne, Behalten/Ablehnen und der Vorschlag für das beste Gruppenfoto sind getrennt. Fehlende Messwerte heißen Nicht verfügbar; null ist ein gültiger Messwert. Darstellungsbeschriftungen nennen das dekodierte Bild und seine Abmessungen sowie Lade-, Fehler- und Wiederholungszustände. Vergrößerung und Lupe prüfen angezeigte Pixel, keine RAW-Sensordaten. Die Histogrammherkunft unterscheidet gespeicherte Darstellungen von Schätzungen aus Miniaturen. Gespeicherte Gesichts-/Motivausschnitte können die manuelle Prüfung unterstützen; bei fehlender oder mehrdeutiger Zuordnung bleibt manuelles Ausrichten verfügbar. Gekoppelte Bewegungen sind keine Motivausrichtung.
 
 ### Top N% behalten
 
@@ -450,7 +458,7 @@ Manuelle Tags sind Tags, die Sie selbst eingeben und die neben den KI-Tags stehe
 
 - **Wo sie erscheinen.** Nur in der **Detailansicht**, als Chips, die sich von KI-Tags unterscheiden. Karten und Tooltips zeigen KI-Tags.
 - **Wer sie bearbeiten kann.** Benutzer mit Edition. Auf einer Installation ohne `viewer.edition_password` sind sie schreibgeschützt. KI-Tags lassen sich nicht entfernen.
-- **Sammelbearbeitung.** Wählen Sie Fotos aus und nutzen Sie **Schlagwörter bearbeiten** (Auswahlleiste, mobiles Aktionsblatt oder Kontextmenü), um ein Tag hinzuzufügen oder zu entfernen. Auswahlen der ganzen Ansicht funktionieren. Fotos mit bereits 50 manuellen Tags werden übersprungen; `count` meldet die tatsächlich geänderten Fotos.
+- **Sammelbearbeitung.** Wählen Sie Fotos aus und nutzen Sie **Schlagwörter bearbeiten** (Auswahlleiste, mobiles Aktionsblatt oder Kontextmenü). Hinzufügen/Entfernen ändert ein Tag; Ersetzen erwartet ein Schlagwort pro Zeile; Löschen entfernt alle manuellen Tags. Die Vorschau zeigt vor Anwenden die erfassten Zielfotos und bekannte unterschiedliche Werte, auch bei Auswahlen der ganzen Ansicht. Hinzufügen überspringt Fotos mit bereits 50 manuellen Tags; ein ungültiges Ersetzen wird abgelehnt, bevor die betreffende Anfrage etwas schreibt. `count` meldet geänderte Tag-Zeilen, nicht Fotos. KI-Tags bleiben erhalten. Jede Anfrage wird vollständig oder gar nicht angewendet, mehrere Anfragen zusammen jedoch nicht. Ein ungewisses Ergebnis von Ersetzen/Löschen muss vor einem erneuten Versuch geprüft werden.
 - **Format.** Tags werden getrimmt, kleingeschrieben und von mehrfachem Leerraum befreit (NFC). Höchstens 64 Zeichen, höchstens 50 pro Foto. Leere Tags, Kommas und Steuerzeichen werden abgelehnt. Ein Tag, das einem KI-Tag des Fotos entspricht, wird nicht gespeichert.
 - **Suche und Filter erfassen sie.** Der Tag-Filter, die Textsuche, die semantische Suche (`/api/search`, außer dem reinen Bildunterschrift-Bereich), die Tag-Auswahlliste, die Statistiken und die Exporte von Sidecars, eingebetteten Metadaten und Lightroom nutzen KI- plus manuelle Tags. Die Textsuche findet ein manuelles Tag als ganze Wendung.
 - **Ausnahmen.** Kapseln zählen nur KI-Tags. Manuelle Tags beeinflussen nie Bewertungen, Kategorien oder narrative Momente.
@@ -592,6 +600,8 @@ Erstellen Sie Alben und fügen Sie Fotos aus der Galerie per Mehrfachauswahl hin
 ### Intelligente Alben
 
 Speichern Sie eine Filterkombination (Kamera, Tag, Person, Daten, Wertungsschwellen…) als intelligentes Album. Es aktualisiert sich, sobald neue Fotos passen. Die Filter werden als JSON in `smart_filter_json` gespeichert.
+
+Das Filtern eines geöffneten Albums ändert nur die Arbeitsansicht. Der aufklappbare Regelbereich unterscheidet manuell festgelegte Mitglieder, gespeicherte intelligente Kriterien und temporäre Verfeinerungen. Vorschau und Speichern aktualisieren ausdrücklich die unterstützten intelligenten Regeln; Zurücksetzen stellt gespeicherte Regeln wieder her, ohne Mitglieder zu ändern. Nicht unterstützte Kriterien werden abgelehnt statt stillschweigend ausgelassen. Speichern prüft zunächst die aktuellen Serverregeln, ist aber kein serverseitiger atomarer Vergleich mit anschließender Aktualisierung. Betrachter mit Lesezugriff können die Ansicht verfeinern und zurücksetzen, ohne Regeln zu speichern.
 
 ### Bewertungskontext
 
@@ -1160,10 +1170,12 @@ Einzeltasten-Kürzel sind inaktiv, solange der Fokus in einem Textfeld, Menü od
 
 ## Rückgängig
 
-Sammeländerungen an Favorit/Ablehnung/Bewertung und Auswahl-Bestätigungen zeigen etwa 7 Sekunden lang eine Snackbar mit **Rückgängig**.
+Sammeländerungen an Favorit/Ablehnung/Bewertung und verzögerte Auswahl-Bestätigungen zeigen etwa 7 Sekunden lang eine Snackbar mit **Rückgängig**.
 
 - Sammeländerungen von Markierungen gelten sofort und werden durch Umkehren rückgängig gemacht (bis zu 500 Fotos).
+- Rückgängig für Bewertungen stellt nur Sterne wieder her und erhält andere Markierungen. Es erfordert eine vollständige beobachtete Momentaufnahme von höchstens 500 Fotos und prüft lokal bekannte spätere Änderungen; es ist nicht die Verlaufsaktion mit serverseitiger Konfliktprüfung.
 - Auswahl-Bestätigungen sind verzögert: Die Gruppe verschwindet sofort, aber nichts wird gespeichert, bis das Rückgängig-Fenster endet.
+- Das Abbrechen dieser verzögerten Bestätigung verhindert ihren Schreibvorgang; es ist kein Rückgängig nach einem bereits gespeicherten Schreibvorgang.
 - Änderungen an [manuellen Tags](#manuelle-tags) lassen sich nicht rückgängig machen.
 
 Für ältere Änderungen siehe [Änderungsverlauf](#änderungsverlauf).
@@ -1176,7 +1188,7 @@ Produktions-Builds lassen sich auf dem Startbildschirm installieren. Die App-Hü
 
 ## Mobil
 
-Auf kleinen Bildschirmen behält die schwebende Auswahlkarte die Anzahl und die Schaltflächen Aufheben, Alle auswählen und Umkehren sowie eine Schaltfläche **Aktionen**. Sie öffnet ein unteres Blatt mit jeder Sammeloperation (Favorit, Ablehnen, Bewerten, Alben, Kopieren, Herunterladen). Eine Vergleichsschaltfläche erscheint, wenn die Auswahl in die Vergleichsansicht passt.
+Die Sammlung hat zwei kompakte Zeilen: Titel/Suche/Auswählen, dann Sortierung, Richtung, Filter, Raster/Mosaik und Ansichtsoptionen. Die Suche wird bei Bedarf aufgeklappt; eine bestätigte Abfrage und aktive Kriterien bleiben sichtbar. Ansichtsoptionen enthält zusätzliche Anzeige-, Schnellfilter- und Sichtbarkeitssteuerungen. Auswählen startet die Touch-Auswahl; Abbrechen beendet sie. Die kontextbezogene Auswahlleiste bietet Leeren, Vergleichen und erlaubte Schreibaktionen; weitere Befehle stehen unter Aktionen. Der Vergleichsarbeitsbereich bietet sichtbare Zurück- und Zoom-/Einpassen-Steuerungen, Ziehen auf dem Touchscreen und bei Bedarf eine überlagerte Inspektionsansicht; er erfordert weder Überfahren noch langes Drücken.
 
 ## Bilderrahmen / Kiosk
 
@@ -1472,9 +1484,9 @@ Endpunkte: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Änderungsverlauf
 
-Prüfen und widerrufen Sie Ihre letzten Änderungen in der gesamten Bibliothek. Öffnen Sie im Bearbeitungsmodus **Änderungsverlauf** über das Uhrsymbol in der Hauptnavigation (nach „Heute vor Jahren“). Klappen Sie einen Eintrag auf, um die genauen Werte vorher/nachher zu sehen, und wählen Sie dann **Diesen Eintrag zurücksetzen**.
+Prüfen Sie die letzten Änderungen in der gesamten Bibliothek und stellen Sie frühere Werte wieder her. Öffnen Sie im Bearbeitungsmodus **Änderungsverlauf** über die Navigation. Klappen Sie einen Eintrag auf, um seine Vorher-/Nachher-Werte zu sehen, wählen Sie die Vorschau und dann Anwenden oder Abbrechen. Ein Konflikt wird am betreffenden Eintrag angezeigt und schreibt nichts; bei einem Ladefehler wird Neu laden angeboten, statt einen leeren Verlauf vorzutäuschen.
 
-- **Was erfasst wird:** GPS, Aufnahmedaten, Sichtungsentscheidungen, Sterne, Favoriten und manuelle Stapel. Nicht Dateien oder Gesichtserkennung.
+- **Was erfasst wird:** GPS, Aufnahmedaten, Sichtungsentscheidungen, Sterne, Favoriten und manuelle Stapel. Nicht manuelle Tags, Dateien oder Gesichtserkennung.
 - GPS und Aufnahmedaten sind geteilte Bibliothekswerte. Sichtungsentscheidungen, Sterne und Favoriten gehören Ihnen.
 - Das kurze Rückgängig und die Assistenten-Aktivitätsliste sind davon getrennt.
 - **Grenzen.** Die letzten **50 Einträge pro Konto**, jeder mit bis zu **1000 Fotos und 1 MiB** an Werten. Größere gefilterte Sichtungsaktionen werden in Teile aufgeteilt; das Zurücksetzen stellt einen Teil wieder her. Ein Ersatz eines Stapels kann in einem Eintrag bis zu 2000 Fotos umfassen.
@@ -1482,6 +1494,10 @@ Prüfen und widerrufen Sie Ihre letzten Änderungen in der gesamten Bibliothek. 
 - **Das Zurücksetzen gilt ganz oder gar nicht.** Es wird abgelehnt, wenn sich der Wert irgendeines Fotos seither geändert hat, auch wenn er zurückgeändert wurde. Die private Sichtungsänderung eines anderen Kontos blockiert Ihre nicht. Erneute Scans, Importe und Rückgängig können ältere Einträge ebenfalls ungültig machen.
 - Ein Eintrag wird ausgeblendet, wenn eines seiner Fotos gelöscht wurde oder für Sie nicht mehr sichtbar ist.
 - Ein Zurücksetzen fügt einen eigenen Eintrag hinzu und markiert das Original als zurückgesetzt.
+
+### Verarbeitung und Belege
+
+Öffnen Sie Verarbeitung über das Kontomenü, um unterstützte Hintergrundvorgänge, ihre Belegkennungen, tatsächlichen Zustände und Elementzahlen zu prüfen. Abgeschlossene Aufträge mit unerledigten Einträgen bleiben entsprechend gekennzeichnet; eine Warteschlangenposition wird nicht erfunden. Abbrechen greift zwischen Dateien. Erneut versuchen wiederholt den unterstützten Vorgang für seine fehlgeschlagenen Einträge, keine andere Aktion. Ein fehlgeschlagener Statusabruf bietet eine Möglichkeit zur Wiederherstellung. Dateiexporte behalten ihre eigenen Prüfungen für Vorschau, Ziel und Zuständigkeit. Belege beschreiben bereits versuchte Schreibvorgänge und versprechen nicht, dass separate Dateischreibvorgänge insgesamt atomar sind.
 
 ## Gesichter ohne Namen
 

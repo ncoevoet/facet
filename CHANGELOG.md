@@ -8,12 +8,17 @@ All notable changes to Facet are documented in this file.
 
 - Browse, Review and Organize display presets change layout, density and inspection without changing the current query, sort, album, selection or loaded page. Reset display restores configured presentation separately from filters.
 
-- Gallery comparison labels a reference photo, allows deliberate reference promotion and independent framing, and reports sharp-preview readiness per pane. Two-up keeps a stable reference while stepping through selected candidates. Relinking preserves manually aligned crops; linked gestures apply relative zoom and pan across candidates, while Reset fits every photo without changing review decisions.
+- A dedicated selected-photo comparison workspace replaces the gallery popup: arbitrary reference/candidate assignment, promotion, candidate strip, view-only Remove/Restore, linked or independent framing, keyboard/touch inspection, stored face/subject crops and displayed-rendition status with Retry. Back preserves the originating collection and selection.
+- Captured rating Set/Clear and manual-tag Add/Remove/Replace/Clear previews disclose mixed values and exact targets, including matching folded members and whole-view exclusions. Account or access changes stop later write chunks; unrelated fields and AI tags are preserved.
+- Organization history has explicit Preview/Apply/Cancel and per-entry conflict recovery. Processing and export receipts expose actual operation state, counts, cancellation and supported retry behavior.
 - Stack explicit unstacked selections in selection order with Cmd+Shift+S or Ctrl+Shift+S, using the first selected photo as cover. Existing stack members open the editor for review, and Undo restores the selection the stack cleared.
 
 ### Changed
 
 - **A missing optional metric no longer scores as a neutral 5.0 in the aggregate.** A NULL `subject_sharpness`, `subject_prominence`, `subject_placement`, `bg_separation` or `face_quality_iqa` is left out and its weight is redistributed over the metrics that are present; with all of them missing the aggregate stays neutral. Aggregates change only where a category gives one of these five a positive weight (the shipped weights are unchanged), so run `--recompute-average` after upgrading if you set one. `--optimize-weights` keeps such a weight at its current value when the comparison set has no data for that metric, instead of writing 0%.
+- Album refinements stay temporary until an explicit saved-rule Preview and Save; Reset restores saved criteria. Manual membership and smart criteria are identified separately.
+- Phone collection controls use two compact rows with on-demand search, explicit Select/Cancel, direct sort/filter/layout controls and secondary View options. UI strings and Viewer guides are synchronized across all seven languages.
+- Assessment availability, personal ratings, review decisions and group suggestions have distinct labels. Image status and histogram provenance describe actual displayed pixels without implying RAW sensor inspection.
 - The hamburger controls hidden, compact and pinned sidebar modes. A visible desktop sidebar replaces the destination top bar and carries account controls, removing the separate Pin button and duplicated navigation row. Filter-tab counts sit within the icon row instead of overlapping its divider.
 
 - Active criteria and similarity controls belong to the collection header. Review, type, location and clipping criteria are visible; paired range bounds clear in one update. Quick filters disclose the existing visual-search and review-sort transitions, effective visibility rules are inspectable, and fixed lists explain their query restrictions.
@@ -32,6 +37,7 @@ All notable changes to Facet are documented in this file.
 
 ### Fixed
 
+- Token rotation immediately suspends stale editing controls, status reads share a credential-scoped request, and late status or edition-lock responses cannot restore a previous account's state.
 - Escape on a directly opened photo returns to the saved gallery query instead of leaving the application through browser history. Gallery-opened photos retain normal history return.
 
 - Preserve the gallery view when returning from the stack editor, support Escape as Back, and clear the committed selection after a successful stack save.

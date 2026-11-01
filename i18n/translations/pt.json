@@ -1230,7 +1230,16 @@
       "download_confirm_title": "Baixar {count} fotos?",
       "download_confirm_message": "Cada foto é baixada como um arquivo separado. {count} delas vão demorar um pouco e podem sobrecarregar o navegador.",
       "mark_bracket": "Marcar como uma única série de exposição",
-      "marked_bracket": "{count} fotos marcadas como uma única série de exposição"
+      "marked_bracket": "{count} fotos marcadas como uma única série de exposição",
+      "select": "Selecionar",
+      "targets": {
+        "title": "Destinos",
+        "explicit": "As ações afetam as fotos selecionadas explicitamente. Selecionar uma miniatura recolhida não seleciona os outros membros.",
+        "view": "As ações afetam as fotos correspondentes, incluindo membros de pilhas recolhidas, menos as suas exclusões. As correspondências são avaliadas ao executar a ação.",
+        "loaded": "Contexto dos grupos carregados: {shown} / {total}. As seleções fora do ecrã não são resumidas aqui.",
+        "manual": "Pilha manual",
+        "stack_count": "Correspondentes: {matching} · Permitidos: {total}"
+      }
     },
     "keep_top": {
       "label": "Manter top %",
@@ -1260,7 +1269,7 @@
       "location": "Localização",
       "folder": "Pasta",
       "persons": "Pessoas",
-      "smart_album_filter_notice": "Álbum inteligente — as alterações de filtro são salvas automaticamente.",
+      "smart_album_filter_notice": "As alterações aos filtros são temporárias. Reveja e guarde as regras do álbum nos critérios da coleção para as manter.",
       "virtual_scroll": "Rolagem rápida (virtualizada)",
       "any": "Qualquer",
       "find_filter": "Encontrar um filtro…",
@@ -1466,7 +1475,7 @@
     "moment_confidence_range": "Confiança do momento",
     "compare": {
       "title": "A comparar {count} fotos",
-      "hint": "Desloque para ampliar e arraste para mover. A ligação partilha movimentos, não alinha os sujeitos. Clique duas vezes para repor.",
+      "hint": "Use a roda para ampliar e arraste para mover. A inspeção ligada partilha movimentos, não alinha os sujeitos. Faça duplo clique para repor.",
       "reset_zoom": "Repor o zoom",
       "linked": "Ligadas",
       "independent": "Independentes",
@@ -1484,7 +1493,41 @@
       "remove_pane": "Remover {name} apenas da comparação",
       "restore": "Restaurar as fotos removidas",
       "queue": "Candidatas (sem referência): {count}",
-      "queue_label": "Fotos da comparação"
+      "queue_label": "Fotos da comparação",
+      "rendition": {
+        "thumbnail": "Miniatura guardada",
+        "preview": "Pré-visualização",
+        "source": "Imagem de origem",
+        "loading": "A carregar…",
+        "ready": "Pronta",
+        "failed": "Indisponível",
+        "fit": "Ajustar imagem",
+        "zoom_in": "Ampliar",
+        "zoom_out": "Reduzir",
+        "scale_help": "A ampliação é relativa a Ajustar, não aos píxeis de origem. Ajustar restaura o enquadramento completo; com as vistas ligadas, repõe todos os painéis.",
+        "limit": "Se a pré-visualização não estiver disponível, pode ser apresentada a miniatura guardada. As imagens de origem podem ser convertidas para apresentação no navegador; isto não é um editor RAW nem uma avaliação do recorte dos valores do sensor.",
+        "fit_short": "Ajustar",
+        "sources": "Origem das imagens e ampliação",
+        "fallback": "Pré-visualização indisponível"
+      },
+      "inspection": {
+        "title": "Inspecionar",
+        "magnification": "Lupa",
+        "shared_person": "Enquadrar pessoa guardada nos painéis visíveis…",
+        "partial": "Não foi possível carregar alguns dados de deteção guardados.",
+        "help": "O enquadramento muda para Independentes. Verifique os recortes antes de ligar. As atribuições guardadas podem estar erradas ou desatualizadas. A lupa amplia os píxeis apresentados; aumente o zoom para pedir a imagem de origem.",
+        "no_correspondence": "Não existe uma única pessoa guardada com caixas utilizáveis em todos os painéis visíveis. Use o enquadramento manual; a ligação partilha movimentos, não identidades.",
+        "suggested_face": "Rosto sugerido",
+        "suggested_subject": "Sujeito sugerido",
+        "no_crop": "Recorte indisponível",
+        "choose_face": "Escolher rosto…",
+        "manual_fallback": "Não foi possível enquadrar este recorte de forma fiável. Aguarde pela imagem ou use o zoom e o deslocamento manuais.",
+        "review_link": "Enquadramento independente aplicado. Verifique o alinhamento e ative Ligadas. Ajustar restaura o enquadramento completo.",
+        "keyboard": "Teclas do painel: +/− ampliam ou reduzem; as setas deslocam; Shift aumenta o deslocamento; F/Home ajusta. Z alterna a lupa com a imagem ajustada. Num ecrã tátil, use os botões de zoom e arraste. Escape fecha a comparação."
+      },
+      "assign_target": "Escolher o lado a substituir",
+      "assign_hint": "Escolha uma miniatura para usar como {target}.",
+      "assign_photo": "Usar {name} como {target}"
     },
     "clipping": {
       "badge_highlight": "Altas luzes cortadas: {percent}% dos pixels",
@@ -1525,6 +1568,21 @@
       "named": "Nomeado {name}",
       "error": "Não foi possível salvar o nome",
       "remove": "Remover do filtro"
+    },
+    "collection_controls": "Opções de vista",
+    "collection_totals_compact": "{photos} correspondentes, {items} apresentados",
+    "rating_preview": {
+      "title": "Editar avaliação pessoal",
+      "target": "Destino capturado: {count} fotos",
+      "scope": "Só mudam as fotos destes caminhos. Não são adicionados membros de grupos recolhidos nem ficheiros associados. As etiquetas, os favoritos e as decisões de Manter/Rejeitar não mudam.",
+      "observed": "Avaliações carregadas disponíveis: {loaded}/{total}",
+      "unknown": "As proporções descrevem apenas as fotos carregadas. Os valores fora do ecrã são desconhecidos; zero significa ausência de estrelas pessoais.",
+      "operation": "Nova avaliação",
+      "clear": "Limpar estrelas",
+      "clear_plan": "Limpar as estrelas pessoais das {count} fotos capturadas.",
+      "set_plan": "Definir {rating} estrelas pessoais nas {count} fotos capturadas.",
+      "boundary": "Nenhum ficheiro é reescrito. Os lotes são confirmados separadamente. A ação breve Desfazer limita-se às capturas carregadas e aos conflitos conhecidos localmente; o Histórico verifica os conflitos no servidor.",
+      "whole_scope": "Esta lista capturada de toda a vista inclui os membros recolhidos correspondentes após as exclusões. Não são adicionados outros membros nem ficheiros associados. As etiquetas, os favoritos e as decisões de Manter/Rejeitar não mudam."
     }
   },
   "composition_patterns": {
@@ -2088,6 +2146,28 @@
       "recompute_failed": "Falha no recálculo.",
       "recompute_busy": "Já há uma tarefa em execução. Tente novamente mais tarde.",
       "close": "Fechar"
+    },
+    "rules": {
+      "smart": "Álbum inteligente",
+      "manual": "Álbum manual",
+      "temporary": "Alterações temporárias às regras",
+      "saved": "Regras guardadas",
+      "working": "Vista atual",
+      "any": "Qualquer",
+      "smart_hint": "Os filtros alteram apenas esta vista. As regras guardadas só mudam quando as revê e guarda.",
+      "manual_hint": "O álbum contém um conjunto escolhido à mão. Os filtros restringem esta vista sem adicionar nem remover fotos.",
+      "presentation": "As definições de apresentação e as regras de fotogramas ocultos continuam temporárias. Guardar regras não edita os metadados das fotos.",
+      "unsupported": "A pesquisa visual, o raio GPS, as vistas de fotogramas agrupados e as filas de revisão continuam temporários. Saia desses modos antes de guardar ou repor alterações às regras.",
+      "invalid": "Estas regras guardadas estão indisponíveis ou não são suportadas. Recarregue o álbum antes de editar as regras.",
+      "reset": "Repor alterações às regras",
+      "preview": "Rever alterações às regras…",
+      "confirm": "Atualizar as regras guardadas de «{name}»? Campos alterados: {count}. As próximas visitas usarão estas regras.",
+      "save": "Guardar regras do álbum",
+      "conflict": "As regras guardadas mudaram desde que abriu esta vista. Recarregue-as e reveja as suas alterações.",
+      "success": "Regras do álbum guardadas.",
+      "failed": "Não foi possível ler as regras guardadas. A sua vista atual não mudou.",
+      "uncertain": "Não foi possível confirmar a gravação. Recarregue as regras guardadas antes de tentar novamente.",
+      "reload": "Recarregar regras guardadas"
     }
   },
   "critique": {
@@ -2509,7 +2589,12 @@
       "out_of_date": "O plano do assistente está desatualizado - peça-lhe para gerar a pré-visualização novamente",
       "replan_flips_dropped": "{count} das suas alterações já não correspondem a nenhum grupo e foram descartadas."
     },
-    "stack_group": "Empilhar este grupo com a imagem atual como capa"
+    "stack_group": "Empilhar este grupo com a imagem atual como capa",
+    "comparison": {
+      "choose_pane": "Escolher painel {pane}: {name}",
+      "assign_hint": "Escolha um painel acima e depois uma miniatura abaixo para substituir o painel {pane}.",
+      "assign_photo": "Mostrar {name} no painel {pane}"
+    }
   },
   "scenes": {
     "title": "Cenas",
@@ -2814,6 +2899,25 @@
       "top": "Top {pct}% da biblioteca",
       "range": "Intervalo da biblioteca {min}–{max}",
       "top_in_range": "Top {pct}% da biblioteca · intervalo da biblioteca {min}–{max}"
+    },
+    "assessment": {
+      "title": "Avaliação de IA",
+      "score": "Pontuação de IA",
+      "measurements": "Medições {available}/{total}",
+      "explanation": "As medições de IA ajudam na inspeção. As suas estrelas e decisões de Manter/Rejeitar são independentes.",
+      "unavailable": "Indisponível",
+      "unavailable_help": "Indisponível significa que não foi devolvida uma medição utilizável. Não equivale a zero nem a uma pontuação baixa; o motivo não é indicado aqui.",
+      "group_pick": "Sugerida neste grupo",
+      "group_pick_help": "A sugestão do grupo ordena estas alternativas. Não é a sua avaliação nem significa automaticamente Manter."
+    },
+    "rendition": {
+      "edited": "Pré-visualização revelada",
+      "pending": "A carregar versão pedida…",
+      "attempt_failed": "Versão pedida indisponível",
+      "note": "Imagem de origem é a imagem para apresentação fornecida pelo servidor, não uma revelação RAW editável. As dimensões descrevem os píxeis descodificados. O zoom é relativo a Ajustar, não a 100% dos píxeis do sensor. As medições guardadas do histograma descrevem a imagem analisada; as estimativas das miniaturas e os marcadores de recorte não comprovam recorte dos valores do sensor RAW.",
+      "base_render": "Imagem base de apresentação",
+      "edited_failed": "Pré-visualização revelada indisponível",
+      "source_failed": "Imagem de origem indisponível"
     }
   },
   "manual_tags": {
@@ -2833,7 +2937,16 @@
       "uncertain": "Uma resposta perdeu-se ou falhou. O servidor pode já ter aplicado o lote. Repetir processa apenas os lotes restantes com a mesma etiqueta e operação.",
       "edit": "Editar alteração",
       "saving": "A aplicar…",
-      "retry": "Repetir restantes"
+      "retry": "Repetir restantes",
+      "tag_list": "Etiquetas manuais",
+      "tag_list_hint": "Uma etiqueta por linha, até 50. Adicionar/Remover atua sobre uma etiqueta; Substituir usa a lista completa.",
+      "replace": "Substituir todas",
+      "clear": "Limpar todas",
+      "replace_preview": "Substituir todas as etiquetas manuais do destino por estas etiquetas:",
+      "clear_preview": "Remover todas as etiquetas manuais do destino.",
+      "replace_boundary": "Isto pode remover etiquetas manuais importadas. As etiquetas de IA e os outros metadados não mudam. Cada lote é atómico; vários lotes são confirmados separadamente. Desfazer não está disponível para etiquetas manuais.",
+      "recheck": "O resultado de uma resposta de Substituir/Limpar é incerto. Feche, inspecione o destino e crie uma nova pré-visualização; repetir este plano antigo pode substituir etiquetas mais recentes.",
+      "captured_view_scope": "A lista de fotos correspondentes de toda a vista foi capturada após as exclusões, incluindo os membros recolhidos correspondentes. As correspondências posteriores não são adicionadas. Os ficheiros associados não estão incluídos."
     },
     "title": "Editar etiquetas",
     "tag_label": "Etiqueta",
@@ -2897,7 +3010,7 @@
       "cancelled": "Exportação cancelada",
       "failed": "Falha na exportação",
       "interrupted": "Exportação interrompida",
-      "progress": "{processed} / {total} arquivos processados",
+      "progress": "Processados: {processed} / {total}",
       "counts": "{written} gravados · {skipped} ignorados · {errors} erros",
       "close": "Fechar",
       "close_hint": "A exportação continua após fechar o diálogo. Abra-o novamente para ver as exportações recentes.",
@@ -2915,7 +3028,11 @@
         "write_failed": "Não foi possível gravar os metadados. Verifique os logs do servidor.",
         "exiftool_upgrade": "O ExifTool 13.23 a 13.27 corrompe arquivos XMP. Atualize o ExifTool para a 13.28 ou mais recente.",
         "stopped": "A exportação parou inesperadamente. Verifique os logs do servidor e tente novamente as fotos restantes."
-      }
+      },
+      "partial": "Concluída com itens pendentes",
+      "workspace_title": "Comprovativos de processamento e exportação",
+      "workspace_hint": "Comprovativos de sidecars desta conta. Fechar esta janela mantém as tarefas em execução. Inicie novas exportações a partir de uma seleção de fotos ou de um álbum.",
+      "receipt_id": "Comprovativo"
     }
   },
   "undo": {
@@ -3103,6 +3220,11 @@
     "clipping": {
       "shadow": "Sombras cortadas: {channels}",
       "highlight": "Altas luzes cortadas: {channels}"
+    },
+    "provenance": {
+      "stored": "Histograma da imagem renderizada guardada",
+      "thumbnail": "Estimativa da miniatura",
+      "note": "Esta curva descreve uma imagem renderizada, não os valores do sensor RAW. Os marcadores de recorte usam medições guardadas quando disponíveis; a amostragem de miniaturas não permite determinar o recorte do sensor."
     }
   },
   "manual_faces": {
@@ -3260,7 +3382,13 @@
     "photo_count": "Fotos: {count}",
     "field": "Campo",
     "entry_action": "{action} · {kind} · {date} · #{id}",
-    "stack": "Pilha de fotos"
+    "stack": "Pilha de fotos",
+    "limits_title": "O que o histórico pode restaurar",
+    "limits": "Até 50 entradas recentes desta conta. São suportados campos de revisão, localização, data de captura e pilhas manuais. As etiquetas manuais, exportações e movimentações de ficheiros não são desfeitas aqui. A ação breve Desfazer é independente e limita-se à sua captura.",
+    "reload": "Recarregar histórico",
+    "preview_action": "Rever restauro…",
+    "restore_preview": "Restaurar esta entrada: {count} fotos · parte {part}/{parts}.",
+    "restore_boundary": "Só esta parte será restaurada. O servidor verifica os valores e as revisões registados; se houver conflito, nada é restaurado. As outras partes são ações separadas."
   },
   "stacks": {
     "review_help": "Reveja as pilhas sugeridas na câmara escura. S empilha com a capa proposta na grelha ou a foto ativa na câmara escura; Enter abre um grupo ou empilha a foto ativa. X ignora. Editar membros ajusta o grupo antes de guardar. As decisões sobre as fotos não mudam. R rejeita imediatamente a foto ativa e exclui-a do rascunho. Desfazer restaura a decisão e a pertença. O agrupamento espera por Guardar; sair sem guardar não desfaz Rejeitar.",
@@ -3312,7 +3440,7 @@
     "saved": "Pilha de fotos atualizada",
     "expand_all": "Expandir todas as pilhas",
     "collapse": "Recolher pilhas",
-    "totals": "{photos} fotos correspondentes · {items} itens apresentados",
+    "totals": "Fotos correspondentes: {photos} · Apresentados: {items}",
     "folded_scope": "As ações de toda a vista incluem os membros recolhidos. Uma miniatura selecionada sozinha afeta apenas essa foto.",
     "explicit_only": "Selecione explicitamente 2 a 1000 fotos para criar uma pilha.",
     "badge": "Abrir pilha: {count} membros",

@@ -1230,7 +1230,16 @@
       "download_confirm_title": "下载 {count} 张照片？",
       "download_confirm_message": "每张照片都会单独下载为一个文件。{count} 张需要较长时间，并可能导致浏览器不堪重负。",
       "mark_bracket": "标记为一组曝光包围",
-      "marked_bracket": "{count} 张照片已标记为一组曝光包围"
+      "marked_bracket": "{count} 张照片已标记为一组曝光包围",
+      "select": "选择",
+      "targets": {
+        "title": "操作目标",
+        "explicit": "命令仅作用于明确选中的照片。选择折叠组的一个图块不会选中其余成员。",
+        "view": "命令作用于符合条件的照片，包括折叠堆叠中的匹配成员，但不包含您排除的照片。匹配成员在命令执行时确定。",
+        "loaded": "已加载照片组的摘要：{shown} / {total}。此处不汇总屏幕外的选择。",
+        "manual": "手动堆叠",
+        "stack_count": "匹配：{matching} · 可访问：{total}"
+      }
     },
     "keep_top": {
       "label": "保留前若干 %",
@@ -1260,7 +1269,7 @@
       "location": "位置",
       "folder": "文件夹",
       "persons": "人物",
-      "smart_album_filter_notice": "智能相册：筛选条件的更改会自动保存。",
+      "smart_album_filter_notice": "筛选更改是临时的。如需保留，请在集合条件中查看并保存相册规则。",
       "virtual_scroll": "快速滚动（虚拟列表）",
       "any": "不限",
       "find_filter": "查找筛选条件…",
@@ -1484,7 +1493,41 @@
       "remove_pane": "仅从比较视图移除 {name}",
       "restore": "恢复已移除的照片",
       "queue": "候选（不含参考照片）：{count}",
-      "queue_label": "比较照片"
+      "queue_label": "比较照片",
+      "rendition": {
+        "thumbnail": "已存缩略图",
+        "preview": "预览",
+        "source": "源图像",
+        "loading": "正在加载…",
+        "ready": "已就绪",
+        "failed": "不可用",
+        "fit": "适应窗格",
+        "zoom_in": "放大",
+        "zoom_out": "缩小",
+        "scale_help": "放大倍率相对于适应窗格时的图像大小，而非源图像像素。适应窗格会恢复完整画面；联动时会重置所有窗格。",
+        "limit": "预览请求可能回退到已存缩略图。源图像可能经过转换以供浏览器显示；此处不提供 RAW 编辑或传感器溢出判断。",
+        "fit_short": "适应",
+        "sources": "图像来源与放大倍率",
+        "fallback": "预览不可用"
+      },
+      "inspection": {
+        "title": "检查",
+        "magnification": "放大镜",
+        "shared_person": "在可见窗格中定位已保存的人物…",
+        "partial": "部分已存检测数据无法加载。",
+        "help": "取景会切换为独立模式。联动前请检查裁切范围。已存人物关联可能错误或过时。放大镜仅放大已显示的像素；放大图像可请求源图像。",
+        "no_correspondence": "没有任何一位已保存的人物在所有可见窗格中均有唯一且可用的检测框。请手动取景；联动仅共享移动，不会匹配人物身份。",
+        "suggested_face": "建议人脸",
+        "suggested_subject": "建议主体",
+        "no_crop": "裁切范围不可用",
+        "choose_face": "选择人脸…",
+        "manual_fallback": "无法可靠地定位此裁切范围。请等待图像加载，或手动缩放和平移。",
+        "review_link": "已应用独立取景。检查对齐后再启用联动。适应窗格会恢复完整画面。",
+        "keyboard": "窗格快捷键：+/− 缩放，方向键平移，Shift 加大移动距离，F/Home 适应窗格。适应窗格时按 Z 切换放大镜。触屏上可使用缩放按钮并拖动。Escape 关闭比较。"
+      },
+      "assign_target": "选择要替换的一侧",
+      "assign_hint": "选择一个缩略图作为{target}。",
+      "assign_photo": "将 {name} 用作{target}"
     },
     "clipping": {
       "badge_highlight": "高光溢出：{percent}% 的像素",
@@ -1525,6 +1568,21 @@
       "named": "已命名为 {name}",
       "error": "无法保存名称",
       "remove": "从筛选中移除"
+    },
+    "collection_controls": "视图选项",
+    "collection_totals_compact": "匹配 {photos} 张，显示 {items} 项",
+    "rating_preview": {
+      "title": "编辑个人星级",
+      "target": "已确定的操作目标：{count} 张照片",
+      "scope": "仅更改这些路径对应的照片。不添加折叠组的其他成员或伴随文件。标签、收藏及保留/淘汰决定保持不变。",
+      "observed": "可用的已加载星级：{loaded}/{total}",
+      "unknown": "比例仅描述已加载的照片。屏幕外的值未知；零表示未设个人星级。",
+      "operation": "新星级",
+      "clear": "清除星级",
+      "clear_plan": "清除已确定的 {count} 张照片的个人星级。",
+      "set_plan": "将已确定的 {count} 张照片设为个人 {rating} 星。",
+      "boundary": "不会重写任何文件。各批次单独提交。即时撤销仅限于已加载快照及本地已知冲突；历史记录会在服务器端检查冲突。",
+      "whole_scope": "此已确定的整个视图列表包含排除操作后仍匹配的折叠成员。不再添加其他成员或伴随文件。标签、收藏及保留/淘汰决定保持不变。"
     }
   },
   "composition_patterns": {
@@ -2088,6 +2146,28 @@
       "recompute_failed": "重新计算失败。",
       "recompute_busy": "已有任务正在运行，请稍后再试。",
       "close": "关闭"
+    },
+    "rules": {
+      "smart": "智能相册",
+      "manual": "普通相册",
+      "temporary": "临时规则更改",
+      "saved": "已保存规则",
+      "working": "当前视图",
+      "any": "不限",
+      "smart_hint": "筛选仅改变当前视图。只有查看并保存规则后，已保存规则才会改变。",
+      "manual_hint": "相册成员是手动选定的一组照片。筛选仅缩小当前视图范围，不会增删照片。",
+      "presentation": "显示设置和隐藏画面规则仍为临时设置。保存规则不会编辑照片元数据。",
+      "unsupported": "视觉搜索、GPS 半径、分组画面视图和审核队列仍为临时设置。保存或重置规则更改前，请退出这些模式。",
+      "invalid": "这些已保存规则不可用或不受支持。编辑规则前请重新加载相册。",
+      "reset": "重置规则更改",
+      "preview": "查看规则更改…",
+      "confirm": "更新“{name}”的已保存规则？已更改字段：{count}。以后打开相册时将使用这些规则。",
+      "save": "保存相册规则",
+      "conflict": "打开此视图后，已保存规则发生了变化。请重新加载，再次查看您的更改。",
+      "success": "相册规则已保存。",
+      "failed": "无法读取已保存规则。当前视图保持不变。",
+      "uncertain": "无法确认是否已保存。请重新加载已保存规则后再试。",
+      "reload": "重新加载已保存规则"
     }
   },
   "critique": {
@@ -2509,7 +2589,12 @@
       "out_of_date": "助手的方案已过期 - 请让它重新预览",
       "replan_flips_dropped": "你的 {count} 项更改已不再对应任何分组，已被舍弃。"
     },
-    "stack_group": "堆叠此组，以当前画面为封面"
+    "stack_group": "堆叠此组，以当前画面为封面",
+    "comparison": {
+      "choose_pane": "选择窗格 {pane}：{name}",
+      "assign_hint": "先选择上方窗格，再选择下方缩略图以替换窗格 {pane}。",
+      "assign_photo": "在窗格 {pane} 中显示 {name}"
+    }
   },
   "scenes": {
     "title": "场景",
@@ -2814,6 +2899,25 @@
       "top": "位列图库前 {pct}%",
       "range": "图库范围 {min}–{max}",
       "top_in_range": "位列图库前 {pct}% · 图库范围 {min}–{max}"
+    },
+    "assessment": {
+      "title": "AI 评估",
+      "score": "AI 评分",
+      "measurements": "测量项 {available}/{total}",
+      "explanation": "AI 测量辅助检查照片。您的星级与保留/淘汰决定独立于此。",
+      "unavailable": "不可用",
+      "unavailable_help": "不可用表示未返回可用的测量结果，并非零分或低分；此处未提供原因。",
+      "group_pick": "本组建议照片",
+      "group_pick_help": "组内建议对这些备选照片进行排序。它不是您的星级，也不自动表示保留。"
+    },
+    "rendition": {
+      "edited": "已调整预览",
+      "pending": "正在加载所请求的图像版本…",
+      "attempt_failed": "所请求的图像版本不可用",
+      "note": "源图像指服务器提供的显示图像，并非可编辑的 RAW 渲染。尺寸描述解码后的像素。缩放相对于适应窗格时的图像大小，并非传感器像素的 100%。已存直方图测量描述所分析的渲染图像；缩略图估计和溢出标记不能证明 RAW 传感器发生溢出。",
+      "base_render": "基础显示图像",
+      "edited_failed": "已调整预览不可用",
+      "source_failed": "源图像不可用"
     }
   },
   "manual_tags": {
@@ -2833,7 +2937,16 @@
       "uncertain": "响应丢失或失败，服务器可能已应用该批次。重试仅处理剩余批次，并使用相同标签和操作。",
       "edit": "编辑更改",
       "saving": "正在应用…",
-      "retry": "重试剩余批次"
+      "retry": "重试剩余批次",
+      "tag_list": "手动标签",
+      "tag_list_hint": "每行一个标签，最多 50 个。添加/移除仅作用于一个标签；替换使用整个列表。",
+      "replace": "全部替换",
+      "clear": "全部清除",
+      "replace_preview": "将目标的所有手动标签替换为以下标签：",
+      "clear_preview": "移除目标的所有手动标签。",
+      "replace_boundary": "此操作可能移除导入的手动标签。AI 标签及其他元数据保持不变。每个批次具有原子性；多个批次分别提交。手动标签不支持撤销。",
+      "recheck": "替换/清除操作的响应不确定。请关闭窗口，检查目标并创建新预览；重复旧计划可能覆盖较新的标签。",
+      "captured_view_scope": "整个视图中匹配的照片列表已在排除后确定，包括匹配的折叠成员。不会添加之后才匹配的照片。不包含伴随文件。"
     },
     "title": "编辑标签",
     "tag_label": "标签",
@@ -2897,7 +3010,7 @@
       "cancelled": "导出已取消",
       "failed": "导出失败",
       "interrupted": "导出已中断",
-      "progress": "已处理 {processed} / {total} 个文件",
+      "progress": "已处理：{processed} / {total}",
       "counts": "已写入 {written} · 已跳过 {skipped} · 错误 {errors}",
       "close": "关闭",
       "close_hint": "关闭对话框后导出仍会继续。重新打开可查看最近的导出。",
@@ -2915,7 +3028,11 @@
         "write_failed": "无法写入元数据。请查看服务器日志。",
         "exiftool_upgrade": "ExifTool 13.23 至 13.27 会损坏 XMP 附属文件。请将 ExifTool 升级到 13.28 或更高版本。",
         "stopped": "导出意外停止。请查看服务器日志并重试剩余照片。"
-      }
+      },
+      "partial": "已完成，但有未完成项目",
+      "workspace_title": "处理与导出回执",
+      "workspace_hint": "此账户的附属文件回执。关闭此窗口后任务仍会继续运行。请从照片选择或相册开始新的导出。",
+      "receipt_id": "回执"
     }
   },
   "undo": {
@@ -3103,6 +3220,11 @@
     "clipping": {
       "shadow": "阴影溢出：{channels}",
       "highlight": "高光溢出：{channels}"
+    },
+    "provenance": {
+      "stored": "已存渲染图像直方图",
+      "thumbnail": "缩略图估计",
+      "note": "此曲线描述渲染后的图像，并非 RAW 传感器数值。溢出标记优先使用已存测量值；缩略图采样不能确定传感器是否发生溢出。"
     }
   },
   "manual_faces": {
@@ -3260,7 +3382,13 @@
     "photo_count": "照片数量：{count}",
     "field": "字段",
     "entry_action": "{action} · {kind} · {date} · #{id}",
-    "stack": "照片堆叠"
+    "stack": "照片堆叠",
+    "limits_title": "历史记录可还原的内容",
+    "limits": "最多保存此账户最近 50 条记录。支持审核字段、位置、拍摄日期和手动堆叠。此处不能撤销手动标签、导出和文件移动。即时撤销独立于历史记录，且仅限于其自身快照。",
+    "reload": "重新加载历史记录",
+    "preview_action": "查看还原预览…",
+    "restore_preview": "还原此记录：{count} 张照片 · 第 {part}/{parts} 部分。",
+    "restore_boundary": "仅还原这一部分。服务器会检查记录的值和修订版本；发生冲突时不还原任何内容。其他部分需分别操作。"
   },
   "stacks": {
     "review_help": "在暗房中查看建议堆叠。S 在网格中使用建议封面，在暗房中使用当前照片堆叠；Enter 打开照片组或以当前照片堆叠。X 跳过。编辑成员可在保存前调整照片组。堆叠不会改变照片的审核决定。 R 会立即拒绝当前照片并将其从草稿中排除。撤销会恢复审核状态和草稿成员资格。分组需保存后才生效；不保存就离开不会撤销拒绝。",
@@ -3312,7 +3440,7 @@
     "saved": "照片堆叠已更新",
     "expand_all": "展开所有堆叠",
     "collapse": "折叠堆叠",
-    "totals": "{photos} 张匹配照片 · 显示 {items} 个项目",
+    "totals": "匹配照片：{photos} 张 · 显示：{items} 项",
     "folded_scope": "针对整个视图的操作包括折叠的成员。单独选择一个缩略图仅操作该张照片。",
     "explicit_only": "请明确选择 2–1000 张照片以创建堆叠。",
     "badge": "打开堆叠：{count} 个成员",

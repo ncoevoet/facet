@@ -1230,7 +1230,16 @@
       "download_confirm_title": "{count} Fotos herunterladen?",
       "download_confirm_message": "Jedes Foto wird als separate Datei heruntergeladen. {count} davon werden eine Weile dauern und können den Browser überlasten.",
       "mark_bracket": "Als eine Belichtungsreihe markieren",
-      "marked_bracket": "{count} Fotos als eine Belichtungsreihe markiert"
+      "marked_bracket": "{count} Fotos als eine Belichtungsreihe markiert",
+      "select": "Auswählen",
+      "targets": {
+        "title": "Zielfotos",
+        "explicit": "Aktionen gelten für die ausdrücklich ausgewählten Fotos. Die Auswahl einer eingeklappten Kachel wählt keine weiteren Gruppenmitglieder aus.",
+        "view": "Aktionen gelten für passende Fotos einschließlich eingeklappter Stapelmitglieder, abzüglich Ihrer Ausschlüsse. Welche Fotos passen, wird beim Ausführen der Aktion ermittelt.",
+        "loaded": "Geladener Gruppenkontext: {shown} / {total}. Ausgewählte Fotos außerhalb der geladenen Ansicht werden hier nicht zusammengefasst.",
+        "manual": "Manueller Stapel",
+        "stack_count": "Passend: {matching} · Zugelassen: {total}"
+      }
     },
     "keep_top": {
       "label": "Top % behalten",
@@ -1260,7 +1269,7 @@
       "location": "Standort",
       "folder": "Ordner",
       "persons": "Personen",
-      "smart_album_filter_notice": "Smart-Album — Filteränderungen werden automatisch gespeichert.",
+      "smart_album_filter_notice": "Filteränderungen sind temporär. Prüfen und speichern Sie die Albumregeln über die Kriterien der Sammlung, um sie beizubehalten.",
       "virtual_scroll": "Schnelles Scrollen (virtualisiert)",
       "any": "Alle",
       "find_filter": "Filter suchen…",
@@ -1466,7 +1475,7 @@
     "moment_confidence_range": "Moment-Konfidenz",
     "compare": {
       "title": "{count} Fotos im Vergleich",
-      "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben. Kopplung teilt Bewegungen, nicht die Motivausrichtung. Doppelklick zum Zurücksetzen.",
+      "hint": "Scrollen zum Zoomen, Ziehen zum Verschieben. Gekoppelte Ansichten teilen Bewegungen, nicht die Motivausrichtung. Doppelklick zum Zurücksetzen.",
       "reset_zoom": "Zoom zurücksetzen",
       "linked": "Gekoppelt",
       "independent": "Unabhängig",
@@ -1484,7 +1493,41 @@
       "remove_pane": "{name} nur aus dem Vergleich entfernen",
       "restore": "Entfernte Fotos wiederherstellen",
       "queue": "Kandidaten (ohne Referenz): {count}",
-      "queue_label": "Vergleichsfotos"
+      "queue_label": "Vergleichsfotos",
+      "rendition": {
+        "thumbnail": "Gespeicherte Miniatur",
+        "preview": "Vorschau",
+        "source": "Quellbild",
+        "loading": "Wird geladen…",
+        "ready": "Bereit",
+        "failed": "Nicht verfügbar",
+        "fit": "Bild einpassen",
+        "zoom_in": "Vergrößern",
+        "zoom_out": "Verkleinern",
+        "scale_help": "Die Vergrößerung bezieht sich auf die eingepasste Ansicht, nicht auf Quellpixel. Einpassen zeigt wieder das ganze Bild; bei gekoppelten Ansichten werden alle Teilansichten zurückgesetzt.",
+        "limit": "Ist eine Vorschau nicht verfügbar, kann die gespeicherte Miniatur angezeigt werden. Quellbilder werden möglicherweise für den Browser umgewandelt. Dies ist kein RAW-Editor und erlaubt keine Beurteilung des Sensor-Clippings.",
+        "fit_short": "Einpassen",
+        "sources": "Bildquellen und Vergrößerung",
+        "fallback": "Vorschau nicht verfügbar"
+      },
+      "inspection": {
+        "title": "Prüfen",
+        "magnification": "Lupe",
+        "shared_person": "Gespeicherte Person in sichtbaren Teilansichten ausrichten…",
+        "partial": "Einige gespeicherte Erkennungsdaten konnten nicht geladen werden.",
+        "help": "Beim Ausrichten wird auf Unabhängig umgeschaltet. Prüfen Sie die Ausschnitte vor dem Koppeln. Gespeicherte Zuordnungen können falsch oder veraltet sein. Die Lupe vergrößert die angezeigten Pixel; fordern Sie das Quellbild durch Hineinzoomen an.",
+        "no_correspondence": "Keine eindeutig zugeordnete gespeicherte Person mit nutzbaren Begrenzungsrahmen in allen sichtbaren Teilansichten. Richten Sie die Ausschnitte manuell aus. Koppeln teilt Bewegungen, keine Personenzuordnung.",
+        "suggested_face": "Vorgeschlagenes Gesicht",
+        "suggested_subject": "Vorgeschlagenes Motiv",
+        "no_crop": "Ausschnitt nicht verfügbar",
+        "choose_face": "Gesicht wählen…",
+        "manual_fallback": "Dieser Ausschnitt konnte nicht zuverlässig ausgerichtet werden. Warten Sie auf das Bild oder zoomen und verschieben Sie manuell.",
+        "review_link": "Unabhängige Ausrichtung angewendet. Prüfen Sie die Ausrichtung und koppeln Sie anschließend die Ansichten. Einpassen zeigt wieder das ganze Bild.",
+        "keyboard": "Tasten in Teilansichten: +/− zoomt, Pfeile verschieben, Umschalt vergrößert den Schritt, F/Pos1 passt ein. Z schaltet die Lupe in der eingepassten Ansicht um. Auf Touchscreens Zoomtasten und Ziehen verwenden. Escape schließt den Vergleich."
+      },
+      "assign_target": "Zu ersetzende Seite wählen",
+      "assign_hint": "Wählen Sie eine Miniatur für {target}.",
+      "assign_photo": "{name} als {target} verwenden"
     },
     "clipping": {
       "badge_highlight": "Beschnittene Lichter: {percent}% der Pixel",
@@ -1525,6 +1568,21 @@
       "named": "{name} benannt",
       "error": "Name konnte nicht gespeichert werden",
       "remove": "Aus dem Filter entfernen"
+    },
+    "collection_controls": "Ansichtsoptionen",
+    "collection_totals_compact": "Treffer: {photos}, angezeigt: {items}",
+    "rating_preview": {
+      "title": "Persönliche Bewertung bearbeiten",
+      "target": "Erfasste Zielfotos: {count}",
+      "scope": "Nur die Fotos unter diesen Pfaden ändern sich. Eingeklappte Gruppenmitglieder und Begleitdateien werden nicht hinzugefügt. Tags, Favoriten und Behalten/Ablehnen bleiben unverändert.",
+      "observed": "Verfügbare geladene Bewertungen: {loaded}/{total}",
+      "unknown": "Die Anteile beschreiben nur geladene Fotos. Werte außerhalb der geladenen Ansicht sind unbekannt; null bedeutet keine persönlichen Sterne.",
+      "operation": "Neue Bewertung",
+      "clear": "Sterne löschen",
+      "clear_plan": "Persönliche Sterne für {count} erfasste Fotos löschen.",
+      "set_plan": "{rating} persönliche Sterne für {count} erfasste Fotos setzen.",
+      "boundary": "Dateien werden nicht neu geschrieben. Jeder Stapel wird separat gespeichert. Das kurz verfügbare Rückgängig berücksichtigt nur geladene Momentaufnahmen und lokal bekannte Konflikte; der Verlauf verwendet serverseitige Konfliktprüfungen.",
+      "whole_scope": "Diese erfasste Liste der gesamten Ansicht enthält nach Abzug der Ausschlüsse auch passende eingeklappte Mitglieder. Weitere Mitglieder oder Begleitdateien werden nicht hinzugefügt. Tags, Favoriten und Behalten/Ablehnen bleiben unverändert."
     }
   },
   "composition_patterns": {
@@ -2088,6 +2146,28 @@
       "recompute_failed": "Neuberechnung fehlgeschlagen.",
       "recompute_busy": "Es läuft bereits ein Auftrag. Versuchen Sie es später erneut.",
       "close": "Schließen"
+    },
+    "rules": {
+      "smart": "Intelligentes Album",
+      "manual": "Manuelles Album",
+      "temporary": "Temporäre Regeländerungen",
+      "saved": "Gespeicherte Regeln",
+      "working": "Aktuelle Ansicht",
+      "any": "Beliebig",
+      "smart_hint": "Filter ändern nur diese Ansicht. Gespeicherte Regeln ändern sich erst, wenn Sie sie prüfen und speichern.",
+      "manual_hint": "Die Mitglieder sind von Hand ausgewählt. Filter grenzen diese Ansicht ein, ohne Fotos hinzuzufügen oder zu entfernen.",
+      "presentation": "Anzeigeeinstellungen und Regeln für ausgeblendete Bilder bleiben temporär. Das Speichern der Regeln ändert keine Fotometadaten.",
+      "unsupported": "Visuelle Suche, GPS-Umkreis, gruppierte Bildansichten und Prüfwarteschlangen bleiben temporär. Verlassen Sie diese Modi, bevor Sie Regeländerungen speichern oder zurücksetzen.",
+      "invalid": "Diese gespeicherten Regeln sind nicht verfügbar oder werden nicht unterstützt. Laden Sie das Album neu, bevor Sie seine Regeln bearbeiten.",
+      "reset": "Regeländerungen zurücksetzen",
+      "preview": "Regeländerungen prüfen…",
+      "confirm": "Gespeicherte Regeln für „{name}“ aktualisieren? Geänderte Felder: {count}. Bei künftigen Besuchen gelten diese Regeln.",
+      "save": "Albumregeln speichern",
+      "conflict": "Die gespeicherten Regeln wurden seit dem Öffnen dieser Ansicht geändert. Laden Sie sie neu und prüfen Sie Ihre Änderungen erneut.",
+      "success": "Albumregeln gespeichert.",
+      "failed": "Die gespeicherten Regeln konnten nicht gelesen werden. Ihre aktuelle Ansicht bleibt unverändert.",
+      "uncertain": "Das Speichern konnte nicht bestätigt werden. Laden Sie die gespeicherten Regeln neu, bevor Sie es erneut versuchen.",
+      "reload": "Gespeicherte Regeln neu laden"
     }
   },
   "critique": {
@@ -2509,7 +2589,12 @@
       "out_of_date": "Der Plan des Assistenten ist veraltet - bitten Sie ihn, die Vorschau erneut zu erstellen",
       "replan_flips_dropped": "{count} Ihrer Änderungen passen zu keiner Gruppe mehr und wurden verworfen."
     },
-    "stack_group": "Diese Gruppe stapeln, aktuelles Bild als Titelbild"
+    "stack_group": "Diese Gruppe stapeln, aktuelles Bild als Titelbild",
+    "comparison": {
+      "choose_pane": "Teilansicht {pane} wählen: {name}",
+      "assign_hint": "Wählen Sie oben eine Teilansicht und dann unten eine Miniatur, um Teilansicht {pane} zu ersetzen.",
+      "assign_photo": "{name} in Teilansicht {pane} anzeigen"
+    }
   },
   "scenes": {
     "title": "Szenen",
@@ -2814,6 +2899,25 @@
       "top": "Top {pct} % der Bibliothek",
       "range": "Bereich der Bibliothek {min}–{max}",
       "top_in_range": "Top {pct} % der Bibliothek · Bereich der Bibliothek {min}–{max}"
+    },
+    "assessment": {
+      "title": "KI-Beurteilung",
+      "score": "KI-Wertung",
+      "measurements": "Messwerte {available}/{total}",
+      "explanation": "KI-Messwerte unterstützen die Prüfung. Ihre Sterne und Entscheidungen zum Behalten/Ablehnen sind davon getrennt.",
+      "unavailable": "Nicht verfügbar",
+      "unavailable_help": "Nicht verfügbar bedeutet, dass kein nutzbarer Messwert zurückgegeben wurde. Dies ist weder null noch eine niedrige Wertung; der Grund wird hier nicht angegeben.",
+      "group_pick": "In dieser Gruppe vorgeschlagen",
+      "group_pick_help": "Der Gruppenvorschlag ordnet diese Alternativen nach ihrer Wertung. Er ist nicht Ihre Bewertung und bedeutet nicht automatisch Behalten."
+    },
+    "rendition": {
+      "edited": "Entwickelte Vorschau",
+      "pending": "Angeforderte Darstellung wird geladen…",
+      "attempt_failed": "Angeforderte Darstellung nicht verfügbar",
+      "note": "Quellbild bezeichnet das vom Server gelieferte Anzeigebild, keine bearbeitbare RAW-Darstellung. Die Abmessungen beschreiben dekodierte Pixel. Der Zoom bezieht sich auf die eingepasste Ansicht, nicht auf Sensorpixel bei 100 %. Gespeicherte Histogrammwerte beschreiben die analysierte Darstellung; Schätzungen aus Miniaturen und Clipping-Markierungen belegen kein RAW-Sensor-Clipping.",
+      "base_render": "Basisdarstellung",
+      "edited_failed": "Entwickelte Vorschau nicht verfügbar",
+      "source_failed": "Quellbild nicht verfügbar"
     }
   },
   "manual_tags": {
@@ -2833,7 +2937,16 @@
       "uncertain": "Eine Antwort ging verloren oder schlug fehl. Der Server hat den Stapel möglicherweise bereits angewendet. Wiederholen verarbeitet nur die verbleibenden Stapel mit demselben Tag und Vorgang.",
       "edit": "Änderung bearbeiten",
       "saving": "Wird angewendet…",
-      "retry": "Verbleibende wiederholen"
+      "retry": "Verbleibende wiederholen",
+      "tag_list": "Manuelle Schlagwörter",
+      "tag_list_hint": "Ein Schlagwort pro Zeile, höchstens 50. Hinzufügen/Entfernen gilt für ein Schlagwort; Ersetzen verwendet die gesamte Liste.",
+      "replace": "Alle ersetzen",
+      "clear": "Alle löschen",
+      "replace_preview": "Alle manuellen Schlagwörter der Zielfotos durch diese Schlagwörter ersetzen:",
+      "clear_preview": "Alle manuellen Schlagwörter von den Zielfotos entfernen.",
+      "replace_boundary": "Dabei können importierte manuelle Schlagwörter entfernt werden. KI-Tags und andere Metadaten bleiben unverändert. Jeder Stapel wird vollständig oder gar nicht gespeichert; mehrere Stapel werden separat gespeichert. Für manuelle Schlagwörter ist kein Rückgängig verfügbar.",
+      "recheck": "Eine Antwort auf Ersetzen/Löschen ist ungewiss. Schließen Sie den Dialog, prüfen Sie die Zielfotos und erstellen Sie eine neue Vorschau. Die Wiederholung dieses alten Plans könnte neuere Schlagwörter überschreiben.",
+      "captured_view_scope": "Die Liste passender Fotos der gesamten Ansicht wurde nach Abzug der Ausschlüsse erfasst, einschließlich passender eingeklappter Mitglieder. Spätere Treffer werden nicht hinzugefügt. Begleitdateien sind nicht eingeschlossen."
     },
     "title": "Schlagwörter bearbeiten",
     "tag_label": "Schlagwort",
@@ -2897,7 +3010,7 @@
       "cancelled": "Export abgebrochen",
       "failed": "Export fehlgeschlagen",
       "interrupted": "Export unterbrochen",
-      "progress": "{processed} / {total} Dateien verarbeitet",
+      "progress": "Verarbeitet: {processed} / {total}",
       "counts": "{written} geschrieben · {skipped} übersprungen · {errors} Fehler",
       "close": "Schließen",
       "close_hint": "Der Export läuft nach dem Schließen weiter. Öffnen Sie den Dialog erneut für letzte Exporte.",
@@ -2915,7 +3028,11 @@
         "write_failed": "Metadaten konnten nicht geschrieben werden. Prüfen Sie die Serverprotokolle.",
         "exiftool_upgrade": "ExifTool 13.23 bis 13.27 beschädigt XMP-Sidecar-Dateien. Aktualisieren Sie ExifTool auf 13.28 oder neuer.",
         "stopped": "Der Export wurde unerwartet beendet. Prüfen Sie die Serverprotokolle und wiederholen Sie die übrigen Fotos."
-      }
+      },
+      "partial": "Mit unerledigten Einträgen abgeschlossen",
+      "workspace_title": "Verarbeitungs- und Exportbelege",
+      "workspace_hint": "Sidecar-Belege für dieses Konto. Aufträge laufen nach dem Schließen dieses Fensters weiter. Starten Sie neue Exporte über eine Fotoauswahl oder ein Album.",
+      "receipt_id": "Beleg"
     }
   },
   "undo": {
@@ -3103,6 +3220,11 @@
     "clipping": {
       "shadow": "Schatten beschnitten: {channels}",
       "highlight": "Lichter beschnitten: {channels}"
+    },
+    "provenance": {
+      "stored": "Gespeichertes Histogramm der Darstellung",
+      "thumbnail": "Schätzung aus Miniatur",
+      "note": "Diese Kurve beschreibt ein gerendertes Bild, keine RAW-Sensorwerte. Clipping-Markierungen verwenden gespeicherte Messwerte, sofern verfügbar. Stichproben aus Miniaturen können kein Sensor-Clipping nachweisen."
     }
   },
   "manual_faces": {
@@ -3260,7 +3382,13 @@
     "photo_count": "Fotos: {count}",
     "field": "Feld",
     "entry_action": "{action} · {kind} · {date} · #{id}",
-    "stack": "Fotostapel"
+    "stack": "Fotostapel",
+    "limits_title": "Was der Verlauf wiederherstellen kann",
+    "limits": "Bis zu 50 aktuelle Einträge für dieses Konto. Unterstützt werden Prüffelder, Ort, Aufnahmedatum und manuelle Stapel. Manuelle Schlagwörter, Exporte und Dateiverschiebungen lassen sich hier nicht rückgängig machen. Das kurz verfügbare Rückgängig ist separat und auf seine Momentaufnahme beschränkt.",
+    "reload": "Verlauf neu laden",
+    "preview_action": "Wiederherstellung prüfen…",
+    "restore_preview": "Diesen Eintrag wiederherstellen: {count} Fotos · Teil {part}/{parts}.",
+    "restore_boundary": "Nur dieser Teil wird wiederhergestellt. Der Server prüft die aufgezeichneten Werte und Revisionen; bei einem Konflikt wird nichts wiederhergestellt. Andere Teile erfordern separate Aktionen."
   },
   "stacks": {
     "review_help": "Prüfen Sie Stapelvorschläge in der Dunkelkammer. S stapelt mit dem vorgeschlagenen Titelbild im Raster oder dem aktiven Foto in der Dunkelkammer. Eingabe öffnet eine Gruppe oder stapelt das aktive Foto. X überspringt. Mitglieder bearbeiten passt die Gruppe vor dem Speichern an. Sichtungsentscheidungen bleiben unverändert. R lehnt das aktive Foto sofort ab und schließt es aus dem Entwurf aus. Rückgängig stellt Sichtung und Mitgliedschaft wieder her. Die Gruppierung wartet auf Speichern; Verlassen ohne Speichern macht Ablehnen nicht rückgängig.",
@@ -3312,7 +3440,7 @@
     "saved": "Fotostapel aktualisiert",
     "expand_all": "Alle Stapel aufklappen",
     "collapse": "Stapel einklappen",
-    "totals": "{photos} passende Fotos · {items} angezeigte Elemente",
+    "totals": "Passende Fotos: {photos} · Angezeigt: {items}",
     "folded_scope": "Aktionen für die gesamte Ansicht umfassen eingeklappte Mitglieder. Eine einzeln ausgewählte Kachel betrifft nur dieses Foto.",
     "explicit_only": "Zum Erstellen 2–1000 Fotos ausdrücklich auswählen.",
     "badge": "Stapel öffnen: {count} Mitglieder",

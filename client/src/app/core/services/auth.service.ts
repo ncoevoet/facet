@@ -71,8 +71,11 @@ export class AuthService {
   private router = inject(Router);
 
   private readonly TOKEN_KEY = 'facet_token';
-  private pendingRevalidation: Promise<AuthStatus | null> | null = null;
-  private pendingLoad: Promise<AuthStatus> | null = null;
+  private pendingStatus: { token: string | null; revision: number; promise: Promise<AuthStatus> } | null = null;
+  private credentialToken: string | null = this.token;
+  private statusToken: string | null = this.token;
+  private statusRevision = 0;
+  private editionLocks = signal(0);
 
   /** Reactive auth state */
   readonly status = signal<AuthStatus | null>(null);
@@ -82,7 +85,7 @@ export class AuthService {
     return `${status?.authenticated ? 1 : 0}|${status?.user_id ?? ''}`;
   });
   readonly isAuthenticated = computed(() => this.status()?.authenticated ?? false);
-  readonly isEdition = computed(() => this.status()?.edition_authenticated ?? false);
+  readonly isEdition = computed(() => this.editionLocks() === 0 && (this.status()?.edition_authenticated ?? false));
   readonly editionPasswordRequired = computed(() => this.status()?.edition_password_required ?? false);
   /** Single-user install with no edition password: read-only until one is set. */
   readonly isReadOnlyInstall = computed(() => {
@@ -106,6 +109,11 @@ export class AuthService {
     const onStorage = (event: StorageEvent) => {
       if (event.key === this.TOKEN_KEY) {
         if (event.newValue === null) clearReviewQueues();
+        // Refuse new commands immediately, before the replacement account's
+        // status returns. Existing captured commands also observe this boundary.
+        this.statusRevision++;
+        this.status.set(null);
+        this.credentialToken = this.token;
         void this.revalidate();
       } else if (event.key === REVIEW_QUEUE_STORAGE_KEY && event.newValue === null) clearReviewQueues();
     };
@@ -119,10 +127,27 @@ export class AuthService {
   }
 
   /** Check auth status with the server */
-  async checkStatus(): Promise<AuthStatus> {
-    const status = await firstValueFrom(this.http.get<AuthStatus>('/api/auth/status'));
-    this.status.set(status);
-    return status;
+  checkStatus(): Promise<AuthStatus> {
+    const token = this.token;
+    if (this.credentialToken !== token) {
+      this.credentialToken = token;
+      this.statusRevision++;
+      this.status.set(null);
+    }
+    const revision = this.statusRevision;
+    if (this.pendingStatus?.token === token && this.pendingStatus.revision === revision) return this.pendingStatus.promise;
+    const promise = firstValueFrom(this.http.get<AuthStatus>('/api/auth/status')).then(status => {
+      if (revision !== this.statusRevision || token !== this.token) {
+        throw new Error('Authentication changed while checking status');
+      }
+      this.statusToken = token;
+      this.status.set(status);
+      return status;
+    }).finally(() => {
+      if (this.pendingStatus?.promise === promise) this.pendingStatus = null;
+    });
+    this.pendingStatus = { token, revision, promise };
+    return promise;
   }
 
   /** The cached status, or the one server load every caller shares while it is
@@ -131,19 +156,16 @@ export class AuthService {
    *  settles. Rejects like `checkStatus`. */
   loadStatus(): Promise<AuthStatus> {
     const cached = this.status();
-    if (cached) return Promise.resolve(cached);
-    this.pendingLoad ??= this.checkStatus().finally(() => { this.pendingLoad = null; });
-    return this.pendingLoad;
+    const token = this.token;
+    if (cached && this.statusToken === token) return Promise.resolve(cached);
+    return this.checkStatus();
   }
 
   /** Reconcile the cached status with the server, coalescing concurrent callers
    *  so a burst of rejected requests costs a single round-trip. Never rejects:
    *  a failed reconciliation must not replace the error that triggered it. */
   revalidate(): Promise<AuthStatus | null> {
-    this.pendingRevalidation ??= this.checkStatus()
-      .catch(() => null)
-      .finally(() => { this.pendingRevalidation = null; });
-    return this.pendingRevalidation;
+    return this.checkStatus().catch(() => null);
   }
 
   /**
@@ -213,6 +235,9 @@ export class AuthService {
     // fire-and-forget — local state is dropped regardless.
     this.http.post('/api/auth/logout', {}).subscribe({ error: () => undefined });
     localStorage.removeItem(this.TOKEN_KEY);
+    this.statusRevision++;
+    this.credentialToken = this.token;
+    this.statusToken = this.token;
     clearPersonAssignmentHistory();
     clearReviewQueues();
     this.status.set(null);
@@ -233,17 +258,33 @@ export class AuthService {
 
   /** Drop edition privileges without navigating away */
   async dropEdition(): Promise<void> {
+    const token = this.token;
+    this.credentialToken = token;
+    if (this.statusToken !== token) this.status.set(null);
+    const revision = ++this.statusRevision;
+    this.editionLocks.update(count => count + 1);
+    this.status.update(s => s ? { ...s, edition_authenticated: false } : s);
     try {
       const res = await firstValueFrom(
         this.http.post<LoginResponse>('/api/auth/edition/logout', {}),
       );
+      if (revision !== this.statusRevision || token !== this.token) return;
       if (res?.access_token) {
         localStorage.setItem(this.TOKEN_KEY, res.access_token);
+        this.credentialToken = this.token;
+        this.statusToken = this.token;
       }
+      this.statusRevision++;
+      this.status.update(s => s ? { ...s, edition_authenticated: false } : s);
     } catch {
       // Network error — keep existing token rather than destroying the session
+      if (revision === this.statusRevision && token === this.token) {
+        this.statusRevision++;
+        this.status.update(s => s ? { ...s, edition_authenticated: false } : s);
+      }
+    } finally {
+      this.editionLocks.update(count => count - 1);
     }
-    this.status.update(s => s ? { ...s, edition_authenticated: false } : s);
   }
 
   /** Check if a feature is enabled */

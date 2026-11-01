@@ -1230,7 +1230,16 @@
       "download_confirm_title": "Scaricare {count} foto?",
       "download_confirm_message": "Ogni foto viene scaricata come file separato. {count} di esse richiederanno tempo e potrebbero sovraccaricare il browser.",
       "mark_bracket": "Segna come un'unica serie di esposizione",
-      "marked_bracket": "{count} foto segnate come un'unica serie di esposizione"
+      "marked_bracket": "{count} foto segnate come un'unica serie di esposizione",
+      "select": "Seleziona",
+      "targets": {
+        "title": "Destinazione",
+        "explicit": "I comandi agiscono sulle foto selezionate esplicitamente. Selezionare una miniatura di un gruppo compresso non seleziona gli altri membri.",
+        "view": "I comandi agiscono sulle foto corrispondenti ai filtri, inclusi i membri delle pile compresse, al netto delle tue esclusioni. Le corrispondenze vengono determinate all’esecuzione del comando.",
+        "loaded": "Gruppi caricati riepilogati: {shown} / {total}. Le selezioni fuori schermo non sono riepilogate qui.",
+        "manual": "Pila manuale",
+        "stack_count": "Corrispondenti: {matching} · Consentiti: {total}"
+      }
     },
     "keep_top": {
       "label": "Tieni top %",
@@ -1260,7 +1269,7 @@
       "location": "Posizione",
       "folder": "Cartella",
       "persons": "Persone",
-      "smart_album_filter_notice": "Album intelligente — i filtri vengono salvati automaticamente.",
+      "smart_album_filter_notice": "Le modifiche ai filtri sono temporanee. Per conservarle, esamina e salva le regole dell’album dai criteri della raccolta.",
       "virtual_scroll": "Scorrimento rapido (virtualizzato)",
       "any": "Tutti",
       "find_filter": "Cerca un filtro…",
@@ -1484,7 +1493,41 @@
       "remove_pane": "Rimuovi {name} solo dal confronto",
       "restore": "Ripristina le foto rimosse",
       "queue": "Candidate (riferimento escluso): {count}",
-      "queue_label": "Foto di confronto"
+      "queue_label": "Foto di confronto",
+      "rendition": {
+        "thumbnail": "Miniatura salvata",
+        "preview": "Anteprima",
+        "source": "Immagine sorgente",
+        "loading": "Caricamento…",
+        "ready": "Pronta",
+        "failed": "Non disponibile",
+        "fit": "Adatta immagine",
+        "zoom_in": "Ingrandisci",
+        "zoom_out": "Riduci",
+        "scale_help": "L’ingrandimento è relativo alla vista Adatta, non ai pixel sorgente. Adatta ripristina l’intera inquadratura; con il collegamento attivo ripristina tutti i riquadri.",
+        "limit": "Se l’anteprima non è disponibile, può essere usata la miniatura salvata. Le immagini sorgente possono essere convertite per il browser; questa funzione non è un editor RAW né una valutazione della saturazione del sensore.",
+        "fit_short": "Adatta",
+        "sources": "Sorgenti delle immagini e ingrandimento",
+        "fallback": "Anteprima non disponibile"
+      },
+      "inspection": {
+        "title": "Esamina",
+        "magnification": "Lente",
+        "shared_person": "Inquadra una persona salvata nei riquadri visibili…",
+        "partial": "Impossibile caricare alcuni dati di rilevamento salvati.",
+        "help": "L’inquadratura passa alla modalità Indipendenti. Controlla i ritagli prima di collegare i riquadri. Le assegnazioni salvate possono essere errate o obsolete. La lente ingrandisce i pixel visualizzati; aumenta lo zoom per richiedere l’immagine sorgente.",
+        "no_correspondence": "Nessuna persona salvata è identificata univocamente con riquadri utilizzabili in ogni vista visibile. Inquadra manualmente; il collegamento condivide i movimenti, non l’identità.",
+        "suggested_face": "Volto suggerito",
+        "suggested_subject": "Soggetto suggerito",
+        "no_crop": "Ritaglio non disponibile",
+        "choose_face": "Scegli volto…",
+        "manual_fallback": "Impossibile inquadrare questo ritaglio in modo affidabile. Attendi l’immagine oppure usa zoom e spostamento manuali.",
+        "review_link": "Inquadrature indipendenti applicate. Controlla l’allineamento, poi collega i riquadri. Adatta ripristina l’intera inquadratura.",
+        "keyboard": "Tasti del riquadro: +/− per lo zoom, frecce per spostare, Shift per spostamenti maggiori, F/Home per adattare. Z attiva o disattiva la lente nella vista Adatta. Su schermi tattili usa i pulsanti dello zoom e trascina. Escape chiude il confronto."
+      },
+      "assign_target": "Scegli quale lato sostituire",
+      "assign_hint": "Scegli una miniatura da usare come {target}.",
+      "assign_photo": "Usa {name} come {target}"
     },
     "clipping": {
       "badge_highlight": "Alte luci tagliate: {percent}% dei pixel",
@@ -1525,6 +1568,21 @@
       "named": "Chiamato {name}",
       "error": "Impossibile salvare il nome",
       "remove": "Rimuovi dal filtro"
+    },
+    "collection_controls": "Opzioni vista",
+    "collection_totals_compact": "Corrispondenti: {photos}, visualizzati: {items}",
+    "rating_preview": {
+      "title": "Modifica valutazione personale",
+      "target": "Destinazione acquisita: {count} foto",
+      "scope": "Cambiano solo le foto in questi percorsi. Non vengono aggiunti membri dei gruppi compressi né file associati. Tag, preferiti e decisioni Conserva/Rifiuta restano invariati.",
+      "observed": "Valutazioni caricate disponibili: {loaded}/{total}",
+      "unknown": "Le proporzioni descrivono solo le foto caricate. I valori fuori schermo sono sconosciuti; zero indica nessuna stella personale.",
+      "operation": "Nuova valutazione",
+      "clear": "Rimuovi stelle",
+      "clear_plan": "Rimuovi le stelle personali dalle {count} foto acquisite.",
+      "set_plan": "Assegna {rating} stelle personali alle {count} foto acquisite.",
+      "boundary": "Nessun file viene riscritto. I lotti vengono confermati separatamente. Annulla rapido è limitato alle istantanee caricate e ai conflitti noti localmente; la Cronologia verifica i conflitti sul server.",
+      "whole_scope": "Questo elenco acquisito dell’intera vista include i membri compressi corrispondenti, dopo le esclusioni. Non vengono aggiunti altri membri né file associati. Tag, preferiti e decisioni Conserva/Rifiuta restano invariati."
     }
   },
   "composition_patterns": {
@@ -2088,6 +2146,28 @@
       "recompute_failed": "Ricalcolo non riuscito.",
       "recompute_busy": "È già in esecuzione un'attività. Riprova più tardi.",
       "close": "Chiudi"
+    },
+    "rules": {
+      "smart": "Album intelligente",
+      "manual": "Album manuale",
+      "temporary": "Modifiche temporanee alle regole",
+      "saved": "Regole salvate",
+      "working": "Vista attuale",
+      "any": "Qualsiasi",
+      "smart_hint": "I filtri modificano solo questa vista. Le regole salvate cambiano solo dopo che le hai esaminate e salvate.",
+      "manual_hint": "L’album contiene un insieme di foto scelte manualmente. I filtri restringono questa vista senza aggiungere o rimuovere foto.",
+      "presentation": "Le impostazioni di visualizzazione e le regole per nascondere i fotogrammi restano temporanee. Salvare le regole non modifica i metadati delle foto.",
+      "unsupported": "Ricerca visiva, raggio GPS, viste di fotogrammi raggruppati e code di revisione restano temporanei. Esci da queste modalità prima di salvare o reimpostare le modifiche alle regole.",
+      "invalid": "Queste regole salvate non sono disponibili o supportate. Ricarica l’album prima di modificarne le regole.",
+      "reset": "Reimposta modifiche alle regole",
+      "preview": "Esamina modifiche alle regole…",
+      "confirm": "Aggiornare le regole salvate di “{name}”? Campi modificati: {count}. Le prossime visite useranno queste regole.",
+      "save": "Salva regole dell’album",
+      "conflict": "Le regole salvate sono cambiate dall’apertura di questa vista. Ricaricale ed esamina nuovamente le tue modifiche.",
+      "success": "Regole dell’album salvate.",
+      "failed": "Impossibile leggere le regole salvate. La vista attuale è invariata.",
+      "uncertain": "Impossibile confermare il salvataggio. Ricarica le regole salvate prima di riprovare.",
+      "reload": "Ricarica regole salvate"
     }
   },
   "critique": {
@@ -2509,7 +2589,12 @@
       "out_of_date": "Il piano dell'assistente è obsoleto - chiedigli di generare di nuovo l'anteprima",
       "replan_flips_dropped": "{count} delle tue modifiche non corrispondono più a nessun gruppo e sono state scartate."
     },
-    "stack_group": "Impila questo gruppo, fotogramma corrente come copertina"
+    "stack_group": "Impila questo gruppo, fotogramma corrente come copertina",
+    "comparison": {
+      "choose_pane": "Scegli il riquadro {pane}: {name}",
+      "assign_hint": "Scegli un riquadro sopra, poi una miniatura sotto per sostituire il riquadro {pane}.",
+      "assign_photo": "Mostra {name} nel riquadro {pane}"
+    }
   },
   "scenes": {
     "title": "Scene",
@@ -2814,6 +2899,25 @@
       "top": "Top {pct}% della libreria",
       "range": "Intervallo della libreria {min}–{max}",
       "top_in_range": "Top {pct}% della libreria · intervallo della libreria {min}–{max}"
+    },
+    "assessment": {
+      "title": "Valutazione IA",
+      "score": "Punteggio IA",
+      "measurements": "Misurazioni {available}/{total}",
+      "explanation": "Le misurazioni IA aiutano a esaminare le foto. Le tue stelle e le decisioni Conserva/Rifiuta sono separate.",
+      "unavailable": "Non disponibile",
+      "unavailable_help": "Non disponibile indica che non è stata restituita una misurazione utilizzabile. Non è uno zero né un punteggio basso; qui non viene fornita la motivazione.",
+      "group_pick": "Suggerita in questo gruppo",
+      "group_pick_help": "Il suggerimento del gruppo ordina queste alternative. Non è la tua valutazione e non implica automaticamente Conserva."
+    },
+    "rendition": {
+      "edited": "Anteprima sviluppata",
+      "pending": "Caricamento della versione richiesta…",
+      "attempt_failed": "Versione richiesta non disponibile",
+      "note": "Immagine sorgente indica l’immagine da visualizzare fornita dal server, non uno sviluppo RAW modificabile. Le dimensioni descrivono i pixel decodificati. Lo zoom è relativo alla vista Adatta, non ai pixel del sensore al 100%. Le misurazioni salvate dell’istogramma descrivono l’immagine analizzata; le stime delle miniature e gli indicatori di clipping non dimostrano la saturazione del sensore RAW.",
+      "base_render": "Immagine di visualizzazione di base",
+      "edited_failed": "Anteprima sviluppata non disponibile",
+      "source_failed": "Immagine sorgente non disponibile"
     }
   },
   "manual_tags": {
@@ -2833,7 +2937,16 @@
       "uncertain": "Una risposta è stata persa o non è riuscita. Il server potrebbe aver già applicato il lotto. Riprova ripete solo i lotti rimanenti con lo stesso tag e operazione.",
       "edit": "Modifica il cambiamento",
       "saving": "Applicazione…",
-      "retry": "Riprova rimanenti"
+      "retry": "Riprova rimanenti",
+      "tag_list": "Tag manuali",
+      "tag_list_hint": "Un tag per riga, fino a 50. Aggiungi/Rimuovi agisce su un solo tag; Sostituisci usa l’intero elenco.",
+      "replace": "Sostituisci tutto",
+      "clear": "Cancella tutto",
+      "replace_preview": "Sostituisci tutti i tag manuali della destinazione con questi tag:",
+      "clear_preview": "Rimuovi tutti i tag manuali dalla destinazione.",
+      "replace_boundary": "Questa operazione può rimuovere tag manuali importati. I tag IA e gli altri metadati restano invariati. Ogni lotto è atomico; più lotti vengono confermati separatamente. Annulla non è disponibile per i tag manuali.",
+      "recheck": "L’esito di Sostituisci/Cancella è incerto. Chiudi, esamina la destinazione e crea una nuova anteprima; ripetere questo vecchio piano potrebbe sovrascrivere tag più recenti.",
+      "captured_view_scope": "L’elenco delle foto corrispondenti dell’intera vista è stato acquisito dopo le esclusioni, inclusi i membri compressi corrispondenti. Le corrispondenze successive non vengono aggiunte. I file associati non sono inclusi."
     },
     "title": "Modifica tag",
     "tag_label": "Tag",
@@ -2897,7 +3010,7 @@
       "cancelled": "Esportazione annullata",
       "failed": "Esportazione non riuscita",
       "interrupted": "Esportazione interrotta",
-      "progress": "{processed} / {total} file elaborati",
+      "progress": "Elaborati: {processed} / {total}",
       "counts": "{written} scritti · {skipped} saltati · {errors} errori",
       "close": "Chiudi",
       "close_hint": "L’esportazione continua dopo la chiusura. Riapri la finestra per vedere le esportazioni recenti.",
@@ -2915,7 +3028,11 @@
         "write_failed": "Impossibile scrivere i metadati. Controlla i log del server.",
         "exiftool_upgrade": "ExifTool dalla 13.23 alla 13.27 danneggia i file XMP. Aggiorna ExifTool alla 13.28 o successiva.",
         "stopped": "L’esportazione si è interrotta in modo imprevisto. Controlla i log del server e riprova con le foto rimanenti."
-      }
+      },
+      "partial": "Completato con elementi incompiuti",
+      "workspace_title": "Ricevute di elaborazione ed esportazione",
+      "workspace_hint": "Ricevute dei file sidecar di questo account. Chiudere questa finestra lascia le attività in esecuzione. Avvia nuove esportazioni da una selezione di foto o da un album.",
+      "receipt_id": "Ricevuta"
     }
   },
   "undo": {
@@ -3103,6 +3220,11 @@
     "clipping": {
       "shadow": "Ombre tagliate: {channels}",
       "highlight": "Alte luci tagliate: {channels}"
+    },
+    "provenance": {
+      "stored": "Istogramma salvato dell’immagine elaborata",
+      "thumbnail": "Stima dalla miniatura",
+      "note": "Questa curva descrive un’immagine elaborata, non i valori RAW del sensore. Gli indicatori di clipping usano le misurazioni salvate quando disponibili; il campionamento della miniatura non può accertare la saturazione del sensore."
     }
   },
   "manual_faces": {
@@ -3260,7 +3382,13 @@
     "photo_count": "Foto: {count}",
     "field": "Campo",
     "entry_action": "{action} · {kind} · {date} · #{id}",
-    "stack": "Pila di foto"
+    "stack": "Pila di foto",
+    "limits_title": "Cosa può ripristinare la cronologia",
+    "limits": "Fino a 50 voci recenti per questo account. Sono supportati i campi di revisione, il luogo, la data di scatto e le pile manuali. Tag manuali, esportazioni e spostamenti di file non vengono annullati qui. Annulla rapido è separato e limitato alla propria istantanea.",
+    "reload": "Ricarica cronologia",
+    "preview_action": "Esamina ripristino…",
+    "restore_preview": "Ripristina questa voce: {count} foto · parte {part}/{parts}.",
+    "restore_boundary": "Verrà ripristinata solo questa parte. Il server verifica i valori e le revisioni registrati; in caso di conflitto non viene ripristinato nulla. Le altre parti richiedono azioni separate."
   },
   "stacks": {
     "review_help": "Esamina le pile suggerite nella camera oscura. S impila con la copertina proposta nella griglia o la foto attiva nella camera oscura; Invio apre un gruppo o impila la foto attiva. X salta. Modifica membri permette di adattare il gruppo prima del salvataggio. Le decisioni sulle foto non cambiano. R rifiuta subito la foto attiva e la esclude dalla bozza. Annulla ripristina la decisione e l’appartenenza. Il raggruppamento attende Salva; uscire senza salvare non annulla Rifiuta.",
@@ -3312,7 +3440,7 @@
     "saved": "Pila di foto aggiornata",
     "expand_all": "Espandi tutte le pile",
     "collapse": "Comprimi pile",
-    "totals": "{photos} foto corrispondenti · {items} elementi visualizzati",
+    "totals": "Foto corrispondenti: {photos} · Visualizzati: {items}",
     "folded_scope": "Le azioni sull’intera vista includono i membri compressi. Una singola miniatura selezionata agisce solo su quella foto.",
     "explicit_only": "Seleziona esplicitamente da 2 a 1000 foto per creare una pila.",
     "badge": "Apri pila: {count} membri",

@@ -20,7 +20,6 @@ export const FIT_ZOOM: ZoomState = { scale: 1, tx: 0, ty: 0 };
 /** Largest side-by-side grid the panes stay readable in. Lives here rather than
  *  in the compare dialog so a caller can enforce the bound without eagerly
  *  importing that lazily-loaded dialog. */
-export const MAX_COMPARE_PANES = 4;
 
 /** How long a frame must stay current before its sharp render is requested, so
  *  a held arrow key does not queue one render per frame it passes. */

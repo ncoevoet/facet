@@ -6,9 +6,9 @@ La galleria è un'app web FastAPI + Angular per sfogliare, filtrare, selezionare
 
 Il menu hamburger contiene tutte le destinazioni e le modalità Nascosta, Compatta e Fissa. Non ci sono un pulsante Fissa separato o una riga duplicata di destinazioni. La barra laterale visibile sostituisce quella superiore sul desktop e ospita i comandi dell’account in basso. Compatta si espande al passaggio del puntatore o al focus sopra le foto senza riservare altra larghezza. Quando è nascosta e sui telefoni, il menu offre tutte le destinazioni. Gli strumenti restano con il contenuto.
 
-L’intestazione raccoglie nome, conteggi delle foto corrispondenti e dei gruppi visualizzati, Griglia/Mosaico e ricerca testuale a ogni larghezza. La selezione offre Cancella, Confronta e, con modifica, Mantieni/Scarta. Azioni apre comandi secondari con etichette sul desktop; sul telefono resta il pannello Azioni. Destinazioni e autorizzazioni restano invariate. Ordinamento, direzione, Filtri, informazioni foto e presentazione formano un unico gruppo della raccolta su desktop e telefono. Account, Modifica e scansione autorizzata restano nell’area di navigazione globale; la galleria non duplica una barra inferiore. Aprire una foto chiude i menu della raccolta e sospende i comandi fino al ritorno.
+L’intestazione della raccolta riunisce nome, conteggi delle foto corrispondenti e degli elementi visualizzati, ricerca testuale esatta e comandi della vista. Sul telefono, la prima riga contiene titolo, Cerca e Seleziona; la seconda contiene ordinamento, direzione, Filtri, Griglia/Mosaico e Opzioni vista. La ricerca si espande su richiesta, mentre una query confermata resta visibile. Opzioni vista contiene viste di lavoro, comportamento delle informazioni foto, presentazione, filtri rapidi e regole di visibilità. I criteri attivi restano fuori da questo menu. Sul desktop gli stessi comandi sono disponibili direttamente. Account, accesso alla modifica e scansioni consentite restano nella navigazione globale, senza una barra duplicata nella galleria.
 
-**Viste di lavoro.** Vista → Sfoglia usa un mosaico compatto con informazioni al passaggio del puntatore (al clic sugli schermi stretti). Rivedi usa riquadri più grandi con dettagli e ispezione al clic (pannello laterale sugli schermi ampi). Organizza usa una griglia più densa con dettagli e informazioni al clic. Cambiano solo layout, dimensioni, dettagli e ispezione; query, ordinamento, album, selezione e pagina caricata restano invariati. Ripristina la vista predefinita ripristina la presentazione configurata senza azzerare i filtri. Nessuna vista è selezionata se le regolazioni manuali non corrispondono più.
+**Viste di lavoro.** Apri Vista direttamente sul desktop oppure Opzioni vista → Vista sul telefono. Sfoglia usa un mosaico compatto con informazioni al passaggio del puntatore (al clic sugli schermi stretti). Rivedi usa riquadri più grandi con dettagli e ispezione al clic (un pannello laterale quando lo schermo è abbastanza ampio). Organizza usa una griglia più densa con dettagli e informazioni al clic. Le viste di lavoro cambiano solo la presentazione: conservano query, ordinamento, album, selezione e pagina caricata. Ripristina la vista predefinita ripristina la presentazione configurata senza azzerare i filtri. Le regolazioni manuali lasciano una vista non selezionata quando le impostazioni non corrispondono più.
 
 **Criteri della raccolta.** I criteri dei metadati e della ricerca visiva restano sotto la query quando il pannello viene chiuso. Ogni rimozione ha un nome accessibile; cancellare un intervallo rimuove entrambi i limiti insieme. La ricerca visiva spiega la combinazione di somiglianza, filtri e ordinamento. Preferiti conserva gli altri criteri. I filtri di decisione escono dalla ricerca visiva; Da decidere ordina per data di scatto, dalla più vecchia, come spiegato prima della scelta. Le regole di visibilità mostrano esclusioni e rappresentanti dei gruppi effettivi; quelle annullate da un filtro Solo non risultano attive. Gli elenchi fissi richiedono di tornare alla vista abituale prima di cambiare i criteri.
 
@@ -76,7 +76,7 @@ Proteggi la galleria con una password facoltativa:
 Due password controllano l'accesso:
 
 - **`viewer.password`** decide chi può *sfogliare*. Vuota, chiunque può sfogliare l'intera libreria. Impostata, gli utenti devono prima accedere.
-- **`viewer.edition_password`** è richiesta per ogni modifica: valutazioni, preferiti e scarti, selezione, album, gestione di persone e volti, modalità di confronto, modifiche a pesi e priorità, ed esportazioni. Vuota (il valore predefinito fornito), l'installazione è **in sola lettura**: le modifiche vengono rifiutate con `403` ("Set viewer.edition_password to enable editing").
+- **`viewer.edition_password`** è richiesta per ogni modifica: valutazioni, preferiti e scarti, selezione delle foto da conservare, album, gestione di persone e volti, confronti a coppie per l’addestramento, modifiche a pesi e priorità ed esportazioni. Vuota (il valore predefinito fornito), l’installazione è **in sola lettura**: le modifiche vengono rifiutate con `403` ("Set viewer.edition_password to enable editing"). Lo spazio di confronto delle foto selezionate è in sola lettura e non richiede accesso alla modifica.
 
 Anche la generazione IA su richiesta (didascalie, critiche VLM) richiede la password di modifica. Senza, ottieni solo ciò che è già in cache (`source: "none"` o `vlm_available: false`). Senza password di modifica, la galleria nasconde anche i badge esistenti di stelle, preferiti e scarti, come fa per i visualizzatori senza modifica su un'installazione protetta da password.
 
@@ -323,7 +323,7 @@ Nel dettaglio della foto, le metriche stanno in schede con icona: dati EXIF (se 
 
 ### Selezione multipla e azioni di gruppo
 
-Clicca le foto per selezionarle; Maiusc+clic seleziona un intervallo. In basso a sinistra compare una barra delle azioni con pulsanti a icona (passaci sopra per le etichette). Le azioni di gruppo richiedono la modalità di modifica.
+Seleziona le foto con i comandi di selezione o con Spazio; sul desktop, Maiusc+clic seleziona un intervallo. Sul telefono, tocca Seleziona prima di toccare le foto e Annulla per uscire dalla modalità di selezione. La barra contestuale indica le foto interessate e offre Cancella e Confronta; l’accesso alla modifica aggiunge Conserva/Rifiuta e le altre azioni di scrittura. Azioni apre comandi secondari con etichette sul desktop e il pannello delle azioni sul telefono. I comandi in sola lettura mantengono i rispettivi controlli di accesso.
 
 La striscia di miniature identifica il riferimento e permette di scegliere una candidata. Il riquadro attivo è evidenziato separatamente. Rimuovere dal confronto cambia solo la vista, mai Mantieni/Scarta o la selezione della galleria; Ripristina riporta le foto rimosse. Una sola foto rimasta resta ispezionabile. La griglia con dettagli mostra tutta la foto in un riquadro uniforme 4:3; Mosaico mantiene righe giustificate.
 
@@ -333,10 +333,10 @@ La barra conta le foto selezionate fuori dalle miniature caricate; le azioni rig
 - **Rifiuta** — segna tutte come scartate (cancella preferito e valutazione)
 - **Valuta** — imposta o cancella una valutazione da 1 a 5 stelle
 - **Aggiungi all'album** — aggiungi a un album esistente o nuovo
-- **Modifica tag** — aggiungi o rimuovi un [tag manuale](#tag-manuali) su ogni foto selezionata
+- **Modifica tag** — visualizza l’anteprima di Aggiungi/Rimuovi per un [tag manuale](#tag-manuali), Sostituisci con un tag per riga oppure Cancella tutti i tag manuali. I tag IA vengono conservati.
 - **Seleziona tutto** — con una selezione vuota, seleziona ogni foto che i filtri trovano, non solo le pagine caricate. Con foto già selezionate, aggiunge quelle caricate e propone di estendere all'intera vista. Le azioni sull'intera vista confermano prima il numero esatto di foto.
 - **Inverti** — sostituisce la selezione con il suo complemento. Da una selezione vuota è l'intera vista. Da una selezione non vuota resta tra le foto caricate: scegli le foto da conservare, inverti, rifiuta.
-- **Confronta** — apre 2–4 foto selezionate affiancate. Il pulsante puntina cambia il riferimento senza modificare valutazioni o decisioni. Le viste sono inizialmente collegate; scollega per inquadrare ogni riquadro separatamente. Ricollegare conserva ogni inquadratura. I gesti collegati applicano lo stesso rapporto di zoom e spostamento in pixel a tutte le candidate, anche fuori da Due viste; il primo limite ferma il gruppo. Ripristina adatta tutte le foto al riquadro. Scorri per ingrandire, trascina per spostare, doppio clic per alternare lo zoom. Ripristina adatta l’intero confronto al riquadro. Il movimento collegato non allinea i soggetti. Ogni riquadro indica caricamento, disponibilità o errore dell’anteprima dettagliata (mantenendo la miniatura); lo zoom può richiedere la piena risoluzione. Con tre o quattro foto, Due viste mantiene il riferimento mentre Precedente/Successiva scorre le candidate. Promuovere una candidata sposta il riferimento precedente nel riquadro candidato. Disattivare Due viste ripristina tutti i riquadri.
+- **Confronta** — apre 2–4 foto selezionate esplicitamente e già caricate nello spazio dedicato `/photo-compare`. Scegli Riferimento o Candidata, poi una miniatura nella striscia, per confrontare qualsiasi coppia. La puntina promuove una candidata e sposta il riferimento precedente nel riquadro candidato. Due viste mantiene il riferimento mentre Precedente/Successiva scorre le candidate; disattivandolo tornano tutti i riquadri rimasti. Rimuovi cambia solo questa vista; Ripristina riporta i riquadri rimossi. L’ispezione inizia con i riquadri collegati. Scollegali per inquadrare le foto separatamente; ricollegarli conserva i ritagli e applica i successivi zoom e spostamenti relativi all’intero insieme. Ripristina adatta tutte le foto. Usa i comandi visibili di zoom/Adatta, la rotella, la tastiera o il trascinamento touch; Z attiva o disattiva la lente sui pixel visualizzati. Esamina apre i ritagli salvati di volti/soggetti e i dettagli della valutazione. Il movimento collegato non allinea i soggetti. Indietro o Escape torna alla query e alla selezione acquisite della raccolta; Escape chiude prima Esamina. I membri del confronto restano solo nella memoria di questa scheda: ricaricare o aprire direttamente l’URL senza una sessione valida riporta alla galleria. Questo spazio non modifica mai valutazioni, Conserva/Rifiuta o appartenenza alla galleria.
 - **Copia nomi file** — copia i nomi file negli appunti. Una copia dell'intera vista chiede prima conferma; oltre 10 000 foto viene rifiutata.
 - **Esporta** — scrive sidecar XMP accanto ai file (vedi [Esportazione per editor](#esportazione-per-editor))
 - **Scarta in cartella** — copia le foto conservate, o sposta/cestina quelle scartate, in una cartella (vedi [Scarta in cartella](#scarta-in-cartella))
@@ -352,6 +352,14 @@ Doppio clic su una foto per aprirla.
 - Su qualsiasi altra foto, agisce solo su quella foto e aggiunge Apri foto, Trova simili, Perché questo punteggio?, Scrivi metadati nel file e Assegna volto a persona (quando la foto ha volti non assegnati), secondo le rispettive condizioni.
 - Selezionare una foto dal menu la rimuove soltanto dalla selezione.
 - Non disponibile sui dispositivi touch-first (`hover: none` e `pointer: coarse`); usa invece il pannello Azioni.
+
+### Modifiche acquisite e ispezione
+
+Le anteprime di gruppo fissano i percorsi delle foto prima di Applica, inclusi i membri compressi o fuori schermo corrispondenti ai filtri ed escluse le foto deselezionate in una selezione dell’intera vista. Distinguono le osservazioni caricate dai valori sconosciuti; un ambito troppo grande viene rifiutato anziché troncato. Una selezione successiva non può cambiare la destinazione di una modifica accettata. Le richieste vengono confermate in lotti di dimensioni limitate, non in un’unica transazione per l’intera selezione.
+
+La valutazione offre Imposta o Cancella. I tag manuali offrono Aggiungi, Rimuovi, Sostituisci e Cancella; gli altri campi e i tag IA restano invariati. Sostituisci/Cancella non può essere ripetuto alla cieca dopo una risposta incerta: ricarica ed esamina prima il risultato. I cambiamenti di accesso o account fermano i nuovi lotti.
+
+L’ispezione riguarda la foto visualizzata, indipendentemente dal gruppo selezionato. Le valutazioni IA, le stelle personali, Conserva/Rifiuta e la foto migliore suggerita dal gruppo sono distinti. Le misurazioni mancanti riportano Non disponibile; zero è una misurazione valida. Le etichette delle versioni indicano l’immagine decodificata e le sue dimensioni, con stati di caricamento, errore e Riprova. Ingrandimento e lente esaminano i pixel visualizzati, non i dati RAW del sensore. La provenienza dell’istogramma distingue le immagini elaborate salvate dalle stime delle miniature. I ritagli salvati di volti/soggetti possono aiutare l’ispezione manuale; quando una corrispondenza manca o è ambigua resta disponibile l’inquadratura manuale. Collegare i movimenti non allinea i soggetti.
 
 ### Tieni il top N%
 
@@ -449,7 +457,7 @@ I tag manuali sono tag che digiti tu, conservati accanto ai tag IA. Sono memoriz
 
 - **Dove compaiono.** Solo nel **dettaglio** della foto, come chip contrassegnati in modo diverso dai tag IA. Schede e tooltip mostrano i tag IA.
 - **Chi può modificarli.** Gli utenti con modifica. Su un'installazione senza `viewer.edition_password` sono in sola lettura. I tag IA non si possono rimuovere.
-- **Modifica di gruppo.** Seleziona le foto e usa **Modifica tag** (barra di selezione, pannello Azioni mobile o menu contestuale) per aggiungere o rimuovere un tag. Funzionano anche le selezioni dell'intera vista. Le foto che hanno già 50 tag manuali vengono saltate; `count` riporta le foto effettivamente modificate.
+- **Modifica di gruppo.** Seleziona le foto e usa **Modifica tag** (barra di selezione, pannello Azioni mobile o menu contestuale). Aggiungi/Rimuovi cambia un solo tag; Sostituisci accetta un tag per riga; Cancella rimuove tutti i tag manuali. L’anteprima mostra le destinazioni acquisite e i valori misti noti prima di Applica, anche per le selezioni dell’intera vista. Aggiungi salta le foto che hanno già 50 tag manuali; una sostituzione non valida viene rifiutata prima che quella richiesta scriva alcunché. `count` riporta il numero di righe di tag effettivamente modificate, non il numero di foto. I tag IA vengono conservati. Ogni richiesta è atomica, ma un gruppo di più richieste non lo è; un esito incerto di Sostituisci/Cancella richiede un’ispezione prima di un nuovo tentativo.
 - **Formato.** I tag vengono ripuliti agli estremi, messi in minuscolo e con gli spazi compattati (NFC). Massimo 64 caratteri, massimo 50 per foto. Tag vuoti, virgole e caratteri di controllo vengono rifiutati. Un tag uguale a uno dei tag IA della foto non viene memorizzato.
 - **Ricerca e filtri li raggiungono.** Il filtro dei tag, la ricerca testuale, la ricerca semantica (`/api/search`, tranne l'ambito testuale solo didascalie), il menu dei tag, le statistiche e le esportazioni sidecar/incorporate/Lightroom usano tutti tag IA + manuali. La ricerca testuale trova un tag manuale come frase intera.
 - **Eccezioni.** Le capsule contano solo i tag IA. I tag manuali non influenzano mai punteggi, categorie o momenti narrativi.
@@ -591,6 +599,8 @@ Crea album e aggiungi foto dalla galleria con la selezione multipla. Gli album s
 ### Album intelligenti
 
 Salva una combinazione di filtri (fotocamera, tag, persona, date, soglie di punteggio…) come album intelligente. Si aggiorna man mano che nuove foto corrispondono. I filtri sono memorizzati come JSON in `smart_filter_json`.
+
+Filtrare un album aperto cambia solo la vista di lavoro. La sezione delle regole distingue i membri scelti manualmente, i criteri intelligenti salvati e i perfezionamenti temporanei. Anteprima e Salva aggiornano esplicitamente le regole intelligenti supportate; Reimposta ripristina le regole salvate senza cambiare l’appartenenza. I criteri non supportati vengono rifiutati anziché omessi senza avviso. Salva controlla prima le regole attuali sul server, ma non esegue un confronto e aggiornamento atomico sul server. I visualizzatori in sola lettura possono filtrare e reimpostare la vista senza salvare le regole.
 
 ### Contesto di punteggio
 
@@ -1159,10 +1169,12 @@ Le scorciatoie a tasto singolo sono inattive mentre il fuoco è in un campo di t
 
 ## Annulla
 
-Le modifiche di gruppo a preferito/rifiuto/valutazione e le conferme di selezione mostrano una snackbar con **Annulla** per ~7 secondi.
+Le modifiche di gruppo a preferito/rifiuto/valutazione e le conferme differite di selezione mostrano una snackbar con **Annulla** per circa 7 secondi.
 
 - Le modifiche di gruppo ai flag si applicano subito e si annullano invertendole (fino a 500 foto).
+- Annullare una valutazione ripristina solo le stelle, conservando gli altri flag. Richiede un’istantanea osservata completa di al massimo 500 foto e controlla le modifiche successive note localmente; non è il ripristino della cronologia che verifica i conflitti sul server.
 - Le conferme di selezione sono differite: il gruppo sparisce subito, ma nulla viene salvato finché la finestra di annullamento non termina.
+- Annullare quella conferma differita ne impedisce la scrittura; non è un annullamento dopo che la scrittura è stata confermata.
 - Le modifiche ai [tag manuali](#tag-manuali) non sono annullabili.
 
 Per modifiche più vecchie, vedi [Cronologia delle modifiche](#cronologia-delle-modifiche).
@@ -1175,7 +1187,7 @@ Le build di produzione possono essere installate nella schermata iniziale. La sh
 
 ## Mobile
 
-Sugli schermi piccoli la scheda di selezione fluttuante mantiene il conteggio e i pulsanti cancella, seleziona tutto e inverti, più un pulsante **Azioni**. Apre un pannello inferiore con ogni operazione di gruppo (preferito, rifiuto, valutazione, album, copia, download). Compare un pulsante di confronto quando la selezione si adatta alla vista di confronto.
+La raccolta ha due righe compatte: titolo/Cerca/Seleziona, poi ordinamento, direzione, Filtri, Griglia/Mosaico e Opzioni vista. La ricerca si espande su richiesta; una query confermata e i criteri attivi restano visibili. Opzioni vista contiene comandi secondari di visualizzazione, filtri rapidi e visibilità. Seleziona avvia la selezione touch; Annulla la termina. La barra contestuale offre Cancella, Confronta e le azioni di scrittura consentite, con altre operazioni in Azioni. Lo spazio di confronto offre Indietro e comandi di zoom/Adatta visibili, trascinamento touch e un pannello di ispezione sovrapposto facoltativo; non dipende dal passaggio del puntatore né dalla pressione prolungata.
 
 ## Cornice digitale / Chiosco
 
@@ -1471,9 +1483,9 @@ Endpoint: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_dat
 
 ## Cronologia delle modifiche
 
-Rivedi e annulla le tue modifiche recenti in tutta la libreria. In modalità di modifica, apri **Cronologia delle modifiche** dall'icona dell'orologio nella navigazione principale (dopo In questo giorno). Espandi una voce per vedere i valori esatti prima/dopo, poi **Ripristina questa voce**.
+Esamina e ripristina le modifiche recenti in tutta la libreria. In modalità di modifica, apri **Cronologia delle modifiche** dalla navigazione. Espandi una voce per vedere i valori prima/dopo, scegli Anteprima, poi Applica o Annulla. Un conflitto viene indicato su quella voce e non scrive nulla; un errore di caricamento offre Ricarica anziché fingere che la cronologia sia vuota.
 
-- **Che cosa viene registrato:** GPS, date di scatto, decisioni di revisione, stelle, preferiti e pile manuali. Non file né riconoscimento dei volti.
+- **Che cosa viene registrato:** GPS, date di scatto, decisioni di revisione, stelle, preferiti e pile manuali. Non tag manuali, file né riconoscimento dei volti.
 - GPS e date di scatto sono valori condivisi della libreria. Decisioni di revisione, stelle e preferiti sono tuoi.
 - Il breve Annulla e l'elenco di attività dell'assistente sono separati.
 - **Limiti.** Le ultime **50 voci per account**, ciascuna fino a **1000 foto e 1 MiB** di valori. Le azioni di revisione filtrate più grandi vengono divise in parti; il ripristino ripristina una parte. Una sostituzione di pila può coprire fino a 2000 foto in una voce.
@@ -1481,6 +1493,10 @@ Rivedi e annulla le tue modifiche recenti in tutta la libreria. In modalità di 
 - **Il ripristino è tutto o niente.** Viene rifiutato se il valore di una qualsiasi foto è cambiato da allora, anche se è stato rimesso com'era. La modifica privata di revisione di un altro account non blocca la tua. Anche nuove scansioni, importazioni e Annulla possono invalidare voci più vecchie.
 - Una voce è nascosta quando una delle sue foto viene eliminata o non è più visibile a te.
 - Un ripristino aggiunge una propria voce e segna l'originale come ripristinato.
+
+### Elaborazione e ricevute
+
+Apri Ricevute di elaborazione ed esportazione dal menu dell’account per esaminare le operazioni in background supportate, gli ID delle ricevute, lo stato effettivo e i conteggi degli elementi. Le attività completate con elementi incompiuti mantengono questa precisazione; non viene inventata una posizione in coda. L’annullamento ha effetto tra un file e l’altro. Riprova ripete l’operazione supportata per gli elementi non riusciti, non un’azione diversa. Un errore nella lettura dello stato offre un modo per recuperare. Le esportazioni di file mantengono le proprie anteprime e verifiche della destinazione e della titolarità; le ricevute descrivono scritture già tentate, non garantiscono che scritture di file separate siano globalmente atomiche.
 
 ## Volti senza nome
 

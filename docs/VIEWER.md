@@ -6,9 +6,9 @@ The viewer is a FastAPI + Angular web app for browsing, filtering, culling and m
 
 The hamburger owns all application navigation and the Hidden, Compact and Pinned sidebar modes. There is no separate Pin button or duplicate Gallery/Albums/Culling destination row. A visible desktop sidebar replaces the application top bar and holds account controls at its foot; Compact expands over photos on hover or focus without reserving extra width. When hidden, and on phones, the hamburger menu provides all destinations. Page tools stay with their content.
 
-The collection header contains its name, matching-photo and displayed-group counts, Grid/Mosaic and exact text search at every width. The selection bar exposes Clear, Compare and, with editing access, Keep/Reject. Desktop Actions reveals labeled secondary commands; phones retain the Actions sheet. Targets and permissions remain unchanged. Sort, direction, Filters, photo information and slideshow now form one collection control group on desktop and phone. Account, Edition and permitted scan actions stay in the global navigation area; the gallery has no duplicate bottom toolbar. Opening a photo closes collection menus and pauses their commands until you return.
+The collection header groups its name, matching-photo and displayed-item counts, exact text search and view controls. On phones, the first row contains the title, Search and Select; the second contains Sort, direction, Filters, Grid/Mosaic and View options (…). Search expands on request, while a committed query remains visible. View options contains display presets, photo-information behavior, slideshow, quick filters and visibility rules. Active criteria remain outside that disclosure. Desktop exposes the same controls directly. Account, editing access and permitted scan actions stay in the global navigation area, without a duplicate gallery toolbar.
 
-**Display presets.** Display → Browse uses a compact mosaic with hover information (click information on narrow screens). Review uses larger grid cards with details and click-owned inspection (a docked panel where the screen is wide enough). Organize uses a denser grid with details and click information. These presets change only layout, card size, detail visibility and inspection behavior: they preserve the query, sort, album, selection and loaded page. Reset display to defaults restores the configured presentation without resetting filters. Manual adjustments leave a preset unchecked when its settings no longer match.
+**Display presets.** Open Display directly on desktop, or View options (…) → Display on a phone. Browse uses a compact mosaic with hover information (click information on narrow screens). Review uses larger grid cards with details and click-owned inspection (a docked panel where the screen is wide enough). Organize uses a denser grid with details and click information. Presets change presentation only: they preserve the query, sort, album, selection and loaded page. Reset display to defaults restores configured presentation without resetting filters. Manual adjustments leave a preset unchecked when its settings no longer match.
 
 **Collection criteria.** Metadata and visual-search criteria now stay below the collection query when the filter panel closes. Each chip has a named Remove action; clearing a range removes both bounds together. Visual search states how similarity candidates combine with metadata filters and the chosen sort. Favorites retains the other criteria. Decision filters leave visual search; Undecided uses capture-date order, oldest first, as explained before choosing. Visibility rules disclose the effective hiding/grouping settings, including best-of-burst and bracket/panorama representatives; rules suppressed by an Only filter are not shown as active. Fixed photo lists explain that you must return to the usual view before changing criteria.
 
@@ -76,7 +76,7 @@ Protect the viewer with an optional password:
 Two passwords control access:
 
 - **`viewer.password`** decides who may *browse*. Empty means anyone can browse the whole library. Set, users must log in first.
-- **`viewer.edition_password`** is required for every edit: ratings, favorites and rejects, culling, albums, person and face management, comparison mode, weight and priority changes, and exports. Empty (the shipped default) makes the install **read-only**: edits are refused with `403` ("Set viewer.edition_password to enable editing").
+- **`viewer.edition_password`** is required for every edit: ratings, favorites and rejects, culling, albums, person and face management, pairwise training comparisons, weight and priority changes, and exports. Empty (the shipped default) makes the install **read-only**: edits are refused with `403` ("Set viewer.edition_password to enable editing"). The selected-photo comparison workspace is read-only and does not require editing access.
 
 On-demand AI generation (captions, VLM critiques) also needs the edition password. Without it you get only what is already cached (`source: "none"` or `vlm_available: false`). With no edition password, the gallery also hides existing star, favourite and reject badges, as it does for non-edition viewers on a password-protected install.
 
@@ -323,7 +323,7 @@ In photo detail, metrics sit in icon tabs: EXIF data (when present), Quality, Co
 
 ### Multi-Select & Bulk Actions
 
-Click photos to select; Shift+Click selects a range. An action bar appears at the bottom-left with icon buttons (hover for labels). Bulk actions need edition mode.
+Select photos using the selection controls or Space; Shift+Click selects a range on desktop. On a phone, tap Select before tapping photos, and Cancel to leave selection mode. The contextual bar names its targets and offers Clear and Compare; editing access adds Keep/Reject and other write actions. Actions opens labeled secondary commands on desktop and the action sheet on phones. Read-only commands retain their ordinary access controls.
 
 The comparison thumbnail strip identifies the reference and lets you choose a candidate directly. The active pane is highlighted independently. Remove from comparison changes this view only, never Keep/Reject or the gallery selection; Restore returns removed photos. One remaining photo stays inspectable. Grid cards with details fit the entire photo into a uniform 4:3 frame; Mosaic keeps justified aspect-ratio rows.
 
@@ -331,13 +331,13 @@ The comparison thumbnail strip identifies the reference and lets you choose a ca
 - **Reject** — mark all as rejected (clears favorite and rating)
 - **Rate** — set or clear a 1–5 star rating
 - **Add to album** — add to an existing or new album
-- **Edit tags** — add or remove a [manual tag](#manual-tags) on every selected photo
+- **Edit tags** — preview Add/Remove of one [manual tag](#manual-tags), Replace with one tag per line, or Clear all manual tags. AI tags are preserved.
 - **Select all** — with an empty selection, selects every photo the filters match, not just loaded pages. With photos already selected, it adds the loaded photos and offers to widen to the whole view. Whole-view actions confirm the exact photo count first.
 - **Invert** — swap the selection for its complement. From an empty selection that is the whole view. From a non-empty selection it stays within loaded photos: pick keepers, invert, reject.
 
 The selection bar counts selected photos outside the loaded tiles; batch actions still target the entire explicit selection. Whole-view exclusions appear separately. Compare needs 2–4 explicitly selected, loaded photos and never silently opens only part of a selection.
 
-- **Compare** — open 2–4 selected photos side by side. A labeled reference can be changed with the pin button; this changes only the comparison, never ratings or review decisions. Inspection starts linked; unlink to frame each pane independently. Relinking preserves each crop. Linked gestures apply the same magnification ratio and pixel pan to all candidates, including those outside Two-up; the first scale limit stops the group. Reset fits every photo. Scroll to zoom, drag to pan and double-click to toggle magnification. Use Reset to fit the entire comparison. Linked movement does not align subjects. Each pane reports sharp-preview loading, readiness or failure (with the stored thumbnail retained); zooming can request full resolution. For three or four selected photos, Two-up keeps the reference visible while Previous/Next moves through candidates. Promoting a candidate swaps the former reference into the candidate slot. Turning Two-up off restores all selected panes.
+- **Compare** — open 2–4 explicitly selected, loaded photos in the dedicated `/photo-compare` workspace. Choose Reference or Candidate, then a filmstrip thumbnail, to compare any pair. Pin promotes a candidate and swaps the former reference into the candidate slot. Two-up keeps that reference while Previous/Next steps through candidates; turning it off restores all remaining panes. Remove changes this view only; Restore brings removed panes back. Inspection starts linked. Unlink to frame photos independently; relinking preserves those crops and applies subsequent relative zoom/pan to the whole set. Reset fits all photos. Use the visible zoom/Fit controls, wheel, keyboard or touch drag; Z toggles the displayed-pixel loupe. Inspect opens stored face/subject crop choices and assessment details. Linked movement does not align subjects. Back or Escape returns to the captured collection query and selection; Escape closes Inspect first. Membership is kept only in this tab's memory, so a reload or direct URL without a valid session returns to the gallery. This workspace never changes ratings, Keep/Reject or gallery membership.
 - **Copy filenames** — copy filenames to the clipboard. A whole-view copy confirms first; over 10 000 photos is refused.
 - **Export** — write XMP sidecars next to the files (see [Editor Export](#editor-export))
 - **Cull to folder** — copy keeps, or move/trash rejects, to a folder (see [Cull to folder](#cull-to-folder))
@@ -353,6 +353,14 @@ Double-click a photo to open it.
 - On any other photo, it acts on that photo only and adds Open photo, Find Similar, Why This Score?, Write metadata to file and Assign face to person (when the photo has unassigned faces), subject to their gates.
 - Culling one photo from the menu removes only that photo from the selection.
 - Not offered on touch-first devices (`hover: none` and `pointer: coarse`); use the Actions sheet there.
+
+### Captured edits and inspection
+
+Batch previews freeze the target paths before Apply, including matching folded/offscreen members and excluding deselected photos in a whole-view selection. They distinguish loaded observations from unknown values; an oversized scope is refused rather than truncated. A later selection cannot retarget an accepted edit. Requests commit in bounded chunks, not as one transaction across the entire selection.
+
+Rating offers Set or Clear. Manual tags offer Add, Remove, Replace and Clear; unrelated fields and AI tags remain untouched. Replace/Clear cannot be blindly retried after an uncertain response: reload and inspect the result first. Access or account changes stop new chunks.
+
+Inspection belongs to the displayed photo, independently of the selected batch. AI assessments, personal stars, Keep/Reject and a group's suggested best are separate. Missing measurements say Unavailable; zero is a valid measurement. Rendition labels report the decoded image and dimensions, with loading, failure and Retry states. Magnification and the loupe inspect displayed pixels, not RAW sensor data. Histogram provenance distinguishes stored renders from thumbnail estimates. Stored face/subject crops can help manual inspection; unavailable or ambiguous correspondence leaves manual framing available. Linking movement is not subject alignment.
 
 ### Keep Top N%
 
@@ -450,7 +458,7 @@ Manual tags are tags you type yourself, kept next to the AI tags. They are store
 
 - **Where they show.** In photo **detail** only, as chips marked differently from AI tags. Cards and tooltips show AI tags.
 - **Who can edit.** Edition users. On an install without `viewer.edition_password` they are read-only. AI tags cannot be removed.
-- **Bulk editing.** Select photos and use **Edit tags** (selection bar, mobile Actions sheet, or context menu) to add or remove one tag. Whole-view selections work. Photos already holding 50 manual tags are skipped; `count` reports photos actually changed.
+- **Bulk editing.** Select photos and use **Edit tags** (selection bar, mobile Actions sheet, or context menu). Add/Remove changes one tag; Replace takes one tag per line; Clear removes every manual tag. Preview shows the captured targets and known mixed values before Apply, including whole-view selections. Add skips photos already holding 50 manual tags; an invalid Replace is refused before that request writes anything. The API's `count` reports changed tag rows, not photos. AI tags are preserved. Each request is atomic, but a multi-request batch is not; an uncertain Replace/Clear result requires inspection before another attempt.
 - **Format.** Tags are trimmed, lowercased and whitespace-collapsed (NFC). Max 64 characters, max 50 per photo. Empty tags, commas and control characters are rejected. A tag equal to one of the photo's AI tags is not stored.
 - **Search and filters see them.** The tag filter, text search, semantic search (`/api/search`, except the caption-only text scope), the tag dropdown, statistics and sidecar/embed/Lightroom exports all use AI + manual tags. Text search matches a manual tag as a whole phrase.
 - **Exceptions.** Capsules count AI tags only. Manual tags never affect scores, categories or narrative moments.
@@ -592,6 +600,8 @@ Create albums and add photos from the gallery with multi-select. Albums support:
 ### Smart Albums
 
 Save a filter combination (camera, tag, person, dates, score thresholds…) as a smart album. It updates as new photos match. The filters are stored as JSON in `smart_filter_json`.
+
+Filtering an open album changes the working view only. Its rules disclosure distinguishes manual membership, saved smart criteria and temporary refinements. Preview and Save explicitly update supported smart rules; Reset restores saved rules without changing membership. Unsupported criteria are refused rather than silently omitted. Save checks the current server rules first, but is not a server-side compare-and-swap. Read-only viewers can refine and reset the view without saving rules.
 
 ### Scoring Context
 
@@ -1160,10 +1170,12 @@ Single-key shortcuts are inactive while focus is in a text field, menu or list.
 
 ## Undo
 
-Batch favorite/reject/rating changes and culling confirms show a snackbar with **Undo** for ~7 seconds.
+Batch favorite/reject/rating changes and deferred culling confirms show a snackbar with **Undo** for ~7 seconds.
 
 - Batch flag changes apply at once and are undone by reversing them (up to 500 photos).
+- Rating Undo restores only stars, preserving other flags. It requires a complete observed snapshot of at most 500 photos and checks locally known later changes; it is not the server-conflict-aware history operation.
 - Culling confirms are deferred: the group disappears at once, but nothing is saved until the undo window ends.
+- Cancelling that deferred confirm prevents its write; it is not an Undo after the write has committed.
 - [Manual tag](#manual-tags) edits are not undoable.
 
 For older changes, see [Organization history](#organization-history).
@@ -1176,7 +1188,7 @@ Production builds can be installed to the home screen. The app shell loads offli
 
 ## Mobile
 
-On small screens the floating selection card keeps the count and the clear, select-all and invert buttons, plus an **Actions** button. It opens a bottom sheet with every bulk operation (favorite, reject, rate, albums, copy, download). A compare button appears when the selection fits the compare view.
+The collection has two compact rows: title/Search/Select, then Sort, direction, Filters, Grid/Mosaic and View options (…). Search expands when requested; a committed query and active criteria stay visible. View options holds secondary display, quick-filter and visibility controls. Select starts touch selection; Cancel leaves it. The contextual selection bar exposes Clear, Compare and permitted write actions, with additional operations in Actions. The comparison workspace has visible Back and zoom/Fit controls, touch dragging and an optional inspection overlay; it does not depend on hover or long-press.
 
 ## Photo Frame / Kiosk Endpoint
 
@@ -1472,9 +1484,9 @@ Endpoints: `POST /api/photos/capture_date/preview`, `POST /api/photos/capture_da
 
 ## Organization history
 
-Review and revert your recent edits across the library. In edition mode, open **Organization history** from the clock icon in the main navigation (after On This Day). Expand an entry to see exact before/after values, then **Revert this entry**.
+Review and revert recent edits across the library. In edition mode, open **Organization history** from navigation. Expand an entry to see its before/after values, choose Preview, then Apply or Cancel. A conflict is shown on that entry and writes nothing; a failed load offers Reload rather than pretending history is empty.
 
-- **What is recorded:** GPS, capture dates, review decisions, stars, favorites and manual stacks. Not files or face recognition.
+- **What is recorded:** GPS, capture dates, review decisions, stars, favorites and manual stacks. Not manual tags, files or face recognition.
 - GPS and capture dates are shared library values. Review decisions, stars and favorites are your own.
 - The short Undo and assistant activity list are separate.
 - **Limits.** The latest **50 entries per account**, each up to **1000 photos and 1 MiB** of values. Larger filtered review actions are split into parts; revert restores one part. A stack replacement can cover up to 2000 photos in one entry.
@@ -1482,6 +1494,10 @@ Review and revert your recent edits across the library. In edition mode, open **
 - **Revert is all or nothing.** It is refused if any photo's value changed since, even if changed back. Another account's private review edit does not block yours. Rescans, imports and Undo can also invalidate older entries.
 - An entry is hidden when one of its photos is deleted or no longer visible to you.
 - A revert adds its own entry and marks the original as reverted.
+
+### Processing and receipts
+
+Open Processing and export receipts from the account menu to inspect supported background operations, their receipt IDs, actual state and item counts. Completed jobs with unfinished items remain qualified; no queue position is invented. Cancel takes effect between files. Retry repeats the supported operation for its failed items, not an unrelated action. A failed status read offers recovery. File exports retain their own preview, destination and ownership checks; receipts describe writes already attempted, not a promise that separate file writes are globally atomic.
 
 ## Faces without names
 

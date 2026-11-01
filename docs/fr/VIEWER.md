@@ -6,9 +6,9 @@ La visionneuse est une application web FastAPI + Angular pour parcourir, filtrer
 
 Le menu hamburger regroupe les destinations et les modes Masquée, Compacte et Épinglée. Il n’y a ni bouton Épingler séparé ni rangée de destinations dupliquée. La barre latérale visible remplace la barre supérieure sur ordinateur et place le compte en bas. Compacte se développe au survol ou au focus au-dessus des photos sans réserver plus de largeur. Masquée et sur téléphone, toutes les destinations restent dans le menu. Les outils restent avec leur contenu.
 
-L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et de groupes affichés, Grille/Mosaïque et la recherche textuelle à toute largeur. La barre de sélection propose Effacer, Comparer et, en édition, Garder/Rejeter. Actions développe les commandes secondaires nommées sur ordinateur ; le panneau Actions reste disponible sur téléphone. Cibles et autorisations restent identiques. Tri, sens, Filtres, informations photo et diaporama forment un seul groupe de collection sur ordinateur et téléphone. Compte, Édition et analyse autorisée restent dans la zone de navigation globale ; la galerie n’a plus de barre inférieure en double. Ouvrir une photo ferme les menus de collection et suspend leurs commandes jusqu’au retour.
+L’en-tête de collection regroupe son nom, les nombres de photos correspondantes et d’éléments affichés, la recherche textuelle et les commandes d’affichage. Sur téléphone, la première rangée contient le titre, Rechercher et Sélectionner ; la seconde contient le tri, le sens, Filtres, Grille/Mosaïque et Options d’affichage. La recherche se développe à la demande ; une requête validée reste visible. Options d’affichage regroupe les dispositions de travail, le comportement des informations photo, le diaporama, les filtres rapides et les règles de visibilité. Les critères actifs restent hors de ce panneau dépliable. Sur ordinateur, les mêmes commandes sont directement accessibles. Le compte, l’accès à l’édition et les analyses autorisées restent dans la navigation globale, sans barre d’outils de galerie en double.
 
-**Dispositions de travail.** Affichage → Parcourir utilise une mosaïque compacte avec informations au survol (au clic sur les écrans étroits). Examiner utilise de grandes vignettes en grille avec détails et inspection au clic (panneau latéral si la largeur le permet). Organiser utilise une grille plus dense avec détails et informations au clic. Seuls disposition, taille, détails et inspection changent ; requête, tri, album, sélection et page chargée restent identiques. Rétablir l’affichage par défaut restaure la présentation configurée sans réinitialiser les filtres. Une disposition n’est plus cochée si des réglages manuels ne lui correspondent plus.
+**Dispositions de travail.** Ouvrez Affichage directement sur ordinateur, ou Options d’affichage → Affichage sur téléphone. Parcourir utilise une mosaïque compacte avec informations au survol (au clic sur les écrans étroits). Examiner utilise de grandes vignettes en grille avec détails et inspection au clic (panneau latéral ancré si la largeur le permet). Organiser utilise une grille plus dense avec détails et informations au clic. Ces dispositions changent uniquement la présentation : requête, tri, album, sélection et page chargée restent identiques. Rétablir l’affichage par défaut restaure la présentation configurée sans réinitialiser les filtres. Une disposition n’est plus cochée si des réglages manuels ne lui correspondent plus.
 
 **Critères de la collection.** Les critères de métadonnées et de recherche visuelle restent sous la requête lorsque le panneau est fermé. Chaque retrait est nommé ; effacer une plage retire ses deux bornes ensemble. La recherche visuelle explique la combinaison similarité, filtres et tri. Favoris conserve les autres critères. Les filtres de décision quittent la recherche visuelle ; Indécis trie par date de prise de vue, les plus anciennes d’abord, comme indiqué avant le choix. Les règles de visibilité indiquent les masquages et représentants de groupes effectifs ; celles neutralisées par un filtre Uniquement ne sont pas présentées comme actives. Une liste fixe demande de revenir à la vue habituelle avant de modifier les critères.
 
@@ -76,7 +76,7 @@ Protégez la visionneuse avec un mot de passe facultatif :
 Deux mots de passe contrôlent l'accès :
 
 - **`viewer.password`** décide qui peut *parcourir*. Vide, tout le monde peut parcourir toute la bibliothèque. Défini, les utilisateurs doivent d'abord se connecter.
-- **`viewer.edition_password`** est requis pour toute modification : notes, favoris et rejets, tri, albums, gestion des personnes et des visages, mode comparaison, changements de poids et de priorités, et exports. Vide (la valeur livrée par défaut), l'installation est en **lecture seule** : les modifications sont refusées avec `403` (« Set viewer.edition_password to enable editing »).
+- **`viewer.edition_password`** est requis pour toute modification : notes, favoris et rejets, tri, albums, gestion des personnes et des visages, comparaisons d’entraînement par paires, changements de poids et de priorités, et exports. Vide (la valeur livrée par défaut), l’installation est en **lecture seule** : les modifications sont refusées avec `403` (« Set viewer.edition_password to enable editing »). L’espace de comparaison des photos sélectionnées est en lecture seule et ne nécessite pas l’accès à l’édition.
 
 La génération IA à la demande (légendes, critiques VLM) exige aussi le mot de passe d'édition. Sans lui, vous n'obtenez que ce qui est déjà en cache (`source: "none"` ou `vlm_available: false`). Sans mot de passe d'édition, la galerie masque aussi les badges d'étoiles, de favori et de rejet existants, comme pour les visiteurs sans édition d'une installation protégée par mot de passe.
 
@@ -323,7 +323,7 @@ Dans le détail de la photo, les métriques sont réparties en onglets à icône
 
 ### Sélection multiple & actions groupées
 
-Cliquez sur des photos pour les sélectionner ; Maj+clic sélectionne une plage. Une barre d'actions apparaît en bas à gauche avec des boutons à icônes (survolez pour voir les libellés). Les actions groupées nécessitent le mode édition.
+Sélectionnez les photos avec les commandes de sélection ou la barre d’espace ; Maj+clic sélectionne une plage sur ordinateur. Sur téléphone, touchez Sélectionner avant de toucher les photos, et Annuler pour quitter le mode de sélection. La barre contextuelle nomme ses cibles et propose Effacer et Comparer ; l’accès à l’édition ajoute Conserver/Rejeter et les autres actions d’écriture. Actions ouvre les commandes secondaires nommées sur ordinateur et la feuille d’actions sur téléphone. Les commandes de lecture conservent leurs contrôles d’accès habituels.
 
 La bande de miniatures identifie la référence et permet de choisir directement une candidate. Le volet actif est signalé séparément. Retirer de la comparaison ne change que cette vue, jamais Garder/Rejeter ni la sélection de galerie ; Restaurer rétablit les photos retirées. Une photo restante reste consultable. Avec détails, la grille ajuste toute la photo dans un cadre uniforme 4:3 ; Mosaïque conserve ses rangées justifiées.
 
@@ -333,10 +333,10 @@ La barre compte les photos sélectionnées hors des vignettes chargées ; les ac
 - **Rejeter** — marque toutes les photos comme rejetées (efface le favori et la note)
 - **Noter** — définit ou efface une note de 1 à 5 étoiles
 - **Ajouter à un album** — ajoute à un album existant ou nouveau
-- **Modifier les mots-clés** — ajoute ou retire un [tag manuel](#tags-manuels) sur chaque photo sélectionnée
+- **Modifier les mots-clés** — prévisualise l’ajout ou le retrait d’un [tag manuel](#tags-manuels), le remplacement avec un tag par ligne ou l’effacement de tous les tags manuels. Les tags IA sont conservés.
 - **Tout sélectionner** — avec une sélection vide, sélectionne toutes les photos que les filtres retiennent, pas seulement les pages chargées. Avec des photos déjà sélectionnées, ajoute les photos chargées et propose d'élargir à toute la vue. Les actions sur toute la vue confirment d'abord le nombre exact de photos.
 - **Inverser** — remplace la sélection par son complément. À partir d'une sélection vide, c'est toute la vue. À partir d'une sélection non vide, cela reste dans les photos chargées : choisissez les gardées, inversez, rejetez.
-- **Comparer** — ouvre 2 à 4 photos sélectionnées côte à côte. Le bouton épingle change la référence sans modifier les notes ni les décisions. L’inspection est liée au départ ; déliez pour cadrer chaque volet séparément. Relier conserve chaque cadrage. Les gestes liés appliquent le même rapport de zoom et déplacement en pixels à toutes les candidates, même hors de Deux vues ; la première limite arrête le groupe. Réinitialiser ajuste toutes les photos au cadre. Molette pour zoomer, glisser pour déplacer, double-clic pour basculer le grossissement. Réinitialiser ajuste toute la comparaison au cadre. Le mouvement lié n’aligne pas les sujets. Chaque volet indique le chargement, la disponibilité ou l’échec de l’aperçu détaillé (la miniature est conservée) ; le zoom peut demander la pleine résolution. Avec trois ou quatre photos, Deux vues garde la référence visible tandis que Précédente/Suivante parcourt les candidates. Promouvoir une candidate place l’ancienne référence dans le volet candidat. Désactiver Deux vues rétablit tous les volets.
+- **Comparer** — ouvre 2 à 4 photos explicitement sélectionnées et chargées dans l’espace dédié `/photo-compare`. Choisissez Référence ou Candidate, puis une miniature du bandeau, pour comparer n’importe quelle paire. L’épingle promeut une candidate et place l’ancienne référence dans la position de candidate. Deux vues conserve cette référence tandis que Précédente/Suivante parcourt les candidates ; sa désactivation rétablit toutes les vues restantes. Retirer ne change que cette vue ; Restaurer rétablit les vues retirées. L’inspection commence avec les vues liées. Déliez pour cadrer les photos indépendamment ; relier conserve ces cadrages et applique les mouvements relatifs de zoom et de déplacement suivants à l’ensemble. Réinitialiser ajuste toutes les photos au cadre. Utilisez les commandes visibles de zoom/Ajuster, la molette, le clavier ou le glissement tactile ; Z active ou désactive la loupe des pixels affichés. Inspecter ouvre les choix de cadrages de visages/sujets enregistrés et les détails d’évaluation. Le mouvement lié n’aligne pas les sujets. Retour ou Échap revient à la requête et à la sélection de collection capturées ; Échap ferme d’abord Inspecter. Les membres sont conservés uniquement en mémoire dans cet onglet : un rechargement ou une URL directe sans session valide renvoie donc à la galerie. Cet espace ne modifie jamais les notes, Conserver/Rejeter ni les membres de la galerie.
 - **Copier les noms** — copie les noms de fichiers dans le presse-papiers. Une copie de toute la vue demande d'abord confirmation ; au-delà de 10 000 photos, elle est refusée.
 - **Exporter** — écrit des sidecars XMP à côté des fichiers (voir [Export vers éditeur](#export-vers-éditeur))
 - **Trier vers un dossier** — copie les gardées, ou déplace/met à la corbeille les rejetées, vers un dossier (voir [Trier vers un dossier](#trier-vers-un-dossier))
@@ -352,6 +352,14 @@ Double-cliquez sur une photo pour l'ouvrir.
 - Sur toute autre photo, il agit sur cette photo seule et ajoute Ouvrir la photo, Similaires, Pourquoi ce score ?, Écrire les métadonnées dans le fichier et Assigner un visage à une personne (quand la photo a des visages non assignés), selon leurs conditions d'accès.
 - Trier une photo depuis le menu ne retire que cette photo de la sélection.
 - Non proposé sur les appareils tactiles (`hover: none` et `pointer: coarse`) ; utilisez-y la feuille Actions.
+
+### Modifications capturées et inspection
+
+Les aperçus groupés figent les chemins cibles avant Appliquer. Dans une sélection de toute la vue, ils incluent les membres correspondants repliés ou hors écran et excluent les photos désélectionnées. Ils distinguent les observations chargées des valeurs inconnues ; un périmètre trop grand est refusé au lieu d’être tronqué. Une sélection ultérieure ne peut pas rediriger une modification acceptée vers d’autres photos. Les requêtes sont enregistrées par blocs de taille limitée, et non dans une transaction unique couvrant toute la sélection.
+
+La notation permet d’attribuer ou d’effacer des étoiles. Les tags manuels proposent Ajouter, Retirer, Remplacer et Effacer ; les autres champs et les tags IA restent inchangés. Remplacer/Effacer ne peut pas être relancé aveuglément après une réponse incertaine : rechargez et inspectez d’abord le résultat. Un changement d’accès ou de compte arrête l’envoi de nouveaux blocs.
+
+L’inspection concerne la photo affichée, indépendamment du lot sélectionné. Les évaluations IA, les étoiles personnelles, Conserver/Rejeter et la meilleure photo suggérée d’un groupe sont distincts. Une mesure absente est indiquée comme Indisponible ; zéro est une mesure valide. Les libellés de rendu indiquent l’image décodée et ses dimensions, avec les états de chargement, d’échec et de nouvel essai. Le grossissement et la loupe inspectent les pixels affichés, pas les données RAW du capteur. La provenance de l’histogramme distingue les rendus enregistrés des estimations de miniatures. Les cadrages de visages/sujets enregistrés peuvent aider l’inspection manuelle ; si la correspondance est indisponible ou ambiguë, le cadrage manuel reste possible. Lier les mouvements n’aligne pas les sujets.
 
 ### Garder le top N%
 
@@ -449,7 +457,7 @@ Les tags manuels sont des tags que vous saisissez vous-même, conservés à côt
 
 - **Où ils s'affichent.** Dans le **détail** de la photo uniquement, sous forme de puces marquées différemment des tags IA. Les cartes et infobulles montrent les tags IA.
 - **Qui peut les modifier.** Les utilisateurs en mode édition. Sur une installation sans `viewer.edition_password`, ils sont en lecture seule. Les tags IA ne peuvent pas être retirés.
-- **Modification groupée.** Sélectionnez des photos et utilisez **Modifier les mots-clés** (barre de sélection, feuille Actions mobile ou menu contextuel) pour ajouter ou retirer un tag. Les sélections de toute la vue fonctionnent. Les photos qui ont déjà 50 tags manuels sont ignorées ; `count` rapporte les photos réellement modifiées.
+- **Modification groupée.** Sélectionnez des photos et utilisez **Modifier les mots-clés** (barre de sélection, feuille Actions mobile ou menu contextuel). Ajouter/Retirer change un tag ; Remplacer attend un tag par ligne ; Effacer retire tous les tags manuels. L’aperçu montre les cibles capturées et les valeurs différentes connues avant Appliquer, y compris pour les sélections de toute la vue. Ajouter ignore les photos qui ont déjà 50 tags manuels ; un remplacement invalide est refusé avant toute écriture par cette requête. `count` rapporte les lignes de tags modifiées, pas les photos. Les tags IA sont conservés. Chaque requête est atomique, mais un lot de plusieurs requêtes ne l’est pas ; un résultat incertain de Remplacer/Effacer impose d’inspecter le résultat avant un nouvel essai.
 - **Format.** Les tags sont rognés, mis en minuscules et leurs espaces réduits (NFC). 64 caractères max, 50 max par photo. Les tags vides, les virgules et les caractères de contrôle sont refusés. Un tag égal à l'un des tags IA de la photo n'est pas stocké.
 - **La recherche et les filtres les voient.** Le filtre de tags, la recherche textuelle, la recherche sémantique (`/api/search`, sauf la portée texte limitée aux légendes), la liste déroulante des tags, les statistiques et les exports sidecar/intégré/Lightroom utilisent tous les tags IA + manuels. La recherche textuelle fait correspondre un tag manuel comme une expression entière.
 - **Exceptions.** Les capsules ne comptent que les tags IA. Les tags manuels n'affectent jamais les scores, les catégories ni les moments narratifs.
@@ -591,6 +599,8 @@ Créez des albums et ajoutez-y des photos depuis la galerie par sélection multi
 ### Albums intelligents
 
 Enregistrez une combinaison de filtres (appareil, tag, personne, dates, seuils de score…) comme album intelligent. Il se met à jour quand de nouvelles photos correspondent. Les filtres sont stockés en JSON dans `smart_filter_json`.
+
+Filtrer un album ouvert ne modifie que la vue de travail. Son panneau de règles distingue les membres choisis manuellement, les critères intelligents enregistrés et les affinages temporaires. Aperçu et Enregistrer mettent explicitement à jour les règles intelligentes prises en charge ; Réinitialiser rétablit les règles enregistrées sans modifier les membres. Les critères non pris en charge sont refusés au lieu d’être omis silencieusement. L’enregistrement vérifie d’abord les règles actuelles du serveur, mais ne constitue pas une comparaison et mise à jour atomique côté serveur. Les visiteurs en lecture seule peuvent affiner et réinitialiser la vue sans enregistrer les règles.
 
 ### Contexte de notation
 
@@ -1159,13 +1169,15 @@ Les raccourcis à touche unique sont inactifs quand le focus est dans un champ d
 
 ## Annuler
 
-Les changements groupés de favori/rejet/note et les confirmations de tri affichent une barre de notification avec **Annuler** pendant environ 7 secondes.
+Les changements groupés de favori/rejet/note et les confirmations différées de tri affichent une barre de notification avec **Annuler** pendant environ 7 secondes.
 
-- Les changements groupés d'indicateurs s'appliquent aussitôt et s'annulent en les inversant (jusqu'à 500 photos).
-- Les confirmations de tri sont différées : le groupe disparaît aussitôt, mais rien n'est enregistré avant la fin de la fenêtre d'annulation.
+- Les changements groupés d’indicateurs s’appliquent aussitôt et s’annulent en les inversant (jusqu’à 500 photos).
+- L’annulation d’une note rétablit uniquement les étoiles, en préservant les autres indicateurs. Elle exige un instantané observé complet d’au plus 500 photos et vérifie les changements ultérieurs connus localement ; il ne s’agit pas de l’opération d’historique qui vérifie les conflits côté serveur.
+- Les confirmations de tri sont différées : le groupe disparaît aussitôt, mais rien n’est enregistré avant la fin de la fenêtre d’annulation.
+- Annuler cette confirmation différée empêche son écriture ; ce n’est pas une annulation après validation de l’écriture.
 - Les modifications de [tags manuels](#tags-manuels) ne sont pas annulables.
 
-Pour des changements plus anciens, voir l'[Historique des modifications](#historique-des-modifications).
+Pour des changements plus anciens, voir l’[Historique des modifications](#historique-des-modifications).
 
 ## Application web progressive
 
@@ -1175,7 +1187,7 @@ Les builds de production peuvent être installées sur l'écran d'accueil. La co
 
 ## Mobile
 
-Sur petits écrans, la carte de sélection flottante garde le compteur et les boutons effacer, tout sélectionner et inverser, plus un bouton **Actions**. Il ouvre une feuille du bas avec toutes les opérations groupées (favori, rejet, note, albums, copie, téléchargement). Un bouton de comparaison apparaît quand la sélection tient dans la vue de comparaison.
+La collection comporte deux rangées compactes : titre/Rechercher/Sélectionner, puis tri, sens, Filtres, Grille/Mosaïque et Options d’affichage. La recherche se développe à la demande ; une requête validée et les critères actifs restent visibles. Options d’affichage regroupe les commandes secondaires d’affichage, de filtres rapides et de visibilité. Sélectionner démarre la sélection tactile ; Annuler la quitte. La barre de sélection contextuelle propose Effacer, Comparer et les actions d’écriture autorisées, avec les opérations supplémentaires dans Actions. L’espace de comparaison comporte des commandes visibles Retour et zoom/Ajuster, le glissement tactile et un panneau d’inspection superposé facultatif ; il ne dépend ni du survol ni d’un appui long.
 
 ## Cadre photo / Kiosque
 
@@ -1471,9 +1483,9 @@ Points d'accès : `POST /api/photos/capture_date/preview`, `POST /api/photos/ca
 
 ## Historique des modifications
 
-Passez en revue et annulez vos modifications récentes dans toute la bibliothèque. En mode édition, ouvrez **Historique des modifications** depuis l'icône d'horloge de la navigation principale (après Ce jour-là). Développez une entrée pour voir les valeurs exactes avant/après, puis **Annuler cette entrée**.
+Passez en revue et rétablissez vos modifications récentes dans toute la bibliothèque. En mode édition, ouvrez **Historique des modifications** depuis la navigation. Développez une entrée pour voir ses valeurs avant/après, choisissez l’aperçu, puis Appliquer ou Annuler. Un conflit est signalé sur l’entrée concernée sans aucune écriture ; un échec de chargement propose Recharger au lieu de présenter un historique faussement vide.
 
-- **Ce qui est enregistré :** GPS, dates de prise de vue, décisions de tri, étoiles, favoris et piles manuelles. Pas les fichiers ni la reconnaissance de visages.
+- **Ce qui est enregistré :** GPS, dates de prise de vue, décisions de tri, étoiles, favoris et piles manuelles. Pas les tags manuels, les fichiers ni la reconnaissance de visages.
 - Le GPS et les dates de prise de vue sont des valeurs partagées de la bibliothèque. Les décisions de tri, étoiles et favoris sont les vôtres.
 - Le court Annuler et la liste d'activité de l'assistant sont distincts.
 - **Limites.** Les **50 dernières entrées par compte**, chacune jusqu'à **1000 photos et 1 Mio** de valeurs. Les actions de revue filtrées plus grandes sont scindées en parties ; l'annulation en restaure une. Un remplacement de pile peut couvrir jusqu'à 2000 photos en une entrée.
@@ -1481,6 +1493,10 @@ Passez en revue et annulez vos modifications récentes dans toute la bibliothèq
 - **L'annulation est tout ou rien.** Elle est refusée si la valeur d'une photo a changé depuis, même si elle est revenue en arrière. La modification de revue privée d'un autre compte ne bloque pas la vôtre. Les rescans, imports et Annuler peuvent aussi invalider des entrées plus anciennes.
 - Une entrée est masquée quand l'une de ses photos est supprimée ou n'est plus visible pour vous.
 - Une annulation ajoute sa propre entrée et marque l'originale comme annulée.
+
+### Traitement et reçus
+
+Ouvrez Traitement depuis le menu du compte pour consulter les opérations d’arrière-plan prises en charge, leurs identifiants de reçu, leur état réel et leurs nombres d’éléments. Les tâches terminées avec des éléments inachevés restent signalées comme telles ; aucune position dans une file n’est inventée. L’annulation prend effet entre les fichiers. Réessayer relance l’opération prise en charge pour ses éléments en échec, pas une autre action. Un échec de lecture de l’état propose une récupération. Les exports de fichiers conservent leurs propres vérifications d’aperçu, de destination et de propriété ; les reçus décrivent les écritures déjà tentées, sans promettre que les écritures de fichiers distinctes sont globalement atomiques.
 
 ## Visages sans nom
 
