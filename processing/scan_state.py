@@ -32,6 +32,7 @@ class ScanRun:
         self._pending_failures = []
         self._processed = 0
         self._last_flush = 0.0
+        self._bookkeeping_failed = False
 
     @classmethod
     def start(cls, db_path, mode, args_dict, total_files):
@@ -94,11 +95,19 @@ class ScanRun:
                 )
                 conn.commit()
         except Exception as e:
+            # The drained failure buffer may have been lost. A later successful
+            # flush must not make a captured retry erase its source receipts.
+            with self._lock:
+                self._bookkeeping_failed = True
             logger.warning("Scan bookkeeping flush failed: %s", e)
 
     def finish(self, status='completed'):
-        """Flush buffers and close the run with the given status."""
+        """Close the run, returning whether all bookkeeping was persisted."""
         self._maybe_flush(force=True)
+        with self._lock:
+            persisted = not self._bookkeeping_failed
+        if status == 'completed' and not persisted:
+            status = 'failed'
         try:
             with get_connection(self.db_path, row_factory=False) as conn:
                 conn.execute(
@@ -108,7 +117,9 @@ class ScanRun:
                 conn.commit()
         except Exception as e:
             logger.warning("Could not close scan run #%d: %s", self.run_id, e)
+            return False
         logger.info("Scan run #%d finished: %s", self.run_id, status)
+        return persisted
 
 
 def get_last_resumable_run(db_path, stale_seconds=120):

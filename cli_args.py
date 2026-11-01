@@ -100,8 +100,15 @@ Configuration:
     scan_group.add_argument('--resume', action='store_true',
                         help='Resume the last interrupted/failed scan run (reuses its directories; '
                              'with --force, skips files already re-scored since that run started)')
-    scan_group.add_argument('--retry-failed', nargs='?', const='last', metavar='last|all',
-                        help='Re-process only files that failed during the last scan run (or all runs)')
+    from processing.scan_retry import retry_scope
+    scan_group.add_argument('--retry-failed', nargs='?', const='last', type=retry_scope, metavar='last|all|RUN_ID',
+                        help='Re-process failed files from the last run, all runs, or an exact run ID; '
+                             'then run the normal library-wide finalization')
+    scan_group.add_argument('--retry-plan', type=str, metavar='PATH',
+                        help='Process a captured failed-file manifest without library-wide finalization; '
+                             'requires --retry-plan-sha256 and cannot combine with other commands')
+    scan_group.add_argument('--retry-plan-sha256', type=str, metavar='SHA256',
+                        help='Expected SHA-256 of the private captured retry manifest')
     scan_group.add_argument('--force-since', type=str, metavar='YYYY-MM-DD',
                         help='Like --force, but only re-process photos last scanned before this date')
     scan_group.add_argument('--watch', action='store_true',

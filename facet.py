@@ -1719,6 +1719,19 @@ def _run_scan(args, resumed_run):
     Returns True when the scan ran to completion (or found nothing new) and
     False when it was interrupted, so ``--auto-cull`` culls only a finished scan.
     """
+    # The lock is already held here. Revalidate BEFORE constructing Facet:
+    # its constructor initializes the schema and may load heavy models.
+    retry_plan = None
+    if args.retry_plan:
+        from processing.scan_retry import read_retry_manifest, retry_plan_paths, RetryPlanError
+        try:
+            retry_plan = read_retry_manifest(
+                args.retry_plan, args.retry_plan_sha256, args.db, args.config,
+            )
+        except RetryPlanError as exc:
+            logger.error('%s', exc)
+            raise SystemExit(2) from exc
+
     from processing.scorer import Facet, process_bursts, process_single_photo
     from config import ScoringConfig
 
@@ -1751,7 +1764,8 @@ def _run_scan(args, resumed_run):
     init_global_plugin_manager(config=scorer.config.config)
 
     # 1. Gather files recursively from subfolders (or single files)
-    all_files = _gather_scan_files(args.photo_paths, scorer.config.get_scanning_settings())
+    all_files = (retry_plan_paths(retry_plan) if retry_plan is not None else
+                 _gather_scan_files(args.photo_paths, scorer.config.get_scanning_settings()))
 
     # Deduplicate (needed for case-insensitive filesystems like Windows).
     #
@@ -1784,8 +1798,7 @@ def _run_scan(args, resumed_run):
     # --retry-failed: the worklist comes from scan_failures, not the dir walk
     if args.retry_failed:
         from processing.scan_state import get_failed_paths
-        scope = 'all' if args.retry_failed == 'all' else 'last'
-        failed = [Path(p) for p in get_failed_paths(args.db, scope)]
+        failed = [Path(p) for p in get_failed_paths(args.db, args.retry_failed)]
         all_files = [p for p in failed if p.exists()]
         missing = len(failed) - len(all_files)
         logger.info("Retrying %d failed files (%d no longer on disk)", len(all_files), missing)
@@ -1803,7 +1816,7 @@ def _run_scan(args, resumed_run):
     def _raw_paired_with_jpeg(f):
         return (f.suffix.lower() in RAW_EXTENSIONS
                 and (os.path.dirname(_resolved(f)), f.stem.lower()) in jpeg_dir_stems)
-    if args.retry_failed:
+    if args.retry_failed or retry_plan is not None:
         unscanned = {_resolved(f) for f in all_files}
     elif args.force_since:
         from processing.scan_state import filter_paths_scanned_before
@@ -1936,9 +1949,14 @@ def _run_scan(args, resumed_run):
         logger.warning("A scan appears to be running concurrently; starting a separate run.")
 
     route, scan_mode = _scan_route(args, single_pass)
+    recorded_args = {
+        'directories': [os.path.realpath(str(p)) for p in args.photo_paths], 'force': args.force,
+    }
+    if retry_plan is not None:
+        recorded_args.update(retry_of=retry_plan['run_id'], finalization=retry_plan['finalization'])
     scan_run = ScanRun.start(
         args.db, scan_mode,
-        {'directories': [os.path.realpath(str(p)) for p in args.photo_paths], 'force': args.force},
+        recorded_args,
         len(todo_list),
     )
     _scan_t0 = time.time()
@@ -2088,8 +2106,24 @@ def _run_scan(args, resumed_run):
         scan_run.finish('failed')
         raise
     else:
-        scan_run.finish('completed')
-        if args.retry_failed and todo_list:
+        recorded = scan_run.finish('completed')
+        if retry_plan is not None and not recorded:
+            scorer.commit()
+            logger.error('Retry bookkeeping could not be saved. Original failure records '
+                         'were retained; inspect the library before creating a new preview.')
+            raise SystemExit(1)
+        if retry_plan is not None:
+            # Clear only this confirmed source run's old records. Preserve
+            # failures in every other run, including the newly recorded retry.
+            retried = {_resolved(f) for f in todo_list}
+            with get_connection(scorer.db_path) as conn:
+                conn.executemany(
+                    'DELETE FROM scan_failures WHERE path = ? AND scan_run_id = ?',
+                    [(item['recorded_path'], retry_plan['run_id']) for item in retry_plan['files']
+                     if item['omission'] is None and item['path'] in retried],
+                )
+                conn.commit()
+        elif args.retry_failed and todo_list:
             retried_paths = [_resolved(f) for f in todo_list]
             with get_connection(scorer.db_path) as conn:
                 conn.executemany(
@@ -2100,6 +2134,12 @@ def _run_scan(args, resumed_run):
 
     # 3. Finalization
     scorer.commit()
+
+    if retry_plan is not None:
+        emit_progress('done', force=True)
+        logger.info('Captured retry ended. Library-wide burst, sequence, tagging, '
+                    'moment, junk and vector finalization were not run.')
+        return True
 
     # 4. Process bursts
     # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
@@ -2435,6 +2475,15 @@ def main():
 
     parser = cli_args.build_parser()
     args = parser.parse_args()
+    if args.retry_plan or args.retry_plan_sha256:
+        if not (args.retry_plan and args.retry_plan_sha256):
+            parser.error('--retry-plan and --retry-plan-sha256 must be supplied together')
+        # Validate before any of the maintenance-command dispatches below can
+        # initialize or rewrite the database. The transport has one purpose.
+        defaults = vars(parser.parse_args([]))
+        allowed = {'retry_plan', 'retry_plan_sha256', 'db', 'config'}
+        if any(value != defaults[name] for name, value in vars(args).items() if name not in allowed):
+            parser.error('--retry-plan cannot be combined with other commands or scan modifiers')
     if args.stack_plan_out and not args.immich_stacks_plan:
         parser.error('--stack-plan-out requires --immich-stacks-plan')
     if args.ack_stack_plan and not args.immich_stacks_apply:
@@ -4209,7 +4258,7 @@ def main():
             else:
                 logger.info("Resuming scan run #%d (%s)", resumed_run['id'], resumed_run['started_at'])
 
-    if not args.photo_paths and not args.retry_failed:
+    if not args.photo_paths and not args.retry_failed and not args.retry_plan:
         logger.error("photo_paths is required unless using --recompute-average or --compute-percentiles")
         parser.print_help()
         exit(1)
