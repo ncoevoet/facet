@@ -1992,6 +1992,13 @@ export const I18N = {
     completed: "scan.completed",
     failed: "scan.failed",
     idle: "scan.idle",
+    status_unavailable: "scan.status_unavailable",
+    retry_status: "scan.retry_status",
+    checking_status: "scan.checking_status",
+    start_unconfirmed: "scan.start_unconfirmed",
+    stopped: "scan.stopped",
+    last_observed_output: "scan.last_observed_output",
+    status_unknown: "scan.status_unknown",
   },
   persons: {
     help: "persons.help",

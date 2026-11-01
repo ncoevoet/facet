@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { provideHttpClient, withXhr } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ScanService, ScanStatus } from './scan.service';
-import { AuthService } from './auth.service';
+import { AuthService, AuthStatus } from './auth.service';
 import { MatDialog } from '@angular/material/dialog';
 import { of } from 'rxjs';
 import { makeJwt } from '../../../testing/jwt';
@@ -30,6 +30,12 @@ class MockEventSource {
   simulateError(): void {
     this.onerror?.();
   }
+}
+
+function authorizedStatus(): AuthStatus {
+  return { authenticated: true, multi_user: false, edition_enabled: true, edition_authenticated: true,
+    edition_password_required: false, login_password_required: false, user_id: 'alice', user_role: 'admin',
+    display_name: 'Alice', features: { show_scan_button: true }, download_profiles: [] };
 }
 
 describe('ScanService', () => {
@@ -66,6 +72,7 @@ describe('ScanService', () => {
         provideHttpClientTesting(),
       ],
     });
+    TestBed.inject(AuthService).status.set(authorizedStatus());
     service = TestBed.inject(ScanService);
     httpTesting = TestBed.inject(HttpTestingController);
   });
@@ -101,8 +108,9 @@ describe('ScanService', () => {
       expect(service.connected()).toBe(true);
     });
 
-    it('should not connect when no local token is available', async () => {
+    it('should not connect without an authorized scan session', async () => {
       vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(null);
+      TestBed.inject(AuthService).status.set(null);
       await service.connect();
 
       httpTesting.expectNone('/api/scan/stream_token');
@@ -163,6 +171,146 @@ describe('ScanService', () => {
       expect(MockEventSource.instances).toHaveLength(2);
       expect(MockEventSource.instances[1].url).toContain('token=token-2');
     });
+  });
+
+  it('does not reopen a stream after disconnect while mint is pending', async () => {
+    const connect = service.connect();
+    service.disconnect();
+    flushMint(); await connect;
+    expect(MockEventSource.instances).toHaveLength(0);
+  });
+
+  it('ignores an old closed stream callback after a new connection is live', async () => {
+    const first = service.connect(); flushMint(); await first;
+    const old = MockEventSource.instances[0];
+    const second = service.connect(); flushMint(); await second;
+    old.simulateMessage({ ...mockStatus, output: ['stale'] });
+    old.simulateError();
+    expect(MockEventSource.instances[1].closed).toBe(false);
+    expect(service.status().output).not.toEqual(['stale']);
+    httpTesting.expectNone('/api/scan/stream_token');
+  });
+
+  it('discards a pending mint and visible private output when the account changes', async () => {
+    const first = service.connect(); flushMint(); await first;
+    MockEventSource.instances[0].simulateMessage(mockStatus);
+    const reconnect = service.connect();
+    TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'bob' });
+    flushMint(); await reconnect;
+    expect(MockEventSource.instances).toHaveLength(1);
+    expect(service.status().output).toEqual([]);
+    expect(service.status().directories).toEqual([]);
+    expect(service.statusKnown()).toBe(false);
+  });
+
+  it('rejects stale directory results and does not attach an accepted start to another account', async () => {
+    const dirs = service.loadDirectories();
+    const pendingDirs = httpTesting.expectOne('/api/scan/directories');
+    TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'bob' });
+    pendingDirs.flush({ directories: [{ path: '/alice/private', owner: 'alice' }] });
+    await expect(dirs).rejects.toThrow('Scan session changed');
+    const paths = ['/bob'];
+    const start = service.startScan(paths);
+    const post = httpTesting.expectOne('/api/scan/start');
+    paths.push('/later');
+    expect(post.request.body).toEqual({ directories: ['/bob'] });
+    TestBed.inject(AuthService).status.set(authorizedStatus());
+    post.flush({ success: true }); await start;
+    httpTesting.expectNone('/api/scan/stream_token');
+  });
+
+  it('discards late polling after token rotation and blocks commands after rights loss', async () => {
+    const connect = service.connect();
+    httpTesting.expectOne('/api/scan/stream_token').flush('', { status: 503, statusText: 'Unavailable' });
+    await connect;
+    const poll = httpTesting.expectOne(r => r.url === '/api/scan/status');
+    vi.spyOn(Storage.prototype, 'getItem').mockReturnValue(makeJwt(7200));
+    poll.flush(mockStatus); await Promise.resolve();
+    expect(service.status().output).toEqual([]);
+    expect(service.statusKnown()).toBe(false);
+    TestBed.inject(AuthService).status.set({ ...authorizedStatus(), edition_authenticated: false });
+    await expect(service.startScan(['/photos'])).rejects.toThrow('Scan session changed');
+    httpTesting.expectNone('/api/scan/start');
+  });
+
+  it('keeps pending directory reads valid across same-session observation recovery', async () => {
+    const dirs = service.loadDirectories();
+    const pending = httpTesting.expectOne('/api/scan/directories');
+    const connect = service.connect(); flushMint(); await connect;
+    pending.flush({ directories: [{ path: '/photos', owner: 'alice' }] });
+    await expect(dirs).resolves.toEqual([{ path: '/photos', owner: 'alice' }]);
+  });
+
+  it('retains last known same-session output while a recovered connection is still unknown', async () => {
+    const first = service.connect(); flushMint(); await first;
+    MockEventSource.instances[0].simulateMessage(mockStatus);
+    const retry = service.connect();
+    expect(service.statusKnown()).toBe(false);
+    expect(service.status().output).toEqual(mockStatus.output);
+    flushMint(); await retry;
+  });
+
+  it('recovers a failed status read using only observation requests', async () => {
+    const connect = service.connect();
+    httpTesting.expectOne('/api/scan/stream_token').flush('', { status: 503, statusText: 'Unavailable' });
+    await connect;
+    httpTesting.expectOne(r => r.url === '/api/scan/status').flush('', { status: 503, statusText: 'Unavailable' });
+    await Promise.resolve();
+    expect(service.observationError()).toBe(true);
+    expect(service.statusKnown()).toBe(false);
+    const retry = service.connect(); flushMint(); await retry;
+    MockEventSource.instances[0].simulateMessage(mockStatus);
+    expect(service.observationError()).toBe(false);
+    expect(service.statusKnown()).toBe(true);
+    expect(service.status()).toEqual(mockStatus);
+    httpTesting.expectNone('/api/scan/start');
+  });
+
+  it('treats malformed SSE data as a recoverable read error', async () => {
+    const connect = service.connect(); flushMint(); await connect;
+    MockEventSource.instances[0].onmessage?.({ data: 'null' } as MessageEvent);
+    expect(service.observationError()).toBe(true);
+    expect(service.statusKnown()).toBe(false);
+    expect(MockEventSource.instances[0].closed).toBe(true);
+    httpTesting.expectNone('/api/scan/start');
+  });
+
+  it('falls back to a status read if EventSource construction is unavailable', async () => {
+    globalThis.EventSource = class { constructor() { throw new Error('blocked transport'); } } as unknown as typeof EventSource;
+    const connect = service.connect(); flushMint(); await connect;
+    httpTesting.expectOne(r => r.url === '/api/scan/status').flush(mockStatus);
+    await Promise.resolve();
+    expect(service.status()).toEqual(mockStatus);
+    expect(service.statusKnown()).toBe(true);
+    httpTesting.expectNone('/api/scan/start');
+  });
+
+  it('does not report malformed polling data as a finished scan', async () => {
+    const connect = service.connect();
+    httpTesting.expectOne('/api/scan/stream_token').flush('', { status: 503, statusText: 'Unavailable' });
+    await connect;
+    httpTesting.expectOne(r => r.url === '/api/scan/status').flush({ running: false, output: null });
+    await Promise.resolve();
+    expect(service.observationError()).toBe(true);
+    expect(service.statusKnown()).toBe(false);
+    expect(service.status().exit_code).toBeNull();
+  });
+
+  it('keeps at most one polling request in flight', async () => {
+    vi.useFakeTimers();
+    try {
+      const connect = service.connect();
+      httpTesting.expectOne('/api/scan/stream_token').flush('', { status: 503, statusText: 'Unavailable' });
+      await connect;
+      const first = httpTesting.expectOne(r => r.url === '/api/scan/status');
+      vi.advanceTimersByTime(6000);
+      httpTesting.expectNone(r => r.url === '/api/scan/status');
+      first.flush(mockStatus); await Promise.resolve();
+      vi.advanceTimersByTime(2000);
+      httpTesting.expectOne(r => r.url === '/api/scan/status').flush({ ...mockStatus, running: false, exit_code: 0 });
+      await Promise.resolve();
+      expect(service.status().exit_code).toBe(0);
+    } finally { vi.useRealTimers(); }
   });
 
   describe('connect() SSE error handling', () => {
@@ -293,6 +441,7 @@ describe('ScanService', () => {
     }): boolean {
       TestBed.resetTestingModule();
       const auth = {
+        identity: () => 'test', status: () => null, token: null,
         loginPasswordRequired: () => overrides.loginPasswordRequired ?? false,
         isMultiUser: () => overrides.isMultiUser ?? false,
         isSuperadmin: () => overrides.isSuperadmin ?? false,
@@ -363,6 +512,7 @@ describe('ScanService', () => {
           provideHttpClientTesting(),
         ],
       });
+      TestBed.inject(AuthService).status.set(authorizedStatus());
       return dialog;
     }
 

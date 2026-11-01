@@ -1975,9 +1975,16 @@
     "eta": "ETA",
     "starting": "Starting...",
     "running": "Running",
-    "completed": "Completed",
-    "failed": "Failed",
-    "idle": "Idle"
+    "completed": "Scan completed",
+    "failed": "Scan ended with an error",
+    "idle": "Idle",
+    "status_unavailable": "Scan status is unavailable. The scan may still be running. Reading status again will not restart it.",
+    "retry_status": "Read scan status again",
+    "checking_status": "Checking scan status…",
+    "start_unconfirmed": "The scan start could not be confirmed. Check its status before starting another scan.",
+    "stopped": "Scan is not running",
+    "last_observed_output": "Last observed output",
+    "status_unknown": "Status unknown"
   },
   "persons": {
     "help": "People detected by face recognition. Name unnamed clusters, merge duplicates, set an avatar, or hide a person. Click a person to see their photos.",

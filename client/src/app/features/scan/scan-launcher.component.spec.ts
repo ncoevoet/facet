@@ -15,6 +15,9 @@ describe('ScanLauncherComponent', () => {
     startScan: ReturnType<typeof vi.fn>;
     status: ReturnType<typeof signal<ScanStatus>>;
     connected: ReturnType<typeof signal<boolean>>;
+    statusKnown: ReturnType<typeof signal<boolean>>;
+    observationError: ReturnType<typeof signal<boolean>>;
+    connect: ReturnType<typeof vi.fn>;
   };
   let dialogClose: ReturnType<typeof vi.fn>;
 
@@ -26,7 +29,7 @@ describe('ScanLauncherComponent', () => {
       ])),
       startScan: vi.fn(() => Promise.resolve()),
       status: signal<ScanStatus>(idleStatus()),
-      connected: signal(false),
+      connected: signal(false), statusKnown: signal(true), observationError: signal(false), connect: vi.fn(async () => undefined),
     };
     dialogClose = vi.fn();
 
@@ -59,6 +62,23 @@ describe('ScanLauncherComponent', () => {
 
   it('does not start without a selected directory', async () => {
     await component.start();
+    expect(mockScan.startScan).not.toHaveBeenCalled();
+  });
+
+  it('recovers observation after an uncertain start without allowing a second start', async () => {
+    mockScan.startScan.mockRejectedValueOnce(new Error('lost response'));
+    (component as any).selectedDir.set('/photos/a');
+    await component.start();
+    expect(read<boolean>('startError')).toBe(true);
+    expect(mockScan.connect).toHaveBeenCalledTimes(1);
+    await component.start();
+    expect(mockScan.startScan).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not start before status is known or while observation has failed', async () => {
+    (component as any).selectedDir.set('/photos/a');
+    mockScan.statusKnown.set(false); await component.start();
+    mockScan.statusKnown.set(true); mockScan.observationError.set(true); await component.start();
     expect(mockScan.startScan).not.toHaveBeenCalled();
   });
 

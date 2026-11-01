@@ -19,7 +19,16 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
   imports: [MatDialogModule, MatButtonModule, MatIconModule, MatProgressBarModule, TranslatePipe],
   template: `
     <h2 mat-dialog-title>{{ I18N.scan.title | translate }}</h2>
-    <mat-dialog-content class="!pt-2 min-w-[22rem] max-w-[34rem]">
+    <mat-dialog-content class="!pt-2 min-w-0 w-full max-w-[34rem]">
+      @if (observationError()) {
+        <p role="alert" class="text-sm">{{ I18N.scan.status_unavailable | translate }}</p>
+        <button mat-stroked-button (click)="retryStatus()">{{ I18N.scan.retry_status | translate }}</button>
+      } @else if (!statusKnown()) {
+        <p role="status" class="text-sm">{{ I18N.scan.checking_status | translate }}</p>
+      }
+      @if (startError()) {
+        <p role="alert" class="text-sm">{{ I18N.scan.start_unconfirmed | translate }}</p>
+      }
       @if (!started()) {
         @if (loadingDirs()) {
           <p class="opacity-60 text-sm py-4">{{ I18N.scan.loading_directories | translate }}</p>
@@ -45,8 +54,8 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
         }
       } @else {
         <div class="flex items-center gap-2 mb-2 text-sm">
-          <mat-icon class="!text-base !w-4 !h-4" [class.text-green-500]="connected()">
-            {{ connected() ? 'cloud_done' : 'sync' }}
+          <mat-icon class="!text-base !w-4 !h-4" [class.text-green-500]="connected() && statusKnown() && !observationError()">
+            {{ connected() && statusKnown() && !observationError() ? 'cloud_done' : 'sync' }}
           </mat-icon>
           <span class="opacity-80">
             @if (phaseLabelKey(); as key) { {{ key | translate }} }
@@ -56,8 +65,13 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
             <span class="opacity-50 ml-auto">{{ I18N.scan.eta | translate }} {{ eta() }}s</span>
           }
         </div>
-        <mat-progress-bar [mode]="progressValue() === null ? 'indeterminate' : 'determinate'"
-                          [value]="progressValue() ?? 0" />
+        @if (statusKnown() && status().running && !observationError()) {
+          <mat-progress-bar [mode]="progressValue() === null ? 'indeterminate' : 'determinate'"
+                            [value]="progressValue() ?? 0" />
+        }
+        @if ((!statusKnown() || observationError()) && outputTail()) {
+          <p class="mt-3 mb-1 text-xs">{{ I18N.scan.last_observed_output | translate }}</p>
+        }
         <pre class="mt-3 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto opacity-70 bg-[var(--mat-sys-surface-container)] rounded p-2">{{ outputTail() }}</pre>
       }
     </mat-dialog-content>
@@ -65,7 +79,7 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
       <button mat-button mat-dialog-close>{{ I18N.scan.close | translate }}</button>
       @if (!started()) {
         <button mat-flat-button color="primary"
-                [disabled]="!selectedDir()"
+                [disabled]="!selectedDir() || !statusKnown() || observationError() || status().running"
                 (click)="start()">
           {{ I18N.scan.start_button | translate }}
         </button>
@@ -83,9 +97,12 @@ export class ScanLauncherComponent implements OnInit {
   protected readonly loadingDirs = signal(true);
   protected readonly dirLoadError = signal(false);
   protected readonly started = signal(false);
+  protected readonly startError = signal(false);
 
   protected readonly status = this.scan.status;
   protected readonly connected = this.scan.connected;
+  protected readonly statusKnown = this.scan.statusKnown;
+  protected readonly observationError = this.scan.observationError;
   // ScanService is a root singleton; its status can still hold a prior run's
   // {running:false, exit_code:0}. Only auto-close once THIS run was seen live.
   private sawRunning = false;
@@ -96,12 +113,17 @@ export class ScanLauncherComponent implements OnInit {
     return Math.round(((p.current ?? 0) / p.total) * 100);
   });
   protected readonly phaseLabelKey = computed(() => {
+    if (this.observationError()) return I18N.scan.status_unknown;
+    if (!this.statusKnown()) return I18N.scan.checking_status;
+    if (!this.status().running && this.status().exit_code !== null && this.status().exit_code !== 0) return I18N.scan.failed;
+    if (!this.status().running) return this.status().exit_code === 0 ? I18N.scan.completed : I18N.scan.stopped;
     const phase = this.status().progress?.phase;
     if (!phase) return I18N.scan.running;
     return Object.hasOwn(I18N.scan.phase, phase)
       ? (I18N.scan.phase as Record<string, string>)[phase] : null;
   });
-  protected readonly eta = computed(() => this.status().progress?.eta_seconds ?? null);
+  protected readonly eta = computed(() => this.statusKnown() && !this.observationError() && this.status().running
+    ? this.status().progress?.eta_seconds ?? null : null);
   protected readonly outputTail = computed(() => this.status().output.slice(-20).join('\n'));
 
   constructor() {
@@ -109,6 +131,8 @@ export class ScanLauncherComponent implements OnInit {
     // cleanly — guarding against a stale prior-run success in the shared signal.
     effect(() => {
       const s = this.status();
+      if (!this.statusKnown() || this.observationError()) return;
+      if (s.running) this.started.set(true);
       if (!this.started()) return;
       if (s.running) {
         this.sawRunning = true;
@@ -119,6 +143,7 @@ export class ScanLauncherComponent implements OnInit {
   }
 
   async ngOnInit(): Promise<void> {
+    void this.scan.connect();
     try {
       this.directories.set(await this.scan.loadDirectories());
     } catch {
@@ -130,8 +155,17 @@ export class ScanLauncherComponent implements OnInit {
 
   async start(): Promise<void> {
     const dir = this.selectedDir();
-    if (!dir) return;
+    if (!dir || this.started() || !this.statusKnown() || this.observationError() || this.status().running) return;
     this.started.set(true);
-    await this.scan.startScan([dir]);
+    try {
+      await this.scan.startScan([dir]);
+    } catch {
+      // A lost start response is uncertain. Recover observation; never repeat
+      // the POST automatically or turn its failure into another Start button.
+      this.startError.set(true);
+      await this.scan.connect();
+    }
   }
+
+  protected retryStatus(): void { void this.scan.connect(); }
 }
