@@ -20,7 +20,7 @@ def _unique_object(pairs):
 
 def tag_query_groups(value: str) -> dict[str, list[str]]:
     """Decode bounded arrays of literal names, never a comma/Boolean grammar."""
-    empty = {key: [] for key in TAG_QUERY_GROUPS}
+    empty: dict[str, list[str]] = {key: [] for key in TAG_QUERY_GROUPS}
     if value == '':
         return empty
     if not isinstance(value, str) or len(value) > TAG_QUERY_JSON_LIMIT:

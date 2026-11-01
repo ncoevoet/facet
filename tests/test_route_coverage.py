@@ -96,6 +96,10 @@ AUTH_ROUTES = [
 # Routes that require auth AND take a query/path parameter. We pass a known
 # value or a deliberately bogus one — the assertion is just "no 5xx".
 PARAMETERISED_ROUTES = [
+    ('/api/shared/album/1/photo', {'path': '/nonexistent.jpg', 'token': 'invalid'}),
+    ('/api/shared/album/1/media/thumbnail', {'path': '/nonexistent.jpg', 'token': 'invalid'}),
+    ('/api/shared/album/1/media/image', {'path': '/nonexistent.jpg', 'token': 'invalid'}),
+    ('/api/shared/album/1/media/download', {'path': '/nonexistent.jpg', 'token': 'invalid'}),
     ('/api/stacks/by-photo', {'path': '/nonexistent.jpg'}),
     ('/api/stacks/nonexistent', {}),
     ('/api/export/sidecar_jobs/not-a-job', {}),

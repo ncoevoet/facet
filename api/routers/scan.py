@@ -300,7 +300,7 @@ def recorded_scan_runs(
                     f'FROM scan_failures WHERE scan_run_id IN ({placeholders}) '
                     'GROUP BY scan_run_id, 2 ORDER BY scan_run_id DESC, stage', ids,
                 ).fetchall()
-                by_run = {run['id']: [] for run in runs}
+                by_run: dict[int, list[dict[str, str | int]]] = {run['id']: [] for run in runs}
                 for stage in stages:
                     by_run[stage['scan_run_id']].append({'stage': stage['stage'], 'count': stage['count']})
                 for run in runs:

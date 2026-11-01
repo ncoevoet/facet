@@ -141,7 +141,7 @@ def _album_to_dict(album):
     return result
 
 
-async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort_dir, filters=None, include_manual=True):
+async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col, sort_dir, filters=None, include_manual=True, member_path=None):
     """Fetch paginated photos for an album (smart or regular). Async.
 
     ``conn`` must be an aiosqlite Connection. ``_build_gallery_where`` is
@@ -155,6 +155,8 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
     (owner-chosen content), but its photos still hide them under the switch.
 
     Returns a dict with keys: photos, total, page, per_page, total_pages, has_more.
+    ``member_path`` narrows that same membership for a token-scoped media read;
+    it never replaces owner visibility or the saved criteria.
     """
     # A share token grants the owner's chosen membership, within the owner's
     # current visibility. The recipient's separate library (or lack of login)
@@ -182,6 +184,9 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
             saved_filters, conn, user_id=owner_id, stack_owner=stack_owner,
             include_stacks=include_manual,
         )
+        if member_path is not None:
+            where_clauses.append('photos.path = ?')
+            sql_params.append(member_path)
         from_clause, from_params = get_photos_from_clause(owner_id)
         all_params = from_params + sql_params
         where_str = f" WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
@@ -208,6 +213,9 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
         from_clause, from_params = get_photos_from_clause(user_id)
         base_where = ["ap.album_id = ?"]
         base_params = [album_row['id']]
+        if member_path is not None:
+            base_where.append('photos.path = ?')
+            base_params.append(member_path)
 
         vis_sql, vis_params = get_visibility_clause(user_id)
         base_where.append(vis_sql)

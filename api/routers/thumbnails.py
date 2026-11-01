@@ -339,6 +339,10 @@ def get_thumbnail(
             [path, *vis_params],
         ).fetchone()
 
+    return _thumbnail_response(request, path, size, row)
+
+
+def _thumbnail_response(request: Request, path: str, size: Optional[int], row):
     if not (row and row['thumbnail']):
         return Response(content="Thumbnail not found", status_code=404)
     if size and 0 < size < _STORED_THUMBNAIL_SIZE:
@@ -527,6 +531,10 @@ def image(
             f"SELECT path, sequence_kind, preview_revision FROM photos WHERE path = ? AND {vis_sql}",
             [path, *vis_params],
         ).fetchone()
+    return _image_response(request, path, fallback, row)
+
+
+def _image_response(request: Request, path: str, fallback: str, row):
     if not row:
         return Response(content="Not found", status_code=404)
 
