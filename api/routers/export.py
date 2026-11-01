@@ -178,6 +178,9 @@ class CullApplyRequest(_PathsOrFiltersRequest):
 # paths only, capped like every other paths-bearing request in this module.
 class PhotoDeleteRequest(BaseModel):
     paths: list[str] = Field(max_length=10000)
+    # Explicit catalog erasure, independent of file availability or OS trash.
+    # Never widens membership or touches originals/companions on disk.
+    catalog_only: bool = False
     # Off by default: deleting a derived JPEG must not silently trash its
     # untouched companion RAW or darktable .xmp. Opt in to remove a shot whole.
     include_companions: bool = False
@@ -1291,6 +1294,37 @@ def api_cull_apply(
     return respond(False, errors, trashed=trashed)
 
 
+def _invalidate_removed_photos(removed_db_paths: set[str]) -> None:
+    from api.routers.thumbnails import clear_photo_image_caches
+    clear_photo_image_caches(removed_db_paths)
+    # The gallery grid must not keep serving pre-delete counts for up to
+    # `cache_ttl_seconds` (default 1h) -- unlike the row delete itself,
+    # the in-process stats cache has no TTL-independent invalidation of
+    # its own.
+    invalidate_stats_cache()
+
+    # photos_vec (sqlite-vec) has no FK or trigger. Clean it best-effort
+    # OUTSIDE the request transaction -- the vector index is derived and
+    # rebuildable, and this must never fail the response for rows already
+    # committed gone.
+    try:
+        from db.connection import HAS_SQLITE_VEC, load_sqlite_vec
+        from db.vec import _vec_table_exists
+        with get_db() as vec_conn:
+            load_sqlite_vec(vec_conn)
+            if HAS_SQLITE_VEC and _vec_table_exists(vec_conn):
+                placeholders = ",".join("?" * len(removed_db_paths))
+                vec_conn.execute(
+                    f"DELETE FROM photos_vec WHERE path IN ({placeholders})",
+                    list(removed_db_paths),
+                )
+                vec_conn.commit()
+    except Exception:
+        logger.exception(
+            "Could not clean photos_vec entries after photo delete (rebuild with --populate-vec)"
+        )
+
+
 @router.post("/api/photo/delete", response_model=PhotoDeleteResponse, response_model_exclude_unset=True)
 def api_photo_delete(
     body: PhotoDeleteRequest,
@@ -1362,6 +1396,27 @@ def api_photo_delete(
     keeps a path ``skipped`` when the allowlist refused it or the folder
     that held it is gone or empty -- the shape of an offline volume.
     """
+    if body.catalog_only:
+        if body.include_companions or body.include_sequence_siblings:
+            raise HTTPException(status_code=422, detail='Catalog removal accepts only the named photos')
+        with get_db() as conn:
+            paths = list(dict.fromkeys(body.paths))
+            visible = _visible_photo_paths(conn, paths, user.user_id)
+            removed = [p for p in paths if p in visible]
+            # Do not reveal whether an unavailable path belongs to another account.
+            unavailable = [p for p in paths if p not in visible]
+            if not body.dry_run:
+                _reassign_dead_leads(conn, set(removed), user.user_id, commit=False)
+                delete_photo_rows(conn, removed, preserve_auto_retrain_counters=True)
+                conn.commit()
+        if not body.dry_run and removed:
+            _invalidate_removed_photos(set(removed))
+        return PhotoDeleteResponse(
+            dry_run=body.dry_run, would_trash=[], deleted=[], removed_catalog=removed,
+            not_found=unavailable, not_visible=[], refused_bracket_lead=[],
+            sequence_siblings=[], skipped=[], removed_missing=[], trashed=0, errors={},
+        )
+
     send2trash = _require_trash_available()
 
     user_id = user.user_id
@@ -1455,32 +1510,7 @@ def api_photo_delete(
         conn.commit()
 
     if removed_db_paths:
-        # The gallery grid must not keep serving pre-delete counts for up to
-        # `cache_ttl_seconds` (default 1h) -- unlike the row delete itself,
-        # the in-process stats cache has no TTL-independent invalidation of
-        # its own.
-        invalidate_stats_cache()
-
-        # photos_vec (sqlite-vec) has no FK or trigger. Clean it best-effort
-        # OUTSIDE the request transaction -- the vector index is derived and
-        # rebuildable, and this must never fail the response for rows already
-        # committed gone.
-        try:
-            from db.connection import HAS_SQLITE_VEC, load_sqlite_vec
-            from db.vec import _vec_table_exists
-            with get_db() as vec_conn:
-                load_sqlite_vec(vec_conn)
-                if HAS_SQLITE_VEC and _vec_table_exists(vec_conn):
-                    placeholders = ",".join("?" * len(removed_db_paths))
-                    vec_conn.execute(
-                        f"DELETE FROM photos_vec WHERE path IN ({placeholders})",
-                        list(removed_db_paths),
-                    )
-                    vec_conn.commit()
-        except Exception:
-            logger.exception(
-                "Could not clean photos_vec entries after photo delete (rebuild with --populate-vec)"
-            )
+        _invalidate_removed_photos(removed_db_paths)
 
     return PhotoDeleteResponse(
         dry_run=False, deleted=sorted(removed_db_paths - set(removed_missing)),

@@ -906,6 +906,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               <button mat-button disabledInteractive (click)="openManualTagsDialog()" [matTooltip]="I18N.gallery.selection.edit_tags | translate" [attr.aria-label]="I18N.gallery.selection.edit_tags | translate"><mat-icon>sell</mat-icon><span>{{ I18N.gallery.selection.edit_tags | translate }}</span></button>
               <button mat-button disabledInteractive (click)="openExportDialog()" [matTooltip]="I18N.export.action | translate" [attr.aria-label]="I18N.export.action | translate"><mat-icon>drive_file_move</mat-icon><span>{{ I18N.export.action | translate }}</span></button>
               <button mat-button disabledInteractive (click)="openCullDialog()" [matTooltip]="I18N.cull.action | translate" [attr.aria-label]="I18N.cull.action | translate"><mat-icon>folder_move</mat-icon><span>{{ I18N.cull.action | translate }}</span></button>
+              <button mat-button (click)="removeSelectedFromCatalog()" [disabled]="viewScoped()"><mat-icon>hide_image</mat-icon><span>{{ I18N.photo_detail.remove_catalog.action | translate }}</span></button>
               @if (store.config()?.cull?.trash_available) {
                 <button mat-icon-button disabledInteractive (click)="deleteSelected()"
                         [disabled]="viewScoped()"
@@ -2927,6 +2928,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * rows survive a move/trash, but delete's rows are already gone from
    * `photos` server-side by the time this response returns.
    */
+  async removeSelectedFromCatalog(): Promise<void> {
+    if (this.viewScoped()) return;
+    await this.photoActions.removeFromCatalog([...this.selectedPaths()]);
+  }
+
   async deleteSelected(explicitPaths?: string[]): Promise<void> {
     const explicit = explicitPaths !== undefined;
     // Explicit paths name their own targets, so view scope -- which `paths`

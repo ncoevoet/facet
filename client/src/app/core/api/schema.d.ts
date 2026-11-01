@@ -7958,6 +7958,11 @@ export interface components {
         /** PhotoDeleteRequest */
         PhotoDeleteRequest: {
             /**
+             * Catalog Only
+             * @default false
+             */
+            catalog_only?: boolean;
+            /**
              * Dry Run
              * @default true
              */
@@ -8022,6 +8027,8 @@ export interface components {
             not_visible: string[];
             /** Refused Bracket Lead */
             refused_bracket_lead: string[];
+            /** Removed Catalog */
+            removed_catalog?: string[];
             /** Removed Missing */
             removed_missing: string[];
             /** Sequence Siblings */

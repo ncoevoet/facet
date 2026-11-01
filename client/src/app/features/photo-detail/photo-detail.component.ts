@@ -119,6 +119,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </button>
         }
 
+        @if (auth.isEdition()) {
+          <button mat-icon-button (click)="removeFromCatalog()"
+            [matTooltip]="I18N.photo_detail.remove_catalog.action | translate" [attr.aria-label]="I18N.photo_detail.remove_catalog.action | translate">
+            <mat-icon>hide_image</mat-icon>
+          </button>
+        }
+
         @if (auth.isEdition() && store.config()?.cull?.trash_available) {
           <button mat-icon-button class="max-md:!hidden" (click)="deletePhoto()"
             [matTooltip]="I18N.photo_detail.delete.button_label | translate" [attr.aria-label]="I18N.photo_detail.delete.button_label | translate">
@@ -1292,6 +1299,13 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
    * (decision 7) -- known precisely here, unlike the gallery's bulk
    * selection, which has no per-path lead signal client-side.
    */
+  protected async removeFromCatalog(): Promise<void> {
+    const photo = this.photo();
+    if (!photo) return;
+    const removed = await this.photoActions.removeFromCatalog([photo.path]);
+    if (this.photo()?.path === photo.path && removed.includes(photo.path)) this.goBack();
+  }
+
   protected deletePhoto(): void {
     const p = this.photo();
     if (!p) return;

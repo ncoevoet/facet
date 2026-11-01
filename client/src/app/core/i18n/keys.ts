@@ -2996,6 +2996,12 @@ export const I18N = {
       edited_failed: "photo_detail.rendition.edited_failed",
       source_failed: "photo_detail.rendition.source_failed",
     },
+    remove_catalog: {
+      title: "photo_detail.remove_catalog.title",
+      action: "photo_detail.remove_catalog.action",
+      confirm: "photo_detail.remove_catalog.confirm",
+      result: "photo_detail.remove_catalog.result",
+    },
   },
   manual_tags: {
     batch: {

@@ -24,6 +24,7 @@ export interface PhotoDeleteResponse {
   /** Rows removed because their file was already gone (`remove_missing`).
    *  Never folded into `deleted`: no file was trashed for these. */
   removed_missing: string[];
+  removed_catalog?: string[];
   trashed: number;
   errors: Record<string, string>;
 }
@@ -40,6 +41,52 @@ export class PhotoActionsService {
   private readonly i18n = inject(I18nService);
   private readonly api = inject(ApiService);
   private readonly auth = inject(AuthService);
+
+  /** Explicit catalog erasure. No filesystem operation, expansion or Undo. */
+  async removeFromCatalog(input: readonly string[]): Promise<string[]> {
+    if (!this.auth.isEdition() || !input.length || input.length > 10000) return [];
+    const paths = [...new Set(input)];
+    const token = this.auth.token;
+    const guard = this.staleness.create(this.destroyRef, { track: 'status', valid: () => this.auth.token === token });
+    try {
+      const { ConfirmDialogComponent } = await import('../../shared/components/confirm-dialog/confirm-dialog.component');
+      if (!guard.current()) return [];
+      const ref = this.dialog.open(ConfirmDialogComponent, {
+        width: '95vw', maxWidth: '30rem', data: {
+          title: this.i18n.t(I18N.photo_detail.remove_catalog.title),
+          message: this.i18n.t(I18N.photo_detail.remove_catalog.confirm, { count: paths.length }),
+          confirmLabel: this.i18n.t(I18N.photo_detail.remove_catalog.action),
+        },
+      });
+      if (!await firstValueFrom(ref.afterClosed()) || !guard.current()) return [];
+      const result = await firstValueFrom(this.api.post<PhotoDeleteResponse>('/photo/delete', {
+        paths, catalog_only: true, dry_run: false,
+      }));
+      // Service-worker thumbnail copies outlive their database rows. Clear the
+      // local thumbnail cache after an accepted erase, including old revisions.
+      const removed = result.removed_catalog ?? [];
+      if (removed.length && 'caches' in window) {
+        try {
+          const keys = await caches.keys();
+          await Promise.all(keys.filter(key => key.includes(':thumbnails:')).map(async key => {
+            // Angular's running worker retains open Cache objects. Removing
+            // only the namespace leaves that object able to serve old bytes.
+            const cache = await caches.open(key);
+            const requests = await cache.keys();
+            await Promise.all(requests.map(request => cache.delete(request)));
+            await caches.delete(key);
+          }));
+        } catch { /* Browser storage can be disabled; server catalog erasure still succeeded. */ }
+      }
+      if (!guard.current()) return [];
+      this.store.removePhotos(removed);
+      this.snackBar.open(this.i18n.t(I18N.photo_detail.remove_catalog.result, { count: removed.length }), '', { duration: 4000 });
+      return removed;
+    } catch {
+      if (guard.current()) this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      return [];
+    } finally { guard.dispose(); }
+  }
 
   /**
    * Send photos to the OS trash via `POST /api/photo/delete`.

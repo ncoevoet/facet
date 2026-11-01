@@ -177,6 +177,19 @@ def _do_resize(thumbnail_bytes: bytes, size: int) -> bytes:
 _resize_cache: dict[tuple[str, int, bytes], bytes] = {}
 
 
+def clear_photo_image_caches(paths: set[str]) -> None:
+    """Evict removed catalog images from this worker's derived image caches."""
+    for key in list(_resize_cache):
+        if key[0] in paths:
+            _resize_cache.pop(key, None)
+    # functools caches have no per-key eviction API. These are small derived
+    # caches, so drop the whole cache rather than retain a removed private image.
+    _convert_raw_cached.cache_clear()
+    _convert_nonraw_cached.cache_clear()
+    _convert_jpegxl_cached.cache_clear()
+    _render_from_original_cached.cache_clear()
+
+
 def _get_or_resize(photo_path: str, thumbnail_bytes: bytes, size: int) -> bytes:
     """Resize a thumbnail with (path, size, content) caching. Caller provides bytes to avoid double-fetch."""
     key = (photo_path, size, hashlib.sha256(thumbnail_bytes).digest())

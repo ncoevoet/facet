@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ScanStartResponse(BaseModel):
@@ -136,6 +136,7 @@ class PhotoDeleteResponse(BaseModel):
     # anyway (`remove_missing`), so the caller can tell a reconciled row from
     # a trashed one. Empty unless the flag was set.
     removed_missing: list[str]
+    removed_catalog: list[str] = Field(default_factory=list)
     trashed: int
     errors: dict[str, str]
 
