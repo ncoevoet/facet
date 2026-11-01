@@ -83,6 +83,28 @@ describe('Export editor background jobs with HttpClient', () => {
     expect(close).not.toHaveBeenCalled();
   });
 
+  it('opens the receipts workspace without export controls and retains a successful explicit retry receipt', async () => {
+    build({ receiptsOnly: true, paths: ['/accidental.jpg'] }, false);
+    const receipt = job({ state: 'completed', processed: 3, written: 2, skipped: 1 });
+    http.expectOne('/api/export/sidecar_jobs').flush([receipt]);
+    await flushMicrotasks(2); fixture!.detectChanges();
+    expect(component.canRun()).toBe(false);
+    await component.run();
+    http.expectNone(request => request.method === 'POST');
+    expect(fixture!.nativeElement.querySelector('mat-radio-group')).toBeNull();
+    expect(fixture!.nativeElement.textContent).not.toContain('export.lightroom.title');
+    expect(fixture!.nativeElement.textContent).toContain('export.jobs.workspace_title');
+    const selected = component.viewJob(receipt);
+    http.expectOne('/api/export/sidecar_jobs/job').flush(receipt); await selected; fixture!.detectChanges();
+    expect(fixture!.nativeElement.querySelector('[aria-live=polite]')?.textContent).toContain('export.jobs.partial');
+    expect(fixture!.nativeElement.querySelector('.font-mono')?.textContent).toBe('export.jobs.receipt_id {}: job');
+    const retry = component.retryJob();
+    http.expectOne('/api/export/sidecar_jobs/job/retry').flush(job({ id: 'repair', state: 'completed', total: 1, processed: 1, written: 1 }));
+    await retry; fixture!.detectChanges();
+    expect(component.job()?.id).toBe('repair');
+    expect(close).not.toHaveBeenCalled();
+  });
+
   it('recovers a transient failed poll with reads only and shows terminal progress', async () => {
     vi.useFakeTimers(); build(); await start();
     vi.advanceTimersByTime(1000);
@@ -209,7 +231,7 @@ describe('Export editor background jobs with HttpClient', () => {
     build(); await start(status); fixture!.detectChanges();
     expect(component.job()).toEqual(status);
     expect(component.canRetry()).toBe(true);
-    expect(fixture!.nativeElement.textContent).toContain(`export.jobs.${status.state}`);
+    expect(fixture!.nativeElement.textContent).toContain(`export.jobs.${status.state === 'completed' ? 'partial' : status.state}`);
     expect(fixture!.nativeElement.textContent).toContain('export.jobs.retry');
     expect(close).not.toHaveBeenCalled(); expect(snack).not.toHaveBeenCalled();
     http.expectNone(r => r.method === 'POST');

@@ -1268,7 +1268,7 @@
       "location": "Location",
       "folder": "Folder",
       "persons": "Persons",
-      "smart_album_filter_notice": "Smart album — filter changes are saved automatically.",
+      "smart_album_filter_notice": "Filter changes are temporary. Review and save album rules from the collection criteria to keep them.",
       "virtual_scroll": "Fast scrolling (virtualized)",
       "any": "Any",
       "find_filter": "Find a filter…",
@@ -1523,7 +1523,10 @@
         "manual_fallback": "This crop could not be framed reliably. Wait for the image or use manual zoom and pan.",
         "review_link": "Independent framing applied. Check alignment, then Link. Fit restores the whole frame.",
         "keyboard": "Pane keys: +/− zoom, arrows pan, Shift moves farther, F/Home fits. Z toggles the loupe at Fit. On touch, use zoom buttons and drag. Escape closes comparison."
-      }
+      },
+      "assign_target": "Choose which side to replace",
+      "assign_hint": "Choose a thumbnail to use as {target}.",
+      "assign_photo": "Use {name} as {target}"
     },
     "clipping": {
       "badge_highlight": "Clipped highlights: {percent}% of pixels",
@@ -1564,6 +1567,19 @@
       "named": "Named {name}",
       "error": "Could not save the name",
       "remove": "Remove from filter"
+    },
+    "rating_preview": {
+      "title": "Edit personal rating",
+      "target": "Captured target: {count} photos",
+      "scope": "Only these photo paths change. Folded group members and companion files are not added. Tags, favorites and Keep/Reject stay unchanged.",
+      "observed": "Available loaded ratings: {loaded}/{total}",
+      "unknown": "Ratios describe loaded photos only. Offscreen values are unknown; zero means no personal stars.",
+      "operation": "New rating",
+      "clear": "Clear stars",
+      "clear_plan": "Clear personal stars on {count} captured photos.",
+      "set_plan": "Set {rating} personal stars on {count} captured photos.",
+      "boundary": "No files are rewritten. Batches commit separately. Short Undo is limited to loaded snapshots and locally known conflicts; History uses server-side conflict checks.",
+      "whole_scope": "This captured whole-view list includes matching folded members after exclusions. No further members or companion files are added. Tags, favorites and Keep/Reject stay unchanged."
     }
   },
   "composition_patterns": {
@@ -2127,6 +2143,28 @@
       "recompute_failed": "Recompute failed.",
       "recompute_busy": "A job is already running. Try again later.",
       "close": "Close"
+    },
+    "rules": {
+      "smart": "Smart album",
+      "manual": "Manual album",
+      "temporary": "Temporary rule changes",
+      "saved": "Saved rules",
+      "working": "Current view",
+      "any": "Any",
+      "smart_hint": "Filters change this view only. Saved rules change only when you review and save them.",
+      "manual_hint": "Membership is a hand-picked set. Filters narrow this view without adding or removing photos.",
+      "presentation": "Display settings and hidden-frame rules remain temporary. Saving rules does not edit photo metadata.",
+      "unsupported": "Visual search, GPS-radius, grouped-frame views and review queues stay temporary. Exit those modes before saving or resetting rule changes.",
+      "invalid": "These saved rules are unavailable or unsupported. Reload the album before editing its rules.",
+      "reset": "Reset rule changes",
+      "preview": "Review rule changes…",
+      "confirm": "Update saved rules for “{name}”? Changed fields: {count}. Future visits will use these rules.",
+      "save": "Save album rules",
+      "conflict": "Saved rules changed since this view opened. Reload them and review your changes again.",
+      "success": "Album rules saved.",
+      "failed": "Could not read the saved rules. Your current view is unchanged.",
+      "uncertain": "The save could not be confirmed. Reload saved rules before trying again.",
+      "reload": "Reload saved rules"
     }
   },
   "critique": {
@@ -2548,7 +2586,12 @@
       "out_of_date": "The assistant's plan is out of date - ask it to preview again",
       "replan_flips_dropped": "{count} of your changes no longer match a group and were dropped."
     },
-    "stack_group": "Stack this group, focused frame as cover"
+    "stack_group": "Stack this group, focused frame as cover",
+    "comparison": {
+      "choose_pane": "Choose pane {pane}: {name}",
+      "assign_hint": "Choose a pane above, then a thumbnail below to replace pane {pane}.",
+      "assign_photo": "Show {name} in pane {pane}"
+    }
   },
   "scenes": {
     "title": "Scenes",
@@ -2891,7 +2934,16 @@
       "uncertain": "A response was lost or failed. The server may already have applied that batch. Retry repeats only remaining batches with the same tag and operation.",
       "edit": "Edit change",
       "saving": "Applying…",
-      "retry": "Retry remaining"
+      "retry": "Retry remaining",
+      "tag_list": "Manual tags",
+      "tag_list_hint": "One tag per line, up to 50. Add/Remove operates on one tag; Replace uses the whole list.",
+      "replace": "Replace all",
+      "clear": "Clear all",
+      "replace_preview": "Replace every manual tag on the target with these tags:",
+      "clear_preview": "Remove every manual tag from the target.",
+      "replace_boundary": "This can remove imported manual tags. AI tags and other metadata stay unchanged. Each batch is atomic; multiple batches are separate commits. No Undo is available for manual tags.",
+      "recheck": "A Replace/Clear response is uncertain. Close, inspect the target and create a new preview; repeating this old plan could overwrite newer tags.",
+      "captured_view_scope": "The matching whole-view photo list was captured after exclusions, including matching folded members. Later matches are not added. Companion files are not included."
     },
     "title": "Edit tags",
     "tag_label": "Tag",
@@ -2973,7 +3025,11 @@
         "write_failed": "Could not write metadata. Check the server logs.",
         "exiftool_upgrade": "ExifTool 13.23 to 13.27 corrupts XMP sidecars. Upgrade ExifTool to 13.28 or newer.",
         "stopped": "Export stopped unexpectedly. Check the server logs and retry the remaining photos."
-      }
+      },
+      "partial": "Completed with unfinished items",
+      "workspace_title": "Processing and export receipts",
+      "workspace_hint": "Sidecar receipts for this account. Closing this window leaves jobs running. Start new exports from a photo selection or album.",
+      "receipt_id": "Receipt"
     }
   },
   "undo": {
@@ -3323,7 +3379,13 @@
     "photo_count": "Photos: {count}",
     "field": "Field",
     "entry_action": "{action} · {kind} · {date} · #{id}",
-    "stack": "Photo stack"
+    "stack": "Photo stack",
+    "limits_title": "What history can restore",
+    "limits": "Up to 50 recent entries for this account. Review fields, location, capture date and manual stacks are supported. Manual tags, exports and file moves are not undone here. Short Undo is separate and limited to its snapshot.",
+    "reload": "Reload history",
+    "preview_action": "Review restore…",
+    "restore_preview": "Restore this entry: {count} photos · part {part}/{parts}.",
+    "restore_boundary": "Only this part will be restored. The server checks recorded values and revisions; a conflict restores nothing. Other parts are separate actions."
   },
   "stacks": {
     "review_help": "Review suggested stacks using the darkroom. S stacks with the proposed cover in the grid or the focused photo in the darkroom; Enter opens a group or stacks the focused photo. X skips. Edit members changes the group before saving. Stacking never changes photo review decisions. R rejects the focused photo immediately and excludes it from the draft. Undo restores its review and draft membership. Grouping waits for Save; leaving without saving does not undo Reject.",

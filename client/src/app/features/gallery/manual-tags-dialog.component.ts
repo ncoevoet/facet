@@ -16,8 +16,7 @@ import { chunkPhotoPaths } from './gallery.store';
 
 export interface ManualTagsDialogScope {
   paths: string[];
-  filters?: Record<string, unknown> | null;
-  exclude?: string[];
+  fromWholeView?: boolean;
   count: number;
   observation?: ManualTagObservation | null;
 }
@@ -26,10 +25,11 @@ export interface ManualTagsDialogData extends ManualTagsDialogScope {
   onSettled: (result: ManualTagsDialogResult) => void;
 }
 
-type ManualTagAction = 'add' | 'delete';
+type ManualTagAction = 'add' | 'delete' | 'replace' | 'clear';
 interface ManualTagPlan {
   action: ManualTagAction;
   tag: string;
+  values: string[];
   bodies: Record<string, unknown>[];
 }
 export interface ManualTagsDialogResult {
@@ -50,15 +50,15 @@ export interface ManualTagsDialogResult {
     <mat-dialog-content>
       <p data-tag-target class="text-sm font-medium">{{ I18N.manual_tags.batch.target | translate:{ count: data.count } }}</p>
       <p class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.manual_tags.batch.ownership | translate }}</p>
-      @if (data.filters) {
-        <p data-tag-view-scope class="text-sm">{{ I18N.manual_tags.batch.view_scope | translate:{ count: data.exclude?.length ?? 0 } }}</p>
+      @if (data.fromWholeView) {
+        <p data-tag-view-scope class="text-sm">{{ I18N.manual_tags.batch.captured_view_scope | translate }}</p>
       } @else {
         <p class="text-xs">{{ I18N.manual_tags.batch.explicit_scope | translate }}</p>
+      }
         <div class="flex flex-wrap gap-1 mb-3">
           @for (name of targetNames; track $index) { <span class="max-w-full truncate rounded bg-[var(--mat-sys-surface-container)] px-2 py-1 text-xs" [title]="name">{{ name }}</span> }
           @if (data.paths.length > targetNames.length) { <span class="text-xs py-1">{{ I18N.manual_tags.batch.more | translate:{ count: data.paths.length - targetNames.length } }}</span> }
         </div>
-      }
       @if (data.observation; as observed) {
         <details class="mb-3">
           <summary class="cursor-pointer text-sm py-2">{{ I18N.manual_tags.batch.observed | translate:{ loaded: observed.photos, count: data.count } }}</summary>
@@ -74,31 +74,41 @@ export interface ManualTagsDialogResult {
       @if (plan(); as preview) {
         <section data-tag-preview class="border border-[var(--mat-sys-outline-variant)] rounded-lg p-3 my-3">
           <h3 class="m-0 text-base font-medium">{{ I18N.manual_tags.batch.preview | translate }}</h3>
-          <p class="mb-0 break-words">{{ (preview.action === 'add' ? I18N.manual_tags.batch.add_preview : I18N.manual_tags.batch.remove_preview) | translate:{ tag: preview.tag, count: data.count } }}</p>
+          <p class="mb-0 break-words">{{ (preview.action === 'add' ? I18N.manual_tags.batch.add_preview : preview.action === 'delete' ? I18N.manual_tags.batch.remove_preview : preview.action === 'replace' ? I18N.manual_tags.batch.replace_preview : I18N.manual_tags.batch.clear_preview) | translate:{ tag: preview.tag, count: data.count } }}</p>
+          @if (preview.action === 'replace') {
+            <ul class="my-2 flex list-none flex-wrap gap-1 p-0" data-replacement-values>
+              @for (value of preview.values; track value) { <li class="max-w-full break-words rounded bg-[var(--mat-sys-surface-container-high)] px-2 py-1 text-sm">{{ value }}</li> }
+            </ul>
+          }
+          @if (preview.action === 'replace' || preview.action === 'clear') {
+            <p class="mb-0 text-sm">{{ I18N.manual_tags.batch.replace_boundary | translate }}</p>
+          }
         </section>
         @if (saving() || confirmed()) {
           <p class="text-sm" role="status">{{ I18N.manual_tags.batch.progress | translate:{ done: completedBatches(), total: preview.bodies.length, count: confirmed() } }}</p>
         }
       } @else {
         <mat-form-field class="w-full" subscriptSizing="dynamic">
-          <mat-label>{{ I18N.manual_tags.tag_label | translate }}</mat-label>
-          <input matInput maxlength="64" [value]="tag()" (input)="onInput($event)" (keydown.enter)="preview('add')" />
-          <mat-hint>{{ I18N.manual_tags.hint | translate }}</mat-hint>
+          <mat-label>{{ I18N.manual_tags.batch.tag_list | translate }}</mat-label>
+          <textarea matInput rows="3" maxlength="3300" [value]="tag()" (input)="onInput($event)"></textarea>
+          <mat-hint>{{ I18N.manual_tags.batch.tag_list_hint | translate }}</mat-hint>
         </mat-form-field>
       }
       @if (failed()) {
         <p class="text-sm text-[var(--mat-sys-error)] mt-3" role="alert">{{ I18N.manual_tags.error | translate }}</p>
-        @if (uncertain()) { <p class="text-xs">{{ I18N.manual_tags.batch.uncertain | translate }}</p> }
+        @if (uncertain()) { <p class="text-xs">{{ (plan()?.action === 'replace' || plan()?.action === 'clear' ? I18N.manual_tags.batch.recheck : I18N.manual_tags.batch.uncertain) | translate }}</p> }
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button [disabled]="saving()" (click)="cancel()">{{ (failed() ? I18N.dialog.close : I18N.ui.buttons.cancel) | translate }}</button>
       @if (plan()) {
         @if (!failed() && !confirmed()) { <button mat-button [disabled]="saving()" (click)="edit()">{{ I18N.manual_tags.batch.edit | translate }}</button> }
-        <button mat-flat-button data-apply-tags [disabled]="saving()" (click)="apply()">{{ (saving() ? I18N.manual_tags.batch.saving : failed() ? I18N.manual_tags.batch.retry : I18N.ui.buttons.apply) | translate }}</button>
+        <button mat-flat-button data-apply-tags [disabled]="saving() || uncertain() && (plan()?.action === 'replace' || plan()?.action === 'clear')" (click)="apply()">{{ (saving() ? I18N.manual_tags.batch.saving : failed() ? I18N.manual_tags.batch.retry : I18N.ui.buttons.apply) | translate }}</button>
       } @else {
-        <button mat-button (click)="preview('delete')" [disabled]="!tag().trim()">{{ I18N.manual_tags.remove_action | translate }}</button>
-        <button mat-flat-button (click)="preview('add')" [disabled]="!tag().trim()">{{ I18N.manual_tags.add_action | translate }}</button>
+        <button mat-button data-clear-tags (click)="preview('clear')">{{ I18N.manual_tags.batch.clear | translate }}</button>
+        <button mat-button (click)="preview('delete')" [disabled]="values().length !== 1">{{ I18N.manual_tags.remove_action | translate }}</button>
+        <button mat-button (click)="preview('add')" [disabled]="values().length !== 1">{{ I18N.manual_tags.add_action | translate }}</button>
+        <button mat-flat-button data-replace-tags (click)="preview('replace')" [disabled]="!values().length || values().length > 50">{{ I18N.manual_tags.batch.replace | translate }}</button>
       }
     </mat-dialog-actions>
   `,
@@ -109,14 +119,17 @@ export class ManualTagsDialogComponent {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly owner = this.auth.identity();
+  private readonly status = this.auth.status();
+  private readonly token = this.auth.token;
   private readonly dialogRef = inject(MatDialogRef<ManualTagsDialogComponent>);
   private readonly input = inject<ManualTagsDialogData>(MAT_DIALOG_DATA);
   readonly data: ManualTagsDialogScope = structuredClone({
-    paths: this.input.paths, filters: this.input.filters, exclude: this.input.exclude,
+    paths: this.input.paths, fromWholeView: this.input.fromWholeView,
     count: this.input.count, observation: this.input.observation,
   });
   protected readonly targetNames = this.data.paths.slice(0, 3).map(path => path.split(/[\\/]/).pop() ?? path);
   readonly tag = signal('');
+  protected readonly values = computed(() => [...new Set(this.tag().split(/\r?\n/).map(value => value.trim()).filter(Boolean))]);
   readonly saving = signal(false);
   readonly failed = signal(false);
   readonly uncertain = signal(false);
@@ -126,7 +139,8 @@ export class ManualTagsDialogComponent {
   private closing = false;
   private revoked = false;
   private lastSettlement: ManualTagsDialogResult | undefined;
-  private readonly ownsDialog = computed(() => this.auth.identity() === this.owner && this.auth.isEdition());
+  private readonly ownsDialog = computed(() => this.auth.identity() === this.owner && this.auth.isEdition()
+    && this.auth.status() === this.status);
 
   constructor() {
     this.dialogRef.beforeClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
@@ -135,9 +149,9 @@ export class ManualTagsDialogComponent {
     });
     effect(() => {
       const sameOwner = this.auth.identity() === this.owner;
-      const edition = this.auth.isEdition();
+      const authorized = this.ownsDialog();
       const saving = this.saving();
-      if (!sameOwner || !edition) this.revoked = true;
+      if (!authorized) this.revoked = true;
       if (!this.closing && (!sameOwner || this.revoked && !saving)) {
         this.dialogRef.close(sameOwner ? this.lastSettlement : undefined);
       }
@@ -147,13 +161,14 @@ export class ManualTagsDialogComponent {
   protected onInput(event: Event): void { this.tag.set((event.target as HTMLInputElement).value); }
 
   preview(action: ManualTagAction): void {
-    const tag = this.tag().trim();
-    if (!tag || this.plan() || this.saving() || !this.live()) return;
-    const bodies = this.data.filters
-      ? [{ filters: this.data.filters, exclude: this.data.exclude ?? [] }]
-      : chunkPhotoPaths(this.data.paths).map(chunk => ({ photo_paths: chunk }));
+    const values = action === 'clear' ? [] : this.values();
+    if (this.plan() || this.saving() || !this.live()
+      || action !== 'clear' && (!values.length || values.length > 50)
+      || (action === 'add' || action === 'delete') && values.length !== 1) return;
+    const tag = values.join(' · ');
+    const bodies = chunkPhotoPaths(this.data.paths).map(chunk => ({ photo_paths: chunk }));
     if (!bodies.length) return;
-    this.plan.set({ action, tag, bodies: structuredClone(bodies) });
+    this.plan.set({ action, tag, values: [...values], bodies: structuredClone(bodies) });
   }
 
   edit(): void {
@@ -165,7 +180,7 @@ export class ManualTagsDialogComponent {
     this.dialogRef.close(this.lastSettlement);
   }
 
-  private live(): boolean { return !this.closing && !this.revoked && !this.destroyRef.destroyed && this.ownsDialog(); }
+  private live(): boolean { return !this.closing && !this.revoked && !this.destroyRef.destroyed && this.ownsDialog() && this.auth.token === this.token; }
   private receipt(incomplete: boolean): ManualTagsDialogResult | undefined {
     const plan = this.plan();
     return plan ? { confirmedCount: this.confirmed(), tag: plan.tag, action: plan.action, incomplete, uncertain: this.uncertain() } : undefined;
@@ -173,7 +188,7 @@ export class ManualTagsDialogComponent {
 
   async apply(): Promise<void> {
     const plan = this.plan();
-    if (!plan || this.saving() || !this.live()) return;
+    if (!plan || this.saving() || !this.live() || this.uncertain() && (plan.action === 'replace' || plan.action === 'clear')) return;
     this.saving.set(true);
     this.failed.set(false);
     let complete = false;
@@ -185,7 +200,8 @@ export class ManualTagsDialogComponent {
         if (!this.live()) return;
         attempted = true;
         const response = await firstValueFrom(this.api.post<{ count: number }>('/photos/batch_manual_tags', {
-          ...plan.bodies[index], tag: plan.tag, action: plan.action,
+          ...plan.bodies[index], action: plan.action,
+          ...(plan.action === 'replace' ? { tags: plan.values } : plan.action === 'clear' ? {} : { tag: plan.tag }),
         }));
         this.confirmed.update(count => count + response.count);
         this.completedBatches.set(index + 1);

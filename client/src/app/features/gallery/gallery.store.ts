@@ -29,7 +29,7 @@ import {
   loadDisplayOptionsFromStorage, saveDisplayOptionsToStorage,
   countActiveFilters, reviewStatusPatch, setScopePatch, applyQueryParams, applySavedAlbumFilters, buildSyncParams, buildApiParams,
   buildViewFilterParams, viewFilterParamsEqual, anyHideToggleActive,
-  seededSearchThreshold, buildByPathsFilters, BY_PATHS_MAX, semanticSortPatch, smartAlbumFilterJson, exclusiveHidePatch,
+  seededSearchThreshold, buildByPathsFilters, BY_PATHS_MAX, semanticSortPatch, exclusiveHidePatch,
 } from './gallery-filters.util';
 
 // Re-export the filter types/consts so existing importers of gallery.store keep working.
@@ -364,12 +364,12 @@ export class GalleryStore {
     return JSON.stringify([scope, this.currentAlbum()?.smart_filter_json, this.useSavedReviewStatus()]);
   }
 
-  /** This mode selects the smart album's saved decision criterion for both
-   *  the request and its snapshot key; edition can change without identity. */
+  /** A review queue keeps the saved album decision scope; ordinary refinements
+   *  use the visible criterion regardless of edition rights. */
   private useSavedReviewStatus(): boolean {
     const album = this.currentAlbum();
     return !!album?.is_smart && !!album.smart_filter_json
-      && (this.transientReviewStatus() || !this.auth.isEdition());
+      && this.transientReviewStatus();
   }
 
   async startReviewQueue(): Promise<void> {
@@ -486,10 +486,19 @@ export class GalleryStore {
   // --- State signals ---
   readonly filters = signal<GalleryFilters>({ ...DEFAULT_FILTERS });
   readonly currentAlbum = signal<Album | null>(null);
+  readonly temporaryReviewQueue = this.transientReviewStatus.asReadonly();
+
+  async restoreAlbumRules(filters: GalleryFilters): Promise<void> {
+    this.transientReviewStatus.set(false);
+    const before = this.filters();
+    this.filters.set({ ...filters, page: 1 });
+    this.journalFilters(before, this.filters());
+    this.cancelRangeLoad(); this.syncUrl();
+    await this.loadPhotos();
+  }
   readonly initializing = signal(false);
   /** Bumped each time the gallery page initialises, so a caller that navigated to it can await a real mount rather than a delay. */
   readonly galleryMounts = signal(0);
-  private smartSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private rangeLoadTimer: ReturnType<typeof setTimeout> | null = null;
   readonly photos = signal<Photo[]>([]);
   /** Number of display items, used only for paging/layout. */
@@ -933,32 +942,6 @@ export class GalleryStore {
         && this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION] !== this.resumeSeq) this.resumeSeq++;
     });
     this.assistantChanges.batch$.pipe(takeUntilDestroyed()).subscribe(batch => void this.refreshPaths(batch.paths));
-    // Auto-save album filters on change (debounced) — persists filter state for all albums
-    effect(() => {
-      const f = this.filters();
-      const album = this.currentAlbum();
-      const temporaryQueue = this.transientReviewStatus();
-      // A temporary queue saves nothing, but a sidebar edit still pending lands.
-      if (temporaryQueue) return;
-      if (this.smartSaveTimer) { clearTimeout(this.smartSaveTimer); this.smartSaveTimer = null; }
-      if (!album) return;
-      if (untracked(() => this.initializing())) return;
-      const isEdition = untracked(() => this.auth.isEdition());
-      if (!isEdition) return;
-
-      const json = smartAlbumFilterJson(f);
-
-      untracked(() => {
-        if (this.smartSaveTimer) clearTimeout(this.smartSaveTimer);
-        this.smartSaveTimer = setTimeout(() => {
-          firstValueFrom(this.albumService.update(album.id, { smart_filter_json: json })).catch(() => {
-            // The filters stay applied on screen whether or not the write
-            // landed, so a swallowed rejection reads exactly like a save.
-            this.snackBar.open(this.i18n.t(I18N.albums.smart_save_failed), '', { duration: 5000 });
-          });
-        }, 500);
-      });
-    });
   }
 
   /** Re-fetch viewer config (features + edition/identity flags) WITHOUT re-applying
@@ -2446,6 +2429,35 @@ export class GalleryStore {
    */
   async batchRating(paths: string[], rating: number): Promise<BatchResult | null> {
     return this.runBatch(paths, '/photos/batch_rating', { star_rating: rating || null }, { rating });
+  }
+
+  /** A previewed explicit list never adopts a later whole-view selection. */
+  async batchRatingPaths(paths: string[], rating: number): Promise<BatchResult | null> {
+    return this.runBatch(paths, '/photos/batch_rating', { star_rating: rating || null }, { rating }, false);
+  }
+
+  /** Rating Undo never restores unrelated favorite or review-decision fields. */
+  async restoreRatingSnapshot(snapshot: Map<string, PhotoFlagSnapshot>, expectedRating: number): Promise<boolean> {
+    const owner = this.auth.identity(), status = this.auth.status(), token = this.auth.token;
+    const authorized = () => owner === this.auth.identity() && status === this.auth.status() && token === this.auth.token && this.auth.isEdition();
+    if (!authorized()) return false;
+    const current = new Map([...this.reviewedPhotos, ...this.photos().map(photo => [photo.path, photo] as const)]);
+    if ([...snapshot.keys()].some(path => !current.has(path) || (current.get(path)!.star_rating ?? 0) !== expectedRating)) {
+      this.notifyActionFailed();
+      return false;
+    }
+    const groups = new Map<number, string[]>();
+    for (const [path, flags] of snapshot) {
+      const rating = flags.star_rating ?? 0;
+      const paths = groups.get(rating) ?? [];
+      paths.push(path); groups.set(rating, paths);
+    }
+    for (const [rating, paths] of groups) {
+      const latest = new Map([...this.reviewedPhotos, ...this.photos().map(photo => [photo.path, photo] as const)]);
+      if (!authorized() || paths.some(path => !latest.has(path) || (latest.get(path)!.star_rating ?? 0) !== expectedRating)) return false;
+      if (!await this.batchRatingPaths(paths, rating)) return false;
+    }
+    return authorized();
   }
 
   /** Run up to `limit` path-keyed async tasks concurrently. Returns the paths whose task rejected. */

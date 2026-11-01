@@ -158,6 +158,51 @@ describe('BurstCullingComponent', () => {
     });
   });
 
+  describe('arbitrary comparison assignment', () => {
+    it('assigns nonconsecutive thumbnails to chosen two-up and four-up panes without review writes', async () => {
+      const fixture = TestBed.createComponent(BurstCullingComponent);
+      fixture.detectChanges(); await fixture.whenStable();
+      const rendered = fixture.componentInstance;
+      const cull = fixture.debugElement.injector.get(CullingStore);
+      await cull.loadGroups();
+      const base = cull.groups()[0];
+      const group = { ...base, photos: Array.from({ length: 6 }, (_, i) => ({ ...base.photos[0], path: `/frame${i}.jpg`, filename: `frame${i}.jpg` })), count: 6 };
+      cull.groups.set([group]); rendered['openLightbox'](group, 0);
+      rendered['setCompareMode']('2up'); fixture.detectChanges(); await fixture.whenStable();
+      const selections = structuredClone(cull.selectionsMap()); mockApi.post.mockClear();
+      const root = fixture.nativeElement as HTMLElement;
+      const panePaths = () => [...root.querySelectorAll('[data-darkroom-pane]')].map(pane => pane.getAttribute('data-path'));
+      const slots = () => root.querySelectorAll<HTMLButtonElement>('[data-comparison-slot]');
+      const thumbs = () => root.querySelectorAll<HTMLButtonElement>('[data-stack-filmstrip] button');
+      expect(thumbs()).toHaveLength(6);
+      slots()[1].click(); fixture.detectChanges(); thumbs()[5].click(); fixture.detectChanges();
+      expect(panePaths()).toEqual(['/frame0.jpg', '/frame5.jpg']);
+      slots()[0].click(); fixture.detectChanges(); thumbs()[3].click(); fixture.detectChanges();
+      expect(panePaths()).toEqual(['/frame3.jpg', '/frame5.jpg']);
+      rendered['setCompareMode']('4up'); fixture.detectChanges();
+      expect(panePaths().slice(0, 2)).toEqual(['/frame3.jpg', '/frame5.jpg']);
+      slots()[2].click(); fixture.detectChanges(); thumbs()[4].click(); fixture.detectChanges();
+      expect(panePaths()[2]).toBe('/frame4.jpg');
+      slots()[3].click(); fixture.detectChanges(); thumbs()[3].click(); fixture.detectChanges();
+      expect(panePaths()[3]).toBe('/frame3.jpg');
+      expect(new Set(panePaths()).size).toBe(4);
+      expect(cull.selectionsMap()).toEqual(selections); expect(mockApi.post).not.toHaveBeenCalled();
+      // A hidden member disappears before effects settle: review ownership must
+      // still follow the chosen pane's path, not its old numeric group index.
+      rendered['setCompareMode']('2up'); fixture.detectChanges();
+      slots()[1].click(); fixture.detectChanges();
+      const chosenPath = panePaths()[1]!;
+      const nextGroup = { ...group, photos: group.photos.filter(photo => photo.path !== '/frame0.jpg') };
+      cull.groups.set([nextGroup]);
+      const keep = vi.spyOn(cull, 'setPhotoKept').mockImplementation(() => undefined);
+      rendered['setCurrentLightboxPhotoKept'](nextGroup, true);
+      expect(keep).toHaveBeenCalledWith(nextGroup, chosenPath, true);
+      rendered['setCompareMode']('single');
+      expect(nextGroup.photos[rendered['effectiveLightboxIndex']()].path).toBe(chosenPath);
+      fixture.destroy();
+    });
+  });
+
   describe('overlays', () => {
     it('keeps assessment disclosure keyboard and clicks inside the darkroom without reviewing or closing', async () => {
       const fixture = TestBed.createComponent(BurstCullingComponent);

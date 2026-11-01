@@ -3514,12 +3514,17 @@ export interface paths {
         put?: never;
         /**
          * Api Batch Manual Tags
-         * @description Add or remove one manual tag across named paths or a gallery view.
+         * @description Edit manual tags across named paths or a gallery view in one transaction.
          *
          *     ``count`` is the rows actually written or removed: unwritable paths are
          *     dropped, an at-cap photo and a photo whose AI tags already hold the tag are
          *     skipped inside the INSERT, and a photo that already has the tag is not
          *     counted.
+         *
+         *     Replace preserves retained tag provenance and leaves AI tags unchanged.
+         *     Its matching target is resolved once before removing tags. Clear is a
+         *     separate explicit action. ``count`` always counts changed tag rows, not
+         *     affected photos; these operations do not create organization history.
          */
         post: operations["api_batch_manual_tags_api_photos_batch_manual_tags_post"];
         delete?: never;
@@ -5590,14 +5595,14 @@ export interface components {
         };
         /**
          * BatchManualTagRequest
-         * @description Add or remove one tag across a path list or a whole gallery view.
+         * @description Add/delete one tag, replace the manual set, or explicitly clear it.
          */
         BatchManualTagRequest: {
             /**
              * Action
              * @enum {string}
              */
-            action: "add" | "delete";
+            action: "add" | "delete" | "replace" | "clear";
             /**
              * Exclude
              * @description Paths to drop from whichever target is sent: subtracted from `photo_paths`, or bound out of the `filters` scope. Only ever narrows.
@@ -5610,7 +5615,9 @@ export interface components {
             /** Photo Paths */
             photo_paths?: string[] | null;
             /** Tag */
-            tag: string;
+            tag?: string | null;
+            /** Tags */
+            tags?: string[] | null;
         };
         /** BatchManualTagResponse */
         BatchManualTagResponse: {

@@ -27,8 +27,10 @@ import { downloadBlob } from '../../shared/utils/download';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import type { LightroomImportResponse, LightroomManifest } from '../../core/api/types';
+import { SidecarJobLabelPipe } from './sidecar-job-label.pipe';
 
 export interface ExportEditorDialogData {
+  receiptsOnly?: boolean;
   /** Explicit selected photo paths (gallery selection). */
   paths?: string[];
   /** The whole current gallery view, when the selection is view-scoped: the
@@ -49,14 +51,15 @@ export interface ExportEditorDialogData {
   imports: [
     FormsModule, MatDialogModule, MatFormFieldModule, MatInputModule,
     MatButtonModule, MatCheckboxModule, MatRadioModule, MatIconModule,
-    MatProgressSpinnerModule, MatProgressBarModule, DatePipe, TranslatePipe,
+    MatProgressSpinnerModule, MatProgressBarModule, DatePipe, TranslatePipe, SidecarJobLabelPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
-    <h2 mat-dialog-title>{{ I18N.export.title | translate }}</h2>
+    <h2 mat-dialog-title>{{ (data.receiptsOnly ? I18N.export.jobs.workspace_title : I18N.export.title) | translate }}</h2>
     <mat-dialog-content class="flex flex-col gap-3">
-      <p class="text-sm opacity-80">{{ I18N.export.description | translate }}</p>
+      <p class="text-sm opacity-80">{{ (data.receiptsOnly ? I18N.export.jobs.workspace_hint : I18N.export.description) | translate }}</p>
 
+      @if (!data.receiptsOnly) {
       @if (count) {
         <p class="text-sm opacity-70">{{ count }} {{ I18N.cull.selected | translate }}</p>
       }
@@ -83,10 +86,13 @@ export interface ExportEditorDialogData {
         <p class="text-sm text-[var(--mat-sys-error)]">{{ (readError() ? I18N.export.jobs.read_failed : I18N.export.failed) | translate }}</p>
         <p class="text-xs text-[var(--mat-sys-error)] opacity-80">{{ I18N.errors.server_detail | translate }} {{ detail }}</p>
       }
+      }
+      @if (data.receiptsOnly && errorDetail(); as detail) { <p role="alert">{{ detail }}</p> }
 
       @if (job(); as current) {
         <section class="flex flex-col gap-2 border-t pt-3">
-          <h3 class="text-sm font-medium" aria-live="polite" aria-atomic="true">{{ stateKeys[current.state] | translate }}</h3>
+          <h3 class="text-sm font-medium" aria-live="polite" aria-atomic="true">{{ current | sidecarJobLabel | translate }}</h3>
+          <p class="m-0 break-all font-mono text-xs">{{ I18N.export.jobs.receipt_id | translate }}: {{ current.id }}</p>
           <p class="text-sm">{{ I18N.export.jobs.progress | translate:{ processed: current.processed, total: current.total } }}</p>
           <mat-progress-bar mode="determinate" [value]="progressPercent()"
             [attr.aria-label]="I18N.export.jobs.progress | translate:{ processed: current.processed, total: current.total }" />
@@ -118,12 +124,13 @@ export interface ExportEditorDialogData {
         @for (receipt of recentJobs(); track receipt.id) {
           <button mat-stroked-button class="!justify-start" [disabled]="submitting()"
                   [attr.aria-current]="job()?.id === receipt.id ? 'true' : null" (click)="viewJob(receipt)">
-            {{ receipt.started_at * 1000 | date:'dd/MM/yyyy HH:mm' }} · {{ stateKeys[receipt.state] | translate }} · {{ receipt.processed }}/{{ receipt.total }}
+            {{ receipt.started_at * 1000 | date:'dd/MM/yyyy HH:mm' }} · {{ receipt | sidecarJobLabel | translate }} · {{ receipt.processed }}/{{ receipt.total }}
           </button>
         }
-        @if (!recentJobs().length && !recentLoading()) { <p class="text-xs opacity-70">{{ I18N.export.jobs.none | translate }}</p> }
+        @if (!recentJobs().length && !recentLoading() && !errorDetail()) { <p class="text-xs opacity-70">{{ I18N.export.jobs.none | translate }}</p> }
       </section>
 
+      @if (!data.receiptsOnly) {
       <div class="flex flex-col gap-2 border-t pt-3 mt-1">
         <h3 class="text-sm font-medium">{{ I18N.export.lightroom.title | translate }}</h3>
         <p class="text-xs opacity-70">{{ I18N.export.lightroom.description | translate }}</p>
@@ -146,13 +153,16 @@ export interface ExportEditorDialogData {
           <p class="text-xs text-[var(--mat-sys-error)] opacity-80">{{ I18N.errors.server_detail | translate }} {{ lightroomDetail }}</p>
         }
       </div>
+      }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
       <button mat-button (click)="close()">{{ I18N.export.jobs.close | translate }}</button>
+      @if (!data.receiptsOnly) {
       <button mat-flat-button [disabled]="!canRun() || running() || readingStatus()" (click)="run()">
         @if (running()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> }
         {{ running() ? (I18N.export.running | translate) : (I18N.export.run | translate) }}
       </button>
+      }
     </mat-dialog-actions>
   `,
 })
@@ -204,11 +214,6 @@ export class ExportEditorDialogComponent {
     return !!job && job.state !== 'running'
       && (job.errors > 0 || job.skipped > 0 || job.processed < job.total || job.state === 'interrupted');
   });
-  readonly stateKeys = {
-    running: I18N.export.jobs.running, completed: I18N.export.jobs.completed,
-    cancelled: I18N.export.jobs.cancelled, failed: I18N.export.jobs.failed,
-    interrupted: I18N.export.jobs.interrupted,
-  };
   readonly errorKeys = {
     metadata_repair: I18N.export.jobs.errors.metadata_repair, write_failed: I18N.export.jobs.errors.write_failed,
     exiftool_upgrade: I18N.export.jobs.errors.exiftool_upgrade, stopped: I18N.export.jobs.errors.stopped,
@@ -217,6 +222,7 @@ export class ExportEditorDialogComponent {
   readonly readError = signal(false);
 
   readonly canRun = computed(() => {
+    if (this.data.receiptsOnly) return false;
     if (this.auth.identity() !== this.owner || !this.auth.isEdition()) return false;
     if (this.mode() === 'sidecars') {
       return !!this.data.albumId || !!this.data.paths?.length || !!this.data.filters;
@@ -276,7 +282,7 @@ export class ExportEditorDialogComponent {
     this.recentLoading.set(true);
     try {
       const jobs = await firstValueFrom(this.exportService.recentSidecarJobs().pipe(takeUntil(this.readsStopped)));
-      if (this.current(seq)) { this.errorDetail.set(null); this.recentJobs.set(jobs); }
+      if (this.current(seq)) { this.readError.set(false); this.errorDetail.set(null); this.recentJobs.set(jobs); }
     } catch (error) {
       if (this.current(seq)) { this.readError.set(true); this.errorDetail.set(extractErrorDetail(error) ?? this.i18n.t(I18N.export.jobs.read_failed)); }
     } finally {
@@ -354,7 +360,7 @@ export class ExportEditorDialogComponent {
     this.errorDetail.set(null);
     try {
       const status = await firstValueFrom(this.exportService.retrySidecarJob(job.id));
-      if (this.current(seq)) { this.closeOnSuccess = true; this.acceptJob(status); }
+      if (this.current(seq)) { this.closeOnSuccess = !this.data.receiptsOnly; this.acceptJob(status); }
     } catch (error) {
       if (this.current(seq)) this.errorDetail.set(extractErrorDetail(error) ?? this.i18n.t(I18N.export.failed));
     } finally {

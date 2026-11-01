@@ -124,18 +124,25 @@ def api_batch_manual_tags(
     body: BatchManualTagRequest,
     user: CurrentUser = Depends(require_edition),
 ):
-    """Add or remove one manual tag across named paths or a gallery view.
+    """Edit manual tags across named paths or a gallery view in one transaction.
 
     ``count`` is the rows actually written or removed: unwritable paths are
     dropped, an at-cap photo and a photo whose AI tags already hold the tag are
     skipped inside the INSERT, and a photo that already has the tag is not
     counted.
+
+    Replace preserves retained tag provenance and leaves AI tags unchanged.
+    Its matching target is resolved once before removing tags. Clear is a
+    separate explicit action. ``count`` always counts changed tag rows, not
+    affected photos; these operations do not create organization history.
     """
-    tag = _normalized(body.tag)
+    tag = _normalized(body.tag) if body.action in ('add', 'delete') else None
+    tags = list(dict.fromkeys(_normalized(value) for value in body.tags or ()))
     if body.filters is None and not body.photo_paths:
         return {"success": True, "count": 0}
     with get_db() as conn:
         try:
+            conn.execute('BEGIN IMMEDIATE')
             if body.filters is not None:
                 from_clause, where_str, scope_params = _batch_scope_sql(conn, body, user)
                 scope = f"{from_clause}{where_str}"
@@ -148,6 +155,33 @@ def api_batch_manual_tags(
                     return {"success": True, "count": 0}
                 scope = f"photos WHERE photos.path IN ({','.join('?' * len(paths))})"
                 scope_params = paths
+            if body.action in ('replace', 'clear'):
+                # Resolve the authorized matching set once. Replacing a tag must
+                # not make its own tag/search predicate lose rows before INSERT.
+                conn.execute('CREATE TEMP TABLE facet_manual_tag_targets AS '
+                             f'SELECT DISTINCT photos.path, photos.tags FROM {scope}', scope_params)
+                try:
+                    keep_sql = f" AND tag NOT IN ({','.join('?' * len(tags))})" if tags else ''
+                    count = conn.execute(
+                        'DELETE FROM photo_manual_tags WHERE photo_path IN '
+                        '(SELECT path FROM facet_manual_tag_targets)' + keep_sql,
+                        tags,
+                    ).rowcount
+                    for value in tags:
+                        absent_sql, absent_params = ai_tag_absent_sql(value)
+                        count += conn.execute(
+                            'INSERT OR IGNORE INTO photo_manual_tags '
+                            '(photo_path, tag, source, created_by, created_at) '
+                            'SELECT photos.path, ?, ?, ?, datetime(\'now\') '
+                            f'FROM facet_manual_tag_targets AS photos WHERE {absent_sql}',
+                            [value, SOURCE_USER, _created_by(user), *absent_params],
+                        ).rowcount
+                finally:
+                    conn.execute('DROP TABLE IF EXISTS facet_manual_tag_targets')
+                _drop_tag_caches(conn)
+                conn.commit()
+                after_commit()
+                return {"success": True, "count": count}
             if body.action == 'add':
                 absent_sql, absent_params = ai_tag_absent_sql(tag)
                 cursor = conn.execute(
@@ -170,6 +204,7 @@ def api_batch_manual_tags(
             _drop_tag_caches(conn)
             conn.commit()
         except HTTPException:
+            conn.rollback()
             raise
         except sqlite3.Error as ex:
             conn.rollback()

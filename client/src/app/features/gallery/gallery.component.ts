@@ -2305,7 +2305,42 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   protected async batchRate(rating: number): Promise<void> {
-    await this.executeBatchAction(p => this.store.batchRating(p, rating), 'gallery.selection.batch_rated', { rating });
+    if (!Number.isInteger(rating) || rating < 0 || rating > 5) return;
+    const target = this.captureSelectionContext();
+    const token = this.auth.token;
+    const guard = this.staleness.create(this.destroyRef, { track: 'status' });
+    try {
+      if (!guard.current()) return;
+      const paths = await this.resolveSelectionPaths(null);
+      if (!paths?.length || !guard.current() || !target.current() || this.auth.token !== token) return;
+      const selected = new Set(paths);
+      const observed = new Map<number, number>();
+      let loaded = 0;
+      for (const photo of this.store.photos()) {
+        if (!selected.has(photo.path)) continue;
+        if (!Object.hasOwn(photo, 'star_rating') || photo.star_rating === undefined) continue;
+        const value = photo.star_rating ?? 0;
+        if (!Number.isInteger(value) || value < 0 || value > 5) continue;
+        loaded++;
+        observed.set(value, (observed.get(value) ?? 0) + 1);
+      }
+      const { BatchRatingDialogComponent } = await import('./batch-rating-dialog.component');
+      if (!guard.current() || !target.current() || this.auth.token !== token) return;
+      const ref = this.dialog.open(BatchRatingDialogComponent, { width: '95vw', maxWidth: '540px', data: {
+        paths, rating, loaded, wholeView: target.viewScoped, observed: [...observed].map(([rating, count]) => ({ rating, count })),
+      } });
+      const chosen = await firstValueFrom(ref.afterClosed());
+      if (chosen === undefined || !Number.isInteger(chosen) || chosen < 0 || chosen > 5 || !guard.current() || this.auth.token !== token) return;
+      const result = await this.store.batchRatingPaths(paths, chosen);
+      if (!result || !guard.current()) return;
+      if (target.current()) this.clearSelection();
+      const params = { count: result.count, rating: chosen };
+      if (loaded === paths.length && result.snapshot.size === result.targeted && result.targeted > 0 && result.targeted <= GalleryComponent.UNDO_MAX_PHOTOS) {
+        this.undoService.register({ labelKey: 'gallery.selection.batch_rated', labelParams: params, undo: async () => {
+          if (await this.store.restoreRatingSnapshot(result.snapshot, chosen)) this.store.restoreSelection(result.snapshot.keys());
+        } });
+      } else this.snackBar.open(this.i18n.t(I18N.gallery.selection.batch_rated, params), '', { duration: 3000 });
+    } finally { guard.dispose(); }
   }
 
   /**
@@ -2714,32 +2749,33 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (!this.auth.isEdition() || !this.selectionCount()) return;
     const owner = this.auth.identity();
     const viewScoped = this.viewScoped();
-    const paths = viewScoped ? [] : [...this.selectedPaths()];
-    if (!viewScoped && !paths.length) return;
-    const selected = new Set(paths);
-    const repaired = new WeakSet<ManualTagsDialogResult>();
-    const repair = async (result: ManualTagsDialogResult): Promise<void> => {
-      if (this.auth.identity() !== owner || repaired.has(result) || !result.confirmedCount && !result.uncertain) return;
-      repaired.add(result);
-      // Tag/text membership may gain offscreen rows. The store retains parked
-      // repair debt and respects the currently authorized view without selection reset.
-      const filters = this.store.filters();
-      const membershipMayChange = this.store.pinnedPaths() === null
-        && (viewScoped || !!filters.tag || !!filters.search || !!this.store.currentAlbum()?.is_smart);
-      await this.store.refreshPaths(membershipMayChange ? null : paths);
-    };
-    const data: ManualTagsDialogData = {
-      paths,
-      filters: viewScoped ? structuredClone(this.store.filterPayload()) : null,
-      exclude: viewScoped ? [...this.excludedPaths()] : [],
-      count: this.selectionCount(),
-      observation: viewScoped ? null : observeManualTags(this.store.photos().filter(photo => selected.has(photo.path))),
-      onSettled: result => { void repair(result); },
-    };
+    const target = this.captureSelectionContext();
+    const token = this.auth.token;
     const liveness = this.staleness.create(this.destroyRef, { track: 'status' });
     try {
+      const paths = await this.resolveSelectionPaths(null);
+      if (!paths?.length || !liveness.current() || !target.current() || this.auth.token !== token) return;
+      const selected = new Set(paths);
+      const repaired = new WeakSet<ManualTagsDialogResult>();
+      const repair = async (result: ManualTagsDialogResult): Promise<void> => {
+        if (this.auth.identity() !== owner || repaired.has(result) || !result.confirmedCount && !result.uncertain) return;
+        repaired.add(result);
+        // Tag/text membership may gain offscreen rows. The store retains parked
+        // repair debt and respects the currently authorized view without selection reset.
+        const filters = this.store.filters();
+        const membershipMayChange = this.store.pinnedPaths() === null
+          && (viewScoped || !!filters.tag || !!filters.search || !!this.store.currentAlbum()?.is_smart);
+        await this.store.refreshPaths(membershipMayChange ? null : paths);
+      };
+      const data: ManualTagsDialogData = {
+        paths,
+        fromWholeView: viewScoped,
+        count: paths.length,
+        observation: observeManualTags(this.store.photos().filter(photo => selected.has(photo.path))),
+        onSettled: result => { void repair(result); },
+      };
       const { ManualTagsDialogComponent } = await import('./manual-tags-dialog.component');
-      if (!liveness.current()) return;
+      if (!liveness.current() || !target.current() || this.auth.token !== token) return;
       const ref = this.dialog.open<InstanceType<typeof ManualTagsDialogComponent>, ManualTagsDialogData, ManualTagsDialogResult>(ManualTagsDialogComponent, {
         width: '95vw', maxWidth: '600px', closeOnNavigation: false, data,
       });

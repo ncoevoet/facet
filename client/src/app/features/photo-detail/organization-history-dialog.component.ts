@@ -28,11 +28,14 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
     <h2 mat-dialog-title>{{ I18N.organization_history.title | translate }}</h2>
     <mat-dialog-content>
       <p class="text-sm mb-4">{{ I18N.organization_history.hint | translate }}</p>
+      <details class="mb-3 text-sm"><summary class="cursor-pointer py-1">{{ I18N.organization_history.limits_title | translate }}</summary><p>{{ I18N.organization_history.limits | translate }}</p></details>
+      <button mat-button data-history-reload [disabled]="busy()" (click)="load()">{{ I18N.organization_history.reload | translate }}</button>
       @if (busy()) { <p role="status">{{ I18N.ui.labels.loading | translate }}</p> }
-      @if (error(); as failure) { <p role="alert" class="my-3">{{ I18N.organization_history[failure] | translate }}</p> }
+      @if (error() && failedEntryId() === null) { <p role="alert" class="my-3">{{ I18N.organization_history[error()!] | translate }}</p> }
       @if (changed() !== null) { <p role="status" class="my-3">{{ I18N.organization_history.success | translate:{ count: changed() ?? 0 } }}</p> }
       @for (entry of entries(); track entry.id) {
         <section class="border border-current/20 rounded-lg p-3 mb-3">
+          @if (failedEntryId() === entry.id && error(); as failure) { <p role="alert">{{ I18N.organization_history[failure] | translate }}</p> }
           <h3 class="font-medium">{{ I18N.organization_history[entry.kind] | translate }} · {{ entry.created_at | date:'dd/MM/yyyy HH:mm' }}</h3>
           <p class="text-sm my-2">
             @if (entry.parts > 1) { {{ I18N.organization_history.part | translate:{ part: entry.part, parts: entry.parts, count: entry.changes.length } }} }
@@ -60,10 +63,18 @@ const REVERT_ERROR_BY_STATUS: Record<number, 'conflict' | 'unavailable'> = { 409
             }
             }
           </details>
-          <button mat-button [disabled]="busy() || entry.reverted" (click)="revert(entry)"
-            [attr.aria-label]="I18N.organization_history.entry_action | translate:{ action: ((entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.revert) | translate), kind: (I18N.organization_history[entry.kind] | translate), date: ((entry.created_at | date:'dd/MM/yyyy HH:mm') ?? ''), id: entry.id }">{{ (entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.revert) | translate }}</button>
+          <button mat-button [disabled]="busy() || entry.reverted" (click)="previewRestore(entry)"
+            [attr.aria-label]="I18N.organization_history.entry_action | translate:{ action: ((entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate), kind: (I18N.organization_history[entry.kind] | translate), date: ((entry.created_at | date:'dd/MM/yyyy HH:mm') ?? ''), id: entry.id }">{{ (entry.reverted ? I18N.organization_history.reverted : I18N.organization_history.preview_action) | translate }}</button>
+          @if (restorePlan()?.id === entry.id) {
+            <section data-history-preview class="my-2 rounded border border-[var(--mat-sys-outline-variant)] p-3 text-sm">
+              <p>{{ I18N.organization_history.restore_preview | translate:{ count: entry.changes.length, part: entry.part, parts: entry.parts } }}</p>
+              <p>{{ I18N.organization_history.restore_boundary | translate }}</p>
+              <button mat-button [disabled]="busy()" (click)="restorePlan.set(null)">{{ I18N.ui.buttons.cancel | translate }}</button>
+              <button mat-flat-button data-history-apply [disabled]="busy()" (click)="confirmRestore()">{{ I18N.organization_history.revert | translate }}</button>
+            </section>
+          }
         </section>
-      } @empty { @if (!busy()) { <p>{{ I18N.organization_history.empty | translate }}</p> } }
+      } @empty { @if (!busy() && !error()) { <p>{{ I18N.organization_history.empty | translate }}</p> } }
     </mat-dialog-content>
     <mat-dialog-actions align="end"><button mat-button mat-dialog-close>{{ I18N.dialog.close | translate }}</button></mat-dialog-actions>
   `,
@@ -89,6 +100,9 @@ export class OrganizationHistoryDialogComponent implements OnInit {
   readonly entries = signal<Entry[]>([]);
   readonly changed = signal<number | null>(null);
   readonly error = signal<'conflict' | 'unavailable' | 'error' | null>(null);
+  readonly failedEntryId = signal<number | null>(null);
+  readonly restorePlan = signal<Entry | null>(null);
+  private loadGeneration = 0;
   readonly busy = signal(false);
   readonly fields = {
     stack: [{ key: this.I18N.stacks.stack_id, flag: false }, { key: this.I18N.stacks.cover, flag: false }, { key: this.I18N.stacks.position, flag: false }],
@@ -136,12 +150,25 @@ export class OrganizationHistoryDialogComponent implements OnInit {
 
   async load(): Promise<void> {
     if (!this.current()) return;
+    const generation = ++this.loadGeneration;
+    this.restorePlan.set(null); this.failedEntryId.set(null);
     this.busy.set(true); this.error.set(null); this.entries.set([]);
     try {
       const result = await firstValueFrom(this.api.get<History>('/organization_history'));
-      if (this.current()) this.entries.set(result.entries);
-    } catch { if (this.current()) this.error.set('error'); }
-    finally { if (this.current()) this.busy.set(false); }
+      if (this.current() && generation === this.loadGeneration) this.entries.set(result.entries);
+    } catch { if (this.current() && generation === this.loadGeneration) this.error.set('error'); }
+    finally { if (this.current() && generation === this.loadGeneration) this.busy.set(false); }
+  }
+
+  previewRestore(entry: Entry): void {
+    if (this.current() && !this.busy() && !entry.reverted) this.restorePlan.set(structuredClone(entry));
+  }
+
+  async confirmRestore(): Promise<void> {
+    const entry = this.restorePlan();
+    if (!entry) return;
+    this.restorePlan.set(null);
+    await this.revert(entry);
   }
 
   async revert(entry: Entry): Promise<void> {
@@ -157,6 +184,7 @@ export class OrganizationHistoryDialogComponent implements OnInit {
     });
     const id = entry.id;
     this.busy.set(true); this.error.set(null); this.changed.set(null);
+    this.failedEntryId.set(null);
     try {
       const result = await firstValueFrom(this.api.post<Revert>(`/organization_history/${id}/revert`, {}));
       if (!this.sessionCurrent()) return;
@@ -169,6 +197,7 @@ export class OrganizationHistoryDialogComponent implements OnInit {
     } catch (failure) {
       if (this.current()) {
         const status = (failure as { status?: number }).status;
+        this.failedEntryId.set(id);
         this.error.set((status !== undefined && REVERT_ERROR_BY_STATUS[status]) || 'error');
       }
     } finally {

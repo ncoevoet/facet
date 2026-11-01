@@ -18,10 +18,13 @@ describe('ManualTagsDialogComponent', () => {
   let closing: Subject<unknown>;
   const owner = signal('alice');
   const edition = signal(true);
+  const status = signal({ session: 1 });
+  const token = signal('fixture-token');
 
   function create(data: ManualTagsDialogScope) {
     TestBed.resetTestingModule();
     owner.set('alice'); edition.set(true);
+    status.set({ session: 1 }); token.set('fixture-token');
     closing = new Subject<unknown>();
     settled = vi.fn();
     mockDialogRef = { close: vi.fn(() => closing.next(undefined)), beforeClosed: () => closing };
@@ -32,7 +35,7 @@ describe('ManualTagsDialogComponent', () => {
         { provide: MatDialogRef, useValue: mockDialogRef },
         { provide: MAT_DIALOG_DATA, useValue: { ...data, onSettled: settled } },
         { provide: ApiService, useValue: mockApi },
-        { provide: AuthService, useValue: { identity: owner, isEdition: edition } },
+        { provide: AuthService, useValue: { identity: owner, isEdition: edition, status, get token() { return token(); } } },
         { provide: I18nService, useValue: { translations: signal({}), t: (key: string, vars?: Record<string, unknown>) => key + (vars ? ' ' + Object.values(vars).join(' ') : '') } },
       ],
     });
@@ -40,6 +43,44 @@ describe('ManualTagsDialogComponent', () => {
   }
 
   const pathData: ManualTagsDialogScope = { paths: ['/a.jpg', '/b.jpg'], count: 2 };
+
+  it('captures a replacement list before Apply and preserves its target after input changes', async () => {
+    create(pathData); component.tag.set('trip\nfamily'); component.preview('replace');
+    component.tag.set('later'); component.data.paths.push('/later.jpg');
+    expect(mockApi.post).not.toHaveBeenCalled();
+    await component.apply();
+    expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/photos/batch_manual_tags', {
+      photo_paths: ['/a.jpg', '/b.jpg'], action: 'replace', tags: ['trip', 'family'],
+    });
+  });
+
+  it('requires an explicit clear preview and does not send ignored tag values', async () => {
+    create(pathData); component.tag.set('ignored'); component.preview('clear');
+    expect(mockApi.post).not.toHaveBeenCalled();
+    await component.apply();
+    expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/photos/batch_manual_tags', {
+      photo_paths: ['/a.jpg', '/b.jpg'], action: 'clear',
+    });
+  });
+
+  it('refuses to replay an uncertain replacement over potentially newer tags', async () => {
+    create(pathData); component.tag.set('trip'); component.preview('replace');
+    mockApi.post.mockReturnValue(throwError(() => new HttpErrorResponse({ status: 0 })));
+    await component.apply(); await component.apply();
+    expect(component.uncertain()).toBe(true);
+    expect(mockApi.post).toHaveBeenCalledOnce();
+    component.cancel();
+    expect(mockDialogRef.close).toHaveBeenCalledWith(expect.objectContaining({ action: 'replace', uncertain: true }));
+  });
+
+  it('stops replacement chunks after token rotation while preserving the confirmed receipt', async () => {
+    create({ paths: Array.from({ length: 1001 }, (_, i) => `/p${i}.jpg`), count: 1001 });
+    const response = new Subject<{ count: number }>(); mockApi.post.mockReturnValue(response);
+    component.tag.set('new'); component.preview('replace'); const work = component.apply();
+    token.set('rotated'); response.next({ count: 1000 }); response.complete(); await work;
+    expect(mockApi.post).toHaveBeenCalledOnce();
+    expect(settled).toHaveBeenCalledWith(expect.objectContaining({ confirmedCount: 1000, incomplete: true }));
+  });
 
   it('initialises idle with an empty tag and the selection count', () => {
     create(pathData);
@@ -72,8 +113,8 @@ describe('ManualTagsDialogComponent', () => {
     expect(mockApi.post.mock.calls[0][1].action).toBe('delete');
   });
 
-  it('sends the filter and exclusions, not a path list, for a whole-view selection', async () => {
-    create({ paths: [], filters: { tag: 'x' }, exclude: ['/c.jpg'], count: 5000 });
+  it('sends the captured matching list for a whole-view selection', async () => {
+    create({ paths: ['/a.jpg', '/b.jpg'], fromWholeView: true, count: 2 });
     component.tag.set('trip');
 
     component.preview('add');
@@ -81,7 +122,7 @@ describe('ManualTagsDialogComponent', () => {
 
     expect(mockApi.post).toHaveBeenCalledTimes(1);
     expect(mockApi.post).toHaveBeenCalledWith('/photos/batch_manual_tags',
-      { filters: { tag: 'x' }, exclude: ['/c.jpg'], tag: 'trip', action: 'add' });
+      { photo_paths: ['/a.jpg', '/b.jpg'], tag: 'trip', action: 'add' });
   });
 
   it('splits a long path list into chunks of at most 1000 and sums the counts', async () => {
@@ -169,17 +210,17 @@ describe('ManualTagsDialogComponent', () => {
     expect(mockDialogRef.close).toHaveBeenCalledWith(undefined);
   });
   it('previews without writing and freezes the tag, action and target for Apply', async () => {
-    const data = { paths: [], filters: { tag: 'old' }, exclude: ['/skip'], count: 2 };
+    const data = { paths: ['/a.jpg', '/b.jpg'], fromWholeView: true, count: 2 };
     create(data);
     component.tag.set('trip');
     component.preview('add');
     expect(mockApi.post).not.toHaveBeenCalled();
-    data.filters.tag = 'outside';
-    component.data.filters!['tag'] = 'changed';
+    data.paths.push('/outside');
+    component.data.paths.push('/changed');
     component.tag.set('different');
     component.preview('delete');
     await component.apply();
-    expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/photos/batch_manual_tags', { filters: { tag: 'old' }, exclude: ['/skip'], tag: 'trip', action: 'add' });
+    expect(mockApi.post).toHaveBeenCalledExactlyOnceWith('/photos/batch_manual_tags', { photo_paths: ['/a.jpg', '/b.jpg'], tag: 'trip', action: 'add' });
   });
 
   it('requires an explicit preview before any write', async () => {

@@ -509,6 +509,20 @@ export class App implements OnInit {
 
   protected loadOrganizationHistoryDialog() { return import('./features/photo-detail/organization-history-dialog.component'); }
 
+  protected loadProcessingDialog() { return import('./features/gallery/export-editor-dialog.component'); }
+
+  async openProcessing(): Promise<void> {
+    if (!this.auth.isEdition()) return;
+    const liveness = this.staleness.create(this.destroyRef);
+    try {
+      const { ExportEditorDialogComponent } = await this.loadProcessingDialog();
+      if (!liveness.current()) return;
+      this.dialog.open(ExportEditorDialogComponent, {
+        width: '95vw', maxWidth: '780px', data: { receiptsOnly: true },
+      });
+    } finally { liveness.dispose(); }
+  }
+
   /** The account's latest organization changes across the library, from any page. */
   async openOrganizationHistory(): Promise<void> {
     if (!this.auth.isEdition()) return;

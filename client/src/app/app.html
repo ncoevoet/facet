@@ -486,6 +486,9 @@
           <mat-icon [class.!text-amber-400]="auth.isEdition()">{{ auth.isEdition() ? 'admin_panel_settings' : 'account_circle' }}</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
+          @if (auth.isEdition()) {
+            <button mat-menu-item (click)="openProcessing()"><mat-icon>receipt_long</mat-icon>{{ I18N.export.jobs.workspace_title | translate }}</button>
+          }
           @if (auth.status()?.display_name) {
             <div class="px-4 py-2 text-sm opacity-70">{{ auth.status()?.display_name }}</div>
           }

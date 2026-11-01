@@ -190,19 +190,24 @@ export interface CompareSelectedData {
         </div>
       }
       <div class="shrink-0 border-t border-[var(--mat-sys-outline-variant)] px-3 py-2">
-        <div class="flex items-center justify-between gap-2 mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
           <span>{{ I18N.gallery.compare.queue | translate:{ count: candidates().length } }}</span>
+          <div class="flex shrink-0 gap-1" role="group" [attr.aria-label]="I18N.gallery.compare.assign_target | translate">
+            <button type="button" data-compare-target="reference" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'reference'" [attr.aria-pressed]="assignmentTarget() === 'reference'" (click)="assignmentTarget.set('reference')">{{ I18N.gallery.compare.reference | translate }}</button>
+            <button type="button" data-compare-target="candidate" class="min-h-11 rounded border border-[var(--mat-sys-outline-variant)] px-2" [class.bg-[var(--mat-sys-secondary-container)]]="assignmentTarget() === 'candidate'" [attr.aria-pressed]="assignmentTarget() === 'candidate'" (click)="assignmentTarget.set('candidate')">{{ I18N.gallery.compare.candidate | translate }}</button>
+          </div>
           @if (removedPaths().size) {
             <button mat-button data-restore-comparison (click)="restorePanes()">{{ I18N.gallery.compare.restore | translate }}</button>
           }
         </div>
+        <p class="m-0 mb-1 text-xs text-[var(--mat-sys-on-surface-variant)]" data-comparison-assignment>{{ I18N.gallery.compare.assign_hint | translate:{ target: ((assignmentTarget() === 'reference' ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate) } }}</p>
         <div class="flex gap-2 overflow-x-auto" role="group" [attr.aria-label]="I18N.gallery.compare.queue_label | translate">
           @for (photo of panes(); track photo.path) {
             <button #candidateButton type="button" data-candidate-thumbnail [attr.data-path]="photo.path"
                     class="flex w-24 shrink-0 flex-col gap-1 rounded-md border border-[var(--mat-sys-outline-variant)] p-1 text-left focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
                     [class.bg-[var(--mat-sys-secondary-container)]]="activePath() === photo.path"
                     [attr.aria-pressed]="activePath() === photo.path"
-                    [attr.aria-label]="((referencePath() === photo.path ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate) + ': ' + photo.filename"
+                    [attr.aria-label]="I18N.gallery.compare.assign_photo | translate:{ target: ((assignmentTarget() === 'reference' ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate), name: photo.filename }"
                     (click)="chooseCandidate(photo.path)">
               <img [src]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision" alt="" class="h-12 w-full object-contain bg-neutral-950" />
               <span class="flex items-center gap-1 text-xs w-full"><mat-icon class="!text-sm !w-4 !h-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon><span class="truncate">{{ photo.filename }}</span></span>
@@ -244,6 +249,7 @@ export class CompareSelectedDialogComponent {
   protected readonly linked = signal(true);
   protected readonly referencePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly twoUp = signal(false);
+  protected readonly assignmentTarget = signal<'reference' | 'candidate'>('candidate');
   protected readonly activePath = signal(this.data.photos?.[0]?.path ?? null);
   protected readonly removedPaths = signal(new Set<string>());
   private readonly candidatePath = signal(this.data.photos?.[1]?.path ?? null);
@@ -402,8 +408,25 @@ export class CompareSelectedDialogComponent {
   }
 
   protected chooseCandidate(path: string): void {
-    if (!this.panes().some(photo => photo.path === path)) return;
+    if (!this.context.current() || !this.panes().some(photo => photo.path === path)) return;
+    if (this.assignmentTarget() === 'reference') {
+      const previous = this.referencePath();
+      if (path === this.candidatePath()) this.candidatePath.set(previous);
+      this.referencePath.set(path);
+      this.activePath.set(path);
+      this.twoUp.set(true);
+      return;
+    }
     this.activePath.set(path);
+    if (path === this.referencePath()) {
+      const candidate = this.candidates()[this.candidateIndex()];
+      if (candidate) {
+        this.referencePath.set(candidate.path);
+        this.candidatePath.set(path);
+        this.twoUp.set(true);
+      }
+      return;
+    }
     if (path !== this.referencePath()) {
       this.candidatePath.set(path);
       this.twoUp.set(true);
