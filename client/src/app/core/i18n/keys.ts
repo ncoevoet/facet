@@ -1419,6 +1419,13 @@ export const I18N = {
         color_temp: "gallery.sidebar.metric_help.color_temp",
         hue_bucket: "gallery.sidebar.metric_help.hue_bucket",
       },
+      pins: {
+        title: "gallery.sidebar.pins.title",
+        hint: "gallery.sidebar.pins.hint",
+        add: "gallery.sidebar.pins.add",
+        remove: "gallery.sidebar.pins.remove",
+        limit: "gallery.sidebar.pins.limit",
+      },
     },
     semantic_search_info: "gallery.semantic_search_info",
     semantic_search_threshold: "gallery.semantic_search_threshold",

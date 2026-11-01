@@ -1404,6 +1404,13 @@
         "quality_tier": "Quality grade derived from the aggregate score: excellent, good, fair or poor.",
         "color_temp": "Overall colour cast of the photo: warm, cool or neutral.",
         "hue_bucket": "Dominant hue of the photo, grouped into eight colour families."
+      },
+      "pins": {
+        "title": "Pinned controls",
+        "hint": "Up to {max} controls. Pinning never saves a filter value.",
+        "add": "Pin {name} control",
+        "remove": "Unpin {name} control",
+        "limit": "You can pin up to {max} controls. Unpin one to add another."
       }
     },
     "semantic_search_info": "Semantic search loads embeddings into RAM on first use. This may take a moment for large libraries.",

@@ -82,7 +82,7 @@ describe('GalleryFilterSidebarComponent', () => {
         GalleryFilterSidebarComponent,
         { provide: GalleryStore, useValue: mockStore },
         { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-        { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
         { provide: MatDialog, useValue: { open: vi.fn() } },
       ],
@@ -479,7 +479,7 @@ describe('GalleryFilterSidebarComponent', () => {
           GalleryFilterSidebarComponent,
           { provide: GalleryStore, useValue: mockStore },
           { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -614,7 +614,7 @@ describe('GalleryFilterSidebarComponent', () => {
           { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
           { provide: GalleryStore, useValue: store },
           { provide: I18nService, useValue: { t: vi.fn(translate), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -627,6 +627,63 @@ describe('GalleryFilterSidebarComponent', () => {
       store['filters'].set({ ...store['filters'](), ...patch });
       settle();
     };
+
+    it('moves a pinned range into one shared section without changing its active value or duplicating IDs', async () => {
+      component = fixture.componentInstance;
+      component.selectTab('quality'); settle();
+      component.filterQuery.set('score_range'); settle();
+      // Search labels are translation keys in this fixture.
+      const pin = () => fixture.nativeElement.querySelector('[data-pin-filter="score_range"]') as HTMLButtonElement;
+      expect(pin()).not.toBeNull();
+      pin().focus(); pin().click(); settle();
+      expect(component.pinnedIds().has('score_range')).toBe(true);
+      expect(store['updateFilter']).not.toHaveBeenCalled();
+      expect(store['updateFilters']).not.toHaveBeenCalled();
+      component.filterQuery.set(''); settle();
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
+      expect(fixture.nativeElement.querySelectorAll('#metric-help-score_range')).toHaveLength(1);
+      expect(fixture.nativeElement.querySelector('[data-pinned-filters] [data-metric="score_range"]')).not.toBeNull();
+      component.selectTab('browse'); settle();
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
+      store['filters'].update((f: object) => ({ ...f, min_score: '6' })); settle();
+      pin().focus(); pin().click(); settle();
+      await fixture.whenStable(); settle();
+      expect(component.activeTab()).toBe('quality');
+      expect(component.pinnedIds().size).toBe(0);
+      expect(store['filters']().min_score).toBe('6');
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="score_range"]')).toHaveLength(1);
+      expect(pin().ownerDocument.activeElement).toBe(pin());
+    });
+
+    it('restores the Review rating owner and keyboard focus when unpinning personal stars', async () => {
+      component = fixture.componentInstance;
+      component.filterQuery.set('star_rating_range'); settle();
+      const pin = () => fixture.nativeElement.querySelector('[data-pin-filter="star_rating_range"]') as HTMLButtonElement;
+      pin().click(); settle(); component.filterQuery.set(''); component.selectTab('review'); settle();
+      expect(fixture.nativeElement.querySelector('[data-row="rating"]')).toBeNull();
+      expect(fixture.nativeElement.querySelectorAll('[data-metric="star_rating_range"]')).toHaveLength(1);
+      store['filters'].update((f: object) => ({ ...f, min_star_rating: '3' })); settle();
+      pin().focus(); pin().click(); settle(); await fixture.whenStable(); settle();
+      const rating = fixture.nativeElement.querySelector('[data-row="rating"]') as HTMLButtonElement;
+      expect(rating).not.toBeNull();
+      expect(rating.ownerDocument.activeElement).toBe(rating);
+      expect(fixture.nativeElement.querySelector('[data-metric="star_rating_range"]')).toBeNull();
+      expect(store['filters']().min_star_rating).toBe('3');
+    });
+
+    it('never exposes pinned unavailable metrics and leaves their active criteria clearable', () => {
+      component = fixture.componentInstance;
+      const def = ADDITIONAL_FILTERS.find(def => def.id === 'liqe_range')!;
+      component.togglePin(def); settle();
+      expect(component.pinnedFilters().map(def => def.id)).toContain('liqe_range');
+      store['filters'].update((f: object) => ({ ...f, min_liqe: '4' }));
+      store['config'].set({ features: {}, unavailable_metrics: ['liqe_score'] }); settle();
+      expect(component.pinnedFilters().map(def => def.id)).not.toContain('liqe_range');
+      expect(fixture.nativeElement.querySelector('[data-metric="liqe_range"]')).toBeNull();
+      expect(component.totalActiveCount()).toBeGreaterThan(0);
+      fixture.nativeElement.querySelector('[data-test="reset"]').click();
+      expect(store['resetFilters']).toHaveBeenCalledOnce();
+    });
 
     describe('tab bar', () => {
       it('exposes a labelled tablist of five tabs with exactly the active one selected', () => {
@@ -841,7 +898,7 @@ describe('GalleryFilterSidebarComponent', () => {
           { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
           { provide: GalleryStore, useValue: renderedStore },
           { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false) } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],

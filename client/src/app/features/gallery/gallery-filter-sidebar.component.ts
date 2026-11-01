@@ -1,4 +1,4 @@
-import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy } from '@angular/core';
+import { Component, computed, DestroyRef, effect, ElementRef, inject, signal, viewChild, viewChildren, ChangeDetectionStrategy, afterNextRender, Injector } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatSelectModule, MatSelect } from '@angular/material/select';
@@ -38,6 +38,7 @@ import { i18nKeys } from '../../core/i18n/keys';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
+import { FilterPinsService, FILTER_PIN_LIMIT } from './filter-pins.service';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
   // Quality
@@ -380,6 +381,15 @@ export function loadActiveTab(): SidebarTabId {
     <mat-tab-nav-panel #tabPanel class="flex-1 min-h-0 flex flex-col [--mat-expansion-header-collapsed-state-height:40px] [--mat-expansion-header-expanded-state-height:44px] [&_.mat-expansion-panel-body]:!px-4">
     <div data-scroll #scrollArea class="flex-1 min-h-0 overflow-y-auto px-2 pt-3 pb-4">
 
+      @if (!filterQuery().trim() && pinnedFilters().length) {
+        <section data-pinned-filters class="mb-3 border-b border-[var(--mat-sys-outline-variant)] pb-2" [attr.aria-label]="I18N.gallery.sidebar.pins.title | translate">
+          <h2 class="m-0 px-1 text-xs font-semibold">{{ I18N.gallery.sidebar.pins.title | translate }}</h2>
+          <p class="m-0 px-1 pb-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.sidebar.pins.hint | translate:{ max: pinLimit } }}</p>
+          @for (def of pinnedFilters(); track def.id) {
+            <ng-container [ngTemplateOutlet]="metricRow" [ngTemplateOutletContext]="{ $implicit: def }" />
+          }
+        </section>
+      }
       @if (filterQuery().trim()) {
         @if (noFilterMatches()) {
           <p class="text-xs opacity-50 px-2 py-3">{{ I18N.gallery.sidebar.no_filters_match | translate }}</p>
@@ -769,8 +779,9 @@ export function loadActiveTab(): SidebarTabId {
         </div>
 
         <div class="flex items-center gap-2 mt-1" role="group" [attr.aria-label]="I18N.gallery.sidebar.review.quick | translate" data-row="quick">
+          @if (!pinnedIds().has('star_rating_range')) {
           <span class="relative inline-flex">
-            <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-row="rating"
+            <button #reviewRating type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-row="rating"
               [class.!bg-[var(--mat-sys-primary-container)]]="ratingMin() > 0"
               [attr.aria-label]="ratingKey() | translate:ratingVars()"
               [appHelpTip]="ratingKey() | translate:ratingVars()"
@@ -784,6 +795,7 @@ export function loadActiveTab(): SidebarTabId {
           <span class="sr-only" aria-live="polite" data-test="rating-status">{{ ratingKey() | translate:ratingVars() }}</span>
           @if (ratingMaxLabel()) {
             <span class="text-xs opacity-70" data-test="rating-max">{{ ratingMaxLabel() }}</span>
+          }
           }
           <button type="button" mat-stroked-button class="!min-w-0 !w-10 !h-8 !px-0" data-toggle="favorites_only"
             [class.!bg-[var(--mat-sys-primary-container)]]="store.filters().favorites_only"
@@ -980,9 +992,19 @@ export function loadActiveTab(): SidebarTabId {
         </mat-expansion-panel>
       </ng-template>
 
+      <span id="filter-pin-limit" class="sr-only">{{ I18N.gallery.sidebar.pins.limit | translate:{ max: pinLimit } }}</span>
       <ng-template #metricRow let-def>
         <div class="flex flex-col gap-0" [attr.data-metric]="def.id">
-          <span class="text-xs opacity-60 px-1" [appHelpTip]="def.helpKey | translate">{{ def.labelKey | translate }}</span>
+          <div class="flex min-h-11 items-center gap-1">
+            <span class="min-w-0 flex-1 text-xs px-1" [appHelpTip]="def.helpKey | translate">{{ def.labelKey | translate }}</span>
+            <button #metricPin type="button" mat-icon-button [attr.data-pin-filter]="def.id" class="shrink-0"
+                    [disabled]="!pinnedIds().has(def.id) && pinLimitReached()"
+                    [attr.aria-pressed]="pinnedIds().has(def.id)"
+                    [attr.aria-label]="(pinnedIds().has(def.id) ? I18N.gallery.sidebar.pins.remove : I18N.gallery.sidebar.pins.add) | translate:{ name: (def.labelKey | translate) }"
+                    [attr.aria-describedby]="pinLimitReached() ? 'filter-pin-limit' : null" (click)="togglePin(def)">
+              <mat-icon>{{ pinnedIds().has(def.id) ? 'star' : 'star_border' }}</mat-icon>
+            </button>
+          </div>
           <span class="sr-only" [id]="'metric-help-' + def.id">{{ def.helpKey | translate }}</span>
           <div class="flex items-center gap-1">
             <div class="flex-1 flex flex-col">
@@ -1031,6 +1053,43 @@ export class GalleryFilterSidebarComponent {
   readonly auth = inject(AuthService);
   private dialog = inject(MatDialog);
   private albumService = inject(AlbumService);
+  private readonly filterPins = inject(FilterPinsService);
+  private readonly injector = inject(Injector);
+  private readonly metricPins = viewChildren<unknown, ElementRef<HTMLButtonElement>>('metricPin', { read: ElementRef });
+  private readonly reviewRating = viewChild<unknown, ElementRef<HTMLButtonElement>>('reviewRating', { read: ElementRef });
+  protected readonly pinLimit = FILTER_PIN_LIMIT;
+  private readonly pinnableIds = computed(() => Object.values(this.filtersBySection()).flat().map(def => def.id));
+  readonly pinnedIds = computed(() => new Set(this.filterPins.ids(this.pinnableIds())));
+  readonly pinLimitReached = computed(() => this.pinnedIds().size >= FILTER_PIN_LIMIT);
+  readonly pinnedFilters = computed(() => {
+    const available = new Map(Object.values(this.filtersBySection()).flat().map(def => [def.id, def]));
+    return [...this.pinnedIds()].flatMap(id => {
+      const def = available.get(id);
+      return def ? [this.clampDef(def)] : [];
+    });
+  });
+
+  togglePin(def: AdditionalFilterDef): void {
+    if (!Object.values(this.filtersBySection()).flat().some(item => item.id === def.id)) return;
+    const trigger = this.metricPins().find(pin => pin.nativeElement.dataset['pinFilter'] === def.id)?.nativeElement;
+    const owner = this.auth.identity();
+    const restoreFocus = trigger && trigger.ownerDocument.activeElement === trigger;
+    const wasPinned = this.pinnedIds().has(def.id);
+    if (!this.filterPins.toggle(def.id, this.pinnableIds())) return;
+    if (wasPinned && !this.filterQuery().trim()) {
+      const tab = TAB_IDS.find(id => TAB_SECTIONS[id].includes(def.sectionKey));
+      if (tab) this.selectTab(tab);
+      this.onSectionToggle(def.sectionKey, true);
+    }
+    if (restoreFocus) afterNextRender(() => {
+      const focused = trigger.ownerDocument.activeElement;
+      if (this.auth.identity() !== owner || (focused !== trigger && focused !== trigger.ownerDocument.body)) return;
+      const destination = this.metricPins().find(pin => pin.nativeElement.dataset['pinFilter'] === def.id)?.nativeElement
+        ?? (def.id === 'star_rating_range' ? this.reviewRating()?.nativeElement : null);
+      destination?.focus();
+    }, { injector: this.injector });
+  }
+
   readonly albums = signal<Album[]>([]);
   readonly sectionStates = signal<Record<string, boolean>>(loadSectionStates());
   readonly activeTab = signal<SidebarTabId>(loadActiveTab());
@@ -1197,7 +1256,7 @@ export class GalleryFilterSidebarComponent {
     const out: FilterGroup[] = [];
     for (const sectionKey of order) {
       const all = bySection[sectionKey];
-      let defs = all;
+      let defs = q ? all : all.filter(def => !this.pinnedIds().has(def.id));
       if (q && tr) {
         const sectionMatches = all.length > 0 && tr[all[0].id].section.includes(q);
         defs = sectionMatches ? all : all.filter(d => tr[d.id].label.includes(q));
