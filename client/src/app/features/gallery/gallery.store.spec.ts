@@ -942,6 +942,38 @@ describe('GalleryStore', () => {
       expect(store.loading()).toBe(false);
     });
 
+    it('returns from library-wide similarity when a collection refinement changes instead of ignoring it', async () => {
+      store.filters.set({ ...DEFAULT_FILTERS, similar_to: '/source.jpg', camera: 'Alpha', album_id: '9' });
+      apiGet.mockReturnValue(of({ similar: [makePhoto({ camera_model: 'Beta' })], total: 1, has_more: false }));
+      await store.loadPhotos();
+      expect(store.photos()[0].camera_model).toBe('Beta');
+      expect(apiGet).toHaveBeenCalledWith(expect.stringContaining('/similar_photos/'), expect.not.objectContaining({ camera: expect.anything(), album_id: expect.anything() }));
+      apiGet.mockClear(); apiGet.mockReturnValue(of(makePhotosResponse({ photos: [makePhoto({ camera_model: 'Gamma' })] })));
+      await store.updateFilter('camera', 'Gamma');
+      expect(store.filters().similar_to).toBe('');
+      expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ camera: 'Gamma', album_id: '9' }));
+      expect(store.photos()[0].camera_model).toBe('Gamma');
+    });
+
+    it('keeps similarity for presentation and threshold changes but leaves it for batched refinements and sort', async () => {
+      store.filters.set({ ...DEFAULT_FILTERS, similar_to: '/source.jpg' });
+      apiGet.mockReturnValue(of({ similar: [], total: 0, has_more: false }));
+      await store.updateFilters({ hide_details: false, tooltip_mode: 'click' });
+      expect(store.filters().similar_to).toBe('/source.jpg');
+      expect(apiGet).not.toHaveBeenCalled();
+      await store.updateFilter('min_similarity', '50');
+      expect(store.filters().similar_to).toBe('/source.jpg');
+      expect(apiGet).toHaveBeenCalledWith(expect.stringContaining('/similar_photos/'), expect.objectContaining({ min_similarity: '0.5' }));
+      apiGet.mockReturnValue(of(makePhotosResponse())); apiGet.mockClear();
+      await store.updateFilters({ favorites_only: true, min_score: '4' });
+      expect(store.filters().similar_to).toBe('');
+      expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ favorites_only: '1', min_score: '4' }));
+      store.filters.update(f => ({ ...f, similar_to: '/source.jpg' })); apiGet.mockClear();
+      await store.setUserSort('date_taken');
+      expect(store.filters().similar_to).toBe('');
+      expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ sort: 'date_taken' }));
+    });
+
     it('keeps a translated no-visual-features reason visible and clears it on retry', async () => {
       store.filters.set({ ...DEFAULT_FILTERS, similar_to: '/a.jpg', min_similarity: '0' });
       apiGet.mockReturnValue(of({ similar: [], total: 0, has_more: false, message: 'no_visual_features' }));
@@ -1364,6 +1396,21 @@ describe('GalleryStore', () => {
   });
 
   describe('updateFilterDebounced()', () => {
+    it('leaves Similar Photos for a debounced metric refinement before loading its real gallery results', async () => {
+      vi.useFakeTimers();
+      try {
+        store.filters.set({ ...DEFAULT_FILTERS, similar_to: '/source.jpg', album_id: '9' });
+        apiGet.mockReturnValue(of(makePhotosResponse({ photos: [makePhoto({ aggregate: 9 })] })));
+        store.updateFilterDebounced('min_score', '8');
+        expect(store.filters().similar_to).toBe('');
+        expect(apiGet).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(300);
+        expect(apiGet).toHaveBeenCalledWith('/photos', expect.objectContaining({ min_score: '8', album_id: '9' }));
+        expect(apiGet.mock.calls.some(([path]) => String(path).startsWith('/similar_photos/'))).toBe(false);
+        expect(store.photos()[0].aggregate).toBe(9);
+      } finally { vi.useRealTimers(); }
+    });
+
     beforeEach(() => {
       apiGet.mockReturnValue(of(makePhotosResponse()));
     });

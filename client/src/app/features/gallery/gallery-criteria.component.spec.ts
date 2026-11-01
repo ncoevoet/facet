@@ -15,7 +15,7 @@ function createCriteria(edition = false) {
  const navigation = new Subject<Event>();
  const filtersSignal=signal<GalleryFilters>({...DEFAULT_FILTERS});
  const personsSignal=signal<{id:number;name:string|null}[]>([]);
- const mockStore={filters:filtersSignal, persons:personsSignal, config:signal<any>(null), pinnedPaths:signal<string[]|null>(null), currentAlbum:signal(null), gpsLocationName:signal(''), updateFilter:vi.fn(),updateFilters:vi.fn(),resetFilters:vi.fn()};
+ const mockStore={filters:filtersSignal, persons:personsSignal, config:signal<any>(null), pinnedPaths:signal<string[]|null>(null), currentAlbum:signal(null), temporaryReviewQueue:signal(null), gpsLocationName:signal(''), updateFilter:vi.fn(),updateFilters:vi.fn(),resetFilters:vi.fn()};
  const mockRouter={events:navigation,navigate:vi.fn(),navigateByUrl:vi.fn()};
  const authStatus=signal<object|null>(null);
  const api = { get: vi.fn(() => of([])), post: vi.fn(() => of({})) };
@@ -394,6 +394,96 @@ describe('collection criteria ownership and full disclosure', () => {
     expect((app as any).visibilityRules().some((rule:any)=>rule.id==='hide_rejected')).toBe(false);
     filtersSignal.update(f=>({...f,show_rejected:true}));
     expect((app as any).visibilityRules()).toEqual([]);
+  });
+
+  it('shows literal metadata values and ALL-person logic without writing filters or duplicating editable person owners', () => {
+    const {fixture, filtersSignal, personsSignal, mockStore}=createCriteria();
+    personsSignal.set([{id:1,name:'Alice'},{id:2,name:'Bob'}]);
+    filtersSignal.update(f=>({...f,search:'red OR blue',tag:'coast, ridge',camera:'Example Camera',person_id:'1,2',min_score:'0',max_score:'8'}));
+    fixture.detectChanges();
+    const root=fixture.nativeElement as HTMLElement;
+    const details=root.querySelector<HTMLDetailsElement>('[data-match-logic]')!;
+    expect(details).not.toBeNull(); details.open=true;
+    expect(details.querySelector('[data-logic-row="search"]')?.textContent).toContain('red OR blue');
+    expect(details.querySelector('[data-logic-row="tag"]')?.textContent).toContain('coast, ridge');
+    expect(details.querySelector('[data-logic-row="min_score"]')?.textContent).toContain('0–8');
+    expect(details.querySelector('[data-logic-people]')?.textContent).toContain(I18N.gallery.criteria.logic.all_people);
+    expect(details.querySelector('[data-logic-people]')?.textContent).toContain('Alice');
+    expect(details.querySelector('[data-logic-people]')?.textContent).toContain('Bob');
+    expect(details.querySelectorAll('app-person-filter-chip')).toHaveLength(0);
+    expect(root.querySelectorAll('app-person-filter-chip')).toHaveLength(2);
+    expect(details.querySelector('[data-logic-text]')).not.toBeNull();
+    expect(details.querySelector('[data-logic-tag]')).not.toBeNull();
+    expect(mockStore.updateFilter).not.toHaveBeenCalled();
+    expect(mockStore.updateFilters).not.toHaveBeenCalled();
+  });
+
+  it('closes Match logic with Escape focus recovery and removes its metadata when parking or navigating', async () => {
+    const {app,fixture,filtersSignal,navigation}=createCriteria();
+    filtersSignal.update(f=>({...f,search:'private term'})); fixture.detectChanges();
+    const root=fixture.nativeElement as HTMLElement;
+    let details=root.querySelector<HTMLDetailsElement>('[data-match-logic]')!;
+    details.open=true; details.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+    expect(details.open).toBe(false);
+    expect(details.ownerDocument.activeElement).toBe(details.querySelector('summary'));
+    details.open=true;
+    navigation.next(new NavigationStart(1,'/photo')); fixture.detectChanges();
+    expect(details.open).toBe(false);
+    expect(root.querySelector('[data-match-logic]')).toBeNull();
+    navigation.next(new NavigationEnd(2,'/photo','/photo')); fixture.detectChanges();
+    details=root.querySelector<HTMLDetailsElement>('[data-match-logic]')!;
+    expect(details.open).toBe(false); details.open=true;
+    app.setActive(false); fixture.detectChanges();
+    expect(details.open).toBe(false);
+    expect(root.querySelector('[data-match-logic]')).toBeNull();
+    app.setActive(true); fixture.detectChanges();
+    expect(root.querySelector('[data-match-logic]')).not.toBeNull();
+  });
+
+  it('separates working smart criteria, manual membership and hidden metric values', () => {
+    const {fixture, filtersSignal, mockStore}=createCriteria();
+    mockStore.config.set({unavailable_metrics:['liqe_score']});
+    filtersSignal.update(f=>({...f,min_liqe:'4',burst_group_id:'12'})); fixture.detectChanges();
+    const root=fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-logic-hidden]')?.textContent).toContain(I18N.gallery.criteria.logic.hidden_values);
+    expect(root.querySelector('[data-logic-set]')).not.toBeNull();
+    expect(root.querySelector('[data-logic-row="min_liqe"]')).toBeNull();
+    mockStore.currentAlbum.set({id:1,name:'Smart',is_smart:true,smart_filter_json:'{}'} as any); fixture.detectChanges();
+    expect(root.querySelector('[data-logic-album]')?.textContent).toContain(I18N.gallery.criteria.logic.smart_album);
+    mockStore.currentAlbum.set({id:1,name:'Manual',is_smart:false,smart_filter_json:null} as any); fixture.detectChanges();
+    expect(root.querySelector('[data-logic-album]')?.textContent).toContain(I18N.gallery.criteria.logic.manual_album);
+  });
+
+  it('labels retained Similar Photos criteria as paused and never promises album or metadata matching', () => {
+    const {fixture,filtersSignal,personsSignal,mockStore}=createCriteria();
+    personsSignal.set([{id:1,name:'Alice'}]);
+    mockStore.currentAlbum.set({id:9,name:'Manual',is_smart:false,smart_filter_json:null} as any);
+    filtersSignal.update(f=>({...f,similar_to:'/source.jpg',album_id:'9',camera:'Alpha',search:'holiday',person_id:'1',hide_rejected:true}));
+    fixture.detectChanges();
+    const root=fixture.nativeElement as HTMLElement;
+    const details=root.querySelector<HTMLDetailsElement>('[data-match-logic]')!;
+    expect(details.textContent).toContain(I18N.gallery.criteria.logic.similar_paused);
+    expect(details.querySelector('[data-logic-row="camera"]')?.textContent).toContain('Alpha');
+    expect(details.querySelector('[data-logic-people]')?.textContent).toContain(I18N.gallery.criteria.logic.paused_people);
+    expect(details.querySelector('[data-logic-album]')).toBeNull();
+    expect(details.querySelector('[data-logic-text]')).toBeNull();
+    expect(root.querySelector('[data-query-explanation]')?.textContent).toContain(I18N.gallery.criteria.logic.similar_help);
+    expect(root.querySelector('[data-active-criteria]')?.textContent).not.toContain('Alpha');
+    expect(root.querySelector('[data-active-criteria]')?.textContent).not.toContain('holiday');
+    expect(root.querySelector('[data-visibility-summary]')).toBeNull();
+    expect(details.textContent).toContain(I18N.gallery.criteria.logic.paused_visibility);
+    filtersSignal.update(f=>({...f,similar_to:''})); fixture.detectChanges();
+    expect(root.querySelector('[data-active-criteria]')?.textContent).toContain('Alpha');
+    expect(root.querySelector('[data-visibility-summary]')).not.toBeNull();
+  });
+
+  it('separates configured photo-type defaults from the AND list of explicit working values', () => {
+    const {fixture,filtersSignal}=createCriteria();
+    filtersSignal.update(f=>({...f,type:'portrait',min_face_count:'0'})); fixture.detectChanges();
+    const root=fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-logic-type]')?.textContent).toContain(I18N.gallery.criteria.logic.type_defaults);
+    expect(root.querySelector('[data-logic-row="type"]')).toBeNull();
+    expect(root.querySelector('[data-logic-row="min_face_count"]')?.textContent).toContain('≥0');
   });
 
   it('shows visual search semantics in the page text alongside exact text criteria', () => {

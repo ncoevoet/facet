@@ -1587,6 +1587,17 @@ export class GalleryStore {
   }
 
   /** Update a single filter; reload from page 1 only when the query changes. */
+  /** Similar Photos is a separate library-wide ranking endpoint, not a
+   * gallery query. A deliberate refinement must resume the real gallery
+   * rather than silently storing a value that this ranking ignores. */
+  private similarRefinementPatch(updates: Partial<GalleryFilters>): Partial<GalleryFilters> {
+    const current = this.filters();
+    if (!current.similar_to || updates.similar_to) return {};
+    const rankingKeys: ReadonlySet<keyof GalleryFilters> = new Set(['similar_to', 'similarity_mode', 'min_similarity', 'page', 'per_page']);
+    return (Object.keys(updates) as (keyof GalleryFilters)[]).some(key => !this.isDisplayOnlyFilter(key) && !rankingKeys.has(key) && updates[key] !== current[key])
+      ? { similar_to: '' } : {};
+  }
+
   async updateFilter<K extends keyof GalleryFilters>(
     key: K,
     value: GalleryFilters[K],
@@ -1606,6 +1617,7 @@ export class GalleryStore {
     }
     const extra: Partial<GalleryFilters> = {
       ...gpsPatch,
+      ...this.similarRefinementPatch(update),
       ...semanticSortPatch(this.filters(), { ...update, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
       ...reviewPatch,
       ...exclusiveHidePatch(update),
@@ -1634,7 +1646,9 @@ export class GalleryStore {
   updateFilterDebounced<K extends keyof GalleryFilters>(key: K, value: GalleryFilters[K]): void {
     this.leaveTemporaryReview();
     const before = this.filters();
-    this.filters.update(current => ({ ...current, [key]: value, page: 1 }));
+    const update = { [key]: value } as Partial<GalleryFilters>;
+    const similarityPatch = this.similarRefinementPatch(update);
+    this.filters.update(current => ({ ...current, ...update, ...similarityPatch, page: 1 }));
     this.journalFilters(before, this.filters());
     this.syncUrl();
     this.scheduleRangeLoad();
@@ -1723,6 +1737,7 @@ export class GalleryStore {
     }
     const extra: Partial<GalleryFilters> = {
       ...gpsPatch,
+      ...this.similarRefinementPatch(updates),
       ...semanticSortPatch(this.filters(), { ...updates, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
       ...reviewPatch,
       ...exclusiveHidePatch(updates),

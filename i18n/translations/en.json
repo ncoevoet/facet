@@ -1070,11 +1070,30 @@
       "visibility": "Visibility rules ({count})",
       "remove": "Remove {label}",
       "ranked": "Visual similarity search",
-      "ranked_help": "Similarity-based candidates; exact filters narrow the results. Sort controls their displayed order.",
+      "ranked_help": "Visual meaning matches candidates; metadata filters narrow the results. Sort controls their displayed order.",
       "exact": "Metadata filters",
       "pinned": "This is a fixed photo list. Return to your usual view before changing criteria.",
       "similarity": "Similarity threshold",
-      "no_location": "Without location"
+      "no_location": "Without location",
+      "logic": {
+        "title": "Match logic",
+        "filtered": "Filtered view",
+        "all_groups": "Active metadata filter groups are combined with AND. A photo must satisfy each group. Display settings change presentation, not matching.",
+        "all_people": "ALL selected people must be in the photo",
+        "text": "Text can match filenames, captions, tags, camera, lens, category or a named person. Indexed libraries match word prefixes across indexed fields; person names and manual tags also match the whole entered text as a substring. Libraries without that index use substring matching.",
+        "tag": "This is one tag value, matched against AI or manually added tags. Commas inside it do not create an ANY group. Older libraries without a tag index can use substring matching for AI tags.",
+        "literal_text": "Typing AND, OR or NOT does not create Boolean filter groups. Text-search punctuation separates indexed words; punctuation in a tag value stays part of that value.",
+        "smart_album": "Smart album: these are the current working criteria, which can differ from its saved rules. Refining this view does not rewrite those rules.",
+        "manual_album": "Manual album: only its member photos are eligible. These working filters narrow that membership.",
+        "set_scope": "A temporary photo-set scope also restricts this view.",
+        "visibility": "Effective visibility rules",
+        "hidden_values": "Stored values on unavailable metrics: {count}. Reset filters clears these too.",
+        "similar_help": "Library-wide similarity; collection filters are paused. Close Similar or change a collection filter to resume them.",
+        "similar_paused": "Similarity ranks authorized library photos using its mode and threshold. Album membership, metadata filters, visibility rules and collection sort are paused. The values below are retained for your gallery. Changing a collection filter or sort leaves Similar Photos.",
+        "paused_people": "Selected people (paused)",
+        "paused_visibility": "Retained visibility rules (paused)",
+        "type_defaults": "This photo type contributes configured filter defaults. Explicit working values can override individual defaults; it is not a literal tag."
+      }
     },
     "presentation": {
       "label": "Display",

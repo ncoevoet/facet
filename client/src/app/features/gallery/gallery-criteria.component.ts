@@ -67,17 +67,48 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
        </div>
      </details>
    }
-   @if (store.filters().semanticQuery || store.filters().similar_to) {
-     <span data-query-kind [matTooltip]="I18N.gallery.criteria.ranked_help | translate">{{ I18N.gallery.criteria.ranked | translate }}</span>
-   } @else if (activeFilterChips().length) {
-     <span data-query-kind>{{ I18N.gallery.criteria.exact | translate }}</span>
+   @if (canAct() && hasMatchLogic()) {
+     <details #matchLogic tabindex="-1" data-match-logic class="relative" (keydown.escape)="closeDisclosure($event, matchLogic, logicSummary)">
+       <summary #logicSummary class="cursor-pointer py-2">{{ I18N.gallery.criteria.logic.title | translate }}</summary>
+       <div class="absolute right-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-3 shadow-lg">
+         <p data-query-kind class="m-0 font-semibold">{{ (store.filters().semanticQuery || store.filters().similar_to ? I18N.gallery.criteria.ranked : I18N.gallery.criteria.logic.filtered) | translate }}</p>
+         <p class="my-2">{{ (store.filters().similar_to ? I18N.gallery.criteria.logic.similar_paused : I18N.gallery.criteria.logic.all_groups) | translate }}</p>
+         @if (!store.filters().similar_to && logicType(); as type) { <p data-logic-type class="my-2"><strong>{{ type.value }}</strong>: {{ I18N.gallery.criteria.logic.type_defaults | translate }}</p> }
+         @if (!store.filters().similar_to && store.currentAlbum(); as album) {
+           <p data-logic-album class="my-2">{{ (album.is_smart ? I18N.gallery.criteria.logic.smart_album : I18N.gallery.criteria.logic.manual_album) | translate }}</p>
+         }
+         @if (logicRows().length) {
+           <ul class="my-2 pl-4 list-disc">
+             @for (row of logicRows(); track row.id) {
+               <li [attr.data-logic-row]="row.id" class="py-1 break-words"><span class="font-medium">{{ row.labelKey | translate }}</span>@if (row.value) { : {{ row.value }} }</li>
+             }
+           </ul>
+         }
+         @if (logicPeople().length) {
+           <section data-logic-people class="my-2">
+             <h3 class="m-0 text-xs font-semibold">{{ (store.filters().similar_to ? I18N.gallery.criteria.logic.paused_people : I18N.gallery.criteria.logic.all_people) | translate }}</h3>
+             <ul class="my-1 pl-4 list-disc">@for (person of logicPeople(); track person.id) { <li class="break-words">{{ person.value }}</li> }</ul>
+           </section>
+         }
+         @if (!store.filters().similar_to && store.filters().search) { <p data-logic-text class="my-2">{{ I18N.gallery.criteria.logic.text | translate }}</p> }
+         @if (!store.filters().similar_to && store.filters().tag) { <p data-logic-tag class="my-2">{{ I18N.gallery.criteria.logic.tag | translate }}</p> }
+         @if (store.filters().semanticQuery || store.filters().similar_to) { <p class="my-2">{{ queryHelpKey() | translate }}</p> }
+         @if (!store.filters().similar_to && hasTemporarySetScope()) { <p data-logic-set class="my-2">{{ I18N.gallery.criteria.logic.set_scope | translate }}</p> }
+         @if (storedVisibilityRules().length) {
+           <h3 class="m-0 text-xs font-semibold">{{ (store.filters().similar_to ? I18N.gallery.criteria.logic.paused_visibility : I18N.gallery.criteria.logic.visibility) | translate }}</h3>
+           <ul class="my-1 pl-4 list-disc">@for (rule of storedVisibilityRules(); track rule.id) { <li>{{ rule.labelKey | translate }}: {{ rule.valueKey | translate }}</li> }</ul>
+         }
+         @if (hiddenMetricValues()) { <p data-logic-hidden class="my-2">{{ I18N.gallery.criteria.logic.hidden_values | translate:{ count: hiddenMetricValues() } }}</p> }
+         @if (!store.filters().similar_to && (store.filters().search || store.filters().tag)) { <p class="mb-0 mt-2">{{ I18N.gallery.criteria.logic.literal_text | translate }}</p> }
+       </div>
+     </details>
    }
  </div>
  </ng-template>
  @if (!portShortcuts()) { <ng-container [ngTemplateOutlet]="shortcuts" /> }
 
  @if (store.filters().semanticQuery || store.filters().similar_to) {
-   <p data-query-explanation class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.ranked_help | translate }}</p>
+   <p data-query-explanation class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ queryHelpKey() | translate }}</p>
  }
  @if (visibleFilterChips().length || store.filters().similar_to) {
     <div data-active-criteria role="group" [attr.aria-label]="I18N.gallery.criteria.label | translate" class="flex items-center gap-2 flex-wrap py-2">
@@ -173,6 +204,7 @@ export class GalleryCriteriaComponent {
  private readonly quickSummary = viewChild<ElementRef<HTMLElement>>('quickSummary');
  private readonly visibilityDetails = viewChild<ElementRef<HTMLDetailsElement>>('visibility');
  private readonly recentDetails = viewChild<ElementRef<HTMLDetailsElement>>('recentCollections');
+ private readonly logicDetails = viewChild<ElementRef<HTMLDetailsElement>>('matchLogic');
  protected readonly statuses = [
    { id: 'undecided', label: I18N.gallery.sidebar.review.values.undecided },
    { id: 'kept', label: I18N.review.kept },
@@ -183,7 +215,9 @@ export class GalleryCriteriaComponent {
    if (value === 'favorites') void this.store.updateFilter('favorites_only', !this.store.filters().favorites_only);
    else void this.store.updateFilter('review_status', this.store.filters().review_status === value ? '' : value);
  }
- protected readonly visibilityRules = computed(() => {
+ protected readonly visibilityRules = computed(() => this.store.filters().similar_to ? [] : this.storedVisibilityRules());
+ protected readonly queryHelpKey = computed(() => this.store.filters().similar_to ? I18N.gallery.criteria.logic.similar_help : I18N.gallery.criteria.ranked_help);
+ protected readonly storedVisibilityRules = computed(() => {
    const f = this.store.filters();
    const labels = I18N.gallery.sidebar.review;
    const rules: { id: string; labelKey: string; valueKey: string; clearKeys: string[] }[] = [];
@@ -218,7 +252,7 @@ export class GalleryCriteriaComponent {
    event.preventDefault();event.stopPropagation();
  }
  private closeDisclosures():void {
-   for(const details of [this.quickDetails(),this.visibilityDetails(),this.recentDetails()])if(details)details.nativeElement.open=false;
+   for(const details of [this.quickDetails(),this.visibilityDetails(),this.recentDetails(),this.logicDetails()])if(details)details.nativeElement.open=false;
    for(const tooltip of this.tooltips())tooltip.hide(0);
  }
  protected restoreVisit(visit:GalleryVisit):void {
@@ -386,7 +420,21 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
     return chips;
   });
 
-protected readonly visibleFilterChips = computed(() => this.activeFilterChips().filter(chip => chip.id !== 'search' || !this.searchPresented()));
+ protected readonly logicRows = computed(() => this.activeFilterChips().filter(chip => chip.personId === undefined && !['album', 'type', 'semanticQuery', 'search_threshold'].includes(chip.id)));
+ protected readonly logicType = computed(() => this.activeFilterChips().find(chip => chip.id === 'type'));
+ protected readonly logicPeople = computed(() => this.activeFilterChips().filter(chip => chip.personId !== undefined));
+ protected readonly hiddenMetricValues = computed(() => {
+   const hidden = unavailableSet(this.store.config()?.unavailable_metrics);
+   const filters = this.store.filters() as unknown as Record<string, string>;
+   return GalleryCriteriaComponent.RANGE_CHIPS.filter(({ minKey, maxKey }) => isUnavailableKey(minKey, hidden) && (filters[minKey] || filters[maxKey])).length;
+ });
+ protected readonly hasTemporarySetScope = computed(() => {
+   const f = this.store.filters();
+   return !!(f.sequence_group_id || f.burst_group_id || f.duplicate_group_id);
+ });
+ protected readonly hasMatchLogic = computed(() => !!(this.activeFilterChips().length || this.store.filters().similar_to || this.hiddenMetricValues() || this.hasTemporarySetScope()));
+
+protected readonly visibleFilterChips = computed(() => this.store.filters().similar_to ? [] : this.activeFilterChips().filter(chip => chip.id !== 'search' || !this.searchPresented()));
 
 protected readonly SIMILARITY_MODES = [
     { id: 'visual', icon: 'image_search' },
