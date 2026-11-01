@@ -353,6 +353,28 @@ describe('GalleryComponent', () => {
     fixture.destroy();
   });
 
+  it('reveals mobile search on request and returns focus when Escape collapses it', () => {
+    const fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const query = root.querySelector('[data-collection-query]')!;
+    const button = root.querySelector<HTMLButtonElement>('button[aria-label="ui.filters.search"]')!;
+    const input = query.querySelector('input')!;
+    expect(query.classList.contains('!hidden')).toBe(true);
+    button.click(); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(false);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(true);
+    expect(document.activeElement).toBe(button);
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, search: 'coast' })); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(false);
+    expect(input.value).toBe('coast');
+    fixture.destroy(); root.remove();
+  });
+
   it('keeps one collection controls owner and closes only the narrow-screen disclosure on Escape', () => {
     const fixture = TestBed.createComponent(GalleryComponent);
     const desktop = signal(false);
@@ -6418,6 +6440,7 @@ describe('GalleryComponent', () => {
         search.value = 'cat';
         const event = key({ key: '/' });
         expect(event.defaultPrevented).toBe(true);
+        fixture.detectChanges(); TestBed.tick();
         expect(document.activeElement).toBe(search);
         expect(search.selectionStart).toBe(0);
         expect(search.selectionEnd).toBe(3);
@@ -6426,6 +6449,7 @@ describe('GalleryComponent', () => {
       it('/ focuses the collection search on narrow screens without opening another panel', () => {
         stubWide(false);
         expect(key({ key: '/' }).defaultPrevented).toBe(true);
+        fixture.detectChanges(); TestBed.tick();
         expect(document.activeElement).toBe(search);
         expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
       });
@@ -6468,6 +6492,7 @@ describe('GalleryComponent', () => {
         stubWide(true);
         TestBed.inject(KeyboardMappingService).setKey('focusSearch', 'g');
         expect(key({ key: 'g' }).defaultPrevented).toBe(true);
+        fixture.detectChanges(); TestBed.tick();
         expect(document.activeElement).toBe(search);
         search.blur();
         expect(key({ key: '/' }).defaultPrevented).toBe(false);

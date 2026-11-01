@@ -168,6 +168,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             [value]="store.filters().search"
             (input)="onSearchInput($event)"
             (keyup.enter)="onSearchChange($event)"
+            (keydown.escape)="closeMobileSearch($event)"
             (blur)="onSearchChange($event)"
           />
           @if (store.filters().search) {
@@ -293,10 +294,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             }
           </p>
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 items-center gap-1 md:order-none md:w-auto md:flex-1">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 items-center gap-1 md:order-none md:w-auto md:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
           <div class="flex shrink-0 items-center gap-0.5 rounded p-0.5 bg-[var(--mat-sys-surface-container)]">
+            @if (!pinned()) {
+              <button #mobileSearchToggle mat-icon-button class="md:!hidden" [attr.aria-label]="I18N.ui.filters.search | translate" [attr.aria-expanded]="mobileSearchOpen() || !!store.filters().search" (click)="focusCollectionSearch()"><mat-icon>search</mat-icon></button>
+            }
             <button mat-button data-mobile-select class="md:!hidden !min-h-11 !min-w-0 !px-2"
                     [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
@@ -1131,6 +1135,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  behind `isTouchDevice`, which only steers the tooltip. */
   protected readonly touchOnly = signal(false);
   protected readonly selectionAffordance = signal(false);
+  protected readonly mobileSearchOpen = signal(false);
+  private readonly mobileSearchToggle = viewChild<unknown, ElementRef<HTMLButtonElement>>('mobileSearchToggle', { read: ElementRef });
   protected readonly selectingPhotos = computed(() => this.selectionAffordance() || this.selectionCount() > 0);
   /** Grid index of the card the photo menu was opened on, for focus hand-back. */
   private photoMenuIndex = -1;
@@ -3135,11 +3141,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.keymap.matches(event, 'focusSearch')) {
-      const search = this.toolbarSearch()?.nativeElement;
-      if (!search) return;
+      if (!this.toolbarSearch()) return;
       event.preventDefault();
-      search.focus();
-      search.select();
+      this.focusCollectionSearch();
       return;
     }
     if (this.keymap.matches(event, 'toggleSidebar')) {
@@ -3151,6 +3155,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.store.setGalleryMode(this.effectiveGalleryMode() === 'grid' ? 'mosaic' : 'grid');
     }
+  }
+
+  protected focusCollectionSearch(): void {
+    if (this.parked || this.router.currentNavigation?.() || this.destroyRef.destroyed) return;
+    const focus = () => {
+      if (this.parked || this.router.currentNavigation?.() || this.destroyRef.destroyed) return;
+      const input = this.toolbarSearch()?.nativeElement;
+      input?.focus(); input?.select();
+    };
+    if (!this.isDesktop() && !this.mobileSearchOpen()) {
+      this.mobileSearchOpen.set(true);
+      afterNextRender(focus, { injector: this.injector });
+    } else focus();
+  }
+
+  protected closeMobileSearch(event: Event): void {
+    if (this.isDesktop()) return;
+    event.preventDefault(); event.stopPropagation();
+    this.mobileSearchOpen.set(false);
+    this.mobileSearchToggle()?.nativeElement.focus();
   }
 
   protected clearSearch(): void {
