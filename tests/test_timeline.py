@@ -1,7 +1,7 @@
 """Tests for the timeline endpoint (api/routers/timeline.py)."""
 
 import sqlite3
-from contextlib import asynccontextmanager, contextmanager
+from contextlib import ExitStack, asynccontextmanager, contextmanager
 from unittest import mock
 
 import aiosqlite
@@ -51,6 +51,8 @@ def _make_async_conn(fetchall_side_effects):
 
     class _Conn:
         async def execute(self, *args, **kwargs):
+            if args and args[0] == 'BEGIN':
+                return _Cursor([])
             try:
                 return _Cursor(next(rows_iter))
             except StopIteration:
@@ -277,6 +279,65 @@ class TestTimelineApiHideDefaultsRealDb:
         return _timeline_hide_defaults_patches(db_path, defaults) + (
             mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
         )
+
+    def test_photo_feed_orders_each_date_and_pages_without_repeating_days(self, tmp_path):
+        db_path = str(tmp_path / 'feed.db')
+        _make_db(db_path, [
+            _photo('/morning.jpg', '2026:11:01 09:00:00'),
+            _photo('/evening.jpg', '2026:11:01 19:00:00'),
+            _photo('/noon.jpg', '2026:11:01 12:00:00'),
+            _photo('/earlier.jpg', '2026:10:30 10:00:00'),
+            _photo('/unknown.jpg', None),
+        ])
+        client = TestClient(_app_no_auth())
+        with ExitStack() as stack:
+            for patch in self._patches(db_path, {}):
+                stack.enter_context(patch)
+            first = client.get('/api/timeline', params={'limit': 1, 'photos_per_group': 2, 'sort_by': 'date_taken'}).json()
+            assert first['groups'][0]['count'] == 3
+            assert [photo['path'] for photo in first['groups'][0]['photos']] == ['/evening.jpg', '/noon.jpg']
+            assert first['next_cursor'] == '2026-11-01'
+            second = client.get('/api/timeline', params={'cursor': first['next_cursor'], 'limit': 1, 'sort_by': 'date_taken'}).json()
+            assert [group['date'] for group in second['groups']] == ['2026-10-30']
+            assert second['has_more'] is False
+            newer = client.get('/api/timeline', params={'direction': 'newer', 'date_from': '2026-11-01', 'photos_per_group': 2, 'sort_by': 'date_taken'}).json()
+            assert [photo['path'] for photo in newer['groups'][0]['photos']] == ['/morning.jpg', '/noon.jpg']
+
+    def test_photo_feed_counts_and_membership_use_one_read_snapshot(self, tmp_path):
+        db_path = str(tmp_path / 'snapshot.db')
+        _make_db(db_path, [_photo('/before.jpg', '2026:11:01 09:00:00')])
+        with sqlite3.connect(db_path) as writer:
+            writer.execute('PRAGMA journal_mode=WAL')
+        inserted = False
+
+        @asynccontextmanager
+        async def concurrent_read():
+            nonlocal inserted
+            async with aiosqlite.connect(db_path) as conn:
+                conn.row_factory = aiosqlite.Row
+
+                class WithConcurrentCommit:
+                    async def execute(self, query, params=()):
+                        nonlocal inserted
+                        if 'ROW_NUMBER()' in query and not inserted:
+                            # A genuine other-connection commit between the count and photo reads.
+                            with sqlite3.connect(db_path) as writer:
+                                writer.execute("INSERT INTO photos(path,filename,date_taken) VALUES('/later.jpg','later.jpg','2026:11:01 20:00:00')")
+                            inserted = True
+                        return await conn.execute(query, params)
+
+                yield WithConcurrentCommit()
+
+        with ExitStack() as stack:
+            for patch in self._patches(db_path, {}):
+                stack.enter_context(patch)
+            stack.enter_context(mock.patch('api.routers.timeline.get_async_db', concurrent_read))
+            response = TestClient(_app_no_auth()).get('/api/timeline', params={'sort_by': 'date_taken'})
+        assert response.status_code == 200
+        assert inserted
+        group = response.json()['groups'][0]
+        assert group['count'] == 1
+        assert [photo['path'] for photo in group['photos']] == ['/before.jpg']
 
     def test_default_hides_burst_follower_in_count_and_photos(self, tmp_path):
         db_path = str(tmp_path / "timeline.db")
@@ -533,8 +594,8 @@ class TestTimelineEndpoint:
         body = resp.json()
         assert len(body["groups"]) == 1
 
-    def test_db_error_returns_empty(self):
-        """On database exception, returns empty result instead of 500."""
+    def test_db_error_returns_retryable_failure(self):
+        """A failed read must not masquerade as a successfully empty library."""
         app = create_app()
         client = TestClient(app, raise_server_exceptions=False)
 
@@ -549,10 +610,8 @@ class TestTimelineEndpoint:
         ):
             resp = client.get("/api/timeline")
 
-        assert resp.status_code == 200
-        body = resp.json()
-        assert body["groups"] == []
-        assert body["has_more"] is False
+        assert resp.status_code == 503
+        assert resp.json() == {"detail": "Timeline is temporarily unavailable"}
 
 
 class TestTimelineDates:

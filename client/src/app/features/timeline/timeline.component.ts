@@ -1,4 +1,4 @@
-import { Component, inject, computed, effect, viewChild, TemplateRef, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, computed, effect, signal, viewChild, TemplateRef, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -12,6 +12,7 @@ import { TimelineYearsComponent } from './timeline-years.component';
 import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
 import { TimelineDatePipe } from './timeline-date.pipe';
+import { TimelineFeedComponent } from './timeline-feed.component';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
@@ -30,6 +31,7 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     TimelineMonthsComponent,
     TimelineDaysComponent,
     TimelineDatePipe,
+    TimelineFeedComponent,
     DateRangeFilterComponent,
   ],
   host: { class: 'block h-full overflow-auto' },
@@ -92,6 +94,17 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     }
 
     <div class="px-4 pb-4" [class.pt-4]="level() === 'years'">
+      <div class="flex items-center justify-end gap-1 pt-2" role="group" [attr.aria-label]="I18N.timeline.title | translate">
+        <button mat-button [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
+          <mat-icon>photo_library</mat-icon>{{ I18N.timeline.photo_feed | translate }}
+        </button>
+        <button mat-button [attr.aria-pressed]="showOverview()" (click)="showOverview.set(true)">
+          <mat-icon>calendar_month</mat-icon>{{ I18N.timeline.calendar | translate }}
+        </button>
+      </div>
+      @if (!showOverview()) {
+        <app-timeline-feed [year]="year()" [month]="month()" />
+      } @else {
       @switch (level()) {
         @case ('years') {
           <app-timeline-years (yearSelected)="onYearSelected($event)" />
@@ -108,10 +121,12 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
             (daySelected)="onDaySelected($event)" />
         }
       }
+      }
     </div>
   `,
 })
 export class TimelineComponent {
+  protected readonly showOverview = signal(false);
   protected readonly I18N = i18nKeys();
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);

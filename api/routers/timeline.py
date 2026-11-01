@@ -117,6 +117,8 @@ async def api_timeline(
     user_id = user.user_id if user else None
     try:
         async with get_async_db() as conn:
+            # Counts, rendered membership and preview revisions share a read snapshot.
+            await conn.execute("BEGIN")
             from_clause, from_params = get_photos_from_clause(user_id)
             vis_sql, vis_params = get_visibility_clause(user_id)
 
@@ -179,7 +181,7 @@ async def api_timeline(
 
                 # Sort order within each group
                 if sort_by == 'date_taken':
-                    inner_order = "date_taken ASC, path ASC"
+                    inner_order = f"date_taken {date_order}, path ASC"
                 elif sort_by == 'filename':
                     inner_order = "filename ASC, path ASC"
                 else:
@@ -202,7 +204,7 @@ async def api_timeline(
                     f"      ORDER BY {inner_order}"
                     f"    ) AS _rn "
                     f"  FROM {from_clause}{batch_where_str}"
-                    f") WHERE _rn <= ?"
+                    f") WHERE _rn <= ? ORDER BY _photo_date {date_order}, _rn ASC"
                 )
                 batch_params.append(ppg)
 
@@ -238,7 +240,7 @@ async def api_timeline(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline")
-        return {'groups': [], 'next_cursor': None, 'has_more': False}
+        raise HTTPException(status_code=503, detail="Timeline is temporarily unavailable") from None
 
     return {
         'groups': groups,

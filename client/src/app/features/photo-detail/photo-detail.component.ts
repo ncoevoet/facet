@@ -1,4 +1,5 @@
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
+import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Location } from '@angular/common';
@@ -669,7 +670,9 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly viewerOwner = this.auth.identity();
   /** Only gallery-opened entries own an in-app Back destination. Direct links
    *  must not send Escape to an unrelated page or about:blank. */
-  private readonly openedFromGallery = !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
+  private readonly timelineOrigin = (this.router.currentNavigation()?.extras.state?.['photoOrigin'] ?? history.state?.['photoOrigin']) === 'timeline';
+  private readonly timeline = this.timelineOrigin ? inject(TimelineFeedCache) : null;
+  private readonly openedFromGallery = this.timelineOrigin || !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
 
   readonly photo = signal<Photo | null>(null);
   protected readonly photoMissing = signal(false);
@@ -1007,6 +1010,14 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   }
 
   private async navigateAdjacentPhoto(delta: number): Promise<void> {
+    if (this.timelineOrigin) {
+      const path = this.photo()?.path;
+      const next = path ? this.timeline?.adjacent(path, delta) : null;
+      if (next) await this.router.navigate(['/photo'], {
+        queryParams: { path: next }, state: { photoOrigin: 'timeline' }, replaceUrl: true,
+      });
+      return;
+    }
     // Match the visible stack buttons; its members already respect an exact list.
     if (this.stackNavigator()?.step(delta)) return;
     const current = this.photo();
@@ -1166,6 +1177,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private reviewSaving = false;
 
   private async advanceAfterReview(previous: Photo, index: number, next?: Photo): Promise<void> {
+    // Timeline owns a captured preview sequence, not the parked Gallery queue.
+    if (this.timelineOrigin) return;
     if (!this.store.filters().review_status) return;
     let navigated = false;
     const navigation = this.router.events.subscribe(event => {

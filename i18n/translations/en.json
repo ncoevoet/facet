@@ -2909,7 +2909,18 @@
     "capture_scope": "Capture dates · visible library",
     "scope_help": "Counts use capture dates and your visibility settings, across the library. Album, tag and search filters are not applied. Photos without a capture date are listed separately. Opening the gallery also applies its photo-type and review visibility settings, so its count can differ.",
     "open_range": "Open range in gallery",
-    "all_dates": "All dates"
+    "all_dates": "All dates",
+    "photo_feed": "Photos",
+    "calendar": "Calendar",
+    "jump_month": "Jump to month",
+    "newest_first": "Newest first",
+    "oldest_first": "Oldest first",
+    "view_day": "View day · {count}",
+    "preview_count": "Showing {shown} of {total} photos",
+    "load_failed": "Could not load these dates. Try again.",
+    "retry": "Retry",
+    "more_days": "More days",
+    "continue_dates": "Continue to next dates"
   },
   "folders": {
     "help": "Browse photos by their on-disk folder structure. Open a folder to see the photos it contains.",

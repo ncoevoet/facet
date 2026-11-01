@@ -1,4 +1,5 @@
 import { PhotoStackService } from '../../core/services/photo-stack.service';
+import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { makePhoto } from '../../../testing/photo.fixture';
 import type { Mock, MockInstance } from 'vitest';
@@ -97,6 +98,35 @@ describe('PhotoDetailComponent', () => {
     });
     component = TestBed.inject(PhotoDetailComponent);
   }
+
+  it('keeps a Timeline photo without advancing into the parked Gallery review queue', async () => {
+    history.replaceState({ photoOrigin: 'timeline', photo: samplePhoto }, '', location.href);
+    createComponent();
+    const store = TestBed.inject(GalleryStore);
+    const photo = makePhoto({ path: '/timeline-only.jpg' });
+    store.photos.set([makePhoto({ path: '/unrelated-gallery.jpg' })]);
+    store.filters.update(f => ({ ...f, review_status: 'undecided' }));
+    vi.spyOn(store, 'loadReviewProgress').mockResolvedValue();
+    component.photo.set(photo);
+    await component.reviewPhoto('kept');
+    expect(mockApi.post).toHaveBeenCalledWith('/photos/batch_review', { photo_paths: ['/timeline-only.jpg'], decision: 'kept' });
+    expect(component.photo()).toMatchObject({ path: '/timeline-only.jpg', is_kept: true });
+    expect(mockRouter.navigate).not.toHaveBeenCalled();
+  });
+
+  it('uses only the captured Timeline preview for arrows and retains Timeline Back ownership', async () => {
+    history.replaceState({ photoOrigin: 'timeline', photo: samplePhoto }, '', location.href);
+    createComponent();
+    const a = makePhoto({ path: '/timeline-a.jpg' }); const b = makePhoto({ path: '/timeline-b.jpg' });
+    TestBed.inject(TimelineFeedCache).capturePhotos([{ date: '2026-11-01', count: 30, photos: [a, b] }]);
+    TestBed.inject(GalleryStore).photos.set([a, makePhoto({ path: '/wrong-neighbor.jpg' })]);
+    component.photo.set(a);
+    await component.navigateAdjacentPhoto(1);
+    expect(mockRouter.navigate).toHaveBeenCalledExactlyOnceWith(['/photo'], {
+      queryParams: { path: b.path }, state: { photoOrigin: 'timeline' }, replaceUrl: true,
+    });
+    component.goBack(); expect(mockLocation.back).toHaveBeenCalledOnce();
+  });
 
   // Explicit hook timeout above the default 10s: under full-suite load, many
   // workers resolving dynamic import() chunks concurrently can contend for
