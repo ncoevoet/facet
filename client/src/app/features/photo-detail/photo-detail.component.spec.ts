@@ -26,7 +26,7 @@ import { AssistantChangesService, AssistantChangeBatch } from '../../core/agent/
 // poisons map.component.spec's leaflet mock (createLeafletMap keeps the real L) — a
 // flaky CI failure. The shared singleton keeps the real Leaflet out of the registry and
 // makes every leaflet-using spec's binding identical regardless of load order.
-import { leafletMock } from '../../../testing/leaflet-mock';
+import { leafletMock, leafletMockMap } from '../../../testing/leaflet-mock';
 
 vi.doMock('leaflet', () => leafletMock);
 
@@ -460,12 +460,87 @@ describe('PhotoDetailComponent', () => {
     view.destroy(); root.remove();
   });
 
+  it('groups Info, Analysis and People without metric tabs and lazily preserves the chosen measurement section', async () => {
+    localStorage.setItem('facet_photo_detail_tab', 'technical');
+    const view = renderDetail();
+    const photo = makePhoto({ camera_model: 'X100V', iso: 200, persons: [{ id: 1, name: 'Alice' }], unassigned_faces: 2, qrealign_score: 0, deqa_score: null });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : {}));
+    TestBed.inject(GalleryStore).config.set({ features: { show_critique: false }, populated_scores: ['qrealign_score', 'deqa_score'] } as never);
+    view.componentInstance.photo.set(photo);
+    view.detectChanges(); await view.whenStable(); view.detectChanges();
+    const root = view.nativeElement as HTMLElement;
+    document.body.appendChild(root);
+    const info = root.querySelector<HTMLDetailsElement>('[data-photo-info]')!;
+    const analysis = root.querySelector<HTMLDetailsElement>('[data-photo-analysis]')!;
+    expect(info.open).toBe(true);
+    expect(info.textContent).toContain('X100V');
+    expect(info.textContent).toContain('200');
+    expect(root.querySelector('[role="tab"]')).toBeNull();
+    expect(root.querySelector('[data-photo-people]')?.textContent).toContain('Alice');
+    expect(root.querySelector('[data-photo-people]')?.textContent).toContain('photo_detail.unassigned_faces');
+    expect(analysis.open).toBe(false);
+    expect(analysis.querySelector('app-photo-metric-section')).toBeNull();
+    analysis.open = true; analysis.dispatchEvent(new Event('toggle')); view.detectChanges();
+    expect(analysis.querySelector<HTMLDetailsElement>('[data-section-kind="technical"]')?.open).toBe(true);
+    expect(analysis.querySelector('app-histogram')).toBeNull();
+    analysis.querySelector<HTMLElement>('[data-section-kind="quality"] > summary')!.click(); view.detectChanges();
+    expect(analysis.querySelector<HTMLDetailsElement>('[data-section-kind="technical"]')?.open).toBe(false);
+    expect(analysis.querySelector('[data-testid="qrealign_score-score"]')?.textContent).toContain('0.0');
+    expect(analysis.querySelector('[data-testid="deqa_score-score"]')?.textContent).toContain('tooltip.not_computed');
+    expect(localStorage.getItem('facet_photo_detail_tab')).toBe('quality');
+    const histogram = analysis.querySelector<HTMLElement>('[data-section-kind="histogram"] > summary')!;
+    histogram.click(); view.detectChanges();
+    expect(analysis.querySelector('app-histogram')).not.toBeNull();
+    histogram.click(); view.detectChanges();
+    expect(analysis.querySelector('app-histogram')).toBeNull();
+    const reads = mockApi.get.mock.calls.filter(([url]) => url === '/photo/histogram').length;
+    view.componentInstance.photo.set({ ...photo, path: '/next.jpg' }); view.detectChanges(); await view.whenStable(); view.detectChanges();
+    expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/histogram')).toHaveLength(reads);
+    analysis.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); view.detectChanges();
+    expect(analysis.open).toBe(false);
+    expect(document.activeElement).toBe(analysis.querySelector('summary'));
+    expect(mockApi.post.mock.calls.filter(([url]) => url === '/critique/vlm')).toHaveLength(0);
+    view.destroy(); root.remove();
+  });
+
+  it('destroys the Info map while hidden and creates it on a visible container after changing GPS photos', async () => {
+    const view = renderDetail();
+    let photo = makePhoto({ gps_latitude: 1, gps_longitude: 2 });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : {}));
+    let created!: () => void;
+    let creation = new Promise<void>(resolve => { created = resolve; });
+    leafletMock.map.mockClear(); leafletMockMap.remove.mockClear();
+    leafletMock.map.mockImplementationOnce(() => { created(); return leafletMockMap; });
+    view.componentInstance.photo.set(photo); view.detectChanges(); await creation;
+    const root = view.nativeElement as HTMLElement;
+    const info = root.querySelector<HTMLDetailsElement>('[data-photo-info]')!;
+    info.querySelector('summary')!.click(); view.detectChanges();
+    expect(info.open).toBe(false);
+    expect(leafletMockMap.remove).toHaveBeenCalledOnce();
+    expect((view.componentInstance as any).locationMapContainer()).toBeUndefined();
+    photo = makePhoto({ path: '/new-gps.jpg', gps_latitude: 3, gps_longitude: 4 });
+    view.componentInstance.photo.set(photo); view.detectChanges(); await view.whenStable(); view.detectChanges();
+    expect(leafletMock.map).toHaveBeenCalledOnce();
+    creation = new Promise<void>(resolve => { created = resolve; });
+    leafletMock.map.mockImplementationOnce(() => { created(); return leafletMockMap; });
+    info.querySelector('summary')!.click(); view.detectChanges(); await creation;
+    expect(info.open).toBe(true);
+    expect(leafletMockMap.setView).toHaveBeenLastCalledWith([3, 4], 13);
+    expect(leafletMock.map).toHaveBeenCalledTimes(2);
+    view.destroy();
+  });
+
   it('renders NULL and zero extended metrics in the actual detail template', () => {
     localStorage.setItem('facet_photo_detail_tab', 'quality');
     const view = renderDetail();
     TestBed.inject(GalleryStore).config.set({ populated_scores: ['aesthetic_v25', 'qrealign_score', 'deqa_score'] } as never);
-    view.componentInstance.photo.set(makePhoto({ aesthetic_v25: null, qrealign_score: 0, deqa_score: null }));
+    let observed = makePhoto({ aesthetic_v25: null, qrealign_score: 0, deqa_score: null });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? observed : {}));
+    view.componentInstance.photo.set(observed);
     view.detectChanges();
+    const analysis = view.nativeElement.querySelector('[data-photo-analysis]') as HTMLDetailsElement;
+    analysis.open = true; analysis.dispatchEvent(new Event('toggle')); view.detectChanges();
+    if (!(analysis.querySelector('[data-section-kind="quality"]') as HTMLDetailsElement).open) { analysis.querySelector<HTMLElement>('[data-section-kind="quality"] > summary')!.click(); view.detectChanges(); }
     expect(view.nativeElement.querySelector('[data-testid="qrealign_score-score"]').textContent.trim()).toBe('0.0');
     expect(view.nativeElement.querySelector('[aria-label="manual_faces.title"]')).not.toBeNull();
     for (const key of ['aesthetic_v25', 'deqa_score']) {
@@ -475,7 +550,8 @@ describe('PhotoDetailComponent', () => {
     view.detectChanges();
     expect(view.nativeElement.querySelector('[data-testid="aesthetic_v25-row"]')).toBeNull();
     expect(view.nativeElement.querySelector('[data-testid="qrealign_score-score"]').textContent.trim()).toBe('0.0');
-    view.componentInstance.photo.set(makePhoto());
+    observed = makePhoto();
+    view.componentInstance.photo.set(observed);
     view.detectChanges();
     expect(view.nativeElement.querySelectorAll('app-extended-quality [data-testid$="-row"]').length).toBe(0);
   });

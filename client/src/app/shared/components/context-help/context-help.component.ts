@@ -10,7 +10,7 @@ import { TranslatePipe } from '../../pipes/translate.pipe';
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
-    <details #help data-context-help (toggle)="expanded.set(help.open)"
+    <details #help data-context-help tabindex="-1" (toggle)="expanded.set(help.open)"
              (keydown.escape)="help.open && close($event, help, trigger)">
       <summary #trigger class="flex min-h-11 cursor-pointer list-none items-center gap-2 rounded text-xs text-[var(--mat-sys-on-surface-variant)] focus-visible:outline-2">
         <mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon>

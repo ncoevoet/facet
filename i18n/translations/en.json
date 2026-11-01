@@ -3111,7 +3111,9 @@
       "confirm": "Permanently remove {count} selected photo(s), stored previews, face records, tags, ratings and album membership from this Facet catalog for all users. This cannot be undone. Original files, OS trash, backups, exports and copies in other browsers remain. A later scan can re-add any original that still exists. Only the named photos are removed; companions and other stack members are unchanged.",
       "result": "Removed {count} photo(s) from Facet."
     },
-    "analysis": "Analysis"
+    "analysis": "Analysis",
+    "info": "Info",
+    "unassigned_faces": "Unassigned faces: {count}"
   },
   "manual_tags": {
     "batch": {

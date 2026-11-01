@@ -36,7 +36,9 @@ import { EvOffsetPipe } from '../gallery/burst-culling.pipes';
 import {
   HISTOGRAM_PANEL_HEIGHT,
 } from '../../shared/components/histogram/histogram.component';
-import { PhotoMetricsTabsComponent } from '../../shared/components/photo-metrics-tabs/photo-metrics-tabs.component';
+import { PhotoMetricSectionComponent } from '../../shared/components/photo-metrics-tabs/photo-metric-section.component';
+import { AssessmentValuePipe } from '../../shared/pipes/assessment-value.pipe';
+import { MetricsTabState, MetricsTab } from '../../core/services/metrics-tab-state.service';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
 import { DownloadOption } from '../../core/api/types';
@@ -70,7 +72,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   imports: [ContextHelpComponent, PhotoAnalysisComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
-    PhotoMetricsTabsComponent,
+    PhotoMetricSectionComponent, AssessmentValuePipe,
     PhotoFaceLayerComponent,
     PersonFaceMenuComponent,
     MatIconModule,
@@ -399,6 +401,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
+          <details data-photo-info [open]="infoOpen()" class="border-t border-[var(--mat-sys-outline-variant)]">
+            <summary (click)="$event.preventDefault(); infoOpen.set(!infoOpen())" class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">info</mat-icon>{{ I18N.photo_detail.info | translate }}</summary>
+            @if (infoOpen()) {
+            <div class="space-y-3 pb-3">
+              @if (hasExif()) {
+                <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
+              }
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
@@ -428,25 +437,6 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
               <p class="text-[var(--mat-sys-on-surface-variant)] opacity-40 italic text-xs">&mdash;</p>
             }
           </div>
-
-          @if (store.config()?.features?.show_critique) {
-          <details #analysisSection data-photo-analysis tabindex="-1" (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)] pt-2">
-            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true">analytics</mat-icon>{{ I18N.photo_detail.analysis | translate }}</summary>
-            @if (analysisOpen()) {
-              @for (path of [p.path]; track path) { <app-photo-analysis [photoPath]="path" [vlmAvailable]="!!store.config()?.features?.show_vlm_critique" /> }
-            }
-          </details>
-
-          }
-
-          <!-- Detailed measurements remain available while their consolidation follows. -->
-          <app-photo-metrics-tabs [photo]="p" [ranges]="store.metricRangesByColumn()"
-                                  [populated]="store.config()?.populated_scores"
-                                  [histogramHeight]="HISTOGRAM_PANEL_HEIGHT"
-                                  [histogramDefaultMode]="histogramDefaultMode()"
-                                  [indicatorPercent]="clippingIndicatorPercent()" />
-          <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
-
 
           <!-- Location -->
           @if (p.gps_latitude !== null && p.gps_longitude !== null) {
@@ -528,10 +518,33 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             </div>
           }
 
+            </div>
+            }
+          </details>
+
+          <details #analysisSection data-photo-analysis tabindex="-1" (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)]">
+            <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><span>{{ I18N.photo_detail.analysis | translate }}</span><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span></summary>
+            @if (analysisOpen()) {
+              @if (store.config()?.features?.show_critique) {
+                @for (path of [p.path]; track path) { <app-photo-analysis [photoPath]="path" [vlmAvailable]="!!store.config()?.features?.show_vlm_critique" /> }
+              }
+              @for (section of metricSections; track section.id) {
+                <details data-metric-section [attr.data-section-kind]="section.id" [open]="activeMetricSection() === section.id" class="border-t border-[var(--mat-sys-outline-variant)]">
+                  <summary (click)="$event.preventDefault(); toggleMetricSection(section.id)" class="flex min-h-11 cursor-pointer items-center gap-2 text-xs font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">{{ section.icon }}</mat-icon>{{ section.label | translate }}</summary>
+                  @if (activeMetricSection() === section.id) {
+                    <app-photo-metric-section [kind]="section.id" [photo]="p" [ranges]="store.metricRangesByColumn()" [populated]="store.config()?.populated_scores" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" [histogramDefaultMode]="histogramDefaultMode()" [indicatorPercent]="clippingIndicatorPercent()" />
+                  }
+                </details>
+              }
+              <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
+            }
+          </details>
+
           <!-- Persons section -->
-          @if (p.persons.length) {
-            <div class="pt-1">
-              <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)] mb-2">{{ I18N.photo_detail.persons | translate }}</div>
+          @if (p.persons.length || p.unassigned_faces) {
+            <details data-photo-people class="border-t border-[var(--mat-sys-outline-variant)]">
+              <summary class="flex min-h-11 cursor-pointer items-center gap-2 font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">people</mat-icon>{{ I18N.photo_detail.persons | translate }}</summary>
+              @if (p.unassigned_faces) { <p class="m-0 pb-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.unassigned_faces | translate:{ count: p.unassigned_faces } }}</p> }
               <div class="flex gap-3 flex-wrap">
                 @for (person of p.persons; track person.id) {
                   <button class="flex flex-col items-center gap-1 cursor-pointer hover:opacity-80 transition-opacity"
@@ -546,7 +559,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   </button>
                 }
               </div>
-            </div>
+            </details>
           }
 
           <!-- Set section (bracket/panorama/hdr_panorama/burst/duplicate) -->
@@ -604,6 +617,21 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly I18N = i18nKeys();
   protected readonly analysisOpen = signal(false);
+  private readonly metricState = inject(MetricsTabState);
+  protected readonly metricSections = [
+    { id: 'quality', icon: 'auto_awesome', label: I18N.photo_detail.quality },
+    { id: 'composition', icon: 'grid_on', label: I18N.photo_detail.composition },
+    { id: 'technical', icon: 'tune', label: I18N.photo_detail.technical },
+    { id: 'histogram', icon: 'equalizer', label: I18N.tooltip.histogram },
+  ] as const;
+  protected readonly infoOpen = signal(true);
+  protected readonly activeMetricSection = signal<MetricsTab | null>(this.metricState.tab() === 'exif' ? 'quality' : this.metricState.tab());
+  protected toggleMetricSection(section: MetricsTab): void {
+    const next = this.activeMetricSection() === section ? null : section;
+    this.activeMetricSection.set(next);
+    if (next) this.metricState.select(next);
+  }
+
   private readonly analysisSection = viewChild<ElementRef<HTMLDetailsElement>>('analysisSection');
   private readonly analysisToggle = viewChild<unknown, ElementRef<HTMLButtonElement>>('analysisToggle', { read: ElementRef });
 
@@ -612,7 +640,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
     const section = this.analysisSection()?.nativeElement;
     if (section) section.open = false;
     this.analysisOpen.set(false);
-    this.analysisToggle()?.nativeElement.focus();
+    const trigger = this.analysisToggle()?.nativeElement ?? section?.querySelector<HTMLElement>('summary');
+    trigger?.focus();
   }
   protected readonly photoAspect = computed(() => {
     const photo = this.photo();
@@ -764,8 +793,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private locationMapEffect = effect(() => {
     const container = this.locationMapContainer();
     const p = this.photo();
-    if (!container || !p || p.gps_latitude == null || p.gps_longitude == null) return;
-
+    const visible = this.infoOpen();
     if (this.locationMapTimeout !== null) {
       clearTimeout(this.locationMapTimeout);
       this.locationMapTimeout = null;
@@ -775,8 +803,10 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
       this.locationMap = null;
     }
 
+    if (!visible || !container || !p || p.gps_latitude == null || p.gps_longitude == null) return;
     this.locationMapTimeout = setTimeout(() => {
       this.locationMapTimeout = null;
+      if (this.destroyRef.destroyed || !this.infoOpen() || this.locationMapContainer()?.nativeElement !== container.nativeElement || this.photo()?.path !== p.path) return;
       const map = createLeafletMap(container.nativeElement, {
         zoomControl: false,
         attributionControl: false,

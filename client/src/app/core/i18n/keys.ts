@@ -3126,6 +3126,8 @@ export const I18N = {
       result: "photo_detail.remove_catalog.result",
     },
     analysis: "photo_detail.analysis",
+    info: "photo_detail.info",
+    unassigned_faces: "photo_detail.unassigned_faces",
   },
   manual_tags: {
     batch: {
