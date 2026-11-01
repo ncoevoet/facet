@@ -3841,6 +3841,28 @@ export const I18N = {
     help_title: "metadata_sources.help_title",
     help: "metadata_sources.help",
   },
+  related_files: {
+    title: "related_files.title",
+    photo: "related_files.photo",
+    raw: "related_files.raw",
+    jpeg: "related_files.jpeg",
+    xmp_full: "related_files.xmp_full",
+    xmp_basename: "related_files.xmp_basename",
+    xmp_fallback: "related_files.xmp_fallback",
+    available: "related_files.available",
+    missing: "related_files.missing",
+    unavailable: "related_files.unavailable",
+    link: "related_files.link",
+    indexed: "related_files.indexed",
+    raw_download: "related_files.raw_download",
+    unchecked: "related_files.unchecked",
+    multiple_raw: "related_files.multiple_raw",
+    basename_unverified: "related_files.basename_unverified",
+    failed: "related_files.failed",
+    help_title: "related_files.help_title",
+    help: "related_files.help",
+    multi_user_scope: "related_files.multi_user_scope",
+  },
 } as const;
 
 /** Returns {@link I18N}; use it to initialize class fields -- see the header comment above. */

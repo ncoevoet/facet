@@ -1,5 +1,6 @@
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
 import { PhotoProvenanceComponent } from './photo-provenance.component';
+import { PhotoRelatedFilesComponent } from './photo-related-files.component';
 import { TimelineFeedCache } from '../timeline/timeline-feed-cache.service';
 import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
@@ -40,6 +41,7 @@ import {
 } from '../../shared/components/histogram/histogram.component';
 import { PhotoMetricSectionComponent } from '../../shared/components/photo-metrics-tabs/photo-metric-section.component';
 import { AssessmentValuePipe } from '../../shared/pipes/assessment-value.pipe';
+import { MetricRankComponent } from '../../shared/components/metric-rank/metric-rank.component';
 import { MetricsTabState, MetricsTab } from '../../core/services/metrics-tab-state.service';
 import { HistogramMode, isHistogramMode } from '../../shared/utils/histogram';
 import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-category-explainer.component';
@@ -71,10 +73,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent,
+  imports: [ContextHelpComponent, PhotoAnalysisComponent, PhotoProvenanceComponent, PhotoRelatedFilesComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
-    PhotoMetricSectionComponent, AssessmentValuePipe,
+    PhotoMetricSectionComponent, AssessmentValuePipe, MetricRankComponent,
     PhotoFaceLayerComponent,
     PersonFaceMenuComponent,
     MatIconModule,
@@ -411,6 +413,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 <app-photo-metric-section kind="exif" [photo]="p" [histogramHeight]="HISTOGRAM_PANEL_HEIGHT" />
               }
               <app-photo-provenance [photo]="p" />
+              <app-photo-related-files [photo]="p" />
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
@@ -528,6 +531,9 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           <details #analysisSection data-photo-analysis tabindex="-1" (keydown.escape)="closeAnalysis($event)" (toggle)="analysisOpen.set(analysisSection.open)" class="border-t border-[var(--mat-sys-outline-variant)]">
             <summary class="flex min-h-11 cursor-pointer items-center gap-2 text-sm font-medium"><mat-icon aria-hidden="true" class="!h-5 !w-5 !text-xl">analytics</mat-icon><span>{{ I18N.photo_detail.analysis | translate }}</span><span class="ml-auto text-xs font-normal tabular-nums">{{ I18N.photo_detail.assessment.score | translate }} {{ p.aggregate | assessmentValue }}</span></summary>
             @if (analysisOpen()) {
+              @if (aggregateRange(); as range) {
+                <app-metric-rank data-aggregate-distribution class="mb-2" [range]="range" [value]="p.aggregate" />
+              }
               @if (store.config()?.features?.show_critique) {
                 @for (path of [p.path]; track path) { <app-photo-analysis [photoPath]="path" [vlmAvailable]="!!store.config()?.features?.show_vlm_critique" /> }
               }
@@ -620,6 +626,11 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly I18N = i18nKeys();
   protected readonly analysisOpen = signal(false);
+  protected readonly aggregateRange = computed(() => {
+    const value = this.photo()?.aggregate;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? this.store.metricRangesByColumn()['aggregate'] : undefined;
+  });
   private readonly metricState = inject(MetricsTabState);
   protected readonly metricSections = [
     { id: 'quality', icon: 'auto_awesome', label: I18N.photo_detail.quality },

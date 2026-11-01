@@ -26,6 +26,7 @@ from api.models.gallery import (
 )
 from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, ViewerConfigResponse
 from api.models.provenance import PhotoProvenance
+from api.models.related_files import RelatedFilesResponse
 from api.db_helpers import (
     CAPTURE_DATE_MISSING_SQL,
     get_existing_columns, get_cached_count_async,
@@ -49,6 +50,7 @@ from score_presence import score_presence_policies
 from api.visual_similarity import find_visual_page
 from db.preview_versions import attach_preview_versions_async
 from db.metadata_provenance import photo_provenance
+from api.related_files import related_files
 from utils.histogram import unpack_histogram
 from utils.sequence import BRACKET as BRACKET_KIND
 
@@ -60,6 +62,27 @@ except ImportError:
 
 router = APIRouter(tags=["gallery"])
 logger = logging.getLogger(__name__)
+
+
+@router.get('/api/photo/related_files', response_model=RelatedFilesResponse)
+def api_photo_related_files(
+    path: str = Query(...),
+    token: str | None = Query(None),
+    user: CurrentUser = Depends(require_authenticated),
+):
+    """Inspect authorized physical candidates without exposing paths or writing files."""
+    if token is not None:
+        raise HTTPException(404, 'Photo not found')
+    visibility, params = get_visibility_clause(user.user_id)
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN')
+            if not conn.execute(f'SELECT 1 FROM photos WHERE path=? AND {visibility}', [path, *params]).fetchone():
+                raise HTTPException(404, 'Photo not found')
+            return related_files(conn, path, user.user_id)
+    except sqlite3.Error:
+        logger.exception('Failed to inspect related files')
+        raise HTTPException(503, 'Related files could not be read') from None
 
 
 @router.get('/api/photo/provenance', response_model=PhotoProvenance)

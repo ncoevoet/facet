@@ -3372,6 +3372,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/photo/related_files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Api Photo Related Files
+         * @description Inspect authorized physical candidates without exposing paths or writing files.
+         */
+        get: operations["api_photo_related_files_api_photo_related_files_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/photo/set": {
         parameters: {
             query?: never;
@@ -9136,6 +9156,44 @@ export interface components {
             person1_id: number;
             /** Person2 Id */
             person2_id: number;
+        };
+        /** RelatedFile */
+        RelatedFile: {
+            /** Indexed */
+            indexed: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "photo" | "raw" | "jpeg" | "xmp_full" | "xmp_basename" | "xmp_fallback";
+            /** Name */
+            name: string;
+            /**
+             * Raw Download
+             * @default false
+             */
+            raw_download?: boolean;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "available" | "missing" | "unavailable" | "link";
+        };
+        /** RelatedFilesResponse */
+        RelatedFilesResponse: {
+            /** Basename Sidecar Unverified */
+            basename_sidecar_unverified: boolean;
+            /** Files */
+            files: components["schemas"]["RelatedFile"][];
+            /** Indexed Images Only */
+            indexed_images_only: boolean;
+            /**
+             * Inventory State
+             * @enum {string}
+             */
+            inventory_state: "checked" | "unavailable";
+            /** Multiple Raw Candidates */
+            multiple_raw_candidates: boolean;
         };
         /** RenamePersonRequest */
         RenamePersonRequest: {
@@ -15605,6 +15663,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PhotoProvenance"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    api_photo_related_files_api_photo_related_files_get: {
+        parameters: {
+            query: {
+                path: string;
+                token?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RelatedFilesResponse"];
                 };
             };
             /** @description Validation Error */

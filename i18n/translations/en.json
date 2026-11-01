@@ -3826,5 +3826,27 @@
     "failed": "Metadata sources could not be loaded.",
     "help_title": "About these sources",
     "help": "These are current recorded sources, not a full edit history. Local changes do not identify a person. Missing records do not mean a value is unchanged. Manual tags are shared; review fields follow the scope shown above. Capture-date and location overrides may also come from imports."
+  },
+  "related_files": {
+    "title": "Related files",
+    "photo": "Indexed photo",
+    "raw": "RAW candidate",
+    "jpeg": "JPEG candidate",
+    "xmp_full": "Full-name XMP candidate",
+    "xmp_basename": "Basename XMP candidate",
+    "xmp_fallback": "Facet fallback XMP candidate",
+    "available": "On disk",
+    "missing": "File unavailable",
+    "unavailable": "Not checked",
+    "link": "Symbolic link · target not inspected",
+    "indexed": "Indexed",
+    "raw_download": "Used for RAW download",
+    "unchecked": "Companions could not be checked.",
+    "multiple_raw": "Several RAW candidates exist. They are not merged.",
+    "basename_unverified": "Basename XMP ownership is not verified.",
+    "failed": "Related files could not be loaded.",
+    "help_title": "About related files",
+    "help": "Photo display requests this indexed file; the rendition indicator reports what actually decoded. Gallery thumbnails are stored previews. Same-stem RAW/JPEG and XMP names are candidates, not proof of identity. Manual stacks are separate. RAW download follows the existing companion rule; sidecar import and export use their own naming policies. This list is a read-time check, not a file-write preview. Linked targets are not inspected. Only supported lower/upper-case RAW/JPEG extensions and the three shown XMP naming patterns are checked.",
+    "multi_user_scope": "On multi-user installations, image companions must also be indexed and visible to this account. A filesystem match alone does not grant access."
   }
 }

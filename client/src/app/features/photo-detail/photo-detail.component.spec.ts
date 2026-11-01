@@ -335,27 +335,42 @@ describe('PhotoDetailComponent', () => {
 
   it('ranks each score that has a library distribution, and only those', () => {
     localStorage.setItem('facet_photo_detail_tab', 'quality');
+    const photo = makePhoto({ path: samplePhoto.path, aesthetic: 7.2 });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : {}));
     const view = renderDetail();
     TestBed.inject(GalleryStore).metricRanges.set({
       min_aesthetic: { column: 'aesthetic', min: 0, max: 10, buckets: [1, 1] },
     });
-    view.componentInstance.photo.set(makePhoto({ aesthetic: 7.2 }));
+    view.componentInstance.photo.set(photo);
     view.detectChanges();
+    expect(view.debugElement.queryAll(By.css('app-metric-rank'))).toHaveLength(0);
+    const analysis = view.nativeElement.querySelector('[data-photo-analysis]') as HTMLDetailsElement;
+    analysis.open = true; analysis.dispatchEvent(new Event('toggle')); view.detectChanges();
     const ranks = view.debugElement.queryAll(By.css('app-metric-rank'));
     expect(ranks).toHaveLength(1);
+    expect(ranks[0].componentInstance.value()).toBe(7.2);
     expect(ranks[0].nativeElement.querySelector('[tabindex="0"]')).not.toBeNull();
   });
 
-  it('places the aggregate in its library distribution in the header', () => {
+  it('places the aggregate in its library distribution only inside expanded Analysis', () => {
+    let photo = makePhoto({ path: samplePhoto.path, aggregate: 6.4 });
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? photo : {}));
     const view = renderDetail();
     TestBed.inject(GalleryStore).metricRanges.set({
       min_score: { column: 'aggregate', min: 0, max: 10, buckets: [1, 1] },
     });
-    view.componentInstance.photo.set(makePhoto({ aggregate: 6.4 }));
+    view.componentInstance.photo.set(photo);
     view.detectChanges();
-    const header = view.debugElement.queryAll(By.css('app-photo-assessment app-metric-rank'));
-    expect(header).toHaveLength(1);
-    expect(header[0].componentInstance.value()).toBe(6.4);
+    expect(view.debugElement.queryAll(By.css('[data-aggregate-distribution]'))).toHaveLength(0);
+    const analysis = view.nativeElement.querySelector('[data-photo-analysis]') as HTMLDetailsElement;
+    analysis.open = true; analysis.dispatchEvent(new Event('toggle')); view.detectChanges();
+    const distribution = view.debugElement.queryAll(By.css('[data-photo-analysis] app-metric-rank[data-aggregate-distribution]'));
+    expect(distribution).toHaveLength(1);
+    expect(distribution[0].componentInstance.value()).toBe(6.4);
+    expect(distribution[0].nativeElement.querySelector('[tabindex="0"]')).not.toBeNull();
+    photo = makePhoto({ path: samplePhoto.path, aggregate: null });
+    view.componentInstance.photo.set(photo); view.detectChanges();
+    expect(view.debugElement.queryAll(By.css('[data-aggregate-distribution]'))).toHaveLength(0);
   });
 
   it('loads the library distributions on a deep-linked open', async () => {
@@ -508,6 +523,8 @@ describe('PhotoDetailComponent', () => {
     expect(info.querySelector('[data-photo-provenance]')).not.toBeNull();
     expect(info.querySelector<HTMLDetailsElement>('[data-photo-provenance]')!.open).toBe(false);
     expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/provenance')).toHaveLength(0);
+    expect(info.querySelector<HTMLDetailsElement>('[data-related-files]')!.open).toBe(false);
+    expect(mockApi.get.mock.calls.filter(([url]) => url === '/photo/related_files')).toHaveLength(0);
     expect(root.querySelector('[role="tab"]')).toBeNull();
     expect(root.querySelector('[data-photo-people]')?.textContent).toContain('Alice');
     expect(root.querySelector('[data-photo-people]')?.textContent).toContain('photo_detail.unassigned_faces');
