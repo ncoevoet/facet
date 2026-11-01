@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, signal, viewChild, viewChildren } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -17,12 +18,13 @@ import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.OnPush,
- imports:[MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent],
+ imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent],
  host:{class:'block'}, template:`
  @if (store.currentAlbum()) { <app-gallery-album-rules [active]="canAct()" /> }
  @if (pinned()) {
    <p data-criteria-pinned class="text-xs my-2 text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.pinned | translate }}</p>
  } @else {
+ <ng-template #shortcuts>
  <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]">
    <details #quickFilters tabindex="-1" class="relative" (keydown.escape)="quickFilters.open = false; quickSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
      <summary #quickSummary class="cursor-pointer py-2 font-medium">{{ I18N.gallery.sidebar.review.quick | translate }}</summary>
@@ -50,6 +52,9 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
      <span data-query-kind>{{ I18N.gallery.criteria.exact | translate }}</span>
    }
  </div>
+ </ng-template>
+ @if (!portShortcuts()) { <ng-container [ngTemplateOutlet]="shortcuts" /> }
+
  @if (store.filters().semanticQuery || store.filters().similar_to) {
    <p data-query-explanation class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.ranked_help | translate }}</p>
  }
@@ -127,6 +132,9 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
   }
  }`})
 export class GalleryCriteriaComponent {
+ readonly portShortcuts = input(false);
+ readonly shortcuts = viewChild<TemplateRef<unknown>>('shortcuts');
+
  protected readonly I18N=i18nKeys();
  protected readonly store=inject(GalleryStore);
  protected readonly auth=inject(AuthService);

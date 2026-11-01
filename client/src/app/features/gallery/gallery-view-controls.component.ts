@@ -1,4 +1,5 @@
-import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, signal, viewChildren } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { afterNextRender, ChangeDetectionStrategy, Component, computed, DestroyRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
 import { MatBadgeModule } from '@angular/material/badge';
@@ -21,7 +22,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 @Component({
   selector: 'app-gallery-view-controls',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [MatBadgeModule, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
+  imports: [NgTemplateOutlet, MatBadgeModule, MatButtonModule, MatIconModule, MatMenuModule, MatTooltipModule, TranslatePipe, SortOptionIconPipe, SortGroupKeyPipe],
   host: { class: 'flex flex-wrap items-center gap-1' },
   template: `
     <button mat-button data-display-presets class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="displayPresetMenu"
@@ -39,14 +40,15 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
       }
       <button mat-menu-item data-reset-display (click)="applyPreset('default')"><mat-icon>restart_alt</mat-icon>{{ I18N.gallery.presentation.reset | translate }}</button>
     </mat-menu>
+    <ng-template #primaryControls>
     @if (!pinned()) {
           @let sortTooltip = I18N.gallery.sort_current | translate:{ label: (currentSortLabelKey() | translate) };
-          <button mat-button data-collection-sort class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
+          <button mat-button data-collection-sort class="max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2" [matMenuTriggerFor]="sortMenu" [matTooltip]="sortTooltip" [attr.aria-label]="sortTooltip">
             @let currentIcon = store.filters().sort | sortOptionIcon;
             <mat-icon aria-hidden="true" class="!w-8 -mx-1 text-center max-md:!m-0" [class]="currentIcon.classes">{{ currentIcon.text }}</mat-icon>
           <span class="hidden @[1120px]:inline">{{ currentSortLabelKey() | translate }}</span></button>
           <button
-            class=""
+            class="max-md:!min-h-11 max-md:!min-w-11"
             mat-icon-button
             (click)="toggleSortDirection()"
             [matTooltip]="store.filters().sort_direction === 'DESC' ? (I18N.gallery.sort_desc | translate) : (I18N.gallery.sort_asc | translate)"
@@ -57,7 +59,7 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
             }}</mat-icon>
           </button>
           <button
-            class=""
+            class="max-md:!min-h-11 max-md:!px-2"
             mat-button
             (click)="toggleFilters()"
             [matBadge]="store.activeFilterCount() || null"
@@ -69,6 +71,9 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
             <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
           <span>{{ I18N.gallery.filters | translate }}</span></button>
         }
+    </ng-template>
+    @if (!portPrimary()) { <ng-container [ngTemplateOutlet]="primaryControls" /> }
+
 <button
           class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
           mat-button
@@ -195,6 +200,9 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
   </mat-menu>`,
 })
 export class GalleryViewControlsComponent {
+  readonly portPrimary = input(false);
+  readonly primaryControls = viewChild<TemplateRef<unknown>>('primaryControls');
+
   protected readonly I18N = i18nKeys();
   protected readonly store = inject(GalleryStore);
   protected readonly pinned = computed(() => this.store.pinnedPaths() !== null);

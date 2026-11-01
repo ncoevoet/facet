@@ -132,9 +132,10 @@ class TestSearchRelay:
         assert result["shown_in_tab"]["reason"] == "invalid_combination"
         assert tab.calls == []
 
-    def test_a_tab_on_the_comparison_page_is_left_alone(self, agent_app, fake_tab, photos):
+    @pytest.mark.parametrize("route", ["/compare", "/photo-compare", "/photo-compare?layout=two"])
+    def test_a_tab_on_the_comparison_page_is_left_alone(self, agent_app, fake_tab, photos, route):
         env = agent_app("open")
-        tab = fake_tab(env, None, reply=reply_total(7), route="/compare")
+        tab = fake_tab(env, None, reply=reply_total(7), route=route)
         result = env.call(env.token(env.login()), "search_photos", {"filters": {"path_prefix": PREFIX}})
         assert result["ok"] is True and tab.calls == []
         assert result["shown_in_tab"]["applied"] is False
@@ -520,10 +521,11 @@ class TestListShow:
         assert result["ok"] is True
         assert result["shown_in_tab"] == {"applied": False, "reason": "page_not_first"} and tab.calls == []
 
-    def test_a_tab_on_the_comparison_page_is_left_alone(self, agent_app, fake_tab, monkeypatch):
+    @pytest.mark.parametrize("route", ["/compare", "/photo-compare", "/photo-compare?layout=two"])
+    def test_a_tab_on_the_comparison_page_is_left_alone(self, agent_app, fake_tab, monkeypatch, route):
         stub_lists(monkeypatch)
         env = agent_app("open")
-        tab = fake_tab(env, None, reply=navigate_reply, route="/compare")
+        tab = fake_tab(env, None, reply=navigate_reply, route=route)
         result = env.call(env.token(env.login()), "list_persons", {"show": True})
         assert result["shown_in_tab"]["reason"] == "comparison_open" and tab.calls == []
 

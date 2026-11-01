@@ -1110,6 +1110,8 @@
       "clear": "Show the usual view"
     },
     "all_photos": "All Photos",
+    "collection_controls": "View options",
+    "collection_totals_compact": "{photos} matching, {items} displayed",
     "sort": "Sort by",
     "sort_current": "Sort by: {label}",
     "sort_aggregate": "Aggregate",

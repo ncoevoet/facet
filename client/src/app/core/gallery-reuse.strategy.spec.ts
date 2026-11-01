@@ -33,6 +33,7 @@ describe('GalleryReuseStrategy', () => {
           { path: '', component: GalleryStub },
           { path: 'album/:albumId', component: GalleryStub },
           { path: 'photo', component: OtherStub },
+          { path: 'photo-compare', component: OtherStub },
           { path: 'stacks/edit', component: OtherStub },
           { path: 'login', component: OtherStub },
           { path: 'protected', component: OtherStub, canActivate: [authGuard] },
@@ -78,6 +79,21 @@ describe('GalleryReuseStrategy', () => {
     expect(harness.routeDebugElement?.componentInstance).toBe(album);
     expect(harness.routeNativeElement).toBe(node);
     expect(destroyed).toBe(before);
+  });
+
+  it('preserves collection DOM and query through comparison Close and browser Back', async () => {
+    const album = await harness.navigateByUrl('/album/42?search=coast&sort=date', GalleryStub);
+    const node = harness.routeNativeElement;
+    const count = destroyed;
+    await harness.navigateByUrl('/photo-compare');
+    expect(destroyed).toBe(count);
+    await harness.navigateByUrl('/album/42?search=coast&sort=date');
+    expect(harness.routeDebugElement?.componentInstance).toBe(album);
+    expect(harness.routeNativeElement).toBe(node);
+    await harness.navigateByUrl('/photo-compare');
+    await back();
+    expect(harness.routeDebugElement?.componentInstance).toBe(album);
+    expect(destroyed).toBe(count);
   });
 
   it('reattaches the parked gallery on a history back from the stack editor', async () => {

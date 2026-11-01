@@ -42,6 +42,7 @@ import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { MatTooltip, MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, NavigationStart, Router, RouterOutlet } from '@angular/router';
 import { filter, firstValueFrom, takeUntil } from 'rxjs';
+import { ComparisonSessionService } from './comparison-session.service';
 import { GalleryStore, BatchResult, REVIEW_RESUME_NAVIGATION } from './gallery.store';
 import { NoticeDismissals, NoticeKind, readNoticeDismissals, saveNoticeDismissals, withDismissal } from './notice-dismiss.util';
 import { Photo } from '../../shared/models/photo.model';
@@ -144,7 +145,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
          Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="w-24 sm:w-40 shrink-0" subscriptSizing="dynamic">
+        <mat-form-field class="!hidden md:!inline-flex md:w-40 shrink-0" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -167,6 +168,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             [value]="store.filters().search"
             (input)="onSearchInput($event)"
             (keyup.enter)="onSearchChange($event)"
+            (keydown.escape)="closeMobileSearch($event)"
             (blur)="onSearchChange($event)"
           />
           @if (store.filters().search) {
@@ -222,6 +224,21 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           </div>
         </mat-menu>
       }
+    </ng-template>
+
+    <ng-template #galleryLayoutButtons>
+            <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
+                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
+                    [attr.aria-pressed]="store.galleryMode() === 'grid'"
+                    [attr.aria-label]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
+              <mat-icon class="max-md:!m-0">grid_view</mat-icon><span class="hidden md:inline">{{ I18N.gallery.layout_grid | translate }}</span>
+            </button>
+            <button mat-button data-gallery-layout="mosaic" class="!min-w-0 !text-[var(--mat-sys-on-surface)] max-md:!min-h-11 max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
+                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'mosaic'"
+                    [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
+                    [attr.aria-label]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
+              <mat-icon class="max-md:!m-0">auto_awesome_mosaic</mat-icon><span class="hidden md:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
+            </button>
     </ng-template>
 
     <div #noticeHost class="relative h-full">
@@ -284,39 +301,46 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
-          <p role="status" class="m-0 text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
-            @if (!pinned() && store.photoTotal() !== store.total()) {
+          <p role="status" class="m-0 truncate text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
+            @if (!isDesktop() && !pinned() && store.photoTotal() !== store.total()) {
+              {{ I18N.gallery.collection_totals_compact | translate:{ photos: store.photoTotal(), items: store.total() } }}
+            } @else if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
               {{ (pinned() ? store.total() : store.photoTotal()) | pluralKey:I18N.gallery.photo_count_one:I18N.gallery.photo_count | translate:{ count: pinned() ? store.total() : store.photoTotal() } }}
             }
           </p>
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 items-center gap-1 md:order-none md:w-auto md:flex-1">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 items-center gap-1 md:order-none md:w-auto md:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
-          <div class="flex shrink-0 items-center gap-0.5 rounded p-0.5 bg-[var(--mat-sys-surface-container)]">
+          <div class="flex shrink-0 items-center gap-0.5">
+            @if (!pinned()) {
+              <button #mobileSearchToggle mat-icon-button class="md:!hidden !min-h-11 !min-w-11" [attr.aria-label]="I18N.ui.filters.search | translate" [attr.aria-expanded]="mobileSearchOpen() || !!store.filters().search" (click)="focusCollectionSearch()"><mat-icon>search</mat-icon></button>
+            }
             <button mat-button data-mobile-select class="md:!hidden !min-h-11 !min-w-0 !px-2"
                     [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
-            <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
-                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
-                    [attr.aria-pressed]="store.galleryMode() === 'grid'"
-                    [attr.aria-label]="I18N.gallery.layout_grid | translate" (click)="store.setGalleryMode('grid')">
-              <mat-icon>grid_view</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_grid | translate }}</span>
-            </button>
-            <button mat-button data-gallery-layout="mosaic" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
-                    [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'mosaic'"
-                    [attr.aria-pressed]="store.galleryMode() === 'mosaic'"
-                    [attr.aria-label]="I18N.gallery.layout_mosaic | translate" (click)="store.setGalleryMode('mosaic')">
-              <mat-icon>auto_awesome_mosaic</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
-            </button>
+            @if (isDesktop()) { <ng-container [ngTemplateOutlet]="galleryLayoutButtons" /> }
           </div>
           </div>
-          <div class="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
-            <app-gallery-criteria class="min-w-0 flex-1" />
-            <app-gallery-view-controls class="shrink-0 max-md:w-full" />
+          <div class="mt-1 flex flex-wrap items-center justify-between gap-x-1 gap-y-1 md:gap-x-4">
+            <app-gallery-criteria #collectionCriteria [portShortcuts]="!isDesktop()" class="order-3 w-full min-w-0 flex-1 md:order-none md:w-auto" />
+            @if (!isDesktop()) {
+              <div data-mobile-collection-controls class="flex min-w-0 flex-1 items-center gap-0.5">
+                <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
+                <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
+              </div>
+            }
+            <details #collectionOptions data-collection-options class="relative shrink-0" [open]="isDesktop()"
+                     (keydown.escape)="!isDesktop() && (collectionOptions.open = false); !isDesktop() && collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+              <summary #collectionOptionsSummary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded text-xs" [class.hidden]="isDesktop()" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon>more_horiz</mat-icon><span class="sr-only">{{ I18N.gallery.collection_controls | translate }}</span></summary>
+              <div class="z-30" [class.w-80]="!isDesktop()" [class.max-w-[calc(100vw-2rem)]]="!isDesktop()" [class.absolute]="!isDesktop()" [class.right-0]="!isDesktop()" [class.top-full]="!isDesktop()" [class.bg-[var(--mat-sys-surface-container)]]="!isDesktop()" [class.shadow-lg]="!isDesktop()" [class.p-2]="!isDesktop()">
+                <app-gallery-view-controls #collectionViewControls [portPrimary]="!isDesktop()" class="shrink-0" />
+                @if (!isDesktop()) { <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" /> }
+              </div>
+            </details>
           </div>
         </header>
 
@@ -998,6 +1022,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly bottomSheet = inject(MatBottomSheet);
   private readonly i18n = inject(I18nService);
   private readonly dialog = inject(MatDialog);
+  private readonly comparisonSession = inject(ComparisonSessionService);
   private readonly albumService = inject(AlbumService);
   private readonly journal = inject(UserActivityJournal);
   private readonly photoActions = inject(PhotoActionsService);
@@ -1123,6 +1148,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  behind `isTouchDevice`, which only steers the tooltip. */
   protected readonly touchOnly = signal(false);
   protected readonly selectionAffordance = signal(false);
+  protected readonly mobileSearchOpen = signal(false);
+  private readonly mobileSearchToggle = viewChild<unknown, ElementRef<HTMLButtonElement>>('mobileSearchToggle', { read: ElementRef });
   protected readonly selectingPhotos = computed(() => this.selectionAffordance() || this.selectionCount() > 0);
   /** Grid index of the card the photo menu was opened on, for focus hand-back. */
   private photoMenuIndex = -1;
@@ -2132,14 +2159,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // as they are laid out is what the user is already looking at.
     const photos = this.store.photos().filter(p => selected.has(p.path)).slice(0, MAX_COMPARE_PANES);
     if (photos.length < 2) return;
-    const { CompareSelectedDialogComponent } = await import('./compare-selected-dialog.component');
-    this.dialog.open(CompareSelectedDialogComponent, {
-      data: { photos },
-      width: '96vw',
-      height: '92vh',
-      maxWidth: '96vw',
-      autoFocus: false,
-    });
+    if (this.parked || this.router.currentNavigation?.() || !this.comparisonSession.start(photos, this.router.url)) return;
+    if (!await this.router.navigateByUrl('/photo-compare')) this.comparisonSession.clear();
   }
 
   /** Ctrl+A selects all loaded photos unless focus is in an input or a dialog is open. */
@@ -3133,11 +3154,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
       return;
     }
     if (this.keymap.matches(event, 'focusSearch')) {
-      const search = this.toolbarSearch()?.nativeElement;
-      if (!search) return;
+      if (!this.toolbarSearch()) return;
       event.preventDefault();
-      search.focus();
-      search.select();
+      this.focusCollectionSearch();
       return;
     }
     if (this.keymap.matches(event, 'toggleSidebar')) {
@@ -3149,6 +3168,26 @@ export class GalleryComponent implements OnInit, OnDestroy {
       event.preventDefault();
       this.store.setGalleryMode(this.effectiveGalleryMode() === 'grid' ? 'mosaic' : 'grid');
     }
+  }
+
+  protected focusCollectionSearch(): void {
+    if (this.parked || this.router.currentNavigation?.() || this.destroyRef.destroyed) return;
+    const focus = () => {
+      if (this.parked || this.router.currentNavigation?.() || this.destroyRef.destroyed) return;
+      const input = this.toolbarSearch()?.nativeElement;
+      input?.focus(); input?.select();
+    };
+    if (!this.isDesktop() && !this.mobileSearchOpen()) {
+      this.mobileSearchOpen.set(true);
+      afterNextRender(focus, { injector: this.injector });
+    } else focus();
+  }
+
+  protected closeMobileSearch(event: Event): void {
+    if (this.isDesktop()) return;
+    event.preventDefault(); event.stopPropagation();
+    this.mobileSearchOpen.set(false);
+    this.mobileSearchToggle()?.nativeElement.focus();
   }
 
   protected clearSearch(): void {

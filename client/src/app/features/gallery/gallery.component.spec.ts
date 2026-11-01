@@ -31,6 +31,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { AlbumService } from '../../core/services/album.service';
 import { NOTICE_DISMISSALS_KEY } from './notice-dismiss.util';
+import { ComparisonSessionService } from './comparison-session.service';
 import { GalleryComponent } from './gallery.component';
 import { GalleryFilterSidebarComponent } from './gallery-filter-sidebar.component';
 import { SlideshowComponent } from './slideshow.component';
@@ -349,6 +350,69 @@ describe('GalleryComponent', () => {
     mockStore.pinnedPaths.set(['/a.jpg']);
     fixture.detectChanges();
     expect(query.querySelector('[data-stack-collapse]')).toBeNull();
+    fixture.destroy();
+  });
+
+  it('reveals mobile search on request and returns focus when Escape collapses it', () => {
+    const fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
+    document.body.appendChild(fixture.nativeElement);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const query = root.querySelector('[data-collection-query]')!;
+    const button = root.querySelector<HTMLButtonElement>('button[aria-label="ui.filters.search"]')!;
+    const input = query.querySelector('input')!;
+    expect(query.classList.contains('!hidden')).toBe(true);
+    button.click(); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(false);
+    input.focus();
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(true);
+    expect(document.activeElement).toBe(button);
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, search: 'coast' })); fixture.detectChanges();
+    expect(query.classList.contains('!hidden')).toBe(false);
+    expect(input.value).toBe('coast');
+    fixture.destroy(); root.remove();
+  });
+
+  it('gives the narrow collection toolbar real Filters and layout actions without duplicating their owner', () => {
+    mockStore.selectedPaths.set(new Set(['/selected.jpg'])); mockStore.selectionCount.set(1);
+    const fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
+    fixture.detectChanges(); TestBed.tick();
+    const root = fixture.nativeElement as HTMLElement;
+    const actions = root.querySelector('[data-mobile-collection-controls]')!;
+    expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
+    expect(root.querySelectorAll('[data-collection-sort]')).toHaveLength(1);
+    expect(actions.querySelector('[data-collection-sort]')).not.toBeNull();
+    actions.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.filters}"]`)!.click();
+    expect(mockStore.setFilterDrawerOpen).toHaveBeenCalledExactlyOnceWith(true);
+    actions.querySelector<HTMLButtonElement>('[data-gallery-layout="grid"]')!.click();
+    expect(mockStore.setGalleryMode).toHaveBeenCalledExactlyOnceWith('grid');
+    expect([...mockStore.selectedPaths()]).toEqual(['/selected.jpg']);
+    fixture.destroy();
+  });
+
+  it('keeps one collection controls owner and closes only the narrow-screen disclosure on Escape', () => {
+    const fixture = TestBed.createComponent(GalleryComponent);
+    const desktop = signal(false);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: desktop });
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const disclosure = root.querySelector<HTMLDetailsElement>('[data-collection-options]')!;
+    const summary = disclosure.querySelector('summary')!;
+    const controls = disclosure.querySelector('app-gallery-view-controls');
+    expect(disclosure.open).toBe(false);
+    expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
+    disclosure.open = true;
+    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(disclosure.open).toBe(false);
+    desktop.set(true); fixture.detectChanges();
+    expect(disclosure.open).toBe(true);
+    expect(summary.classList.contains('hidden')).toBe(true);
+    disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    expect(disclosure.open).toBe(true);
+    expect(disclosure.querySelector('app-gallery-view-controls')).toBe(controls);
     fixture.destroy();
   });
 
@@ -2413,8 +2477,7 @@ describe('GalleryComponent', () => {
       mockStore.selectionCount.set(paths.length);
     }
 
-    // The dialog itself is covered by its own spec; this is the wiring — which
-    // photos it is handed, in which order, and when the action is offered.
+    // The workspace owns its own tests; this checks captured membership and entry.
     it('is offered from two photos up to the pane limit', () => {
       const c = component as unknown as { canCompareSelection: () => boolean };
       for (const n of [0, 1]) {
@@ -2434,12 +2497,13 @@ describe('GalleryComponent', () => {
     it('hands over the grid order, not the order they were picked in', async () => {
       mockStore.photos.set(['/a.jpg', '/b.jpg', '/c.jpg'].map(photo));
       select(['/c.jpg', '/a.jpg']);
-      const dialog = TestBed.inject(MatDialog);
-
-      await (component as unknown as { compareSelection: () => Promise<void> }).compareSelection();
-
-      const data = (dialog.open as Mock).mock.calls[0][1].data;
-      expect(data.photos.map((p: { path: string }) => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+      const router = TestBed.inject(Router);
+      const navigate = vi.spyOn(router, 'navigateByUrl').mockResolvedValue(true);
+      await component['compareSelection']();
+      const data = TestBed.inject(ComparisonSessionService).snapshot();
+      expect(data.photos.map(p => p.path)).toEqual(['/a.jpg', '/c.jpg']);
+      expect(navigate).toHaveBeenCalledExactlyOnceWith('/photo-compare');
+      expect(TestBed.inject(MatDialog).open).not.toHaveBeenCalled();
     });
 
     it('refuses an oversized selection instead of silently comparing a subset', async () => {
@@ -6394,6 +6458,7 @@ describe('GalleryComponent', () => {
         search.value = 'cat';
         const event = key({ key: '/' });
         expect(event.defaultPrevented).toBe(true);
+        fixture.detectChanges(); TestBed.tick();
         expect(document.activeElement).toBe(search);
         expect(search.selectionStart).toBe(0);
         expect(search.selectionEnd).toBe(3);
@@ -6402,6 +6467,7 @@ describe('GalleryComponent', () => {
       it('/ focuses the collection search on narrow screens without opening another panel', () => {
         stubWide(false);
         expect(key({ key: '/' }).defaultPrevented).toBe(true);
+        fixture.detectChanges(); TestBed.tick();
         expect(document.activeElement).toBe(search);
         expect(mockStore.setFilterDrawerOpen).not.toHaveBeenCalled();
       });
@@ -6444,6 +6510,7 @@ describe('GalleryComponent', () => {
         stubWide(true);
         TestBed.inject(KeyboardMappingService).setKey('focusSearch', 'g');
         expect(key({ key: 'g' }).defaultPrevented).toBe(true);
+        fixture.detectChanges(); TestBed.tick();
         expect(document.activeElement).toBe(search);
         search.blur();
         expect(key({ key: '/' }).defaultPrevented).toBe(false);
