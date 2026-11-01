@@ -37,7 +37,9 @@ def clock(monkeypatch):
 
 
 def _kwargs(**over):
-    return {"group_by": "burst", "strictness": 0, "min_keep": 1, **over}
+    # These tests isolate the existing per-photo agent reconciliation, not the
+    # new preserve-before-planning policy (covered by decision-preview tests).
+    return {"group_by": "burst", "strictness": 0, "min_keep": 1, "decision_policy": "replace", **over}
 
 
 def _library(tmp_path, extra=0):
@@ -188,7 +190,7 @@ class TestSnapshotStore:
         db, conn = _library(tmp_path)
         preview = _preview(conn, db)
         clock[0] += burst_culling.GUARD_TTL_S + 1
-        conn.execute("UPDATE photos SET is_rejected = 1 WHERE path = ?", (_p(tmp_path, "b2.jpg"),))
+        conn.execute("UPDATE photos SET burst_group_id = NULL WHERE path = ?", (_p(tmp_path, "b2.jpg"),))
         conn.commit()
         with pytest.raises(AutoCullPlanChanged):
             _apply(conn, db, preview)
@@ -217,7 +219,7 @@ class TestSnapshotStore:
         db, conn = _library(tmp_path)
         preview = run_auto_cull(conn, db, "_anonymous", **_kwargs(), dry_run=True)
         assert not burst_culling.state_guard_has("_anonymous", preview.plan_digest)
-        conn.execute("UPDATE photos SET is_rejected = 1 WHERE path = ?", (_p(tmp_path, "b2.jpg"),))
+        conn.execute("UPDATE photos SET burst_group_id = NULL WHERE path = ?", (_p(tmp_path, "b2.jpg"),))
         conn.commit()
         with pytest.raises(AutoCullPlanChanged):
             run_auto_cull(conn, db, "_anonymous", **_kwargs(), dry_run=False,
@@ -392,15 +394,22 @@ class TestGuardBuild:
         _apply(conn, db, preview)
         assert len(calls) == 1
 
-    def test_a_later_page_with_a_live_snapshot_reads_no_labels(self, tmp_path, monkeypatch):
+    def test_a_later_page_refreshes_decision_digest_but_keeps_original_guard_snapshot(self, tmp_path, monkeypatch):
         import api.db_helpers as helpers
         db, conn = _library(tmp_path)
-        _preview(conn, db)
+        first = _preview(conn, db)
+        snapshot = burst_culling._guard_load("_anonymous", first.plan_digest)
+        conn.execute("UPDATE photos SET star_rating=5 WHERE path=?", (_p(tmp_path, "b2.jpg"),))
+        conn.commit()
         reads = []
         original = helpers._read_label_tuples
         monkeypatch.setattr(helpers, "_read_label_tuples", lambda *a, **k: reads.append(1) or original(*a, **k))
-        _preview(conn, db)
-        assert reads == []
+        second = _preview(conn, db)
+        assert reads == [1]  # one shared read for the fresh projection/digest
+        assert second.plan_digest == first.plan_digest
+        assert second.decision_state_digest != first.decision_state_digest
+        assert burst_culling._guard_load("_anonymous", first.plan_digest) is snapshot
+        assert snapshot.labels[_p(tmp_path, "b2.jpg")].star == 0
 
     def test_a_plan_above_the_cap_stores_nothing_and_says_unavailable(self, tmp_path, monkeypatch):
         monkeypatch.setattr(burst_culling, "GUARD_MAX_PATHS", 2)

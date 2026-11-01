@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -92,7 +93,7 @@ describe('BurstCullingComponent', () => {
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: mockI18n },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -237,8 +238,7 @@ describe('BurstCullingComponent', () => {
       expect(context.overlays()).toEqual([]);
       store.autoCullPreview.set({
         groups_processed: 1, kept: 1, rejected: 1, highlights_added: 0,
-        dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-      });
+        dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'});
       TestBed.tick();
       expect(context.overlays()).toEqual(['dialog']);
       store.autoCullPreview.set(null);
@@ -737,7 +737,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -775,7 +775,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -878,8 +878,7 @@ describe('BurstCullingComponent', () => {
   describe('auto-cull (one-button cull with keeper budget)', () => {
     const preview = {
       groups_processed: 3, kept: 4, rejected: 5, highlights_added: 2,
-      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-    };
+      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'};
 
     it('openAutoCull dry-runs the current scope and stores the preview', async () => {
       mockApi.post = vi.fn(() => of(preview));
@@ -887,8 +886,7 @@ describe('BurstCullingComponent', () => {
       expect(mockApi.post).toHaveBeenCalledWith('/culling/auto', expect.objectContaining({
         dry_run: true,
         group_by: 'all',
-        strictness: store.strictness(),
-      }));
+        strictness: store.strictness(), decision_policy: 'preserve'}));
       expect(store.autoCullPreview()).toEqual(preview);
     });
 
@@ -947,7 +945,7 @@ describe('BurstCullingComponent', () => {
     it('sends the generated highlights album name on apply when the checkbox is on', async () => {
       mockApi.post = vi.fn(() => of(preview));
       await store.openAutoCull();
-      store.autoCullHighlights.set(true);
+      await store.onAutoCullHighlightsChange(true);
 
       await component['confirmAutoCull']();
 
@@ -1085,20 +1083,19 @@ describe('BurstCullingComponent', () => {
         expect(mockApi.post).toHaveBeenCalledTimes(1);
       });
 
-      it('re-arms the dialog after a failed apply', async () => {
+      it("requires a new preview before re-arming a failed apply", async () => {
         mockApi.post = vi.fn(() => of(preview));
         await store.openAutoCull();
         mockApi.post = vi.fn(() => throwError(() => new Error('boom')));
-
         await component['confirmAutoCull']();
-
         expect(store.autoCullPreview()).toEqual(preview);
-        expect(mockSnackBar.open).toHaveBeenCalled();
-
-        mockApi.post = vi.fn(() => of({ ...preview, dry_run: false }));
+        expect(store.autoCullIssue()).toBe('uncertain');
+        mockApi.post = vi.fn((_url, body) => of({ ...preview, dry_run: body.dry_run }));
         await component['confirmAutoCull']();
-
-        expect(mockApi.post).toHaveBeenCalledTimes(1);
+        expect(mockApi.post).not.toHaveBeenCalled();
+        await store.openAutoCull();
+        await component['confirmAutoCull']();
+        expect(mockApi.post).toHaveBeenCalledTimes(2);
         expect(store.autoCullPreview()).toBeNull();
       });
 
@@ -1220,26 +1217,22 @@ describe('BurstCullingComponent', () => {
 
       // The same writer, one beat earlier: its dry run was already in flight when
       // Apply was hit, so refusing at the door cannot catch it.
-      it('drops the answer of a dry run that was already in flight when Apply was hit', async () => {
+      it("blocks Apply until the pending preview lands, then applies that preview", async () => {
         mockApi.post = vi.fn(() => of(preview));
         await store.openAutoCull();
-        const snapshot = store.autoCullRequest();
         const late = new Subject<typeof preview>();
         mockApi.post = vi.fn(() => late);
-        void store.openAutoCull();
-        await flush();
+        void store.openAutoCull(); await flush();
         const response = new Subject<typeof preview>();
         mockApi.post = vi.fn(() => response);
+        await component['confirmAutoCull']();
+        expect(mockApi.post).not.toHaveBeenCalled();
+        late.next({ ...preview, rejected: 99 }); await flush();
+        expect(store.autoCullPreview()?.rejected).toBe(99);
         const applied = component['confirmAutoCull']();
-
-        late.next({ ...preview, rejected: 99 });
-        await flush();
-
-        expect(store.autoCullPreview()).toEqual(preview);
-        expect(store.autoCullRequest()).toBe(snapshot);
-
+        expect(mockApi.post).toHaveBeenCalledTimes(1);
+        expect(mockApi.post.mock.calls[0][1]).toMatchObject({ expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
         await settleApply(response, applied);
-
         expect(store.autoCullPreview()).toBeNull();
       });
 
@@ -1367,7 +1360,18 @@ describe('BurstCullingComponent', () => {
         posts[1].error(new Error('boom'));
         await flush();
 
-        expect(armedState()).toEqual({ armed: true, box: false, snapshotTrim: false });
+        // The preset reset the feed, so the previous approval is no longer valid.
+        expect(store.autoCullPreview()).toBeNull();
+        expect(store.autoCullRequest()).toBeNull();
+        const calls = mockApi.post.mock.calls.length;
+        await component['confirmAutoCull']();
+        expect(mockApi.post).toHaveBeenCalledTimes(calls);
+        mockApi.post = vi.fn(() => of(preview));
+        await store.openAutoCull();
+        await component['confirmAutoCull']();
+        expect(mockApi.post).toHaveBeenCalledTimes(2);
+        expect(mockApi.post.mock.calls[1][1]).toMatchObject({ dry_run: false, trim_brackets: true,
+          expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
       });
     });
   });
@@ -1431,7 +1435,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -1630,7 +1634,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => config } },
-          { provide: AuthService, useValue: { isEdition: () => isEdition, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => isEdition, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -1850,7 +1854,7 @@ describe('BurstCullingComponent', () => {
           { provide: MatSnackBar, useValue: mockSnackBar },
           { provide: I18nService, useValue: mockI18n },
           { provide: GalleryStore, useValue: { config: () => null } },
-          { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+          { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
           { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
           { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
         ],
@@ -2458,8 +2462,7 @@ describe('BurstCullingComponent', () => {
     ];
     const preview = {
       groups_processed: 2, kept: 3, rejected: 4, highlights_added: 0,
-      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-    };
+      dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'};
     const suggestion = (profile: string | null) =>
       ({ profile, confidence: 0.8, evidence: { photos: 40, wedding: 32 } });
 
@@ -2678,46 +2681,39 @@ describe('BurstCullingComponent', () => {
         posts[2].next({ ...preview, dry_run: false });
         await flush();
 
-        expect(bodies[2]).toEqual({ ...displayedBody(), dry_run: false, highlights_album: '' });
+        expect(bodies[2]).toEqual({ ...displayedBody(), dry_run: false, expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
         expect(bodies[2]).toMatchObject({ strictness: 35, profile: 'wedding' });
       });
 
       // Ordering two: Apply is clicked while the suggestion's re-run is still in
       // flight, so the counts on screen are still the first run's. Those are the
       // ones the user agreed to, so those are the knobs that run.
-      it('applies the displayed run when Apply is clicked before the re-run lands', async () => {
-        void store.openAutoCull();
-        await flush();
-        posts[0].next(preview);
-        await flush();
-        expect(store.autoCullPreview()).toEqual(preview);
-
-        suggestReply.next(suggestion('wedding'));
-        await flush();
+      it("waits for a suggestion rerun before applying its exact displayed parameters", async () => {
+        void store.openAutoCull(); await flush();
+        posts[0].next(preview); await flush();
+        suggestReply.next(suggestion('wedding')); await flush();
+        await component['confirmAutoCull']();
         expect(bodies).toHaveLength(2);
-
+        posts[1].next(preview); await flush();
+        expect(store.autoCullPreview(), 'preview after rerun').toEqual(preview);
+        expect(store.autoCullBusy(), 'busy after rerun').toBe(false);
+        expect(store.autoCullIssue(), 'issue after rerun').toBeNull();
         void component['confirmAutoCull']();
-        posts[2].next({ ...preview, dry_run: false });
-        await flush();
-
-        expect(bodies[2]).toEqual({ ...bodies[0], dry_run: false, highlights_album: '' });
-        expect(bodies[2]).toMatchObject({ strictness: 100 });
-        expect(bodies[2]['profile']).toBeUndefined();
+        posts[2].next({ ...preview, dry_run: false }); await flush();
+        expect(bodies[2]).toEqual({ ...bodies[1], dry_run: false, expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest });
+        expect(bodies[2]).toMatchObject({ strictness: 35, profile: 'wedding' });
       });
 
-      it('keeps the Highlights checkbox the dialog\'s own decision', async () => {
-        void store.openAutoCull();
-        await flush();
-        posts[0].next(preview);
-        await flush();
-        store.autoCullHighlights.set(true);
-
+      it("previews the Highlights choice before it can be applied", async () => {
+        void store.openAutoCull(); await flush();
+        posts[0].next(preview); await flush();
+        void store.onAutoCullHighlightsChange(true); await flush();
+        posts[1].next({ ...preview, highlights_added: 2 }); await flush();
         void component['confirmAutoCull']();
-        posts[1].next({ ...preview, dry_run: false });
-        await flush();
-
-        expect(bodies[1]['highlights_album']).toBe(bodies[0]['highlights_album']);
-        expect(String(bodies[1]['highlights_album'])).not.toBe('');
+        posts[2].next({ ...preview, dry_run: false }); await flush();
+        expect(bodies[0]['highlights_album']).toBe('');
+        expect(bodies[2]['highlights_album']).toBe(bodies[1]['highlights_album']);
+        expect(String(bodies[2]['highlights_album'])).not.toBe('');
       });
     });
   });
@@ -3452,8 +3448,7 @@ describe('BurstCullingComponent modals (rendered)', () => {
   };
   const preview = {
     groups_processed: 3, kept: 4, rejected: 5, highlights_added: 0,
-    dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest',
-  };
+    dry_run: true, preview: [], next_cursor: null, plan_digest: 'digest', decision_state_digest: 'state-digest'};
 
   beforeEach(() => {
     localStorage.clear();
@@ -3473,7 +3468,7 @@ describe('BurstCullingComponent modals (rendered)', () => {
         })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -3487,6 +3482,32 @@ describe('BurstCullingComponent modals (rendered)', () => {
   afterEach(() => {
     fixture.destroy();
     Element.prototype.scrollIntoView = scrollIntoView;
+  });
+
+  it('renders existing-choice consequences and re-previews a deliberate policy choice without writing', async () => {
+    const post = TestBed.inject(ApiService).post as Mock;
+    post.mockReturnValue(of({ ...preview, existing_labels_count: 2, preserved_labels_count: 2,
+      existing_labels_truncated: true, existing_labels: [{ path: '/folder/one.jpg', star_rating: 4,
+        is_favorite: true, is_kept: false, is_rejected: false, proposed: 'unchanged' }],
+      preview: [{ number: 1, group_id: 10, type: 'burst', keep_paths: ['/a.jpg'], reject_paths: ['/b.jpg'],
+        best_path: '/a.jpg', existing_labels_count: 2 }] }));
+    await store.openAutoCull(); fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const policy = root.querySelectorAll<HTMLInputElement>('input[name="autoCullPolicy"]');
+    expect(policy).toHaveLength(2); expect(policy[0].checked).toBe(true);
+    const consequences = root.querySelector<HTMLElement>('[data-auto-consequences]')!;
+    expect(consequences.textContent).toContain('one.jpg');
+    expect(consequences.textContent).toContain('culling.auto_cull.unchanged');
+    expect(consequences.textContent).toContain('culling.auto_cull.existing_overflow');
+    expect(consequences.textContent).toContain('a.jpg');
+    expect(consequences.textContent).toContain('b.jpg');
+    policy[1].click(); await fixture.whenStable(); fixture.detectChanges();
+    expect(post.mock.calls.at(-1)?.[1]).toMatchObject({ decision_policy: 'replace', dry_run: true });
+    expect(post.mock.calls.every(([, body]) => body.dry_run === true)).toBe(true);
+    store.autoCullIssue.set('changed'); fixture.detectChanges();
+    const apply = Array.from(root.querySelectorAll<HTMLButtonElement>('button')).find(button => button.textContent?.includes('culling.auto_cull.apply'))!;
+    expect(apply.disabled).toBe(true);
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('culling.auto_cull.preview_changed');
   });
 
   it('opens the all-rejects preview from the toolbar without applying it', async () => {
@@ -3705,44 +3726,28 @@ describe('BurstCullingComponent modals (rendered)', () => {
    * Rendered rather than read off the signals: the bindings are the whole of the
    * fix, and every behavioural test stayed green with them reverted.
    */
-  it('keeps every dialog control disabled while an apply outlives the dry run behind it', async () => {
+  it('disables Apply during preview and keeps every control disabled during the accepted apply', async () => {
     const api = TestBed.inject(ApiService) as unknown as { post: Mock };
     const flush = () => new Promise(resolve => setTimeout(resolve, 0));
-    await store.openAutoCull();
-    fixture.detectChanges();
+    await store.openAutoCull(); fixture.detectChanges();
     expect(trimBracketsBox().disabled).toBe(false);
-    expect(dialogButton('culling.auto_cull.apply').disabled).toBe(false);
-
     const dryRun = new Subject<typeof preview>();
     api.post = vi.fn(() => dryRun);
-    void store.openAutoCull();
-    await flush();
-    const response = new Subject<typeof preview>();
-    api.post = vi.fn(() => response);
-    const applied = component['confirmAutoCull']();
-    dryRun.next({ ...preview, rejected: 99 });
-    dryRun.complete();
-    await flush();
-    fixture.detectChanges();
-
-    // The window the two signals disagree in: the dry run behind the apply has
-    // cleared `loading`, and the apply is still open.
-    expect(store.autoCullLoading()).toBe(false);
+    void store.openAutoCull(); await flush(); fixture.detectChanges();
+    expect(dialogButton('culling.auto_cull.apply').disabled).toBe(true);
+    await component['confirmAutoCull']();
+    expect(api.post).toHaveBeenCalledTimes(1); // only the preview, no write
+    dryRun.next({ ...preview, rejected: 99 }); dryRun.complete(); await flush();
+    const response = new Subject<typeof preview>(); api.post = vi.fn(() => response);
+    const applied = component['confirmAutoCull'](); fixture.detectChanges();
     expect(store.autoCullApplying()).toBe(true);
     expect(trimBracketsBox().disabled).toBe(true);
     expect(dialogButton('culling.auto_cull.apply').disabled).toBe(true);
     expect(dialogButton('dialog.cancel').disabled).toBe(true);
     expect(openAutoCullButton().disabled).toBe(true);
-    expect(fixture.debugElement
-      .query(By.css('[aria-labelledby="autoCullTitle"] mat-spinner'))).toBeTruthy();
-
-    response.next({ ...preview, dry_run: false });
-    response.complete();
-    await applied;
-    fixture.detectChanges();
-
-    expect(autoCullDialog()).toBeFalsy();
-    expect(openAutoCullButton().disabled).toBe(false);
+    expect(fixture.debugElement.query(By.css('[aria-labelledby="autoCullTitle"] mat-spinner'))).toBeTruthy();
+    response.next({ ...preview, dry_run: false }); response.complete(); await applied;
+    fixture.detectChanges(); expect(autoCullDialog()).toBeFalsy();
   });
 
   // The shield is load-bearing: the page's cull shortcuts must not fire while a
@@ -3977,7 +3982,7 @@ describe('BurstCullingComponent swipe-to-decide (rendered, touch)', () => {
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -4185,7 +4190,7 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
         })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -4339,7 +4344,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
         })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: changes$.asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
@@ -4678,7 +4683,7 @@ describe('BurstCullingComponent date range', () => {
         { provide: MatSnackBar, useValue: { open: vi.fn(() => ({ onAction: () => new Subject<void>(), afterDismissed: () => new Subject<void>() })) } },
         { provide: I18nService, useValue: { t: (key: string) => key, translations: () => ({}) } },
         { provide: GalleryStore, useValue: { config: () => null } },
-        { provide: AuthService, useValue: { isEdition: () => true, identity: () => '0|' } },
+        { provide: AuthService, useValue: { status: signal({ user_id: 'editor' }), token: 'fixture',  isEdition: () => true, identity: () => '0|' } },
         { provide: AssistantChangesService, useValue: { batch$: new Subject<AssistantChangeBatch>().asObservable() } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: (k: string) => query[k] ?? null } } } },
       ],

@@ -1962,6 +1962,14 @@
               "date_to": {
                 "type": "string"
               },
+              "decision_policy": {
+                "default": "preserve",
+                "enum": [
+                  "preserve",
+                  "replace"
+                ],
+                "type": "string"
+              },
               "group_by": {
                 "default": "all",
                 "enum": [
@@ -2144,5 +2152,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "d0e51b88771cacca"
+  "version": "333a5129219e66f4"
 }

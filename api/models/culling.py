@@ -103,6 +103,7 @@ class CullPlanRequest(BaseModel):
     profile: Optional[str] = None
     trim_brackets: bool = False
     highlights_album: str = ''
+    decision_policy: Literal['preserve', 'replace'] = 'preserve'
     keep_paths: list[str] = Field(default_factory=list, max_length=1000)
     remove_paths: list[str] = Field(default_factory=list, max_length=1000)
 
@@ -186,6 +187,7 @@ class AutoCullPreviewItem(BaseModel):
     keep_paths: list[str]
     reject_paths: list[str]
     best_path: str
+    existing_labels_count: int = 0
     kind: Optional[str] = None
     group_reason: Optional[AutoCullGroupReason] = None
     reasons: dict[str, AutoCullCullReason] = {}
@@ -194,6 +196,15 @@ class AutoCullPreviewItem(BaseModel):
 class AutoCullEffectiveOverrides(BaseModel):
     keep: int
     remove: int
+
+
+class AutoCullExistingLabels(BaseModel):
+    path: str
+    star_rating: int
+    is_favorite: bool
+    is_rejected: bool
+    is_kept: bool
+    proposed: Literal['keep', 'reject', 'unchanged']
 
 
 class AutoCullResponse(BaseModel):
@@ -207,6 +218,11 @@ class AutoCullResponse(BaseModel):
     preview: list[AutoCullPreviewItem]
     next_cursor: Optional[int] = None
     plan_digest: str
+    decision_state_digest: str
+    existing_labels: list[AutoCullExistingLabels] = []
+    existing_labels_count: int = 0
+    existing_labels_truncated: bool = False
+    preserved_labels_count: int = 0
     ignored_overrides: list[str] = []
     skipped_user_changed: list[str] = []
     skipped_user_changed_count: int = 0

@@ -448,6 +448,10 @@ Configuration:
                              'favourited or star-rated) whose aggregate score is below X')
     cull_group.add_argument('--cull-trim-brackets', action='store_true',
                         help='With --auto-cull: also trim exposure brackets whose base frame clips nothing')
+    cull_group.add_argument('--cull-reconsider-existing', action='store_true',
+                        help='With --auto-cull: include existing Keep/Reject, rated and favourite photos '
+                             'in the group decision plan. Stars and favourites are retained. '
+                             'Default: preserve those photos unchanged')
 
     # AI features
     ai_group = parser.add_argument_group('AI features')

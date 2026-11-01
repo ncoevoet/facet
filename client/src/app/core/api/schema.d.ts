@@ -5400,12 +5400,20 @@ export interface components {
             /** Date To */
             date_to?: string | null;
             /**
+             * Decision Policy
+             * @default preserve
+             * @enum {string}
+             */
+            decision_policy?: "preserve" | "replace";
+            /**
              * Dry Run
              * @default true
              */
             dry_run?: boolean;
             /** Expected Digest */
             expected_digest?: string | null;
+            /** Expected State Digest */
+            expected_state_digest?: string | null;
             /**
              * Group By
              * @default all
@@ -5450,6 +5458,24 @@ export interface components {
             /** Remove */
             remove: number;
         };
+        /** AutoCullExistingLabels */
+        AutoCullExistingLabels: {
+            /** Is Favorite */
+            is_favorite: boolean;
+            /** Is Kept */
+            is_kept: boolean;
+            /** Is Rejected */
+            is_rejected: boolean;
+            /** Path */
+            path: string;
+            /**
+             * Proposed
+             * @enum {string}
+             */
+            proposed: "keep" | "reject" | "unchanged";
+            /** Star Rating */
+            star_rating: number;
+        };
         /**
          * AutoCullGroupReason
          * @description A group's reason as a translatable key plus its params.
@@ -5469,6 +5495,11 @@ export interface components {
         AutoCullPreviewItem: {
             /** Best Path */
             best_path: string;
+            /**
+             * Existing Labels Count
+             * @default 0
+             */
+            existing_labels_count?: number;
             /** Group Id */
             group_id: number;
             group_reason?: components["schemas"]["AutoCullGroupReason"] | null;
@@ -5495,10 +5526,27 @@ export interface components {
          * @description ``POST /api/culling/auto``.
          */
         AutoCullResponse: {
+            /** Decision State Digest */
+            decision_state_digest: string;
             /** Dry Run */
             dry_run: boolean;
             /** @description Present when keep/remove overrides were sent: how many marks moved a photo away from its planned side (a mark restating the plan is not counted). */
             effective_overrides?: components["schemas"]["AutoCullEffectiveOverrides"] | null;
+            /**
+             * Existing Labels
+             * @default []
+             */
+            existing_labels?: components["schemas"]["AutoCullExistingLabels"][];
+            /**
+             * Existing Labels Count
+             * @default 0
+             */
+            existing_labels_count?: number;
+            /**
+             * Existing Labels Truncated
+             * @default false
+             */
+            existing_labels_truncated?: boolean;
             /** Groups Processed */
             groups_processed: number;
             /** Highlights Added */
@@ -5514,6 +5562,11 @@ export interface components {
             next_cursor?: number | null;
             /** Plan Digest */
             plan_digest: string;
+            /**
+             * Preserved Labels Count
+             * @default 0
+             */
+            preserved_labels_count?: number;
             /** Preview */
             preview: components["schemas"]["AutoCullPreviewItem"][];
             /** Rejected */
@@ -6350,6 +6403,12 @@ export interface components {
             date_from?: string | null;
             /** Date To */
             date_to?: string | null;
+            /**
+             * Decision Policy
+             * @default preserve
+             * @enum {string}
+             */
+            decision_policy?: "preserve" | "replace";
             /** Expected Digest */
             expected_digest?: string | null;
             /**

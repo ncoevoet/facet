@@ -1,3 +1,4 @@
+import { FilenamePipe } from '../../shared/pipes/filename.pipe';
 import { SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
 import { Component, DestroyRef, inject, signal, linkedSignal, computed, effect, untracked, viewChild, ElementRef, OnDestroy, HostListener, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
 import { NavigationStart, NavigationEnd, NavigationCancel, NavigationCancellationCode, NavigationError, NavigationSkipped, Router, ActivatedRoute } from '@angular/router';
@@ -153,7 +154,7 @@ interface SceneSummary {
 @Component({
   selector: 'app-burst-culling',
   imports: [
-    AssessmentValuePipe, PhotoAssessmentComponent, RenditionReadoutComponent,
+    AssessmentValuePipe, PhotoAssessmentComponent, RenditionReadoutComponent, FilenamePipe,
     DecimalPipe,
     PercentPipe,
     NgClass,
@@ -1488,7 +1489,7 @@ interface SceneSummary {
         <!-- Escape is handled here, not only on the backdrop: the blanket keydown
              shield below (which keeps the page's cull shortcuts from firing behind
              the modal) stops the event before any ancestor or document handler. -->
-        <div #autoCullDialog class="rounded-xl bg-[var(--mat-sys-surface-container-high)] p-6 w-full max-w-md space-y-4"
+        <div #autoCullDialog class="rounded-xl bg-[var(--mat-sys-surface-container-high)] p-4 md:p-6 w-full max-w-2xl max-h-[90dvh] overflow-auto space-y-4"
              role="dialog"
              aria-modal="true"
              aria-labelledby="autoCullTitle"
@@ -1499,11 +1500,22 @@ interface SceneSummary {
              (keydown.escape)="cull.cancelAutoCull()"
              (keydown)="$event.stopPropagation()">
           <h2 id="autoCullTitle" class="text-lg font-semibold">{{ I18N.culling.auto_cull.title | translate }}</h2>
-          @if (cull.selectedProfile(); as profile) {
+          <fieldset class="m-0 flex flex-wrap gap-x-5 gap-y-2 border-0 p-0" [disabled]="cull.autoCullBusy()">
+            <legend class="mb-1 text-sm font-medium">{{ I18N.culling.auto_cull.policy_label | translate }}</legend>
+            <label class="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name="autoCullPolicy" value="preserve" [checked]="cull.autoCullDecisionPolicy() === 'preserve'" (change)="cull.onAutoCullPolicyChange('preserve')" />{{ I18N.culling.auto_cull.preserve | translate }}</label>
+            <label class="inline-flex min-h-11 items-center gap-2 text-sm"><input type="radio" name="autoCullPolicy" value="replace" [checked]="cull.autoCullDecisionPolicy() === 'replace'" (change)="cull.onAutoCullPolicyChange('replace')" />{{ I18N.culling.auto_cull.replace | translate }}</label>
+          </fieldset>
+          <details class="text-xs"><summary class="cursor-pointer py-1">{{ I18N.nav.help | translate }}</summary><p class="py-1">{{ I18N.culling.auto_cull.policy_help | translate }}</p></details>
+          <p class="text-xs" role="status">{{ I18N.culling.auto_cull.existing_summary | translate:{ count: (ac.existing_labels_count ?? 0), preserved: (ac.preserved_labels_count ?? 0) } }}</p>
+          @if (cull.autoCullIssue(); as issue) {
+            <p role="alert" class="text-sm text-[var(--mat-sys-error)]">{{ (issue === 'changed' ? I18N.culling.auto_cull.preview_changed : I18N.culling.auto_cull.apply_uncertain) | translate }}</p>
+          }
+
+          @if (cull.autoCullRequest()?.profile; as profile) {
             <p class="flex items-center gap-1.5 text-sm opacity-80">
               <mat-icon class="!text-base !w-4 !h-4 !leading-4">{{ profile | cullProfileIcon }}</mat-icon>
-              {{ selectedProfileLabel() | translate }}
-              @if (suggestedProfileActive()) {
+              {{ autoCullProfileLabel() | translate }}
+              @if (suggestedProfileActive() && cull.autoCullRequest()?.profile === cull.selectedProfile() && cull.autoCullRequest()?.strictness === cull.strictness()) {
                 <!-- A button, not a bare span: same reasoning as the "My Taste" badge in
                      app.html -- the explanation lives only in matTooltip, unreachable by
                      keyboard/AT users without a focusable host. -->
@@ -1547,20 +1559,47 @@ interface SceneSummary {
             <p class="text-sm opacity-80">
               {{ I18N.culling.auto_cull.summary | translate:{ groups: ac.groups_processed, kept: ac.kept, rejected: ac.rejected } }}
             </p>
-            <p class="text-xs opacity-60">{{ I18N.culling.strictness | translate }} · {{ cull.strictness() }}%</p>
-            @if (ac.highlights_added > 0) {
-              <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <p class="text-xs opacity-60">{{ I18N.culling.strictness | translate }} · {{ cull.autoCullRequest()?.strictness }}%</p>
+            @if (ac.groups_processed > 0) {
+              <label class="flex min-h-11 items-center gap-2 text-sm cursor-pointer">
                 <input type="checkbox" class="accent-[var(--mat-sys-primary)]"
-                       [checked]="cull.autoCullHighlights()"
-                       (change)="cull.autoCullHighlights.set(!cull.autoCullHighlights())" />
-                {{ I18N.culling.auto_cull.highlights_label | translate:{ count: ac.highlights_added } }}
+                       [checked]="cull.autoCullHighlights()" [disabled]="cull.autoCullBusy()"
+                       (change)="cull.onAutoCullHighlightsChange(!cull.autoCullHighlights())" />
+                {{ I18N.culling.auto_cull.highlights_option | translate }} @if (cull.autoCullHighlights()) { <span>({{ ac.highlights_added }})</span> }
               </label>
             }
           }
-          <div class="flex justify-end gap-2">
+
+          <details class="border-t border-[var(--mat-sys-outline-variant)] pt-2" data-auto-consequences>
+            <summary class="cursor-pointer py-2 font-medium">{{ I18N.culling.auto_cull.consequences | translate }}</summary>
+            <ul class="m-0 list-none space-y-2 p-0 text-xs">
+              @for (label of ac.existing_labels ?? []; track label.path) {
+                <li class="break-words border-b border-[var(--mat-sys-outline-variant)] py-2"><strong>{{ label.path | filename }}</strong> · ★ {{ label.star_rating }}
+                  @if (label.is_favorite) { · {{ I18N.rating.favorite | translate }} }
+                  @if (label.is_kept) { · {{ I18N.review.kept | translate }} }
+                  @if (label.is_rejected) { · {{ I18N.review.rejected | translate }} }
+                  → {{ (label.proposed === 'keep' ? I18N.review.kept : label.proposed === 'reject' ? I18N.review.rejected : I18N.culling.auto_cull.unchanged) | translate }}
+                </li>
+              }
+            </ul>
+            @if (ac.existing_labels_truncated) { <p class="text-xs">{{ I18N.culling.auto_cull.existing_overflow | translate:{ shown: (ac.existing_labels?.length ?? 0), count: (ac.existing_labels_count ?? 0) } }}</p> }
+            @for (group of ac.preview; track group.number) {
+              <details class="border-b border-[var(--mat-sys-outline-variant)] py-2 text-xs">
+                <summary class="cursor-pointer py-1">{{ I18N.culling.auto_cull.group_plan | translate:{ number: group.number, kept: group.keep_paths.length, rejected: group.reject_paths.length } }}</summary>
+                <p>{{ I18N.culling.auto_cull.group_existing | translate:{ count: (group.existing_labels_count ?? 0) } }}</p>
+                <ul class="m-0 list-none p-0">
+                  @for (path of group.keep_paths; track path) { <li class="break-words py-1">{{ I18N.review.kept | translate }} · {{ path | filename }}</li> }
+                  @for (path of group.reject_paths; track path) { <li class="break-words py-1">{{ I18N.review.rejected | translate }} · {{ path | filename }}</li> }
+                </ul>
+              </details>
+            }
+            @if (ac.next_cursor !== null && ac.next_cursor !== undefined) { <button mat-stroked-button class="mt-2" (click)="cull.loadAutoCullPage()" [disabled]="cull.autoCullBusy() || !!cull.autoCullIssue()">{{ I18N.ui.buttons.load_more | translate }}</button> }
+          </details>
+          <div class="flex flex-wrap justify-end gap-2">
+            <button mat-stroked-button (click)="cull.openAutoCull()" [disabled]="cull.autoCullBusy()">{{ I18N.culling.auto_cull.refresh_preview | translate }}</button>
             <button mat-stroked-button (click)="cull.cancelAutoCull()" [disabled]="cull.autoCullApplying()">{{ I18N.dialog.cancel | translate }}</button>
             @if (ac.groups_processed > 0) {
-              <button mat-flat-button (click)="confirmAutoCull()" [disabled]="cull.autoCullBusy()">
+              <button mat-flat-button (click)="confirmAutoCull()" [disabled]="cull.autoCullBusy() || !!cull.autoCullIssue()">
                 {{ I18N.culling.auto_cull.apply | translate:{ rejected: ac.rejected } }}
               </button>
             }
@@ -1634,6 +1673,8 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly loupeZoom = this.loupe.loupeZoom;
 
   /** Label of the active preset, or "Custom" when none matches the current knobs. */
+  protected readonly autoCullProfileLabel = computed(() => this.cull.cullProfiles().find(profile => profile.id === this.cull.autoCullRequest()?.profile)?.label_key ?? I18N.culling.profiles.custom);
+
   protected readonly selectedProfileLabel = computed(() => {
     const p = this.cull.cullProfiles().find(x => x.id === this.cull.selectedProfile());
     return p ? p.label_key : I18N.culling.profiles.custom;

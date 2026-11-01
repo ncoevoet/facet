@@ -2301,7 +2301,15 @@ def _run_auto_cull_cli(args, scope_paths, lock_held):
     try:
         if apply:
             init_database(args.db)
-        with get_connection(args.db) as conn:
+            connection = get_connection(args.db)
+        else:
+            # A preview must not switch journal mode or migrate a released schema.
+            connection = closing(sqlite3.connect(Path(args.db).resolve().as_uri() + '?mode=ro', uri=True))
+        with connection as conn:
+            if not apply:
+                from db.connection import load_sqlite_vec
+                conn.row_factory = sqlite3.Row
+                load_sqlite_vec(conn)
             try:
                 target = None
                 if args.copy_keepers:
@@ -2320,6 +2328,7 @@ def _run_auto_cull_cli(args, scope_paths, lock_held):
                     trim_brackets=args.cull_trim_brackets, dry_run=not apply,
                     path_scope=scope, use_cache=False,
                     membership_groups=min_score is not None,
+                    decision_policy='replace' if args.cull_reconsider_existing else 'preserve',
                 )
                 standalone = []
                 if min_score is not None:
@@ -2339,6 +2348,10 @@ def _run_auto_cull_cli(args, scope_paths, lock_held):
                 print(f"groups={result.processed}  kept={result.kept}  "
                       f"{verb}by_groups={result.rejected}  {verb}by_score={len(standalone)}  "
                       f"spanning_skipped={result.spanning_skipped}")
+                print(f"decision_policy={'reconsider' if args.cull_reconsider_existing else 'preserve'}  "
+                      f"existing_choices={result.existing_labels_count}  "
+                      f"preserved_choices={result.preserved_labels_count}  "
+                      f"revision_guard={'available' if result.decision_guard_available else 'unavailable'}")
                 if target is None:
                     return
                 rejected_now = set(result.reject_paths) | set(standalone)
@@ -2482,6 +2495,7 @@ def main():
         '--cull-group-by': args.cull_group_by != 'all',
         '--cull-min-score': args.cull_min_score is not None,
         '--cull-trim-brackets': args.cull_trim_brackets,
+        '--cull-reconsider-existing': args.cull_reconsider_existing,
     }
     if not args.auto_cull:
         for flag, given in cull_modifiers.items():

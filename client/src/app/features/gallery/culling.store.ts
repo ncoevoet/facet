@@ -1,5 +1,8 @@
+import { AuthService } from '../../core/services/auth.service';
+import { StalenessGuardFactory, StalenessGuard } from '../../core/services/staleness-guard.service';
+import { HttpErrorResponse } from '@angular/common/http';
 import { SEQUENCE_KINDS_KEPT_WHOLE } from '../../shared/pipes/sequence-kind.pipe';
-import { DestroyRef, Injectable, Injector, inject, signal, computed, WritableSignal } from '@angular/core';
+import { DestroyRef, Injectable, Injector, inject, signal, computed, WritableSignal, effect, untracked } from '@angular/core';
 import { Subject, firstValueFrom } from 'rxjs';
 import { PhotoStackService } from '../../core/services/photo-stack.service';
 import { UndoService } from '../../core/services/undo.service';
@@ -130,18 +133,7 @@ export function addToSetSignal<V>(sig: WritableSignal<Set<V>>, value: V): void {
 }
 
 /** Response of POST /api/culling/auto (dry-run preview and apply share the shape). */
-export interface AutoCullResponse {
-  groups_processed: number;
-  kept: number;
-  rejected: number;
-  highlights_added: number;
-  dry_run: boolean;
-  /** One page of whole groups; `number` is the 1-based position in the full plan. */
-  preview: { number: number; group_id: number; type: string; keep_paths: string[]; reject_paths: string[]; best_path: string }[];
-  /** Cursor of the next page, null when the preview is complete. */
-  next_cursor: number | null;
-  plan_digest: string;
-}
+export type AutoCullResponse = components['schemas']['AutoCullResponse'];
 
 /** Request body of POST /culling/auto. The dry run's body is kept verbatim so
  *  the apply re-sends the very parameters the displayed counts came from. */
@@ -151,6 +143,10 @@ export interface AutoCullRequest {
   dry_run: boolean;
   highlights_album: string;
   trim_brackets: boolean;
+  decision_policy: 'preserve' | 'replace';
+  expected_digest?: string;
+  expected_state_digest?: string;
+  cursor?: number;
   profile?: string;
   album_id?: number;
   date_from?: string;
@@ -220,6 +216,16 @@ const ACCEPT_DOUBLE_CLICK_MS = 500;
 @Injectable({ providedIn: 'root' })
 export class CullingStore {
   private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly staleness = inject(StalenessGuardFactory);
+  private readonly autoCullSession = signal<StalenessGuard | null>(null);
+  private readonly autoCullOwnership = effect(() => {
+    const session = this.autoCullSession();
+    if (!session) return;
+    this.auth.status(); this.auth.isEdition();
+    untracked(() => { if (!session.current()) this.closeAutoCull(); });
+  });
   private readonly i18n = inject(I18nService);
   private readonly plan = inject(AssistantCullPlanService);
 
@@ -760,6 +766,8 @@ export class CullingStore {
   readonly autoCullBusy = computed(() => this.autoCullLoading() || this.autoCullApplying());
   /** Whether the apply also fills the Highlights album (dialog checkbox, opt-in). */
   readonly autoCullHighlights = signal(false);
+  readonly autoCullDecisionPolicy = signal<'preserve' | 'replace'>('preserve');
+  readonly autoCullIssue = signal<'changed' | 'uncertain' | null>(null);
   /** Whether auto-cull also proposes trimming redundant, non-clipping bracket
    *  exposures (dialog checkbox); toggling re-runs the dry run since it
    *  changes the preview's group/keep/reject counts. */
@@ -1875,6 +1883,7 @@ export class CullingStore {
       dry_run: dryRun,
       highlights_album: highlightsAlbum,
       trim_brackets: this.trimBrackets(),
+      decision_policy: this.autoCullDecisionPolicy(),
     };
     const profile = this.selectedProfile();
     if (profile) body.profile = profile;
@@ -1904,7 +1913,50 @@ export class CullingStore {
    */
   reconcileTrimBrackets(): void {
     const applied = this.autoCullRequest();
-    if (applied) this.trimBrackets.set(applied.trim_brackets);
+    if (applied) {
+      this.trimBrackets.set(applied.trim_brackets);
+      this.autoCullDecisionPolicy.set(applied.decision_policy);
+      this.autoCullHighlights.set(!!applied.highlights_album);
+    }
+  }
+
+  async onAutoCullPolicyChange(policy: 'preserve' | 'replace'): Promise<void> {
+    if (!this.auth.isEdition() || !this.cullWritesAllowed() || this.autoCullBusy()) return;
+    this.autoCullDecisionPolicy.set(policy);
+    await this.openAutoCull();
+  }
+
+  async onAutoCullHighlightsChange(enabled: boolean): Promise<void> {
+    if (!this.auth.isEdition() || !this.cullWritesAllowed() || this.autoCullBusy()) return;
+    this.autoCullHighlights.set(enabled);
+    await this.openAutoCull();
+  }
+
+  async loadAutoCullPage(): Promise<void> {
+    const preview = this.autoCullPreview();
+    const request = this.autoCullRequest();
+    const session = this.autoCullSession();
+    if (!preview || !request || !session?.current() || this.autoCullBusy()
+      || this.autoCullIssue() || preview.next_cursor == null) return;
+    const run = this.autoCullRun.next();
+    this.autoCullLoading.set(true);
+    try {
+      const next = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', {
+        ...structuredClone(request), cursor: preview.next_cursor,
+        expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest,
+      }));
+      if (!session.current() || !this.autoCullRun.isCurrent(run) || this.autoCullPreview() !== preview) return;
+      this.autoCullPreview.set({ ...next, preview: [...preview.preview, ...next.preview] });
+    } catch (error) {
+      if (!session.current() || !this.autoCullRun.isCurrent(run) || this.autoCullPreview() !== preview) return;
+      if (error instanceof HttpErrorResponse && error.status === 412) this.autoCullIssue.set('changed');
+      else this.notice$.next({ key: I18N.culling.auto_cull.error, duration: 2000 });
+    } finally {
+      if (this.autoCullRun.isCurrent(run)) {
+        if (!session.current() && this.autoCullPreview() === preview) this.closeAutoCull();
+        else this.autoCullLoading.set(false);
+      }
+    }
   }
 
   /**
@@ -1921,29 +1973,43 @@ export class CullingStore {
    * a snapshot the newer run is about to replace.
    */
   async openAutoCull(): Promise<AutoCullRunOutcome> {
-    if (!this.cullWritesAllowed()) return 'superseded';
-    if (this.autoCullApplying()) return 'superseded';
-    // Only a fresh open clears the notices: the re-runs that raise them come back
-    // through here, and clearing unconditionally would erase them on the way in —
-    // including the re-run of a dry run whose preview has not landed yet.
+    if (!this.auth.isEdition() || !this.cullWritesAllowed() || this.autoCullApplying()) return 'superseded';
+    // A preset can reset the feed before starting its replacement preview.
+    // Release that obsolete session before its queued ownership effect runs.
+    if (this.autoCullSession() && !this.autoCullSession()!.current()) this.closeAutoCull();
     if (!this.autoCullPreview() && !this.dryRunInFlight) this.clearAutoCullNotices();
     const run = this.autoCullRun.next();
+    const gen = this.loadGenerationId;
+    const token = this.auth.token;
+    const owner = this.auth.identity();
+    const scope = JSON.stringify(this.numericScopeParams());
+    const session = this.staleness.create(this.destroyRef, { track: 'status',
+      valid: () => owner === this.auth.identity() && token === this.auth.token && this.cullLoadCurrent(gen) && scope === JSON.stringify(this.numericScopeParams()),
+      onNavigate: () => this.closeAutoCull(),
+    });
+    let retained = false;
     this.dryRunInFlight = true;
     void this.applySuggestedProfile();
-    const body = this.autoCullBody(true, this.highlightsAlbumName());
+    const body = this.autoCullBody(true, this.autoCullHighlights() ? this.highlightsAlbumName() : '');
     this.autoCullLoading.set(true);
     try {
       const preview = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
-      if (!this.ownsAutoCullDialog(run)) return 'superseded';
+      if (!session.current() || !this.ownsAutoCullDialog(run)) return 'superseded';
+      if (!preview.plan_digest || !preview.decision_state_digest) throw new Error('Incomplete culling preview');
+      this.autoCullSession()?.dispose();
+      this.autoCullSession.set(session);
+      retained = true;
       this.autoCullPreview.set(preview);
-      this.autoCullRequest.set(body);
+      this.autoCullRequest.set(structuredClone(body));
+      this.autoCullIssue.set(null);
       return 'landed';
     } catch {
-      if (!this.ownsAutoCullDialog(run)) return 'superseded';
+      if (!session.current() || !this.ownsAutoCullDialog(run)) return 'superseded';
       this.reconcileTrimBrackets();
       this.notice$.next({ key: I18N.culling.auto_cull.error, duration: 2000 });
       return 'failed';
     } finally {
+      if (!retained) session.dispose();
       if (this.autoCullRun.isCurrent(run)) {
         this.dryRunInFlight = false;
         this.autoCullLoading.set(false);
@@ -1968,6 +2034,9 @@ export class CullingStore {
    *  preview this apply just made obsolete. */
   closeAutoCull(): void {
     this.autoCullRun.cancel();
+    this.autoCullSession()?.dispose();
+    this.autoCullSession.set(null);
+    this.autoCullIssue.set(null);
     this.dryRunInFlight = false;
     this.autoCullPreview.set(null);
     this.autoCullRequest.set(null);
@@ -2029,35 +2098,36 @@ export class CullingStore {
    * resets its own view state and reloads the feed there.
    */
   async confirmAutoCull(onApplied: () => void): Promise<void> {
-    if (!this.cullWritesAllowed()) return;
     const previewed = this.autoCullRequest();
-    if (!previewed || this.autoCullApplying()) return;
-    const gen = this.loadGenerationId;
+    const preview = this.autoCullPreview();
+    const session = this.autoCullSession();
+    if (!this.cullWritesAllowed() || !session?.current() || !previewed || !preview
+      || this.autoCullBusy() || this.autoCullIssue()) return;
+    const previewIdentity = preview;
     this.autoCullApplying.set(true);
     this.autoCullLoading.set(true);
+    this.autoCullIssue.set('uncertain');
     try {
       const body: AutoCullRequest = {
-        ...previewed,
-        dry_run: false,
-        highlights_album: this.autoCullHighlights() ? previewed.highlights_album : '',
+        ...structuredClone(previewed), dry_run: false,
+        expected_digest: preview.plan_digest, expected_state_digest: preview.decision_state_digest,
       };
       const result = await firstValueFrom(this.api.post<AutoCullResponse>('/culling/auto', body));
-      if (!this.cullLoadCurrent(gen)) return;
+      if (!session.current() || this.autoCullPreview() !== previewIdentity) return;
       this.closeAutoCull();
       this.clearAutoCullNotices();
-      this.notice$.next({
-        key: I18N.culling.auto_cull.applied,
-        params: { kept: result.kept, rejected: result.rejected },
-        duration: 3000,
-      });
+      this.notice$.next({ key: I18N.culling.auto_cull.applied,
+        params: { kept: result.kept, rejected: result.rejected }, duration: 3000 });
       onApplied();
       void this.refreshComparisonStats();
       void this.refreshRankerStatus();
-    } catch {
+    } catch (error) {
+      if (!session.current() || this.autoCullPreview() !== previewIdentity) return;
+      this.autoCullIssue.set(error instanceof HttpErrorResponse && error.status === 412 ? 'changed' : 'uncertain');
       this.notice$.next({ key: I18N.culling.auto_cull.error, duration: 2000 });
     } finally {
       this.autoCullApplying.set(false);
-      this.autoCullLoading.set(false);
+      if (this.autoCullPreview() === previewIdentity) this.autoCullLoading.set(false);
     }
   }
 }
