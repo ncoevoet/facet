@@ -316,6 +316,7 @@ class FaceReviewSuggestion(BaseModel):
 class FaceReviewItem(BaseModel):
     face_id: int
     photo_path: str
+    identity_token: str = Field(description="Opaque face geometry/embedding precondition for captured assignment.")
     suggestions: list[FaceReviewSuggestion]
     embedding_state: Literal['ready', 'unavailable', 'incompatible']
 

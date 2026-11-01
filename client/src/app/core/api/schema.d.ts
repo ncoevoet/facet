@@ -5550,6 +5550,12 @@ export interface components {
         };
         /** AssignFacesRequest */
         AssignFacesRequest: {
+            /** Expected Face Tokens */
+            expected_face_tokens?: {
+                [key: string]: string;
+            } | null;
+            /** Expected Person Name */
+            expected_person_name?: string | null;
             /** Face Ids */
             face_ids: number[];
             /**
@@ -6762,6 +6768,11 @@ export interface components {
             embedding_state: "ready" | "unavailable" | "incompatible";
             /** Face Id */
             face_id: number;
+            /**
+             * Identity Token
+             * @description Opaque face geometry/embedding precondition for captured assignment.
+             */
+            identity_token: string;
             /** Photo Path */
             photo_path: string;
             /** Suggestions */

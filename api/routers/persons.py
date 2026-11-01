@@ -5,7 +5,7 @@ Persons API router -- person management.
 
 import logging
 import sqlite3
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field, model_validator
@@ -20,6 +20,7 @@ from api.db_helpers import (
 from db import person_not_hidden_clause
 from db.embedding_space import ARCFACE_MODEL, active_embedding_model, tag_matches
 from db.person_centroids import recompute_person_centroid
+from db.face_identity import face_identity_token
 from api.models.culling import PersonsListResponse, PersonsNeedsNamingResponse, RenamePersonResponse
 
 logger = logging.getLogger(__name__)
@@ -81,11 +82,19 @@ class AssignFacesRequest(BaseModel):
     # whole call, ``only_unassigned`` leaves faces another person already owns alone.
     only_unassigned: bool = False
     tolerant: bool = False
+    expected_face_tokens: dict[int, Annotated[str, Field(pattern=r'^[0-9a-f]{64}$')]] | None = Field(default=None, max_length=500)
+    expected_person_name: str | None = Field(default=None, max_length=1000)
 
     @model_validator(mode='after')
     def _only_unassigned_needs_tolerant(self):
         if self.only_unassigned and not self.tolerant:
             raise ValueError("only_unassigned requires tolerant=true: the strict path moves every listed face")
+        if self.expected_face_tokens is not None and (
+            not self.only_unassigned or set(self.expected_face_tokens) != set(self.face_ids)
+        ):
+            raise ValueError('expected_face_tokens must cover the captured only_unassigned face_ids')
+        if self.expected_person_name is not None and not self.only_unassigned:
+            raise ValueError('expected_person_name requires only_unassigned=true')
         return self
 
 
@@ -637,7 +646,8 @@ def _assign_tolerant(conn, user_id, person_id, body):
     found = {
         row[0]: row for row in select_in_chunks(
             conn,
-            "SELECT f.id, f.person_id, f.embedding_model, pe.is_hidden FROM faces f "
+            "SELECT f.id, f.person_id, f.embedding_model, pe.is_hidden, f.photo_path, f.face_index, "
+            "f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2, f.embedding FROM faces f "
             "JOIN photos ph ON ph.path = f.photo_path LEFT JOIN persons pe ON pe.id = f.person_id "
             f"WHERE f.id IN ({{placeholders}}) AND {vis_sql}", face_ids, after=vis_params)
     }
@@ -645,6 +655,8 @@ def _assign_tolerant(conn, user_id, person_id, body):
         "SELECT centroid, centroid_model FROM persons WHERE id = ?", (person_id,)).fetchone()
     model = (target[1] or ARCFACE_MODEL) if target and target[0] else active_embedding_model()
     report = {"missing": [], "already": [], "skipped_model": [], "skipped_hidden": [], "skipped_assigned": []}
+    if body.expected_face_tokens is not None:
+        report['skipped_changed'] = []
     eligible = []
     for face_id in face_ids:
         row = found.get(face_id)
@@ -658,6 +670,10 @@ def _assign_tolerant(conn, user_id, person_id, body):
             report["skipped_hidden"].append(face_id)
         elif row[1] is not None and body.only_unassigned:
             report["skipped_assigned"].append(face_id)
+        elif body.expected_face_tokens is not None and body.expected_face_tokens[face_id] != face_identity_token(
+            row[0], row[4], row[5], row[6:10], row[2], row[10]
+        ):
+            report['skipped_changed'].append(face_id)
         else:
             eligible.append(face_id)
     if eligible:
@@ -684,12 +700,18 @@ def api_assign_faces_batch(
             if body.only_unassigned:
                 conn.execute('BEGIN IMMEDIATE')
             target = conn.execute(
-                "SELECT id FROM persons WHERE id = ?", (person_id,)
+                "SELECT id, name FROM persons WHERE id = ?", (person_id,)
             ).fetchone()
             if not target:
                 raise HTTPException(status_code=404, detail="Target person not found")
 
             _assert_person_assignable(conn, user.user_id if user else None, person_id)
+            if body.expected_person_name is not None:
+                # An assignable empty person is not necessarily visible. A
+                # captured-name comparison must not become a name oracle.
+                _assert_person_visible(conn, user.user_id if user else None, person_id)
+                if (target[1] or '').strip() != body.expected_person_name.strip():
+                    raise HTTPException(status_code=409, detail='Target person changed; reload the review')
             if body.tolerant:
                 report = _assign_tolerant(conn, user.user_id if user else None, person_id, body)
                 conn.commit()

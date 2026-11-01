@@ -65,6 +65,8 @@ def test_suggestions_use_only_visible_reference_faces_not_stored_centroids(regul
     assert response.status_code == 200, response.text
     body = response.json()
     assert body['compared_people'] == 2
+    token = body['faces'][0].pop('identity_token')
+    assert len(token) == 64
     assert body['faces'] == [{'face_id': face, 'photo_path': path, 'embedding_state': 'ready',
                               'suggestions': [{'person_id': alice, 'name': 'Alice', 'similarity': 1.0}]}]
     assert 'Private person' not in response.text
@@ -160,3 +162,52 @@ def test_protected_review_requires_auth_and_assignment_requires_edition(anonymou
     assert anonymous_client.get('/api/faces/review').status_code == 401
     assert regular_client.post('/api/persons/1/assign_faces', json={
         'face_ids': [1], 'only_unassigned': True, 'tolerant': True}).status_code == 403
+
+
+def test_captured_face_identity_and_target_name_preconditions(edition_client, seed_people):
+    path = seed_people.photo(ROOT, 'captured.jpg')
+    person = seed_people.person('Alice')
+    seed_people.face(path, person, embedding=vector())
+    face = seed_people.face(path, None, embedding=vector())
+    response = edition_client.get('/api/faces/review').json()
+    token = next(row['identity_token'] for row in response['faces'] if row['face_id'] == face)
+    body = {'face_ids': [face], 'only_unassigned': True, 'tolerant': True,
+            'expected_face_tokens': {str(face): token}, 'expected_person_name': 'Alice'}
+    seed_people._conn.execute('UPDATE faces SET bbox_x2=bbox_x2+1 WHERE id=?', (face,))
+    seed_people._conn.commit()
+    changed = edition_client.post(f'/api/persons/{person}/assign_faces', json=body)
+    assert changed.status_code == 200, changed.text
+    assert changed.json()['assigned_count'] == 0
+    assert changed.json()['skipped_changed'] == [face]
+    assert seed_people._conn.execute('SELECT person_id FROM faces WHERE id=?', (face,)).fetchone()[0] is None
+    body['expected_face_tokens'][str(face)] = next(row['identity_token'] for row in edition_client.get('/api/faces/review').json()['faces'] if row['face_id'] == face)
+    seed_people._conn.execute('UPDATE persons SET name=? WHERE id=?', ('Renamed', person))
+    seed_people._conn.commit()
+    refused = edition_client.post(f'/api/persons/{person}/assign_faces', json=body)
+    assert refused.status_code == 409
+    assert seed_people._conn.execute('SELECT person_id FROM faces WHERE id=?', (face,)).fetchone()[0] is None
+    body['expected_person_name'] = 'Renamed'
+    applied = edition_client.post(f'/api/persons/{person}/assign_faces', json=body)
+    assert applied.status_code == 200, applied.text
+    assert applied.json()['assigned_count'] == 1
+    assert seed_people._conn.execute('SELECT person_id FROM faces WHERE id=?', (face,)).fetchone()[0] == person
+
+
+def test_captured_target_precondition_does_not_disclose_foreign_name(edition_client, seed_people):
+    foreign = seed_people.photo('/test_global_review_foreign/', 'foreign-person.jpg')
+    person = seed_people.person('Private name')
+    seed_people.face(foreign, person, embedding=vector())
+    response = edition_client.post(f'/api/persons/{person}/assign_faces', json={
+        'face_ids': [1], 'only_unassigned': True, 'tolerant': True, 'expected_person_name': 'Wrong'})
+    assert response.status_code == 404
+    assert 'Private name' not in response.text
+
+
+@pytest.mark.parametrize('expected_name', ['Private empty person', 'Wrong'])
+def test_captured_name_precondition_refuses_invisible_empty_target(edition_client, seed_people, expected_name):
+    person = seed_people.person('Private empty person')
+    response = edition_client.post(f'/api/persons/{person}/assign_faces', json={
+        'face_ids': [9999999], 'only_unassigned': True, 'tolerant': True,
+        'expected_person_name': expected_name})
+    assert response.status_code == 404
+    assert response.json() == {'detail': 'Person not found'}

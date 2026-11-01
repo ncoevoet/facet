@@ -1,3 +1,4 @@
+import { signal } from '@angular/core';
 import type { Mock } from 'vitest';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { ActivatedRoute, DefaultUrlSerializer, NavigationEnd, Router } from '@angular/router';
@@ -61,7 +62,7 @@ describe('ManagePersonsComponent', () => {
         { provide: MatDialog, useValue: mockDialog },
         { provide: MatSnackBar, useValue: mockSnackBar },
         { provide: UserActivityJournal, useValue: journal },
-        { provide: Router, useValue: { url: '/persons', navigate: vi.fn(), events: routerEvents, parseUrl: (url: string) => new DefaultUrlSerializer().parse(url) } },
+        { provide: Router, useValue: { url: '/persons', navigate: vi.fn(() => Promise.resolve(true)), currentNavigation: () => null, events: routerEvents, parseUrl: (url: string) => new DefaultUrlSerializer().parse(url) } },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null } } } },
       ],
     });
@@ -898,7 +899,39 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement)).toEqual([
         { text: 'manage_persons.named (1)', selected: true },
         { text: 'manage_persons.needs_naming (1)', selected: false },
+        { text: 'persons.review_queue.matches', selected: false },
+        { text: 'persons.review_queue.unassigned', selected: false },
       ]);
+    });
+
+    it('exposes global review destinations without duplicating the Named toolbar', async () => {
+      withTab('matches');
+      const router = TestBed.inject(Router) as unknown as { url: string; navigate: Mock };
+      router.url = '/persons?tab=matches';
+      const edition = signal(true);
+      Object.assign(mockAuth, { isEdition: edition, status: signal({ user_id: 'test' }), token: 'fixture' });
+      const original = mockApi.get.getMockImplementation()!;
+      mockApi.get.mockImplementation((url: string, params: unknown) => url === '/faces/review' ? of({ faces: [], total_unassigned: 0, next_after_id: null, model: 'arcface_buffalo_l', compared_people: 0, suggestions_requested: true }) : original(url, params));
+      const fixture = await render();
+      expect(fixture.componentInstance.tab()).toBe('matches');
+      expect(labels(fixture.nativeElement)[2].selected).toBe(true);
+      expect(fixture.nativeElement.querySelectorAll('app-face-review-queue')).toHaveLength(1);
+      expect(TestBed.inject(HeaderSlotService).template()).toBeNull();
+      expect(mockApi.get).toHaveBeenCalledWith('/faces/review', expect.objectContaining({ suggest: true }));
+      routerEvents.next(new NavigationEnd(5, '/persons?tab=unassigned', '/persons?tab=unassigned'));
+      expect(fixture.componentInstance.tab()).toBe('unassigned');
+      edition.set(false); fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges();
+      expect(fixture.nativeElement.querySelector('app-face-review-queue')).toBeNull();
+      expect(TestBed.inject(HeaderSlotService).template()).not.toBeNull();
+      fixture.destroy();
+    });
+
+    it('restores the previous tab when a requested tab navigation is refused', async () => {
+      const router = TestBed.inject(Router) as unknown as { navigate: Mock };
+      router.navigate.mockResolvedValueOnce(false);
+      component.selectTab('matches');
+      await Promise.resolve();
+      expect(component.tab()).toBe('named');
     });
 
     it('?tab=naming opens Needs naming, and switching writes ?tab back', async () => {
@@ -945,6 +978,8 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement).map((l) => l.text)).toEqual([
         'manage_persons.named (2)',
         'manage_persons.needs_naming (0)',
+        'persons.review_queue.matches',
+        'persons.review_queue.unassigned',
       ]);
       expect(fixture.nativeElement.querySelector('[data-needs-naming-empty]')).not.toBeNull();
     });
@@ -1037,6 +1072,8 @@ describe('ManagePersonsComponent', () => {
       expect(labels(fixture.nativeElement).map((l) => l.text)).toEqual([
         'manage_persons.named (1)',
         'manage_persons.needs_naming (0)',
+        'persons.review_queue.matches',
+        'persons.review_queue.unassigned',
       ]);
     });
   });

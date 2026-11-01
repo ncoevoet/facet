@@ -18,6 +18,7 @@ from api.db_helpers import (
 from api.models.culling import FaceReviewResponse, PossibleFacesResponse
 from db.embedding_space import ARCFACE_MODEL, active_embedding_model, expected_dim, model_filter_sql, tag_matches
 from db.schema import person_not_hidden_clause
+from db.face_identity import face_identity_token
 
 logger = logging.getLogger(__name__)
 
@@ -337,7 +338,8 @@ def review_unassigned_faces(
         conn.execute('BEGIN')
         total = conn.execute(f'SELECT COUNT(*) FROM {scope}', vis_params).fetchone()[0]
         rows = conn.execute(
-            f'SELECT f.id, f.photo_path, f.embedding, f.embedding_model FROM {scope} '
+            f'SELECT f.id, f.photo_path, f.embedding, f.embedding_model, f.face_index, '
+            f'f.bbox_x1, f.bbox_y1, f.bbox_x2, f.bbox_y2 FROM {scope} '
             'AND f.id > ? ORDER BY f.id LIMIT ?', [*vis_params, after_id, limit + 1]).fetchall()
         people = []
         matrix = None
@@ -378,7 +380,7 @@ def review_unassigned_faces(
             if vectors:
                 matrix = np.stack(vectors)
         faces = []
-        for face_id, path, blob, tag in rows[:limit]:
+        for face_id, path, blob, tag, face_index, *box in rows[:limit]:
             compatible = tag_matches(tag, model)
             vector = _review_vector(blob, dim) if compatible else None
             suggestions = []
@@ -391,6 +393,7 @@ def review_unassigned_faces(
                      'similarity': round(float(np.clip(similarities[index], -1, 1)), 4)}
                     for index in indices if similarities[index] >= min_similarity]
             faces.append({'face_id': face_id, 'photo_path': path, 'suggestions': suggestions,
+                          'identity_token': face_identity_token(face_id, path, face_index, box, tag, blob),
                           'embedding_state': 'incompatible' if not compatible else 'ready' if vector is not None else 'unavailable'})
         return {'faces': faces, 'total_unassigned': total, 'next_after_id': rows[limit - 1][0] if len(rows) > limit else None,
                 'model': model, 'compared_people': len(people), 'suggestions_requested': suggest}

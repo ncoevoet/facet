@@ -1,6 +1,8 @@
+import { FaceReviewQueueComponent } from './face-review-queue.component';
 import { Component, inject, signal, computed, OnInit, effect, untracked, DestroyRef, viewChild, TemplateRef, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, Router, RouterLink } from '@angular/router';
 import { NgTemplateOutlet } from '@angular/common';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatButtonModule } from '@angular/material/button';
@@ -250,14 +252,15 @@ export class PersonFacesDialogComponent implements OnInit {
 }
 
 /** The /persons tabs, as written in ``?tab=``. */
-export type PersonsTab = 'named' | 'naming';
+const PERSONS_TABS = ['named', 'naming', 'matches', 'unassigned'] as const;
+export type PersonsTab = typeof PERSONS_TABS[number];
 /** Orders the Needs naming tab offers; a name sort means nothing on unnamed persons. */
 export type NamingSort = 'faces' | 'recent';
 
 @Component({
   selector: 'app-manage-persons',
   imports: [
-    MatButtonModule,
+    FaceReviewQueueComponent, MatButtonModule,
     MatIconModule,
     MatDialogModule,
     MatFormFieldModule,
@@ -430,7 +433,7 @@ export type NamingSort = 'faces' | 'recent';
     <div class="px-4 pt-4 pb-4">
       @if (auth.isEdition()) {
         <mat-tab-group mat-stretch-tabs="false" mat-align-tabs="start" animationDuration="0ms"
-                       [selectedIndex]="tab() === 'naming' ? 1 : 0" (selectedIndexChange)="selectTab($event === 1 ? 'naming' : 'named')">
+                       [selectedIndex]="tabIndex()" (selectedIndexChange)="selectTabIndex($event)">
           <mat-tab>
             <ng-template mat-tab-label>
               <span data-tab="named">{{ I18N.manage_persons.named | translate }} ({{ total() }})</span>
@@ -467,6 +470,14 @@ export type NamingSort = 'faces' | 'recent';
                 </div>
               }
             </div>
+          </mat-tab>
+          <mat-tab>
+            <ng-template mat-tab-label><span data-tab="matches">{{ I18N.persons.review_queue.matches | translate }}</span></ng-template>
+            @if (tab() === 'matches') { <app-face-review-queue mode="matches" /> }
+          </mat-tab>
+          <mat-tab>
+            <ng-template mat-tab-label><span data-tab="unassigned">{{ I18N.persons.review_queue.unassigned | translate }}</span></ng-template>
+            @if (tab() === 'unassigned') { <app-face-review-queue mode="unassigned" /> }
           </mat-tab>
         </mat-tab-group>
       } @else {
@@ -506,6 +517,8 @@ export class ManagePersonsComponent implements OnInit {
   private readonly pageHelp = inject(PageHelpService);
   private readonly headerSlot = inject(HeaderSlotService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+  private tabNavigation = 0;
   protected readonly personsFilters = inject(PersonsFiltersService);
   private dialog = inject(MatDialog);
   private snackBar = inject(MatSnackBar);
@@ -536,8 +549,9 @@ export class ManagePersonsComponent implements OnInit {
   readonly namingTabActive = computed(() => this.auth.isEdition() && this.tab() === 'naming');
 
   /** The selected tab, mirrored in ``?tab=``; Named unless the URL asks for Needs naming. */
-  readonly tab = signal<PersonsTab>(
-    inject(ActivatedRoute).snapshot.queryParamMap.get('tab') === 'naming' ? 'naming' : 'named');
+  readonly tab = signal<PersonsTab>(PERSONS_TABS.find(tab => tab === this.route.snapshot.queryParamMap.get('tab')) ?? 'named');
+  protected readonly tabIndex = computed(() => PERSONS_TABS.indexOf(this.tab()));
+  protected selectTabIndex(index: number): void { const tab = PERSONS_TABS[index]; if (tab) this.selectTab(tab); }
   /** Hidden persons, shown in the Ignored section (collapsed by default). */
   readonly ignored = signal<Person[]>([]);
   /** Every hidden person, from the response; the section loads them a page at a time. */
@@ -554,11 +568,18 @@ export class ManagePersonsComponent implements OnInit {
   readonly hasMore = computed(() => this.persons().length < this.total());
 
   constructor() {
+    this.router.events.pipe(takeUntilDestroyed()).subscribe(event => {
+      if (!(event instanceof NavigationEnd)) return;
+      const url = this.router.parseUrl(event.urlAfterRedirects);
+      const segments = url.root.children['primary']?.segments;
+      if (segments?.length === 1 && segments[0].path === 'persons') { this.tabNavigation++; this.tab.set(PERSONS_TABS.find(tab => tab === url.queryParams['tab']) ?? 'named'); }
+    });
     registerPageContext('persons', () => ({
       search: this.personsFilters.search(),
       sort: this.personsFilters.sort(),
       sort_direction: this.personsFilters.sortDirection(),
       show_hidden: this.personsFilters.showHidden(),
+      tab: this.auth.isEdition() ? this.tab() : 'named',
     }));
     // The assistant's `list_persons show=true` sends the search every time: the page takes exactly that query.
     onPageQuery('/persons', ['search'], query => {
@@ -577,7 +598,7 @@ export class ManagePersonsComponent implements OnInit {
     });
     effect(() => {
       const t = this.personsToolbar();
-      if (t) this.headerSlot.set(t);
+      if (t) { if (this.auth.isEdition() && (this.tab() === 'matches' || this.tab() === 'unassigned')) this.headerSlot.clear(t); else this.headerSlot.set(t); }
     });
     effect(() => {
       this.personsFilters.sort();
@@ -619,8 +640,11 @@ export class ManagePersonsComponent implements OnInit {
   /** Switch tabs and keep the choice in the URL, so a reload or Back returns to it. */
   selectTab(tab: PersonsTab): void {
     if (tab === this.tab()) return;
+    const previous = this.tab(), navigation = ++this.tabNavigation;
     this.tab.set(tab);
-    void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true });
+    void this.router.navigate([], { queryParams: { tab }, queryParamsHandling: 'merge', replaceUrl: true })
+      .then(completed => { if (!completed && this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); })
+      .catch(() => { if (this.tabNavigation === navigation && this.tab() === tab) this.tab.set(previous); });
   }
 
   onPersonsSortChange(sort: string): void {
