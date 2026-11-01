@@ -23,7 +23,7 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
  @if (pinned()) {
    <p data-criteria-pinned class="text-xs my-2 text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.pinned | translate }}</p>
  } @else {
- <div class="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-xs text-[var(--mat-sys-on-surface-variant)]">
+ <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]">
    <details #quickFilters tabindex="-1" class="relative" (keydown.escape)="quickFilters.open = false; quickSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
      <summary #quickSummary class="cursor-pointer py-2 font-medium">{{ I18N.gallery.sidebar.review.quick | translate }}</summary>
      <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1">

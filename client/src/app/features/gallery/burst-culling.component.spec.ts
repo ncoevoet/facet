@@ -2897,9 +2897,10 @@ describe('BurstCullingComponent', () => {
       component['setCompareMode']('2up');
       await settle();
 
-      component['lightboxIndex'].set(1);
+      component['selectComparisonSlot'](1);
+      component['focusPhotoInLightbox'](2);
       await settle();
-      component['lightboxIndex'].set(0);
+      component['focusPhotoInLightbox'](1);
       await settle();
 
       expect(renderPooledPeaking).toHaveBeenCalledTimes(3);
@@ -3792,14 +3793,44 @@ describe('BurstCullingComponent modals (rendered)', () => {
 
   it('closes the darkroom on Escape from the header controls', () => {
     openDarkroom();
-    const legendButton: HTMLElement = fixture.debugElement
-      .query(By.css('[aria-label="culling.legend.label"]')).nativeElement;
-    legendButton.focus();
+    const viewButton: HTMLElement = fixture.debugElement
+      .query(By.css('[aria-label="culling.compare.single"]')).nativeElement;
+    viewButton.focus();
 
-    legendButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    viewButton.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
 
     expect(component['lightboxGroup']()).toBeNull();
+  });
+
+  it('closes Inspect before the darkroom on Escape and returns focus to its summary', () => {
+    openDarkroom();
+    const tools = fixture.nativeElement.querySelector('[data-darkroom-tools]') as HTMLDetailsElement;
+    const summary = tools.querySelector('summary')!;
+    tools.open = true;
+    const legend = tools.querySelector('[aria-label="culling.legend.label"]') as HTMLButtonElement;
+    legend.focus();
+    legend.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    fixture.detectChanges();
+    expect(tools.open).toBe(false);
+    expect(component['lightboxGroup']()).not.toBeNull();
+    expect(document.activeElement).toBe(summary);
+  });
+
+  it('leaves native Inspect activation keys alone in stack mode instead of stacking', () => {
+    openDarkroom();
+    store.mode.set('stacks');
+    fixture.detectChanges();
+    const summary = fixture.nativeElement.querySelector('[data-darkroom-tools] summary') as HTMLElement;
+    const stack = vi.spyOn(component, 'stackGroup');
+    summary.focus();
+    for (const key of [' ', 'Enter']) {
+      const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true });
+      summary.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(false);
+    }
+    expect(stack).not.toHaveBeenCalled();
+    expect(component['lightboxGroup']()).not.toBeNull();
   });
 
   // Escape is acted on at the shield rather than let through it: the page's cull
@@ -4215,19 +4246,22 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     expect(keptPaths()).toEqual(['/c1.jpg']);
   });
 
-  it('marks the decided pane with the solid badge the tiles use', () => {
+  it('separates decided pane state in its heading from Keep and Reject actions', () => {
     openCompare();
     store.selectionsMap.set(new Map([['1_burst', new Set(['/c1.jpg'])]]));
     fixture.detectChanges();
 
     const host: HTMLElement = fixture.nativeElement;
-    expect(host.querySelectorAll('[aria-label="culling.lightbox.kept"].bg-green-600')).toHaveLength(1);
-    expect(host.querySelectorAll('[aria-label="culling.lightbox.rejected"].bg-red-600')).toHaveLength(1);
+    const headings = host.querySelectorAll('[data-comparison-slot]');
+    expect(headings[0].textContent).toContain('culling.lightbox.kept');
+    expect(headings[1].textContent).toContain('culling.lightbox.rejected');
+    expect(buttonFor('c1.jpg, culling.lightbox.keep')!.getAttribute('aria-pressed')).toBe('true');
+    expect(buttonFor('c1.jpg, culling.lightbox.reject')!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttonFor('c2.jpg, culling.lightbox.keep')!.getAttribute('aria-pressed')).toBe('false');
+    expect(buttonFor('c2.jpg, culling.lightbox.reject')!.getAttribute('aria-pressed')).toBe('true');
   });
 
-  // The chrome traces the rendered photo, so it must be inset by whatever the
-  // pane letterboxed away -- not pinned to the cell corner.
-  it('insets the per-frame chrome by the letterbox of its pane', () => {
+  it('keeps decision controls in the pane heading outside the letterboxed image', () => {
     openCompare();
     const panes = fixture.debugElement.queryAll(By.directive(SyncedZoomComponent));
     const pane = panes[0].componentInstance as SyncedZoomComponent;
@@ -4243,9 +4277,12 @@ describe('BurstCullingComponent compare panes (rendered)', () => {
     fixture.detectChanges();
 
     expect(pane.fitInsetY()).toBe(200);
-    const chrome = buttonFor('c1.jpg, culling.lightbox.keep')!.closest('div[style]') as HTMLElement;
-    expect(chrome.style.top).toBe('200px');
-    expect(chrome.style.left).toBe('0px');
+    const action = buttonFor('c1.jpg, culling.lightbox.keep')!;
+    const frame = action.closest('[data-darkroom-pane]')!;
+    expect(frame.querySelector('app-synced-zoom')).toBe(host);
+    expect(host.contains(action)).toBe(false);
+    expect(frame.firstElementChild!.contains(action)).toBe(true);
+    expect(frame.firstElementChild!.contains(frame.querySelector('[data-comparison-slot]'))).toBe(true);
   });
 
   it('names the frame the footer status is about while a grid is shown', () => {
@@ -4580,7 +4617,7 @@ describe('BurstCullingComponent progressive darkroom frames (rendered)', () => {
     component['setCompareMode']('4up');
     fixture.detectChanges();
     await fixture.whenStable();
-    expect(pooled).toHaveBeenLastCalledWith([render('/p0.jpg'), render('/p1.jpg'), thumb('/p2.jpg')], expect.any(Number));
+    expect(pooled).toHaveBeenLastCalledWith([render('/p1.jpg'), thumb('/p2.jpg'), render('/p0.jpg')], expect.any(Number));
     component['setCompareMode']('2up');
     fixture.detectChanges();
 

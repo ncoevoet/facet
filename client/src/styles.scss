@@ -1,6 +1,26 @@
+/* Hallmark · v2.0.0 · scope: app · redesign: full · theme: Cobalt app adaptation
+ * Existing Facet accent preferences preserved; cool neutral workbench, real photos.
+ * Pre-emit critique: P4 H3 E3 S4 R4 V3; weakest hierarchy, consolidate collection controls.
+ * waive 39b: photo tiles are content targets; desktop auxiliary hover tools retain
+ * 28px controls for the requested dense contact sheet, not primary touch actions.
+ * waive 72: icon-font glyphs and compact status badges use intentional tight padding;
+ * text fields and labeled commands retain readable insets.
+ * kept "Photo details": conditional on an inspected photo; owned-open browser verified.
+ */
 @use '@angular/material' as mat;
 @use "tailwindcss";
 @use './fonts';
+
+:root {
+  --facet-font-ui: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --facet-control-radius: 4px;
+  --facet-dialog-radius: 8px;
+  --facet-space-control: 8px;
+  --facet-image-canvas: oklch(16% 0.005 250);
+  --facet-image-chrome: oklch(22% 0.006 250);
+  --facet-image-ink: oklch(94% 0.004 250);
+  --facet-image-rule: oklch(38% 0.006 250);
+}
 
 // Lets components cancel a translucency effect for users who set the OS
 // "reduce transparency" preference (photo-card's current-photo dimming).
@@ -14,7 +34,7 @@ html {
       primary: mat.$orange-palette,
       tertiary: mat.$cyan-palette,
     ),
-    typography: Roboto,
+    typography: (plain-family: var(--facet-font-ui), brand-family: var(--facet-font-ui)),
     density: -1,
   ));
   --facet-accent: #ff6600;
@@ -117,7 +137,7 @@ html.theme-azure {
 html.light-mode {
   @include mat.theme((
     color: (theme-type: light, primary: mat.$orange-palette, tertiary: mat.$cyan-palette),
-    typography: Roboto,
+    typography: (plain-family: var(--facet-font-ui), brand-family: var(--facet-font-ui)),
     density: -1,
   ));
   --facet-accent: #ea580c;
@@ -197,14 +217,14 @@ html:root:not(.light-mode) {
 
 html:root.light-mode {
   @include mat.theme-overrides((
-    surface: #f8f9fb,
+    surface: oklch(97.5% 0.003 250),
     surface-dim: #d9dfe7,
     surface-bright: #ffffff,
-    surface-container-lowest: #ffffff,
-    surface-container-low: #f1f3f6,
-    surface-container: #e9ecf1,
-    surface-container-high: #e1e5eb,
-    surface-container-highest: #d9dfe7,
+    surface-container-lowest: oklch(99.5% 0.002 250),
+    surface-container-low: oklch(97.5% 0.003 250),
+    surface-container: oklch(95.5% 0.004 250),
+    surface-container-high: oklch(93% 0.005 250),
+    surface-container-highest: oklch(90% 0.006 250),
     surface-variant: #dce1e8,
     on-surface: #1d232d,
     on-surface-variant: #465161,
@@ -220,7 +240,7 @@ body {
   color: var(--mat-sys-on-surface);
   font: var(--mat-sys-body-medium);
   margin: 0;
-  font-family: Roboto, "Helvetica Neue", sans-serif;
+  font-family: var(--facet-font-ui);
 }
 
 html:not(.light-mode) body {
@@ -233,6 +253,7 @@ html.light-mode body {
 
 html, body {
   height: 100%;
+  overflow-x: clip;
 }
 
 // Header selectors: auto-width panels with no text wrapping
@@ -289,16 +310,39 @@ html.light-mode ::-webkit-scrollbar-thumb {
 }
 
 *:focus-visible {
-  outline: 2px solid var(--mat-sys-primary);
-  outline-offset: 2px;
+  outline: 2px solid var(--mat-sys-primary) !important;
+  outline-offset: 2px !important;
 }
 
 // Normal buttons: trade the M3 pill shape for a subtler radius.
 // Icon buttons and FABs keep their round shape (own tokens, untouched).
 :root {
-  --mat-button-text-container-shape: 8px;
-  --mat-button-outlined-container-shape: 8px;
-  --mat-button-filled-container-shape: 8px;
-  --mat-button-protected-container-shape: 8px;
-  --mat-button-tonal-container-shape: 8px;
+  @include mat.dialog-overrides((container-shape: var(--facet-dialog-radius)));
+  --mat-button-text-container-shape: var(--facet-control-radius);
+  --mat-button-outlined-container-shape: var(--facet-control-radius);
+  --mat-button-filled-container-shape: var(--facet-control-radius);
+  --mat-button-protected-container-shape: var(--facet-control-radius);
+  --mat-button-tonal-container-shape: var(--facet-control-radius);
+}
+
+// Collection fields read as a search toolbar, rather than large filled forms.
+[data-collection-query] .mat-mdc-form-field {
+  --mat-form-field-container-height: 40px;
+  --mat-form-field-container-vertical-padding: var(--facet-space-control);
+  --mat-form-field-filled-container-shape: var(--facet-control-radius);
+  --mat-form-field-filled-container-color: var(--mat-sys-surface-container-lowest);
+  --mat-form-field-filled-active-indicator-color: var(--mat-sys-outline);
+}
+
+app-gallery-view-controls .mat-mdc-button:not(:disabled) {
+  color: var(--mat-sys-on-surface-variant);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

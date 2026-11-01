@@ -118,15 +118,15 @@ export interface CompareSelectedData {
       }
       <span id="comparison-inspection-help" class="sr-only">{{ I18N.gallery.compare.inspection.keyboard | translate }}</span>
 
-      <div class="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-2 p-2 bg-neutral-950"
+      <div class="flex-1 min-h-0 grid grid-cols-1 sm:grid-cols-2 gap-1 p-1 bg-[var(--facet-image-canvas)]"
            [class.!grid-cols-1]="visiblePhotos().length < 2"
            [class.!grid-cols-2]="visiblePhotos().length > 2"
            [class.max-sm:grid-rows-2]="visiblePhotos().length === 2"
            [class.grid-rows-2]="visiblePhotos().length > 2">
         @for (pane of paneStates(); track pane.photo.path) {
           @let photo = pane.photo;
-          <div class="@container/pane relative flex flex-col w-full h-full min-h-0 overflow-hidden border border-neutral-700" [class.border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
-            <div class="flex items-center gap-2 px-2 py-1 text-white text-xs bg-neutral-900 min-h-10">
+          <div class="@container/pane relative flex flex-col w-full h-full min-h-0 overflow-hidden border border-[var(--facet-image-rule)]" [class.border-[var(--mat-sys-primary)]]="activePath() === photo.path" [attr.data-reference]="referencePath() === photo.path" [attr.data-active-pane]="activePath() === photo.path" (pointerdown)="activate(photo.path)" (focusin)="activate(photo.path)">
+            <div class="flex shrink-0 items-center gap-2 px-2 text-[var(--facet-image-ink)] text-xs bg-[var(--facet-image-chrome)] min-h-10">
               <mat-icon class="!text-base !w-4 !h-4 shrink-0">{{ referencePath() === photo.path ? 'push_pin' : 'photo' }}</mat-icon>
               <span class="shrink-0">{{ (referencePath() === photo.path ? I18N.gallery.compare.reference : I18N.gallery.compare.candidate) | translate }}</span>
               <span class="truncate min-w-0 flex-1">{{ photo.filename }}</span>
@@ -141,7 +141,7 @@ export interface CompareSelectedData {
                       [matTooltip]="I18N.gallery.compare.remove_pane | translate:{ name: photo.filename }"
                       (click)="removePane(photo.path)"><mat-icon>close</mat-icon></button>
             </div>
-            <app-synced-zoom #imagePane class="w-full h-full min-h-0"
+            <app-synced-zoom #imagePane class="w-full flex-1 min-h-0"
                              [src]="photo.path | thumbnailUrl:renderedEdge:photo.preview_revision"
                              [placeholderSrc]="photo.path | thumbnailUrl:storedEdge:photo.preview_revision"
                              [frameKey]="photo.path"
@@ -158,7 +158,7 @@ export interface CompareSelectedData {
                              (sharpFailed)="setReadiness(photo.path, 'failed')"
                              (renditionChange)="setRendition(photo.path, $event)"
                              [alt]="photo.filename" />
-            <div class="absolute bottom-1 left-1 right-1 flex flex-wrap items-center gap-x-1 rounded bg-black/85 text-white px-1">
+            <div class="shrink-0 flex flex-wrap items-center gap-x-1 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] text-[var(--facet-image-ink)] px-2">
               <div class="flex w-full @[320px]/pane:w-auto @[320px]/pane:flex-1 min-w-0 items-center">
               <span data-preview-status role="status" class="min-w-0 flex-1 truncate text-xs" [title]="I18N.gallery.compare.rendition.limit | translate">
                 {{ pane.kindKey | translate }} · {{ pane.phaseKey | translate }}

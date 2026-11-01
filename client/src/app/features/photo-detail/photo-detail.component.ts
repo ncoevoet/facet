@@ -40,6 +40,7 @@ import { ComparisonCategoryExplainerComponent } from '../comparison/comparison-c
 import { DownloadOption } from '../../core/api/types';
 import { downloadAll } from '../../shared/utils/download';
 import { GalleryStore } from '../gallery/gallery.store';
+import { aspectOf } from '../gallery/gallery-rows.util';
 import { setScopePatch } from '../gallery/gallery-filters.util';
 import * as L from 'leaflet';
 import { createLeafletMap } from '../../shared/leaflet';
@@ -94,7 +95,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
   template: `
     @if (photo(); as p) {
       <!-- Header bar -->
-      <div class="flex items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)]">
+      <div data-photo-detail-header class="flex shrink-0 items-center gap-2 px-2 py-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)]">
         <button mat-icon-button (click)="goBack()" [matTooltip]="I18N.photo_detail.back | translate" [attr.aria-label]="I18N.photo_detail.back | translate">
           <mat-icon>arrow_back</mat-icon>
         </button>
@@ -250,11 +251,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
       <!-- Main content: image + info -->
       <div class="flex flex-col lg:flex-row lg:flex-1 lg:min-h-0 lg:overflow-hidden">
         <!-- Image panel -->
-        <div [appZoomPan]="p.path" #zoom="zoomPan" class="group/photo shrink-0 lg:h-auto lg:flex-1 flex items-center justify-center bg-black lg:min-h-0 relative overflow-hidden cursor-grab">
+        <div class="flex min-h-40 max-h-[62dvh] min-w-0 shrink-0 flex-col lg:!aspect-auto lg:max-h-none lg:min-h-0 lg:flex-1"
+             [style.aspect-ratio]="photoAspect()">
+        <div [appZoomPan]="p.path" #zoom="zoomPan" class="group/photo flex flex-1 min-h-0 items-center justify-center bg-[var(--facet-image-canvas)] relative overflow-hidden cursor-grab">
           <img
             [src]="thumbnailImageUrl()"
             [alt]="p.filename"
-            class="w-full lg:max-w-full lg:max-h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
+            class="w-full h-full max-w-full max-h-full object-contain transition-opacity duration-300 pointer-events-none select-none"
             [class.opacity-0]="fullImageLoaded()"
             [style.transform]="zoom.transform()"
             (load)="onThumbnailState($event)" (error)="onThumbnailState($event, true)"
@@ -277,16 +280,17 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             [focusPersonIds]="focusPersonIds()"
             (changed)="refreshPeople(p.path)" />
           <app-person-face-menu [path]="p.path" [canEdit]="auth.isEdition()" (changed)="onPersonMenuChanged(p.path)" />
-          <div class="absolute inset-x-2 bottom-2 rounded bg-black/80 px-2 py-1 text-white cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
+        </div>
+          <div class="shrink-0 border-t border-[var(--facet-image-rule)] bg-[var(--facet-image-chrome)] px-3 py-1 text-[var(--facet-image-ink)] cursor-auto" role="presentation" (pointerdown)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()">
             <app-rendition-readout [state]="displayedRendition()" [pending]="sourceRendition().phase === 'loading'" [attemptFailed]="sourceRendition().phase === 'failed'" [failureLabel]="I18N.photo_detail.rendition.source_failed" (retry)="retryFullImage()" />
           </div>
         </div>
 
         <!-- Info panel -->
-        <div class="lg:w-[380px] lg:shrink-0 lg:overflow-y-auto p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
+        <div class="lg:w-80 xl:w-[360px] lg:shrink-0 lg:overflow-y-auto lg:border-l border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] p-4 space-y-4 text-sm text-[var(--mat-sys-on-surface)]">
           <!-- Filename + Date + Category + Aggregate -->
           <div class="mb-2">
-            <div class="font-semibold text-lg">{{ p.filename }}</div>
+            <div class="font-medium text-base break-words">{{ p.filename }}</div>
             @if (p.date_taken || auth.isEdition()) {
               <div class="flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
                 @if (auth.isEdition()) {
@@ -303,7 +307,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             }
             <div class="flex items-center gap-2 mt-1">
               @if (p.category || auth.isEdition()) {
-                <span class="inline-flex items-center gap-0.5 px-2 py-0.5 bg-[var(--mat-sys-primary-container)] text-[var(--mat-sys-on-primary-container)] rounded-full text-xs font-medium">
+                <span class="inline-flex items-center gap-1 text-[var(--mat-sys-on-surface-variant)] text-xs">
                   @if (p.category) { {{ p.category | categoryLabel }} }
                   <!-- Category explainer toggle: "why isn't this photo classified as X?" — kept for an uncategorized photo too. -->
                   @if (auth.isEdition()) {
@@ -348,11 +352,13 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
           <!-- Rating controls (edition only) -->
           @if (auth.isEdition()) {
-            <div class="flex items-center border-t border-[var(--mat-sys-outline-variant)] pt-1 mb-1">
+            <div class="flex flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-1 mb-1">
               <!-- Star rating -->
               @for (star of stars; track star) {
-                <button class="w-8 h-8 rounded-full inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] transition-colors cursor-pointer" (click)="setRating(p.path, star)">
-                  <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-yellow-400">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
+                <button type="button" class="min-w-11 min-h-11 rounded inline-flex items-center justify-center hover:bg-[var(--mat-sys-surface-container-high)] cursor-pointer"
+                        [attr.aria-label]="(I18N.rating.set_rating | translate) + ': ' + star"
+                        [attr.aria-pressed]="p.star_rating === star" (click)="setRating(p.path, star)">
+                  <mat-icon class="!text-xl !w-5 !h-5 !leading-5 !text-[var(--mat-sys-primary)]">{{ p.star_rating !== null && star <= p.star_rating! ? 'star' : 'star_border' }}</mat-icon>
                 </button>
               }
               <div class="flex-1"></div>
@@ -387,7 +393,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           <!-- Caption -->
           <div>
             <div class="flex items-center justify-between mb-1">
-              <div class="text-[0.625rem] uppercase tracking-wider text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.caption | translate }}</div>
+              <div class="text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.photo_detail.caption | translate }}</div>
               @if (auth.isEdition()) {
                 <div class="flex gap-1">
                   @if (!p.caption && store.config()?.features?.show_captions) {
@@ -578,6 +584,10 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 })
 export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly I18N = i18nKeys();
+  protected readonly photoAspect = computed(() => {
+    const photo = this.photo();
+    return photo ? aspectOf(photo) : null;
+  });
   private readonly location = inject(Location);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -600,7 +610,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   private readonly viewerOwner = this.auth.identity();
   /** Only gallery-opened entries own an in-app Back destination. Direct links
    *  must not send Escape to an unrelated page or about:blank. */
-  private readonly openedFromGallery = !!history.state?.['photo'];
+  private readonly openedFromGallery = !!(this.router.currentNavigation()?.extras.state?.['photo'] ?? history.state?.['photo']);
 
   readonly photo = signal<Photo | null>(null);
   protected readonly photoMissing = signal(false);

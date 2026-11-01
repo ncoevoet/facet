@@ -1,7 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router, provideRouter } from '@angular/router';
-import { Component } from '@angular/core';
+import { Component, signal } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { HttpBackend, HttpErrorResponse, HttpRequest, HttpResponse } from '@angular/common/http';
 import { Subject, of, throwError } from 'rxjs';
@@ -91,7 +91,7 @@ describe('UI tool registry and handlers', () => {
         { provide: ApiService, useValue: { get: apiGet, post: vi.fn(() => of({})) } },
         { provide: Router, useValue: router },
         { provide: ActivatedRoute, useValue: { snapshot: { queryParams: {} } } },
-        { provide: AuthService, useValue: { identity: () => '0|', isEdition: () => edition, isMultiUser: () => multiUser, isAuthenticated: () => true } },
+        { provide: AuthService, useValue: { status: signal({ authenticated: true, multi_user: false, edition_enabled: true, edition_authenticated: false, edition_password_required: false, login_password_required: false, user_id: null, user_role: 'admin', features: {}, download_profiles: [] }), identity: () => '0|', isEdition: () => edition, isMultiUser: () => multiUser, isAuthenticated: () => true } },
         // The real GalleryStore subscribes to assistant write batches; none arrive here.
         { provide: AssistantChangesService, useValue: { batch$: assistantBatches } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })), update: vi.fn(() => of({})) } },
@@ -1087,6 +1087,8 @@ describe('UI tool registry and handlers', () => {
           { user_activity: { items: { kind: string; seq: number }[]; until: number; truncated: boolean } }).user_activity;
 
       it('preserves manual Keep and Reset review values through ui_get_context', async () => {
+        edition = true;
+        TestBed.inject(AuthService).status.update(status => status ? { ...status, edition_authenticated: true } : status);
         await store.loadPhotos();
         await store.batchReview(['/a.jpg'], 'kept', false);
         await store.batchReview(['/a.jpg'], 'undecided', false);

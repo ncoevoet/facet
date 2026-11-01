@@ -13,7 +13,7 @@ import { CARD_ACTION_META, CardActionId, CardActionsConfig, CardSetKind, DEFAULT
 import { FixedPipe } from '../../pipes/fixed.pipe';
 import { CaptureDatePipe } from '../../pipes/capture-date.pipe';
 import { ShutterSpeedPipe } from '../../pipes/shutter-speed.pipe';
-import { ScoreClassPipe, SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
+import { SortScorePipe, sortScoreColumn } from '../../pipes/score.pipes';
 import { SortPersonsPipe } from '../../pipes/sort-persons.pipe';
 import { closeOverlayDirectives } from '../../utils/overlays';
 import { MetricDistribution, topPercentOf } from '../../utils/metric-distribution';
@@ -88,7 +88,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     // detection that would have to apply a conditional class. The top asks for
     // nothing but that same outline kept off the scrollport's edge, since
     // nothing in the shell is fixed or sticky above the grid.
-    class: 'scroll-mt-2 scroll-mb-48',
+    class: 'min-w-0 scroll-mt-2 scroll-mb-48',
     // The current-photo marker stays separate from batch selection.
     // Both sit on the host rather than on the tile below, because the host's
     // own `content-visibility: auto` brings paint containment with it, and that
@@ -126,7 +126,6 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     FixedPipe,
     CaptureDatePipe,
     ShutterSpeedPipe,
-    ScoreClassPipe,
     SortScorePipe,
     SortPersonsPipe,
   ],
@@ -135,7 +134,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
     <div
       role="button"
       tabindex="0"
-      class="relative rounded-lg overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container)] transition-all h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
+      class="relative rounded-sm overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container-lowest)] h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
       [class.aspect-square]="hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
@@ -392,6 +391,11 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
         </div>
 
         <!-- Selection checkmark -->
+        @if (showSelectionIndicators() && !isSelected()) {
+          <span data-selection-affordance class="pointer-events-none absolute top-1.5 left-1.5 z-20 flex h-7 w-7 items-center justify-center rounded bg-[var(--facet-image-canvas)] text-[var(--facet-image-ink)]" aria-hidden="true">
+            <mat-icon class="!text-xl !w-5 !h-5">check_box_outline_blank</mat-icon>
+          </span>
+        }
         @if (isSelected()) {
           <div class="absolute top-1.5 left-1.5 w-6 h-6 rounded-full bg-[var(--mat-sys-primary)] flex items-center justify-center z-20" aria-hidden="true">
             <mat-icon class="!text-base !w-4 !h-4 !leading-4 text-white">check</mat-icon>
@@ -424,8 +428,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
                 <span class="text-neutral-400 font-medium" [matTooltip]="'gallery.aggregate_score' | translate">{{ photo().aggregate | fixed:1 }}</span>
               }
               <span
-                class="px-1 py-0.5 rounded text-xs font-bold"
-                [class]="(photo() | sortScore:currentSort()) | scoreClass:config()"
+                class="px-1.5 py-0.5 rounded-sm text-xs font-medium tabular-nums !bg-[var(--mat-sys-surface-container-high)] !text-[var(--mat-sys-on-surface)]"
                 [matTooltip]="(currentSort() === 'aggregate' ? ('gallery.aggregate_score' | translate) : ('gallery.sort_score' | translate) + ' (' + currentSort() + ')')
                   + (badgeTopPercent() === null ? '' : ' · ' + ('photo_detail.distribution.top' | translate:{ pct: badgeTopPercent()! }))"
               >{{ (photo() | sortScore:currentSort()) | fixed:1 }}</span>
@@ -624,6 +627,7 @@ export class PhotoCardComponent {
 
   // Display state
   readonly isSelected = input(false);
+  readonly showSelectionIndicators = input(false);
   /** Whether this card is the one the grid's keyboard cursor is standing on.
    *
    *  Independent of `isSelected`: a card can be both, and the two say different

@@ -176,6 +176,7 @@
        icons. The bar is there from unlock until lock, sitting exactly on the
        border the toolbar already draws, in the selected theme's accent. -->
   <mat-toolbar class="shrink-0 !w-auto !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
+               [class.max-lg:!hidden]="auth.isAuthenticated() && isAlbumsRoute()"
                [class.lg:ml-14]="auth.isAuthenticated() && desktopNavigation() && !navigationPinned()"
                [class.lg:ml-48]="auth.isAuthenticated() && desktopNavigation() && navigationPinned()"
                [class.!border-b-2]="auth.isEdition()"

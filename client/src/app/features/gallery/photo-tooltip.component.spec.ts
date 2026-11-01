@@ -84,6 +84,14 @@ describe('PhotoTooltipComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('app-extended-quality [data-testid$="-row"]').length).toBe(0);
   });
 
+  it('formats camera-local dates and keeps a single labeled assessment in the docked inspector', () => {
+    renderDocked(makePhotoFull({ date_taken: '2026:10:29 10:12:00', aggregate: 0 }), 'quality');
+    expect(fixture.nativeElement.querySelector('[data-capture-date]').textContent).toBe('29/10/2026 10:12');
+    expect(fixture.nativeElement.querySelectorAll('app-photo-assessment')).toHaveLength(1);
+    expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('photo_detail.assessment.score');
+    expect(fixture.nativeElement.querySelector('app-photo-assessment').textContent).toContain('0.0');
+  });
+
   it('creates the host', () => {
     expect(fixture.componentInstance).toBeTruthy();
   });
@@ -347,7 +355,7 @@ describe('PhotoTooltipComponent', () => {
       fixture.detectChanges();
       const text = fixture.nativeElement.textContent as string;
       for (const key of ['tooltip.aesthetic', 'tooltip.composition', 'tooltip.exposure']) expect(text).toContain(key);
-      expect(text).not.toContain('tooltip.tech_sharpness');
+      expect(fixture.nativeElement.querySelector('[data-floating-key-scores]').textContent).not.toContain('tooltip.tech_sharpness');
       expect(text).toContain('Canon EOS R6');
       expect(text).toContain('ISO 640');
       expect(fixture.nativeElement.querySelector('app-histogram')).toBeNull();

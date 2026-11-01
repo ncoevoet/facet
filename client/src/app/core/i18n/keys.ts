@@ -1203,6 +1203,7 @@ export const I18N = {
     active_filters: "gallery.active_filters",
     unknown_person: "gallery.unknown_person",
     selection: {
+      select: "gallery.selection.select",
       outside_loaded: "gallery.selection.outside_loaded",
       compare_loaded: "gallery.selection.compare_loaded",
       exclusions: "gallery.selection.exclusions",

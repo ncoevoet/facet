@@ -81,7 +81,7 @@ import { PhotoCardComponent } from '../../shared/components/photo-card/photo-car
 import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import {
   GalleryRow, aspectOf, buildGridRows, buildMosaicRows,
-  gridColumnCount, totalRowsHeight, windowRange,
+  gridColumnCount, totalRowsHeight, windowRange, MOBILE_MIN_COLUMNS, MOBILE_DETAILS_MIN_COLUMNS,
 } from './gallery-rows.util';
 import { noticeLiftPx } from './selection-bar-layout.util';
 import { GalleryFilters, activeFilterKeys, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage } from './gallery-filters.util';
@@ -144,7 +144,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
          Existing handlers retain debounce, pin and parked-route protections. -->
     <ng-template #galleryToolbar>
       @if (!pinned()) {
-        <mat-form-field class="w-28 sm:w-44 shrink-0" subscriptSizing="dynamic">
+        <mat-form-field class="w-24 sm:w-40 shrink-0" subscriptSizing="dynamic">
           <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
           <mat-select panelWidth="auto" panelClass="nowrap-panel !max-h-[70vh]" [value]="store.filters().type" (selectionChange)="onTypeChange($event.value)">
             <mat-option value="">{{ I18N.gallery.all_photos | translate }}</mat-option>
@@ -155,11 +155,14 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
         </mat-form-field>
 
         <!-- Exact text search commits through the existing debounced handler. -->
-        <mat-form-field class="min-w-0 flex-1" subscriptSizing="dynamic">
-          <mat-label>{{ I18N.gallery.search_placeholder | translate }}</mat-label>
+        <label class="relative block min-w-0 flex-1">
+          <span class="sr-only">{{ I18N.gallery.search_placeholder | translate }}</span>
           <input
             #toolbarSearch
             matInput
+            type="search"
+            autocomplete="off"
+            class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-11 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)]"
             [placeholder]="I18N.gallery.search_placeholder | translate"
             [value]="store.filters().search"
             (input)="onSearchInput($event)"
@@ -167,13 +170,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             (blur)="onSearchChange($event)"
           />
           @if (store.filters().search) {
-            <button matSuffix mat-icon-button (click)="clearSearch()" [attr.aria-label]="I18N.gallery.clear_search | translate">
+            <button type="button" class="!absolute right-0 top-0" mat-icon-button (click)="clearSearch()" [attr.aria-label]="I18N.gallery.clear_search | translate">
               <mat-icon>close</mat-icon>
             </button>
           } @else {
-            <mat-icon matSuffix>search</mat-icon>
+            <mat-icon class="pointer-events-none !absolute right-3 top-2 text-[var(--mat-sys-on-surface-variant)]" aria-hidden="true">search</mat-icon>
           }
-        </mat-form-field>
+        </label>
       }
 
       @if (!pinned()) {
@@ -275,13 +278,13 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
       <!-- Main content. The drawer reserves its own strip, so the grid gets
            exactly the width it has whenever the filters are open. -->
       <mat-sidenav-content>
-        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] px-3 py-3 md:px-4">
-          <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 mb-2">
-          <div class="min-w-0 flex-1">
-          <h1 class="m-0 min-w-0 text-xl font-medium text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
+        <header data-collection-header class="@container border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-lowest)] px-3 py-2 md:px-4">
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <div class="min-w-0 flex-1 md:flex-none md:max-w-64">
+          <h1 class="m-0 min-w-0 text-lg font-medium leading-6 text-[var(--mat-sys-on-surface)] truncate" [title]="store.currentAlbum()?.name || (I18N.gallery.all_photos | translate)">
             {{ store.currentAlbum()?.name || (I18N.gallery.all_photos | translate) }}
           </h1>
-          <p class="m-0 text-sm text-[var(--mat-sys-on-surface-variant)]">
+          <p role="status" class="m-0 text-xs leading-5 tabular-nums text-[var(--mat-sys-on-surface-variant)]">
             @if (!pinned() && store.photoTotal() !== store.total()) {
               {{ I18N.stacks.totals | translate:{ photos: store.photoTotal(), items: store.total() } }}
             } @else {
@@ -289,7 +292,14 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             }
           </p>
           </div>
-          <div class="flex items-center gap-1 border border-[var(--mat-sys-outline-variant)] rounded-lg p-0.5">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 items-center gap-1 md:order-none md:w-auto md:flex-1">
+            <ng-container [ngTemplateOutlet]="galleryToolbar" />
+          </div>
+          <div class="flex shrink-0 items-center gap-0.5 rounded p-0.5 bg-[var(--mat-sys-surface-container)]">
+            <button mat-button data-mobile-select class="md:!hidden !min-h-11 !min-w-0 !px-2"
+                    [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
+              {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
+            </button>
             <button mat-button data-gallery-layout="grid" class="!min-w-0 !text-[var(--mat-sys-on-surface)]"
                     [class.!bg-[var(--mat-sys-secondary-container)]]="store.galleryMode() === 'grid'"
                     [attr.aria-pressed]="store.galleryMode() === 'grid'"
@@ -303,12 +313,11 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               <mat-icon>auto_awesome_mosaic</mat-icon><span class="hidden sm:inline">{{ I18N.gallery.layout_mosaic | translate }}</span>
             </button>
           </div>
-          <app-gallery-view-controls class="max-md:w-full" />
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="flex items-center gap-2">
-            <ng-container [ngTemplateOutlet]="galleryToolbar" />
+          <div class="mt-1 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <app-gallery-criteria class="min-w-0 flex-1" />
+            <app-gallery-view-controls class="shrink-0 max-md:w-full" />
           </div>
-          <app-gallery-criteria />
         </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
@@ -329,7 +338,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
         <!-- Pinned-list chip: the assistant's ui_show_photos list replaces the filtered
              view; this is the way back to it (any filter change drops the list too). -->
         @if (store.pinnedPaths() !== null) {
-          <div role="status" class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+          <div data-pinned-summary role="status" class="mx-2 md:mx-4 mt-2 md:mt-4 px-3 py-2 rounded-md bg-[var(--mat-sys-surface-container-high)] border border-[var(--mat-sys-outline-variant)] flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
             <mat-icon class="opacity-70 !text-base !w-5 !h-5">auto_awesome</mat-icon>
             <span class="min-w-[12rem] flex-1">
               {{ store.total() | pluralKey:I18N.gallery.pinned.chip:I18N.gallery.pinned.chip_plural | translate:{ count: store.total() } }}
@@ -392,6 +401,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [config]="store.config()"
                     [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
+                    [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
                     [isActive]="row.startIndex + i === activeIndex()"
                     [gridHasActiveCard]="hasActivePhoto()"
                     [currentSort]="store.filters().sort"
@@ -399,7 +409,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [thumbSize]="thumbSize()"
                     [isEditionMode]="auth.isEdition()"
                     [personFilterId]="store.filters().person_id"
-                    [tooltipMode]="tooltipMode()"
+                    [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
                     [panelActivation]="panelActivation()"
                     (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                     (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -449,6 +459,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [attr.data-pidx]="i"
                   [config]="store.config()"
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
+                  [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
                   [hideDetails]="effectiveHideDetails()"
@@ -457,7 +468,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [thumbSize]="thumbSize()"
                   [isEditionMode]="auth.isEdition()"
                   [personFilterId]="store.filters().person_id"
-                  [tooltipMode]="tooltipMode()"
+                  [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
                       [panelActivation]="panelActivation()"
                   [style.content-visibility]="'auto'"
                   [style.contain-intrinsic-size]="'auto ' + (cardWidth() + 80) + 'px'"
@@ -517,6 +528,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       [mosaicMode]="true"
                       [config]="store.config()"
                       [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
+                      [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
                       [isActive]="row.startIndex + i === activeIndex()"
                       [gridHasActiveCard]="hasActivePhoto()"
                       [currentSort]="store.filters().sort"
@@ -524,7 +536,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       [thumbSize]="thumbSize()"
                       [isEditionMode]="auth.isEdition()"
                       [personFilterId]="store.filters().person_id"
-                      [tooltipMode]="tooltipMode()"
+                      [tooltipMode]="selectionAffordance() && !isDesktop() ? 'off' : tooltipMode()"
                       [panelActivation]="panelActivation()"
                       (selectionChange)="toggleSelection($event.photo, $event.event, row.startIndex + i)"
                       (tooltipShow)="showTooltip($event.event, $event.photo)"
@@ -1110,6 +1122,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  long-press behaviour is kept. Read once, unlike the looser `(hover: none)`
    *  behind `isTouchDevice`, which only steers the tooltip. */
   protected readonly touchOnly = signal(false);
+  protected readonly selectionAffordance = signal(false);
+  protected readonly selectingPhotos = computed(() => this.selectionAffordance() || this.selectionCount() > 0);
   /** Grid index of the card the photo menu was opened on, for focus hand-back. */
   private photoMenuIndex = -1;
 
@@ -1129,7 +1143,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   readonly galleryColsStyle = computed(() =>
     this.isDesktop()
       ? `repeat(auto-fill, minmax(${this.cardWidth()}px, 1fr))`
-      : `repeat(${this.gridColumns()}, 1fr)`,
+      : `repeat(${this.gridColumns()}, minmax(0, 1fr))`,
   );
 
   /** Skeleton placeholders for the initial load (matches a typical first page). */
@@ -1169,7 +1183,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Which gesture(s) retarget the docked panel — only meaningful when tooltipMode is 'panel'. */
   readonly panelActivation = computed(() => this.store.filters().panel_activation);
   /** Whether tooltip is fully disabled (off mode) — used for skipping rendering and hover handlers */
-  readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off');
+  readonly tooltipDisabled = computed(() => this.tooltipMode() === 'off' || (this.selectionAffordance() && !this.isDesktop()));
 
   /** Docked rail needs real width, not merely "not a phone". */
   readonly panelMode = computed(() => this.tooltipMode() === 'panel' && this.railWide.isDesktop());
@@ -1184,7 +1198,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    * and the rail is a standing preference to come back to once they are closed.
    */
   readonly detailsRailVisible = computed(
-    () => this.panelMode() && (!this.store.filterDrawerOpen() || this.pinned()),
+    () => this.panelMode() && this.panelPhoto() !== null && (!this.store.filterDrawerOpen() || this.pinned()),
   );
 
   /** Set kinds whose sets are currently collapsed behind one frame.
@@ -1488,9 +1502,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  'over' drawer hides the stack entirely, so the countdown waits and starts
    *  afresh when it closes. A stack that leaves the DOM fires no pointerleave,
    *  so it also clears the pointer hold. */
+  private noticeLayoutWide: boolean | undefined;
   private readonly noticeCollapseLifecycle = effect(() => {
     const signature = this.noticesSignature();
     const drawerOpen = this.overDrawerOpen();
+    const wide = this.isDesktop();
+    const becameNarrow = !wide && this.noticeLayoutWide !== false;
+    this.noticeLayoutWide = wide;
     untracked(() => {
       const previous = this.noticeSignatureSeen;
       const drawerWasOpen = this.noticeDrawerSeen;
@@ -1507,9 +1525,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
         return;
       }
       this.noticeSignatureSeen = signature;
-      if (signature !== previous) {
-        this.noticesCollapsed.set(false);
-        this.armNoticeCollapse();
+      if (signature !== previous || becameNarrow) {
+        this.noticesCollapsed.set(!wide);
+        if (wide) this.armNoticeCollapse(); else this.disarmNoticeCollapse();
       } else if (drawerWasOpen && !this.noticesCollapsed()) {
         this.armNoticeCollapse();
       }
@@ -1734,7 +1752,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     // this drawer, so it keeps the strip open on its own once the filters close.
     effect(() => {
       // The persisted flag is left alone while pinned: the drawer only stays shut.
-      const open = (this.store.filterDrawerOpen() && !this.pinned()) || this.panelMode();
+      const open = (this.store.filterDrawerOpen() && !this.pinned()) || this.detailsRailVisible();
       const drawer = this.filterDrawer();
       if (!drawer) return;
       if (open) drawer.open();
@@ -2003,7 +2021,19 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   protected clearSelection(): void {
     this.store.clearSelection();
+    this.selectionAffordance.set(false);
     this.restoreCursorFocus();
+  }
+
+  protected toggleMobileSelection(): void {
+    if (this.parked || this.router.currentNavigation?.() || this.overDrawerOpen() || this.dialog.openDialogs.length || this.store.slideshowActive()) return;
+    if (this.selectingPhotos()) {
+      this.store.clearSelection();
+      this.selectionAffordance.set(false);
+    } else {
+      this.tooltipPhoto.set(null);
+      this.selectionAffordance.set(true);
+    }
   }
 
   /** Keep DOM focus wherever the marker is, so that a drawn marker always means
@@ -2308,7 +2338,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
     if (!Number.isInteger(rating) || rating < 0 || rating > 5) return;
     const target = this.captureSelectionContext();
     const token = this.auth.token;
-    const guard = this.staleness.create(this.destroyRef, { track: 'status' });
+    let closePreview = () => {};
+    const guard = this.staleness.create(this.destroyRef, { track: 'status', onNavigate: () => closePreview() });
     try {
       if (!guard.current()) return;
       const paths = await this.resolveSelectionPaths(null);
@@ -2329,7 +2360,13 @@ export class GalleryComponent implements OnInit, OnDestroy {
       const ref = this.dialog.open(BatchRatingDialogComponent, { width: '95vw', maxWidth: '540px', data: {
         paths, rating, loaded, wholeView: target.viewScoped, observed: [...observed].map(([rating, count]) => ({ rating, count })),
       } });
-      const chosen = await firstValueFrom(ref.afterClosed());
+      closePreview = () => ref.close();
+      const watch = effect(() => {
+        if (!guard.current() || this.auth.token !== token) ref.close();
+      }, { injector: this.injector });
+      let chosen: number | undefined;
+      try { chosen = await firstValueFrom(ref.afterClosed()); }
+      finally { watch.destroy(); }
       if (chosen === undefined || !Number.isInteger(chosen) || chosen < 0 || chosen > 5 || !guard.current() || this.auth.token !== token) return;
       const result = await this.store.batchRatingPaths(paths, chosen);
       if (!result || !guard.current()) return;
@@ -3299,7 +3336,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Columns per row in grid mode (mirrors the CSS auto-fill column math). */
   private gridColumns(): number {
     const width = this.containerWidth() - (this.isDesktop() ? 32 : 16);
-    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP, this.isDesktop());
+    return gridColumnCount(width, this.cardWidth(), GalleryComponent.ROW_GAP, this.isDesktop(), this.effectiveHideDetails() ? MOBILE_MIN_COLUMNS : MOBILE_DETAILS_MIN_COLUMNS);
   }
 
   /** Vertical step for the active index: grid = ±columns, mosaic = same offset in adjacent row. */

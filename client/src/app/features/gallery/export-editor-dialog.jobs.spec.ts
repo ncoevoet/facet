@@ -29,15 +29,17 @@ describe('Export editor background jobs with HttpClient', () => {
   let snack: ReturnType<typeof vi.fn>;
   let events: Subject<NavigationStart>;
   let beforeClosed: Subject<void>;
+  let token: string;
   let session: ReturnType<typeof signal<{ user: string; edition: boolean; revision: number }>>;
 
   function build(data: ExportEditorDialogData = { paths: ['/a.jpg'] }, flushRecent = true): void {
+    token = 'session-a';
     session = signal({ user: 'alice', edition: true, revision: 1 });
     events = new Subject(); beforeClosed = new Subject();
     close = vi.fn(); snack = vi.fn();
     TestBed.configureTestingModule({ imports: [ExportEditorDialogComponent], providers: [
       ApiService, ExportService, provideHttpClient(withXhr()), provideHttpClientTesting(),
-      { provide: AuthService, useValue: { identity: computed(() => session().user), isEdition: computed(() => session().edition) } },
+      { provide: AuthService, useValue: { status: session, get token() { return token; }, identity: computed(() => session().user), isEdition: computed(() => session().edition) } },
       { provide: Router, useValue: { url: '/', events } },
       { provide: MAT_DIALOG_DATA, useValue: data },
       { provide: MatDialogRef, useValue: { close, beforeClosed: () => beforeClosed } },
@@ -103,6 +105,33 @@ describe('Export editor background jobs with HttpClient', () => {
     await retry; fixture!.detectChanges();
     expect(component.job()?.id).toBe('repair');
     expect(close).not.toHaveBeenCalled();
+  });
+
+  it('closes a pending receipts read after same-owner token rotation, but retains stable-token revalidation', async () => {
+    build({ receiptsOnly: true }, false);
+    const request = http.expectOne('/api/export/sidecar_jobs');
+    session.update(value => ({ ...value, revision: 2 })); TestBed.tick();
+    expect(close).not.toHaveBeenCalled();
+    expect(request.cancelled).toBe(false);
+    token = 'session-b';
+    session.update(value => ({ ...value, revision: 3 })); TestBed.tick();
+    await flushMicrotasks(2);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(request.cancelled).toBe(true);
+    expect(component.recentLoading()).toBe(false);
+    await component.loadRecent(); await component.run();
+    http.expectNone('/api/export/sidecar_jobs');
+  });
+
+  it('captures export scope and refuses a retry after same-owner token rotation', async () => {
+    const data = { paths: ['/a.jpg'] }; build(data); data.paths.push('/later.jpg');
+    await start(job({ state: 'failed', processed: 1, errors: 1 }));
+    // start() verified the real request; changing the caller array cannot retarget it.
+    expect(component.lightroomScope()).toEqual({ paths: ['/a.jpg'] });
+    token = 'session-b';
+    await component.retryJob(); await component.cancelJob(); await component.run();
+    http.expectNone(request => request.method === 'POST');
+    expect(component.job()?.state).toBe('failed');
   });
 
   it('recovers a transient failed poll with reads only and shows terminal progress', async () => {

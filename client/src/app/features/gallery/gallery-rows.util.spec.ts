@@ -169,6 +169,15 @@ describe('buildGridRows', () => {
     expect(rows[0].height).toBe(Math.round(cellW / (4 / 3)) + DETAILS_ESTIMATE_PX);
   });
 
+  it('gives phone metadata two readable columns while image-only browsing keeps three', () => {
+    const detailed = buildGridRows(photos(4), 359, 168, 8, false, false);
+    const imageOnly = buildGridRows(photos(4), 359, 168, 8, true, false);
+    expect(detailed.map(row => row.photos.length)).toEqual([2, 2]);
+    expect(detailed[0].widths).toEqual([175, 175]);
+    expect(imageOnly.map(row => row.photos.length)).toEqual([3, 1]);
+    expect(gridColumnCount(359, 168, 8, false, 2)).toBe(detailed[0].photos.length);
+  });
+
   it('a single natural column uses aspect-ratio height', () => {
     // width 150 < cardMinW 168 -> naturally floors to 1 column, full-width cell
     const rows = buildGridRows([photo(0, 1000, 500)], 150, 168, 8, true);

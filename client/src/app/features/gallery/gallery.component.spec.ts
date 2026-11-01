@@ -107,6 +107,7 @@ describe('GalleryComponent', () => {
       filterDrawerOpen: signal(false),
       reviewProgressVisible: signal(true), setReviewProgressVisible: vi.fn(),
       currentAlbum: signal(null),
+      temporaryReviewQueue: signal(false),
       initializing: signal(false),
       galleryMounts: signal(0),
       galleryMode: signal('mosaic'),
@@ -260,6 +261,61 @@ describe('GalleryComponent', () => {
     component = TestBed.runInInjectionContext(() => new GalleryComponent());
   });
 
+  it.each(['navigation', 'edition'] as const)('closes the captured rating preview after %s invalidates it without applying', async ending => {
+    (mockAuth['isEdition'] as Mock).mockReturnValue(true);
+    mockStore.selectedPaths.set(new Set(['/rating.jpg'])); mockStore.selectionCount.set(1);
+    mockStore.photos.set([{ path: '/rating.jpg', filename: 'rating.jpg', star_rating: 0 }]);
+    mockStore.batchRatingPaths = vi.fn();
+    const closed = new Subject<number | undefined>();
+    const ref = { afterClosed: () => closed, close: vi.fn(() => { closed.next(undefined); closed.complete(); }) };
+    const open = TestBed.inject(MatDialog).open as Mock; open.mockReturnValue(ref);
+    const operation = component['batchRate'](3);
+    await vi.waitFor(() => expect(open).toHaveBeenCalled()); TestBed.tick();
+    if (ending === 'navigation') (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(22, '/albums'));
+    else { (mockAuth['isEdition'] as Mock).mockReturnValue(false); (mockAuth['status'] as WritableSignal<unknown>).update(value => ({ ...(value as object), edition_authenticated: false })); TestBed.tick(); }
+    await operation;
+    expect(ref.close).toHaveBeenCalled(); expect(mockStore.batchRatingPaths).not.toHaveBeenCalled();
+  });
+
+  it('applies captured rating membership and wires rating-only Undo while preserving a newer selection', async () => {
+    (mockAuth['isEdition'] as Mock).mockReturnValue(true);
+    const paths = ['/rating-a.jpg', '/rating-b.jpg'];
+    mockStore.selectedPaths.set(new Set(paths)); mockStore.selectionCount.set(2);
+    mockStore.photos.set(paths.map((path, index) => ({ path, filename: path, star_rating: index * 4 })));
+    const snapshot = new Map(paths.map((path, index) => [path, {
+      is_favorite: false, is_rejected: false, is_kept: false, star_rating: index * 4,
+    }]));
+    let completeWrite!: (result: { snapshot: typeof snapshot; targeted: number; count: number }) => void;
+    mockStore.batchRatingPaths = vi.fn(() => new Promise(resolve => { completeWrite = resolve; }));
+    mockStore.restoreRatingSnapshot = vi.fn().mockResolvedValue(true);
+    const register = vi.spyOn(TestBed.inject(UndoService), 'register').mockImplementation(() => {});
+    const closed = new Subject<number | undefined>();
+    const open = TestBed.inject(MatDialog).open as Mock;
+    open.mockReturnValue({ afterClosed: () => closed, close: vi.fn() });
+
+    const operation = component['batchRate'](3);
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    expect(open.mock.calls[0][1].data).toEqual(expect.objectContaining({
+      paths, rating: 3, loaded: 2, wholeView: false,
+      observed: [{ rating: 0, count: 1 }, { rating: 4, count: 1 }],
+    }));
+    expect(mockStore.batchRatingPaths).not.toHaveBeenCalled();
+    closed.next(3); closed.complete();
+    await vi.waitFor(() => expect(mockStore.batchRatingPaths).toHaveBeenCalledWith(paths, 3));
+    mockStore.selectedPaths.set(new Set(['/newer.jpg'])); mockStore.selectionCount.set(1);
+    completeWrite({ snapshot, targeted: 2, count: 2 }); await operation;
+
+    expect(mockStore.selectedPaths()).toEqual(new Set(['/newer.jpg']));
+    expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    expect(register).toHaveBeenCalledWith(expect.objectContaining({
+      labelKey: 'gallery.selection.batch_rated', labelParams: { count: 2, rating: 3 },
+    }));
+    await register.mock.calls[0][0].undo();
+    expect(mockStore.restoreRatingSnapshot).toHaveBeenCalledWith(snapshot, 3);
+    expect([...mockStore.restoreSelection.mock.calls[0][0]]).toEqual(paths);
+    expect(mockStore.restoreSnapshot).not.toHaveBeenCalled();
+  });
+
   it('owns matching/group counts and shows exact item totals for an assistant-pinned list', () => {
     vi.spyOn(TestBed.inject(I18nService), 't').mockImplementation((key, params) => {
       if (key === I18N.gallery.photo_count) return `${params?.['count']} photos`;
@@ -272,10 +328,14 @@ describe('GalleryComponent', () => {
     fixture.detectChanges();
     const header = fixture.nativeElement.querySelector('[data-collection-header]') as HTMLElement;
     expect(header.textContent).toContain('4 photos / 2 groups');
+    const status = header.querySelector('[role="status"]');
+    expect(status?.textContent).toContain('4 photos / 2 groups');
     mockStore.pinnedPaths.set(['/a.jpg', '/b.jpg']);
     fixture.detectChanges();
     expect(header.textContent).toContain('2 photos');
     expect(header.textContent).not.toContain('4 photos');
+    expect(header.querySelector('[role="status"]')).toBe(status);
+    expect(status?.textContent).toContain('2 photos');
     fixture.destroy();
   });
 
@@ -308,6 +368,62 @@ describe('GalleryComponent', () => {
     expect(mosaic.getAttribute('aria-pressed')).toBe('false');
     expect(mockStore.filters()).toBe(filters);
     expect([...mockStore.selectedPaths()]).toEqual(['/selected.jpg']);
+    fixture.destroy();
+  });
+
+  it('offers explicit mobile Select and Cancel without changing the collection or writing metadata', () => {
+    mockAuth['isEdition'] = vi.fn(() => false);
+    mockStore.galleryMode.set('grid');
+    mockStore.photos.set([makePhoto({ path: '/a.jpg' }), makePhoto({ path: '/b.jpg' })]);
+    mockStore.clearSelection.mockImplementation(() => {
+      mockStore.selectedPaths.set(new Set());
+      mockStore.selectionCount.set(0);
+    });
+    const fixture = TestBed.createComponent(GalleryComponent);
+    Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
+    Object.defineProperty(fixture.debugElement.injector.get(MatDialog), 'openDialogs', { value: [] });
+    fixture.componentInstance['containerWidth'].set(375);
+    mockStore.filters.update((filters: GalleryFilters) => ({ ...filters, tooltip_mode: 'click' }));
+    fixture.componentInstance['tooltipPhoto'].set(mockStore.photos()[0]);
+    fixture.detectChanges();
+    const query = mockStore.filters();
+    expect(fixture.componentInstance.tooltipDisabled()).toBe(false);
+    const button = fixture.nativeElement.querySelector('[data-mobile-select]') as HTMLButtonElement;
+    expect(button.textContent).toContain(I18N.gallery.selection.select);
+    button.click();
+    fixture.detectChanges();
+    expect(button.getAttribute('aria-pressed')).toBe('true');
+    expect(button.textContent).toContain(I18N.ui.buttons.cancel);
+    expect(fixture.componentInstance['tooltipPhoto']()).toBeNull();
+    expect(fixture.componentInstance.tooltipDisabled()).toBe(true);
+    expect(fixture.nativeElement.querySelectorAll('[data-selection-affordance]')).toHaveLength(2);
+    expect(fixture.debugElement.queryAll(By.directive(PhotoCardComponent))
+      .every(card => card.componentInstance.tooltipMode() === 'off')).toBe(true);
+    expect(mockStore.selectAll).not.toHaveBeenCalled();
+    expect(mockStore.selectedPaths().size).toBe(0);
+    mockStore.selectedPaths.set(new Set(['/a.jpg']));
+    mockStore.selectionCount.set(1);
+    fixture.detectChanges();
+    button.click();
+    fixture.detectChanges();
+    expect(mockStore.selectedPaths().size).toBe(0);
+    expect(button.getAttribute('aria-pressed')).toBe('false');
+    expect(fixture.nativeElement.querySelector('[data-selection-affordance]')).toBeNull();
+    expect(mockStore.filters()).toBe(query);
+    expect(fixture.componentInstance.tooltipDisabled()).toBe(false);
+    expect(mockApi.post).not.toHaveBeenCalled();
+    fixture.destroy();
+  });
+
+  it('does not let a parked mobile Select control clear a later selection', () => {
+    mockStore.selectedPaths.set(new Set(['/later.jpg']));
+    mockStore.selectionCount.set(1);
+    const fixture = TestBed.createComponent(GalleryComponent);
+    fixture.detectChanges();
+    (fixture.componentInstance as any).parked = true;
+    fixture.nativeElement.querySelector('[data-mobile-select]').click();
+    expect(mockStore.clearSelection).not.toHaveBeenCalled();
+    expect([...mockStore.selectedPaths()]).toEqual(['/later.jpg']);
     fixture.destroy();
   });
 
@@ -1481,7 +1597,7 @@ describe('GalleryComponent', () => {
       mockAuth['hasFeature'] = vi.fn(() => false);
       fixture = TestBed.createComponent(GalleryComponent);
       fixture.detectChanges();
-      const chip = (fixture.nativeElement as HTMLElement).querySelector('[role="status"]')!;
+      const chip = (fixture.nativeElement as HTMLElement).querySelector('[data-pinned-summary][role="status"]')!;
       expect(chip.querySelectorAll('button')).toHaveLength(1);
       expect(chip.querySelector('[data-testid="pinned-review-legend"], [data-testid="copy-for-assistant"], [data-testid="apply-my-marks"], [data-testid="applied-menu"]')).toBeNull();
     });
@@ -1566,6 +1682,8 @@ describe('GalleryComponent', () => {
   describe('floating advisory notices', () => {
     function render(): HTMLElement {
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -1621,6 +1739,7 @@ describe('GalleryComponent', () => {
     it('stacks the migration notice below the hidden notice and its close removes only it', () => {
       mockStore.config.set({ render_migration: { pending: 12 } });
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const cards = Array.from(stack(html)!.querySelectorAll('[role="status"]'));
@@ -1636,6 +1755,7 @@ describe('GalleryComponent', () => {
 
     it('closes the hidden-photos notice without touching the filters, and reopens it when the hidden count changes', () => {
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const before = mockStore.filters();
@@ -1652,6 +1772,7 @@ describe('GalleryComponent', () => {
 
     it('keeps each scope\'s closed notice closed on return, and ignores re-sorting', () => {
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       closeFor(html, I18N.gallery.hidden_banner.message).click();
@@ -1676,6 +1797,7 @@ describe('GalleryComponent', () => {
       mockStore.hiddenSummary.set({ total: 0, blinks: 0, bursts: 0, duplicates: 0, brackets: 0, panoramas: 0 });
       mockStore.reviewBookmark.set({ path: '/p1.jpg', filters: { tag: 'a' } });
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       closeFor(html, I18N.gallery.review_progress.browser).click();
@@ -1698,6 +1820,7 @@ describe('GalleryComponent', () => {
       });
       mockStore.filters.set({ ...DEFAULT_FILTERS, hide_blinks: false, hide_bursts: false, hide_duplicates: false, hide_brackets: false, hide_panoramas: false });
       const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
       fixture.detectChanges();
       const html = fixture.nativeElement as HTMLElement;
       const before = mockStore.filters();
@@ -1728,6 +1851,7 @@ describe('GalleryComponent', () => {
       });
       try {
         const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
         Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true) });
         mockStore.filterDrawerOpen.set(true);
         fixture.detectChanges();
@@ -1754,6 +1878,7 @@ describe('GalleryComponent', () => {
       };
       const renderFixture = () => {
         const fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(true), configurable: true });
         fixture.detectChanges();
         return fixture;
       };
@@ -2032,9 +2157,22 @@ describe('GalleryComponent', () => {
         mockStore.selectionCount.set(0);
       });
 
-      it('disableClose follows the rail: false while the filters occupy the drawer', () => {
+      it('leaves the photo canvas full-width until the inspector has an owner', () => {
         const fixture = TestBed.createComponent(GalleryComponent);
         (fixture.componentInstance as unknown as { railWide: { setup(): void } }).railWide.setup();
+        fixture.detectChanges();
+        expect(fixture.componentInstance.panelMode()).toBe(true);
+        expect(fixture.componentInstance.detailsRailVisible()).toBe(false);
+        expect(fixture.nativeElement.querySelector('[data-details-rail]')).toBeNull();
+        fixture.destroy();
+      });
+
+      it('disableClose follows the rail: false while the filters occupy the drawer', () => {
+        mockStore.photos.set([makePhoto({ path: '/inspected.jpg', filename: 'inspected.jpg' })]);
+        Object.assign(mockApi, { get: vi.fn(() => of({})) });
+        const fixture = TestBed.createComponent(GalleryComponent);
+        (fixture.componentInstance as unknown as { railWide: { setup(): void } }).railWide.setup();
+        fixture.componentInstance['setCursor'](0);
         fixture.detectChanges();
         const drawer = fixture.debugElement.query(By.directive(MatSidenav)).componentInstance as MatSidenav;
         expect(fixture.componentInstance.detailsRailVisible()).toBe(true);
@@ -5265,9 +5403,10 @@ describe('GalleryComponent', () => {
   describe('review-progress banner (rendered)', () => {
     let fixture: ComponentFixture<GalleryComponent>;
 
-    function render(): HTMLElement {
+    function render(wide = true): HTMLElement {
       mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
       fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(wide), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -5312,7 +5451,7 @@ describe('GalleryComponent', () => {
     it('renders the decision counts and completion for the scope', () => {
       mockStore.reviewProgress.set({ total: 10, undecided: 6, kept: 3, rejected: 1 });
       mockStore.reviewPercent.set(40);
-      const status = render().querySelector('[role="status"]') as HTMLElement;
+      const status = render().querySelector('[data-review-progress] [role="status"]') as HTMLElement;
       expect(status.textContent).toContain(`${I18N.gallery.review_progress.counts} ${JSON.stringify({ undecided: 6, kept: 3, rejected: 1 })}`);
       expect(status.textContent).toContain(`${I18N.gallery.review_progress.complete} ${JSON.stringify({ percent: 40, total: 10 })}`);
     });
@@ -5347,9 +5486,10 @@ describe('GalleryComponent', () => {
   describe('notice stack auto-collapse (rendered)', () => {
     let fixture: ComponentFixture<GalleryComponent>;
 
-    function render(): HTMLElement {
+    function render(wide = true): HTMLElement {
       mockI18n.t.mockImplementation((key: string, vars?: Record<string, unknown>) => (vars ? `${key} ${JSON.stringify(vars)}` : key));
       fixture = TestBed.createComponent(GalleryComponent);
+      Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(wide), configurable: true });
       fixture.detectChanges();
       return fixture.nativeElement as HTMLElement;
     }
@@ -5493,7 +5633,8 @@ describe('GalleryComponent', () => {
     });
 
     it('waits while the mobile drawer covers the stack and starts afresh when it closes', () => {
-      const host = render();
+      const host = render(false);
+      pill(host)!.click(); fixture.detectChanges();
       vi.advanceTimersByTime(3000);
       mockStore.filterDrawerOpen.set(true);
       fixture.detectChanges();

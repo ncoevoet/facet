@@ -27,9 +27,9 @@ import { GalleryStore } from '../gallery/gallery.store';
       </div>
     }
     @if (visibleStack(); as group) {
-      <nav data-stack-navigator [attr.aria-label]="I18N.stacks.title | translate" class="border-b border-[var(--mat-sys-outline-variant)] px-2 py-1 min-w-0">
-        <div class="flex items-center gap-1 flex-wrap">
-          <span class="text-sm font-medium">{{ I18N.stacks.title | translate }}</span>
+      <nav data-stack-navigator [attr.aria-label]="I18N.stacks.title | translate" class="flex items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] px-2 py-1 min-w-0">
+        <div class="flex shrink-0 items-center gap-1">
+          <span class="hidden sm:inline text-sm font-medium">{{ I18N.stacks.title | translate }}</span>
           <button mat-icon-button data-stack-prev (click)="step(-1)" [disabled]="position() <= 0"
             [attr.aria-label]="I18N.stacks.previous | translate"><mat-icon>chevron_left</mat-icon></button>
           <span data-stack-position role="status" class="text-sm">{{ I18N.stacks.browse_position | translate:{ position: position() + 1, count: members().length } }}</span>
@@ -39,14 +39,14 @@ import { GalleryStore } from '../gallery/gallery.store';
             <button mat-button data-stack-manage (click)="manage()">{{ I18N.stacks.manage | translate }}</button>
           }
         </div>
-        <div class="flex gap-2 overflow-x-auto py-1">
+        <div class="flex flex-1 min-w-0 gap-2 overflow-x-auto py-1">
           @for (member of members(); track member.path) {
             <button #thumbnail data-stack-thumbnail class="shrink-0 rounded overflow-hidden cursor-pointer focus-visible:outline-2 border-2 border-transparent"
               [class.border-[var(--mat-sys-primary)]]="member.path === path()"
               [attr.aria-current]="member.path === path() ? 'true' : null"
               [attr.aria-label]="I18N.stacks.open_member | translate:{ path: member.path }"
               (click)="openMember(member.path)">
-              <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" loading="lazy" decoding="async" class="w-14 h-12 object-cover" />
+              <img [src]="member.path | thumbnailUrl:96:member.preview_revision" alt="" loading="lazy" decoding="async" class="w-12 h-11 object-cover" />
             </button>
           }
         </div>
