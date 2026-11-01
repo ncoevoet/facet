@@ -20,7 +20,6 @@ import { toIsoDateString } from '../../utils/date-format';
 import { firstValueFrom } from 'rxjs';
 import { Photo, normalisePhotoFlagsAll } from '../../models/photo.model';
 import { ApiService } from '../../../core/services/api.service';
-import { AuthService } from '../../../core/services/auth.service';
 import { I18nService } from '../../../core/services/i18n.service';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { SortGroupKeyPipe } from '../../pipes/sort-group-key.pipe';
@@ -28,7 +27,8 @@ import { FilterDisplayPipe } from '../../pipes/filter-display.pipe';
 import { AdditionalFilterDef } from '../../models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../utils/range-filter';
 import { useDesktopSignal } from '../../utils/media-query';
-import { downloadAll } from '../../utils/download';
+import { downloadBlob } from '../../utils/download';
+import { SharedAlbumMediaScope, sharedAlbumMediaUrl } from '../../utils/shared-album-media';
 import { basename, copyLines } from '../../utils/clipboard';
 import {
   SECTION_ORDER, FILTERS_BY_SECTION,
@@ -369,6 +369,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
                     <div class="relative" [style.width.px]="row.widths[i]" [style.height.px]="row.height">
                       <app-photo-card
                         [photo]="photo"
+                        [sharedAlbum]="mediaScope()"
                         [config]="cardConfig()"
                         [hideDetails]="true"
                         [mosaicMode]="true"
@@ -394,6 +395,7 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
                   <div class="relative">
                     <app-photo-card
                       [photo]="photo"
+                      [sharedAlbum]="mediaScope()"
                       [config]="cardConfig()"
                       [hideDetails]="true"
                       [isEditionMode]="false"
@@ -423,19 +425,8 @@ const HIDE_TOGGLE_KEYS = ['hide_blinks', 'hide_bursts', 'hide_duplicates'] as co
             <button mat-button class="!hidden lg:!inline-flex" (click)="clearSelection()"><mat-icon>close</mat-icon> {{ I18N.gallery.selection.clear | translate }}</button>
             <button mat-icon-button class="lg:!hidden" (click)="copyPaths()" [matTooltip]="I18N.gallery.selection.copy_filenames | translate" [attr.aria-label]="I18N.gallery.selection.copy_filenames | translate"><mat-icon>content_copy</mat-icon></button>
             <button mat-button class="!hidden lg:!inline-flex" (click)="copyPaths()"><mat-icon>content_copy</mat-icon> {{ I18N.gallery.selection.copy_filenames | translate }}</button>
-            @if (auth.downloadProfiles().length) {
-              <button mat-icon-button class="lg:!hidden" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate" [attr.aria-label]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
-              <button mat-flat-button class="!hidden lg:!inline-flex" [matMenuTriggerFor]="dlMenu" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
-              <mat-menu #dlMenu="matMenu">
-                <button mat-menu-item (click)="downloadSelected()"><mat-icon>image</mat-icon> {{ I18N.download.type_original | translate }}</button>
-                @for (profile of auth.downloadProfiles(); track profile) {
-                  <button mat-menu-item (click)="downloadSelected('darktable', profile)"><mat-icon>photo_filter</mat-icon> {{ profile }}</button>
-                }
-              </mat-menu>
-            } @else {
-              <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate" [attr.aria-label]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
+            <button mat-icon-button class="lg:!hidden" (click)="downloadSelected()" [disabled]="downloading()" [matTooltip]="I18N.gallery.selection.download | translate" [attr.aria-label]="I18N.gallery.selection.download | translate">@if (downloading()) { <mat-spinner diameter="24" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> }</button>
               <button mat-flat-button class="!hidden lg:!inline-flex" (click)="downloadSelected()" [disabled]="downloading()">@if (downloading()) { <mat-spinner diameter="18" class="!inline-block !align-baseline" [attr.aria-label]="I18N.ui.labels.loading | translate" ></mat-spinner> } @else { <mat-icon>download</mat-icon> } {{ downloading() ? (I18N.photo_detail.downloading | translate) : (I18N.gallery.selection.download | translate) }}</button>
-            }
           </div>
         </div>
       }
@@ -539,7 +530,6 @@ export class SharedViewComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly api = inject(ApiService);
-  protected readonly auth = inject(AuthService);
   private readonly i18n = inject(I18nService);
   private readonly snackBar = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
@@ -718,6 +708,14 @@ export class SharedViewComponent implements OnInit {
 
   private entityId = 0;
   private token = '';
+  protected readonly mediaScope = signal<SharedAlbumMediaScope | null>(null);
+  private requestEpoch = 0;
+
+  private mediaCurrent(scope: SharedAlbumMediaScope): boolean {
+    return !this.destroyRef.destroyed && this.mediaScope() === scope
+      && this.route.snapshot.queryParamMap.get('token') === scope.token
+      && Number(this.route.snapshot.paramMap.get('albumId')) === scope.albumId;
+  }
   private currentPage = 1;
   private sortApplied = false;
   private resizeObserver: ResizeObserver | null = null;
@@ -756,15 +754,18 @@ export class SharedViewComponent implements OnInit {
     this.entityId = Number(this.route.snapshot.paramMap.get('albumId'));
     this.token = this.route.snapshot.queryParamMap.get('token') ?? '';
 
-    if (!this.entityId || !this.token) {
+    if (!Number.isSafeInteger(this.entityId) || this.entityId <= 0 || !this.token) {
       this.error.set(this.i18n.t(I18N.albums.invalid_share_link));
       this.loading.set(false);
       return;
     }
+    const scope = { albumId: this.entityId, token: this.token };
+    this.mediaScope.set(scope);
 
     // Fetch config for quality thresholds (used by photo cards)
     try {
       const cfg = await firstValueFrom(this.api.get<Partial<ViewerConfig>>('/config'));
+      if (!this.mediaCurrent(scope)) return;
       this.config.set(cfg);
       // Manual albums start with the owner's own hide toggles, not all-off —
       // otherwise a shared link shows every burst frame while the owner sees one.
@@ -773,7 +774,7 @@ export class SharedViewComponent implements OnInit {
       // Non-critical — continue without config
     }
 
-    await this.loadPage(1);
+    if (this.mediaCurrent(scope)) await this.loadPage(1);
   }
 
   protected onSortChange(value: string): void {
@@ -819,6 +820,8 @@ export class SharedViewComponent implements OnInit {
 
   /** Reload photos without destroying the DOM (no loading spinner). */
   private async refreshFiltered(): Promise<void> {
+    this.loading.set(true);
+    this.loadingMore.set(false);
     this.currentPage = 1;
     await this.loadPage(1);
   }
@@ -826,9 +829,13 @@ export class SharedViewComponent implements OnInit {
   protected onScrollReached(): void {
     if (this.hasMore() && !this.loadingMore() && !this.loading()) {
       this.loadingMore.set(true);
-      this.loadPage(this.currentPage + 1, true)
-        .then(() => this.scrollDirective()?.recheck())
-        .finally(() => this.loadingMore.set(false));
+      const request = this.loadPage(this.currentPage + 1, true);
+      const epoch = this.requestEpoch;
+      request.then(() => {
+        if (epoch === this.requestEpoch && !this.destroyRef.destroyed) this.scrollDirective()?.recheck();
+      }).finally(() => {
+        if (epoch === this.requestEpoch && !this.destroyRef.destroyed) this.loadingMore.set(false);
+      });
     }
   }
 
@@ -869,13 +876,21 @@ export class SharedViewComponent implements OnInit {
   }
 
   protected async downloadSelected(type = 'original', profile?: string): Promise<void> {
+    const scope = this.mediaScope();
+    if (!scope || type !== 'original' || profile || this.downloading()) return;
+    const current = () => this.mediaCurrent(scope);
+    if (!current()) return;
+    const paths = [...this.selectedPaths()];
     this.downloading.set(true);
     try {
-      await downloadAll(
-        [...this.selectedPaths()],
-        path => this.api.downloadUrl(path, type, profile, this.token),
-        url => this.api.getRaw(url),
-      );
+      for (const path of paths) {
+        if (!current()) break;
+        const blob = await firstValueFrom(this.api.getRaw(sharedAlbumMediaUrl(scope, 'download', path)));
+        if (!current()) break;
+        downloadBlob(blob, path.split(/[\\/]/).pop() ?? '');
+      }
+    } catch {
+      if (current()) this.error.set(this.i18n.t(I18N.albums.load_error));
     } finally {
       this.downloading.set(false);
     }
@@ -1025,28 +1040,33 @@ export class SharedViewComponent implements OnInit {
     this.resizeObserver?.disconnect();
     this.resizeObserver = null;
     this.loading.set(true);
+    this.loadingMore.set(false);
     this.photos.set([]);
     this.currentPage = 1;
     await this.loadPage(1);
   }
 
   private async loadPage(page: number, append = false): Promise<void> {
+    const scope = this.mediaScope();
+    if (!scope || !this.mediaCurrent(scope)) return;
+    const epoch = ++this.requestEpoch;
     try {
-      await this.loadAlbumPage(page, append);
+      await this.loadAlbumPage(page, append, scope, epoch);
     } catch (e: unknown) {
+      if (epoch !== this.requestEpoch || !this.mediaCurrent(scope)) return;
       if (e instanceof HttpErrorResponse && (e.status === 403 || e.status === 401)) {
         this.error.set(this.i18n.t(I18N.albums.share_link_revoked));
       } else {
         this.error.set(this.i18n.t(I18N.albums.load_error));
       }
     } finally {
-      this.loading.set(false);
+      if (epoch === this.requestEpoch && this.mediaCurrent(scope)) this.loading.set(false);
     }
   }
 
-  private async loadAlbumPage(page: number, append: boolean): Promise<void> {
+  private async loadAlbumPage(page: number, append: boolean, scope: SharedAlbumMediaScope, epoch: number): Promise<void> {
     const params: Record<string, string | number> = {
-      token: this.token,
+      token: scope.token,
       page,
     };
 
@@ -1066,8 +1086,9 @@ export class SharedViewComponent implements OnInit {
     }
 
     const res = await firstValueFrom(
-      this.api.get<SharedAlbumResponse>(`/shared/album/${this.entityId}`, params),
+      this.api.get<SharedAlbumResponse>(`/shared/album/${scope.albumId}`, params),
     );
+    if (epoch !== this.requestEpoch || !this.mediaCurrent(scope)) return;
     this.entityName.set(res.album.name);
     this.description.set(res.album.description);
     this.isManualAlbum.set(!res.album.is_smart);

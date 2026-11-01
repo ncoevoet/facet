@@ -56,6 +56,24 @@ describe('PhotoCardComponent', () => {
     return fixture.debugElement.children[0].componentInstance as PhotoCardComponent;
   }
 
+  it('uses the album capability for a rendered shared card without changing ordinary card URLs', () => {
+    const card = TestBed.createComponent(PhotoCardComponent);
+    try {
+      card.componentRef.setInput('photo', makePhoto({ path: '/shared photo.jpg' }));
+      card.componentRef.setInput('sharedAlbum', { albumId: 9, token: 'fixture-card-token' });
+      card.detectChanges();
+      const img = card.nativeElement.querySelector('img') as HTMLImageElement;
+      const scoped = new URL(img.src);
+      expect(scoped.pathname).toBe('/api/shared/album/9/media/thumbnail');
+      expect(scoped.searchParams.get('token')).toBe('fixture-card-token');
+      expect(scoped.searchParams.get('path')).toBe('/shared photo.jpg');
+      expect(scoped.searchParams.get('ngsw-bypass')).toBe('1');
+      card.componentRef.setInput('sharedAlbum', null); card.detectChanges();
+      expect(new URL(img.src).pathname).toBe('/thumbnail');
+      expect(new URL(img.src).searchParams.has('token')).toBe(false);
+    } finally { card.destroy(); }
+  });
+
   describe('score badge library placement', () => {
     const badgeTooltips = () => fixture.debugElement.queryAll(By.directive(MatTooltip))
       .map(el => el.injector.get(MatTooltip).message)

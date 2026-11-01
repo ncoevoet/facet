@@ -38,6 +38,11 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
     }
     if (future.routeConfig === curr.routeConfig && future.routeConfig?.path === ALBUM_PATH
       && future.paramMap.get('albumId') !== curr.paramMap.get('albumId')) return false;
+    if (future.routeConfig === curr.routeConfig
+      && ['shared/album/:albumId', 'shared/album/:albumId/photo'].includes(future.routeConfig?.path ?? '')
+      && (future.paramMap.get('albumId') !== curr.paramMap.get('albumId')
+        || future.queryParamMap.get('token') !== curr.queryParamMap.get('token')
+        || future.queryParamMap.get('path') !== curr.queryParamMap.get('path'))) return false;
     return super.shouldReuseRoute(future, curr);
   }
 

@@ -1,4 +1,5 @@
 import { Pipe, PipeTransform } from '@angular/core';
+import { SharedAlbumMediaScope, sharedAlbumMediaUrl } from '../utils/shared-album-media';
 
 /** Largest `size` served from the stored thumbnail. Mirrors the server's render
  *  THRESHOLD (`_STORED_THUMBNAIL_SIZE` in api/routers/thumbnails.py), not the
@@ -14,7 +15,8 @@ export const RENDER_URL_VERSION = '2';
 /** Above the stored edge the server renders the original. `v` skips the soft
  *  frame browsers cached under the old URL; `ngsw-bypass` because the service
  *  worker ignores Cache-Control. */
-export function thumbnailUrl(path: string, size?: number, revision?: string | null): string {
+export function thumbnailUrl(path: string, size?: number, revision?: string | null, scope?: SharedAlbumMediaScope | null): string {
+  if (scope) return sharedAlbumMediaUrl(scope, 'thumbnail', path, size, revision);
   const params = new URLSearchParams({ path });
   if (size) params.set('size', String(size));
   if (revision) params.set('preview', revision);
@@ -27,8 +29,8 @@ export function thumbnailUrl(path: string, size?: number, revision?: string | nu
 
 @Pipe({ name: 'thumbnailUrl', standalone: true, pure: true })
 export class ThumbnailUrlPipe implements PipeTransform {
-  transform(path: string, size?: number, revision?: string | null): string {
-    return thumbnailUrl(path, size, revision);
+  transform(path: string, size?: number, revision?: string | null, scope?: SharedAlbumMediaScope | null): string {
+    return thumbnailUrl(path, size, revision, scope);
   }
 }
 

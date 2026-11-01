@@ -5,6 +5,7 @@ import { ApiService } from '../../core/services/api.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 import { thumbnailUrl } from '../pipes/thumbnail-url.pipe';
+import { SharedAlbumMediaScope, sharedAlbumMediaUrl } from '../utils/shared-album-media';
 import type { DisplayedRendition } from '../../features/gallery/synced-zoom.component';
 
 /**
@@ -21,6 +22,7 @@ export abstract class PhotoDetailBase {
 
   /** Each subclass defines how the photo is loaded and stored. */
   abstract readonly photo: ReturnType<typeof signal<Photo | null>>;
+  protected readonly sharedAlbumMedia = signal<SharedAlbumMediaScope | null>(null);
 
   protected readonly fullImageLoaded = signal(false);
   protected readonly sourceRendition = signal<DisplayedRendition>({ kind: 'source', phase: 'loading' });
@@ -38,7 +40,9 @@ export abstract class PhotoDetailBase {
   protected readonly fullImageUrl = computed(() => {
     const p = this.photo();
     if (!p) return '';
-    const src = this.api.imageUrl(p.path, p.preview_revision);
+    const scope = this.sharedAlbumMedia();
+    const src = scope ? sharedAlbumMediaUrl(scope, 'image', p.path, undefined, p.preview_revision)
+      : this.api.imageUrl(p.path, p.preview_revision);
     if (!this.imageAttempt()) return src;
     const url = new URL(src, document.baseURI);
     url.searchParams.set('facet_retry', `${this.imageSession}-${this.imageAttempt()}`);
@@ -53,7 +57,7 @@ export abstract class PhotoDetailBase {
   });
   protected readonly thumbnailImageUrl = computed(() => {
     const p = this.photo();
-    return p ? thumbnailUrl(p.path, 640, p.preview_revision) : '';
+    return p ? thumbnailUrl(p.path, 640, p.preview_revision, this.sharedAlbumMedia()) : '';
   });
   private readonly thumbnailResetEffect = effect(() => {
     this.thumbnailImageUrl();
@@ -75,6 +79,11 @@ export abstract class PhotoDetailBase {
     }
     if (p.caption_translated) {
       this.translatedCaption.set(p.caption_translated);
+      return;
+    }
+    if (this.sharedAlbumMedia()) {
+      this.translatedCaption.set(null);
+      this.translatingCaption.set(false);
       return;
     }
     this.translatingCaption.set(true);

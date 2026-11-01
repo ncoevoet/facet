@@ -29,7 +29,7 @@ def test_recipient_policy_and_private_saved_rules(smart, seed_photos_prefix, alb
     assert body['sharing_policy'] == {
         'membership': 'smart' if smart else 'manual',
         'membership_can_change': True,
-        'downloads': 'library_access_required',
+        'downloads': 'album_member_original',
         'photo_metadata': True,
         'native_paths': True,
         'manual_tags': False,
@@ -77,7 +77,7 @@ def test_private_manual_tag_selects_members_without_disclosing_rule_or_tag(
             conn.execute('DELETE FROM photo_manual_tags WHERE photo_path = ?', (path,))
 
 
-def test_link_does_not_advertise_download_authorization_on_protected_install(
+def test_link_does_not_become_library_authorization_on_protected_install(
         seed_photos_prefix, album_factory, anonymous_client, monkeypatch):
     from api.config import VIEWER_CONFIG
 
@@ -91,7 +91,7 @@ def test_link_does_not_advertise_download_authorization_on_protected_install(
                                     params={'token': 'protected-link-token'})
     assert response.status_code == 200, response.text
     assert response.json()['total'] == 1
-    assert response.json()['sharing_policy']['downloads'] == 'library_access_required'
+    assert response.json()['sharing_policy']['downloads'] == 'album_member_original'
     denied = anonymous_client.get('/api/download',
                                   params={'path': path, 'token': 'protected-link-token'})
     assert denied.status_code == 404

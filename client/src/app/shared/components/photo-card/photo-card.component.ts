@@ -7,6 +7,7 @@ import { MatMenuModule, MatMenuTrigger } from '@angular/material/menu';
 import { Photo } from '../../models/photo.model';
 import { TranslatePipe } from '../../pipes/translate.pipe';
 import { ThumbnailUrlPipe, PersonThumbnailUrlPipe, STORED_THUMBNAIL_EDGE } from '../../pipes/thumbnail-url.pipe';
+import { SharedAlbumMediaScope } from '../../utils/shared-album-media';
 import { SequenceOverrideBadgeKeyPipe } from '../../pipes/sequence-kind.pipe';
 import { PhotoSetKindIconPipe, PhotoSetKindBestLabelPipe } from '../../pipes/photo-set-kind.pipe';
 import { CARD_ACTION_META, CardActionId, CardActionsConfig, CardSetKind, DEFAULT_CARD_ACTIONS } from './card-actions';
@@ -154,7 +155,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
            [class.h-full]="mosaicMode() || hideDetails()"
            [class.aspect-[4/3]]="!mosaicMode() && !hideDetails()">
         <img
-          [src]="photo().path | thumbnailUrl:thumbSize():photo().preview_revision"
+          [src]="photo().path | thumbnailUrl:thumbSize():photo().preview_revision:sharedAlbum()"
           [alt]="photo().caption || photo().filename"
           loading="lazy"
           decoding="async"
@@ -503,6 +504,7 @@ export class PhotoCardComponent {
   }));
   // Data
   readonly photo = input.required<Photo>();
+  readonly sharedAlbum = input<SharedAlbumMediaScope | null>(null);
   readonly config = input<AppConfig | null>(null);
 
   /** Which badges this install draws, with every unset key left at its default. */

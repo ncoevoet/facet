@@ -51,7 +51,7 @@ class SharedAlbumPolicy(BaseModel):
 
     membership: Literal['manual', 'smart']
     membership_can_change: bool
-    downloads: Literal['library_access_required']
+    downloads: Literal['album_member_original']
     photo_metadata: bool
     native_paths: bool
     manual_tags: bool

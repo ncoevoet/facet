@@ -1258,9 +1258,9 @@ async def get_shared_album(
         result['sharing_policy'] = {
             'membership': 'manual' if is_manual else 'smart',
             'membership_can_change': True,
-            # The media endpoints validate library visibility independently;
-            # an album share token is not a download authorization token.
-            'downloads': 'library_access_required',
+            # Dedicated album media routes revalidate this token and the
+            # owner's current membership; ordinary library routes stay private.
+            'downloads': 'album_member_original',
             'photo_metadata': True,
             'native_paths': True,
             'manual_tags': False,

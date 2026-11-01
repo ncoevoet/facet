@@ -2283,7 +2283,7 @@
     "recipient_policy": "Recipient access",
     "share_smart_scope": "{count} photos currently match this smart album. Matching photos can change as the library or saved rules change.",
     "share_manual_scope": "{count} photos are currently in this album. Adding or removing members changes this link.",
-    "share_access_policy": "The link opens this album without a link password or expiry. Image access and downloads still require the server’s library permissions; this link alone does not grant download access.",
+    "share_access_policy": "This link allows viewing and downloading the album’s current photos. Companion RAW files and custom development profiles are not included. No link password or expiry is set.",
     "share_proofing_on": "Recipients can submit picks and comments through the separate proofing session.",
     "share_proofing_off": "Recipient picks and comments are not enabled for this album.",
     "share_data_disclosure": "What information is shared?",

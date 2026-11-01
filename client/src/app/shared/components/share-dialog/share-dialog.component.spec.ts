@@ -15,7 +15,7 @@ describe('ShareDialogComponent', () => {
   let mockApi: { post: Mock; get: Mock; delete: Mock };
   let mockDialogRef: { close: Mock };
   const status = signal({ owner: 'root' });
-  const policy = { membership: 'manual', membership_can_change: true, downloads: 'library_access_required',
+  const policy = { membership: 'manual', membership_can_change: true, downloads: 'album_member_original',
     photo_metadata: true, native_paths: true, manual_tags: false, saved_rules: false,
     password_protected: false, expires_at: null, proofing: false };
 

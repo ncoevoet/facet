@@ -8969,7 +8969,7 @@ export interface components {
              * Downloads
              * @constant
              */
-            downloads: "library_access_required";
+            downloads: "album_member_original";
             /** Expires At */
             expires_at?: string | null;
             /** Manual Tags */

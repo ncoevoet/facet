@@ -1,4 +1,4 @@
-import { Component, inject, signal, effect, OnInit, HostListener, ChangeDetectionStrategy } from '@angular/core';
+import { Component, inject, signal, OnInit, HostListener, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -19,6 +19,7 @@ import { DownloadIconPipe } from '../../pipes/download-icon.pipe';
 import { DownloadOption } from '../../../core/api/types';
 import { PhotoDetailBase } from '../../directives/photo-detail-base.directive';
 import { i18nKeys } from '../../../core/i18n/keys';
+import { sharedAlbumMediaUrl } from '../../utils/shared-album-media';
 
 @Component({
   selector: 'app-shared-photo-detail',
@@ -282,40 +283,36 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
   protected readonly I18N = i18nKeys();
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly photo = signal<Photo | null>(null);
-  protected readonly downloadOptions = signal<DownloadOption[]>([]);
-
-  // Download options (shared view passes is_shared: true)
-  private downloadOptionsEffect = effect(() => {
-    const p = this.photo();
-    if (!p) { this.downloadOptions.set([]); return; }
-    firstValueFrom(this.api.get<{ options: DownloadOption[] }>('/download/options', { path: p.path, is_shared: true }))
-      .then(res => this.downloadOptions.set(res.options))
-      .catch(() => this.downloadOptions.set([{ type: 'original', label: 'original' }]));
-  });
+  protected readonly downloadOptions = signal<DownloadOption[]>([{ type: 'original', label: 'original' }]);
 
   private get token(): string {
     return this.route.snapshot.queryParamMap.get('token') ?? '';
   }
 
   private get sharedBasePath(): string {
-    const url = this.route.snapshot.url;
-    const entityType = url[1]?.path ?? 'album';
-    const entityId = url[2]?.path ?? '';
-    return `/shared/${entityType}/${entityId}`;
+    return `/shared/album/${this.route.snapshot.paramMap.get('albumId') ?? ''}`;
   }
 
   async ngOnInit(): Promise<void> {
-    const statePhoto = history.state?.['photo'] as Photo | undefined;
-    if (statePhoto) {
-      this.photo.set(statePhoto);
-    } else {
-      const path = this.route.snapshot.queryParamMap.get('path');
-      if (path) {
+    const albumId = Number(this.route.snapshot.paramMap.get('albumId'));
+    const token = this.token;
+    const path = this.route.snapshot.queryParamMap.get('path');
+    if (!Number.isSafeInteger(albumId) || albumId <= 0 || !token || !path) {
+      this.navigateBack(); return;
+    }
+    const scope = { albumId, token };
+    this.sharedAlbumMedia.set(scope);
+    // Always revalidate the grant: browser history is not membership authority.
+    const current = () => !this.destroyRef.destroyed && this.sharedAlbumMedia() === scope
+      && this.token === token && Number(this.route.snapshot.paramMap.get('albumId')) === albumId
+      && this.route.snapshot.queryParamMap.get('path') === path;
         try {
           const photo = normalisePhotoFlags(await firstValueFrom(
-            this.api.get<Photo>('/photo', { path, token: this.token })));
+            this.api.get<Photo>(`/shared/album/${albumId}/photo`, { path, token, 'ngsw-bypass': '1' })));
+          if (!current()) return;
           if (!photo.tags_list) {
             photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];
           }
@@ -324,12 +321,8 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
           }
           this.photo.set(photo);
         } catch {
-          this.navigateBack();
+          if (current()) this.navigateBack();
         }
-      } else {
-        this.navigateBack();
-      }
-    }
   }
 
   @HostListener('document:keydown.escape')
@@ -338,8 +331,12 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
   }
 
   protected download(path: string, type = 'original', profile?: string): void {
+    const scope = this.sharedAlbumMedia();
+    if (this.destroyRef.destroyed || !scope || path !== this.photo()?.path
+      || type !== 'original' || profile || this.token !== scope.token
+      || Number(this.route.snapshot.paramMap.get('albumId')) !== scope.albumId) return;
     const a = document.createElement('a');
-    a.href = this.api.downloadUrl(path, type, profile, this.token);
+    a.href = sharedAlbumMediaUrl(scope, 'download', path);
     a.download = '';
     document.body.appendChild(a);
     a.click();

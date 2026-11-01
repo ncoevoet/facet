@@ -34,6 +34,8 @@ describe('GalleryReuseStrategy', () => {
         provideRouter([
           { path: '', component: GalleryStub },
           { path: 'album/:albumId', component: GalleryStub },
+          { path: 'shared/album/:albumId', component: GalleryStub },
+          { path: 'shared/album/:albumId/photo', component: GalleryStub },
           { path: 'photo', component: OtherStub },
           { path: 'photo-compare', component: OtherStub },
           { path: 'stacks/edit', component: OtherStub },
@@ -173,6 +175,16 @@ describe('GalleryReuseStrategy', () => {
     expect(five).not.toBe(three);
     expect(destroyed).toBe(count + 1);
     expect(await harness.navigateByUrl('/album/5?sort=date', GalleryStub)).toBe(five);
+  });
+
+  it('recreates a shared capability when album, token or photo changes', async () => {
+    const first = await harness.navigateByUrl('/shared/album/1?token=one', GalleryStub);
+    const second = await harness.navigateByUrl('/shared/album/1?token=two', GalleryStub);
+    expect(second).not.toBe(first);
+    const third = await harness.navigateByUrl('/shared/album/2?token=two', GalleryStub);
+    expect(third).not.toBe(second);
+    const photo = await harness.navigateByUrl('/shared/album/2/photo?token=two&path=a', GalleryStub);
+    expect(await harness.navigateByUrl('/shared/album/2/photo?token=two&path=b', GalleryStub)).not.toBe(photo);
   });
 
   it('does not reattach a gallery with different query parameters', async () => {
