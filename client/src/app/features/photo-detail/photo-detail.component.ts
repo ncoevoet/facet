@@ -1,3 +1,4 @@
+import { ContextHelpComponent } from '../../shared/components/context-help/context-help.component';
 import { Component, inject, signal, computed, effect, OnInit, HostListener, DestroyRef, ElementRef, viewChild, ChangeDetectionStrategy } from '@angular/core';
 import { Location } from '@angular/common';
 import { ActivatedRoute, Router, NavigationStart } from '@angular/router';
@@ -65,7 +66,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
 
 @Component({
   selector: 'app-photo-detail',
-  imports: [
+  imports: [ContextHelpComponent,
     StackNavigatorComponent,
     ZoomPanDirective,
     PhotoMetricsTabsComponent,
@@ -433,7 +434,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                                   [histogramHeight]="HISTOGRAM_PANEL_HEIGHT"
                                   [histogramDefaultMode]="histogramDefaultMode()"
                                   [indicatorPercent]="clippingIndicatorPercent()" />
-          <details class="text-xs text-[var(--mat-sys-on-surface-variant)]"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p>{{ I18N.photo_detail.rendition.note | translate }}</p></details>
+          <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
 
 
           <!-- Location -->

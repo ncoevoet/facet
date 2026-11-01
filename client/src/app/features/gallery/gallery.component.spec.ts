@@ -382,17 +382,19 @@ describe('GalleryComponent', () => {
     fixture.destroy(); root.remove();
   });
 
-  it('gives the narrow collection toolbar real Filters and layout actions without duplicating their owner', () => {
+  it('keeps Filters direct and groups sort and layout under View without duplicating their owner', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg'])); mockStore.selectionCount.set(1);
     const fixture = TestBed.createComponent(GalleryComponent);
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
     fixture.detectChanges(); TestBed.tick();
     const root = fixture.nativeElement as HTMLElement;
-    const actions = root.querySelector('[data-mobile-collection-controls]')!;
+    const actions = root.querySelector('[data-collection-options]')!;
     expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
     expect(root.querySelectorAll('[data-collection-sort]')).toHaveLength(1);
     expect(actions.querySelector('[data-collection-sort]')).not.toBeNull();
-    actions.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.filters}"]`)!.click();
+    const filter = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.filters}"]`)!;
+    expect(actions.contains(filter)).toBe(false);
+    filter.click();
     expect(mockStore.setFilterDrawerOpen).toHaveBeenCalledExactlyOnceWith(true);
     actions.querySelector<HTMLButtonElement>('[data-gallery-layout="grid"]')!.click();
     expect(mockStore.setGalleryMode).toHaveBeenCalledExactlyOnceWith('grid');
@@ -400,7 +402,7 @@ describe('GalleryComponent', () => {
     fixture.destroy();
   });
 
-  it('keeps one collection controls owner and closes only the narrow-screen disclosure on Escape', () => {
+  it('keeps one collection controls owner and closes View on Escape at either width', () => {
     const fixture = TestBed.createComponent(GalleryComponent);
     const desktop = signal(false);
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: desktop });
@@ -415,11 +417,15 @@ describe('GalleryComponent', () => {
     disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(disclosure.open).toBe(false);
     desktop.set(true); fixture.detectChanges();
-    expect(disclosure.open).toBe(true);
-    expect(summary.classList.contains('hidden')).toBe(true);
+    expect(disclosure.open).toBe(false);
+    expect(summary.classList.contains('hidden')).toBe(false);
+    disclosure.open = true;
     disclosure.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
-    expect(disclosure.open).toBe(true);
+    expect(disclosure.open).toBe(false);
     expect(disclosure.querySelector('app-gallery-view-controls')).toBe(controls);
+    disclosure.open = true;
+    (TestBed.inject(Router).events as Subject<RouterEvent>).next(new NavigationStart(90, '/photo'));
+    expect(disclosure.open).toBe(false);
     fixture.destroy();
   });
 

@@ -1,3 +1,4 @@
+import { ContextHelpComponent } from '../context-help/context-help.component';
 import { Component, inject, signal, OnInit, HostListener, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
@@ -24,7 +25,7 @@ import { sharedAlbumMediaUrl } from '../../utils/shared-album-media';
 @Component({
   selector: 'app-shared-photo-detail',
   standalone: true,
-  imports: [
+  imports: [ContextHelpComponent,
     ExtendedQualityComponent,
     MatIconModule, MatButtonModule, MatTooltipModule, MatMenuModule,
     FixedPipe, ShutterSpeedPipe, TranslatePipe, CaptureDatePipe, RenditionReadoutComponent, PhotoAssessmentComponent,
@@ -101,7 +102,7 @@ import { sharedAlbumMediaUrl } from '../../utils/shared-album-media';
             </div>
           </div>
           <app-photo-assessment [photo]="p" />
-          <details class="text-xs"><summary class="cursor-pointer py-1">{{ I18N.gallery.compare.rendition.sources | translate }}</summary><p>{{ I18N.photo_detail.rendition.note | translate }}</p></details>
+          <app-context-help [label]="I18N.gallery.compare.rendition.sources" [keys]="[I18N.photo_detail.rendition.note]" />
 
           <!-- Caption (read-only) -->
           @if (displayCaption()) {

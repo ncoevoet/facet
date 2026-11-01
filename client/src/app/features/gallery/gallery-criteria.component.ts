@@ -30,10 +30,10 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
    <p data-criteria-pinned class="text-xs my-2 text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.pinned | translate }}</p>
  } @else {
  <ng-template #shortcuts>
- <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]">
+ <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]" [class.!items-stretch]="portShortcuts()" [class.!flex-col]="portShortcuts()">
    <details #quickFilters tabindex="-1" class="relative" (keydown.escape)="closeDisclosure($event, quickFilters, quickSummary)">
      <summary #quickSummary class="cursor-pointer py-2 font-medium">{{ I18N.gallery.sidebar.review.quick | translate }}</summary>
-     <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1">
+     <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
        <p class="m-0 basis-full p-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.quick_help | translate }}</p>
        <button type="button" class="px-3 py-2 rounded hover:bg-[var(--mat-sys-surface-container)]" [class.bg-[var(--mat-sys-secondary-container)]]="store.filters().favorites_only" [attr.aria-pressed]="store.filters().favorites_only" (click)="quickFilter('favorites')">{{ I18N.gallery.favorites_only | translate }}</button>
        @for (status of statuses; track status.id) {
@@ -54,7 +54,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
    @if (history.visits().length) {
      <details #recentCollections tabindex="-1" data-recent-collections class="relative" (keydown.escape)="closeDisclosure($event, recentCollections, recentSummary)">
        <summary #recentSummary class="cursor-pointer py-2">{{ I18N.gallery.criteria.recent_collections | translate }}</summary>
-       <div class="absolute left-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg">
+       <div class="absolute left-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
          <details class="px-2 py-1">
            <summary class="cursor-pointer font-medium">{{ I18N.nav.help | translate }}</summary>
            <p class="m-0 py-2 text-xs">{{ I18N.gallery.criteria.recent_help | translate }}</p>
@@ -72,7 +72,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
    @if (canAct() && hasMatchLogic()) {
      <details #matchLogic tabindex="-1" data-match-logic class="relative" (keydown.escape)="closeDisclosure($event, matchLogic, logicSummary)">
        <summary #logicSummary class="cursor-pointer py-2">{{ I18N.gallery.criteria.logic.title | translate }}</summary>
-       <div class="absolute right-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-3 shadow-lg">
+       <div class="absolute right-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-3 shadow-lg" [class.!static]="portShortcuts()" [class.!w-full]="portShortcuts()" [class.!min-w-0]="portShortcuts()" [class.!max-w-full]="portShortcuts()">
          <p data-query-kind class="m-0 font-semibold">{{ (store.filters().semanticQuery || store.filters().similar_to ? I18N.gallery.criteria.ranked : I18N.gallery.criteria.logic.filtered) | translate }}</p>
          <p class="my-2">{{ (store.filters().similar_to ? I18N.gallery.criteria.logic.similar_paused : I18N.gallery.criteria.logic.all_groups) | translate }}</p>
          @if (!store.filters().similar_to && logicType(); as type) { <p data-logic-type class="my-2"><strong>{{ type.value }}</strong>: {{ I18N.gallery.criteria.logic.type_defaults | translate }}</p> }

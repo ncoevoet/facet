@@ -1,3 +1,4 @@
+import { ContextHelpComponent } from '../context-help/context-help.component';
 import { ChangeDetectionStrategy, Component, computed, input } from '@angular/core';
 import { I18N } from '../../../core/i18n/keys';
 import { AssessmentValuePipe } from '../../pipes/assessment-value.pipe';
@@ -25,7 +26,7 @@ const MEASUREMENTS = [
  * without inferring a cause that the API does not supply. */
 @Component({
   selector: 'app-photo-assessment',
-  imports: [AssessmentValuePipe, TranslatePipe, MetricRankComponent],
+  imports: [ContextHelpComponent,AssessmentValuePipe, TranslatePipe, MetricRankComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0 text-xs' },
   template: `
@@ -35,7 +36,7 @@ const MEASUREMENTS = [
         <span class="ml-2 opacity-75">{{ I18N.photo_detail.assessment.measurements | translate:{ available: availableCount(), total: measurements().length } }}</span>
       </summary>
       <div class="max-h-48 overflow-y-auto rounded border border-current/20 p-2">
-        <p class="m-0 mb-2">{{ I18N.photo_detail.assessment.explanation | translate }}</p>
+
         @if (aggregateAvailable() && range(); as range) { <app-metric-rank class="mb-2" [range]="range" [value]="photo().aggregate" /> }
         <dl class="m-0 grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-1">
           @for (metric of measurements(); track metric.key) {
@@ -43,7 +44,7 @@ const MEASUREMENTS = [
           }
         </dl>
         @if (groupPick()) { <p class="m-0 mt-2">{{ I18N.photo_detail.assessment.group_pick_help | translate }}</p> }
-        <p class="m-0 mt-2 opacity-75">{{ I18N.photo_detail.assessment.unavailable_help | translate }}</p>
+        <app-context-help [label]="I18N.photo_detail.assessment.help" [keys]="[I18N.photo_detail.assessment.explanation, I18N.photo_detail.assessment.unavailable_help]" />
       </div>
     </details>
   `,

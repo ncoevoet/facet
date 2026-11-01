@@ -67,6 +67,11 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
               store.filters().sort_direction === 'DESC' ? 'arrow_downward' : 'arrow_upward'
             }}</mat-icon>
           </button>
+        }
+    </ng-template>
+    @if (!portPrimary()) { <ng-container [ngTemplateOutlet]="primaryControls" /> }
+    <ng-template #filterControls>
+      @if (!pinned()) {
           <button
             class="max-md:!min-h-11 max-md:!px-2"
             mat-button
@@ -79,9 +84,10 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
            [attr.aria-expanded]="store.filterDrawerOpen()">
             <mat-icon [style.color]="store.filterDrawerOpen() ? 'var(--mat-sys-primary)' : ''">filter_alt</mat-icon>
           <span>{{ I18N.gallery.filters | translate }}</span></button>
-        }
+
+      }
     </ng-template>
-    @if (!portPrimary()) { <ng-container [ngTemplateOutlet]="primaryControls" /> }
+    @if (!portFilters()) { <ng-container [ngTemplateOutlet]="filterControls" /> }
 
 <button
           class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
@@ -210,6 +216,8 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
 })
 export class GalleryViewControlsComponent {
   readonly portPrimary = input(false);
+  readonly portFilters = input(false);
+  readonly filterControls = viewChild<TemplateRef<unknown>>('filterControls');
   readonly primaryControls = viewChild<TemplateRef<unknown>>('primaryControls');
 
   protected readonly I18N = i18nKeys();

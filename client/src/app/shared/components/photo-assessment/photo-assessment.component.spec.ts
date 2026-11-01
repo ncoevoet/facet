@@ -37,6 +37,8 @@ describe('PhotoAssessmentComponent', () => {
     expect(el.querySelector('summary')?.textContent).toContain('"available":1,"total":2');
     expect(el.querySelectorAll('dt')).toHaveLength(2);
     expect(el.textContent).toContain('photo_detail.assessment.group_pick_help');
-    expect(el.textContent).toContain('photo_detail.assessment.explanation');
+    expect(el.textContent).not.toContain('photo_detail.assessment.explanation');
+    expect(el.textContent).not.toContain('photo_detail.assessment.unavailable_help');
+    expect(el.querySelector('app-context-help')).not.toBeNull();
   });
 });

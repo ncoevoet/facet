@@ -319,30 +319,23 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             @if (!pinned()) {
               <button #mobileSearchToggle mat-icon-button class="md:!hidden !min-h-11 !min-w-11" [attr.aria-label]="I18N.ui.filters.search | translate" [attr.aria-expanded]="mobileSearchOpen() || !!store.filters().search" (click)="focusCollectionSearch()"><mat-icon>search</mat-icon></button>
             }
-            <button mat-button data-mobile-select class="md:!hidden !min-h-11 !min-w-0 !px-2"
+            <button mat-button data-mobile-select class="!min-h-11 !min-w-0 !px-2"
                     [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
-            @if (isDesktop()) { <ng-container [ngTemplateOutlet]="galleryLayoutButtons" /> }
-          </div>
-          </div>
-          <div class="mt-1 flex flex-wrap items-center justify-between gap-x-1 gap-y-1 md:gap-x-4">
-            <app-gallery-criteria #collectionCriteria [portShortcuts]="!isDesktop()" [searchPresented]="true" class="order-3 w-full min-w-0 flex-none md:order-none md:w-auto md:flex-1" />
-            @if (!isDesktop()) {
-              <div data-mobile-collection-controls class="flex min-w-0 flex-1 items-center gap-0.5">
-                <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
-                <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
-              </div>
-            }
-            <details #collectionOptions data-collection-options tabindex="-1" class="relative shrink-0" [open]="isDesktop()"
-                     (keydown.escape)="!isDesktop() && (collectionOptions.open = false); !isDesktop() && collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
-              <summary #collectionOptionsSummary class="flex min-h-11 min-w-11 cursor-pointer list-none items-center justify-center rounded text-xs" [class.hidden]="isDesktop()" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon>more_horiz</mat-icon><span class="sr-only">{{ I18N.gallery.collection_controls | translate }}</span></summary>
-              <div class="z-30" [class.w-80]="!isDesktop()" [class.max-w-[calc(100vw-2rem)]]="!isDesktop()" [class.absolute]="!isDesktop()" [class.right-0]="!isDesktop()" [class.top-full]="!isDesktop()" [class.bg-[var(--mat-sys-surface-container)]]="!isDesktop()" [class.shadow-lg]="!isDesktop()" [class.p-2]="!isDesktop()">
-                <app-gallery-view-controls #collectionViewControls [portPrimary]="!isDesktop()" class="shrink-0" />
-                @if (!isDesktop()) { <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" /> }
+            <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
+            <details #collectionOptions data-collection-options tabindex="-1" class="relative shrink-0"
+                     (keydown.escape)="collectionOptions.open = false; collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+              <summary #collectionOptionsSummary class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container)]" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon aria-hidden="true" class="!text-xl !h-5 !w-5">tune</mat-icon><span>{{ I18N.gallery.collection_view | translate }}</span></summary>
+              <div class="absolute right-0 top-full z-30 max-h-[70dvh] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
+                <div class="mb-2 flex items-center gap-1 border-b border-[var(--mat-sys-outline-variant)] pb-2"><ng-container [ngTemplateOutlet]="galleryLayoutButtons" /></div>
+                <app-gallery-view-controls #collectionViewControls [portFilters]="true" class="shrink-0" />
+                <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" />
               </div>
             </details>
           </div>
+          </div>
+          <app-gallery-criteria #collectionCriteria [portShortcuts]="true" [searchPresented]="true" class="block min-w-0" />
         </header>
 
         <!-- Set-scope chip: the photo-detail "open this set in the gallery" action.
@@ -427,7 +420,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
                     [config]="store.config()"
                     [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
-                    [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
+                    [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
                     [isActive]="row.startIndex + i === activeIndex()"
                     [gridHasActiveCard]="hasActivePhoto()"
                     [currentSort]="store.filters().sort"
@@ -485,7 +478,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [attr.data-pidx]="i"
                   [config]="store.config()"
                   [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
-                  [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
+                  [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
                   [hideDetails]="effectiveHideDetails()"
@@ -549,7 +542,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                       [mosaicMode]="true"
                       [config]="store.config()"
                       [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
-                      [showSelectionIndicators]="selectingPhotos() && !isDesktop()"
+                      [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
                       [isActive]="row.startIndex + i === activeIndex()"
                       [gridHasActiveCard]="hasActivePhoto()"
                       [currentSort]="store.filters().sort"
@@ -1045,6 +1038,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly api = inject(ApiService);
   private readonly pageHelp = inject(PageHelpService);
   private readonly viewControls = viewChild(GalleryViewControlsComponent);
+  private readonly collectionOptions = viewChild<ElementRef<HTMLDetailsElement>>('collectionOptions');
   private readonly criteria = viewChild(GalleryCriteriaComponent);
   private readonly liveAnnouncer = inject(LiveAnnouncer);
   private readonly toolbarSearch = viewChild<ElementRef<HTMLInputElement>>('toolbarSearch');
@@ -1705,6 +1699,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
     // Capture before the outlet detaches the DOM and loses scroll and focus.
     this.router.events.pipe(filter(e => e instanceof NavigationStart), takeUntilDestroyed()).subscribe(() => {
+      const options = this.collectionOptions();
+      if (options) options.nativeElement.open = false;
       for (const disclosure of this.selectionDisclosures()) disclosure.nativeElement.open = false;
       if (!this.router.currentNavigation?.()?.extras?.state?.[REVIEW_RESUME_NAVIGATION]) this.resumeNavigation++;
       if (this.parked) return;
@@ -1934,6 +1930,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   private setGalleryChrome(active: boolean): void {
+    if (!active) {
+      const options = this.collectionOptions();
+      if (options) options.nativeElement.open = false;
+    }
     this.pageHelp.setDescription(active ? I18N.gallery.help : null);
     this.viewControls()?.setActive(active);
     this.criteria()?.setActive(active);

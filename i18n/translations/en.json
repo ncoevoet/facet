@@ -1660,7 +1660,8 @@
       "measured_only": "Measured values only",
       "invalid": "These measurement policies are invalid. Clear them to recover.",
       "clear": "Clear measurement policies"
-    }
+    },
+    "collection_view": "View"
   },
   "composition_patterns": {
     "none": "None",
@@ -3090,7 +3091,8 @@
       "unavailable": "Unavailable",
       "unavailable_help": "Unavailable means no usable measurement was returned. It is not a zero or a low score; the reason is not supplied here.",
       "group_pick": "Suggested in this group",
-      "group_pick_help": "The group suggestion ranks these alternatives. It is not your rating and does not automatically mean Keep."
+      "group_pick_help": "The group suggestion ranks these alternatives. It is not your rating and does not automatically mean Keep.",
+      "help": "About these measurements"
     },
     "rendition": {
       "edited": "Developed preview",

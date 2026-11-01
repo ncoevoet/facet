@@ -1675,6 +1675,7 @@ export const I18N = {
       invalid: "gallery.measurements.invalid",
       clear: "gallery.measurements.clear",
     },
+    collection_view: "gallery.collection_view",
   },
   composition_patterns: {
     none: "composition_patterns.none",
@@ -3105,6 +3106,7 @@ export const I18N = {
       unavailable_help: "photo_detail.assessment.unavailable_help",
       group_pick: "photo_detail.assessment.group_pick",
       group_pick_help: "photo_detail.assessment.group_pick_help",
+      help: "photo_detail.assessment.help",
     },
     rendition: {
       edited: "photo_detail.rendition.edited",
