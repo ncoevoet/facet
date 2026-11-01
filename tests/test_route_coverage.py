@@ -172,6 +172,7 @@ SUPERADMIN_ROUTES = [
     '/api/scan/faces/preview',
     '/api/scan/faces/jobs',
     '/api/scan/faces/jobs/' + '0' * 32,
+    '/api/scan/faces/jobs/' + '0' * 32 + '/items',
     '/api/immich/diagnostics',
     '/api/scan/status',
     '/api/scan/directories',

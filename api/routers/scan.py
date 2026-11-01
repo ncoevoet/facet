@@ -14,7 +14,7 @@ import threading
 import time
 from collections import deque
 from datetime import timedelta
-from typing import Optional, Any
+from typing import Optional, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Path as ApiPath, Query, Request
 from pydantic import BaseModel
@@ -40,6 +40,7 @@ from api.models.scan import (
     FaceUpdateStartRequest,
     FaceUpdateRecord,
     FaceUpdatePreview,
+    FaceUpdateItemsResponse,
 )
 from processing.progress import parse_progress_line
 from processing.scan_retry import RetryPlanError
@@ -261,13 +262,21 @@ def _close_face_update_receipt(job_id, proc):
 
 
 @router.get('/faces/preview', response_model=FaceUpdatePreview)
-def preview_face_update(user: CurrentUser = Depends(require_scan_access)):
+def preview_face_update(mode: Literal['missing', 'redetect', 'repair'] = 'missing', user: CurrentUser = Depends(require_scan_access)):
     from db.embedding_space import active_embedding_model
+    from faces.update import photo_scope
     _require_face_update_access(user)
     with get_db() as conn:
-        count = conn.execute('''SELECT COUNT(*) FROM photos p WHERE NOT EXISTS
-            (SELECT 1 FROM faces f WHERE f.photo_path=p.path AND f.is_manual=0)''').fetchone()[0]
-    return {'eligible_photos': count, 'model': active_embedding_model(server_scoring_config())}
+        conn.execute('BEGIN')
+        scope = photo_scope(mode)
+        count = conn.execute(f'SELECT COUNT(*) FROM photos p WHERE {scope}').fetchone()[0]
+        automatic, assigned, manual = conn.execute(f'''SELECT
+            COALESCE(SUM(f.is_manual=0),0),COALESCE(SUM(f.person_id IS NOT NULL),0),COALESCE(SUM(f.is_manual=1),0)
+            FROM faces f JOIN photos p ON p.path=f.photo_path WHERE {scope}''').fetchone()
+        pending = conn.execute('SELECT COUNT(*) FROM person_centroid_dirty').fetchone()[0]
+    return {'eligible_photos': count, 'model': active_embedding_model(server_scoring_config()), 'mode': mode,
+            'automatic_faces': automatic, 'assigned_faces': assigned, 'manual_faces': manual,
+            'pending_person_matches': pending}
 
 
 @router.get('/faces/jobs', response_model=list[FaceUpdateRecord])
@@ -286,6 +295,25 @@ def face_update_status(job_id: str = ApiPath(pattern=r'^[0-9a-f]{32}$'), user: C
     return _face_update_record(job_id, user)
 
 
+@router.get('/faces/jobs/{job_id}/items', response_model=FaceUpdateItemsResponse)
+def face_update_items(job_id: str = ApiPath(pattern=r'^[0-9a-f]{32}$'),
+                      state: Literal['problems', 'refused', 'failed'] = 'problems',
+                      after: str | None = Query(None, max_length=4096), limit: int = Query(48, ge=1, le=100),
+                      user: CurrentUser = Depends(require_scan_access)):
+    _require_face_update_access(user)
+    _face_update_record(job_id, user)
+    states = ('refused', 'failed') if state == 'problems' else (state,)
+    where = f'job_id=? AND state IN ({",".join("?" for _ in states)})'
+    with get_db() as conn:
+        conn.execute('BEGIN')
+        total = conn.execute(f'SELECT COUNT(*) FROM face_update_items WHERE {where}', (job_id, *states)).fetchone()[0]
+        rows = conn.execute(f'SELECT path,state,error_code FROM face_update_items WHERE {where}'
+                            + (' AND path>?' if after is not None else '') + ' ORDER BY path LIMIT ?',
+                            [job_id, *states, *([after] if after is not None else []), limit + 1]).fetchall()
+    return {'items': [dict(row) for row in rows[:limit]], 'total': total,
+            'next_after': rows[limit - 1]['path'] if len(rows) > limit else None}
+
+
 @router.post('/faces/start', response_model=FaceUpdateRecord)
 def start_face_update(body: FaceUpdateStartRequest, user: CurrentUser = Depends(require_scan_access)):
     from db.connection import DEFAULT_DB_PATH
@@ -297,12 +325,12 @@ def start_face_update(body: FaceUpdateStartRequest, user: CurrentUser = Depends(
     # A lost Start response can be retried with exactly the same request ID.
     # It retrieves the original receipt; it never starts a replacement job.
     def existing_job(conn):
-        row = conn.execute('SELECT owner,model FROM face_update_jobs WHERE job_id=?', (body.job_id,)).fetchone()
+        row = conn.execute('SELECT owner,model,mode FROM face_update_jobs WHERE job_id=?', (body.job_id,)).fetchone()
         if row is not None:
             if row[0] != owner_key(user.user_id):
                 raise HTTPException(404, 'Face update not found')
-            if row[1] != body.expected_model:
-                raise HTTPException(409, 'This request ID belongs to another face-update model')
+            if row[1] != body.expected_model or row[2] != body.mode:
+                raise HTTPException(409, 'This request ID belongs to another face-update model or mode')
         return row is not None
     with get_db() as conn:
         exists = existing_job(conn)
@@ -324,7 +352,7 @@ def start_face_update(body: FaceUpdateStartRequest, user: CurrentUser = Depends(
             # the fast read above. Serialize before deciding to spawn.
             exists = existing_job(conn)
             if not exists:
-                capture_job(conn, job_id, owner_key(user.user_id), model)
+                capture_job(conn, job_id, owner_key(user.user_id), model, body.mode)
                 captured = True
             conn.commit()
         if captured:

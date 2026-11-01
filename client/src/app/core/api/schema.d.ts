@@ -4231,6 +4231,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan/faces/jobs/{job_id}/items": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Face Update Items */
+        get: operations["face_update_items_api_scan_faces_jobs__job_id__items_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scan/faces/preview": {
         parameters: {
             query?: never;
@@ -6964,12 +6981,43 @@ export interface components {
             /** Receipt Id */
             receipt_id: string;
         };
+        /** FaceUpdateItem */
+        FaceUpdateItem: {
+            /** Error Code */
+            error_code?: string | null;
+            /** Path */
+            path: string;
+            /** State */
+            state: string;
+        };
+        /** FaceUpdateItemsResponse */
+        FaceUpdateItemsResponse: {
+            /** Items */
+            items: components["schemas"]["FaceUpdateItem"][];
+            /** Next After */
+            next_after?: string | null;
+            /** Total */
+            total: number;
+        };
         /** FaceUpdatePreview */
         FaceUpdatePreview: {
+            /** Assigned Faces */
+            assigned_faces: number;
+            /** Automatic Faces */
+            automatic_faces: number;
             /** Eligible Photos */
             eligible_photos: number;
+            /** Manual Faces */
+            manual_faces: number;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "missing" | "redetect" | "repair";
             /** Model */
             model: string;
+            /** Pending Person Matches */
+            pending_person_matches: number;
         };
         /** FaceUpdateRecord */
         FaceUpdateRecord: {
@@ -6989,10 +7037,23 @@ export interface components {
             finished_at?: string | null;
             /** Job Id */
             job_id: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "missing" | "redetect" | "repair";
             /** Model */
             model: string;
             /** Processed */
             processed: number;
+            /** Refreshed Faces */
+            refreshed_faces: number;
+            /** Refused */
+            refused: number;
+            /** Removed Faces */
+            removed_faces: number;
+            /** Repaired People */
+            repaired_people: number;
             /** Skipped */
             skipped: number;
             /** Started At */
@@ -7015,6 +7076,12 @@ export interface components {
             expected_model: string;
             /** Job Id */
             job_id: string;
+            /**
+             * Mode
+             * @default missing
+             * @enum {string}
+             */
+            mode?: "missing" | "redetect" | "repair";
         };
         /** FolderEntry */
         FolderEntry: {
@@ -16718,9 +16785,46 @@ export interface operations {
             };
         };
     };
+    face_update_items_api_scan_faces_jobs__job_id__items_get: {
+        parameters: {
+            query?: {
+                state?: "problems" | "refused" | "failed";
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateItemsResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     preview_face_update_api_scan_faces_preview_get: {
         parameters: {
-            query?: never;
+            query?: {
+                mode?: "missing" | "redetect" | "repair";
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -16734,6 +16838,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FaceUpdatePreview"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

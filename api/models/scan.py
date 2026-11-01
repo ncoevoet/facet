@@ -32,16 +32,22 @@ class FaceUpdateStartRequest(BaseModel):
     job_id: str = Field(pattern=r'^[0-9a-f]{32}$')
     confirm: bool = Field(strict=True)
     expected_model: str = Field(min_length=1, max_length=64)
+    mode: Literal['missing', 'redetect', 'repair'] = 'missing'
 
 
 class FaceUpdateRecord(BaseModel):
     job_id: str
     model: str
+    mode: Literal['missing', 'redetect', 'repair']
     state: Literal['queued', 'running', 'completed', 'partial', 'cancelled', 'failed']
     stop_requested: bool
     total: int
     processed: int
     added_faces: int
+    refreshed_faces: int
+    removed_faces: int
+    refused: int
+    repaired_people: int
     empty: int
     skipped: int
     failed: int
@@ -55,6 +61,23 @@ class FaceUpdateRecord(BaseModel):
 class FaceUpdatePreview(BaseModel):
     eligible_photos: int
     model: str
+    mode: Literal['missing', 'redetect', 'repair']
+    automatic_faces: int
+    assigned_faces: int
+    manual_faces: int
+    pending_person_matches: int
+
+
+class FaceUpdateItem(BaseModel):
+    path: str
+    state: str
+    error_code: Optional[str] = None
+
+
+class FaceUpdateItemsResponse(BaseModel):
+    items: list[FaceUpdateItem]
+    total: int
+    next_after: Optional[str] = None
 
 
 class ScanRetryPreviewRequest(BaseModel):

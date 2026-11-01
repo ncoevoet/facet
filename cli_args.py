@@ -259,7 +259,7 @@ Configuration:
     # Face recognition
     face_group = parser.add_argument_group('Face recognition')
     face_group.add_argument('--update-faces-job', metavar='JOB_ID',
-                        help='Run a captured viewer face-update job without replacing existing faces or clustering')
+                        help='Run a captured viewer face-update job with existing assignments protected; no clustering')
     face_group.add_argument('--extract-faces-gpu-incremental', action='store_true',
                         help='Extract faces only for photos not yet processed (requires GPU)')
     face_group.add_argument('--extract-faces-gpu-force', action='store_true',

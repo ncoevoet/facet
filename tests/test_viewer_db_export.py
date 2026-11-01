@@ -692,8 +692,12 @@ def test_face_update_jobs_are_private_and_incremental_keeps_viewer_receipts(tmp_
     with sqlite3.connect(src) as conn:
         conn.execute("INSERT INTO face_update_jobs(job_id,owner,model,total) VALUES (?,?,?,1)",('a'*32,'private-face-update-owner','sface'))
         conn.execute('INSERT INTO face_update_items(job_id,path) VALUES (?,?)',('a'*32,_A))
+        person = conn.execute("INSERT INTO persons(name) VALUES ('Alice')").lastrowid
+        conn.execute('INSERT INTO person_centroid_dirty(person_id) VALUES (?)', (person,))
     export_viewer_db(src,out,verbose=False)
     assert b'private-face-update-owner' not in Path(out).read_bytes()
+    with sqlite3.connect(out) as conn:
+        assert conn.execute("SELECT name FROM sqlite_master WHERE name='person_centroid_dirty'").fetchone() is None
     init_database(out)
     with sqlite3.connect(out) as conn:
         assert conn.execute('SELECT COUNT(*) FROM face_update_jobs').fetchone()==(0,)

@@ -11,8 +11,8 @@ import { I18nService } from '../../core/services/i18n.service';
 import { FaceUpdateControlComponent } from './face-update-control.component';
 
 @Component({ template: '' }) class OtherPage {}
-const preview = { eligible_photos: 12, model: 'arcface_buffalo_l' };
-const receipt = { job_id: 'a'.repeat(32), model: preview.model, state: 'running', stop_requested: false,
+const preview = { eligible_photos: 12, model: 'arcface_buffalo_l', mode: 'missing', automatic_faces: 0, assigned_faces: 0, manual_faces: 0, pending_person_matches: 0 };
+const receipt = { job_id: 'a'.repeat(32), model: preview.model, mode: 'missing', refreshed_faces: 0, removed_faces: 0, refused: 0, repaired_people: 0, state: 'running', stop_requested: false,
   total: 12, processed: 3, added_faces: 4, empty: 1, skipped: 0, failed: 0, error_code: null,
   created_at: '2026-11-01 20:00:00', started_at: '2026-11-01 20:00:01', finished_at: null, controlled_by_worker: false };
 
@@ -47,7 +47,7 @@ describe('FaceUpdateControlComponent', () => {
     expect(root.textContent).toContain('"count":12'); expect(api.post).not.toHaveBeenCalled();
     root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
     expect(api.post).toHaveBeenCalledTimes(1);
-    expect(api.post).toHaveBeenCalledWith('/scan/faces/start', { job_id: expect.stringMatching(/^[a-f0-9]{32}$/), expected_model: preview.model, confirm: true });
+    expect(api.post).toHaveBeenCalledWith('/scan/faces/start', { job_id: expect.stringMatching(/^[a-f0-9]{32}$/), expected_model: preview.model, mode: 'missing', confirm: true });
     expect(root.querySelector('[data-face-update-receipt]')?.textContent).toContain('"processed":3,"total":12');
     expect(root.textContent).toContain('persons.face_update.recorded_only'); expect(review).not.toHaveBeenCalled();
     api.get.mockReturnValueOnce(of({ ...receipt, job_id: api.post.mock.calls[0][1].job_id, state: 'completed', processed: 12 }));
@@ -167,6 +167,63 @@ describe('FaceUpdateControlComponent', () => {
       expect(api.post).toHaveBeenCalledWith('/scan/faces/start', expect.objectContaining({ job_id: expect.stringMatching(/^[a-f0-9]{32}$/) }));
       dispose();
     } finally { vi.unstubAllGlobals(); }
+  });
+
+
+  it('shows refreshed removed and refused counts for an explicitly selected re-detection receipt', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    const redetect = { ...receipt, mode: 'redetect', state: 'partial', refreshed_faces: 2, removed_faces: 1, refused: 3 };
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [redetect] : redetect));
+    await open(); root.querySelector<HTMLDetailsElement>('details')!.open = true;
+    root.querySelector<HTMLButtonElement>('details button')!.click(); await settle();
+    expect(root.querySelector('[data-face-update-receipt]')?.textContent).toContain('persons.face_update.redetect_receipt');
+    expect(root.querySelector('[data-face-update-receipt]')?.textContent).toContain('"refreshed":2,"removed":1,"refused":3');
+    expect(api.post).not.toHaveBeenCalled(); dispose();
+  });
+
+
+  it('starts a distinct repair-only request when there are pending matches but no detection targets', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? { ...preview, eligible_photos: 0, pending_person_matches: 2 } : []));
+    await open();
+    expect(root.querySelector<HTMLButtonElement>('[data-start-faces]')?.disabled).toBe(false);
+    expect(root.querySelector('[data-start-faces]')?.textContent).toContain('persons.face_update.repair_matches');
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
+    expect(api.post).toHaveBeenCalledWith('/scan/faces/start', expect.objectContaining({ mode: 'repair', confirm: true }));
+    dispose();
+  });
+
+
+  it('requires a mode-specific re-detection preview before its separately named Start action', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    await open();
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? { ...preview, mode: 'redetect', eligible_photos: 3, automatic_faces: 6, assigned_faces: 4, manual_faces: 1 } : []));
+    root.querySelector<HTMLButtonElement>('[data-redetect-faces]')!.click(); await settle();
+    expect(api.get).toHaveBeenCalledWith('/scan/faces/preview', { mode: 'redetect' });
+    expect(root.textContent).toContain('"automatic":6,"assigned":4,"manual":1');
+    expect(root.querySelector('[data-start-faces]')?.textContent).toContain('persons.face_update.redetect_start');
+    expect(api.post).not.toHaveBeenCalled();
+    root.querySelector<HTMLButtonElement>('[data-start-faces]')!.click(); await settle();
+    expect(api.post).toHaveBeenCalledWith('/scan/faces/start', expect.objectContaining({ mode: 'redetect', confirm: true }));
+    dispose();
+  });
+
+  it('reads bounded problem receipts and opens source photos separately without writes', async () => {
+    const { root, api, open, settle, dispose } = await render();
+    const partial = { ...receipt, mode: 'redetect', state: 'partial', refused: 2 };
+    api.get.mockImplementation((url: string) => of(url.endsWith('/preview') ? preview : url.endsWith('/jobs') ? [partial] : partial));
+    await open(); root.querySelector<HTMLDetailsElement>('details')!.open = true;
+    root.querySelector<HTMLButtonElement>('details button')!.click(); await settle();
+    api.get.mockReturnValueOnce(of({ items: [{ path: '/one.jpg', state: 'refused', error_code: 'faces_changed' }], total: 2, next_after: '/one.jpg' }));
+    root.querySelector<HTMLButtonElement>('[data-read-face-problems]')!.click(); await settle();
+    expect(api.get).toHaveBeenLastCalledWith(`/scan/faces/jobs/${receipt.job_id}/items`, { limit: 48 });
+    expect(root.textContent).toContain('persons.face_update.problem_changed');
+    const source = root.querySelector<HTMLAnchorElement>('a');
+    expect(source?.getAttribute('target')).toBe('_blank'); expect(source?.getAttribute('href')).toContain('path=%2Fone.jpg');
+    api.get.mockReturnValueOnce(of({ items: [{ path: '/two.jpg', state: 'refused', error_code: 'confirmed_face_not_matched' }], total: 2, next_after: null }));
+    root.querySelector<HTMLButtonElement>('[data-more-face-problems]')!.click(); await settle();
+    expect(root.querySelectorAll('a')).toHaveLength(2); expect(root.textContent).toContain('persons.face_update.problem_unmatched');
+    expect(api.post).not.toHaveBeenCalled(); dispose();
   });
 
   it('clears private panel state when processing permission is lost', async () => {

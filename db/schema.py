@@ -666,6 +666,27 @@ WEIGHT_OPTIMIZATION_RUNS_INDEXES = [
     ('idx_optimization_category', 'weight_optimization_runs', 'category'),
 ]
 
+FACE_UPDATE_JOBS_COLUMNS = [
+    ('job_id', 'TEXT PRIMARY KEY'), ('owner', 'TEXT NOT NULL'), ('model', 'TEXT NOT NULL'),
+    ('mode', "TEXT NOT NULL DEFAULT 'missing'"),
+    ('state', "TEXT NOT NULL DEFAULT 'queued'"), ('stop_requested', 'INTEGER NOT NULL DEFAULT 0'),
+    ('total', 'INTEGER NOT NULL'), ('processed', 'INTEGER NOT NULL DEFAULT 0'),
+    ('added_faces', 'INTEGER NOT NULL DEFAULT 0'), ('refreshed_faces', 'INTEGER NOT NULL DEFAULT 0'),
+    ('removed_faces', 'INTEGER NOT NULL DEFAULT 0'), ('refused', 'INTEGER NOT NULL DEFAULT 0'),
+    ('repaired_people', 'INTEGER NOT NULL DEFAULT 0'),
+    ('empty', 'INTEGER NOT NULL DEFAULT 0'), ('skipped', 'INTEGER NOT NULL DEFAULT 0'),
+    ('failed', 'INTEGER NOT NULL DEFAULT 0'), ('error_code', 'TEXT'),
+    ('started_at', 'TEXT'), ('finished_at', 'TEXT'), ('created_at', 'TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP'),
+]
+FACE_UPDATE_ITEMS_COLUMNS = [
+    ('job_id', 'TEXT NOT NULL REFERENCES face_update_jobs(job_id) ON DELETE CASCADE'),
+    ('path', 'TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE'),
+    ('state', "TEXT NOT NULL DEFAULT 'pending'"), ('error_code', 'TEXT'), ('face_snapshot', 'TEXT'),
+]
+PERSON_CENTROID_DIRTY_COLUMNS = [
+    ('person_id', 'INTEGER PRIMARY KEY REFERENCES persons(id) ON DELETE CASCADE'),
+]
+
 # Scan run bookkeeping: one row per scan invocation, plus per-file failures
 SCAN_RUNS_COLUMNS = [
     ('id', 'INTEGER PRIMARY KEY AUTOINCREMENT'),
@@ -1126,6 +1147,9 @@ _MIGRATED_TABLES = [
     ('faces', FACES_COLUMNS),
     ('manual_face_deletions', MANUAL_FACE_DELETIONS_COLUMNS),
     ('persons', PERSONS_COLUMNS),
+    ('face_update_jobs', FACE_UPDATE_JOBS_COLUMNS),
+    ('face_update_items', FACE_UPDATE_ITEMS_COLUMNS),
+    ('person_centroid_dirty', PERSON_CENTROID_DIRTY_COLUMNS),
     ('photo_tags', PHOTO_TAGS_COLUMNS),
     ('photo_manual_tags', PHOTO_MANUAL_TAGS_COLUMNS),
     ('mcp_tokens', MCP_TOKENS_COLUMNS),
@@ -1333,20 +1357,11 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
 
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))
+        conn.execute(_build_create_table_sql('person_centroid_dirty', PERSON_CENTROID_DIRTY_COLUMNS))
 
-        conn.execute('''CREATE TABLE IF NOT EXISTS face_update_jobs (
-            job_id TEXT PRIMARY KEY, owner TEXT NOT NULL, model TEXT NOT NULL,
-            state TEXT NOT NULL DEFAULT 'queued', stop_requested INTEGER NOT NULL DEFAULT 0,
-            total INTEGER NOT NULL, processed INTEGER NOT NULL DEFAULT 0,
-            added_faces INTEGER NOT NULL DEFAULT 0, empty INTEGER NOT NULL DEFAULT 0,
-            skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0,
-            error_code TEXT, started_at TEXT, finished_at TEXT,
-            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
-        conn.execute('''CREATE TABLE IF NOT EXISTS face_update_items (
-            job_id TEXT NOT NULL REFERENCES face_update_jobs(job_id) ON DELETE CASCADE,
-            path TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE,
-            state TEXT NOT NULL DEFAULT 'pending', error_code TEXT,
-            PRIMARY KEY(job_id,path))''')
+        conn.execute(_build_create_table_sql('face_update_jobs', FACE_UPDATE_JOBS_COLUMNS))
+        conn.execute(_build_create_table_sql('face_update_items', FACE_UPDATE_ITEMS_COLUMNS,
+                                            constraints=['PRIMARY KEY(job_id,path)']))
         conn.execute('CREATE INDEX IF NOT EXISTS idx_face_update_pending ON face_update_items(job_id,state,path)')
 
         # Private per-account suggestion feedback. Geometry/embedding tokens make
