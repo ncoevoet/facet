@@ -1,8 +1,8 @@
 import { Component, inject, signal, input, effect, output, ChangeDetectionStrategy } from '@angular/core';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { firstValueFrom } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
+import { MatButtonModule } from '@angular/material/button';
+import { TimelineCollectionReader } from './timeline-collection-reader';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
@@ -26,7 +26,7 @@ interface CalendarCell {
 @Component({
   selector: 'app-timeline-days',
   standalone: true,
-  imports: [MatIconModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
+  imports: [MatIconModule, MatButtonModule, MatProgressSpinnerModule, ThumbnailUrlPipe, TranslatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading()) {
@@ -35,7 +35,11 @@ interface CalendarCell {
       </div>
     }
 
-    @if (!loading()) {
+    @if (failed()) {
+      <p role="alert">{{ 'timeline.load_failed' | translate }}</p>
+      <button mat-button (click)="retry.update(value => value + 1)">{{ 'timeline.retry' | translate }}</button>
+    }
+    @if (!loading() && !failed()) {
       <!-- Day-of-week headers -->
       <div class="grid grid-cols-7 gap-2 mb-2">
         @for (d of weekDays; track d) {
@@ -74,8 +78,7 @@ interface CalendarCell {
     }
   `,
 })
-export class TimelineDaysComponent {
-  private readonly api = inject(ApiService);
+export class TimelineDaysComponent extends TimelineCollectionReader {
   private readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);
 
@@ -84,7 +87,6 @@ export class TimelineDaysComponent {
   readonly daySelected = output<string>();
 
   protected readonly calendarCells = signal<CalendarCell[]>([]);
-  protected readonly loading = signal(false);
 
   // Generate Mon–Sun abbreviations from the browser locale (Monday-first)
   protected readonly weekDays = (() => {
@@ -94,27 +96,26 @@ export class TimelineDaysComponent {
   })();
 
   constructor() {
+    super();
     effect(() => {
+      const scope = this.readScope(); this.retry();
       const y = this.year();
       const m = this.month();
       const dateFrom = this.filters.dateFrom();
       const dateTo = this.filters.dateTo();
       const viewParams = this.store.viewFilterParams();
-      if (y && m) this.load(+y, +m, dateFrom, dateTo, viewParams);
+      this.calendarCells.set([]);
+      if (y && m && scope) this.load(+y, +m, dateFrom, dateTo, viewParams);
     });
   }
 
   private async load(
     year: number, month: number, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
   ): Promise<void> {
-    this.loading.set(true);
-    try {
       const params: Record<string, string | number> = { year, month, ...viewParams };
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
-      const res = await firstValueFrom(
-        this.api.get<{ dates: DateEntry[] }>('/timeline/dates', params),
-      );
+      this.loadData<{ dates: DateEntry[] }>('/timeline/dates', params, res => {
 
       // Build date lookup
       const dateMap = new Map<string, DateEntry>();
@@ -148,8 +149,6 @@ export class TimelineDaysComponent {
       }
 
       this.calendarCells.set(cells);
-    } finally {
-      this.loading.set(false);
-    }
+      });
   }
 }

@@ -13,6 +13,10 @@ import { TimelineMonthsComponent } from './timeline-months.component';
 import { TimelineDaysComponent } from './timeline-days.component';
 import { TimelineDatePipe } from './timeline-date.pipe';
 import { TimelineFeedComponent } from './timeline-feed.component';
+import { timelineGalleryQuery } from './timeline-day-query.pipe';
+import { TimelineDensityComponent } from './timeline-density.component';
+import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
+import { timelineWindow } from './timeline-density.util';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
 import { HeaderSlotService } from '../../core/services/header-slot.service';
@@ -32,6 +36,8 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     TimelineDaysComponent,
     TimelineDatePipe,
     TimelineFeedComponent,
+    TimelineDensityComponent,
+    CaptureDatePipe,
     DateRangeFilterComponent,
   ],
   host: { class: 'block h-full overflow-auto' },
@@ -94,6 +100,13 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     }
 
     <div class="px-4 pb-4" [class.pt-4]="level() === 'years'">
+      @if (filters.dateFrom() || filters.dateTo()) {
+        <div class="flex min-h-11 flex-wrap items-center gap-2 text-sm" role="status">
+          <span>{{ filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…' }} – {{ filters.dateTo() ? (filters.dateTo() | captureDate) : '…' }}</span>
+          <button mat-button (click)="resetDates()">{{ I18N.timeline.all_dates | translate }}</button>
+        </div>
+      }
+      <app-timeline-density [year]="year()" [month]="month()" />
       <div class="flex items-center justify-end gap-1 pt-2" role="group" [attr.aria-label]="I18N.timeline.title | translate">
         <button mat-button [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
           <mat-icon>photo_library</mat-icon>{{ I18N.timeline.photo_feed | translate }}
@@ -141,9 +154,7 @@ export class TimelineComponent {
    *  makes a count-0 cell non-clickable, so this is the only way to reach it. */
   protected readonly anyHiddenByFilters = computed(() => anyHideToggleActive(this.store.viewFilterParams()));
   /** Timeline API flags use 1/0; gallery URLs use true/false. */
-  private readonly galleryVisibility = computed(() => Object.fromEntries(
-    Object.entries(this.store.viewFilterParams()).map(([key, value]) => [key, String(value === '1')]),
-  ));
+  private readonly galleryVisibility = computed(() => timelineGalleryQuery(this.store.viewFilterParams()));
 
   constructor() {
     registerPageContext('timeline', () => ({
@@ -215,9 +226,10 @@ export class TimelineComponent {
   }
 
   protected viewRange(): void {
+    const range = timelineWindow(this.year(), this.month(), this.filters.dateFrom(), this.filters.dateTo());
     this.router.navigate(['/'], { queryParams: {
       ...this.galleryVisibility(),
-      date_from: this.filters.dateFrom(), date_to: this.filters.dateTo(),
+      date_from: range.from, date_to: range.to,
       sort: 'date_taken', sort_direction: 'DESC',
     } });
   }

@@ -1,5 +1,7 @@
 import type { Mock } from 'vitest';
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
+import { AuthService } from '../../core/services/auth.service';
 import { signal } from '@angular/core';
 import { of, throwError } from 'rxjs';
 import { ApiService } from '../../core/services/api.service';
@@ -30,6 +32,8 @@ describe('TimelineMonthsComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
+        { provide: AuthService, useValue: { status: signal({ user_id: 'alice' }), token: 'a' } },
         { provide: ApiService, useValue: mockApi },
         TimelineFiltersService,
         { provide: GalleryStore, useValue: mockStore },

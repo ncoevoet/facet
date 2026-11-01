@@ -2,8 +2,8 @@ import { Component, inject, signal, input, effect, output, ChangeDetectionStrate
 import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { firstValueFrom } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
+import { MatButtonModule } from '@angular/material/button';
+import { TimelineCollectionReader } from './timeline-collection-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineDatePipe } from './timeline-date.pipe';
@@ -21,7 +21,7 @@ interface MonthSummary {
 @Component({
   selector: 'app-timeline-months',
   standalone: true,
-  imports: [DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe, TimelineDatePipe],
+  imports: [DecimalPipe, MatIconModule, MatButtonModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe, TimelineDatePipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading() && months().length === 0) {
@@ -30,7 +30,11 @@ interface MonthSummary {
       </div>
     }
 
-    @if (!loading() && months().length === 0) {
+    @if (failed()) {
+      <p role="alert">{{ I18N.timeline.load_failed | translate }}</p>
+      <button mat-button (click)="retry.update(value => value + 1)">{{ I18N.timeline.retry | translate }}</button>
+    }
+    @if (!loading() && !failed() && months().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
         <p>{{ I18N.timeline.no_photos_month | translate }}</p>
@@ -67,9 +71,8 @@ interface MonthSummary {
     </div>
   `,
 })
-export class TimelineMonthsComponent {
+export class TimelineMonthsComponent extends TimelineCollectionReader {
   protected readonly I18N = i18nKeys();
-  private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);
 
@@ -77,33 +80,27 @@ export class TimelineMonthsComponent {
   readonly monthSelected = output<string>();
 
   protected readonly months = signal<MonthSummary[]>([]);
-  protected readonly loading = signal(false);
 
   constructor() {
+    super();
     effect(() => {
+      const scope = this.readScope(); this.retry();
       const y = this.year();
       const dateFrom = this.filters.dateFrom();
       const dateTo = this.filters.dateTo();
       const viewParams = this.store.viewFilterParams();
-      if (y) this.load(y, dateFrom, dateTo, viewParams);
+      this.months.set([]);
+      if (y && scope) this.load(y, dateFrom, dateTo, viewParams);
     });
   }
 
   private async load(
     year: string, dateFrom: string, dateTo: string, viewParams: ViewFilterParams,
   ): Promise<void> {
-    this.loading.set(true);
-    try {
       const params: Record<string, string | number> = { year: +year, ...viewParams };
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
-      const res = await firstValueFrom(
-        this.api.get<{ months: MonthSummary[] }>('/timeline/months', params),
-      );
-      this.months.set(res.months);
-    } finally {
-      this.loading.set(false);
-    }
+      this.loadData<{ months: MonthSummary[] }>('/timeline/months', params, res => this.months.set(res.months));
   }
 
 }

@@ -181,7 +181,12 @@ async def api_timeline(
 
                 # Sort order within each group
                 if sort_by == 'date_taken':
-                    inner_order = f"date_taken {date_order}, path ASC"
+                    # Compare camera-local fields, not EXIF ':' vs ISO '-'/'T'
+                    # punctuation, and do not shift them through a timezone.
+                    inner_order = (
+                        "REPLACE(SUBSTR(date_taken,1,10),':','-') || ' ' || "
+                        f"SUBSTR(date_taken,12) {date_order}, path ASC"
+                    )
                 elif sort_by == 'filename':
                     inner_order = "filename ASC, path ASC"
                 else:
@@ -278,11 +283,11 @@ async def api_timeline_dates(
             where_clauses.extend(date_clauses)
             sql_params.extend(date_params)
 
-            # Filter by year (EXIF format: YYYY:MM:DD)
+            # Stored capture dates can use either EXIF colons or ISO hyphens.
             year_prefix = str(year)
             if month is not None:
-                date_prefix = f"{year}:{month:02d}"
-                where_clauses.append("SUBSTR(date_taken,1,7) = ?")
+                date_prefix = f"{year}-{month:02d}"
+                where_clauses.append("REPLACE(SUBSTR(date_taken,1,7),':','-') = ?")
                 sql_params.append(date_prefix)
             else:
                 where_clauses.append("SUBSTR(date_taken,1,4) = ?")
@@ -302,7 +307,7 @@ async def api_timeline_dates(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline dates")
-        return {'dates': []}
+        raise HTTPException(status_code=503, detail="Timeline dates are temporarily unavailable") from None
 
     return {'dates': dates}
 
@@ -349,7 +354,7 @@ async def api_timeline_years(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline years")
-        return {'years': []}
+        raise HTTPException(status_code=503, detail="Timeline years are temporarily unavailable") from None
 
     return {'years': years}
 
@@ -393,6 +398,6 @@ async def api_timeline_months(
         raise
     except Exception:
         logger.exception("Failed to fetch timeline months")
-        return {'months': []}
+        raise HTTPException(status_code=503, detail="Timeline months are temporarily unavailable") from None
 
     return {'months': months}

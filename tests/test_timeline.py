@@ -260,6 +260,28 @@ class TestTimelineHideDefaultsRealDb:
         assert gallery_resp.status_code == 200
         assert tl_resp.json()["dates"][0]["count"] == gallery_resp.json()["total"]
 
+    def test_explicit_all_type_matches_timeline_instead_of_reapplying_configured_category(self, tmp_path):
+        db_path = str(tmp_path / 'timeline-category.db')
+        _make_db(db_path, [
+            _photo('/normal.jpg', '2025:03:10 10:00:00', category='landscape', is_monochrome=0),
+            _photo('/rejected.jpg', '2025:03:10 12:00:00', category='landscape', is_rejected=1),
+            _photo('/favorite.jpg', '2025:03:10 14:00:00', category='landscape', is_favorite=1),
+        ])
+        client = TestClient(_app_no_auth())
+        config = {**_GALLERY_VIEWER_CONFIG, 'defaults': {**_GALLERY_VIEWER_CONFIG['defaults'], 'type': 'configured'}}
+        with ExitStack() as stack:
+            for patch in (*_timeline_hide_defaults_patches(db_path, {}), *self._gallery_patches(db_path)):
+                stack.enter_context(patch)
+            stack.enter_context(mock.patch('api.routers.gallery.VIEWER_CONFIG', config))
+            stack.enter_context(mock.patch.dict('api.routers.gallery.TYPE_FILTERS', {'configured': {'category': 'portrait'}}))
+            timeline = client.get('/api/timeline/dates', params={'year': 2025})
+            narrowed = client.get('/api/photos', params={'date_from': '2025-03-10', 'date_to': '2025-03-10'})
+            opened_day = client.get('/api/photos', params={'type': '', 'date_from': '2025-03-10', 'date_to': '2025-03-10'})
+        assert timeline.status_code == narrowed.status_code == opened_day.status_code == 200
+        assert narrowed.json()['photo_total'] == 0
+        assert timeline.json()['dates'][0]['count'] == opened_day.json()['photo_total'] == 3
+        assert {row['path'] for row in opened_day.json()['photos']} == {'/normal.jpg', '/rejected.jpg', '/favorite.jpg'}
+
 
 class TestTimelineApiHideDefaultsRealDb:
     """GET /api/timeline itself wires the hide-toggle fix at two independent
@@ -279,6 +301,35 @@ class TestTimelineApiHideDefaultsRealDb:
         return _timeline_hide_defaults_patches(db_path, defaults) + (
             mock.patch("api.routers.timeline.VIEWER_CONFIG", {"display": {"tags_per_photo": 10}}),
         )
+
+    def test_density_month_counts_include_both_iso_and_exif_capture_dates(self, tmp_path):
+        db_path = str(tmp_path / 'mixed-dates.db')
+        _make_db(db_path, [_photo('/iso.jpg', '2024-02-29 10:00:00'), _photo('/exif.jpg', '2024:02:29 11:00:00')])
+        client = TestClient(_app_no_auth())
+        with ExitStack() as stack:
+            for patch in self._patches(db_path, {}):
+                stack.enter_context(patch)
+            whole_year = client.get('/api/timeline/dates', params={'year': 2024}).json()
+            month_days = client.get('/api/timeline/dates', params={'year': 2024, 'month': 2}).json()
+            feed = client.get('/api/timeline', params={'date_from': '2024-02-01', 'date_to': '2024-02-29'}).json()
+        assert whole_year['dates'][0]['count'] == month_days['dates'][0]['count'] == feed['groups'][0]['count'] == 2
+        assert {photo['path'] for photo in feed['groups'][0]['photos']} == {'/iso.jpg', '/exif.jpg'}
+
+    def test_density_preview_orders_mixed_date_formats_by_camera_local_clock(self, tmp_path):
+        db_path = str(tmp_path / 'mixed-order.db')
+        _make_db(db_path, [
+            _photo('/iso-evening.jpg', '2024-02-29T19:00:00'),
+            _photo('/exif-morning.jpg', '2024:02:29 09:00:00'),
+            _photo('/iso-noon.jpg', '2024-02-29 12:00:00'),
+        ])
+        client = TestClient(_app_no_auth())
+        with ExitStack() as stack:
+            for patch in self._patches(db_path, {}):
+                stack.enter_context(patch)
+            newer_first = client.get('/api/timeline', params={'sort_by': 'date_taken', 'photos_per_group': 1}).json()
+            older_first = client.get('/api/timeline', params={'sort_by': 'date_taken', 'direction': 'newer', 'photos_per_group': 1}).json()
+        assert newer_first['groups'][0]['photos'][0]['path'] == '/iso-evening.jpg'
+        assert older_first['groups'][0]['photos'][0]['path'] == '/exif-morning.jpg'
 
     def test_photo_feed_orders_each_date_and_pages_without_repeating_days(self, tmp_path):
         db_path = str(tmp_path / 'feed.db')
@@ -653,7 +704,10 @@ class TestTimelineDates:
         body = resp.json()
         assert len(body["dates"]) == 1
 
-    def test_db_error_returns_empty_dates(self):
+    @pytest.mark.parametrize('endpoint,params', [
+        ('dates', {'year': 2025}), ('years', {}), ('months', {'year': 2025}),
+    ])
+    def test_db_error_returns_retryable_summary_failure(self, endpoint, params):
         app = create_app()
         client = TestClient(app, raise_server_exceptions=False)
 
@@ -666,10 +720,10 @@ class TestTimelineDates:
             mock.patch("api.routers.timeline.get_visibility_clause", return_value=("1=1", [])),
             mock.patch("api.routers.timeline.get_photos_from_clause", return_value=("photos", [])),
         ):
-            resp = client.get("/api/timeline/dates", params={"year": 2025})
+            resp = client.get(f"/api/timeline/{endpoint}", params=params)
 
-        assert resp.status_code == 200
-        assert resp.json()["dates"] == []
+        assert resp.status_code == 503
+        assert resp.json()['detail'] == f'Timeline {endpoint} are temporarily unavailable'
 
     def test_missing_year_returns_422(self, client):
         resp = client.get("/api/timeline/dates")

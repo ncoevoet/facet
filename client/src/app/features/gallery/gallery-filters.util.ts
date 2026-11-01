@@ -230,6 +230,7 @@ export function semanticSortPatch(
 
 /** Subset of viewer config defaults the URL/sync codec compares against. */
 export interface FilterDefaults {
+  type?: string;
   sort?: string;
   sort_direction?: string;
   hide_details?: boolean;
@@ -282,7 +283,7 @@ export const SMART_ALBUM_EXCLUDE_KEYS = new Set([
  *  so a reopened album never asks `/api/photos` for `sort=relevance` without `semantic_q` (a 400). */
 export function smartAlbumFilterJson(filters: GalleryFilters): string {
   const dropSort = filters.sort === RELEVANCE_SORT;
-  const filterJson: Record<string, unknown> = {};
+  const filterJson: Record<string, unknown> = { type: filters.type };
   for (const [k, v] of Object.entries(filters)) {
     if (k === 'tag_groups' && !hasTagQuery(String(v))) continue;
     if (v && v !== '' && !(k === 'person_match' && (!filters.person_id || v === 'all')) && !SMART_ALBUM_EXCLUDE_KEYS.has(k) && !(dropSort && (k === 'sort' || k === 'sort_direction'))) {
@@ -617,6 +618,8 @@ export function applyQueryParams(
     result.score_presence = policy ? serializeScorePresence(policy) : params['score_presence'];
   }
   if (Object.hasOwn(params, 'person_id')) result.person_id = params['person_id'];
+  if (Object.hasOwn(params, 'type')) result.type = params['type'];
+  if (Object.hasOwn(params, 'review_status')) result.review_status = params['review_status'] as GalleryFilters['review_status'];
   for (const key of ['date_from', 'date_to'] as const) {
     if (Object.hasOwn(params, key)) result[key] = params[key];
   }
@@ -688,7 +691,7 @@ export function buildSyncParams(
   defaults: FilterDefaults | undefined,
   searchThresholdDefault?: number | null,
 ): Record<string, string> {
-  const params: Record<string, string> = {};
+  const params: Record<string, string> = { type: f.type };
   // A semantic query implies Relevance (DESC), so that is the only sort left unwritten. Every other
   // sort is written even when it equals the viewer default: a URL without one falls back to the
   // browser's remembered sort (see GalleryStore.loadConfig), so an unwritten default would reopen a
@@ -762,6 +765,7 @@ export function buildApiParams(
   searchThresholdDefault: number | null | undefined,
 ): Record<string, string | number | boolean> {
   const params: Record<string, string | number | boolean> = {
+    type: f.type,
     page: f.page,
     per_page: f.per_page,
     sort: f.sort,
@@ -822,20 +826,18 @@ export const BY_PATHS_PAGING_KEYS: ReadonlySet<string> = new Set([
  * The `filters` member of a `POST /photos/by_paths` body for the gallery view: everything
  * `buildApiParams` sends except paging and sort, so a photo that no longer matches (rejected under
  * `hide_rejected`, out of the album or score range) comes back missing exactly as a reload would
- * drop it. `type` is sent explicitly because the endpoint defaults it to '' while `GET /photos`
- * resolves the viewer's default (and '' for a person view).
+ * drop it. Both reads send the already-resolved type, including an explicitly
+ * empty All photos value; neither reapplies a viewer default over that choice.
  */
 export function buildByPathsFilters(
   f: GalleryFilters,
   isSmartAlbum: boolean,
-  defaultType: string,
   searchThresholdDefault: number | null | undefined,
 ): Record<string, string | number | boolean> {
   const filters: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(buildApiParams(f, isSmartAlbum, searchThresholdDefault))) {
     if (!BY_PATHS_PAGING_KEYS.has(key)) filters[key] = value;
   }
-  filters['type'] = f.type || (f.person_id ? '' : defaultType);
   return filters;
 }
 

@@ -8,6 +8,8 @@ import { TimelineComponent } from './timeline.component';
 import { PageContextService } from '../../core/agent/page-context.service';
 import { GalleryStore } from '../gallery/gallery.store';
 
+const timelinePersonalReset = { type: '', hide_rejected: 'false', favorites_only: 'false', is_monochrome: 'false', review_status: '', show_rejected: 'false', blinks_only: 'false', duplicates_only: 'false' };
+
 describe('TimelineComponent', () => {
 
   let component: any;
@@ -166,6 +168,7 @@ describe('TimelineComponent', () => {
       expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], {
         queryParams: {
           ...Object.fromEntries(Object.keys(noneHidden).map(key => [key, 'false'])),
+          ...timelinePersonalReset,
           date_from: '2024-06-15',
           date_to: '2024-06-15',
           sort: 'date_taken',
@@ -196,6 +199,18 @@ describe('TimelineComponent', () => {
 
 
 describe('Timeline missing-date and range transitions', () => {
+  it('opens the selected route month intersected with the typed range instead of widening to the whole library', () => {
+    const navigate = vi.fn();
+    TestBed.configureTestingModule({ providers: [
+      { provide: Router, useValue: { navigate } },
+      { provide: ActivatedRoute, useValue: { paramMap: of({ get: (key: string) => key === 'year' ? '2024' : key === 'month' ? '2' : null }) } },
+      { provide: TimelineFiltersService, useValue: { dateFrom: signal('2024-02-12'), dateTo: signal(''), sortDirection: signal('older') } },
+      { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }) } },
+    ] });
+    const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
+    component.viewRange();
+    expect(navigate).toHaveBeenCalledWith(['/'], { queryParams: { ...timelinePersonalReset, hide_bursts: 'true', date_from: '2024-02-12', date_to: '2024-02-29', sort: 'date_taken', sort_direction: 'DESC' } });
+  });
   it('carries only visibility into the chosen date scope, and resets the timeline window', () => {
     const navigate = vi.fn();
     const dateFrom = signal('2026-01-01'); const dateTo = signal('2026-02-01');
@@ -207,9 +222,9 @@ describe('Timeline missing-date and range transitions', () => {
     ] });
     const component: any = TestBed.runInInjectionContext(() => new TimelineComponent());
     component.viewRange();
-    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { hide_bursts: 'true', date_from: '2026-01-01', date_to: '2026-02-01', sort: 'date_taken', sort_direction: 'DESC' } });
+    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { ...timelinePersonalReset, hide_bursts: 'true', date_from: '2026-01-01', date_to: '2026-02-01', sort: 'date_taken', sort_direction: 'DESC' } });
     component.viewUnknownDates();
-    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { hide_bursts: 'true', no_capture_date: '1', sort: 'filename', sort_direction: 'ASC' } });
+    expect(navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { ...timelinePersonalReset, hide_bursts: 'true', no_capture_date: '1', sort: 'filename', sort_direction: 'ASC' } });
     component.resetDates();
     expect(dateFrom()).toBe(''); expect(dateTo()).toBe('');
     expect(navigate).toHaveBeenLastCalledWith(['/timeline']);

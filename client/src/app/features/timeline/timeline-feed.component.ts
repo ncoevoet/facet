@@ -14,6 +14,7 @@ import { TimelineFiltersService } from './timeline-filters.service';
 import { GalleryStore } from '../gallery/gallery.store';
 import { TimelineFeedCache, type TimelineGroup, type TimelinePage } from './timeline-feed-cache.service';
 import type { Photo } from '../../shared/models/photo.model';
+import { timelineWindow } from './timeline-density.util';
 
 @Component({
   selector: 'app-timeline-feed',
@@ -101,17 +102,7 @@ export class TimelineFeedComponent {
   private restoreScroll: number | null = null;
 
   private readonly params = computed(() => {
-    let from = this.filters.dateFrom(); let to = this.filters.dateTo();
-    if (/^\d{4}$/.test(this.year())) {
-      const m = this.month();
-      const validMonth = /^(?:[1-9]|0[1-9]|1[0-2])$/.test(m);
-      const start = `${this.year()}-${validMonth ? m.padStart(2, '0') : '01'}-01`;
-      const end = validMonth
-        ? `${this.year()}-${m.padStart(2, '0')}-${new Date(+this.year(), +m, 0).getDate()}`
-        : `${this.year()}-12-31`;
-      from = from > start ? from : start;
-      to = to && to < end ? to : end;
-    }
+    const { from, to } = timelineWindow(this.year(), this.month(), this.filters.dateFrom(), this.filters.dateTo());
     return { ...this.visibility(), date_from: from, date_to: to, direction: this.filters.sortDirection(),
       limit: 8, photos_per_group: 8, sort_by: 'date_taken', granularity: 'day' };
   });

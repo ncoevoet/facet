@@ -1311,7 +1311,7 @@ export class GalleryStore {
       const f = this.filters();
       const membership = !pinned && !f.similar_to;
       const filters = membership
-        ? buildByPathsFilters(f, this.currentAlbum()?.is_smart ?? false, this.config()?.defaults?.type ?? '', this.config()?.search_threshold_default)
+        ? buildByPathsFilters(f, this.currentAlbum()?.is_smart ?? false, this.config()?.search_threshold_default)
         : undefined;
       const rowsBefore = this.photos();
       const { rows, missing } = await this.fetchByPaths(wanted, filters, true);

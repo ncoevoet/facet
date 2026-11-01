@@ -2898,7 +2898,7 @@
     "unavailable": "Caption generation requires a VLM model (16GB+ VRAM)"
   },
   "timeline": {
-    "help": "Browse your library chronologically. Drill from years to months to days; pick a period to see the photos taken then.",
+    "help": "Browse dated photos, jump to a month or use Date density to select a period. Calendar remains available; photos without capture dates are listed separately.",
     "title": "Timeline",
     "empty": "No photos with dates found.",
     "years_title": "Years",
@@ -2907,7 +2907,7 @@
     "no_photos_month": "No photos this month",
     "photos_count": "photos",
     "capture_scope": "Capture dates · visible library",
-    "scope_help": "Counts use capture dates and your visibility settings, across the library. Album, tag and search filters are not applied. Photos without a capture date are listed separately. Opening the gallery also applies its photo-type and review visibility settings, so its count can differ.",
+    "scope_help": "Counts use capture dates and your visibility settings across the library. Album, tag and search filters are not applied. Photos without a capture date are listed separately. Opening a period shows all matching photos, including rejected photos; manual stacks can group their tiles.",
     "open_range": "Open range in gallery",
     "all_dates": "All dates",
     "photo_feed": "Photos",
@@ -2920,7 +2920,20 @@
     "load_failed": "Could not load these dates. Try again.",
     "retry": "Retry",
     "more_days": "More days",
-    "continue_dates": "Continue to next dates"
+    "continue_dates": "Continue to next dates",
+    "density": "Date density",
+    "log_scale": "Log scale",
+    "density_years": "Photos by year",
+    "density_months": "Photos by month",
+    "density_days": "Photos by day",
+    "period_count": "{period} · Photos: {count}",
+    "density_keyboard": "Choose a start period, then an end period. Use Start or End to change a boundary. Apply range updates the same capture-date filters as the date inputs.",
+    "range_boundary": "Range boundary",
+    "range_start": "Start",
+    "range_end": "End",
+    "apply_range": "Apply range",
+    "clear_range": "Clear selection",
+    "explore_period": "Explore period"
   },
   "folders": {
     "help": "Browse photos by their on-disk folder structure. Open a folder to see the photos it contains.",

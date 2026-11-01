@@ -2,8 +2,8 @@ import { Component, inject, signal, effect, output, ChangeDetectionStrategy } fr
 import { DecimalPipe } from '@angular/common';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { firstValueFrom } from 'rxjs';
-import { ApiService } from '../../core/services/api.service';
+import { MatButtonModule } from '@angular/material/button';
+import { TimelineCollectionReader } from './timeline-collection-reader';
 import { TranslatePipe } from '../../shared/pipes/translate.pipe';
 import { ThumbnailUrlPipe } from '../../shared/pipes/thumbnail-url.pipe';
 import { TimelineFiltersService } from './timeline-filters.service';
@@ -20,7 +20,7 @@ interface YearSummary {
 @Component({
   selector: 'app-timeline-years',
   standalone: true,
-  imports: [DecimalPipe, MatIconModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe],
+  imports: [DecimalPipe, MatIconModule, MatButtonModule, MatProgressSpinnerModule, TranslatePipe, ThumbnailUrlPipe],
   changeDetection: ChangeDetectionStrategy.Eager,
   template: `
     @if (loading() && years().length === 0) {
@@ -29,7 +29,11 @@ interface YearSummary {
       </div>
     }
 
-    @if (!loading() && years().length === 0) {
+    @if (failed()) {
+      <p role="alert">{{ I18N.timeline.load_failed | translate }}</p>
+      <button mat-button (click)="retry.update(value => value + 1)">{{ I18N.timeline.retry | translate }}</button>
+    }
+    @if (!loading() && !failed() && years().length === 0) {
       <div class="text-center py-16 opacity-60">
         <mat-icon class="!text-5xl !w-12 !h-12 mb-4">calendar_today</mat-icon>
         <p>{{ I18N.timeline.empty | translate }}</p>
@@ -66,38 +70,31 @@ interface YearSummary {
     </div>
   `,
 })
-export class TimelineYearsComponent {
+export class TimelineYearsComponent extends TimelineCollectionReader {
   protected readonly I18N = i18nKeys();
-  private readonly api = inject(ApiService);
   private readonly filters = inject(TimelineFiltersService);
   private readonly store = inject(GalleryStore);
 
   protected readonly years = signal<YearSummary[]>([]);
-  protected readonly loading = signal(false);
 
   readonly yearSelected = output<string>();
 
   constructor() {
+    super();
     effect(() => {
+      const scope = this.readScope(); this.retry();
       const dateFrom = this.filters.dateFrom();
       const dateTo = this.filters.dateTo();
       const viewParams = this.store.viewFilterParams();
-      this.load(dateFrom, dateTo, viewParams);
+      this.years.set([]);
+      if (scope) this.load(dateFrom, dateTo, viewParams);
     });
   }
 
   private async load(dateFrom: string, dateTo: string, viewParams: ViewFilterParams): Promise<void> {
-    this.loading.set(true);
-    try {
       const params: Record<string, string> = { ...viewParams };
       if (dateFrom) params['date_from'] = dateFrom;
       if (dateTo) params['date_to'] = dateTo;
-      const res = await firstValueFrom(
-        this.api.get<{ years: YearSummary[] }>('/timeline/years', params),
-      );
-      this.years.set(res.years);
-    } finally {
-      this.loading.set(false);
-    }
+      this.loadData<{ years: YearSummary[] }>('/timeline/years', params, res => this.years.set(res.years));
   }
 }
