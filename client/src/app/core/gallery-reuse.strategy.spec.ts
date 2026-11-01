@@ -1,18 +1,20 @@
-import { Component, OnDestroy } from '@angular/core';
+import { Component, inject, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
-import { NavigationEnd, provideRouter, RouteReuseStrategy, Router } from '@angular/router';
+import { ActivatedRoute, NavigationEnd, provideRouter, RouteReuseStrategy, Router } from '@angular/router';
 import { filter, firstValueFrom } from 'rxjs';
 import { RouterTestingHarness } from '@angular/router/testing';
 import { authGuard } from './guards/auth.guard';
 import { AuthService } from './services/auth.service';
-import { GalleryReuseStrategy } from './gallery-reuse.strategy';
+import { GALLERY_REVISIT, GalleryReuseStrategy } from './gallery-reuse.strategy';
 
 let destroyed = 0;
 
 @Component({ template: 'gallery' })
 class GalleryStub implements OnDestroy {
+  readonly initialTag = inject(ActivatedRoute).snapshot.queryParams['tag'];
+  page = 1;
   ngOnDestroy(): void {
     destroyed++;
   }
@@ -67,6 +69,23 @@ describe('GalleryReuseStrategy', () => {
     await back();
     expect(harness.routeDebugElement?.componentInstance).toBe(gallery);
     expect(destroyed).toBe(0);
+  });
+
+  it('starts a fresh gallery for an explicit recent collection without changing ordinary photo Back reuse', async () => {
+    await back();
+    gallery.page = 4;
+    const router = TestBed.inject(Router);
+    await router.navigateByUrl('/?tag=previous&sort=date_taken', {info:GALLERY_REVISIT,onSameUrlNavigation:'reload'});
+    const fresh = harness.routeDebugElement?.componentInstance as GalleryStub;
+    expect(fresh).not.toBe(gallery);
+    expect(fresh.initialTag).toBe('previous');
+    expect(fresh.page).toBe(1);
+    expect(destroyed).toBe(1);
+    expect(TestBed.inject(Location).getState()).not.toHaveProperty('info');
+    await harness.navigateByUrl('/photo?path=previous.jpg');
+    await back();
+    expect(harness.routeDebugElement?.componentInstance).toBe(fresh);
+    expect(destroyed).toBe(1);
   });
 
   it('preserves the gallery instance and DOM through the stack editor Back route', async () => {

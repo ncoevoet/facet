@@ -10,25 +10,88 @@ import { GalleryStore, GalleryFilters, DEFAULT_FILTERS } from './gallery.store';
 import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18N } from '../../core/i18n/keys';
+import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 function createCriteria(edition = false) {
  const navigation = new Subject<Event>();
  const filtersSignal=signal<GalleryFilters>({...DEFAULT_FILTERS});
  const personsSignal=signal<{id:number;name:string|null}[]>([]);
  const mockStore={filters:filtersSignal, persons:personsSignal, config:signal<any>(null), pinnedPaths:signal<string[]|null>(null), currentAlbum:signal(null), gpsLocationName:signal(''), updateFilter:vi.fn(),updateFilters:vi.fn(),resetFilters:vi.fn()};
- const mockRouter={events:navigation,navigate:vi.fn()};
+ const mockRouter={events:navigation,navigate:vi.fn(),navigateByUrl:vi.fn()};
+ const authStatus=signal<object|null>(null);
  const api = { get: vi.fn(() => of([])), post: vi.fn(() => of({})) };
  TestBed.configureTestingModule({imports:[GalleryCriteriaComponent],providers:[
  {provide:GalleryStore,useValue:mockStore},{provide:Router,useValue:mockRouter},
- {provide:AuthService,useValue:{isEdition:()=>edition,identity:()=> 'test',status:()=>null}},
+ {provide:AuthService,useValue:{isEdition:()=>edition,identity:()=> 'test',status:authStatus,token:null}},
  {provide:ApiService,useValue:api},
  {provide:MatDialog,useValue:{open:vi.fn(()=>({afterClosed:()=>of(null)}))}},
  {provide:MatSnackBar,useValue:{open:vi.fn()}},
  {provide:I18nService,useValue:{t:(key:string)=>key,translations:signal({}),lang:signal('en')}},
  ]});
  const fixture=TestBed.createComponent(GalleryCriteriaComponent);
- return {app:fixture.componentInstance,fixture,filtersSignal,personsSignal,mockStore,mockRouter,navigation,api};
+ return {app:fixture.componentInstance,fixture,filtersSignal,personsSignal,mockStore,mockRouter,navigation,api,authStatus};
 }
 afterEach(()=>TestBed.resetTestingModule());
+describe('recent collection visits',()=>{
+ it('lets Escape leave a closed inner disclosure so the enclosing mobile menu can close',()=>{
+  const {fixture}=createCriteria();fixture.detectChanges();
+  const root=fixture.nativeElement as HTMLElement;
+  const details=root.querySelector<HTMLDetailsElement>('details')!;
+  const summary=details.querySelector<HTMLElement>('summary')!;
+  const outerEscape=vi.fn();root.addEventListener('keydown',outerEscape);
+  summary.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+  expect(outerEscape).toHaveBeenCalledOnce();
+  outerEscape.mockClear();details.open=true;
+  summary.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+  expect(details.open).toBe(false);
+  expect(outerEscape).not.toHaveBeenCalled();
+  summary.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));
+  expect(outerEscape).toHaveBeenCalledOnce();
+ });
+ it('does not duplicate a query already visible in the collection search, while retaining other criteria',()=>{
+  const {fixture,filtersSignal}=createCriteria();
+  fixture.componentRef.setInput('searchPresented',true);
+  filtersSignal.update(filters=>({...filters,search:'coast'}));fixture.detectChanges();
+  const root=fixture.nativeElement as HTMLElement;
+  expect(root.querySelector('[data-active-criteria]')).toBeNull();
+  filtersSignal.update(filters=>({...filters,tag:'birds'}));fixture.detectChanges();
+  expect(root.querySelector('[data-active-criteria]')?.textContent).toContain('birds');
+  expect(root.querySelector('[data-active-criteria]')?.textContent).not.toContain('coast');
+ });
+ it('records completed collection navigation and restores its exact query without requiring editing',()=>{
+  const {fixture,navigation,mockRouter,authStatus}=createCriteria(false);
+  authStatus.set({authenticated:true});
+  fixture.detectChanges();
+  navigation.next(new NavigationStart(1,'/?tag=forest&min_score=0&max_score=8&sort=date_taken'));
+  navigation.next(new NavigationEnd(1,'/?tag=forest','/?tag=forest&min_score=0&max_score=8&sort=date_taken'));
+  fixture.detectChanges();
+  const root=fixture.nativeElement as HTMLElement;
+  const details=root.querySelector<HTMLDetailsElement>('[data-recent-collections]')!;
+  details.open=true;
+  const button=details.querySelector<HTMLButtonElement>('[data-recent-visit]')!;
+  expect(button.textContent).toContain('forest');
+  button.click();
+  expect(mockRouter.navigateByUrl).toHaveBeenCalledExactlyOnceWith('/?max_score=8&min_score=0&sort=date_taken&tag=forest',{info:GALLERY_REVISIT,onSameUrlNavigation:'reload'});
+  expect(details.open).toBe(false);
+ });
+
+ it('does not record cancelled visits or allow a captured history action while parked or after logout',()=>{
+  const {app,fixture,navigation,mockRouter,authStatus}=createCriteria();
+  authStatus.set({authenticated:true});fixture.detectChanges();
+  navigation.next(new NavigationEnd(1,'/?tag=first','/?tag=first'));fixture.detectChanges();
+  const root=fixture.nativeElement as HTMLElement;
+  const button=root.querySelector<HTMLButtonElement>('[data-recent-visit]')!;
+  navigation.next(new NavigationStart(2,'/?tag=cancelled'));
+  navigation.next(new NavigationCancel(2,'/?tag=cancelled','cancelled',NavigationCancellationCode.GuardRejected));
+  fixture.detectChanges();
+  expect(root.querySelectorAll('[data-recent-visit]')).toHaveLength(1);
+  app.setActive(false);button.click();
+  expect(mockRouter.navigateByUrl).not.toHaveBeenCalled();
+  app.setActive(true);authStatus.set(null);button.click();
+  expect(mockRouter.navigateByUrl).not.toHaveBeenCalled();
+  fixture.detectChanges();
+  expect(root.querySelector('[data-recent-collections]')).toBeNull();
+ });
+});
 describe('activeFilterChips', () => {;
 
     it('returns empty array when no active filters', () => {

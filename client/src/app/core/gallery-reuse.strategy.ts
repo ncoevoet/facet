@@ -12,6 +12,8 @@ export const GALLERY_PATHS: readonly string[] = ['', ALBUM_PATH];
 export const PHOTO_PATH = 'photo';
 const STACK_EDITOR_PATH = 'stacks/edit';
 export const PHOTO_COMPARE_PATH = 'photo-compare';
+/** Transient NavigationExtras.info, never persisted into browser history. */
+export const GALLERY_REVISIT = Symbol('gallery-revisit');
 
 const isGallery = (route: ActivatedRouteSnapshot) => GALLERY_PATHS.includes(route.routeConfig?.path ?? '-');
 
@@ -28,6 +30,12 @@ export class GalleryReuseStrategy extends BaseRouteReuseStrategy implements OnDe
 
   // The gallery reads its album id once on init, so another album needs a fresh instance.
   override shouldReuseRoute(future: ActivatedRouteSnapshot, curr: ActivatedRouteSnapshot): boolean {
+    if (isGallery(future) && isGallery(curr) && this.router.currentNavigation()?.extras.info === GALLERY_REVISIT) {
+      // A retrieved handle can still alias the active gallery. The router owns
+      // its destruction on this explicit fresh visit; do not destroy it twice.
+      this.kept = null;
+      return false;
+    }
     if (future.routeConfig === curr.routeConfig && future.routeConfig?.path === ALBUM_PATH
       && future.paramMap.get('albumId') !== curr.paramMap.get('albumId')) return false;
     return super.shouldReuseRoute(future, curr);

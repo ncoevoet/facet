@@ -1060,6 +1060,11 @@
   },
   "gallery": {
     "criteria": {
+      "recent_collections": "Raccolte recenti",
+      "recent_help": "Riapre la raccolta e i filtri dalla prima pagina. Conserva le foto attualmente selezionate esplicitamente; cancella la selezione dell’intera vista. Solo in questa scheda; cancellata al cambio di account o credenziali.",
+      "recent_album": "Album n. {id}",
+      "recent_filter_count": "Criteri salvati: {count}",
+      "clear_history": "Cancella cronologia",
       "quick_help": "I filtri di decisione escono dalla ricerca visiva. Da decidere ordina per data di scatto, dalla più vecchia.",
       "label": "Criteri attivi",
       "visibility": "Regole di visibilità ({count})",

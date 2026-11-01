@@ -1060,6 +1060,11 @@
   },
   "gallery": {
     "criteria": {
+      "recent_collections": "Recent collections",
+      "recent_help": "Reopens the collection and filters from page one. Keeps your current explicitly selected photos; clears whole-view selection. This tab only; cleared when your account or credentials change.",
+      "recent_album": "Album #{id}",
+      "recent_filter_count": "Saved criteria: {count}",
+      "clear_history": "Clear history",
       "quick_help": "Decision filters leave visual search. Undecided uses capture-date order, oldest first.",
       "label": "Active criteria",
       "visibility": "Visibility rules ({count})",

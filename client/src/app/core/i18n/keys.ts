@@ -1074,6 +1074,11 @@ export const I18N = {
   },
   gallery: {
     criteria: {
+      recent_collections: "gallery.criteria.recent_collections",
+      recent_help: "gallery.criteria.recent_help",
+      recent_album: "gallery.criteria.recent_album",
+      recent_filter_count: "gallery.criteria.recent_filter_count",
+      clear_history: "gallery.criteria.clear_history",
       quick_help: "gallery.criteria.quick_help",
       label: "gallery.criteria.label",
       visibility: "gallery.criteria.visibility",

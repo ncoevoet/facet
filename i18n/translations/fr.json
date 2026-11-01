@@ -1060,6 +1060,11 @@
   },
   "gallery": {
     "criteria": {
+      "recent_collections": "Collections récentes",
+      "recent_help": "Rouvre la collection et les filtres à la première page. Conserve les photos actuellement sélectionnées explicitement ; efface la sélection de toute la vue. Dans cet onglet uniquement ; effacé lors d’un changement de compte ou d’identifiants.",
+      "recent_album": "Album nº {id}",
+      "recent_filter_count": "Critères enregistrés : {count}",
+      "clear_history": "Effacer l’historique",
       "quick_help": "Les filtres de décision quittent la recherche visuelle. Indécis trie par date de prise de vue, de la plus ancienne à la plus récente.",
       "label": "Critères actifs",
       "visibility": "Règles de visibilité ({count})",

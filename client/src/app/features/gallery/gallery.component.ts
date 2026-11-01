@@ -49,7 +49,7 @@ import { Photo } from '../../shared/models/photo.model';
 import { isImeOrRepeat, isPageShortcutBlocked, isShortcutContextBlocked, isTypingContext } from '../../shared/utils/keyboard';
 import { KeyboardMappingService } from '../../core/services/keyboard-mapping.service';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
-import { PHOTO_PATH } from '../../core/gallery-reuse.strategy';
+import { GALLERY_REVISIT, PHOTO_PATH } from '../../core/gallery-reuse.strategy';
 import { UndoService } from '../../core/services/undo.service';
 import { SequenceOverrideService, SequenceKind } from '../../core/services/sequence-override.service';
 import {
@@ -163,7 +163,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             matInput
             type="search"
             autocomplete="off"
-            class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-11 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)]"
+            class="h-10 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface-container-lowest)] py-2 pl-3 pr-11 text-base text-[var(--mat-sys-on-surface)] placeholder:text-[var(--mat-sys-on-surface-variant)] [&::-webkit-search-cancel-button]:hidden"
             [placeholder]="I18N.gallery.search_placeholder | translate"
             [value]="store.filters().search"
             (input)="onSearchInput($event)"
@@ -326,7 +326,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
           </div>
           </div>
           <div class="mt-1 flex flex-wrap items-center justify-between gap-x-1 gap-y-1 md:gap-x-4">
-            <app-gallery-criteria #collectionCriteria [portShortcuts]="!isDesktop()" class="order-3 w-full min-w-0 flex-none md:order-none md:w-auto md:flex-1" />
+            <app-gallery-criteria #collectionCriteria [portShortcuts]="!isDesktop()" [searchPresented]="true" class="order-3 w-full min-w-0 flex-none md:order-none md:w-auto md:flex-1" />
             @if (!isDesktop()) {
               <div data-mobile-collection-controls class="flex min-w-0 flex-1 items-center gap-0.5">
                 <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
@@ -1030,6 +1030,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
   private readonly sequenceOverrides = inject(SequenceOverrideService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  // Router.currentNavigation may be cleared before ngOnInit's first render.
+  private readonly revisit = this.router.currentNavigation?.()?.extras.info === GALLERY_REVISIT;
   private readonly stacks = inject(PhotoStackService);
   private readonly stackActions = inject(StackActionsService);
   private readonly outlet = inject(RouterOutlet, { optional: true });
@@ -1831,7 +1833,8 @@ export class GalleryComponent implements OnInit, OnDestroy {
       ? this.store.readGallerySessionQuery()
       : null;
     const routeAlbumId = this.route.snapshot.paramMap.get('albumId');
-    if (!setScope && this.tryRestoreView()) return;
+    if (this.revisit) this.store.viewSnapshot.set(null);
+    if (!setScope && !this.revisit && this.tryRestoreView()) return;
     // Reset album state to avoid stale singleton data; loadConfig() resets filters from scratch
     this.store.currentAlbum.set(null);
     this.store.initializing.set(true);

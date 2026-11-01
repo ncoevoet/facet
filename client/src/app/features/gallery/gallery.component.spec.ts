@@ -4,7 +4,7 @@ import { ChangeDetectorRef, Component, computed, DebugElement, DestroyRef, signa
 import { Location } from '@angular/common';
 import { provideLocationMocks } from '@angular/common/testing';
 import { RouterTestingHarness } from '@angular/router/testing';
-import { GalleryReuseStrategy } from '../../core/gallery-reuse.strategy';
+import { GALLERY_REVISIT, GalleryReuseStrategy } from '../../core/gallery-reuse.strategy';
 import { ActivatedRoute, Event as RouterEvent, NavigationEnd, NavigationStart, provideRouter, RouteReuseStrategy, Router, RouterOutlet } from '@angular/router';
 import { By } from '@angular/platform-browser';
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
@@ -1241,6 +1241,24 @@ describe('GalleryComponent', () => {
 
       expect(mockStore.loadConfig).toHaveBeenCalled();
       expect(mockStore.loadPhotos).toHaveBeenCalled();
+    });
+
+    it('captures a recent-collection intent before navigation info disappears and refuses the old matching snapshot', async () => {
+      const router = TestBed.inject(Router);
+      const navigation = vi.spyOn(router, 'currentNavigation').mockReturnValue({
+        extras: { info: GALLERY_REVISIT },
+      } as unknown as ReturnType<Router['currentNavigation']>);
+      const revisit = TestBed.runInInjectionContext(() => new GalleryComponent());
+      navigation.mockReturnValue(null);
+      mockStore.photos.set([{ path: '/a.jpg' }]);
+      mockStore.viewSnapshot.set({ scrollTop: 640, albumId: null, filterKey: mockStore.filterKey() });
+
+      await revisit.ngOnInit();
+
+      expect(mockStore.viewSnapshot()).toBeNull();
+      expect(mockStore.loadConfig).toHaveBeenCalledOnce();
+      expect(mockStore.loadPhotos).toHaveBeenCalledOnce();
+      expect(mockStore.resumeListingReads).not.toHaveBeenCalled();
     });
 
     it('restores the previous view when the URL matches the snapshot', async () => {

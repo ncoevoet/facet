@@ -16,6 +16,9 @@ import { folderDisplayName } from '../folders/folders.util';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
 import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
+import { GalleryVisit, GalleryVisitHistoryService } from './gallery-visit-history.service';
+import { filterUnit } from './gallery-filters.util';
+import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
 
 @Component({selector:'app-gallery-criteria', changeDetection:ChangeDetectionStrategy.OnPush,
  imports:[NgTemplateOutlet, MatIconModule, MatSliderModule, MatTooltipModule, PersonFilterChipComponent, TranslatePipe, ThumbnailUrlPipe, GalleryAlbumRulesComponent],
@@ -26,7 +29,7 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
  } @else {
  <ng-template #shortcuts>
  <div class="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--mat-sys-on-surface-variant)]">
-   <details #quickFilters tabindex="-1" class="relative" (keydown.escape)="quickFilters.open = false; quickSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+   <details #quickFilters tabindex="-1" class="relative" (keydown.escape)="closeDisclosure($event, quickFilters, quickSummary)">
      <summary #quickSummary class="cursor-pointer py-2 font-medium">{{ I18N.gallery.sidebar.review.quick | translate }}</summary>
      <div class="absolute top-full left-0 z-30 min-w-56 max-w-[80vw] rounded-md border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg flex flex-wrap gap-1">
        <p class="m-0 basis-full p-1 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.quick_help | translate }}</p>
@@ -37,12 +40,30 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
      </div>
    </details>
    @if (visibilityRules().length) {
-     <details #visibility tabindex="-1" class="min-w-0" (keydown.escape)="visibility.open = false; visibilitySummary.focus(); $event.preventDefault(); $event.stopPropagation()">
+     <details #visibility tabindex="-1" class="min-w-0" (keydown.escape)="closeDisclosure($event, visibility, visibilitySummary)">
        <summary #visibilitySummary data-visibility-summary class="cursor-pointer py-2">{{ I18N.gallery.criteria.visibility | translate:{ count: visibilityRules().length } }}</summary>
        <div class="flex flex-wrap gap-2 pb-2">
          @for (rule of visibilityRules(); track rule.id) {
            <button type="button" class="inline-flex items-center gap-1 rounded border border-[var(--mat-sys-outline-variant)] px-2 py-1.5" [attr.aria-label]="I18N.gallery.criteria.remove | translate:{ label: (rule.labelKey | translate) }" (click)="clearFilterChip(rule)">{{ rule.labelKey | translate }}: {{ rule.valueKey | translate }}<mat-icon class="!text-sm !w-4 !h-4" aria-hidden="true">close</mat-icon></button>
          }
+       </div>
+     </details>
+   }
+   @if (history.visits().length) {
+     <details #recentCollections tabindex="-1" data-recent-collections class="relative" (keydown.escape)="closeDisclosure($event, recentCollections, recentSummary)">
+       <summary #recentSummary class="cursor-pointer py-2">{{ I18N.gallery.criteria.recent_collections | translate }}</summary>
+       <div class="absolute left-0 top-full z-30 w-80 max-w-[80vw] max-h-[45dvh] overflow-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface)] p-2 shadow-lg">
+         <details class="px-2 py-1">
+           <summary class="cursor-pointer font-medium">{{ I18N.nav.help | translate }}</summary>
+           <p class="m-0 py-2 text-xs">{{ I18N.gallery.criteria.recent_help | translate }}</p>
+         </details>
+         @for (visit of history.visits(); track visit.url) {
+           <button type="button" data-recent-visit class="block min-h-11 w-full rounded px-2 py-2 text-left hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" (click)="restoreVisit(visit)">
+             <span class="block font-medium">{{ visit.albumId ? (I18N.gallery.criteria.recent_album | translate:{ id: visit.albumId }) : (I18N.gallery.all_photos | translate) }}</span>
+             <span class="block break-words text-xs text-[var(--mat-sys-on-surface-variant)]">{{ visitDescription(visit) }}</span>
+           </button>
+         }
+         <button type="button" class="min-h-11 px-2 font-medium" (click)="clearVisitHistory()">{{ I18N.gallery.criteria.clear_history | translate }}</button>
        </div>
      </details>
    }
@@ -58,7 +79,7 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
  @if (store.filters().semanticQuery || store.filters().similar_to) {
    <p data-query-explanation class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.criteria.ranked_help | translate }}</p>
  }
- @if (activeFilterChips().length || store.filters().similar_to) {
+ @if (visibleFilterChips().length || store.filters().similar_to) {
     <div data-active-criteria role="group" [attr.aria-label]="I18N.gallery.criteria.label | translate" class="flex items-center gap-2 flex-wrap py-2">
       @if (store.filters().similar_to) {
         <div class="inline-flex flex-wrap max-w-full items-center gap-1.5 pl-1 pr-1 py-0.5 rounded-md bg-[var(--mat-sys-secondary-container)] text-[var(--mat-sys-on-secondary-container)] text-xs font-medium">
@@ -100,7 +121,7 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
           </button>
         </div>
       }
-      @for (chip of activeFilterChips(); track chip.id) {
+      @for (chip of visibleFilterChips(); track chip.id) {
         @if (chip.personId) {
           @if (canAct()) {
             <app-person-filter-chip [personId]="chip.personId" [canEdit]="auth.isEdition()" (remove)="clearFilterChip(chip)" />
@@ -123,7 +144,7 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
           </div>
         }
       }
-      @if (activeFilterChips().length > 1) {
+      @if (visibleFilterChips().length > 1) {
         <button class="text-xs opacity-60 hover:opacity-100 transition-opacity ml-auto shrink-0" (click)="resetFilters()">
           {{ I18N.gallery.reset_filters | translate }}
         </button>
@@ -133,6 +154,7 @@ import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
  }`})
 export class GalleryCriteriaComponent {
  readonly portShortcuts = input(false);
+ readonly searchPresented = input(false);
  readonly shortcuts = viewChild<TemplateRef<unknown>>('shortcuts');
 
  protected readonly I18N=i18nKeys();
@@ -140,6 +162,7 @@ export class GalleryCriteriaComponent {
  protected readonly auth=inject(AuthService);
  private readonly i18n=inject(I18nService);
  private readonly router=inject(Router);
+ protected readonly history=inject(GalleryVisitHistoryService);
  protected readonly pinned=computed(()=>this.store.pinnedPaths()!==null);
  private readonly active=signal(true);
  private readonly pending=signal(false);
@@ -147,7 +170,9 @@ export class GalleryCriteriaComponent {
  private readonly date = new CaptureDatePipe();
  private readonly tooltips = viewChildren(MatTooltip);
  private readonly quickDetails = viewChild<ElementRef<HTMLDetailsElement>>('quickFilters');
+ private readonly quickSummary = viewChild<ElementRef<HTMLElement>>('quickSummary');
  private readonly visibilityDetails = viewChild<ElementRef<HTMLDetailsElement>>('visibility');
+ private readonly recentDetails = viewChild<ElementRef<HTMLDetailsElement>>('recentCollections');
  protected readonly statuses = [
    { id: 'undecided', label: I18N.gallery.sidebar.review.values.undecided },
    { id: 'kept', label: I18N.review.kept },
@@ -179,13 +204,42 @@ export class GalleryCriteriaComponent {
    if(event instanceof NavigationStart){this.pending.set(true);this.closeDisclosures();}
    else if(event instanceof NavigationCancel){
     if(event.code!==NavigationCancellationCode.Redirect&&event.code!==NavigationCancellationCode.SupersededByNewNavigation)this.pending.set(false);
-   }else if(event instanceof NavigationEnd||event instanceof NavigationError||event instanceof NavigationSkipped)this.pending.set(false);
+   }else if(event instanceof NavigationEnd||event instanceof NavigationError||event instanceof NavigationSkipped){
+    this.pending.set(false);
+    if(event instanceof NavigationEnd&&this.canAct())this.history.remember(event.urlAfterRedirects);
+   }
   });
  }
  setActive(active:boolean):void { this.active.set(active); if(!active)this.closeDisclosures(); }
+ protected closeDisclosure(event:Event,details:HTMLDetailsElement,summary:HTMLElement):void {
+   if(!details.open)return;
+   details.open=false;
+   summary.focus();
+   event.preventDefault();event.stopPropagation();
+ }
  private closeDisclosures():void {
-   for(const details of [this.quickDetails(),this.visibilityDetails()])if(details)details.nativeElement.open=false;
+   for(const details of [this.quickDetails(),this.visibilityDetails(),this.recentDetails()])if(details)details.nativeElement.open=false;
    for(const tooltip of this.tooltips())tooltip.hide(0);
+ }
+ protected restoreVisit(visit:GalleryVisit):void {
+   if(!this.canAct())return;
+   const url=this.history.restoreUrl(visit);
+   if(url){
+     this.recentDetails()?.nativeElement.querySelector('summary')?.focus();
+     this.closeDisclosures();
+     void this.router.navigateByUrl(url,{info:GALLERY_REVISIT,onSameUrlNavigation:'reload'});
+   }
+ }
+ protected clearVisitHistory():void {
+   if(!this.canAct())return;
+   this.quickSummary()?.nativeElement.focus();
+   this.history.clear();
+ }
+ protected visitDescription(visit:GalleryVisit):string {
+   const labels:Record<string,string>={search:I18N.gallery.search_chip,semanticQuery:I18N.gallery.semantic_search_chip,tag:I18N.gallery.tag,camera:I18N.gallery.camera,lens:I18N.gallery.lens};
+   const leading=visit.criteria.find(([key])=>key in labels);
+   const count=this.i18n.t(I18N.gallery.criteria.recent_filter_count,{count:new Set(visit.criteria.filter(([key])=>key!=='album_id').map(([key])=>filterUnit(key))).size});
+   return leading?`${this.i18n.t(labels[leading[0]])}: ${leading[1]} · ${count}`:count;
  }
  protected resetFilters():void {if(this.canAct())void this.store.resetFilters();}
  protected onSimilarityFilterChange(value:number):void {if(this.canAct())void this.store.updateFilter('min_similarity',String(value));}
@@ -327,6 +381,8 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
 
     return chips;
   });
+
+protected readonly visibleFilterChips = computed(() => this.activeFilterChips().filter(chip => chip.id !== 'search' || !this.searchPresented()));
 
 protected readonly SIMILARITY_MODES = [
     { id: 'visual', icon: 'image_search' },

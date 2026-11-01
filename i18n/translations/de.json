@@ -1060,6 +1060,11 @@
   },
   "gallery": {
     "criteria": {
+      "recent_collections": "Letzte Sammlungen",
+      "recent_help": "Öffnet Sammlung und Filter ab der ersten Seite. Behält die aktuell ausdrücklich ausgewählten Fotos; hebt eine Auswahl der ganzen Ansicht auf. Nur in diesem Tab; wird bei einem Konto- oder Anmeldedatenwechsel gelöscht.",
+      "recent_album": "Album #{id}",
+      "recent_filter_count": "Gespeicherte Kriterien: {count}",
+      "clear_history": "Verlauf löschen",
       "quick_help": "Entscheidungsfilter verlassen die visuelle Suche. Unentschieden verwendet das Aufnahmedatum, älteste zuerst.",
       "label": "Aktive Kriterien",
       "visibility": "Sichtbarkeitsregeln ({count})",

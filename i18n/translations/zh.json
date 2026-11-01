@@ -1060,6 +1060,11 @@
   },
   "gallery": {
     "criteria": {
+      "recent_collections": "最近的照片集",
+      "recent_help": "从第一页重新打开照片集及筛选条件。保留当前明确选中的照片，清除整视图选择。仅限当前标签页；切换账户或凭据后清除记录。",
+      "recent_album": "相册 #{id}",
+      "recent_filter_count": "已保存条件：{count}",
+      "clear_history": "清除历史记录",
       "quick_help": "决定筛选会退出视觉搜索。“未决定”按拍摄日期从早到晚排序。",
       "label": "当前条件",
       "visibility": "可见性规则（{count}）",
