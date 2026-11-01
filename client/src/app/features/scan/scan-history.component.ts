@@ -22,6 +22,12 @@ import { I18N } from '../../core/i18n/keys';
             <div class="flex flex-wrap gap-x-2 gap-y-1 font-medium"><span>#{{ run.id }}</span><span>{{ run.statusKey | translate }}</span><span class="min-w-0 [overflow-wrap:anywhere]">{{ run.mode }}</span></div>
             <p class="my-1">{{ run.started_at ? (run.started_at | date:'dd/MM/yyyy HH:mm':'UTC') : '—' }} · UTC</p>
             <p class="my-1">{{ I18N.scan.history.counts | translate:{ processed: run.processed_files ?? '—', total: run.total_files ?? '—', failed: run.failed_files ?? '—' } }}</p>
+            @if (run.jobStatusKey; as pipelineState) {
+              <details class="my-1">
+                <summary class="min-h-11 cursor-pointer">{{ I18N.scan.history.pipeline | translate:{ state: (pipelineState | translate), phase: (run.jobPhaseKey ? (run.jobPhaseKey | translate) : '—') } }}</summary>
+                @if (run.viewer_job_id) { <p class="my-1 [overflow-wrap:anywhere]">{{ I18N.scan.history.job_identity | translate }}: <code>{{ run.viewer_job_id }}</code></p> }
+              </details>
+            }
             @if (run.retained_failure_records) {
               <p class="my-1">{{ I18N.scan.history.retained | translate:{ count: run.retained_failure_records } }}</p>
               <ul class="m-0 ps-4">@for (stage of run.stages; track stage.stage) { <li>{{ stage.label | translate }}: {{ stage.count }}</li> }</ul>
@@ -94,6 +100,8 @@ export class ScanHistoryComponent {
   protected readonly rows = computed(() => this.records().map(run => ({
     ...run,
     retryable: ['completed', 'interrupted', 'failed'].includes(run.status),
+    jobStatusKey: run.job_status ? this.states[run.job_status] ?? I18N.scan.history.unknown : null,
+    jobPhaseKey: run.job_phase ? (I18N.scan.phase as Record<string, string>)[run.job_phase] ?? null : null,
     statusKey: run.status === 'completed' && ((run.failed_files ?? 0) > 0 || run.retained_failure_records > 0)
       ? I18N.scan.history.completed_failures : this.states[run.status] ?? I18N.scan.history.unknown,
     stages: run.failure_stages.map(stage => ({ ...stage, label: (I18N.scan.history.stages as Record<string, string>)[stage.stage] ?? I18N.scan.history.stages.other })),
@@ -113,6 +121,7 @@ export class ScanHistoryComponent {
   }
 
   protected onToggle(event: Event): void {
+    if (event.target !== event.currentTarget) return;
     if ((event.target as HTMLDetailsElement).open) { if (!this.loading()) void this.load(false); }
     else { this.cancel(); this.cancelRetry(); }
   }

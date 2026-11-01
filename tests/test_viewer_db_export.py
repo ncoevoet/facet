@@ -8,6 +8,7 @@ reach already-exported photos).
 import sqlite3
 from contextlib import contextmanager
 from io import BytesIO
+from pathlib import Path
 
 import pytest
 import numpy as np
@@ -47,6 +48,39 @@ def _spike_histogram(index):
     counts = [0.0] * 256
     counts[index] = 1000.0
     return pack_histogram(counts, counts, counts, counts)
+
+
+def test_full_export_omits_scanner_job_history_and_incremental_preserves_viewer_local_runs(tmp_path, monkeypatch):
+    from db import maintenance
+    src, out = str(tmp_path / 'source.db'), str(tmp_path / 'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        conn.execute("INSERT INTO scan_runs(id,status,args_json,viewer_job_id,job_status) VALUES (1,'completed',?,?,'completed')",
+                     ('{"directories":["/private/source-library"]}', 'a' * 32))
+        conn.execute("INSERT INTO scan_failures(scan_run_id,path,error) VALUES (1,'/private/source.jpg','private diagnostic')")
+    # Reproduce the exact previous exclusion policy against the real exporter,
+    # then verify the changed policy below. Both artifacts are temporary DBs.
+    legacy = str(tmp_path / 'previous-policy.db')
+    with monkeypatch.context() as old_policy:
+        old_policy.setattr(maintenance, 'VIEWER_EXPORT_EXCLUDED_TABLES', tuple(
+            table for table in maintenance.VIEWER_EXPORT_EXCLUDED_TABLES if table not in ('scan_runs', 'scan_failures')))
+        export_viewer_db(src, legacy, verbose=False)
+        with sqlite3.connect(legacy) as conn:
+            assert conn.execute('SELECT path FROM scan_failures').fetchall() == [('/private/source.jpg',)]
+    export_viewer_db(src, out, verbose=False)
+    assert b'/private/source' not in Path(out).read_bytes()
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM scan_runs').fetchone() == (0,)
+        assert conn.execute('SELECT COUNT(*) FROM scan_failures').fetchone() == (0,)
+        conn.execute("INSERT INTO scan_runs(id,status,args_json,viewer_job_id,job_status) VALUES (2,'failed','{}',?,'failed')", ('b' * 32,))
+        conn.execute("INSERT INTO scan_failures(scan_run_id,path,error) VALUES (2,?,'viewer failure')", (_A,))
+    export_viewer_db(src, out, verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT id,viewer_job_id,job_status FROM scan_runs').fetchall() == [(2, 'b' * 32, 'failed')]
+        assert conn.execute('SELECT scan_run_id,path FROM scan_failures').fetchall() == [(2, _A)]
+    with sqlite3.connect(src) as conn:
+        assert conn.execute('SELECT id,viewer_job_id FROM scan_runs').fetchall() == [(1, 'a' * 32)]
 
 
 def _manual_face(conn, path, person_id, key):

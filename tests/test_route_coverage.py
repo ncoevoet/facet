@@ -166,6 +166,7 @@ SUPERADMIN_ROUTES = [
     '/api/scan/status',
     '/api/scan/directories',
     '/api/scan/runs',
+    '/api/scan/jobs/' + '0' * 32,
     '/api/scan/retry/' + '0' * 32,
 ]
 

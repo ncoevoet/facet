@@ -9,12 +9,24 @@ and retryable, interrupted runs are recorded, and --resume / --retry-failed /
 
 import json
 import logging
+import os
+import re
 import threading
 import time
 
 from db import get_connection
 
 logger = logging.getLogger("facet.scan_state")
+VIEWER_JOB_ID_ENV = 'FACET_SCAN_JOB_ID'
+JOB_PHASES = frozenset({'scoring', 'bursts', 'sequences', 'tagging', 'moments', 'junk', 'vec', 'done'})
+
+
+def viewer_job_id():
+    """An internal correlation ID, never permission to signal a process."""
+    value = os.environ.get(VIEWER_JOB_ID_ENV)
+    if value is not None and not re.fullmatch('[0-9a-f]{32}', value):
+        raise ValueError('Invalid viewer scan job identity')
+    return value
 
 
 class ScanRun:
@@ -35,13 +47,14 @@ class ScanRun:
         self._bookkeeping_failed = False
 
     @classmethod
-    def start(cls, db_path, mode, args_dict, total_files):
+    def start(cls, db_path, mode, args_dict, total_files, job_id=None):
         """Insert a new running scan_runs row and return its ScanRun."""
         with get_connection(db_path, row_factory=False) as conn:
             cursor = conn.execute(
-                "INSERT INTO scan_runs (mode, args_json, total_files, heartbeat_at) "
-                "VALUES (?, ?, ?, datetime('now'))",
-                (mode, json.dumps(args_dict), total_files),
+                "INSERT INTO scan_runs (mode, args_json, total_files, heartbeat_at, "
+                "viewer_job_id, job_status, job_phase) "
+                "VALUES (?, ?, ?, datetime('now'), ?, 'running', 'scoring')",
+                (mode, json.dumps(args_dict), total_files, job_id),
             )
             conn.commit()
             run_id = cursor.lastrowid
@@ -120,6 +133,64 @@ class ScanRun:
             return False
         logger.info("Scan run #%d finished: %s", self.run_id, status)
         return persisted
+
+    def job_phase(self, phase):
+        """Persist one phase transition; the lifecycle suppresses repeats."""
+        if phase not in JOB_PHASES:
+            raise ValueError('Unknown scan job phase')
+        try:
+            with get_connection(self.db_path, row_factory=False) as conn:
+                cursor = conn.execute('UPDATE scan_runs SET job_phase=? WHERE id=?', (phase, self.run_id))
+                if cursor.rowcount != 1:
+                    raise RuntimeError('Scan run record disappeared')
+                conn.commit()
+            return True
+        except Exception as exc:
+            logger.warning('Could not persist scan job phase: %s', exc)
+            return False
+
+    def finish_job(self, status):
+        """Terminal pipeline outcome, separate from scoring's finish timestamp."""
+        if status not in ('completed', 'interrupted', 'failed'):
+            raise ValueError('Unknown scan job outcome')
+        try:
+            with get_connection(self.db_path, row_factory=False) as conn:
+                cursor = conn.execute(
+                    "UPDATE scan_runs SET job_status=?, job_finished_at=datetime('now') WHERE id=?",
+                    (status, self.run_id),
+                )
+                if cursor.rowcount != 1:
+                    raise RuntimeError('Scan run record disappeared')
+                conn.commit()
+            return True
+        except Exception as exc:
+            logger.warning('Could not persist scan job outcome: %s', exc)
+            return False
+
+
+class ScanJobLifecycle:
+    """Explicit enclosing scan lifetime; no global/thread-local active run."""
+
+    def __init__(self):
+        self.run = None
+        self.phase = 'scoring'
+        self.recording_failed = False
+
+    def attach(self, run):
+        self.run = run
+
+    def progress(self, phase):
+        if phase != self.phase and self.run is not None:
+            self.phase = phase
+            if not self.run.job_phase(phase):
+                self.recording_failed = True
+
+    def finish(self, status):
+        if self.run is None:
+            return True  # No scoring run was created; do not invent a receipt.
+        if status == 'completed' and self.recording_failed:
+            status = 'failed'
+        return self.run.finish_job(status) and not self.recording_failed
 
 
 def get_last_resumable_run(db_path, stale_seconds=120):

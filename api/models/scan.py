@@ -98,11 +98,21 @@ class RecordedScanRun(BaseModel):
     failed_files: Optional[int] = None
     retained_failure_records: int
     failure_stages: list[ScanFailureStage]
+    viewer_job_id: Optional[str] = None
+    job_status: Optional[str] = None
+    job_phase: Optional[str] = None
+    job_finished_at: Optional[str] = None
 
 
 class ScanRunHistoryResponse(BaseModel):
     runs: list[RecordedScanRun]
     next_before: Optional[int] = None
+
+
+class ScanJobRecordResponse(BaseModel):
+    job_id: str
+    recorded: RecordedScanRun
+    liveness: Literal['not_checked']
 
 
 class ScanDirectoryEntry(BaseModel):

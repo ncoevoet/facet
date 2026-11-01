@@ -2012,7 +2012,9 @@ class TestScanHoldsTheLibraryLock:
         than by a heartbeat that has already stopped."""
         import facet
 
-        scan_source = inspect.getsource(facet._run_scan)
+        wrapper_source = inspect.getsource(facet._run_scan)
+        assert '_run_scan_pipeline(args, resumed_run, lifecycle)' in wrapper_source
+        scan_source = inspect.getsource(facet._run_scan_pipeline)
         for tail_call in (
             "process_bursts(",
             "run_tagging(",

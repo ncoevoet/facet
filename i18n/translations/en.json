@@ -2010,7 +2010,9 @@
         "composition": "Composition analysis",
         "embedding": "Embedding analysis",
         "other": "Other stage"
-      }
+      },
+      "pipeline": "Pipeline: {state} · last recorded phase: {phase}",
+      "job_identity": "Viewer job ID"
     },
     "stop_button": "Stop scan",
     "stop_confirm": "Stop this scan?",

@@ -16,7 +16,7 @@ from collections import deque
 from datetime import timedelta
 from typing import Optional, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Path as ApiPath, Query, Request
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
@@ -24,6 +24,7 @@ from api.auth import CurrentUser, _trusted_local_editing_enabled, create_access_
 from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, invalidate_stats_cache, server_scoring_config, _photo_types_cache
 from api.models.scan import (
     ScanRunHistoryResponse,
+    ScanJobRecordResponse,
     LibraryJobStartResponse,
     RecomputeStatusResponse,
     ScanDirectoriesResponse,
@@ -188,6 +189,8 @@ def _spawn_scan(cmd, directories, cleanup=None):
     """Caller holds _scan_lock. One observer for normal and captured scans."""
     job_id = secrets.token_hex(16)
     env = _cross_process_job_env()
+    from processing.scan_state import VIEWER_JOB_ID_ENV
+    env[VIEWER_JOB_ID_ENV] = job_id
     ready = threading.Event()
     proc = None
 
@@ -364,6 +367,60 @@ def scan_status(
     return _build_scan_snapshot(lines)
 
 
+_SCAN_RUN_BASE_COLUMNS = (
+    "SELECT id, strftime('%Y-%m-%dT%H:%M:%SZ', started_at) AS started_at, "
+    "strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) AS finished_at, "
+    "strftime('%Y-%m-%dT%H:%M:%SZ', heartbeat_at) AS heartbeat_at, "
+    "status, substr(mode, 1, 120) AS mode, total_files, processed_files, failed_files"
+)
+_SCAN_RUN_JOB_COLUMNS = (
+    "CASE WHEN length(viewer_job_id)=32 AND viewer_job_id NOT GLOB '*[^0-9a-f]*' "
+    "THEN viewer_job_id END AS viewer_job_id, "
+    "CASE WHEN job_status IN ('running','completed','interrupted','failed') THEN job_status END AS job_status, "
+    "CASE WHEN job_phase IN ('scoring','bursts','sequences','tagging','moments','junk','vec','done') "
+    "THEN job_phase END AS job_phase, "
+    "strftime('%Y-%m-%dT%H:%M:%SZ', job_finished_at) AS job_finished_at"
+)
+
+
+def _scan_run_projection(conn, require_job=False):
+    """Feature-gate optional new metadata without migrating a read-only DB.
+
+    Old scoring records stay readable. Partial job schemas are unavailable,
+    not repaired or mapped onto unrelated historical fields.
+    """
+    fields = {'viewer_job_id', 'job_status', 'job_phase', 'job_finished_at'}
+    present = fields & {row[1] for row in conn.execute('PRAGMA table_info(scan_runs)')}
+    if present == fields:
+        return _SCAN_RUN_BASE_COLUMNS + ', ' + _SCAN_RUN_JOB_COLUMNS
+    if require_job or present:
+        raise sqlite3.OperationalError('Scan job metadata schema is unavailable')
+    return _SCAN_RUN_BASE_COLUMNS
+
+
+def _project_scan_runs(conn, rows):
+    runs = [dict(row) for row in rows]
+    if runs:
+        ids = [row['id'] for row in runs]
+        placeholders = ','.join('?' for _ in ids)
+        # A small vocabulary keeps unexpected diagnostic strings out
+        # of this overview and bounds the number of stage groups.
+        stages = conn.execute(
+            "SELECT scan_run_id, CASE WHEN stage IN "
+            "('load','decode_timeout','score','save','composition','embedding') "
+            "THEN stage ELSE 'other' END AS stage, COUNT(*) AS count "
+            f'FROM scan_failures WHERE scan_run_id IN ({placeholders}) '
+            'GROUP BY scan_run_id, 2 ORDER BY scan_run_id DESC, stage', ids,
+        ).fetchall()
+        by_run: dict[int, list[dict[str, str | int]]] = {run['id']: [] for run in runs}
+        for stage in stages:
+            by_run[stage['scan_run_id']].append({'stage': stage['stage'], 'count': stage['count']})
+        for run in runs:
+            run['failure_stages'] = by_run[run['id']]
+            run['retained_failure_records'] = sum(stage['count'] for stage in run['failure_stages'])
+    return runs
+
+
 @router.get('/runs', response_model=ScanRunHistoryResponse)
 def recorded_scan_runs(
     limit: int = Query(20, ge=1, le=50),
@@ -384,37 +441,42 @@ def recorded_scan_runs(
             where = 'WHERE id < ?' if before is not None else ''
             args = [before] if before is not None else []
             rows = conn.execute(
-                "SELECT id, strftime('%Y-%m-%dT%H:%M:%SZ', started_at) AS started_at, "
-                "strftime('%Y-%m-%dT%H:%M:%SZ', finished_at) AS finished_at, "
-                "strftime('%Y-%m-%dT%H:%M:%SZ', heartbeat_at) AS heartbeat_at, "
-                "status, substr(mode, 1, 120) AS mode, total_files, processed_files, failed_files "
-                f'FROM scan_runs {where} ORDER BY id DESC LIMIT ?',
+                _scan_run_projection(conn) + f' FROM scan_runs {where} ORDER BY id DESC LIMIT ?',
                 [*args, limit + 1],
             ).fetchall()
             more = len(rows) > limit
-            runs = [dict(row) for row in rows[:limit]]
-            if runs:
-                ids = [row['id'] for row in runs]
-                placeholders = ','.join('?' for _ in ids)
-                # A small vocabulary keeps unexpected diagnostic strings out
-                # of this overview and bounds the number of stage groups.
-                stages = conn.execute(
-                    "SELECT scan_run_id, CASE WHEN stage IN "
-                    "('load','decode_timeout','score','save','composition','embedding') "
-                    "THEN stage ELSE 'other' END AS stage, COUNT(*) AS count "
-                    f'FROM scan_failures WHERE scan_run_id IN ({placeholders}) '
-                    'GROUP BY scan_run_id, 2 ORDER BY scan_run_id DESC, stage', ids,
-                ).fetchall()
-                by_run: dict[int, list[dict[str, str | int]]] = {run['id']: [] for run in runs}
-                for stage in stages:
-                    by_run[stage['scan_run_id']].append({'stage': stage['stage'], 'count': stage['count']})
-                for run in runs:
-                    run['failure_stages'] = by_run[run['id']]
-                    run['retained_failure_records'] = sum(stage['count'] for stage in run['failure_stages'])
+            runs = _project_scan_runs(conn, rows[:limit])
             return {'runs': runs, 'next_before': runs[-1]['id'] if more else None}
     except sqlite3.Error:
         logger.exception('Could not read recorded scan runs')
         raise HTTPException(status_code=503, detail='Recorded scan history is unavailable') from None
+
+
+@router.get('/jobs/{job_id}', response_model=ScanJobRecordResponse)
+def recorded_scan_job(
+    job_id: str = ApiPath(pattern=r'^[0-9a-f]{32}$'),
+    user: CurrentUser = Depends(require_scan_access),
+):
+    """Exact durable pipeline record. It is not process liveness or stop authority.
+
+    Startup can fail before ScanRun is created. Absence therefore means the
+    outcome is unknown, not that no process was started. Duplicate correlation
+    IDs refuse instead of choosing the newest run.
+    """
+    if refusal := scan_feature_refusal(user):
+        raise HTTPException(403, refusal)
+    try:
+        with get_db() as conn:
+            conn.execute('BEGIN')
+            rows = conn.execute(_scan_run_projection(conn, require_job=True) + ' FROM scan_runs WHERE viewer_job_id=? LIMIT 2', (job_id,)).fetchall()
+            if not rows:
+                raise HTTPException(404, 'No scan run was recorded for this job; startup or early outcome is unknown')
+            if len(rows) != 1:
+                raise HTTPException(409, 'Scan job identity is ambiguous; inspect recorded history')
+            return {'job_id': job_id, 'recorded': _project_scan_runs(conn, rows)[0], 'liveness': 'not_checked'}
+    except sqlite3.Error:
+        logger.exception('Could not read recorded scan job')
+        raise HTTPException(503, 'Recorded scan job is unavailable') from None
 
 
 @router.get("/stream_token", response_model=ScanStreamTokenResponse, response_model_exclude_unset=True)

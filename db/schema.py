@@ -675,6 +675,12 @@ SCAN_RUNS_COLUMNS = [
     ('processed_files', 'INTEGER DEFAULT 0'),
     ('failed_files', 'INTEGER DEFAULT 0'),
     ('heartbeat_at', 'TEXT'),  # last liveness write; lets --resume reclaim hard-crashed runs
+    # Scoring status above can finish before library-wide finalization. These
+    # fields describe the enclosing pipeline, never OS-process liveness.
+    ('viewer_job_id', 'TEXT'),
+    ('job_status', 'TEXT'),
+    ('job_phase', 'TEXT'),
+    ('job_finished_at', 'TEXT'),
 ]
 
 SCAN_FAILURES_COLUMNS = [
@@ -688,6 +694,7 @@ SCAN_FAILURES_COLUMNS = [
 SCAN_RUNS_INDEXES = [
     ('idx_scan_runs_status', 'scan_runs', 'status'),
     ('idx_scan_failures_run', 'scan_failures', 'scan_run_id'),
+    ('idx_scan_runs_viewer_job', 'scan_runs', 'viewer_job_id'),
 ]
 
 # Photos a supplementary IQA model answered "no" to on purpose, so --recompute-iqa

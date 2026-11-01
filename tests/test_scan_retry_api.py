@@ -19,6 +19,7 @@ from api.auth import CurrentUser, require_scan_access
 from api import scan_retry
 from api.routers import scan
 from db.schema import init_database
+from processing.scan_state import VIEWER_JOB_ID_ENV
 
 
 @pytest.fixture
@@ -85,6 +86,7 @@ def test_preview_is_read_only_apply_is_captured_and_idempotent_and_exit_cleans_t
     body = {'plan_id': plan['plan_id'], 'confirm': True}
     result = ctx.client.post('/api/scan/retry/apply', json=body)
     assert result.status_code == 200, result.text
+    assert ctx.popen.call_args.kwargs['env'][VIEWER_JOB_ID_ENV] == result.json()['job_id']
     command = ctx.popen.call_args.args[0]
     assert '--retry-failed' not in command and '--retry-plan' in command
     manifest = Path(command[command.index('--retry-plan') + 1])
@@ -212,3 +214,32 @@ def test_real_worker_reads_utf8_manifest_and_owned_exit_removes_it(retry_api, mo
     assert 'captured=1' in scan._scan_state['output_lines']
     assert not Path(filename).exists() and not scan_retry._manifests
     assert ctx.db.read_bytes() == before
+
+
+def test_actual_child_records_the_job_id_returned_by_the_viewer(retry_api):
+    """Correlation crosses real Popen/env/SQLite, without scoring any image."""
+    ctx = retry_api
+    def recording_worker(command, **kwargs):
+        script = (
+            'import sys; from processing.scan_retry import read_retry_manifest; '
+            'from processing.scan_state import ScanRun, viewer_job_id; '
+            'a=sys.argv; db=a[a.index("--db")+1]; '
+            'p=read_retry_manifest(a[a.index("--retry-plan")+1], '
+            'a[a.index("--retry-plan-sha256")+1],db,a[a.index("--config")+1]); '
+            'r=ScanRun.start(db,"multi-pass",{},1,job_id=viewer_job_id()); '
+            'r.update_progress(1); r.finish("completed"); r.finish_job("completed"); '
+            'print("recorded="+viewer_job_id())'
+        )
+        return subprocess.Popen([sys.executable, '-c', script, *command[2:]], **kwargs)
+    ctx.popen.side_effect = recording_worker
+    plan = preview(ctx)
+    before = ctx.photo.read_bytes()
+    response = ctx.client.post('/api/scan/retry/apply', json={'plan_id': plan['plan_id'], 'confirm': True})
+    assert response.status_code == 200, response.text
+    reader = ctx.threads[-1]
+    reader['target'](*reader['args'])
+    assert scan._scan_state['exit_code'] == 0
+    with sqlite3.connect(ctx.db) as conn:
+        assert conn.execute('SELECT viewer_job_id,job_status FROM scan_runs WHERE id=2').fetchone() == (response.json()['job_id'], 'completed')
+    assert ctx.photo.read_bytes() == before
+    assert not scan_retry._manifests

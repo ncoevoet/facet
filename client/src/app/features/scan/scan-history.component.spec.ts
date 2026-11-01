@@ -36,7 +36,7 @@ describe('recorded scan history', () => {
       { provide: ScanService, useValue: { canLaunch: () => true, loadHistory: read,
         previewRetry: previewRead, applyRetry: apply, loadRetryReceipt: receiptRead, connect } },
       { provide: AuthService, useValue: { identity: owner, status, get token() { return token; }, isEdition: () => false } },
-      { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), currentLang: signal('en') } },
+      { provide: I18nService, useValue: { t: (key: string, params?: Record<string, unknown>) => key + (params ? ' ' + Object.values(params).join(' ') : ''), translations: signal({}), currentLang: signal('en') } },
     ] });
     fixture = TestBed.createComponent(ScanHistoryComponent); fixture.detectChanges(); root = fixture.nativeElement;
   });
@@ -81,6 +81,21 @@ describe('recorded scan history', () => {
     expect(root.textContent).not.toContain('#999');
     expect(root.querySelectorAll('ol > li')).toHaveLength(0);
     expect(root.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('keeps scoring completion distinct from a recorded running pipeline and does not reload on its nested disclosure', async () => {
+    read.mockResolvedValueOnce({ runs: [{ ...run(2), viewer_job_id: 'a'.repeat(32), job_status: 'running', job_phase: 'tagging', job_finished_at: null }], next_before: null });
+    await open();
+    expect(root.textContent).toContain('scan.history.states.completed');
+    expect(root.textContent).toContain('scan.history.pipeline');
+    expect(root.textContent).toContain('scan.history.states.running');
+    expect(root.textContent).toContain('scan.phase.tagging');
+    expect(root.textContent).toContain('a'.repeat(32));
+    const nested = root.querySelector('ol details') as HTMLDetailsElement;
+    nested.open = true;
+    nested.dispatchEvent(new Event('toggle', { bubbles: true }));
+    await Promise.resolve(); fixture.detectChanges();
+    expect(read).toHaveBeenCalledTimes(1);
   });
 
   it('previews one ended run without starting, lists captured targets and Cancel never writes', async () => {

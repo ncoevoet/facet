@@ -440,7 +440,7 @@ SWALLOW_SITES = [
     ('processing/scorer.py', 'score_photo_from_pil'),
     ('processing/scorer.py', 'process_single_photo'),
     ('faces/processor.py', '_worker_thread_extract'),
-    ('facet.py', '_run_scan'),
+    ('facet.py', '_run_scan_pipeline'),
 ]
 
 
@@ -448,7 +448,7 @@ SWALLOW_SITES = [
 # only the try blocks that mention one of these names are checked.
 SWALLOW_MARKERS = {
     ('processing/scorer.py', '__init__'): ('SAMPNetScorer', 'create_composition_analyzer'),
-    ('facet.py', '_run_scan'): ('process_single_photo',),
+    ('facet.py', '_run_scan_pipeline'): ('process_single_photo',),
 }
 
 
@@ -1035,7 +1035,7 @@ class TestStartupFailsFast:
     def test_dry_run_preflights_before_the_sample_loop(self):
         tree = ast.parse((ROOT / 'facet.py').read_text(encoding='utf-8'))
         run_scan = next(n for n in ast.walk(tree)
-                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan')
+                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan_pipeline')
         calls = sorted(
             (n.lineno, getattr(n.func, 'attr', None) or getattr(n.func, 'id', None))
             for n in ast.walk(run_scan) if isinstance(n, ast.Call))
@@ -1208,7 +1208,7 @@ class TestRefusedPassExit:
     def test_a_pass_that_processed_nothing_exits_nonzero(self):
         tree = ast.parse((ROOT / 'facet.py').read_text(encoding='utf-8'))
         run_scan = next(n for n in ast.walk(tree)
-                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan')
+                        if isinstance(n, ast.FunctionDef) and n.name == '_run_scan_pipeline')
         guards = [n for n in ast.walk(run_scan)
                   if isinstance(n, ast.If) and ast.unparse(n.test) == 'processed == 0']
         assert guards, "no `processed == 0` guard after run_single_pass"

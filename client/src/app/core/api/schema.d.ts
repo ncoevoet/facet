@@ -4114,6 +4114,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Recorded Scan Job
+         * @description Exact durable pipeline record. It is not process liveness or stop authority.
+         *
+         *     Startup can fail before ScanRun is created. Absence therefore means the
+         *     outcome is unknown, not that no process was started. Duplicate correlation
+         *     IDs refuse instead of choosing the newest run.
+         */
+        get: operations["recorded_scan_job_api_scan_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scan/recompute": {
         parameters: {
             query?: never;
@@ -8678,6 +8702,12 @@ export interface components {
             heartbeat_at?: string | null;
             /** Id */
             id: number;
+            /** Job Finished At */
+            job_finished_at?: string | null;
+            /** Job Phase */
+            job_phase?: string | null;
+            /** Job Status */
+            job_status?: string | null;
             /** Mode */
             mode?: string | null;
             /** Processed Files */
@@ -8690,6 +8720,8 @@ export interface components {
             status: string;
             /** Total Files */
             total_files?: number | null;
+            /** Viewer Job Id */
+            viewer_job_id?: string | null;
         };
         /** RejectMergeRequest */
         RejectMergeRequest: {
@@ -8847,6 +8879,17 @@ export interface components {
             count: number;
             /** Stage */
             stage: string;
+        };
+        /** ScanJobRecordResponse */
+        ScanJobRecordResponse: {
+            /** Job Id */
+            job_id: string;
+            /**
+             * Liveness
+             * @constant
+             */
+            liveness: "not_checked";
+            recorded: components["schemas"]["RecordedScanRun"];
         };
         /** ScanRetryApplyRequest */
         ScanRetryApplyRequest: {
@@ -16194,6 +16237,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanDirectoriesResponse"];
+                };
+            };
+        };
+    };
+    recorded_scan_job_api_scan_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanJobRecordResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

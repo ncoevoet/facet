@@ -2025,6 +2025,8 @@ export const I18N = {
         embedding: "scan.history.stages.embedding",
         other: "scan.history.stages.other",
       },
+      pipeline: "scan.history.pipeline",
+      job_identity: "scan.history.job_identity",
     },
     stop_button: "scan.stop_button",
     stop_confirm: "scan.stop_confirm",

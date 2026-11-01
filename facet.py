@@ -1702,6 +1702,22 @@ def _scan_writes_to_library(args):
 
 
 def _run_scan(args, resumed_run):
+    """Track the complete pipeline while the caller holds LibraryLock."""
+    from processing.scan_state import ScanJobLifecycle
+
+    lifecycle = ScanJobLifecycle()
+    try:
+        completed = _run_scan_pipeline(args, resumed_run, lifecycle)
+    except BaseException as exc:
+        lifecycle.finish('interrupted' if isinstance(exc, KeyboardInterrupt) else 'failed')
+        raise
+    if not lifecycle.finish('completed' if completed else 'interrupted'):
+        logger.error('Scan job outcome could not be reliably recorded')
+        raise SystemExit(1)
+    return completed
+
+
+def _run_scan_pipeline(args, resumed_run, lifecycle):
     """Enumerate, score and post-process a scan, under the library lock.
 
     Extracted from ``main`` so the whole run -- the directory walk, the
@@ -1719,6 +1735,8 @@ def _run_scan(args, resumed_run):
     Returns True when the scan ran to completion (or found nothing new) and
     False when it was interrupted, so ``--auto-cull`` culls only a finished scan.
     """
+    from processing.scan_state import viewer_job_id
+    job_id = viewer_job_id()
     # The lock is already held here. Revalidate BEFORE constructing Facet:
     # its constructor initializes the schema and may load heavy models.
     retry_plan = None
@@ -1929,6 +1947,10 @@ def _run_scan(args, resumed_run):
     )
     from processing.scan_state import ScanRun, scan_in_progress
     from processing.progress import emit_progress
+
+    def report_progress(phase, *values, **options):
+        lifecycle.progress(phase)
+        emit_progress(phase, *values, **options)
     _proc = scorer.config.get_processing_settings()
     configure_raw_decoding(
         concurrency=_proc.get('raw_decode_concurrency', 0),
@@ -1958,16 +1980,18 @@ def _run_scan(args, resumed_run):
         args.db, scan_mode,
         recorded_args,
         len(todo_list),
+        job_id=job_id,
     )
+    lifecycle.attach(scan_run)
     _scan_t0 = time.time()
 
     def _on_scan_progress(processed, total):
         scan_run.update_progress(processed)
         elapsed = time.time() - _scan_t0
         eta = (total - processed) * elapsed / processed if processed else None
-        emit_progress('scoring', processed, total, eta_seconds=eta)
+        report_progress('scoring', processed, total, eta_seconds=eta)
 
-    emit_progress('scoring', 0, len(todo_list), force=True)
+    report_progress('scoring', 0, len(todo_list), force=True)
     try:
         # Check for single-pass mode or specific pass
         if route == 'pass':
@@ -2107,9 +2131,9 @@ def _run_scan(args, resumed_run):
         raise
     else:
         recorded = scan_run.finish('completed')
-        if retry_plan is not None and not recorded:
+        if not recorded:
             scorer.commit()
-            logger.error('Retry bookkeeping could not be saved. Original failure records '
+            logger.error('Scan bookkeeping could not be saved. Existing failure records '
                          'were retained; inspect the library before creating a new preview.')
             raise SystemExit(1)
         if retry_plan is not None:
@@ -2136,24 +2160,24 @@ def _run_scan(args, resumed_run):
     scorer.commit()
 
     if retry_plan is not None:
-        emit_progress('done', force=True)
+        report_progress('done', force=True)
         logger.info('Captured retry ended. Library-wide burst, sequence, tagging, '
                     'moment, junk and vector finalization were not run.')
         return True
 
     # 4. Process bursts
     # Note: Run --cluster-faces-incremental separately if person_ids are needed for grouping
-    emit_progress('bursts', force=True)
+    report_progress('bursts', force=True)
     process_bursts(scorer.db_path, scorer.config.config_path)
 
     # 5. Name the deliberate multi-exposure sets burst grouping just swallowed,
     # and move each group's lead onto its base exposure. Must follow the bursts
     # step: it is that grouping it corrects.
-    emit_progress('sequences', force=True)
+    report_progress('sequences', force=True)
     detect_all_sequences(scorer.db_path, scorer.config.config_path, incremental=True)
 
     # 6. Auto-tag photos using stored CLIP/SigLIP embeddings
-    emit_progress('tagging', force=True)
+    report_progress('tagging', force=True)
     from tag_existing import run_tagging, resolve_scan_tagger, count_untagged, tagging_enabled
 
     # Decide BEFORE resolve_scan_tagger: it loads the profile's embedding model,
@@ -2179,7 +2203,7 @@ def _run_scan(args, resumed_run):
     # so label newly-scanned photos automatically. Reuses the scorer's
     # RAM-cached embedding model; no-ops when narrative_moments is disabled.
     if scorer.config.get_narrative_moments_config().get('enabled', False):
-        emit_progress('moments', force=True)
+        report_progress('moments', force=True)
         try:
             result = run_moment_detection(
                 scorer.db_path, scorer.config,
@@ -2194,7 +2218,7 @@ def _run_scan(args, resumed_run):
     # junk (screenshots/documents/receipts/memes/slides) on newly-scanned
     # photos automatically. No-ops when junk_sweep is disabled.
     if scorer.config.get_junk_sweep_config().get('enabled', False):
-        emit_progress('junk', force=True)
+        report_progress('junk', force=True)
         try:
             result = run_junk_detection(
                 scorer.db_path, scorer.config,
@@ -2210,7 +2234,7 @@ def _run_scan(args, resumed_run):
     # Auto-populate sqlite-vec table so semantic search is fast on first viewer
     # load after a scan. Idempotent: skips when already up-to-date, no-ops when
     # sqlite-vec isn't installed.
-    emit_progress('vec', force=True)
+    report_progress('vec', force=True)
     try:
         from db.vec import populate_vec_table
         populate_vec_table(scorer.db_path)
@@ -2218,7 +2242,7 @@ def _run_scan(args, resumed_run):
         logger.warning("Auto-populate of photos_vec failed (non-fatal)", exc_info=True)
 
     _log_scan_db_destination(scorer.db_path)
-    emit_progress('done', force=True)
+    report_progress('done', force=True)
     logger.info("All tasks complete.")
     return True
 

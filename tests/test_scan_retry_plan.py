@@ -238,7 +238,8 @@ def test_interrupted_captured_retry_preserves_source_failures(failed_run, scanne
         Path(filename).unlink()
 
 
-def test_failed_bookkeeping_cannot_erase_last_failure_receipt(failed_run, scanner_spies, monkeypatch):
+@pytest.mark.parametrize('captured', [True, False])
+def test_failed_bookkeeping_cannot_erase_last_failure_receipt(failed_run, scanner_spies, monkeypatch, captured):
     """A swallowed transient failure-record write must not look like success."""
     from processing import scan_state
 
@@ -263,9 +264,9 @@ def test_failed_bookkeeping_cannot_erase_last_failure_receipt(failed_run, scanne
     monkeypatch.setattr('processing.multi_pass.ChunkedMultiPassProcessor', FailedReceiptProcessor)
     filename, digest = write_retry_manifest(capture_retry_plan(db, None, 1), first.parent)
     try:
-        monkeypatch.setattr(sys, 'argv', [
-            'facet.py', '--retry-plan', filename, '--retry-plan-sha256', digest, '--db', db,
-        ])
+        command = (['--retry-plan', filename, '--retry-plan-sha256', digest]
+                   if captured else ['--retry-failed', '1'])
+        monkeypatch.setattr(sys, 'argv', ['facet.py', *command, '--db', db])
         with pytest.raises(SystemExit) as error:
             facet.main()
         assert error.value.code == 1
