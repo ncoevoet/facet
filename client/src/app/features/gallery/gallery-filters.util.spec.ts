@@ -626,3 +626,50 @@ describe('review and location URL coexistence', () => {
     expect(buildApiParams(f, false, undefined)).toMatchObject({ review_status: 'kept', no_gps: '1' });
   });
 });
+
+
+describe('person match groups', () => {
+  it('keeps ANY through URL, API, by-path and smart rules without counting a second filter', () => {
+    const f = filters({ person_id: '1,2', person_match: 'any' });
+    const url = buildSyncParams(f, undefined);
+    expect(url['person_match']).toBe('any');
+    const restored = applyQueryParams(DEFAULT_FILTERS, url);
+    expect(restored.person_match).toBe('any');
+    expect(buildApiParams(restored, false, undefined)).toMatchObject({ person_id: '1,2', person_match: 'any' });
+    expect(buildByPathsFilters(restored, false, '', undefined)).toMatchObject({ person_id: '1,2', person_match: 'any' });
+    expect(JSON.parse(smartAlbumFilterJson(f))).toMatchObject({ person_id: '1,2', person_match: 'any' });
+    expect(activeFilterUnits(f)).toEqual(['person_id']);
+    expect(countActiveFilters(f)).toBe(1);
+    expect(applySavedAlbumFilters(f, '{"person_id":"2,3"}', '7').person_match).toBe('all');
+    expect(applySavedAlbumFilters(DEFAULT_FILTERS, smartAlbumFilterJson(f), '7').person_match).toBe('any');
+  });
+
+  it('omits inactive/default modes and never treats an invalid URL mode as ANY', () => {
+    const empty = filters({ person_match: 'any' });
+    expect(buildSyncParams(empty, undefined)).not.toHaveProperty('person_match');
+    expect(buildApiParams(empty, false, undefined)).not.toHaveProperty('person_match');
+    expect(JSON.parse(smartAlbumFilterJson(empty))).not.toHaveProperty('person_match');
+    expect(countActiveFilters(empty)).toBe(0);
+    expect(buildApiParams(filters({ person_id: '1,2' }), false, undefined)).not.toHaveProperty('person_match');
+    expect(applyQueryParams(DEFAULT_FILTERS, { person_id: '1,2', person_match: 'bad' }).person_match).toBe('all');
+    expect(() => applySavedAlbumFilters(DEFAULT_FILTERS, '{"person_id":"1,2","person_match":"bad"}', '1')).toThrow();
+  });
+});
+
+
+describe('person group smart-album working override', () => {
+  it('keeps explicit ALL and a cleared group across a saved-ANY album reload', () => {
+    const saved = '{"person_id":"1,2","person_match":"any"}';
+    const base = applySavedAlbumFilters(DEFAULT_FILTERS, saved, '7');
+    const all = { ...base, person_match: 'all' as const };
+    const restoredAll = applyQueryParams(base, buildSyncParams(all, undefined));
+    expect(restoredAll.person_match).toBe('all');
+    expect(restoredAll.person_id).toBe('1,2');
+    expect(buildApiParams(restoredAll, true, undefined)).not.toHaveProperty('person_match');
+    const cleared = { ...all, person_id: '' };
+    const restoredCleared = applyQueryParams(base, buildSyncParams(cleared, undefined));
+    expect(restoredCleared.person_id).toBe('');
+    expect(restoredCleared.person_match).toBe('all');
+    expect(buildApiParams(restoredCleared, true, undefined)).not.toHaveProperty('person_id');
+  });
+});

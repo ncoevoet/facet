@@ -66,6 +66,11 @@ def to_stored(filters: dict) -> tuple[Optional[dict], dict]:
                 return err("invalid_input", f"`{key}` {value!r} is not a configured category or photo type; "
                            "see the facet://categories resource"), {}
             stored[name] = str(value)
+        elif name == "person_match":
+            if value not in ("all", "any"):
+                return err("invalid_input", "person_match must be all or any"), {}
+            if value == "any" and (given.get("person") or given.get("person_id")):
+                stored[name] = "any"
         elif str(value) != "":
             stored[name] = query_value(value)
     return None, stored

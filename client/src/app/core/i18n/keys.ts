@@ -1107,6 +1107,7 @@ export const I18N = {
         paused_people: "gallery.criteria.logic.paused_people",
         paused_visibility: "gallery.criteria.logic.paused_visibility",
         type_defaults: "gallery.criteria.logic.type_defaults",
+        any_people: "gallery.criteria.logic.any_people",
       },
     },
     presentation: {
@@ -1638,6 +1639,13 @@ export const I18N = {
     review_navigation: {
       advance: "gallery.review_navigation.advance",
       help: "gallery.review_navigation.help",
+    },
+    people_match: {
+      title: "gallery.people_match.title",
+      all: "gallery.people_match.all",
+      any: "gallery.people_match.any",
+      hint: "gallery.people_match.hint",
+      limit: "gallery.people_match.limit",
     },
   },
   composition_patterns: {

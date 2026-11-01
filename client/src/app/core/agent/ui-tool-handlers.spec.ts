@@ -616,6 +616,16 @@ describe('UI tool registry and handlers', () => {
   });
 
   describe('ui_set_gallery_filters', () => {
+    it('applies ANY-person groups read-only and clears their mode canonically through the agent contract', async () => {
+      expect(await run('ui_set_gallery_filters', { patch: { person: '1,2', person_match: 'any' } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ person_id: '1,2', person_match: 'any' });
+      expect(await run('ui_set_gallery_filters', { patch: { person_match: null } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ person_id: '1,2', person_match: 'all' });
+      expect(await run('ui_set_gallery_filters', { patch: { person_match: 'unknown' } })).toMatchObject({ ok: false, error: 'invalid_input' });
+      await expect(direct()['ui_set_gallery_filters']({ patch: { person_match: 'unknown' } })).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(store.filters().person_match).toBe('all');
+    });
+
     it('writes the store filters and syncs the URL', async () => {
       const result = await run('ui_set_gallery_filters', { patch: { min_aesthetic: '7' } });
       expect(result).toMatchObject({ ok: true });

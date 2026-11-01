@@ -1,6 +1,6 @@
 """Pydantic models for gallery endpoints."""
 
-from pydantic import BaseModel, Field, StringConstraints
+from pydantic import BaseModel, Field, StringConstraints, field_validator
 from typing import Annotated
 from typing import Any, Literal, Optional, Union
 
@@ -234,6 +234,20 @@ class SimilarPhotosResponse(BaseModel):
 
 # --- Gallery query parameters ---
 
+PERSON_FILTER_LIMIT = 200
+
+
+def person_filter_ids(value: str) -> list[int]:
+    if not isinstance(value, str) or len(value) > 4096:
+        raise ValueError('Invalid person group')
+    if not value:
+        return []
+    ids = list(dict.fromkeys(int(part.strip()) for part in value.split(',')))
+    if len(ids) > PERSON_FILTER_LIMIT or any(pid <= 0 or pid > 9223372036854775807 for pid in ids):
+        raise ValueError('Person group needs at most 200 positive integer IDs')
+    return ids
+
+
 class GalleryParams(BaseModel):
     """Typed gallery filter parameters.
 
@@ -261,7 +275,15 @@ class GalleryParams(BaseModel):
     duplicates_only: str = ''
     search: str = ''
     tag: str = ''
-    person: str = ''
+    person: str = Field(default='', max_length=4096)
+    person_match: Literal['all', 'any'] = 'all'
+
+    @field_validator('person')
+    @classmethod
+    def valid_person_group(cls, value: str) -> str:
+        person_filter_ids(value)
+        return value
+
     # Score ranges
     min_score: str = ''
     max_score: str = ''

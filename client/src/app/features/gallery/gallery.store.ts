@@ -1617,6 +1617,7 @@ export class GalleryStore {
     }
     const extra: Partial<GalleryFilters> = {
       ...gpsPatch,
+      ...(('person_id' in update && !update.person_id) ? { person_match: 'all' as const } : {}),
       ...this.similarRefinementPatch(update),
       ...semanticSortPatch(this.filters(), { ...update, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
       ...reviewPatch,
@@ -1737,6 +1738,7 @@ export class GalleryStore {
     }
     const extra: Partial<GalleryFilters> = {
       ...gpsPatch,
+      ...(('person_id' in updates && !updates.person_id) ? { person_match: 'all' as const } : {}),
       ...this.similarRefinementPatch(updates),
       ...semanticSortPatch(this.filters(), { ...updates, ...gpsPatch, ...reviewPatch }, this.config()?.defaults),
       ...reviewPatch,

@@ -27,7 +27,7 @@ import { AdditionalFilterDef } from '../../shared/models/filter-def.model';
 import { computeRangeFilterUpdate } from '../../shared/utils/range-filter';
 import { useCoarsePointerSignal } from '../../shared/utils/media-query';
 import { MOBILE_MIN_CARD_WIDTH_PX } from './gallery-rows.util';
-import { GalleryFilters, SEARCH_THRESHOLD_MAX, activeFilterUnits, countActiveFilters, filterUnit, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
+import { GalleryFilters, PERSON_FILTER_LIMIT, SEARCH_THRESHOLD_MAX, activeFilterUnits, countActiveFilters, filterUnit, seededSearchThreshold, smartAlbumFilterJson } from './gallery-filters.util';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
@@ -479,7 +479,7 @@ export function loadActiveTab(): SidebarTabId {
                 <mat-label>{{ I18N.gallery.person | translate }}</mat-label>
               }
               <input matInput #sidebarPersonInput
-                     [matAutocomplete]="sidebarPersonAuto"
+                     [matAutocomplete]="sidebarPersonAuto" [attr.aria-describedby]="selectedPersonIds().length >= personFilterLimit ? 'person-filter-limit' : null"
                      [value]="sidebarPersonQuery()"
                      [placeholder]="selectedPersons().length ? (I18N.gallery.person_add | translate) : ''"
                      (input)="sidebarPersonQuery.set($any($event.target).value)"
@@ -488,7 +488,7 @@ export function loadActiveTab(): SidebarTabId {
                                 (optionSelected)="onSidebarPersonSelected($event)"
                                 [hideSingleSelectionIndicator]="true">
                 @for (p of filteredPersons(); track p.id) {
-                  <mat-option [value]="p.id">
+                  <mat-option [value]="p.id" [disabled]="selectedPersonIds().length >= personFilterLimit">
                     <div class="flex items-center gap-2">
                       <img [src]="p.id | personThumbnailUrl" class="w-8 h-8 rounded-full object-cover shrink-0" [alt]="p.name || (I18N.gallery.unknown_person | translate)" loading="lazy" />
                       <span class="text-sm">{{ p.name || (I18N.gallery.unknown_person | translate) }} ({{ p.face_count }})</span>
@@ -497,6 +497,17 @@ export function loadActiveTab(): SidebarTabId {
                 }
               </mat-autocomplete>
             </mat-form-field>
+            @if (selectedPersonIds().length >= personFilterLimit) { <p id="person-filter-limit" role="status" class="m-0 text-xs">{{ I18N.gallery.people_match.limit | translate:{ max: personFilterLimit } }}</p> }
+            @if (selectedPersonIds().length > 1) {
+              <fieldset class="m-0 border-0 p-0" [attr.aria-describedby]="'person-match-help'">
+                <legend class="text-xs font-medium">{{ I18N.gallery.people_match.title | translate }}</legend>
+                <div class="flex gap-3">
+                  <label class="inline-flex min-h-11 items-center gap-2"><input type="radio" name="person-match" data-person-match="all" value="all" [checked]="store.filters().person_match === 'all'" (change)="store.updateFilter('person_match', 'all')" />{{ I18N.gallery.people_match.all | translate }}</label>
+                  <label class="inline-flex min-h-11 items-center gap-2"><input type="radio" name="person-match" data-person-match="any" value="any" [checked]="store.filters().person_match === 'any'" (change)="store.updateFilter('person_match', 'any')" />{{ I18N.gallery.people_match.any | translate }}</label>
+                </div>
+                <p id="person-match-help" class="m-0 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.people_match.hint | translate }}</p>
+              </fieldset>
+            }
             @if (selectedPersons().length) {
               <div class="flex flex-wrap gap-1.5">
                 @for (p of selectedPersons(); track p.id) {
@@ -1152,6 +1163,7 @@ export class GalleryFilterSidebarComponent {
   });
 
   // Person autocomplete (multi-select with search)
+  protected readonly personFilterLimit = PERSON_FILTER_LIMIT;
   readonly sidebarPersonQuery = signal('');
   private readonly sidebarPersonInput = viewChild<ElementRef<HTMLInputElement>>('sidebarPersonInput');
 
@@ -1182,7 +1194,7 @@ export class GalleryFilterSidebarComponent {
   onSidebarPersonSelected(event: MatAutocompleteSelectedEvent): void {
     const id = String(event.option.value);
     const current = this.selectedPersonIds();
-    if (!current.includes(id)) {
+    if (!current.includes(id) && current.length < PERSON_FILTER_LIMIT) {
       this.store.updateFilter('person_id', [...current, id].join(','));
     }
     this.sidebarPersonQuery.set('');

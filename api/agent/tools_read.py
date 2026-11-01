@@ -44,6 +44,8 @@ _FILTER_FIELDS["show_rejected"] = (Optional[bool], Field(
     "normal listing. Other values are refused."))
 _FILTER_FIELDS["review_status"] = (Optional[Literal["", "undecided", "kept", "rejected"]], Field(
     default=None, description="Review decision: undecided, kept, or rejected; empty clears the filter."))
+_FILTER_FIELDS["person_match"] = (Optional[Literal["all", "any"]], Field(
+    default=None, description="Match all selected person IDs (default) or any of them. No effect without person IDs."))
 SearchFilters = create_model("SearchFilters", __config__=ConfigDict(extra="forbid"), **_FILTER_FIELDS)
 
 # Every column the gallery routes serve is requestable, except the BLOBs (a guard: none is

@@ -86,7 +86,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
          }
          @if (logicPeople().length) {
            <section data-logic-people class="my-2">
-             <h3 class="m-0 text-xs font-semibold">{{ (store.filters().similar_to ? I18N.gallery.criteria.logic.paused_people : I18N.gallery.criteria.logic.all_people) | translate }}</h3>
+             <h3 class="m-0 text-xs font-semibold">{{ (store.filters().similar_to ? I18N.gallery.criteria.logic.paused_people : (store.filters().person_match === 'any' ? I18N.gallery.criteria.logic.any_people : I18N.gallery.criteria.logic.all_people)) | translate }}</h3>
              <ul class="my-1 pl-4 list-disc">@for (person of logicPeople(); track person.id) { <li class="break-words">{{ person.value }}</li> }</ul>
            </section>
          }
@@ -152,6 +152,7 @@ import { GALLERY_REVISIT } from '../../core/gallery-reuse.strategy';
           </button>
         </div>
       }
+      @if (!store.filters().similar_to && logicPeople().length > 1) { <span data-person-match-summary class="text-xs font-semibold">{{ (store.filters().person_match === 'any' ? I18N.gallery.people_match.any : I18N.gallery.people_match.all) | translate }}</span> }
       @for (chip of visibleFilterChips(); track chip.id) {
         @if (chip.personId) {
           @if (canAct()) {

@@ -486,6 +486,18 @@ describe('collection criteria ownership and full disclosure', () => {
     expect(root.querySelector('[data-logic-row="min_face_count"]')?.textContent).toContain('≥0');
   });
 
+  it('shows ANY-person semantics in both the active group and Match logic while preserving individual removal', () => {
+    const {fixture,filtersSignal,personsSignal,mockStore}=createCriteria();
+    personsSignal.set([{id:1,name:'Alice'},{id:2,name:'Bob'}]);
+    filtersSignal.update(f=>({...f,person_id:'1,2',person_match:'any'})); fixture.detectChanges();
+    const root=fixture.nativeElement as HTMLElement;
+    expect(root.querySelector('[data-person-match-summary]')?.textContent).toContain(I18N.gallery.people_match.any);
+    expect(root.querySelector('[data-logic-people]')?.textContent).toContain(I18N.gallery.criteria.logic.any_people);
+    expect(root.querySelectorAll('app-person-filter-chip')).toHaveLength(2);
+    (fixture.componentInstance as any).clearFilterChip({id:'person_1',clearKeys:['person_1']});
+    expect(mockStore.updateFilter).toHaveBeenCalledExactlyOnceWith('person_id','2');
+  });
+
   it('shows visual search semantics in the page text alongside exact text criteria', () => {
     const {fixture,filtersSignal}=createCriteria();
     filtersSignal.update(f=>({...f,semanticQuery:'red boat',search:'holiday'}));

@@ -30,7 +30,7 @@ describe('GalleryFilterSidebarComponent', () => {
         hide_rejected: true, favorites_only: false, is_monochrome: false,
         hide_brackets: true, hide_panoramas: true, blinks_only: false, duplicates_only: false,
         show_rejected: false, review_status: '', manual_faces_need_review: false,
-        camera: '', lens: '', tag: '', composition_pattern: '', person_id: '',
+        camera: '', lens: '', tag: '', composition_pattern: '', person_id: '', person_match: 'all',
         min_score: '', max_score: '', min_aesthetic: '', max_aesthetic: '',
         min_face_quality: '', max_face_quality: '', min_composition: '', max_composition: '',
         min_sharpness: '', max_sharpness: '', min_exposure: '', max_exposure: '',
@@ -683,6 +683,32 @@ describe('GalleryFilterSidebarComponent', () => {
       expect(component.totalActiveCount()).toBeGreaterThan(0);
       fixture.nativeElement.querySelector('[data-test="reset"]').click();
       expect(store['resetFilters']).toHaveBeenCalledOnce();
+    });
+
+    it('offers a native ALL/ANY people group for read-only browsing without changing the selected IDs', () => {
+      component = fixture.componentInstance;
+      store['persons'].set([{ id: 1, name: 'Alice', face_count: 2 }, { id: 2, name: 'Bob', face_count: 2 }]);
+      store['filters'].update((f: object) => ({ ...f, person_id: '1,2', person_match: 'all' }));
+      component.selectTab('browse'); component.onSectionToggle('persons', true); settle();
+      const root = fixture.nativeElement as HTMLElement;
+      const all = root.querySelector<HTMLInputElement>('[data-person-match="all"]')!;
+      const any = root.querySelector<HTMLInputElement>('[data-person-match="any"]')!;
+      expect(all.checked).toBe(true); expect(any.checked).toBe(false);
+      expect(any.disabled).toBe(false); any.click(); settle();
+      expect(store['updateFilter']).toHaveBeenCalledExactlyOnceWith('person_match', 'any');
+      expect(store['filters']().person_id).toBe('1,2');
+      expect(component.sectionActiveCounts()['persons']).toBe(1);
+    });
+
+    it('explains the person-group cap and refuses a stale autocomplete add at the limit', () => {
+      component = fixture.componentInstance;
+      const ids = Array.from({ length: 200 }, (_, i) => String(i + 1));
+      store['filters'].update((f: object) => ({ ...f, person_id: ids.join(','), person_match: 'any' }));
+      component.selectTab('browse'); component.onSectionToggle('persons', true); settle();
+      expect(fixture.nativeElement.querySelector('#person-filter-limit')).not.toBeNull();
+      component.onSidebarPersonSelected({ option: { value: 201 } } as any);
+      expect(store['updateFilter']).not.toHaveBeenCalled();
+      expect(store['filters']().person_id).toBe(ids.join(','));
     });
 
     describe('tab bar', () => {

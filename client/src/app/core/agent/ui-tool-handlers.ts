@@ -309,6 +309,9 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
           : filterDefault(clientKey);
       } else if (FRACTION_KEYS.has(contractKey)) {
         updates[clientKey] = fractionToPercent(contractKey, value);
+      } else if (clientKey === 'person_match') {
+        if (value !== 'all' && value !== 'any') throw new UiToolError('invalid_input', 'person_match must be all or any.');
+        updates[clientKey] = value;
       } else if (clientKey === 'similarity_mode') {
         if (!SIMILARITY_MODES.includes(String(value))) {
           throw new UiToolError('invalid_input', `similarity_mode must be one of ${SIMILARITY_MODES.join(', ')}.`);

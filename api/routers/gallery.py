@@ -22,7 +22,7 @@ from api.model_cache import AcceleratorBusy
 from api.models.gallery import (
     BY_PATHS_MISSING_CAP, GALLERY_PAGING_KEYS, GalleryParams, Photo, PhotoCountResponse,
     PhotoPathsResponse, PhotosByPathsRequest, PhotosByPathsResponse, PhotosResponse,
-    ReviewProgressResponse, SimilarPhotosResponse, gallery_filter_keys, query_value,
+    ReviewProgressResponse, SimilarPhotosResponse, gallery_filter_keys, person_filter_ids, query_value,
 )
 from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, ViewerConfigResponse
 from api.db_helpers import (
@@ -245,14 +245,25 @@ def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=
         where_clauses.append("composition_pattern = ?")
         sql_params.append(params['composition_pattern'])
 
-    if params.get('person'):
-        for pid_str in params['person'].split(','):
-            try:
-                pid = int(pid_str.strip())
-                where_clauses.append("EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id = ?)")
-                sql_params.append(pid)
-            except ValueError:
-                pass
+    person_mode = params.get('person_match') or 'all'
+    people = params.get('person')
+    if person_mode not in ('all', 'any'):
+        # Raw smart-album consumers also reach this builder without a model.
+        where_clauses.append('0=1')
+    elif people:
+        try:
+            person_ids = person_filter_ids(people)
+        except (ValueError, TypeError):
+            where_clauses.append('0=1')
+        else:
+            if person_mode == 'any':
+                placeholders = ','.join('?' for _ in person_ids)
+                where_clauses.append(f"EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id IN ({placeholders}))")
+                sql_params.extend(person_ids)
+            else:
+                for pid in person_ids:
+                    where_clauses.append("EXISTS (SELECT 1 FROM faces WHERE photo_path = photos.path AND person_id = ?)")
+                    sql_params.append(pid)
 
     if params.get('faces_need_names') in ('1', 'true'):
         from db.schema import person_not_hidden_clause

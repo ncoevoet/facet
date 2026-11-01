@@ -1092,7 +1092,8 @@
         "similar_paused": "Similarity ranks authorized library photos using its mode and threshold. Album membership, metadata filters, visibility rules and collection sort are paused. The values below are retained for your gallery. Changing a collection filter or sort leaves Similar Photos.",
         "paused_people": "Selected people (paused)",
         "paused_visibility": "Retained visibility rules (paused)",
-        "type_defaults": "This photo type contributes configured filter defaults. Explicit working values can override individual defaults; it is not a literal tag."
+        "type_defaults": "This photo type contributes configured filter defaults. Explicit working values can override individual defaults; it is not a literal tag.",
+        "any_people": "ANY selected person can match the photo"
       }
     },
     "presentation": {
@@ -1624,6 +1625,13 @@
     "review_navigation": {
       "advance": "Advance after saving",
       "help": "For this session: move to the next photo after a keyboard rating, Keep or Reject is saved. Favorites stay put."
+    },
+    "people_match": {
+      "title": "Match selected people",
+      "all": "All selected people",
+      "any": "Any selected person",
+      "hint": "All requires everyone in one photo. Any includes photos of at least one selected person.",
+      "limit": "Select up to {max} people in one group. Remove a person to add another."
     }
   },
   "composition_patterns": {

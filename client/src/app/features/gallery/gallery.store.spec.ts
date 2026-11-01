@@ -1395,6 +1395,17 @@ describe('GalleryStore', () => {
     });
   });
 
+  it('resets ANY when the last selected person is cleared through either immediate update entry point', async () => {
+    apiGet.mockReturnValue(of(makePhotosResponse()));
+    store.filters.set({ ...DEFAULT_FILTERS, person_id: '1,2', person_match: 'any' });
+    await store.updateFilter('person_id', '');
+    expect(store.filters().person_match).toBe('all');
+    store.filters.set({ ...DEFAULT_FILTERS, person_id: '1,2', person_match: 'any' });
+    await store.updateFilters({ person_id: '' });
+    expect(store.filters().person_match).toBe('all');
+    expect(apiGet).toHaveBeenCalledWith('/photos', expect.not.objectContaining({ person_match: 'any' }));
+  });
+
   describe('updateFilterDebounced()', () => {
     it('leaves Similar Photos for a debounced metric refinement before loading its real gallery results', async () => {
       vi.useFakeTimers();

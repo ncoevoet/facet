@@ -103,3 +103,24 @@ def test_type_defaults_are_not_independent_groups_when_working_values_override(m
     _, working = _prepare_gallery_params({"type": "portrait", "min_face_count": "0"})
     assert defaults["min_face_count"] == "2"
     assert working["min_face_count"] == "0"
+
+
+def test_any_person_is_one_group_and_still_requires_other_metadata(library):
+    conn = library
+    conn.executemany("INSERT INTO persons (id, name) VALUES (?, ?)", [(1, "Alice"), (2, "Bob")])
+    for path, camera, people in [
+        ("/alice.jpg", "Alpha", [1]), ("/bob.jpg", "Alpha", [2]),
+        ("/both.jpg", "Alpha", [1, 2]), ("/foreign.jpg", "Beta", [2]),
+        ("/none.jpg", "Alpha", []),
+    ]:
+        _photo(conn, path, camera_model=camera, date_taken='2025:06:01 10:00:00')
+        for index, person in enumerate(people):
+            conn.execute("INSERT INTO faces (photo_path, face_index, person_id, embedding) VALUES (?, ?, ?, ?)",
+                         (path, index, person, b"\x00" * 4))
+    for path, date, rejected in [('/old.jpg', '2024:06:01 10:00:00', 0), ('/rejected.jpg', '2025:06:01 10:00:00', 1)]:
+        _photo(conn, path, camera_model='Alpha', date_taken=date, is_rejected=rejected)
+        conn.execute('INSERT INTO faces (photo_path, face_index, person_id, embedding) VALUES (?, 0, 1, ?)', (path, b'\x00' * 4))
+    criteria = {'camera': 'Alpha', 'date_from': '2025-01-01', 'date_to': '2025-12-31', 'hide_rejected': '1'}
+    assert _matching(conn, person="1,2", person_match="any", **criteria) == ["/alice.jpg", "/bob.jpg", "/both.jpg"]
+    assert _matching(conn, person="1,2", person_match="all", **criteria) == ["/both.jpg"]
+    assert _matching(conn, person="1,2", person_match="invalid", **criteria) == []

@@ -1533,6 +1533,18 @@
                   "null"
                 ]
               },
+              "person_match": {
+                "description": "Match all selected people (default) or any selected person. Null resets to all.",
+                "enum": [
+                  "all",
+                  "any",
+                  null
+                ],
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
               "quality_tier": {
                 "description": "Gallery filter `quality_tier`.",
                 "type": [
@@ -2152,5 +2164,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "333a5129219e66f4"
+  "version": "92a6d6450225dee8"
 }
