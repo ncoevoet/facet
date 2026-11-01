@@ -1,3 +1,4 @@
+import { parseTagQuery, TAG_QUERY_GROUPS } from './tag-query.util';
 import { NgTemplateOutlet } from '@angular/common';
 import { ChangeDetectionStrategy, Component, computed, ElementRef, inject, input, signal, TemplateRef, viewChild, viewChildren } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
@@ -367,6 +368,12 @@ protected readonly activeFilterChips = computed<{ id: string; labelKey: string; 
 
     // Simple string/select filters
     if (f.tag) chips.push({ id: 'tag', labelKey: 'gallery.tag', value: f.tag, clearKeys: ['tag'] });
+    if (f.tag_groups) {
+      const groups = parseTagQuery(f.tag_groups);
+      const value = groups ? TAG_QUERY_GROUPS.filter(key => groups[key].length).map(key => `${this.i18n.t(I18N.gallery.tag_groups[key])}: ${groups[key].map(tag => JSON.stringify(tag)).join(', ')}`).join('; ') : this.i18n.t(I18N.gallery.tag_groups.invalid);
+      if (value) chips.push({ id: 'tag_groups', labelKey: I18N.gallery.tag_groups.title, value, clearKeys: ['tag_groups'] });
+    }
+
     if (f.search) chips.push({ id: 'search', labelKey: 'gallery.search_chip', value: f.search, clearKeys: ['search'] });
     if (f.camera) chips.push({ id: 'camera', labelKey: 'gallery.camera', value: f.camera, clearKeys: ['camera'] });
     if (f.lens) chips.push({ id: 'lens', labelKey: 'gallery.lens', value: f.lens, clearKeys: ['lens'] });

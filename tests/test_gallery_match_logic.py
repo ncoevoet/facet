@@ -124,3 +124,17 @@ def test_any_person_is_one_group_and_still_requires_other_metadata(library):
     assert _matching(conn, person="1,2", person_match="any", **criteria) == ["/alice.jpg", "/bob.jpg", "/both.jpg"]
     assert _matching(conn, person="1,2", person_match="all", **criteria) == ["/both.jpg"]
     assert _matching(conn, person="1,2", person_match="invalid", **criteria) == []
+
+
+def test_literal_tag_groups_do_not_split_comma_names_or_execute_operators(library):
+    import json
+    conn = library
+    for path, tags in [('/literal.jpg', 'coast, ridge'), ('/tokens.jpg', 'coast, ridge'), ('/unicode.jpg', '夜景')]:
+        _photo(conn, path, tags=tags)
+    conn.execute("INSERT INTO photo_tags(photo_path,tag) VALUES ('/literal.jpg', 'coast, ridge')")
+    conn.executemany("INSERT INTO photo_tags(photo_path,tag) VALUES ('/tokens.jpg', ?)", [('coast',), ('ridge',)])
+    conn.execute("INSERT INTO photo_manual_tags(photo_path,tag,source) VALUES ('/unicode.jpg', '夜景', 'user')")
+    assert _matching(conn, tag_groups=json.dumps({'any': ['coast, ridge', '夜景']})) == ['/literal.jpg', '/unicode.jpg']
+    assert _matching(conn, tag_groups=json.dumps({'all': ['coast', 'ridge']})) == ['/tokens.jpg']
+    assert _matching(conn, tag_groups=json.dumps({'any': ['coast', '夜景'], 'none': ['ridge']})) == ['/unicode.jpg']
+    assert _matching(conn, tag_groups='{"any": true}') == []

@@ -1,5 +1,6 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
+import { provideRouter } from '@angular/router';
 import { of } from 'rxjs';
 import { MatSelect } from '@angular/material/select';
 import { MatDialog } from '@angular/material/dialog';
@@ -30,7 +31,7 @@ describe('GalleryFilterSidebarComponent', () => {
         hide_rejected: true, favorites_only: false, is_monochrome: false,
         hide_brackets: true, hide_panoramas: true, blinks_only: false, duplicates_only: false,
         show_rejected: false, review_status: '', manual_faces_need_review: false,
-        camera: '', lens: '', tag: '', composition_pattern: '', person_id: '', person_match: 'all',
+        camera: '', lens: '', tag: '', composition_pattern: '', person_id: '', person_match: 'all', tag_groups: '',
         min_score: '', max_score: '', min_aesthetic: '', max_aesthetic: '',
         min_face_quality: '', max_face_quality: '', min_composition: '', max_composition: '',
         min_sharpness: '', max_sharpness: '', min_exposure: '', max_exposure: '',
@@ -79,10 +80,11 @@ describe('GalleryFilterSidebarComponent', () => {
 
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         GalleryFilterSidebarComponent,
         { provide: GalleryStore, useValue: mockStore },
         { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-        { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
+        { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
         { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
         { provide: MatDialog, useValue: { open: vi.fn() } },
       ],
@@ -476,10 +478,11 @@ describe('GalleryFilterSidebarComponent', () => {
       TestBed.resetTestingModule();
       TestBed.configureTestingModule({
         providers: [
+        provideRouter([]),
           GalleryFilterSidebarComponent,
           { provide: GalleryStore, useValue: mockStore },
           { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -610,11 +613,12 @@ describe('GalleryFilterSidebarComponent', () => {
       };
       TestBed.configureTestingModule({
         providers: [
+        provideRouter([]),
           provideNativeDateAdapter(),
           { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
           { provide: GalleryStore, useValue: store },
           { provide: I18nService, useValue: { t: vi.fn(translate), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -919,12 +923,13 @@ describe('GalleryFilterSidebarComponent', () => {
 
       TestBed.configureTestingModule({
         providers: [
+        provideRouter([]),
           provideNativeDateAdapter(),
           // Tooltip hides wait for an animationend jsdom never fires unless animations are off.
           { provide: MATERIAL_ANIMATIONS, useValue: { animationsDisabled: true } },
           { provide: GalleryStore, useValue: renderedStore },
           { provide: I18nService, useValue: { t: vi.fn((k: string) => k), currentLang: vi.fn(() => 'en'), translations: vi.fn(() => ({})) } },
-          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|' } },
+          { provide: AuthService, useValue: { isEdition: vi.fn(() => false), identity: () => '0|', status: signal(null), token: null } },
           { provide: AlbumService, useValue: { list: vi.fn(() => of({ albums: [] })) } },
           { provide: MatDialog, useValue: { open: vi.fn() } },
         ],
@@ -939,6 +944,17 @@ describe('GalleryFilterSidebarComponent', () => {
       fixture.componentInstance.selectTab(id);
       fixture.detectChanges();
     };
+
+    it('keeps literal tag rules reachable with empty catalogs and permits clearing invalid saved rules', () => {
+      mockStore['types'] = signal([]); mockStore['tags'] = signal([]); mockStore['patterns'] = signal([]);
+      TestBed.inject(GalleryStore).filters.update(filters => ({ ...filters, tag_groups: '{"any":false}' }));
+      showTab('browse');
+      const editor = (fixture.nativeElement as HTMLElement).querySelector('app-tag-groups');
+      expect(editor).toBeTruthy();
+      expect(editor!.querySelector('[role=alert]')!.textContent).toContain('gallery.tag_groups.invalid');
+      editor!.querySelector<HTMLButtonElement>('[data-tag-rule-clear]')!.click();
+      expect(mockStore['updateFilter']).toHaveBeenCalledWith('tag_groups', '');
+    });
 
     it('lists the advanced metric sections as top-level sections, with no wrapping panel', () => {
       const advanced = fixture.componentInstance.advancedFilterGroups();

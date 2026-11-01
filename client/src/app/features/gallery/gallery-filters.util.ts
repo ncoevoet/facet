@@ -1,3 +1,4 @@
+import { hasTagQuery, parseTagQuery, serializeTagQuery } from './tag-query.util';
 /**
  * Pure filter logic for the gallery: types, defaults, and the URL/API/storage
  * codec. Extracted from gallery.store.ts so it can be unit-tested in isolation
@@ -42,6 +43,7 @@ export interface GalleryFilters {
   camera: string;
   lens: string;
   tag: string;
+  tag_groups: string;
   person_id: string;
   person_match: 'all' | 'any';
   // Score ranges
@@ -279,6 +281,7 @@ export function smartAlbumFilterJson(filters: GalleryFilters): string {
   const dropSort = filters.sort === RELEVANCE_SORT;
   const filterJson: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(filters)) {
+    if (k === 'tag_groups' && !hasTagQuery(String(v))) continue;
     if (v && v !== '' && !(k === 'person_match' && (!filters.person_id || v === 'all')) && !SMART_ALBUM_EXCLUDE_KEYS.has(k) && !(dropSort && (k === 'sort' || k === 'sort_direction'))) {
       filterJson[k] = v;
     }
@@ -292,7 +295,8 @@ export function smartAlbumFilterJson(filters: GalleryFilters): string {
 export function applySavedAlbumFilters(current: GalleryFilters, savedJson: string, albumId: string): GalleryFilters {
   const saved = JSON.parse(savedJson) as Partial<GalleryFilters>;
   if (saved.person_match !== undefined && !['all', 'any'].includes(saved.person_match)) throw new Error('Invalid person match');
-  return { ...current, person_match: 'all', ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
+  if (saved.tag_groups !== undefined && !parseTagQuery(saved.tag_groups)) throw new Error('Invalid tag groups');
+  return { ...current, person_match: 'all', tag_groups: '', ...saved, ...exclusiveHidePatch(saved), album_id: albumId };
 }
 
 /** The store's mutual-exclusion rule: "hide rejected" and "favourites only" cannot both hold, so
@@ -360,7 +364,7 @@ export function setScopePatch(
 
 /** Common string-typed filter keys shared across URL sync, API params, and filter counting. */
 export const RANGE_AND_SELECT_KEYS: (keyof GalleryFilters)[] = [
-  'type', 'camera', 'lens', 'tag', 'person_id', 'person_match', 'composition_pattern', 'search',
+  'type', 'camera', 'lens', 'tag', 'tag_groups', 'person_id', 'person_match', 'composition_pattern', 'search',
   'color_temp', 'hue_bucket', 'quality_tier', 'sequence_override', 'review_status',
   'min_score', 'max_score', 'min_aesthetic', 'max_aesthetic',
   'min_quality_score', 'max_quality_score', 'min_topiq', 'max_topiq',
@@ -399,6 +403,7 @@ export const DEFAULT_FILTERS: GalleryFilters = {
   camera: '',
   lens: '',
   tag: '',
+  tag_groups: '',
   person_id: '',
   person_match: 'all',
   min_score: '',
@@ -557,7 +562,7 @@ export function activeFilterKeys(f: GalleryFilters): (keyof GalleryFilters)[] {
     'favorites_only', 'show_rejected', 'blinks_only', 'duplicates_only', 'is_monochrome',
     'manual_faces_need_review', 'faces_need_names',
   ];
-  return [...stringKeys, ...flagKeys].filter(key => key !== 'person_match' && !!f[key]);
+  return [...stringKeys, ...flagKeys].filter(key => key !== 'person_match' && !!f[key] && (key !== 'tag_groups' || hasTagQuery(f.tag_groups)));
 }
 
 /**
@@ -567,6 +572,7 @@ export function activeFilterKeys(f: GalleryFilters): (keyof GalleryFilters)[] {
  */
 export function filterUnit(key: string): string {
   if (key === 'person_match') return 'person_id';
+  if (key === 'tag_groups') return 'tag';
   if (key.startsWith('min_') || key.startsWith('max_')) return key.slice(4);
   if (key === 'no_gps' || key.startsWith('gps_')) return 'gps';
   return key;
@@ -595,6 +601,10 @@ export function applyQueryParams(
   ];
   for (const key of stringKeys) {
     if (params[key]) (result as Record<string, unknown>)[key] = params[key];
+  }
+  if (Object.hasOwn(params, 'tag_groups')) {
+    const groups = parseTagQuery(params['tag_groups']);
+    result.tag_groups = groups ? serializeTagQuery(groups) : params['tag_groups'];
   }
   if (Object.hasOwn(params, 'person_id')) result.person_id = params['person_id'];
   if (!result.person_id || !['all', 'any'].includes(result.person_match)) result.person_match = 'all';
@@ -675,7 +685,7 @@ export function buildSyncParams(
 
   const stringKeys: (keyof GalleryFilters)[] = [...RANGE_AND_SELECT_KEYS, 'similar_to', 'album_id', 'semanticQuery'];
   for (const key of stringKeys) {
-    if (key === 'person_match') continue;
+    if (key === 'person_match' || key === 'tag_groups') continue;
     if (f[key]) params[key] = String(f[key]);
   }
   // Album URLs overlay saved rules: default ALL and an explicitly cleared
@@ -684,6 +694,7 @@ export function buildSyncParams(
     params['person_id'] = f.person_id;
     params['person_match'] = f.person_match;
   }
+  if (f.album_id || hasTagQuery(f.tag_groups)) params['tag_groups'] = f.tag_groups;
   if (f.similar_to && f.min_similarity) params['min_similarity'] = f.min_similarity;
   if (f.similar_to && f.similarity_mode && f.similarity_mode !== 'visual') params['similarity_mode'] = f.similarity_mode;
   // Only when the user moved the slider off the server's own seed -- the same
@@ -742,6 +753,7 @@ export function buildApiParams(
   ];
   for (const key of stringKeys) {
     if (key === 'person_match' && (!f.person_id || f.person_match !== 'any')) continue;
+    if (key === 'tag_groups' && !hasTagQuery(f.tag_groups)) continue;
     if (f[key]) params[key] = String(f[key]);
   }
 

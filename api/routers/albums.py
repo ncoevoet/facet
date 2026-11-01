@@ -73,8 +73,10 @@ def _normalize_smart_filters(filters):
     direction, where the backend reads the string ``'1'`` and ``'ASC'``: ``True`` becomes ``'1'``,
     ``False`` / ``None`` / ``''`` are dropped (the client never stores them), the direction is upper-cased.
     """
+    # A malformed literal rule is a restriction that must fail closed, rather
+    # than disappear and broaden a saved album (including a public share).
     result = {key: ('1' if value is True else value) for key, value in filters.items()
-              if value is not None and value is not False and value != ''}
+              if key == 'tag_groups' or (value is not None and value is not False and value != '')}
     if 'person_id' in result:
         result['person'] = result.pop('person_id')
     if isinstance(result.get('sort_direction'), str):
@@ -153,6 +155,12 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
 
     Returns a dict with keys: photos, total, page, per_page, total_pages, has_more.
     """
+    # A share token grants the owner's chosen membership, within the owner's
+    # current visibility. The recipient's separate library (or lack of login)
+    # must not change the membership or expose another account's preferences.
+    if not include_manual:
+        user_id = album_row['user_id']
+
     # build_photo_select_columns reads the lifespan-warmed
     # _existing_columns_cache and never touches conn — safe with aiosqlite.
     select_cols = build_photo_select_columns(conn=None, user_id=user_id, include_manual_tags=include_manual)
@@ -216,8 +224,8 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
         where_str = " AND ".join(base_where)
 
         cur = await conn.execute(
-            f"SELECT COUNT(*) FROM album_photos ap "
-            f"JOIN {from_clause} ON photos.path = ap.photo_path "
+            f"SELECT COUNT(*) FROM {from_clause} "
+            f"JOIN album_photos ap ON photos.path = ap.photo_path "
             f"WHERE {where_str}",
             from_params + base_params
         )
@@ -232,8 +240,8 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
         select_cols = with_top_picks_alias(
             select_cols, safe_sort == 'top_picks_score' or (filters or {}).get('top_picks_filter') == '1')
         cur = await conn.execute(
-            f"SELECT {', '.join(select_cols)} FROM album_photos ap "
-            f"JOIN {from_clause} ON photos.path = ap.photo_path "
+            f"SELECT {', '.join(select_cols)} FROM {from_clause} "
+            f"JOIN album_photos ap ON photos.path = ap.photo_path "
             f"WHERE {where_str} "
             f"ORDER BY {order_by_clause(safe_sort, sort_dir, tiebreak='photos.path ASC')} LIMIT ? OFFSET ?",
             from_params + base_params + [per_page, (page - 1) * per_page]
@@ -260,17 +268,19 @@ async def _fetch_album_photos(conn, album_row, user_id, page, per_page, sort_col
     }
 
 
-async def _get_album_filter_options(conn, album_id):
+async def _get_album_filter_options(conn, album_id, owner_id):
     """Return filter dropdown options scoped to a regular album's photos. Async.
 
     AI tags only, on purpose: the sole caller is the share route, and a manual
     tag in this dropdown would hand the owner's private annotations to a
     share-link viewer.
     """
+    visibility, visibility_params = get_visibility_clause(owner_id)
+    params = [album_id, *visibility_params]
     base = (
         "SELECT {col}, COUNT(*) as cnt FROM album_photos ap "
         "JOIN photos ON photos.path = ap.photo_path "
-        "WHERE ap.album_id = ? AND {col} IS NOT NULL "
+        f"WHERE ap.album_id = ? AND {visibility} AND {{col}} IS NOT NULL "
         "GROUP BY {col} ORDER BY cnt DESC"
     )
 
@@ -280,28 +290,29 @@ async def _get_album_filter_options(conn, album_id):
         await cur.close()
         return rows
 
-    cameras = await _all(base.format(col='camera_model'), (album_id,))
-    lenses = await _all(base.format(col='lens_model'), (album_id,))
+    cameras = await _all(base.format(col='camera_model'), params)
+    lenses = await _all(base.format(col='lens_model'), params)
     tags_rows = await _all(
         "SELECT pt.tag, COUNT(*) as cnt FROM album_photos ap "
         "JOIN photo_tags pt ON pt.photo_path = ap.photo_path "
-        "WHERE ap.album_id = ? "
+        "JOIN photos ON photos.path = ap.photo_path "
+        f"WHERE ap.album_id = ? AND {visibility} "
         "GROUP BY pt.tag ORDER BY cnt DESC",
-        (album_id,),
+        params,
     )
     patterns = await _all(
         "SELECT composition_pattern, COUNT(*) as cnt FROM album_photos ap "
         "JOIN photos ON photos.path = ap.photo_path "
-        "WHERE ap.album_id = ? AND composition_pattern IS NOT NULL AND composition_pattern != '' "
+        f"WHERE ap.album_id = ? AND {visibility} AND composition_pattern IS NOT NULL AND composition_pattern != '' "
         "GROUP BY composition_pattern ORDER BY cnt DESC",
-        (album_id,),
+        params,
     )
     categories = await _all(
         "SELECT category, COUNT(*) as cnt FROM album_photos ap "
         "JOIN photos ON photos.path = ap.photo_path "
-        "WHERE ap.album_id = ? AND category IS NOT NULL AND category != '' "
+        f"WHERE ap.album_id = ? AND {visibility} AND category IS NOT NULL AND category != '' "
         "GROUP BY category ORDER BY cnt DESC",
-        (album_id,),
+        params,
     )
     return {
         'cameras': [{'value': r[0], 'count': r[1]} for r in cameras],
@@ -1198,7 +1209,7 @@ async def get_shared_album(
         filters = None
         if is_manual:
             _FILTER_KEYS = (
-                'camera', 'lens', 'tag', 'date_from', 'date_to',
+                'camera', 'lens', 'tag', 'tag_groups', 'date_from', 'date_to',
                 'hide_blinks', 'hide_bursts', 'hide_duplicates',
                 'composition_pattern', 'category', 'is_monochrome',
                 # Color facet + on-the-fly quality tier
@@ -1256,7 +1267,7 @@ async def get_shared_album(
         # Include filter options for manual albums (first page only to avoid repeated work)
         if is_manual and page == 1:
             try:
-                result['filter_options'] = await _get_album_filter_options(conn, album['id'])
+                result['filter_options'] = await _get_album_filter_options(conn, album['id'], album['user_id'])
             except sqlite3.Error:
                 logger.debug("Failed to build album filter options", exc_info=True)
 

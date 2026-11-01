@@ -136,6 +136,7 @@
   "sort_direction",
   "stack_id",
   "tag",
+  "tag_groups",
   "top_picks_filter",
   "type"
 ]

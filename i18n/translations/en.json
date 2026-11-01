@@ -1632,6 +1632,21 @@
       "any": "Any selected person",
       "hint": "All requires everyone in one photo. Any includes photos of at least one selected person.",
       "limit": "Select up to {max} people in one group. Remove a person to add another."
+    },
+    "tag_groups": {
+      "title": "Tag rules",
+      "hint": "Groups combine with AND. Names match full tags; adding a rule does not create a tag.",
+      "add_to": "Add to group",
+      "name": "Tag name",
+      "add": "Add rule",
+      "any": "Any of these",
+      "all": "All of these",
+      "none": "None of these",
+      "limit": "Use up to {max} tag names across all groups.",
+      "invalid_name": "Use nonempty text, at most {max} characters, without control characters.",
+      "invalid": "These tag rules are invalid. Clear them to recover.",
+      "remove": "Remove rule for {name}",
+      "clear": "Clear tag rules"
     }
   },
   "composition_patterns": {

@@ -1670,6 +1670,18 @@
                   "null"
                 ]
               },
+              "tag_groups": {
+                "anyOf": [
+                  {
+                    "maxLength": 20000,
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "JSON string with any/all/none arrays of literal tags, at most 50 total; null clears."
+              },
               "type": {
                 "description": "Gallery filter `type`.",
                 "type": [
@@ -2164,5 +2176,5 @@
       "name": "ui_show_comparison"
     }
   ],
-  "version": "92a6d6450225dee8"
+  "version": "ef5e860d8e5c9db8"
 }

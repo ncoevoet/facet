@@ -27,7 +27,7 @@ from api.models.gallery import (
 from api.models.discovery import PhotoSetResponse, PhotoTypeCountsResponse, ViewerConfigResponse
 from api.db_helpers import (
     get_existing_columns, get_cached_count_async,
-    get_cached_hidden_aggregates_async, snapshot_count_token, _add_tag_filter,
+    get_cached_hidden_aggregates_async, snapshot_count_token, _add_tag_filter, _add_tag_groups,
     get_art_tags_from_config, build_hide_clauses,
     hide_toggle_params,
     split_photo_tags, attach_person_data_async, sanitize_float_values,
@@ -240,6 +240,8 @@ def _apply_text_filters(where_clauses, sql_params, params, conn, include_manual=
         conn=conn,
         include_manual=include_manual,
     )
+
+    _add_tag_groups(where_clauses, sql_params, params.get('tag_groups', ''), conn, include_manual=include_manual)
 
     if params.get('composition_pattern'):
         where_clauses.append("composition_pattern = ?")

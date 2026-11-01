@@ -1,10 +1,13 @@
 """Pydantic models for gallery endpoints."""
 
-from pydantic import BaseModel, Field, StringConstraints, field_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, AfterValidator
 from typing import Annotated
 from typing import Any, Literal, Optional, Union
 
 from api.models.common import CoercedInt, PaginationEnvelope
+from tag_query import TAG_QUERY_JSON_LIMIT, validated_tag_query
+
+TagQuery = Annotated[str, Field(max_length=TAG_QUERY_JSON_LIMIT), AfterValidator(validated_tag_query)]
 
 
 class PhotoPerson(BaseModel):
@@ -275,6 +278,7 @@ class GalleryParams(BaseModel):
     duplicates_only: str = ''
     search: str = ''
     tag: str = ''
+    tag_groups: TagQuery = ''
     person: str = Field(default='', max_length=4096)
     person_match: Literal['all', 'any'] = 'all'
 

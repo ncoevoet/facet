@@ -616,6 +616,17 @@ describe('UI tool registry and handlers', () => {
   });
 
   describe('ui_set_gallery_filters', () => {
+    it('applies literal tag groups read-only, refuses malformed rules and clears only that field', async () => {
+      const raw = '{"any":["coast,ridge","夜景"],"none":["OR"]}';
+      expect(await run('ui_set_gallery_filters', { patch: { tag_groups: raw, camera: 'Camera' } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ tag_groups: raw, camera: 'Camera' });
+      expect(await run('ui_set_gallery_filters', { patch: { tag_groups: '{"all":true}' } })).toMatchObject({ ok: false, error: 'invalid_input' });
+      await expect(direct()['ui_set_gallery_filters']({ patch: { tag_groups: '{"any":["a"],"any":["b"]}' } })).rejects.toMatchObject({ code: 'invalid_input' });
+      expect(store.filters().tag_groups).toBe(raw);
+      expect(await run('ui_set_gallery_filters', { patch: { tag_groups: null } })).toMatchObject({ ok: true });
+      expect(store.filters()).toMatchObject({ tag_groups: '', camera: 'Camera' });
+    });
+
     it('applies ANY-person groups read-only and clears their mode canonically through the agent contract', async () => {
       expect(await run('ui_set_gallery_filters', { patch: { person: '1,2', person_match: 'any' } })).toMatchObject({ ok: true });
       expect(store.filters()).toMatchObject({ person_id: '1,2', person_match: 'any' });

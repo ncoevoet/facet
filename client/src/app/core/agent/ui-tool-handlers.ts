@@ -1,3 +1,4 @@
+import { parseTagQuery, serializeTagQuery } from '../../features/gallery/tag-query.util';
 import { LEVEL_RANK, agentLevel } from './agent-level';
 import { NavigationExtras, Router } from '@angular/router';
 import { pathOf } from '../../shared/utils/url-path';
@@ -309,6 +310,11 @@ export function createUiToolHandlers(deps: UiToolDeps): Record<string, UiToolHan
           : filterDefault(clientKey);
       } else if (FRACTION_KEYS.has(contractKey)) {
         updates[clientKey] = fractionToPercent(contractKey, value);
+      } else if (clientKey === 'tag_groups') {
+        if (typeof value !== 'string') throw new UiToolError('invalid_input', 'tag_groups must be a JSON string.');
+        const groups = parseTagQuery(value);
+        if (!groups) throw new UiToolError('invalid_input', 'Invalid tag groups.');
+        updates[clientKey] = serializeTagQuery(groups);
       } else if (clientKey === 'person_match') {
         if (value !== 'all' && value !== 'any') throw new UiToolError('invalid_input', 'person_match must be all or any.');
         updates[clientKey] = value;

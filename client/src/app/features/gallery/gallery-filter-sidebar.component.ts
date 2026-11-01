@@ -38,6 +38,7 @@ import { i18nKeys } from '../../core/i18n/keys';
 import { isUnavailableKey, unavailableSet } from '../../shared/utils/unavailable-metrics';
 import { closeOverlayDirectives } from '../../shared/utils/overlays';
 import { MetricSparklineComponent } from '../../shared/components/metric-sparkline/metric-sparkline.component';
+import { TagGroupsComponent } from './tag-groups.component';
 import { FilterPinsService, FILTER_PIN_LIMIT } from './filter-pins.service';
 
 export const ADDITIONAL_FILTERS: AdditionalFilterDef[] = [
@@ -285,6 +286,7 @@ export function loadActiveTab(): SidebarTabId {
     MatDialogModule,
     TranslatePipe,
     FilterDisplayPipe,
+    TagGroupsComponent,
     PersonThumbnailUrlPipe,
   ],
   changeDetection: ChangeDetectionStrategy.Eager,
@@ -554,7 +556,6 @@ export function loadActiveTab(): SidebarTabId {
       </mat-expansion-panel>
 
       <!-- Content -->
-      @if (store.types().length || store.tags().length || store.patterns().length) {
         <mat-expansion-panel class="!mb-1" [expanded]="sectionStates()['content'] !== false"
                              (opened)="onSectionToggle('content', true)"
                              (closed)="onSectionToggle('content', false)"
@@ -591,6 +592,7 @@ export function loadActiveTab(): SidebarTabId {
                 </mat-select>
               </mat-form-field>
             }
+            <app-tag-groups />
             @if (store.patterns().length) {
               <mat-form-field subscriptSizing="dynamic" class="w-full">
                 <mat-label>{{ I18N.gallery.composition_pattern | translate }}</mat-label>
@@ -604,7 +606,6 @@ export function loadActiveTab(): SidebarTabId {
             }
           </div>
         </mat-expansion-panel>
-      }
 
       <!-- Albums -->
       @if (store.config()?.features?.show_albums && albums().length) {
