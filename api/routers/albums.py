@@ -1239,11 +1239,28 @@ async def get_shared_album(
 
         result = await _fetch_album_photos(conn, album, user_id, page, per_page, sort, sort_dir, filters=filters, include_manual=False)
         result['album'] = _album_to_dict(album)
+        # Membership may depend on private manual tags or other owner criteria.
+        # Share the resulting photos, never the owner's saved rule definition.
+        result['album'].pop('smart_filter_json', None)
         result['effective_sort'] = sort
         result['effective_sort_direction'] = sort_dir
         result['proofing_enabled'] = (
             bool(VIEWER_CONFIG.get('features', {}).get('show_proofing', False)) and is_manual
         )
+        result['sharing_policy'] = {
+            'membership': 'manual' if is_manual else 'smart',
+            'membership_can_change': True,
+            # The media endpoints validate library visibility independently;
+            # an album share token is not a download authorization token.
+            'downloads': 'library_access_required',
+            'photo_metadata': True,
+            'native_paths': True,
+            'manual_tags': False,
+            'saved_rules': False,
+            'password_protected': False,
+            'expires_at': None,
+            'proofing': result['proofing_enabled'],
+        }
         _, sort_options_grouped = available_sort_options(await populated_gated_cols_async(conn))
         if sort_options_grouped:
             result['sort_options_grouped'] = sort_options_grouped

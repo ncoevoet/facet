@@ -2279,7 +2279,19 @@
       "failed": "Could not read the saved rules. Your current view is unchanged.",
       "uncertain": "The save could not be confirmed. Reload saved rules before trying again.",
       "reload": "Reload saved rules"
-    }
+    },
+    "recipient_policy": "Recipient access",
+    "share_smart_scope": "{count} photos currently match this smart album. Matching photos can change as the library or saved rules change.",
+    "share_manual_scope": "{count} photos are currently in this album. Adding or removing members changes this link.",
+    "share_access_policy": "The link opens this album without a link password or expiry. Image access and downloads still require the server’s library permissions; this link alone does not grant download access.",
+    "share_proofing_on": "Recipients can submit picks and comments through the separate proofing session.",
+    "share_proofing_off": "Recipient picks and comments are not enabled for this album.",
+    "share_data_disclosure": "What information is shared?",
+    "share_metadata_disclosure": "Photo data may include native file paths, names, capture dates, camera details, location, people and automatic analysis. Downloaded files may contain additional embedded metadata.",
+    "share_private_exclusions": "Manual tags and saved smart-album rules are not included in the album response. This does not strip metadata from downloaded files.",
+    "open_recipient_view": "Open recipient view",
+    "share_operation_error": "The share operation could not be confirmed. Reload recipient access or check the album before distributing the link.",
+    "reload_recipient_policy": "Reload recipient access"
   },
   "critique": {
     "overlay_show": "Show overlay",

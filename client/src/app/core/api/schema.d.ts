@@ -8893,6 +8893,38 @@ export interface components {
             token: string;
         };
         /**
+         * SharedAlbumPolicy
+         * @description Capabilities of this public link, not account edition rights or a frozen delivery.
+         */
+        SharedAlbumPolicy: {
+            /**
+             * Downloads
+             * @constant
+             */
+            downloads: "library_access_required";
+            /** Expires At */
+            expires_at?: string | null;
+            /** Manual Tags */
+            manual_tags: boolean;
+            /**
+             * Membership
+             * @enum {string}
+             */
+            membership: "manual" | "smart";
+            /** Membership Can Change */
+            membership_can_change: boolean;
+            /** Native Paths */
+            native_paths: boolean;
+            /** Password Protected */
+            password_protected: boolean;
+            /** Photo Metadata */
+            photo_metadata: boolean;
+            /** Proofing */
+            proofing: boolean;
+            /** Saved Rules */
+            saved_rules: boolean;
+        };
+        /**
          * SharedAlbumResponse
          * @description The anonymous share-token view of an album.
          *
@@ -8920,6 +8952,7 @@ export interface components {
             photos: components["schemas"]["Photo"][];
             /** Proofing Enabled */
             proofing_enabled: boolean;
+            sharing_policy: components["schemas"]["SharedAlbumPolicy"];
             /** Sort Options Grouped */
             sort_options_grouped?: {
                 [key: string]: unknown;
