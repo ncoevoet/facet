@@ -4180,6 +4180,91 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan/faces/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Face Update Jobs */
+        get: operations["face_update_jobs_api_scan_faces_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Face Update Status */
+        get: operations["face_update_status_api_scan_faces_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/jobs/{job_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel Face Update */
+        post: operations["cancel_face_update_api_scan_faces_jobs__job_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Preview Face Update */
+        get: operations["preview_face_update_api_scan_faces_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/faces/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start Face Update */
+        post: operations["start_face_update_api_scan_faces_start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scan/jobs/{job_id}": {
         parameters: {
             query?: never;
@@ -6878,6 +6963,56 @@ export interface components {
             person_id: number;
             /** Receipt Id */
             receipt_id: string;
+        };
+        /** FaceUpdatePreview */
+        FaceUpdatePreview: {
+            /** Eligible Photos */
+            eligible_photos: number;
+            /** Model */
+            model: string;
+        };
+        /** FaceUpdateRecord */
+        FaceUpdateRecord: {
+            /** Added Faces */
+            added_faces: number;
+            /** Controlled By Worker */
+            controlled_by_worker: boolean;
+            /** Created At */
+            created_at: string;
+            /** Empty */
+            empty: number;
+            /** Error Code */
+            error_code?: string | null;
+            /** Failed */
+            failed: number;
+            /** Finished At */
+            finished_at?: string | null;
+            /** Job Id */
+            job_id: string;
+            /** Model */
+            model: string;
+            /** Processed */
+            processed: number;
+            /** Skipped */
+            skipped: number;
+            /** Started At */
+            started_at?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "queued" | "running" | "completed" | "partial" | "cancelled" | "failed";
+            /** Stop Requested */
+            stop_requested: boolean;
+            /** Total */
+            total: number;
+        };
+        /** FaceUpdateStartRequest */
+        FaceUpdateStartRequest: {
+            /** Confirm */
+            confirm: boolean;
+            /** Expected Model */
+            expected_model: string;
         };
         /** FolderEntry */
         FolderEntry: {
@@ -16491,6 +16626,145 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ScanDirectoriesResponse"];
+                };
+            };
+        };
+    };
+    face_update_jobs_api_scan_faces_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"][];
+                };
+            };
+        };
+    };
+    face_update_status_api_scan_faces_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_face_update_api_scan_faces_jobs__job_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanCancelRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_face_update_api_scan_faces_preview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdatePreview"];
+                };
+            };
+        };
+    };
+    start_face_update_api_scan_faces_start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FaceUpdateStartRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FaceUpdateRecord"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

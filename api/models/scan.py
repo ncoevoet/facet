@@ -27,6 +27,35 @@ class ScanCancelResponse(BaseModel):
     stop_requested: bool
 
 
+class FaceUpdateStartRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    confirm: bool = Field(strict=True)
+    expected_model: str = Field(min_length=1, max_length=64)
+
+
+class FaceUpdateRecord(BaseModel):
+    job_id: str
+    model: str
+    state: Literal['queued', 'running', 'completed', 'partial', 'cancelled', 'failed']
+    stop_requested: bool
+    total: int
+    processed: int
+    added_faces: int
+    empty: int
+    skipped: int
+    failed: int
+    error_code: Optional[str] = None
+    created_at: str
+    started_at: Optional[str] = None
+    finished_at: Optional[str] = None
+    controlled_by_worker: bool
+
+
+class FaceUpdatePreview(BaseModel):
+    eligible_photos: int
+    model: str
+
+
 class ScanRetryPreviewRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     run_id: int = Field(gt=0, strict=True)

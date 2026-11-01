@@ -37,6 +37,9 @@ from api.models.scan import (
     ScanRetryReceiptResponse,
     ScanStatusResponse,
     ScanStreamTokenResponse,
+    FaceUpdateStartRequest,
+    FaceUpdateRecord,
+    FaceUpdatePreview,
 )
 from processing.progress import parse_progress_line
 from processing.scan_retry import RetryPlanError
@@ -53,6 +56,7 @@ SCAN_STREAM_TOKEN_TTL_SECONDS = 60
 JOB_KIND_SCAN = 'scan'
 JOB_KIND_RECOMPUTE = 'recompute'
 JOB_KIND_PANORAMAS = 'panoramas'
+JOB_KIND_FACES = 'faces'
 
 # Global scan state (only one scan or recompute job at a time)
 _scan_lock = threading.Lock()
@@ -125,7 +129,7 @@ def _cross_process_job_env():
     return child_process_env({JOB_ORIGIN_ENV_VAR: JOB_ORIGIN_VIEWER})
 
 
-def _read_scan_output(proc, cleanup=None):
+def _read_scan_output(proc, cleanup=None, on_exit=None):
     """Background thread to read subprocess output.
 
     Structured @FACET_PROGRESS lines are parsed into _scan_state['progress']
@@ -151,8 +155,12 @@ def _read_scan_output(proc, cleanup=None):
         _photo_types_cache['expires'] = 0
         invalidate_stats_cache()
     finally:
-        if cleanup is not None:
-            cleanup()
+        try:
+            if on_exit is not None and proc.poll() is not None:
+                on_exit(proc)
+        finally:
+            if cleanup is not None:
+                cleanup()
 
 
 class ScanStartRequest(BaseModel):
@@ -185,9 +193,9 @@ def scan_feature_refusal(user) -> Optional[str]:
     return "Scan feature not enabled"
 
 
-def _spawn_scan(cmd, directories, cleanup=None):
+def _spawn_scan(cmd, directories, cleanup=None, *, kind=JOB_KIND_SCAN, job_id=None, on_exit=None):
     """Caller holds _scan_lock. One observer for normal and captured scans."""
-    job_id = secrets.token_hex(16)
+    job_id = job_id or secrets.token_hex(16)
     env = _cross_process_job_env()
     from processing.scan_state import VIEWER_JOB_ID_ENV
     env[VIEWER_JOB_ID_ENV] = job_id
@@ -197,7 +205,7 @@ def _spawn_scan(cmd, directories, cleanup=None):
     def observe():
         ready.wait()
         if proc is not None:
-            _read_scan_output(proc, cleanup)
+            _read_scan_output(proc, cleanup, on_exit)
 
     # Reserve the observer before creating a child. Resource exhaustion cannot
     # leave an accepted scan without a reader, then delete its startup manifest.
@@ -208,7 +216,7 @@ def _spawn_scan(cmd, directories, cleanup=None):
             text=True, bufsize=1, env=env, encoding='utf-8', errors='replace',
         )
         _scan_state.update(
-            running=True, kind=JOB_KIND_SCAN, process=proc,
+            running=True, kind=kind, process=proc,
             output_lines=deque(maxlen=500), started_at=time.time(), directories=directories,
             exit_code=None, progress=None, scope=None, job_id=job_id, cancel_requested=False,
         )
@@ -218,6 +226,128 @@ def _spawn_scan(cmd, directories, cleanup=None):
         }
     finally:
         ready.set()
+
+
+def _require_face_update_access(user):
+    if refusal := scan_feature_refusal(user):
+        raise HTTPException(403, refusal)
+
+
+def _face_update_record(job_id, user):
+    from faces.update import owner_key
+    with get_db() as conn:
+        row = conn.execute('SELECT * FROM face_update_jobs WHERE job_id=? AND owner=?',
+                           (job_id, owner_key(user.user_id))).fetchone()
+    if row is None:
+        raise HTTPException(404, 'Face update not found')
+    result = dict(row)
+    result.pop('owner')
+    with _scan_lock:
+        proc = _scan_state.get('process')
+        result['controlled_by_worker'] = bool(
+            _scan_state.get('job_id') == job_id and _scan_state.get('kind') == JOB_KIND_FACES
+            and _scan_state['running'] and proc is not None and proc.poll() is None)
+    return result
+
+
+def _close_face_update_receipt(job_id, proc):
+    # Called after stdout observation. Only an observed process exit permits a
+    # terminal repair; a disconnected reader is not evidence the child stopped.
+    if proc.poll() is not None:
+        with get_db() as conn:
+            conn.execute("UPDATE face_update_jobs SET state='failed',error_code='worker_exited',"
+                         "finished_at=CURRENT_TIMESTAMP WHERE job_id=? AND state IN ('queued','running')", (job_id,))
+            conn.commit()
+
+
+@router.get('/faces/preview', response_model=FaceUpdatePreview)
+def preview_face_update(user: CurrentUser = Depends(require_scan_access)):
+    from db.embedding_space import active_embedding_model
+    _require_face_update_access(user)
+    with get_db() as conn:
+        count = conn.execute('''SELECT COUNT(*) FROM photos p WHERE NOT EXISTS
+            (SELECT 1 FROM faces f WHERE f.photo_path=p.path AND f.is_manual=0)''').fetchone()[0]
+    return {'eligible_photos': count, 'model': active_embedding_model(server_scoring_config())}
+
+
+@router.get('/faces/jobs', response_model=list[FaceUpdateRecord])
+def face_update_jobs(user: CurrentUser = Depends(require_scan_access)):
+    from faces.update import owner_key
+    _require_face_update_access(user)
+    with get_db() as conn:
+        ids = conn.execute('SELECT job_id FROM face_update_jobs WHERE owner=? ORDER BY created_at DESC,job_id DESC LIMIT 10',
+                           (owner_key(user.user_id),)).fetchall()
+    return [_face_update_record(row[0], user) for row in ids]
+
+
+@router.get('/faces/jobs/{job_id}', response_model=FaceUpdateRecord)
+def face_update_status(job_id: str = ApiPath(pattern=r'^[0-9a-f]{32}$'), user: CurrentUser = Depends(require_scan_access)):
+    _require_face_update_access(user)
+    return _face_update_record(job_id, user)
+
+
+@router.post('/faces/start', response_model=FaceUpdateRecord)
+def start_face_update(body: FaceUpdateStartRequest, user: CurrentUser = Depends(require_scan_access)):
+    from db.connection import DEFAULT_DB_PATH
+    from db.embedding_space import active_embedding_model
+    from faces.update import capture_job, owner_key
+    _require_face_update_access(user)
+    if not body.confirm:
+        raise HTTPException(400, 'Face update requires confirmation')
+    model = active_embedding_model(server_scoring_config())
+    if body.expected_model != model:
+        raise HTTPException(409, 'Recognition model changed; preview again')
+    if not _scan_lock.acquire(blocking=False):
+        raise HTTPException(409, 'A library job is already running')
+    job_id = secrets.token_hex(16)
+    captured = False
+    try:
+        if _scan_state['running'] or _recompute_conflict_detail():
+            raise HTTPException(409, 'A library job is already running')
+        with get_db() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            capture_job(conn, job_id, owner_key(user.user_id), model)
+            conn.commit()
+            captured = True
+        cmd = [sys.executable, FACET_SCRIPT, '--update-faces-job', job_id,
+               '--db', DEFAULT_DB_PATH, '--config', str(_CONFIG_PATH)]
+        _spawn_scan(cmd, [], kind=JOB_KIND_FACES, job_id=job_id,
+                    on_exit=lambda proc: _close_face_update_receipt(job_id, proc))
+    except HTTPException:
+        raise
+    except (OSError, RuntimeError, subprocess.SubprocessError, sqlite3.Error):
+        if captured:
+            with get_db() as conn:
+                conn.execute("UPDATE face_update_jobs SET state='failed',error_code='spawn_failed',finished_at=CURRENT_TIMESTAMP WHERE job_id=?", (job_id,))
+                conn.commit()
+        logger.exception('Face update could not start')
+        raise HTTPException(503, 'Face update could not start; reload its receipt') from None
+    finally:
+        _scan_lock.release()
+    return _face_update_record(job_id, user)
+
+
+@router.post('/faces/jobs/{job_id}/cancel', response_model=FaceUpdateRecord)
+def cancel_face_update(body: ScanCancelRequest, job_id: str = ApiPath(pattern=r'^[0-9a-f]{32}$'),
+                       user: CurrentUser = Depends(require_scan_access)):
+    from faces.update import owner_key
+    _require_face_update_access(user)
+    if not body.confirm or body.job_id != job_id:
+        raise HTTPException(400, 'Stopping requires the captured face-update identity')
+    # Cooperative cancellation targets this durable job, never a PID, current
+    # scan or inferred lock owner. Another worker can acknowledge the same job.
+    with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        row = conn.execute('SELECT state FROM face_update_jobs WHERE job_id=? AND owner=?',
+                           (job_id, owner_key(user.user_id))).fetchone()
+        if row is None:
+            raise HTTPException(404, 'Face update not found')
+        if row[0] == 'queued':
+            conn.execute("UPDATE face_update_jobs SET stop_requested=1,state='cancelled',finished_at=CURRENT_TIMESTAMP WHERE job_id=?", (job_id,))
+        elif row[0] == 'running':
+            conn.execute('UPDATE face_update_jobs SET stop_requested=1 WHERE job_id=?', (job_id,))
+        conn.commit()
+    return _face_update_record(job_id, user)
 
 
 @router.post("/start", response_model=ScanStartResponse, response_model_exclude_unset=True)

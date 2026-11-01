@@ -270,6 +270,9 @@ FACES_UPSERT_SQL = """
      embedding_model)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 """
+# The additive updater must refuse a collision rather than replacing a face
+# that was assigned or manually drawn while its image was being decoded.
+FACES_INSERT_SQL = FACES_UPSERT_SQL.replace('INSERT OR REPLACE', 'INSERT', 1)
 
 
 def face_upsert_row(photo_path, face, embedding_model):
@@ -1330,6 +1333,21 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
 
         # Create persons table
         conn.execute(_build_create_table_sql('persons', PERSONS_COLUMNS))
+
+        conn.execute('''CREATE TABLE IF NOT EXISTS face_update_jobs (
+            job_id TEXT PRIMARY KEY, owner TEXT NOT NULL, model TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'queued', stop_requested INTEGER NOT NULL DEFAULT 0,
+            total INTEGER NOT NULL, processed INTEGER NOT NULL DEFAULT 0,
+            added_faces INTEGER NOT NULL DEFAULT 0, empty INTEGER NOT NULL DEFAULT 0,
+            skipped INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0,
+            error_code TEXT, started_at TEXT, finished_at TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)''')
+        conn.execute('''CREATE TABLE IF NOT EXISTS face_update_items (
+            job_id TEXT NOT NULL REFERENCES face_update_jobs(job_id) ON DELETE CASCADE,
+            path TEXT NOT NULL REFERENCES photos(path) ON DELETE CASCADE ON UPDATE CASCADE,
+            state TEXT NOT NULL DEFAULT 'pending', error_code TEXT,
+            PRIMARY KEY(job_id,path))''')
+        conn.execute('CREATE INDEX IF NOT EXISTS idx_face_update_pending ON face_update_items(job_id,state,path)')
 
         # Private per-account suggestion feedback. Geometry/embedding tokens make
         # feedback obsolete after a face is edited or extracted again.

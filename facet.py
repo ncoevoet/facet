@@ -815,10 +815,12 @@ LIBRARY_JOB_RETRAIN = 'retrain'
 LIBRARY_JOB_MAINTENANCE = 'maintenance'
 LIBRARY_JOB_TAGGING = 'tagging'
 LIBRARY_JOB_REPAIR = 'repair'
+LIBRARY_JOB_FACES = 'faces'
 UNKNOWN_LIBRARY_JOB = {'pid': None, 'kind': 'library job', 'origin': 'unknown'}
 DEFAULT_SCAN_STALE_SECONDS = 120
 
 LIBRARY_JOB_ARGS = (
+    'update_faces_job',
     'backfill_clipping',
     'backfill_focal_35mm',
     'cluster_faces_force',
@@ -2499,6 +2501,15 @@ def main():
 
     parser = cli_args.build_parser()
     args = parser.parse_args()
+    if args.update_faces_job:
+        if len(args.update_faces_job) != 32 or any(c not in '0123456789abcdef' for c in args.update_faces_job):
+            parser.error('--update-faces-job requires a valid job identity')
+        defaults = vars(parser.parse_args([]))
+        allowed = {'update_faces_job', 'db', 'config'}
+        if any(value != defaults[name] for name, value in vars(args).items() if name not in allowed):
+            parser.error('--update-faces-job cannot be combined with other commands or scan modifiers')
+        if not args.db or not Path(args.db).is_file():
+            parser.error('--update-faces-job requires an existing database')
     if args.retry_plan or args.retry_plan_sha256:
         if not (args.retry_plan and args.retry_plan_sha256):
             parser.error('--retry-plan and --retry-plan-sha256 must be supplied together')
@@ -2596,7 +2607,11 @@ def main():
     # the locked jobs below as subprocesses and would deadlock every one. Its
     # own schema DDL is locked separately, in _upgrade_db_schema.
     if _library_job_requested(args):
-        _acquire_library_lock(args, LIBRARY_JOB_RECOMPUTE)
+        _acquire_library_lock(args, LIBRARY_JOB_FACES if args.update_faces_job else LIBRARY_JOB_RECOMPUTE)
+
+    if args.update_faces_job:
+        from faces.update import run_face_update
+        sys.exit(run_face_update(args.db, ScoringConfig(args.config, validate=False), args.update_faces_job))
 
     # Category validation mode (lightweight - no GPU needed)
     if args.validate_categories:

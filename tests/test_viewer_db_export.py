@@ -684,3 +684,23 @@ def test_full_export_omits_face_feedback_and_incremental_preserves_local_feedbac
     export_viewer_db(src, out, verbose=False)
     with sqlite3.connect(out) as conn:
         assert conn.execute('SELECT owner,identity_token,receipt_id FROM face_review_feedback').fetchall() == [('viewer-local-owner', 'c'*64, 'd'*32)]
+
+
+def test_face_update_jobs_are_private_and_incremental_keeps_viewer_receipts(tmp_path):
+    src,out=str(tmp_path/'source.db'),str(tmp_path/'viewer.db')
+    _make_source_db(src)
+    with sqlite3.connect(src) as conn:
+        conn.execute("INSERT INTO face_update_jobs(job_id,owner,model,total) VALUES (?,?,?,1)",('a'*32,'private-face-update-owner','sface'))
+        conn.execute('INSERT INTO face_update_items(job_id,path) VALUES (?,?)',('a'*32,_A))
+    export_viewer_db(src,out,verbose=False)
+    assert b'private-face-update-owner' not in Path(out).read_bytes()
+    init_database(out)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM face_update_jobs').fetchone()==(0,)
+        assert conn.execute('SELECT COUNT(*) FROM face_update_items').fetchone()==(0,)
+        conn.execute("INSERT INTO face_update_jobs(job_id,owner,model,total,state) VALUES (?,?,?,1,'completed')",('b'*32,'viewer-local-owner','sface'))
+        conn.execute("INSERT INTO face_update_items(job_id,path,state) VALUES (?,?,'empty')",('b'*32,_A))
+    export_viewer_db(src,out,verbose=False)
+    with sqlite3.connect(out) as conn:
+        assert conn.execute('SELECT job_id,owner,state FROM face_update_jobs').fetchall()==[('b'*32,'viewer-local-owner','completed')]
+        assert conn.execute('SELECT job_id,path,state FROM face_update_items').fetchall()==[('b'*32,_A,'empty')]
