@@ -95,6 +95,46 @@ describe('ScanService', () => {
     });
   });
 
+  describe('captured failed-file retry', () => {
+    const id = 'a'.repeat(32);
+    it('previews the chosen run and applies only its opaque plan, then observes the accepted job', async () => {
+      const preview = service.previewRetry(7);
+      const read = httpTesting.expectOne('/api/scan/retry/preview');
+      expect(read.request.body).toEqual({ run_id: 7 });
+      read.flush({ plan_id: id, run_id: 7, expires_in_seconds: 600, files: ['/one.jpg'], omissions: [] });
+      expect((await preview).plan_id).toBe(id);
+      const apply = service.applyRetry(id);
+      const write = httpTesting.expectOne('/api/scan/retry/apply');
+      expect(write.request.body).toEqual({ plan_id: id, confirm: true });
+      write.flush({ success: true, job_id: 'b'.repeat(32), pid: 123, directories: [], message: 'Spawned' });
+      await Promise.resolve(); flushMint(); await apply;
+      expect(MockEventSource.instances).toHaveLength(1);
+    });
+
+    it('does not repeat an uncertain retry POST; explicit recovery reads its receipt', async () => {
+      const apply = service.applyRetry(id);
+      const rejected = expect(apply).rejects.toBeTruthy();
+      httpTesting.expectOne('/api/scan/retry/apply').flush('unavailable', { status: 503, statusText: 'Unavailable' });
+      await rejected;
+      httpTesting.expectNone('/api/scan/retry/apply');
+      const recovery = service.loadRetryReceipt(id);
+      const read = httpTesting.expectOne('/api/scan/retry/' + id);
+      expect(read.request.method).toBe('GET');
+      read.flush({ state: 'spawned', job_id: 'b'.repeat(32) }); await recovery;
+      httpTesting.expectNone('/api/scan/retry/apply');
+    });
+
+    it('does not connect a prior-session accepted retry to the new account', async () => {
+      const apply = service.applyRetry(id);
+      const write = httpTesting.expectOne('/api/scan/retry/apply');
+      TestBed.inject(AuthService).status.set({ ...authorizedStatus(), user_id: 'other' });
+      write.flush({ success: true, job_id: 'b'.repeat(32), pid: 123, directories: [], message: 'Spawned' });
+      await apply;
+      httpTesting.expectNone('/api/scan/stream_token');
+      expect(service.statusKnown()).toBe(false);
+    });
+  });
+
   describe('owned scan stopping', () => {
     const job = '1'.repeat(32);
     async function observe() {

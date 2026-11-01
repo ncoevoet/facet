@@ -130,6 +130,8 @@ PARAMETERISED_ROUTES = [
 # POST routes with a minimal valid-shaped body naming a photo that does not exist:
 # the handler runs (validation passes) and ends in a 4xx or an empty success.
 POST_ROUTES = [
+    ('/api/scan/retry/preview', {'run_id': 1}),
+    ('/api/scan/retry/apply', {'plan_id': '0' * 32, 'confirm': True}),
     ('/api/stacks', {'paths': ['/none/a.jpg', '/none/b.jpg'], 'cover_path': '/none/a.jpg'}),
     ('/api/stacks/regroup/preview', {'selected_paths': ['/none/a.jpg', '/none/b.jpg']}),
     ('/api/stacks/regroup/apply', {'selected_paths': ['/none/a.jpg', '/none/b.jpg'],
@@ -164,6 +166,7 @@ SUPERADMIN_ROUTES = [
     '/api/scan/status',
     '/api/scan/directories',
     '/api/scan/runs',
+    '/api/scan/retry/' + '0' * 32,
 ]
 
 

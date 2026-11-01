@@ -4194,6 +4194,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/scan/retry/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Apply Failed Retry */
+        post: operations["apply_failed_retry_api_scan_retry_apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/retry/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview Failed Retry */
+        post: operations["preview_failed_retry_api_scan_retry_preview_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scan/retry/{plan_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Failed Retry Receipt */
+        get: operations["failed_retry_receipt_api_scan_retry__plan_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/scan/runs": {
         parameters: {
             query?: never;
@@ -8796,6 +8847,51 @@ export interface components {
             count: number;
             /** Stage */
             stage: string;
+        };
+        /** ScanRetryApplyRequest */
+        ScanRetryApplyRequest: {
+            /** Confirm */
+            confirm: boolean;
+            /** Plan Id */
+            plan_id: string;
+        };
+        /** ScanRetryOmission */
+        ScanRetryOmission: {
+            /** Count */
+            count: number;
+            /**
+             * Reason
+             * @enum {string}
+             */
+            reason: "missing" | "not_file" | "unsupported" | "duplicate" | "raw_paired";
+        };
+        /** ScanRetryPreviewRequest */
+        ScanRetryPreviewRequest: {
+            /** Run Id */
+            run_id: number;
+        };
+        /** ScanRetryPreviewResponse */
+        ScanRetryPreviewResponse: {
+            /** Expires In Seconds */
+            expires_in_seconds: number;
+            /** Files */
+            files: string[];
+            /** Omissions */
+            omissions: components["schemas"]["ScanRetryOmission"][];
+            /** Plan Id */
+            plan_id: string;
+            /** Run Id */
+            run_id: number;
+        };
+        /** ScanRetryReceiptResponse */
+        ScanRetryReceiptResponse: {
+            /** Job Id */
+            job_id?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "preview" | "submitting" | "spawned" | "refused";
         };
         /** ScanRunHistoryResponse */
         ScanRunHistoryResponse: {
@@ -16151,6 +16247,103 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecomputeStatusResponse"];
+                };
+            };
+        };
+    };
+    apply_failed_retry_api_scan_retry_apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanRetryApplyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanStartResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    preview_failed_retry_api_scan_retry_preview_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScanRetryPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRetryPreviewResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    failed_retry_receipt_api_scan_retry__plan_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                plan_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScanRetryReceiptResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

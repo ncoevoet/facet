@@ -3,9 +3,11 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal, computed } from '@angular/core';
 import { MatDialogRef } from '@angular/material/dialog';
+import { By } from '@angular/platform-browser';
 import { I18nService } from '../../core/services/i18n.service';
 import { ScanService, ScanStatus } from '../../core/services/scan.service';
 import { ScanLauncherComponent } from './scan-launcher.component';
+import { ScanHistoryComponent } from './scan-history.component';
 
 const translations = {
   scan: {
@@ -124,6 +126,42 @@ describe('Scan launcher rendered phase labels', () => {
     statusKnown.set(true); status.set({ ...status(), running: false, exit_code: 1 }); await settle();
     expect(root.textContent).toContain('Scan ended with an error');
     expect(root.querySelector('mat-progress-bar')).toBeNull();
+  });
+
+  it('refreshes a captured accepted retry that finishes before its running state is observed', async () => {
+    const history = fixture.debugElement.query(By.directive(ScanHistoryComponent)).componentInstance as ScanHistoryComponent;
+    history.retryAccepted.emit('b'.repeat(32));
+    statusKnown.set(true);
+    status.set({ ...status(), job_id: 'b'.repeat(32), running: false, exit_code: 0 });
+    await settle();
+    expect(close).toHaveBeenCalledWith(true);
+  });
+
+  it('does not treat an unrelated ended job as the captured retry completion', async () => {
+    const history = fixture.debugElement.query(By.directive(ScanHistoryComponent)).componentInstance as ScanHistoryComponent;
+    history.retryAccepted.emit('b'.repeat(32));
+    statusKnown.set(true);
+    status.set({ ...status(), job_id: 'c'.repeat(32), running: false, exit_code: 0 });
+    await settle();
+    expect(close).not.toHaveBeenCalled();
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Close')!.click();
+    await settle();
+    expect(close).toHaveBeenCalledWith(false);
+  });
+
+  it('keeps prior partial refresh without auto-closing a retry for a different later job', async () => {
+    await progress('scoring');
+    status.update(value => ({ ...value, job_id: 'a'.repeat(32), running: false, exit_code: 1 }));
+    await settle();
+    expect(close).not.toHaveBeenCalled();
+    const history = fixture.debugElement.query(By.directive(ScanHistoryComponent)).componentInstance as ScanHistoryComponent;
+    history.retrySubmitted.emit(); history.retryAccepted.emit('b'.repeat(32));
+    status.set({ ...status(), job_id: 'c'.repeat(32), running: false, exit_code: 0 });
+    await settle();
+    expect(close).not.toHaveBeenCalled();
+    [...root.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.trim() === 'Close')!.click();
+    await settle();
+    expect(close).toHaveBeenCalledWith(true); // Already observed A may have committed partial results.
   });
 
   it('requires a captured stop confirmation and does not auto-close a zero exit after stopping', async () => {

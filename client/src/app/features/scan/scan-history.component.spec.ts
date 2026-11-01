@@ -1,7 +1,7 @@
 import { signal } from '@angular/core';
 import { TestBed, ComponentFixture } from '@angular/core/testing';
 import { ScanHistoryComponent } from './scan-history.component';
-import { ScanService, RecordedScanRun, ScanRunHistory } from '../../core/services/scan.service';
+import { ScanService, RecordedScanRun, ScanRunHistory, ScanRetryPreview } from '../../core/services/scan.service';
 import { AuthService } from '../../core/services/auth.service';
 import { I18nService } from '../../core/services/i18n.service';
 
@@ -15,14 +15,27 @@ describe('recorded scan history', () => {
   let fixture: ComponentFixture<ScanHistoryComponent>;
   let root: HTMLElement;
   let read: ReturnType<typeof vi.fn>;
+  let previewRead: ReturnType<typeof vi.fn>;
+  let apply: ReturnType<typeof vi.fn>;
+  let receiptRead: ReturnType<typeof vi.fn>;
+  let connect: ReturnType<typeof vi.fn>;
+  let token: string;
+  const plan: ScanRetryPreview = { plan_id: 'a'.repeat(32), run_id: 2, expires_in_seconds: 600,
+    files: ['/photos/café.jpg', '/photos/two.jpg'], omissions: [{ reason: 'missing', count: 1 }] };
   const owner = signal('root');
   const status = signal<unknown>({ user_id: 'root' });
   beforeEach(() => {
+    token = 'fixture-token';
     owner.set('root'); status.set({ user_id: 'root' });
     read = vi.fn(async (): Promise<ScanRunHistory> => ({ runs: [run(3, 'running'), run(2, 'completed', 2)], next_before: 2 }));
+    previewRead = vi.fn(async () => plan);
+    apply = vi.fn(async () => 'b'.repeat(32));
+    receiptRead = vi.fn(async () => ({ state: 'spawned', job_id: 'b'.repeat(32) }));
+    connect = vi.fn(async () => undefined);
     TestBed.configureTestingModule({ imports: [ScanHistoryComponent], providers: [
-      { provide: ScanService, useValue: { canLaunch: () => true, loadHistory: read } },
-      { provide: AuthService, useValue: { identity: owner, status, token: 'fixture-token', isEdition: () => false } },
+      { provide: ScanService, useValue: { canLaunch: () => true, loadHistory: read,
+        previewRetry: previewRead, applyRetry: apply, loadRetryReceipt: receiptRead, connect } },
+      { provide: AuthService, useValue: { identity: owner, status, get token() { return token; }, isEdition: () => false } },
       { provide: I18nService, useValue: { t: (key: string) => key, translations: signal({}), currentLang: signal('en') } },
     ] });
     fixture = TestBed.createComponent(ScanHistoryComponent); fixture.detectChanges(); root = fixture.nativeElement;
@@ -68,5 +81,91 @@ describe('recorded scan history', () => {
     expect(root.textContent).not.toContain('#999');
     expect(root.querySelectorAll('ol > li')).toHaveLength(0);
     expect(root.querySelector('[role="status"]')).toBeNull();
+  });
+
+  it('previews one ended run without starting, lists captured targets and Cancel never writes', async () => {
+    await open();
+    expect([...root.querySelectorAll('button')].filter(b => b.textContent?.includes('scan.retry.preview'))).toHaveLength(1);
+    const trigger = button('scan.retry.preview'); trigger.focus(); trigger.click();
+    await Promise.resolve(); fixture.detectChanges();
+    expect(previewRead).toHaveBeenCalledWith(2);
+    expect(apply).not.toHaveBeenCalled();
+    expect(root.textContent).toContain('/photos/café.jpg');
+    expect(root.textContent).toContain('scan.retry.omissions.missing');
+    await vi.waitFor(() => expect(document.activeElement).toBe(root.querySelector('[data-retry-preview]')));
+    button('ui.buttons.cancel').click(); fixture.detectChanges();
+    expect(root.textContent).not.toContain('/photos/café.jpg');
+    expect(apply).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('confirms only captured plan, and an uncertain start recovers by receipt read without another Apply', async () => {
+    await open();
+    button('scan.retry.preview').click(); await Promise.resolve(); fixture.detectChanges();
+    apply.mockRejectedValueOnce(new Error('lost response'));
+    const submitted = vi.fn(); fixture.componentInstance.retrySubmitted.subscribe(submitted);
+    button('scan.retry.apply').click(); await Promise.resolve(); fixture.detectChanges();
+    expect(apply).toHaveBeenCalledExactlyOnceWith(plan.plan_id);
+    expect(submitted).toHaveBeenCalledOnce();
+    expect(root.textContent).toContain('scan.retry.unconfirmed');
+    expect(button('scan.retry.preview').disabled).toBe(true);
+    button('scan.retry.read_receipt').click(); await Promise.resolve(); fixture.detectChanges();
+    expect(receiptRead).toHaveBeenCalledExactlyOnceWith(plan.plan_id);
+    expect(connect).toHaveBeenCalledExactlyOnceWith(false);
+    expect(apply).toHaveBeenCalledTimes(1);
+  });
+
+  it('drops a late retry preview on account change and removes private targets', async () => {
+    await open();
+    let finish!: (value: ScanRetryPreview) => void;
+    previewRead.mockImplementationOnce(() => new Promise<ScanRetryPreview>(resolve => { finish = resolve; }));
+    button('scan.retry.preview').click();
+    owner.set('other'); status.set({ user_id: 'other' }); fixture.detectChanges();
+    finish(plan); await Promise.resolve(); fixture.detectChanges();
+    expect(root.textContent).not.toContain('/photos/');
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('expires an unused preview and refuses to keep its Apply action available', async () => {
+    await open();
+    previewRead.mockResolvedValueOnce({ ...plan, expires_in_seconds: 0 });
+    button('scan.retry.preview').click(); await Promise.resolve(); fixture.detectChanges();
+    await vi.waitFor(() => { fixture.detectChanges(); expect(root.textContent).toContain('scan.retry.expired'); });
+    expect([...root.querySelectorAll('button')].some(b => b.textContent?.includes('scan.retry.apply'))).toBe(false);
+    expect(apply).not.toHaveBeenCalled();
+  });
+
+  it('refuses a token-only change before confirmation and clears the stale preview', async () => {
+    await open(); button('scan.retry.preview').click(); await Promise.resolve(); fixture.detectChanges();
+    token = 'rotated-token';
+    button('scan.retry.apply').click(); await Promise.resolve(); fixture.detectChanges();
+    expect(apply).not.toHaveBeenCalled();
+    expect(root.textContent).not.toContain('/photos/');
+  });
+
+  for (const state of ['preview', 'refused']) {
+    it(`offers a fresh preview only after the receipt confirms ${state}`, async () => {
+      await open(); button('scan.retry.preview').click(); await Promise.resolve(); fixture.detectChanges();
+      apply.mockRejectedValueOnce(new Error('lost response'));
+      button('scan.retry.apply').click(); await Promise.resolve(); fixture.detectChanges();
+      receiptRead.mockResolvedValueOnce({ state, job_id: null });
+      button('scan.retry.read_receipt').click(); await Promise.resolve(); fixture.detectChanges();
+      expect(root.textContent).toContain('scan.retry.not_started');
+      expect(button('scan.retry.preview').disabled).toBe(false);
+      expect(apply).toHaveBeenCalledTimes(1);
+      expect(connect).not.toHaveBeenCalled();
+    });
+  }
+
+  it('does not interpret an expired receipt as proof that no process started', async () => {
+    await open(); button('scan.retry.preview').click(); await Promise.resolve(); fixture.detectChanges();
+    apply.mockRejectedValueOnce(new Error('lost response'));
+    button('scan.retry.apply').click(); await Promise.resolve(); fixture.detectChanges();
+    receiptRead.mockRejectedValueOnce({ status: 410 });
+    button('scan.retry.read_receipt').click(); await Promise.resolve(); fixture.detectChanges();
+    expect(root.textContent).toContain('scan.retry.unconfirmed');
+    expect(root.textContent).not.toContain('scan.retry.not_started');
+    expect(button('scan.retry.preview').disabled).toBe(true);
+    expect(apply).toHaveBeenCalledTimes(1);
   });
 });

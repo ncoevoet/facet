@@ -1,6 +1,6 @@
 """Pydantic models for scan, export, updates, i18n, folders and ranker endpoints."""
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -25,6 +25,35 @@ class ScanCancelRequest(BaseModel):
 class ScanCancelResponse(BaseModel):
     job_id: str
     stop_requested: bool
+
+
+class ScanRetryPreviewRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    run_id: int = Field(gt=0, strict=True)
+
+
+class ScanRetryApplyRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    plan_id: str = Field(pattern=r'^[0-9a-f]{32}$')
+    confirm: bool = Field(strict=True)
+
+
+class ScanRetryOmission(BaseModel):
+    reason: Literal['missing', 'not_file', 'unsupported', 'duplicate', 'raw_paired']
+    count: int
+
+
+class ScanRetryPreviewResponse(BaseModel):
+    plan_id: str
+    run_id: int
+    expires_in_seconds: int
+    files: list[str]
+    omissions: list[ScanRetryOmission]
+
+
+class ScanRetryReceiptResponse(BaseModel):
+    state: Literal['preview', 'submitting', 'spawned', 'refused']
+    job_id: Optional[str] = None
 
 
 class ScanStatusResponse(BaseModel):

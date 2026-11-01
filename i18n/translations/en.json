@@ -2017,7 +2017,30 @@
     "stop_consequence": "Already saved results stay. Current work may be interrupted and finalization may not finish.",
     "stop_unconfirmed": "The stop request could not be confirmed. Read status before trying again.",
     "stopping": "Stop requested; waiting for the process to exit…",
-    "ended_after_stop": "Scan ended; a stop was requested."
+    "ended_after_stop": "Scan ended; a stop was requested.",
+    "retry": {
+      "preview": "Preview failed-file retry",
+      "title": "Retry failed files",
+      "scope": "Scan #{run} · {count} captured files",
+      "boundary": "Reprocess these files with the current analysis settings. Per-photo scores and face data may change; saved personal edits remain separate. Library-wide grouping, tagging and other finalization passes will not run.",
+      "files": "Review {count} files",
+      "more_files": "Show 20 more",
+      "expiry": "This preview expires after 10 minutes. Changed files or settings require a new preview.",
+      "apply": "Confirm retry",
+      "expired": "Retry preview expired. Create a new preview.",
+      "preview_error": "Could not preview this run. Check retained failures and configured scan directories, then try a new preview.",
+      "submitted": "Retry submitted. Follow the scan status above; a submitted request is not a completed scan.",
+      "read_receipt": "Read retry receipt",
+      "unconfirmed": "Retry start is unconfirmed. Read its receipt or scan status before doing anything else. The start request will not be repeated automatically.",
+      "not_started": "No retry was started from this preview. Create a new preview to continue.",
+      "omissions": {
+        "missing": "Missing files omitted",
+        "not_file": "Non-file paths omitted",
+        "unsupported": "Unsupported files omitted",
+        "duplicate": "Duplicate targets omitted",
+        "raw_paired": "RAW files with captured JPEG/HEIF partners omitted"
+      }
+    }
   },
   "persons": {
     "help": "People detected by face recognition. Name unnamed clusters, merge duplicates, set an avatar, or hide a person. Click a person to see their photos.",

@@ -7,6 +7,8 @@ import type { components } from '../api/schema';
 
 export type ScanRunHistory = components['schemas']['ScanRunHistoryResponse'];
 export type RecordedScanRun = components['schemas']['RecordedScanRun'];
+export type ScanRetryPreview = components['schemas']['ScanRetryPreviewResponse'];
+export type ScanRetryReceipt = components['schemas']['ScanRetryReceiptResponse'];
 
 export interface ScanProgress {
   phase: string;
@@ -176,6 +178,34 @@ export class ScanService implements OnDestroy {
     }));
     if (!this.authCurrent(session)) throw new Error('Scan session changed');
     return response;
+  }
+
+  async previewRetry(runId: number): Promise<ScanRetryPreview> {
+    const session = this.capture();
+    if (!this.authCurrent(session)) throw new Error('Scan session changed');
+    const result = await firstValueFrom(this.api.post<ScanRetryPreview>('/scan/retry/preview', { run_id: runId }));
+    if (!this.authCurrent(session)) throw new Error('Scan session changed');
+    return result;
+  }
+
+  async applyRetry(planId: string): Promise<string | null> {
+    const session = this.capture();
+    if (!this.authCurrent(session)) throw new Error('Scan session changed');
+    const result = await firstValueFrom(this.api.post<components['schemas']['ScanStartResponse']>(
+      '/scan/retry/apply', { plan_id: planId, confirm: true },
+    ));
+    if (!this.authCurrent(session)) return null;
+    if (!result.success || !/^[0-9a-f]{32}$/.test(result.job_id)) throw new Error('Invalid retry receipt');
+    await this.connect(false);
+    return this.authCurrent(session) ? result.job_id : null;
+  }
+
+  async loadRetryReceipt(planId: string): Promise<ScanRetryReceipt> {
+    const session = this.capture();
+    if (!this.authCurrent(session)) throw new Error('Scan session changed');
+    const result = await firstValueFrom(this.api.get<ScanRetryReceipt>('/scan/retry/' + encodeURIComponent(planId)));
+    if (!this.authCurrent(session)) throw new Error('Scan session changed');
+    return result;
   }
 
   async connect(retainSameSession = true): Promise<void> {

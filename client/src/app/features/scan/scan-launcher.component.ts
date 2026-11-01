@@ -76,7 +76,7 @@ import { ScanHistoryComponent } from './scan-history.component';
         }
         <pre class="mt-3 text-xs font-mono whitespace-pre-wrap max-h-48 overflow-y-auto opacity-70 bg-[var(--mat-sys-surface-container)] rounded p-2">{{ outputTail() }}</pre>
       }
-      <app-scan-history />
+      <app-scan-history (retrySubmitted)="noteRetrySubmitted()" (retryAccepted)="noteRetryAccepted($event)" />
       @if (pendingStopId()) {
         <section class="mt-3 border-t border-[var(--mat-sys-outline-variant)] pt-2" [attr.aria-label]="I18N.scan.stop_confirm | translate">
           <p class="text-sm">{{ I18N.scan.stop_consequence | translate }}</p>
@@ -86,7 +86,7 @@ import { ScanHistoryComponent } from './scan-history.component';
       }
     </mat-dialog-content>
     <mat-dialog-actions align="end">
-      <button mat-button [mat-dialog-close]="sawRunning && statusKnown() && !observationError() && !status().running && status().exit_code !== null">{{ I18N.scan.close | translate }}</button>
+      <button mat-button [mat-dialog-close]="(sawRunning || retryExitObserved()) && statusKnown() && !observationError() && !status().running && status().exit_code !== null">{{ I18N.scan.close | translate }}</button>
       @if (canCancel() && !pendingStopId()) {
         <button mat-button (click)="askStop()" [disabled]="stopping()">{{ I18N.scan.stop_button | translate }}</button>
       }
@@ -123,6 +123,9 @@ export class ScanLauncherComponent implements OnInit {
   // ScanService is a root singleton; its status can still hold a prior run's
   // {running:false, exit_code:0}. Only auto-close once THIS run was seen live.
   protected sawRunning = false;
+  private readonly retryMode = signal(false);
+  protected readonly acceptedRetryJob = signal<string | null>(null);
+  protected readonly retryExitObserved = computed(() => this.acceptedRetryJob() !== null && this.acceptedRetryJob() === this.status().job_id);
   private stopTargetId: string | null = null;
 
   protected readonly progressValue = computed(() => {
@@ -157,10 +160,20 @@ export class ScanLauncherComponent implements OnInit {
       if (!this.started()) return;
       if (s.running) {
         this.sawRunning = true;
-      } else if (this.sawRunning && s.exit_code === 0 && !s.cancel_requested) {
+      } else if ((this.retryMode() ? this.retryExitObserved() : this.sawRunning) && s.exit_code === 0 && !s.cancel_requested) {
         this.dialogRef.close(true);
       }
     });
+  }
+
+  protected noteRetrySubmitted(): void {
+    this.retryMode.set(true); this.acceptedRetryJob.set(null); this.started.set(true);
+    // Keep sawRunning as a pending manual refresh for earlier partial work.
+    // It must not authorize automatic completion of this new retry intent.
+  }
+
+  protected noteRetryAccepted(jobId: string): void {
+    this.retryMode.set(true); this.acceptedRetryJob.set(jobId); this.started.set(true);
   }
 
   async ngOnInit(): Promise<void> {

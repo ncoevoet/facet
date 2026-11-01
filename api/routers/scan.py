@@ -30,10 +30,15 @@ from api.models.scan import (
     ScanStartResponse,
     ScanCancelRequest,
     ScanCancelResponse,
+    ScanRetryPreviewRequest,
+    ScanRetryApplyRequest,
+    ScanRetryPreviewResponse,
+    ScanRetryReceiptResponse,
     ScanStatusResponse,
     ScanStreamTokenResponse,
 )
 from processing.progress import parse_progress_line
+from processing.scan_retry import RetryPlanError
 from api.database import get_db
 
 router = APIRouter(prefix="/api/scan", tags=["scan"])
@@ -119,32 +124,34 @@ def _cross_process_job_env():
     return child_process_env({JOB_ORIGIN_ENV_VAR: JOB_ORIGIN_VIEWER})
 
 
-def _read_scan_output(proc):
+def _read_scan_output(proc, cleanup=None):
     """Background thread to read subprocess output.
 
     Structured @FACET_PROGRESS lines are parsed into _scan_state['progress']
     and kept out of the human-readable log ring buffer.
     """
-    for line in proc.stdout:
-        line = line.rstrip('\n')
-        event = parse_progress_line(line)
+    try:
+        for line in proc.stdout:
+            line = line.rstrip('\n')
+            event = parse_progress_line(line)
+            with _scan_lock:
+                if _scan_state.get('process') is not proc:
+                    continue
+                if event is not None:
+                    _scan_state['progress'] = event
+                else:
+                    _scan_state['output_lines'].append(line)
+        proc.wait()
         with _scan_lock:
             if _scan_state.get('process') is not proc:
-                continue
-            if event is not None:
-                _scan_state['progress'] = event
-            else:
-                _scan_state['output_lines'].append(line)
-    proc.wait()
-    with _scan_lock:
-        if _scan_state.get('process') is not proc:
-            return
-        _scan_state['exit_code'] = proc.returncode
-        _scan_state['running'] = False
-    # Invalidate caches after scan adds/updates photos; a finished recompute changed every score it touched,
-    # so the category counts and score distributions must stop serving the old values.
-    _photo_types_cache['expires'] = 0
-    invalidate_stats_cache()
+                return
+            _scan_state['exit_code'] = proc.returncode
+            _scan_state['running'] = False
+        _photo_types_cache['expires'] = 0
+        invalidate_stats_cache()
+    finally:
+        if cleanup is not None:
+            cleanup()
 
 
 class ScanStartRequest(BaseModel):
@@ -175,6 +182,39 @@ def scan_feature_refusal(user) -> Optional[str]:
     if scan_feature_enabled(user.trusted_local_editing, VIEWER_CONFIG):
         return None
     return "Scan feature not enabled"
+
+
+def _spawn_scan(cmd, directories, cleanup=None):
+    """Caller holds _scan_lock. One observer for normal and captured scans."""
+    job_id = secrets.token_hex(16)
+    env = _cross_process_job_env()
+    ready = threading.Event()
+    proc = None
+
+    def observe():
+        ready.wait()
+        if proc is not None:
+            _read_scan_output(proc, cleanup)
+
+    # Reserve the observer before creating a child. Resource exhaustion cannot
+    # leave an accepted scan without a reader, then delete its startup manifest.
+    threading.Thread(target=observe, args=(), daemon=True).start()
+    try:
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, bufsize=1, env=env, encoding='utf-8', errors='replace',
+        )
+        _scan_state.update(
+            running=True, kind=JOB_KIND_SCAN, process=proc,
+            output_lines=deque(maxlen=500), started_at=time.time(), directories=directories,
+            exit_code=None, progress=None, scope=None, job_id=job_id, cancel_requested=False,
+        )
+        return {
+            'success': True, 'message': 'Scan spawned; poll /api/scan/status to see it run',
+            'directories': directories, 'pid': proc.pid, 'job_id': job_id,
+        }
+    finally:
+        ready.set()
 
 
 @router.post("/start", response_model=ScanStartResponse, response_model_exclude_unset=True)
@@ -219,46 +259,70 @@ def start_scan(
         validated_dirs = [d for d in get_all_scan_directories() if d in set(directories)]
         cmd = [sys.executable, FACET_SCRIPT] + validated_dirs
 
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            env=_cross_process_job_env(),
-        )
-
-        _scan_state['running'] = True
-        _scan_state['kind'] = JOB_KIND_SCAN
-        _scan_state['process'] = proc
-        _scan_state['output_lines'] = deque(maxlen=500)
-        _scan_state['started_at'] = time.time()
-        _scan_state['directories'] = directories
-        _scan_state['exit_code'] = None
-        _scan_state['progress'] = None
-        _scan_state['scope'] = None
-        _scan_state['job_id'] = secrets.token_hex(16)
-        _scan_state['cancel_requested'] = False
-
-        reader = threading.Thread(target=_read_scan_output, args=(proc,), daemon=True)
-        reader.start()
-
-        return {
-            'success': True,
-            'message': 'Scan spawned; poll /api/scan/status to see it run',
-            'directories': directories,
-            'pid': proc.pid,
-            'job_id': _scan_state['job_id'],
-        }
+        return _spawn_scan(cmd, directories)
 
     except HTTPException:
         raise
-    except (subprocess.SubprocessError, OSError):
+    except (subprocess.SubprocessError, OSError, RuntimeError):
         logger.exception("Scan failed to start")
         _scan_state['running'] = False
         raise HTTPException(status_code=500, detail='Scan failed to start')
     finally:
         _scan_lock.release()
+
+
+@router.post('/retry/preview', response_model=ScanRetryPreviewResponse)
+def preview_failed_retry(body: ScanRetryPreviewRequest, request: Request, user: CurrentUser = Depends(require_scan_access)):
+    if refusal := scan_feature_refusal(user):
+        raise HTTPException(403, refusal)
+    from api.scan_retry import preview_retry
+    return preview_retry(body.run_id, request, user)
+
+
+@router.get('/retry/{plan_id}', response_model=ScanRetryReceiptResponse)
+def failed_retry_receipt(plan_id: str, request: Request, user: CurrentUser = Depends(require_scan_access)):
+    if refusal := scan_feature_refusal(user):
+        raise HTTPException(403, refusal)
+    from api.scan_retry import retry_receipt
+    return retry_receipt(plan_id, request, user)
+
+
+@router.post('/retry/apply', response_model=ScanStartResponse)
+def apply_failed_retry(body: ScanRetryApplyRequest, request: Request, user: CurrentUser = Depends(require_scan_access)):
+    if refusal := scan_feature_refusal(user):
+        raise HTTPException(403, refusal)
+    if not body.confirm:
+        raise HTTPException(400, 'Confirm the captured failed-file retry')
+    from api.scan_retry import begin_retry, create_manifest, finish_retry, remove_manifest
+    preview = begin_retry(body.plan_id, request, user)
+    if preview.receipt is not None:
+        return preview.receipt
+    filename = None
+    try:
+        if not _scan_lock.acquire(blocking=False):
+            raise HTTPException(409, 'A library job is already running')
+        try:
+            if _scan_state['running'] or _library_job_conflict_detail():
+                raise HTTPException(409, 'A library job is already running')
+            filename, digest = create_manifest(preview)
+            from api.scan_retry import DEFAULT_DB_PATH
+            cmd = [sys.executable, FACET_SCRIPT, '--db', DEFAULT_DB_PATH,
+                   '--config', _CONFIG_PATH, '--retry-plan', filename, '--retry-plan-sha256', digest]
+            receipt = _spawn_scan(cmd, [], lambda path=filename: remove_manifest(path))
+            finish_retry(preview, receipt)
+            return receipt
+        finally:
+            _scan_lock.release()
+    except BaseException as exc:
+        finish_retry(preview, None)
+        if filename is not None:
+            remove_manifest(filename)
+        if isinstance(exc, RetryPlanError):
+            raise HTTPException(409, 'Retry preview is no longer usable; create a new preview') from exc
+        if isinstance(exc, (OSError, subprocess.SubprocessError, RuntimeError)):
+            logger.exception('Captured retry could not start')
+            raise HTTPException(503, 'Retry could not start; inspect scan status before creating a new preview') from exc
+        raise
 
 
 @router.post('/cancel', response_model=ScanCancelResponse)

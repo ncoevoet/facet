@@ -143,11 +143,17 @@ def retry_plan_paths(plan):
     return [Path(item['path']) for item in plan['files'] if item['omission'] is None]
 
 
-def write_retry_manifest(plan, directory=None):
-    """Write a private UTF-8 transport; its owner must unlink it on all exits."""
+def retry_manifest_bytes(plan):
+    """Validate transport size during preview as well as at actual creation."""
     payload = _json_bytes(plan)
     if len(payload) > MAX_MANIFEST_BYTES:
         raise RetryPlanError('Retry preview is too large')
+    return payload
+
+
+def write_retry_manifest(plan, directory=None):
+    """Write a private UTF-8 transport; its owner must unlink it on all exits."""
+    payload = retry_manifest_bytes(plan)
     fd, filename = tempfile.mkstemp(prefix='.facet-retry-', suffix='.json', dir=directory)
     try:
         with os.fdopen(fd, 'wb') as stream:
