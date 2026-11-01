@@ -7,7 +7,15 @@ import { parseScorePresence, serializeScorePresence } from './score-presence.uti
  * store owns that and calls these functions.
  */
 
-export type GalleryMode = 'grid' | 'mosaic';
+export type GalleryMode = 'grid' | 'mosaic' | 'list';
+
+export function parseGalleryMode(value: string | null | undefined): GalleryMode {
+  return value === 'mosaic' || value === 'list' ? value : 'grid';
+}
+
+export function nextGalleryMode(value: GalleryMode): GalleryMode {
+  return value === 'grid' ? 'mosaic' : value === 'mosaic' ? 'list' : 'grid';
+}
 export type TooltipMode = 'hover' | 'click' | 'off' | 'panel';
 
 /** Every accepted tooltip mode, so the URL parser and the mode picker cannot drift apart. */

@@ -1156,12 +1156,13 @@ describe('GalleryComponent', () => {
     let fixture: ComponentFixture<GalleryComponent> | null = null;
 
     afterEach(() => {
+      fixture?.nativeElement.remove();
       fixture?.destroy();
       fixture = null;
       vi.unstubAllGlobals();
     });
 
-    function render(mode: 'grid' | 'mosaic', virtual: boolean): HTMLElement[] {
+    function render(mode: 'grid' | 'mosaic' | 'list', virtual: boolean): HTMLElement[] {
       mockStore.photos.set(photos);
       mockStore.config.set({ features: { show_rating_controls: true } });
       // The floating tooltip: the docked rail (the default at this width) would
@@ -1190,6 +1191,7 @@ describe('GalleryComponent', () => {
       expect(fixture.componentInstance.effectiveGalleryMode()).toBe(mode);
       expect(fixture.componentInstance.virtualOn()).toBe(virtual);
       const cards = [...fixture.nativeElement.querySelectorAll('app-photo-card')] as HTMLElement[];
+      for (const card of cards) card.scrollIntoView = vi.fn();
       // Two rows at least, so the card the specs reach for is never in the first.
       expect(cards.length).toBeGreaterThan(gridColumnCount(1200 - 32, 300, 8, true));
       return cards;
@@ -1208,6 +1210,8 @@ describe('GalleryComponent', () => {
       ['plain grid', 'grid', false],
       ['mosaic', 'mosaic', false],
       ['windowed rows', 'mosaic', true],
+      ['plain metadata list', 'list', false],
+      ['windowed metadata list', 'list', true],
     ] as const) {
       it(`indexes every card by its place in the results (${name})`, () => {
         const cards = render(mode, virtual);
@@ -1231,13 +1235,64 @@ describe('GalleryComponent', () => {
         clickCard(cards[cards.length - 2]);
         expect(markedCard(cards)).toBeGreaterThan(-1);
 
-        (fixture!.nativeElement.querySelector('[role="grid"]') as HTMLElement)
+        (fixture!.nativeElement.querySelector(mode === 'list' ? '[data-photo-collection]' : '[role="grid"]') as HTMLElement)
           .dispatchEvent(new FocusEvent('focusout', { bubbles: true, relatedTarget: null }));
         fixture!.detectChanges();
 
         expect(markedCard(cards)).toBe(-1);
       });
     }
+    it('retains the metadata list cursor during actual focus movement between attached rows', () => {
+      const cards = render('list', false);
+      document.body.appendChild(fixture!.nativeElement);
+      clickCard(cards[0]);
+      cards[0].querySelector<HTMLElement>('[role=button]')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+      fixture!.detectChanges();
+      expect(markedCard(cards)).toBe(1);
+      expect(document.activeElement).toBe(cards[1].querySelector('[role=button]'));
+    });
+    it('matches metadata list width and stacked height to actual rem-scaled collection padding', () => {
+      render('list', true);
+      const instance = fixture!.componentInstance as unknown as {
+        containerWidth: WritableSignal<number>; rootFontSize: WritableSignal<number>;
+        desktop: { setup(): void; cleanup(): void };
+      };
+      instance.desktop.cleanup();
+      vi.stubGlobal('matchMedia', (media: string) => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }));
+      instance.desktop.setup(); instance.containerWidth.set(320); instance.rootFontSize.set(32);
+      fixture!.detectChanges();
+      const row = fixture!.componentInstance.rowsModel()[0];
+      expect(row.widths).toEqual([288]); expect(row.height).toBe(288);
+      const card = fixture!.nativeElement.querySelector('app-photo-card') as HTMLElement;
+      expect(card.style.width).toBe('288px'); expect(card.style.height).toBe('288px');
+    });
+    it('restores a metadata list layout anchor without stealing toolbar focus and yields to new input', () => {
+      const cards = render('list', false);
+      document.body.appendChild(fixture!.nativeElement);
+      clickCard(cards[0]);
+      mockStore.initializing.set(false);
+      const instance = fixture!.componentInstance as unknown as {
+        scrollContent(): { getElementRef(): { nativeElement: HTMLElement }; scrollTo(options: { top: number }): void; measureScrollOffset(side: string): number };
+        preserveLayoutAnchor(): void;
+      };
+      const content = instance.scrollContent(); const viewport = content.getElementRef().nativeElement;
+      vi.spyOn(viewport, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 359, 400));
+      let top = 20;
+      vi.spyOn(cards[0], 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, top, 359, 144));
+      const scroll = vi.spyOn(content, 'scrollTo').mockImplementation(() => {});
+      vi.spyOn(content, 'measureScrollOffset').mockReturnValue(0);
+      const toolbar = fixture!.nativeElement.querySelector('[data-collection-header] button') as HTMLButtonElement;
+      toolbar.focus();
+      const frames: FrameRequestCallback[] = [];
+      vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frames.push(callback); return frames.length; });
+      instance.preserveLayoutAnchor(); top = 140;
+      while (frames.length) frames.shift()!(0);
+      expect(scroll).toHaveBeenCalledExactlyOnceWith({ top: 120 }); expect(document.activeElement).toBe(toolbar);
+      scroll.mockClear(); top = 20; instance.preserveLayoutAnchor(); top = 140;
+      document.dispatchEvent(new WheelEvent('wheel', { bubbles: true }));
+      while (frames.length) frames.shift()!(0);
+      expect(scroll).not.toHaveBeenCalled();
+    });
   });
 
   describe('ngOnInit()', () => {
@@ -6584,11 +6639,14 @@ describe('GalleryComponent', () => {
         expect(mockStore.setFilterDrawerOpen).toHaveBeenLastCalledWith(false);
       });
 
-      it.each(['v', 'V'])('%s flips grid and mosaic', k => {
+      it.each(['v', 'V'])('%s cycles grid, mosaic and metadata list', k => {
         (gallery as unknown as { containerWidth: WritableSignal<number> }).containerWidth.set(800);
         mockStore.galleryMode.set('mosaic');
         expect(key({ key: k }).defaultPrevented).toBe(true);
-        expect(mockStore.setGalleryMode).toHaveBeenCalledWith('grid');
+        expect(mockStore.setGalleryMode).toHaveBeenCalledWith('list');
+        mockStore.galleryMode.set('list');
+        key({ key: k });
+        expect(mockStore.setGalleryMode).toHaveBeenLastCalledWith('grid');
         mockStore.galleryMode.set('grid');
         key({ key: k });
         expect(mockStore.setGalleryMode).toHaveBeenLastCalledWith('mosaic');

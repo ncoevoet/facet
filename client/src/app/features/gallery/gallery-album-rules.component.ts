@@ -68,7 +68,7 @@ export class GalleryAlbumRulesComponent {
   protected readonly baseline = computed(() => {
     const album = this.store.currentAlbum();
     if (!album?.is_smart) return null;
-    try { return restoreAlbumRuleFields(this.store.filters(), album.smart_filter_json ?? '{}', this.store.config()?.defaults.sort, this.store.config()?.defaults.sort_direction); }
+    try { return restoreAlbumRuleFields(this.store.filters(), album.smart_filter_json ?? '{}', this.store.config()?.defaults.sort, this.store.config()?.defaults.sort_direction, this.store.config()?.defaults.type); }
     catch { return null; }
   });
   protected readonly rows = computed(() => { const saved = this.baseline(); return saved ? albumRuleRows(saved, this.store.filters()) : []; });

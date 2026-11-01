@@ -1,4 +1,6 @@
 import {
+  buildListRows,
+  metadataRowHeight,
   DETAILS_ESTIMATE_PX,
   FALLBACK_ASPECT,
   GalleryRow,
@@ -144,6 +146,25 @@ describe('gridColumnCount', () => {
       const rows = buildGridRows(photos(9), PHONE_WIDTH, MOBILE_MIN_CARD_WIDTH_PX, GAP, true, false);
       expect(rows.map(r => r.photos.length)).toEqual([4, 4, 1]);
     });
+  });
+});
+
+describe('metadata list rows', () => {
+  it('keeps one photo per deterministic full-width row and windows a large collection', () => {
+    const rows = buildListRows(photos(1000), 359, 96, 8);
+    expect(rows).toHaveLength(1000);
+    expect(rows[500]).toMatchObject({ startIndex: 500, widths: [359], height: 96, offset: 52000 });
+    expect(rows[500].photos).toHaveLength(1);
+    const range = windowRange(rows, 52000, 400, 104);
+    expect(range.first).toBeLessThanOrEqual(500); expect(range.last - range.first).toBeLessThan(8);
+    expect(totalRowsHeight(rows)).toBe(103992);
+  });
+  it('scales text-sized row geometry without depending on image dimensions', () => {
+    const rows = buildListRows(photos(4), 359, metadataRowHeight(359, 32), 8);
+    expect(rows.map(row => row.offset)).toEqual([0, 296, 592, 888]);
+    expect(rows.every(row => row.height === 288)).toBe(true);
+    expect(metadataRowHeight(359, 16)).toBe(144);
+    expect(metadataRowHeight(1200, 16)).toBe(96);
   });
 });
 

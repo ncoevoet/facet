@@ -15,6 +15,6 @@ export function galleryPresentation(preset: GalleryDisplayPreset, dockDetails: b
   switch (preset) {
     case 'browse': return { mode: 'mosaic', cardWidth: 168, hide_details: true, tooltip_mode: dockDetails ? 'hover' : 'click', panel_activation: 'both' };
     case 'review': return { mode: 'grid', cardWidth: 240, hide_details: false, tooltip_mode: dockDetails ? 'panel' : 'click', panel_activation: 'click' };
-    case 'organize': return { mode: 'grid', cardWidth: 168, hide_details: false, tooltip_mode: 'click', panel_activation: 'click' };
+    case 'organize': return { mode: 'list', cardWidth: 168, hide_details: false, tooltip_mode: 'click', panel_activation: 'click' };
   }
 }

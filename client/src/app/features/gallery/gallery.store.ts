@@ -25,7 +25,7 @@ import {
   type GalleryFilters, type GalleryMode, type TooltipMode, type PanelActivation, type DisplayOptions,
   type ViewFilterParams,
   DEFAULT_FILTERS, DISPLAY_OPTION_KEYS,
-  GALLERY_MODE_KEY, DRAWER_STATE_KEY, CARD_WIDTH_KEY, GALLERY_SESSION_QUERY_KEY, LAST_SORT_KEY, RELEVANCE_SORT,
+  GALLERY_MODE_KEY, DRAWER_STATE_KEY, CARD_WIDTH_KEY, GALLERY_SESSION_QUERY_KEY, LAST_SORT_KEY, RELEVANCE_SORT, parseGalleryMode,
   loadDisplayOptionsFromStorage, saveDisplayOptionsToStorage,
   countActiveFilters, reviewStatusPatch, setScopePatch, applyQueryParams, applySavedAlbumFilters, buildSyncParams, buildApiParams,
   buildViewFilterParams, viewFilterParamsEqual, anyHideToggleActive,
@@ -559,7 +559,7 @@ export class GalleryStore {
   readonly filterDrawerOpen = signal(localStorage.getItem(DRAWER_STATE_KEY) === 'true');
   readonly slideshowActive = signal(false);
   readonly cardWidth = signal(parseInt(localStorage.getItem(CARD_WIDTH_KEY) ?? '', 10) || 0);
-  readonly galleryMode = signal<GalleryMode>((localStorage.getItem(GALLERY_MODE_KEY) as GalleryMode) || 'grid');
+  readonly galleryMode = signal<GalleryMode>(parseGalleryMode(localStorage.getItem(GALLERY_MODE_KEY)));
   /** Row-windowed rendering for large galleries; 'off' opts back into full DOM rendering. */
   readonly virtualScroll = signal(localStorage.getItem('facet_virtual_scroll') !== 'off');
 
@@ -973,7 +973,7 @@ export class GalleryStore {
 
       // Initialize gallery mode from localStorage or config default
       if (!localStorage.getItem(GALLERY_MODE_KEY) && cfg.defaults?.gallery_mode) {
-        this.galleryMode.set(cfg.defaults.gallery_mode);
+        this.galleryMode.set(parseGalleryMode(cfg.defaults.gallery_mode));
       }
 
       // Apply config defaults to filters, then overlay localStorage display options, then URL params

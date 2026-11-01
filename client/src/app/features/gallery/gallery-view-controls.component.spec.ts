@@ -21,7 +21,7 @@ describe('GalleryViewControlsComponent', () => {
       filters: signal({ ...DEFAULT_FILTERS }), config: signal(config),
       pinnedPaths: signal<string[] | null>(null), filterDrawerOpen: signal(true), activeFilterCount: signal(0),
       slideshowActive: signal(false), setFilterDrawerOpen: vi.fn(), updateFilter: vi.fn(), setUserSort: vi.fn(() => Promise.resolve()),
-      galleryMode: signal('grid'), cardWidth: signal(168), applyDisplayPreset: vi.fn(() => Promise.resolve()),
+      galleryMode: signal('grid'), setGalleryMode: vi.fn(), cardWidth: signal(168), applyDisplayPreset: vi.fn(() => Promise.resolve()),
     };
     TestBed.configureTestingModule({
       imports: [GalleryViewControlsComponent],
@@ -36,6 +36,18 @@ describe('GalleryViewControlsComponent', () => {
     fixture.detectChanges();
     return { fixture, root: fixture.nativeElement as HTMLElement, store, navigation, edition };
   }
+
+    it('selects metadata list as presentation only and refuses parked-navigation commands', () => {
+      const { fixture, root, store, navigation } = render();
+      const filters = store.filters(); const pinned = store.pinnedPaths();
+      const list = root.querySelector<HTMLButtonElement>('[data-gallery-layout=list]')!;
+      expect(list).not.toBeNull(); list.click();
+      expect(store.setGalleryMode).toHaveBeenCalledExactlyOnceWith('list');
+      expect(store.filters()).toBe(filters); expect(store.pinnedPaths()).toBe(pinned);
+      expect(store.updateFilter).not.toHaveBeenCalled(); expect(store.setUserSort).not.toHaveBeenCalled();
+      navigation.next(new NavigationStart(1, '/photo')); list.click();
+      expect(store.setGalleryMode).toHaveBeenCalledTimes(1); fixture.destroy();
+    });
 
     const sortButtons = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="menu"]'))
       .filter(el => el.getAttribute('aria-label')?.startsWith(`${I18N.gallery.sort_current}(`));

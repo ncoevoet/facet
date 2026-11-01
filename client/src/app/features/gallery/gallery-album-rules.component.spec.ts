@@ -10,13 +10,13 @@ import { DEFAULT_FILTERS } from './gallery-filters.util';
 import { GalleryAlbumRulesComponent } from './gallery-album-rules.component';
 
 const album: Album = { id: 7, name: 'Keepers', description: '', is_smart: true, smart_filter_json: JSON.stringify({ camera: 'Canon' }), cover_photo_path: null, first_photo_path: null, is_shared: false, scoring_context: null, photo_count: 3, created_at: '', updated_at: '' };
-function build() {
+function build(defaultType = '') {
   let token = 'session-a';
   const status = signal({ user_id: 'alice' });
   const edition = signal(true);
   const filters = signal({ ...DEFAULT_FILTERS, camera: 'Nikon', hide_details: false, hide_blinks: false });
   const currentAlbum = signal<Album | null>({ ...album });
-  const store = { filters, currentAlbum, config: signal(null), temporaryReviewQueue: signal(false), pinnedPaths: signal<string[] | null>(null), restoreAlbumRules: vi.fn(async value => { filters.set({ ...value, page: 1 }); }) };
+  const store = { filters, currentAlbum, config: signal(defaultType ? { defaults: { type: defaultType, sort: 'aggregate', sort_direction: 'DESC' } } : null), temporaryReviewQueue: signal(false), pinnedPaths: signal<string[] | null>(null), restoreAlbumRules: vi.fn(async value => { filters.set({ ...value, page: 1 }); }) };
   const albums = { get: vi.fn(() => of({ ...album })), update: vi.fn((_id: number, patch: { smart_filter_json: string }) => of({ ...album, ...patch })) };
   TestBed.configureTestingModule({ imports: [GalleryAlbumRulesComponent], providers: [
     provideRouter([]), { provide: GalleryStore, useValue: store }, { provide: AlbumService, useValue: albums },
@@ -32,6 +32,16 @@ function build() {
 
 describe('Captured album rule editing', () => {
   afterEach(() => TestBed.resetTestingModule());
+  it('uses the configured historical type baseline while preserving an explicitly saved All photos rule', async () => {
+    const { fixture, root, store, albums, settle } = build('portrait');
+    store.filters.set({ ...store.filters(), camera: 'Canon', type: 'portrait' }); await settle();
+    expect(root.querySelector<HTMLButtonElement>('[data-album-preview]')!.disabled).toBe(true);
+    store.filters.update(value => ({ ...value, type: '' })); await settle();
+    expect(root.querySelector<HTMLButtonElement>('[data-album-preview]')!.disabled).toBe(false);
+    store.currentAlbum.set({ ...album, smart_filter_json: JSON.stringify({ camera: 'Canon', type: '' }) }); await settle();
+    expect(root.querySelector<HTMLButtonElement>('[data-album-preview]')!.disabled).toBe(true);
+    expect(albums.update).not.toHaveBeenCalled(); fixture.destroy();
+  });
   it('refuses preview, reset and reload after its collection is parked or navigation is pending', async () => {
     const { fixture, click, settle, root, store, albums } = build();
     fixture.componentRef.setInput('active', false); await settle();

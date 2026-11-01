@@ -1661,7 +1661,15 @@
       "invalid": "These measurement policies are invalid. Clear them to recover.",
       "clear": "Clear measurement policies"
     },
-    "collection_view": "View"
+    "collection_view": "View",
+    "layout_list": "Metadata list",
+    "metadata": {
+      "not_recorded": "Not recorded",
+      "lens": "Lens",
+      "photo_actions": "Photo actions",
+      "unrated": "Unrated",
+      "undecided": "Undecided"
+    }
   },
   "composition_patterns": {
     "none": "None",

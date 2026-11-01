@@ -1676,6 +1676,14 @@ export const I18N = {
       clear: "gallery.measurements.clear",
     },
     collection_view: "gallery.collection_view",
+    layout_list: "gallery.layout_list",
+    metadata: {
+      not_recorded: "gallery.metadata.not_recorded",
+      lens: "gallery.metadata.lens",
+      photo_actions: "gallery.metadata.photo_actions",
+      unrated: "gallery.metadata.unrated",
+      undecided: "gallery.metadata.undecided",
+    },
   },
   composition_patterns: {
     none: "composition_patterns.none",

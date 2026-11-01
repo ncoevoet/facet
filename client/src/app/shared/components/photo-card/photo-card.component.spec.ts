@@ -22,9 +22,11 @@ import { makePhoto } from '../../../../testing/photo.fixture';
                              [burstFramesVisible]="burstFramesVisible()"
                              [collapsedSetKinds]="collapsedSetKinds()"
                              [isEditionMode]="isEditionMode()"
+                             [listMode]="listMode()"
                              [metricRanges]="metricRanges()"
                              [currentSort]="currentSort()"
                              (selectionChange)="selected.push($event.photo.path)"
+                             (favoriteToggled)="favorites.push($event)"
                              (doubleClicked)="opened.push($event.path)" />`,
 })
 class TestHostComponent {
@@ -33,10 +35,12 @@ class TestHostComponent {
   burstFramesVisible = signal(false);
   collapsedSetKinds = signal<readonly string[]>([]);
   isEditionMode = signal(false);
+  listMode = signal(false);
   metricRanges = signal<Record<string, { min: number; max: number; buckets: number[] }>>({});
   currentSort = signal('aggregate');
   selected: string[] = [];
   opened: string[] = [];
+  favorites: string[] = [];
 }
 
 describe('PhotoCardComponent', () => {
@@ -55,6 +59,44 @@ describe('PhotoCardComponent', () => {
   function getCard(): PhotoCardComponent {
     return fixture.debugElement.children[0].componentInstance as PhotoCardComponent;
   }
+
+  it('renders metadata list values and decisions for a read-only photo, including an unknown date', () => {
+    fixture.componentInstance.listMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ filename: 'record.jpg', date_taken: null, is_kept: true, star_rating: 4, stack_id: 'stack', stack_count: 7 }));
+    fixture.detectChanges();
+    const row = fixture.nativeElement.querySelector('[data-metadata-row]') as HTMLElement;
+    expect(row.textContent).toContain('record.jpg'); expect(row.textContent).toContain('gallery.no_capture_date');
+    expect(row.textContent).toContain('review.kept'); expect(row.textContent).toContain('7');
+    expect(fixture.nativeElement.querySelector('app-photo-card').getAttribute('role')).toBe('listitem');
+    const entry = fixture.nativeElement.querySelector('[role=button]');
+    expect(entry.getAttribute('aria-describedby')).toBe(row.id);
+    expect(row.querySelector('img')?.getAttribute('src')).toContain('size=160');
+  });
+
+  it('keeps metadata list menu key presses separate from row selection and gates edit actions', async () => {
+    fixture.componentInstance.listMode.set(true); fixture.componentInstance.photo.set(makePhoto({ path: '/row.jpg', is_rejected: true, star_rating: 0 }));
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector('button[aria-label="gallery.metadata.photo_actions"]') as HTMLButtonElement;
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+    expect(fixture.componentInstance.selected).toEqual([]); expect(fixture.componentInstance.opened).toEqual([]);
+    trigger.click(); await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    expect(overlay.textContent).toContain('photoCard.open_detail'); expect(overlay.textContent).not.toContain('rating.unmark_rejected');
+    expect(overlay.textContent).not.toContain('rating.add_favorite');
+    expect(fixture.nativeElement.textContent).toContain('review.rejected');
+  });
+
+  it('routes a metadata list favorite through the existing single-photo event without selecting or opening it', async () => {
+    fixture.componentInstance.listMode.set(true); fixture.componentInstance.isEditionMode.set(true);
+    fixture.componentInstance.photo.set(makePhoto({ path: '/row.jpg', is_favorite: false })); fixture.detectChanges();
+    (fixture.nativeElement.querySelector('button[aria-label="gallery.metadata.photo_actions"]') as HTMLButtonElement).click();
+    await fixture.whenStable(); fixture.detectChanges();
+    const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+    const favorite = [...overlay.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent?.includes('rating.add_favorite'))!;
+    expect(favorite).toBeDefined(); favorite.click();
+    expect(fixture.componentInstance.favorites).toEqual(['/row.jpg']);
+    expect(fixture.componentInstance.selected).toEqual([]); expect(fixture.componentInstance.opened).toEqual([]);
+  });
 
   it('uses the album capability for a rendered shared card without changing ordinary card URLs', () => {
     const card = TestBed.createComponent(PhotoCardComponent);

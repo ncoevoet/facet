@@ -89,6 +89,9 @@ const sortOptionLabelKey = (column: string): string => `sort_options.${column}`;
     </ng-template>
     @if (!portFilters()) { <ng-container [ngTemplateOutlet]="filterControls" /> }
 
+<button mat-button data-gallery-layout="list" [attr.aria-pressed]="store.galleryMode() === 'list'" (click)="showList()">
+  <mat-icon>view_list</mat-icon>{{ I18N.gallery.layout_list | translate }}
+</button>
 <button
           class="max-md:!min-w-11 max-md:!w-11 max-md:!px-2"
           mat-button
@@ -248,6 +251,9 @@ export class GalleryViewControlsComponent {
 
   protected applyPreset(preset: GalleryDisplayPreset | 'default'): void {
     if (this.canAct()) void this.store.applyDisplayPreset(preset, this.canDockDetails());
+  }
+  protected showList(): void {
+    if (this.canAct()) this.store.setGalleryMode('list');
   }
   protected readonly auth = inject(AuthService);
   protected readonly reviewNavigation = inject(GalleryReviewNavigationService);

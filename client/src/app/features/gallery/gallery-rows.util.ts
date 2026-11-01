@@ -64,6 +64,18 @@ export const MOBILE_DETAILS_MIN_COLUMNS = 2;
  */
 export const MOBILE_MIN_CARD_WIDTH_PX = 72;
 
+/** One bounded metadata row per photo; height follows the rendered root rem. */
+export function buildListRows(photos: Photo[], width: number, height: number, gap: number): GalleryRow[] {
+  if (width <= 0 || height <= 0) return [];
+  return photos.map((photo, index) => ({ photos: [photo], widths: [width], height,
+    offset: index * (height + gap), startIndex: index }));
+}
+
+/** Mirrors PhotoCard's 24rem switch between stacked and single-line metadata. */
+export function metadataRowHeight(width: number, rem: number): number {
+  return Math.ceil(rem * (width < 24 * rem ? 9 : 6));
+}
+
 /** Columns the CSS `repeat(auto-fill, minmax(cardMinW, 1fr))` grid produces,
  * floored to MOBILE_MIN_COLUMNS when isDesktop is false. */
 export function gridColumnCount(width: number, cardMinW: number, gap: number, isDesktop = true, mobileMinimum = MOBILE_MIN_COLUMNS): number {

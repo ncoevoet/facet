@@ -69,7 +69,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
   selector: 'app-photo-card',
   standalone: true,
   host: {
-    role: 'gridcell',
+    '[attr.role]': "listMode() ? 'listitem' : 'gridcell'",
     // Detailed flow cards must retain their real layout height off-screen.
     // An estimated intrinsic placeholder makes browser scroll anchoring move
     // the gallery as cards become visible. Fixed-size modes use row windowing.
@@ -135,13 +135,15 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       role="button"
       tabindex="0"
       class="relative rounded-sm overflow-hidden cursor-pointer bg-[var(--mat-sys-surface-container-lowest)] h-full focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] focus-visible:outline-offset-2"
-      [class.aspect-square]="hideDetails() && !mosaicMode()"
+      [class]="listMode() ? '@container' : ''"
+      [class.aspect-square]="!listMode() && hideDetails() && !mosaicMode()"
       [class.ring-2]="isSelected()"
       [class.ring-[var(--mat-sys-primary)]]="isSelected()"
       [class.md:hover:ring-2]="!isSelected()"
       [class.md:hover:ring-[var(--mat-sys-outline-variant)]]="!isSelected()"
       [attr.aria-label]="photo().keeper_hint?.has_better ? photo().filename + ', ' + ('culling.reason.better_shot' | translate) : photo().filename"
       [attr.aria-pressed]="isSelected()"
+      [attr.aria-describedby]="listMode() ? listMetadataId : null"
       [attr.aria-current]="isActive() ? 'true' : null"
       (click)="onSelect($event)"
       (keydown.enter)="onKeyOpen($event)"
@@ -150,6 +152,74 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
       (mouseenter)="onMouseEnter($event)"
       (mouseleave)="onMouseLeave()"
     >
+      @if (listMode()) {
+        <div data-metadata-row [id]="listMetadataId" class="grid h-full min-w-0 grid-cols-[3rem_minmax(0,1fr)] items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] p-2 @[24rem]:grid-cols-[3rem_minmax(0,1fr)_auto] @[60rem]:grid-cols-[3rem_minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+          <div class="relative h-12 w-12">
+            <img [src]="photo().path | thumbnailUrl:160:photo().preview_revision:sharedAlbum()" alt="" loading="lazy" decoding="async" class="h-full w-full object-contain bg-[var(--mat-sys-surface-container)]" />
+            @if (isSelected()) { <mat-icon aria-hidden="true" class="absolute -left-1 -top-1 !text-[var(--mat-sys-primary)]">check_circle</mat-icon> }
+          </div>
+          <div class="min-w-0 text-sm leading-5">
+            <div class="truncate font-medium" [title]="photo().filename">{{ photo().filename }}</div>
+            <div class="line-clamp-2 text-xs text-[var(--mat-sys-on-surface-variant)]" [title]="listCaptureDate() | captureDate">
+              <span class="@[24rem]:hidden">{{ listCaptureDate() ? (listCaptureDay() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+              <span class="hidden @[24rem]:inline">{{ listCaptureDate() ? (listCaptureDate() | captureDate) : (I18N.gallery.no_capture_date | translate) }}</span>
+            </div>
+            <div class="flex min-w-0 items-center gap-1 overflow-hidden text-xs text-[var(--mat-sys-on-surface-variant)]">
+              @if (photo().stack_id) { <span class="inline-flex items-center gap-1" [attr.aria-label]="I18N.photoCard.stack_set | translate"><mat-icon class="!h-4 !w-4 !text-base">layers</mat-icon>{{ photo().stack_count }}</span> }
+              @if (collapsedSetKind()) { <span class="min-w-0 truncate" [attr.aria-label]="listGroupLabel() | translate">{{ listGroupLabel() | translate }}</span> }
+              @if (photo().is_favorite) { <mat-icon class="!h-4 !w-4 !text-base" [attr.aria-label]="I18N.rating.favorite | translate">favorite</mat-icon> }
+            </div>
+          </div>
+          <dl class="m-0 hidden min-w-0 text-xs leading-5 @[60rem]:block">
+            <dt class="sr-only">{{ I18N.gallery.camera | translate }}</dt>
+            <dd class="m-0 truncate" [title]="photo().camera_model || ''">{{ photo().camera_model || (I18N.gallery.metadata.not_recorded | translate) }}</dd>
+            <dt class="sr-only">{{ I18N.gallery.metadata.lens | translate }}</dt>
+            <dd class="m-0 truncate text-[var(--mat-sys-on-surface-variant)]" [title]="photo().lens_model || ''">{{ photo().lens_model || (I18N.gallery.metadata.not_recorded | translate) }}</dd>
+          </dl>
+          <div class="hidden min-w-0 text-xs leading-5 @[60rem]:block" [attr.aria-label]="I18N.gallery.exposure_range | translate">
+            @if (listHasExposure()) {
+              <div>@if (photo().f_stop) { f/{{ photo().f_stop }} } @if (photo().shutter_speed) { {{ photo().shutter_speed | shutterSpeed }} }</div>
+              <div class="text-[var(--mat-sys-on-surface-variant)]">@if (photo().iso) { ISO {{ photo().iso }} } @if (photo().focal_length) { {{ photo().focal_length }}mm }</div>
+            } @else { {{ I18N.gallery.metadata.not_recorded | translate }} }
+          </div>
+          <div class="col-span-2 flex items-center justify-between gap-1 @[24rem]:col-span-1" (click)="$event.stopPropagation()" (dblclick)="$event.stopPropagation()" (keydown)="$event.stopPropagation()" tabindex="-1" role="group" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate">
+            <div class="min-w-0 text-right text-xs leading-5">
+              <span class="flex min-w-0 items-center justify-end gap-1"><mat-icon aria-hidden="true" class="shrink-0 !h-4 !w-4 !text-base">{{ photo().is_rejected ? 'block' : photo().is_kept ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon><span class="line-clamp-2 min-w-0 break-words">{{ listDecision() | translate }}</span></span>
+              <span class="flex items-center justify-end gap-1 text-[var(--mat-sys-on-surface-variant)]">@if (photo().star_rating) { <mat-icon aria-hidden="true" class="!h-4 !w-4 !text-base">star</mat-icon>{{ photo().star_rating }} } @else { {{ I18N.gallery.metadata.unrated | translate }} }</span>
+            </div>
+            <button mat-icon-button class="shrink-0 !h-11 !w-11" [matMenuTriggerFor]="listMenu" [attr.aria-label]="I18N.gallery.metadata.photo_actions | translate"><mat-icon>more_horiz</mat-icon></button>
+          </div>
+          <mat-menu #listMenu="matMenu">
+            <button mat-menu-item (click)="openDetailClicked.emit(photo())"><mat-icon>open_in_full</mat-icon>{{ I18N.photoCard.open_detail | translate }}</button>
+            @if (isEditionMode()) {
+              <button mat-menu-item (click)="favoriteToggled.emit(photo().path)"><mat-icon>favorite</mat-icon>{{ (photo().is_favorite ? I18N.rating.remove_favorite : I18N.rating.add_favorite) | translate }}</button>
+              <button mat-menu-item (click)="rejectedToggled.emit(photo().path)"><mat-icon>block</mat-icon>{{ (photo().is_rejected ? I18N.rating.unmark_rejected : I18N.rating.mark_rejected) | translate }}</button>
+              @if (config()?.features?.show_rating_controls) {
+                <button mat-menu-item [matMenuTriggerFor]="listRatingMenu"><mat-icon>star</mat-icon>{{ I18N.rating.set_rating | translate }}</button>
+              }
+            }
+            @for (id of visibleActions(); track id) {
+              @if (id === 'similar') {
+                <button mat-menu-item [matMenuTriggerFor]="listSimilarMenu"><mat-icon>image_search</mat-icon>{{ CARD_ACTION_META[id].labelKey | translate }}</button>
+              } @else if (id !== 'open_detail') {
+                <button mat-menu-item (click)="dispatchAction(id)"><mat-icon>{{ CARD_ACTION_META[id].icon }}</mat-icon>{{ CARD_ACTION_META[id].labelKey | translate }}</button>
+              }
+            }
+          </mat-menu>
+          <mat-menu #listRatingMenu="matMenu">
+            @for (star of listRatings; track star) {
+              <button mat-menu-item role="menuitemradio" [attr.aria-checked]="(photo().star_rating ?? 0) === star" (click)="starClicked.emit({ photo: photo(), star })">
+                @if (star) { {{ I18N.rating.stars_out_of_five | translate: { stars: star } }} } @else { {{ I18N.gallery.rating_preview.clear | translate }} }
+              </button>
+            }
+          </mat-menu>
+          <mat-menu #listSimilarMenu="matMenu">
+            <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'visual'})">{{ 'similar.mode_visual' | translate }}</button>
+            <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'color'})">{{ 'similar.mode_color' | translate }}</button>
+            <button mat-menu-item (click)="openSimilarClicked.emit({photo: photo(), mode: 'person'})">{{ 'similar.mode_person' | translate }}</button>
+          </mat-menu>
+        </div>
+      } @else {
       <!-- Image wrapper with hover overlay scoped to image only -->
       <div class="group/img relative"
            [class.h-full]="mosaicMode() || hideDetails()"
@@ -436,6 +506,8 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
           </div>
           @if (photo().date_taken) {
             <div class="text-[var(--mat-sys-on-surface-variant)]">{{ photo().date_taken | captureDate }}</div>
+          } @else {
+            <div class="text-[var(--mat-sys-on-surface-variant)]">{{ I18N.gallery.no_capture_date | translate }}</div>
           }
           <div class="text-[var(--mat-sys-on-surface-variant)]">
             @if (photo().focal_length) { {{ photo().focal_length }}mm }
@@ -490,6 +562,7 @@ const DEFAULT_CLIPPING_BADGE_PERCENT = 5;
             </div>
           }
         </div>
+      }
       }
     </div>
   `,
@@ -646,6 +719,15 @@ export class PhotoCardComponent {
   readonly filterLinks = input(true);
   readonly hideDetails = input(false);
   readonly mosaicMode = input(false);
+  readonly listMode = input(false);
+  private static nextListId = 0;
+  protected readonly listMetadataId = `photo-list-metadata-${PhotoCardComponent.nextListId++}`;
+  protected readonly listCaptureDate = computed(() => this.photo().date_taken?.trim() ?? '');
+  protected readonly listCaptureDay = computed(() => this.listCaptureDate().slice(0, 10));
+  protected readonly listHasExposure = computed(() => !!(this.photo().f_stop || this.photo().shutter_speed || this.photo().iso || this.photo().focal_length));
+  protected readonly listDecision = computed(() => this.photo().is_rejected ? this.I18N.review.rejected : this.photo().is_kept ? this.I18N.review.kept : this.I18N.gallery.metadata.undecided);
+  protected readonly listGroupLabel = computed(() => this.collapsedSetKind() === 'burst' ? this.I18N.photoCard.burst_set : this.collapsedSetKind() === 'duplicate' ? this.I18N.photoCard.duplicate_set : this.I18N.photoCard.sequence_set);
+  protected readonly listRatings = [0, 1, 2, 3, 4, 5];
   readonly currentSort = input('aggregate');
   /** Library distributions keyed by photo column; empty where none were loaded (a shared view). */
   readonly metricRanges = input<Record<string, MetricDistribution>>({});

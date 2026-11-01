@@ -3,12 +3,12 @@ import { DEFAULT_FILTERS, GalleryFilters, SMART_ALBUM_EXCLUDE_KEYS, exclusiveHid
 export interface AlbumRuleRow { key: string; label: string; saved: string; working: string; changed: boolean; }
 
 /** Reset only the fields the existing smart-album serializer can persist. */
-export function restoreAlbumRuleFields(current: GalleryFilters, savedJson: string, sort = DEFAULT_FILTERS.sort, direction = DEFAULT_FILTERS.sort_direction): GalleryFilters {
+export function restoreAlbumRuleFields(current: GalleryFilters, savedJson: string, sort = DEFAULT_FILTERS.sort, direction = DEFAULT_FILTERS.sort_direction, type = DEFAULT_FILTERS.type): GalleryFilters {
   const saved: unknown = JSON.parse(savedJson);
   if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new Error('Invalid album rules');
   const result = { ...current } as unknown as Record<string, unknown>;
   const restored: Record<string, unknown> = {};
-  const defaults = { ...DEFAULT_FILTERS, sort, sort_direction: direction };
+  const defaults = { ...DEFAULT_FILTERS, sort, sort_direction: direction, type };
   for (const [key, value] of Object.entries(saved)) {
     if (!(key in defaults) || typeof value !== typeof defaults[key as keyof GalleryFilters]) throw new Error('Unsupported album rule');
   }

@@ -82,11 +82,11 @@ import type { SheetAction } from './gallery-actions-sheet.component';
 import { PhotoCardComponent } from '../../shared/components/photo-card/photo-card.component';
 import { PhotoSkeletonComponent } from '../../shared/components/photo-skeleton/photo-skeleton.component';
 import {
-  GalleryRow, aspectOf, buildGridRows, buildMosaicRows,
+  GalleryRow, aspectOf, buildGridRows, buildMosaicRows, buildListRows, metadataRowHeight,
   gridColumnCount, totalRowsHeight, windowRange, MOBILE_MIN_COLUMNS, MOBILE_DETAILS_MIN_COLUMNS,
 } from './gallery-rows.util';
 import { noticeLiftPx } from './selection-bar-layout.util';
-import { GalleryFilters, activeFilterKeys, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage } from './gallery-filters.util';
+import { GalleryFilters, activeFilterKeys, applyQueryParams, applySavedAlbumFilters, loadDisplayOptionsFromStorage, nextGalleryMode } from './gallery-filters.util';
 import { UserActivityJournal } from '../../core/agent/user-activity-journal.service';
 import { AlbumService, Album } from '../../core/services/album.service';
 import { CreateAlbumDialogComponent } from '../albums/create-album-dialog.component';
@@ -395,17 +395,18 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                  spacers preserve the scroll geometry -->
             <div
               id="gallery-rows-host"
-              role="grid"
+              data-photo-collection
+              [attr.role]="effectiveGalleryMode() === 'list' ? 'list' : 'grid'"
               tabindex="0"
-              [attr.aria-label]="I18N.gallery.photo_grid | translate"
-              [attr.aria-rowcount]="rowsModel().length"
+              [attr.aria-label]="(effectiveGalleryMode() === 'list' ? I18N.gallery.layout_list : I18N.gallery.photo_grid) | translate"
+              [attr.aria-rowcount]="effectiveGalleryMode() === 'list' ? null : rowsModel().length"
               class="flex flex-col p-2 md:p-4 outline-none"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
             >
               <div [style.height.px]="topSpacer()" aria-hidden="true"></div>
               @for (row of visibleRows(); track row.photos[0].path) {
-              <div class="flex gap-2 mb-2" [style.height.px]="row.height">
+              <div class="flex gap-2 mb-2" [style.height.px]="row.height" [style.margin-bottom.px]="effectiveGalleryMode() === 'list' ? 8 : null">
                 @for (photo of row.photos; track photo.path; let i = $index) {
                   <app-photo-card
                 [collapsedSetKinds]="collapsedSetKinds()"
@@ -418,6 +419,9 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                     class="shrink-0"
                     [hideDetails]="rowCardHideDetails()"
                     [mosaicMode]="effectiveGalleryMode() === 'mosaic'"
+                    [listMode]="effectiveGalleryMode() === 'list'"
+                    [attr.aria-setsize]="effectiveGalleryMode() === 'list' ? store.photos().length : null"
+                    [attr.aria-posinset]="effectiveGalleryMode() === 'list' ? row.startIndex + i + 1 : null"
                     [config]="store.config()"
                     [isSelected]="photo.path | isSelected:viewScoped():selectedPaths():excludedPaths()"
                     [showSelectionIndicators]="selectionAffordance() || (selectingPhotos() && !isDesktop())"
@@ -460,13 +464,15 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
               }
               <div [style.height.px]="bottomSpacer()" aria-hidden="true"></div>
             </div>
-          } @else if (effectiveGalleryMode() === 'grid') {
+          } @else if (effectiveGalleryMode() === 'grid' || effectiveGalleryMode() === 'list') {
             <div
-              role="grid"
+              data-photo-collection
+              [attr.role]="effectiveGalleryMode() === 'list' ? 'list' : 'grid'"
               tabindex="0"
-              [attr.aria-label]="I18N.gallery.photo_grid | translate"
+              [attr.aria-label]="(effectiveGalleryMode() === 'list' ? I18N.gallery.layout_list : I18N.gallery.photo_grid) | translate"
               class="grid grid-cols-1 gap-2 p-2 md:p-4 outline-none"
-              [style.grid-template-columns]="galleryColsStyle()"
+              [style.grid-template-columns]="effectiveGalleryMode() === 'list' ? 'minmax(0,1fr)' : galleryColsStyle()"
+              [style.row-gap.px]="effectiveGalleryMode() === 'list' ? 8 : null"
               (keydown)="onGridKeydown($event)"
               (focusout)="onGridFocusOut($event)"
             >
@@ -482,6 +488,10 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
                   [isActive]="i === activeIndex()"
                   [gridHasActiveCard]="hasActivePhoto()"
                   [hideDetails]="effectiveHideDetails()"
+                  [listMode]="effectiveGalleryMode() === 'list'"
+                  [style.height.px]="effectiveGalleryMode() === 'list' ? listRowHeight() : null"
+                  [attr.aria-setsize]="effectiveGalleryMode() === 'list' ? store.photos().length : null"
+                  [attr.aria-posinset]="effectiveGalleryMode() === 'list' ? i + 1 : null"
                   [currentSort]="store.filters().sort"
                   [metricRanges]="store.metricRangesByColumn()"
                   [thumbSize]="thumbSize()"
@@ -1196,7 +1206,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
 
   /** Effective gallery mode: grid until the container has been measured, then the user's choice at every width */
   readonly effectiveGalleryMode = computed(() =>
-    this.containerWidth() > 0 ? this.store.galleryMode() : 'grid',
+    this.store.galleryMode() === 'list' || this.containerWidth() > 0 ? this.store.galleryMode() : 'grid',
   );
 
   /** Whether to hide photo details below the thumbnails */
@@ -1596,6 +1606,9 @@ export class GalleryComponent implements OnInit, OnDestroy {
     void this.store.updateFilters(updates);
   }
 
+  private readonly rootFontSize = signal(16);
+  private readonly listContentWidth = computed(() => Math.max(0, this.containerWidth() - this.rootFontSize() * (this.isDesktop() ? 2 : 1)));
+  protected readonly listRowHeight = computed(() => metadataRowHeight(this.listContentWidth(), this.rootFontSize()));
   /** Container width for mosaic layout (updated via ResizeObserver) */
   protected readonly containerWidth = signal(0);
 
@@ -1618,7 +1631,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   readonly virtualOn = computed(() =>
     this.store.virtualScroll()
     && this.containerWidth() > 0
-    && (this.effectiveGalleryMode() === 'mosaic' || this.effectiveHideDetails()),
+    && (this.effectiveGalleryMode() !== 'grid' || this.effectiveHideDetails()),
   );
 
   /** Cards in the row branch hide their details except in grid mode with details switched on. */
@@ -1630,9 +1643,10 @@ export class GalleryComponent implements OnInit, OnDestroy {
   readonly rowsModel = computed<GalleryRow[]>(() => {
     const photos = this.store.photos();
     // Rows live inside the p-2 md:p-4 container - subtract its padding
-    const width = this.containerWidth() - (this.isDesktop() ? 32 : 16);
+    const width = this.effectiveGalleryMode() === 'list' ? this.listContentWidth() : this.containerWidth() - (this.isDesktop() ? 32 : 16);
     if (!photos.length || width <= 0) return [];
     const gap = GalleryComponent.ROW_GAP;
+    if (this.effectiveGalleryMode() === 'list') return buildListRows(photos, width, this.listRowHeight(), gap);
     const build = this.effectiveGalleryMode() === 'mosaic'
       ? (ps: Photo[]) => buildMosaicRows(ps, width, this.cardWidth(), gap)
       : (ps: Photo[]) => buildGridRows(ps, width, this.cardWidth(), gap, this.effectiveHideDetails(), this.isDesktop());
@@ -1688,6 +1702,12 @@ export class GalleryComponent implements OnInit, OnDestroy {
   });
 
   constructor() {
+    let previousMode: string | null = null;
+    effect(() => {
+      const mode = this.effectiveGalleryMode();
+      if (previousMode !== null && previousMode !== mode) untracked(() => this.preserveLayoutAnchor());
+      previousMode = mode;
+    });
     afterNextRender(() => {
       this.isTouchDevice.set(window.matchMedia('(hover: none)').matches);
       this.touchOnly.set(window.matchMedia('(hover: none) and (pointer: coarse)').matches);
@@ -1893,6 +1913,56 @@ export class GalleryComponent implements OnInit, OnDestroy {
     return index >= 0 ? document.querySelector(`[data-pidx="${index}"]`)?.getBoundingClientRect() ?? null : null;
   }
 
+  /** Keep a visible photo in place when changing presentation, without taking
+   * focus away from the View control that the user is operating. */
+  private preserveLayoutAnchor(): void {
+    if (this.parked || this.store.initializing()) return;
+    const content = this.scrollContent(); const viewport = content?.getElementRef().nativeElement;
+    if (!content || !viewport) return;
+    const box = viewport.getBoundingClientRect();
+    const candidates = [...viewport.querySelectorAll<HTMLElement>('[data-pidx]')]
+      .filter(node => { const rect = node.getBoundingClientRect(); return rect.bottom > box.top && rect.top < box.bottom; });
+    const node = candidates.find(node => Number(node.dataset['pidx']) === this.activeIndex()) ?? candidates[0];
+    const index = Number(node?.dataset['pidx']); const photos = this.store.photos();
+    const path = photos[index]?.path;
+    if (!node || !path || box.height <= 0) return;
+    const offset = node.getBoundingClientRect().top - box.top;
+    const active = this.activePath(); const mode = this.effectiveGalleryMode(); const navigation = this.resumeNavigation;
+    const route = this.router.url.split('?')[0]; const query = this.store.filterKey();
+    let interacted = false;
+    const veto = () => { interacted = true; };
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'] as const;
+    const cleanup = () => { for (const event of events) document.removeEventListener(event, veto, true); };
+    for (const event of events) document.addEventListener(event, veto, { capture: true, passive: true });
+    const unregister = this.destroyRef.onDestroy(cleanup);
+    const current = () => !interacted && !this.parked && !this.destroyRef.destroyed
+      && (navigation === this.resumeNavigation || (!this.router.currentNavigation() && this.router.url.split('?')[0] === route))
+      && query === this.store.filterKey() && mode === this.effectiveGalleryMode() && photos === this.store.photos();
+    requestAnimationFrame(() => {
+      if (!current()) { cleanup(); unregister(); return; }
+      if (this.virtualOn()) {
+        this.updateWindowPosition();
+        const row = this.rowsModel().find(row => row.photos.some(photo => photo.path === path));
+        if (row) {
+          const targetOffset = Math.max(24 - row.height, Math.min(offset, box.height - 24));
+          content.scrollTo({ top: Math.max(0, content.measureScrollOffset('top') + row.offset - this.relScrollTop() - targetOffset) });
+          this.updateWindowPosition();
+        }
+      }
+      requestAnimationFrame(() => {
+        try {
+          if (!current()) return;
+          const rect = this.cardRect(this.indexOfPath(path)); const now = viewport.getBoundingClientRect();
+          if (!rect || now.height <= 0) return;
+          const targetOffset = Math.max(24 - rect.height, Math.min(offset, now.height - 24));
+          const delta = rect.top - now.top - targetOffset;
+          if (Math.abs(delta) >= 1) content.scrollTo({ top: Math.max(0, content.measureScrollOffset('top') + delta) });
+          if (active && this.activePath() === null) this.setCursor(this.indexOfPath(active));
+        } finally { cleanup(); unregister(); }
+      });
+    });
+  }
+
   /** Re-anchor after drawer margins and card heights settle, including parked resizes. */
   private restoreReturnAnchor(path: string, anchor: ReturnAnchor): void {
     const navigation = this.resumeNavigation;
@@ -2095,7 +2165,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  deliberately not entered. */
   private restoreCursorFocus(): void {
     if (!this.hasActivePhoto()) return;
-    if (document.activeElement?.closest('[role="grid"]')) return;
+    if (document.activeElement?.closest('[role="grid"], [data-photo-collection], [data-collection-header]')) return;
     this.focusCard(this.activeIndex(), false, false);
   }
 
@@ -3175,7 +3245,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
     }
     if (this.keymap.matches(event, 'swapLayout')) {
       event.preventDefault();
-      this.store.setGalleryMode(this.effectiveGalleryMode() === 'grid' ? 'mosaic' : 'grid');
+      this.store.setGalleryMode(nextGalleryMode(this.effectiveGalleryMode()));
     }
   }
 
@@ -3215,9 +3285,15 @@ export class GalleryComponent implements OnInit, OnDestroy {
   }
 
   private setupResizeObserver(): void {
+    const measureListRow = () => {
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      if (Number.isFinite(rem) && rem > 0) this.rootFontSize.set(rem);
+    };
+    measureListRow();
     this.resizeObserver = new ResizeObserver(entries => {
       // A parked gallery measures 0; keep its layout for the return.
       if (this.parked) return;
+      measureListRow();
       for (const entry of entries) {
         this.containerWidth.set(Math.floor(entry.contentRect.width));
       }
@@ -3322,7 +3398,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
    *  focus dropped to the body, or out to the browser chrome -- does count. */
   protected onGridFocusOut(event: FocusEvent): void {
     const next = event.relatedTarget as HTMLElement | null;
-    if (next?.closest('[role="grid"], [data-selection-bar], [data-details-rail], .cdk-overlay-container')) return;
+    if (next?.closest('[role="grid"], [data-photo-collection], [data-collection-header], [data-selection-bar], [data-details-rail], .cdk-overlay-container')) return;
     this.setCursor(-1);
   }
 
@@ -3391,6 +3467,7 @@ export class GalleryComponent implements OnInit, OnDestroy {
   /** Vertical step for the active index: grid = ±columns, mosaic = same offset in adjacent row. */
   private verticalTarget(index: number, dir: 1 | -1): number {
     const count = this.store.photos().length;
+    if (this.effectiveGalleryMode() === 'list') return Math.max(0, Math.min(count - 1, index + dir));
     if (this.effectiveGalleryMode() === 'grid' && !this.virtualOn()) {
       const next = index + dir * this.gridColumns();
       return Math.max(0, Math.min(count - 1, next));
