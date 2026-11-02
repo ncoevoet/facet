@@ -323,6 +323,8 @@ export class App implements OnInit {
 
   /** Gallery is active on `/` whatever its filters in the query string; `exact` alone also compared the query. */
   protected readonly galleryLinkActive: IsActiveMatchOptions = { paths: 'exact', queryParams: 'ignored', matrixParams: 'ignored', fragment: 'ignored' };
+  protected readonly tabClass = 'items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]';
+  protected readonly activeTabClass = '!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]';
   /** Routes with their own desktop controls get the page-actions row below the destination tabs. */
   protected readonly hasPageActions = computed(() =>
     this.isGalleryRoute() || this.isCompareRoute() || (this.isStatsRoute() && !!this.statsFilters.overview())

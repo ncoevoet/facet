@@ -78,52 +78,52 @@
               <mat-icon>history</mat-icon>
             </button>
           }
-          <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="galleryLinkActive" [matTooltip]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
+          <a class="!hidden lg:!inline-flex" [class]="tabClass" routerLink="/" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page" [routerLinkActiveOptions]="galleryLinkActive" [matTooltip]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
             <mat-icon aria-hidden="true">diamond</mat-icon>{{ I18N.nav.gallery | translate }}
           </a>
           @if (store.config()?.features?.show_albums) {
-            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/albums" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <a class="!hidden lg:!inline-flex" [class]="tabClass" routerLink="/albums" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
               <mat-icon aria-hidden="true">photo_album</mat-icon>{{ I18N.nav.albums | translate }}
             </a>
           }
           @if (store.config()?.features?.show_capsules) {
-            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/capsules" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <a class="!hidden lg:!inline-flex" [class]="tabClass" routerLink="/capsules" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
               <mat-icon aria-hidden="true">auto_stories</mat-icon>{{ I18N.nav.capsules | translate }}
             </a>
           }
           @if (store.config()?.features?.show_timeline) {
-            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/timeline" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <a class="!hidden lg:!inline-flex" [class]="tabClass" routerLink="/timeline" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
               <mat-icon aria-hidden="true">view_timeline</mat-icon>{{ I18N.nav.timeline | translate }}
             </a>
           }
           @if (store.config()?.features?.show_folders) {
-            <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/folders" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <a class="!hidden lg:!inline-flex" [class]="tabClass" routerLink="/folders" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
               <mat-icon aria-hidden="true">folder</mat-icon>{{ I18N.nav.folders | translate }}
             </a>
           }
-          <a class="!hidden lg:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/persons" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+          <a class="!hidden lg:!inline-flex" [class]="tabClass" routerLink="/persons" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
             <mat-icon aria-hidden="true">people</mat-icon>{{ I18N.nav.persons | translate }}
           </a>
           @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/map" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <a class="!hidden min-[1680px]:!inline-flex" [class]="tabClass" routerLink="/map" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
               <mat-icon aria-hidden="true">map</mat-icon>{{ I18N.nav.map | translate }}
             </a>
           }
           @if (auth.isEdition()) {
-            <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/culling" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <a class="!hidden min-[1680px]:!inline-flex" [class]="tabClass" routerLink="/culling" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
               <mat-icon aria-hidden="true">burst_mode</mat-icon>{{ I18N.nav.culling | translate }}
             </a>
             @if (store.config()?.features?.show_junk_sweep) {
-              <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/junk" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+              <a class="!hidden min-[1680px]:!inline-flex" [class]="tabClass" routerLink="/junk" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
                 <mat-icon aria-hidden="true">delete_sweep</mat-icon>{{ I18N.nav.junk_sweep | translate }}
               </a>
             }
           }
-          <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/stats" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+          <a class="!hidden min-[1680px]:!inline-flex" [class]="tabClass" routerLink="/stats" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
             <mat-icon aria-hidden="true">bar_chart</mat-icon>{{ I18N.nav.stats | translate }}
           </a>
           @if (auth.isEdition()) {
-            <a class="!hidden min-[1680px]:!inline-flex items-center gap-2 self-stretch px-3 border-b-2 border-transparent text-sm font-medium whitespace-nowrap text-[var(--mat-sys-on-surface-variant)] hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]" routerLink="/compare" routerLinkActive="!border-[var(--mat-sys-primary)] !text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page">
+            <a class="!hidden min-[1680px]:!inline-flex" [class]="tabClass" routerLink="/compare" [routerLinkActive]="activeTabClass" ariaCurrentWhenActive="page">
               <mat-icon aria-hidden="true">compare</mat-icon>{{ I18N.nav.compare | translate }}
             </a>
           }
@@ -344,7 +344,7 @@
     <div data-page-actions role="toolbar" [attr.aria-label]="I18N.nav.page_actions | translate"
          class="!hidden lg:!flex shrink-0 items-center gap-1 min-h-12 px-2 bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]">
         <!-- Compare category selector (visible only on compare route, lg+) -->
-        @if (auth.isAuthenticated() && isCompareRoute()) {
+        @if (isCompareRoute()) {
           <mat-form-field class="!hidden lg:!inline-flex w-52 ml-2" subscriptSizing="dynamic">
             <mat-label>{{ I18N.ui.filters.type | translate }}</mat-label>
             <mat-select panelWidth="auto" panelClass="nowrap-panel" [value]="compareFilters.selectedCategory()" (selectionChange)="onCompareCategoryChange($event.value)">
@@ -356,7 +356,7 @@
         }
         <!-- Header-slot projection: a feature page (culling, merge suggestions…) renders its
              toolbar in the global header on lg+; on small screens the page renders it itself. -->
-        @if (auth.isAuthenticated() && headerSlot.template(); as tpl) {
+        @if (headerSlot.template(); as tpl) {
           <!-- overflow-x-clip (not hidden/auto) so a wide page toolbar can never paint
                over the shell controls to its right, while a slider's value bubble can
                still overflow vertically. The projected toolbar owns its own scrolling. -->
@@ -366,7 +366,7 @@
         }
         <div class="flex-1"></div>
         <!-- Stats overview (right side, lg+ only) -->
-        @if (auth.isAuthenticated() && isStatsRoute() && statsFilters.overview(); as ov) {
+        @if (isStatsRoute() && statsFilters.overview(); as ov) {
           <span class="!hidden lg:!inline-flex items-center gap-3 text-sm opacity-80">
             <span class="inline-flex items-center gap-1" [matTooltip]="I18N.stats.total_photos | translate">
               <mat-icon class="!text-xl !w-5 !h-5 !leading-5 text-blue-400">photo_library</mat-icon>
@@ -388,7 +388,7 @@
         }
 
         <!-- Gallery: sort, filters and display (right side, lg+ only); the collection header states the count -->
-        @if (auth.isAuthenticated() && isGalleryRoute()) {
+        @if (isGalleryRoute()) {
           @if (pinned()) {
             <span class="text-sm opacity-70">{{ I18N.gallery.photo_count | translate:{ count: store.total() } }}</span>
           }
@@ -451,7 +451,7 @@
         }
 
         <!-- Scan for new photos (gallery only), last before the account menu. -->
-        @if (auth.isAuthenticated() && isGalleryRoute() && scan.canLaunch()) {
+        @if (isGalleryRoute() && scan.canLaunch()) {
           <button mat-icon-button class="!hidden lg:!inline-flex !bg-[var(--mat-sys-primary-container)] !text-[var(--mat-sys-on-primary-container)]" (click)="openScanLauncher()" [matTooltip]="I18N.gallery.scan_action | translate" [attr.aria-label]="I18N.gallery.scan_action | translate">
             <mat-icon>add_photo_alternate</mat-icon>
           </button>
