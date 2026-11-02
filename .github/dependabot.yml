@@ -23,6 +23,9 @@ updates:
       - dependency-name: "pydantic-core"
       - dependency-name: "mpmath"
       - dependency-name: "tokenizers"
+      # fsspec is capped by datasets (5.1.0 requires fsspec<=2026.7.0); #427 bumped
+      # it to 2026.9.0 alone and both locks stopped resolving.
+      - dependency-name: "fsspec"
       # sympy is dictated by the Docker BASE IMAGE's torch, not by this repo, and
       # the two locks disagree deliberately: 1.13.1 for the torch 2.6.0 legacy CUDA
       # image (which requires it exactly) and 1.14.0 for the torch 2.11.0 CUDA and
