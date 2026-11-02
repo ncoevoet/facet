@@ -1365,6 +1365,17 @@ def init_database(db_path='photo_scores_pro.db', build_photo_indexes=True):
 
         # Create photo_ai_edits (AI-made files linked to their original; side table, survives rescans)
         conn.execute(_build_create_table_sql('photo_ai_edits', PHOTO_AI_EDITS_COLUMNS))
+        # edit_path has no foreign key (the edit is not a photo until its scan), so once it IS one,
+        # follow its photo row: a deleted edit drops its link, a moved one carries it. Otherwise a
+        # stale row would caption, badge and block an unrelated photo later saved under that name.
+        conn.execute("""CREATE TRIGGER IF NOT EXISTS photo_ai_edits_edit_delete
+            AFTER DELETE ON photos BEGIN
+            DELETE FROM photo_ai_edits WHERE edit_path=OLD.path;
+            END""")
+        conn.execute("""CREATE TRIGGER IF NOT EXISTS photo_ai_edits_edit_move
+            AFTER UPDATE OF path ON photos WHEN OLD.path IS NOT NEW.path BEGIN
+            UPDATE photo_ai_edits SET edit_path=NEW.path WHERE edit_path=OLD.path;
+            END""")
 
         # Create mcp_tokens (agent bearer tokens, hash only; side table)
         conn.execute(_build_create_table_sql('mcp_tokens', MCP_TOKENS_COLUMNS))

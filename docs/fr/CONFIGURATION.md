@@ -1114,7 +1114,8 @@ Les outils d'IA autorisés à importer une retouche avec `import_ai_edit` (voir 
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
   }
 }
 ```
@@ -1122,6 +1123,7 @@ Les outils d'IA autorisés à importer une retouche avec `import_ai_edit` (voir 
 | Paramètre | Défaut | Description |
 |---------|---------|-------------|
 | `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nom de l'outil → étiquette du nom de fichier |
+| `drop_dir` | `""` | Un dossier du serveur Facet où un assistant sur le même ordinateur dépose sa retouche et passe le nom du fichier dans `source_file`. Facet lit le fichier et écrit sa propre copie ; il ne le supprime ni ne le modifie jamais. À garder hors des dossiers analysés (un fichier qui s'y trouve est refusé). Vide : les assistants envoient l'image dans `image_data` |
 
 ---
 

@@ -349,7 +349,7 @@ The **Keep top %** control in the toolbar (edition mode) culls the whole filtere
 
 ### AI edits
 
-An AI tool can bring an edited copy of a photo into the library through the assistant tool `import_ai_edit` (see [AI Agents](AGENTS.md)). The file lands beside the original as `{name}_{suffix}_{revision}{ext}`, for example `IMG_3533_agy_1.JPG`, and is scanned on its own.
+An AI tool can bring an edited copy of a photo into the library through the assistant tool `import_ai_edit` (see [AI Agents](AGENTS.md)). The assistant sends the image itself, and Facet writes its own copy beside the original as `{name}_{suffix}_{revision}{ext}`, for example `IMG_3533_agy_1.JPG`, then scans it on its own. Facet never deletes or overwrites a file during an import.
 
 - The gallery marks an edit with ✨ **AI** at the top of its tile. ✨ is kept for what an AI made or picked.
 - An edit shot at the same moment usually joins the original's burst, so the gallery's Best of Burst shows whichever scores higher.

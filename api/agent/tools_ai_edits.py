@@ -1,7 +1,7 @@
 """AI-edit import: bring a file an AI tool made into the library, linked to its original."""
 import asyncio
 import time
-from typing import Annotated, Literal, Optional
+from typing import Annotated, Optional
 from urllib.parse import quote
 
 from mcp.server.mcpserver import Context, MCPServer
@@ -12,9 +12,12 @@ from api.agent.internal_client import InternalClient
 from api.agent.runtime import run_tool
 from api.agent.tools_common import register_tool
 from api.agent.tools_write import WRITE_TOOL_LEVELS
+from api.models.ai_edits import _MAX_IMAGE_DATA_CHARS
 
 ImportPath = Annotated[str, Field(min_length=1, max_length=4096)]
-# A second call imports a second revision, so the tool is not idempotent; it never overwrites a file.
+# A second call imports a second revision, so the tool is not idempotent. It is additive only: it
+# writes one new file under a free name and never deletes, moves or overwrites a file (the image
+# comes as bytes, or is read from the drop folder and left there), hence destructive_hint=False.
 IMPORT_ANNOTATIONS = ToolAnnotations(read_only_hint=False, destructive_hint=False,
                                      idempotent_hint=False, open_world_hint=False)
 # How long the tool waits for the edit's scan, so the assistant can confirm the photo is in
@@ -48,13 +51,16 @@ async def _wait_until_ready(path: str) -> bool:
 
 
 def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
-    async def import_ai_edit(ctx: Context, original_path: ImportPath, source_file: ImportPath,
-                             mode: Literal['move', 'copy'], tool: Annotated[str, Field(min_length=1, max_length=64)],
+    async def import_ai_edit(ctx: Context, original_path: ImportPath,
+                             tool: Annotated[str, Field(min_length=1, max_length=64)],
+                             source_file: Annotated[Optional[str], Field(min_length=1, max_length=4096)] = None,
+                             image_data: Annotated[Optional[str],
+                                                   Field(min_length=1, max_length=_MAX_IMAGE_DATA_CHARS)] = None,
                              model: Annotated[Optional[str], Field(max_length=200)] = None,
                              note: Annotated[Optional[str], Field(max_length=1000)] = None) -> CallToolResult:
         async def handler(grant, resolved, settings):
             result = await client.call(grant, 'import_ai_edit', json={
-                'original_path': original_path, 'source_file': source_file, 'mode': mode,
+                'original_path': original_path, 'source_file': source_file, 'image_data': image_data,
                 'tool': tool, 'model': model, 'note': note,
             }, timeout=settings['call_timeout_s'])
             data = result.get('data') if result.get('ok') else None
@@ -73,10 +79,12 @@ def register_ai_edit_tools(server: MCPServer, client: InternalClient) -> None:
 
     register_tool(
         server, import_ai_edit, 'import_ai_edit',
-        'Bring a file an AI tool made from a library photo into the library, linked to that photo. '
-        '`original_path` is the library photo; `source_file` is the edit on the server\'s disk (absolute path, '
-        'a rendered image, not already a library photo). `mode` is required: `move` deletes the source after '
-        'the copy is verified, `copy` keeps it. `tool` must be a key of the server\'s `ai_edits.tool_suffixes` '
+        'Bring an image an AI tool made from a library photo into the library, linked to that photo. '
+        '`original_path` is the library photo. Send the edit as bytes, exactly one of: `source_file`, the name of '
+        'a file you saved in the AI-edit drop folder on the Facet server (`ai_edits.drop_dir`; `edit_photo` '
+        'names it), or `image_data`, the image base64-encoded (at most 50 MB decoded). A rendered image (JPEG, '
+        'PNG, WebP, TIFF...), not a RAW. Facet writes its own copy and never deletes or changes your file: '
+        'remove your work file yourself once the import succeeds. `tool` must be a key of the server\'s `ai_edits.tool_suffixes` '
         '(by default `antigravity-gemini` → agy, `openai-chatgpt` → gpt, `anthropic-claude` → ant; '
         'an unknown name is refused with the configured list); the file lands beside the original as `{name}_{suffix}_{revision}{ext}`, '
         'never over an existing file. The new file is scanned when scanning is enabled (`scan.started`); '

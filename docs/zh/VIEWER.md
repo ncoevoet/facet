@@ -349,7 +349,7 @@ python database.py --migrate-user-preferences --user alice
 
 ### AI 编辑
 
-AI 工具可以通过助手工具 `import_ai_edit` 把照片的编辑版本导入照片库（参见 [AI 智能体](AGENTS.md)）。文件以 `{name}_{suffix}_{revision}{ext}` 的名称放在原图旁边，例如 `IMG_3533_agy_1.JPG`，并单独扫描。
+AI 工具可以通过助手工具 `import_ai_edit` 把照片的编辑版本导入照片库（参见 [AI 智能体](AGENTS.md)）。助手直接发送图像，Facet 在原图旁写入自己的副本，名称为 `{name}_{suffix}_{revision}{ext}`，例如 `IMG_3533_agy_1.JPG`，并单独扫描。导入过程中 Facet 从不删除或覆盖任何文件。
 
 - 照片库在编辑版本缩略图顶部标注 ✨ **AI**。✨ 专用于 AI 生成或挑选的内容。
 - 拍摄时间相同的编辑版本通常会并入原图的连拍组，“连拍最佳”会显示得分较高的一张。

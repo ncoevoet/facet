@@ -349,7 +349,7 @@ El control **Conservar el % superior** de la barra de herramientas (modo de edic
 
 ### Ediciones con IA
 
-Una herramienta de IA puede traer a la biblioteca una copia editada de una foto con la herramienta del asistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). El archivo queda junto al original como `{name}_{suffix}_{revision}{ext}`, por ejemplo `IMG_3533_agy_1.JPG`, y se escanea por separado.
+Una herramienta de IA puede traer a la biblioteca una copia editada de una foto con la herramienta del asistente `import_ai_edit` (ver [Agentes de IA](AGENTS.md)). El asistente envía la imagen misma, y Facet escribe su propia copia junto al original como `{name}_{suffix}_{revision}{ext}`, por ejemplo `IMG_3533_agy_1.JPG`, y la escanea por separado. Durante una importación Facet nunca borra ni sobrescribe un archivo.
 
 - La galería marca una edición con ✨ **IA** en la parte superior de su miniatura. ✨ se reserva para lo que una IA hizo o eligió.
 - Una edición con la misma hora de captura suele unirse a la ráfaga del original, y «Mejor de la ráfaga» muestra la de mayor puntuación.

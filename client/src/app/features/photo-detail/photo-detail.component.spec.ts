@@ -2334,6 +2334,11 @@ describe('PhotoDetailComponent', () => {
       const labels = view.nativeElement.querySelectorAll('[data-ai-label]');
       expect(labels.length).toBe(1);
       expect(labels[0].textContent).toContain('photo_detail.ai_edit.badge_short');
+      // The button's aria-label replaces its content, so it names the edit itself.
+      const button = labels[0].closest('button') as HTMLButtonElement;
+      expect(button.getAttribute('aria-label')).toContain('photo_detail.ai_edit.badge');
+      const plain = thumbs.find(img => img.getAttribute('src')!.includes(encodeURIComponent('/photos/b.jpg')))!;
+      expect(plain.closest('button')!.getAttribute('aria-label')).not.toContain('photo_detail.ai_edit');
     });
 
     it('ignores a stale set response after navigating to another photo', async () => {

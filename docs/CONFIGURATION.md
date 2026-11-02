@@ -1113,7 +1113,8 @@ Which AI tools may import an edit with `import_ai_edit` (see [AI Agents](AGENTS.
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
   }
 }
 ```
@@ -1121,6 +1122,7 @@ Which AI tools may import an edit with `import_ai_edit` (see [AI Agents](AGENTS.
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Tool name → file-name tag |
+| `drop_dir` | `""` | A folder on the Facet server where an assistant on the same computer saves its edit and passes the file name as `source_file`. Facet reads the file and writes its own copy; it never deletes or changes it. Keep it outside the scanned folders (a file there is refused). Empty: assistants send the image as `image_data` |
 
 ---
 

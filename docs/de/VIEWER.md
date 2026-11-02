@@ -349,7 +349,7 @@ Das Steuerelement **Top % behalten** in der Symbolleiste (Bearbeitungsmodus) sor
 
 ### KI-Bearbeitungen
 
-Ein KI-Werkzeug kann über das Assistenten-Werkzeug `import_ai_edit` eine bearbeitete Kopie eines Fotos in die Bibliothek bringen (siehe [KI-Agenten](AGENTS.md)). Die Datei landet neben dem Original als `{name}_{suffix}_{revision}{ext}`, etwa `IMG_3533_agy_1.JPG`, und wird einzeln gescannt.
+Ein KI-Werkzeug kann über das Assistenten-Werkzeug `import_ai_edit` eine bearbeitete Kopie eines Fotos in die Bibliothek bringen (siehe [KI-Agenten](AGENTS.md)). Der Assistent sendet das Bild selbst; Facet schreibt eine eigene Kopie neben das Original als `{name}_{suffix}_{revision}{ext}`, etwa `IMG_3533_agy_1.JPG`, und scannt sie einzeln. Beim Import löscht oder überschreibt Facet nie eine Datei.
 
 - Die Galerie markiert eine Bearbeitung oben auf der Kachel mit ✨ **KI**. ✨ steht nur für das, was eine KI gemacht oder ausgewählt hat.
 - Eine Bearbeitung mit demselben Aufnahmezeitpunkt landet meist in der Serie des Originals; „Bestes der Serie“ zeigt dann die höher bewertete.

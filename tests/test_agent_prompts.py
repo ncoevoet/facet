@@ -201,6 +201,19 @@ class TestSweep:
         assert "unblur the boy" in body
         assert "`search_photos`" in self.text(env, token, "edit_photo", {"change": "c", "photo": "Peter laughing"})
 
+    def test_edit_photo_sends_bytes_never_a_path_to_take(self, edition_env, monkeypatch):
+        from api.routers import ai_edits
+
+        env, token = edition_env
+        args = {"change": "c", "photo": "/p/IMG_1.JPG"}
+        monkeypatch.setattr(ai_edits, "drop_dir", lambda: None)
+        body = self.text(env, token, "edit_photo", args)
+        assert "as image_data" in body and "source_file" not in body and "move" not in body
+        monkeypatch.setattr(ai_edits, "drop_dir", lambda: "/srv/facet-drop")
+        body = self.text(env, token, "edit_photo", args)
+        assert "as source_file" in body and "/srv/facet-drop" in body
+        assert "delete it from the drop folder once the import succeeds" in body
+
     def test_teach_taste_says_the_agent_cannot_answer_a_pair(self, edition_env):
         env, token = edition_env
         body = self.text(env, token, "teach_taste")

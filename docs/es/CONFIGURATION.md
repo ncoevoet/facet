@@ -1116,7 +1116,8 @@ Qué herramientas de IA pueden importar una edición con `import_ai_edit` (ver [
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
   }
 }
 ```
@@ -1124,6 +1125,7 @@ Qué herramientas de IA pueden importar una edición con `import_ai_edit` (ver [
 | Ajuste | Predeterminado | Descripción |
 |---------|---------|-------------|
 | `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Nombre de la herramienta → etiqueta del nombre de archivo |
+| `drop_dir` | `""` | Una carpeta del servidor de Facet donde un asistente en el mismo equipo guarda su edición y pasa el nombre del archivo como `source_file`. Facet lee el archivo y escribe su propia copia; nunca lo borra ni lo cambia. Debe quedar fuera de las carpetas escaneadas (un archivo allí se rechaza). Vacía: los asistentes envían la imagen como `image_data` |
 
 ---
 

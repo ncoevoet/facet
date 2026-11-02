@@ -1119,7 +1119,8 @@ Welche KI-Werkzeuge mit `import_ai_edit` eine Bearbeitung importieren dürfen (s
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
   }
 }
 ```
@@ -1127,6 +1128,7 @@ Welche KI-Werkzeuge mit `import_ai_edit` eine Bearbeitung importieren dürfen (s
 | Einstellung | Standard | Beschreibung |
 |---------|---------|-------------|
 | `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | Werkzeugname → Kürzel im Dateinamen |
+| `drop_dir` | `""` | Ein Ordner auf dem Facet-Server, in den ein Assistent auf demselben Rechner seine Bearbeitung legt, um den Dateinamen als `source_file` zu übergeben. Facet liest die Datei und schreibt eine eigene Kopie; die Datei wird nie gelöscht oder geändert. Außerhalb der gescannten Ordner halten (eine Datei dort wird abgelehnt). Leer: Assistenten senden das Bild als `image_data` |
 
 ---
 

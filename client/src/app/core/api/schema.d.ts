@@ -5245,14 +5245,14 @@ export interface components {
         };
         /**
          * AiEditImport
-         * @description Bring a file an AI tool made into the library, beside the photo it was made from.
+         * @description Bring an image an AI tool made into the library, beside the photo it was made from.
+         *
+         *     The image comes as bytes, never as "take this path": exactly one of ``image_data`` (base64)
+         *     or ``source_file`` (a file inside ``ai_edits.drop_dir``, read and left in place).
          */
         AiEditImport: {
-            /**
-             * Mode
-             * @enum {string}
-             */
-            mode: "move" | "copy";
+            /** Image Data */
+            image_data?: string | null;
             /** Model */
             model?: string | null;
             /** Note */
@@ -5260,7 +5260,7 @@ export interface components {
             /** Original Path */
             original_path: string;
             /** Source File */
-            source_file: string;
+            source_file?: string | null;
             /** Tool */
             tool: string;
         };
@@ -5268,16 +5268,9 @@ export interface components {
         AiEditImportResponse: {
             /** Edit Path */
             edit_path: string;
-            /**
-             * Mode
-             * @enum {string}
-             */
-            mode: "move" | "copy";
             /** Revision */
             revision: number;
             scan: components["schemas"]["AiEditScan"];
-            /** Source Removed */
-            source_removed: boolean;
         };
         /** AiEditScan */
         AiEditScan: {

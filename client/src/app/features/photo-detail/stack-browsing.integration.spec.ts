@@ -40,8 +40,6 @@ describe('manual stack browsing through rendered viewer, Router and HTTP', () =>
     http.match('/api/filter_options/metric_ranges').forEach(request => request.flush({ ranges: {} }));
     http.match('/api/photos/keeper_hints').forEach(request => request.flush({}));
     http.match(request => request.url === '/api/photo/set').forEach(request => request.flush({ kind: null, members: [] }));
-    // The AI-edit section asks each photo for its original and edits.
-    http.match(request => request.url === '/api/photo/ai_edits').forEach(request => request.flush({ edit_of: null, edits: [] }));
     // The face layer loads alongside each stack member; keep other requests strict.
     http.match(request => request.url === '/api/photo/faces').forEach(request => request.flush({ faces: [] }));
   };

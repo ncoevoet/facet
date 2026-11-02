@@ -18,8 +18,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from starlette.responses import StreamingResponse
 
-from api.auth import CurrentUser, _trusted_local_editing_enabled, create_access_token, decode_access_token, require_edition, require_scan_access, scan_feature_enabled, trusted_local_for
-from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, invalidate_stats_cache, server_scoring_config, _photo_types_cache
+from api.auth import EDITION_PASSWORD_KEY, CurrentUser, _is_open_install, _trusted_local_editing_enabled, create_access_token, decode_access_token, require_edition, require_scan_access, scan_access_refusal, scan_feature_enabled, trusted_local_for
+from api.config import VIEWER_CONFIG, FACET_SCRIPT, _CONFIG_PATH, get_all_scan_directories, get_user_directories, invalidate_stats_cache, is_multi_user_enabled, server_scoring_config, _photo_types_cache
 from api.models.scan import (
     LibraryJobStartResponse,
     RecomputeStatusResponse,
@@ -194,10 +194,15 @@ def start_file_scan(user, paths: list[str]) -> Optional[str]:
 
     For files the server itself just placed beside a library photo (an imported AI
     edit), so the paths are server-origin like the configured directories. The same
-    switch and the same one-job rule as ``POST /api/scan/start`` apply.
+    switch, the same access rule (``scan_access_refusal``: superadmin in multi-user mode,
+    refused on an open install) and the same one-job rule as ``POST /api/scan/start`` apply.
     """
     if (refusal := scan_feature_refusal(user)) is not None:
         return refusal
+    if (access := scan_access_refusal(
+            is_multi_user_enabled(), user.is_superadmin, user.is_edition,
+            _is_open_install(EDITION_PASSWORD_KEY), user.trusted_local_editing)) is not None:
+        return access[1]
     if not _scan_lock.acquire(blocking=False):
         return "A scan is already running"
     try:

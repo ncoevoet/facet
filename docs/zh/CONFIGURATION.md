@@ -1111,7 +1111,8 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 ```json
 {
   "ai_edits": {
-    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" }
+    "tool_suffixes": { "antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant" },
+    "drop_dir": ""
   }
 }
 ```
@@ -1119,6 +1120,7 @@ IEC 61966-2-1。NCLX 传递特征值 16：ISO/IEC 23001-8 / ITU-T H.273。
 | 设置 | 默认值 | 说明 |
 |---------|---------|-------------|
 | `tool_suffixes` | `{"antigravity-gemini": "agy", "openai-chatgpt": "gpt", "anthropic-claude": "ant"}` | 工具名称 → 文件名标记 |
+| `drop_dir` | `""` | Facet 服务器上的一个文件夹：同一台电脑上的助手把编辑结果存到这里，并把文件名作为 `source_file` 传入。Facet 读取该文件并写入自己的副本，从不删除或修改它。请放在扫描文件夹之外（位于其中的文件会被拒绝）。留空：助手以 `image_data` 发送图像 |
 
 ---
 

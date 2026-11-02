@@ -58,9 +58,11 @@ setting this skill needs. It names no server address and no library path.
 
 6. **Send it to Facet.** Call `import_ai_edit` with:
    - `original_path`: the path from step 2, exactly as Facet gave it.
-   - `source_file`: the absolute path of your edit in the work folder.
-   - `mode`: `"move"`. Facet removes your work copy once its own copy is
-     verified. Use `"copy"` to keep the work file.
+   - The edit itself, as one of:
+     - `source_file`: when the `edit_photo` prompt names an AI-edit drop
+       folder, save your edit there and pass its file name. Facet reads it and
+       writes its own copy; it never deletes or changes your file.
+     - `image_data`: otherwise, the edit's bytes base64-encoded (50 MB at most).
    - `tool`: the name that matches you. The server's list of accepted names is
      in the `edit_photo` prompt, and in the error if you send a name it
      doesn't know. The defaults are:
@@ -76,9 +78,11 @@ setting this skill needs. It names no server address and no library path.
      wrist". Once scanned, the edit's caption is the original's caption followed
      by `AI: removed watch from left wrist`.
 
-   Facet saves the file beside the original as `{name}_{tag}_{revision}{ext}`,
-   for example `IMG_3533_agy_2.JPG`. It never overwrites an existing file. It
-   records the link to the original and scans the new file.
+   Facet saves its own copy beside the original as `{name}_{tag}_{revision}{ext}`,
+   for example `IMG_3533_agy_2.JPG`, with the extension of what the image is.
+   It never overwrites an existing file. It records the link to the original
+   and scans the new file. Once the call succeeds, delete your file from the
+   drop folder yourself.
 
 7. **Wait for Facet, then confirm.** `import_ai_edit` does not answer until
    Facet has scanned the edit (up to 3 minutes). Tell the user "importing,
