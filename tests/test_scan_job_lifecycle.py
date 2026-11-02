@@ -58,9 +58,10 @@ def pipeline(tmp_path, monkeypatch):
             pass
     class Processor:
         def __init__(self, *args, **kwargs):
-            pass
+            self.metrics = {'photos_saved': 0}
         def process_directory(self, paths):
             assert paths == [str(photo)]
+            self.metrics['photos_saved'] += len(paths)
     def bursts(*args):
         with sqlite3.connect(db) as conn:
             observations.append(conn.execute('SELECT status,job_status,job_phase FROM scan_runs').fetchone())

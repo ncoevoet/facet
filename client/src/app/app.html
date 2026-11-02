@@ -373,7 +373,7 @@
            Help lives in this menu too (opens the page-help dialog) — the
            standalone header button was removed when it moved here. -->
       @if (auth.isAuthenticated()) {
-        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (auth.isEdition() && auth.editionPasswordRequired() ? (I18N.edition.lock_title | translate) : (I18N.auth.user_menu | translate))" [attr.aria-label]="auth.status()?.display_name || (auth.isEdition() && auth.editionPasswordRequired() ? (I18N.edition.lock_title | translate) : (I18N.auth.user_menu | translate))">
+        <button mat-icon-button [matMenuTriggerFor]="userMenu" [matTooltip]="auth.status()?.display_name || (I18N.auth.user_menu | translate)" [attr.aria-label]="auth.status()?.display_name || (I18N.auth.user_menu | translate)">
           <mat-icon [class.!text-amber-400]="auth.isEdition()">{{ auth.isEdition() ? 'admin_panel_settings' : 'account_circle' }}</mat-icon>
         </button>
         <mat-menu #userMenu="matMenu">
