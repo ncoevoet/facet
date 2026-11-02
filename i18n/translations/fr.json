@@ -2820,6 +2820,14 @@
     "no_gps_hint": "Rien dans le périmètre ne porte de coordonnées GPS. Ouvrez une photo et utilisez son panneau Lieu pour la placer — les photos placées apparaissent ici."
   },
   "photo_detail": {
+    "collection": {
+      "title": "Collection",
+      "show": "Afficher la collection",
+      "hide": "Masquer la collection",
+      "resize": "Redimensionner le panneau de collection",
+      "loaded": "{loaded} sur {total} chargées",
+      "more": "Charger plus"
+    },
     "back": "Retour",
     "download": "Télécharger",
     "downloading": "Téléchargement…",

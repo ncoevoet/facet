@@ -2820,6 +2820,14 @@
     "no_gps_hint": "Nada en el alcance lleva coordenadas GPS. Abre una foto y usa su panel de ubicación para situarla — las fotos situadas aparecen aquí."
   },
   "photo_detail": {
+    "collection": {
+      "title": "Colección",
+      "show": "Mostrar colección",
+      "hide": "Ocultar colección",
+      "resize": "Cambiar el ancho del panel de colección",
+      "loaded": "{loaded} de {total} cargadas",
+      "more": "Cargar más"
+    },
     "back": "Volver",
     "download": "Descargar",
     "downloading": "Descargando…",

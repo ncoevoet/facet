@@ -323,6 +323,8 @@ O indicador ou uma foto empilhada abre o visualizador com miniaturas, botões an
 
 No detalhe da foto, as métricas ficam em abas com ícone: dados EXIF (se houver), Qualidade, Composição (com a saliência do sujeito), Técnica e Histograma. A última aba aberta é lembrada. Cada pontuação fica ao lado da sua distribuição na biblioteca, com a barra da foto destacada; passe o cursor sobre uma barra para ver a posição da foto e o intervalo da biblioteca. A posição é calculada sobre toda a biblioteca, não sobre os filtros atuais, aproximada a uma das 20 barras.
 
+**Painel da coleção.** Em ecrãs largos (a partir de 1280 px), uma foto aberta a partir da galeria mostra à esquerda as fotos carregadas da galeria, com os mesmos filtros e a mesma ordenação. Clique numa miniatura para abri-la; **Carregar mais** busca a página seguinte. Arraste o divisor, ou dê-lhe foco e use Esquerda/Direita, Home e End, para redimensioná-lo: uma foto por linha quando estreito, até três quando largo. A seta recolhe-o. O painel nunca altera os filtros, a seleção nem o destino de Voltar.
+
 ### Seleção Múltipla e Ações em Lote
 
 Selecione fotos com os controlos de seleção ou com Espaço; Shift+clique seleciona um intervalo no computador. No telefone, toque em Selecionar antes de tocar nas fotos e em Cancelar para sair do modo de seleção. A barra contextual identifica os destinos e oferece Limpar e Comparar; o acesso de edição acrescenta Manter/Rejeitar e outras ações de escrita. Ações abre comandos secundários com nome no computador e a folha de ações no telefone. Os comandos só de leitura mantêm os controlos de acesso habituais.

@@ -323,6 +323,8 @@ La insignia o una foto apilada abre el visor con miniaturas, botones anterior/si
 
 En el detalle de la foto, las métricas se organizan en pestañas con icono: datos EXIF (cuando existen), Calidad, Composición (con la saliencia del sujeto), Técnica e Histograma. Se recuerda la última pestaña que abriste. Cada puntuación aparece junto a su distribución en la biblioteca, con la barra de la foto resaltada; pasa el cursor sobre una barra para ver el rango de la foto y el rango de la biblioteca. La posición se calcula sobre toda la biblioteca, no sobre los filtros actuales, con la precisión de 20 barras.
 
+**Panel de colección.** En pantallas anchas (desde 1280 px), una foto abierta desde la galería muestra a su izquierda las fotos cargadas de la galería, con los mismos filtros y orden. Haz clic en una miniatura para abrirla; **Cargar más** trae la página siguiente. Arrastra el divisor, o enfócalo y usa Izquierda/Derecha, Inicio y Fin, para cambiar su ancho: una foto por fila si es estrecho, hasta tres si es ancho. El chevrón lo pliega. El panel nunca cambia los filtros, la selección ni el destino de Atrás.
+
 ### Selección múltiple y acciones masivas
 
 Selecciona fotos con los controles de selección o con Espacio; Mayús+clic selecciona un rango en escritorio. En un teléfono, toca Seleccionar antes de tocar las fotos y Cancelar para salir del modo de selección. La barra contextual identifica sus destinos y ofrece Limpiar y Comparar; el acceso de edición añade Mantener/Rechazar y otras acciones de escritura. Acciones abre comandos secundarios con nombre en escritorio y la hoja de acciones en teléfonos. Los comandos de solo lectura conservan sus controles de acceso habituales.

@@ -712,7 +712,8 @@ class TestLoadImagesFreesHsv:
         scorer.get_exif_data.return_value = {}
         proc = _make(_config())
         proc.scorer = scorer
-        ticks = iter([10.0, 12.0, 20.0, 23.0])
+        # exif batch (start, end), then the worker body, its decode span and the fallback span
+        ticks = iter([10.0, 12.0, 20.0, 20.0, 20.0, 20.0, 23.0, 23.0])
         with mock.patch("exiftool.get_exif_batch", return_value={}), \
                 mock.patch("processing.multi_pass.time.perf_counter", side_effect=lambda: next(ticks)):
             images = proc._load_images([str(path)])
