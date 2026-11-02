@@ -13,7 +13,7 @@ describe('Shared photo detail extended metric availability', () => {
       { provide: ApiService, useValue: { imageUrl: () => '/image', get: () => of({ options: [] }) } },
       { provide: I18nService, useValue: { t: (key: string) => key, locale: () => 'en', translations: () => ({}) } },
       { provide: Router, useValue: { navigate: vi.fn() } },
-      { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: { get: () => null }, url: [] } } },
+      { provide: ActivatedRoute, useValue: { snapshot: { paramMap: convertToParamMap({}), queryParamMap: convertToParamMap({}), url: [] } } },
     ],
   }));
 
@@ -33,10 +33,12 @@ describe('Shared photo detail extended metric availability', () => {
 });
 
 describe('Shared photo detail album capability transport', () => {
+  const asset = '1.' + 'a'.repeat(64);
+  const sharedPhoto = () => { const metadata: Partial<ReturnType<typeof makePhoto>> = makePhoto(); delete metadata.path; return { ...metadata, asset_id: asset }; };
   function setup() {
-    const query = convertToParamMap({ token: 'fixture-album-token', path: '/chosen.jpg' });
+    const query = convertToParamMap({ token: 'fixture-album-token', asset_id: asset });
     const route = { snapshot: { paramMap: convertToParamMap({ albumId: '7' }), queryParamMap: query, url: [] } };
-    const read = vi.fn(() => of(makePhoto({ path: '/chosen.jpg' })));
+    const read = vi.fn(() => of(sharedPhoto()));
     const navigate = vi.fn();
     TestBed.configureTestingModule({ imports: [SharedPhotoDetailComponent], providers: [
       { provide: ApiService, useValue: { get: read, imageUrl: () => '/ordinary-image' } },
@@ -56,10 +58,10 @@ describe('Shared photo detail album capability transport', () => {
       await fixture.componentInstance.ngOnInit();
       expect(read).toHaveBeenCalledTimes(1);
       expect(read).toHaveBeenCalledWith('/shared/album/7/photo', {
-        path: '/chosen.jpg', token: 'fixture-album-token', 'ngsw-bypass': '1',
+        asset_id: asset, token: 'fixture-album-token', 'ngsw-bypass': '1',
       });
       const component = fixture.componentInstance as any;
-      expect(component.photo().path).toBe('/chosen.jpg');
+      expect(component.photo().path).toBe(asset);
       for (const value of [component.fullImageUrl(), component.thumbnailImageUrl()]) {
         const url = new URL(value, 'http://facet.test');
         expect(url.pathname).toContain('/api/shared/album/7/media/');
@@ -73,11 +75,11 @@ describe('Shared photo detail album capability transport', () => {
 
   it('discards a metadata completion after changing the link token', async () => {
     const { fixture, read, route, navigate } = setup();
-    const pending = new Subject<ReturnType<typeof makePhoto>>();
+    const pending = new Subject<ReturnType<typeof sharedPhoto>>();
     read.mockReturnValueOnce(pending);
     const load = fixture.componentInstance.ngOnInit();
-    route.snapshot.queryParamMap = convertToParamMap({ token: 'new-link', path: '/chosen.jpg' });
-    pending.next(makePhoto({ path: '/chosen.jpg' })); pending.complete(); await load;
+    route.snapshot.queryParamMap = convertToParamMap({ token: 'new-link', asset_id: asset });
+    pending.next(sharedPhoto()); pending.complete(); await load;
     expect(fixture.componentInstance.photo()).toBeNull();
     expect(navigate).not.toHaveBeenCalled();
     fixture.destroy();

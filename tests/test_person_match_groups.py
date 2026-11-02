@@ -1,5 +1,6 @@
 """One person group has the same authorized members in reads and writes."""
 
+from tests.shared_asset_helpers import shared_photo_paths
 import json
 import sqlite3
 
@@ -103,7 +104,7 @@ def test_saved_any_group_and_recipient_view_keep_owner_visibility(owner_client, 
         recipient = TestClient(create_app())
         viewed = recipient.get(f'/api/shared/album/{album_id}', params={'token': shared.json()['share_token']})
         assert viewed.status_code == 200, viewed.text
-        assert {p['path'] for p in viewed.json()['photos']} == expected
+        assert set(shared_photo_paths(viewed.json()['photos'])) == expected
     finally:
         owner_client.delete(f'/api/albums/{album_id}')
 

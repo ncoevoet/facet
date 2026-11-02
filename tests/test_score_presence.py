@@ -1,5 +1,6 @@
 """Explicit NULL measurement policies keep range and action scopes identical."""
 
+from tests.shared_asset_helpers import shared_photo_paths
 import json
 import sqlite3
 
@@ -101,6 +102,6 @@ def test_manual_shared_album_preserves_every_registry_bound_with_missing_policy(
             'score_presence': json.dumps({minimum: 'include_missing'}),
         })
         assert viewed.status_code == 200, viewed.text
-        assert {row['path'] for row in viewed.json()['photos']} == {PREFIX + 'alice/one.jpg', PREFIX + 'alice/both.jpg'}
+        assert set(shared_photo_paths(viewed.json()['photos'])) == {PREFIX + 'alice/one.jpg', PREFIX + 'alice/both.jpg'}
     finally:
         owner_client.delete(f'/api/albums/{album}')

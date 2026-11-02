@@ -4,10 +4,15 @@ import { ActivatedRoute } from '@angular/router';
 import { HttpErrorResponse, provideHttpClient, withXhr } from '@angular/common/http';
 import { of, throwError, Subject } from 'rxjs';
 import { signal } from '@angular/core';
+import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
 import { I18nService } from '../../../core/services/i18n.service';
 import { SharedViewComponent } from './shared-view.component';
+
+const asset1 = '1.' + 'a'.repeat(64);
+const asset2 = '2.' + 'b'.repeat(64);
+const asset3 = '3.' + 'c'.repeat(64);
 
 function observeDownloads() {
   const create = Object.getOwnPropertyDescriptor(URL, 'createObjectURL');
@@ -45,8 +50,8 @@ describe('SharedViewComponent', () => {
   const sharedAlbumResponse = {
     album: { id: 1, name: 'Shared Album', description: 'A shared album' },
     photos: [
-      { path: '/p1.jpg', filename: 'p1.jpg', aggregate: 8.5 },
-      { path: '/p2.jpg', filename: 'p2.jpg', aggregate: 7.0 },
+      { asset_id: asset1, filename: 'p1.jpg', aggregate: 8.5 },
+      { asset_id: asset2, filename: 'p2.jpg', aggregate: 7.0 },
     ],
     total: 10,
     page: 1,
@@ -65,6 +70,7 @@ describe('SharedViewComponent', () => {
       providers: [
         SharedViewComponent,
         provideHttpClient(withXhr()),
+        provideHttpClientTesting(),
         { provide: ApiService, useValue: mockApi },
         { provide: AuthService, useValue: { downloadProfiles: signal([]) } },
         { provide: I18nService, useValue: mockI18n },
@@ -84,9 +90,29 @@ describe('SharedViewComponent', () => {
     };
   });
 
+  it('rehydrates and saves proofing picks using only asset identities', async () => {
+    createComponent('1', 'fixture-token'); await component.ngOnInit();
+    component.proofingToken.set('fixture-session');
+    const http = TestBed.inject(HttpTestingController);
+    const loading = component.loadPicks();
+    const read = http.expectOne('/api/shared/album/1/picks');
+    expect(read.request.headers.get('Authorization')).toBe('Bearer fixture-session');
+    read.flush({ picks: [{ asset_id: asset1, picked: true, comment: 'print' }] });
+    await loading;
+    expect(component.pickedPaths().has(asset1)).toBe(true);
+    expect(component.pickComments().get(asset1)).toBe('print');
+    const saving = component.togglePick(component.photos()[0], new Event('click'));
+    const write = http.expectOne('/api/shared/album/1/picks');
+    expect(write.request.body).toEqual({ asset_id: asset1, picked: false });
+    write.flush({ ok: true, asset_id: asset1, picked: false });
+    await saving;
+    expect(component.pickedPaths().has(asset1)).toBe(false);
+    http.verify();
+  });
+
   it('downloads the captured selection using only the album-scoped original endpoint', async () => {
     createComponent('1', 'fixture-token'); await component.ngOnInit();
-    component.selectedPaths.set(new Set(['/p1.jpg', '/p2.jpg']));
+    component.selectedPaths.set(new Set([asset1, asset2]));
     const { save, restore } = observeDownloads();
     try {
       await component.downloadSelected();
@@ -105,7 +131,7 @@ describe('SharedViewComponent', () => {
 
   it('does not save a late blob or fetch the next file after the shared link changes', async () => {
     createComponent('1', 'fixture-token'); await component.ngOnInit();
-    component.selectedPaths.set(new Set(['/p1.jpg', '/p2.jpg']));
+    component.selectedPaths.set(new Set([asset1, asset2]));
     const pending = new Subject<Blob>(); mockApi.getRaw.mockReturnValueOnce(pending);
     const { save, restore } = observeDownloads();
     try {
@@ -127,9 +153,9 @@ describe('SharedViewComponent', () => {
     const reload = component.refreshFiltered();
     component.onScrollReached();
     expect(mockApi.get).toHaveBeenCalledTimes(1);
-    pending.next({ ...sharedAlbumResponse, photos: [{ path: '/new.jpg', filename: 'new.jpg', aggregate: 8 }] });
+    pending.next({ ...sharedAlbumResponse, photos: [{ asset_id: asset3, filename: 'new.jpg', aggregate: 8 }] });
     pending.complete(); await reload;
-    expect(component.photos().map((photo: { path: string }) => photo.path)).toEqual(['/new.jpg']);
+    expect(component.photos().map((photo: { path: string }) => photo.path)).toEqual([asset3]);
     expect(component.loading()).toBe(false);
   });
 
@@ -210,7 +236,7 @@ describe('SharedViewComponent', () => {
       it('should load next page and append photos', async () => {
         mockApi.get.mockReturnValue(of({
           album: { id: 1, name: 'Shared Album', description: 'A shared album' },
-          photos: [{ path: '/p3.jpg', filename: 'p3.jpg', aggregate: 6.5 }],
+          photos: [{ asset_id: asset3, filename: 'p3.jpg', aggregate: 6.5 }],
           total: 10,
           page: 2,
           per_page: 20,

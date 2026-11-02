@@ -1,5 +1,6 @@
 """Personal zero stars is not a fallback to catalog/another user's rating."""
 
+from tests.shared_asset_helpers import shared_photo_paths
 import sqlite3
 import json
 
@@ -109,7 +110,7 @@ def test_saved_zero_star_membership_uses_owner_scope_for_owner_and_recipient(edi
         assert shared.status_code == 200, shared.text
         viewed = TestClient(create_app()).get(f'/api/shared/album/{album}', params={'token': shared.json()['share_token']})
         assert viewed.status_code == 200, viewed.text
-        assert {photo['path'] for photo in viewed.json()['photos']} == expected
+        assert set(shared_photo_paths(viewed.json()['photos'])) == expected
         assert 'smart_filter_json' not in viewed.json()['album']
     finally:
         deleted = edition_client.delete(f'/api/albums/{album}')

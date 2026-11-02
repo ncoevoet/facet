@@ -20,7 +20,7 @@ import { DownloadIconPipe } from '../../pipes/download-icon.pipe';
 import { DownloadOption } from '../../../core/api/types';
 import { PhotoDetailBase } from '../../directives/photo-detail-base.directive';
 import { i18nKeys } from '../../../core/i18n/keys';
-import { sharedAlbumMediaUrl } from '../../utils/shared-album-media';
+import { sharedAssetPhoto, type SharedAsset, sharedAlbumMediaUrl } from '../../utils/shared-album-media';
 
 @Component({
   selector: 'app-shared-photo-detail',
@@ -300,7 +300,7 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
   async ngOnInit(): Promise<void> {
     const albumId = Number(this.route.snapshot.paramMap.get('albumId'));
     const token = this.token;
-    const path = this.route.snapshot.queryParamMap.get('path');
+    const path = this.route.snapshot.queryParamMap.get('asset_id');
     if (!Number.isSafeInteger(albumId) || albumId <= 0 || !token || !path) {
       this.navigateBack(); return;
     }
@@ -309,10 +309,10 @@ export class SharedPhotoDetailComponent extends PhotoDetailBase implements OnIni
     // Always revalidate the grant: browser history is not membership authority.
     const current = () => !this.destroyRef.destroyed && this.sharedAlbumMedia() === scope
       && this.token === token && Number(this.route.snapshot.paramMap.get('albumId')) === albumId
-      && this.route.snapshot.queryParamMap.get('path') === path;
+      && this.route.snapshot.queryParamMap.get('asset_id') === path;
         try {
           const photo = normalisePhotoFlags(await firstValueFrom(
-            this.api.get<Photo>(`/shared/album/${albumId}/photo`, { path, token, 'ngsw-bypass': '1' })));
+            this.api.get<SharedAsset>(`/shared/album/${albumId}/photo`, { asset_id: path, token, 'ngsw-bypass': '1' })).then(sharedAssetPhoto));
           if (!current()) return;
           if (!photo.tags_list) {
             photo.tags_list = photo.tags ? photo.tags.split(',').map(t => t.trim()) : [];

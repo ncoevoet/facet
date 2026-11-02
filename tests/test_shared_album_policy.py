@@ -31,7 +31,7 @@ def test_recipient_policy_and_private_saved_rules(smart, seed_photos_prefix, alb
         'membership_can_change': True,
         'downloads': 'album_member_original',
         'photo_metadata': True,
-        'native_paths': True,
+        'native_paths': False,
         'manual_tags': False,
         'saved_rules': False,
         'password_protected': False,
@@ -40,7 +40,9 @@ def test_recipient_policy_and_private_saved_rules(smart, seed_photos_prefix, alb
     }
     assert body['proofing_enabled'] is (not smart)
     if not smart:
-        assert body['photos'][0]['path'] == prefix + 'photo.jpg'
+        assert 'path' not in body['photos'][0]
+        assert prefix not in response.text
+        assert body['photos'][0]['asset_id']
         assert body['photos'][0]['gps_latitude'] == 12.0
         assert not body['photos'][0].get('manual_tags')
     # Projection must not alter the owner's durable saved criteria.
@@ -66,7 +68,8 @@ def test_private_manual_tag_selects_members_without_disclosing_rule_or_tag(
         response = anonymous_client.get(f'/api/shared/album/{album_id}',
                                         params={'token': 'private-rule-token'})
         assert response.status_code == 200, response.text
-        assert [photo['path'] for photo in response.json()['photos']] == [path]
+        assert [photo['filename'] for photo in response.json()['photos']] == ['photo.jpg']
+        assert path not in response.text
         assert secret not in response.text
         assert 'smart_filter_json' not in response.json()['album']
         with sqlite3.connect(_TEST_DB_FILE.name) as conn:

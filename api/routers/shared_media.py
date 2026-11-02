@@ -10,7 +10,8 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from api.config import VIEWER_CONFIG
 from api.database import get_async_db
-from api.models.gallery import Photo
+from api.models.gallery import SharedPhoto
+from api.shared_assets import shared_asset_matches, shared_asset_row_id
 from api.routers.albums import _fetch_album_photos
 from api.routers.comparison import _serve_original
 from api.routers.thumbnails import _image_response, _thumbnail_response
@@ -45,7 +46,7 @@ def _not_found():
     return HTTPException(status_code=404, detail='Shared photo not found', headers=_PRIVATE)
 
 
-async def _member(album_id: int, token: str, path: str):
+async def _member(album_id: int, token: str, asset_id: str):
     """Authorize the exact current member in one owner-visible read snapshot.
 
     Recheck on every request, before touching rendered caches or the filesystem.
@@ -59,6 +60,15 @@ async def _member(album_id: int, token: str, path: str):
         stored = album['share_token'] if album else None
         if not stored or not hmac.compare_digest(stored.encode('utf-8'), token.encode('utf-8')):
             raise _not_found()
+        row_id = shared_asset_row_id(asset_id)
+        if row_id is None:
+            raise _not_found()
+        cursor = await conn.execute('SELECT path FROM photos WHERE rowid=?', (row_id,))
+        identity = await cursor.fetchone()
+        await cursor.close()
+        if identity is None or not shared_asset_matches(asset_id, album_id, token, row_id, identity['path']):
+            raise _not_found()
+        path = identity['path']
         result = await _fetch_album_photos(
             conn, album, None, 1, 1, 'aggregate', 'DESC', include_manual=False,
             member_path=path,
@@ -73,7 +83,7 @@ async def _member(album_id: int, token: str, path: str):
         await cursor.close()
         if not row:
             raise _not_found()
-        return result['photos'][0], dict(row)
+        return {key: value for key, value in result['photos'][0].items() if key != 'path'} | {'asset_id': asset_id}, dict(row)
 
 
 def _private(response: Response):
@@ -81,28 +91,28 @@ def _private(response: Response):
     return response
 
 
-@router.get('/api/shared/album/{album_id}/photo', response_model=Photo,
+@router.get('/api/shared/album/{album_id}/photo', response_model=SharedPhoto,
             response_model_exclude_unset=True)
-async def shared_photo(album_id: int, response: Response, path: str = Query(...),
+async def shared_photo(album_id: int, response: Response, asset_id: str = Query(..., max_length=85),
                        token: str = Query(..., max_length=256)):
-    photo, _ = await _member(album_id, token, path)
+    photo, _ = await _member(album_id, token, asset_id)
     response.headers.update(_PRIVATE)
     return photo
 
 
 @router.get('/api/shared/album/{album_id}/media/thumbnail')
-async def shared_thumbnail(album_id: int, request: Request, path: str = Query(...),
+async def shared_thumbnail(album_id: int, request: Request, asset_id: str = Query(..., max_length=85),
                            token: str = Query(..., max_length=256),
                            size: Optional[int] = Query(None)):
-    _, row = await _member(album_id, token, path)
-    return _private(await run_in_threadpool(_thumbnail_response, request, path, size, row))
+    _, row = await _member(album_id, token, asset_id)
+    return _private(await run_in_threadpool(_thumbnail_response, request, row['path'], size, row))
 
 
 @router.get('/api/shared/album/{album_id}/media/image')
-async def shared_image(album_id: int, request: Request, path: str = Query(...),
+async def shared_image(album_id: int, request: Request, asset_id: str = Query(..., max_length=85),
                        token: str = Query(..., max_length=256), fallback: str = Query('')):
-    _, row = await _member(album_id, token, path)
-    return _private(await run_in_threadpool(_image_response, request, path, fallback, row))
+    _, row = await _member(album_id, token, asset_id)
+    return _private(await run_in_threadpool(_image_response, request, row['path'], fallback, row))
 
 
 def _download(row):
@@ -113,9 +123,9 @@ def _download(row):
 
 
 @router.get('/api/shared/album/{album_id}/media/download')
-async def shared_download(album_id: int, path: str = Query(...),
+async def shared_download(album_id: int, asset_id: str = Query(..., max_length=85),
                           token: str = Query(..., max_length=256),
                           type: Literal['original'] = Query('original')):
-    _, row = await _member(album_id, token, path)
+    _, row = await _member(album_id, token, asset_id)
     # No RAW-companion or darktable-profile elevation: only this indexed member.
     return _private(await run_in_threadpool(_download, row))

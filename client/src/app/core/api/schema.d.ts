@@ -5765,34 +5765,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /**
-         * Album
-         * @description An album's own metadata, as embedded in the shared-album view.
-         */
-        Album: {
-            /** Cover Photo Path */
-            cover_photo_path?: string | null;
-            /** Created At */
-            created_at?: string | null;
-            /** Description */
-            description?: string | null;
-            /** Id */
-            id: number;
-            /** Is Shared */
-            is_shared: boolean;
-            /** Is Smart */
-            is_smart: boolean;
-            /** Name */
-            name: string;
-            /** Preview Revision */
-            preview_revision?: string | null;
-            /** Scoring Context */
-            scoring_context?: string | null;
-            /** Smart Filter Json */
-            smart_filter_json?: string | null;
-            /** Updated At */
-            updated_at?: string | null;
-        };
         /** AlbumExportRequest */
         AlbumExportRequest: {
             /**
@@ -8828,35 +8800,7 @@ export interface components {
         };
         /**
          * Photo
-         * @description A photo row exactly as the gallery endpoints put it on the wire.
-         *
-         *     Every column-backed field carries the SQLite affinity of its column in
-         *     ``db/schema.py``, never the type its name suggests. ``shutter_speed`` is a
-         *     TEXT column that reads back as the string ``'0.0125'``, and the flags are
-         *     0/1 integers because SQLite has no boolean. Declaring either as what it
-         *     means rather than what it is makes Pydantic coerce the value and silently
-         *     change the wire.
-         *
-         *     One deliberate exception: affinity is not a constraint, so an
-         *     INTEGER-affinity column can still hand back a REAL or TEXT storage class
-         *     (issue #142). The 20 fields declared ``CoercedInt`` below keep the
-         *     declared *wire* type -- an int, same as always -- by coercing whatever
-         *     SQLite actually stored, rather than changing what the field means.
-         *
-         *     The field set is a SUPERSET of everything ``build_photo_select_columns``
-         *     can emit, because ``response_model`` filters: a column absent here is a
-         *     column dropped from the response. ``tests/test_response_models.py`` pins
-         *     that against ``PHOTO_BASE_COLS`` and ``PHOTO_OPTIONAL_COLS``.
-         *
-         *     The trailing fields are computed by the handlers rather than selected.
-         *     ``top_picks_score``, ``learned_score``, ``similarity`` and
-         *     ``embedding_similarity`` are conditional -- only the request that sorts
-         *     or filters by them carries them -- so they must stay optional or the
-         *     requests that do not trigger them would 500. ``embedding_similarity`` is
-         *     the raw cosine that `/api/search` gated the result on; it is present only
-         *     when an embedding score was actually computed for that photo (an
-         *     FTS-only or ``scope=text`` hit omits it), and is distinct from
-         *     ``similarity``, which stays the blended embedding/FTS value.
+         * @description Authenticated catalog photo identity and metadata.
          */
         Photo: {
             /** Aesthetic */
@@ -9438,10 +9382,10 @@ export interface components {
         };
         /** PickRequest */
         PickRequest: {
+            /** Asset Id */
+            asset_id: string;
             /** Comment */
             comment?: string | null;
-            /** Path */
-            path: string;
             /**
              * Picked
              * @default true
@@ -10162,6 +10106,32 @@ export interface components {
             token: string;
         };
         /**
+         * SharedAlbum
+         * @description Recipient album projection never includes native cover paths or saved rules.
+         */
+        SharedAlbum: {
+            /** Cover Asset Id */
+            cover_asset_id?: string | null;
+            /** Created At */
+            created_at?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Id */
+            id: number;
+            /** Is Shared */
+            is_shared: boolean;
+            /** Is Smart */
+            is_smart: boolean;
+            /** Name */
+            name: string;
+            /** Preview Revision */
+            preview_revision?: string | null;
+            /** Scoring Context */
+            scoring_context?: string | null;
+            /** Updated At */
+            updated_at?: string | null;
+        };
+        /**
          * SharedAlbumPolicy
          * @description Capabilities of this public link, not account edition rights or a frozen delivery.
          */
@@ -10205,7 +10175,7 @@ export interface components {
          *     off the wire on every other request rather than sending them as null.
          */
         SharedAlbumResponse: {
-            album: components["schemas"]["Album"];
+            album: components["schemas"]["SharedAlbum"];
             /** Effective Sort */
             effective_sort: string;
             /** Effective Sort Direction */
@@ -10218,7 +10188,7 @@ export interface components {
             /** Per Page */
             per_page: number;
             /** Photos */
-            photos: components["schemas"]["Photo"][];
+            photos: components["schemas"]["SharedPhoto"][];
             /** Proofing Enabled */
             proofing_enabled: boolean;
             sharing_policy: components["schemas"]["SharedAlbumPolicy"];
@@ -10230,6 +10200,223 @@ export interface components {
             total: number;
             /** Total Pages */
             total_pages: number;
+        };
+        /**
+         * SharedPhoto
+         * @description Public album asset metadata, with no native filesystem path.
+         */
+        SharedPhoto: {
+            /** Aesthetic */
+            aesthetic?: number | null;
+            /** Aesthetic Iaa */
+            aesthetic_iaa?: number | null;
+            /** Aesthetic V25 */
+            aesthetic_v25?: number | null;
+            /** Aggregate */
+            aggregate?: number | null;
+            /** Asset Id */
+            asset_id: string;
+            /** Bg Separation */
+            bg_separation?: number | null;
+            /** Burst Group Id */
+            burst_group_id?: number | null;
+            /** Camera Model */
+            camera_model?: string | null;
+            /** Caption */
+            caption?: string | null;
+            /** Caption Translated */
+            caption_translated?: string | null;
+            /** Category */
+            category?: string | null;
+            /** Category Override */
+            category_override?: string | null;
+            /** Channel Clip Highlight Pct */
+            channel_clip_highlight_pct?: number | null;
+            /** Channel Clip Shadow Pct */
+            channel_clip_shadow_pct?: number | null;
+            /** Color Harmony */
+            color_harmony?: number | null;
+            /** Color Score */
+            color_score?: number | null;
+            /** Color Temp */
+            color_temp?: string | null;
+            /** Comp Score */
+            comp_score?: number | null;
+            /** Composition Pattern */
+            composition_pattern?: string | null;
+            /** Contrast Score */
+            contrast_score?: number | null;
+            /** Date Formatted */
+            date_formatted?: string | null;
+            /** Date Manually Set */
+            date_manually_set?: number | null;
+            /** Date Taken */
+            date_taken?: string | null;
+            /** Deqa Score */
+            deqa_score?: number | null;
+            /** Dominant Hue */
+            dominant_hue?: number | null;
+            /** Duplicate Group Id */
+            duplicate_group_id?: number | null;
+            /** Dynamic Range Stops */
+            dynamic_range_stops?: number | null;
+            /** Embedding Similarity */
+            embedding_similarity?: number | null;
+            /** Exposure Score */
+            exposure_score?: number | null;
+            /** Eye Sharpness */
+            eye_sharpness?: number | null;
+            /** F Stop */
+            f_stop?: number | null;
+            /** Face Confidence */
+            face_confidence?: number | null;
+            /** Face Count */
+            face_count?: number | null;
+            /** Face Quality */
+            face_quality?: number | null;
+            /** Face Quality Iqa */
+            face_quality_iqa?: number | null;
+            /** Face Ratio */
+            face_ratio?: number | null;
+            /** Face Sharpness */
+            face_sharpness?: number | null;
+            /** Filename */
+            filename?: string | null;
+            /** Focal Length */
+            focal_length?: number | null;
+            /** Form Balance */
+            form_balance?: number | null;
+            /** Form Edge Entropy */
+            form_edge_entropy?: number | null;
+            /** Form Fractal */
+            form_fractal?: number | null;
+            /** Form Symmetry */
+            form_symmetry?: number | null;
+            /** Gps Latitude */
+            gps_latitude?: number | null;
+            /** Gps Longitude */
+            gps_longitude?: number | null;
+            /** Gps Manually Set */
+            gps_manually_set?: number | null;
+            /** Highlight Clipped */
+            highlight_clipped?: number | null;
+            /** Histogram Spread */
+            histogram_spread?: number | null;
+            /** Image Aspect */
+            image_aspect?: number | null;
+            /** Image Height */
+            image_height?: number | null;
+            /** Image Width */
+            image_width?: number | null;
+            /** Is Blink */
+            is_blink?: number | null;
+            /** Is Burst Lead */
+            is_burst_lead?: number | null;
+            /** Is Duplicate Lead */
+            is_duplicate_lead?: number | null;
+            /** Is Favorite */
+            is_favorite?: number | null;
+            /** Is Group Portrait */
+            is_group_portrait?: number | null;
+            /** Is Kept */
+            is_kept?: number | null;
+            /** Is Monochrome */
+            is_monochrome?: number | null;
+            /** Is Rejected */
+            is_rejected?: number | null;
+            /** Is Silhouette */
+            is_silhouette?: number | null;
+            /** Iso */
+            iso?: number | null;
+            /** Isolation Bonus */
+            isolation_bonus?: number | null;
+            /** Junk Kind */
+            junk_kind?: string | null;
+            /** Leading Lines Score */
+            leading_lines_score?: number | null;
+            /** Learned Score */
+            learned_score?: number | null;
+            /** Lens Model */
+            lens_model?: string | null;
+            /** Liqe Score */
+            liqe_score?: number | null;
+            /**
+             * Manual Tags
+             * @default []
+             */
+            manual_tags?: string[];
+            /** Mean Luminance */
+            mean_luminance?: number | null;
+            /** Mean Saturation */
+            mean_saturation?: number | null;
+            /** Narrative Moment */
+            narrative_moment?: string | null;
+            /** Narrative Moment Confidence */
+            narrative_moment_confidence?: number | null;
+            /** Noise Sigma */
+            noise_sigma?: number | null;
+            /**
+             * Persons
+             * @default []
+             */
+            persons?: components["schemas"]["PhotoPerson"][];
+            /** Phash */
+            phash?: string | null;
+            /** Power Point Score */
+            power_point_score?: number | null;
+            /** Preview Revision */
+            preview_revision?: string | null;
+            /** Qrealign Score */
+            qrealign_score?: number | null;
+            /** Quality Score */
+            quality_score?: number | null;
+            /** Sequence Ev Offset */
+            sequence_ev_offset?: number | null;
+            /** Sequence Group Id */
+            sequence_group_id?: number | null;
+            /** Sequence Kind */
+            sequence_kind?: string | null;
+            /** Sequence Override */
+            sequence_override?: string | null;
+            /** Sequence Override Pending */
+            sequence_override_pending?: number | null;
+            /** Shadow Clipped */
+            shadow_clipped?: number | null;
+            /** Shutter Speed */
+            shutter_speed?: string | null;
+            /** Similarity */
+            similarity?: number | null;
+            /** Stack Count */
+            stack_count?: number | null;
+            /** Stack Id */
+            stack_id?: string | null;
+            /** Stack Revision */
+            stack_revision?: number | null;
+            /** Stack Total Count */
+            stack_total_count?: number | null;
+            /** Star Rating */
+            star_rating?: number | null;
+            /** Subject Placement */
+            subject_placement?: number | null;
+            /** Subject Prominence */
+            subject_prominence?: number | null;
+            /** Subject Sharpness */
+            subject_sharpness?: number | null;
+            /** Tags */
+            tags?: string | null;
+            /**
+             * Tags List
+             * @default []
+             */
+            tags_list?: string[];
+            /** Tech Sharpness */
+            tech_sharpness?: number | null;
+            /** Top Picks Score */
+            top_picks_score?: number | null;
+            /** Topiq Score */
+            topiq_score?: number | null;
+            /** Unassigned Faces */
+            unassigned_faces?: number | null;
         };
         /**
          * ShootTypeEvidence
@@ -18341,7 +18528,7 @@ export interface operations {
     shared_download_api_shared_album__album_id__media_download_get: {
         parameters: {
             query: {
-                path: string;
+                asset_id: string;
                 token: string;
                 type?: "original";
             };
@@ -18376,7 +18563,7 @@ export interface operations {
     shared_image_api_shared_album__album_id__media_image_get: {
         parameters: {
             query: {
-                path: string;
+                asset_id: string;
                 token: string;
                 fallback?: string;
             };
@@ -18411,7 +18598,7 @@ export interface operations {
     shared_thumbnail_api_shared_album__album_id__media_thumbnail_get: {
         parameters: {
             query: {
-                path: string;
+                asset_id: string;
                 token: string;
                 size?: number | null;
             };
@@ -18446,7 +18633,7 @@ export interface operations {
     shared_photo_api_shared_album__album_id__photo_get: {
         parameters: {
             query: {
-                path: string;
+                asset_id: string;
                 token: string;
             };
             header?: never;
@@ -18463,7 +18650,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Photo"];
+                    "application/json": components["schemas"]["SharedPhoto"];
                 };
             };
             /** @description Validation Error */

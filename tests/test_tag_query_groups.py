@@ -1,5 +1,6 @@
 """Literal rule groups, including authorized HTTP scope and legacy tag storage."""
 
+from tests.shared_asset_helpers import shared_photo_paths
 import json
 import sqlite3
 
@@ -118,7 +119,7 @@ def test_saved_owner_groups_keep_manual_membership_but_shared_response_hides_man
         assert shared.status_code == 200, shared.text
         viewed = TestClient(create_app()).get(f'/api/shared/album/{album}', params={'token': shared.json()['share_token']})
         assert viewed.status_code == 200, viewed.text
-        assert {photo['path'] for photo in viewed.json()['photos']} == expected
+        assert set(shared_photo_paths(viewed.json()['photos'])) == expected
         assert all(not photo.get('manual_tags') for photo in viewed.json()['photos'])
     finally:
         owner_client.delete(f'/api/albums/{album}')
@@ -143,7 +144,7 @@ def test_recipient_supplied_groups_cannot_probe_manual_tags(owner_client, tagged
         recipient = TestClient(create_app())
         baseline = recipient.get(f'/api/shared/album/{album}', params={'token': shared.json()['share_token']})
         assert baseline.status_code == 200, baseline.text
-        assert {photo['path'] for photo in baseline.json()['photos']} == {
+        assert set(shared_photo_paths(baseline.json()['photos'])) == {
             row['path'] for row in tagged if '/alice/' in row['path']
         }
         options = baseline.json()['filter_options']
@@ -157,7 +158,7 @@ def test_recipient_supplied_groups_cannot_probe_manual_tags(owner_client, tagged
             **params, 'tag_groups': json.dumps({'any': ['coast, ridge']}),
         })
         assert literal.status_code == 200, literal.text
-        assert {photo['path'] for photo in literal.json()['photos']} == {
+        assert set(shared_photo_paths(literal.json()['photos'])) == {
             PREFIX + 'alice/one.jpg', PREFIX + 'alice/two.jpg',
         }
     finally:

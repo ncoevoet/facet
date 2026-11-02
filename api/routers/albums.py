@@ -1170,6 +1170,7 @@ async def get_shared_album(
 ):
     """Public endpoint to view a shared album via token (async)."""
     async with get_async_db() as conn:
+        await conn.execute('BEGIN')
         cur = await conn.execute("SELECT * FROM albums WHERE id = ?", (album_id,))
         album = await cur.fetchone()
         await cur.close()
@@ -1254,6 +1255,17 @@ async def get_shared_album(
         # Membership may depend on private manual tags or other owner criteria.
         # Share the resulting photos, never the owner's saved rule definition.
         result['album'].pop('smart_filter_json', None)
+        from api.shared_assets import project_shared_photos
+        cover = result['album'].pop('cover_photo_path', None)
+        result['album']['cover_asset_id'] = None
+        if cover:
+            cover_result = await _fetch_album_photos(conn, album, None, 1, 1, sort, sort_dir,
+                                                     include_manual=False, member_path=cover)
+            if cover_result['photos']:
+                cover_photo = (await project_shared_photos(conn, album_id, token, cover_result['photos']))[0]
+                result['album']['cover_asset_id'] = cover_photo['asset_id']
+        result['photos'] = await project_shared_photos(conn, album_id, token, result['photos'])
+
         result['effective_sort'] = sort
         result['effective_sort_direction'] = sort_dir
         result['proofing_enabled'] = (
@@ -1266,7 +1278,7 @@ async def get_shared_album(
             # owner's current membership; ordinary library routes stay private.
             'downloads': 'album_member_original',
             'photo_metadata': True,
-            'native_paths': True,
+            'native_paths': False,
             'manual_tags': False,
             'saved_rules': False,
             'password_protected': False,

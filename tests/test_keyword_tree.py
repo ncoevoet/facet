@@ -1,5 +1,6 @@
 """Authorized hierarchy discovery and branch query semantics on real catalog rows."""
 
+from tests.shared_asset_helpers import shared_photo_paths
 import sqlite3
 import json
 from pathlib import Path
@@ -106,7 +107,7 @@ def test_saved_branch_membership_works_for_owner_and_shared_album_without_exposi
         assert shared.status_code == 200, shared.text
         viewed = TestClient(create_app()).get(f'/api/shared/album/{album}', params={'token': shared.json()['share_token']})
         assert viewed.status_code == 200, viewed.text
-        assert {photo['path'] for photo in viewed.json()['photos']} == set(paths[:2])
+        assert set(shared_photo_paths(viewed.json()['photos'])) == set(paths[:2])
         assert 'smart_filter_json' not in viewed.json()['album']
     finally:
         edition_client.delete(f'/api/albums/{album}')

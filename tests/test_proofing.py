@@ -99,6 +99,14 @@ def _mint(client, album_id, token=SHARE_TOKEN, pin="", client_name=""):
     )
 
 
+def _asset(albums, path=PHOTO_IN_ALBUM):
+    from api.shared_assets import shared_asset_reference
+
+    with _connect() as conn:
+        row_id = conn.execute('SELECT rowid FROM photos WHERE path=?', (path,)).fetchone()[0]
+    return shared_asset_reference(albums['manual_id'], SHARE_TOKEN, row_id, path)
+
+
 def _bearer(session_token):
     return {"Authorization": f"Bearer {session_token}"}
 
@@ -167,17 +175,17 @@ class TestPicks:
         album_id = albums["manual_id"]
         resp = client.put(
             f"/api/shared/album/{album_id}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True, "comment": "love it"},
+            json={"asset_id": _asset(albums), "picked": True, "comment": "love it"},
             headers=_bearer(token),
         )
         assert resp.status_code == 200
-        assert resp.json() == {"ok": True, "path": PHOTO_IN_ALBUM, "picked": True}
+        assert resp.json() == {"ok": True, "asset_id": _asset(albums), "picked": True}
 
         resp = client.get(f"/api/shared/album/{album_id}/picks", headers=_bearer(token))
         assert resp.status_code == 200
         body = resp.json()
         assert body["count"] == 1
-        assert body["picks"][0]["path"] == PHOTO_IN_ALBUM
+        assert body["picks"][0]["asset_id"] == _asset(albums)
         assert body["picks"][0]["picked"] is True
         assert body["picks"][0]["comment"] == "love it"
         assert body["picks"][0]["client_name"] == "Bob"
@@ -187,13 +195,13 @@ class TestPicks:
         album_id = albums["manual_id"]
         client.put(
             f"/api/shared/album/{album_id}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True, "comment": "keep me"},
+            json={"asset_id": _asset(albums), "picked": True, "comment": "keep me"},
             headers=_bearer(token),
         )
         # Toggle without a comment — the stored comment must survive
         resp = client.put(
             f"/api/shared/album/{album_id}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": False},
+            json={"asset_id": _asset(albums), "picked": False},
             headers=_bearer(token),
         )
         assert resp.status_code == 200
@@ -211,7 +219,7 @@ class TestPicks:
         token = self._session(client, albums)
         resp = client.put(
             f"/api/shared/album/{albums['manual_id']}/picks",
-            json={"path": PHOTO_OUTSIDE, "picked": True},
+            json={"asset_id": _asset(albums, PHOTO_OUTSIDE), "picked": True},
             headers=_bearer(token),
         )
         assert resp.status_code == 400
@@ -223,7 +231,7 @@ class TestPicks:
         token = resp.json()["session_token"]
         resp = client.put(
             f"/api/shared/album/{albums['smart_id']}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True},
+            json={"asset_id": _asset(albums), "picked": True},
             headers=_bearer(token),
         )
         assert resp.status_code == 400
@@ -232,7 +240,7 @@ class TestPicks:
     def test_pick_requires_session(self, client, proofing_on, albums):
         resp = client.put(
             f"/api/shared/album/{albums['manual_id']}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True},
+            json={"asset_id": _asset(albums), "picked": True},
         )
         assert resp.status_code == 403
 
@@ -240,7 +248,7 @@ class TestPicks:
         token = self._session(client, albums)
         resp = client.put(
             f"/api/shared/album/{albums['smart_id']}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True},
+            json={"asset_id": _asset(albums), "picked": True},
             headers=_bearer(token),
         )
         assert resp.status_code == 403
@@ -266,7 +274,7 @@ class TestPicks:
         for path in (PHOTO_IN_ALBUM, PHOTO_IN_ALBUM_2):
             resp = client.put(
                 f"/api/shared/album/{album_id}/picks",
-                json={"path": path, "picked": True, "comment": "pick"},
+                json={"asset_id": _asset(albums, path), "picked": True, "comment": "pick"},
                 headers=_bearer(token),
             )
             assert resp.status_code == 200
@@ -280,7 +288,7 @@ class TestOwnerPicks:
         token = _mint(client, albums["manual_id"], client_name="Carol").json()["session_token"]
         client.put(
             f"/api/shared/album/{albums['manual_id']}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True, "comment": "print this one"},
+            json={"asset_id": _asset(albums), "picked": True, "comment": "print this one"},
             headers=_bearer(token),
         )
 
@@ -354,7 +362,7 @@ class TestShareRevocation:
         conn.close()
         resp = client.put(
             f"/api/shared/album/{albums['manual_id']}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True},
+            json={"asset_id": _asset(albums), "picked": True},
             headers=_bearer(token),
         )
         assert resp.status_code == 403
@@ -369,7 +377,7 @@ class TestShareRevocation:
         try:
             resp = client.put(
                 f"/api/shared/album/{albums['manual_id']}/picks",
-                json={"path": PHOTO_IN_ALBUM, "picked": True},
+                json={"asset_id": _asset(albums), "picked": True},
                 headers=_bearer(token),
             )
         finally:
@@ -392,7 +400,7 @@ class TestSessionRateLimitAndRole:
         # A valid edition JWT is not a share_client token → require_share_client 403s.
         resp = edition_client.put(
             f"/api/shared/album/{albums['manual_id']}/picks",
-            json={"path": PHOTO_IN_ALBUM, "picked": True},
+            json={"asset_id": _asset(albums), "picked": True},
         )
         assert resp.status_code == 403
 
@@ -400,3 +408,43 @@ class TestSessionRateLimitAndRole:
         proofing_on["pin"] = "1234"
         resp = _mint(client, albums["manual_id"], token="clé-partagée-😀", pin="pîn")
         assert resp.status_code == 403
+
+
+def test_public_picks_use_assets_and_old_session_is_revoked_by_share_rotation(client, proofing_on, albums):
+    album_id = albums['manual_id']
+    listing = client.get(f'/api/shared/album/{album_id}', params={'token': SHARE_TOKEN})
+    assert listing.status_code == 200, listing.text
+    assert PHOTO_IN_ALBUM not in listing.text
+    asset = next(photo for photo in listing.json()['photos'] if photo['filename'] == 'in_album.jpg')['asset_id']
+    session = _mint(client, album_id).json()['session_token']
+    headers = _bearer(session)
+    picked = client.put(f'/api/shared/album/{album_id}/picks', headers=headers,
+                        json={'asset_id': asset, 'picked': True, 'comment': 'selected'})
+    assert picked.status_code == 200, picked.text
+    assert picked.json()['asset_id'] == asset and PHOTO_IN_ALBUM not in picked.text
+    picks = client.get(f'/api/shared/album/{album_id}/picks', headers=headers)
+    assert picks.status_code == 200 and picks.json()['picks'][0]['asset_id'] == asset
+    assert PHOTO_IN_ALBUM not in picks.text
+    with _connect() as conn:
+        assert conn.execute('SELECT photo_path FROM album_client_picks WHERE album_id=?', (album_id,)).fetchone()[0] == PHOTO_IN_ALBUM
+        conn.execute('UPDATE albums SET share_token=? WHERE id=?', ('regenerated-token', album_id))
+        conn.commit()
+    assert client.get(f'/api/shared/album/{album_id}/picks', headers=headers).status_code == 403
+    assert client.put(f'/api/shared/album/{album_id}/picks', headers=headers,
+                      json={'asset_id': asset, 'picked': False}).status_code == 403
+
+
+def test_public_picks_hide_removed_members_and_refuse_stale_asset(client, proofing_on, albums):
+    album = albums['manual_id']
+    asset = _asset(albums)
+    headers = _bearer(_mint(client, album).json()['session_token'])
+    url = f'/api/shared/album/{album}/picks'
+    assert client.put(url, headers=headers, json={'asset_id': asset, 'picked': True}).status_code == 200
+    with _connect() as conn:
+        conn.execute('DELETE FROM album_photos WHERE album_id=? AND photo_path=?', (album, PHOTO_IN_ALBUM))
+    response = client.get(url, headers=headers)
+    assert response.status_code == 200 and response.json() == {'picks': [], 'count': 0}
+    assert client.put(url, headers=headers, json={'asset_id': asset, 'picked': False}).status_code == 400
+    with _connect() as conn:
+        assert conn.execute('SELECT picked FROM album_client_picks WHERE album_id=? AND photo_path=?',
+                            (album, PHOTO_IN_ALBUM)).fetchone()[0] == 1

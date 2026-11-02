@@ -1,3 +1,4 @@
+import { sharedAssetPhoto, type SharedAsset } from '../../shared/utils/shared-album-media';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 import { ApiService } from './api.service';
@@ -45,6 +46,8 @@ export interface AlbumPhotosResponse {
   per_page: number;
   has_more: boolean;
 }
+
+type SharedAlbum = Omit<Album, 'cover_photo_path' | 'first_photo_path' | 'smart_filter_json'> & { cover_asset_id: string | null };
 
 @Injectable({ providedIn: 'root' })
 export class AlbumService {
@@ -102,10 +105,10 @@ export class AlbumService {
     return this.api.delete(`/albums/${albumId}/share`);
   }
 
-  getShared(albumId: number, token: string): Observable<{ album: Album; photos: Photo[]; total: number }> {
+  getShared(albumId: number, token: string): Observable<{ album: SharedAlbum; photos: Photo[]; total: number }> {
     return this.api
-      .get<{ album: Album; photos: Photo[]; total: number }>(`/shared/album/${albumId}`, { token })
-      .pipe(map(res => ({ ...res, photos: normalisePhotoFlagsAll(res.photos ?? []) })));
+      .get<{ album: SharedAlbum; photos: SharedAsset[]; total: number }>(`/shared/album/${albumId}`, { token })
+      .pipe(map(res => ({ ...res, photos: normalisePhotoFlagsAll((res.photos ?? []).map(sharedAssetPhoto)) })));
   }
 
   /** Set the album's scoring context; materializes it onto member photos (last-write-wins). */

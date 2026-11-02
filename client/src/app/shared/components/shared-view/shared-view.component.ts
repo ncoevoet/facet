@@ -1,3 +1,4 @@
+import { sharedAssetPhoto, type SharedAsset } from '../../utils/shared-album-media';
 import { Component, inject, signal, computed, OnInit, effect, viewChild, DestroyRef, ElementRef, afterNextRender, ChangeDetectionStrategy } from '@angular/core';
 import { NgTemplateOutlet, NgClass } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
@@ -56,7 +57,7 @@ interface FilterOptions {
 
 interface SharedAlbumResponse {
   album: { id: number; name: string; description: string; is_smart?: boolean };
-  photos: Photo[];
+  photos: SharedAsset[];
   total: number;
   page: number;
   per_page: number;
@@ -70,7 +71,7 @@ interface SharedAlbumResponse {
 }
 
 interface SharedPick {
-  path: string;
+  asset_id: string;
   picked: boolean;
   comment: string | null;
 }
@@ -956,8 +957,8 @@ export class SharedViewComponent implements OnInit {
       const picked = new Set<string>();
       const comments = new Map<string, string>();
       for (const pick of res.picks) {
-        if (pick.picked) picked.add(pick.path);
-        if (pick.comment) comments.set(pick.path, pick.comment);
+        if (pick.picked) picked.add(pick.asset_id);
+        if (pick.comment) comments.set(pick.asset_id, pick.comment);
       }
       this.pickedPaths.set(picked);
       this.pickComments.set(comments);
@@ -971,7 +972,7 @@ export class SharedViewComponent implements OnInit {
     try {
       await firstValueFrom(this.http.put(
         `/api/shared/album/${this.entityId}/picks`,
-        comment === undefined ? { path, picked } : { path, picked, comment },
+        comment === undefined ? { asset_id: path, picked } : { asset_id: path, picked, comment },
         { headers: this.proofingHeaders() },
       ));
       return true;
@@ -1028,7 +1029,7 @@ export class SharedViewComponent implements OnInit {
     this.router.navigate(
       [`/shared/album/${this.entityId}/photo`],
       {
-        queryParams: { path: photo.path, token: this.token },
+        queryParams: { asset_id: photo.path, token: this.token },
         state: { photo },
       },
     );
@@ -1116,7 +1117,7 @@ export class SharedViewComponent implements OnInit {
       this.filterOptions.set(res.filter_options);
     }
 
-    this.applyPhotos(res.photos, append);
+    this.applyPhotos(res.photos.map(sharedAssetPhoto), append);
   }
 
   private applyPhotos(wirePhotos: Photo[], append: boolean): void {

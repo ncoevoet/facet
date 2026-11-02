@@ -3,10 +3,10 @@ merge-suggestions and scenes endpoints."""
 
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from api.models.common import PaginationEnvelope
-from api.models.gallery import Photo
+from api.models.gallery import Photo, SharedPhoto
 
 
 class AlbumPhotosResponse(PaginationEnvelope):
@@ -29,6 +29,14 @@ class Album(BaseModel):
     updated_at: Optional[str] = None
     is_shared: bool
     scoring_context: Optional[str] = None
+
+
+class SharedAlbum(Album):
+    """Recipient album projection never includes native cover paths or saved rules."""
+
+    cover_photo_path: Optional[str] = Field(None, exclude=True)
+    smart_filter_json: Optional[str] = Field(None, exclude=True)
+    cover_asset_id: Optional[str] = None
 
 
 class AlbumFilterOptionItem(BaseModel):
@@ -72,8 +80,8 @@ class SharedAlbumResponse(PaginationEnvelope):
     off the wire on every other request rather than sending them as null.
     """
 
-    photos: list[Photo]
-    album: Album
+    photos: list[SharedPhoto]
+    album: SharedAlbum
     effective_sort: str
     effective_sort_direction: str
     proofing_enabled: bool

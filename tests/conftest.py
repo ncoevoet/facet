@@ -398,7 +398,7 @@ ALBUM_OWNER = "test"  # the user_id the edition_client fixture authenticates as
 def photo_names(resp):
     """Basenames of the ``photos`` in a gallery/album response, in response order."""
     assert resp.status_code == 200, resp.text
-    return [p["path"].rsplit("/", 1)[1] for p in resp.json()["photos"]]
+    return [p["filename"] for p in resp.json()["photos"]]
 
 
 @pytest.fixture()

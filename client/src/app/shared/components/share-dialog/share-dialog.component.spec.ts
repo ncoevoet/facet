@@ -16,7 +16,7 @@ describe('ShareDialogComponent', () => {
   let mockDialogRef: { close: Mock };
   const status = signal({ owner: 'root' });
   const policy = { membership: 'manual', membership_can_change: true, downloads: 'album_member_original',
-    photo_metadata: true, native_paths: true, manual_tags: false, saved_rules: false,
+    photo_metadata: true, native_paths: false, manual_tags: false, saved_rules: false,
     password_protected: false, expires_at: null, proofing: false };
 
   function createComponent(data: ShareDialogData) {

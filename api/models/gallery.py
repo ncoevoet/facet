@@ -19,7 +19,7 @@ class PhotoPerson(BaseModel):
     name: str
 
 
-class Photo(BaseModel):
+class PhotoMetadata(BaseModel):
     """A photo row exactly as the gallery endpoints put it on the wire.
 
     Every column-backed field carries the SQLite affinity of its column in
@@ -51,7 +51,6 @@ class Photo(BaseModel):
     ``similarity``, which stays the blended embedding/FTS value.
     """
 
-    path: str
     preview_revision: Optional[str] = None
     filename: Optional[str] = None
     date_taken: Optional[str] = None
@@ -155,6 +154,18 @@ class Photo(BaseModel):
     stack_revision: Optional[int] = None
 
     model_config = {'from_attributes': True}
+
+
+class Photo(PhotoMetadata):
+    """Authenticated catalog photo identity and metadata."""
+
+    path: str
+
+
+class SharedPhoto(PhotoMetadata):
+    """Public album asset metadata, with no native filesystem path."""
+
+    asset_id: str
 
 
 class HiddenSummary(BaseModel):
