@@ -247,12 +247,25 @@ export function loadActiveTab(): SidebarTabId {
   template: `
 <div class="shrink-0 px-3 border-b border-[var(--mat-sys-outline-variant)]">
 
-      <div class="py-2 flex items-center gap-2">
+      <div class="relative py-2 flex items-center gap-2">
         <span class="text-sm font-medium opacity-80">{{ I18N.gallery.filters | translate }}</span>
         @if (totalActiveCount()) {
           <span data-test="active-count" class="text-xs rounded min-w-5 h-5 px-1.5 flex items-center justify-center bg-[var(--mat-sys-surface-container-high)] text-[var(--mat-sys-on-surface)] tabular-nums leading-none">{{ totalActiveCount() }}</span>
         }
         <span class="flex-1"></span>
+        <details #countHelp data-count-help class="shrink-0">
+          <summary #countSummary (keydown.escape)="countHelp.open = false; countSummary.focus(); $event.stopPropagation()" class="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-full hover:bg-[var(--mat-sys-surface-container-high)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)] [&::-webkit-details-marker]:hidden"
+            [attr.aria-label]="I18N.gallery.sidebar.count_scope | translate"
+            [title]="I18N.gallery.sidebar.count_scope | translate">
+            <mat-icon class="!text-xl !w-5 !h-5 !leading-5" aria-hidden="true">info_outline</mat-icon>
+          </summary>
+          <div class="absolute right-0 top-full z-30 w-64 max-w-[calc(100vw-2rem)] rounded-lg border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 text-xs leading-5 text-[var(--mat-sys-on-surface)] shadow-lg">
+            <p class="m-0 font-medium">{{ I18N.gallery.sidebar.count_scope | translate }}</p>
+            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_options | translate }}</p>
+            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_types | translate }}</p>
+            <p class="mb-0 mt-1">{{ I18N.gallery.sidebar.count_scope_badges | translate }}</p>
+          </div>
+        </details>
         @if (totalActiveCount()) {
           <button mat-button data-test="reset" class="!min-w-0 !px-2 !text-xs"
             [matTooltip]="I18N.gallery.sidebar.reset_tooltip | translate"

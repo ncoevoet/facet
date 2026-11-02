@@ -675,6 +675,23 @@ describe('GalleryFilterSidebarComponent', () => {
       settle();
     };
 
+    it('keeps count scope help compact until opened and restores focus on Escape', () => {
+      const help = fixture.nativeElement.querySelector('[data-count-help]') as HTMLDetailsElement;
+      const summary = help.querySelector('summary')!;
+      expect(help.open).toBe(false);
+      expect(summary.getAttribute('aria-label')).toBe('gallery.sidebar.count_scope');
+      summary.click(); settle();
+      expect(help.open).toBe(true);
+      expect(help.textContent).toContain('gallery.sidebar.count_scope_options');
+      expect(help.textContent).toContain('gallery.sidebar.count_scope_types');
+      expect(help.textContent).toContain('gallery.sidebar.count_scope_badges');
+      summary.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); settle();
+      expect(help.open).toBe(false);
+      expect(summary.ownerDocument.activeElement).toBe(summary);
+      expect(store['updateFilter']).not.toHaveBeenCalled();
+      expect(store['updateFilters']).not.toHaveBeenCalled();
+    });
+
     it('moves a pinned range into one shared section without changing its active value or duplicating IDs', async () => {
       component = fixture.componentInstance;
       component.selectTab('quality'); settle();

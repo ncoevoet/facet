@@ -1294,6 +1294,10 @@ export const I18N = {
     },
     composition_pattern: "gallery.composition_pattern",
     sidebar: {
+      count_scope: "gallery.sidebar.count_scope",
+      count_scope_options: "gallery.sidebar.count_scope_options",
+      count_scope_types: "gallery.sidebar.count_scope_types",
+      count_scope_badges: "gallery.sidebar.count_scope_badges",
       display: "gallery.sidebar.display",
       categories: "gallery.sidebar.categories",
       equipment: "gallery.sidebar.equipment",

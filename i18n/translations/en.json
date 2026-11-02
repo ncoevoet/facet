@@ -1280,6 +1280,10 @@
     },
     "composition_pattern": "Composition",
     "sidebar": {
+      "count_scope": "What the counts mean",
+      "count_scope_options": "Camera, lens, tag, person, composition and color counts are photo frequencies across your accessible library. They do not narrow with the current search, folder, album or other filters.",
+      "count_scope_types": "Type counts also apply the hide-blinks and collapsed-group preferences. Album counts describe album membership.",
+      "count_scope_badges": "The Filters and tab badges count active criteria, not photos. Matching photos and displayed items are shown above the gallery.",
       "display": "Display Options",
       "categories": "Categories",
       "equipment": "Equipment",
