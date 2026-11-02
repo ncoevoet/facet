@@ -83,6 +83,8 @@ def _key(path):
 
 
 def _packet_ownership(disk, packets, directories, budget):
+    if not packets:
+        return
     from api.raw_processing import _companion_entry_path
     from processing.xmp_import import _image_key, _sidecar_stems
     from utils.image_loading import WATCHABLE_IMAGE_EXTENSIONS
