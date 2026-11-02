@@ -1051,9 +1051,6 @@
     "read_only_hint": "Read-only: set viewer.edition_password in scoring_config.json to enable rating, culling and editing, then restart the viewer."
   },
   "nav": {
-    "sidebar_hidden": "Sidebar hidden",
-    "sidebar_compact": "Compact sidebar",
-    "sidebar_pinned": "Pinned sidebar",
     "gallery": "Gallery",
     "gallery_tooltip": "Gallery (double-click to reset filters)",
     "stats": "Statistics",
@@ -1070,8 +1067,7 @@
     "help": "Help",
     "more": "More",
     "navigation": "Navigation",
-    "pin_navigation": "Pin navigation open",
-    "unpin_navigation": "Unpin navigation"
+    "page_actions": "Page actions"
   },
   "auth": {
     "logout": "Log out",
@@ -1251,7 +1247,6 @@
       "move_bar_help": "Drag this handle or use the arrow keys to move the toolbar. Hold Shift for larger steps. Home resets its position. Escape cancels a drag.",
       "select": "Select",
       "outside_loaded": "Selected outside loaded tiles: {count}. Actions apply to the entire selection.",
-      "compare_loaded": "Compare needs 2–4 explicitly selected photos present in the loaded tiles.",
       "exclusions": "Whole-view exclusions: {count}.",
       "count": "{count} selected",
       "cleared_by_view": "Selection cleared because the view changed.",
@@ -1718,7 +1713,7 @@
       "remove": "Omit",
       "unrepresented": "Not translated into filters",
       "acknowledge": "Use only the represented criteria; leave these clauses out",
-      "whole_view": "Clear whole-view selection before changing its query. Explicit photo selections stay selected.",
+      "whole_view": "Clear whole-view selection before changing its query. Changing the query also clears explicit photo selections.",
       "apply": "Apply filters",
       "changed": "The collection or account changed. Ask for a fresh proposal.",
       "load_error": "The filters were applied, but results could not be loaded. Use the gallery retry.",

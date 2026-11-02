@@ -336,13 +336,16 @@ const SET_KIND_TOGGLE: Record<string, keyof HiddenFilterFlags> = {
                     [attr.aria-pressed]="selectingPhotos()" (click)="toggleMobileSelection()">
               {{ (selectingPhotos() ? I18N.ui.buttons.cancel : I18N.gallery.selection.select) | translate }}
             </button>
+          </div>
+          <div data-collection-actions class="order-4 flex w-full flex-wrap items-center gap-1 border-t border-[var(--mat-sys-outline-variant)] pt-2 lg:order-none lg:w-auto lg:border-0 lg:pt-0">
+            <ng-container [ngTemplateOutlet]="collectionViewControls.primaryControls()" />
+            <ng-container [ngTemplateOutlet]="galleryLayoutButtons" />
             <ng-container [ngTemplateOutlet]="collectionViewControls.filterControls()" />
             <details #collectionOptions data-collection-options tabindex="-1" class="relative shrink-0"
                      (keydown.escape)="collectionOptions.open = false; collectionOptionsSummary.focus(); $event.preventDefault(); $event.stopPropagation()">
               <summary #collectionOptionsSummary class="flex min-h-11 cursor-pointer list-none items-center justify-center gap-1 rounded px-2 text-sm hover:bg-[var(--mat-sys-surface-container)]" [attr.aria-label]="I18N.gallery.collection_controls | translate"><mat-icon aria-hidden="true" class="!text-xl !h-5 !w-5">tune</mat-icon><span>{{ I18N.gallery.collection_view | translate }}</span></summary>
               <div class="absolute right-0 top-full z-30 max-h-[70dvh] w-80 max-w-[calc(100vw-2rem)] overflow-y-auto rounded border border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container)] p-3 shadow-lg">
-                <div class="mb-2 flex items-center gap-1 border-b border-[var(--mat-sys-outline-variant)] pb-2"><ng-container [ngTemplateOutlet]="galleryLayoutButtons" /></div>
-                <app-gallery-view-controls #collectionViewControls [portFilters]="true" class="shrink-0" />
+                <app-gallery-view-controls #collectionViewControls [portPrimary]="true" [portFilters]="true" class="shrink-0" />
                 <ng-container [ngTemplateOutlet]="collectionCriteria.shortcuts()" />
               </div>
             </details>
@@ -2088,16 +2091,11 @@ export class GalleryComponent implements OnInit, OnDestroy {
     const navigation = this.resumeNavigation;
     let interacted = false;
     const veto = () => { interacted = true; };
-    const cleanup = () => {
-      document.removeEventListener('pointerdown', veto, true);
-      document.removeEventListener('keydown', veto, true);
-      document.removeEventListener('wheel', veto, true);
-      document.removeEventListener('touchstart', veto, true);
-    };
-    document.addEventListener('pointerdown', veto, true);
-    document.addEventListener('keydown', veto, true);
-    document.addEventListener('wheel', veto, { capture: true, passive: true });
-    document.addEventListener('touchstart', veto, { capture: true, passive: true });
+    const controller = new window.AbortController();
+    const cleanup = () => controller.abort();
+    for (const event of ['pointerdown', 'keydown', 'wheel', 'touchstart']) {
+      document.addEventListener(event, veto, { capture: true, passive: true, signal: controller.signal });
+    }
     const unregister = this.destroyRef.onDestroy(cleanup);
     requestAnimationFrame(() => requestAnimationFrame(() => {
       try {

@@ -1,172 +1,60 @@
 <div class="flex flex-col h-dvh">
-<mat-menu #applicationNavigationMenu="matMenu">
-<ng-template matMenuContent>
- @if (navigationWide.isDesktop()) {
-  @for (mode of navigationModes; track mode.id) {
-   <button mat-menu-item role="menuitemradio" [attr.aria-checked]="navigationMode() === mode.id" [attr.data-navigation-mode]="mode.id" (click)="setNavigationMode(mode.id, $event)"><mat-icon>{{ navigationMode() === mode.id ? 'check' : mode.icon }}</mat-icon>{{ mode.label | translate }}</button>
-  }
-  <mat-divider />
- }
-
-          <a mat-menu-item  routerLink="/"     [style.color]="isGalleryRoute() ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [class.!bg-[var(--mat-sys-secondary-container)]]="isGalleryRoute()" [attr.aria-current]="isGalleryRoute() ? 'page' : null" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
-            <mat-icon>diamond</mat-icon><span >{{ I18N.nav.gallery | translate }}</span>
+  <mat-menu #applicationNavigationMenu="matMenu">
+    <ng-template matMenuContent>
+    @for (destination of navigationDestinations(); track destination.path) {
+      <a mat-menu-item [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
+         [class.!text-[var(--mat-sys-primary)]]="destination.active">
+        <mat-icon>{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
+      </a>
+    }
+    @if (store.config()?.features?.show_memories && hasMemories()) {
+      <button mat-menu-item (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+    }
+    @if (auth.isEdition()) {
+      <button mat-menu-item (click)="openOrganizationHistory()"><mat-icon>history</mat-icon>{{ I18N.organization_history.title | translate }}</button>
+    }
+    </ng-template>
+  </mat-menu>
+  <mat-menu #secondaryNavigationMenu="matMenu">
+    <ng-template matMenuContent>
+    @for (destination of secondaryDestinations(); track destination.path) {
+      <a mat-menu-item [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
+         [class.!text-[var(--mat-sys-primary)]]="destination.active">
+        <mat-icon>{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
+      </a>
+    }
+    @if (store.config()?.features?.show_memories && hasMemories()) {
+      <button mat-menu-item (click)="playMemories()"><mat-icon>auto_awesome</mat-icon>{{ I18N.nav.memories | translate }}</button>
+    }
+    </ng-template>
+  </mat-menu>
+  @if (auth.isAuthenticated() && !isSharedRoute()) {
+    <header data-workspace-navigation class="flex min-h-12 shrink-0 items-center gap-1 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2"
+            [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
+      <button mat-icon-button class="lg:!hidden" data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button>
+      <a routerLink="/" class="flex flex-1 items-center gap-2 px-2 text-sm font-medium no-underline lg:hidden" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon>Facet</a>
+      <nav data-destination-tabs class="hidden min-w-0 flex-1 items-stretch self-stretch overflow-x-auto lg:flex" [attr.aria-label]="I18N.nav.navigation | translate">
+        @for (destination of primaryDestinations(); track destination.path) {
+          <a [routerLink]="destination.path" [attr.aria-current]="destination.active ? 'page' : null"
+             class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 border-transparent px-3 text-sm font-medium text-[var(--mat-sys-on-surface-variant)] no-underline hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-[var(--mat-sys-primary)]"
+             [class.!border-[var(--mat-sys-primary)]]="destination.active" [class.!text-[var(--mat-sys-primary)]]="destination.active">
+            <mat-icon aria-hidden="true" class="hidden xl:inline-flex">{{ destination.icon }}</mat-icon>{{ destination.label | translate }}
           </a>
-          @if (store.config()?.features?.show_albums) {
-            <a mat-menu-item  routerLink="/albums" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.albums | translate" [attr.aria-label]="I18N.nav.albums | translate">
-              <mat-icon>photo_album</mat-icon><span >{{ I18N.nav.albums | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_capsules) {
-            <a mat-menu-item  routerLink="/capsules" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlCapsules="routerLinkActive" [style.color]="rlCapsules.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.capsules | translate" [attr.aria-label]="I18N.nav.capsules | translate">
-              <mat-icon>auto_stories</mat-icon><span >{{ I18N.nav.capsules | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_timeline) {
-            <a mat-menu-item  routerLink="/timeline" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.timeline | translate" [attr.aria-label]="I18N.nav.timeline | translate">
-              <mat-icon>view_timeline</mat-icon><span >{{ I18N.nav.timeline | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_folders) {
-            <a mat-menu-item  routerLink="/folders" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.folders | translate" [attr.aria-label]="I18N.nav.folders | translate">
-              <mat-icon>folder</mat-icon><span >{{ I18N.nav.folders | translate }}</span>
-            </a>
-          }
-          <a mat-menu-item  routerLink="/persons" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.persons | translate" [attr.aria-label]="I18N.nav.persons | translate">
-            <mat-icon>people</mat-icon><span >{{ I18N.nav.persons | translate }}</span>
-          </a>
-          @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a mat-menu-item  routerLink="/map" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlMap="routerLinkActive" [style.color]="rlMap.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.map | translate" [attr.aria-label]="I18N.nav.map | translate">
-              <mat-icon>map</mat-icon><span >{{ I18N.nav.map | translate }}</span>
-            </a>
-          }
-          @if (auth.isEdition()) {
-            <a mat-menu-item  routerLink="/culling" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.culling | translate" [attr.aria-label]="I18N.nav.culling | translate">
-              <mat-icon>burst_mode</mat-icon><span >{{ I18N.nav.culling | translate }}</span>
-            </a>
-            @if (store.config()?.features?.show_junk_sweep) {
-              <a mat-menu-item  routerLink="/junk" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlJunk="routerLinkActive" [style.color]="rlJunk.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.junk_sweep | translate" [attr.aria-label]="I18N.nav.junk_sweep | translate">
-                <mat-icon>delete_sweep</mat-icon><span >{{ I18N.nav.junk_sweep | translate }}</span>
-              </a>
-            }
-          }
-          <a mat-menu-item  routerLink="/stats" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.stats | translate" [attr.aria-label]="I18N.nav.stats | translate">
-            <mat-icon>bar_chart</mat-icon><span >{{ I18N.nav.stats | translate }}</span>
-          </a>
-          @if (auth.isEdition()) {
-            <a mat-menu-item  routerLink="/compare" routerLinkActive="!text-[var(--mat-sys-primary)]" ariaCurrentWhenActive="page" #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.compare | translate" [attr.aria-label]="I18N.nav.compare | translate">
-              <mat-icon>compare</mat-icon><span >{{ I18N.nav.compare | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-menu-item  (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate" [attr.aria-label]="I18N.nav.memories | translate">
-              <mat-icon>auto_awesome</mat-icon><span >{{ I18N.nav.memories | translate }}</span>
-            </button>
-          }
-          @if (auth.isEdition()) {
-            <button mat-menu-item  (click)="openOrganizationHistory()" [matTooltip]="I18N.organization_history.title | translate" [attr.aria-label]="I18N.organization_history.title | translate">
-              <mat-icon>history</mat-icon><span >{{ I18N.organization_history.title | translate }}</span>
-            </button>
-          }
-          </ng-template>
-          </mat-menu>
-  @if (auth.isAuthenticated() && !isSharedRoute() && !desktopNavigation()) {
-    <header [class.!border-b-2]="auth.isEdition()" [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null" data-workspace-navigation class="flex h-12 shrink-0 items-center gap-2 border-b border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)] px-2 sm:px-4">
-      <button mat-icon-button data-toggle-navigation data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button>
-      <a routerLink="/" class="flex shrink-0 items-center gap-2 px-2 text-sm font-medium text-[var(--mat-sys-on-surface)] no-underline" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()"><mat-icon aria-hidden="true">diamond</mat-icon><span class="hidden sm:inline">Facet</span></a>
-
-      <div class="flex-1"></div>
-      @if (auth.isEdition()) {
-        <nav><button mat-icon-button (click)="openOrganizationHistory()" [matTooltip]="I18N.organization_history.title | translate" [attr.aria-label]="I18N.organization_history.title | translate"><mat-icon>history</mat-icon></button></nav>
-      }
-
-
-
-<app-assistant-activity-chip />
-@if (isGalleryRoute()) { @if (myTasteBadge(); as taste) {
-          <button type="button"
-                  class="inline-flex items-center shrink-0 p-1 rounded-full text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
-                  [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
-                  [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">auto_awesome</mat-icon>
-          </button>
-        } }
-<ng-container [ngTemplateOutlet]="accountControls" />
-</header>
-  }
-
-  @if (auth.isAuthenticated() && !isSharedRoute() && desktopNavigation()) {
-    <aside tabindex="-1" data-expandable-navigation [class.!w-48]="navigationExpanded()" (mouseenter)="navigationHover.set(true)" (mouseleave)="navigationHover.set(false)" (focusin)="navigationFocused.set(true)" (focusout)="onNavigationFocusOut($event)" (keydown.escape)="collapseNavigationPreview()" class="hidden lg:flex fixed top-0 bottom-0 left-0 z-40 w-14 overflow-hidden flex-col border-r border-[var(--mat-sys-outline-variant)] bg-[var(--mat-sys-surface-container-low)]">
-<div class="flex h-12 shrink-0 items-center px-1"><button mat-icon-button data-toggle-navigation data-mobile-navigation [matMenuTriggerFor]="applicationNavigationMenu" [attr.aria-label]="I18N.nav.navigation | translate"><mat-icon>menu</mat-icon></button></div>
-      <nav class="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-2 pb-4" [attr.aria-label]="I18N.nav.navigation | translate">
-          <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/"     [style.color]="isGalleryRoute() ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [class.!bg-[var(--mat-sys-secondary-container)]]="isGalleryRoute()" [attr.aria-current]="isGalleryRoute() ? 'page' : null" [matTooltip]="I18N.nav.gallery_tooltip | translate" [attr.aria-label]="I18N.nav.gallery_tooltip | translate" (dblclick)="resetAllFilters()">
-            <mat-icon>diamond</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.gallery | translate }}</span>
-          </a>
-          @if (store.config()?.features?.show_albums) {
-            <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/albums" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlAlbums="routerLinkActive" [style.color]="rlAlbums.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.albums | translate" [attr.aria-label]="I18N.nav.albums | translate">
-              <mat-icon>photo_album</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.albums | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_capsules) {
-            <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/capsules" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlCapsules="routerLinkActive" [style.color]="rlCapsules.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.capsules | translate" [attr.aria-label]="I18N.nav.capsules | translate">
-              <mat-icon>auto_stories</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.capsules | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_timeline) {
-            <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/timeline" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlTimeline="routerLinkActive" [style.color]="rlTimeline.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.timeline | translate" [attr.aria-label]="I18N.nav.timeline | translate">
-              <mat-icon>view_timeline</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.timeline | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_folders) {
-            <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/folders" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlFolders="routerLinkActive" [style.color]="rlFolders.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.folders | translate" [attr.aria-label]="I18N.nav.folders | translate">
-              <mat-icon>folder</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.folders | translate }}</span>
-            </a>
-          }
-          <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/persons" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlPersons="routerLinkActive" [style.color]="rlPersons.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.persons | translate" [attr.aria-label]="I18N.nav.persons | translate">
-            <mat-icon>people</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.persons | translate }}</span>
-          </a>
-          @if (store.config()?.features?.show_map && hasGeoPhotos()) {
-            <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/map" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlMap="routerLinkActive" [style.color]="rlMap.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.map | translate" [attr.aria-label]="I18N.nav.map | translate">
-              <mat-icon>map</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.map | translate }}</span>
-            </a>
-          }
-          @if (auth.isEdition()) {
-            <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/culling" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlCulling="routerLinkActive" [style.color]="rlCulling.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.culling | translate" [attr.aria-label]="I18N.nav.culling | translate">
-              <mat-icon>burst_mode</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.culling | translate }}</span>
-            </a>
-            @if (store.config()?.features?.show_junk_sweep) {
-              <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/junk" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlJunk="routerLinkActive" [style.color]="rlJunk.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.junk_sweep | translate" [attr.aria-label]="I18N.nav.junk_sweep | translate">
-                <mat-icon>delete_sweep</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.junk_sweep | translate }}</span>
-              </a>
-            }
-          }
-          <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/stats" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlStats="routerLinkActive" [style.color]="rlStats.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.stats | translate" [attr.aria-label]="I18N.nav.stats | translate">
-            <mat-icon>bar_chart</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.stats | translate }}</span>
-          </a>
-          @if (auth.isEdition()) {
-            <a mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm" routerLink="/compare" routerLinkActive="!bg-[var(--mat-sys-secondary-container)]" ariaCurrentWhenActive="page" #rlCompare="routerLinkActive" [style.color]="rlCompare.isActive ? 'var(--mat-sys-primary)' : 'var(--mat-sys-on-surface)'" [matTooltip]="I18N.nav.compare | translate" [attr.aria-label]="I18N.nav.compare | translate">
-              <mat-icon>compare</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.compare | translate }}</span>
-            </a>
-          }
-          @if (store.config()?.features?.show_memories && hasMemories()) {
-            <button mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm !text-[var(--mat-sys-on-surface)]" (click)="playMemories()" [matTooltip]="I18N.memories.tooltip | translate" [attr.aria-label]="I18N.nav.memories | translate">
-              <mat-icon>auto_awesome</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.nav.memories | translate }}</span>
-            </button>
-          }
-          @if (auth.isEdition()) {
-            <button mat-button class="!flex !justify-start !w-full !h-11 !px-2 !rounded-lg gap-3 text-sm !text-[var(--mat-sys-on-surface)]" (click)="openOrganizationHistory()" [matTooltip]="I18N.organization_history.title | translate" [attr.aria-label]="I18N.organization_history.title | translate">
-              <mat-icon>history</mat-icon><span class="truncate" [class.hidden]="!navigationExpanded()">{{ I18N.organization_history.title | translate }}</span>
-            </button>
-          }
+        }
       </nav>
-      <div class="mt-auto flex shrink-0 flex-col items-start gap-1 px-1 py-2 border-t border-[var(--mat-sys-outline-variant)]"><app-assistant-activity-chip />@if (isGalleryRoute()) { @if (myTasteBadge(); as taste) {
-          <button type="button"
-                  class="inline-flex items-center shrink-0 p-1 rounded-full text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)] transition-colors"
-                  [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
-                  [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }">
-            <mat-icon class="!text-xl !w-5 !h-5 !leading-5">auto_awesome</mat-icon>
-          </button>
-        } }<ng-container [ngTemplateOutlet]="accountControls" /></div>
-    </aside>
+      <button mat-button data-more-destinations class="!hidden lg:!inline-flex shrink-0" [matMenuTriggerFor]="secondaryNavigationMenu" [attr.aria-label]="I18N.nav.more | translate"
+              [class.!text-[var(--mat-sys-primary)]]="secondaryDestinationActive()"><mat-icon>more_horiz</mat-icon>{{ I18N.nav.more | translate }}</button>
+      @if (auth.isEdition()) {
+        <button mat-icon-button (click)="openOrganizationHistory()" [matTooltip]="I18N.organization_history.title | translate" [attr.aria-label]="I18N.organization_history.title | translate"><mat-icon>history</mat-icon></button>
+      }
+      <app-assistant-activity-chip />
+      @if (isGalleryRoute()) { @if (myTasteBadge(); as taste) {
+        <button type="button" class="inline-flex shrink-0 rounded-full p-1 text-amber-400 hover:bg-[var(--mat-sys-surface-container-high)]"
+                [matTooltip]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"
+                [attr.aria-label]="I18N.gallery.my_taste_badge_tooltip | translate:{ comparisons: taste.comparisons, accuracy: taste.accuracy ?? '—', baseline: taste.baseline ?? '—' }"><mat-icon aria-hidden="true">auto_awesome</mat-icon></button>
+      } }
+      <ng-container [ngTemplateOutlet]="accountControls" />
+    </header>
   }
 
   <!-- Toolbar (hidden on shared routes) -->
@@ -175,10 +63,8 @@
        library, and the only prior signal was a small amber shield among ten
        icons. The bar is there from unlock until lock, sitting exactly on the
        border the toolbar already draws, in the selected theme's accent. -->
-  <mat-toolbar class="shrink-0 !w-auto !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
+  <mat-toolbar data-page-actions [attr.aria-label]="I18N.nav.page_actions | translate" class="shrink-0 !w-auto !px-2 !bg-[var(--mat-sys-surface-container)] border-b border-[var(--mat-sys-outline-variant)]"
                [class.max-lg:!hidden]="auth.isAuthenticated() && isAlbumsRoute()"
-               [class.lg:ml-14]="auth.isAuthenticated() && desktopNavigation() && !navigationPinned()"
-               [class.lg:ml-48]="auth.isAuthenticated() && desktopNavigation() && navigationPinned()"
                [class.!border-b-2]="auth.isEdition()"
                [style.border-bottom-color]="auth.isEdition() ? 'var(--facet-accent)' : null">
     <div class="flex items-center gap-3 w-full">
@@ -296,7 +182,7 @@
 
 
   <!-- Main content -->
-  <main [class.lg:ml-14]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && !navigationPinned()" [class.lg:ml-48]="auth.isAuthenticated() && !isSharedRoute() && navigationVisible() && navigationPinned()" class="flex-1 min-h-0 overflow-auto lg:pb-0" [class.pb-14]="isAlbumsRoute() || isPersonsRoute() || isCapsuleRoute() || isTimelineRoute()">
+  <main class="flex-1 min-h-0 overflow-auto lg:pb-0" [class.pb-14]="isAlbumsRoute() || isPersonsRoute() || isCapsuleRoute() || isTimelineRoute()">
     <router-outlet />
   </main>
 

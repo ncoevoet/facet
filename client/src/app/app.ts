@@ -1,8 +1,7 @@
-import { afterNextRender, Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
-import { useDesktopSignal } from './shared/utils/media-query';
+import { Component, inject, computed, signal, effect, untracked, OnInit, ChangeDetectionStrategy, DestroyRef } from '@angular/core';
 import { DecimalPipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Router, RouterOutlet, RouterLink, RouterLinkActive, NavigationEnd } from '@angular/router';
+import { Router, RouterOutlet, RouterLink, NavigationEnd } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { filter, map, firstValueFrom } from 'rxjs';
 import { MatSnackBar } from '@angular/material/snack-bar';
@@ -123,7 +122,6 @@ export class EditionDialogComponent {
     AssistantActivityChipComponent,
     RouterOutlet,
     RouterLink,
-    RouterLinkActive,
     MatToolbarModule,
     MatSidenavModule,
     MatIconModule,
@@ -215,49 +213,29 @@ export class App implements OnInit {
   protected readonly compareFilters = inject(CompareFiltersService);
   protected readonly mapFilters = inject(MapFiltersService);
   protected readonly capsuleFilters = inject(CapsuleFiltersService);
-  protected readonly navigationVisible = signal(false);
-  protected readonly navigationWide = useDesktopSignal({ breakpointPx: 1024 });
-  protected readonly desktopNavigation = computed(() => this.navigationVisible() && this.navigationWide.isDesktop());
-  protected readonly navigationPinned = signal(false);
-  protected readonly navigationHover = signal(false);
-  protected readonly navigationFocused = signal(false);
-  protected readonly navigationExpanded = computed(() => this.navigationPinned() || this.navigationHover() || this.navigationFocused());
+  protected readonly navigationDestinations = computed(() => {
+    const features = this.store.config()?.features;
+    const path = this.url().split(/[?#]/)[0];
+    return [
+      { path: '/', icon: 'diamond', label: I18N.nav.gallery, primary: true, visible: true },
+      { path: '/albums', icon: 'photo_album', label: I18N.nav.albums, primary: true, visible: features?.show_albums },
+      { path: '/capsules', icon: 'auto_stories', label: I18N.nav.capsules, primary: true, visible: features?.show_capsules },
+      { path: '/timeline', icon: 'view_timeline', label: I18N.nav.timeline, primary: true, visible: features?.show_timeline },
+      { path: '/folders', icon: 'folder', label: I18N.nav.folders, primary: true, visible: features?.show_folders },
+      { path: '/persons', icon: 'people', label: I18N.nav.persons, primary: true, visible: true },
+      { path: '/map', icon: 'map', label: I18N.nav.map, primary: false, visible: features?.show_map && this.hasGeoPhotos() },
+      { path: '/culling', icon: 'burst_mode', label: I18N.nav.culling, primary: false, visible: this.auth.isEdition() },
+      { path: '/junk', icon: 'delete_sweep', label: I18N.nav.junk_sweep, primary: false, visible: this.auth.isEdition() && features?.show_junk_sweep },
+      { path: '/stats', icon: 'bar_chart', label: I18N.nav.stats, primary: false, visible: true },
+      { path: '/compare', icon: 'compare', label: I18N.nav.compare, primary: false, visible: this.auth.isEdition() },
+    ].filter(item => item.visible).map(item => ({ ...item,
+      active: item.path === '/' ? this.isGalleryRoute() : path === item.path || path.startsWith(item.path + '/'),
+    }));
+  });
+  protected readonly primaryDestinations = computed(() => this.navigationDestinations().filter(item => item.primary));
+  protected readonly secondaryDestinations = computed(() => this.navigationDestinations().filter(item => !item.primary));
+  protected readonly secondaryDestinationActive = computed(() => this.secondaryDestinations().some(item => item.active));
 
-  protected readonly navigationMode = computed(() => !this.navigationVisible() ? 'hidden' : this.navigationPinned() ? 'pinned' : 'compact');
-  protected readonly navigationModes = [
-    { id: 'hidden', icon: 'menu_open', label: I18N.nav.sidebar_hidden },
-    { id: 'compact', icon: 'view_sidebar', label: I18N.nav.sidebar_compact },
-    { id: 'pinned', icon: 'push_pin', label: I18N.nav.sidebar_pinned },
-  ] as const;
-
-  protected setNavigationMode(mode: 'hidden' | 'compact' | 'pinned', event?: MouseEvent): void {
-    const focused = document.activeElement;
-    this.navigationVisible.set(mode !== 'hidden');
-    this.navigationPinned.set(mode === 'pinned');
-    this.navigationHover.set(false);
-    this.navigationFocused.set(false);
-    // Restoring pointer focus would keep compact navigation expanded after the
-    // mouse leaves. Keyboard/assistive activation needs continuity across owners.
-    if (!event || event.detail !== 0) return;
-    requestAnimationFrame(() => {
-      if (this.destroyRef.destroyed) return;
-      const current = document.activeElement;
-      if (current !== document.body && current !== focused && current?.isConnected) return;
-      document.querySelector<HTMLElement>('[data-toggle-navigation]')?.focus();
-    });
-  }
-
-  protected collapseNavigationPreview(): void {
-    this.navigationHover.set(false);
-    this.navigationFocused.set(false);
-  }
-
-
-  protected onNavigationFocusOut(event: FocusEvent): void {
-    if (!(event.relatedTarget instanceof Node) || !(event.currentTarget as HTMLElement).contains(event.relatedTarget)) {
-      this.navigationFocused.set(false);
-    }
-  }
   protected readonly mobileAlbumsSearchOpen = signal(false);
   protected readonly mobilePersonsSearchOpen = signal(false);
   protected readonly hasBurstGroups = signal(false);
@@ -397,8 +375,6 @@ export class App implements OnInit {
   private lastAuthKey: string | null = null;
 
   constructor() {
-    afterNextRender(() => this.navigationWide.setup());
-    this.destroyRef.onDestroy(() => this.navigationWide.cleanup());
     // When the signed-in identity or its rights change (login, edition grant or
     // drop), re-fetch the viewer config so config-derived nav/features reflect the
     // new rights immediately — refreshConfig() leaves the user's filters intact.

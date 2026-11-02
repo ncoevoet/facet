@@ -567,7 +567,7 @@ describe('App', () => {
 
     it.each([[true], [false]])('offers Organization history in the nav exactly while edition is %s', (edition) => {
       const { root } = render(edition);
-      const buttons = root.querySelectorAll(`nav button[aria-label="${I18N.organization_history.title}"]`);
+      const buttons = root.querySelectorAll(`header button[aria-label="${I18N.organization_history.title}"]`);
       expect(buttons.length).toBe(edition ? 1 : 0);
     });
 
@@ -586,13 +586,10 @@ describe('App', () => {
 
     it('marks the gallery workspace current across real query and album navigation', async () => {
       const { fixture, root } = render(false);
-      const app = fixture.componentInstance as any;
-      app.navigationWide.isDesktop = signal(true);
-      app.setNavigationMode('pinned');
       const router = TestBed.inject(Router);
       router.resetConfig([{ path: '', component: NavigationFixturePage }, { path: 'album/:albumId', component: NavigationFixturePage }, { path: 'other', component: NavigationFixturePage }]);
       await router.navigateByUrl('/?search=single'); fixture.detectChanges();
-      const link = root.querySelector<HTMLAnchorElement>('[data-expandable-navigation] a[href="/"]')!;
+      const link = root.querySelector<HTMLAnchorElement>('[data-destination-tabs] a[href="/"]')!;
       expect(link.getAttribute('aria-current')).toBe('page');
       await router.navigateByUrl('/album/17?tag=trip'); fixture.detectChanges();
       expect(link.getAttribute('aria-current')).toBe('page');
@@ -600,66 +597,34 @@ describe('App', () => {
       expect(link.getAttribute('aria-current')).toBeNull();
     });
 
-    it('restores keyboard focus across navigation owners without latching pointer focus', () => {
-      const { fixture, root } = render(false);
-      const app = fixture.componentInstance as any;
-      app.navigationWide.isDesktop = signal(true);
-      const callbacks: FrameRequestCallback[] = [];
-      const frame = vi.spyOn(globalThis, 'requestAnimationFrame').mockImplementation(callback => { callbacks.push(callback); return 1; });
-      try {
-        app.setNavigationMode('compact', new MouseEvent('click', { detail: 0 }));
-        const restoreFocus = callbacks.at(-1)!;
-        fixture.detectChanges();
-        restoreFocus(0);
-        expect(document.activeElement).toBe(root.querySelector('[data-toggle-navigation]'));
-        const beforePointer = callbacks.length;
-        app.setNavigationMode('hidden', new MouseEvent('click', { detail: 1 }));
-        fixture.detectChanges();
-        for (const callback of callbacks.slice(beforePointer)) callback(0);
-        expect(document.activeElement).not.toBe(root.querySelector('[data-toggle-navigation]'));
-      } finally { frame.mockRestore(); }
+    it('shows destination tabs and keeps secondary destinations in More', async () => {
+      const { fixture, root } = render(true);
+      const tabs = root.querySelector('[data-destination-tabs]')!;
+      expect(tabs.querySelector('a[href="/"]')).not.toBeNull();
+      expect(tabs.querySelector('a[href="/persons"]')).not.toBeNull();
+      expect(tabs.querySelector('a[href="/culling"]')).toBeNull();
+      expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
+      root.querySelector<HTMLButtonElement>('[data-more-destinations]')!.click();
+      fixture.detectChanges(); await fixture.whenStable();
+      expect(document.querySelector('.mat-mdc-menu-panel a[href="/culling"]')).not.toBeNull();
+      expect(document.querySelector('.mat-mdc-menu-panel a[href="/stats"]')).not.toBeNull();
     });
 
-    it('keeps only the hamburger, brand and global controls when navigation is hidden', () => {
- const {root}=render(true);
- const header=root.querySelector<HTMLElement>('header[data-workspace-navigation]')!;
- expect(header).not.toBeNull();expect(root.querySelector('mat-toolbar')).toBeNull();
- expect(header.querySelector('[data-primary-navigation]')).toBeNull();
- expect(header.querySelector('[data-toggle-navigation]')?.getAttribute('aria-haspopup')).toBe('menu');
- expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
- expect(header.querySelector('button[aria-label="'+I18N.auth.user_menu+'"]')).not.toBeNull();
- header.querySelector('a[aria-label="'+I18N.nav.gallery_tooltip+'"]')!.dispatchEvent(new MouseEvent('dblclick'));
- expect(TestBed.inject(GalleryStore).resetFilters).toHaveBeenCalledOnce();
-});
-
-    it('uses one navigation surface and lets the hamburger choose hidden, compact or pinned', async () => {
- const {fixture,root}=render(true);const app=fixture.componentInstance as any;
- app.navigationWide.isDesktop=signal(true);
- const choose=async(mode:string)=>{
-  root.querySelector<HTMLButtonElement>('[data-toggle-navigation]')!.click();fixture.detectChanges();await fixture.whenStable();
-  const button=document.querySelector<HTMLButtonElement>('[data-navigation-mode="'+mode+'"]')!;
-  expect(button).not.toBeNull();button.click();fixture.detectChanges();await fixture.whenStable();fixture.detectChanges();
- };
- await choose('compact');
- let rail=root.querySelector<HTMLElement>('[data-expandable-navigation]')!;const main=root.querySelector('main')!;
- expect(root.querySelector('header[data-workspace-navigation]')).toBeNull();
- expect(rail.querySelector('[data-pin-navigation]')).toBeNull();
- expect(rail.querySelector('button[aria-label="'+I18N.auth.user_menu+'"]')).not.toBeNull();
- expect(main.classList.contains('lg:ml-14')).toBe(true);
- rail.dispatchEvent(new Event('mouseenter'));fixture.detectChanges();
- expect(rail.classList.contains('!w-48')).toBe(true);expect(main.classList.contains('lg:ml-48')).toBe(false);
- rail.dispatchEvent(new Event('mouseleave'));rail.dispatchEvent(new FocusEvent('focusout',{relatedTarget:document.body}));fixture.detectChanges();
- expect(rail.classList.contains('!w-48')).toBe(false);
- await choose('pinned');rail=root.querySelector('[data-expandable-navigation]')!;
- expect(main.classList.contains('lg:ml-48')).toBe(true);expect(rail.classList.contains('!w-48')).toBe(true);
- await choose('hidden');expect(root.querySelector('[data-expandable-navigation]')).toBeNull();
- expect(root.querySelector('header[data-workspace-navigation]')).not.toBeNull();expect(main.classList.contains('lg:ml-48')).toBe(false);
-});
+    it('updates primary destination tabs when configured features change', () => {
+      const { fixture, root } = render(false);
+      const store = TestBed.inject(GalleryStore) as unknown as { config: ReturnType<typeof signal<unknown>> };
+      expect(root.querySelector('[data-destination-tabs] a[href="/albums"]')).toBeNull();
+      store.config.set({ features: { show_albums: true, show_timeline: true } });
+      fixture.detectChanges();
+      expect(root.querySelector('[data-destination-tabs] a[href="/albums"]')).not.toBeNull();
+      expect(root.querySelector('[data-destination-tabs] a[href="/timeline"]')).not.toBeNull();
+      expect(root.querySelector('[data-destination-tabs] a[href="/folders"]')).toBeNull();
+    });
 
     it('removes editing destinations immediately when edition access is lost', async () => {
       const { fixture, root } = render(true);
       const auth = TestBed.inject(AuthService) as unknown as { isEdition: ReturnType<typeof signal<boolean>> };
-      root.querySelector<HTMLButtonElement>('[data-toggle-navigation]')!.click();
+      root.querySelector<HTMLButtonElement>('[data-mobile-navigation]')!.click();
       fixture.detectChanges(); await fixture.whenStable();
       expect(document.querySelector('.mat-mdc-menu-panel a[href="/culling"]')).not.toBeNull();
       auth.isEdition.set(false);
@@ -693,7 +658,7 @@ describe('App', () => {
       const { root } = render(true);
       const dialog = TestBed.inject(MatDialog) as unknown as { open: ReturnType<typeof vi.fn> };
       dialog.open.mockReturnValue(historyRef(restored));
-      root.querySelector<HTMLButtonElement>(`nav button[aria-label="${I18N.organization_history.title}"]`)!.click();
+      root.querySelector<HTMLButtonElement>(`header button[aria-label="${I18N.organization_history.title}"]`)!.click();
       await vi.waitFor(() => expect(dialog.open).toHaveBeenCalledTimes(1));
       await new Promise<void>(resolve => setTimeout(resolve, 0));
       expect(TestBed.inject(GalleryStore).notifyOrganizationRestored).toHaveBeenCalledTimes(notifies);

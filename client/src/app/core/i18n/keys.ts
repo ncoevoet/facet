@@ -1065,9 +1065,6 @@ export const I18N = {
     read_only_hint: "edition.read_only_hint",
   },
   nav: {
-    sidebar_hidden: "nav.sidebar_hidden",
-    sidebar_compact: "nav.sidebar_compact",
-    sidebar_pinned: "nav.sidebar_pinned",
     gallery: "nav.gallery",
     gallery_tooltip: "nav.gallery_tooltip",
     stats: "nav.stats",
@@ -1084,8 +1081,7 @@ export const I18N = {
     help: "nav.help",
     more: "nav.more",
     navigation: "nav.navigation",
-    pin_navigation: "nav.pin_navigation",
-    unpin_navigation: "nav.unpin_navigation",
+    page_actions: "nav.page_actions",
   },
   auth: {
     logout: "auth.logout",
@@ -1265,7 +1261,6 @@ export const I18N = {
       move_bar_help: "gallery.selection.move_bar_help",
       select: "gallery.selection.select",
       outside_loaded: "gallery.selection.outside_loaded",
-      compare_loaded: "gallery.selection.compare_loaded",
       exclusions: "gallery.selection.exclusions",
       count: "gallery.selection.count",
       cleared_by_view: "gallery.selection.cleared_by_view",

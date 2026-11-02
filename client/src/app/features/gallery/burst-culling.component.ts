@@ -1863,7 +1863,7 @@ export class BurstCullingComponent implements OnDestroy {
   protected readonly legendVisible = signal(localStorage.getItem(CULL_LEGEND_KEY) === 'true');
 
   /** Focus peaking over the darkroom frames (P). Session-only, like the compare
-   *  mode and the style preview — none of the darkroom's view toggles persist. */
+   *  mode and the style preview; legend and loupe preferences are remembered. */
   protected readonly peakingActive = signal(false);
   /** Hover loupe over the darkroom's single/compare panes and face strip. ON
    *  by default (unlike the grid's own loupe toggle, which defaults off) and

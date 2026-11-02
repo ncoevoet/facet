@@ -398,7 +398,7 @@ describe('GalleryComponent', () => {
     fixture.destroy(); root.remove();
   });
 
-  it('keeps Filters direct and groups sort and layout under View without duplicating their owner', () => {
+  it('keeps sort, layout and Filters direct with one collection controls owner', () => {
     mockStore.selectedPaths.set(new Set(['/selected.jpg'])); mockStore.selectionCount.set(1);
     const fixture = TestBed.createComponent(GalleryComponent);
     Object.defineProperty(fixture.componentInstance, 'isDesktop', { value: signal(false) });
@@ -407,12 +407,13 @@ describe('GalleryComponent', () => {
     const actions = root.querySelector('[data-collection-options]')!;
     expect(root.querySelectorAll('app-gallery-view-controls')).toHaveLength(1);
     expect(root.querySelectorAll('[data-collection-sort]')).toHaveLength(1);
-    expect(actions.querySelector('[data-collection-sort]')).not.toBeNull();
+    expect(actions.querySelector('[data-collection-sort]')).toBeNull();
+    expect(root.querySelector('[data-collection-actions] [data-collection-sort]')).not.toBeNull();
     const filter = root.querySelector<HTMLButtonElement>(`button[aria-label="${I18N.gallery.filters}"]`)!;
     expect(actions.contains(filter)).toBe(false);
     filter.click();
     expect(mockStore.setFilterDrawerOpen).toHaveBeenCalledExactlyOnceWith(true);
-    actions.querySelector<HTMLButtonElement>('[data-gallery-layout="grid"]')!.click();
+    root.querySelector<HTMLButtonElement>('[data-collection-actions] [data-gallery-layout="grid"]')!.click();
     expect(mockStore.setGalleryMode).toHaveBeenCalledExactlyOnceWith('grid');
     expect([...mockStore.selectedPaths()]).toEqual(['/selected.jpg']);
     fixture.destroy();

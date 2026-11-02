@@ -885,3 +885,15 @@ def test_discovery_partial_group_hides_private_members_and_review(edition_client
     assert mapped.status_code == 200, mapped.text
     assert bundle['paths'][1] not in mapped.text
     assert mapped.json()['clusters'][0]['count'] == 1
+
+
+def test_text_search_with_logical_pair_keeps_fts_row_identity(edition_client, bundle):
+    """The logical projection must retain the physical primary's FTS join key."""
+    submit(edition_client, bundle, draft(edition_client, bundle), acknowledge_review_conflicts=True).raise_for_status()
+    query = {'search': 'capture', 'hide_bursts': '0', 'hide_duplicates': '0'}
+    response = edition_client.get('/api/photos', params=query)
+    assert response.status_code == 200, response.text
+    members = [photo['path'] for photo in response.json()['photos'] if photo['path'] in bundle['paths']]
+    assert members == [bundle['primary_path']]
+    progress = edition_client.get('/api/photos/review_progress', params=query)
+    assert progress.status_code == 200, progress.text

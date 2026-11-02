@@ -83,7 +83,7 @@ def source(columns, *, owner, multi_user, visibility_sql, visibility_params=(), 
         WHERE NOT EXISTS (
             SELECT 1 FROM logical_asset_members m WHERE m.asset_id=a.id AND NOT EXISTS (
                 SELECT 1 FROM photos WHERE photos.path=m.photo_path AND ({visibility_sql})))
-    ) SELECT {",".join(select)},g.id AS _logical_asset_id,
+    ) SELECT p.rowid AS rowid,{",".join(select)},g.id AS _logical_asset_id,
              g.primary_path AS _logical_primary_path,g.revision AS _logical_group_revision
       FROM photos p
       LEFT JOIN logical_asset_members membership ON membership.photo_path=p.path

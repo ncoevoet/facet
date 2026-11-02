@@ -1026,9 +1026,6 @@
     "read_only_hint": "只读：请在 scoring_config.json 中设置 viewer.edition_password，以启用评分、筛选和编辑，然后重启查看器。"
   },
   "nav": {
-    "sidebar_hidden": "隐藏侧栏",
-    "sidebar_compact": "紧凑侧栏",
-    "sidebar_pinned": "固定侧栏",
     "gallery": "照片库",
     "gallery_tooltip": "照片库（双击重置筛选条件）",
     "stats": "统计",
@@ -1045,8 +1042,7 @@
     "help": "帮助",
     "more": "更多",
     "navigation": "导航",
-    "pin_navigation": "固定展开导航",
-    "unpin_navigation": "取消固定导航"
+    "page_actions": "页面操作"
   },
   "auth": {
     "logout": "退出登录",
@@ -1074,7 +1070,27 @@
       "exact": "元数据筛选",
       "pinned": "这是固定照片列表。更改条件前请返回常用视图。",
       "similarity": "相似性阈值",
-      "no_location": "无位置"
+      "no_location": "无位置",
+      "logic": {
+        "title": "匹配逻辑",
+        "filtered": "筛选后的视图",
+        "all_groups": "生效的元数据筛选组以 AND 组合，照片必须满足每个组。显示设置只改变呈现方式，不改变匹配条件。",
+        "all_people": "照片必须包含所有选中的人物",
+        "text": "文本可匹配文件名、说明、标签、相机、镜头、类别或已命名人物。有索引的图库在索引字段中匹配词前缀；人物姓名和手动标签还将完整输入文本作为子串匹配。没有此索引的图库使用子串匹配。",
+        "tag": "这是一个标签值，用于匹配 AI 或手动添加的标签。其中的逗号不会创建“任一”组。没有标签索引的旧图库可能对 AI 标签使用子串匹配。",
+        "literal_text": "输入 AND、OR 或 NOT 不会创建布尔筛选组。文本搜索中的标点用于分隔索引词；标签值中的标点仍属于该值。",
+        "smart_album": "智能相册：这些是当前工作条件，可能与已保存的规则不同。细化此视图不会改写已保存的规则。",
+        "manual_album": "手动相册：仅相册成员照片符合条件。这些工作筛选进一步缩小成员范围。",
+        "set_scope": "临时照片集合范围也会限制此视图。",
+        "visibility": "实际生效的可见性规则",
+        "hidden_values": "不可用指标上的已保存值：{count}。重置筛选也会清除这些值。",
+        "similar_help": "相似度搜索覆盖整个图库；集合筛选已暂停。关闭相似照片或更改集合筛选即可恢复。",
+        "similar_paused": "相似度按所选模式和阈值排列获准访问的图库照片。相册成员范围、元数据筛选、可见性规则及集合排序均已暂停。下列值保留供图库使用。更改集合筛选或排序将退出相似照片。",
+        "paused_people": "选中的人物（已暂停）",
+        "paused_visibility": "保留的可见性规则（已暂停）",
+        "type_defaults": "此照片类型提供已配置的筛选默认值。显式工作值可覆盖各项默认值；它不是字面标签。",
+        "any_people": "照片包含任一选中人物即可匹配"
+      }
     },
     "presentation": {
       "label": "显示",
@@ -1201,7 +1217,6 @@
     "selection": {
       "cover_only": "此选择中的堆叠图块仅作用于所显示的照片。打开堆叠即可选择其中的其他成员。",
       "outside_loaded": "已加载图块以外的选择：{count}。操作适用于整个选择。",
-      "compare_loaded": "比较需要明确选中 2–4 张已加载图块中的照片。",
       "exclusions": "整个视图的排除数量：{count}。",
       "count": "已选 {count} 张",
       "cleared_by_view": "视图已更改，已清除选择。",
@@ -1252,7 +1267,11 @@
         "loaded": "已加载照片组的摘要：{shown} / {total}。此处不汇总屏幕外的选择。",
         "manual": "手动堆叠",
         "stack_count": "匹配：{matching} · 可访问：{total}"
-      }
+      },
+      "move_bar": "移动选择工具栏",
+      "move_bar_help": "拖动此手柄或使用方向键移动工具栏。按住 Shift 可加大步长。Home 重置位置，Escape 取消拖动。",
+      "compare_queue_limit": "最多选择 {max} 张照片进行比较。",
+      "compare_queue_requirements": "比较需要明确选择已加载缩略图中的 2–{max} 张照片。"
     },
     "keep_top": {
       "label": "保留前若干 %",
@@ -1408,6 +1427,17 @@
         "quality_tier": "由汇总分得出的质量等级：优秀、良好、一般或较差。",
         "color_temp": "照片整体的色偏：暖、冷或中性。",
         "hue_bucket": "照片的主色调，归入八个色系。"
+      },
+      "count_scope": "计数的含义",
+      "count_scope_options": "相机、镜头、标签、人物、构图和颜色计数表示整个可访问图库中的照片频次，不会随当前搜索、文件夹、相册或其他筛选缩小。",
+      "count_scope_types": "类型计数还应用隐藏闭眼照片和折叠组的偏好。相册计数表示相册成员。",
+      "count_scope_badges": "“筛选”和选项卡徽标统计的是生效条件而非照片。匹配照片数和已显示项目数位于图库上方。",
+      "pins": {
+        "title": "固定控件",
+        "hint": "最多 {max} 个控件。固定控件不会保存筛选值。",
+        "add": "固定 {name} 控件",
+        "remove": "取消固定 {name} 控件",
+        "limit": "最多可固定 {max} 个控件。请先取消固定一个再添加。"
       }
     },
     "semantic_search_info": "首次使用语义搜索时，会将特征向量载入内存。照片库较大时可能需要稍等。",
@@ -1540,7 +1570,11 @@
       },
       "assign_target": "选择要替换的一侧",
       "assign_hint": "选择一个缩略图作为{target}。",
-      "assign_photo": "将 {name} 用作{target}"
+      "assign_photo": "将 {name} 用作{target}",
+      "queue_total": "本次比较包含 {count} 张照片",
+      "pane_c": "面板 C",
+      "pane_d": "面板 D",
+      "assign_pane_hint": "先选择面板，再选择缩略图。正在分配：{target}。"
     },
     "clipping": {
       "badge_highlight": "高光溢出：{percent}% 的像素",
@@ -1600,7 +1634,76 @@
     "review_navigation": {
       "advance": "保存后前进",
       "help": "仅本次会话：通过键盘评分、保留或拒绝并保存成功后，前进到下一张照片。收藏操作不会前进。"
-    }
+    },
+    "people_match": {
+      "title": "匹配选中的人物",
+      "all": "所有选中的人物",
+      "any": "任一选中的人物",
+      "hint": "“所有”要求同一张照片包含全部选中人物。“任一”包含至少一位选中人物的照片。",
+      "limit": "每组最多选择 {max} 位人物。请先移除一位再添加。"
+    },
+    "tag_groups": {
+      "title": "标签规则",
+      "hint": "各组以 AND 组合。名称匹配完整标签；添加规则不会创建标签。",
+      "add_to": "添加到组",
+      "name": "标签名称",
+      "add": "添加规则",
+      "any": "其中任一",
+      "all": "其中全部",
+      "none": "以上皆非",
+      "limit": "所有组总共最多使用 {max} 个标签名称。",
+      "invalid_name": "请输入非空文本，最多 {max} 个字符，不含控制字符。",
+      "invalid": "这些标签规则无效。请清除以恢复。",
+      "remove": "移除 {name} 的规则",
+      "clear": "清除标签规则"
+    },
+    "no_capture_date": "无拍摄日期",
+    "measurements": {
+      "title": "测量值可用性",
+      "help": "范围默认排除缺失值。“包含缺失值”会同时保留缺失照片和范围匹配照片。“仅缺失值”暂停该测量的范围筛选。其他筛选仍然有效。缺失仅表示没有已保存的值，原因未知。",
+      "metric": "测量值",
+      "policy": "显示",
+      "default": "默认范围行为",
+      "include_missing": "范围匹配及缺失值",
+      "missing_only": "仅缺失值",
+      "measured_only": "仅已测量值",
+      "invalid": "这些测量策略无效。请清除以恢复。",
+      "clear": "清除测量策略"
+    },
+    "collection_view": "视图",
+    "layout_list": "元数据列表",
+    "metadata": {
+      "not_recorded": "未记录",
+      "lens": "镜头",
+      "photo_actions": "照片操作",
+      "unrated": "未评分",
+      "undecided": "未决定"
+    },
+    "proposal": {
+      "title": "审阅建议筛选",
+      "replace": "用已配置的默认值及这些条件替换当前细化条件。",
+      "merge": "将这些条件添加到当前集合，现有筛选规则仍然生效。",
+      "reset": "将此筛选恢复为配置的默认值",
+      "remove_named": "从此建议中省略 {name}",
+      "remove": "省略",
+      "unrepresented": "未转换为筛选",
+      "acknowledge": "仅使用已表示的条件，忽略这些子句",
+      "whole_view": "更改查询前，请清除整视图选择。更改查询也会清除明确选中的照片。",
+      "apply": "应用筛选",
+      "changed": "集合或账户已更改。请请求新的建议。",
+      "load_error": "筛选已应用，但无法加载结果。请使用图库的重试操作。",
+      "fraction": "取值为 0 到 1 的小数；语义阈值最大为 0.5。",
+      "effective": "当前视图的变化",
+      "empty": "无",
+      "conflict": "这些条件无法同时满足。请省略或修正冲突字段：",
+      "retry": "重试加载结果",
+      "invalid": "应用前请检查条件及其允许值。"
+    },
+    "zero_stars": "0 星",
+    "zero_stars_clear": "仅显示 0 星。点击清除星级筛选。",
+    "zero_stars_help_title": "关于零星评分",
+    "zero_stars_help": "匹配当前评分范围中的数值零，包括未设置个人评分的情况。未知的目录评分仍为不可用。这不表示从未评分。个人账户不会回退使用目录或其他人的评分；“元数据来源”显示已记录的来源。",
+    "semantic_search_help": "关于视觉搜索"
   },
   "composition_patterns": {
     "none": "无",
@@ -1917,7 +2020,72 @@
     "running": "运行中",
     "completed": "已完成",
     "failed": "失败",
-    "idle": "空闲"
+    "idle": "空闲",
+    "status_unavailable": "扫描状态不可用，扫描可能仍在运行。重新读取状态不会重启扫描。",
+    "retry_status": "重新读取扫描状态",
+    "checking_status": "正在检查扫描状态…",
+    "start_unconfirmed": "无法确认扫描是否已启动。请先检查状态，再启动另一次扫描。",
+    "stopped": "扫描未运行",
+    "last_observed_output": "上次观察到的输出",
+    "status_unknown": "状态未知",
+    "history": {
+      "title": "已记录的扫描",
+      "help": "这是扫描器的运行记录，不能证明所有补充分析都已完成。“运行中”仅为最后记录的状态，并不证明进程仍在运行。日期采用 UTC；— 表示未记录。",
+      "refresh": "重新加载记录",
+      "older": "较早记录",
+      "read_error": "无法读取扫描历史。上次加载的记录可能已过期。",
+      "empty": "没有已记录的扫描运行。",
+      "counts": "已处理 {processed}/{total} · 已记录失败 {failed}",
+      "retained": "保留了 {count} 条失败记录",
+      "completed_failures": "已完成，但存在已记录的失败",
+      "unknown": "已记录状态不可用",
+      "states": {
+        "running": "记录为运行中",
+        "completed": "记录为已完成",
+        "interrupted": "记录为已中断",
+        "failed": "记录为失败"
+      },
+      "stages": {
+        "load": "文件加载",
+        "decode_timeout": "解码超时",
+        "score": "评分",
+        "save": "保存",
+        "composition": "构图分析",
+        "embedding": "嵌入分析",
+        "other": "其他阶段"
+      },
+      "pipeline": "处理流程：{state} · 最后记录阶段：{phase}",
+      "job_identity": "查看器任务 ID"
+    },
+    "stop_button": "停止扫描",
+    "stop_confirm": "停止此次扫描？",
+    "stop_consequence": "已保存的结果将保留。当前工作可能被中断，收尾处理可能无法完成。",
+    "stop_unconfirmed": "无法确认停止请求。请先读取状态后再试。",
+    "stopping": "已请求停止，正在等待进程退出…",
+    "ended_after_stop": "扫描已结束；此前曾请求停止。",
+    "retry": {
+      "preview": "预览失败文件重试",
+      "title": "重试失败文件",
+      "scope": "扫描 #{run} · 已捕获 {count} 个文件",
+      "boundary": "使用当前分析设置重新处理这些文件。每张照片的评分和人脸数据可能改变；已保存的个人编辑保持独立。不会执行整个图库的分组、打标签及其他收尾阶段。",
+      "files": "审阅 {count} 个文件",
+      "more_files": "再显示 20 个",
+      "expiry": "此预览将在 10 分钟后过期。文件或设置发生变化时必须重新预览。",
+      "apply": "确认重试",
+      "expired": "重试预览已过期。请创建新预览。",
+      "preview_error": "无法预览此次运行。请检查保留的失败记录及配置的扫描目录，然后创建新预览。",
+      "submitted": "已提交重试。请查看上方扫描状态；请求已提交不等于扫描已完成。",
+      "read_receipt": "读取重试回执",
+      "unconfirmed": "尚未确认重试是否启动。进行其他操作前请读取回执或扫描状态。系统不会自动重复启动请求。",
+      "not_started": "此次预览未启动重试。请创建新预览以继续。",
+      "omissions": {
+        "missing": "已省略缺失文件",
+        "not_file": "已省略非文件路径",
+        "unsupported": "已省略不支持的文件",
+        "duplicate": "已省略重复目标",
+        "raw_paired": "已省略具有已捕获 JPEG/HEIF 配对文件的 RAW 文件"
+      }
+    }
   },
   "persons": {
     "help": "通过人脸识别检测到的人物。你可以为未命名的人脸组命名、合并重复人物、设置头像或隐藏人物。点击人物可查看其照片。",
@@ -2060,7 +2228,95 @@
     "find_more_fallback_year": "即使只看未分组的面孔，一次需要比较的也太多。请选择一个年份进行搜索。",
     "find_more_year": "年份",
     "sort_faces": "面孔数量",
-    "sort_recent": "最新"
+    "sort_recent": "最新",
+    "review_queue": {
+      "matches": "审阅匹配",
+      "unassigned": "未分配",
+      "total": "上次刷新时未分配的人脸：{count}",
+      "reload": "重新加载人脸",
+      "preview": "审阅 {count} 项分配",
+      "confirm_title": "确认人脸分配",
+      "confirm_help": "仅添加已捕获、未变化且未分配的人脸。现有分配将保留。各人物分别应用；若后续失败，之前的组可能已经完成。",
+      "confirm": "分配选中的人脸",
+      "receipt": "已分配：{assigned} · 已跳过：{skipped}",
+      "uncertain": "部分变更可能已经完成。请先重新加载人脸再继续。",
+      "changed": "此次审阅已变化或无法刷新。请检查回执并重新加载后再继续。",
+      "read_error": "无法加载此次审阅。参考范围过大时，可能需要搜索单个人物或不使用建议进行浏览。",
+      "without_matches": "不使用建议浏览",
+      "no_suggestion": "无建议人物",
+      "open_photo": "在新标签页打开照片",
+      "choose_person": "选择人物",
+      "skip": "暂时跳过",
+      "empty": "当前已加载页面没有剩余人脸。请重新加载或前往下一页。",
+      "about": "关于人脸审阅",
+      "help": "此队列包含尚未分配人物的人脸，而不是未命名的聚类。建议使用当前识别模型中可见的已命名人脸；相似度并不代表身份概率。选择绝不会自动应用。跳过仅在当前已加载页面隐藏人脸，重新加载后会再次出现。在新标签页检查来源照片时，此审阅将保持原位。",
+      "group": "为 {name} 审阅",
+      "face_label": "人脸 {id}",
+      "assign_label": "将人脸 {id} 分配给 {name}",
+      "similarity_label": "{name}，相似度 {value}/100",
+      "model_mismatch": "识别模型不同",
+      "matching_unavailable": "匹配数据不可用",
+      "receipt_details": "回执详情",
+      "already": "已分配给此人物",
+      "missing": "不可用或已无访问权限",
+      "already_assigned": "已分配给其他人物",
+      "face_changed": "人脸在预览后发生变化",
+      "not_person": "不是 {name}",
+      "feedback_saved": "已在你的账户中隐藏此人脸对 {name} 的建议。",
+      "feedback_undo": "撤销反馈"
+    },
+    "face_update": {
+      "title": "更新人脸",
+      "scope": "{count} 张照片没有已检测人脸记录。范围在启动时捕获。",
+      "model": "识别模型：{model}",
+      "start": "开始检测",
+      "progress": "已处理 {processed}/{total} 张照片",
+      "counts": "新增人脸：{added} · 无新增：{empty} · 已跳过：{skipped} · 失败：{failed}",
+      "recorded_only": "这是最后记录的状态；当前查看器工作进程未观察到正在运行的处理进程。",
+      "stop_requested": "已请求停止，正在等待当前操作完成。",
+      "stop_confirm": "停止此次人脸更新？已完成的新增内容将保留。",
+      "stop": "请求停止",
+      "read_status": "读取状态",
+      "retry_request": "重试同一请求",
+      "refresh": "刷新范围和回执",
+      "recent": "最近的人脸更新",
+      "about": "关于更新人脸",
+      "help": "检测已建立索引但没有自动人脸记录的照片，包括先前扫描过但未检测到人脸的照片。保留现有人脸、手动标记和人物分配。此操作更新人脸索引，不更新照片评分；新增分配需另行审阅。当前模型可能需要下载权重。系统会在照片之间以及保存前检查停止请求。对已有脸部记录的照片重新检测是独立操作。待刷新的人物匹配使用已存储向量，不加载检测模型。重新检测使用空间及同模型向量一致性，不构成身份确证。一张照片中的旧人脸或检测人脸超过 512 个时需要手动审阅。后续照片失败时，已完成的照片仍保持已提交状态。",
+      "queued": "等待工作进程",
+      "running": "处理中",
+      "completed": "已完成",
+      "partial": "已完成，但有错误",
+      "cancelled": "已停止",
+      "failed": "失败",
+      "start_unknown": "请求可能已启动。请读取对应的准确回执或重试同一请求；这不会启动重复更新。",
+      "read_error": "无法读取人脸更新状态。请重新读取后再继续。",
+      "model_unavailable": "无法加载识别模型。",
+      "model_changed": "识别模型已更改。请预览新的更新。",
+      "job_error": "工作进程无法完成此次更新。已完成的新增内容仍保留在图库中。",
+      "stop_unknown": "无法确认停止请求。请读取此任务状态后再请求停止。",
+      "start_refused": "无法启动更新。请刷新范围和回执后再发起新请求。",
+      "redetect_receipt": "重新检测现有人脸",
+      "redetect_counts": "已刷新：{refreshed} · 已移除未分配检测：{removed} · 被拒绝处理的照片：{refused}",
+      "pending_matches": "待刷新的人物匹配：{count}",
+      "repair_matches": "刷新人物匹配",
+      "repaired_matches": "已刷新的人物匹配：{count}",
+      "redetect_scope": "{count} 张照片保存有自动检测的人脸。范围在启动时捕获。",
+      "affected": "自动人脸：{automatic} · 已分配：{assigned} · 手动标记：{manual}",
+      "redetect_warning": "手动标记将保留。已分配人脸需要明确且一致的匹配，否则照片保持不变。未分配的检测结果可能被移除。",
+      "redetect_start": "重新检测现有人脸",
+      "more_tools": "更多人脸工具",
+      "missing_mode": "查找缺失的人脸",
+      "review_problems": "审阅问题",
+      "problems_count": "已加载 {shown} 条 · 上次读取的服务器计数：{total}",
+      "problems_error": "无法加载这些问题条目。请重新读取以重试。",
+      "problem_changed": "人脸数据在确认后发生变化；照片保持不变。",
+      "problem_unmatched": "无法唯一匹配某个已分配人脸；照片保持不变。",
+      "problem_identity": "已分配人脸数据与此次检测不一致；照片保持不变。",
+      "problem_complex": "人脸数量超出有界对应检查的限额；照片保持不变。",
+      "problem_geometry": "检测器返回了无法使用的人脸框；照片保持不变。",
+      "problem_source": "来源在处理过程中发生变化；未保存任何检测结果。",
+      "problem_failed": "无法处理此照片；请检查后再重试。"
+    }
   },
   "photo_faces": {
     "unknown": "未知",
@@ -2185,7 +2441,24 @@
       "failed": "无法读取已保存规则。当前视图保持不变。",
       "uncertain": "无法确认是否已保存。请重新加载已保存规则后再试。",
       "reload": "重新加载已保存规则"
-    }
+    },
+    "creation": {
+      "help": "此相册的工作方式",
+      "manual": "手动相册保存你选择的照片。添加或移除成员会改变此集合，原始文件仍保留在原文件夹中。筛选只缩小视图范围，不改变成员。",
+      "smart": "智能相册保存筛选规则，而非固定照片列表。新照片或编辑后的照片会随规则匹配情况加入或离开。原始文件仍保留在原文件夹中。如需固定交付内容，请审阅明确选定的照片集后导出。"
+    },
+    "recipient_policy": "接收者访问权限",
+    "share_smart_scope": "当前有 {count} 张照片匹配此智能相册。匹配照片会随图库或已保存规则的变化而改变。",
+    "share_manual_scope": "此相册当前包含 {count} 张照片。添加或移除成员将改变此链接所展示的内容。",
+    "share_access_policy": "此链接允许查看和下载相册当前的照片，不包含配套 RAW 文件或自定义显影配置。链接未设置密码或到期时间。",
+    "share_proofing_on": "接收者可通过独立的选片会话提交选择和评论。",
+    "share_proofing_off": "此相册未启用接收者选择和评论。",
+    "share_data_disclosure": "会分享哪些信息？",
+    "share_metadata_disclosure": "照片数据可能包含文件名、拍摄日期、相机详情、位置、人物和自动分析。下载的文件可能还包含其他嵌入元数据。",
+    "share_private_exclusions": "相册响应不包含手动标签和已保存的智能相册规则。这不会从下载文件中移除元数据。",
+    "open_recipient_view": "打开接收者视图",
+    "share_operation_error": "无法确认分享操作。分发链接前请重新加载接收者访问权限或检查相册。",
+    "reload_recipient_policy": "重新加载接收者访问权限"
   },
   "critique": {
     "overlay_show": "显示叠加层",
@@ -2354,7 +2627,9 @@
     "normalization_basis": {
       "persisted_percentiles": "已按图库保存的百分位快照进行归一化。",
       "stored_metrics": "使用原始存储的指标值，不进行百分位归一化。"
-    }
+    },
+    "generate_action": "生成 AI 点评",
+    "translate_action": "翻译已保存的 AI 点评"
   },
   "culling": {
     "compare": {
@@ -2442,7 +2717,21 @@
       "empty": "此范围内没有可自动筛选的照片",
       "suggested": "建议值",
       "suggested_tooltip": "根据此范围内的主要拍摄内容推断预设",
-      "preview_updated": "已按建议的{profile}预设更新预览"
+      "preview_updated": "已按建议的{profile}预设更新预览",
+      "policy_label": "现有选择",
+      "preserve": "保留",
+      "replace": "重新考虑",
+      "policy_help": "“保留”不改变现有保留/拒绝、星级和收藏，只为剩余未决定照片制定计划。“重新考虑”将这些照片纳入本次保留/拒绝计划，但保留星级和收藏。已审阅的组不在此范围内。",
+      "existing_summary": "现有选择：{count}。受保护：{preserved}。",
+      "consequences": "检查建议决定",
+      "existing_overflow": "已显示 {count} 项现有选择中的 {shown} 项；其余选择采用相同策略。",
+      "group_plan": "组 {number}：保留 {kept}，拒绝 {rejected}",
+      "group_existing": "此组的现有选择：{count}。",
+      "unchanged": "不变",
+      "highlights_option": "将符合条件的保留照片添加到精选",
+      "preview_changed": "计划或决定已发生变化。应用前请刷新预览。",
+      "apply_uncertain": "无法确认是否已应用。部分变更可能已保存。请刷新预览后再试。",
+      "refresh_preview": "刷新预览"
     },
     "exit_scene": "退出场景",
     "scene_complete": "此场景已完成选片，没有待复核照片",
@@ -2542,7 +2831,8 @@
     },
     "peaking": {
       "label": "峰值对焦",
-      "tooltip": "突出显示当前照片中最清晰的边缘"
+      "tooltip": "突出显示当前照片中最清晰的边缘",
+      "help": "对焦峰值突出基础显示图像中的边缘。在适合窗口模式下使用缩小图像；缩放会改变测量像素。纹理、噪点和锐化都可能产生高亮。此叠加辅助检查，不构成保留/拒绝结论；有意的模糊仍可能值得保留。"
     },
     "legend": {
       "label": "键盘快捷键",
@@ -2611,6 +2901,19 @@
       "choose_pane": "选择窗格 {pane}：{name}",
       "assign_hint": "先选择上方窗格，再选择下方缩略图以替换窗格 {pane}。",
       "assign_photo": "在窗格 {pane} 中显示 {name}"
+    },
+    "workspace": {
+      "clean": "隐藏比较面板",
+      "filmstrip": "候选缩略图条",
+      "closeups": "人脸及主体特写",
+      "link": "联动平移和缩放",
+      "reject_all": "拒绝所有照片…",
+      "reject_all_title": "拒绝此组中的每张照片？",
+      "reject_all_body": "将此组全部 {count} 张照片标记为拒绝。不会删除任何文件。在保存前仍可取消待确认操作。",
+      "restore": "显示比较面板",
+      "reject_sequence_title": "拒绝这些序列帧？",
+      "reject_sequence_body": "这 {count} 张照片中，{sequence_count} 张属于通常保持帧完整的 {kinds} 集合。拒绝它们会覆盖该默认行为。不会删除任何文件。保存前仍可取消待确认操作。",
+      "reject_sequence_confirm": "拒绝所有这些照片"
     }
   },
   "scenes": {
@@ -2653,7 +2956,39 @@
     "months_title": "月份",
     "all_years": "所有年份",
     "no_photos_month": "此月没有照片",
-    "photos_count": "张照片"
+    "photos_count": "张照片",
+    "capture_scope": "拍摄日期 · 可见图库",
+    "scope_help": "计数使用整个图库的拍摄日期和你的可见性设置，不应用相册、标签及搜索筛选。没有拍摄日期的照片单独列出。打开某个时段将显示全部匹配照片，包括被拒绝的照片；手动堆栈可将缩略图分组。",
+    "open_range": "在图库中打开范围",
+    "empty_range": "请在选中的日历时段内选择不晚于结束日期的开始日期，或选择所有日期。",
+    "all_dates": "所有日期",
+    "photo_feed": "照片",
+    "calendar": "日历",
+    "jump_month": "跳转到月份",
+    "newest_first": "最新优先",
+    "oldest_first": "最早优先",
+    "view_day": "查看日期 · {count}",
+    "preview_count": "已显示 {total} 张照片中的 {shown} 张",
+    "load_failed": "无法加载这些日期。请重试。",
+    "retry": "重试",
+    "more_days": "更多日期",
+    "continue_dates": "继续查看后续日期",
+    "density": "日期密度",
+    "log_scale": "对数刻度",
+    "density_years": "按年统计照片",
+    "density_months": "按月统计照片",
+    "density_days": "按日统计照片",
+    "period_count": "{period} · 照片：{count}",
+    "density_keyboard": "激活年份可查看各月，激活月份可查看各日。选择“选择日期范围”可改为指定开始和结束时段。“应用范围”与日期输入框更新相同的拍摄日期筛选。",
+    "range_boundary": "范围边界",
+    "range_start": "开始",
+    "range_end": "结束",
+    "apply_range": "应用范围",
+    "clear_range": "清除选择",
+    "explore_period": "浏览时段",
+    "select_range": "选择日期范围",
+    "density_unit": "时段",
+    "density_weeks": "周（周一至周日）"
   },
   "folders": {
     "help": "按磁盘上的文件夹结构浏览照片。打开文件夹即可查看其中的照片。",
@@ -2936,7 +3271,10 @@
       "unavailable": "不可用",
       "unavailable_help": "不可用表示未返回可用的测量结果，并非零分或低分；此处未提供原因。",
       "group_pick": "本组建议照片",
-      "group_pick_help": "组内建议对这些备选照片进行排序。它不是您的星级，也不自动表示保留。"
+      "group_pick_help": "组内建议对这些备选照片进行排序。它不是您的星级，也不自动表示保留。",
+      "help": "关于这些测量值",
+      "not_applicable": "不适用",
+      "face_iqa_declined_help": "对于人脸质量（IQA），“不适用”表示 TOPIQ NR-Face 在已保存的预览中未找到人脸。其他人脸测量值可能仍然可用。"
     },
     "rendition": {
       "edited": "已调整预览",
@@ -2946,7 +3284,18 @@
       "base_render": "基础显示图像",
       "edited_failed": "已调整预览不可用",
       "source_failed": "源图像不可用"
-    }
+    },
+    "remove_catalog": {
+      "title": "从 Facet 移除？",
+      "action": "从 Facet 移除…",
+      "confirm": "为所有用户从此 Facet 目录中永久移除所选 {count} 张照片及其已保存预览、人脸记录、标签、评分和相册成员关系。此操作无法撤销。原始文件、系统回收站、备份、导出文件及其他浏览器中的副本将保留。后续扫描可重新添加仍然存在的原始文件。仅移除指定照片；配套文件和其他堆栈成员保持不变。",
+      "result": "已从 Facet 移除 {count} 张照片。"
+    },
+    "analysis": "分析",
+    "info": "信息",
+    "unassigned_faces": "未分配人脸：{count}",
+    "tag_refine_collection": "细化此集合",
+    "tag_search_library": "搜索图库"
   },
   "manual_tags": {
     "batch": {
@@ -3055,12 +3404,39 @@
         "metadata_repair": "导出前需要先修复现有元数据。",
         "write_failed": "无法写入元数据。请查看服务器日志。",
         "exiftool_upgrade": "ExifTool 13.23 至 13.27 会损坏 XMP 附属文件。请将 ExifTool 升级到 13.28 或更高版本。",
-        "stopped": "导出意外停止。请查看服务器日志并重试剩余照片。"
+        "stopped": "导出意外停止。请查看服务器日志并重试剩余照片。",
+        "preview_changed": "导出条件已变化。请检查新预览后再继续。"
       },
       "partial": "已完成，但有未完成项目",
       "workspace_title": "处理与导出回执",
       "workspace_hint": "此账户的附属文件回执。关闭此窗口后任务仍会继续运行。请从照片选择或相册开始新的导出。",
-      "receipt_id": "回执"
+      "receipt_id": "回执",
+      "validating": "正在验证导出"
+    },
+    "preview": {
+      "companions": "包含相关 RAW 及旁车文件",
+      "help": "关于导出选项",
+      "guarantees": "文件发生变化可能使导出停止。已完成的文件会保留。中断后，请检查回执及现有输出，再创建新预览。副本保留嵌入元数据；符号链接引用图库文件。",
+      "title": "导出预览",
+      "summary": "已选择 {photos} · 就绪文件 {ready} · 不可用 {missing}",
+      "unavailable": "不可用",
+      "existing": "现有文件",
+      "companion": "相关文件",
+      "metadata": "Facet 元数据",
+      "rating": "XMP 评分",
+      "decision": "决定",
+      "keywords": "Facet 关键词",
+      "faces": "已命名人脸区域",
+      "faces_omitted": "此写入器不支持",
+      "previous": "上一项",
+      "next": "下一项",
+      "uncertain": "确认响应已丢失。开始另一次导出前请检查回执。",
+      "check_receipt": "检查回执",
+      "change": "更改选项",
+      "confirm": "确认导出",
+      "action": "预览导出",
+      "color_label": "XMP 颜色标签",
+      "hierarchical_keywords": "层级关键词"
     }
   },
   "undo": {
@@ -3278,7 +3654,8 @@
     "save_failed": "保存失败，草稿已保留。如果原图已更改或会话已过期，请重新加载预览。",
     "reload": "重新加载编辑器",
     "refresh_failed": "更改已保存，但无法刷新人物信息。请重新加载照片以查看最新信息。",
-    "detected_overlap": "此处已检测到人脸。请关闭此编辑器，使用现有的已检测人脸分配操作。草稿已保留。"
+    "detected_overlap": "此处已检测到人脸。请关闭此编辑器，使用现有的已检测人脸分配操作。草稿已保留。",
+    "same_person_overlap": "此框与分配给同一人物的另一个手动画框重叠。请检查是否应编辑现有框。"
   },
   "assistant_activity": {
     "chip": "助手运行中",
@@ -3416,7 +3793,8 @@
     "reload": "重新加载历史记录",
     "preview_action": "查看还原预览…",
     "restore_preview": "还原此记录：{count} 张照片 · 第 {part}/{parts} 部分。",
-    "restore_boundary": "仅还原这一部分。服务器会检查记录的值和修订版本；发生冲突时不还原任何内容。其他部分需分别操作。"
+    "restore_boundary": "仅还原这一部分。服务器会检查记录的值和修订版本；发生冲突时不还原任何内容。其他部分需分别操作。",
+    "logical_review": "已分组照片审阅"
   },
   "stacks": {
     "review_help": "在暗房中查看建议堆叠。S 在网格中使用建议封面，在暗房中使用当前照片堆叠；Enter 打开照片组或以当前照片堆叠。X 跳过。编辑成员可在保存前调整照片组。堆叠不会改变照片的审核决定。 R 会立即拒绝当前照片并将其从草稿中排除。撤销会恢复审核状态和草稿成员资格。分组需保存后才生效；不保存就离开不会撤销拒绝。",
@@ -3522,5 +3900,127 @@
     "failed": "无法加载诊断，请重试或检查管理员权限。",
     "refresh": "刷新状态",
     "test": "测试连接"
+  },
+  "logical_assets": {
+    "refresh_error": "分组已更新，但无法刷新照片。请返回集合后重试。",
+    "title": "RAW/JPEG 照片",
+    "preserve": "分组为 RAW/JPEG 文件指定一个主文件，不会覆盖现有文件元数据。",
+    "choose_files": "文件",
+    "member_limit": "一张照片最多可选择 16 个文件。",
+    "primary": "主文件",
+    "primary_missing": "原主文件已不属于此照片，尚未选择新的主文件。",
+    "primary_for": "将 {name} 用作主文件",
+    "review_group": "审阅分组",
+    "review_primary": "审阅主文件变更",
+    "ungroup": "审阅取消分组",
+    "preview_ungroup": "恢复独立的照片标识",
+    "confirm_group": "分组文件",
+    "confirm_primary": "设置主文件",
+    "confirm_ungroup": "取消文件分组",
+    "rating": "评分",
+    "favorite": "收藏",
+    "acknowledge": "我已审阅文件之间的评分和决定差异。现有值将保持不变。",
+    "updated": "逻辑照片已更新。",
+    "no_candidates": "没有可明确识别并已建立索引的 RAW/JPEG 文件对可供分组。",
+    "load_error": "无法加载逻辑照片详情。请重试以检查当前成员。",
+    "review_error": "无法准备此变更。请检查所选文件后重新审阅。",
+    "apply_error": "无法确认此变更。请检查当前成员并重新审阅后再试。"
+  },
+  "metadata_sources": {
+    "title": "元数据来源",
+    "personal": "你的审阅字段",
+    "catalog": "目录审阅字段",
+    "local": "本地变更 · 写入者未知",
+    "xmp": "导入的 XMP",
+    "unrecorded": "未记录来源",
+    "typed": "手动添加",
+    "shared_tags": "共享手动标签",
+    "no_tags": "无手动标签",
+    "date_override": "受保护的拍摄日期覆盖值",
+    "gps_override": "受保护的位置覆盖值",
+    "tag_limit": "显示前 50 个手动标签。",
+    "failed": "无法加载元数据来源。",
+    "help_title": "关于这些来源",
+    "help": "这些是当前记录的来源，并非完整编辑历史。本地变更不标识具体人物。缺少记录不表示值未改变。手动标签是共享的；审阅字段遵循上方所示范围。拍摄日期和位置覆盖值也可能来自导入。"
+  },
+  "related_files": {
+    "title": "相关文件",
+    "photo": "已建立索引的照片",
+    "raw": "RAW 候选文件",
+    "jpeg": "JPEG 候选文件",
+    "xmp_full": "完整文件名 XMP 候选文件",
+    "xmp_basename": "基本名 XMP 候选文件",
+    "xmp_fallback": "Facet 后备 XMP 候选文件",
+    "available": "磁盘上存在",
+    "missing": "文件不可用",
+    "unavailable": "未检查",
+    "link": "符号链接 · 未检查目标",
+    "indexed": "已建立索引",
+    "raw_download": "用于 RAW 下载",
+    "unchecked": "无法检查配套文件。",
+    "multiple_raw": "存在多个 RAW 候选文件，不会将其合并。",
+    "basename_unverified": "基本名 XMP 的归属未经验证。",
+    "failed": "无法加载相关文件。",
+    "help_title": "关于相关文件",
+    "help": "照片显示请求此索引文件；呈现指示器报告实际解码的内容。图库缩略图为已保存的预览。同主文件名的 RAW/JPEG 和 XMP 只是候选文件，并非身份相同的证明。手动堆栈是独立关系。RAW 下载遵循现有配套文件规则；旁车导入及导出使用各自的命名策略。此列表是在读取时检查状态，而非文件写入预览。不会检查链接目标。仅检查受支持的全小写或全大写 RAW/JPEG 扩展名及所示三种 XMP 命名模式。",
+    "multi_user_scope": "在多用户安装中，图像配套文件也必须已建立索引且对此账户可见。仅文件系统匹配并不授予访问权限。"
+  },
+  "keyword_catalog": {
+    "title": "浏览手动关键词",
+    "search": "查找关键词",
+    "find": "查找",
+    "error": "无法完成关键词操作。请重新加载并检查当前分配。",
+    "count": "你的可见图库中有 {count} 个手动关键词",
+    "manage_named": "管理 {name}",
+    "manage": "管理",
+    "reload": "重新加载关键词",
+    "next": "下一页",
+    "previous": "上一页",
+    "target": "重命名或合并到关键词",
+    "preview": "{count} 张照片 · 已重命名 {renamed} · 已合并 {merged} · 已有 AI 标签 {ai} · 已移除 {removed}",
+    "targets": "检查 {count} 张受影响照片",
+    "rename_preview": "预览重命名或合并",
+    "remove_preview": "预览移除",
+    "uncertain": "结果尚未确认。选择其他变更前请重新加载关键词。",
+    "changed": "已更新 {count} 项照片分配",
+    "help": "关键词标识及归属",
+    "boundary": "手动关键词是共享目录元数据。管理仅影响当前对你可见的照片，不影响隐藏照片。目标位置的现有分配保留其来源。AI 标签和图像文件不变。这些变更无法撤销；应用前请检查预览。",
+    "literal": "完整关键词名称即其标识。斜线按字面处理：animals/cat 与 zoo/cat 是不同关键词。移除分配不会删除照片。请单独导出元数据，将变更发送到其他应用。"
+  },
+  "keyword_hierarchy": {
+    "title": "关键词层级",
+    "error": "无法读取关键词层级。请重新加载后重试。",
+    "expand": "展开或折叠 {name}",
+    "filter": "显示分支：{name}。匹配：{count}。",
+    "empty": "没有匹配的层级关键词。",
+    "more": "显示更多关键词",
+    "unavailable": "关键词不可用",
+    "help": "计数涵盖整个图库中对你可见的照片。选择分支将按直接分配给该关键词或其后代的照片筛选；其他生效筛选仍然适用。父关键词不会自动分配。平面关键词（包括含斜线的名称）保持独立。",
+    "edit": {
+      "add_path": "向所选照片添加层级路径",
+      "operation": "操作",
+      "name": "新名称",
+      "parent": "目标父级",
+      "root": "顶层",
+      "levels": "路径层级，每行一个",
+      "selection": "已选择：{count}",
+      "applying": "正在应用已捕获的更新。关闭不会取消操作。",
+      "before": "当前路径",
+      "after": "建议路径",
+      "summary": "目标：{photos}。新增分配：{added}；已更新：{updated}；已移除：{removed}。",
+      "spelling": "可能复用现有目录标识。分配后将显示其拼写。",
+      "boundary": "仅修改目录元数据。无法撤销。来源图像及旁车文件保持不变。",
+      "preview": "预览层级更新",
+      "uncertain": "结果尚未确认。请关闭此编辑器并重新加载层级。应用另一次更新前请创建新预览。",
+      "help": "名称组成共享目录。重命名、移动或删除分支需要拥有其下任意位置所分配每张照片的权限。从选择中移除只改变此关键词的直接分配。添加路径时每行一个层级，最多 16 层，每层 64 个字符；层级不能含 |。可能复用现有全局标识。请单独导出元数据以更新文件。这些变更无法撤销。",
+      "assign": "分配给所选照片",
+      "remove": "从选择中移除，仅此关键词",
+      "rename": "重命名共享关键词",
+      "move": "移动共享分支",
+      "delete_branch": "删除分支及其分配",
+      "error": "无法完成请求的层级更新。",
+      "scope_changed": "已捕获的选择或选项发生变化。请重新预览。",
+      "changed": "目标：{targets}。已更改照片：{photos}；已更改分配：{assignments}。"
+    }
   }
 }

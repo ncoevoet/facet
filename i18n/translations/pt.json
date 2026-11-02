@@ -1026,9 +1026,6 @@
     "read_only_hint": "Somente leitura: defina viewer.edition_password em scoring_config.json para ativar a avaliação, a seleção e a edição, e reinicie o visualizador."
   },
   "nav": {
-    "sidebar_hidden": "Ocultar barra lateral",
-    "sidebar_compact": "Barra lateral compacta",
-    "sidebar_pinned": "Barra lateral fixa",
     "gallery": "Galeria",
     "gallery_tooltip": "Galeria (clique duplo para redefinir os filtros)",
     "stats": "Estatísticas",
@@ -1045,8 +1042,7 @@
     "help": "Ajuda",
     "more": "Mais",
     "navigation": "Navegação",
-    "pin_navigation": "Fixar a navegação aberta",
-    "unpin_navigation": "Desafixar a navegação"
+    "page_actions": "Ações da página"
   },
   "auth": {
     "logout": "Sair",
@@ -1074,10 +1070,30 @@
       "exact": "Filtros de metadados",
       "pinned": "Esta é uma lista fixa de fotos. Volte à vista habitual antes de alterar os critérios.",
       "similarity": "Limiar de semelhança",
-      "no_location": "Sem localização"
+      "no_location": "Sem localização",
+      "logic": {
+        "title": "Lógica de correspondência",
+        "filtered": "Vista filtrada",
+        "all_groups": "Os grupos ativos de filtros de metadados combinam-se com E. Uma foto tem de satisfazer cada grupo. As opções de apresentação não alteram a correspondência.",
+        "all_people": "TODAS as pessoas selecionadas têm de estar na foto",
+        "text": "O texto pode corresponder a nomes de ficheiros, legendas, etiquetas, câmara, objetiva, categoria ou pessoas com nome. Bibliotecas indexadas procuram prefixos de palavras nos campos indexados; nomes de pessoas e etiquetas manuais também procuram o texto completo como subcadeia. Sem esse índice, é usada a correspondência por subcadeia.",
+        "tag": "Este é um único valor de etiqueta, comparado com etiquetas de IA ou manuais. As vírgulas não criam um grupo OU. Bibliotecas antigas sem índice de etiquetas podem procurar subcadeias nas etiquetas de IA.",
+        "literal_text": "Escrever AND, OR ou NOT não cria grupos booleanos. A pontuação na pesquisa de texto separa palavras indexadas; numa etiqueta, continua a fazer parte do valor.",
+        "smart_album": "Álbum inteligente: estes são os critérios de trabalho atuais, que podem diferir das regras guardadas. Refinar esta vista não reescreve essas regras.",
+        "manual_album": "Álbum manual: apenas as fotos que lhe pertencem são elegíveis. Estes filtros de trabalho restringem esses membros.",
+        "set_scope": "Um âmbito temporário de conjunto de fotos também restringe esta vista.",
+        "visibility": "Regras de visibilidade efetivas",
+        "hidden_values": "Valores guardados em métricas indisponíveis: {count}. Repor filtros também os limpa.",
+        "similar_help": "Semelhança em toda a biblioteca; os filtros da coleção estão em pausa. Feche Semelhantes ou altere um filtro da coleção para os retomar.",
+        "similar_paused": "A semelhança ordena as fotos autorizadas da biblioteca pelo modo e limiar escolhidos. Os membros do álbum, filtros de metadados, regras de visibilidade e ordenação da coleção estão em pausa. Os valores abaixo são conservados para a galeria. Alterar um filtro ou a ordenação da coleção sai de Fotos semelhantes.",
+        "paused_people": "Pessoas selecionadas (em pausa)",
+        "paused_visibility": "Regras de visibilidade conservadas (em pausa)",
+        "type_defaults": "Este tipo de foto contribui com predefinições de filtro configuradas. Valores de trabalho explícitos podem substituir predefinições individuais; não é uma etiqueta literal.",
+        "any_people": "QUALQUER pessoa selecionada pode corresponder à foto"
+      }
     },
     "presentation": {
-      "label": "Vista",
+      "label": "Apresentação",
       "help": "Escolha uma disposição de trabalho. Filtros, ordenação, álbum e seleção mantêm-se.",
       "browse": "Explorar",
       "review": "Rever",
@@ -1201,7 +1217,6 @@
     "selection": {
       "cover_only": "As miniaturas empilhadas desta seleção afetam apenas a foto mostrada. Abra uma pilha para selecionar os outros membros.",
       "outside_loaded": "Seleção fora das miniaturas carregadas: {count}. As ações aplicam-se a toda a seleção.",
-      "compare_loaded": "Comparar requer 2–4 fotos selecionadas explicitamente presentes nas miniaturas carregadas.",
       "exclusions": "Exclusões de toda a vista: {count}.",
       "count": "{count} selecionadas",
       "cleared_by_view": "Seleção limpa porque a visualização mudou.",
@@ -1252,7 +1267,11 @@
         "loaded": "Contexto dos grupos carregados: {shown} / {total}. As seleções fora do ecrã não são resumidas aqui.",
         "manual": "Pilha manual",
         "stack_count": "Correspondentes: {matching} · Permitidos: {total}"
-      }
+      },
+      "move_bar": "Mover barra de seleção",
+      "move_bar_help": "Arraste esta pega ou use as setas para mover a barra. Mantenha Shift para passos maiores. Home repõe a posição. Escape cancela o arrasto.",
+      "compare_queue_limit": "Selecione no máximo {max} fotos para comparar.",
+      "compare_queue_requirements": "Comparar requer 2–{max} fotos explicitamente selecionadas e presentes nos mosaicos carregados."
     },
     "keep_top": {
       "label": "Manter top %",
@@ -1408,6 +1427,17 @@
         "quality_tier": "Nível de qualidade derivado da pontuação agregada: excelente, boa, razoável ou fraca.",
         "color_temp": "Dominante de cor geral da foto: quente, fria ou neutra.",
         "hue_bucket": "Tom dominante da foto, agrupado em oito famílias de cor."
+      },
+      "count_scope": "O que significam as contagens",
+      "count_scope_options": "As contagens de câmara, objetiva, etiqueta, pessoa, composição e cor são frequências de fotos em toda a biblioteca acessível. Não se restringem à pesquisa, pasta, álbum ou outros filtros atuais.",
+      "count_scope_types": "As contagens por tipo também aplicam as preferências de ocultar olhos fechados e grupos recolhidos. As contagens de álbuns descrevem os seus membros.",
+      "count_scope_badges": "Os indicadores de Filtros e dos separadores contam critérios ativos, não fotos. As fotos correspondentes e os itens apresentados aparecem acima da galeria.",
+      "pins": {
+        "title": "Controlos fixados",
+        "hint": "Até {max} controlos. Fixar nunca guarda um valor de filtro.",
+        "add": "Fixar controlo {name}",
+        "remove": "Desafixar controlo {name}",
+        "limit": "Pode fixar até {max} controlos. Desafixe um para adicionar outro."
       }
     },
     "semantic_search_info": "A busca semântica carrega os embeddings na RAM no primeiro uso. Isso pode levar um momento para bibliotecas grandes.",
@@ -1540,7 +1570,11 @@
       },
       "assign_target": "Escolher o lado a substituir",
       "assign_hint": "Escolha uma miniatura para usar como {target}.",
-      "assign_photo": "Usar {name} como {target}"
+      "assign_photo": "Usar {name} como {target}",
+      "queue_total": "{count} fotos nesta comparação",
+      "pane_c": "Painel C",
+      "pane_d": "Painel D",
+      "assign_pane_hint": "Escolha um painel e depois uma miniatura. A atribuir: {target}."
     },
     "clipping": {
       "badge_highlight": "Altas luzes cortadas: {percent}% dos pixels",
@@ -1600,7 +1634,76 @@
     "review_navigation": {
       "advance": "Avançar após guardar",
       "help": "Nesta sessão: avançar para a fotografia seguinte após guardar uma classificação, Manter ou Rejeitar pelo teclado. Os favoritos não avançam."
-    }
+    },
+    "people_match": {
+      "title": "Corresponder às pessoas selecionadas",
+      "all": "Todas as pessoas selecionadas",
+      "any": "Qualquer pessoa selecionada",
+      "hint": "Todas exige todas as pessoas numa foto. Qualquer inclui fotos com pelo menos uma das pessoas selecionadas.",
+      "limit": "Selecione até {max} pessoas num grupo. Remova uma para adicionar outra."
+    },
+    "tag_groups": {
+      "title": "Regras de etiquetas",
+      "hint": "Os grupos combinam-se com E. Os nomes correspondem a etiquetas completas; adicionar uma regra não cria uma etiqueta.",
+      "add_to": "Adicionar ao grupo",
+      "name": "Nome da etiqueta",
+      "add": "Adicionar regra",
+      "any": "Qualquer destas",
+      "all": "Todas estas",
+      "none": "Nenhuma destas",
+      "limit": "Use até {max} nomes de etiquetas no total dos grupos.",
+      "invalid_name": "Use texto não vazio, até {max} caracteres, sem caracteres de controlo.",
+      "invalid": "Estas regras de etiquetas são inválidas. Limpe-as para recuperar.",
+      "remove": "Remover regra de {name}",
+      "clear": "Limpar regras de etiquetas"
+    },
+    "no_capture_date": "Sem data de captura",
+    "measurements": {
+      "title": "Disponibilidade das medições",
+      "help": "Por predefinição, os intervalos excluem valores em falta. Incluir em falta mantém essas fotos juntamente com os valores correspondentes. Apenas em falta suspende o intervalo dessa medição. Os outros filtros continuam ativos. Em falta significa ausência de valor guardado; a causa é desconhecida.",
+      "metric": "Medição",
+      "policy": "Mostrar",
+      "default": "Comportamento predefinido do intervalo",
+      "include_missing": "Correspondências do intervalo + em falta",
+      "missing_only": "Apenas em falta",
+      "measured_only": "Apenas valores medidos",
+      "invalid": "Estas políticas de medição são inválidas. Limpe-as para recuperar.",
+      "clear": "Limpar políticas de medição"
+    },
+    "collection_view": "Vista",
+    "layout_list": "Lista de metadados",
+    "metadata": {
+      "not_recorded": "Não registado",
+      "lens": "Objetiva",
+      "photo_actions": "Ações da foto",
+      "unrated": "Sem classificação",
+      "undecided": "Por decidir"
+    },
+    "proposal": {
+      "title": "Rever filtros sugeridos",
+      "replace": "Substituir os refinamentos atuais pelas predefinições configuradas e estes critérios.",
+      "merge": "Adicionar estes critérios à coleção atual. As regras de filtro existentes continuam ativas.",
+      "reset": "Repor este filtro na predefinição configurada",
+      "remove_named": "Omitir {name} desta proposta",
+      "remove": "Omitir",
+      "unrepresented": "Não convertido em filtros",
+      "acknowledge": "Usar apenas os critérios representados; excluir estas cláusulas",
+      "whole_view": "Limpe a seleção de toda a vista antes de alterar a pesquisa. Alterar a pesquisa também limpa as seleções explícitas de fotos.",
+      "apply": "Aplicar filtros",
+      "changed": "A coleção ou a conta mudou. Peça uma nova proposta.",
+      "load_error": "Os filtros foram aplicados, mas não foi possível carregar os resultados. Use a opção de tentar novamente da galeria.",
+      "fraction": "Fração de 0 a 1; o limiar semântico é no máximo 0,5.",
+      "effective": "Alterações à vista atual",
+      "empty": "Nenhum",
+      "conflict": "Estes critérios são incompatíveis. Omita ou corrija os campos em conflito:",
+      "retry": "Tentar carregar resultados novamente",
+      "invalid": "Verifique os critérios e os valores permitidos antes de aplicar."
+    },
+    "zero_stars": "0 estrelas",
+    "zero_stars_clear": "Apenas 0 estrelas. Clique para limpar o filtro de estrelas.",
+    "zero_stars_help_title": "Sobre zero estrelas",
+    "zero_stars_help": "Corresponde ao zero numérico no âmbito de classificação atual, incluindo uma classificação pessoal ausente. Classificações desconhecidas do catálogo continuam indisponíveis. Isto não significa nunca classificado. As contas pessoais não recorrem às classificações do catálogo nem de outras pessoas; Fontes dos metadados mostra a origem registada.",
+    "semantic_search_help": "Sobre a pesquisa visual"
   },
   "composition_patterns": {
     "none": "Nenhum",
@@ -1917,7 +2020,72 @@
     "running": "Em execução",
     "completed": "Concluído",
     "failed": "Falhou",
-    "idle": "Ocioso"
+    "idle": "Ocioso",
+    "status_unavailable": "O estado da análise está indisponível. A análise pode continuar em curso. Ler o estado novamente não a reinicia.",
+    "retry_status": "Ler o estado da análise novamente",
+    "checking_status": "A verificar o estado da análise…",
+    "start_unconfirmed": "Não foi possível confirmar o início da análise. Verifique o estado antes de iniciar outra.",
+    "stopped": "A análise não está em execução",
+    "last_observed_output": "Última saída observada",
+    "status_unknown": "Estado desconhecido",
+    "history": {
+      "title": "Análises registadas",
+      "help": "Registos do analisador, não garantem que todo o enriquecimento terminou. Em execução é o último estado registado, não prova de que o processo continua ativo. As datas são UTC; — significa não registado.",
+      "refresh": "Recarregar registos",
+      "older": "Registos anteriores",
+      "read_error": "Não foi possível ler o histórico de análises. Os últimos registos carregados podem estar desatualizados.",
+      "empty": "Não há análises registadas.",
+      "counts": "{processed} / {total} processados · {failed} falhas registadas",
+      "retained": "{count} registos de falhas conservados",
+      "completed_failures": "Concluída com falhas registadas",
+      "unknown": "Estado registado indisponível",
+      "states": {
+        "running": "Registada como em execução",
+        "completed": "Registada como concluída",
+        "interrupted": "Registada como interrompida",
+        "failed": "Registada como falhada"
+      },
+      "stages": {
+        "load": "Carregamento de ficheiros",
+        "decode_timeout": "Tempo limite de descodificação",
+        "score": "Pontuação",
+        "save": "Gravação",
+        "composition": "Análise da composição",
+        "embedding": "Análise de embeddings",
+        "other": "Outra fase"
+      },
+      "pipeline": "Processo: {state} · última fase registada: {phase}",
+      "job_identity": "ID da tarefa do visualizador"
+    },
+    "stop_button": "Parar análise",
+    "stop_confirm": "Parar esta análise?",
+    "stop_consequence": "Os resultados já guardados mantêm-se. O trabalho atual pode ser interrompido e a finalização pode não terminar.",
+    "stop_unconfirmed": "Não foi possível confirmar o pedido de paragem. Leia o estado antes de tentar novamente.",
+    "stopping": "Paragem pedida; à espera de que o processo termine…",
+    "ended_after_stop": "A análise terminou; tinha sido pedida a paragem.",
+    "retry": {
+      "preview": "Pré-visualizar nova tentativa dos ficheiros com falhas",
+      "title": "Tentar novamente ficheiros com falhas",
+      "scope": "Análise #{run} · {count} ficheiros capturados",
+      "boundary": "Reprocessar estes ficheiros com as definições de análise atuais. As pontuações e os dados de rostos de cada foto podem mudar; as edições pessoais guardadas mantêm-se separadas. Não serão executadas as fases de agrupamento, etiquetagem e outra finalização de toda a biblioteca.",
+      "files": "Rever {count} ficheiros",
+      "more_files": "Mostrar mais 20",
+      "expiry": "Esta pré-visualização expira após 10 minutos. Ficheiros ou definições alterados exigem uma nova pré-visualização.",
+      "apply": "Confirmar nova tentativa",
+      "expired": "A pré-visualização da nova tentativa expirou. Crie uma nova.",
+      "preview_error": "Não foi possível pré-visualizar esta execução. Verifique as falhas conservadas e os diretórios de análise configurados e tente uma nova pré-visualização.",
+      "submitted": "Nova tentativa submetida. Acompanhe o estado da análise acima; um pedido submetido não significa uma análise concluída.",
+      "read_receipt": "Ler comprovativo da nova tentativa",
+      "unconfirmed": "O início da nova tentativa não está confirmado. Leia o comprovativo ou o estado da análise antes de fazer mais alguma coisa. O pedido de início não será repetido automaticamente.",
+      "not_started": "Nenhuma nova tentativa foi iniciada a partir desta pré-visualização. Crie uma nova para continuar.",
+      "omissions": {
+        "missing": "Ficheiros em falta omitidos",
+        "not_file": "Caminhos que não são ficheiros omitidos",
+        "unsupported": "Ficheiros não suportados omitidos",
+        "duplicate": "Destinos duplicados omitidos",
+        "raw_paired": "Ficheiros RAW com parceiros JPEG/HEIF capturados omitidos"
+      }
+    }
   },
   "persons": {
     "help": "Pessoas detectadas pelo reconhecimento facial. Nomeie os grupos sem nome, mescle duplicatas, defina um avatar ou oculte uma pessoa. Clique em uma pessoa para ver as suas fotos.",
@@ -2060,7 +2228,95 @@
     "find_more_fallback_year": "Rostos demais para comparar de uma vez, mesmo sem grupo. Escolha um ano para procurar.",
     "find_more_year": "Ano",
     "sort_faces": "Número de rostos",
-    "sort_recent": "Mais recentes"
+    "sort_recent": "Mais recentes",
+    "review_queue": {
+      "matches": "Rever correspondências",
+      "unassigned": "Não atribuídos",
+      "total": "Rostos não atribuídos na última atualização: {count}",
+      "reload": "Recarregar rostos",
+      "preview": "Rever {count} atribuições",
+      "confirm_title": "Confirmar atribuições de rostos",
+      "confirm_help": "Só serão adicionados os rostos capturados, inalterados e não atribuídos. As atribuições existentes são preservadas. As pessoas são aplicadas separadamente; uma falha posterior pode deixar os grupos anteriores concluídos.",
+      "confirm": "Atribuir rostos selecionados",
+      "receipt": "Atribuídos: {assigned} · Ignorados: {skipped}",
+      "uncertain": "Algumas alterações podem ter sido concluídas. Recarregue os rostos antes de continuar.",
+      "changed": "Esta revisão mudou ou não pôde ser atualizada. Verifique o comprovativo e recarregue antes de continuar.",
+      "read_error": "Não foi possível carregar esta revisão. Um âmbito de referência grande pode exigir pesquisa por uma só pessoa ou navegação sem sugestões.",
+      "without_matches": "Navegar sem sugestões",
+      "no_suggestion": "Nenhuma pessoa sugerida",
+      "open_photo": "Abrir foto num novo separador",
+      "choose_person": "Escolher pessoa",
+      "skip": "Ignorar por agora",
+      "empty": "Não há mais rostos nesta página carregada. Recarregue ou avance para a página seguinte.",
+      "about": "Sobre a revisão de rostos",
+      "help": "Esta fila contém rostos sem pessoa atribuída, não grupos sem nome. As sugestões usam rostos visíveis com nome no modelo de reconhecimento ativo; a semelhança não é uma probabilidade de identidade. As escolhas nunca são aplicadas automaticamente. Ignorar só oculta um rosto nesta página carregada; recarregar volta a mostrá-lo. Um novo separador mantém esta revisão enquanto inspeciona a foto de origem.",
+      "group": "Rever para {name}",
+      "face_label": "Rosto {id}",
+      "assign_label": "Atribuir rosto {id} a {name}",
+      "similarity_label": "{name}, semelhança {value} em 100",
+      "model_mismatch": "Modelo de reconhecimento diferente",
+      "matching_unavailable": "Dados de correspondência indisponíveis",
+      "receipt_details": "Detalhes do comprovativo",
+      "already": "Já atribuído a esta pessoa",
+      "missing": "Indisponível ou já não permitido",
+      "already_assigned": "Já atribuído a outra pessoa",
+      "face_changed": "O rosto mudou após a pré-visualização",
+      "not_person": "Não é {name}",
+      "feedback_saved": "Ocultado como sugestão para {name} na sua conta.",
+      "feedback_undo": "Anular comentário"
+    },
+    "face_update": {
+      "title": "Atualizar rostos",
+      "scope": "{count} fotos sem registos de rostos detetados. O âmbito é capturado ao iniciar.",
+      "model": "Modelo de reconhecimento: {model}",
+      "start": "Iniciar deteção",
+      "progress": "Processadas {processed} / {total} fotos",
+      "counts": "Novos rostos: {added} · Sem adições: {empty} · Ignorados: {skipped} · Falhas: {failed}",
+      "recorded_only": "Último estado registado; este processo do visualizador não observa um processo de trabalho ativo.",
+      "stop_requested": "Paragem pedida. À espera de concluir a operação atual.",
+      "stop_confirm": "Parar esta atualização de rostos? As adições concluídas serão mantidas.",
+      "stop": "Pedir paragem",
+      "read_status": "Ler estado",
+      "retry_request": "Repetir o mesmo pedido",
+      "refresh": "Atualizar âmbito e comprovativos",
+      "recent": "Atualizações de rostos recentes",
+      "about": "Sobre a atualização de rostos",
+      "help": "Deteta rostos em fotos indexadas sem registos automáticos de rostos, incluindo fotos já analisadas sem deteções. Preserva rostos existentes, marcas manuais e atribuições de pessoas. Atualiza o índice de rostos, não as pontuações das fotos; novas atribuições são revistas separadamente. O modelo ativo pode precisar de descarregar pesos. A paragem é verificada entre fotos e antes de guardar. Voltar a detetar fotos que já têm rostos é uma operação separada. As atualizações pendentes de correspondências usam vetores guardados e não carregam modelos de deteção. A redeteção usa coerência espacial e vetorial do mesmo modelo, não prova de identidade. Mais de 512 rostos antigos ou detetados numa foto exigem revisão manual. As fotos concluídas mantêm-se gravadas se uma foto posterior falhar.",
+      "queued": "À espera de processo de trabalho",
+      "running": "A processar",
+      "completed": "Concluído",
+      "partial": "Concluído com erros",
+      "cancelled": "Parado",
+      "failed": "Falhou",
+      "start_unknown": "O pedido pode ter começado. Leia o seu comprovativo exato ou repita o mesmo pedido; isto não iniciará uma atualização duplicada.",
+      "read_error": "Não foi possível ler o estado da atualização de rostos. Leia novamente antes de continuar.",
+      "model_unavailable": "Não foi possível carregar o modelo de reconhecimento.",
+      "model_changed": "O modelo de reconhecimento mudou. Pré-visualize uma nova atualização.",
+      "job_error": "O processo de trabalho não conseguiu concluir esta atualização. As adições concluídas mantêm-se na biblioteca.",
+      "stop_unknown": "Não foi possível confirmar o pedido de paragem. Leia o estado desta tarefa antes de pedir outra paragem.",
+      "start_refused": "Não foi possível iniciar a atualização. Atualize o âmbito e os comprovativos antes de iniciar um novo pedido.",
+      "redetect_receipt": "Redeteção de rostos existentes",
+      "redetect_counts": "Atualizados: {refreshed} · Deteções não atribuídas removidas: {removed} · Fotos recusadas: {refused}",
+      "pending_matches": "Correspondências de pessoas por atualizar: {count}",
+      "repair_matches": "Atualizar correspondências de pessoas",
+      "repaired_matches": "Correspondências de pessoas atualizadas: {count}",
+      "redetect_scope": "{count} fotos com rostos automáticos guardados. O âmbito é capturado ao iniciar.",
+      "affected": "Rostos automáticos: {automatic} · Atribuídos: {assigned} · Marcas manuais: {manual}",
+      "redetect_warning": "As marcas manuais são mantidas. Os rostos atribuídos exigem correspondências inequívocas e coerentes; caso contrário, a foto fica inalterada. As deteções não atribuídas podem ser removidas.",
+      "redetect_start": "Voltar a detetar rostos existentes",
+      "more_tools": "Mais ferramentas de rostos",
+      "missing_mode": "Encontrar rostos em falta",
+      "review_problems": "Rever problemas",
+      "problems_count": "{shown} entradas carregadas · Contagem do servidor na última leitura: {total}",
+      "problems_error": "Não foi possível carregar estas entradas de problemas. Leia-as novamente para tentar de novo.",
+      "problem_changed": "Os dados do rosto mudaram após a confirmação; a foto ficou inalterada.",
+      "problem_unmatched": "Não foi possível corresponder inequivocamente a um rosto atribuído; a foto ficou inalterada.",
+      "problem_identity": "Os dados do rosto atribuído não eram coerentes com esta deteção; a foto ficou inalterada.",
+      "problem_complex": "Demasiados rostos para verificações de correspondência limitadas; a foto ficou inalterada.",
+      "problem_geometry": "O detetor devolveu caixas inutilizáveis; a foto ficou inalterada.",
+      "problem_source": "A origem mudou durante o processamento; nenhuma deteção foi guardada.",
+      "problem_failed": "Não foi possível processar a foto; inspecione-a antes de tentar novamente."
+    }
   },
   "photo_faces": {
     "unknown": "Desconhecido",
@@ -2185,7 +2441,24 @@
       "failed": "Não foi possível ler as regras guardadas. A sua vista atual não mudou.",
       "uncertain": "Não foi possível confirmar a gravação. Recarregue as regras guardadas antes de tentar novamente.",
       "reload": "Recarregar regras guardadas"
-    }
+    },
+    "creation": {
+      "help": "Como funciona este álbum",
+      "manual": "Um álbum manual contém fotos escolhidas por si. Adicionar ou remover um membro altera esta coleção; os originais ficam nas suas pastas. Os filtros restringem a vista sem alterar os membros.",
+      "smart": "Um álbum inteligente guarda regras de filtro, não uma lista fixa de fotos. Fotos novas ou editadas podem entrar ou sair conforme correspondam às regras. Os originais ficam nas suas pastas. Para uma entrega fixa, reveja um conjunto explícito de fotos e exporte-o."
+    },
+    "recipient_policy": "Acesso dos destinatários",
+    "share_smart_scope": "{count} fotos correspondem atualmente a este álbum inteligente. As correspondências podem mudar com a biblioteca ou as regras guardadas.",
+    "share_manual_scope": "Este álbum contém atualmente {count} fotos. Adicionar ou remover membros altera este link.",
+    "share_access_policy": "Este link permite ver e descarregar as fotos atuais do álbum. Os ficheiros RAW associados e os perfis de revelação personalizados não são incluídos. Não está definida uma palavra-passe nem uma validade para o link.",
+    "share_proofing_on": "Os destinatários podem enviar escolhas e comentários através da sessão de seleção separada.",
+    "share_proofing_off": "As escolhas e os comentários dos destinatários não estão ativados neste álbum.",
+    "share_data_disclosure": "Que informações são partilhadas?",
+    "share_metadata_disclosure": "Os dados das fotos podem incluir nomes de ficheiros, datas de captura, detalhes da câmara, localização, pessoas e análise automática. Os ficheiros descarregados podem conter metadados incorporados adicionais.",
+    "share_private_exclusions": "As etiquetas manuais e as regras guardadas do álbum inteligente não são incluídas na resposta do álbum. Isto não remove metadados dos ficheiros descarregados.",
+    "open_recipient_view": "Abrir vista do destinatário",
+    "share_operation_error": "Não foi possível confirmar a operação de partilha. Recarregue o acesso dos destinatários ou verifique o álbum antes de distribuir o link.",
+    "reload_recipient_policy": "Recarregar acesso dos destinatários"
   },
   "critique": {
     "overlay_show": "Mostrar sobreposição",
@@ -2354,7 +2627,9 @@
     "normalization_basis": {
       "persisted_percentiles": "Normalizado com o instantâneo de percentis guardado da biblioteca.",
       "stored_metrics": "São usados os valores brutos das métricas guardadas, sem normalização por percentis."
-    }
+    },
+    "generate_action": "Gerar comentário de IA",
+    "translate_action": "Traduzir comentário de IA guardado"
   },
   "culling": {
     "compare": {
@@ -2442,7 +2717,21 @@
       "empty": "Nada para selecionar automaticamente neste escopo",
       "suggested": "Sugerido",
       "suggested_tooltip": "Predefinição deduzida do conteúdo dominante deste âmbito",
-      "preview_updated": "Pré-visualização atualizada para a predefinição sugerida {profile}"
+      "preview_updated": "Pré-visualização atualizada para a predefinição sugerida {profile}",
+      "policy_label": "Escolhas existentes",
+      "preserve": "Preservar",
+      "replace": "Reconsiderar",
+      "policy_help": "Preservar mantém as decisões Manter/Rejeitar, estrelas e favoritos existentes e planeia as fotos ainda por decidir. Reconsiderar inclui essas fotos neste plano Manter/Rejeitar; estrelas e favoritos são mantidos. Os grupos já revistos ficam fora deste âmbito.",
+      "existing_summary": "Escolhas existentes: {count}. Protegidas: {preserved}.",
+      "consequences": "Inspecionar decisões propostas",
+      "existing_overflow": "A mostrar {shown} de {count} escolhas existentes; as restantes usam a mesma política.",
+      "group_plan": "Grupo {number}: {kept} manter, {rejected} rejeitar",
+      "group_existing": "Escolhas existentes neste grupo: {count}.",
+      "unchanged": "Inalterado",
+      "highlights_option": "Adicionar fotos mantidas elegíveis aos Destaques",
+      "preview_changed": "O plano ou as decisões mudaram. Atualize a pré-visualização antes de aplicar.",
+      "apply_uncertain": "Não foi possível confirmar a aplicação. Algumas alterações podem ter sido guardadas. Atualize a pré-visualização antes de tentar novamente.",
+      "refresh_preview": "Atualizar pré-visualização"
     },
     "exit_scene": "Sair da cena",
     "scene_complete": "Cena selecionada — nada mais para revisar",
@@ -2542,7 +2831,8 @@
     },
     "peaking": {
       "label": "Realce de foco",
-      "tooltip": "Destaca as arestas mais nítidas da imagem apresentada"
+      "tooltip": "Destaca as arestas mais nítidas da imagem apresentada",
+      "help": "O realce de focagem destaca bordos na imagem base apresentada. Em Ajustar usa uma imagem reduzida; o zoom muda os píxeis medidos. Textura, ruído e nitidez podem gerar realces. A sobreposição ajuda à inspeção, não decide Manter/Rejeitar; um desfoque intencional pode merecer ser mantido."
     },
     "legend": {
       "label": "Atalhos de teclado",
@@ -2611,6 +2901,19 @@
       "choose_pane": "Escolher painel {pane}: {name}",
       "assign_hint": "Escolha um painel acima e depois uma miniatura abaixo para substituir o painel {pane}.",
       "assign_photo": "Mostrar {name} no painel {pane}"
+    },
+    "workspace": {
+      "clean": "Ocultar painéis de comparação",
+      "filmstrip": "Faixa de candidatos",
+      "closeups": "Ampliações de rostos e assuntos",
+      "link": "Ligar deslocamento e zoom",
+      "reject_all": "Rejeitar todas as fotos…",
+      "reject_all_title": "Rejeitar todas as fotos deste grupo?",
+      "reject_all_body": "Marcar todas as {count} fotos deste grupo como rejeitadas. Nenhum ficheiro é eliminado. A confirmação pendente pode ser cancelada antes de ser guardada.",
+      "restore": "Mostrar painéis de comparação",
+      "reject_sequence_title": "Rejeitar estes fotogramas da sequência?",
+      "reject_sequence_body": "Destas {count} fotos, {sequence_count} pertencem a conjuntos {kinds}, cujos fotogramas normalmente ficam juntos. Rejeitá-las substitui essa predefinição. Nenhum ficheiro é eliminado. Pode cancelar a confirmação pendente antes de ser guardada.",
+      "reject_sequence_confirm": "Rejeitar todas estas fotos"
     }
   },
   "scenes": {
@@ -2653,7 +2956,39 @@
     "months_title": "Meses",
     "all_years": "Todos os Anos",
     "no_photos_month": "Nenhuma foto neste mês",
-    "photos_count": "fotos"
+    "photos_count": "fotos",
+    "capture_scope": "Datas de captura · biblioteca visível",
+    "scope_help": "As contagens usam datas de captura e as suas definições de visibilidade em toda a biblioteca. Os filtros de álbum, etiqueta e pesquisa não se aplicam. Fotos sem data de captura são listadas separadamente. Abrir um período mostra todas as fotos correspondentes, incluindo rejeitadas; as pilhas manuais podem agrupar os mosaicos.",
+    "open_range": "Abrir intervalo na galeria",
+    "empty_range": "Escolha uma data inicial anterior ou igual à final dentro do período de calendário selecionado, ou escolha Todas as datas.",
+    "all_dates": "Todas as datas",
+    "photo_feed": "Fotos",
+    "calendar": "Calendário",
+    "jump_month": "Ir para o mês",
+    "newest_first": "Mais recentes primeiro",
+    "oldest_first": "Mais antigas primeiro",
+    "view_day": "Ver dia · {count}",
+    "preview_count": "A mostrar {shown} de {total} fotos",
+    "load_failed": "Não foi possível carregar estas datas. Tente novamente.",
+    "retry": "Tentar novamente",
+    "more_days": "Mais dias",
+    "continue_dates": "Continuar para as datas seguintes",
+    "density": "Densidade de datas",
+    "log_scale": "Escala logarítmica",
+    "density_years": "Fotos por ano",
+    "density_months": "Fotos por mês",
+    "density_days": "Fotos por dia",
+    "period_count": "{period} · Fotos: {count}",
+    "density_keyboard": "Ative um ano para explorar os meses ou um mês para explorar os dias. Escolha Selecionar um intervalo de datas para definir períodos inicial e final. Aplicar intervalo atualiza os mesmos filtros de data de captura que os campos de data.",
+    "range_boundary": "Limite do intervalo",
+    "range_start": "Início",
+    "range_end": "Fim",
+    "apply_range": "Aplicar intervalo",
+    "clear_range": "Limpar seleção",
+    "explore_period": "Explorar período",
+    "select_range": "Selecionar um intervalo de datas",
+    "density_unit": "Período",
+    "density_weeks": "Semanas (segunda–domingo)"
   },
   "folders": {
     "help": "Navegue pelas fotos pela sua estrutura de pastas no disco. Abra uma pasta para ver as fotos que ela contém.",
@@ -2936,7 +3271,10 @@
       "unavailable": "Indisponível",
       "unavailable_help": "Indisponível significa que não foi devolvida uma medição utilizável. Não equivale a zero nem a uma pontuação baixa; o motivo não é indicado aqui.",
       "group_pick": "Sugerida neste grupo",
-      "group_pick_help": "A sugestão do grupo ordena estas alternativas. Não é a sua avaliação nem significa automaticamente Manter."
+      "group_pick_help": "A sugestão do grupo ordena estas alternativas. Não é a sua avaliação nem significa automaticamente Manter.",
+      "help": "Sobre estas medições",
+      "not_applicable": "Não aplicável",
+      "face_iqa_declined_help": "Na Qualidade facial (IQA), «Não aplicável» significa que o TOPIQ NR-Face não encontrou um rosto na pré-visualização guardada. Outras medições de rostos podem continuar disponíveis."
     },
     "rendition": {
       "edited": "Pré-visualização revelada",
@@ -2946,7 +3284,18 @@
       "base_render": "Imagem base de apresentação",
       "edited_failed": "Pré-visualização revelada indisponível",
       "source_failed": "Imagem de origem indisponível"
-    }
+    },
+    "remove_catalog": {
+      "title": "Remover do Facet?",
+      "action": "Remover do Facet…",
+      "confirm": "Remover permanentemente {count} fotos selecionadas, pré-visualizações guardadas, registos de rostos, etiquetas, classificações e pertença a álbuns deste catálogo Facet para todos os utilizadores. Não é possível anular. Os originais, a reciclagem do sistema, cópias de segurança, exportações e cópias noutros navegadores mantêm-se. Uma análise posterior pode voltar a adicionar originais que ainda existam. Só são removidas as fotos indicadas; os ficheiros associados e outros membros de pilhas ficam inalterados.",
+      "result": "{count} fotos removidas do Facet."
+    },
+    "analysis": "Análise",
+    "info": "Informação",
+    "unassigned_faces": "Rostos não atribuídos: {count}",
+    "tag_refine_collection": "Refinar esta coleção",
+    "tag_search_library": "Pesquisar na biblioteca"
   },
   "manual_tags": {
     "batch": {
@@ -3055,12 +3404,39 @@
         "metadata_repair": "Os metadados existentes precisam ser reparados antes de exportar.",
         "write_failed": "Não foi possível gravar os metadados. Verifique os logs do servidor.",
         "exiftool_upgrade": "O ExifTool 13.23 a 13.27 corrompe arquivos XMP. Atualize o ExifTool para a 13.28 ou mais recente.",
-        "stopped": "A exportação parou inesperadamente. Verifique os logs do servidor e tente novamente as fotos restantes."
+        "stopped": "A exportação parou inesperadamente. Verifique os logs do servidor e tente novamente as fotos restantes.",
+        "preview_changed": "As condições de exportação mudaram. Inspecione uma nova pré-visualização antes de continuar."
       },
       "partial": "Concluída com itens pendentes",
       "workspace_title": "Comprovativos de processamento e exportação",
       "workspace_hint": "Comprovativos de sidecars desta conta. Fechar esta janela mantém as tarefas em execução. Inicie novas exportações a partir de uma seleção de fotos ou de um álbum.",
-      "receipt_id": "Comprovativo"
+      "receipt_id": "Comprovativo",
+      "validating": "A validar exportação"
+    },
+    "preview": {
+      "companions": "Incluir ficheiros RAW associados e auxiliares",
+      "help": "Sobre as opções de exportação",
+      "guarantees": "Ficheiros alterados podem parar uma exportação. Os ficheiros concluídos mantêm-se. Após uma interrupção, verifique o comprovativo e as saídas existentes antes de criar outra pré-visualização. As cópias conservam os metadados incorporados; as ligações simbólicas referenciam os ficheiros da biblioteca.",
+      "title": "Pré-visualização da exportação",
+      "summary": "{photos} selecionadas · {ready} ficheiros prontos · {missing} indisponíveis",
+      "unavailable": "Indisponível",
+      "existing": "Ficheiro existente",
+      "companion": "Ficheiro associado",
+      "metadata": "Metadados do Facet",
+      "rating": "Classificação XMP",
+      "decision": "Decisão",
+      "keywords": "Palavras-chave do Facet",
+      "faces": "Regiões de rostos com nome",
+      "faces_omitted": "Não suportado por este gravador",
+      "previous": "Anterior",
+      "next": "Seguinte",
+      "uncertain": "A resposta de confirmação perdeu-se. Verifique o comprovativo antes de iniciar outra exportação.",
+      "check_receipt": "Verificar comprovativo",
+      "change": "Alterar opções",
+      "confirm": "Confirmar exportação",
+      "action": "Pré-visualizar exportação",
+      "color_label": "Rótulo de cor XMP",
+      "hierarchical_keywords": "Palavras-chave hierárquicas"
     }
   },
   "undo": {
@@ -3278,7 +3654,8 @@
     "save_failed": "Falha ao guardar. Rascunho mantido. Se a origem mudou ou a sessão expirou, recarregue a pré-visualização.",
     "reload": "Recarregar editor",
     "refresh_failed": "A alteração foi guardada, mas não foi possível atualizar as informações das pessoas. Recarregue a fotografia.",
-    "detected_overlap": "Já foi detetado um rosto aqui. Feche este editor e use a ação de atribuição de rostos detetados. O rascunho foi mantido."
+    "detected_overlap": "Já foi detetado um rosto aqui. Feche este editor e use a ação de atribuição de rostos detetados. O rascunho foi mantido.",
+    "same_person_overlap": "Esta caixa sobrepõe-se a outra caixa manual atribuída à mesma pessoa. Verifique se pretendia editar a caixa existente."
   },
   "assistant_activity": {
     "chip": "Assistente ativo",
@@ -3416,7 +3793,8 @@
     "reload": "Recarregar histórico",
     "preview_action": "Rever restauro…",
     "restore_preview": "Restaurar esta entrada: {count} fotos · parte {part}/{parts}.",
-    "restore_boundary": "Só esta parte será restaurada. O servidor verifica os valores e as revisões registados; se houver conflito, nada é restaurado. As outras partes são ações separadas."
+    "restore_boundary": "Só esta parte será restaurada. O servidor verifica os valores e as revisões registados; se houver conflito, nada é restaurado. As outras partes são ações separadas.",
+    "logical_review": "Revisão de foto agrupada"
   },
   "stacks": {
     "review_help": "Reveja as pilhas sugeridas na câmara escura. S empilha com a capa proposta na grelha ou a foto ativa na câmara escura; Enter abre um grupo ou empilha a foto ativa. X ignora. Editar membros ajusta o grupo antes de guardar. As decisões sobre as fotos não mudam. R rejeita imediatamente a foto ativa e exclui-a do rascunho. Desfazer restaura a decisão e a pertença. O agrupamento espera por Guardar; sair sem guardar não desfaz Rejeitar.",
@@ -3522,5 +3900,127 @@
     "failed": "Diagnóstico indisponível. Tente novamente ou verifique acesso de administrador.",
     "refresh": "Atualizar estado",
     "test": "Testar ligação"
+  },
+  "logical_assets": {
+    "refresh_error": "Agrupamento atualizado, mas não foi possível atualizar a foto. Volte à coleção para tentar novamente.",
+    "title": "Foto RAW/JPEG",
+    "preserve": "O agrupamento define um ficheiro principal para os ficheiros RAW/JPEG sem substituir os metadados existentes.",
+    "choose_files": "Ficheiros",
+    "member_limit": "Escolha no máximo 16 ficheiros para uma foto.",
+    "primary": "Principal",
+    "primary_missing": "O ficheiro principal anterior já não faz parte desta foto. Ainda não foi escolhido um novo.",
+    "primary_for": "Usar {name} como principal",
+    "review_group": "Rever agrupamento",
+    "review_primary": "Rever alteração do principal",
+    "ungroup": "Rever desagrupamento",
+    "preview_ungroup": "Restaurar identidades de foto separadas",
+    "confirm_group": "Agrupar ficheiros",
+    "confirm_primary": "Definir principal",
+    "confirm_ungroup": "Desagrupar ficheiros",
+    "rating": "Classificação",
+    "favorite": "Favorito",
+    "acknowledge": "Revi as diferenças nas classificações e decisões dos ficheiros. Os valores existentes são preservados.",
+    "updated": "Foto lógica atualizada.",
+    "no_candidates": "Não há um par RAW/JPEG indexado e inequívoco disponível para agrupar.",
+    "load_error": "Não foi possível carregar os detalhes da foto lógica. Tente novamente para verificar os membros atuais.",
+    "review_error": "Não foi possível preparar esta alteração. Verifique os ficheiros escolhidos e reveja novamente.",
+    "apply_error": "Não foi possível confirmar a alteração. Verifique os membros atuais e reveja antes de tentar novamente."
+  },
+  "metadata_sources": {
+    "title": "Fontes dos metadados",
+    "personal": "Os seus campos de revisão",
+    "catalog": "Campos de revisão do catálogo",
+    "local": "Alteração local · autor desconhecido",
+    "xmp": "XMP importado",
+    "unrecorded": "Fonte não registada",
+    "typed": "Adicionado manualmente",
+    "shared_tags": "Etiquetas manuais partilhadas",
+    "no_tags": "Sem etiquetas manuais",
+    "date_override": "Substituição protegida da data de captura",
+    "gps_override": "Substituição protegida da localização",
+    "tag_limit": "A mostrar as primeiras 50 etiquetas manuais.",
+    "failed": "Não foi possível carregar as fontes dos metadados.",
+    "help_title": "Sobre estas fontes",
+    "help": "Estas são as fontes atualmente registadas, não um histórico completo de edições. As alterações locais não identificam uma pessoa. A ausência de registos não significa que um valor esteja inalterado. As etiquetas manuais são partilhadas; os campos de revisão seguem o âmbito acima. As substituições da data de captura e localização também podem vir de importações."
+  },
+  "related_files": {
+    "title": "Ficheiros associados",
+    "photo": "Foto indexada",
+    "raw": "Candidato RAW",
+    "jpeg": "Candidato JPEG",
+    "xmp_full": "Candidato XMP de nome completo",
+    "xmp_basename": "Candidato XMP de nome base",
+    "xmp_fallback": "Candidato XMP alternativo do Facet",
+    "available": "No disco",
+    "missing": "Ficheiro indisponível",
+    "unavailable": "Não verificado",
+    "link": "Ligação simbólica · destino não inspecionado",
+    "indexed": "Indexado",
+    "raw_download": "Usado para descarregar RAW",
+    "unchecked": "Não foi possível verificar os ficheiros associados.",
+    "multiple_raw": "Existem vários candidatos RAW. Não são agrupados.",
+    "basename_unverified": "A propriedade do XMP de nome base não está verificada.",
+    "failed": "Não foi possível carregar os ficheiros associados.",
+    "help_title": "Sobre os ficheiros associados",
+    "help": "A apresentação da foto pede este ficheiro indexado; o indicador de representação informa o que foi realmente descodificado. As miniaturas da galeria são pré-visualizações guardadas. Nomes RAW/JPEG e XMP com a mesma base são candidatos, não prova de identidade. As pilhas manuais são independentes. O descarregamento RAW segue a regra existente de ficheiros associados; a importação e exportação de auxiliares usam políticas próprias de nomes. Esta lista verifica o estado na leitura, não pré-visualiza gravações. Os destinos das ligações não são inspecionados. Só são verificadas extensões RAW/JPEG suportadas em minúsculas/maiúsculas e os três padrões XMP apresentados.",
+    "multi_user_scope": "Em instalações multiutilizador, os ficheiros de imagem associados também têm de estar indexados e visíveis para esta conta. Uma correspondência no sistema de ficheiros não concede acesso por si só."
+  },
+  "keyword_catalog": {
+    "title": "Navegar nas palavras-chave manuais",
+    "search": "Encontrar uma palavra-chave",
+    "find": "Encontrar",
+    "error": "Não foi possível concluir a operação de palavras-chave. Recarregue e verifique as atribuições atuais.",
+    "count": "{count} palavras-chave manuais na sua biblioteca visível",
+    "manage_named": "Gerir {name}",
+    "manage": "Gerir",
+    "reload": "Recarregar palavras-chave",
+    "next": "Seguinte",
+    "previous": "Anterior",
+    "target": "Renomear ou fundir na palavra-chave",
+    "preview": "{count} fotos · {renamed} renomeadas · {merged} fundidas · {ai} já etiquetadas por IA · {removed} removidas",
+    "targets": "Inspecionar {count} fotos afetadas",
+    "rename_preview": "Pré-visualizar renomeação / fusão",
+    "remove_preview": "Pré-visualizar remoção",
+    "uncertain": "O resultado não está confirmado. Recarregue as palavras-chave antes de escolher outra alteração.",
+    "changed": "{count} atribuições a fotos atualizadas",
+    "help": "Identidade e propriedade das palavras-chave",
+    "boundary": "As palavras-chave manuais são metadados partilhados do catálogo. A gestão afeta apenas fotos atualmente visíveis para si, não as ocultas. As atribuições existentes no destino conservam a origem. Os rótulos de IA e os ficheiros de imagem ficam inalterados. Estas alterações não têm Anular; inspecione a pré-visualização antes de aplicar.",
+    "literal": "Os nomes completos identificam palavras-chave. As barras são literais: animals/cat e zoo/cat são palavras-chave diferentes. Remover uma atribuição não elimina a foto. Exporte os metadados separadamente para enviar alterações a outras aplicações."
+  },
+  "keyword_hierarchy": {
+    "title": "Hierarquia de palavras-chave",
+    "error": "Não foi possível ler a hierarquia de palavras-chave. Recarregue para tentar novamente.",
+    "expand": "Expandir ou recolher {name}",
+    "filter": "Mostrar ramo: {name}. Correspondências: {count}.",
+    "empty": "Nenhuma palavra-chave da hierarquia corresponde.",
+    "more": "Mostrar mais palavras-chave",
+    "unavailable": "Palavra-chave indisponível",
+    "help": "As contagens abrangem fotos visíveis para si em toda a biblioteca. Escolher um ramo filtra por atribuições diretas a essa palavra-chave ou aos descendentes; os outros filtros ativos continuam a aplicar-se. Os pais não são atribuídos automaticamente. As palavras-chave simples, incluindo nomes com barras, mantêm-se separadas.",
+    "edit": {
+      "add_path": "Adicionar caminho hierárquico à seleção",
+      "operation": "Operação",
+      "name": "Novo nome",
+      "parent": "Pai de destino",
+      "root": "Nível superior",
+      "levels": "Níveis do caminho, um por linha",
+      "selection": "Selecionadas: {count}",
+      "applying": "A aplicar a atualização capturada. Fechar não a cancela.",
+      "before": "Caminho atual",
+      "after": "Caminho proposto",
+      "summary": "Destinos: {photos}. Novas atribuições: {added}; atualizadas: {updated}; removidas: {removed}.",
+      "spelling": "Pode ser reutilizada uma identidade existente no catálogo. A grafia é apresentada após a atribuição.",
+      "boundary": "Apenas metadados do catálogo. Sem Anular. As imagens de origem e os auxiliares ficam inalterados.",
+      "preview": "Pré-visualizar atualização da hierarquia",
+      "uncertain": "O resultado não está confirmado. Feche este editor e recarregue a hierarquia. Inicie uma nova pré-visualização antes de aplicar outra atualização.",
+      "help": "Os nomes formam um catálogo partilhado. Renomear, mover ou eliminar um ramo exige autorização para cada foto atribuída em qualquer ponto abaixo dele. Remover da seleção muda apenas as atribuições diretas desta palavra-chave. Adicionar caminho usa um nível por linha, no máximo 16 níveis e 64 caracteres por nível; | não pode fazer parte de um nível. Pode ser reutilizada uma identidade global existente. Exporte os metadados separadamente para atualizar ficheiros. Estas alterações não têm Anular.",
+      "assign": "Atribuir às fotos selecionadas",
+      "remove": "Remover da seleção, apenas esta palavra-chave",
+      "rename": "Renomear palavra-chave partilhada",
+      "move": "Mover ramo partilhado",
+      "delete_branch": "Eliminar ramo e as suas atribuições",
+      "error": "Não foi possível concluir a atualização hierárquica pedida.",
+      "scope_changed": "A seleção capturada ou as opções mudaram. Pré-visualize novamente.",
+      "changed": "Destinos: {targets}. Fotos alteradas: {photos}; atribuições alteradas: {assignments}."
+    }
   }
 }
