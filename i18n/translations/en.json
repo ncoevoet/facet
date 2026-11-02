@@ -3306,7 +3306,9 @@
     },
     "analysis": "Analysis",
     "info": "Info",
-    "unassigned_faces": "Unassigned faces: {count}"
+    "unassigned_faces": "Unassigned faces: {count}",
+    "tag_refine_collection": "Refine this collection",
+    "tag_search_library": "Search library"
   },
   "manual_tags": {
     "batch": {

@@ -56,3 +56,12 @@ export function hasTagQuery(raw: string): boolean {
   const groups = parseTagQuery(raw);
   return groups === null || TAG_QUERY_GROUPS.some(key => groups[key].length > 0);
 }
+
+/** Add a literal AND constraint without discarding existing Any/None groups. */
+export function refineTagQuery(raw: string, tag: string): string | null {
+  const groups = parseTagQuery(raw);
+  if (!groups) return null;
+  if (!groups.all.includes(tag)) groups.all.push(tag);
+  const result = serializeTagQuery(groups);
+  return parseTagQuery(result) ? result : null;
+}

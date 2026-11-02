@@ -1,7 +1,15 @@
-import { hasTagQuery, parseTagQuery, serializeTagQuery } from './tag-query.util';
+import { hasTagQuery, parseTagQuery, serializeTagQuery, refineTagQuery } from './tag-query.util';
 import { applyQueryParams, applySavedAlbumFilters, buildSyncParams, DEFAULT_FILTERS } from './gallery-filters.util';
 
 describe('literal tag groups', () => {
+  it('refines with a literal AND while retaining existing alternatives and exclusions', () => {
+    const raw = serializeTagQuery({ any: ['a', 'b'], all: [], none: ['c'] });
+    const refined = refineTagQuery(raw, 'coast,ridge OR 夜景');
+    expect(parseTagQuery(refined!)).toEqual({ any: ['a', 'b'], all: ['coast,ridge OR 夜景'], none: ['c'] });
+    expect(refineTagQuery(refined!, 'coast,ridge OR 夜景')).toBe(refined);
+    expect(refineTagQuery('{invalid', 'a')).toBeNull();
+    expect(refineTagQuery(serializeTagQuery({ any: Array.from({ length: 50 }, (_, i) => String(i)), all: [], none: [] }), 'extra')).toBeNull();
+  });
   it('round trips comma, operator-like, quoted and Unicode names as single entities', () => {
     const groups = { any: ['coast,ridge', 'a OR b', '"quote"', '夜景', '📷'.repeat(200)], all: ['a'], none: ['%_'] };
     const raw = serializeTagQuery(groups);

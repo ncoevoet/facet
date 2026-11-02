@@ -2314,6 +2314,41 @@ describe('PhotoDetailComponent', () => {
   });
 
   describe('manual tags', () => {
+    it('refines the originating album and date constraints using a literal tag', () => {
+      history.replaceState({ photo: samplePhoto }, '', location.href);
+      createComponent();
+      const store = TestBed.inject(GalleryStore);
+      store.filters.update(f => ({ ...f, album_id: '7', date_from: '2026-10-01', tag_groups: '{"none":["private"]}' }));
+      component.navigateTag('coast,ridge OR 夜景', 'collection');
+      expect(mockRouter.navigate).toHaveBeenCalledWith(['/'], { queryParams: expect.objectContaining({
+        album_id: '7', date_from: '2026-10-01', tag_groups: '{"all":["coast,ridge OR 夜景"],"none":["private"]}',
+      }) });
+      expect(store.filters().tag_groups).toBe('{"none":["private"]}');
+    });
+
+    it('starts a deliberate library tag query without inheriting the parked album', () => {
+      createComponent();
+      TestBed.inject(GalleryStore).filters.update(f => ({ ...f, album_id: '7', date_from: '2026-10-01' }));
+      component.navigateTag('trip', 'library');
+      expect(mockRouter.navigate).toHaveBeenCalledExactlyOnceWith(['/'], { queryParams: { tag_groups: '{"all":["trip"]}' } });
+    });
+
+    it('refuses a collection pivot from a direct link or a previous identity', () => {
+      createComponent();
+      component.navigateTag('trip', 'collection');
+      mockAuth.status.set({ user_id: 'other' });
+      component.navigateTag('trip', 'library');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
+
+    it('does not offer a query refinement that would lose an explicit captured file list', () => {
+      history.replaceState({ photo: samplePhoto }, '', location.href);
+      createComponent();
+      TestBed.inject(GalleryStore).pinnedPaths.set([samplePhoto.path]);
+      expect(component.tagCollectionAvailable()).toBe(false);
+      component.navigateTag('trip', 'collection');
+      expect(mockRouter.navigate).not.toHaveBeenCalled();
+    });
     const base = { ...samplePhoto, path: '/photos/a.jpg', filename: 'a.jpg', manual_tags: ['trip'] };
     const stored = () => component.store.photos().find((p: { path: string }) => p.path === base.path);
 
@@ -2517,6 +2552,21 @@ describe('PhotoDetailComponent', () => {
       expect(el.querySelectorAll('[data-testid="ai-tag-chip"]').length).toBe(2);
       expect(el.querySelectorAll('[data-testid="manual-tag-remove"]').length).toBe(1);
       expect(el.querySelectorAll('[data-testid="ai-tag-chip"] [data-testid="manual-tag-remove"]').length).toBe(0);
+    });
+
+    it('opens the same explicit library action for AI and manual tags on a direct photo', async () => {
+      const el = await render({ ...samplePhoto, tags_list: ['coast,ridge'], manual_tags: ['夜景'] }, false);
+      const overlay = TestBed.inject(OverlayContainer).getContainerElement();
+      for (const [selector, tag] of [['ai-tag-chip', 'coast,ridge'], ['manual-tag-chip', '夜景']]) {
+        (el.querySelector(`[data-testid="${selector}"] button`) as HTMLButtonElement).click();
+        await new Promise<void>(resolve => queueMicrotask(resolve));
+        TestBed.flushEffects();
+        const actions = overlay.querySelectorAll<HTMLButtonElement>('button[mat-menu-item]');
+        expect(actions.length).toBe(1);
+        expect(actions[0].textContent).toContain('photo_detail.tag_search_library');
+        actions[0].click();
+        expect(mockRouter.navigate).toHaveBeenLastCalledWith(['/'], { queryParams: { tag_groups: JSON.stringify({ all: [tag] }) } });
+      }
     });
   });
 

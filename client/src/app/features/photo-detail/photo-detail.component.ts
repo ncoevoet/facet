@@ -1,4 +1,6 @@
 import { LogicalAssetApplied } from '../../shared/models/logical-asset-change';
+import { buildSyncParams } from '../gallery/gallery-filters.util';
+import { refineTagQuery } from '../gallery/tag-query.util';
 import { PhotoCollectionSidebarComponent } from './photo-collection-sidebar.component';
 import { LogicalReviewService, LogicalReviewAction, LogicalReviewWriteError } from '../../core/services/logical-review.service';
 import { PhotoAnalysisComponent } from '../gallery/photo-analysis.component';
@@ -489,7 +491,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                 @for (tag of p.tags_list; track tag) {
                   <span data-testid="ai-tag-chip" class="inline-flex">
                     <button class="px-2 py-0.5 bg-[var(--facet-accent-badge)] text-[var(--facet-accent-text)] rounded-full text-xs cursor-pointer hover:opacity-80 transition-opacity"
-                            (click)="navigateToGallery('tag', tag)">{{ tag }}</button>
+                            [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">{{ tag }}</button>
                   </span>
                 }
                 @for (tag of p.manual_tags; track tag) {
@@ -497,7 +499,7 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                         class="inline-flex items-center rounded-full border border-dashed border-[var(--facet-accent-text)] text-[var(--facet-accent-text)] text-xs">
                     <button class="inline-flex items-center gap-1 pl-2 pr-2 py-0.5 cursor-pointer hover:opacity-80 transition-opacity"
                             [attr.title]="I18N.manual_tags.manual | translate"
-                            (click)="navigateToGallery('tag', tag)">
+                            [matMenuTriggerFor]="tagNavigationMenu" [matMenuTriggerData]="{ tag: tag }">
                       <mat-icon class="!text-xs !w-3 !h-3 !leading-3" aria-hidden="true">sell</mat-icon>
                       <span class="sr-only">{{ I18N.manual_tags.manual | translate }}:</span>
                       {{ tag }}
@@ -513,6 +515,14 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
                   </span>
                 }
               </div>
+              <mat-menu #tagNavigationMenu="matMenu">
+                <ng-template matMenuContent let-tag="tag">
+                  @if (tagCollectionAvailable()) {
+                    <button mat-menu-item (click)="navigateTag(tag, 'collection')"><mat-icon>filter_alt</mat-icon>{{ I18N.photo_detail.tag_refine_collection | translate }}</button>
+                  }
+                  <button mat-menu-item (click)="navigateTag(tag, 'library')"><mat-icon>search</mat-icon>{{ I18N.photo_detail.tag_search_library | translate }}</button>
+                </ng-template>
+              </mat-menu>
               @if (auth.isEdition()) {
                 <div class="flex items-center gap-1 mt-2" data-testid="manual-tag-add">
                   <input type="text" maxlength="64"
@@ -698,6 +708,8 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
   protected readonly collectionSidebarAvailable = computed(() => this.openedFromGallery && !this.timelineOrigin
     && this.viewerOwner === this.auth.identity() && this.store.photos().length > 0);
   protected readonly collectionSidebarTitle = computed(() => this.store.currentAlbum?.()?.name ?? '');
+  protected readonly tagCollectionAvailable = computed(() => this.openedFromGallery && !this.timelineOrigin
+    && this.viewerOwner === this.auth.identity() && this.store.pinnedPaths() === null);
 
   private logicalChangeRevision = 0;
 
@@ -1371,6 +1383,21 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
 
   protected navigateToGallery(filter: string, value: string | number): void {
     this.router.navigate(['/'], { queryParams: { [filter]: String(value) } });
+  }
+
+  protected navigateTag(tag: string, scope: 'collection' | 'library'): void {
+    if (this.viewerOwner !== this.auth.identity() || this.destroyRef.destroyed) return;
+    if (scope === 'collection' && !this.tagCollectionAvailable()) return;
+    const filters = this.store.filters();
+    const query = refineTagQuery(scope === 'collection' ? filters.tag_groups : '', tag);
+    if (query === null) {
+      this.snackBar.open(this.i18n.t(I18N.errors.action_failed), '', { duration: 3000 });
+      return;
+    }
+    const params = scope === 'collection'
+      ? buildSyncParams(filters, this.store.config()?.defaults, this.store.config()?.search_threshold_default) : {};
+    this.router.navigate(['/'], { queryParams: { ...params, tag_groups: query,
+      ...(scope === 'collection' && this.store.temporaryReviewQueue() ? { review_queue: '1' } : {}) } });
   }
 
   protected readonly newTag = signal('');
