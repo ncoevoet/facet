@@ -43,8 +43,8 @@ export class PhotoActionsService {
   private readonly auth = inject(AuthService);
 
   /** Explicit catalog erasure. No filesystem operation, expansion or Undo. */
-  async removeFromCatalog(input: readonly string[]): Promise<string[]> {
-    if (!this.auth.isEdition() || !input.length || input.length > 10000) return [];
+  async removeFromCatalog(input: readonly string[], canProceed: () => boolean = () => true): Promise<string[]> {
+    if (!canProceed() || !this.auth.isEdition() || !input.length || input.length > 10000) return [];
     const paths = [...new Set(input)];
     const token = this.auth.token;
     const guard = this.staleness.create(this.destroyRef, { track: 'status', valid: () => this.auth.token === token });
@@ -58,7 +58,7 @@ export class PhotoActionsService {
           confirmLabel: this.i18n.t(I18N.photo_detail.remove_catalog.action),
         },
       });
-      if (!await firstValueFrom(ref.afterClosed()) || !guard.current()) return [];
+      if (!await firstValueFrom(ref.afterClosed()) || !guard.current() || !canProceed()) return [];
       const result = await firstValueFrom(this.api.post<PhotoDeleteResponse>('/photo/delete', {
         paths, catalog_only: true, dry_run: false,
       }));

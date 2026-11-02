@@ -15,7 +15,7 @@ import { GalleryStore } from '../gallery/gallery.store';
 const years = { years: [{ year: '2020', count: 100 }, { year: '2019', count: 1 }, { year: '2021', count: 0 }] };
 
 describe('Timeline date density', () => {
-  async function render() {
+  async function render(openOnArrival = false) {
     const api = { get: vi.fn().mockReturnValue(of(years)) };
     const auth = { status: signal({ user_id: 'alice' }), token: 'a' };
     TestBed.configureTestingModule({ imports: [TimelineDensityComponent, TimelineYearsComponent], providers: [
@@ -24,15 +24,34 @@ describe('Timeline date density', () => {
       { provide: GalleryStore, useValue: { viewFilterParams: signal({ hide_bursts: '1' }), photos: signal([]) } },
       { provide: I18nService, useValue: { t: (key: string, params?: object) => key + (params ? JSON.stringify(params) : ''), translations: () => ({}) } },
     ] });
-    const router = TestBed.inject(Router); await router.navigateByUrl('/timeline');
+    const router = TestBed.inject(Router); await router.navigateByUrl(openOnArrival ? '/timeline?density=1' : '/timeline');
     const fixture = TestBed.createComponent(TimelineDensityComponent); fixture.detectChanges(); await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
     const settle = async () => { fixture.detectChanges(); await fixture.whenStable(); fixture.detectChanges(); };
-    const open = async () => { const details = root.querySelector('details')!; details.open = true; details.dispatchEvent(new Event('toggle')); await settle(); };
+    const open = async () => { const details = root.querySelector('details')!; details.open = true; details.dispatchEvent(new Event('toggle')); await settle(); const range = [...root.querySelectorAll<HTMLButtonElement>('button')].find(row => row.textContent?.includes('timeline.select_range')); range?.click(); await settle(); };
     const bars = () => [...root.querySelectorAll<HTMLButtonElement>('[aria-describedby] > button')];
     const button = (key: string) => [...root.querySelectorAll<HTMLButtonElement>('button')].find(row => row.textContent?.includes(key))!;
     return { fixture, root, api, auth, router, settle, open, bars, button, filters: TestBed.inject(TimelineFiltersService) };
   }
+
+  it('opens the actual disclosure on a drill-down arrival', async () => {
+    const v = await render(true);
+    expect(v.root.querySelector('details')!.open).toBe(true);
+    expect(v.bars().length).toBeGreaterThan(0);
+    v.fixture.destroy();
+  });
+
+  it('drills into a year and month directly in browse mode', async () => {
+    const v = await render(); const navigate = vi.spyOn(v.router, 'navigate').mockResolvedValue(true);
+    await v.open(); v.button('timeline.select_range').click(); await v.settle();
+    v.bars()[0].click(); await v.settle();
+    expect(navigate).toHaveBeenCalledWith(['/timeline', '2019'], { queryParams: { density: '1' } });
+    v.fixture.componentRef.setInput('year', '2019');
+    v.api.get.mockReturnValue(of({ months: [{ month: '2019-02', count: 2 }] })); await v.settle();
+    v.bars()[1].click(); await v.settle();
+    expect(navigate).toHaveBeenLastCalledWith(['/timeline', '2019', '2'], { queryParams: { density: '1' } });
+    v.fixture.destroy();
+  });
 
   it('fetches only when expanded and applies the exact selected range without changing filters while drafting', async () => {
     const v = await render(); expect(v.api.get).not.toHaveBeenCalled(); await v.open();

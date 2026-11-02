@@ -312,7 +312,7 @@ type ReturnTarget = { scroll: number; focus: Element | null } & (
             }
           </p>
           </div>
-          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 items-center gap-1 md:order-none md:w-auto md:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
+          <div data-collection-query role="search" [attr.aria-label]="I18N.gallery.search_placeholder | translate" class="order-3 flex w-full min-w-0 flex-wrap items-center gap-1 @min-[1100px]:order-none @min-[1100px]:w-auto @min-[1100px]:flex-1" [class.!hidden]="!isDesktop() && !mobileSearchOpen() && !store.filters().search">
             <ng-container [ngTemplateOutlet]="galleryToolbar" />
           </div>
           <div class="flex shrink-0 items-center gap-0.5">

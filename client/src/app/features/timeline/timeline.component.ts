@@ -1,4 +1,5 @@
-import { Component, inject, computed, effect, signal, viewChild, TemplateRef, DestroyRef, ChangeDetectionStrategy } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
+import { Component, inject, computed, signal,  DestroyRef, ChangeDetectionStrategy } from '@angular/core';
 import { Router, ActivatedRoute } from '@angular/router';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { map } from 'rxjs';
@@ -19,7 +20,6 @@ import { CaptureDatePipe } from '../../shared/pipes/capture-date.pipe';
 import { timelineWindow } from './timeline-density.util';
 import { I18N, i18nKeys } from '../../core/i18n/keys';
 import { PageHelpService } from '../../core/services/page-help.service';
-import { HeaderSlotService } from '../../core/services/header-slot.service';
 import { DateRangeFilterComponent } from '../../shared/components/date-range-filter/date-range-filter.component';
 import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
 
@@ -27,6 +27,7 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
   selector: 'app-timeline',
   standalone: true,
   imports: [
+    NgTemplateOutlet,
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
@@ -60,11 +61,14 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
         </button>
       }
     </ng-template>
-    <details class="mx-4 mt-3 border-b border-[var(--mat-sys-outline-variant)] pb-2">
+    @if (anyHiddenByFilters() || store.hiddenFiltersStash()) {
+      <div class="px-2"><ng-container [ngTemplateOutlet]="timelineToolbar" /></div>
+    }
+    <details class="mx-4 mt-1 border-b border-[var(--mat-sys-outline-variant)] pb-2">
       <summary class="cursor-pointer text-sm leading-6">{{ I18N.timeline.capture_scope | translate }}</summary>
       <p class="my-2 text-xs text-[var(--mat-sys-on-surface-variant)]">{{ I18N.timeline.scope_help | translate }}</p>
       <div class="flex flex-wrap items-center gap-2">
-        <app-date-range-filter
+        <app-date-range-filter [compact]="true"
           [from]="filters.dateFrom()" [to]="filters.dateTo()"
           fromClass="w-40" toClass="w-40"
           (fromChange)="filters.dateFrom.set($event)" (toChange)="filters.dateTo.set($event)" />
@@ -102,7 +106,7 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
     </nav>
     }
 
-    <div class="px-4 pb-4" [class.pt-4]="level() === 'years'">
+    <div class="px-4 pb-2" [class.pt-4]="level() === 'years'">
       @if (filters.dateFrom() || filters.dateTo()) {
         <div class="flex min-h-11 flex-wrap items-center gap-2 text-sm" role="status">
           <span>{{ filters.dateFrom() ? (filters.dateFrom() | captureDate) : '…' }} – {{ filters.dateTo() ? (filters.dateTo() | captureDate) : '…' }}</span>
@@ -110,7 +114,7 @@ import { GalleryStore, anyHideToggleActive } from '../gallery/gallery.store';
         </div>
       }
       <app-timeline-density [year]="year()" [month]="month()" />
-      <div class="flex items-center justify-end gap-1 pt-2" role="group" [attr.aria-label]="I18N.timeline.title | translate">
+      <div class="flex items-center justify-end gap-1" role="group" [attr.aria-label]="I18N.timeline.title | translate">
         <button mat-button [attr.aria-pressed]="!showOverview()" (click)="showOverview.set(false)">
           <mat-icon>photo_library</mat-icon>{{ I18N.timeline.photo_feed | translate }}
         </button>
@@ -148,9 +152,7 @@ export class TimelineComponent {
   private readonly route = inject(ActivatedRoute);
   protected readonly filters = inject(TimelineFiltersService);
   private readonly pageHelp = inject(PageHelpService);
-  private readonly headerSlot = inject(HeaderSlotService);
   protected readonly store = inject(GalleryStore);
-  private readonly timelineToolbar = viewChild<TemplateRef<unknown>>('timelineToolbar');
 
   /** At least one hide toggle is on — the years/months/days views can then show a
    *  count of 0 for a bucket whose photos are entirely hidden, and timeline-days
@@ -166,14 +168,8 @@ export class TimelineComponent {
       sort: this.filters.sortDirection(),
     }));
     this.pageHelp.setDescription(I18N.timeline.help);
-    effect(() => {
-      const t = this.timelineToolbar();
-      if (t) this.headerSlot.set(t);
-    });
     inject(DestroyRef).onDestroy(() => {
       this.pageHelp.setDescription(null);
-      const t = this.timelineToolbar();
-      if (t) this.headerSlot.clear(t);
     });
   }
 

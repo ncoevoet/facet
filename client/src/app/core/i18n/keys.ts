@@ -2981,6 +2981,7 @@ export const I18N = {
     apply_range: "timeline.apply_range",
     clear_range: "timeline.clear_range",
     explore_period: "timeline.explore_period",
+    select_range: "timeline.select_range",
     density_unit: "timeline.density_unit",
     density_weeks: "timeline.density_weeks",
   },

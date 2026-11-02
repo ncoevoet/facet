@@ -23,11 +23,11 @@ import { timelineWindow } from './timeline-density.util';
   host: { class: 'block min-w-0' },
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="flex items-center justify-between gap-2 py-2">
+    <div class="flex items-center justify-between gap-2 py-0">
       <label class="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-sm">
         <mat-icon aria-hidden="true">calendar_month</mat-icon>
         <span class="sr-only">{{ I18N.timeline.jump_month | translate }}</span>
-        <input type="month" class="w-full min-w-0 max-w-44 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 py-2"
+        <input type="month" class="w-full min-w-0 max-w-44 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 py-1"
           [value]="selectedMonth()" (change)="jumpMonth($event)" />
       </label>
       <button mat-button (click)="toggleDirection()" [disabled]="!active()">
@@ -37,7 +37,7 @@ import { timelineWindow } from './timeline-density.util';
     </div>
     @for (group of groups(); track group.date) {
       <section class="mb-6" [attr.aria-label]="group.date">
-        <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-2">
+        <header class="flex min-h-11 flex-wrap items-baseline justify-between gap-x-3 gap-y-1 py-0">
           <h2 class="m-0 text-base font-semibold tabular-nums">{{ group.date | captureDate }}</h2>
           <a mat-button routerLink="/" [queryParams]="group.date | timelineDayQuery:visibility()">
             {{ I18N.timeline.view_day | translate: { count: group.count } }}

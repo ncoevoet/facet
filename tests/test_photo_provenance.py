@@ -117,3 +117,35 @@ def test_database_failure_is_not_empty_sources(regular_client, photo, monkeypatc
     result = regular_client.get('/api/photo/provenance', params={'path': photo})
     assert result.status_code == 503
     assert result.json() == {'detail': 'Metadata sources could not be read'}
+
+
+def test_real_sidecar_import_export_reset_reimport_sources(regular_client, tmp_path, seed_photos_prefix):
+    from processing.xmp_export import write_sidecar, XmpRating
+    from processing.xmp_import import import_sidecars
+    image = tmp_path / 'roundtrip.jpg'
+    image.write_bytes(b'fixture original untouched by sidecar operations')
+    path = str(image)
+    seed_photos_prefix(str(tmp_path) + '/', [{'path': path, 'filename': image.name, 'star_rating': 0}])
+    def stars():
+        response = regular_client.get('/api/photo/provenance', params={'path': path})
+        assert response.status_code == 200, response.text
+        assert str(tmp_path) not in response.text
+        return next(row for row in response.json()['review'] if row['field'] == 'star_rating')
+    def import_review():
+        with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+            conn.row_factory = sqlite3.Row
+            import_sidecars(conn, str(tmp_path), fields=['review'], overwrite_review=True)
+    write_sidecar(path, XmpRating(star_rating=4))
+    import_review()
+    assert (stars()['value'], stars()['source']) == (4, 'xmp')
+    # A repeated export/import of the same value must not manufacture a local edit.
+    write_sidecar(path, XmpRating(star_rating=4), overwrite=True)
+    import_review()
+    assert (stars()['value'], stars()['source']) == (4, 'xmp')
+    with sqlite3.connect(DEFAULT_DB_PATH) as conn:
+        conn.execute('UPDATE photos SET star_rating=0 WHERE path=?', (path,))
+    assert (stars()['value'], stars()['source']) == (0, 'local')
+    write_sidecar(path, XmpRating(star_rating=2), overwrite=True)
+    import_review()
+    assert (stars()['value'], stars()['source']) == (2, 'xmp')
+    assert image.read_bytes() == b'fixture original untouched by sidecar operations'

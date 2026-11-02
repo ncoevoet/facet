@@ -49,6 +49,16 @@ describe('explicit catalog removal', () => {
     expect(remove).toHaveBeenCalledExactlyOnceWith(['/private.jpg']);
   });
 
+  it('rechecks the caller decision after confirmation before sending a catalog write', async () => {
+    let rejected = true;
+    const pending = TestBed.inject(PhotoActionsService).removeFromCatalog(['/private.jpg'], () => rejected);
+    await vi.waitFor(() => expect(TestBed.inject(MatDialog).open).toHaveBeenCalled());
+    rejected = false; close.next(true);
+    expect(await pending).toEqual([]);
+    expect(post).not.toHaveBeenCalled();
+    expect(remove).not.toHaveBeenCalled();
+  });
+
   it('does not submit after token rotation while confirming', async () => {
     const pending = TestBed.inject(PhotoActionsService).removeFromCatalog(['/private.jpg']);
     await vi.waitFor(() => expect(TestBed.inject(MatDialog).open).toHaveBeenCalled());

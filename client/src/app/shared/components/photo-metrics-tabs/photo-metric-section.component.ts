@@ -154,28 +154,28 @@ import { MetricScoreRowComponent } from '../metric-score-row/metric-score-row.co
       <div class="pt-3">
         <div class="flex flex-col gap-0.5">
           @if (p.exposure_score !== null) {
-            <app-metric-score-row [label]="'tooltip.exposure' | translate" [range]="ranges()['exposure_score']" [value]="p.exposure_score">{{ p.exposure_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row icon="exposure" [label]="'tooltip.exposure' | translate" [range]="ranges()['exposure_score']" [value]="p.exposure_score">{{ p.exposure_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.color_score !== null) {
-            <app-metric-score-row [label]="'tooltip.color' | translate" [range]="ranges()['color_score']" [value]="p.color_score">{{ p.color_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row icon="palette" [label]="'tooltip.color' | translate" [range]="ranges()['color_score']" [value]="p.color_score">{{ p.color_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.contrast_score !== null) {
-            <app-metric-score-row [label]="'tooltip.contrast' | translate" [range]="ranges()['contrast_score']" [value]="p.contrast_score">{{ p.contrast_score | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row icon="contrast" [label]="'tooltip.contrast' | translate" [range]="ranges()['contrast_score']" [value]="p.contrast_score">{{ p.contrast_score | fixed:1 }}</app-metric-score-row>
           }
           @if (p.dynamic_range_stops !== null) {
-            <app-metric-score-row [label]="'tooltip.dynamic_range' | translate" [range]="ranges()['dynamic_range_stops']" [value]="p.dynamic_range_stops">{{ p.dynamic_range_stops | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row icon="dynamic_range" [label]="'tooltip.dynamic_range' | translate" [range]="ranges()['dynamic_range_stops']" [value]="p.dynamic_range_stops">{{ p.dynamic_range_stops | fixed:1 }}</app-metric-score-row>
           }
           @if (p.mean_saturation !== null && p.mean_saturation !== undefined) {
-            <app-metric-score-row [label]="'tooltip.saturation' | translate" [range]="ranges()['mean_saturation']" [value]="p.mean_saturation" [percent]="true">{{ (p.mean_saturation * 100) | fixed:0 }}%</app-metric-score-row>
+            <app-metric-score-row icon="invert_colors" [label]="'tooltip.saturation' | translate" [range]="ranges()['mean_saturation']" [value]="p.mean_saturation" [percent]="true">{{ (p.mean_saturation * 100) | fixed:0 }}%</app-metric-score-row>
           }
           @if (p.noise_sigma !== null) {
-            <app-metric-score-row [label]="'tooltip.noise' | translate" [range]="ranges()['noise_sigma']" [value]="p.noise_sigma">{{ p.noise_sigma | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row icon="grain" [label]="'tooltip.noise' | translate" [range]="ranges()['noise_sigma']" [value]="p.noise_sigma">{{ p.noise_sigma | fixed:1 }}</app-metric-score-row>
           }
           @if (p.mean_luminance !== null && p.mean_luminance !== undefined) {
-            <app-metric-score-row [label]="'tooltip.luminance' | translate" [range]="ranges()['mean_luminance']" [value]="p.mean_luminance" [percent]="true">{{ p.mean_luminance * 100 | fixed:0 }}%</app-metric-score-row>
+            <app-metric-score-row icon="brightness_6" [label]="'tooltip.luminance' | translate" [range]="ranges()['mean_luminance']" [value]="p.mean_luminance" [percent]="true">{{ p.mean_luminance * 100 | fixed:0 }}%</app-metric-score-row>
           }
           @if (p.histogram_spread !== null) {
-            <app-metric-score-row [label]="'tooltip.histogram_spread' | translate" [range]="ranges()['histogram_spread']" [value]="p.histogram_spread">{{ p.histogram_spread | fixed:1 }}</app-metric-score-row>
+            <app-metric-score-row icon="equalizer" [label]="'tooltip.histogram_spread' | translate" [range]="ranges()['histogram_spread']" [value]="p.histogram_spread">{{ p.histogram_spread | fixed:1 }}</app-metric-score-row>
           }
         </div>
       </div>

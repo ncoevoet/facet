@@ -1,5 +1,5 @@
 import { Component, DestroyRef, ChangeDetectionStrategy, computed, effect, inject, input, signal, untracked } from '@angular/core';
-import { Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationError } from '@angular/router';
+import { ActivatedRoute, Router, NavigationStart, NavigationEnd, NavigationCancel, NavigationError } from '@angular/router';
 import { Subscription } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { ApiService } from '../../core/services/api.service';
@@ -18,8 +18,8 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
   changeDetection: ChangeDetectionStrategy.OnPush,
   host: { class: 'block min-w-0' },
   template: `
-    <details tabindex="-1" class="border-b border-[var(--mat-sys-outline-variant)] py-2" (toggle)="toggle($event)" (keydown.escape)="close($event)">
-      <summary class="min-h-11 cursor-pointer py-3 text-sm">{{ I18N.timeline.density | translate }}</summary>
+    <details [open]="open()" tabindex="-1" class="border-b border-[var(--mat-sys-outline-variant)] py-0" (toggle)="toggle($event)" (keydown.escape)="close($event)">
+      <summary class="min-h-9 cursor-pointer py-2 text-sm">{{ I18N.timeline.density | translate }}</summary>
       @if (open()) {
         <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-sm">
           @if (year()) {
@@ -40,13 +40,14 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
           <p role="alert" class="text-sm">{{ I18N.timeline.load_failed | translate }}</p>
           <button mat-button (click)="retry.update(value => value + 1)">{{ I18N.timeline.retry | translate }}</button>
         } @else {
-          <div class="flex gap-1 overflow-x-auto pb-2" role="group" [attr.aria-label]="I18N.timeline.density | translate" [attr.aria-describedby]="helpId">
+          @for (period of [year() + '-' + month()]; track period) {
+          <div class="flex gap-1 overflow-x-auto pb-2 motion-safe:animate-[facet-calendar-enter_180ms_ease-out]" role="group" [attr.aria-label]="I18N.timeline.density | translate" [attr.aria-describedby]="helpId">
             @for (bucket of rendered(); track bucket.key) {
-              <button type="button" class="flex min-h-28 min-w-11 flex-1 flex-col items-center gap-1 rounded px-1 py-1 text-xs hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)]"
+              <button type="button" class="flex min-h-20 min-w-11 flex-1 flex-col items-center gap-1 rounded px-1 py-1 text-xs hover:bg-[var(--mat-sys-surface-container)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--mat-sys-primary)]"
                 [attr.aria-label]="I18N.timeline.period_count | translate: { period: unit() === 'week' ? (bucket.from | captureDate) + ' – ' + (bucket.to | captureDate) : bucket.key, count: bucket.count }"
                 [attr.aria-pressed]="bucket.selected" [class]="bucket.selected ? 'bg-[var(--mat-sys-surface-container-high)]' : ''"
                 (click)="choose(bucket)">
-                <span class="flex h-16 w-full items-end justify-center border-b border-[var(--mat-sys-outline-variant)]" aria-hidden="true">
+                <span class="flex h-10 w-full items-end justify-center border-b border-[var(--mat-sys-outline-variant)]" aria-hidden="true">
                   <span class="block w-full max-w-12 bg-[var(--mat-sys-primary)]" [style.height.%]="bucket.height"></span>
                 </span>
                 <span class="tabular-nums">{{ bucket.label }}</span>
@@ -54,10 +55,13 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
               </button>
             } @empty { <p class="text-sm">{{ I18N.timeline.empty | translate }}</p> }
           </div>
+          }
           <p [id]="helpId" class="sr-only">{{ I18N.timeline.density_keyboard | translate }}</p>
+          <button mat-button [attr.aria-pressed]="selectingRange()" (click)="selectingRange.set(!selectingRange()); clearDraft()">{{ I18N.timeline.select_range | translate }}</button>
+          @if (selectingRange() || month() || (year() && unit() === 'week')) {
           <div class="flex flex-wrap items-center gap-1" role="group" [attr.aria-label]="I18N.timeline.range_boundary | translate">
-            <button mat-button [attr.aria-pressed]="boundary() === 'start'" (click)="boundary.set('start')">{{ I18N.timeline.range_start | translate }}</button>
-            <button mat-button [attr.aria-pressed]="boundary() === 'end'" (click)="boundary.set('end')">{{ I18N.timeline.range_end | translate }}</button>
+            <button mat-button [attr.aria-pressed]="boundary() === 'start'" (click)="selectingRange.set(true); boundary.set('start')">{{ I18N.timeline.range_start | translate }}</button>
+            <button mat-button [attr.aria-pressed]="boundary() === 'end'" (click)="selectingRange.set(true); boundary.set('end')">{{ I18N.timeline.range_end | translate }}</button>
             @if (range(); as selected) {
               <span role="status" class="px-2 text-sm tabular-nums">{{ selected.from | captureDate }} – {{ selected.to | captureDate }}</span>
               <button mat-stroked-button [disabled]="!active()" (click)="applyRange()">{{ I18N.timeline.apply_range | translate }}</button>
@@ -67,6 +71,7 @@ import { densityBuckets, densityRange, type DensityBucket, type DensityResponse 
               }
             }
           </div>
+          }
         }
       }
     </details>
@@ -83,9 +88,10 @@ export class TimelineDensityComponent {
   private readonly router = inject(Router);
   readonly year = input('');
   readonly month = input('');
-  protected readonly open = signal(false);
+  protected readonly open = signal(inject(ActivatedRoute).snapshot.queryParamMap.get('density') === '1');
   protected readonly active = signal(true);
   protected readonly logScale = signal(false);
+  protected readonly selectingRange = signal(false);
   protected readonly unit = signal<'auto' | 'week'>('auto');
   protected readonly loading = signal(false);
   protected readonly failed = signal(false);
@@ -148,6 +154,10 @@ export class TimelineDensityComponent {
   protected clearDraft(): void { this.first.set(null); this.last.set(null); this.boundary.set('start'); }
   protected choose(bucket: DensityBucket): void {
     if (!this.currentRead?.() || !this.buckets().some(row => row.key === bucket.key)) return;
+    if (!this.selectingRange() && !this.month() && (!this.year() || this.unit() !== 'week')) {
+      void this.router.navigate(this.year() ? ['/timeline', this.year(), String(+bucket.key.slice(5, 7))] : ['/timeline', bucket.key], { queryParams: { density: '1' } });
+      return;
+    }
     if (this.boundary() === 'start' || !this.first()) { this.first.set(bucket); this.last.set(null); this.boundary.set('end'); }
     else { this.last.set(bucket); this.boundary.set('start'); }
   }

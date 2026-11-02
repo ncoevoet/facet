@@ -41,6 +41,21 @@ describe('User-owned query proposal', () => {
   }
   afterEach(() => fixture.destroy());
 
+  it('uses shared metric names and units with explicit input-label associations', async () => {
+    build();
+    await actions.get('gallery_filter_proposal')!({ patch: { min_dynamic_range: 6, max_focal_length: 85, min_face_ratio: 0.2 },
+      proposal: { source_query: 'dynamic range and lens', unrepresented: [] }, replace: false,
+      reset: {}, normalize: (patch: unknown) => patch });
+    await fixture.whenStable(); fixture.detectChanges();
+    const page = fixture.nativeElement as HTMLElement;
+    expect(page.textContent).toContain('gallery.dynamic_range (EV) ≥');
+    expect(page.textContent).toContain('gallery.focal_range (mm) ≤');
+    expect(page.textContent).toContain('gallery.proposal.fraction');
+    const label = page.querySelector<HTMLLabelElement>('label[for="query-proposal-min_dynamic_range"]')!;
+    expect(label.control?.id).toBe('query-proposal-min_dynamic_range');
+    expect(apply).not.toHaveBeenCalled();
+  });
+
   it('shows an editable interpretation without changing the gallery and applies a corrected date only on the user action', async () => {
     build(); const before = filters(); await propose();
     expect(apply).not.toHaveBeenCalled(); expect(filters()).toBe(before);

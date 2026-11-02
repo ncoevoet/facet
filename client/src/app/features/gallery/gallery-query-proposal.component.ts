@@ -1,6 +1,8 @@
 import { ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, signal, untracked, viewChild } from '@angular/core';
 import { NavigationCancel, NavigationCancellationCode, NavigationEnd, NavigationError, NavigationSkipped, NavigationStart, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
+import { I18nService } from '../../core/services/i18n.service';
 import { AuthService } from '../../core/services/auth.service';
 import { ViewActionRegistry } from '../../core/agent/view-action-registry.service';
 import { UiToolError, type JsonSchema, type UiToolContractFile } from '../../core/agent/ui-tool.types';
@@ -56,12 +58,12 @@ function fieldLabel(key: string): string {
                 @if (row.value === null) {
                   <span>{{ row.label }}</span><span class="block min-h-11 py-3">{{ I18N.gallery.proposal.reset | translate }}</span>
                 } @else {
-                  <label>{{ row.label }}
+                  <label [attr.for]="'query-proposal-' + row.key">{{ row.label }}
                   @if (row.fraction) { <span class="block">{{ I18N.gallery.proposal.fraction | translate }}</span> }
                   @if (row.kind === 'boolean') {
-                    <input type="checkbox" class="ms-2 h-5 w-5" [checked]="row.value" [disabled]="applying()" (change)="edit(row.key, $any($event.target).checked)" />
+                    <input [id]="'query-proposal-' + row.key" type="checkbox" class="ms-2 h-5 w-5" [checked]="row.value" [disabled]="applying()" (change)="edit(row.key, $any($event.target).checked)" />
                   } @else {
-                  <input [type]="row.kind" class="mt-1 min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 text-base"
+                  <input [id]="'query-proposal-' + row.key" [type]="row.kind" class="mt-1 min-h-11 w-full min-w-0 rounded border border-[var(--mat-sys-outline)] bg-[var(--mat-sys-surface)] px-2 text-base"
                     [value]="row.value" [disabled]="applying()" (input)="edit(row.key, $any($event.target).value, row.kind)" />
                   }
                   </label>
@@ -107,6 +109,13 @@ export class GalleryQueryProposalComponent {
   protected readonly I18N = I18N;
   protected readonly store = inject(GalleryStore);
   private readonly auth = inject(AuthService);
+  private readonly i18n = inject(I18nService);
+  private fieldLabel(key: string): string {
+    const metric = ADDITIONAL_FILTERS.find(row => row.minKey === key || row.maxKey === key);
+    if (!metric) return fieldLabel(key);
+    const unit = (metric.displaySuffix ?? metric.displayPrefix ?? '').trim();
+    return `${this.i18n.t(metric.labelKey)}${unit ? ' (' + unit + ')' : ''} ${key === metric.minKey ? '≥' : '≤'}`;
+  }
   private readonly router = inject(Router);
   private readonly actions = inject(ViewActionRegistry);
   private readonly destroyRef = inject(DestroyRef);
@@ -123,7 +132,7 @@ export class GalleryQueryProposalComponent {
   private readonly date = new CaptureDatePipe();
   private trigger: HTMLElement | null = null;
   readonly rows = computed(() => Object.entries(this.proposal()?.patch ?? {}).map(([key, value]) => ({
-    key, value, label: fieldLabel(key), fraction: key === 'semantic_threshold' || key === 'min_similarity',
+    key, value, label: this.fieldLabel(key), fraction: key === 'semantic_threshold' || key === 'min_similarity' || ADDITIONAL_FILTERS.some(row => (row.minKey === key || row.maxKey === key) && row.sliderMax === 1),
     kind: typeof value === 'boolean' ? 'boolean' : typeof value === 'number' ? 'number' : ['date_from', 'date_to'].includes(key) ? 'date' : 'text',
   })));
   readonly calculation = computed<Calculation | null>(() => {
@@ -139,9 +148,9 @@ export class GalleryQueryProposalComponent {
       }
       if (next.date_from && next.date_to && next.date_from > next.date_to) return null;
       const keys = Object.keys(next) as (keyof GalleryFilters)[];
-      const conflicts = (Object.keys(requested) as (keyof GalleryFilters)[]).filter(key => requested[key] !== next[key]).map(fieldLabel);
+      const conflicts = (Object.keys(requested) as (keyof GalleryFilters)[]).filter(key => requested[key] !== next[key]).map(key => this.fieldLabel(key));
       return { updates, next,
-        changes: keys.filter(key => key !== 'page' && next[key] !== before[key]).map(key => ({ key, label: fieldLabel(key),
+        changes: keys.filter(key => key !== 'page' && next[key] !== before[key]).map(key => ({ key, label: this.fieldLabel(key),
           before: key === 'date_from' || key === 'date_to' ? this.date.transform(String(before[key])) : String(before[key]),
           after: key === 'date_from' || key === 'date_to' ? this.date.transform(String(next[key])) : String(next[key]) })),
         conflicts, conflictText: conflicts.join(', ') };

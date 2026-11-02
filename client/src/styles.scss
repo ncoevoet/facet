@@ -346,3 +346,16 @@ app-gallery-view-controls .mat-mdc-button:not(:disabled) {
     transition-duration: 0.01ms !important;
   }
 }
+
+// Icon glyphs must use their own line box, including Tailwind text-size overrides.
+@layer utilities {
+  .mat-icon[class] {
+    line-height: 1 !important;
+    flex-shrink: 0;
+  }
+}
+
+@keyframes facet-calendar-enter {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}

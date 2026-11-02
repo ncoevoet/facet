@@ -400,6 +400,63 @@ describe('PhotoDetailComponent', () => {
     expect(keep.querySelector('mat-icon')!.textContent!.trim()).not.toBe(icon);
   });
 
+  it('shows catalog removal only for rejected, non-kept photos and guards direct invocation', async () => {
+    const view = renderDetail();
+    const detail = view.componentInstance as any;
+    const remove = vi.spyOn(detail.photoActions, 'removeFromCatalog').mockResolvedValue([]);
+    for (const state of [{ is_rejected: false, is_kept: false }, { is_rejected: false, is_kept: true }, { is_rejected: true, is_kept: true }]) {
+      detail.photo.set(makePhoto(state)); view.detectChanges();
+      expect(view.nativeElement.querySelector('[aria-label="photo_detail.remove_catalog.action"]')).toBeNull();
+      await detail.removeFromCatalog();
+      detail.deletePhoto();
+    }
+    expect(remove).not.toHaveBeenCalled();
+    detail.photo.set(makePhoto({ is_rejected: true, is_kept: false })); view.detectChanges();
+    const button = view.nativeElement.querySelector('[aria-label="photo_detail.remove_catalog.action"]') as HTMLButtonElement;
+    expect(button).not.toBeNull();
+    expect(button.className).toContain('mat-sys-error');
+    button.click(); await view.whenStable();
+    expect(remove).toHaveBeenCalledExactlyOnceWith([detail.photo().path], expect.any(Function));
+  });
+
+  it('refuses a stale trash confirmation after the photo becomes kept', async () => {
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? makePhoto({ path: samplePhoto.path, is_rejected: true, is_kept: false }) : { faces: [] }));
+    const view = renderDetail(); const detail = view.componentInstance as any;
+    view.detectChanges(); await view.whenStable();
+    const closed = new Subject<unknown>();
+    const open = vi.spyOn(detail.dialog, 'open').mockReturnValue({ afterClosed: () => closed } as any);
+    const erase = vi.spyOn(detail.photoActions, 'deletePhotos').mockResolvedValue(null);
+    detail.photo.set(makePhoto({ is_rejected: true, is_kept: false }));
+    detail.deletePhoto();
+    await vi.waitFor(() => expect(open).toHaveBeenCalled());
+    detail.photo.set(makePhoto({ is_rejected: false, is_kept: true }));
+    closed.next({ include_companions: false });
+    await view.whenStable();
+    expect(erase).not.toHaveBeenCalled();
+  });
+
+  it('does not navigate a newer photo after a late accepted trash response', async () => {
+    mockApi.get.mockImplementation((url: string) => of(url === '/photo' ? makePhoto({ path: samplePhoto.path, is_rejected: true, is_kept: false }) : { faces: [] }));
+    const view = renderDetail(); const detail = view.componentInstance as any;
+    view.detectChanges(); await view.whenStable();
+    const closed = new Subject<unknown>();
+    vi.spyOn(detail.dialog, 'open').mockReturnValue({ afterClosed: () => closed } as any);
+    let finish!: (value: any) => void;
+    const result = new Promise(resolve => { finish = resolve; });
+    const erase = vi.spyOn(detail.photoActions, 'deletePhotos').mockReturnValue(result as any);
+    const back = vi.spyOn(detail, 'goBack');
+    const original = makePhoto({ is_rejected: true, is_kept: false });
+    detail.photo.set(original); detail.deletePhoto();
+    await vi.waitFor(() => expect(detail.dialog.open).toHaveBeenCalled());
+    closed.next({ include_companions: false });
+    expect(erase).toHaveBeenCalled();
+    detail.photo.set(makePhoto({ path: '/newer-photo.jpg' }));
+    finish({ deleted: [original.path], removed_missing: [] });
+    await result; await view.whenStable();
+    expect(back).not.toHaveBeenCalled();
+    expect(detail.photo().path).toBe('/newer-photo.jpg');
+  });
+
   it('folds the secondary header actions into a More menu below md while the title keeps min-w-0', () => {
     const view = renderDetail();
     view.componentInstance.photo.set(makePhoto({}));

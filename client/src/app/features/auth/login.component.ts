@@ -34,12 +34,12 @@ import { I18N, i18nKeys } from '../../core/i18n/keys';
         </mat-card-header>
         <mat-card-content class="mt-4">
           @if (auth.isMultiUser()) {
-            <mat-form-field class="w-full">
+            <mat-form-field appearance="outline" class="w-full">
               <mat-label>{{ I18N.auth.username | translate }}</mat-label>
               <input matInput [(ngModel)]="username" (keyup.enter)="login()" />
             </mat-form-field>
           }
-          <mat-form-field class="w-full">
+          <mat-form-field appearance="outline" class="w-full">
             <mat-label>{{ I18N.auth.password | translate }}</mat-label>
             <input matInput type="password" [(ngModel)]="password" (keyup.enter)="login()" />
           </mat-form-field>

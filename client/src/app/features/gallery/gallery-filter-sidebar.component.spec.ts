@@ -1,3 +1,4 @@
+import { ADDITIONAL_FILTERS } from './gallery-metric-filters';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { signal } from '@angular/core';
 import { provideRouter } from '@angular/router';
@@ -10,7 +11,7 @@ import { By } from '@angular/platform-browser';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { GalleryStore } from './gallery.store';
 import {
-  ADDITIONAL_FILTERS, ADVANCED_SECTION_ORDER, BROWSE_PANELS, GalleryFilterSidebarComponent, SECTION_ORDER, SidebarTabId, TAB_ICONS, TAB_IDS,
+  ADVANCED_SECTION_ORDER, BROWSE_PANELS, GalleryFilterSidebarComponent, SECTION_ORDER, SidebarTabId, TAB_ICONS, TAB_IDS,
   SEGMENT_PATCHES, TAB_SECTIONS, UNIT_PANEL, loadActiveTab,
 } from './gallery-filter-sidebar.component';
 import { DEFAULT_FILTERS, GalleryFilters, activeFilterUnits, countActiveFilters } from './gallery-filters.util';

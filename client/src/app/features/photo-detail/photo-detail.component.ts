@@ -127,15 +127,15 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
           </button>
         }
 
-        @if (auth.isEdition()) {
-          <button mat-icon-button (click)="removeFromCatalog()"
+        @if (auth.isEdition() && p.is_rejected && !p.is_kept) {
+          <button mat-icon-button class="!text-[var(--mat-sys-error)]" (click)="removeFromCatalog()"
             [matTooltip]="I18N.photo_detail.remove_catalog.action | translate" [attr.aria-label]="I18N.photo_detail.remove_catalog.action | translate">
             <mat-icon>hide_image</mat-icon>
           </button>
         }
 
-        @if (auth.isEdition() && store.config()?.cull?.trash_available) {
-          <button mat-icon-button class="max-md:!hidden" (click)="deletePhoto()"
+        @if (auth.isEdition() && p.is_rejected && !p.is_kept && store.config()?.cull?.trash_available) {
+          <button mat-icon-button class="max-md:!hidden !text-[var(--mat-sys-error)]" (click)="deletePhoto()"
             [matTooltip]="I18N.photo_detail.delete.button_label | translate" [attr.aria-label]="I18N.photo_detail.delete.button_label | translate">
             <mat-icon>delete</mat-icon>
           </button>
@@ -243,8 +243,8 @@ const SOCIAL_SOURCE_KEYS: Record<string, string> = {
             @if (store.config()?.features?.show_similar_button) {
               <button mat-menu-item [matMenuTriggerFor]="similarMenu"><mat-icon>image_search</mat-icon> {{ I18N.similar.find_similar | translate }}</button>
             }
-            @if (auth.isEdition() && store.config()?.cull?.trash_available) {
-              <button mat-menu-item (click)="deletePhoto()"><mat-icon>delete</mat-icon> {{ I18N.photo_detail.delete.button_label | translate }}</button>
+            @if (auth.isEdition() && p.is_rejected && !p.is_kept && store.config()?.cull?.trash_available) {
+              <button mat-menu-item class="!text-[var(--mat-sys-error)]" (click)="deletePhoto()"><mat-icon>delete</mat-icon> {{ I18N.photo_detail.delete.button_label | translate }}</button>
             }
             @if (auth.isEdition()) {
               <button mat-menu-item [matMenuTriggerFor]="categoryOverrideMenu"><mat-icon>category</mat-icon> {{ I18N.photo.category_override.menu_tooltip | translate }}</button>
@@ -1386,19 +1386,24 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
    */
   protected async removeFromCatalog(): Promise<void> {
     const photo = this.photo();
-    if (!photo) return;
-    const removed = await this.photoActions.removeFromCatalog([photo.path]);
-    if (this.photo()?.path === photo.path && removed.includes(photo.path)) this.goBack();
+    if (!photo?.is_rejected || photo.is_kept) return;
+    const current = () => !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity()
+      && this.photo()?.path === photo.path && !!this.photo()?.is_rejected && !this.photo()?.is_kept;
+    const removed = await this.photoActions.removeFromCatalog([photo.path], current);
+    if (!this.destroyRef.destroyed && this.viewerOwner === this.auth.identity() && this.photo()?.path === photo.path && removed.includes(photo.path)) this.goBack();
   }
 
   protected deletePhoto(): void {
     const p = this.photo();
-    if (!p) return;
+    if (!p?.is_rejected || p.is_kept) return;
     const set = this.photoSet();
     const hasSiblings = !!set?.kind && SEQUENCE_KINDS_KEPT_WHOLE.includes(set.kind) && set.count > 1;
     const hasBracketLead = set?.kind === 'bracket'
       && (set.members.find(m => m.path === p.path)?.is_lead ?? false);
+    const current = () => !this.destroyRef.destroyed && this.viewerOwner === this.auth.identity()
+      && this.photo()?.path === p.path && !!this.photo()?.is_rejected && !this.photo()?.is_kept;
     import('../../shared/components/photo-delete-dialog/photo-delete-dialog.component').then(m => {
+      if (!current()) return;
       const ref = this.dialog.open(m.PhotoDeleteDialogComponent, {
         width: '95vw',
         maxWidth: '28rem',
@@ -1412,7 +1417,7 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         },
       });
       ref.afterClosed().subscribe(async result => {
-        if (!result) return;
+        if (!result || !current()) return;
         const res = await this.photoActions.deletePhotos([p.path], result);
         if (!res) return;
         // `removed_missing` counts as deleted for this surface: the row is
@@ -1420,9 +1425,11 @@ export class PhotoDetailComponent extends PhotoDetailBase implements OnInit {
         const gone = res.deleted.includes(p.path) || res.removed_missing.includes(p.path);
         if (gone) {
           this.store.removePhotos([p.path]);
+          if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.photo()?.path !== p.path) return;
           this.snackBar.open(this.i18n.t(I18N.photo_detail.delete.success), '', { duration: 2000 });
           this.goBack();
         } else {
+          if (this.destroyRef.destroyed || this.viewerOwner !== this.auth.identity() || this.photo()?.path !== p.path) return;
           this.snackBar.open(this.i18n.t(I18N.photo_detail.delete.error), '', { duration: 3000 });
         }
       });
