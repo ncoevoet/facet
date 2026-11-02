@@ -77,6 +77,55 @@ def test_confirmed_job_writes_exact_outputs_and_replay_returns_same_receipt(edit
     assert retry.status_code == 409 and 'fresh' in retry.text
 
 
+@pytest.mark.parametrize('rotation', [None, 'actor', 'password', 'edition_password', 'secret'])
+def test_execution_reuses_credential_derivations_but_stops_on_rotation(
+        edition_client, library, monkeypatch, rotation):
+    from api import export_execution, export_preview
+    paths, target = library
+    users = config._FULL_CONFIG.get('users', {})
+    monkeypatch.setitem(config._FULL_CONFIG, 'users', {
+        **users, 'test': {**users.get('test', {}), 'password': 'actor fixture',
+                          'directories': [str(paths[0].parent)]}})
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'password', 'viewer fixture')
+    monkeypatch.setitem(config.VIEWER_CONFIG, 'edition_password', 'edition fixture')
+    body = {'paths': list(map(str, paths)), 'mode': 'copy', 'target_dir': str(target)}
+    apply, _ = confirmed_body(edition_client, body)
+    derive = export_preview.hashlib.pbkdf2_hmac
+    derivations = []
+
+    def counted_derivation(*args, **kwargs):
+        derivations.append(1)
+        return derive(*args, **kwargs)
+
+    monkeypatch.setattr(export_preview.hashlib, 'pbkdf2_hmac', counted_derivation)
+    deliver = export_execution._deliver
+
+    def deliver_and_rotate(item, operation):
+        deliver(item, operation)
+        if rotation == 'actor':
+            monkeypatch.setitem(config._FULL_CONFIG['users']['test'], 'password', 'changed actor')
+        elif rotation == 'secret':
+            monkeypatch.setattr(config, 'JWT_SECRET', 'changed signing secret')
+        elif rotation:
+            monkeypatch.setitem(config.VIEWER_CONFIG, rotation, 'changed viewer credential')
+
+    monkeypatch.setattr(export_execution, '_deliver', deliver_and_rotate)
+    response = edition_client.post('/api/export/apply', json=apply)
+    assert response.status_code == 202, response.text
+    result = done(response.json())
+    assert (target / paths[0].name).read_bytes() == paths[0].read_bytes()
+    if rotation:
+        assert result['state'] == 'failed' and result['first_error_code'] == 'preview_changed'
+        assert result['written'] == 1
+        assert not (target / paths[1].name).exists()
+    else:
+        assert result['state'] == 'completed' and result['written'] == 2
+        assert (target / paths[1].name).read_bytes() == paths[1].read_bytes()
+        # Two preflight policy reads plus one derivation per distinct credential
+        # during execution, independent of the number of files copied.
+        assert len(derivations) == 9
+
+
 def test_change_before_admission_refuses_entire_scope_before_any_target_write(edition_client, library):
     paths, target = library
     apply, _ = confirmed_body(edition_client, {'paths': list(map(str, paths))})

@@ -1,5 +1,6 @@
 """Confirmed export execution on the existing owned receipt/library-lock engine."""
 
+from functools import lru_cache
 import hmac
 import logging
 import os
@@ -10,7 +11,7 @@ from fastapi import HTTPException
 from api import config, sidecar_jobs
 from api.database import get_db
 from api.export_preview import (
-    _companions, _digest, _identity, _json, _packet_ownership, _policy, confirm_export_snapshot,
+    _companions, _credential_generation, _digest, _identity, _json, _packet_ownership, _policy, confirm_export_snapshot,
     export_metadata, verify_export_preview,
 )
 from api.models.export_preview import ExportPreviewRequest
@@ -96,6 +97,9 @@ class _Execution:
         self.snapshot = None
         self.units = []
         self.target_directory = None
+        # Bound to this job: still read current credentials and signing secret
+        # before every file, but derive unchanged generations only once.
+        self._credential_generation = lru_cache(maxsize=3)(_credential_generation)
 
     def preflight(self):
         try:
@@ -118,7 +122,7 @@ class _Execution:
     def _check(self, conn, item):
         from api.db_helpers import get_visibility_clause
         from api.routers.export import _validate_target_dir
-        if _json(_policy(self.owner)) != _json(self.snapshot['policy']):
+        if _json(_policy(self.owner, credential_generation=self._credential_generation)) != _json(self.snapshot['policy']):
             _changed()
         visibility, params = get_visibility_clause(self.owner)
         path = item['photo_path']

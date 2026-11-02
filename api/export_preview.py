@@ -44,14 +44,15 @@ def _digest(value):
     return _signature(_json(value))
 
 
-def _credential_generation(value):
+def _credential_generation(value, secret):
     """Bind plans to credential changes without fast-hashing credential data."""
-    secret = config.JWT_SECRET.encode() if isinstance(config.JWT_SECRET, str) else config.JWT_SECRET
     return hashlib.pbkdf2_hmac('sha256', str(value or '').encode('utf-8'),
                                _DOMAIN + secret, 100_000).hex()
 
 
-def _policy(user_id):
+def _policy(user_id, *, credential_generation=None):
+    credential_generation = credential_generation or _credential_generation
+    secret = config.JWT_SECRET.encode() if isinstance(config.JWT_SECRET, str) else config.JWT_SECRET
     actor = (config._FULL_CONFIG.get('users', {}).get(user_id) or {}) if user_id else {}
     return {'multi_user': config.is_multi_user_enabled(),
             'user_directories': config.get_user_directories(user_id) if user_id else [],
@@ -60,9 +61,9 @@ def _policy(user_id):
             'export': config.VIEWER_CONFIG.get('export', {}),
             'xmp': config.get_xmp_export_config(),
             'actor_role': actor.get('role'),
-            'actor_generation': _credential_generation(actor.get('password')),
-            'viewer_generation': _credential_generation(config.VIEWER_CONFIG.get('password')),
-            'edition_generation': _credential_generation(config.VIEWER_CONFIG.get('edition_password')),
+            'actor_generation': credential_generation(actor.get('password'), secret),
+            'viewer_generation': credential_generation(config.VIEWER_CONFIG.get('password'), secret),
+            'edition_generation': credential_generation(config.VIEWER_CONFIG.get('edition_password'), secret),
             'trusted_local_editing': config.VIEWER_CONFIG.get('trusted_local_editing', False)}
 
 
